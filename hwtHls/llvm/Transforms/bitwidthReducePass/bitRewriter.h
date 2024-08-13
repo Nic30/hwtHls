@@ -8,7 +8,7 @@
 namespace hwtHls {
 
 /**
- * A class which cuts of the reduced bits from the code according to InstructionToVarBitConstraintMap specification.
+ * A class which cuts of the reduced bits from the code according to BitPartsConstraints specification.
  *
  * All bits which do have known value on output of the instruction are pruned from the instruction.
  * This means that the type of instruction may have decreased bitwidth. This process is done recursively.
@@ -25,17 +25,22 @@ namespace hwtHls {
  * :ivar replacementCache: a dictionary mapping original value to its new replacement
  * */
 class BitPartsRewriter {
-	ConstBitPartsAnalysisContext::InstructionToVarBitConstraintMap &constraints;
+protected:
+	ConstBitPartsAnalysisContext::BitPartsConstraints &constraints;
 	std::map<llvm::Instruction*, llvm::Value*> replacementCache;
 
 	llvm::Value* rewriteKnownBitRangeInfo(llvm::IRBuilder<> *Builder,
 			const KnownBitRangeInfo &kbri);
 	llvm::Value* rewriteKnownBitRangeInfoVector(llvm::IRBuilder<> *Builder,
 			const std::vector<KnownBitRangeInfo> &kbris);
-	void rewriteInstructionOperands(llvm::Instruction *I);
+	llvm::Instruction* rewriteInstructionOperands(llvm::Instruction *I);
+
 	// this functions generates a value of original width with all reduced constant ranges filled in
 	// e.g if concat(i8 0, x) was reduced to just x it expands it back to concat(i8 0, x)
 	// this is called for operands of instructions which were not modified or replaced to update their value
+	// :param origVal: value which which was originally reduced, it may be the same concat as the one constructed
+	//   by this function, if this is the case remove just constructed value and return origVal
+	//   to prevent code replication
 	llvm::Value* expandConstBits(llvm::IRBuilder<> *b, llvm::Value *origVal,
 			llvm::Value *reducedVal, const VarBitConstraint &vbc);
 
@@ -48,16 +53,27 @@ class BitPartsRewriter {
 	llvm::Value* rewriteBinaryOperatorBitwise(llvm::BinaryOperator &I,
 			const VarBitConstraint &vbc);
 	llvm::Value* rewriteCmpInst(llvm::CmpInst &I, const VarBitConstraint &vbc);
-
+	std::function<bool(llvm::Instruction&)> mayModifyExistingInstr;
 public:
-	BitPartsRewriter(
-			ConstBitPartsAnalysisContext::InstructionToVarBitConstraintMap &constraints);
+	/*
+	 * :param mayModifyExistingInstr: if true the algorithm updates operands of existing instructions
+	 * 	else new instruction is generated if operands are resolved to be changed
+	 * */
+
+	BitPartsRewriter(BitPartsConstraints &constraints,
+			std::function<bool(llvm::Instruction&)> mayModifyExistingInstr = [](
+					llvm::Instruction&) {
+				return true;
+			});
 	// add for potential rewrite
 	llvm::Value* rewriteIfRequired(llvm::Value *V);
+	llvm::Value* rewriteIfRequiredAndExpand(llvm::Value *V);
 	llvm::Value* rewritePHINodeArgsIfRequired(llvm::PHINode *PHI);
+	void addReplacement(llvm::Value *I, llvm::Value *replacement);
+
 };
 
 // :param vbc: the slice containers from where to iterate bits, low to high
-std::vector<KnownBitRangeInfo> iterUsedBitRanges(
-		const llvm::APInt &useMask, const VarBitConstraint &vbc);
+std::vector<KnownBitRangeInfo> iterUsedBitRanges(const llvm::APInt &useMask,
+		const VarBitConstraint &vbc);
 }

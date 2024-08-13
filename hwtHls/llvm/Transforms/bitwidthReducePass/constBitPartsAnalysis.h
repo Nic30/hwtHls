@@ -2,14 +2,69 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/utils.h>
 #include <map>
 #include <set>
+#include <memory>
 #include <llvm/IR/Instructions.h>
 
 namespace hwtHls {
 
+class BitPartsConstraints {
+	template<typename T_INSTR, typename T_VarBitConstraint_CONSTR_ARG>
+	VarBitConstraint& _initConstraintMember(T_INSTR I, T_VarBitConstraint_CONSTR_ARG VarBitConstraint_constr_arg) {
+		auto _C = std::make_unique<VarBitConstraint>(VarBitConstraint_constr_arg);
+		VarBitConstraint &cur = *_C;
+		constraints[I] = std::move(_C);
+		return cur;
+	}
+public:
+	BitPartsConstraints *parent;
+	std::map<const llvm::Value*, std::unique_ptr<VarBitConstraint>> constraints;
+	// delete copy constructor and = operator to prevent unintentional copy of "constraints" which contains unique pointers
+	BitPartsConstraints (const BitPartsConstraints&) = delete;
+	BitPartsConstraints& operator= (const BitPartsConstraints&) = delete;
+
+	BitPartsConstraints(BitPartsConstraints *parent) :
+			parent(parent) {
+	}
+
+	VarBitConstraint* findInConstraints(const llvm::Value *V);
+
+	template<typename T>
+	VarBitConstraint& initConstraintMember(T I) {
+		auto _C = std::make_unique<VarBitConstraint>(I);
+		VarBitConstraint &cur = *_C;
+		constraints[I] = std::move(_C);
+		return cur;
+	}
+	template<typename T>
+	VarBitConstraint& initConstraintMember(T I, unsigned bitwidth) {
+		return _initConstraintMember(I, bitwidth);
+	}
+	template<typename T>
+	VarBitConstraint& initConstraintMember(T I, const llvm::ConstantInt* CI) {
+		return _initConstraintMember(I, CI);
+	}
+	template<typename T>
+	VarBitConstraint& initConstraintMember(T I, const llvm::Value* V) {
+		return _initConstraintMember(I, V);
+	}
+	template<typename T>
+	VarBitConstraint& initConstraintMember(T I, const VarBitConstraint& vbc) {
+		return _initConstraintMember(I, vbc);
+	}
+
+
+	// get actual known value of a bit
+	std::optional<bool> getKnownBitBoolValue(const llvm::Value *V);
+	// :returns: the value which was previously set
+	std::unique_ptr<VarBitConstraint> setKnownBitBoolValue(const llvm::Value *V,
+			bool newV);
+	virtual ~BitPartsConstraints(){}
+};
+
 /**
  * Visit all instructions and collect informations for constant propagation.
  */
-class ConstBitPartsAnalysisContext {
+class ConstBitPartsAnalysisContext: public BitPartsConstraints {
 protected:
 	/*
 	 * :param newParts: vector for newly generated value parts which is the result of this function
@@ -37,7 +92,7 @@ protected:
 			const llvm::Value *V);
 	VarBitConstraint& visitInstruction(const llvm::Instruction *I);
 	VarBitConstraint& visitConstantInt(const llvm::ConstantInt *CI);
-	VarBitConstraint& visitSelectInst(const llvm::SelectInst *I);
+	virtual VarBitConstraint& visitSelectInst(const llvm::SelectInst *I);
 	VarBitConstraint& visitBinaryOperator(const llvm::BinaryOperator *BO);
 	VarBitConstraint& visitCmpInst(const llvm::CmpInst *I);
 	VarBitConstraint& visitCallInst(const llvm::CallInst *V);
@@ -50,19 +105,19 @@ protected:
 	// incoming values are used to resolve value for this PHI
 	bool resolvePhiValues;
 public:
-	using InstructionToVarBitConstraintMap = std::map<const llvm::Value*, std::unique_ptr<VarBitConstraint>>;
-	InstructionToVarBitConstraintMap constraints;
 
 	// if analysisHandle is specified and it returns the false the analysis ends there
 	// and the value is used as is
-	ConstBitPartsAnalysisContext(
-			std::optional<std::function<bool(const llvm::Instruction&)>> analysisHandle={});
+	ConstBitPartsAnalysisContext(ConstBitPartsAnalysisContext *parent = nullptr,
+			std::optional<std::function<bool(const llvm::Instruction&)>> analysisHandle =
+					{ });
 
 	void setShouldResolvePhiValues();
 	VarBitConstraint& visitValue(const llvm::Value *V);
 	// update constant bit info for instruction from dependencies, return true if changed
 	bool updateInstruction(const llvm::Instruction *I);
 
+	std::unique_ptr<ConstBitPartsAnalysisContext> createChild();
 };
 
 }

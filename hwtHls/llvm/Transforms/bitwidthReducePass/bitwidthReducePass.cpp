@@ -95,7 +95,7 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI) {
 		}
 	}
 	// use the knowledge about bits constant values to resolve truly used bits (use -> def)
-	BitPartsUseAnalysisContext AU(A.constraints);
+	BitPartsUseAnalysisContext AU(A);
 	for (BasicBlock &BB : F) {
 		for (Instruction &I : BB) {
 			if (isa<StoreInst>(&I)
@@ -117,7 +117,7 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI) {
 	// F.dump();
 	// writeCFGToDotFile(F, "before.BitwidthReducePass.dot", nullptr, nullptr);
 	bool didModify = false;
-	BitPartsRewriter rew(A.constraints);
+	BitPartsRewriter rew(A);
 	for (BasicBlock &BB : F) {
 		for (Instruction &I : BB) {
 			rew.rewriteIfRequired(&I);

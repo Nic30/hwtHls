@@ -76,6 +76,11 @@ bool DceWorklist::runToCompletition(llvm::BasicBlock::iterator &curIt) {
 	}
 	return MadeChange;
 }
+bool DceWorklist::runToCompletition() {
+	BasicBlock::iterator it;
+	return runToCompletition(it);
+}
+
 void DceWorklist::erraseFromSlices(OffsetWidthValue sliceItem, Instruction & I) {
 	auto _slicesList = slices->find( { sliceItem.value, sliceItem.offset });
 	if (_slicesList != slices->end()) {

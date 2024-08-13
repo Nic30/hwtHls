@@ -11,14 +11,14 @@ namespace hwtHls {
 class BitPartsUseAnalysisContext {
 public:
 
-	ConstBitPartsAnalysisContext::InstructionToVarBitConstraintMap &constraints;
-	BitPartsUseAnalysisContext(
-			ConstBitPartsAnalysisContext::InstructionToVarBitConstraintMap &constraints);
-	// walk from user->def and propagate bits in useMask
+	BitPartsConstraints &constraints;
+	BitPartsUseAnalysisContext(BitPartsConstraints &constraints);
+	// walk from user->def and propagate bits in VarBitConstraint.useMask
 
 	// case where we do not have VarBitConstraint, all bits are thus used
 	void updateUseMaskEntirelyUsed(const llvm::Value *V);
 	void updateUseMaskEntirelyUsed(const llvm::Instruction *I);
+	void updateUseMaskEntirelyUsedOperand(const llvm::Value *V);
 	// case where we do have VarBitConstraint and we use it
 	void updateUseMask(const llvm::Value *V, const llvm::APInt &newMask);
 	void updateUseMask(const llvm::Value *V, VarBitConstraint &vbc,
@@ -35,6 +35,8 @@ public:
 			const VarBitConstraint &vbc);
 	void propagateUseMaskExt(const llvm::CastInst *I,
 			const VarBitConstraint &vbc);
+
+	std::optional<bool> getKnownBitBoolValue(const llvm::Value *V);
 };
 
 }

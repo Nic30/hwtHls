@@ -91,6 +91,7 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
 #include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
 #include <hwtHls/llvm/Transforms/extractBitConcatAndSliceOpsPass.h>
+#include <hwtHls/llvm/Transforms/SelectPruningPass.h>
 #include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
 #include <hwtHls/llvm/Transforms/slicesMerge/slicesMerge.h>
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass.h>
@@ -473,6 +474,7 @@ void LlvmCompilationBundle::_addInstrCombinePasses(llvm::FunctionPassManager &FP
 	FPM.addPass(llvm::InstCombinePass()); // hwtHls specific
 	FPM.addPass(llvm::AggressiveInstCombinePass()); // hwtHls specific
 	FPM.addPass(hwtHls::BitwidthReductionPass());
+	FPM.addPass(hwtHls::SelectPruningPass());
 	FPM.addPass(llvm::InstCombinePass()); // hwtHls specific
 }
 

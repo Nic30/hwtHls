@@ -25,6 +25,7 @@
 #include <hwtHls/llvm/Transforms/LoopFlattenUsingIfPass.h>
 #include <hwtHls/llvm/Transforms/LoopUnrotatePass.h>
 #include <hwtHls/llvm/Transforms/PruneLoopPhiDeadIncomingValuesPass/PruneLoopPhiDeadIncomingValuesPass.h>
+#include <hwtHls/llvm/Transforms/SelectPruningPass.h>
 #include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass.h>
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
@@ -248,6 +249,12 @@ llvm::Function& LlvmCompilationBundle::_testPruneLoopPhiDeadIncomingValuesPass()
 		FPM.addPass(hwtHls::PruneLoopPhiDeadIncomingValuesPass());
 	});
 }
+llvm::Function& LlvmCompilationBundle::_testSelectPruningPass() {
+	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
+		FPM.addPass(hwtHls::SelectPruningPass());
+	});
+}
+
 
 /////////////////////////////////////////////////////////////// MIR tests ///////////////////////////////////////////////////////////////
 void LlvmCompilationBundle::_testEarlyIfConverter() {

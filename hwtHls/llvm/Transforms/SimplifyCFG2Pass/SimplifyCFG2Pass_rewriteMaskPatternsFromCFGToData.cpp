@@ -127,7 +127,7 @@ bool SimplifyCFG2Pass_rewriteMaskPatternsFromCFGToData(
 		return false;
 	};
 
-	ConstBitPartsAnalysisContext CBA(CBAHandle);
+	ConstBitPartsAnalysisContext CBA(nullptr, CBAHandle);
 	bool Changed = false;
 	for (PHINode &Phi : BBBottom.phis()) {
 		CBA.visitValue(&Phi);

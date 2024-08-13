@@ -23,7 +23,8 @@ public:
 	// :note: It does not construct slices of values, srcBeginBitI and width is used in that case,
 	//        constants are sliced immediately
 	KnownBitRangeInfo slice(unsigned offset, unsigned width) const;
-
+	// :returns: true if this record specifies exactly value V
+	bool isValue(const llvm::Value *V) const;
 	void print(llvm::raw_ostream &O, bool IsForDebug = false) const;
 	bool operator!=(const KnownBitRangeInfo &rhs) const;
 	bool operator==(const KnownBitRangeInfo &rhs) const;
@@ -54,7 +55,6 @@ public:
 	std::vector<UniqRangeSequence> uniqueRanges(
 			const std::vector<KnownBitRangeInfo> &vec0,
 			const std::vector<KnownBitRangeInfo> &vec1);
-
 };
 
 class VarBitConstraint {
@@ -76,6 +76,7 @@ public:
 	VarBitConstraint(const VarBitConstraint &obj);
 
 	void addAllSetOperandMask(unsigned width);
+	void clearAllOperandMasks();
 	void clearAllOperandMasks(unsigned lowBitI, unsigned highBitI);
 	// get mask for bits which are truly computed by this instruction
 	// (are not known to be constant or some specific other value)
@@ -103,6 +104,11 @@ public:
 			std::vector<KnownBitRangeInfo> &newList, KnownBitRangeInfo item,
 			size_t srcOffset, size_t srcWidth);
 	VarBitConstraint slice(unsigned offset, unsigned width) const;
+	// replace value in every member of replacements vector
+	void substituteValue(const llvm::Value *oldV, llvm::Value *newV);
+	// :returns: true if this record equals exactly to just value V
+	bool isValue(const llvm::Value *V) const;
+
 	bool consystencyCheck() const;
 	void print(llvm::raw_ostream &O, bool IsForDebug = false) const;
 };

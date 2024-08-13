@@ -53,6 +53,10 @@ KnownBitRangeInfo KnownBitRangeInfo::slice(unsigned offset,
 	return res;
 }
 
+bool KnownBitRangeInfo::isValue(const llvm::Value *V) const {
+	return *this == KnownBitRangeInfo(V);
+}
+
 void KnownBitRangeInfo::print(raw_ostream &O, bool IsForDebug) const {
 	O << "[" << (dstBeginBitI + width) << ":" << dstBeginBitI << "]=(";
 	if (dyn_cast<ConstantInt>(src)) {
@@ -207,7 +211,11 @@ VarBitConstraint::VarBitConstraint(const VarBitConstraint &obj) :
 void VarBitConstraint::addAllSetOperandMask(unsigned width) {
 	operandUseMask.push_back(APInt::getAllOnes(width));
 }
-
+void VarBitConstraint::clearAllOperandMasks() {
+	for (auto &om : operandUseMask) {
+		om.clearAllBits();
+	}
+}
 void VarBitConstraint::clearAllOperandMasks(unsigned lowBitI,
 		unsigned highBitI) {
 	APInt m = ~APInt::getBitsSet(operandUseMask[0].getBitWidth(), lowBitI,
@@ -226,8 +234,6 @@ llvm::APInt VarBitConstraint::getTrullyComputedBitMask(
 				selfIsCastOrSliceOrConcat = true;
 			}
 		}
-	} else {
-		selfIsCastOrSliceOrConcat = isa<CastInst>(selfValue);
 	}
 	APInt m(useMask.getBitWidth(), 0);
 	for (const KnownBitRangeInfo &r : replacements) {
@@ -464,6 +470,21 @@ VarBitConstraint VarBitConstraint::slice(unsigned offset,
 	}
 	assert(res.consystencyCheck());
 	return res;
+}
+
+void VarBitConstraint::substituteValue(const llvm::Value *oldV, llvm::Value *newV) {
+	assert(newV->getType() == oldV->getType());
+	for (auto &r : replacements) {
+		if (r.src == oldV) {
+			r.src = newV;
+		}
+	}
+}
+
+bool VarBitConstraint::isValue(const llvm::Value *V) const {
+	if (replacements.size() != 1)
+		return false;
+	return replacements[0].isValue(V);
 }
 
 bool VarBitConstraint::consystencyCheck() const {

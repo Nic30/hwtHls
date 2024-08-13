@@ -91,6 +91,7 @@ public:
 	llvm::Function& _testLoopFlattenUsingIfPass();
 	llvm::Function& _testRewriteExtractOnMergeValues();
 	llvm::Function& _testPruneLoopPhiDeadIncomingValuesPass();
+	llvm::Function& _testSelectPruningPass();
 	llvm::Function& _runCustomFunctionPass(
 			std::function<void(llvm::FunctionPassManager&)> addPasses);
 	void _testMachineFunctionPass(

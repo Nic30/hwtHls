@@ -7,53 +7,94 @@ using namespace llvm;
 namespace hwtHls {
 
 BitPartsUseAnalysisContext::BitPartsUseAnalysisContext(
-		ConstBitPartsAnalysisContext::InstructionToVarBitConstraintMap &_constraints) :
+		BitPartsConstraints &_constraints) :
 		constraints(_constraints) {
 }
 
 void BitPartsUseAnalysisContext::updateUseMaskEntirelyUsed(
 		const llvm::Value *V) {
 	if (auto I = dyn_cast<Instruction>(V)) {
-		auto cur = constraints.find(I);
-		if (cur != constraints.end()) {
+		if (constraints.findInConstraints(I)) {
 			updateUseMaskEntirelyUsed(I);
+		}
+	}
+}
+
+std::optional<bool> BitPartsUseAnalysisContext::getKnownBitBoolValue(
+		const llvm::Value *V) {
+	assert(V->getType()->getIntegerBitWidth() == 1);
+	if (auto *VC = dyn_cast<ConstantInt>(V)) {
+		if (VC->getZExtValue()) {
+			return true;
+		} else {
+			return false;
+		}
+	} else {
+		auto cur = constraints.findInConstraints(V);
+		if (!cur)
+			return {};
+		VarBitConstraint& kb = *cur;
+		auto &replacement = kb.replacements[0];
+		if (auto replacementV = dyn_cast<ConstantInt>(replacement.src)) {
+			assert(replacement.srcBeginBitI == 0);
+			assert(replacement.width == 1);
+			return replacementV->getZExtValue();
+		}
+		return {};
+	}
+}
+
+
+void BitPartsUseAnalysisContext::updateUseMaskEntirelyUsedOperand(
+		const llvm::Value *op) {
+	if (auto I2 = dyn_cast<Instruction>(op)) {
+		if (auto cur = constraints.findInConstraints(I2)) {
+			APInt useAll = APInt::getAllOnes(
+					cur->useMask.getBitWidth());
+			updateUseMask(I2, *cur, useAll);
+		} else {
+			updateUseMaskEntirelyUsed(op);
 		}
 	}
 }
 
 void BitPartsUseAnalysisContext::updateUseMaskEntirelyUsed(
 		const llvm::Instruction *I) {
-	auto cur = constraints.find(I);
-	if (cur != constraints.end()) {
+	if (auto cur = constraints.findInConstraints(I)) {
 		// the use mask should be already propagated
 		// or will be propagated once the use is found
-		APInt tcm = cur->second->getTrullyComputedBitMask(I);
-		if (cur->second->useMask == (tcm | cur->second->useMask))
-			return;
+		APInt tcm = cur->getTrullyComputedBitMask(I);
+		if (cur->useMask == (tcm | cur->useMask))
+			return; // no change
 		else {
-			cur->second->useMask |= tcm;
+			cur->useMask |= tcm;
+		}
+	}
+
+	if (auto SI = dyn_cast<SelectInst>(I)) {
+		// case for Select where it is possible to ignore T/F branch
+		auto C = getKnownBitBoolValue(SI->getCondition());
+		if (C.has_value()) {
+			const Value *V;
+			if (C.value()) {
+				V = SI->getTrueValue();
+			} else {
+				V = SI->getFalseValue();
+			}
+			updateUseMaskEntirelyUsedOperand(V);
+			return;
 		}
 	}
 	for (const Value *op : I->operand_values()) {
-		if (auto I2 = dyn_cast<Instruction>(op)) {
-			auto cur = constraints.find(I2);
-			if (cur != constraints.end()) {
-				APInt useAll = APInt::getAllOnes(
-						cur->second.get()->useMask.getBitWidth());
-				updateUseMask(I2, *cur->second, useAll);
-			} else {
-				updateUseMaskEntirelyUsed(op);
-			}
-		}
+		updateUseMaskEntirelyUsedOperand(op);
 	}
 }
 
 void BitPartsUseAnalysisContext::updateUseMask(const llvm::Value *V,
 		const APInt &newMask) {
 	if (auto I = dyn_cast<Instruction>(V)) {
-		auto cur = constraints.find(I);
-		if (cur != constraints.end()) {
-			updateUseMask(I, *cur->second, newMask);
+		if (auto cur = constraints.findInConstraints(I)) {
+			updateUseMask(I, *cur, newMask);
 		} else {
 			updateUseMaskEntirelyUsed(I);
 		}
@@ -83,7 +124,7 @@ void BitPartsUseAnalysisContext::updateUseMask(const llvm::Value *V,
 								std::max(newMask.getBitWidth(),
 										 r.src->getType()->getIntegerBitWidth())) // extend to size of src
 						.ashr(r.dstBeginBitI) // align so bit 0 is where replacement value starts in dst
-						.shl(r.srcBeginBitI) // aligin so the mask value is compatible with src
+						.shl(r.srcBeginBitI) // align so the mask value is compatible with src
 						.trunc(r.src->getType()->getIntegerBitWidth());
 				updateUseMask(r.src, replUseMask);
 			}
@@ -153,8 +194,8 @@ void BitPartsUseAnalysisContext::propagateUseMaskCallInst(const CallInst *C,
 		}
 		return;
 	} else if (IsBitRangeGet(C)) {
-		VarBitConstraint &base = *constraints[C->getArgOperand(0)];
-		VarBitConstraint &sh = *constraints[C->getArgOperand(1)];
+		VarBitConstraint &base = *constraints.findInConstraints(C->getArgOperand(0));
+		VarBitConstraint &sh = *constraints.findInConstraints(C->getArgOperand(1));
 		if (sh.replacements.size() == 1
 				&& dyn_cast<ConstantInt>(sh.replacements[0].src)) {
 			if (const ConstantInt *shConst = dyn_cast<ConstantInt>(
@@ -196,10 +237,19 @@ void BitPartsUseAnalysisContext::propagateUseMaskPHINode(const PHINode *I,
 void BitPartsUseAnalysisContext::propageteUseMaskSelect(const SelectInst *I,
 		const VarBitConstraint &vbc) {
 	// distribute to all operands
-	updateUseMask(I->getOperand(0),
+	auto C = getKnownBitBoolValue(I->getCondition());
+	if (C.has_value()) {
+		if (C.value()) {
+			updateUseMask(I->getTrueValue(), vbc.useMask);
+		} else {
+			updateUseMask(I->getFalseValue(), vbc.useMask);
+		}
+		return;
+	}
+	updateUseMask(I->getCondition(),
 			vbc.useMask.isZero() ? APInt::getZero(1) : APInt::getAllOnes(1));
-	updateUseMask(I->getOperand(1), vbc.useMask);
-	updateUseMask(I->getOperand(2), vbc.useMask);
+	updateUseMask(I->getTrueValue(), vbc.useMask);
+	updateUseMask(I->getFalseValue(), vbc.useMask);
 }
 
 }
