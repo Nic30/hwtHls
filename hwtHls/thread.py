@@ -20,12 +20,17 @@ class HlsThread():
         self.toHw: Optional[HlsNetlistCtx] = None
         self.netlistCallbacks: List[Callable[["HlsScope", HlsThread]]] = []
         self.archNetlistCallbacks: List[Callable[["HlsScope", HlsThread]]] = []
-    
+
     def debugCopyConfig(self, p: DefaultHlsPlatform):
         """
         Copy debugging config from HlsPlatform object before any other work is performed.
         """
-        pass
+        namePrefix = self.hls.namePrefix
+        if len(self.hls._threads) > 1:
+            i = self.hls._threads.index(self)
+            namePrefix = f"{self.hls.namePrefix}t{i:d}_"
+        if self.toSsa is not None:
+            self.toSsa.namePrefix = namePrefix
 
     def getLabel(self) -> str:
         i = self.hls._threads.index(self)
