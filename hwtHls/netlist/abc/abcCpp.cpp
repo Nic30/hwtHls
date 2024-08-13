@@ -253,6 +253,30 @@ Abc_Obj_t * Abc_AigNe( Abc_Aig_t * pMan, Abc_Obj_t * p0, Abc_Obj_t * p1 )
                             Abc_AigAnd(pMan, Abc_ObjNot(p0), p1) );
 }
 
+Abc_Obj_t * Abc_AigAndOptional(Abc_Aig_t * pMan, Abc_Obj_t * a, Abc_Obj_t * b) {
+    if (!a) {
+        if (!b)
+            return nullptr;
+        return b;
+    }
+    if (!b)
+        return a;
+
+    return Abc_AigAnd(pMan, a, b);
+}
+
+Abc_Obj_t * Abc_AigOrOptional(Abc_Aig_t * pMan, Abc_Obj_t * a, Abc_Obj_t * b) {
+    if (!a) {
+        if (!b)
+            return nullptr;
+        return b;
+    }
+    if (!b)
+        return a;
+
+    return Abc_AigOr(pMan, a, b);
+}
+
 void register_Abc_Ntk_t(py::module_ &m) {
 	py::class_<Abc_Ntk_t, std::unique_ptr<Abc_Ntk_t, py::nodelete>>(m, "Abc_Ntk_t")
 	.def(py::init(&Abc_NtkAlloc))
@@ -369,15 +393,17 @@ void register_Abc_Ntk_t(py::module_ &m) {
 #define PYBIND11_ABC_ARG_NOT_NONE_MUX_OP py::arg("pC").none(false), py::arg("p1").none(false), py::arg("p0").none(false), py::return_value_policy::reference_internal
 
 	py::class_<Abc_Aig_t_pybind11_wrap, std::unique_ptr<Abc_Aig_t_pybind11_wrap, py::nodelete>>(m, "Abc_Aig_t")
-		.def("And", wrap_Abc_Aig_t(&Abc_AigAnd), PYBIND11_ABC_ARG_NOT_NONE_BIN_OP)
-		.def("Or", wrap_Abc_Aig_t(&Abc_AigOr), PYBIND11_ABC_ARG_NOT_NONE_BIN_OP)
-		.def("Xor", wrap_Abc_Aig_t(&Abc_AigXor), PYBIND11_ABC_ARG_NOT_NONE_BIN_OP)
-		.def("Mux", wrap_Abc_Aig_t(&Abc_AigMux), PYBIND11_ABC_ARG_NOT_NONE_MUX_OP)
-		.def("Eq", wrap_Abc_Aig_t(&Abc_AigEq), PYBIND11_ABC_ARG_NOT_NONE_BIN_OP)
-		.def("Ne", wrap_Abc_Aig_t(&Abc_AigNe), PYBIND11_ABC_ARG_NOT_NONE_BIN_OP)
+		.def("And", wrap_Abc_Aig_t(&Abc_AigAnd), PYBIND11_ABC_ARG_NOT_NONE_BIN_OP, "apply \"and\" operator on Abc_Obj_t")
+		.def("AndOptional", wrap_Abc_Aig_t(&Abc_AigAndOptional), py::return_value_policy::reference_internal, "apply \"and\" operator on Abc_Obj_t, operands may be null")
+		.def("Or", wrap_Abc_Aig_t(&Abc_AigOr), PYBIND11_ABC_ARG_NOT_NONE_BIN_OP, "apply \"or\" operator on Abc_Obj_t")
+		.def("OrOptional", wrap_Abc_Aig_t(&Abc_AigOrOptional), py::return_value_policy::reference_internal, "apply \"or\" operator on Abc_Obj_t, operands may be null")
+		.def("Xor", wrap_Abc_Aig_t(&Abc_AigXor), PYBIND11_ABC_ARG_NOT_NONE_BIN_OP, "apply \"xor\" operator on Abc_Obj_t")
+		.def("Mux", wrap_Abc_Aig_t(&Abc_AigMux), PYBIND11_ABC_ARG_NOT_NONE_MUX_OP, "apply mux/ternary operator on Abc_Obj_t")
+		.def("Eq", wrap_Abc_Aig_t(&Abc_AigEq), PYBIND11_ABC_ARG_NOT_NONE_BIN_OP, "apply \"==\" operator on Abc_Obj_t")
+		.def("Ne", wrap_Abc_Aig_t(&Abc_AigNe), PYBIND11_ABC_ARG_NOT_NONE_BIN_OP, "apply \"!=\" operator on Abc_Obj_t")
 		.def("Not", [](Abc_Aig_t_pybind11_wrap &self, Abc_Obj_t& v) {
 			return Abc_ObjNot(&v);
-		}, py::return_value_policy::reference_internal)
+		}, py::return_value_policy::reference_internal, "apply \"~\" operator on Abc_Obj_t")
 		.def("Miter", [](Abc_Aig_t_pybind11_wrap *self, const std::vector<Abc_Obj_t*> & memberPairs, bool fImplic) {
 			// based on Abc_NtkMiterFinalize
 			if (memberPairs.empty()) {
@@ -400,7 +426,7 @@ void register_Abc_Ntk_t(py::module_ &m) {
             // Abc_ObjAddFanin( Abc_NtkPo(pNtkMiter,0), pMiter );
 			return Abc_AigMiter( ((Abc_Aig_t *)self), vPairs.get(), fImplic);
 
-		}, py::return_value_policy::reference_internal)
+		}, py::return_value_policy::reference_internal, "apply \"miter\" operator on Abc_Obj_t")
 		.def("Cleanup", wrap_Abc_Aig_t(&Abc_AigCleanup));
 
 	py::enum_<Abc_NtkType_t>(m, "Abc_NtkType_t")
