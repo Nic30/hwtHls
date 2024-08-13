@@ -81,6 +81,19 @@ class HlsNetlistBuilder():
     def buildConstBit(self, v: int):
         return self.buildConst(BIT.from_py(v))
 
+    @staticmethod
+    def buildScheduledConst(parent: ArchElement, clkIndex: int, v: HConst):
+        netlist = parent.netlist
+        c0 = HlsNetNodeConst(netlist, v)
+        c0.resolveRealization()
+        c0._setScheduleZeroTimeSingleClock(clkIndex * netlist.normalizedClkPeriod)
+        parent._addNodeIntoScheduled(clkIndex, c0)
+        return c0._outputs[0]
+
+    @classmethod
+    def buildScheduledConstPy(cls, parent: ArchElement, clkIndex: int, dtype: HdlType, v):
+        return cls.buildScheduledConst(parent, clkIndex, dtype.from_py(v))
+
     def _tryToFindInCache(self, operator: HOperatorDef, operands: Tuple[Union[HlsNetNodeOut, HConst], ...]):
         key = (operator, operands)
         rm = self._removedNodes
