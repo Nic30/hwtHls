@@ -17,7 +17,7 @@ from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.translation.dumpNodesDot import HlsNetlistPassDumpNodesDot
+from hwtHls.netlist.translation.dumpNodesDot import HlsNetlistAnalysisPassDumpNodesDot
 from hwtHls.platform.fileUtils import outputFileGetter
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
@@ -91,7 +91,7 @@ class HlsNetlistSyncIsland1HwModule(HlsNetlistSyncIsland0HwModule):
 
         tc: SimTestCase = self.TEST_CASE
         if tc is not None:
-            # HlsNetlistPassDumpNodesDot(outputFileGetter("tmp", "nodes.dot")).runOnHlsNetlist(netlist)
+            # HlsNetlistAnalysisPassDumpNodesDot(outputFileGetter("tmp", "nodes.dot")).runOnHlsNetlist(netlist)
             inputs, outputs, _ = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(i0, DIRECTION.IN, reachDb)
             tc.assertSequenceEqual(inputs, [i0, ])
             tc.assertSequenceEqual(outputs, [fw])
@@ -140,7 +140,7 @@ class HlsNetlistSyncIsland2HwModule(HlsNetlistSyncIsland0HwModule):
 
         tc: SimTestCase = self.TEST_CASE
         if tc is not None:
-            # HlsNetlistPassDumpNodesDot(outputFileGetter("tmp", "nodes.dot")).runOnHlsNetlist(netlist)
+            # HlsNetlistAnalysisPassDumpNodesDot(outputFileGetter("tmp", "nodes.dot")).runOnHlsNetlist(netlist)
             inputs, outputs, nodes = HlsNetlistAnalysisPassBetweenSyncIslands.discoverSyncIsland(i0, DIRECTION.IN, reachDb)
             # sync is input because the dependency was changed to void
             tc.assertSequenceEqual(inputs, [i0, i1])

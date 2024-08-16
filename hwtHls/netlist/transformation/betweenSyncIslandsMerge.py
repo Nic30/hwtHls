@@ -67,25 +67,24 @@ class SyncIslandProps():
                 g = n.associatedWrite._loopChannelGroup
                 if g is not None:
                     g: LoopChanelGroup
-                    for loop, role in g.connectedLoops:
+                    for loop, role in g.connectedLoopsAndBlocks:
                         if role in (LOOP_CHANEL_GROUP_ROLE.ENTER,
                                     LOOP_CHANEL_GROUP_ROLE.REENTER,
                                     LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER):
                             unmergableSucNodes.update(loop.iterChannelIoOutsideOfLoop())
-                        else:
-                            assert role == LOOP_CHANEL_GROUP_ROLE.EXIT_TO_SUCCESSOR
+                        elif role == LOOP_CHANEL_GROUP_ROLE.EXIT_TO_SUCCESSOR:
                             unmergableSucNodes.update(loop.iterChannelIoInsideOfLoop())
             elif isinstance(n, HlsNetNodeWriteBackedge):
                 g = n._loopChannelGroup
                 if g is not None:
                     g: LoopChanelGroup
-                    for loop, role in g.connectedLoops:
+                    for loop, role in g.connectedLoopsAndBlocks:
                         if role in (LOOP_CHANEL_GROUP_ROLE.REENTER,
                                     LOOP_CHANEL_GROUP_ROLE.EXIT_TO_SUCCESSOR,
                                     LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER):
                             unmergableSucNodes.update(loop.iterChannelIoOutsideOfLoop())
-                        else:
-                            assert role == LOOP_CHANEL_GROUP_ROLE.ENTER
+                        elif role == LOOP_CHANEL_GROUP_ROLE.ENTER:
+                            pass
                             #unmergableSucNodes.update(_iterAllChannelIoInsideOfLoop(loop))
             
             elif isinstance(n, HlsNetNodeReadForwardedge):
@@ -94,13 +93,14 @@ class SyncIslandProps():
                 g = n.associatedWrite._loopChannelGroup
                 if g is not None:
                     g: LoopChanelGroup
-                    for loop, role in g.connectedLoops:
+                    for loop, role in g.connectedLoopsAndBlocks:
                         assert role not in (LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER,
-                                            LOOP_CHANEL_GROUP_ROLE.REENTER), (loop, n, "must always be backedges")
+                                            LOOP_CHANEL_GROUP_ROLE.REENTER,
+                                            LOOP_CHANEL_GROUP_ROLE.NON_LOOP_OUT,
+                                            ), (loop, n, "must always be backedges")
                         if role == LOOP_CHANEL_GROUP_ROLE.ENTER:
                             unmergableSucNodes.update(loop.iterChannelIoOutsideOfLoop())
-                        else:
-                            assert role == LOOP_CHANEL_GROUP_ROLE.EXIT_TO_SUCCESSOR
+                        elif role == LOOP_CHANEL_GROUP_ROLE.EXIT_TO_SUCCESSOR:
                             unmergableSucNodes.update(loop.iterChannelIoInsideOfLoop())
 
             elif isinstance(n, HlsNetNodeWriteForwardedge):
@@ -108,13 +108,14 @@ class SyncIslandProps():
                 g = n._loopChannelGroup
                 if g is not None:
                     g: LoopChanelGroup
-                    for loop, role in g.connectedLoops:
+                    for loop, role in g.connectedLoopsAndBlocks:
                         assert role not in (LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER,
-                                            LOOP_CHANEL_GROUP_ROLE.REENTER), (loop, n, "must always be backedges")
+                                            LOOP_CHANEL_GROUP_ROLE.REENTER,
+                                            LOOP_CHANEL_GROUP_ROLE.NON_LOOP_OUT,
+                                            ), (loop, n, "must always be backedges")
                         if role == LOOP_CHANEL_GROUP_ROLE.ENTER:
                             unmergableSucNodes.update(loop.iterChannelIoInsideOfLoop())
-                        else:
-                            assert role == LOOP_CHANEL_GROUP_ROLE.EXIT_TO_SUCCESSOR
+                        elif role == LOOP_CHANEL_GROUP_ROLE.EXIT_TO_SUCCESSOR:
                             unmergableSucNodes.update(loop.iterChannelIoOutsideOfLoop())
 
         return unmergablePredNodes, unmergableSucNodes

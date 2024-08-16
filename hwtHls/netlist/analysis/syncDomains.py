@@ -2,6 +2,7 @@ from itertools import chain
 from typing import List, Dict, Set, Tuple, Callable, Generator
 
 from hwt.pyUtils.setList import SetList
+from hwt.pyUtils.typingFuture import override
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.syncGroupClusterContext import SyncGroupLabel, \
     SyncGroupClusterContext, HlsNetNodeAnySync
@@ -84,9 +85,9 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
         seen: Set[HlsNetNode] = set()
         toSearch: List[HlsNetNode] = [syncNode, ]
         if isinstance(syncNode, HlsNetNodeLoopStatus):
-            for e in syncNode.iterConnectedChannelGroups():
+            for e in syncNode.iterConnectedInputChannelGroups():
                 e: LoopChanelGroup
-                toSearch.append(e.getChannelWhichIsUsedToImplementControl().associatedRead)
+                toSearch.append(e.getChannelUsedAsControl().associatedRead)
 
         while toSearch:
             n0: HlsNetNode = toSearch.pop()
@@ -270,7 +271,8 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
         for scc in sgcc.mergeSyncGroupsToClusters(syncGroups, syncDomains, syncGroupOfNode):
             ioSccs.append(scc)
 
-    def runOnHlsNetlistImpl(self, netlist:"HlsNetlistCtx"):
+    @override
+    def runOnHlsNetlistImpl(self, netlist: "HlsNetlistCtx"):
         assert not self.ioSccs  # and not self.syncUses, "Must be run only once."
         # The naive discovery algorithm for the sync associated to IO operation mapping has O(|nodes|*|edges|) time complexity.
         # Commonly the |nodes| > 10k and |edges| > 30K, that said the time complexity is prohibitively large.

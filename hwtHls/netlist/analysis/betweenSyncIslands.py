@@ -118,9 +118,9 @@ class HlsNetlistAnalysisPassBetweenSyncIslands(HlsNetlistAnalysisPass):
                     inputs.append(n)
                     if isinstance(n, (HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge)):
                         chGroup = n.associatedWrite._loopChannelGroup
-                        if chGroup is not None and chGroup.getChannelWhichIsUsedToImplementControl() is n:
+                        if chGroup is not None and chGroup.getChannelUsedAsControl() is n:
                             chGroup: LoopChanelGroup
-                            for loop, role in chGroup.connectedLoops:
+                            for loop, role in chGroup.connectedLoopsAndBlocks:
                                 if role not in (
                                     LOOP_CHANEL_GROUP_ROLE.ENTER,
                                     LOOP_CHANEL_GROUP_ROLE.REENTER,
@@ -133,14 +133,14 @@ class HlsNetlistAnalysisPassBetweenSyncIslands(HlsNetlistAnalysisPass):
                     nIsNewlyAdded = internalNodes.append(n)
                     if nIsNewlyAdded and isinstance(n, HlsNetNodeLoopStatus):
                         n: HlsNetNodeLoopStatus
-                        for chGroup in n.iterConnectedChannelGroups():
+                        for chGroup in n.iterConnectedInputChannelGroups():
                             chGroup: LoopChanelGroup
                             if chGroup.getRoleForLoop(n) not in (
                                 LOOP_CHANEL_GROUP_ROLE.ENTER,
                                 LOOP_CHANEL_GROUP_ROLE.REENTER,
                                 ):
                                 continue
-                            w = chGroup.getChannelWhichIsUsedToImplementControl()
+                            w = chGroup.getChannelUsedAsControl()
                             r = w.associatedRead
                             if r not in seenDefToUse:
                                 inputs.append(r)

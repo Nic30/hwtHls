@@ -1,5 +1,5 @@
 from itertools import chain
-from typing import List, Set, Union, Dict, Tuple, Callable, Optional
+from typing import List, Set, Union, Dict, Callable, Optional
 
 from hwt.hwIO import HwIO
 from hwt.pyUtils.setList import SetList
@@ -10,7 +10,7 @@ from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPas
 from hwtHls.netlist.analysis.ioDiscover import HlsNetlistAnalysisPassIoDiscover
 from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
-from hwtHls.netlist.nodes.node import HlsNetNode, HlsNetNodePartRef
+from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
@@ -106,54 +106,24 @@ class HlsNetlistAnalysisPassDetectFsms(HlsNetlistAnalysisPass):
             seen.add(node)
             alreadyUsed.add(node)
             allNodeClks = tuple(node.iterScheduledClocks())
-            clkPeriod = node.netlist.normalizedClkPeriod
-            assert allNodeClks, node
-            if len(allNodeClks) > 1:
-                # slice a multi-cycle node and pick the parts which belongs to some state of this generated FSM
-                for clkI in allNodeClks:
-                    if clkI not in seenInClks:
-                        continue
-                    # inClkInputs = [i for t, i in zip(node.scheduledIn, node._inputs) if start_clk(t, clkPeriod) == clkI]
-                    # inClkOutputs = [o for t, o in zip(node.scheduledOut, node._outputs) if start_clk(t, clkPeriod) == clkI]
-                    nodePart = node.createSubNodeRefrenceFromPorts(clkI * clkPeriod, (clkI + 1) * clkPeriod,
-                        node._inputs, node._outputs)
-                    if nodePart is None:
-                        # due to internal structure of node there can be the case where we selected nothing
-                        # because original node has only some delay at selected time
-                        continue
-
-                    stateNodeList = fsm.states[clkI]
-                    self._appendNodeToState(clkI, nodePart, stateNodeList)
-            else:
-                # append node as it is
-                self._appendNodeToState(allNodeClks[0], node, stateNodeList)
+            assert len(allNodeClks) == 1, node
+            self._appendNodeToState(allNodeClks[0], node, stateNodeList)
 
             self._floodNetInClockCyclesWalkDepsAndUses(node, alreadyUsed, predicate, fsm, seenInClks)
 
     def _appendNodeToState(self, clkI: int, n: HlsNetNode, stateNodeList: List[HlsNetNode],):
         clkPeriod: SchedTime = n.netlist.normalizedClkPeriod
         # add nodes to st while asserting that it is from correct time
-        if isinstance(n, HlsNetNodePartRef):
-            if n._subNodes:
-                for i in n._subNodes.inputs:
-                    for use in i.obj.usedBy[i.out_i]:
-                        if use.obj in n._subNodes.nodes:
-                            assert (use.obj.scheduledIn[use.in_i] // clkPeriod) == clkI, (n, use)
-
-        else:
-            for t in n.scheduledIn:
-                assert start_clk(t, clkPeriod) == clkI, n
-            for t in n.scheduledOut:
-                assert int(t // clkPeriod) == clkI, n
+        for t in n.scheduledIn:
+            assert start_clk(t, clkPeriod) == clkI, n
+        for t in n.scheduledOut:
+            assert int(t // clkPeriod) == clkI, n
 
         stateNodeList.append(n)
 
-    def collectInFsmNodes(self) -> Tuple[
-            Dict[HlsNetNode, SetList[IoFsm]],
-            Dict[HlsNetNode, SetList[Tuple[IoFsm, HlsNetNodePartRef]]]]:
+    def collectInFsmNodes(self) -> Dict[HlsNetNode, SetList[IoFsm]]:
         "Collect nodes which are part of some fsm"
         inFsm: Dict[HlsNetNode, SetList[IoFsm]] = {}
-        inFsmNodeParts: Dict[HlsNetNode, SetList[Tuple[IoFsm, HlsNetNodePartRef]]] = {}
         for fsm in self.fsms:
             for nodes in fsm.states:
                 for n in nodes:
@@ -161,14 +131,8 @@ class HlsNetlistAnalysisPassDetectFsms(HlsNetlistAnalysisPass):
                     if cur is None:
                         cur = inFsm[n] = SetList()
                     cur.append(fsm)
-                    if isinstance(n, HlsNetNodePartRef):
-                        n: HlsNetNodePartRef
-                        otherParts = inFsmNodeParts.get(n.parentNode, None)
-                        if otherParts is None:
-                            otherParts = inFsmNodeParts[n.parentNode] = SetList()
-                        otherParts.append((fsm, n))
 
-        return inFsm, inFsmNodeParts
+        return inFsm
 
     def _getClkIOfAccess(self, a: Union[HlsNetNodeRead, HlsNetNodeWrite], clkPeriod: SchedTime):
         return start_clk(a.scheduledIn[0] if a.scheduledIn else a.scheduledOut[0], clkPeriod)
