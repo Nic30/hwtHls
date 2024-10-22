@@ -3,7 +3,7 @@ from io import StringIO
 import networkx
 from networkx.classes.digraph import DiGraph
 import pydot
-from typing import Set, List, Tuple, Generator, Dict
+from typing import Set, List, Tuple, Generator, Dict, Optional
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwtHls.frontend.pyBytecode.blockLabel import BlockLabel, \
@@ -184,7 +184,7 @@ class BlockPredecessorTracker():
                 return True
         return False
 
-    def addNotGenerated(self, srcBlockLabel: BlockLabel, dstBlockLabel: BlockLabel) -> Generator[BlockLabel, None, None]:
+    def addNotGenerated(self, loops: Dict[int, List["PyBytecodeLoop"]], srcBlockLabel: BlockLabel, dstBlockLabel: BlockLabel) -> Generator[BlockLabel, None, None]:
         """
         Mark a block which was not generated and mark all blocks entirely dependent on not generated blocks also as not generated.
         (The information about not generated blocks is used to resolve which predecessor blocks are actually required for each generated block.)
@@ -213,25 +213,29 @@ class BlockPredecessorTracker():
         isNotGenerated = not self._isReachableFromGenerated(dstBlockLabel, set())
         if isNotGenerated:
             self.notGenerated.add(dstBlockLabel)
-
-            for suc in self.cfg.successors(dstBlockLabel):
+            cfg = self.cfg
+            for suc in cfg.successors(dstBlockLabel):
+                loopList: Optional["PyBytecodeLoop"] = loops.get(suc[-1], None)
                 allPredecKnown = True
                 allPredecNotGenerated = True
-                for p in self.cfg.predecessors(suc):
-                    isNotGenerated = p in self.notGenerated
-                    if p not in self.generated and not isNotGenerated:
-                        allPredecKnown = False
-
+                for p in cfg.predecessors(suc):
+                    isNotGenerated = p in self.notGenerated or (
+                        loopList is not None and
+                        any(p[-1] in l.allBlocks for l in loopList))
+                    # if is not generated or is in the suc loop
                     if not isNotGenerated:
                         allPredecNotGenerated = False
-
+                        if p not in self.generated:
+                            allPredecKnown = False
+                            break # nothing else to discover anymore
+    
                 if allPredecKnown:
                     # recursively yield all successors which just got all predecessors resolved
                     if suc in self.generated:
                         yield from self.checkAllNewlyResolvedBlocks(suc)
 
                     elif allPredecNotGenerated and suc not in self.notGenerated:
-                        yield from self.addNotGenerated(dstBlockLabel, suc)
+                        yield from self.addNotGenerated(loops, dstBlockLabel, suc)
 
 # , loopExitPlaceholder: BlockLabel
     def cfgAddPrefixToLoopBlocks(self, loop: PyBytecodeLoop, newPrefix: BlockLabel) -> Generator[BlockLabel, None, None]:
