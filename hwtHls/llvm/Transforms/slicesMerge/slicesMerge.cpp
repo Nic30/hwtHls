@@ -184,7 +184,7 @@ PreservedAnalyses SlicesMergePass::run(Function &F,
 					verifyAfterUpdate(F, dce, "DCE received corrupted function");
 					change |= dce.tryRemoveIfDead(*I, I);
 					verifyAfterUpdate(F, dce, "DCE corrupted function");
-					change = dce.runToCompletition(I);
+					change |= dce.runToCompletition(I);
 					verifyAfterUpdate(F, dce, "DCE corrupted function");
 				} else {
 					assert(
