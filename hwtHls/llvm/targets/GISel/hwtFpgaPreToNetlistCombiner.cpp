@@ -159,12 +159,12 @@ char HwtFpgaPreToNetlistCombiner::ID = 0;
 INITIALIZE_PASS_BEGIN(HwtFpgaPreToNetlistCombiner, DEBUG_TYPE,
 		"Combine HwtFpga machine instrs before to netlist conversion",
 		false, false)
-	INITIALIZE_PASS_DEPENDENCY(TargetPassConfig)
-	INITIALIZE_PASS_DEPENDENCY(GISelKnownBitsAnalysis)
-	INITIALIZE_PASS_DEPENDENCY(GISelCSEAnalysisWrapperPass)
-	INITIALIZE_PASS_END(HwtFpgaPreToNetlistCombiner, DEBUG_TYPE,
-			"Combine HwtFpga machine instrs before to netlist conversion",
-			false, false)
+INITIALIZE_PASS_DEPENDENCY(TargetPassConfig)
+INITIALIZE_PASS_DEPENDENCY(GISelKnownBitsAnalysis)
+INITIALIZE_PASS_DEPENDENCY(GISelCSEAnalysisWrapperPass)
+INITIALIZE_PASS_END(HwtFpgaPreToNetlistCombiner, DEBUG_TYPE,
+		"Combine HwtFpga machine instrs before to netlist conversion",
+		false, false)
 
 namespace llvm {
 

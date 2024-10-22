@@ -20,6 +20,7 @@
 #include <llvm/CodeGen/TargetPassConfig.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/Support/Debug.h>
+
 #include <hwtHls/llvm/targets/GISel/hwtFpgaCombinerHelper.h>
 
 #define GET_GICOMBINER_DEPS
