@@ -4,7 +4,7 @@ from tests.bitOpt.cmpReduction import RedundantCmpGT
 
 class CmpReduction_TC(BaseSsaTC):
     __FILE__ = __file__
-    TEST_THREADS_AND_SYNC = False
+    TEST_BLOCK_SYNC = False
 
     def test_RedundantCmpGT_ll(self):
         self._test_ll(RedundantCmpGT)
