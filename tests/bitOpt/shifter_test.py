@@ -7,9 +7,10 @@ from hwt.hdl.types.bits import HBits
 from hwt.math import log2ceil
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeLLVMLoopUnroll
+from hwtHls.frontend.pyBytecode.pragmaLoop import PyBytecodeLLVMLoopUnroll
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, StringRef, Any, AnyToModule, \
     AnyToFunction, AnyToLoop, Module, Function, MachineFunction
+from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.platform.debugBundle import DebugId
 from hwtHls.platform.platform import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -107,10 +108,10 @@ class ShifterTC(SimTestCase):
                     llvm.registerAfterPassCallback(self.runTestAfterPass)
 
             def runMirToHlsNetlist(self,
-                              hls: "HlsScope", toSsa: HlsAstToSsa,
+                              hls: "HlsScope", toSsa: HlsAstToSsa, netlist: HlsNetlistCtx,
                               mf: MachineFunction, *args, **kwargs):
                 self.runTestOnMachineFuncion(mf)
-                return super(TestPlatform, self).runMirToHlsNetlist(hls, toSsa, mf,
+                return super(TestPlatform, self).runMirToHlsNetlist(hls, toSsa, netlist, mf,
                                                                        *args, **kwargs)
 
         self.compileSimAndStart(dut, target_platform=TestPlatform(debugFilter=debugFilter))  # debugFilter=HlsDebugBundle.ALL_RELIABLE
@@ -139,15 +140,16 @@ class ShifterTC(SimTestCase):
     def test_ShifterLeftUsingHwLoopWithWhileNot0_noUnroll(self):
         dut = ShifterLeftUsingHwLoopWithWhileNot0()
         dut.DATA_WIDTH = 3
-        self._test_shifter(dut, timeMultiplier=8)
+        self._test_shifter(dut, timeMultiplier=8, debugFilter=HlsDebugBundle.ALL_RELIABLE.union({HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+                                                     HlsDebugBundle.DBG_4_0_addSignalNamesToData}))
 
     def test_ShifterLeftUsingHwLoopWithWhileNot0_unrol2(self):
         dut = ShifterLeftUsingHwLoopWithWhileNot0()
         dut.UNROLL_META = PyBytecodeLLVMLoopUnroll(True, 2)
         self._test_shifter(dut, timeMultiplier=4, 
                            debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
-                               HlsDebugBundle.DBG_20_addSignalNamesToSync,
-                               HlsDebugBundle.DBG_20_addSignalNamesToData})
+                               HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+                               HlsDebugBundle.DBG_4_0_addSignalNamesToData})
         )
 
     def test_ShifterLeftUsingHwLoopWithWhileNot0_unrol4(self):
@@ -170,8 +172,8 @@ class ShifterTC(SimTestCase):
     def test_ShifterLeftUsingHwLoopWithBreakIf0_unrol2(self):
         dut = ShifterLeftUsingHwLoopWithBreakIf0()
         dut.UNROLL_META = PyBytecodeLLVMLoopUnroll(True, 2)
-        self._test_shifter(dut, timeMultiplier=4, debugFilter=HlsDebugBundle.ALL_RELIABLE.union({HlsDebugBundle.DBG_20_addSignalNamesToSync,
-                                                     HlsDebugBundle.DBG_20_addSignalNamesToData}))
+        self._test_shifter(dut, timeMultiplier=4, debugFilter=HlsDebugBundle.ALL_RELIABLE.union({HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+                                                     HlsDebugBundle.DBG_4_0_addSignalNamesToData}))
 
     def test_ShifterLeftUsingHwLoopWithBreakIf0_unrol4(self):
         dut = ShifterLeftUsingHwLoopWithBreakIf0()
@@ -201,17 +203,21 @@ class ShifterTC(SimTestCase):
 
 
 if __name__ == "__main__":
-    # from hwt.synth import to_rtl_str
-    # dut = ShifterLeftUsingHwLoopWithWhileNot0()
-    # # u.UNROLL_META = PyBytecodeLLVMLoopUnroll(True, dut.DATA_WIDTH - 1)
-    # dut.CLK_FREQ = int(1e6)
-    # print(to_rtl_str(dut, target_platform=VirtualHlsPlatform(
-    #   debugFilter=HlsDebugBundle.ALL_RELIABLE.union({HlsDebugBundle.DBG_20_addSignalNamesToSync,
-    #                                                  HlsDebugBundle.DBG_20_addSignalNamesToData}))))  # .union(HlsDebugBundle.DBG_FRONTEND)
+    #from hwt.synth import to_rtl_str
+    #dut = ShifterLeftUsingHwLoopWithWhileNot0()
+    #dut.DATA_WIDTH = 3
+    ## # u.UNROLL_META = PyBytecodeLLVMLoopUnroll(True, dut.DATA_WIDTH - 1)
+    #dut.CLK_FREQ = int(1e6)
+    #print(to_rtl_str(dut, target_platform=VirtualHlsPlatform(
+    #  debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
+    #      HlsDebugBundle.DBG_20_addSignalNamesToSync,
+    #      HlsDebugBundle.DBG_20_addSignalNamesToData,
+    #      }
+    #  ))))
 
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([ShifterTC("test_ShifterLeftUsingHwLoopWithBreakIf0_unrol2")])
+    # suite = unittest.TestSuite([ShifterTC("test_ShifterLeft0")])
     suite = testLoader.loadTestsFromTestCase(ShifterTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
