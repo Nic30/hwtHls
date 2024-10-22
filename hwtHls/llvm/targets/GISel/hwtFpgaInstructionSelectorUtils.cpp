@@ -4,16 +4,22 @@
 #include <hwtHls/llvm/targets/hwtFpgaTargetMachine.h>
 
 using namespace llvm;
+
 namespace hwtHls::HwtFpgaInstructionSelector {
 
 ConstantInt* machineOperandTryGetConst(LLVMContext &Context,
 		MachineRegisterInfo &MRI, MachineOperand &MO) {
-	if (MO.isReg() && MO.getReg() && MRI.hasOneDef(MO.getReg())) {
-		if (auto VRegVal = getAnyConstantVRegValWithLookThrough(MO.getReg(),
-				MRI)) {
-			assert(VRegVal.has_value());
-			auto *CI = ConstantInt::get(Context, VRegVal->Value);
-			return CI;
+	if (MO.isReg()) {
+		auto& MF = MO.getParent()->getParent()->getParent()->getProperties();
+		bool isSSA = MF.hasProperty(
+				MachineFunctionProperties::Property::IsSSA);
+		if (isSSA || MRI.hasOneDef(MO.getReg())) {
+			if (auto VRegVal = getAnyConstantVRegValWithLookThrough(MO.getReg(),
+					MRI, /*LookThroughInstrs*/isSSA)) {
+				assert(VRegVal.has_value());
+				auto *CI = ConstantInt::get(Context, VRegVal->Value);
+				return CI;
+			}
 		}
 	}
 	return nullptr;
@@ -27,9 +33,10 @@ void selectInstrArg(MachineFunction &MF,
 			MIB.add(MO);
 			return;
 		}
-		if (MRI.hasOneDef(MO.getReg())) {
+		bool isSSA = MF.getProperties().hasProperty(MachineFunctionProperties::Property::IsSSA);
+		if (isSSA || MRI.hasOneDef(MO.getReg())) {
 			if (auto VRegVal = getAnyConstantVRegValWithLookThrough(MO.getReg(),
-					MRI)) {
+					MRI, /*LookThroughInstrs*/ isSSA )) {
 				assert(VRegVal.has_value());
 				auto &C = MF.getFunction().getContext();
 				auto *CI = ConstantInt::get(C, VRegVal->Value);
