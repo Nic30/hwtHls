@@ -11,28 +11,28 @@ from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_getName
 from hwtHls.architecture.analysis.handshakeSCCs import ArchSyncNodeTy
 from hwtHls.architecture.analysis.hlsArchAnalysisPass import HlsArchAnalysisPass
-from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, IORecord
-from hwtHls.netlist.analysis.nodeParentAggregate import HlsNetlistAnalysisPassNodeParentAggregate
+from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage  # , IORecord
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
 from hwtHls.netlist.nodes.archElementNoImplicitSync import ArchElementNoImplicitSync
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
-    BACKEDGE_ALLOCATION_TYPE, HlsNetNodeReadBackedge
+    HlsNetNodeReadBackedge
+from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge, \
     HlsNetNodeReadForwardedge
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeWriteAnyChannel
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.nodes.writeHsSCCSync import HlsNetNodeWriteHsSccSync
 from hwtHls.netlist.translation.dumpNodesDot import COLOR_INPUT_READ, \
     COLOR_OUTPUT_WRITE, COLOR_SPECIAL_PURPOSE
 from hwtHls.platform.fileUtils import OutputStreamGetter
 from hwtLib.handshaked.streamNode import ValidReadyTuple
 from ipCorePackager.constants import DIRECTION
-
+from hwtHls.architecture.analysis.fsmStateEncoding import HlsAndRtlNetlistAnalysisPassFsmStateEncoding
+from hwtHls.architecture.syncUtils import HwIO_getSyncTuple
 
 ArchElementEdge = Tuple[ArchElement, int, ArchElement, int]
 
@@ -99,18 +99,19 @@ class InterElementConections(OrderedDict[Tuple[ArchElement, int],
         vals.append((dir_, v))
 
 
-class RtlArchToGraphwiz():
+class RtlArchToGraphviz():
     """
-    Class which translates RTL architecture from HlsNetlistCtx instance to a Graphwiz dot graph for visualization purposes.
+    Class which translates RTL architecture from HlsNetlistCtx instance to a Graphviz dot graph for visualization purposes.
     """
 
-    def __init__(self, name:str, netlist: HlsNetlistCtx, parentHwModule: HwModule, parents: HlsNetlistAnalysisPassNodeParentAggregate):
+    def __init__(self, name:str, netlist: HlsNetlistCtx, parentHwModule: HwModule,
+                 fsmStateEncoding:Optional[HlsAndRtlNetlistAnalysisPassFsmStateEncoding]):
         self.graph = Dot(name)
         self.netlist = netlist
         self.parentHwModule = parentHwModule
+        self.fsmStateEncoding = fsmStateEncoding
         self.interfaceToNodes: Dict[Union[HwIOBase, Tuple[ArchSyncNodeTy, ArchSyncNodeTy]], Node] = {}
         self.archElementToNode: Dict[ArchElement, Node] = {}
-        self.parents = parents
         self._hsSccsNodes: Dict[int, Node] = {}
 
     def _getInterfaceNode(self, i: HwIOBase, bgcolor:str):
@@ -162,22 +163,28 @@ class RtlArchToGraphwiz():
                                 f"<td>{html.escape(internName):s}</td>"
                                 f"<td>{html.escape(repr(out._dtype))}</td></tr>")
             else:
-                outNode, writeVldRdyTuple, readVldRdyTuple = out
-                name = outNode.name
-                if name.endswith("_src") and outNode.associatedRead.name.endswith("_dst"):
-                    name = name[:-4] # cur of common suffix
+                outNode = out
+                writeVldRdyTuple = HwIO_getSyncTuple(outNode.dst) if outNode.dst is not None else None
+                readVldRdyTuple = HwIO_getSyncTuple(outNode.associatedRead.src) if outNode.associatedRead.src is not None else None
 
-                if isinstance(outNode, HlsNetNodeWriteForwardedge):
-                    FOrB = 'F'
-                else:
-                    assert isinstance(outNode, HlsNetNodeWriteBackedge), outNode
+                name = outNode.name
+                if not name:
+                    name = f"n{outNode._id}"
+                elif name.endswith("_src") and outNode.associatedRead.name.endswith("_dst"):
+                    name = name[:-4]  # cur of common suffix
+
+                if outNode.isBackedge():
                     FOrB = 'B'
+                else:
+                    FOrB = 'F'
 
                 capacity = outNode._getBufferCapacity()
+
                 if writeVldRdyTuple is not None:
                     wVR = html.escape(self._stringFormatValidReadTupleType(writeVldRdyTuple))
                 else:
                     wVR = ""
+
                 if readVldRdyTuple is not None:
                     rVR = html.escape(self._stringFormatValidReadTupleType(readVldRdyTuple))
                 else:
@@ -211,10 +218,10 @@ class RtlArchToGraphwiz():
     #            n: HlsNetNodeWriteBackedge
     #            if n.dst is None:
     #                continue
-    #            if n.allocationType == BACKEDGE_ALLOCATION_TYPE.BUFFER:
+    #            if n.allocationType == CHANNEL_ALLOCATION_TYPE.BUFFER:
     #                breaksReadyChain = isinstance(n, HlsNetNodeWriteBackedge)
     #                bufferInfo[n.dst] = (n._getBufferCapacity(), breaksReadyChain)
-    #            elif n.allocationType == BACKEDGE_ALLOCATION_TYPE.REG:
+    #            elif n.allocationType == CHANNEL_ALLOCATION_TYPE.REG:
     #                bufferInfo[n.dst] = (1, True)
     #
     #    return bufferInfo
@@ -255,6 +262,12 @@ class RtlArchToGraphwiz():
         """
         Construct rows for table inside of body of node representing ArchElement
         """
+        _fsmStateEncoding = self.fsmStateEncoding
+        if isFsm and _fsmStateEncoding is not None:
+            stateEncoding = _fsmStateEncoding.stateEncoding[elm]
+        else:
+            stateEncoding = None
+
         for clkI, st in elm.iterStages():
             try:
                 con: ConnectionsOfStage = elm.connections[clkI]
@@ -265,109 +278,99 @@ class RtlArchToGraphwiz():
             #  or (elm._beginClkI is not None and
             #              clkI < elm._beginClkI)
             if not st:
-                #assert not con.isUnused(), con
+                # assert not con.isUnused(), con
                 # skip unused stages
                 continue
 
-            if isFsm:
-                stVal = elm.stateEncoding[clkI]
+            if stateEncoding is not None:
+                stVal = stateEncoding[clkI]
+                label = f"st{stVal:d}-clk{clkI}"
             else:
-                stVal = clkI
+                label = f"clk{clkI}"
 
-            nodeRows.append(f"    <tr><td port='i{clkI:d}'>i{clkI:d}</td><td>st{stVal:d}-clk{clkI}</td><td port='o{clkI:d}'>o{clkI:d}</td></tr>\n")
+            nodeRows.append(f"    <tr><td port='i{clkI:d}'>i{clkI:d}</td><td>{label:s}</td><td port='o{clkI:d}'>o{clkI:d}</td></tr>\n")
 
     def collectConnectedChannelsAndConstructIO(self, elm: ArchElement, iec: InterElementConections, nodeId:int, g: Dot):
-        nodePaths = self.parents.nodePath
         for clkI, st in elm.iterStages():
             con: ConnectionsOfStage = elm.connections[clkI]
             if con is None:
                 continue
             if not st or (elm._beginClkI is not None and clkI < elm._beginClkI):
-                #assert not con.isUnused(), con
+                # assert not con.isUnused(), con
                 # skip unused stages
                 continue
 
-            seen = set()
-            for ioRecord in con.inputs:
-                ioRecord: IORecord
-                node = ioRecord.node
-                if isinstance(node, (HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge)):
+            # seen = set()
+            for node in st:
+
+            # for ioRecord in con.inputs:
+            #    ioRecord: IORecord
+            #    node = ioRecord.node
+                if isinstance(node, HlsNetNodeRead):
                     #  add to iec for later construction
                     w = node.associatedWrite
-                    if w.allocationType == BACKEDGE_ALLOCATION_TYPE.REG:
+                    if w is None or w.allocationType == CHANNEL_ALLOCATION_TYPE.REG:
                         # this is local only channel
                         continue
 
                     dstElm = elm
                     dstClkI = clkI
-                    nodePath = nodePaths[w]
-                    srcElm = nodePath[0]
+                    srcElm = w.parent
+                    assert srcElm is not None, w
                     srcClkI = self._getIndexOfTime(w.scheduledIn[0])
-                    iec.insert((srcElm, srcClkI), (dstElm, dstClkI), (node.associatedWrite, None, ioRecord.validReady), isReversed=True)
-                else:
-                    # construct and connect node for input read
-                    hwIO = ioRecord.io
-                    hwIO = self._getReadHwIO(hwIO, node)
-                    if hwIO in seen:
-                        continue
-                    seen.add(hwIO)
-                    iN = self._getInterfaceNode(hwIO, COLOR_INPUT_READ)
-                    label = self._stringFormatValidReadTupleType(ioRecord.validReady)
-                    # link connecting element node slot with node for interface
-                    e = Edge(f"{iN.get_name():s}:0", f"n{nodeId:d}:i{clkI:d}",
-                             label=f"{node._id} {html.escape(label)}",
-                             color=COLOR_INPUT_READ)
-                    g.add_edge(e)
-
-            seen.clear()
-            for ioRecord in con.outputs:
-                ioRecord: IORecord
-                node = ioRecord.node
-                assert node, node
-                if isinstance(node, (HlsNetNodeWriteBackedge, HlsNetNodeWriteForwardedge)):
+                    iec.insert((srcElm, srcClkI), (dstElm, dstClkI), w, isReversed=True)
+                # else:
+                #    # construct and connect node for input read
+                #    hwIO = ioRecord.io
+                #    hwIO = self._getReadHwIO(hwIO, node)
+                #    if hwIO in seen:
+                #        continue
+                #    seen.add(hwIO)
+                #    iN = self._getInterfaceNode(hwIO, COLOR_INPUT_READ)
+                #    label = self._stringFormatValidReadTupleType(ioRecord.validReady)
+                #    # link connecting element node slot with node for interface
+                #    e = Edge(f"{iN.get_name():s}:0", f"n{nodeId:d}:i{clkI:d}",
+                #             label=f"{node._id} {html.escape(label)}",
+                #             color=COLOR_INPUT_READ)
+                #    g.add_edge(e)
+                #
+            # seen.clear()
+            # for ioRecord in con.outputs:
+            #    ioRecord: IORecord
+            #    node = ioRecord.node
+            #    assert node, node
+                elif isinstance(node, HlsNetNodeWrite):
                     #  add to iec for later construction
-                    if node.allocationType == BACKEDGE_ALLOCATION_TYPE.REG:
+                    if node.associatedRead is None or node.allocationType == CHANNEL_ALLOCATION_TYPE.REG:
                         # this is local only channel
                         continue
                     srcElm = elm
                     srcClkI = clkI
                     r = node.associatedRead
-                    nodePath = nodePaths[r]
-                    dstElm = nodePath[0]
+                    dstElm = r.parent
                     dstClkI = self._getIndexOfTime(r.scheduledZero)
-                    iec.insert((srcElm, srcClkI), (dstElm, dstClkI), (node, ioRecord.validReady, None))
+                    iec.insert((srcElm, srcClkI), (dstElm, dstClkI), node)
 
-                elif isinstance(node, HlsNetNodeWriteHsSccSync):
-                    pass
-                    # hsSccNode = self._hsSccsNodes.get(node.hsSccIndex)
-                    # if hsSccNode is None:
-                    #    hsSccNodeId = len(self.graph.obj_dict['nodes'])
-                    #    hsSccNode = Node(f"n{hsSccNodeId:d}", color=COLOR_SYNC_INTERNAL)
-                    #    hsSccNode.set("label", f'"HsScc {node.hsSccIndex}"')
-                    #    self.graph.add_node(hsSccNode)
-                    #    self._hsSccsNodes[node.hsSccIndex] = hsSccNode
-                    # e = Edge(f"n{nodeId:d}:o{clkI:d}", f"{hsSccNode.get_name():s}", label=f'"{node._id}"', color=COLOR_SYNC_INTERNAL)
-                    # g.add_edge(e)
-                else:
-                    # construct and connect node for output write
-                    hwIO = self._getWriteHwIO(ioRecord.io, node)
-                    if hwIO in seen:
-                        continue
-                    seen.add(hwIO)
-                    oN = self._getInterfaceNode(hwIO, COLOR_OUTPUT_WRITE)
-                    label = self._stringFormatValidReadTupleType(ioRecord.validReady)
-                    # link connecting element node slot with node for interface
-                    e = Edge(f"n{nodeId:d}:o{clkI:d}", f"{oN.get_name():s}:0",
-                             label=f"{node._id:d} {html.escape(label)}",
-                             color=COLOR_OUTPUT_WRITE)
-                    g.add_edge(e)
+                # else:
+                #    # construct and connect node for output write
+                #    hwIO = self._getWriteHwIO(ioRecord.io, node)
+                #    if hwIO in seen:
+                #        continue
+                #    seen.add(hwIO)
+                #    oN = self._getInterfaceNode(hwIO, COLOR_OUTPUT_WRITE)
+                #    label = self._stringFormatValidReadTupleType(ioRecord.validReady)
+                #    # link connecting element node slot with node for interface
+                #    e = Edge(f"n{nodeId:d}:o{clkI:d}", f"{oN.get_name():s}:0",
+                #             label=f"{node._id:d} {html.escape(label)}",
+                #             color=COLOR_OUTPUT_WRITE)
+                #    g.add_edge(e)
 
     def construct(self):
         g = self.graph
         netlist = self.netlist
         # bufferInfo = self._collectBufferInfo(netlist)
         interElementCon: InterElementConections = InterElementConections()
-        for elm in netlist.nodes:
+        for elm in netlist.iterAllNodes():
             elm: ArchElement
             nodeId = len(g.obj_dict['nodes'])
             elmNode = Node(f"n{nodeId:d}", shape="plaintext")
@@ -471,7 +474,7 @@ class RtlArchToGraphwiz():
                 g.add_edge(e)
                 io = 'i'
                 if srcElm is dstElm:
-                    io = '0'  # keep bout edges on same side of the same element to improve readability
+                    io = 'o'  # keep bout edges on same side of the same element to improve readability
                 e = Edge(n.get_name(), f"{dst.get_name():s}:{io:s}{dstClkI:d}", **edgeAtts)
                 g.add_edge(e)
 
@@ -497,7 +500,7 @@ class RtlArchToGraphwiz():
     #            rN = self.interfaceToNodes.get(rHwIO)
     #            if rN is None:
     #                continue
-    #            init = n.channelInitValues
+    #            init = n.associatedRead.channelInitValues
     #            if init:
     #                initStr = f" init:{html.escape(repr(init))}"
     #            else:
@@ -525,12 +528,12 @@ class RtlArchAnalysisPassDumpArchDot(HlsArchAnalysisPass):
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
         name = netlist.label
-        parents: HlsNetlistAnalysisPassNodeParentAggregate = netlist.getAnalysis(HlsNetlistAnalysisPassNodeParentAggregate)
-        toGraphwiz = RtlArchToGraphwiz(name, netlist, netlist.parentHwModule, parents)
+        fsmStateEncoding = netlist.getAnalysisIfAvailable(HlsAndRtlNetlistAnalysisPassFsmStateEncoding)
+        toGraphviz = RtlArchToGraphviz(name, netlist, netlist.parentHwModule, fsmStateEncoding)
         out, doClose = self.outStreamGetter(name)
         try:
-            toGraphwiz.construct()
-            out.write(toGraphwiz.dumps())
+            toGraphviz.construct()
+            out.write(toGraphviz.dumps())
         finally:
             if doClose:
                 out.close()
