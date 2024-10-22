@@ -1,11 +1,12 @@
 from dis import Instruction
 from io import StringIO
-from opcode import opmap, cmp_op, _nb_ops, _intrinsic_1_descs,\
+from opcode import opmap, cmp_op, _nb_ops, _intrinsic_1_descs, \
     _intrinsic_2_descs
 import operator
 import sys
 from typing import Type, Tuple, Dict, Callable
-
+import importlib
+import typing
 
 # https://docs.python.org/3/library/dis.html
 assert (sys.version_info[0], sys.version_info[1]) == (3, 12), (
@@ -90,7 +91,6 @@ POP_JUMP_IF_FALSE = opmap['POP_JUMP_IF_FALSE']
 POP_JUMP_IF_NOT_NONE = opmap['POP_JUMP_IF_NOT_NONE']
 POP_JUMP_IF_NONE = opmap['POP_JUMP_IF_NONE']
 
-
 LOAD_GLOBAL = opmap['LOAD_GLOBAL']
 IS_OP = opmap['IS_OP']
 CONTAINS_OP = opmap['CONTAINS_OP']
@@ -141,6 +141,8 @@ DICT_UPDATE = opmap['DICT_UPDATE']
 
 CALL = opmap['CALL']
 KW_NAMES = opmap['KW_NAMES']
+CALL_INTRINSIC_1 = opmap['CALL_INTRINSIC_1']
+CALL_INTRINSIC_2 = opmap['CALL_INTRINSIC_2']
 
 UN_OPS = {
     UNARY_NEGATIVE: operator.neg,
@@ -321,22 +323,35 @@ BUILD_OPS = {
     BUILD_CONST_KEY_MAP: _BUILD_CONST_KEY_MAP,
 }
 
-INTRINSIC_1_INVALID =           _intrinsic_1_descs.index("INTRINSIC_1_INVALID")
-INTRINSIC_PRINT =               _intrinsic_1_descs.index("INTRINSIC_PRINT")
-INTRINSIC_IMPORT_STAR =         _intrinsic_1_descs.index("INTRINSIC_IMPORT_STAR")
+INTRINSIC_1_INVALID = _intrinsic_1_descs.index("INTRINSIC_1_INVALID")
+INTRINSIC_PRINT = _intrinsic_1_descs.index("INTRINSIC_PRINT")
+INTRINSIC_IMPORT_STAR = _intrinsic_1_descs.index("INTRINSIC_IMPORT_STAR")
 INTRINSIC_STOPITERATION_ERROR = _intrinsic_1_descs.index("INTRINSIC_STOPITERATION_ERROR")
-INTRINSIC_ASYNC_GEN_WRAP =      _intrinsic_1_descs.index("INTRINSIC_ASYNC_GEN_WRAP")
-INTRINSIC_UNARY_POSITIVE =      _intrinsic_1_descs.index("INTRINSIC_UNARY_POSITIVE")
-INTRINSIC_LIST_TO_TUPLE =       _intrinsic_1_descs.index("INTRINSIC_LIST_TO_TUPLE")
-INTRINSIC_TYPEVAR =             _intrinsic_1_descs.index("INTRINSIC_TYPEVAR")
-INTRINSIC_PARAMSPEC =           _intrinsic_1_descs.index("INTRINSIC_PARAMSPEC")
-INTRINSIC_TYPEVARTUPLE =        _intrinsic_1_descs.index("INTRINSIC_TYPEVARTUPLE")
-INTRINSIC_SUBSCRIPT_GENERIC =   _intrinsic_1_descs.index("INTRINSIC_SUBSCRIPT_GENERIC")
-INTRINSIC_TYPEALIAS =           _intrinsic_1_descs.index("INTRINSIC_TYPEALIAS")
+INTRINSIC_ASYNC_GEN_WRAP = _intrinsic_1_descs.index("INTRINSIC_ASYNC_GEN_WRAP")
+INTRINSIC_UNARY_POSITIVE = _intrinsic_1_descs.index("INTRINSIC_UNARY_POSITIVE")
+INTRINSIC_LIST_TO_TUPLE = _intrinsic_1_descs.index("INTRINSIC_LIST_TO_TUPLE")
+INTRINSIC_TYPEVAR = _intrinsic_1_descs.index("INTRINSIC_TYPEVAR")
+INTRINSIC_PARAMSPEC = _intrinsic_1_descs.index("INTRINSIC_PARAMSPEC")
+INTRINSIC_TYPEVARTUPLE = _intrinsic_1_descs.index("INTRINSIC_TYPEVARTUPLE")
+INTRINSIC_SUBSCRIPT_GENERIC = _intrinsic_1_descs.index("INTRINSIC_SUBSCRIPT_GENERIC")
+INTRINSIC_TYPEALIAS = _intrinsic_1_descs.index("INTRINSIC_TYPEALIAS")
 
-INTRINSIC_2_INVALID =                _intrinsic_2_descs.index("INTRINSIC_2_INVALID")
-INTRINSIC_PREP_RERAISE_STAR =        _intrinsic_2_descs.index("INTRINSIC_PREP_RERAISE_STAR")
-INTRINSIC_TYPEVAR_WITH_BOUND =       _intrinsic_2_descs.index("INTRINSIC_TYPEVAR_WITH_BOUND")
+INTRINSIC_2_INVALID = _intrinsic_2_descs.index("INTRINSIC_2_INVALID")
+INTRINSIC_PREP_RERAISE_STAR = _intrinsic_2_descs.index("INTRINSIC_PREP_RERAISE_STAR")
+INTRINSIC_TYPEVAR_WITH_BOUND = _intrinsic_2_descs.index("INTRINSIC_TYPEVAR_WITH_BOUND")
 INTRINSIC_TYPEVAR_WITH_CONSTRAINTS = _intrinsic_2_descs.index("INTRINSIC_TYPEVAR_WITH_CONSTRAINTS")
 INTRINSIC_SET_FUNCTION_TYPE_PARAMS = _intrinsic_2_descs.index("INTRINSIC_SET_FUNCTION_TYPE_PARAMS")
 
+CALL_INTRINSIC_1_FUNCTIONS = {
+    INTRINSIC_PRINT: lambda x: print(x),
+    # INTRINSIC_IMPORT_STAR : lambda x: importlib,
+    INTRINSIC_STOPITERATION_ERROR: lambda x: x.value,
+    # INTRINSIC_ASYNC_GEN_WRAP : lambda x: ,
+    INTRINSIC_UNARY_POSITIVE: lambda x:+x,
+    INTRINSIC_LIST_TO_TUPLE: lambda x: tuple(x),
+    INTRINSIC_TYPEVAR: typing.TypeVar,
+    INTRINSIC_PARAMSPEC: typing.ParamSpec ,
+    INTRINSIC_TYPEVARTUPLE: typing.TypeVarTuple,
+    INTRINSIC_SUBSCRIPT_GENERIC: typing.Generic,
+    INTRINSIC_TYPEALIAS: typing.TypeAliasType,
+}
