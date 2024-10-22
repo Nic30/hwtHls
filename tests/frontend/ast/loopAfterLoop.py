@@ -52,6 +52,46 @@ class TwoTimesFiniteWhileInWhileTrue(HwModule):
         hls.compile()
 
 
+class WriteAfterFiniteWhileInWhileTrue(TwoTimesFiniteWhileInWhileTrue):
+
+    def hwImpl(self) -> None:
+        hls = HlsScope(self)
+        i0 = hls.var("i0", uint8_t)
+        ast = HlsAstBuilder(hls)
+        hls.addThread(HlsThreadFromAst(hls, [
+                ast.While(True,
+                    i0(0),
+                    ast.While(i0 != 4,
+                        hls.write(4, self.dataOut0),
+                        i0(i0 + 1)
+                    ),
+                    hls.write(5, self.dataOut1),
+                )
+            ],
+            self._name)
+        )
+        hls.compile()
+
+class WriteBeforeFiniteWhileInWhileTrue(TwoTimesFiniteWhileInWhileTrue):
+
+    def hwImpl(self) -> None:
+        hls = HlsScope(self)
+        i0 = hls.var("i0", uint8_t)
+        ast = HlsAstBuilder(hls)
+        hls.addThread(HlsThreadFromAst(hls, [
+                ast.While(True,
+                    hls.write(5, self.dataOut1),
+                    i0(0),
+                    ast.While(i0 != 4,
+                        hls.write(4, self.dataOut0),
+                        i0(i0 + 1)
+                    ),
+                )
+            ],
+            self._name)
+        )
+        hls.compile()
+
 class TwoTimesFiniteWhile(TwoTimesFiniteWhileInWhileTrue):
 
     def hwImpl(self) -> None:
@@ -79,14 +119,14 @@ class LoopAfterLoop_TC(BaseSsaTC):
     __FILE__ = __file__
 
     def test_TwoTimesFiniteWhileInWhileTrue(self):
-        
+
         from hwtHls.platform.platform import HlsDebugBundle
         dut = TwoTimesFiniteWhileInWhileTrue()
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform(
             debugFilter={
                 *HlsDebugBundle.ALL_RELIABLE,
-                HlsDebugBundle.DBG_20_addSignalNamesToData,
-                HlsDebugBundle.DBG_20_addSignalNamesToSync,
+                HlsDebugBundle.DBG_4_0_addSignalNamesToData,
+                HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
             }
             ))
         self.runSim(int(10 * freq_to_period(dut.FREQ)))
@@ -104,18 +144,36 @@ class LoopAfterLoop_TC(BaseSsaTC):
         self.assertValSequenceEqual(dut.dataOut0._ag.data, [4 for _ in range(4)])
         self.assertValSequenceEqual(dut.dataOut1._ag.data, [5 for _ in range(5)])
 
+    def test_WriteAfterFiniteWhileInWhileTrue(self):
+        dut = WriteAfterFiniteWhileInWhileTrue()
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform(
+            ))
+        self.runSim(int(6 * freq_to_period(dut.FREQ)))
+
+        self.assertValSequenceEqual(dut.dataOut0._ag.data, [4 for _ in range(4)])
+        self.assertValSequenceEqual(dut.dataOut1._ag.data, [5])
+
+    def test_WriteBeforeFiniteWhileInWhileTrue(self):
+        dut = WriteBeforeFiniteWhileInWhileTrue()
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform(
+            ))
+        self.runSim(int(10 * freq_to_period(dut.FREQ)))
+
+        self.assertValSequenceEqual(dut.dataOut0._ag.data, [4 for _ in range(8)])
+        self.assertValSequenceEqual(dut.dataOut1._ag.data, [5, 5, 5])
+
 
 if __name__ == "__main__":
-    # from hwt.synth import to_rtl_str
-    # from hwtHls.platform.platform import HlsDebugBundle
-    # 
-    # m = TwoTimesFiniteWhileInWhileTrue()
-    # # m.FREQ = int(150e6)
-    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={
-    #     *HlsDebugBundle.ALL_RELIABLE,
-    #     HlsDebugBundle.DBG_20_addSignalNamesToData,
-    #     HlsDebugBundle.DBG_20_addSignalNamesToSync,
-    # })))
+    from hwt.synth import to_rtl_str
+    from hwtHls.platform.platform import HlsDebugBundle
+    
+    m = TwoTimesFiniteWhile()
+    #m.FREQ = int(150e6)
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={
+        *HlsDebugBundle.ALL_RELIABLE,
+        HlsDebugBundle.DBG_4_0_addSignalNamesToData,
+        HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+    })))
 
     import unittest
     testLoader = unittest.TestLoader()
