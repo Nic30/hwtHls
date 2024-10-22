@@ -131,7 +131,7 @@ bool splitPointPropagate_BinaryOperator(bool updated,
 	{
 		BO->dump();
 		llvm_unreachable(
-				"Shifts should be converted to concatenations before running this pass");
+				"Shifts should be converted to concatenations or have hwtHls.slicesToIndependentVariables.noSplit attribute before running this pass");
 		break;
 	}
 	default:
