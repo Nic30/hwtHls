@@ -1,10 +1,12 @@
 from hwt.hdl.types.bits import HBits
 from hwt.mainBases import RtlSignalBase
 from hwt.synthesizer.vectorUtils import fitTo_t
+from hwtHls.code import ctlz, shl
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
+from hwtHls.frontend.pyBytecode.pragmaInstruction import PyBytecodeNoSplitSlices
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
 from pyMathBitPrecise.bit_utils import mask
-from tests.bitOpt.countBits import countBits
+from hwtHls.architecture.transformation._operatorToHwtLowering.operatorHwImplementations import countBits
 from tests.floatingpoint.fptypes import IEEE754Fp
 
 
@@ -12,7 +14,12 @@ from tests.floatingpoint.fptypes import IEEE754Fp
 # https://github.com/dawsonjon/fpu/blob/master/int_to_float/int_to_float.v
 # https://github.com/hVHDL/hVHDL_floating_point/blob/main/float_to_integer_converter/float_to_integer_converter_pkg.vhd
 @hlsBytecode
-def IEEE754FpFromInt(a: RtlSignalBase[HBits], t: IEEE754Fp):
+def IEEE754FpFromInt(a: RtlSignalBase[HBits], t: IEEE754Fp,
+                     dbgUseintrinsicCtlz=True, dbgUseIntrinsicShl=True):
+    """
+    :param dbgUseintrinsicCtlz: switch between countBits and ctlz for testing purposes 
+    :param dbgUseIntrinsicShl: switch between shl and shift implemented in loop
+    """
     intW = a._dtype.bit_length()
     res = t.from_py(None)
     exp_t = res.exponent._dtype
@@ -32,14 +39,23 @@ def IEEE754FpFromInt(a: RtlSignalBase[HBits], t: IEEE754Fp):
             raise NotImplementedError(a._dtype, "implemented only for signed")
         # convert_1
         # shift value so it starts with 1 (to normalize number)
-        leadingZeroCnt = PyBytecodeInline(countBits)(value, 0, True)
-        for _leadingZeroCnt in range(0, intW + 1):
-            # All shift values mut be checked because we need to generate hardware which works for every value
-            # case with 0 is the default case with 0 shift
-            # case with intW is  means that the value is 0 and no shift is required
-            if leadingZeroCnt._eq(_leadingZeroCnt):
-                break
-            value <<= 1
+        if dbgUseintrinsicCtlz:
+            leadingZeroCnt = ctlz(value)
+        else:
+            leadingZeroCnt = PyBytecodeInline(countBits)(value, 0, True)
+        
+        if dbgUseIntrinsicShl:
+            value = shl(value, leadingZeroCnt)
+            PyBytecodeNoSplitSlices(value)
+        else:
+            for _leadingZeroCnt in range(0, intW + 1):
+                # All shift values mut be checked because we need to generate hardware which works for every value
+                # case with 0 is the default case with 0 shift
+                # case with intW is  means that the value is 0 and no shift is required
+                if leadingZeroCnt._eq(_leadingZeroCnt):
+                    break
+                value <<= 1
+
         res.exponent -= fitTo_t(leadingZeroCnt, exp_t, shrink=False)
         # compute rounding
         cutOffWidth = intW - t.MANTISSA_WIDTH - 1  # how many lower bits to cut due to mantissa/input width difference

@@ -7,11 +7,11 @@ from pathlib import Path
 from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.utils import addClkRstn
-from hwt.simulator.simTestCase import SimTestCase
-from hwt.hwParam import HwParam
 from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
+from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import int64_t, uint64_t
@@ -114,6 +114,7 @@ class IEEE754FpFromInt_TC(SimTestCase):
             checkDataOutFn,
             Path(self.DEFAULT_LOG_DIR, f"{self.getTestName()}"),
             debugLogTime=TestLlvmIrAndMirPlatform.logTimeToStdout if self.LOG_TIME else None,
+            #runTestAfterEachPass=True,
         ))
         if self.LOG_TIME:
             time1 = datetime.now()
@@ -146,15 +147,15 @@ class IEEE754FpFromInt_TC(SimTestCase):
 
 
 if __name__ == "__main__":
-    # from hwt.synth import to_rtl_str
-    # from hwtHls.platform.platform import HlsDebugBundle
-    # from hwtHls.platform.virtual import VirtualHlsPlatform
-    # from hwtLib.types.ctypes import int16_t
-    # from tests.floatingpoint.fptypes import IEEE754Fp16
-    # dut = IEEE754FpFromIntConventor()
-    # dut.T_IN = int16_t
-    # dut.T = IEEE754Fp16
-    # print(to_rtl_str(dut, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    from hwt.synth import to_rtl_str
+    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.virtual import VirtualHlsPlatform
+    from hwtLib.types.ctypes import int16_t
+    from tests.floatingpoint.fptypes import IEEE754Fp16
+    m = IEEE754FpFromIntConventor()
+    m.T_IN = int16_t
+    m.T = IEEE754Fp16
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
     #import cProfile

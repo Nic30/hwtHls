@@ -2,15 +2,19 @@ from hwt.code import Concat
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.mainBases import RtlSignalBase
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeBlockLabel
+from hwtHls.code import lshr
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeBlockLabel
+from hwtHls.frontend.pyBytecode.pragmaInstruction import PyBytecodeNoSplitSlices
 from pyMathBitPrecise.bit_utils import mask, to_unsigned, to_signed
 from tests.floatingpoint.fptypes import IEEE754Fp
+from hwt.math import log2ceil
 
 
 # based on https://github.com/dawsonjon/fpu/blob/master/float_to_int/float_to_int.v
-def IEEE754FpToInt(a: RtlSignalBase[IEEE754Fp], res: RtlSignalBase[HBits]):
+def IEEE754FpToInt(a: RtlSignalBase[IEEE754Fp], res: RtlSignalBase[HBits], dbgUseIntrinsicSh=True):
     """
     :note: does not handle +-inf and NaN
+    :param dbgUseIntrinsicSh: switch between a/lshr and shift implemented in loop
     """
     fp_t: IEEE754Fp = a._dtype
     resIsSigned = res._dtype.signed
@@ -44,11 +48,21 @@ def IEEE754FpToInt(a: RtlSignalBase[IEEE754Fp], res: RtlSignalBase[HBits]):
                 res = maxVal
         else:
             shift = exponent._dtype.from_py(shBoudary + 1) - exponent
-            for sh in range(0, resW):
-                PyBytecodeBlockLabel(f"normalization.sh{sh:d}")
-                if shift._eq(sh):
-                    break
-                res = res._unsigned() >> 1  # not using >>= 1 because we need logical shift not arithmetic
+            if dbgUseIntrinsicSh:
+                resBitCntTyWidth = log2ceil(resW + 1)
+                if resBitCntTyWidth < shift._dtype.bit_length():
+                    # cut off bits which were used to detect overflows
+                    _shift = shift[resBitCntTyWidth:]
+                else:
+                    _shift = shift
+                res = lshr(res, _shift)
+                PyBytecodeNoSplitSlices(res)
+            else:
+                for sh in range(0, resW):
+                    PyBytecodeBlockLabel(f"normalization.sh{sh:d}")
+                    if shift._eq(sh):
+                        break
+                    res = res._unsigned() >> 1  # not using >>= 1 because we need logical shift not arithmetic
 
             if resIsSigned:
                 res = res._signed()

@@ -1,27 +1,17 @@
 from hwt.code import Concat
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
-from hwt.math import log2ceil
 from hwt.mainBases import RtlSignalBase
+from hwt.math import log2ceil
 from hwt.synthesizer.vectorUtils import fitTo
-from hwtHls.code import getMsb, zext, lshr, ctlz, hwUMin, shl
+from hwtHls.code import getMsb, lshr, ctlz, hwUMin, shl
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.markers import PyBytecodePreprocHwCopy, \
-    PyBytecodeInline, PyBytecodeNoSplitSlices
-from pyMathBitPrecise.bit_utils import mask
+from hwtHls.frontend.pyBytecode.pragmaInstruction import PyBytecodeNoSplitSlices
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodePreprocHwCopy, \
+    PyBytecodeInline, PyBytecodeBlockLabel
 from tests.floatingpoint.fptypes import IEEE754Fp
-
-
-# https://github.com/sudhamshu091/32-Verilog-Mini-Projects/blob/main/Floating%20Point%20IEEE%20754%20Addition%20Subtraction/Addition_Subtraction.v
-def _denormalize(a: RtlSignalBase[IEEE754Fp]):
-    # :note: contains expression only, no inlining required
-    # mantissa now has +4 bits, exponent is 1 if number is subnormal
-    isSubnormal = a._dtype.isSubnormal(a)
-    aMantissa = Concat(~isSubnormal, a.mantissa, HBits(3).from_py(0))
-    expWidth = a.exponent._dtype.bit_length()
-    aExponent = zext(a.exponent, expWidth + 1)  # + a._dtype.EXPONENT_OFFSET_U
-    _aExponent = isSubnormal._ternary(aExponent._dtype.from_py(1), aExponent)
-    return (aMantissa, _aExponent)
+from tests.math.fp.normalizeDenormalize import _denormalize, fpRoundup, \
+    fpPack
 
 
 @PyBytecodeInline
@@ -47,17 +37,20 @@ def IEEE754FpAdd(a: RtlSignalBase[IEEE754Fp], b: RtlSignalBase[IEEE754Fp], isSim
     https://users.encs.concordia.ca/~asim/COEN_6501/Lecture_Notes/L4_Slides.pdf
     https://doi.org/10.1049/iet-cdt.2016.0200
     https://github.com/OpenXiangShan/fudian/blob/main/src/main/scala/fudian/FADD.scala
+    https://github.com/stskeeps/HyCC/blob/master/examples/float32/float32.h#L115
     """
     t: IEEE754Fp = a._dtype
     res = t.from_py(None)
     if t.isNaN(a) | t.isNaN(b):
+        PyBytecodeBlockLabel("IEEE754FpAdd.isNaN")
         # if a is NaN or b is NaN return NaN
-        res.sign = 1
+        res.sign = a.sign & b.sign
         res.exponent = t.getSpecialExponent()
         res.mantissa = t.getNaNMantisa()
 
     elif t.isInf(a):
         # if a is inf return inf
+        PyBytecodeBlockLabel("IEEE754FpAdd.aIsInf")
         res.sign = a.sign
         res.exponent = t.getSpecialExponent()
         res.mantissa = 0
@@ -65,30 +58,37 @@ def IEEE754FpAdd(a: RtlSignalBase[IEEE754Fp], b: RtlSignalBase[IEEE754Fp], isSim
             res.mantissa = t.getNaNMantisa()
 
     elif t.isInf(b):
+        PyBytecodeBlockLabel("IEEE754FpAdd.bIsInf")
         # if b is inf return inf
         res.sign = b.sign
         res.exponent = t.getSpecialExponent()
         res.mantissa = 0
 
     elif t.isZero(a) & t.isZero(b):
+        PyBytecodeBlockLabel("IEEE754FpAdd.Is0")
         res.sign = a.sign & b.sign
         res.exponent = 0
         res.mantissa = 0
 
     elif t.isZero(a):
+        PyBytecodeBlockLabel("IEEE754FpAdd.aIs0")
         res = b
 
     elif t.isZero(b):
+        PyBytecodeBlockLabel("IEEE754FpAdd.bIs0")
         res = a
 
     else:
-        # :note: mantissa +4 bits, exponent still format with 0=
+        PyBytecodeBlockLabel("IEEE754FpAdd.compute")
+
+        # :note: mantissa +4 bits, still in biased form
         aMantissa, aExponent = _denormalize(a)
         aSign = a.sign
         bMantissa, bExponent = _denormalize(b)
         bSign = b.sign
 
         if aExponent < bExponent:
+            PyBytecodeBlockLabel("IEEE754FpAdd.expSwap")
             # swap to have number with larger exponent in a to avoid dual shifting logic
             if isSim:
 
@@ -106,6 +106,7 @@ def IEEE754FpAdd(a: RtlSignalBase[IEEE754Fp], b: RtlSignalBase[IEEE754Fp], isSim
         requiredShift = aExponent - bExponent
         del bExponent  # no longer  required
         if requiredShift < t.MANTISSA_WIDTH:
+            PyBytecodeBlockLabel("IEEE754FpAdd.scale")
             # perform shit of b to scale it to the same exponent as a
             # accumulate all shifted out bits t bit0
             # (original align)
@@ -132,6 +133,7 @@ def IEEE754FpAdd(a: RtlSignalBase[IEEE754Fp], b: RtlSignalBase[IEEE754Fp], isSim
             else:
                 sumTmp = aMantissaTmp - bMantissaTmp
 
+            PyBytecodeBlockLabel("IEEE754FpAdd.add_1")
             del aMantissa
             del bMantissa
 
@@ -152,6 +154,7 @@ def IEEE754FpAdd(a: RtlSignalBase[IEEE754Fp], b: RtlSignalBase[IEEE754Fp], isSim
                 round_bit = sumTmp[1]
                 sticky_bit = sumTmp[0]
 
+            PyBytecodeBlockLabel("IEEE754FpAdd.normalize_1")
             # normalize
             # (original normalise_1)
             # shift mantissaTmp that there is 1 in MSB, if exponent allows it
@@ -168,6 +171,7 @@ def IEEE754FpAdd(a: RtlSignalBase[IEEE754Fp], b: RtlSignalBase[IEEE754Fp], isSim
             #    mantissaTmp = Concat(mantissaTmp[:1], guard_bit)
             #    round_bit = round_bit._dtype.from_py(0)
 
+            PyBytecodeBlockLabel("IEEE754FpAdd.normalize_2")
             # (original normalise_2)
             if exponetTmp._eq(0):
                 # zero and subnormals
@@ -177,29 +181,16 @@ def IEEE754FpAdd(a: RtlSignalBase[IEEE754Fp], b: RtlSignalBase[IEEE754Fp], isSim
                 guard_bit = mantissaTmp[0]
                 sticky_bit |= round_bit
 
+            PyBytecodeBlockLabel("IEEE754FpAdd.round")
             # round (original round)
-            if (guard_bit & (round_bit | sticky_bit | mantissaTmp[0])):
-                if mantissaTmp._eq(mask(t.MANTISSA_WIDTH + 1) - 1):
-                    exponetTmp += 1
-                mantissaTmp += 1
+            mantissaTmp, exponetTmp = fpRoundup(t, exponetTmp, mantissaTmp, guard_bit, round_bit, sticky_bit)
 
+            PyBytecodeBlockLabel("IEEE754FpAdd.pack")
             # handle overflows
             # (original pack)
-            overflow = exponetTmp[:t.EXPONENT_WIDTH] != 0
-            if overflow:
-                # return inf
-                res.mantissa = res.mantissa._dtype.from_py(0)
-                res.exponent = res.exponent._dtype.from_py(mask(t.EXPONENT_WIDTH))
-            else:
-                res.exponent = exponetTmp[t.EXPONENT_WIDTH:]
-                res.mantissa = mantissaTmp[t.MANTISSA_WIDTH:]
-                if exponetTmp._eq(1):
-                    if ~mantissaTmp[t.MANTISSA_WIDTH]:
-                        res.exponent = res.exponent._dtype.from_py(0)
-                        if mantissaTmp[t.MANTISSA_WIDTH:]._eq(0):
-                            res.sign = res.sign._dtype.from_py(0)  # -a + a = +0.
-
+            PyBytecodeInline(fpPack)(exponetTmp, mantissaTmp, res)
         else:
+            PyBytecodeBlockLabel("IEEE754FpAdd.tooSmall")
             # other number is too small to affect result value
             res.sign = aSign
             res.exponent = aExponent[t.EXPONENT_WIDTH:]
