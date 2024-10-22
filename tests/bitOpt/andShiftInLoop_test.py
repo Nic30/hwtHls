@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.hdl.types.defs import BIT
+from hwt.hdl.commonConstants import b1
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
@@ -39,7 +39,7 @@ class AndShiftInLoop2(HwModule):
         i1 = hls.var("i0", t)
         i0 = mask(8)
         i1 = mask(8)
-        while BIT.from_py(1):
+        while b1:
             i = hls.read(self.i).data
             i0 &= i
             i1 &= (i0 << 1)
@@ -73,7 +73,7 @@ class AndShiftInLoop3(HwModule):
         i0 = mask(8)
         i1 = mask(8)
         i2 = mask(8)
-        while BIT.from_py(1):
+        while b1:
             i = hls.read(self.i).data
             i0 &= i
             i1 &= (i0 << 1)
@@ -170,7 +170,7 @@ class AndShiftInLoop_TC(SimTestCase):
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    dut = AndShiftInLoop3()
+    dut = AndShiftInLoop2()
     print(to_rtl_str(dut, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
