@@ -32,34 +32,38 @@ def createInstructionException(e: Exception, frame: PyBytecodeFrame, instr: Inst
                 break
 
     fn = frame.fn
-    msg = f"File \"{fn.__globals__['__file__']}\", line {instrLine}, in {fn.__name__}\n    {instr}\n{e}"
-    
+    try:
+        msg = f"File \"{fn.__globals__['__file__']}\", line {instrLine}, in {fn.__name__}\n    {instr}\n{e}"
+    except:
+        # the exception object itself is broken, reraise it as it is
+        raise e from e
+
     # Dynamically create an exception for:
     # * Compatibility with caller core (e.g. `except OriginalError`)
-    
+
     class WrappedException(type(e), HlsSyntaxError):
         """Exception proxy with additional message about code location in user code."""
-        
+
         def __init__(self, msg):
             # We explicitly bypass super() as the `type(e).__init__` constructor
             # might have special kwargs
             Exception.__init__(self, msg)  # pylint: disable=non-parent-init-called
-        
+
         def __getattr__(self, name: str):
             # Capture `e` through closure. We do not pass e through __init__
             # to bypass `Exception.__new__` magic which add `__str__` artifacts.
             return getattr(e, name)
-        
+
         # The wrapped exception might have overwritten `__str__` & cie, so
         # use the base exception ones.
         __repr__ = BaseException.__repr__
         __str__ = BaseException.__str__
-    
+
     WrappedException.__name__ = type(e).__name__
     WrappedException.__qualname__ = type(e).__qualname__
     WrappedException.__module__ = type(e).__module__
     new_exception = WrappedException(msg)
-    
+
     # Propagate the exception:
     # * `with_traceback` will propagate the original stacktrace
     # * `from e.__cause__` will:
