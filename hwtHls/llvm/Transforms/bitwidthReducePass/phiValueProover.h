@@ -71,7 +71,7 @@ public:
 	void addOperandConstraint(const VarBitConstraint &opConstr);
 	VarBitConstraint resolve();
 
-	bool consystencyCheck() const;
+	bool consistencyCheck() const;
 	void print(llvm::raw_ostream &O, bool IsForDebug = false) const;
 };
 

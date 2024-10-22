@@ -31,7 +31,7 @@ PHIValueProover::ValueInfo::ValueInfo(const llvm::PHINode *phi,
 void PHIValueProover::addOperandConstraint(const VarBitConstraint &opConstr) {
 	for (const auto &r : opConstr.replacements) {
 		knownBits_insert(r);
-		assert(consystencyCheck());
+		assert(consistencyCheck());
 	}
 }
 
@@ -309,7 +309,7 @@ VarBitConstraint PHIValueProover::resolve() {
 	assert(!knownBits.empty());
 	VarBitConstraint res(phi->getType()->getIntegerBitWidth());
 
-	consystencyCheck();
+	consistencyCheck();
 	size_t offset = 0;
 	for (auto vi = knownBits.begin();
 			vi != knownBits.begin() + phi->getType()->getIntegerBitWidth();
@@ -334,7 +334,7 @@ VarBitConstraint PHIValueProover::resolve() {
 	return res;
 }
 
-bool PHIValueProover::consystencyCheck() const {
+bool PHIValueProover::consistencyCheck() const {
 	assert(phi != nullptr);
 	size_t offset = 0;
 	size_t offsetNext = 0;
