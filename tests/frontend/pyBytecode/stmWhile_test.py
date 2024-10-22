@@ -12,7 +12,7 @@ from tests.frontend.pyBytecode.stmWhile import HlsPythonHwWhile0a, \
     HlsPythonHwWhile5, HlsPythonHwWhile0b, HlsPythonHwWhile0c, \
     PragmaInline_HlsPythonHwWhile5, HlsPythonHwWhile6, MovingOneGen, \
     LoopCondBitSet, LoopZeroPadCompareShift, HlsPythonHwWhile5b, \
-    PragmaInline_HlsPythonHwWhile4
+    PragmaInline_HlsPythonHwWhile4, PragmaInline_HlsPythonHwWhile5c
 
 
 class StmWhile_ll_TC(BaseSsaTC):
@@ -69,6 +69,7 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
         IN_CNT = 32
         in_t = HBits(8)
         dataIn = [in_t.from_py(self._rand.getrandbits(2)) for _ in range(IN_CNT)]
+        # print([int(d) for d in dataIn])
         self._test_OneInOneOut(HlsPythonHwWhile3(), HlsPythonHwWhile3.model,
                                dataIn, wallTimeRtlClks=IN_CNT + 9 + 20 + 1)
 
@@ -108,12 +109,12 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
                                 wallTimeIr=60,
                                 wallTimeOptIr=60,
                                 wallTimeOptMir=6,
-                                wallTimeRtlClks=16+1,
-                                debugFilter={
-                                    *HlsDebugBundle.ALL_RELIABLE,
-                                    HlsDebugBundle.DBG_20_addSignalNamesToSync,
-                                    HlsDebugBundle.DBG_20_addSignalNamesToData,
-                                }
+                                wallTimeRtlClks=6 + 1,
+                                # debugFilter={
+                                #    *HlsDebugBundle.ALL_RELIABLE,
+                                #    HlsDebugBundle.DBG_20_addSignalNamesToSync,
+                                #    HlsDebugBundle.DBG_20_addSignalNamesToData,
+                                # }
                                 )
 
     def test_PragmaInline_PragmaInline_HlsPythonHwWhile4(self):
@@ -121,27 +122,29 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
 
     def test_PragmaInline_HlsPythonHwWhile5(self):
         self.test_HlsPythonHwWhile4(mCls=PragmaInline_HlsPythonHwWhile5)
-    
-    # [todo] PragmaInline_HlsPythonHwWhile5c
+
+    def test_PragmaInline_HlsPythonHwWhile5c(self):
+        self.test_HlsPythonHwWhile4(mCls=PragmaInline_HlsPythonHwWhile5c)
+
 
 
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
-    m = LoopZeroPadCompareShift()
+    m = HlsPythonHwWhile2()
     m.FREQ = int(1e6)
     # m.DATA_WIDTH = 4
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={
         *HlsDebugBundle.ALL_RELIABLE,
-        HlsDebugBundle.DBG_20_addSignalNamesToSync,
-        HlsDebugBundle.DBG_20_addSignalNamesToData,
+        HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+        HlsDebugBundle.DBG_4_0_addSignalNamesToData,
     })))
-   
+
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite1 = unittest.TestSuite([StmWhile_sim_TC("test_LoopZeroPadCompareShift")])
+    #suite1 = unittest.TestSuite([StmWhile_sim_TC("test_LoopZeroPadCompareShift")])
     suite1 = testLoader.loadTestsFromTestCase(StmWhile_ll_TC)
     suite2 = testLoader.loadTestsFromTestCase(StmWhile_sim_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(unittest.TestSuite([suite1, suite2]))
-    #runner.run(suite1)
+    # runner.run(suite1)
