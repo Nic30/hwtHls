@@ -14,7 +14,7 @@ BitPartsUseAnalysisContext::BitPartsUseAnalysisContext(
 void BitPartsUseAnalysisContext::updateUseMaskEntirelyUsed(
 		const llvm::Value *V) {
 	if (auto I = dyn_cast<Instruction>(V)) {
-		if (constraints.findInConstraints(I)) {
+		if (constraints.findInConstraints(I, false)) {
 			updateUseMaskEntirelyUsed(I);
 		}
 	}
@@ -30,7 +30,7 @@ std::optional<bool> BitPartsUseAnalysisContext::getKnownBitBoolValue(
 			return false;
 		}
 	} else {
-		auto cur = constraints.findInConstraints(V);
+		auto cur = constraints.findInConstraints(V, false);
 		if (!cur)
 			return {};
 		VarBitConstraint& kb = *cur;
@@ -48,7 +48,7 @@ std::optional<bool> BitPartsUseAnalysisContext::getKnownBitBoolValue(
 void BitPartsUseAnalysisContext::updateUseMaskEntirelyUsedOperand(
 		const llvm::Value *op) {
 	if (auto I2 = dyn_cast<Instruction>(op)) {
-		if (auto cur = constraints.findInConstraints(I2)) {
+		if (auto cur = constraints.findInConstraints(I2, true)) {
 			APInt useAll = APInt::getAllOnes(
 					cur->useMask.getBitWidth());
 			updateUseMask(I2, *cur, useAll);
@@ -60,7 +60,7 @@ void BitPartsUseAnalysisContext::updateUseMaskEntirelyUsedOperand(
 
 void BitPartsUseAnalysisContext::updateUseMaskEntirelyUsed(
 		const llvm::Instruction *I) {
-	if (auto cur = constraints.findInConstraints(I)) {
+	if (auto cur = constraints.findInConstraints(I, true)) {
 		// the use mask should be already propagated
 		// or will be propagated once the use is found
 		APInt tcm = cur->getTrullyComputedBitMask(I);
@@ -93,7 +93,7 @@ void BitPartsUseAnalysisContext::updateUseMaskEntirelyUsed(
 void BitPartsUseAnalysisContext::updateUseMask(const llvm::Value *V,
 		const APInt &newMask) {
 	if (auto I = dyn_cast<Instruction>(V)) {
-		if (auto cur = constraints.findInConstraints(I)) {
+		if (auto cur = constraints.findInConstraints(I, true)) {
 			updateUseMask(I, *cur, newMask);
 		} else {
 			updateUseMaskEntirelyUsed(I);
@@ -194,17 +194,17 @@ void BitPartsUseAnalysisContext::propagateUseMaskCallInst(const CallInst *C,
 		}
 		return;
 	} else if (IsBitRangeGet(C)) {
-		VarBitConstraint &base = *constraints.findInConstraints(C->getArgOperand(0));
-		VarBitConstraint &sh = *constraints.findInConstraints(C->getArgOperand(1));
-		if (sh.replacements.size() == 1
-				&& dyn_cast<ConstantInt>(sh.replacements[0].src)) {
+		VarBitConstraint* base = constraints.findInConstraints(C->getArgOperand(0), true);
+		VarBitConstraint* sh = constraints.findInConstraints(C->getArgOperand(1), true);
+		if (sh && base && sh->replacements.size() == 1
+				&& dyn_cast<ConstantInt>(sh->replacements[0].src)) {
 			if (const ConstantInt *shConst = dyn_cast<ConstantInt>(
-					sh.replacements[0].src)) {
+					sh->replacements[0].src)) {
 				auto w = vbc.useMask.getBitWidth();
 				auto off = shConst->getLimitedValue();
-				APInt m(base.useMask.getBitWidth(), 0);
+				APInt m(base->useMask.getBitWidth(), 0);
 				m.setBits(off, off + w);
-				updateUseMask(C->getArgOperand(0), base, m);
+				updateUseMask(C->getArgOperand(0), *base, m);
 				return;
 			}
 		}

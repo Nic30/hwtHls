@@ -6,9 +6,10 @@ using namespace llvm;
 namespace hwtHls {
 
 BitPartsRewriter::BitPartsRewriter(BitPartsConstraints &_constraints,
+		DceWorklist *DCE,
 		std::function<bool(llvm::Instruction&)> mayModifyExistingInstr) :
 		constraints(_constraints), mayModifyExistingInstr(
-				mayModifyExistingInstr) {
+				mayModifyExistingInstr), CFGChanged(false), DCE(DCE) {
 }
 
 std::vector<KnownBitRangeInfo> iterUsedBitRanges(const APInt &useMask,
@@ -32,6 +33,14 @@ llvm::Value* BitPartsRewriter::rewriteKnownBitRangeInfo(IRBuilder<> *Builder,
 		const KnownBitRangeInfo &kbri) {
 	auto *T = cast<IntegerType>(kbri.src->getType());
 	if (kbri.srcBeginBitI == 0 && kbri.width == (T ? T->getBitWidth() : 1)) {
+		llvm::Value *src = const_cast<Value*>(kbri.src);
+		// check for possible replace of src
+		if (auto *I = dyn_cast<llvm::Instruction>(src)) {
+			auto repl = replacementCache.find(I);
+			if (repl != replacementCache.end()) {
+				return repl->second;
+			}
+		}
 		// rewrite to self without change
 		return const_cast<llvm::Value*>(kbri.src);
 	} else {
@@ -93,48 +102,150 @@ llvm::Value* BitPartsRewriter::rewritePHINode(llvm::PHINode &I,
 	return res;
 }
 
+template<size_t OPERATOR_CNT>
+bool BitPartsRewriter::tryResolveAndUpdateOperands(IRBuilder<> &b,
+		Instruction &I, std::array<llvm::APInt, OPERATOR_CNT> useMask,
+		std::array<Value*, OPERATOR_CNT> &newOperands) {
+	bool mayModify = mayModifyExistingInstr(I);
+	bool allOpsUpdated = true;
+	for (size_t i = 0; i < I.getNumOperands(); ++i) {
+		Value *O = I.getOperand(i);
+		auto OConstraint = constraints.findInConstraints(O);
+
+		// if (useMask[i].isAllOnes() && (!OConstraint || OConstraint->valuesHaveSameMeaning(O))) {
+		// 	assert(O->getType()->getIntegerBitWidth() == useMask[i].popcount());
+		// 	newOperands[i] = O;
+		// 	continue;
+		// }
+
+		Value *newOVal;
+		if (OConstraint) {
+			auto usedBits = iterUsedBitRanges(useMask[i], *OConstraint);
+			newOVal = rewriteKnownBitRangeInfoVector(&b, usedBits);
+			assert(newOVal && "This can not be null because it has use (this one)");
+			assert(
+					newOVal->getType()->getIntegerBitWidth()
+							== useMask[i].popcount());
+		} else {
+			newOVal = O;
+		}
+		newOperands[i] = newOVal;
+		if (VarBitConstraint::valuesHaveSameMeaning(newOVal, O)) {
+			if (newOVal != O) {
+				if (mayModify && newOVal->getType() == O->getType()) {
+					if (DCE)
+						if (auto OI = dyn_cast<Instruction>(O)) {
+							DCE->insert(*OI);
+						}
+					I.setOperand(i, newOVal);
+				} else
+					allOpsUpdated = false;
+			}
+		} else {
+			// operand was not updated and was stored in newOperands
+			allOpsUpdated = false;
+		}
+	}
+	return allOpsUpdated;
+}
+
 llvm::Value* BitPartsRewriter::rewriteSelect(llvm::SelectInst &I,
 		const VarBitConstraint &vbc) {
 	// @note use mask is guaranteed to be 0 for bits which does not require select
 	//   so we do not need to check if we can reduce something
 	// @note if result is constant this should not be rewritten instead the constant should be used in every use
 	IRBuilder<> b(&I);
-
-	auto T = constraints.findInConstraints(I.getTrueValue());
-	Value *tVal = rewriteKnownBitRangeInfoVector(&b,
-			iterUsedBitRanges(vbc.useMask, *T));
-	assert(tVal && "This can not be null because it has use (this one)");
-	auto F = constraints.findInConstraints(I.getFalseValue());
-	Value *fVal = rewriteKnownBitRangeInfoVector(&b,
-			iterUsedBitRanges(vbc.useMask, *F));
-	assert(fVal && "This can not be null because it has use (this one)");
-	Value *c = rewriteIfRequired(I.getCondition());
-	assert(c && "This can not be null because it has use (this one)");
 	Value *res;
-	if (c == I.getCondition() && tVal == I.getTrueValue()
-			&& fVal == I.getFalseValue()) {
+	std::array<Value*, 3> newOps;
+	if (tryResolveAndUpdateOperands<3>(b, I,
+			{ APInt(1, 1), vbc.useMask, vbc.useMask }, newOps)) {
 		res = &I;
 	} else {
-		res = b.CreateSelect(c, tVal, fVal, I.getName());
+		assert(
+				!isa<ConstantInt>(newOps[0])
+						&& "If select condition is resolved to be ConstantInt this instruction"
+								" should have been already optimized out and there should be record in replacementCache");
+		assert(newOps[0]->getType()->getIntegerBitWidth() == 1);
+		assert(newOps[1]->getType() == newOps[2]->getType());
+		res = b.CreateSelect(newOps[0], newOps[1], newOps[2], I.getName());
 	}
 	replacementCache[&I] = res;
 	return res;
 }
 
+llvm::Value* BitPartsRewriter::rewriteSwitchInst(llvm::SwitchInst &I,
+		const VarBitConstraint &vbc) {
+	Value *originalCondOp = I.getCondition();
+	const VarBitConstraint *_condOp = constraints.findInConstraints(
+			originalCondOp);
+	IRBuilder<> b(&I);
+	auto usedBits = iterUsedBitRanges(_condOp->useMask, *_condOp);
+	Value *condOp = rewriteKnownBitRangeInfoVector(&b, usedBits);
+	if (condOp == I.getCondition()) {
+		return &I;
+	} else if (condOp->getType()->getIntegerBitWidth()
+			== originalCondOp->getType()->getIntegerBitWidth()) {
+		I.setCondition(condOp);
+		return &I;
+	}
+	// use known bits to prune destinations
+	// and to reduce bit width of case values
+	I.setCondition(condOp);
+	for (auto It = I.case_begin(), End = I.case_end(); It != End;) {
+		auto *V = It->getCaseValue();
+		APInt VInt = V->getValue(); // intentional copy
+		APInt NewV = APInt(condOp->getType()->getIntegerBitWidth(), 0);
+		// if any removed constant bit does not match remove whole case
+		// else just remove bits from case value
+		bool satisfiable = true;
+		size_t removedBitCnt = 0;
+		for (const KnownBitRangeInfo &condPart : _condOp->replacements) {
+			auto correspondingCaseVal = VInt.extractBits(condPart.width,
+					condPart.dstBeginBitI);
+			if (auto partC = dyn_cast<ConstantInt>(condPart.src)) {
+				assert(
+						partC->getType()->getIntegerBitWidth()
+								== condPart.width);
+				if (partC->getValue() == correspondingCaseVal) {
+					// bits in case value and in new condition equals => remove these bits
+					removedBitCnt += condPart.width;
+				} else {
+					// bits in case value does not equal => this case condition is unsatisfiable => remove it
+					satisfiable = false;
+					break;
+				}
+			} else {
+				// this part is not removed, copy bits from case value to new case value
+				NewV |= correspondingCaseVal.zext(NewV.getBitWidth()).shl(
+						condPart.dstBeginBitI - removedBitCnt);
+			}
+		}
+		if (!satisfiable) {
+			It = I.removeCase(It);
+			End = I.case_end();
+			CFGChanged = true;
+			continue;
+		} else {
+			It->setValue(
+					dyn_cast<ConstantInt>(
+							ConstantInt::get(condOp->getType(), NewV)));
+		}
+
+		++It;
+	}
+	return &I;
+}
+
 llvm::Value* BitPartsRewriter::rewriteBinaryOperatorBitwise(
 		llvm::BinaryOperator &I, const VarBitConstraint &vbc) {
 	IRBuilder<> b(&I);
-	auto lhs = constraints.findInConstraints(I.getOperand(0));
-	Value *LHS = rewriteKnownBitRangeInfoVector(&b,
-			iterUsedBitRanges(vbc.useMask, *lhs));
-	auto rhs = constraints.findInConstraints(I.getOperand(1));
-	Value *RHS = rewriteKnownBitRangeInfoVector(&b,
-			iterUsedBitRanges(vbc.useMask, *rhs));
 	Value *res;
-	if (LHS == I.getOperand(0) && RHS == I.getOperand(1)) {
+	std::array<Value*, 2> newOps;
+	if (tryResolveAndUpdateOperands<2>(b, I, { vbc.useMask, vbc.useMask },
+			newOps)) {
 		res = &I;
 	} else {
-		res = b.CreateBinOp(I.getOpcode(), LHS, RHS, I.getName());
+		res = b.CreateBinOp(I.getOpcode(), newOps[0], newOps[1], I.getName());
 	}
 	replacementCache[&I] = res;
 	return res;
@@ -143,17 +254,13 @@ llvm::Value* BitPartsRewriter::rewriteBinaryOperatorBitwise(
 llvm::Value* BitPartsRewriter::rewriteCmpInst(llvm::CmpInst &I,
 		const VarBitConstraint &vbc) {
 	IRBuilder<> b(&I);
-	auto lVbc = constraints.findInConstraints(I.getOperand(0));
-	Value *LHS = rewriteKnownBitRangeInfoVector(&b,
-			iterUsedBitRanges(vbc.operandUseMask[0], *lVbc));
-	auto rVbc = constraints.findInConstraints(I.getOperand(1));
-	Value *RHS = rewriteKnownBitRangeInfoVector(&b,
-			iterUsedBitRanges(vbc.operandUseMask[1], *rVbc));
 	Value *res;
-	if (LHS == I.getOperand(0) && RHS == I.getOperand(1)) {
+	std::array<Value*, 2> newOps;
+	if (tryResolveAndUpdateOperands<2>(b, I,
+			{ vbc.operandUseMask[0], vbc.operandUseMask[1] }, newOps)) {
 		res = &I;
 	} else {
-		res = b.CreateCmp(I.getPredicate(), LHS, RHS, I.getName());
+		res = b.CreateCmp(I.getPredicate(), newOps[0], newOps[1], I.getName());
 	}
 	replacementCache[&I] = res;
 	return res;
@@ -242,17 +349,34 @@ llvm::Value* BitPartsRewriter::expandConstBits(IRBuilder<> *b,
 
 llvm::Instruction* BitPartsRewriter::rewriteInstructionOperands(
 		llvm::Instruction *I) {
-	unsigned opI = 0;
 	llvm::Instruction *IToUpdate = I;
-	for (Value *_val : I->operands()) {
-		auto v = constraints.findInConstraints(_val);
+	for (unsigned opI = 0; opI < I->getNumOperands(); ++opI) {
+		Value *CurO = I->getOperand(opI);
+		auto v = constraints.findInConstraints(CurO);
 		if (v) {
+			// if (v->valuesHaveSameMeaning(CurO)) {
+			// 	continue; // to prevent unnecessary construction of equivalent concats
+			// }
 			// if operand is a subject for replacement
 			// [fixme] phi instructions must always remain at the top of the block
-			auto newVal = rewriteIfRequired(_val);
-			if (_val != newVal) {
+			// :note: rewriteIfRequired is always required because it is potentially necessary update CurO operands
+			auto NewO = rewriteIfRequired(CurO);
+			if (CurO != NewO) {
 				IRBuilder<> b(I);
-				auto newValExpanded = expandConstBits(&b, _val, newVal, *v);
+				if (NewO
+						&& VarBitConstraint::valuesHaveSameMeaning(CurO,
+								NewO)) {
+					continue; // to prevent unnecessary construction of equivalent concats
+				}
+				auto newValExpanded = expandConstBits(&b, CurO, NewO, *v);
+				assert(newValExpanded);
+				if (VarBitConstraint::valuesHaveSameMeaning(CurO,
+						newValExpanded)) {
+					if (DCE)
+						if (auto newValExpandedI = dyn_cast<Instruction>(newValExpanded))
+							DCE->insert(*newValExpandedI);
+					continue; // to prevent unnecessary construction of equivalent concats
+				}
 				if (!mayModifyExistingInstr(*I) && IToUpdate == I) {
 					// lazy construction of copy of instruction
 					IToUpdate = I->clone();
@@ -260,11 +384,9 @@ llvm::Instruction* BitPartsRewriter::rewriteInstructionOperands(
 					IToUpdate->insertAfter(I);
 					replacementCache[I] = IToUpdate;
 				}
-				assert(newValExpanded);
 				IToUpdate->setOperand(opI, newValExpanded);
 			}
 		}
-		opI++;
 	}
 	return IToUpdate;
 }
@@ -280,7 +402,8 @@ llvm::Value* BitPartsRewriter::rewriteIfRequired(llvm::Value *V) {
 			return repl->second;
 		auto v = constraints.findInConstraints(I);
 		if (v) {
-			VarBitConstraint &vbc = *v;
+			const VarBitConstraint &vbc = *v;
+
 			if (vbc.useMask == 0) {
 				return nullptr; // no rewrite required because this will be entirely removed
 			}
@@ -290,7 +413,10 @@ llvm::Value* BitPartsRewriter::rewriteIfRequired(llvm::Value *V) {
 			} else if (vbc.useMask.isAllOnes()) {
 				// case where no bits are discarded and instruction is used as is, with potentially updated operands
 				replacementCache[I] = I;
-				if (!isa<PHINode>(I)) {
+
+				if (auto *SW = dyn_cast<SwitchInst>(I)) {
+					return rewriteSwitchInst(*SW, vbc);
+				} else if (!isa<PHINode>(I)) {
 					// if it is PHINode it will be done later in rewritePHINodeArgsIfRequired
 					// because phi argument values must be constructed in predecessor block.
 					return rewriteInstructionOperands(I);
@@ -330,12 +456,14 @@ llvm::Value* BitPartsRewriter::rewriteIfRequired(llvm::Value *V) {
 }
 
 llvm::Value* BitPartsRewriter::rewriteIfRequiredAndExpand(llvm::Value *V) {
-	auto *replacement = rewriteIfRequired(V);
+	llvm::Value *replacement = rewriteIfRequired(V);
 	if (auto *I = dyn_cast<Instruction>(V)) {
 		auto v = constraints.findInConstraints(I);
 		if (v) {
 			IRBuilder<> b(I);
-			VarBitConstraint &vbc = *v;
+			const VarBitConstraint &vbc = *v;
+			if (vbc.valuesHaveSameMeaning(V))
+				return V;
 			return expandConstBits(&b, V, replacement, vbc);
 		}
 	}
@@ -348,7 +476,7 @@ llvm::Value* BitPartsRewriter::rewritePHINodeArgsIfRequired(
 	APInt phiUseMask = APInt::getAllOnes(phi->getType()->getIntegerBitWidth());
 	auto phiConstr = constraints.findInConstraints(phi);
 	if (phiConstr) {
-		VarBitConstraint &vbc = *phiConstr;
+		const VarBitConstraint &vbc = *phiConstr;
 		phiUseMask = vbc.useMask;
 		if (phiUseMask.isZero()) {
 			for (auto &v : phi->incoming_values()) {

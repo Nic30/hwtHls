@@ -55,7 +55,7 @@ public:
 	}
 };
 
-static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI) {
+static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI, bool& CFGChanged) {
 //#ifdef DBG_VERIFY_AFTER_MODIFICATION
 //	{
 //		std::string errTmp = "hwtHls::BitwidthReductionPass received corrupted function ";
@@ -108,16 +108,13 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI) {
 	}
 
 	// errs() << "BitwidthReductionPass::run runBitwidthReduction\n";
-	// for (const auto& c: A.constraints) {
-	// 	if (c.first->getType()->isIntegerTy() && !isa<ConstantInt>(c.first)) {
-	// 		errs() << c.first << " " << *c.first << "\n";
-	// 		errs() << "    " << *c.second << "\n";
-	// 	}
-	// }
+	// A.dumpConstraints();
 	// F.dump();
 	// writeCFGToDotFile(F, "before.BitwidthReducePass.dot", nullptr, nullptr);
 	bool didModify = false;
-	BitPartsRewriter rew(A);
+	// DCE
+	DceWorklist dce(TLI, nullptr);
+	BitPartsRewriter rew(A, &dce);
 	for (BasicBlock &BB : F) {
 		for (Instruction &I : BB) {
 			rew.rewriteIfRequired(&I);
@@ -135,8 +132,8 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI) {
 			}
 		}
 	}
+	CFGChanged = rew.CFGChanged;
 	// DCE
-	DceWorklist dce(TLI, nullptr);
 	for (BasicBlock &BB : F) {
 		for (auto I = BB.begin(); I != BB.end();) {
 			if (dce.tryRemoveIfDead(*I, I)) {
@@ -183,14 +180,16 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI) {
 llvm::PreservedAnalyses BitwidthReductionPass::run(llvm::Function &F,
 		llvm::FunctionAnalysisManager &AM) {
 	TargetLibraryInfo *TLI = &AM.getResult<TargetLibraryAnalysis>(F);
-
-	if (!runBitwidthReduction(F, TLI)) {
+	bool CFGChanged = false;
+	if (!runBitwidthReduction(F, TLI, CFGChanged)) {
 		return PreservedAnalyses::all();
 	}
 
 	auto PA = PreservedAnalyses();
 	PA.preserve<GlobalsAA>();
-	PA.preserveSet<CFGAnalyses>();
+	if (!CFGChanged) {
+		PA.preserveSet<CFGAnalyses>();
+	}
 	return PA;
 }
 

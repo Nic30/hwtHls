@@ -2,8 +2,10 @@
 
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/IRBuilder.h>
-#include <hwtHls/llvm/Transforms/bitwidthReducePass/constBitPartsAnalysis.h>
 #include <hwtHls/llvm/bitMath.h>
+#include <hwtHls/llvm/Transforms/bitwidthReducePass/constBitPartsAnalysis.h>
+#include <hwtHls/llvm/Transforms/utils/dceWorklist.h>
+
 
 namespace hwtHls {
 
@@ -50,17 +52,23 @@ protected:
 	// replace this select with an concatenation of bit which are actually used
 	llvm::Value* rewriteSelect(llvm::SelectInst &I,
 			const VarBitConstraint &vbc);
+	llvm::Value* rewriteSwitchInst(llvm::SwitchInst &I,
+				const VarBitConstraint &vbc);
 	llvm::Value* rewriteBinaryOperatorBitwise(llvm::BinaryOperator &I,
 			const VarBitConstraint &vbc);
 	llvm::Value* rewriteCmpInst(llvm::CmpInst &I, const VarBitConstraint &vbc);
 	std::function<bool(llvm::Instruction&)> mayModifyExistingInstr;
+
+	template<size_t OPERATOR_CNT>
+	bool tryResolveAndUpdateOperands(llvm::IRBuilder<>& b,
+			llvm::Instruction &I, std::array<llvm::APInt, OPERATOR_CNT> useMask,
+			std::array<llvm::Value*, OPERATOR_CNT> &newOperands);
 public:
 	/*
 	 * :param mayModifyExistingInstr: if true the algorithm updates operands of existing instructions
 	 * 	else new instruction is generated if operands are resolved to be changed
 	 * */
-
-	BitPartsRewriter(BitPartsConstraints &constraints,
+	BitPartsRewriter(BitPartsConstraints &constraints, DceWorklist * DCE=nullptr,
 			std::function<bool(llvm::Instruction&)> mayModifyExistingInstr = [](
 					llvm::Instruction&) {
 				return true;
@@ -70,6 +78,8 @@ public:
 	llvm::Value* rewriteIfRequiredAndExpand(llvm::Value *V);
 	llvm::Value* rewritePHINodeArgsIfRequired(llvm::PHINode *PHI);
 	void addReplacement(llvm::Value *I, llvm::Value *replacement);
+	bool CFGChanged;
+	DceWorklist * DCE;
 
 };
 
