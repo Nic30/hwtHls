@@ -10,6 +10,7 @@
 
 #include <llvm/CodeGen/MachineInstrBuilder.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <hwtHls/llvm/targets/intrinsic/hfloattmp.h>
 #include <hwtHls/llvm/targets/intrinsic/pyObjectPlaceholder.h>
 
 #include <iostream>
@@ -24,7 +25,7 @@ bool HwtFpgaCallLowering::lowerReturn(MachineIRBuilder &MIRBuilder,
 		const Value *Val, ArrayRef<Register> VRegs,
 		FunctionLoweringInfo &FLI) const {
 
-	MachineInstrBuilder Ret = MIRBuilder.buildInstrNoInsert(HwtFpga::PseudoRET);
+	MachineInstrBuilder Ret = MIRBuilder.buildInstrNoInsert(HwtFpga::HWTFPGA_RET);
 	if (Val != nullptr) {
 		return false;
 	}
@@ -79,7 +80,6 @@ bool addIntImmByRegiter(MachineRegisterInfo &MRI, MachineInstrBuilder &MIB,
 	if (std::optional<ValueAndVReg> VRegVal =
 			getAnyConstantVRegValWithLookThrough(objId, MRI)) {
 		auto objIdVal = VRegVal.value().Value;
-		assert(objIdVal.isNonNegative());
 		MIB.addImm(VRegVal.value().Value.getZExtValue());
 		return true;
 	} else {
@@ -179,7 +179,46 @@ bool HwtFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 				MIB.addImm(width);
 			}
 			return true;
+		} else if (hwtHls::IsHwtHlsFp(F)) {
+			int opc;
+			size_t opArgCnt = 2;
+			if (hwtHls::IsHwtHlsFpFAdd(F)) {
+				opc = HwtFpga::HWTFPGA_FP_FADD;
+			} else if (hwtHls::IsHwtHlsFpFSub(F)) {
+				opc = HwtFpga::HWTFPGA_FP_FSUB;
+			} else if (hwtHls::IsHwtHlsFpFMul(F)) {
+				opc = HwtFpga::HWTFPGA_FP_FMUL;
+			} else if (hwtHls::IsHwtHlsFpFDiv(F)) {
+				opc = HwtFpga::HWTFPGA_FP_FDIV;
+			} else {
+				std::string errStr = "Not implemented, Unknown hwtHls.fp. intrinsic: ";
+				llvm::raw_string_ostream ss(errStr);
+				Info.CB->print(ss);
+				throw std::runtime_error(ss.str());
+			}
+			assert(Info.OrigRet.Regs.size() == 1);
+			// dst, srcN*, HFloatTmpConfig options as imms
+			auto DstReg = Info.OrigRet.Regs[0];
+			auto MIB = MIRBuilder.buildInstr(opc)	 //
+			.addReg(DstReg, RegState::Define);
+			MRI.setRegClass(DstReg, &HwtFpga::anyregclsRegClass);
 
+			assert(Info.OrigArgs.size() == opArgCnt + hwtHls::HFloatTmpConfig::MEMBER_CNT);
+			for (size_t i = 0; i < opArgCnt; ++i) {
+				MIB.addUse(Info.OrigArgs[i].Regs[0]);
+			}
+
+	    	for (size_t i = opArgCnt; i < opArgCnt + hwtHls::HFloatTmpConfig::MEMBER_CNT; ++i) {
+				Register cfgRegV = Info.OrigArgs[i].Regs[0];
+				if (!addIntImmByRegiter(MRI, MIB, cfgRegV)) {
+					std::string errStr =
+							"hwtHls.fp.* specialization values must be constants: ";
+					llvm::raw_string_ostream ss(errStr);
+					Info.CB->print(ss);
+					throw std::runtime_error(ss.str());
+				}
+			}
+			return true;
 		} else {
 			std::string errStr =
 					"Not implemented, call of generic function in HW function: ";
@@ -192,8 +231,6 @@ bool HwtFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 	llvm::raw_string_ostream ss(errStr);
 	Info.CB->print(ss);
 	throw std::runtime_error(ss.str());
-	throw std::runtime_error("Not implemented, lowerCall");
-	return false;
 }
 
 bool HwtFpgaCallLowering::canLowerReturn(MachineFunction &MF,

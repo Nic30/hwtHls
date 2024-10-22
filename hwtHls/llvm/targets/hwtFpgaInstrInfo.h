@@ -67,7 +67,7 @@ public:
 			SmallVectorImpl<MachineOperand> &Cond, unsigned &TrueOp,
 			unsigned &FalseOp, bool &Optimizable) const override;
 	virtual bool isPredicable(const MachineInstr &MI) const override {
-		return MI.getOpcode() != HwtFpga::PseudoRET; // because other instructions are predictable
+		return MI.getOpcode() != HwtFpga::HWTFPGA_RET; // because other instructions are predictable
 		// or may be predicated by register duplication
 		//return MI.getDesc().isPredicable();
 	}

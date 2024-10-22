@@ -12,6 +12,7 @@
 #include <hwtHls/llvm/llvmIrMachineLoop.h>
 #include <hwtHls/llvm/llvmIrMetadata.h>
 #include <hwtHls/llvm/targets/hwtFpga.h>
+#include <hwtHls/llvm/targets/intrinsic/hfloattmp.h>
 
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/DerivedTypes.h>
@@ -28,6 +29,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <sstream>
 
 namespace py = pybind11;
 PYBIND11_MAKE_OPAQUE(std::vector<llvm::Type*>);
@@ -59,9 +61,18 @@ void register_Types(pybind11::module_ & m) {
 	py::class_<llvm::Type, std::unique_ptr<llvm::Type, py::nodelete>>(m, "Type")
 		.def("getVoidTy", &llvm::Type::getVoidTy, py::return_value_policy::reference_internal)
 		.def("getIntNTy", &llvm::Type::getIntNTy, py::return_value_policy::reference_internal)
+		.def("isIntegerTy", [](llvm::Type * self) { return self->isIntegerTy(); })
+		.def("isDoubleTy", [](llvm::Type * self) { return self->isDoubleTy(); })
 		.def("getIntegerBitWidth", &llvm::Type::getIntegerBitWidth)
 		.def("getPointerTo", &llvm::Type::getPointerTo, py::return_value_policy::reference)
-		.def("__repr__",  &printToStr<llvm::Type>);;
+		.def("getDoubleTy", &llvm::Type::getDoubleTy, py::return_value_policy::reference)
+		.def("__repr__",  &printToStr<llvm::Type>)
+		.def("__eq__", [](llvm::Type * self, llvm::Type * other) {
+			return self == other;
+		})
+		.def("__hash__", [](llvm::Type * v) {
+			return reinterpret_cast<intptr_t>(v);
+		});
 
 	py::class_<llvm::PointerType, std::unique_ptr<llvm::PointerType, py::nodelete>, llvm::Type>(m, "PointerType")
 		.def("get", [](llvm::LLVMContext &C, unsigned AddressSpace) {
@@ -107,6 +118,50 @@ void register_Types(pybind11::module_ & m) {
  		else
  			return (llvm::IntegerType*) nullptr;
  	}, py::return_value_policy::reference);
+
+	py::class_<hwtHls::HFloatTmpConfig>(m, "HFloatTmpConfig")
+		.def(py::init<unsigned, unsigned, bool, bool, bool, bool, bool, bool, bool>())
+		.def_readonly_static("MEMBER_CNT", &hwtHls::HFloatTmpConfig::MEMBER_CNT)
+		.def("__hash__", &hwtHls::HFloatTmpConfig::__hash__)
+		.def("__eq__", [](hwtHls::HFloatTmpConfig * self, hwtHls::HFloatTmpConfig * other) {
+			return *self == *other;
+		})
+		.def("getBitWidth", &hwtHls::HFloatTmpConfig::getBitWidth)
+		.def_readwrite("exponentOrIntWidth", &HFloatTmpConfig::exponentOrIntWidth)
+		.def_readwrite("mantissaOrFracWidth", &HFloatTmpConfig::mantissaOrFracWidth)
+		.def_readwrite("isInQFromat", &HFloatTmpConfig::isInQFromat)
+		.def_readwrite("supportSubnormal", &HFloatTmpConfig::supportSubnormal)
+		.def_readwrite("hasSign", &HFloatTmpConfig::hasSign)
+		.def_readwrite("hasIsNaN", &HFloatTmpConfig::hasIsNaN)
+		.def_readwrite("hasIsInf", &HFloatTmpConfig::hasIsInf)
+		.def_readwrite("hasIs1", &HFloatTmpConfig::hasIs1)
+		.def_readwrite("hasIs0", &HFloatTmpConfig::hasIs0)
+		.def("__repr__", [](hwtHls::HFloatTmpConfig & self) {
+			std::stringstream ss;
+			ss << "<HFloatTmpConfig";
+			if (self.isInQFromat) {
+				ss << " format=Q, intWidth=" << (unsigned) self.exponentOrIntWidth
+				   << ", fracWidth=" << (unsigned) self.mantissaOrFracWidth;
+			} else {
+				ss << " format=FP, exponentWidth=" << (unsigned) self.exponentOrIntWidth
+				   << ", mantissaWidth=" << (unsigned) self.mantissaOrFracWidth;
+			}
+			if (self.supportSubnormal)
+				ss << ", supportSubnormal";
+			if (self.hasSign)
+				ss << ", hasSign";
+			if (self.hasIsNaN)
+				ss << ", hasIsNaN";
+			if (self.hasIsInf)
+				ss << ", hasIsInf";
+			if (self.hasIs1)
+				ss << ", hasIs1";
+			if (self.hasIs0)
+				ss << ", hasIs0";
+			ss << ">";
+			return ss.str();
+		});
+
 }
 
 void register_BasicBlock(pybind11::module_ & m) {

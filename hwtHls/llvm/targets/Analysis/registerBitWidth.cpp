@@ -7,8 +7,10 @@
 #include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
 #include <hwtHls/llvm/targets/hwtFpgaIoUtils.h>
 #include <hwtHls/llvm/targets/bitMathUtils.h>
+#include <hwtHls/llvm/targets/intrinsic/hfloattmp.h>
 
 using namespace llvm;
+
 namespace hwtHls {
 
 bool checkOrSetWidth(MachineRegisterInfo &MRI, MachineOperand &op,
@@ -177,7 +179,7 @@ bool resolveTypes(MachineInstr &MI) {
 	case HwtFpga::HWTFPGA_ARG_GET:
 	case HwtFpga::HWTFPGA_BR:
 	case HwtFpga::HWTFPGA_BRCOND:
-	case HwtFpga::PseudoRET:
+	case HwtFpga::HWTFPGA_RET:
 	case TargetOpcode::IMPLICIT_DEF:
 		// no resolving needed
 		return true;
@@ -355,6 +357,31 @@ bool resolveTypes(MachineInstr &MI) {
 		}
 
 		return false;
+	}
+	case HwtFpga::HWTFPGA_FP_FADD:
+	case HwtFpga::HWTFPGA_FP_FSUB:
+	case HwtFpga::HWTFPGA_FP_FMUL:
+	case HwtFpga::HWTFPGA_FP_FDIV: {
+		HFloatTmpConfig fpCfg;
+		size_t opOff = 3;
+		assert(HFloatTmpConfig::MEMBER_CNT == 9);
+		assert(MI.getNumExplicitOperands() == opOff + HFloatTmpConfig::MEMBER_CNT);
+		fpCfg.exponentOrIntWidth = MI.getOperand(opOff++).getImm();
+		fpCfg.mantissaOrFracWidth = MI.getOperand(opOff++).getImm();
+		fpCfg.isInQFromat = MI.getOperand(opOff++).getImm();
+		fpCfg.supportSubnormal = MI.getOperand(opOff++).getImm();
+		fpCfg.hasSign = MI.getOperand(opOff++).getImm();
+		fpCfg.hasIsNaN = MI.getOperand(opOff++).getImm();
+		fpCfg.hasIsInf = MI.getOperand(opOff++).getImm();
+		fpCfg.hasIs1 = MI.getOperand(opOff++).getImm();
+		fpCfg.hasIs0 = MI.getOperand(opOff++).getImm();
+
+		size_t w = fpCfg.getBitWidth();
+		checkOrSetWidth(MRI, MI.getOperand(0), w);
+		checkOrSetWidth(MRI, MI.getOperand(1), w);
+		checkOrSetWidth(MRI, MI.getOperand(2), w);
+
+		return true;
 	}
 	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER:
 	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE:

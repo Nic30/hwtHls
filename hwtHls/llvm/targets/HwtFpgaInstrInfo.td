@@ -110,13 +110,11 @@ let mayLoad = 0, mayStore = 1, hasSideEffects = 0, isPredicable = 1, isNotDuplic
 	    (ins anyregcls:$val, anyregcls:$addr, unknown: $index, unknown:$cond),
 	    []>; // no pattern because we match in C++
 }
-
-def PseudoRET : HwtFpgaInst<(outs), (ins variable_ops), []> {
+// return from a function, if this is a top function the whole circuit execution is halted
+def HWTFPGA_RET : HwtFpgaInst<(outs), (ins variable_ops), []> {
 	let isBarrier = 1;
 	let isReturn = 1;
 	let isTerminator = 1;
-	let isPseudo = 1;
-	let isCodeGenOnly = 1;
 }
 
 // generic codes equivalents (llvm/Targets/GenericOpcodes.td)
@@ -163,38 +161,7 @@ def HWTFPGA_ASYNC_CALL : HwtFpgaInst<
     	let hasSideEffects = true;
     }
 
-// Placeholder instruction for netlist object which will be aded later in translation
-// inputs are in format  // in format [objId, dstOperandWidth, *srcOperands, *srcOperandWidths]
-def HWTFPGA_PYOBJECT_PLACEHOLDER: HwtFpgaInst<
-    (outs anyregcls:$dst),
-    (ins variable_ops),
-    []> {
-    	let hasSideEffects = false;
-		let isNotDuplicable = false;
-    }
-
-def HWTFPGA_PYOBJECT_PLACEHOLDER_WITH_SIDEEFFECT: HwtFpgaInst<
-    (outs anyregcls:$dst),
-    (ins variable_ops),
-    []> {
-    	let hasSideEffects = true;
-		let isNotDuplicable = false;
-    }
-def HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE: HwtFpgaInst<
-    (outs anyregcls:$dst),
-    (ins variable_ops),
-    []> {
-    	let hasSideEffects = false;
-		let isNotDuplicable = true;
-    }
-    
-def HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE_WITH_SIDEEFECT: HwtFpgaInst<
-    (outs anyregcls:$dst),
-    (ins variable_ops),
-    []> {
-    	let hasSideEffects = true;
-		let isNotDuplicable = true;
-    }
-     
+include "HwtFpgaInstrInfoPyObjectPlaceholder.td"
+include "HwtFpgaInstrInfoFP.td"
 
 

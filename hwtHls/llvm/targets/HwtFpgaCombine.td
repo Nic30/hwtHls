@@ -67,7 +67,12 @@ def g_constant_to_imm: GICombineRule<
             HWTFPGA_MUX,
             HWTFPGA_CLOAD,
             HWTFPGA_CSTORE,
-            PseudoRET):$root, [{ return Helper.hasG_CONSTANTasUse(*${root}); }]),
+            HWTFPGA_RET,
+            HWTFPGA_FP_FADD,
+            HWTFPGA_FP_FSUB,
+            HWTFPGA_FP_FMUL,
+            HWTFPGA_FP_FDIV
+            ):$root, [{ return Helper.hasG_CONSTANTasUse(*${root}); }]),
   (apply [{ Helper.rewriteG_CONSTANTasUseAsCImm(*${root}); }])
 >;
 
@@ -109,7 +114,11 @@ def trivial_instr_deduplication: GICombineRule<
 			HWTFPGA_SUB,
 			HWTFPGA_XOR,
 			HWTFPGA_CTLZ_ZERO_UNDEF, HWTFPGA_CTTZ_ZERO_UNDEF,
-			HWTFPGA_CTLZ, HWTFPGA_CTTZ, HWTFPGA_CTPOP
+			HWTFPGA_CTLZ, HWTFPGA_CTTZ, HWTFPGA_CTPOP,
+            HWTFPGA_FP_FADD,
+            HWTFPGA_FP_FSUB,
+            HWTFPGA_FP_FMUL,
+            HWTFPGA_FP_FDIV
 		):$root,
     [{ return Helper.matchTrivialInstrDuplication(*${root}); }]),
   (apply [{ Helper.rewriteTrivialInstrDuplication(*${root}); }])
