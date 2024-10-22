@@ -27,6 +27,26 @@ class HlsNetNodeMux(HlsNetNodeOperator):
         self._rtlAddName = True  # True by default because there is named RtlSignal implementing this node in RTL
 
     @override
+    def resolveRealization(self):
+        netlist = self.netlist
+        input_cnt = len(self.dependsOn)
+        bit_length = self.getInputDtype(0).bit_length()
+        if input_cnt == 3 and getConstOfOutput(self.dependsOn[0]) is not None or getConstOfOutput(self.dependsOn[2]) is not None:
+            # this will be just AND/OR with the mask
+            input_cnt = 2
+            operator = HwtOps.AND
+            opSpecialization = None
+        else:
+            input_cnt = input_cnt // 2 + 1
+            operator = self.operator
+            opSpecialization = self.operatorSpecialization
+
+        r = netlist.platform.get_op_realization(
+            operator, opSpecialization, bit_length,
+            input_cnt, netlist.realTimeClkPeriod)
+        self.assignRealization(r)
+
+    @override
     def rtlAlloc(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
         assert not self._isRtlAllocated
         assert len(self._outputs) == 1, self
