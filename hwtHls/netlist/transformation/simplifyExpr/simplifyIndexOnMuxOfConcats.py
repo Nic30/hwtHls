@@ -71,7 +71,11 @@ def sliceOutValueFromValue(val: HConst, lowBitNo: int, highBitNo: int):
         else:
             return v
     else:
-        return val[highBitNo:lowBitNo]
+        assert not val._dtype.force_vector, ("force_vector=True is appliable only for 1b values", val)
+        v = val[highBitNo:lowBitNo]
+        assert v._dtype.signed is val._dtype.signed, (v._dtype.signed, val._dtype.signed)
+        assert not v._dtype.force_vector, ("force_vector=True is appliable only for 1b values", v)
+        return v
 
 
 def sliceOutValueFromConcatOrConst(v: HlsNetNodeOut,
