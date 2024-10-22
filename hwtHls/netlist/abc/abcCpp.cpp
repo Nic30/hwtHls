@@ -23,6 +23,8 @@
 namespace py = pybind11;
 
 PYBIND11_MAKE_OPAQUE(std::map<Abc_Obj_t*, Abc_Obj_t*>);
+PYBIND11_MAKE_OPAQUE(std::map<Abc_Obj_t*, std::unordered_set<Abc_Obj_t*>>);
+
 // PYBIND11_MAKE_OPAQUE(std::unordered_set<Abc_Obj_t*>);
 
 
@@ -480,6 +482,7 @@ void register_Abc_Obj_t(py::module_ &m) {
 		})
 		.def_property_readonly("Id", Abc_Obj_t_rmComplementBeforeCall(&Abc_ObjId))
 		.def("IsComplement", &Abc_ObjIsComplement)
+		.def("IsConst", &Abc_AigNodeIsConst)
 		.def("Not", Abc_Obj_t_rmComplementBeforeCall(&Abc_ObjNot), "Get negated value of this")
 		.def("NotCond", Abc_Obj_t_rmComplementBeforeCall(&Abc_ObjNotCond), "Conditionally get negated value of this")
 		.def("Regular", Abc_Obj_t_rmComplementBeforeCall(&Abc_ObjRegular), "Get a non negated value of this")
@@ -495,7 +498,7 @@ void register_Abc_Obj_t(py::module_ &m) {
 		.def("Name", Abc_Obj_t_rmComplementBeforeCall(&Abc_ObjName), py::return_value_policy::reference_internal)
 		.def("AssignName", Abc_Obj_t_rmComplementBeforeCall(&Abc_ObjAssignName))
 		// [todo] temporally disable using Abc_Obj_t private data because it is not clear if it
-		//        is used by ABC internally, the data is also cleared after every abc transformation which
+		//        is used by ABC internally, the data is also cleared after every abc transformation
 		//	.def("SetData", [](Abc_Obj_t * self, py::object & d) {
 		//			d.inc_ref();
 		//			Abc_ObjSetData(self, d.ptr());
@@ -515,10 +518,11 @@ void register_Abc_Obj_t(py::module_ &m) {
 		});
 }
 
-PYBIND11_MODULE(abcCpp, m) {
+void _module(py::module_ & m) {
 	// https://people.eecs.berkeley.edu/~alanmi/abc/aig.pdf
 	Abc_Start();
 	py::bind_map<std::map<Abc_Obj_t*, Abc_Obj_t*>>(m, "MapAbc_Obj_tToAbc_Obj_t");
+	py::bind_map<std::map<Abc_Obj_t*, std::unordered_set<Abc_Obj_t*>>>(m, "MapAbc_Obj_tToSetOfAbc_Obj_t");
 
 	py::class_<Abc_Frame_t_pybind11_wrap, std::unique_ptr<Abc_Frame_t_pybind11_wrap, py::nodelete>>(m, "Abc_Frame_t")
 		.def_static("GetGlobalFrame", []() {
@@ -537,9 +541,12 @@ PYBIND11_MODULE(abcCpp, m) {
 	register_Abc_Ntk_t(m);
 	register_Abc_Obj_t(m);
 	m.def("Abc_NtkExpandExternalCombLoops",
-			[](Abc_Ntk_t *pNtk, Abc_Aig_t_pybind11_wrap *pMan,
-			std::map<Abc_Obj_t*, Abc_Obj_t*> inToOutConnections, std::unordered_set<Abc_Obj_t*> trueOutputs) {
-			return hwtHls::Abc_NtkExpandExternalCombLoops(pNtk, (Abc_Aig_t*)pMan, inToOutConnections, trueOutputs);
+			[](Abc_Ntk_t *pNtk,
+			   Abc_Aig_t_pybind11_wrap *pMan,
+			   std::map<Abc_Obj_t*, std::unordered_set<Abc_Obj_t*>> impliedValues,
+			   std::map<Abc_Obj_t*, Abc_Obj_t*> inToOutConnections,
+			   std::unordered_set<Abc_Obj_t*> trueOutputs) {
+			return hwtHls::Abc_NtkExpandExternalCombLoops(pNtk, (Abc_Aig_t*)pMan, impliedValues, inToOutConnections, trueOutputs);
 		}, py::return_value_policy::reference_internal);
 
 
@@ -563,6 +570,9 @@ PYBIND11_MODULE(abcCpp, m) {
 
 	//py::capsule cleanup(m, [](PyObject *) { Abc_Stop(); });
 	//m.add_object("_cleanup", cleanup);
+}
+PYBIND11_MODULE(abcCpp, m) {
+	_module(m);
 }
 
 }

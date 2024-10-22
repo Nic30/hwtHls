@@ -79,6 +79,7 @@ Abc_Obj_t* _expandFanInCombLoops(Abc_Ntk_t *pNtk, Abc_Aig_t *pMan, Abc_Obj_t *v,
 }
 
 Abc_Ntk_t* Abc_NtkExpandExternalCombLoops(Abc_Ntk_t *pNtk, Abc_Aig_t *pMan,
+		const  std::map<Abc_Obj_t*, std::unordered_set<Abc_Obj_t*>>& impliedValues,
 		const std::map<Abc_Obj_t*, Abc_Obj_t*> &inToOutConnections,
 		const std::unordered_set<Abc_Obj_t*> &trueOutputs) {
 	for (auto o: trueOutputs) {
@@ -87,6 +88,26 @@ Abc_Ntk_t* Abc_NtkExpandExternalCombLoops(Abc_Ntk_t *pNtk, Abc_Aig_t *pMan,
 		}
 		if (Abc_ObjNtk(o) != pNtk) {
 			throw std::runtime_error("object in trueOutputs is not from this network");
+		}
+	}
+	for (const auto& [o, values] : impliedValues) {
+		if (!Abc_ObjIsPo(o)) {
+			throw std::runtime_error(
+					"key object in impliedValues is not primary output");
+		}
+		if (Abc_ObjNtk(o) != pNtk) {
+			throw std::runtime_error(
+					"key object in impliedValues is not from this network");
+		}
+		for (auto v : values) {
+			if (!Abc_ObjIsPi(v)) {
+				throw std::runtime_error(
+						"value object in impliedValues is not primary input");
+			}
+			if (Abc_ObjNtk(v) != pNtk) {
+				throw std::runtime_error(
+						"value object in impliedValues is not from this network");
+			}
 		}
 	}
 
@@ -125,6 +146,13 @@ Abc_Ntk_t* Abc_NtkExpandExternalCombLoops(Abc_Ntk_t *pNtk, Abc_Aig_t *pMan,
 			continue; // this is only tmp variable
 		// run expansion on this output
 		currentlyExpanding.push_back(pPo);
+		// add implied values so they are expanded to 1
+		auto impl = impliedValues.find(pPo);
+		if (impl != impliedValues.end()) {
+			for (auto v: impl->second)
+				currentlyExpanding.push_back(v);
+		}
+
 		auto in0 = Abc_ObjChild0(pPo);
 		auto in0Replacement = _expandFanInCombLoops(pNtk, pMan, in0,
 				inToOutConnections, currentlyExpanding);
@@ -135,14 +163,30 @@ Abc_Ntk_t* Abc_NtkExpandExternalCombLoops(Abc_Ntk_t *pNtk, Abc_Aig_t *pMan,
 	}
 	// apply resolved replacement
 	for (const auto& [pPo, in0Replacement]: toReplace) {
-		Abc_ObjPatchFanin(pPo, Abc_ObjFanin0(pPo), in0Replacement);
+		//printf("replacing: \n");
+		//printf("%s", Abc_ObjName(pPo));
+		//Abc_ObjPrint(stdout, pPo);
+		//if (Abc_ObjIsComplement(in0Replacement))
+		//	printf("~");
+		//Abc_ObjPrint(stdout, Abc_ObjRegular(in0Replacement));
+		//printf("\n");
+
+		Abc_ObjPatchFanin(pPo, Abc_ObjRegular(Abc_ObjFanin0(pPo)), in0Replacement);
+		if (Abc_ObjFaninC0(pPo) != Abc_ObjIsComplement(in0Replacement)) {
+			Abc_ObjXorFaninC(pPo, 0/*index of fanin*/); // this is there because Abc_ObjPatchFanin does not handle complements
+			assert(Abc_ObjFaninC0(pPo) == Abc_ObjIsComplement(in0Replacement));
+		}
 	}
 	// cleanup unused outputs
 	Abc_NtkForEachPo( pNtk, pPo, poIndex )
 	{
 		auto _trueOutput = trueOutputs.find(pPo);
-		if (_trueOutput == trueOutputs.end())
+		if (_trueOutput == trueOutputs.end()) {
 			Abc_ObjPatchFanin(pPo, Abc_ObjFanin0(pPo), Abc_AigConst1(pNtk));
+			if (Abc_ObjFaninC0(pPo)) {
+				Abc_ObjXorFaninC(pPo, 0/*index of fanin*/); // this is there because Abc_ObjPatchFanin does not handle complements
+			}
+		}
 	}
 
 	return pNtk;
