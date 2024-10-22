@@ -86,8 +86,9 @@ void MuxReducibleValuesInfo::_erraseMatchingRegBit(size_t resBitI) {
 				if (rDef.bitCnt == 1) {
 					// cut of whole record
 					regVal.erase(_rDef);
+				} else {
+					rDef.bitCnt--;
 				}
-				rDef.bitCnt--;
 			} else {
 				// somewhere in the middle we must split record to 2
 				DefiningRegisterInfo firstPart = rDef;
@@ -354,7 +355,7 @@ CImmOrRegOrUndefWithWidth buildHWTFPGA_EXTRACT(MachineIRBuilder &Builder,
 				if (curOffset >= offset) {
 					// v is whole in selected bits or suffix is cut
 					ConcatMembers.push_back(
-							buildHWTFPGA_EXTRACT(Builder, V, srcWidth, 0,
+							buildHWTFPGA_EXTRACT(Builder, V, vWidth, 0,
 									std::min(vWidth,
 											offset + resWidth - curOffset)));
 				} else if (curOffset + vWidth > offset) { // current end > result start
@@ -364,7 +365,7 @@ CImmOrRegOrUndefWithWidth buildHWTFPGA_EXTRACT(MachineIRBuilder &Builder,
 					size_t bitsToTake = std::min(vWidth - vOffset, /* available in value itself */
 					offset + resWidth - curOffset /* selected by request */);
 					ConcatMembers.push_back(
-							buildHWTFPGA_EXTRACT(Builder, V, srcWidth,
+							buildHWTFPGA_EXTRACT(Builder, V, vWidth,
 									vOffset, bitsToTake));
 				} else {
 					// skip prefix bits
