@@ -83,7 +83,13 @@ class LoopFollowedByIf_TC(BaseSsaTC):
     def test_FiniteWhileIf0(self):
         dut = FiniteWhileIf0()
         dut.FREQ = int(50e6)
-        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform(
+            #debugFilter={
+            #    *HlsDebugBundle.ALL_RELIABLE,
+            #    HlsDebugBundle.DBG_20_addSignalNamesToSync,
+            #    #HlsDebugBundle.DBG_20_addSignalNamesToData
+            #}
+            ))
 
         dut.dataIn0._ag.data.append(8)
         self.runSim(int(10 * freq_to_period(dut.FREQ)))
@@ -93,7 +99,7 @@ class LoopFollowedByIf_TC(BaseSsaTC):
 
     def test_FiniteWhileIf1(self):
         dut = FiniteWhileIf1()
-        dut.FREQ = int(50e6)
+        dut.FREQ = int(40e6)
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
         
         dut.dataIn0._ag.data.append(8)
@@ -107,8 +113,12 @@ if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
     m = FiniteWhileIf1()
-    m.FREQ = int(50e6)
-    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m.FREQ = int(40e6)
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={
+        *HlsDebugBundle.ALL_RELIABLE,
+        HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+        #HlsDebugBundle.DBG_20_addSignalNamesToData
+    })))
 
     import unittest
     testLoader = unittest.TestLoader()
