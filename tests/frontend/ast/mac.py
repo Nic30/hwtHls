@@ -62,7 +62,6 @@ class HlsMAC_example(HwModule):
         hls.compile()
 
 
-
 class HlsMAC_example2(HlsMAC_example):
 
     @override
@@ -73,18 +72,16 @@ class HlsMAC_example2(HlsMAC_example):
     @override
     def hwImpl(self):
         hls = HlsScope(self)
-        # inputs has to be readed to enter hls scope
-        # (without read() operation will not be schedueled by HLS
+        # inputs has to be read to enter hls scope
+        # (without read() operation will not be scheduled by HLS
         #  instead they will be directly synthesized)
-        # [NOTE] number of input is hardcoded by this
+        # [NOTE] number of input is hard-coded by this
         dataIn = [hls.read(hwIO) for hwIO in self.dataIn]
-        # depending on target platform this expresion
+        # depending on target platform this expression
         # can be mapped to DPS, LUT, etc...
         # no constrains are specified => default strategy is
         # to achieve zero delay and minimum latency, for this CLK_FREQ
-        muls = []
-        for a, b in grouper(2, dataIn):
-            muls.append(a.data * b.data)
+        muls = [a.data * b.data for a, b in grouper(2, dataIn)]
 
         adds = balanced_reduce(muls, lambda a, b: a + b)
         ast = HlsAstBuilder(hls)
@@ -96,7 +93,6 @@ class HlsMAC_example2(HlsMAC_example):
             self._name)
         )
         hls.compile()
-
 
 
 class HlsMAC_example_handshake(HlsMAC_example2):
@@ -144,7 +140,7 @@ class HlsMAC_example_TC(SimTestCase):
 
     def test_2_16simple(self, moduleCls=HlsMAC_example2):
         dut = moduleCls()
-        #dut.INPUT_CNT = 16
+        # dut.INPUT_CNT = 16
         # dut.CLK_FREQ = int(40e6)
         dut.INPUT_CNT = 16
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())

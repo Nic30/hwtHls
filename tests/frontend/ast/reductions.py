@@ -52,7 +52,7 @@ class ForLoopWithIoSelectIn(HwModule):
         hls.compile()
 
 
-class SumReduce(ForLoopWithIoSelectIn):
+class ForLoopAccumulateSumInputSelByIndex(ForLoopWithIoSelectIn):
 
     def hwImpl(self) -> None:
         hls = HlsScope(self)
@@ -84,6 +84,6 @@ if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
-    m = SumReduce()
+    m = ForLoopAccumulateSumInputSelByIndex()
     m.FREQ = int(150e6)
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

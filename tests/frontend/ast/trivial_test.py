@@ -62,10 +62,10 @@ class HlsAstTrivial_TC(SimTestCase):
 
         self.assertValSequenceEqual(dut.dataOut._ag.data, [10 for _ in range(CLK - 1) ])
 
-    def test_WhileTrueReadWrite(self, cls=WhileTrueReadWrite, model=lambda x: x):
+    def test_WhileTrueReadWrite(self, cls=WhileTrueReadWrite, model=lambda x: x, CLK=4):
         dut = cls()
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
-        CLK = 4
+
         for i in range(CLK):
             dut.dataIn._ag.data.append(i)
 

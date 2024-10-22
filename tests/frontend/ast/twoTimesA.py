@@ -5,12 +5,12 @@ from hwt.constants import Time
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from tests.baseSsaTest import BaseSsaTC
-from hwt.pyUtils.typingFuture import override
 
 
 class TwoTimesA0(HwModule):
