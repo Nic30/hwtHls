@@ -56,7 +56,7 @@
 
 
 using namespace llvm;
-using namespace hwtHls;
+using namespace hwtHls; // because of INITIALIZE_PASS
 
 
 #define DEBUG_TYPE "vreg-if-converter"
@@ -280,7 +280,6 @@ bool VRegIfConverter::IfcvtTokenCmp(const std::unique_ptr<IfcvtToken> &C1,
   }
   return false;
 }
-
 
 char VRegIfConverter::ID = 0;
 
@@ -1790,7 +1789,7 @@ bool VRegIfConverter::IfConvertSimple(BBInfo &BBI, IfcvtKind Kind) {
   // FIXME: Must maintain LiveIns.
 
 #ifdef VREG_IF_CONVERTER_CONSYSTENCY_CHECKS
-  consystencyCheck(*BBI.BB);
+  consistencyCheck(*BBI.BB);
 #endif
   return true;
 }
@@ -1964,7 +1963,7 @@ bool VRegIfConverter::IfConvertTriangle(BBInfo &BBI, IfcvtKind Kind) {
     NextBBI->IsDone = true;
   // FIXME: Must maintain LiveIns.
 #ifdef VREG_IF_CONVERTER_CONSYSTENCY_CHECKS
-  consystencyCheck(*BBI.BB);
+  consistencyCheck(*BBI.BB);
 #endif
   return true;
 }
@@ -2225,7 +2224,7 @@ bool VRegIfConverter::IfConvertDiamondCommon(
   MergeBlocks(BBI, *BBI1, &regsForSpeculation1, *Cond1, MergeAddEdges);
   MergeBlocks(BBI, *BBI2, &regsForSpeculation2, *Cond2, MergeAddEdges);
 #ifdef VREG_IF_CONVERTER_CONSYSTENCY_CHECKS
-  consystencyCheck(*BBI.BB);
+  consistencyCheck(*BBI.BB);
 #endif
   return true;
 }
@@ -2267,7 +2266,7 @@ bool VRegIfConverter::IfConvertForkedDiamond(
 
   // FIXME: Must maintain LiveIns.
 #ifdef VREG_IF_CONVERTER_CONSYSTENCY_CHECKS
-  consystencyCheck(*BBI.BB);
+  consistencyCheck(*BBI.BB);
 #endif
   return true;
 }
@@ -2344,7 +2343,7 @@ bool VRegIfConverter::IfConvertDiamond(BBInfo &BBI, IfcvtKind Kind,
 
   // FIXME: Must maintain LiveIns.
 #ifdef VREG_IF_CONVERTER_CONSYSTENCY_CHECKS
-  consystencyCheck(*BBI.BB);
+  consistencyCheck(*BBI.BB);
 #endif
   return true;
 }

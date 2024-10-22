@@ -118,7 +118,7 @@ bool VRegIfConverter::IfConvertLoopTail(BBInfo &BBI, IfcvtKind Kind) {
 		}
 	}
 #ifdef VREG_IF_CONVERTER_CONSYSTENCY_CHECKS
-	consystencyCheck(*BBI.BB);
+	consistencyCheck(*BBI.BB);
 #endif
 	return success;
 }

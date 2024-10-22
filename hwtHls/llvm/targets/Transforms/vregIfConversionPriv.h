@@ -258,7 +258,7 @@ private:
 	}
 	static MachineBasicBlock* findFalseBlock(MachineBasicBlock *BB,
 	    MachineBasicBlock *TrueBB);
-	void consystencyCheck(MachineBasicBlock & MBB) const;
+	void consistencyCheck(MachineBasicBlock & MBB) const;
 };
 
 

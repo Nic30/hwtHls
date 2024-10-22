@@ -35,7 +35,7 @@ const char* VRegIfConverter::IfcvtKind_toStr(VRegIfConverter::IfcvtKind Kind) {
 	}
 }
 
-void VRegIfConverter::consystencyCheck(MachineBasicBlock &MBB) const {
+void VRegIfConverter::consistencyCheck(MachineBasicBlock &MBB) const {
 	BBInfo BBI;
 	BBI.BB = &MBB;
 	BBI.IsBrAnalyzable = !TII->analyzeBranch(*BBI.BB, BBI.TrueBB, BBI.FalseBB,
