@@ -36,8 +36,12 @@ class HwtFpgaTargetMachine;
 // must be in llvm namespace because of tblgen generated code
 class HwtFpgaTargetSubtarget: public llvm::HwtFpgaTargetGenSubtargetInfo {
 	friend HwtFpgaTargetMachine;
-
 protected:
+	struct nodelete {
+	    template <typename T>
+	    void operator()(T *) {}
+	};
+
 	std::unique_ptr<llvm::TargetInstrInfo> TII;
 	std::unique_ptr<HwtFpgaTargetLowering> TLI;
 	HwtFpgaRegisterInfo TRI;
@@ -47,7 +51,7 @@ protected:
 	// GlobalISel related APIs.
 	std::unique_ptr<HwtFpgaCallLowering> CallLoweringInfo;
 	std::unique_ptr<llvm::LegalizerInfo> Legalizer;
-	std::unique_ptr<llvm::RegisterBankInfo> RegBankInfo;
+	std::unique_ptr<llvm::RegisterBankInfo, nodelete> RegBankInfo;// delete disabled because it is allocated statically
 
 public:
 	HwtFpgaTargetSubtarget(const llvm::Triple &TT, llvm::StringRef CPU,
