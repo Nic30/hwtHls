@@ -21,6 +21,15 @@ def netlistReadOfRawValueToDataAndVld(n: HlsNetNodeRead, worklist: SetList[HlsNe
     dataValueO = n._portDataOut
     dataWidth = dataValueO._dtype.bit_length()
     modified = False
+    if dataWidth == 0:
+        assert rawValueO._dtype.bit_length() == 1, rawValueO
+        if n._isBlocking:
+            vld = n.getValid()
+        else:
+            vld = n.getValidNB()
+        _replaceOutPortWith(rawValueO, vld, worklist)
+        return
+
     for u in tuple(rawUses):
         u: HlsNetNodeIn
         uObj: HlsNetNode = u.obj
