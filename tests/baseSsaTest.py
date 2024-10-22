@@ -5,20 +5,19 @@ from typing import Set, Tuple, Dict, List
 from hwt.hwModule import HwModule
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineLoopInfo
-from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.translation.dumpBlockSync import HlsNetlistAnalysisPassDumpBlockSync
-from hwtHls.netlist.translation.dumpDataThreads import HlsNetlistAnalysisPassDumpDataThreads
 from hwtHls.platform.platform import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.netlist.analysis.blockSyncType import HlsNetlistAnalysisPassBlockSyncType
-from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
+from hwtHls.ssa.analysis.consistencyCheck import SsaPassConsistencyCheck
 from hwtHls.ssa.translation.dumpMIR import SsaPassDumpMIR
 from hwtHls.ssa.translation.llvmMirToNetlist.datapath import BlockLiveInMuxSyncDict
 from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm, ToLlvmIrTranslator
 from hwtLib.examples.base_serialization_TC import BaseSerializationTC
+from hwtHls.netlist.scheduler.resourceList import initSchedulingResourceConstraintsFromIO
 
 
 class TestFinishedSuccessfuly(BaseException):
@@ -91,7 +90,7 @@ class BaseSsaTC(BaseSerializationTC):
     """
     TEST_FRONTEND = True
     TEST_MIR = True
-    TEST_THREADS_AND_SYNC = True
+    TEST_BLOCK_SYNC = True
 
     def tearDown(self):
         self.rmSim()
@@ -120,7 +119,6 @@ class BaseSsaTC(BaseSerializationTC):
             self.assert_same_as_file(p.postPyOpt.getvalue(), os.path.join("data", name + ".0.postPyOpt.ll"))
         if self.TEST_MIR:
             self.assert_same_as_file(p.mir.getvalue(), os.path.join("data", name + ".1.mir.ll"))
-        if self.TEST_THREADS_AND_SYNC:
-            self.assert_same_as_file(p.dataThreads.getvalue(), os.path.join("data", name + ".2.dataThreads.txt"))
-            self.assert_same_as_file(p.blockSync.getvalue(), os.path.join("data", name + ".3.blockSync.dot"))
+        if self.TEST_BLOCK_SYNC:
+            self.assert_same_as_file(p.blockSync.getvalue(), os.path.join("data", name + ".2.blockSync.dot"))
 

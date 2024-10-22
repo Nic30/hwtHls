@@ -12,7 +12,7 @@ from tests.frontend.pyBytecode.fnCall import FnCallFn, FnCallFnRet, FnCallFnArgs
 class FnCall_TC(BaseSsaTC):
     __FILE__ = __file__
     TEST_MIR = False
-    TEST_THREADS_AND_SYNC = False
+    TEST_BLOCK_SYNC = False
 
     def test_FnCallFn_ll(self):
         self._test_ll(FnCallFn)
@@ -58,7 +58,7 @@ if __name__ == "__main__":
     import unittest
     
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([FnCall_TC('test_frameHeader')])
+    # suite = unittest.TestSuite([FnCall_TC('test_FnCallFnArgsExpand_ll')])
     suite = testLoader.loadTestsFromTestCase(FnCall_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

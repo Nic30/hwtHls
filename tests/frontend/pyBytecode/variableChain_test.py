@@ -7,7 +7,7 @@ from tests.frontend.pyBytecode.variableChain import VariableChain
 
 class VariableChain_TC(BaseSsaTC):
     __FILE__ = __file__
-    TEST_THREADS_AND_SYNC = False
+    TEST_BLOCK_SYNC = False
 
     def test_VariableChain1_ll(self):
 

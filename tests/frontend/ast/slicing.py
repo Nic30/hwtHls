@@ -115,7 +115,7 @@ class HlsSlice2TmpHlsVarSlice(HlsSlice2TmpHlsVarConcat):
 
 class HlsSlicingTC(BaseSsaTC):
     __FILE__ = __file__
-    TEST_THREADS_AND_SYNC = False
+    TEST_BLOCK_SYNC = False
 
     def _test(self, unit_constructor, data_in, data_out):
         self._test_ll(unit_constructor)

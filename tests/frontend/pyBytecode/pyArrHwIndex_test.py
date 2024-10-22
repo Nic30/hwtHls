@@ -29,12 +29,13 @@ class CntrArrayWithCfgDotDump(CntrArray):
 
 class PyArrHwIndex_TC(BaseSsaTC):
     __FILE__ = __file__
-    TEST_THREADS_AND_SYNC = False
+    TEST_BLOCK_SYNC = False
 
     def test_Rom_ll(self):
         self._test_ll(Rom)
         
     def test_CntrArray_ll(self):
+        # :note: MUXes at end are mirrored (does not affect functionality) because InstCombinePass ordered i_read icmp in this way
         self._test_ll(CntrArray)
 
     def test_CntrArray_cfgDot(self):
