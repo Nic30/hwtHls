@@ -135,6 +135,9 @@ def _prepareWaveWriterTopIo(waveLog: VcdWriter, strCtx: LLVMStringContext, fn: F
             argScope.addVar(arg, name, VCD_SIG_TYPE.WIRE, argWidth, VcdBitsFormatter())
 
 
+LlvmIrInterpretArgs = Tuple[Generator[Union[int, HConst], None, None], List[HConst], ...]
+
+
 class LlvmIrInterpret():
     """
     An interpret of the LLVM IR
@@ -246,7 +249,7 @@ class LlvmIrInterpret():
                                 regs: Dict[Instruction, HConst],
                                 instr: Instruction,
                                 bb: BasicBlock,
-                                fnArgs: Tuple[Generator[Union[int, HConst], None, None], List[HConst], ...],
+                                fnArgs: LlvmIrInterpretArgs,
                                 simBlockLabel: Optional[object]) -> Tuple[Optional[BasicBlock], BasicBlock, bool]:
         """
         :return: bb, isJump
@@ -265,9 +268,10 @@ class LlvmIrInterpret():
                     raise SimIoUnderflowErr()
 
                 assert isinstance(res, HConst) and \
-                    res._dtype.bit_length() == instr.getType().getIntegerBitWidth() and \
                     isinstance(res._dtype, HBits) and\
-                    not res._dtype.signed, ("Input value must be must be unsigned BitsVal of correct width", instr, res)
+                    not res._dtype.signed, ("Input value must be must be unsigned BitsVal", instr, res)
+                assert res._dtype.bit_length() == instr.getType().getIntegerBitWidth(), (
+                    "Input value must be must have correct width", instr, res)
                 if waveLog is not None:
                     waveLog.logChange(nowTime, load, res, None)
                 regs[instr] = res
@@ -481,8 +485,15 @@ class LlvmIrInterpret():
         switchBr = InstructionToSwitchInst(instr)
         if switchBr is not None:
             c = ops[0].cast_sign(None)
-            assert c._is_full_valid(), ("jump condition must be always valid", c, bb, instr)
+            # switch condition does not necessary need to be fully valid because
+            # it may be a concatenation of conditions in original if tree but
+            # if even if the condition is invalid it must match at most 1 item
+            # (usually default value)
+            assert c.vld_mask != 0, ("jump condition must have at least some bits valid", c, bb, instr)
+            isFullValid = c._is_full_valid()
+            assert isFullValid , ("jump condition must have at least some bits valid", c, bb, instr)
             defDst = ops[1]
+            # possibledDsts = []
             for condVal, dst in grouper(2, islice(ops, 2, None)):
                 assert isinstance(condVal, HConst), condVal
                 assert isinstance(dst, BasicBlock), dst
@@ -507,8 +518,7 @@ class LlvmIrInterpret():
 
         raise NotImplementedError(instr)
 
-    def run(self, fnArgs: Tuple[Generator[Union[int, HConst], None, None], List[HConst], ...],
-            wallTime:Optional[int]=None):
+    def run(self, fnArgs: LlvmIrInterpretArgs, wallTime:Optional[int]=None):
         F = self.F
         waveLog = self.waveLog
         timeStep = self.timeStep
