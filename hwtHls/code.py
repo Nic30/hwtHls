@@ -3,8 +3,9 @@
       https://llvm.org/docs/LangRef.html#intrinsic-functions
       llvm/ADT/bit.h
 """
-from typing import Union
+from typing import Union, Optional
 
+from hdlConvertorAst.hdlAst._expr import HdlOpType
 from hwt.code import Concat
 from hwt.hdl.const import HConst
 from hwt.hdl.operator import HOperatorNode
@@ -13,9 +14,9 @@ from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.mainBases import HwIOBase
 from hwt.mainBases import RtlSignalBase
-from hwt.math import log2ceil, toPow2Ceil
+from hwt.math import log2ceil, toPow2Ceil, isPow2
 from pyMathBitPrecise.bit_utils import mask, reverse_bits, to_signed, \
-    to_unsigned, bit_field, get_bit, ValidityError
+    to_unsigned, bit_field, get_bit, ValidityError, next_power_of_2
 
 
 def ctlz(v: Union[HConst, RtlSignalBase], is_zero_poison:bool=False):
@@ -45,16 +46,24 @@ def ctlz(v: Union[HConst, RtlSignalBase], is_zero_poison:bool=False):
 
         # Bisection method.
         ZeroBits = 0
+        if not isPow2(w):
+            # because alg. works only for pow2 width
+            _w = next_power_of_2(w, 64)
+            paddingBits = _w - w
+            w = _w
+        else:
+            paddingBits = 0
+        
         Shift = w >> 1
         while Shift:
-            Tmp = Val >> Shift;
+            Tmp = Val >> Shift
             if Tmp:
                 Val = Tmp
             else:
                 ZeroBits |= Shift
             Shift >>= 1
 
-        return resTy.from_py(ZeroBits)
+        return resTy.from_py(ZeroBits - paddingBits)
     else:
         if isinstance(v, HwIOBase):
             v = v._sig
@@ -86,6 +95,8 @@ def cttz(v: Union[HConst, RtlSignalBase], is_zero_poison:bool=False):
 
         # Bisection method.
         ZeroBits = 0
+        if not isPow2(w):
+            w = next_power_of_2(w, 64) # because alg. works only for pow2  width
         Shift = w >> 1
         Mask = mask(w) >> Shift
         while Shift:
@@ -165,7 +176,7 @@ def bitreverse(v: Union[HConst, RtlSignalBase]):
 OP_BITREVERSE = HOperatorDef(bitreverse, False, idStr="OP_BITREVERSE")
 
 
-def ashr(v: Union[HConst, RtlSignalBase], shiftAmount: Union[HConst, RtlSignalBase]):
+def ashr(v: Union[HConst, RtlSignalBase], shiftAmount: Union[HConst, RtlSignalBase], zextShift=True):
     """
     Arithmetic shift right (MSB copy is shifted in) (shiftAmount must be >= 0)
     """
@@ -192,22 +203,24 @@ def ashr(v: Union[HConst, RtlSignalBase], shiftAmount: Union[HConst, RtlSignalBa
             v = v._sig
         if isinstance(shiftAmount, HwIOBase):
             shiftAmount = shiftAmount._sig
-        shWidth = shiftAmount._dtype.bit_length()
-        if shWidth != w:
-            assert shWidth < w, (shWidth, w)
-            shiftAmount = zext(shiftAmount, w)
+        if zextShift:
+            shWidth = shiftAmount._dtype.bit_length()
+            if shWidth != w:
+                assert shWidth < w, (shWidth, w)
+                shiftAmount = zext(shiftAmount, w)
 
         return HOperatorNode.withRes(OP_ASHR, (v, shiftAmount), t)
 
 
-OP_ASHR = HOperatorDef(ashr, False, idStr="OP_ASHR")
+OP_ASHR = HOperatorDef(ashr, False, idStr="OP_ASHR", hdlConvertoAstOp=HdlOpType.SRA)
 
 
-def lshr(v: Union[HConst, RtlSignalBase], shiftAmount: Union[HConst, RtlSignalBase]):
+def lshr(v: Union[HConst, RtlSignalBase], shiftAmount: Union[HConst, RtlSignalBase], zextShift=True):
     """
     Logical shift right (0 is shifted in) (shiftAmount must be >= 0)
     """
     t = v._dtype
+    assert not shiftAmount._dtype.signed
     w = t.bit_length()
     shW = shiftAmount._dtype.bit_length()
     assert shW == log2ceil(w + 1), (shW, log2ceil(w + 1), w)
@@ -221,8 +234,14 @@ def lshr(v: Union[HConst, RtlSignalBase], shiftAmount: Union[HConst, RtlSignalBa
         assert shiftAmount >= 0, (shiftAmount, w)
 
         # :note: python >> is arithmetic shift, but the value is stored in unsigned format
+        if t.signed and v.val < 0:
+            val = to_signed(to_unsigned(v.val, w) >> shiftAmount, w)
+        else:
+            assert v.val >= 0
+            val = v.val >> shiftAmount
+
         return t.from_py(
-            v.val >> shiftAmount,
+            val,
             (v.vld_mask >> shiftAmount) | (0 if shiftAmount > w else bit_field(w - shiftAmount, w)),
         )
     else:
@@ -230,18 +249,18 @@ def lshr(v: Union[HConst, RtlSignalBase], shiftAmount: Union[HConst, RtlSignalBa
             v = v._sig
         if isinstance(shiftAmount, HwIOBase):
             shiftAmount = shiftAmount._sig
-
-        shWidth = shiftAmount._dtype.bit_length()
-        if shWidth != w:
-            assert shWidth < w, (shWidth, w)
-            shiftAmount = zext(shiftAmount, w)
+        if zextShift:
+            shWidth = shiftAmount._dtype.bit_length()
+            if shWidth != w:
+                assert shWidth < w, (shWidth, w)
+                shiftAmount = zext(shiftAmount, w)
         return HOperatorNode.withRes(OP_LSHR, (v, shiftAmount), t)
 
 
-OP_LSHR = HOperatorDef(lshr, False, idStr="OP_LSHR")
+OP_LSHR = HOperatorDef(lshr, False, idStr="OP_LSHR", hdlConvertoAstOp=HdlOpType.SRL)
 
 
-def shl(v: Union[HConst, RtlSignalBase], shiftAmount: Union[HConst, RtlSignalBase]):
+def shl(v: Union[HConst, RtlSignalBase], shiftAmount: Union[HConst, RtlSignalBase], zextShift: bool=True):
     """
     Shift left <<, 0 is shifted in (shiftAmount must be >= 0)
     """
@@ -270,14 +289,15 @@ def shl(v: Union[HConst, RtlSignalBase], shiftAmount: Union[HConst, RtlSignalBas
             v = v._sig
         if isinstance(shiftAmount, HwIOBase):
             shiftAmount = shiftAmount._sig
-        shWidth = shiftAmount._dtype.bit_length()
-        if shWidth != w:
-            assert shWidth < w, (shWidth, w)
-            shiftAmount = zext(shiftAmount, w)
-        return HOperatorNode.withRes(OP_LSHR, (v, shiftAmount), t)
+        if zextShift:
+            shWidth = shiftAmount._dtype.bit_length()
+            if shWidth != w:
+                assert shWidth < w, (shWidth, w)
+                shiftAmount = zext(shiftAmount, w)
+        return HOperatorNode.withRes(OP_SHL, (v, shiftAmount), t)
 
 
-OP_SHL = HOperatorDef(shl, False, idStr="OP_SHL")
+OP_SHL = HOperatorDef(shl, False, idStr="OP_SHL", hdlConvertoAstOp=HdlOpType.SLL)
 
 
 def fshl(a: Union[HConst, RtlSignalBase], b: Union[HConst, RtlSignalBase], c: Union[HConst, RtlSignalBase, int]):
@@ -304,7 +324,7 @@ def fshl(a: Union[HConst, RtlSignalBase], b: Union[HConst, RtlSignalBase], c: Un
             return a._dtype.from_py(None)
     if isinstance(c, int):
         w = t.bit_length()
-        c %= w 
+        c %= w
         if c == 0:
             return a
         elif c == w:
@@ -350,7 +370,7 @@ def fshr(a: Union[HConst, RtlSignalBase], b: Union[HConst, RtlSignalBase], c: Un
             return a._dtype.from_py(None)
     if isinstance(c, int):
         w = t.bit_length()
-        c %= w 
+        c %= w
         if c == 0:
             return a
         elif c == w:
@@ -386,6 +406,8 @@ def zext(v: Union[HConst, RtlSignalBase], newWidth: int):
     if not isinstance(t, HBits):
         raise NotImplementedError(t)
     t: HBits
+    if newWidth == w:
+        return v
     assert newWidth > w, (newWidth, w)
     resTy = HBits(newWidth, signed=t.signed)
     if isinstance(v, HConst):
@@ -428,10 +450,7 @@ def sext(v: Union[HConst, RtlSignalBase], newWidth: int):
 OP_SEXT = HOperatorDef(sext, False, idStr="OP_SEXT")
 
 
-def hwUMax(v0: Union[HConst, RtlSignalBase], v1: Union[HConst, RtlSignalBase]):
-    """
-    :returns: maximum of two unsigned values
-    """
+def _handleAutoCastOfMinMaxOperands(v0: Union[HConst, RtlSignalBase], v1: Union[HConst, RtlSignalBase], autoExtend:bool):
     if isinstance(v0, HwIOBase):
         v0 = v0._sig
 
@@ -439,10 +458,39 @@ def hwUMax(v0: Union[HConst, RtlSignalBase], v1: Union[HConst, RtlSignalBase]):
         v1 = v1._sig
 
     if v0 is v1:
+        return (v0, v1)
+
+    t0 = v0._dtype
+    t0w = t0.bit_length()
+    t1 = v1._dtype
+    if autoExtend:
+        if t0 == t1:
+            pass
+        else:
+            t1w = t1.bit_length()
+            if t0w < t1w:
+                v0 = zext(v0, t1w)
+                t0w = t1w
+            elif t0w > t1w:
+                v1 = zext(v1, t0w)
+            else:
+                raise TypeError(t0, t1)
+    else:
+        assert t0 == t1, ("Values must be of the same type", v0, v1, t0, t1)
+
+    return (v0, v1)
+
+
+def hwUMax(v0: Union[HConst, RtlSignalBase], v1: Union[HConst, RtlSignalBase], autoExtend:bool=False):
+    """
+    :returns: maximum of two unsigned values
+    """
+    v0, v1 = _handleAutoCastOfMinMaxOperands(v0, v1, autoExtend)
+
+    if v0 is v1:
         return v0
 
     t = v0._dtype
-    assert t == v1._dtype, ("Values must be of the same type", v0, v1)
     if isinstance(v0, HConst) and isinstance(v1, HConst):
         m = mask(t.bit_length())
         if v0.vld_mask != m or v1.vld_mask != m:
@@ -459,21 +507,17 @@ def hwUMax(v0: Union[HConst, RtlSignalBase], v1: Union[HConst, RtlSignalBase]):
 OP_UMAX = HOperatorDef(hwUMax, False, idStr="OP_UMAX")
 
 
-def hwSMax(v0: Union[HConst, RtlSignalBase], v1: Union[HConst, RtlSignalBase]):
+def hwSMax(v0: Union[HConst, RtlSignalBase], v1: Union[HConst, RtlSignalBase], autoExtend:bool=False):
     """
     :returns: maximum of two signed values
     """
-    if isinstance(v0, HwIOBase):
-        v0 = v0._sig
-
-    if isinstance(v1, HwIOBase):
-        v1 = v1._sig
+    v0, v1 = _handleAutoCastOfMinMaxOperands(v0, v1, autoExtend)
 
     if v0 is v1:
         return v0
 
     t = v0._dtype
-    assert t == v1._dtype, ("Values must be of the same type", v0, v1)
+
     if isinstance(v0, HConst) and isinstance(v1, HConst):
         m = mask(t.bit_length())
         if v0.vld_mask != m or v1.vld_mask != m:
@@ -491,28 +535,23 @@ def hwSMax(v0: Union[HConst, RtlSignalBase], v1: Union[HConst, RtlSignalBase]):
 OP_SMAX = HOperatorDef(hwSMax, False, idStr="OP_SMAX")
 
 
-def hwMax(v0: Union[HConst, RtlSignalBase], v1: Union[HConst, RtlSignalBase]):
+def hwMax(v0: Union[HConst, RtlSignalBase], v1: Union[HConst, RtlSignalBase], autoExtend=False):
     if v0._dtype.signed:
-        return hwSMax(v0, v1)
+        return hwSMax(v0, v1, autoExtend=autoExtend)
     else:
-        return hwUMax(v0, v1)
+        return hwUMax(v0, v1, autoExtend=autoExtend)
 
 
-def hwUMin(v0: Union[HConst, RtlSignalBase], v1: Union[HConst, RtlSignalBase]):
+def hwUMin(v0: Union[HConst, RtlSignalBase], v1: Union[HConst, RtlSignalBase], autoExtend=False):
     """
     :returns: minimum of two unsigned values
     """
-    if isinstance(v0, HwIOBase):
-        v0 = v0._sig
-
-    if isinstance(v1, HwIOBase):
-        v1 = v1._sig
+    v0, v1 = _handleAutoCastOfMinMaxOperands(v0, v1, autoExtend)
 
     if v0 is v1:
         return v0
 
     t = v0._dtype
-    assert t == v1._dtype, ("Values must be of the same type", v0, v1, t, v1._dtype)
     if isinstance(v0, HConst) and isinstance(v1, HConst):
         m = mask(t.bit_length())
         if v0.vld_mask != m or v1.vld_mask != m:
@@ -529,21 +568,16 @@ def hwUMin(v0: Union[HConst, RtlSignalBase], v1: Union[HConst, RtlSignalBase]):
 OP_UMIN = HOperatorDef(hwUMin, False, idStr="OP_UMIN")
 
 
-def hwSMin(v0: Union[HConst, RtlSignalBase], v1: Union[HConst, RtlSignalBase]):
+def hwSMin(v0: Union[HConst, RtlSignalBase], v1: Union[HConst, RtlSignalBase], autoExtend:bool=False):
     """
     :returns: minimum of two signed values
     """
-    if isinstance(v0, HwIOBase):
-        v0 = v0._sig
-
-    if isinstance(v1, HwIOBase):
-        v1 = v1._sig
+    v0, v1 = _handleAutoCastOfMinMaxOperands(v0, v1, autoExtend)
 
     if v0 is v1:
         return v0
 
     t = v0._dtype
-    assert t == v1._dtype, ("Values must be of the same type", v0, v1)
     if isinstance(v0, HConst) and isinstance(v1, HConst):
         m = mask(t.bit_length())
         if v0.vld_mask != m or v1.vld_mask != m:
@@ -561,9 +595,29 @@ def hwSMin(v0: Union[HConst, RtlSignalBase], v1: Union[HConst, RtlSignalBase]):
 OP_SMIN = HOperatorDef(hwSMin, False, idStr="OP_SMIN")
 
 
-def hwMin(v0: Union[HConst, RtlSignalBase], v1: Union[HConst, RtlSignalBase]):
+def hwMin(v0: Union[HConst, RtlSignalBase], v1: Union[HConst, RtlSignalBase], autoExtend:bool=False):
     if v0._dtype.signed:
-        return hwSMin(v0, v1)
+        return hwSMin(v0, v1, autoExtend=autoExtend)
     else:
-        return hwUMin(v0, v1)
+        return hwUMin(v0, v1, autoExtend=autoExtend)
+
+
+def incrSat(x: RtlSignalBase[HBits], en:Optional[RtlSignalBase[HBits]]=None):
+    """
+    Saturating add 1 operator
+    """
+    w = x._dtype.bit_length()
+    if x._dtype.signed:
+        if w == 1:
+            # can not increment because it would change sign
+            return x
+
+        isNotMaxVal = ~(~x[w - 1] & x[w - 1:]._eq(mask(w - 1)))
+    else:
+        isNotMaxVal = x != mask(w)
+
+    if en is not None:
+        isNotMaxVal = en & isNotMaxVal
+
+    return isNotMaxVal._ternary(x + 1, x)
 
