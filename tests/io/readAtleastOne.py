@@ -8,7 +8,7 @@ from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 
@@ -86,7 +86,7 @@ if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
     
-    m = ReadAtleastOneOf3()
+    m = ReadAtleastOneOf2()
     # m.CLK_FREQ = int(100e6)
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
