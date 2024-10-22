@@ -18,20 +18,126 @@ using namespace llvm;
 
 namespace hwtHls {
 
+void collectReachableBlocks_stackUpValueKnowledge(
+		llvm::Instruction *I, InBlockValuesStack &frameStack) {
+	std::optional<KnownValue> newVal;
+	if (auto C = dyn_cast<CallInst>(I)) {
+		if (IsBitConcat(C)) {
+			SmallVector<KnownValue> ops;
+			for (auto &O : C->args()) {
+				auto KV = findValueInStack(frameStack, O.get());
+				ops.push_back(std::move(KV));
+			}
+			newVal = KnownValue::resolveBitConcat(ops, *C);
+		} else if (IsBitRangeGet(C)) {
+			auto o0 = findValueInStack(frameStack, I->getOperand(0));
+			auto o1 = findValueInStack(frameStack, I->getOperand(1));
+			newVal = o0.resolveBitRangeGet(o1, *C);
+		} else {
+			// can not resolve, assume unknown specific value, noted as I itself
+			newVal = KnownValue::compute(*I);
+		}
+	} else {
+		switch (I->getNumOperands()) {
+		case 1: {
+			auto o0 = findValueInStack(frameStack, I->getOperand(0));
+			switch (I->getOpcode()) {
+			case Instruction::ZExt:
+				newVal = o0.resolveZExt(o0, *dyn_cast<ZExtInst>(I));
+				break;
+			case Instruction::SExt:
+				newVal = o0.resolveSExt(o0, *dyn_cast<SExtInst>(I));
+				break;
+			case Instruction::BitCast:
+				newVal = o0.resolveBitCast(o0, *dyn_cast<BitCastInst>(I));
+				break;
+			}
+			break;
+		}
+		case 2: {
+			KnownValue o0 = findValueInStack(frameStack, I->getOperand(0));
+			KnownValue o1 = findValueInStack(frameStack, I->getOperand(1));
+			switch (I->getOpcode()) {
+			case Instruction::ICmp: {
+				auto _I = dyn_cast<ICmpInst>(I);
+				newVal = o0.resolveICmp(_I->getPredicate(), o1, _I);
+				break;
+			}
+			case Instruction::And:
+				newVal = o0.resolveAnd(o1, *I);
+				break;
+			case Instruction::Or:
+				newVal = o0.resolveOr(o1, *I);
+				break;
+			case Instruction::Xor:
+				newVal = o0.resolveXor(o1, *I);
+				break;
+			case Instruction::LShr:
+				newVal = o0.resolveLShr(o1, *I);
+				break;
+			case Instruction::AShr:
+				newVal = o0.resolveAShr(o1, *I);
+				break;
+			case Instruction::Shl:
+				newVal = o0.resolveShl(o1, *I);
+				break;
+			default:
+				newVal = KnownValue::compute(*I);
+			}
+			break;
+		}
+		case 3: {
+			KnownValue o0 = findValueInStack(frameStack, I->getOperand(0));
+			KnownValue o1 = findValueInStack(frameStack, I->getOperand(1));
+			KnownValue o2 = findValueInStack(frameStack, I->getOperand(2));
+			switch (I->getOpcode()) {
+			case Instruction::Select: {
+				auto _I = dyn_cast<SelectInst>(I);
+				newVal = o0.resolveSelect(o1, o2, *_I);
+				break;
+			}
+			default:
+				newVal = KnownValue::compute(*I);
+			}
+			break;
+		}
+		}
+		auto &Vals = frameStack.back(); // this can not be hoisted because vector memory may reallocate
+		// if child blocks are adding into it
+		if (newVal.has_value()) {
+			Vals.insert_or_assign(I, newVal.value());
+		} else {
+			Vals.insert_or_assign(I, KnownValue::compute(*I));
+		}
+	}
+}
+
 /* skipping phis, no load/store, recognize only subset of instructions
+ * The algorithm tries to prove that the block/edge is reachable with current set of values for variables.
+ * It relies on backtracking. This implies that very deep tree like block sequences will take time to analyze.
+ * :attention: this has worst case exp time complexity
+ * 		reachedBlocksWithAllChildrenReached is used to prune already resolved blocks
+ *
  * :param frameStack: vector holding values resolved in individual blocks
+ * :param reachedBlocksWithAllChildrenReached: set of blocks which are in reachedBlocks
+ * 		and also have all transitive children in reachedBlocks
  */
 void collectReachableBlocks(InBlockValuesStack &frameStack, LoopInfo &LI,
 		const Loop &ParentLoop, bool isInitialEnter, BasicBlock &PredBB,
 		BasicBlock &BB, std::unordered_set<BasicBlock*> &reachedBlocks,
+		std::unordered_set<BasicBlock*> &reachedBlocksWithAllChildrenReached,
 		std::unordered_set<Loop::Edge> &reachedEdges) {
 	reachedBlocks.insert(&BB);
+
 	reachedEdges.insert( { &PredBB, &BB });
 
 	if (isInitialEnter)
 		assert(frameStack.size() == 0);
 	if (!ParentLoop.contains(&BB))
 		return; // this function only evaluates body of parent function
+	if (reachedBlocksWithAllChildrenReached.contains(&BB))
+		return; // nothing to discover all children already reachable
+
 	auto *L = LI.getLoopFor(&BB);
 	if (L != &ParentLoop) {
 		assert(
@@ -43,8 +149,17 @@ void collectReachableBlocks(InBlockValuesStack &frameStack, LoopInfo &LI,
 		L->getExitEdges(ExitEdges);
 		for (auto E : ExitEdges) {
 			collectReachableBlocks(frameStack, LI, ParentLoop, false, *E.first,
-					*E.second, reachedBlocks, reachedEdges);
+					*E.second, reachedBlocks, reachedBlocksWithAllChildrenReached, reachedEdges);
 		}
+		bool allChildReachable = true;
+		for (auto E : ExitEdges) {
+			if (E.second != ParentLoop.getHeader() && !reachedBlocksWithAllChildrenReached.contains(E.second)) {
+				allChildReachable = false;
+				break;
+			}
+		}
+		if (allChildReachable)
+			reachedBlocksWithAllChildrenReached.insert(&BB);
 		return;
 	} else if (!isInitialEnter && &BB == L->getHeader()) {
 		// not continue in another iteration of parent loop
@@ -54,7 +169,7 @@ void collectReachableBlocks(InBlockValuesStack &frameStack, LoopInfo &LI,
 	PushNewBlockValueFrame _bbValues(frameStack, PredBB, BB);
 	auto callTryEvalBlock = [&](BasicBlock *SucBB) {
 		collectReachableBlocks(frameStack, LI, ParentLoop, false, BB, *SucBB,
-				reachedBlocks, reachedEdges);
+				reachedBlocks, reachedBlocksWithAllChildrenReached, reachedEdges);
 	};
 	assert(frameStack.size());
 	for (auto IIt = BB.getFirstNonPHI()->getIterator(); IIt != BB.end();
@@ -101,97 +216,17 @@ void collectReachableBlocks(InBlockValuesStack &frameStack, LoopInfo &LI,
 				llvm_unreachable(
 						"NotImplementedError: unknown terminator type");
 			}
-		}
-		std::optional<KnownValue> newVal;
-		if (auto C = dyn_cast<CallInst>(I)) {
-			if (IsBitConcat(C)) {
-				SmallVector<KnownValue> ops;
-				for (auto &O : C->args()) {
-					auto KV = findValueInStack(frameStack, O.get());
-					ops.push_back(std::move(KV));
+			bool allChildReachable = true;
+			for (auto Suc : successors(&BB)) {
+				if (Suc != ParentLoop.getHeader() && !reachedBlocksWithAllChildrenReached.contains(Suc)) {
+					allChildReachable = false;
+					break;
 				}
-				newVal = KnownValue::resolveBitConcat(ops, *C);
-			} else if (IsBitRangeGet(C)) {
-				auto o0 = findValueInStack(frameStack, I->getOperand(0));
-				auto o1 = findValueInStack(frameStack, I->getOperand(1));
-				newVal = o0.resolveBitRangeGet(o1, *C);
-			} else {
-				// can not resolve, assume unknown specific value, noted as I itself
-				newVal = KnownValue::compute(*I);
 			}
+			if (allChildReachable)
+				reachedBlocksWithAllChildrenReached.insert(&BB);
 		} else {
-			switch (I->getNumOperands()) {
-			case 1: {
-				auto o0 = findValueInStack(frameStack, I->getOperand(0));
-				switch (I->getOpcode()) {
-				case Instruction::ZExt:
-					newVal = o0.resolveZExt(o0, *dyn_cast<ZExtInst>(I));
-					break;
-				case Instruction::SExt:
-					newVal = o0.resolveSExt(o0, *dyn_cast<SExtInst>(I));
-					break;
-				case Instruction::BitCast:
-					newVal = o0.resolveBitCast(o0, *dyn_cast<BitCastInst>(I));
-					break;
-				}
-				break;
-			}
-			case 2: {
-				KnownValue o0 = findValueInStack(frameStack, I->getOperand(0));
-				KnownValue o1 = findValueInStack(frameStack, I->getOperand(1));
-
-				switch (I->getOpcode()) {
-				case Instruction::ICmp: {
-					auto _I = dyn_cast<ICmpInst>(I);
-					newVal = o0.resolveICmp(_I->getPredicate(), o1, _I);
-					break;
-				}
-				case Instruction::And:
-					newVal = o0.resolveAnd(o1, *I);
-					break;
-				case Instruction::Or:
-					newVal = o0.resolveOr(o1, *I);
-					break;
-				case Instruction::Xor:
-					newVal = o0.resolveXor(o1, *I);
-					break;
-				case Instruction::LShr:
-					newVal = o0.resolveLShr(o1, *I);
-					break;
-				case Instruction::AShr:
-					newVal = o0.resolveAShr(o1, *I);
-					break;
-				case Instruction::Shl:
-					newVal = o0.resolveShl(o1, *I);
-					break;
-				default:
-					newVal = KnownValue::compute(*I);
-				}
-				break;
-			}
-			case 3: {
-				KnownValue o0 = findValueInStack(frameStack, I->getOperand(0));
-				KnownValue o1 = findValueInStack(frameStack, I->getOperand(1));
-				KnownValue o2 = findValueInStack(frameStack, I->getOperand(2));
-				switch (I->getOpcode()) {
-				case Instruction::Select: {
-					auto _I = dyn_cast<SelectInst>(I);
-					newVal = o0.resolveSelect(o1, o2, *_I);
-					break;
-				}
-				default:
-					newVal = KnownValue::compute(*I);
-				}
-				break;
-			}
-			}
-			auto &Vals = frameStack.back(); // this can not be hoisted because vector memory may reallocate
-			// if child blocks are adding into it
-			if (newVal.has_value()) {
-				Vals.insert_or_assign(I, newVal.value());
-			} else {
-				Vals.insert_or_assign(I, KnownValue::compute(*I));
-			}
+			collectReachableBlocks_stackUpValueKnowledge(I, frameStack);
 		}
 	}
 }
@@ -304,6 +339,8 @@ bool pruneLoopPhiDeadIncomingValues(LoopInfo &LI, const Loop &L) {
 	//   to be able to resolve which values of phis are used
 	bool Changed = false;
 	for (auto PredBB : predecessors(Header)) {
+		if (!L.contains(PredBB))
+			continue;
 		SmallVector<PHINode*> phisToCheck;
 		for (auto &PHI : Phis) {
 			auto V = PHI.getIncomingValueForBlock(PredBB);
@@ -319,12 +356,13 @@ bool pruneLoopPhiDeadIncomingValues(LoopInfo &LI, const Loop &L) {
 		}
 
 		if (phisToCheck.size()) {
+			// check if the value is used if Header was entered from PredBB
 			InBlockValuesStack frameStack;
 			std::unordered_set<BasicBlock*> reachedBlocks;
+			std::unordered_set<BasicBlock*> reachedBlocksWithAllChildrenReached;
 			std::unordered_set<Loop::Edge> reachedEdges;
-
 			collectReachableBlocks(frameStack, LI, L, true, *PredBB, *Header,
-					reachedBlocks, reachedEdges);
+					reachedBlocks, reachedBlocksWithAllChildrenReached, reachedEdges);
 			assert(frameStack.empty());
 
 			std::unordered_set<Value*> usedValues;
