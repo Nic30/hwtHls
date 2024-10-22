@@ -247,7 +247,7 @@ class HlsPythonHwWhile4(HlsPythonHwWhile2):
         self.o.DATA_WIDTH = 8
 
     @staticmethod
-    @override
+    #@override
     def model(dataIn: Iterator[HBitsConst], dataOut: List[HBitsConst]):
         while True:
             data = HBits(8).from_py(None)
@@ -331,6 +331,11 @@ class HlsPythonHwWhile5c(HlsPythonHwWhile4):
     """
     Same as :class:`~.HlsPythonHwWhile5` Same as :class:`~.HlsPythonHwWhile5` with less arithmetic operations
     """
+    @staticmethod
+    def model(dataIn: Iterator[HBitsConst], dataOut: List[HBitsConst]):
+        while True:
+            d = next(dataIn)
+            dataOut.append(d[0])
 
     @hlsBytecode
     @override
@@ -349,6 +354,7 @@ class HlsPythonHwWhile5c(HlsPythonHwWhile4):
                 PyBytecodeBlockLabel("LFinalWrite")
                 data = fitTo_t(hls.read(self.i).data, self.o.data._dtype)
                 hls.write(data, self.o)
+
 
 
 class HlsPythonHwWhile6(HlsPythonHwWhile4):
@@ -469,6 +475,7 @@ class LoopZeroPadCompareShift(MovingOneGen):
         divisorTmp = Concat(divisor, zeroPad)
         i = 0
         while True:
+            # :attantion: LoopZeroPadCompareShift.mainThread produces endless sequence of 0 at the end instead of break
             if divisorTmp <= Concat(zeroPad, dividend):
                 dividend -= divisorTmp[width:]
 
@@ -517,7 +524,7 @@ class PragmaInline_HlsPythonHwWhile5(HlsPythonHwWhile5):
             PyBytecodeInline(HlsPythonHwWhile5.mainThread)(self, hls)
 
 
-class PragmaInline_HlsPythonHwWhile5c(HlsPythonHwWhile5):
+class PragmaInline_HlsPythonHwWhile5c(HlsPythonHwWhile5c):
 
     @hlsBytecode
     @override
