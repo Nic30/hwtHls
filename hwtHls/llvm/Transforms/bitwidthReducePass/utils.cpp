@@ -3,7 +3,8 @@
 #include <llvm/ADT/SmallString.h>
 
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
-
+#include <hwtHls/llvm/targets/intrinsic/concatMemberVector.h>
+#include <hwtHls/llvm/bitMath.h>
 
 using namespace llvm;
 namespace hwtHls {
@@ -18,6 +19,13 @@ KnownBitRangeInfo::KnownBitRangeInfo(const Value *V) :
 		dstBeginBitI(0), srcBeginBitI(0), width(
 				V->getType()->isIntegerTy() ?
 						V->getType()->getIntegerBitWidth() : 1), src(V) {
+}
+
+KnownBitRangeInfo::KnownBitRangeInfo(const OffsetWidthValue &owv,
+		unsigned dstBeginBitI) :
+		dstBeginBitI(dstBeginBitI), srcBeginBitI(owv.offset), width(owv.width), src(
+				owv.value) {
+
 }
 
 unsigned KnownBitRangeInfo::dstEndBitI() const {
@@ -208,6 +216,100 @@ VarBitConstraint::VarBitConstraint(const VarBitConstraint &obj) :
 		useMask(obj.useMask), replacements(obj.replacements), operandUseMask(
 				obj.operandUseMask) {
 }
+
+VarBitConstraint VarBitConstraint::fromConcat(const llvm::CallInst *V) {
+	VarBitConstraint res(V);
+	std::vector<KnownBitRangeInfo> newParts; // high first
+	for (const auto &O : V->args()) {
+		VarBitConstraint op(O);
+		if (auto OC = dyn_cast<CallInst>(O)) {
+			if (IsBitConcat(OC)) {
+				op = fromConcat(OC);
+			} else if (IsBitRangeGet(OC)) {
+				auto OWV = OffsetWidthValue::fromValue(OC);
+				size_t dstOffset = 0;
+				if (!newParts.empty()) {
+					dstOffset = newParts.back().dstBeginBitI + newParts.back().width;
+				}
+				newParts.push_back(KnownBitRangeInfo(OWV, dstOffset));
+				assert(op.consistencyCheck());
+				continue;
+			}
+		}
+		assert(op.consistencyCheck());
+		for (auto &opop : op.replacements) {
+			newParts.push_back(opop);
+		}
+	}
+	res.replacements.clear();
+	// to lowest first
+	unsigned dstOff = 0;
+	for (auto &i : newParts) {
+		i.dstBeginBitI = dstOff;
+		res.replacements.push_back(i);
+		dstOff += i.width;
+	}
+	return res;
+}
+
+bool VarBitConstraint::valuesHaveSameMeaning(const llvm::Value *V0, const llvm::Value *V1) {
+	if (V0 == V1)
+		return true;
+	if (V0->getType() != V1->getType())
+		return false;
+	if (auto V0C = dyn_cast<CallInst>(V0)) {
+		if (auto V1C = dyn_cast<CallInst>(V1)) {
+			if (IsBitConcat(V0C) && IsBitConcat(V1C)) {
+				return fromConcat(V0C).replacements == fromConcat(V1C).replacements;
+			}
+		}
+	}
+	return false;
+}
+
+bool VarBitConstraint::_valuesHaveSameMeaning(const llvm::Value *V1) const {
+	assert(useMask.isAllOnes());
+	if (auto V1C = dyn_cast<CallInst>(V1)) {
+		if (IsBitConcat(V1C)) {
+			return replacements == fromConcat(V1C).replacements;
+		}
+	}
+	if (replacements.size() == 1) {
+		if (replacements[0].isValue(V1))
+			return true;
+		if (auto V1CI = dyn_cast<CallInst>(V1)) {
+			if (IsBitRangeGet(V1CI)) {
+				auto OWV = OffsetWidthValue::fromValue(const_cast<Value*>(V1));
+				size_t dstOffset = 0;
+				return replacements[0] == KnownBitRangeInfo(OWV, dstOffset);
+			}
+		}
+	}
+	return false;
+}
+
+bool VarBitConstraint::valuesHaveSameMeaning(const llvm::Value *V1) const {
+	bool hasSameWidth;
+	if (V1->getType()->isIntegerTy())
+		hasSameWidth = useMask.getBitWidth() == V1->getType()->getIntegerBitWidth();
+	else
+		hasSameWidth = useMask.getBitWidth() == 1 && useMask.getZExtValue();
+	if (useMask.isAllOnes()) {
+		if (hasSameWidth)
+			return _valuesHaveSameMeaning(V1);
+		else
+			return false;
+	} else {
+		if (hasSameWidth || !V1->getType()->isIntegerTy())
+			return false; // after pruning this would have less bits than V1
+		else if (useMask.popcount() != V1->getType()->getIntegerBitWidth()) {
+			return false; // after pruning this would have a different number of bits than V1
+		} else {
+			return toAllOnesUseMask()._valuesHaveSameMeaning(V1);
+		}
+	}
+}
+
 void VarBitConstraint::addAllSetOperandMask(unsigned width) {
 	operandUseMask.push_back(APInt::getAllOnes(width));
 }
@@ -244,6 +346,30 @@ llvm::APInt VarBitConstraint::getTrullyComputedBitMask(
 	}
 	return m;
 }
+
+
+VarBitConstraint VarBitConstraint::toAllOnesUseMask() const {
+	if (useMask.isAllOnes())
+		return *this;
+	else if (useMask.isZero())
+		return VarBitConstraint(0u);
+
+	VarBitConstraint res(useMask.popcount());
+	res.useMask.setAllBits();
+	for (const auto& r: replacements) {
+		auto useM = useMask.extractBits(r.width, r.dstBeginBitI);
+		if (useM.isAllOnes())
+			res.replacements.push_back(r);
+		else {
+			iterUsedBitRangeSlices(useM, [&res, &r](size_t offset, size_t width) {
+				res.replacements.push_back(r.slice(offset, width));
+			});
+		}
+	}
+	assert(res.consistencyCheck());
+	return res;
+}
+
 //void VarBitConstraint::_srcUnionInplaceSelf(const llvm::Value *parent,
 //		uint64_t offset, uint64_t width,
 //		std::vector<KnownBitRangeInfo> &newList) {
@@ -468,7 +594,7 @@ VarBitConstraint VarBitConstraint::slice(unsigned offset,
 
 		}
 	}
-	assert(res.consystencyCheck());
+	assert(res.consistencyCheck());
 	return res;
 }
 
@@ -482,12 +608,15 @@ void VarBitConstraint::substituteValue(const llvm::Value *oldV, llvm::Value *new
 }
 
 bool VarBitConstraint::isValue(const llvm::Value *V) const {
-	if (replacements.size() != 1)
-		return false;
-	return replacements[0].isValue(V);
+	if (replacements.size() == 1 && replacements[0].isValue(V))
+		return true;
+	else if (auto* VC = dyn_cast<CallInst>(V)) {
+		return IsBitConcat(VC) && replacements == fromConcat(VC).replacements;
+	}
+	return false;
 }
 
-bool VarBitConstraint::consystencyCheck() const {
+bool VarBitConstraint::consistencyCheck() const {
 	if (!replacements.size())
 		return false;
 	if (replacements.back().dstEndBitI() != useMask.getBitWidth())
@@ -511,4 +640,8 @@ void VarBitConstraint::print(raw_ostream &O, bool IsForDebug) const {
 	}
 	O << "]}";
 }
+void VarBitConstraint::dump() const {
+	print(dbgs(), true);
+}
+
 }

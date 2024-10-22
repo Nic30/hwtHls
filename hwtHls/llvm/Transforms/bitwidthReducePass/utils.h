@@ -4,6 +4,8 @@
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/IRBuilder.h>
 
+#include <hwtHls/llvm/targets/intrinsic/concatMemberVector.h>
+
 namespace hwtHls {
 
 class KnownBitRangeInfo {
@@ -17,6 +19,8 @@ public:
 	KnownBitRangeInfo(unsigned bitwidth);
 	KnownBitRangeInfo(const llvm::ConstantInt *CI);
 	KnownBitRangeInfo(const llvm::Value *V);
+	KnownBitRangeInfo(const OffsetWidthValue & owv, unsigned dstBeginBitI);
+
 	unsigned dstEndBitI() const;
 	// check if this and itemOnRight overlaps in dst, if it is guaranteed this.begin <= itemOnRight.begin
 	bool overlapsThisOnLeftInDst(const KnownBitRangeInfo &itemOnRight) const;
@@ -75,6 +79,12 @@ public:
 	VarBitConstraint(const llvm::Value *V);
 	VarBitConstraint(const VarBitConstraint &obj);
 
+	static VarBitConstraint fromConcat(const llvm::CallInst *V);
+	static bool valuesHaveSameMeaning(const llvm::Value *V0, const llvm::Value *V1);
+	bool _valuesHaveSameMeaning(const llvm::Value *V1) const;
+	bool valuesHaveSameMeaning(const llvm::Value *V1) const;
+
+	// add all ones item into operandUseMask
 	void addAllSetOperandMask(unsigned width);
 	void clearAllOperandMasks();
 	void clearAllOperandMasks(unsigned lowBitI, unsigned highBitI);
@@ -82,14 +92,17 @@ public:
 	// (are not known to be constant or some specific other value)
 	llvm::APInt getTrullyComputedBitMask(const llvm::Value *selfValue) const;
 
+	// prune all bits in useMask which are 0
+	VarBitConstraint toAllOnesUseMask() const;
 	// fill known bit range as a slice on self
 	//void _srcUnionInplaceSelf(const llvm::Value *parent, uint64_t offset,
 	//		uint64_t width, std::vector<KnownBitRangeInfo> &newList);
 
+	// Merge with "other" same bits will remain same, different bits will be set to slice from "parent"
 	// parent is used to fill not known holes in bits when doing union
 	// :param reduceUndefs: allow the output bits to take any other value for undef cases
 	//       if false the undefs are treated as unique constant and it can not be merged with any other value
-	//       than undef
+	//       except for another undef
 	void srcUnionInplace(const VarBitConstraint &other,
 			const llvm::Value *parent, bool reduceUndefs);
 
@@ -109,11 +122,14 @@ public:
 	// :returns: true if this record equals exactly to just value V
 	bool isValue(const llvm::Value *V) const;
 
-	bool consystencyCheck() const;
+	bool consistencyCheck() const;
 	void print(llvm::raw_ostream &O, bool IsForDebug = false) const;
+	void dump() const;
 };
 
 }
+
+namespace llvm {
 
 inline llvm::raw_ostream& operator<<(llvm::raw_ostream &OS,
 		const hwtHls::KnownBitRangeInfo &V) {
@@ -127,3 +143,4 @@ inline llvm::raw_ostream& operator<<(llvm::raw_ostream &OS,
 	return OS;
 }
 
+}
