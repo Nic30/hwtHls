@@ -1,16 +1,18 @@
+from typing import Callable
+
 from hwt.code import Concat, rol
-from hwt.hdl.types.bits import Bits
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.struct import HStruct
-from hwt.math import log2ceil
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeLLVMLoopUnroll
+from hwtHls.frontend.pyBytecode.hwrange import hwrange
+from hwtHls.frontend.pyBytecode.pragma import _PyBytecodeLoopPragma
 from hwtLib.types.ctypes import uint32_t
 
 
 # for i in range(64)
 #     SINES_OF_INTEGERS[i] = floor(23**2 * abs(sin(i + 1)))
-MD5_SINES_OF_INTEGERS = [uint32_t.from_py(n) for n in [
+MD5_SINES_OF_INTEGERS = uint32_t[64].from_py([uint32_t.from_py(n) for n in [
     0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee,
     0xf57c0faf, 0x4787c62a, 0xa8304613, 0xfd469501,
     0x698098d8, 0x8b44f7af, 0xffff5bb1, 0x895cd7be,
@@ -27,30 +29,30 @@ MD5_SINES_OF_INTEGERS = [uint32_t.from_py(n) for n in [
     0x655b59c3, 0x8f0ccc92, 0xffeff47d, 0x85845dd1,
     0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1,
     0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391,
-]]
+]])
 
 # s specifies the per-round shift amounts
-MD5_s = [Bits(5).from_py(n) for n in [
+MD5_s = HBits(5)[64].from_py([HBits(5).from_py(n) for n in [
     7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
     5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
     4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
     6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21,
-]]
+]])
 
 # init for A, B, C, D variables used in MD6 computation
 MD5_INIT = [uint32_t.from_py(n) for n in [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476]]
 
 md5_accumulator_t = HStruct(
-    (Bits(32), "a0"),
-    (Bits(32), "b0"),
-    (Bits(32), "c0"),
-    (Bits(32), "d0"),
+    (HBits(32), "a0"),
+    (HBits(32), "b0"),
+    (HBits(32), "c0"),
+    (HBits(32), "d0"),
     name="md5_accumulator_t"
 )
 
 
 @hlsBytecode
-def md5ProcessChunk(chunk: RtlSignal, acc: RtlSignal, unrollFactor=1):
+def md5ProcessChunk(chunk: RtlSignal, acc: RtlSignal, loopPragmaGetter: Callable[[], _PyBytecodeLoopPragma]=lambda: None):
     """
     Based on https://github.com/jcastillo4/systemc-verilog-md5/blob/master/rtl/verilog/md5.v
 
@@ -63,17 +65,15 @@ def md5ProcessChunk(chunk: RtlSignal, acc: RtlSignal, unrollFactor=1):
     """
 
     assert chunk._dtype.bit_length() == 32 * 16
-    assert unrollFactor >= 1 and unrollFactor <= 64
     M = [chunk[32 * (i + 1):32 * i] for i in range(16)]
-    T = Bits(32)
-    MIndex_t = Bits(4)
+    T = HBits(32)
+    MIndex_t = HBits(4)
     A = acc.a0
     B = acc.b0
     C = acc.c0
     D = acc.d0
-    i = Bits(log2ceil(64 + 1)).from_py(0)
-    # for i in range(64):
-    while i != 64:
+
+    for i in hwrange(64):
         F = T.from_py(None)
         g = MIndex_t.from_py(None)
         if i < 16:
@@ -97,8 +97,7 @@ def md5ProcessChunk(chunk: RtlSignal, acc: RtlSignal, unrollFactor=1):
         # del is just used to simplify analysis of loop body
         del g
         del F
-        i += 1
-        PyBytecodeLLVMLoopUnroll(unrollFactor > 1, unrollFactor)
+        loopPragmaGetter()
 
     # Add this chunk's hash to result so far:
     acc.a0 += A
