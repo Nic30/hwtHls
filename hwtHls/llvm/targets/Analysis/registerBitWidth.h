@@ -10,6 +10,9 @@ namespace hwtHls {
 
 /*
  * Resolve minimal bitwidth for individual registers.
+ *
+ * :note: LLVM SPIRV getMachineInstrType stores type in metada operand
+ * 	this sets LLT of each register
  * */
 class HwtFpgaRegisterBitWidth: public llvm::MachineFunctionPass {
 public:
