@@ -10,14 +10,14 @@ namespace llvm {
 
 bool HwtFpgaCombinerHelper::isTrivialRemovableCopy(llvm::MachineInstr &MI,
 		bool &replaceMuxSrcReg) {
-
+	// :see: MachineCSE::PerformTrivialCopyPropagation
 	assert(MI.getOpcode() == HwtFpga::HWTFPGA_MUX);
 	if (MI.getNumOperands() != 1 + 1)
-		return false;
+		return false; // this is not just copy
 
 	auto &src = MI.getOperand(1);
 	if (!src.isReg()) {
-		// no need to propagate constants in this function
+		// no need to propagate constants in this function, it is done elsewhere
 		return false;
 	}
 	auto srcReg = src.getReg();
@@ -33,7 +33,7 @@ bool HwtFpgaCombinerHelper::isTrivialRemovableCopy(llvm::MachineInstr &MI,
 		auto def = MRI.getOneDef(srcReg);
 		size_t srcUseCnt = 0;
 		bool srcUseOnlyInThisBB = true;
-		for (auto &U: MRI.use_operands(srcReg)) {
+		for (auto &U : MRI.use_operands(srcReg)) {
 			if (U.getParent()->getParent() != MI.getParent()) {
 				srcUseOnlyInThisBB = false;
 				break;
@@ -41,8 +41,8 @@ bool HwtFpgaCombinerHelper::isTrivialRemovableCopy(llvm::MachineInstr &MI,
 			srcUseCnt++;
 		}
 
-		if (srcUseOnlyInThisBB &&
-				def && def->getParent()->getParent() == MI.getParent()
+		if (srcUseOnlyInThisBB && def
+				&& def->getParent()->getParent() == MI.getParent()
 				&& isPredecessor(*def->getParent(), MI)) {
 			/*
 			 * Check for
@@ -85,24 +85,7 @@ bool HwtFpgaCombinerHelper::isTrivialRemovableCopy(llvm::MachineInstr &MI,
 			}
 		}
 	}
-
-	// try to find a single user of copy mux dst register
-	MachineInstr *user = nullptr;
-	for (auto &u : MRI.use_operands(dstReg)) {
-		if (user == nullptr) {
-			// search if dstReg is modified or srcReg is modified
-			user = u.getParent();
-			if (user->getParent() != MI.getParent())
-				return false; // can replace only inside of the same block
-		}
-		// check that there is only single user instruction (allow use in multiple operands)
-		if (user != u.getParent()) {
-			return false;
-		} else if (isPredecessor(*user, *u.getParent())) {
-			user = u.getParent(); // get latest user
-		}
-	}
-	if (user) {
+	auto checkUserCanBeSubstitutedWithSrcReg = [this, &MI, srcReg, dstReg](MachineInstr &user) {
 		/*
 		 * check that it is possible to replace mux src register with dstRegister
 		 *  %dst = HWTFPGA_MUX %src
@@ -110,12 +93,14 @@ bool HwtFpgaCombinerHelper::isTrivialRemovableCopy(llvm::MachineInstr &MI,
 		 *  use(%dst) # only use of %dst
 		 *  to later replace with use(%src) (replaceMuxSrcReg=false)
 		 **/
-		if (!isPredecessor(MI, *user)) {
+		if (user.getParent() != MI.getParent())
+			return false; // can replace only inside of the same block
+		if (!isPredecessor(MI, user)) {
 			return false;
 		}
 		auto i = MI.getNextNode();
 		while (i) {
-			if (i == user) {
+			if (i == &user) {
 				// we successfully got on user instruction, it means that it is safe to replace
 				break;
 			}
@@ -131,12 +116,19 @@ bool HwtFpgaCombinerHelper::isTrivialRemovableCopy(llvm::MachineInstr &MI,
 			}
 			i = i->getNextNode();
 		}
-
-		// replace dstReg with srcReg
-		replaceMuxSrcReg = false;
 		return true;
+	};
+
+	// check if all users of dstReg are in this block and dstReg use may be replaced with src
+	for (auto &u : MRI.use_operands(dstReg)) {
+		// search if dstReg is modified or srcReg is modified
+		if (!checkUserCanBeSubstitutedWithSrcReg(*u.getParent()))
+			return false;
+		// found user which can accept src reg instead of current dstReg
 	}
-	return false;
+	// replace dstReg with srcReg possible
+	replaceMuxSrcReg = false;
+	return true;
 }
 
 void HwtFpgaCombinerHelper::rewriteTrivialRemovableCopy(llvm::MachineInstr &MI,
@@ -166,7 +158,9 @@ void HwtFpgaCombinerHelper::rewriteTrivialRemovableCopy(llvm::MachineInstr &MI,
 	}
 	for (auto *u : toReplace) {
 		//errs() << "replace dst " << u->getReg().virtRegIndex() << "->" << dstReg.virtRegIndex() << "\n";
+		Observer.changingInstr(*u->getParent());
 		u->setReg(toReg);
+		Observer.changedInstr(*u->getParent());
 	}
 
 	MI.eraseFromParent();
