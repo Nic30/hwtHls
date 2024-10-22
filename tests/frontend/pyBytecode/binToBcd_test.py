@@ -20,7 +20,7 @@ class BinToBcd_TC(HwtLibBinToBcdTC):
         cls.dut = BinToBcd()
         cls.dut.DATA_WIDTH = 8
         cls.CLK_PERIOD = int(freq_to_period(cls.dut.FREQ))
-        cls.compileSim(cls.dut, target_platform=Artix7Medium(debugFilter={HlsDebugBundle.DBG_3_mir, HlsDebugBundle.DBG_20_addSignalNamesToSync, HlsDebugBundle.DBG_20_addSignalNamesToData}))
+        cls.compileSim(cls.dut, target_platform=Artix7Medium(debugFilter={HlsDebugBundle.DBG_2_0_mir, HlsDebugBundle.DBG_4_0_addSignalNamesToSync, HlsDebugBundle.DBG_4_0_addSignalNamesToData}))
 
     def test_0to127(self):
         BaseIrMirRtl_TC._test_no_comb_loops(self)
@@ -29,7 +29,7 @@ class BinToBcd_TC(HwtLibBinToBcdTC):
     def test_MIR(self):
         # :attention: MIR is loaded to file to test MIR loading, in other tests mir object should be used directly
         # and dump to file is not required
-        with open(Path(self.DEFAULT_LOG_DIR) / "BinToBcd.mainThread" / "03.mir.ll") as f:
+        with open(Path(self.DEFAULT_LOG_DIR) / "BinToBcd.mainThread" / "02.00.mir.ll") as f:
             refData = [0, 1, 2, 3, 4, 5, 6, 7, 99, 127, 255]
             args = [iter(refData), []]
             LlvmMirInterpret.runMirStr(f.read(), "BinToBcd.mainThread", args)
@@ -42,8 +42,8 @@ if __name__ == "__main__":
     m = BinToBcd()
     m.DATA_WIDTH = 10
     print(to_rtl_str(m, target_platform=Artix7Medium(debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
-        HlsDebugBundle.DBG_20_addSignalNamesToSync,
-        HlsDebugBundle.DBG_20_addSignalNamesToData
+        HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+        HlsDebugBundle.DBG_4_0_addSignalNamesToData
     }))))
 
     import unittest
