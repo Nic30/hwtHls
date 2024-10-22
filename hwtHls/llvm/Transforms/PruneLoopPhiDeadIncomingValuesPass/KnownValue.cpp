@@ -54,7 +54,7 @@ KnownValue KnownValue::compute(Value &V) {
 	}
 }
 bool KnownValue::hasNoSpecificConstValue() const {
-	return V;
+	return V || (KB.One == 0 && KB.Zero == 0);
 }
 bool KnownValue::isZero() const {
 	return !V && KB.isZero();
