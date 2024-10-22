@@ -26,7 +26,11 @@ public:
 			parent(parent) {
 	}
 
-	VarBitConstraint* findInConstraints(const llvm::Value *V);
+	// :param copyFromParent: copy record from parent to this level in hierarchy
+	// :note: copyFromParent is necessary because the record will be modified
+	//    and parent value can not be modified
+	VarBitConstraint* findInConstraints(const llvm::Value *V, bool copyFromParent);
+	const VarBitConstraint* findInConstraints(const llvm::Value *V);
 
 	template<typename T>
 	VarBitConstraint& initConstraintMember(T I) {
@@ -52,12 +56,12 @@ public:
 		return _initConstraintMember(I, vbc);
 	}
 
-
 	// get actual known value of a bit
 	std::optional<bool> getKnownBitBoolValue(const llvm::Value *V);
 	// :returns: the value which was previously set
 	std::unique_ptr<VarBitConstraint> setKnownBitBoolValue(const llvm::Value *V,
 			bool newV);
+	void dumpConstraints() const;
 	virtual ~BitPartsConstraints(){}
 };
 
@@ -100,16 +104,19 @@ protected:
 	VarBitConstraint& visitZExt(const llvm::CastInst *I);
 	VarBitConstraint& visitSExt(const llvm::CastInst *I);
 
-	std::optional<std::function<bool(const llvm::Instruction&)>> analysisHandle; // :see: constructor
+	std::optional<std::function<bool(const llvm::Instruction&)>> analysisPredicate; // :see: constructor
 	// if false phi replacement is resolved as PHI itself, if true
 	// incoming values are used to resolve value for this PHI
 	bool resolvePhiValues;
 public:
+	// tryAnalyzeOperandsOfUnsupportedInstructions=false is required if this analysis should
+	// analyze only a part of function. If set to true the operands of all instructions are analyzed
+	bool tryAnalyzeOperandsOfUnsupportedInstructions;
 
-	// if analysisHandle is specified and it returns the false the analysis ends there
+	// if analysisPredicate is specified and it returns the false the analysis ends there
 	// and the value is used as is
 	ConstBitPartsAnalysisContext(ConstBitPartsAnalysisContext *parent = nullptr,
-			std::optional<std::function<bool(const llvm::Instruction&)>> analysisHandle =
+			std::optional<std::function<bool(const llvm::Instruction&)>> analysisPredicate =
 					{ });
 
 	void setShouldResolvePhiValues();

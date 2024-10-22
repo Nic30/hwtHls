@@ -8,16 +8,23 @@ using namespace llvm;
 
 namespace hwtHls {
 
-VarBitConstraint* BitPartsConstraints::findInConstraints(const llvm::Value *V) {
+VarBitConstraint* BitPartsConstraints::findInConstraints(const llvm::Value *V, bool copyFromParent) {
 	auto ctx = this;
 	while (ctx) {
 		auto cur = ctx->constraints.find(V);
 		if (cur != ctx->constraints.end()) {
+			if (copyFromParent && ctx != this) {
+				return &initConstraintMember(V, *cur->second.get());
+			}
+
 			return cur->second.get();
 		}
 		ctx = ctx->parent;
 	}
 	return nullptr;
+}
+const VarBitConstraint* BitPartsConstraints::findInConstraints(const llvm::Value *V) {
+	return findInConstraints(V, false);
 }
 
 std::optional<bool> BitPartsConstraints::getKnownBitBoolValue(
@@ -30,7 +37,7 @@ std::optional<bool> BitPartsConstraints::getKnownBitBoolValue(
 			return false;
 		}
 	} else {
-		auto kb = findInConstraints(V);
+		auto kb = findInConstraints(V, false);
 		if (!kb)
 			return {};
 		auto &replacement = kb->replacements[0];
@@ -58,10 +65,20 @@ std::unique_ptr<VarBitConstraint> BitPartsConstraints::setKnownBitBoolValue(
 	return current;
 }
 
+void BitPartsConstraints::dumpConstraints() const {
+	for (const auto& c: constraints) {
+		if (c.first->getType()->isIntegerTy() && !isa<ConstantInt>(c.first)) {
+			dbgs() << c.first << " " << *c.first << "\n";
+			dbgs() << "    " << *c.second << "\n";
+		}
+	}
+}
+
 ConstBitPartsAnalysisContext::ConstBitPartsAnalysisContext(
 		ConstBitPartsAnalysisContext *parent,
-		std::optional<std::function<bool(const llvm::Instruction&)>> analysisHandle) : BitPartsConstraints(parent),
-		analysisHandle(analysisHandle), resolvePhiValues(false) {
+		std::optional<std::function<bool(const llvm::Instruction&)>> analysisPredicate) :
+		BitPartsConstraints(parent), analysisPredicate(analysisPredicate), resolvePhiValues(
+				false), tryAnalyzeOperandsOfUnsupportedInstructions(true) {
 }
 
 void ConstBitPartsAnalysisContext::setShouldResolvePhiValues() {
@@ -86,14 +103,16 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitSelectInst(
 		} else {
 			V = I->getFalseValue();
 		}
-		c = visitValue(V); // intended copy of _c to c
+		c = visitValue(V); // intended copy to c
 	} else {
-		c = visitValue(I->getTrueValue()); // intended copy of _c to c
+		assert(I->getType() == I->getTrueValue()->getType());
+		assert(I->getType() == I->getFalseValue()->getType());
 
-		auto &_cF = visitValue(I->getFalseValue());
-		assert(_cF.consystencyCheck());
+		c = visitValue(I->getTrueValue()); // intended copy to c
+		VarBitConstraint &_cF = visitValue(I->getFalseValue());
+		assert(_cF.consistencyCheck());
 		c.srcUnionInplace(_cF, I, true);
-		assert(c.consystencyCheck());
+		assert(c.consistencyCheck());
 	}
 	return c;
 }
@@ -139,38 +158,36 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitPHINode(const PHINode *I) {
 
 VarBitConstraint& ConstBitPartsAnalysisContext::visitAsAllInputBitsUsedAllOutputBitsKnown(
 		const Value *V) {
-	// this function is called for every element which we do can not dissolve
+	// this function is called for every value which can not be dissolved
 	VarBitConstraint &cur = initConstraintMember(V);
-	if (auto *I = dyn_cast<Instruction>(V)) {
-		for (Value *O : I->operands()) {
-			if (O->getType()->isIntegerTy())
-				visitValue(O);
-			else
-				visitAsAllInputBitsUsedAllOutputBitsKnown(O);
+	if (tryAnalyzeOperandsOfUnsupportedInstructions) {
+		if (auto *I = dyn_cast<Instruction>(V)) {
+			for (Value *O : I->operands()) {
+				if (O->getType()->isIntegerTy())
+					visitValue(O);
+				else
+					visitAsAllInputBitsUsedAllOutputBitsKnown(O);
+			}
 		}
 	}
-
 	return cur;
 }
 
 VarBitConstraint& ConstBitPartsAnalysisContext::visitValue(const Value *V) {
-	auto C = findInConstraints(V);
+	auto C = findInConstraints(V, true);
 	if (C) {
 		// already seen return prev record reference
-		assert(C->consystencyCheck());
+		assert(C->consistencyCheck());
+
 		return *C;
-	}
-	if (analysisHandle.has_value()) {
-		if (auto *VasI = dyn_cast<Instruction>(V)) {
-			if (analysisHandle.value()(*VasI)) {
-				return visitAsAllInputBitsUsedAllOutputBitsKnown(V);
-			}
-		}
 	}
 
 	if (auto *CI = dyn_cast<ConstantInt>(V)) {
 		return visitConstantInt(CI);
 	} else if (auto *I = dyn_cast<Instruction>(V)) {
+		if (analysisPredicate.has_value() && !analysisPredicate.value()(*I)) {
+			return visitAsAllInputBitsUsedAllOutputBitsKnown(V);
+		}
 		return visitInstruction(I);
 	}
 
@@ -210,7 +227,7 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitTrunc(const CastInst *I) {
 
 	auto &op = visitValue(I->getOperand(0));
 	cur = op.slice(0, I->getType()->getIntegerBitWidth());
-	assert(cur.consystencyCheck());
+	assert(cur.consistencyCheck());
 	return cur;
 }
 
@@ -231,7 +248,7 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitZExt(const CastInst *I) {
 				op.replacements.begin(), op.replacements.end());
 		cur.replacements.push_back(r);
 	}
-	assert(cur.consystencyCheck());
+	assert(cur.consistencyCheck());
 	return cur;
 }
 
@@ -266,7 +283,7 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitSExt(const CastInst *I) {
 			}
 		}
 	}
-	assert(cur.consystencyCheck());
+	assert(cur.consistencyCheck());
 	return cur;
 }
 
@@ -277,7 +294,7 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCallInst(
 		std::vector<KnownBitRangeInfo> newParts; // high first
 		for (const auto &O : C->args()) {
 			auto &op = visitValue(O);
-			assert(op.consystencyCheck());
+			assert(op.consistencyCheck());
 			for (auto &opop : op.replacements) {
 				newParts.push_back(opop);
 			}
@@ -291,7 +308,7 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCallInst(
 			dstOff += i.width;
 		}
 #ifndef NDEBUG
-		if (!cur.consystencyCheck()) {
+		if (!cur.consistencyCheck()) {
 			errs() << *C << "\n" << cur << "\n";
 			llvm_unreachable("Concat in incorrect format ");
 		}
@@ -318,7 +335,7 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCallInst(
 			}
 		}
 
-		assert(cur.consystencyCheck() && "Bit range get in correct format");
+		assert(cur.consistencyCheck() && "Bit range get in correct format");
 		return cur;
 	} else {
 		return visitAsAllInputBitsUsedAllOutputBitsKnown(C);
@@ -330,9 +347,8 @@ void ConstBitPartsAnalysisContext::visitBinaryOperatorReduceAnd(
 		unsigned width, unsigned vSrcOffset, unsigned cSrcOffset,
 		unsigned dstOffset, const APInt &c, const KnownBitRangeInfo &v) {
 	auto &Context = parentI->getContext();
-	for (auto seq : iter1and0sequences(c, cSrcOffset, width)) {
-		unsigned w = seq.second;
-		if (seq.first) {
+	for (const auto& [bitVal, w]: iter1and0sequences(c, cSrcOffset, width)) {
+		if (bitVal) {
 			// 1 sequence found
 			KnownBitRangeInfo i = v.slice(vSrcOffset, w);
 			i.dstBeginBitI = dstOffset;
@@ -794,7 +810,7 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCmpInst(const CmpInst *I) {
 		}
 	}
 	assert(res.replacements.size() == 1 && "Must stay 1b value");
-	assert(res.consystencyCheck());
+	assert(res.consistencyCheck());
 	return res;
 }
 
@@ -809,9 +825,10 @@ bool ConstBitPartsAnalysisContext::updateInstruction(const Instruction *I) {
 }
 
 std::unique_ptr<ConstBitPartsAnalysisContext> ConstBitPartsAnalysisContext::createChild() {
-	auto res = std::make_unique<ConstBitPartsAnalysisContext>(this, this->analysisHandle);
+	auto res = std::make_unique<ConstBitPartsAnalysisContext>(this, this->analysisPredicate);
 	if (resolvePhiValues)
 		res->setShouldResolvePhiValues();
+	res->tryAnalyzeOperandsOfUnsupportedInstructions = tryAnalyzeOperandsOfUnsupportedInstructions;
 	return res;
 }
 
