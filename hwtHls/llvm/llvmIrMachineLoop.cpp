@@ -22,7 +22,9 @@ void register_MachineLoop(pybind11::module_ &m) {
 	py::class_<llvm::MachineLoopInfo, std::unique_ptr<llvm::MachineLoopInfo, py::nodelete>> MachineLoopInfo(m, "MachineLoopInfo");
 	MachineLoopInfo
 		.def("isLoopHeader", &llvm::MachineLoopInfo::isLoopHeader)
-		.def("getLoopFor", &llvm::MachineLoopInfo::getLoopFor, py::return_value_policy::reference_internal)
+		.def("getLoopFor", &llvm::MachineLoopInfo::getLoopFor, py::return_value_policy::reference_internal,
+				"Return the innermost loop that BB lives in. "
+				"If a basic block is in no loop (for example the entry node), null is returned.")
 		.def("__iter__", [](llvm::MachineLoopInfo &MLI) {
 				return py::make_iterator(MLI.begin(), MLI.end());
     	}, py::keep_alive<0, 1>());
@@ -58,6 +60,12 @@ void register_MachineLoop(pybind11::module_ &m) {
 		.def("getBlocks", [](llvm::MachineLoop &ML) {
 				return py::make_iterator(ML.block_begin(), ML.block_end());
     	}, py::keep_alive<0, 1>())
+		.def("__eq__", [](const llvm::MachineLoop & self, const llvm::MachineLoop & other) {
+			return &self == &other;
+		})
+		.def("__hash__", [](const llvm::MachineLoop * self) {
+			return reinterpret_cast<intptr_t>(self);
+		})
 		.def("__iter__", [](llvm::MachineLoop &ML) {
 				return py::make_iterator(ML.begin(), ML.end());
 		}, py::keep_alive<0, 1>())
