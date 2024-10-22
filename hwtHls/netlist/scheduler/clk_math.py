@@ -53,11 +53,17 @@ def timeUntilClkEnd(time: int, clkPeriod: int):
 def beginOfClk(time: int, clkPeriod: int):
     return indexOfClkPeriod(time, clkPeriod) * clkPeriod
 
+
 def beginOfClkWindow(clkIndex:int, clkPeriod: int):
     return clkIndex * clkPeriod
 
+
 def endOfClk(time: int, clkPeriod: int):
     return beginOfNextClk(time, clkPeriod) - 1
+
+
+def endOfClkWindow(clkIndex: int, clkPeriod: int):
+    return beginOfClkWindow(clkIndex + 1, clkPeriod) - 1
 
 
 def beginOfNextClk(time: int, clkPeriod: int):
