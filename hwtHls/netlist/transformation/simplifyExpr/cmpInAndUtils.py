@@ -1,9 +1,9 @@
 from typing import Dict, Union, Tuple, List, Optional
 
-from hwt.hdl.operatorDefs import OpDefinition, AllOps
-from hwt.hdl.value import HValue
+from hwt.hdl.operatorDefs import HOperatorDef, HwtOps
+from hwt.hdl.const import HConst
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
-from pyMathBitPrecise.bit_utils import mask
+from pyMathBitPrecise.bit_utils import mask, to_unsigned
 
 # matrix variables X variables,
 # value range may appear on diagonal
@@ -13,25 +13,32 @@ from pyMathBitPrecise.bit_utils import mask
 #
 ValueConstrainLattice = Dict[HlsNetNodeOut,
                  Union[
-                    OpDefinition,  # compare operator
+                    HOperatorDef,  # compare operator
                     Tuple[int, int],
                     None,
                  ]
                  ]
 
-CMP_WITH_EQ = (AllOps.EQ, AllOps.LE, AllOps.GE)
+CMP_WITH_EQ = (HwtOps.EQ,
+               HwtOps.ULE, HwtOps.UGE,
+               HwtOps.SLE, HwtOps.SGE)
 # :note: used to sort operators to reduce number of compares for the operator strength
 OP_STRENGTH = {
-    AllOps.EQ: 6,
-    AllOps.NE: 5,
-    AllOps.LT: 4,
-    AllOps.GT: 3,
-    AllOps.LE: 2,
-    AllOps.GE: 1,
+    HwtOps.EQ: 6,
+    HwtOps.NE: 5,
+    HwtOps.ULT: 4,
+    HwtOps.UGT: 3,
+    HwtOps.ULE: 2,
+    HwtOps.UGE: 1,
+
+    HwtOps.SLT: 4,
+    HwtOps.SGT: 3,
+    HwtOps.SLE: 2,
+    HwtOps.SGE: 1,
 }
 
 
-def _appendKnowledgeTwoVars(lattice: ValueConstrainLattice, rel: OpDefinition, o0: HlsNetNodeOut, o1: HlsNetNodeOut) -> Tuple[Optional[bool], bool]:
+def _appendKnowledgeTwoVars(lattice: ValueConstrainLattice, rel: HOperatorDef, o0: HlsNetNodeOut, o1: HlsNetNodeOut) -> Tuple[Optional[bool], bool]:
     """
     This function updates the knowledge in lattice from binary relation operator
 
@@ -66,49 +73,53 @@ def _appendKnowledgeTwoVars(lattice: ValueConstrainLattice, rel: OpDefinition, o
         r1 = rel
         if OP_STRENGTH[r1] > OP_STRENGTH[r0]:
             r0, r1 = r1, r0
-
+        raise NotImplementedError()
         # straighten the relation if necessary
-        if r0 is AllOps.EQ:
+        if r0 is HwtOps.EQ:
             if r1 in CMP_WITH_EQ:
-                rel = AllOps.EQ
+                rel = HwtOps.EQ
             else:
                 # always 0
                 return False, True
 
-        elif r0 is AllOps.NE:
-            if r1 is AllOps.EQ:
+        elif r0 is HwtOps.NE:
+            if r1 is HwtOps.EQ:
                 # always 0
                 return False, True
-            elif r1 is AllOps.LE:
-                rel = AllOps.LT
-            elif r1 is AllOps.GE:
-                rel = AllOps.GT
+            elif r1 is HwtOps.ULE:
+                rel = HwtOps.ULT
+            elif r1 is HwtOps.SLE:
+                rel = HwtOps.SLT
+            elif r1 is HwtOps.UGE:
+                rel = HwtOps.UGT
+            elif r1 is HwtOps.SGE:
+                rel = HwtOps.SGT
             else:
                 rel = r1
 
-        elif r0 is AllOps.LT:
-            if r1 is AllOps.GT:
+        elif r0 is HwtOps.LT:
+            if r1 is HwtOps.GT:
                 # always 0
                 return False, True
-            elif r1 is AllOps.LE:
-                rel = AllOps.LT
-            elif r1 is AllOps.GE:
+            elif r1 is HwtOps.LE:
+                rel = HwtOps.LT
+            elif r1 is HwtOps.GE:
                 # always 0
                 return False, True
             else:
                 raise AssertionError("All cases should be handled", r1)
 
-        elif r0 is AllOps.GT:
-            if r1 is AllOps.LE:
+        elif r0 is HwtOps.GT:
+            if r1 is HwtOps.LE:
                 # always 0
                 return False, True
-            elif r1 is AllOps.GE:
-                r1 = AllOps.GT
+            elif r1 is HwtOps.GE:
+                r1 = HwtOps.GT
             else:
                 raise AssertionError("All cases should be handled", r1)
 
-        elif r0 is AllOps.LE and r1 is AllOps.GE:
-            rel = AllOps.EQ
+        elif r0 is HwtOps.LE and r1 is HwtOps.GE:
+            rel = HwtOps.EQ
 
         else:
             raise AssertionError("All cases should be handled", r1)
@@ -117,51 +128,98 @@ def _appendKnowledgeTwoVars(lattice: ValueConstrainLattice, rel: OpDefinition, o
         return None, True
 
 
-def _cmpAndConstToInterval(rel: OpDefinition, width: int, signed: bool, c:int) -> Union[int, List[range]]:
+def _cmpAndConstToInterval(rel: HOperatorDef, width: int, c:int) -> Union[int, List[range]]:
     """
     :note: returned intervals are always sorted low to high
     """
-    if signed:
-        _max = mask(width - 1)
-        _min = -_max - 1
-    else:
-        _min = 0
-        _max = mask(width)
+    # if signed:
+    smax = mask(width - 1)
+    smin = -smax - 1
+    # else:
+    umin = 0
+    umax = mask(width)
 
-    if rel is AllOps.EQ:
+    if rel is HwtOps.EQ:
         return [range(c, c + 1), ]
 
-    elif rel is AllOps.NE:
-        if c == _min:
-            return [range(_min + 1, _max + 1), ]
-        elif c == _max:
-            return [range(_min, _max), ]
+    elif rel is HwtOps.NE:
+        if c == umin:
+            return [range(umin + 1, umax + 1), ]
+        elif c == umax:
+            return [range(umin, umax), ]
         else:
-            return [range(_min, c), range(c + 1, _max + 1)]
+            cAsUnsigned = to_unsigned(c, width)
+            return [range(umin, cAsUnsigned),
+                    range(cAsUnsigned + 1, umax + 1)]
 
-    elif rel is AllOps.LT:
-        if c == _min:
+    elif rel is HwtOps.ULT:
+        if c == umin:
             return 0  # whole and expression resolved to 0
         else:
-            return [range(_min, c), ]
+            return [range(umin, to_unsigned(c, width)), ]
 
-    elif rel is AllOps.GT:
-        if c == _max:
+    elif rel is HwtOps.SLT:
+        if c == smin:
+            return 0  # whole and expression resolved to 0
+        elif c <= 0:
+            # smin..c-1, e.g. 0b1000..0b1111
+            return [range(smin, to_unsigned(c, width)), ]
+        else:
+            # 0..c-1 | smin..-1, e.g.  0b0001..0b0000 |  0b1000..0b1111
+            return [range(0, c),
+                    range(smin, to_unsigned(-1, width) + 1), ]
+
+    elif rel is HwtOps.UGT:
+        if c == umax:
             return 0  # whole and expression resolved to 0
         else:
-            return [range(c + 1, _max + 1), ]
+            return [range(c + 1, umax + 1), ]
 
-    elif rel is AllOps.LE:
-        if c == _max:
+    elif rel is HwtOps.SGT:
+        if c == smax:
+            return 0  # whole and expression resolved to 0
+        elif c >= 0:
+            # c+1..smax
+            return [range(c + 1, to_unsigned(smax, width) + 1), ]
+        else:
+            # 0..smax | c+1..-1
+            return [
+                range(0, smax + 1),
+                range(to_unsigned(c + 1, width), to_unsigned(-1, width) + 1)]
+
+    elif rel is HwtOps.ULE:
+        if c == umax:
             return 1
         else:
-            return [range(_min, c + 1), ]
+            return [range(umin, c + 1), ]
 
-    elif rel is AllOps.GE:
-        if c == _min:
+    elif rel is HwtOps.SLE:
+        # :note: HwtOps.SGT without +1 after c
+        if c == smax:
+            return 1
+        elif c <= -1:
+            # smin..c, e.g. 0b1000..0b1111
+            return [range(smin, to_unsigned(c, width) + 1), ]
+        else:
+            # 0..c | smin..-1, e.g.  0b0001..0b0000 |  0b1000..0b1111
+            return [range(0, c + 1), range(smin, to_unsigned(-1, width) + 1), ]
+
+    elif rel is HwtOps.UGE:
+        if c == umin:
             return 1
         else:
-            return [range(c, _max + 1), ]
+            return [range(c, umax + 1), ]
+
+    elif rel is HwtOps.SGE:
+        # :note: HwtOps.SGT without +1 after c
+        if c == smin:
+            return 1
+        elif c >= 0:
+            # c..smax
+            return [range(c, to_unsigned(smax, width) + 1), ]
+        else:
+            # 0..smax | c..-1
+            return [range(0, smax + 1), range(to_unsigned(c, width), to_unsigned(-1, width) + 1)]
 
     else:
         raise AssertionError("All cases should be handled", rel)
@@ -198,15 +256,15 @@ def _intervalListIntersection(l0: List[range], l1: List[range]):
 
 
 def _appendKnowledgeVarAndConst(lattice: ValueConstrainLattice,
-                                rel: OpDefinition,
+                                rel: HOperatorDef,
                                 v: HlsNetNodeOut,
-                                c: HValue) -> Tuple[Optional[bool], bool]:
+                                c: HConst) -> Tuple[Optional[bool], bool]:
     """
     Variant of :func:`~._appendKnowledgeTwoVars` where one operand is constant.
 
     :return: tuple of two flags (final result known value, change in expression)
     """
-    intervals = _cmpAndConstToInterval(rel, v._dtype.bit_length(), v._dtype.signed, c)
+    intervals = _cmpAndConstToInterval(rel, v._dtype.bit_length(), c)
     if isinstance(intervals, int):
         if intervals == 0:
             return 0, True

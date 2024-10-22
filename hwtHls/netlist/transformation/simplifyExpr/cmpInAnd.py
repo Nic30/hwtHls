@@ -2,9 +2,9 @@ from itertools import islice
 from typing import Set, Sequence, Optional, Union
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
-from hwt.hdl.operatorDefs import AllOps, CMP_OPS_NEG, COMPARE_OPS, OpDefinition
+from hwt.hdl.operatorDefs import HwtOps, CMP_OPS_NEG, COMPARE_OPS, HOperatorDef
 from hwt.hdl.types.defs import BIT
-from hwt.pyUtils.uniqList import UniqList
+from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
@@ -14,8 +14,8 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.transformation.simplifyExpr.cmpInAndUtils import ValueConstrainLattice, \
     _appendKnowledgeTwoVars, _appendKnowledgeVarAndConst, \
     _intervalListIntersection
-from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith, \
-    iterOperatorTreeInputs, popNotFromExpr
+from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOperatorNodeWith
+from hwtHls.netlist.transformation.simplifyUtils import iterOperatorTreeInputs, popNotFromExpr
 from pyMathBitPrecise.bit_utils import mask
 
 
@@ -41,7 +41,7 @@ def _andNotInRangeExpr(curExpr: Optional[HlsNetNodeOut], inp: HlsNetNodeOut, sta
     Generates expr: curExpr & not inRange(inp, start, stop)
     """
 
-    b: HlsNetlistBuilder = inp.obj.netlist.builder
+    b: HlsNetlistBuilder = inp.obj.getHlsNetlistBuilder()
     intervLen = stop - start
     t = inp._dtype
     if intervLen <= DIRECT_CMP_PROFITABLE_TO_EXTRACT:
@@ -51,6 +51,7 @@ def _andNotInRangeExpr(curExpr: Optional[HlsNetNodeOut], inp: HlsNetNodeOut, sta
     else:
         assert start < _max
         e = None
+        raise NotImplementedError()
         if start > _min:
             _e = b.buildGt(inp, t.from_py(start - 1))
             e = _and(e, _e)
@@ -66,7 +67,7 @@ def _andNotInRangeExpr(curExpr: Optional[HlsNetNodeOut], inp: HlsNetNodeOut, sta
 
 def _valueLatticeToExpr(b: HlsNetlistBuilder, allInputs: Sequence[HlsNetNodeOut], lattice: ValueConstrainLattice):
     """
-    Rewrite value lattice to the expression.
+    Convert value lattice records to the expression.
     """
     inputs = sorted(allInputs, key=lambda x: (x.obj._id, x.out_i))
     res = None
@@ -75,18 +76,21 @@ def _valueLatticeToExpr(b: HlsNetlistBuilder, allInputs: Sequence[HlsNetNodeOut]
         if valConstr is not None:
             t = inp._dtype
             width = inp._dtype.bit_length()
-            if inp._dtype.signed:
-                _max = mask(width - 1)
-                _min = -_max - 1
-            else:
-                _min = 0
-                _max = mask(width)
+            assert not inp._dtype.signed, ("Only unsigned should be used internally")
+            smax = mask(width - 1)
+            smin = -smax - 1
+            umin = 0
+            umax = mask(width)
 
             if len(valConstr) == 1:
-                r = valConstr[0]
-                if r.start == _min and r.stop == _max + 1:
+                r: range = valConstr[0]
+                assert r.start >= 0 and r.start <= umax + 1, (r.start, inp)
+                assert r.stop >= 0 and r.stop <= umax + 1, (r.stop, inp)
+                if r.start == umin and r.stop == umax + 1:
                     # covers whole domain, this can have any value so we skip it
                     # :note: this should already be handled in opt phase
+                    # [todo] check if this is correct res may stay None which results in 0 at output
+                    # if this was
                     continue
 
                 elif len(r) == 1:
@@ -102,14 +106,14 @@ def _valueLatticeToExpr(b: HlsNetlistBuilder, allInputs: Sequence[HlsNetNodeOut]
 
                     res = _and(res, e)
 
-                elif r.start == _min:
+                elif r.start == umin:
                     # inp < c0
-                    e = b.buildOp(AllOps.LT, BIT, inp, t.from_py(r.stop))
+                    e = b.buildOp(HwtOps.ULT, None, BIT, inp, t.from_py(r.stop))
                     res = _and(res, e)
 
-                elif r.stop == _max + 1:
+                elif r.stop == umax + 1:
                     # inp > c0
-                    e = b.buildOp(AllOps.GT, BIT, inp, t.from_py(r.start - 1))
+                    e = b.buildOp(HwtOps.UGT, None, BIT, inp, t.from_py(r.start - 1))
                     res = _and(res, e)
 
                 elif len(r) == DIRECT_CMP_PROFITABLE_TO_EXTRACT:
@@ -122,9 +126,9 @@ def _valueLatticeToExpr(b: HlsNetlistBuilder, allInputs: Sequence[HlsNetNodeOut]
 
                 else:
                     # inp > c0 and inp < c1
-                    e = b.buildOp(AllOps.GT, BIT, inp, t.from_py(r.start - 1))
+                    e = b.buildOp(HwtOps.UGT, None, BIT, inp, t.from_py(r.start - 1))
                     res = _and(res, e)
-                    e = b.buildOp(AllOps.LT, BIT, inp, t.from_py(r.stop))
+                    e = b.buildOp(HwtOps.ULT, None, BIT, inp, t.from_py(r.stop))
                     res = _and(res, e)
 
             elif len(valConstr) == 2:
@@ -134,12 +138,12 @@ def _valueLatticeToExpr(b: HlsNetlistBuilder, allInputs: Sequence[HlsNetNodeOut]
                     for n in range(r0.stop, r1.start):
                         e = b.buildNot(b.buildEq(inp, t.from_py(n)))
                         res = _and(res, e)
-                if r1.stop < _max + 1:
-                    e = b.buildOp(AllOps.LT, BIT, inp, t.from_py(r1.stop))
+                if r1.stop < umax + 1:
+                    e = b.buildOp(HwtOps.ULT, None, BIT, inp, t.from_py(r1.stop))
                     res = _and(res, e)
 
-                if r0.start > _min:
-                    e = b.buildOp(AllOps.GT, BIT, inp, t.from_py(r0.start))
+                if r0.start > umin:
+                    e = b.buildOp(HwtOps.UGT, None, BIT, inp, t.from_py(r0.start))
                     res = _and(res, e)
 
             else:
@@ -152,28 +156,29 @@ def _valueLatticeToExpr(b: HlsNetlistBuilder, allInputs: Sequence[HlsNetNodeOut]
                     next(valConstrIt)
                 except StopIteration:
                     raise AssertionError("valConstr should have 3 or more items, now it seems that it has 0")
+
                 isFirst = True
                 for isLast, r in iter_with_last(valConstr):
                     if isFirst:
                         isFirst = False
-                        if r.start != _min:
-                            res = _andNotInRangeExpr(res, inp, _min, r.start, _min, _max)
+                        if r.start != umin:
+                            res = _andNotInRangeExpr(res, inp, umin, r.start, umin, umax)
 
                     if isLast:
                         rNext = None
-                        if r.stop != _max + 1:
-                            res = _andNotInRangeExpr(res, inp, r.stop, _max + 1, _min, _max)
+                        if r.stop != umax + 1:
+                            res = _andNotInRangeExpr(res, inp, r.stop, umax + 1, umin, umax)
                     else:
                         rNext = next(valConstrIt)
-                        res = _andNotInRangeExpr(res, inp, r.stop, rNext.start, _min, _max)
+                        res = _andNotInRangeExpr(res, inp, r.stop, rNext.start, umin, umax)
 
         for otherInp in islice(inputs, i + 1, None):
             constr = lattice.get((inp, otherInp))
             if constr is None:
                 continue
             else:
-                assert isinstance(constr, OpDefinition), constr
-                e = b.buildOp(constr, BIT, inp, otherInp)
+                assert isinstance(constr, HOperatorDef), constr
+                e = b.buildOp(constr, None, BIT, inp, otherInp)
                 res = _and(res, e)
 
     if res is None:
@@ -195,101 +200,102 @@ def getConst(o: HlsNetNodeOut):
     else:
         return None
 
-
-# AND_OR_XOR = (AllOps.XOR, AllOps.AND, AllOps.OR)
-def netlistReduceCmpInAnd(n: HlsNetNodeOperator, worklist: UniqList[HlsNetNode], removed: Set[HlsNetNode]):
-    """
-    This algorithm simplifies comparations in AND tree. It is similar to Sparse Conditional Constant Propagation (SCC).
-    """
-    assert n.operator is AllOps.AND, n
-    assert n._outputs[0]._dtype.bit_length() == 1, (n, n._outputs[0]._dtype)
-    knownResult = None
-    allUsersAreAnd = True
-    for u in n.usedBy[0]:
-        if getOperatorOfExpr(u) is not AllOps.AND:
-            allUsersAreAnd = False
-            break
-
-    if allUsersAreAnd:
-        # optimize later from some parent
-        return False
-
-    b: HlsNetlistCtx = n.netlist.builder
-
-    # sorted list of allowed ranges for each input variable (which is realized as node output)
-    # values: ValueConstrainLattice = {}
-    # equalGroups: Dict[HlsNetNodeOut, Set[HlsNetNodeOut]] = {}
-    # a dictionary mapping relations between input variables in oposite direction to "values"
-    # varDeps: Dict[HlsNetNodeOut, HlsNetNodeOut] = {}
-    lattice: ValueConstrainLattice = {}
-    allInputs: UniqList[HlsNetNodeOut] = UniqList()
-    registerInput = allInputs.append
-    changed = False
-    inputs = tuple(iterOperatorTreeInputs(n, (AllOps.AND,)))
-    for inp in inputs:
-        inp: HlsNetNodeOut
-        negated, inpO, inp = popNotFromExpr(inp)
-
-        if isinstance(inpO, HlsNetNodeOperator):
-            o = inpO.operator
-            if o in COMPARE_OPS:
-                o0, o1 = inpO.dependsOn
-                if negated:
-                    o = CMP_OPS_NEG[o]
-
-                # if it is a constant, mark constant
-                c0 = getConst(o0)
-                c1 = getConst(o1)
-
-                if c0 is not None and c1 is not None:
-                    changed = True
-                    if not o._evalFn(c0, c1):
-                        # discovered 0 in "and" tree, whole result is 0
-                        knownResult = False
-                        break
-                    else:
-                        # discovered just 1 in "and" tree, it is not important
-                        continue
-
-                elif c0 is not None:
-                    # change to have value as a first operand
-                    c0, c1 = c1, c0
-                    o0, o1 = o1, o0
-
-                if c1 is None:
-                    changed = True
-                    registerInput(o0)
-                    registerInput(o1)
-                    knownResult, _changed = _appendKnowledgeTwoVars(lattice, o, o0, o1)
-                else:
-                    registerInput(o0)
-                    knownResult, _changed = _appendKnowledgeVarAndConst(lattice, o, o0, c1)
-
-                changed |= _changed
-                if knownResult is not None:
-                    break
-                continue
-
-        registerInput(inp)
-        k = (inp, inp)
-        curV = lattice.get(k, None)
-        if negated:
-            ranges = [range(0, 1)]
-        else:
-            ranges = [range(1, 2)]
-        if curV is not None:
-            ranges = list(_intervalListIntersection(curV, ranges))
-        lattice[k] = ranges
-
-    if knownResult is not None:
-        replaceOperatorNodeWith(n, b.buildConstBit(knownResult), worklist, removed)
-        return True
-    elif not changed:
-        return False
-    else:
-        replacement = _valueLatticeToExpr(b, allInputs, lattice)
-        if replacement is n._outputs[0]:
-            return False
-        else:
-            replaceOperatorNodeWith(n, replacement, worklist, removed)
-            return True
+# [todo] replace by llvm version
+# AND_OR_XOR = (HwtOps.XOR, HwtOps.AND, HwtOps.OR)
+#def netlistReduceCmpInAnd(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
+#    """
+#    This algorithm simplifies comparations in AND tree. It is similar to Sparse Conditional Constant Propagation (SCC).
+#    """
+#    assert n.operator is HwtOps.AND, n
+#    assert n._outputs[0]._dtype.bit_length() == 1, (n, n._outputs[0]._dtype)
+#    knownResult = None
+#    allUsersAreAnd = True
+#    for u in n.usedBy[0]:
+#        if getOperatorOfExpr(u) is not HwtOps.AND:
+#            allUsersAreAnd = False
+#            break
+#
+#    if allUsersAreAnd:
+#        # optimize later from some parent
+#        return False
+#
+#    b: HlsNetlistCtx = n.getHlsNetlistBuilder()
+#
+#    # sorted list of allowed ranges for each input variable (which is realized as node output)
+#    # values: ValueConstrainLattice = {}
+#    # equalGroups: Dict[HlsNetNodeOut, Set[HlsNetNodeOut]] = {}
+#    # a dictionary mapping relations between input variables in oposite direction to "values"
+#    # varDeps: Dict[HlsNetNodeOut, HlsNetNodeOut] = {}
+#    lattice: ValueConstrainLattice = {}
+#    allInputs: SetList[HlsNetNodeOut] = SetList()
+#    registerInput = allInputs.append
+#    changed = False
+#    inputs = tuple(iterOperatorTreeInputs(n, (HwtOps.AND,)))
+#    for inp in inputs:
+#        inp: HlsNetNodeOut
+#        negated, inpO, inp = popNotFromExpr(inp)
+#
+#        if isinstance(inpO, HlsNetNodeOperator):
+#            o = inpO.operator
+#            if o in COMPARE_OPS:
+#                o0, o1 = inpO.dependsOn
+#                if negated:
+#                    o = CMP_OPS_NEG[o]
+#
+#                # if it is a constant, mark constant
+#                c0 = getConst(o0)
+#                c1 = getConst(o1)
+#
+#                if c0 is not None and c1 is not None:
+#                    changed = True
+#                    if not o._evalFn(c0, c1):
+#                        # discovered 0 in "and" tree, whole result is 0
+#                        knownResult = False
+#                        break
+#                    else:
+#                        # discovered just 1 in "and" tree, it is not important
+#                        continue
+#
+#                elif c0 is not None:
+#                    # change to have value as a first operand
+#                    c0, c1 = c1, c0
+#                    o0, o1 = o1, o0
+#
+#                if c1 is None:
+#                    changed = True
+#                    registerInput(o0)
+#                    registerInput(o1)
+#                    knownResult, _changed = _appendKnowledgeTwoVars(lattice, o, o0, o1)
+#                else:
+#                    registerInput(o0)
+#                    knownResult, _changed = _appendKnowledgeVarAndConst(lattice, o, o0, c1)
+#
+#                changed |= _changed
+#                if knownResult is not None:
+#                    break
+#                continue
+#
+#        registerInput(inp)
+#        k = (inp, inp)
+#        curV = lattice.get(k, None)
+#        if negated:
+#            ranges = [range(0, 1)]
+#        else:
+#            ranges = [range(1, 2)]
+#        if curV is not None:
+#            ranges = list(_intervalListIntersection(curV, ranges))
+#        lattice[k] = ranges
+#
+#    if knownResult is not None:
+#        replaceOperatorNodeWith(n, b.buildConstBit(knownResult), worklist, removed)
+#        return True
+#    elif not changed:
+#        return False
+#    else:
+#        replacement = _valueLatticeToExpr(b, allInputs, lattice)
+#        if replacement is n._outputs[0]:
+#            return False
+#        else:
+#            replaceOperatorNodeWith(n, replacement, worklist, removed)
+#            return True
+#
