@@ -351,7 +351,7 @@ class LlvmMirInterpret():
                         regs[dst.virtRegIndex()] = res
                         continue
 
-                    if opc == TargetOpcode.PseudoRET:
+                    if opc == TargetOpcode.HWTFPGA_RET:
                         return
 
                     raise NotImplementedError(mi)
