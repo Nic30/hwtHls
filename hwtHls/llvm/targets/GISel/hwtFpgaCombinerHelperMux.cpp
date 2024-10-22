@@ -568,9 +568,16 @@ void HwtFpgaCombinerHelper::rewriteMuxRmCases(llvm::MachineInstr &MI,
 		const llvm::SmallVector<unsigned> &caseConditionsToRm) {
 	assert(MI.getOpcode() == HwtFpga::HWTFPGA_MUX);
 	Observer.changingInstr(MI);
+	size_t offset = 0;
+	std::optional<unsigned> lastCondI;
 	for (unsigned CondI : llvm::reverse(caseConditionsToRm)) {
-		MI.removeOperand(CondI); // c
-		MI.removeOperand(CondI - 1); // v
+		if (lastCondI.has_value()) {
+			assert(lastCondI.value() < CondI);
+		}
+		lastCondI = CondI;
+		MI.removeOperand(CondI - offset); // c
+		MI.removeOperand(CondI - 1 - offset); // v
+		offset += 2;
 	}
 	Observer.changedInstr(MI);
 }
