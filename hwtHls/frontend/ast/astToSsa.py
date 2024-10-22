@@ -34,7 +34,6 @@ from hwtHls.ssa.instr import SsaInstr, SsaInstrBranch
 from hwtHls.ssa.value import SsaValue
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 
-
 AnyStm = Union[HdlAssignmentContainer, HlsStm]
 
 
@@ -85,6 +84,9 @@ class HlsAstToSsa(AnalysisCache):
         the continue/break and loop association. The record is a tuple (loop statement, entry block, list of blocks ending with break).
         The blocks ending with break will have its branch destination assigned after the loop is processed (in loop parsing fn.).
     :ivar ioNodeConstructors: dictionary of read/write statements associated with io used to construct HlsNetlist node later
+    :ivar _variableForExprInBlock: A dictionary holding a variable which currently contains an expression for each expression in each block.
+        This dictionary is used to use already translated variable currently storing the expression instead of translating whole expression again.
+    
     """
 
     def __init__(self, ssaCtx: SsaContext,
@@ -106,6 +108,7 @@ class HlsAstToSsa(AnalysisCache):
         self.ssaBuilder = SsaExprBuilder(self.start, None)
         self.m_ssa_u = MemorySSAUpdater(self.ssaBuilder, self.visit_expr)
         self.pragma: List["_PyBytecodePragma"] = []
+        self._variableForExprInBlock: Dict[SsaBasicBlock, Dict[RtlSignal, RtlSignal]] = {}
         self._dbgLogPassExec:Optional[StringIO] = None
         self._dbgLogPassExec = dbgLogPassExec
 
@@ -155,9 +158,30 @@ class HlsAstToSsa(AnalysisCache):
 
         return block
 
+    def _variableForExprInBlock_insertNoRedef(self, block: SsaBasicBlock, var: Union[RtlSignal, HConst], newInst: Union[SsaValue, HConst]) -> Tuple[SsaBasicBlock, Union[SsaValue, HConst]]:
+        if not isinstance(var, HConst):
+            varDict = self._variableForExprInBlock.get(block, None)
+            if varDict is None:
+                # check for case that expression was already translated in this block
+                varDict = self._variableForExprInBlock[block] = {}
+            varDict[var] = newInst
+
+        return block, newInst
+
     def visit_expr(self, block: SsaBasicBlock, var: Union[RtlSignal, HConst]) -> Tuple[SsaBasicBlock, Union[SsaValue, HConst]]:
+        """
+        Translate RtlSignal expression to SSA with constant propagation and expression cache
+        """
         if isinstance(var, HwIOSignal):
             var = var._sig
+
+        varDict = self._variableForExprInBlock.get(block, None)
+        if varDict is not None:
+            # check for case that expression was already translated in this block
+            cur = varDict.get(var, None)
+            if cur is not None:
+                return block, cur
+
         builder = self.ssaBuilder
         if builder.block is not block:
             builder.setInsertPoint(block, None)
@@ -185,13 +209,13 @@ class HlsAstToSsa(AnalysisCache):
                         # HlsRead is a SsaValue and thus represents "variable"
                         self.m_ssa_u.writeVariable(var, (), builder.block, op)
 
-                    return block, op
+                    return self._variableForExprInBlock_insertNoRedef(block, var, op)
 
                 elif isinstance(op, (HlsStmBreak, HlsStmContinue)):
                     raise NotImplementedError()
 
                 else:
-                    return block, self.m_ssa_u.readVariable(var, block)
+                    return self._variableForExprInBlock_insertNoRedef(block, var, self.m_ssa_u.readVariable(var, block))
 
             if op.operator in (HwtOps.BitsAsVec, HwtOps.BitsAsUnsigned) and not var._dtype.signed and not op.operands[0]._dtype.signed:
                 # skip implicit conversions between vec without sign and unsigned
@@ -224,9 +248,10 @@ class HlsAstToSsa(AnalysisCache):
 
                 var = SsaInstr(builder.block.ctx, var._dtype, op.operator, ops, origin=var)
                 builder._insertInstr(var)
+
             self.m_ssa_u.writeVariable(sig, (), builder.block, var)
             # we know for sure that this in in this block that is why we do not need to use readVariable
-            return block, var
+            return self._variableForExprInBlock_insertNoRedef(block, sig, var)
 
         elif isinstance(var, HConst):
             return block, var
@@ -250,7 +275,8 @@ class HlsAstToSsa(AnalysisCache):
                 var = HwIO_pack(var)
                 return self.visit_expr(block, var)
 
-            return builder.block, None if var is None else self.m_ssa_u.readVariable(var, builder.block)
+            newVar = None if var is None else self.m_ssa_u.readVariable(var, builder.block)
+            return self._variableForExprInBlock_insertNoRedef(builder.block, var, newVar)
 
     def visit_For(self, block: SsaBasicBlock, o: HlsStmFor) -> SsaBasicBlock:
         block = self.visit_CodeBlock_list(block, o.init)
@@ -372,6 +398,33 @@ class HlsAstToSsa(AnalysisCache):
 
         return end_if_block
 
+    def _variableForExprInBlock_insertRedef(self,
+                                            block: SsaBasicBlock,
+                                            var: Union[RtlSignal, HConst],
+                                            indexes:Optional[List[Union[RtlSignal, HConst]]],
+                                            newInst: Union[SsaValue, HConst]):
+
+        varDict = self._variableForExprInBlock.get(block, None)
+        if varDict is None:
+            varDict = self._variableForExprInBlock[block] = {}
+            wasDefined = False
+        else:
+            wasDefined = varDict.pop(var, None) is not None
+        # transitively remove all users
+        if wasDefined:
+            toRm = [*var.endpoints]
+            while toRm:
+                op = toRm.pop()
+                if isinstance(op, HOperatorNode):
+                    _wasDefined = varDict.pop(op.result, None) is not None
+                    if _wasDefined:
+                        toRm.extend(op.result.endpoints)
+
+        if not indexes:
+            varDict[var] = newInst
+
+        return block, newInst
+
     def visit_Assignment(self, block: SsaBasicBlock, o: HdlAssignmentContainer) -> SsaBasicBlock:
         block, src = self.visit_expr(block, o.src)
         block.origins.append(o)
@@ -379,7 +432,9 @@ class HlsAstToSsa(AnalysisCache):
         # * store instruction
         # * just the registration of the variable for the symbol
         #   * only a segment in bit vector can be assigned, this result in the assignment of the concatenation of previous and new value
+
         self.m_ssa_u.writeVariable(o.dst, o.indexes, block, src)
+        self._variableForExprInBlock_insertRedef(block, o.dst, o.indexes, src)
 
         return block
 
