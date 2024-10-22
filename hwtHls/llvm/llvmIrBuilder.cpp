@@ -6,6 +6,8 @@
 #include <llvm/IR/IRBuilder.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
+#include <hwtHls/llvm/targets/intrinsic/hfloattmp.h>
+
 
 namespace py = pybind11;
 
@@ -17,12 +19,23 @@ namespace hwtHls {
 #define COMMON_BIN_OP_ARGS py::arg("LHS"), py::arg("RHS"), py::arg("Name")= llvm::Twine(""), py::arg("HasNUW")=false, py::arg("HasNSW")=false
 #define COMMON_BIN_OP_ARGS_WITH_ISEXACT py::arg("LHS"), py::arg("RHS"), py::arg("Name")= llvm::Twine(""), py::arg("isExact")=false
 
+#define F_OP(opName) \
+.def(#opName, [](llvm::IRBuilder<> * self, llvm::Value *L, llvm::Value *R, const llvm::Twine &Name) {\
+	return self->opName(L, R, Name);\
+}, py::return_value_policy::reference)
+
+#define HFloatTmpConfig_PY_ARGS \
+	py::arg("isInQFromat"), py::arg("supportSubnormal"), \
+	py::arg("exponentOrIntWidth"), py::arg("mantissaOrFracWidth"), \
+	py::arg("hasSign"), py::arg("hasIsNaN"), py::arg("hasIsInf"), py::arg("hasIs1"), py::arg("hasIs0")
+
 void register_IRBuilder(pybind11::module_ & m) {
 	py::class_<llvm::IRBuilder<>>(m, "IRBuilder")
 		.def(py::init<llvm::LLVMContext&>())
 		.def("SetInsertPoint", [](llvm::IRBuilder<> * self, llvm::BasicBlock *TheBB) {
 				return self->SetInsertPoint(TheBB);
 			}, py::return_value_policy::reference)
+		.def("getContext", &llvm::IRBuilder<>::getContext, py::return_value_policy::reference)
 		.def("CreateAnd", [](llvm::IRBuilder<> * self, llvm::Value *LHS, llvm::Value *RHS, const llvm::Twine &Name = "") {
 				return self->CreateAnd(LHS, RHS, Name);
 			}, py::return_value_policy::reference)
@@ -114,6 +127,35 @@ void register_IRBuilder(pybind11::module_ & m) {
 		.def("CreateAssumption", [](llvm::IRBuilder<> * self, llvm::Value *Cond) {
 			return self->CreateAssumption(Cond);
 		})
+		.def("CreateBitCast", &llvm::IRBuilder<>::CreateBitCast, py::arg("V"), py::arg("DestTy"), py::arg("Name")=llvm::Twine(""), py::return_value_policy::reference)
+		.def("CreateCastToHFloatTmp", &CreateCastToHFloatTmp,
+				py::arg("srcArg"), HFloatTmpConfig_PY_ARGS,
+				py::arg("Name")=llvm::Twine(""), py::return_value_policy::reference)
+		.def("CreateCastFromHFloatTmp", &CreateCastFromHFloatTmp,
+				py::arg("srcArg"), HFloatTmpConfig_PY_ARGS,
+				py::arg("Name")=llvm::Twine(""), py::return_value_policy::reference)
+		F_OP(CreateFAdd)
+		F_OP(CreateFSub)
+		F_OP(CreateFMul)
+		F_OP(CreateFDiv)
+		F_OP(CreateFRem)
+		F_OP(CreateFCmpOEQ)
+		F_OP(CreateFCmpOGT)
+		F_OP(CreateFCmpOGE)
+		F_OP(CreateFCmpOLT)
+		F_OP(CreateFCmpOLE)
+		F_OP(CreateFCmpONE)
+		F_OP(CreateFCmpORD)
+		F_OP(CreateFCmpUNO)
+		F_OP(CreateFCmpUEQ)
+		F_OP(CreateFCmpUGT)
+		F_OP(CreateFCmpUGE)
+		F_OP(CreateFCmpULT)
+		F_OP(CreateFCmpULE)
+		F_OP(CreateFCmpUNE)
+		.def("CreateFCmp", [](llvm::IRBuilder<> * self, llvm::CmpInst::Predicate p, llvm::Value *L, llvm::Value *R, const llvm::Twine &Name) {\
+			return self->CreateFCmp(p, L, R, Name);\
+		}, py::return_value_policy::reference)
 		.def("CreateIntrinsic", [](llvm::IRBuilder<> * self,
 					llvm::Type * RetTy,
 					int ID,
