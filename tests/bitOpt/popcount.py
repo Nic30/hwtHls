@@ -1,5 +1,5 @@
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
-from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
@@ -8,7 +8,7 @@ from hwt.math import log2ceil
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 
@@ -58,7 +58,7 @@ class Popcount(HwModule):
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while b1:
             i = hls.read(self.data_in)
             hls.write(PyBytecodeInline(popcount)(i, bitsToLookupInROM=self.BITS_TO_LOOKUP_IN_ROM), self.data_out)
 

@@ -103,7 +103,13 @@ class SsaInstr(SsaValue):
         assert replacement._dtype.bit_length() == self._dtype.bit_length(), ("Must have same type", self, replacement, self._dtype, replacement._dtype)
         for u in tuple(self.users):
             u.replaceInput(self, replacement)
-
+    
+    def mergeMetadata(self, metadata: Optional[List["_PyBytecodePragma"]]):
+        if self.metadata is None:
+            self.metadata = metadata
+        elif metadata:
+            self.metadata.extend(metadata)
+    
     def __repr__(self):
         _src = ", ".join(s._name if isinstance(s, SsaInstr) else repr(s) for s in self.operands)
         if self.operator is OP_ASSIGN:

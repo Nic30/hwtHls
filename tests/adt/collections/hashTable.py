@@ -4,19 +4,19 @@ from typing import Optional
 
 from hwt.code import In
 from hwt.constants import WRITE, READ
-from hwt.hwIOs.hwIOStruct import HwIO_to_HdlType, HwIOStruct
-from hwt.hwIOs.utils import addClkRstn, propagateClkRstn
-from hwt.hwModule import HwModule
-from hwt.hwParam import HwParam
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.struct import HStruct
+from hwt.hwIOs.hwIOStruct import HwIO_to_HdlType, HwIOStruct
+from hwt.hwIOs.utils import addClkRstn, propagateClkRstn
+from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
 from hwt.math import log2ceil
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
 from hwtHls.io.portGroups import MultiPortGroup

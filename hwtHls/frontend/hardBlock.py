@@ -4,7 +4,7 @@ from hwt.constants import NOT_SPECIFIED
 from hwt.hdl.types.function import HFunction
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.typingFuture import override
-from hwtHls.frontend.pyBytecode.markers import _PyBytecodeIntrinsic
+from hwtHls.frontend.pyBytecode.pragma import _PyBytecodeIntrinsic
 from hwtHls.llvm.llvmIr import MachineInstr, CallInst, AddDefaultFunctionAttributes, Register, Value, \
     IRBuilder, FunctionCallee
 from hwtHls.netlist.builder import HlsNetlistBuilder
@@ -12,7 +12,6 @@ from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwtHls.ssa.translation.llvmMirToNetlist.insideOfBlockSyncTracker import InsideOfBlockSyncTracker
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 
@@ -53,7 +52,6 @@ class HardBlockHwModule(_PyBytecodeIntrinsic):
 
     def translateMirToNetlist(self,
                               mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
-                              syncTracker: InsideOfBlockSyncTracker,
                               mbSync: MachineBasicBlockMeta,
                               instr: MachineInstr,
                               builder: HlsNetlistBuilder,

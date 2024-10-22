@@ -9,7 +9,7 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline, \
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline, \
     PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -26,7 +26,7 @@ class PyArrShift(HwModule):
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
-        arr = [hls.var(f"arr{i}", self.o._dtype) for i in range(3)]
+        arr = [hls.var(f"arr{i:d}", self.o._dtype) for i in range(3)]
         # :note: using () instead of just = because we want to set value not just rewrite reference in preprocessor
         for item in arr:
             item(0)
@@ -55,7 +55,7 @@ class PyArrShiftFn(PyArrShift):
 
     @override
     def mainThread(self, hls: HlsScope):
-        arr = [hls.var(f"arr{i}", self.o._dtype) for i in range(3)]
+        arr = [hls.var(f"arr{i:d}", self.o._dtype) for i in range(3)]
         # :note: using () instead of just = because we want to set value not just rewrite reference in preprocessor
         for item in arr:
             item(0)
@@ -78,7 +78,7 @@ class PyArrShiftFnStruct(PyArrShift):
     def mainThread(self, hls: HlsScope):
         HALF_WIDTH = self.o._dtype.bit_length() // 2
         halfT = HBits(HALF_WIDTH)
-        arr = [hls.var(f"arr{i}", HStruct((halfT, "low"),
+        arr = [hls.var(f"arr{i:d}", HStruct((halfT, "low"),
                                           (halfT, "high"))) for i in range(3)]
         # :note: using () instead of just = because we want to set value not just rewrite reference in preprocessor
         for item in arr:

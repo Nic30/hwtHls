@@ -1,15 +1,17 @@
 from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import ConditionBlockTuple
+from typing import Optional
 
 
-def _applyLoopPragma(headerBlock: SsaBasicBlock, loopInfo:PyBytecodeLoopInfo):
+def _applyLoopPragma(headerBlock: SsaBasicBlock, loopInfo:PyBytecodeLoopInfo, additionalLatchBlock: Optional[SsaBasicBlock]):
     """
     In LLVM loop metadata are specified on jumps from latch blocks to a loop header.
     :see: Loop::setLoopID, Loop::getLoopID 
     """
     anyJumpToHeaderFound = False
     latchOrExitBlocks = set(j.srcBlock for j in loopInfo.jumpsFromLoopBody)
+    latchOrExitBlocks.add(additionalLatchBlock)
 
     for pred in headerBlock.predecessors:
         if pred in latchOrExitBlocks:

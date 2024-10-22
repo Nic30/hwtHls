@@ -5,7 +5,6 @@ from math import ceil, log10
 
 from hwt.code import Concat
 from hwt.hdl.types.bits import HBits
-from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
@@ -13,7 +12,7 @@ from hwt.hwParam import HwParam
 from hwt.math import log2ceil
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from tests.frontend.pyBytecode.stmWhile import TRUE
@@ -106,6 +105,6 @@ if __name__ == "__main__":
     from hwtHls.platform.platform import HlsDebugBundle
 
     m = BinToBcd()
-    m.DATA_WIDTH = 3
+    m.DATA_WIDTH = 8
     print(to_rtl_str(m, target_platform=Artix7Medium(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 

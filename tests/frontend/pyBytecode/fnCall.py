@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.hdl.types.defs import BIT
+from hwt.hdl.commonConstants import b1
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwModule import HwModule
 from hwt.pyUtils.typingFuture import override
@@ -85,11 +85,11 @@ class FnCallFn(HwModule):
     @override
     def hwDeclr(self):
         self.o = HwIOVectSignal(8, signed=False)._m()
-    
+
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
         checkedFn1()
-        while BIT.from_py(1):
+        while b1:
             hls.write(1, self.o)
 
     @override
@@ -104,7 +104,7 @@ class FnCallFnRet(FnCallFn):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while b1:
             hls.write(checkedFn0(), self.o)
 
 
@@ -113,7 +113,7 @@ class FnCallFnArgs(FnCallFn):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while b1:
             hls.write(checkedFn2(0, 1, 2), self.o)
 
 
@@ -122,7 +122,7 @@ class FnCallFnArgsExpand(FnCallFn):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while b1:
             args = (0, 1, 2)
             hls.write(checkedFn2(*args), self.o)
 
@@ -132,7 +132,7 @@ class FnCallFnKwArgs(FnCallFn):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while b1:
             hls.write(checkedFn3(a=0, b=1, c=2), self.o)
 
 
@@ -141,7 +141,7 @@ class FnCallFnArgsKwArgs(FnCallFn):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while b1:
             hls.write(checkedFn4(0, 1, 2, d=3, e=4, f=5), self.o)
 
 
@@ -150,7 +150,7 @@ class FnCallFnArgsKwArgsSomeDefault(FnCallFn):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while b1:
             hls.write(checkedFn5(0, 1, 2, d=3, f=5), self.o)
 
 
@@ -159,7 +159,7 @@ class FnCallFnVariadic(FnCallFn):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while b1:
             hls.write(checkedFn6(0, 1, 2), self.o)
 
 
@@ -168,7 +168,7 @@ class FnCallFnVariadicExpand(FnCallFn):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while b1:
             ags = (0, 1, 2)
             hls.write(checkedFn6(*ags), self.o)
 
@@ -178,7 +178,7 @@ class FnCallFnVariadicExpandKwArgs(FnCallFn):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while b1:
             ags = (0, 1, 2)
             hls.write(checkedFn6(*ags, d=3, f=5), self.o)
 
@@ -188,7 +188,7 @@ class FnCallFnVariadicExpandKwArgsExpand(FnCallFn):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while b1:
             ags = (0, 1, 2)
             kwargs = {"d": 3, "f":5}
             hls.write(checkedFn6(*ags, **kwargs), self.o)
@@ -198,12 +198,12 @@ class FnCallMethod(FnCallFn):
 
     def checkedMethod1(self):
         assert isinstance(self, FnCallFn), self
-        
+
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
         self.checkedMethod1()
-        while BIT.from_py(1):
+        while b1:
             hls.write(1, self.o)
 
 
@@ -223,7 +223,7 @@ class FnCallMethodArgsKwArgsSomeDefault(FnCallFn):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while b1:
             hls.write(self.checkedMeth5(0, 1, 2, d=3, f=5), self.o)
 
 

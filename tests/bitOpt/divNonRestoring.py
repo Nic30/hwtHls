@@ -1,8 +1,13 @@
+from typing import Callable
+
 from hwt.code import Concat
 from hwt.hdl.types.bits import HBits
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeLLVMLoopUnroll
+from hwtHls.frontend.pyBytecode.pragma import _PyBytecodeLoopPragma
+from hwtHls.frontend.pyBytecode.pragmaInstruction import PyBytecodeNoSplitSlices
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeBlockLabel, \
+    PyBytecodeInline
 
 
 @hlsBytecode

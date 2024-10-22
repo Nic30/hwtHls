@@ -5,9 +5,11 @@ from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOVectSignal, HwIOSignal, HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline, \
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline, \
     PyBytecodePreprocHwCopy, PyBytecodeBlockLabel
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
@@ -173,7 +175,7 @@ class PragmaInline_writeCntr3(PragmaInline_writeCntr1):
 class PragmaInline_writeSaturatedCntr4(PragmaInline_writeCntr1):
 
     @hlsBytecode
-    def writeAndIncrement(self, hls, cntr, limit=4):
+    def writeAndIncrement(self, hls: HlsScope, cntr: RtlSignal, limit=4):
         cntrTmp = PyBytecodePreprocHwCopy(cntr)
         if limit > 0:
             limitBit = cntr[limit]
@@ -275,5 +277,5 @@ if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.platform import HlsDebugBundle
 
-    m = PragmaInline_SequenceCounter()
+    m = PragmaInline_writeSaturatedCntr4()
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
