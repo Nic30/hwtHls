@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from typing import Union, Type
+
+from hwt.hwModule import HwModule
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.utils import freq_to_period
@@ -9,7 +12,8 @@ from tests.frontend.pyBytecode.pragmaInline import PragmaInline_singleBlock, \
     PragmaInline_return1_1hw, PragmaInline_writeCntr0, PragmaInline_writeCntr1, \
     PragmaInline_writeCntr2, PragmaInline_writeCntr3, \
     PragmaInline_writeSaturatedCntr4, PragmaInline_SequenceCounter, \
-    PragmaInline_FilterZeros, PragmaInline_TwoInLoopLiveVars
+    PragmaInline_FilterZeros, PragmaInline_TwoInLoopLiveVars, \
+    PragmaInline_writeCntrForInIf0, PragmaInline_writeCntrForInIf1
 from tests.frontend.pyBytecode.varReference import \
     VarReference_writeCntr0, VarReference_writeCntr1
 
@@ -39,16 +43,39 @@ class PyBytecodeInline_TC(SimTestCase):
     def test_PragmaInline_return1_1hw(self):
         self._test_writes1(PragmaInline_return1_1hw)
 
-    def _test_writesCntr(self, hwModuleCls):
-        dut = hwModuleCls()
+    def _test_writesCntr(self, hwModuleCls: Union[HwModule, Type[HwModule]], refData=[0, 1, 2]):
+        if isinstance(hwModuleCls, HwModule):
+            dut = hwModuleCls
+        else:
+            dut = hwModuleCls()
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
         CLK_PERIOD = freq_to_period(dut.clk.FREQ)
-        self.runSim(4 * int(CLK_PERIOD))
+        self.runSim((len(refData) + 1) * int(CLK_PERIOD))
 
-        self.assertValSequenceEqual(dut.o._ag.data, [0, 1, 2])
+        self.assertValSequenceEqual(dut.o._ag.data, refData)
 
     def test_PragmaInline_writeCntr0(self):
         self._test_writesCntr(PragmaInline_writeCntr0)
+
+    def test_PragmaInline_writeCntrForInIf0_T(self):
+        u = PragmaInline_writeCntrForInIf0()
+        u.IF_COND = True
+        self._test_writesCntr(u)
+
+    def test_PragmaInline_writeCntrForInIf0_F(self):
+        u = PragmaInline_writeCntrForInIf0()
+        u.IF_COND = False
+        self._test_writesCntr(u, [0, 1, 3, 4, 6])
+
+    def test_PragmaInline_writeCntrForInIf1_T(self):
+        u = PragmaInline_writeCntrForInIf1()
+        u.IF_COND = True
+        self._test_writesCntr(u, [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3])
+
+    def test_PragmaInline_writeCntrForInIf1_F(self):
+        u = PragmaInline_writeCntrForInIf1()
+        u.IF_COND = False
+        self._test_writesCntr(u, [0, 1, 2, 3, 4])
 
     def test_PragmaInline_writeCntr1(self):
         self._test_writesCntr(PragmaInline_writeCntr1)
@@ -133,14 +160,15 @@ class PyBytecodeInline_TC(SimTestCase):
 
 if __name__ == "__main__":
     import unittest
-    # from hwt.synth import to_rtl_str
-    # from hwtHls.platform.platform import HlsDebugBundle
-    # m = PragmaInline_SequenceCounter()
-    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
-    #     debugFilter=HlsDebugBundle.ALL_RELIABLE.union({HlsDebugBundle.DBG_20_addSignalNamesToSync,
-    #                                                   HlsDebugBundle.DBG_20_addSignalNamesToData}))))
+    from hwt.synth import to_rtl_str
+    from hwtHls.platform.platform import HlsDebugBundle
+    m = PragmaInline_TwoInLoopLiveVars()
+    m.IF_COND = True
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
+        debugFilter=HlsDebugBundle.ALL_RELIABLE.union({HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+                                                       HlsDebugBundle.DBG_4_0_addSignalNamesToData}))))
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([PyBytecodeInline_TC("test_PragmaInline_SequenceCounter")])
+    # suite = unittest.TestSuite([PyBytecodeInline_TC("test_PragmaInline_TwoInLoopLiveVars")])
     suite = testLoader.loadTestsFromTestCase(PyBytecodeInline_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

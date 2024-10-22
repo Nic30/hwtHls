@@ -138,6 +138,62 @@ class PragmaInline_writeCntr1(PragmaInline_return1_0):
             fn(cntr)
 
 
+class PragmaInline_writeCntrForInIf0(PragmaInline_writeCntr0):
+
+    @override
+    def hwConfig(self) -> None:
+        PragmaInline_writeCntr0.hwConfig(self)
+        self.IF_COND = HwParam(True)
+
+    @hlsBytecode
+    @override
+    def mainThread(self, hls: HlsScope):
+        cntr = uint8_t.from_py(0)
+
+        @PyBytecodeInline
+        def fn(cntrArg):
+            if self.IF_COND:
+                hls.write(cntrArg, self.o)
+                cntrArg += 1
+            else:
+                for i in range(1, 3):
+                    hls.write(cntrArg, self.o)
+                    cntrArg += i
+
+        while BIT.from_py(1):
+            fn(cntr)
+
+
+class PragmaInline_writeCntrForInIf1(PragmaInline_writeCntr0):
+
+    @hlsBytecode
+    @override
+    def mainThread(self, hls: HlsScope):
+        cntr = uint8_t.from_py(0)
+
+        @PyBytecodeInline
+        def fn(cntrArg):
+            if self.IF_COND:
+                for _ in range(1, 3):
+                    hls.write(cntrArg, self.o)
+                    if cntrArg._eq(2):
+                        break
+
+            hls.write(cntrArg, self.o)
+            cntrArg += 1
+                    
+        while BIT.from_py(1):
+            #if self.IF_COND:
+            #    for _ in range(1, 3):
+            #        hls.write(cntr, self.o)
+            #        if cntr._eq(2):
+            #            break
+            #
+            #hls.write(cntr, self.o)
+            #cntr += 1
+            fn(cntr)
+
+
 class PragmaInline_writeCntr2(PragmaInline_writeCntr1):
 
     @hlsBytecode
