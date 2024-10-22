@@ -125,24 +125,27 @@ class AbcAigToRtlNetlist():
             if topP0 == topP1 and ((negated and not o0n and not o1n) or
                                    (not negated and o0n and o1n)):
                 return HwtOps.NOT, (tr(topP0, False),)
+            # or not o1n is there because the OR tree in AIG is made of ANDs and only leafs have not
+            if ((topP0.IsPi() or not o0n) and (topP1.IsPi() or not o1n)):
+                # if both operands are negated or PI try to search OR
 
-            # or: ~(~p0 & ~p1 & ~p2 ...)
-            orMembers = tuple(self._collectOrMembers(o))
-            if orMembers:
-                allArePis = all(op.IsPi() for op, _ in orMembers)
-                if len(orMembers) > 2 or allArePis:
-                    if negated:
-                        if all(n for _, n in orMembers):
-                            # (~p0 | ~p1) -> ~(p0 & p1)
-                            return HwtOps.NOT, (HwtOps.AND, tuple(tr(p, int(not n))
-                                                                  for p, n in orMembers))
-                        else:
-                            return HwtOps.OR, tuple(tr(p, n)
-                                                    for p, n in orMembers)
-                    elif not allArePis or all(not n for _, n in orMembers):
-                        # (~p0 & ~p1) -> ~(p0 | p1)
-                        return HwtOps.NOT, (HwtOps.OR, tuple(tr(p, n)
-                                                             for p, n in orMembers))
+                # or: ~(~p0 & ~p1 & ~p2 ...)
+                orMembers = tuple(self._collectOrMembers(o))
+                if orMembers:
+                    allArePis = all(op.IsPi() for op, _ in orMembers)
+                    if len(orMembers) > 2 or allArePis:
+                        if negated:
+                            if all(n for _, n in orMembers):
+                                # (~p0 | ~p1) -> ~(p0 & p1)
+                                return HwtOps.NOT, (HwtOps.AND, tuple(tr(p, int(not n))
+                                                                      for p, n in orMembers))
+                            else:
+                                return HwtOps.OR, tuple(tr(p, n)
+                                                        for p, n in orMembers)
+                        elif sum(int(not n) for _, n in orMembers) > len(orMembers) // 2:
+                            # (~p0 & ~p1) -> ~(p0 | p1)
+                            return HwtOps.NOT, (HwtOps.OR, tuple(tr(p, n)
+                                                                 for p, n in orMembers))
 
             return None
 
