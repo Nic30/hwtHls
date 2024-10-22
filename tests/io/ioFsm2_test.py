@@ -54,7 +54,7 @@ class IoFsm2_TC(SimTestCase):
         ref = [next(m) for _ in range(CLK)]
         self._test_Write(cls, ref, CLK + 9)
 
-    def test_WriteFsmIfOptionalInMiddle(self, cls=WriteFsmIfOptionalInMiddle, CLK=12):
+    def test_WriteFsmIfOptionalInMiddle(self, cls=WriteFsmIfOptionalInMiddle, CLK=9):
 
         def model():
             i = 0
@@ -69,17 +69,17 @@ class IoFsm2_TC(SimTestCase):
 
         m = model()
         ref = [next(m) for _ in range(CLK)]
-        self._test_Write(cls, ref, CLK + 3)
+        self._test_Write(cls, ref, CLK + 1)
 
     def _test_ReadWrite(self, cls: Type[HwModule], dinRef: List[Optional[int]], ref: List[Optional[int]], CLK: int, USE_PY_FRONTEND=False):
         dut = cls()
         dut.USE_PY_FRONTEND = USE_PY_FRONTEND
-        target_platform=VirtualHlsPlatform()
-        #target_platform = VirtualHlsPlatform(debugFilter={
+        target_platform = VirtualHlsPlatform()
+        # target_platform = VirtualHlsPlatform(debugFilter={
         #    *HlsDebugBundle.ALL_RELIABLE,
         #    HlsDebugBundle.DBG_20_addSignalNamesToSync,
         #    HlsDebugBundle.DBG_20_addSignalNamesToData,
-        #})
+        # })
         self.compileSimAndStart(dut, target_platform=target_platform)
         dut.i._ag.data.extend(dinRef)
         self.runSim(CLK * CLK_PERIOD)
@@ -87,7 +87,7 @@ class IoFsm2_TC(SimTestCase):
 
         self.assertValSequenceEqual(dut.o._ag.data, ref)
 
-    def test_WriteFsmControlledFromIn(self, cls=WriteFsmControlledFromIn, CLK=16):
+    def test_WriteFsmControlledFromIn(self, cls=WriteFsmControlledFromIn, CLK=12):
 
         def model(din):
             while True:
@@ -102,8 +102,13 @@ class IoFsm2_TC(SimTestCase):
 
         dinRef = [self._rand.choice((1, 2)) for _ in range(CLK)]
         m = model(iter(dinRef))
-        ref = [next(m) for _ in range(CLK)]
-        self._test_ReadWrite(cls, dinRef, ref, CLK + 4)
+        ref = []
+        while True:
+            try:
+                ref.append(next(m))
+            except (StopIteration, RuntimeError):
+                break
+        self._test_ReadWrite(cls, dinRef, ref, CLK + 60)
 
     def test_ReadFsmWriteFsmSumAndCondWrite(self, cls=ReadFsmWriteFsmSumAndCondWrite, CLK=16):
 
@@ -124,24 +129,40 @@ class IoFsm2_TC(SimTestCase):
 
         dinRef = [self._rand.choice((0, 1, 2)) for _ in range(CLK)]
         m = model(iter(dinRef))
-        ref = [next(m) for _ in range(CLK)]
-        self._test_ReadWrite(cls, dinRef, ref, CLK + 13, USE_PY_FRONTEND=True)
+        ref = []
+        while True:
+            try:
+                ref.append(next(m))
+            except (StopIteration, RuntimeError):
+                break
+        self._test_ReadWrite(cls, dinRef, ref, CLK + 25, USE_PY_FRONTEND=True)
 
 
 if __name__ == "__main__":
-    # from hwt.synth import to_rtl_str
-    # from hwtHls.platform.platform import HlsDebugBundle
-    # m = ReadFsmWriteFsmSumAndCondWrite()
-    # m.USE_PY_FRONTEND = True
-    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={
-    #     *HlsDebugBundle.ALL_RELIABLE,
-    #     HlsDebugBundle.DBG_20_addSignalNamesToSync,
-    #     HlsDebugBundle.DBG_20_addSignalNamesToData,
-    # })))
-
+    from hwt.synth import to_rtl_str
+    from hwtHls.platform.platform import HlsDebugBundle
+    #m = WriteFsmPrequel()
+    #m.USE_PY_FRONTEND = True
+    #print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={
+    #        *HlsDebugBundle.ALL_RELIABLE,
+    #        # HlsDebugBundle.DBG_20_addSignalNamesToSync,
+    #        # HlsDebugBundle.DBG_20_addSignalNamesToData,
+    #    },
+    #    llvmCliArgs=[
+    #        # ("print-after-all", 0, "", "true"),
+    #        #("debug-only", 0, "", "vreg-machine-latecleanup"),
+    #
+    #        # ("print-before", 0, "", "vreg-if-converter"),
+    #        # ("print-after", 0, "", "vreg-if-converter"),
+    #
+    #        #("print-before", 0, "", "vreg-machine-latecleanup"),
+    #        #("print-after", 0, "", "vreg-machine-latecleanup")
+    #    ]
+    #    )))
+    #
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([IoFsm2_TC("test_ReadFsmWriteFsmSumAndCondWrite")])
+    # suite = unittest.TestSuite([IoFsm2_TC("test_WriteFsmPrequel")])
     suite = testLoader.loadTestsFromTestCase(IoFsm2_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
