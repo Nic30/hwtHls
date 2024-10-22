@@ -84,22 +84,45 @@ bool mergeConsequentSlices(Instruction &I,
 void replaceMergedInstructions(const ParallelInstVec &parallelInstrOnSameVec,
 		const CreateBitRangeGetFn &createSlice, IRBuilder<> &builder,
 		Value *res, DceWorklist &dce) {
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+	const Instruction &I = *parallelInstrOnSameVec[0].I;
+	auto &F = *I.getParent()->getParent();
+#endif
 	uint64_t offset = 0;
 	for (const auto &_partI : parallelInstrOnSameVec) {
 		Instruction *partI = _partI.I;
 		auto w = partI->getType()->getIntegerBitWidth();
+
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+		verifyUsesList(F);
+#endif
+		// :note: builder insert point is expected to be on res or after
 		auto repl = createSlice(&builder, res, offset, w);
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+		if (!isa<GlobalValue>(repl)){
+			if (auto OpVasI = dyn_cast<Instruction>(repl)) {
+				assert(OpVasI->getParent() && "Check that the the replacement is not erased");
+				assert(OpVasI->getParent()->getParent() == &F);
+			}
+		}
+		verifyUsesList(F);
+#endif
 		if (repl != partI) {
 			dce.updateSlicesBeforeReplace(*partI, *repl);
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+		verifyUsesList(F);
+#endif
 			partI->replaceAllUsesWith(repl);
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+		verifyUsesList(F);
+#endif
 			dce.insert(*partI);
 		}
 		offset += w;
 	}
 
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
-	const Instruction &I = *parallelInstrOnSameVec[0].I;
-	auto &F = *I.getParent()->getParent();
+	verifyUsesList(F);
 	auto &M = *F.getParent();
 	std::string errTmp = "replaceMergedInstructions - replacing broken";
 	llvm::raw_string_ostream errSS(errTmp);
@@ -316,6 +339,7 @@ std::pair<bool, llvm::Value*> ConcatMemberVector_resolveAndReduce(
 	bool modified = false;
 	auto *res = cmv.resolveValue(&*builder.GetInsertPoint());
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+	dce.assertSlicesConsistency();
 	Instruction *I = llvm::dyn_cast<Instruction>(cmv.members[0].value);
 	Function *F = nullptr;
 	Module *M = nullptr;
@@ -330,7 +354,6 @@ std::pair<bool, llvm::Value*> ConcatMemberVector_resolveAndReduce(
 		if (verifyModule(*M, &errSS)) {
 			errSS << *F << "\n";
 			errSS << *I << "\n";
-			;
 			throw std::runtime_error(errSS.str());
 		}
 	}
@@ -339,6 +362,7 @@ std::pair<bool, llvm::Value*> ConcatMemberVector_resolveAndReduce(
 		if (IsBitConcat(CallI)) {
 			modified |= rewriteConcat(CallI, createSlice, dce, &res);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+			dce.assertSlicesConsistency();
 			if (I) {
 				std::string errTmp =
 						"ConcatMemberVector_resolveAndReduce widerOp 1 broken\n";

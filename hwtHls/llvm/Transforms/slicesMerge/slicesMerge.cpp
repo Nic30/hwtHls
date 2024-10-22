@@ -19,42 +19,55 @@
 using namespace llvm;
 using namespace std;
 
-// #define DBG_VERIFY_AFTER_EVERY_MODIFICATION 1
+//#define DBG_VERIFY_AFTER_EVERY_MODIFICATION
+
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+#include <hwtHls/llvm/Transforms/utils/irConsistencyChecks.h>
+#endif
 
 namespace hwtHls {
+
+inline void verifyAfterUpdate(Function &F, DceWorklist *dce, const std::string &msg) {
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+	if (dce)
+		dce->assertSlicesConsistency();
+	verifyUsesList(F);
+	std::string errTmp = "hwtHls::SlicesMergePass ";
+	llvm::raw_string_ostream errSS(errTmp);
+	errSS << " ";
+	errSS << F.getName().str();
+	errSS << "\n";
+	if (verifyModule(*F.getParent(), &errSS)) {
+		throw std::runtime_error(errSS.str());
+	}
+#endif
+}
+
+inline void verifyAfterUpdate(Function &F, DceWorklist &dce, const std::string &msg) {
+	verifyAfterUpdate(F, &dce, msg);
+}
 
 DceWorklist::SliceDict findSlices(Function &F) {
 	DceWorklist::SliceDict slices;
 	for (BasicBlock &BB : F) {
 		for (Instruction &I : BB) {
-			if (auto *CallI = dyn_cast<CallInst>(&I)) {
-				if (IsBitRangeGet(CallI)) {
-					auto *_offset = CallI->getArgOperand(1);
-					if (auto *offset = dyn_cast<ConstantInt>(_offset)) {
-						auto offsetInt = offset->getZExtValue();
-						auto *bitVector = CallI->getArgOperand(0);
-						auto curSlices = slices.find( { bitVector, offsetInt });
-						if (curSlices == slices.end()) {
-							slices[ { bitVector, offsetInt }] = { CallI };
-						}
-					}
-				}
-			} else if (auto *trunc = dyn_cast<TruncInst>(&I)) {
-				auto *bitVector = trunc->getOperand(0);
-				size_t offsetInt = 0;
-				auto curSlices = slices.find( { bitVector, offsetInt });
+			auto sliceItem = OffsetWidthValue::fromValue(&I);
+			if (!(sliceItem.isIdentity() && sliceItem.value == &I) && isa<Instruction>(sliceItem.value)) {
+				auto curSlices = slices.find(
+						{ sliceItem.value, sliceItem.offset });
 				if (curSlices == slices.end()) {
-					slices[ { bitVector, offsetInt }] = { trunc };
-				}
-			} else if (auto *sext = dyn_cast<SExtInst>(&I)) {
-				auto *bitVector = sext->getOperand(0);
-				size_t offsetInt = bitVector->getType()->getIntegerBitWidth()
-						- 1;
-				auto curSlices = slices.find( { bitVector, offsetInt });
-				if (curSlices == slices.end()) {
-					slices[ { bitVector, offsetInt }] = { CallI };
+					slices[ { sliceItem.value, sliceItem.offset }] = { &I };
 				}
 			}
+			//if (auto *sext = dyn_cast<SExtInst>(&I)) {
+			//	auto *bitVector = sext->getOperand(0);
+			//	size_t offsetInt = bitVector->getType()->getIntegerBitWidth()
+			//			- 1;
+			//	auto curSlices = slices.find( { bitVector, offsetInt });
+			//	if (curSlices == slices.end()) {
+			//		slices[ { bitVector, offsetInt }] = { &I };
+			//	}
+			//}
 		}
 	}
 	return slices;
@@ -62,17 +75,7 @@ DceWorklist::SliceDict findSlices(Function &F) {
 
 PreservedAnalyses SlicesMergePass::run(Function &F,
 		FunctionAnalysisManager &AM) {
-#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
-	{
-		std::string errTmp = "hwtHls::SlicesMergePass got corrupted function ";
-		llvm::raw_string_ostream errSS(errTmp);
-		errSS << F.getName().str();
-		errSS << "\n";
-		if (verifyModule(*F.getParent(), &errSS)) {
-			throw std::runtime_error(errSS.str());
-		}
-	}
-#endif
+	verifyAfterUpdate(F, nullptr, "got corrupted function");
 
 	TargetLibraryInfo *TLI = &AM.getResult<TargetLibraryAnalysis>(F);
 	bool anyChange = false;
@@ -82,48 +85,79 @@ PreservedAnalyses SlicesMergePass::run(Function &F,
 		// in loop while something is reduced
 		bool change = false;
 		DceWorklist::SliceDict slices = findSlices(F);
-		auto createSlice = [&slices](IRBuilder<> *Builder, Value *bitVec,
-				size_t lowBitNo, size_t bitWidth) {
-			std::pair<Value*, uint64_t> key(bitVec, lowBitNo);
-			auto cur = slices.find(key);
-			if (cur == slices.end()) {
-				// create a new slice because there is non on this vector
-				auto _slice = CreateBitRangeGetConst(Builder, bitVec, lowBitNo,
-						bitWidth);
-				if (auto _sliceI = dyn_cast<Instruction>(_slice)) {
-					if (IsBitRangeGetInst(_sliceI)) {
-						slices[key] = { _sliceI };
+		auto createSlice =
+				[&slices, &F](IRBuilder<> *Builder, Value *bitVec,
+						size_t lowBitNo, size_t bitWidth) {
+					std::pair<Value*, uint64_t> key(bitVec, lowBitNo);
+					auto cur = slices.find(key);
+					if (cur == slices.end()) {
+						// create a new slice because there is non on this vector
+						auto _slice = CreateBitRangeGetConst(Builder, bitVec,
+								lowBitNo, bitWidth);
+						if (auto _sliceI = dyn_cast<Instruction>(_slice)) {
+							assert(isa<Instruction>(bitVec));
+							if (IsBitRangeGetInst(_sliceI)) {
+								slices[key] = { _sliceI };
+							}
+						}
+						return _slice;
+					} else {
+						for (Instruction *sliceItem : cur->second) {
+							if (auto OpVasI = dyn_cast<Instruction>(
+									sliceItem)) {
+								assert(
+										OpVasI->getParent()
+												&& "Check that the replacement is not erased");
+								assert(OpVasI->getParent()->getParent() == &F);
+							}
+							if (sliceItem->getType()->getIntegerBitWidth()
+									== bitWidth) {
+								// return existing slice with proper lowBitNo, bitWidth
+								return (Value*) sliceItem;
+							}
+						}
+						// create new slice because all other slices are different than requested
+						auto _slice = CreateBitRangeGetConst(Builder, bitVec,
+								lowBitNo, bitWidth);
+						if (auto _sliceI = dyn_cast<Instruction>(_slice)) {
+							if (IsBitRangeGetInst(_sliceI)) {
+								cur->second.push_back(_sliceI);
+							}
+						}
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+					if (!isa<GlobalValue>(_slice)) {
+						if (auto OpVasI = dyn_cast<Instruction>(_slice)) {
+							assert(
+									OpVasI->getParent()
+											&& "Check that the replacement is not erased");
+							assert(OpVasI->getParent()->getParent() == &F);
+						}
 					}
+#endif
+					return _slice;
 				}
-				return _slice;
-			} else {
-				for (Instruction* sliceItem : cur->second) {
-					if (sliceItem->getType()->getIntegerBitWidth()
-							== bitWidth) {
-						// return existing slice with proper lowBitNo, bitWidth
-						return (Value*) sliceItem;
-					}
-				}
-				// create new slice because all other slices are different than requested
-				auto _slice = CreateBitRangeGetConst(Builder, bitVec, lowBitNo,
-						bitWidth);
-				if (auto _sliceI = dyn_cast<Instruction>(_slice)) {
-					if (IsBitRangeGetInst(_sliceI)) {
-						cur->second.push_back(_sliceI);
-					}
-				}
-				return _slice;
-			}
-		};
+			};
 
 		DceWorklist dce(TLI, &slices);
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+		dce.assertSlicesConsistency();
+#endif
 		for (BasicBlock &BB : F) {
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+			dce.assertSlicesConsistency();
+#endif
 			change |= phiShiftPatternRewrite(BB, createSlice, dce);
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+			verifyAfterUpdate(F, dce, "phiShiftPatternRewrite corrupted function");
+			dce.assertSlicesConsistency();
+#endif
 		}
 		for (BasicBlock &BB : F) {
 			for (auto I = BB.begin(); I != BB.end();) {
 				if (dce.tryRemoveIfDead(*I, I)) {
+					verifyAfterUpdate(F, dce, "DCE received corrupted function");
 					dce.runToCompletition(I);
+					verifyAfterUpdate(F, dce, "DCE corrupted function");
 					change = true;
 					continue;
 				}
@@ -131,40 +165,27 @@ PreservedAnalyses SlicesMergePass::run(Function &F,
 				bool _changed = false;
 				if (auto *CallI = dyn_cast<CallInst>(&*I)) {
 					if (IsBitConcat(CallI)) {
-#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
-						{
-							std::string errTmp = "hwtHls::SlicesMergePass rewriteConcat received corrupted function ";
-							llvm::raw_string_ostream errSS(errTmp);
-							errSS << F.getName().str();
-							errSS << "\n";
-							if (verifyModule(*F.getParent(), &errSS)) {
-								throw std::runtime_error(errSS.str());
-							}
-						}
-#endif
+						verifyAfterUpdate(F, dce, "rewriteConcat received corrupted function");
 						_changed = rewriteConcat(CallI, createSlice, dce);
-#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
-						{
-							std::string errTmp = "hwtHls::SlicesMergePass rewriteConcat corrupted function ";
-							llvm::raw_string_ostream errSS(errTmp);
-							errSS << F.getName().str();
-							errSS << "\n";
-							if (verifyModule(*F.getParent(), &errSS)) {
-								throw std::runtime_error(errSS.str());
-							}
-						}
-#endif
+						verifyAfterUpdate(F, dce, "rewriteConcat corrupted function");
 					}
 				}
 
 				if (!_changed && !slices.empty()) {
+					verifyAfterUpdate(F, dce,
+							"mergeConsequentSlices received corrupted function");
 					_changed |= mergeConsequentSlices(*I, createSlice, dce);
+					verifyAfterUpdate(F, dce,
+							"mergeConsequentSlices corrupted function");
 				}
 				_changed |= !dce.empty();
 				change |= _changed;
 				if (_changed) {
+					verifyAfterUpdate(F, dce, "DCE received corrupted function");
 					change |= dce.tryRemoveIfDead(*I, I);
+					verifyAfterUpdate(F, dce, "DCE corrupted function");
 					change = dce.runToCompletition(I);
+					verifyAfterUpdate(F, dce, "DCE corrupted function");
 				} else {
 					assert(
 							dce.empty()
@@ -192,17 +213,8 @@ PreservedAnalyses SlicesMergePass::run(Function &F,
 		anyChange |= _change;
 	}
 
-#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
-	{
-		std::string errTmp = "hwtHls::SlicesMergePass corrupted function ";
-		llvm::raw_string_ostream errSS(errTmp);
-		errSS << F.getName().str();
-		errSS << "\n";
-		if (verifyModule(*F.getParent(), &errSS)) {
-			throw std::runtime_error(errSS.str());
-		}
-	}
-#endif
+	verifyAfterUpdate(F, nullptr, "corrupted function");
+
 	if (anyChange) {
 		PreservedAnalyses PA;
 		PA.preserve<DominatorTreeAnalysis>();

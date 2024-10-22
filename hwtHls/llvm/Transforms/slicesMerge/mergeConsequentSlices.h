@@ -5,7 +5,11 @@
 #include <hwtHls/llvm/Transforms/utils/dceWorklist.h>
 #include <hwtHls/llvm/Transforms/slicesMerge/parallelInstrVec.h>
 
-// #define DBG_VERIFY_AFTER_EVERY_MODIFICATION
+//#define DBG_VERIFY_AFTER_EVERY_MODIFICATION
+
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+#include <hwtHls/llvm/Transforms/utils/irConsistencyChecks.h>
+#endif
 
 namespace hwtHls {
 

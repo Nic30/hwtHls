@@ -44,9 +44,15 @@ bool mergeInstructionsInVector(SmallVector<OffsetWidthValue> &members,
 								&& I->comesBefore(widerInstr) ? widerInstr : I);
 				IRBuilder_setInsertPointBehindPhi(builder, I);
 				auto *slice = createSlice(&builder, widerI, offset, _I->width);
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+				dce.assertSlicesConsistency();
+#endif
 				dce.updateSlicesBeforeReplace(*I, *slice);
 				I->replaceAllUsesWith(slice);
 				dce.insert(*I);
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+				dce.assertSlicesConsistency();
+#endif
 				break;
 			}
 		}
@@ -256,6 +262,9 @@ bool rewriteConcat(CallInst *I, const CreateBitRangeGetFn &createSlice,
 			mergableInstrSequenceBegin = members.end();
 		}
 	}
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+	dce.assertSlicesConsistency();
+#endif
 	if (isWorthReplacing(mergableInstrSequenceBegin, members.end())) {
 		// if instruction sequence is longer than 1 and contains more than 1 unique instruction
 		// merge instructions in range <mergableInstrSequenceBegin, m) to a single instruction and replace them in members vector
@@ -265,7 +274,9 @@ bool rewriteConcat(CallInst *I, const CreateBitRangeGetFn &createSlice,
 			modified = true;
 		}
 	}
-
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+	dce.assertSlicesConsistency();
+#endif
 	// the Concat can have only operands modified and rewrite may not be required
 	if (values.members.size() != I->getNumOperands() - 1) { // 1 for function def.
 		assert(values.members.size() < I->getNumOperands() - 1);
@@ -278,7 +289,9 @@ bool rewriteConcat(CallInst *I, const CreateBitRangeGetFn &createSlice,
 		dce.insert(*I); // can not remove immediately due to parent interators
 		modified = true;
 	}
-
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+	dce.assertSlicesConsistency();
+#endif
 	return modified;
 }
 

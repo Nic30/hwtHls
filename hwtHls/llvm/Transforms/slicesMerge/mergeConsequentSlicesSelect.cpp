@@ -6,6 +6,8 @@
 #include <hwtHls/llvm/targets/intrinsic/concatMemberVector.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 
+#include <hwtHls/llvm/Transforms/utils/irConsistencyChecks.h>
+
 using namespace llvm;
 
 namespace hwtHls {
@@ -25,9 +27,15 @@ bool mergeConsequentSlicesSelect(SelectInst &I,
 		}
 		return false;
 	};
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+	auto &F = *I.getParent()->getParent();
+#endif
 	std::tie(modified, widerOp0, widerOp1) =
 			mergeConsequentSlicesExtractWiderOperads(createSlice, dce, builder,
 					parallelInstrOnSameVec, I, predicateCondEq, false, 1, 2);
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+	verifyUsesList(F);
+#endif
 	if (widerOp0 && widerOp1) {
 		modified = true;
 		assert(widerOp0->getType() == widerOp1->getType());
@@ -35,8 +43,14 @@ bool mergeConsequentSlicesSelect(SelectInst &I,
 		assert(
 				parallelInstrOnSameVec.size()
 						&& parallelInstrOnSameVec[0].I == &I);
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+		verifyUsesList(F);
+#endif
 		replaceMergedInstructions(parallelInstrOnSameVec, createSlice, builder,
 				res, dce);
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+		verifyUsesList(F);
+#endif
 	}
 	return modified;
 }
