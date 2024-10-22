@@ -38,6 +38,8 @@ public:
 	void addOptimizedRegAlloc() override;
 	void addMachinePasses() override;
 	void _addBlockReductionPasses();
+	std::unique_ptr<CSEConfigBase> getCSEConfig() const override;
+
 	// No reg alloc
 	//bool addRegAssignAndRewriteFast() override {
 	//	return false;

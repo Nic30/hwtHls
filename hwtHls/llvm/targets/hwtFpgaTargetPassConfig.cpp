@@ -10,6 +10,7 @@
 #include <llvm/CodeGen/Passes.h>
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/Transforms/Scalar/GVN.h>
+#include <llvm/CodeGen/GlobalISel/CSEInfo.h>
 
 #include <hwtHls/llvm/targets/Analysis/registerBitWidth.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaIRTranslator.h>
@@ -22,6 +23,7 @@
 #include <hwtHls/llvm/targets/Transforms/hwtHlsCodeGenPrepare.h>
 #include <hwtHls/llvm/targets/Transforms/machineDumpAndExitPass.h>
 #include <hwtHls/llvm/targets/Transforms/vregIfConversion.h>
+#include <hwtHls/llvm/targets/Transforms/vregMachineLateInstrsCleanup.h>
 #include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
 
 #include <iostream>
@@ -117,8 +119,10 @@ bool HwtFpgaTargetPassConfig::addGlobalInstructionSelect() {
 
 bool HwtFpgaTargetPassConfig::addILPOpts() {
 	// selection of X86PassConfig::addILPOpts()
+	addPass(&MachineCSEID); // hwtHls specific
 	addPass(&EarlyIfPredicatorID);
 	addPass(&EarlyIfConverterID);
+	addPass(&MachineCSEID); // hwtHls specific
 	return false;
 }
 
@@ -191,6 +195,7 @@ void HwtFpgaTargetPassConfig::addOptimizedRegAlloc() {
 	//  return true;
 	//}));
 	//addPass(&MachineCSEID); // requires IsSSA
+	addPass(hwtHls::createVRegMachineLateInstrsCleanup());
 	addPass(&LiveIntervalsID); // add killed and other attributes
 
 	addPass(createHwtFpgaPreRegAllocCombiner());
@@ -241,7 +246,46 @@ void HwtFpgaTargetPassConfig::addMachinePasses() {
 
 // [todo] handling of register allocation, maybe similar to WebAssemblyPassConfig::addPostRegAlloc()
 void HwtFpgaTargetPassConfig::addPreSched2() {
+	addPass(hwtHls::createVRegMachineLateInstrsCleanup());
 	addPass(hwtHls::createVRegIfConverter(nullptr));
+	addPass(hwtHls::createVRegMachineLateInstrsCleanup());
+}
+
+class HwtFpgaCSEConfig: public CSEConfigFull {
+public:
+	virtual bool shouldCSEOpc(unsigned Opc) override {
+		if (CSEConfigFull::shouldCSEOpc(Opc))
+			return true;
+		switch(Opc) {
+		case HwtFpga::HWTFPGA_EXTRACT:
+		case HwtFpga::HWTFPGA_MERGE_VALUES:
+		case HwtFpga::HWTFPGA_NOT:
+		case HwtFpga::HWTFPGA_MUX:
+		case HwtFpga::HWTFPGA_ADD:
+		case HwtFpga::HWTFPGA_AND:
+		case HwtFpga::HWTFPGA_ICMP:
+		case HwtFpga::HWTFPGA_MUL:
+		case HwtFpga::HWTFPGA_UDIV:
+		case HwtFpga::HWTFPGA_SDIV:
+		case HwtFpga::HWTFPGA_UREM:
+		case HwtFpga::HWTFPGA_SREM:
+		case HwtFpga::HWTFPGA_OR:
+		case HwtFpga::HWTFPGA_SUB:
+		case HwtFpga::HWTFPGA_XOR:
+		case HwtFpga::HWTFPGA_CTLZ_ZERO_UNDEF:
+		case HwtFpga::HWTFPGA_CTTZ_ZERO_UNDEF:
+		case HwtFpga::HWTFPGA_CTLZ:
+		case HwtFpga::HWTFPGA_CTTZ:
+		case HwtFpga::HWTFPGA_CTPOP:
+			return true;
+		default:
+			return false;
+		};
+	}
+};
+
+std::unique_ptr<CSEConfigBase> HwtFpgaTargetPassConfig::getCSEConfig() const {
+  return std::make_unique<HwtFpgaCSEConfig>();
 }
 
 AnalysisID HwtFpgaTargetPassConfig::_testAddPass(AnalysisID PassID) {

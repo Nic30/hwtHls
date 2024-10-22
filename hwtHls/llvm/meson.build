@@ -104,6 +104,7 @@ py3.extension_module(
      'targets/Transforms/vregIfConversionLoopTail.cpp',
      'targets/Transforms/vregIfConversionNormalizeBranchCondition.cpp',
      'targets/Transforms/vregIfConversionReturnBlockMerge.cpp',
+     'targets/Transforms/vregMachineLateInstrsCleanup.cpp',
      'targets/Transforms/writeCFGToDotFile.cpp',
 
      'Transforms/bitwidthReducePass/bitPartsUseAnalysis.cpp',
