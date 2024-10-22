@@ -111,7 +111,11 @@ class PyBytecodeFrame():
                                                fn, len(fnArgs), co.co_argcount)
         if fnKwargs:
             for k, v in fnKwargs.items():
-                fnArgs[co.co_varnames.index(k)] = v
+                try:
+                    argIndex = co.co_varnames.index(k)
+                except:
+                    raise AssertionError("Function ", fn, "does not have keyword argument", k)
+                fnArgs[argIndex] = v
 
         for i, argVal in enumerate(fnArgs):
             localsplus[i] = argVal
