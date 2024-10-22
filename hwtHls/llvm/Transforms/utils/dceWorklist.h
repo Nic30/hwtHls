@@ -22,21 +22,28 @@ protected:
 	llvm::TargetLibraryInfo *TLI;
 	SliceDict *slices; // temporary dictionary to speed up lookup of bit vector slices
 	bool DCEInstruction(llvm::Instruction *I, llvm::BasicBlock::iterator &curI);
+	bool dbgAssertConsistencyAfterEachChange;
 public:
 	/*
 	 * :param slices: optional dictionary which is used to speedup bit vector slice lookup (it may be updated by this class)
 	 * */
-	DceWorklist(llvm::TargetLibraryInfo *TLI, SliceDict *slices) :
-			TLI(TLI), slices(slices) {
+	DceWorklist(llvm::TargetLibraryInfo *TLI, SliceDict *slices,
+			bool dbgAssertConsistencyAfterEachChange = false) :
+			TLI(TLI), slices(slices), dbgAssertConsistencyAfterEachChange(
+					dbgAssertConsistencyAfterEachChange) {
 	}
-	SliceDict * getSliceDict();
+	SliceDict* getSliceDict();
 	bool empty() const;
 	void insert(llvm::Instruction &I);
-	bool tryRemoveIfDead(llvm::Instruction &I, llvm::BasicBlock::iterator &curI);
+	bool tryRemoveIfDead(llvm::Instruction &I,
+			llvm::BasicBlock::iterator &curI);
 	bool runToCompletition(llvm::BasicBlock::iterator &curIt);
 	bool runToCompletition();
-	void erraseFromSlices(hwtHls::OffsetWidthValue sliceItem, llvm::Instruction & I);
-	void updateSlicesBeforeReplace(llvm::Instruction &I, llvm::Value & replacement);
+	void erraseFromSlices(hwtHls::OffsetWidthValue sliceItem,
+			llvm::Instruction &I);
+	void updateSlicesBeforeReplace(llvm::Instruction &I,
+			llvm::Value &replacement);
+	void assertSlicesConsistency() const;
 };
 
 }
