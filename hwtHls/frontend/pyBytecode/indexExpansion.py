@@ -1,17 +1,19 @@
 from typing import Sequence, Union, Callable, List, Tuple, Optional
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
-from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.const import HConst
-from hwt.pyUtils.arrayQuery import flatten
+from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
+from hwt.hdl.types.bitConstFunctions import AnyHValue
+from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
+from hwt.mainBases import HwIOBase
+from hwt.mainBases import RtlSignalBase
+from hwt.pyUtils.arrayQuery import flatten
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
-from hwt.mainBases import RtlSignalBase
-from hwt.mainBases import HwIOBase
 
 
 class PyObjectHwSubscriptRef():
@@ -33,6 +35,37 @@ class PyObjectHwSubscriptRef():
                         frame: PyBytecodeFrame, curBlock: SsaBasicBlock):
         return self.expandIndexOnPyObjAsSwitchCase(toSsa, offsetForLabels, frame, curBlock)
 
+    def tryExpandIndexOnPyObjAsTernary(self) -> Optional[AnyHValue]:
+        # try find any type on items
+        inferedResultTy = None
+        for v in self.sequence:
+            inferedResultTy = getattr(v, "_dtype", None)
+            if inferedResultTy is not None:
+                if isinstance(inferedResultTy, HdlType):
+                    break
+                else:
+                    inferedResultTy = None
+
+        if inferedResultTy is not None:
+            # build a ternary expression and check types
+            res = None
+            for (i, v) in reversed(tuple(enumerate(self.sequence))):
+                t = getattr(v, "_dtype", None)
+                if t is None:
+                    v = inferedResultTy.from_py(v)
+                else:
+                    assert t == inferedResultTy, ("All items in sequence needs to have same type", t, inferedResultTy)
+                
+                if res is None:
+                    res = v
+                else:
+                    res = self.index._eq(i)._ternary(v, res)
+            
+            assert res is not None
+            return res
+
+        return None
+
     def expandIndexOnPyObjAsSwitchCase(self,
                        toSsa: "PyBytecodeToSsa",
                        offsetForLabels: int,
@@ -41,6 +74,10 @@ class PyObjectHwSubscriptRef():
         _o = self.instructionOffsetForLabels
         if _o is not None:
             offsetForLabels = _o
+
+        res = self.tryExpandIndexOnPyObjAsTernary()
+        if res is not None:
+            return res, curBlock
 
         astToSsa: HlsAstToSsa = toSsa.toSsa
         sucBlock = SsaBasicBlock(astToSsa.ssaCtx, f"{curBlock.label:s}_getSwEnd")
@@ -141,4 +178,4 @@ def expandBeforeUseSequence(toSsa: "PyBytecodeToSsa",
             o, curBlock = expandBeforeUse(toSsa, offsetForLabels, frame, o, curBlock)
             oSeqExpanded.append(o)
         return oSeqExpanded, curBlock
-    
+
