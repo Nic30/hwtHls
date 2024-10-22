@@ -123,38 +123,38 @@ def undef_propagation: GICombineRule<
 
 def const_and_eval: GICombineRule<
   (defs root:$root),
-  (match (wip_match_opcode G_AND):$root,
+  (match (wip_match_opcode G_AND, HWTFPGA_AND):$root,
     [{ return Helper.hashOnlyConstUses(*${root}); }]),
   (apply [{ Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a & b; }); }])
 >;
 def const_or_eval: GICombineRule<
   (defs root:$root),
-  (match (wip_match_opcode G_OR):$root,
+  (match (wip_match_opcode G_OR, HWTFPGA_OR):$root,
     [{ return Helper.hashOnlyConstUses(*${root}); }]),
   (apply [{ Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a | b; }); }])
 >;
 def const_xor_eval: GICombineRule<
   (defs root:$root),
-  (match (wip_match_opcode G_XOR):$root,
+  (match (wip_match_opcode G_XOR, HWTFPGA_XOR):$root,
     [{ return Helper.hashOnlyConstUses(*${root}); }]),
   (apply [{ Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a ^ b; }); }])
 >;
 
 def const_sub_eval: GICombineRule<
   (defs root:$root),
-  (match (wip_match_opcode G_SUB):$root,
+  (match (wip_match_opcode G_SUB, HWTFPGA_SUB):$root,
     [{ return Helper.hashOnlyConstUses(*${root}); }]),
   (apply [{ Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a - b; }); }])
 >;
 def const_add_eval: GICombineRule<
   (defs root:$root),
-  (match (wip_match_opcode G_ADD):$root,
+  (match (wip_match_opcode G_ADD, HWTFPGA_ADD):$root,
     [{ return Helper.hashOnlyConstUses(*${root}); }]),
   (apply [{ Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a + b; }); }])
 >;
 def const_mul_eval: GICombineRule<
   (defs root:$root),
-  (match (wip_match_opcode G_MUL):$root,
+  (match (wip_match_opcode G_MUL, HWTFPGA_MUL):$root,
     [{ return Helper.hashOnlyConstUses(*${root}); }]),
   (apply [{ Helper.rewriteConstBinOp(*${root}, [](const APInt & a, const APInt & b) { return a * b; }); }])
 >;
