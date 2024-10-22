@@ -7,23 +7,36 @@ A library for an automatic translation of algorithmic code to a hardware realiza
 based on [hwt](https://github.com/Nic30/hwt) (hwt is a library for circuit construction) and
 [LLVM](https://llvm.org/) (a compiler infrastructure).
 
-This library is build as a tool which lets you write code transformations
-and provides variety of existing ones (from LLVM/hwt) in order to build efficient code generators.
+![hwtHls_overview](./doc/_static/hwtHls_overview.png)
 
-* Powerful optimization passes form LLVM/HWT/ABC
+This library is a tool which lets you write code transformations for fast and efficient hardware architecture generators.
+
+* Modular compiler build as a sequence of powerful optimization passes for LLVM IR/MIR/ABC
+* Fully compatible with LLVM/HWT/ABC/Z3
+* Powerful debugging features on every level
 * Target specification for common FPGAs with possiblity for user to specify any custom target
-* Integration with HWT: SystemVerilog/VHDL export, various interfaces and components, verification API, build automation
 
+
+![hwtHls_overview](./doc/_static/hwtHls_overview_debug.png)
 
 A typical project where you would use this project is a hash table in HBM2 memory with cache.
 * HBM2 may have 32 AXI4 ports, you need to use eta 64*32 transactions at once to saturate memory throughput.
 * All transactions must assert consistency.
 * Due to timing, everything needs to be pipelined and the hash table must support multiple operations in a single clock.
 
-In this case you would just write a generic algorithm of a hash table and then configure numbers of ports, latencies
-coherency domains and it is all done. Take look at FlowCache example. Because everything is generated, it is asserted that
-no consistency check is missing and any deadlock or synchronization error may happen internally.
-This is a big difference from hand crafted hardware, where it is assured, that you would make mistakes of this type.
+* How you write it?
+  * Construct a hdl wrapper and declare control registers (using HWT, e.g. for AXI4-lite, 0.5MH)
+  * Pick a hash table alg., e.g. robing hood hashing, write naive variant with 1 memory port (represented as an array, 0.5MH)
+  * Test python code (0.5MH)
+  * Translate it to a single pipeline (automatically, with disastrous performance, 0MH)
+  * Add pragma to merge loops to achieve II=1 (semi manually, 0.2MH)
+  * Add pragma to use 64 AXI4 threads, duplicate it 32x, construct LSU (automatically, 1MH)
+  * Use HWT UVM-like test environment to build sim enviroment, (30MH)
+  * If everything was automatically translated, the functionality is already formaly verified
+    but things like deadlock from external cause may still happen. 
+  * Write a AXI4 cache (10MH, or use existing e.g. from hwtLib)
+  * Tune up size of AXI out-of-order windows, LSU, write forward history length
+    and cache for your app and synthesis in vendor tool and frequency (40MH, semi manually)
 
 
 ### Current state
@@ -32,67 +45,52 @@ This is a big difference from hand crafted hardware, where it is assured, that y
 * You can try it online at [![Binder](https://mybinder.org/badge_logo.svg)](https://notebooks.gesis.org/binder/v2/gh/Nic30/hwtHls/HEAD) (From jupyterlab you can also run examples in tests.)
 
 * Features
-  * Python bytecode -> LLVM -> hwt -> vhdl/verilog/IP-exact
-    * Bytecode of any Python can be translated to hardware
-       * Bytecode is symbolically executed and the code which does not depend on HW evaluated value is executed immediately.
-         This means that the python runs as a preprocessors and it generates HW code.
-       * As this part translates bytecode to SSA, the input syntax does not matter.
+  * frontends:
+    * Python bytecode
+	    * Bytecode of any Python can be translated to hardware
+	       * Bytecode is symbolically executed and the code which does not depend on HW evaluated value is executed immediately.
+	         This means that the python runs as a preprocessors and it generates HW code.
+	       * As this part translates bytecode to SSA, the input syntax does not matter.
+	
+	    * No exception handling in HW code, function calls must be explicitly marked to be translated to HW otherwise calls are evaluated compile time
+	    * Only static typing for HW code
+	    * (Meant to be used for simple things, for the rest you should construct AST or SSA directly.)
+    * hwtHls AST (Python statement-like objects)
 
-    * No exception handling, function calls must be explicitly marked to be translated to HW otherwise calls are evaluated compile time
-    * Only static typing for HW code, limited use of iterators
-    * (meant to be used for simple things, for the rest you should construct AST or SSA directly.)
-
-  * Python statement-like objects/AST -> LLVM -> hwt -> vhdl/verilog/IP-exact
-    * Support for multithreaded programs
-      (multiple hls programs with shared resources cooperating using shared memory or streams and
-       with automatic constrains propagation on shared resource)
-    * Supports for programs which are using resoruce shared with HDL code
-     (e.g. bus mapped registers where bus mapping is done in HDL (hwt))
-
-  * Support for precise latency/resources tuning
-    * Operation chaining
+  * Kernel superoptimization framewors:
+    * Hierarchical, backtracking list scheduler with operation chaining and retiming
     * FSM/dataflow fine-graded architecture extraction with different optimization strategies
      (extraction strategy specified as a sequence of transformations)
-	* Target architecture aware (any Xilinx, Intel and others after benchmark)
-
-  * Fine-graded HW resource optimizations
-    * SlicesToIndependentVariablesPass - splits the slices to individual variables to exploit real dependencies, splits also bitwise operations and casts
-    * BitwidthReducePass - recursively minimizes the number of bits used by variables
-
-  * Any loop type, with special care for:
-    * Infinite top loops - with/without internal/external sync beeing involved
-    * Loops where sync can be achieved only by data (no speculation, all inputs depends on every output)
-    * Polyhedral, affine, unroll and other transformations
+    * Polyhedral, affine, unroll and other LLVM asisted transformations
     * On demand speculations/out-of-order execution:
         * next iteration speculation before break
         * speculativele execution of multiple loop bodies
         * after loop code speculative execution before break
         * cascading of speculation
         * speculative IO access using LSU (for memory mapped IO) or buffers with confirmation (for IO streams)
+        * memory access speculation and distributed locks
+    * ArchElement framework for multithread optimizations.
+	* Target architecture aware (any Xilinx, Intel and others after benchmark)
 
-  * Support for Handshake/ReadySynced/ValidSynced/Signal streams
+  * Support for any stream IO protocol 
     (= handshake and all its degenerated variants = any single channel interface)
     * arbitrary number of IO operations for any scheduling type
     * support for side channels, virtual channels, multiple packets per clock
       (e.g. xgmii)
     * explicit blocking, explicit dropping, explicit skipping
       (e.g. conditional read/write of data, read without consummer)
-    * Support for read/write of packet(HStream) types
-      * Per channel specific settings
-      * Processing of arbitrary size types using cursor or index of limited size
-      * Support for headers/footers in HStream
-      * incremental packet parsing/deparsing, read/write chunk:
+    * Packet FMS inference from read/write of ADT, SoF, EoF
+	  * Program may contain arbitrary number of packet IO with arbitrary access.
+      * Incremental packet parsing/deparsing, read/write chunk:
         * may not be alligned to word
         * may cause under/overflow
         * may be required to be end of stream or not
       * Optional check of input packet format
         (or synchronized by the input packet format which significantly reduce circuit complexity)
 
-
 * Not done yet:
   * Complex operation reducing (DSP)
   * All platforms
-  * Memory access pattern, partition API between Python and LLVM
 
 
 ## How it works?
