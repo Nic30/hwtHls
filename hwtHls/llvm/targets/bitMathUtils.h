@@ -3,6 +3,7 @@
 
 inline uint64_t log2ceil(uint64_t x) {
 	// https://graphics.stanford.edu/~seander/bithacks.html#IntegerLogObvious
+	assert(x > 0);
 	uint64_t v = (x - 1); // word to find the log base 2 of
 	uint64_t r = 0; // r will be lg(v)
 	while (v > 0) {
