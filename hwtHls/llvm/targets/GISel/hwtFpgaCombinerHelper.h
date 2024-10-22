@@ -18,15 +18,18 @@ public:
 	};
 
 	using llvm::CombinerHelper::CombinerHelper;
+
+	/* If register is defined only by an instruction of the specified code return it*/
 	MachineInstr* getOpcodeDef(unsigned Opcode, Register Reg,
-			const MachineRegisterInfo &MRI);
-	bool isUndefOperand(const MachineOperand &MO);
-	bool matchAnyExplicitUseIsUndef(MachineInstr &MI);
+			const llvm::MachineRegisterInfo &MRI);
+	bool isUndefOperand(const llvm::MachineOperand &MO);
+	bool matchAnyExplicitUseIsUndef(llvm::MachineInstr &MI);
 	//bool replaceInstWithUndefNonGeneric(MachineInstr &MI);
 
-
-
-	bool hasG_CONSTANTasUse(llvm::MachineInstr &MI);
+	bool hasG_CONSTANTasUse(MachineInstr &MI);
+	static bool hasG_CONSTANTasUse(llvm::MachineRegisterInfo & MRI, llvm::MachineInstr &MI);
+	static void rewriteG_CONSTANTasUseAsCImm(llvm::MachineIRBuilder &Builder,
+			llvm::GISelChangeObserver *Observer, llvm::MachineInstr &MI);
 	void rewriteG_CONSTANTasUseAsCImm(llvm::MachineInstr &MI);
 
 	bool matchAllOnesConstantOp(const llvm::MachineOperand &MOP);

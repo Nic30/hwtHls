@@ -63,6 +63,9 @@ void HwtFpgaCombinerHelper::rewriteConstExtract(llvm::MachineInstr &MI) {
 }
 
 bool HwtFpgaCombinerHelper::hasG_CONSTANTasUse(llvm::MachineInstr &MI) {
+	return hasG_CONSTANTasUse(MRI, MI);
+}
+bool HwtFpgaCombinerHelper::hasG_CONSTANTasUse(MachineRegisterInfo &MRI, llvm::MachineInstr &MI) {
 	auto &Context = MI.getMF()->getFunction().getContext();
 	for (auto &MO : MI.uses()) {
 		if (hwtHls::HwtFpgaInstructionSelector::machineOperandTryGetConst(
@@ -74,15 +77,23 @@ bool HwtFpgaCombinerHelper::hasG_CONSTANTasUse(llvm::MachineInstr &MI) {
 }
 
 void HwtFpgaCombinerHelper::rewriteG_CONSTANTasUseAsCImm(
+		MachineIRBuilder &Builder, GISelChangeObserver *Observer,
 		llvm::MachineInstr &MI) {
 	Builder.setInstrAndDebugLoc(MI);
 	auto MIB = Builder.buildInstr(MI.getOpcode());
 	auto &newMI = *MIB.getInstr();
-	Observer.changingInstr(newMI);
+	if (Observer)
+		Observer->changingInstr(newMI);
 	hwtHls::HwtFpgaInstructionSelector::selectInstrArgs(MI, MIB,
 			MI.getOperand(0).isDef());
-	Observer.changedInstr(newMI);
+	if (Observer)
+		Observer->changedInstr(newMI);
 	MI.eraseFromParent();
+}
+
+void HwtFpgaCombinerHelper::rewriteG_CONSTANTasUseAsCImm(
+		llvm::MachineInstr &MI) {
+	rewriteG_CONSTANTasUseAsCImm(Builder, &Observer, MI);
 }
 
 void HwtFpgaCombinerHelper::rewriteConstMergeValues(llvm::MachineInstr &MI) {
