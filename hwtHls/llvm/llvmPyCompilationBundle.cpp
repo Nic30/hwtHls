@@ -26,17 +26,18 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 	py::class_<hwtHls::LlvmCompilationBundle>(m, "LlvmCompilationBundle")
 		.def(py::init<const std::string &>())
 		.def("addLlvmCliArgOccurence", &hwtHls::LlvmCompilationBundle::addLlvmCliArgOccurence)
-		.def("runOpt", [](hwtHls::LlvmCompilationBundle * LCB, py::function & callbackFn, py::object & hls, py::object & toSsa) {
+		.def("runOpt", [](hwtHls::LlvmCompilationBundle * LCB, py::function & callbackFn, py::object & hls, py::object & toSsa, py::object & netlist) {
 			py::object returnObj;
-			LCB->runOpt([callbackFn, &hls, &toSsa, &returnObj](llvm::MachineFunction &MF,
+			LCB->runOpt([callbackFn, &hls, &toSsa, &netlist, &returnObj](llvm::MachineFunction &MF,
 					std::set<hwtHls::HwtFpgaToNetlist::MachineBasicBlockEdge>& backedges,
 					hwtHls::EdgeLivenessDict & liveness,
 					std::vector<llvm::Register> & ioRegs,
 					std::map<llvm::Register, unsigned> & registerTypes,
 					llvm::MachineLoopInfo & loops) {
-				// :note: specified explicitly so we can modify reference handling and pass python objects without
+				// :note: wrapped in lambda so we can modify reference handling and pass python objects without
 				//        spoiling C++ llvm code with pybind11
 				returnObj = callbackFn.operator() <py::return_value_policy::reference,
+						py::object &,
 						py::object &,
 						py::object &,
 						llvm::MachineFunction &,
@@ -45,7 +46,7 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 					    std::vector<llvm::Register> &,
 					    std::map<llvm::Register, unsigned> &,
 					    llvm::MachineLoopInfo &>(
-					    		hls, toSsa,MF, backedges, liveness, ioRegs, registerTypes, loops
+					    		hls, toSsa, netlist, MF, backedges, liveness, ioRegs, registerTypes, loops
 				);
 			});
 			return returnObj;
