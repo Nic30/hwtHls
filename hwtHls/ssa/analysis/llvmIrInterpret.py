@@ -485,15 +485,8 @@ class LlvmIrInterpret():
         switchBr = InstructionToSwitchInst(instr)
         if switchBr is not None:
             c = ops[0].cast_sign(None)
-            # switch condition does not necessary need to be fully valid because
-            # it may be a concatenation of conditions in original if tree but
-            # if even if the condition is invalid it must match at most 1 item
-            # (usually default value)
-            assert c.vld_mask != 0, ("jump condition must have at least some bits valid", c, bb, instr)
-            isFullValid = c._is_full_valid()
-            assert isFullValid , ("jump condition must have at least some bits valid", c, bb, instr)
+            assert c._is_full_valid(), ("jump condition must be always valid", c, bb, instr)
             defDst = ops[1]
-            # possibledDsts = []
             for condVal, dst in grouper(2, islice(ops, 2, None)):
                 assert isinstance(condVal, HConst), condVal
                 assert isinstance(dst, BasicBlock), dst
