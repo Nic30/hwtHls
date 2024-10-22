@@ -10,11 +10,12 @@ from hwt.hwParam import HwParam
 from hwt.mainBases import RtlSignalBase
 from hwt.math import isPow2, log2ceil
 from hwt.pyUtils.typingFuture import override
+from hwt.serializer.mode import serializeOnce
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeInline
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
-from pyMathBitPrecise.bit_utils import mask
+from pyMathBitPrecise.bit_utils import mask, next_power_of_2
 
 
 @hlsBytecode
@@ -106,6 +107,7 @@ def countBits(dataIn: RtlSignalBase[HBits], bitValToCount: int, leading: bool):
     return dataOut
 
 
+@serializeOnce
 class CountLeadingZeros(HwModule):
 
     @override
@@ -118,15 +120,19 @@ class CountLeadingZeros(HwModule):
         addClkRstn(self)
         self.clk._FREQ = self.FREQ
         w = self.DATA_WIDTH
-        assert isPow2(self.DATA_WIDTH), self.DATA_WIDTH
         self.data_in = HwIOVectSignal(w)
         self.data_out = HwIOVectSignal(log2ceil(w + 1))._m()
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
-            i = hls.read(self.data_in)
-            hls.write(PyBytecodeInline(countBits)(i, 0, True), self.data_out)
+            d = hls.read(self.data_in)
+            if isPow2(self.DATA_WIDTH):
+                _d =  d
+            else:
+                nextPow2 = next_power_of_2(self.DATA_WIDTH, 64)
+                _d = Concat(d, HBits(nextPow2 - self.DATA_WIDTH).from_py(0))
+            hls.write(PyBytecodeInline(countBits)(_d, 0, True), self.data_out)
 
     @override
     def hwImpl(self):
@@ -136,6 +142,7 @@ class CountLeadingZeros(HwModule):
         hls.compile()
 
 
+@serializeOnce
 class CountTailingZeros(CountLeadingZeros):
 
     @hlsBytecode
@@ -145,6 +152,7 @@ class CountTailingZeros(CountLeadingZeros):
             hls.write(PyBytecodeInline(countBits)(i, 0, False), self.data_out)
 
 
+@serializeOnce
 class CountLeadingOnes(CountLeadingZeros):
 
     @hlsBytecode
@@ -154,6 +162,7 @@ class CountLeadingOnes(CountLeadingZeros):
             hls.write(PyBytecodeInline(countBits)(i, 1, True), self.data_out)
 
 
+@serializeOnce
 class CountTailingOnes(CountLeadingZeros):
 
     @hlsBytecode
