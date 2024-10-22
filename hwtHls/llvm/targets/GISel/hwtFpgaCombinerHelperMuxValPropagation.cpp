@@ -127,6 +127,8 @@ bool HwtFpgaCombinerHelper::matchMuxForConstPropagation(llvm::MachineInstr &MI,
 		}
 		off += usedBits.second;
 	}
+	assert(off == matchInfo.constBitMask.getBitWidth() && "Produced value has same  number of bits as original MUX");
+	Builder.setInstrAndDebugLoc(*(++NewMI.getIterator())); // set insert point after NewMI
 	auto res = hwtHls::buildHWTFPGA_MERGE_VALUES(Builder, ResConcatMembers);
 	assert(!res.isUndef && res.c == nullptr && res.reg != 0);
 	return res.reg;
@@ -137,86 +139,103 @@ bool HwtFpgaCombinerHelper::rewriteMuxConstPropagation(llvm::MachineInstr &MI,
 	Builder.setInstrAndDebugLoc(MI);
 	// catch trivial cases where output value is completely known
 	if (matchInfo.constBitMask.isAllOnes()) {
+		// MUX output value is known to be constant
+		// Create constant and 1 value MUX which will act as a copy to original dst register.
 		auto &Ctx = Builder.getMF().getFunction().getContext();
 		ConstantInt *CI = ConstantInt::get(Ctx, matchInfo.constVal);
 		Builder.setInstr(MI);
 		MachineInstrBuilder MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX);
 		MIB.addDef(MI.getOperand(0).getReg()).addCImm(CI);
-		MI.eraseFromParent();
-		return true;
 	} else if (matchInfo.regBitMask.isAllOnes()) {
-		llvm_unreachable("[todo]");
-	}
-	// construct operands if required (build MERGE_VALUES from parts which do have matchInfo.valDefined set and constBitMask and regBitMask unset)
-	auto keepMask = matchInfo.valDefined & ~matchInfo.constBitMask
-			& ~matchInfo.regBitMask; // 1 in bit means that the value can not be reduced and must be kept in MUX instruction
-	bool wasCompletlyReplaced = keepMask.isZero();
-	auto usedBitsVec = hwtHls::iter1and0sequences(keepMask, 0,
-			keepMask.getBitWidth());
-
-	SmallVector<hwtHls::CImmOrRegOrUndefWithWidth> newMuxOperands;
-	auto OpIt = MI.operands_begin() + 1; // skip dst
-	while (OpIt != MI.operands_end()) {
-		const MachineOperand &V = *OpIt;
-		SmallVector<hwtHls::CImmOrRegOrUndefWithWidth> OperandValConcatMembers;
-		size_t off = 0;
-		for (auto usedBits : usedBitsVec) {
-			if (usedBits.first) {
-				// extract non reduced bits from operand
-				hwtHls::CImmOrRegOrUndefWithWidth m =
-						hwtHls::buildHWTFPGA_EXTRACT(Builder, V,
-								keepMask.getBitWidth(), off, usedBits.second);
-				OperandValConcatMembers.push_back(m);
-			}
-			off += usedBits.second;
-		}
-		newMuxOperands.push_back(
-				buildHWTFPGA_MERGE_VALUES(Builder, OperandValConcatMembers));
-		if (wasCompletlyReplaced) {
-			auto replacement = newMuxOperands.back();
-			auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX);
-			MIB.addDef(MI.getOperand(0).getReg());
-			replacement.addAsUse(Builder, MIB);
-			MI.eraseFromParent();
-			return true;
-		}
-
-		++OpIt;
-		if (OpIt != MI.operands_end()) {
-			if (OpIt->isReg()) {
-				newMuxOperands.push_back(
-						hwtHls::CImmOrRegOrUndefWithWidth(1, OpIt->getReg()));
-			} else {
-				OpIt->isCImm();
-				newMuxOperands.push_back(
-						hwtHls::CImmOrRegOrUndefWithWidth(OpIt->getCImm()));
-			}
-			++OpIt; // skip condition to get to next value
-		}
-	}
-
-	// construct new reduced mux
-	bool bitwidthWasReduced = !keepMask.isAllOnes();
-	assert(!wasCompletlyReplaced);
-	Builder.setInstrAndDebugLoc(MI);
-	MachineInstrBuilder MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX);
-	if (bitwidthWasReduced) {
-		// create tmp register
-		Register dst = MRI.createVirtualRegister(&HwtFpga::anyregclsRegClass);
-		MIB.addDef(dst);
-	} else {
-		// use original dst directly
+		// MUX output value of output is known to be some other value defined in registers.
+		// The value may be composed of multiple register slices.
+		// The src value will be concatenation of slices (potentially reduced to just 1 register)
+		// Create constant and 1 value MUX which will act as a copy to original dst register.
+		Builder.setInstr(MI);
+		MachineInstrBuilder MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX);
 		MIB.addDef(MI.getOperand(0).getReg());
-	}
-	for (auto &o : newMuxOperands) {
-		o.addAsUse(Builder, MIB);
-	}
+		std::vector<std::pair<bool, unsigned>> usedBitsVec = {
+				{0, matchInfo.valDefined.getBitWidth()},
+		};
+		auto res = _rewriteMuxConstPropagationExpandReducedBits(*MIB.getInstr(),
+				matchInfo, usedBitsVec);
+		MIB.addUse(res);
+	} else {
+		// construct operands if required (build MERGE_VALUES from parts which do have matchInfo.valDefined set and constBitMask and regBitMask unset)
+		auto keepMask = matchInfo.valDefined & ~matchInfo.constBitMask
+				& ~matchInfo.regBitMask; // 1 in bit means that the value can not be reduced and must be kept in MUX instruction
+		bool wasCompletlyReplaced = keepMask.isZero();
+		auto usedBitsVec = hwtHls::iter1and0sequences(keepMask, 0,
+				keepMask.getBitWidth());
 
-	if (bitwidthWasReduced) {
-		// construct final value by merging new mux value with reduced parts
-		auto res = _rewriteMuxConstPropagationExpandReducedBits(*MIB.getInstr(), matchInfo,
-				usedBitsVec);
-		MRI.replaceRegWith(MI.getOperand(0).getReg(), res);
+		SmallVector<hwtHls::CImmOrRegOrUndefWithWidth> newMuxOperands;
+		auto OpIt = MI.operands_begin() + 1; // skip dst
+		while (OpIt != MI.operands_end()) {
+			const MachineOperand &V = *OpIt;
+			SmallVector<hwtHls::CImmOrRegOrUndefWithWidth> OperandValConcatMembers;
+			size_t off = 0;
+			for (auto usedBits : usedBitsVec) {
+				if (usedBits.first) {
+					// extract non reduced bits from operand
+					hwtHls::CImmOrRegOrUndefWithWidth m =
+							hwtHls::buildHWTFPGA_EXTRACT(Builder, V,
+									keepMask.getBitWidth(), off,
+									usedBits.second);
+					OperandValConcatMembers.push_back(m);
+				}
+				off += usedBits.second;
+			}
+			newMuxOperands.push_back(
+					buildHWTFPGA_MERGE_VALUES(Builder,
+							OperandValConcatMembers));
+			if (wasCompletlyReplaced) {
+				auto replacement = newMuxOperands.back();
+				auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX);
+				MIB.addDef(MI.getOperand(0).getReg());
+				replacement.addAsUse(Builder, MIB);
+				MI.eraseFromParent();
+				return true;
+			}
+
+			++OpIt;
+			if (OpIt != MI.operands_end()) {
+				if (OpIt->isReg()) {
+					newMuxOperands.push_back(
+							hwtHls::CImmOrRegOrUndefWithWidth(1,
+									OpIt->getReg()));
+				} else {
+					OpIt->isCImm();
+					newMuxOperands.push_back(
+							hwtHls::CImmOrRegOrUndefWithWidth(OpIt->getCImm()));
+				}
+				++OpIt; // skip condition to get to next value
+			}
+		}
+
+		// construct new reduced mux
+		bool bitwidthWasReduced = !keepMask.isAllOnes();
+		assert(!wasCompletlyReplaced);
+		Builder.setInstrAndDebugLoc(MI);
+		MachineInstrBuilder MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX);
+		if (bitwidthWasReduced) {
+			// create tmp register
+			Register dst = MRI.createVirtualRegister(
+					&HwtFpga::anyregclsRegClass);
+			MIB.addDef(dst);
+		} else {
+			// use original dst directly
+			MIB.addDef(MI.getOperand(0).getReg());
+		}
+		for (auto &o : newMuxOperands) {
+			o.addAsUse(Builder, MIB);
+		}
+
+		if (bitwidthWasReduced) {
+			// construct final value by merging new mux value with reduced parts
+			auto res = _rewriteMuxConstPropagationExpandReducedBits(
+					*MIB.getInstr(), matchInfo, usedBitsVec);
+			MRI.replaceRegWith(MI.getOperand(0).getReg(), res);
+		}
 	}
 	MI.eraseFromParent();
 	return true;
