@@ -14,7 +14,8 @@ from pyMathBitPrecise.bit_utils import ValidityError
 class HlsNetlistToAbcAig(RtlNetlistToAbcAig):
 
     def __init__(self):
-        self.translationCache: Dict[RtlSignal, Abc_Obj_t] = {}
+        RtlNetlistToAbcAig.__init__(self)
+        self.translationCache: Dict[RtlSignal, Abc_Obj_t]
 
     def _translate(self, aig: Abc_Aig_t, o: HlsNetNodeOut):
         try:
@@ -41,7 +42,7 @@ class HlsNetlistToAbcAig(RtlNetlistToAbcAig):
             if inCnt == 1:
                 assert d.operator == HwtOps.NOT, d
                 res = aig.Not(self._translate(aig, d.dependsOn[0]))
-    
+
             elif inCnt == 2:
                 lhs, rhs = (self._translate(aig, i) for i in d.dependsOn)
                 if op == HwtOps.AND:
@@ -56,7 +57,7 @@ class HlsNetlistToAbcAig(RtlNetlistToAbcAig):
                     res = aig.Ne(lhs, rhs)
                 else:
                     raise NotImplementedError(d)
-    
+
             elif inCnt >= 3:
                 assert d.operator == HwtOps.TERNARY
                 if inCnt == 3:
@@ -80,10 +81,10 @@ class HlsNetlistToAbcAig(RtlNetlistToAbcAig):
                     res = prevVal
             else:
                 raise NotImplementedError(d)
-        
+
         assert o not in self.translationCache, o
         self.translationCache[o] = res
         return res
-           
+
     def translate(self, inputs: SetList[HlsNetNodeOut], outputs: SetList[HlsNetNodeOut]) -> Tuple[Abc_Frame_t, Abc_Ntk_t, Abc_Aig_t]:
         return super(HlsNetlistToAbcAig, self).translate(inputs, outputs)

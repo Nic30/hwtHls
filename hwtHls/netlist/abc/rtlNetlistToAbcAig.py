@@ -1,8 +1,8 @@
 from typing import Dict, Tuple, Union, Sequence
 
+from hwt.hdl.const import HConst
 from hwt.hdl.operator import HOperatorNode
 from hwt.hdl.operatorDefs import HwtOps
-from hwt.hdl.const import HConst
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t, Abc_Aig_t, Abc_NtkType_t, Abc_NtkFunc_t, \
     Abc_Frame_t, Abc_Obj_t  # , Io_FileType_t
@@ -13,7 +13,10 @@ class RtlNetlistToAbcAig():
     def __init__(self,):
         self.translationCache: Dict[RtlSignal, Abc_Obj_t] = {}
         # the reference must be released because object is deleted when the AIG is deleted
-        self.c1: Abc_Obj_t = None
+        self.abcFrame = Abc_Frame_t.GetGlobalFrame()
+        self.net = Abc_Ntk_t(Abc_NtkType_t.ABC_NTK_STRASH, Abc_NtkFunc_t.ABC_FUNC_AIG, 64)
+        self.aig: Abc_Aig_t = self.net.pManFunc
+        self.c1: Abc_Obj_t = self.net.Const1()
 
     def _translate(self, aig: Abc_Aig_t, o: Union[RtlSignal, HConst]):
         try:
@@ -58,11 +61,9 @@ class RtlNetlistToAbcAig():
 
     def translate(self, inputs: Sequence[RtlSignal], outputs: Sequence[RtlSignal])\
             ->Tuple[Abc_Frame_t, Abc_Ntk_t, Abc_Aig_t, Dict[str, Tuple[Abc_Obj_t, RtlSignal]]]:
-        f = Abc_Frame_t.GetGlobalFrame()
-        net = Abc_Ntk_t(Abc_NtkType_t.ABC_NTK_STRASH, Abc_NtkFunc_t.ABC_FUNC_AIG, 64)
-        f.SetCurrentNetwork(net)
-        aig: Abc_Aig_t = net.pManFunc
-        self.c1 = net.Const1()
+        net = self.net
+        aig = self.aig
+        self.abcFrame.SetCurrentNetwork(net)
         # :note: we can not store Abc_Obj_t because the object could be discarded after first operation with network
         #        we can not use index because IO may reorder and we can not use Id because it also changes
         ioMap: Dict[str, RtlSignal] = {}
@@ -84,4 +85,4 @@ class RtlNetlistToAbcAig():
         aig.Cleanup()  # removes dangling nodes
         net.Check()
         # net.Io_Write("abc-directly.0.dot", Io_FileType_t.IO_FILE_DOT)
-        return f, net, aig, ioMap
+        return self.abcFrame, net, aig, ioMap

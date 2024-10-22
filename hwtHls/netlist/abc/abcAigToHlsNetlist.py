@@ -19,6 +19,7 @@ class AbcAigToHlsNetlist(AbcAigToRtlNetlist):
         self.translationCache: Dict[Tuple[Abc_Obj_t, bool], HlsNetNodeOut] = {}
 
     def _translate(self, o: Abc_Obj_t, negated: bool):
+        assert not o.IsComplement(), o
         key = (o, negated)
         try:
             return self.translationCache[key]
@@ -49,7 +50,7 @@ class AbcAigToHlsNetlist(AbcAigToRtlNetlist):
                 elif op is HwtOps.TERNARY:
                     res = self.builder.buildMux(BIT, ops)
                 else:
-                    res = self.builder.buildOp(op, BIT, *ops)
+                    res = self.builder.buildOp(op, None, BIT, *ops)
             else:
                 _o0, _o1 = o.IterFanin()
                 o0 = self._translate(_o0, o.FaninC0())
@@ -61,6 +62,7 @@ class AbcAigToHlsNetlist(AbcAigToRtlNetlist):
                 assert res.obj not in self.builder._removedNodes, res
 
             if negated:
+                # :note: on _recognizeNonAigOperator success the negated flag is modified
                 res = self.builder.buildNot(res)
 
             assert res.obj not in self.builder._removedNodes, res

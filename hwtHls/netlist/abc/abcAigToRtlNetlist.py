@@ -34,6 +34,9 @@ class AbcAigToRtlNetlist():
     def _collectOrMembers(cls, o: Abc_Obj_t):
         """
         Recursively collect all inputs which connected using "and" and are not and itself.
+        :attention: it must be checked before that the top o is not just AND to
+            avoid rewriting AND using NOT ORs
+
         :note: in AIG "a | b" is "~(~a & ~b)"
             "a | (b | c)" is ~(~a & (~b & ~c)) 
         """
@@ -74,7 +77,6 @@ class AbcAigToRtlNetlist():
     #    to translate it to ~(a | b | c)
     #    """
 
-
     def _recognizeNonAigOperator(self, o: Abc_Obj_t, negated: bool):
         """
         Check if object is in format:
@@ -91,9 +93,10 @@ class AbcAigToRtlNetlist():
         * (~p0 | ~p1) -> ~(p0 & p1)
         * (~p0 & ~p1) -> ~(p0 | p1)
         """
+        assert not o.IsComplement(), o
         m = recognizeMux3(negated, o)
+        tr = self._translate
         if m is not None:
-            tr = self._translate
             res = (HwtOps.TERNARY, (tr(m.v0, m.v0n), tr(m.c0, m.c0n),
                                     tr(m.v1, m.v1n), tr(m.c1, m.c1n),
                                     tr(m.v2, m.v2n)))
@@ -104,7 +107,6 @@ class AbcAigToRtlNetlist():
 
         m = recognizeMux2(negated, o)
         if m is not None:
-            tr = self._translate
             res = (HwtOps.TERNARY, (tr(m.v0, m.v0n), tr(m.c0, m.c0n),
                                     tr(m.v1, m.v1n)))
             if m.isNegated:
@@ -116,7 +118,6 @@ class AbcAigToRtlNetlist():
         o1n = o.FaninC1()
         topIsOr = negated and o0n and o1n
         topP0, topP1 = o.IterFanin()
-        tr = self._translate
 
         if not topIsOr:
             # not: ~(p0 & p0)
@@ -166,7 +167,6 @@ class AbcAigToRtlNetlist():
                     # xor: (p0 & ~p1) | (p1 & ~p0)
                     return HwtOps.XOR, (tr(p0, False), tr(p1, False))
 
-
             elif not P0o0n and not P0o1n and (P1o0n + P1o1n) == 1:
                 pc, p1 = topP0.IterFanin()  # both not negated
                 P1o0, P1o1 = topP1.IterFanin()
@@ -185,7 +185,6 @@ class AbcAigToRtlNetlist():
                             # ~(pC & p1)
                             return HwtOps.NOT, res
 
-
         if o0n and o1n:
             # or:  ~(~p0 & ~p1)
             res = HwtOps.OR, (tr(topP0, False), tr(topP1, False))
@@ -196,6 +195,7 @@ class AbcAigToRtlNetlist():
                 return HwtOps.NOT, res
 
     def _translate(self, o: Abc_Obj_t, negated: bool):
+        assert not o.IsComplement(), o
         key = (o, negated)
         try:
             return self.translationCache[key]
