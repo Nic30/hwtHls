@@ -68,20 +68,6 @@ void register_Function(pybind11::module_ & m) {
 		;
 	m.def("ValueToArgument", &valueCaster<llvm::Argument>);
 
-	py::enum_<llvm::Function::LinkageTypes>(Function, "LinkageTypes")
-		.value("ExternalLinkage",            llvm::Function::LinkageTypes::ExternalLinkage           )
-		.value("AvailableExternallyLinkage", llvm::Function::LinkageTypes::AvailableExternallyLinkage)
-		.value("LinkOnceAnyLinkage",         llvm::Function::LinkageTypes::LinkOnceAnyLinkage        )
-		.value("LinkOnceODRLinkage",         llvm::Function::LinkageTypes::LinkOnceODRLinkage        )
-		.value("WeakAnyLinkage",             llvm::Function::LinkageTypes::WeakAnyLinkage            )
-		.value("WeakODRLinkage",             llvm::Function::LinkageTypes::WeakODRLinkage            )
-		.value("AppendingLinkage",           llvm::Function::LinkageTypes::AppendingLinkage          )
-		.value("InternalLinkage",            llvm::Function::LinkageTypes::InternalLinkage           )
-		.value("PrivateLinkage",             llvm::Function::LinkageTypes::PrivateLinkage            )
-		.value("ExternalWeakLinkage",        llvm::Function::LinkageTypes::ExternalWeakLinkage       )
-		.value("CommonLinkage",              llvm::Function::LinkageTypes::CommonLinkage             )
-		.export_values();
-
 	py::class_<llvm::Attribute, std::unique_ptr<llvm::Attribute, py::nodelete>> Attribute(m, "Attribute");
 	py::enum_<llvm::Attribute::AttrKind> AttrKind(Attribute, "AttrKind");
 	AttrKind.value("None",            llvm::Attribute::AttrKind::None           );
