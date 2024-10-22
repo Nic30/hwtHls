@@ -122,9 +122,9 @@ bool SimplifyCFG2Pass_rewriteMaskPatternsFromCFGToData(
 	// value which is by this PHI.
 	auto CBAHandle = [](const Instruction &I) {
 		if (auto *CI = dyn_cast<CallInst>(&I)) {
-			return bool(IsBitConcat(CI) || IsBitConcat(CI));
+			return !bool(IsBitConcat(CI) || IsBitConcat(CI));
 		}
-		return false;
+		return true;
 	};
 
 	ConstBitPartsAnalysisContext CBA(nullptr, CBAHandle);
