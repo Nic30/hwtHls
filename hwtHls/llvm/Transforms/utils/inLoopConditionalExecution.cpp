@@ -3,6 +3,7 @@
 #include <map>
 #include <llvm/Analysis/LoopInfo.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/Intrinsics.h>
 //#include <llvm/Transforms/Utils/Cloning.h>
 //#include <llvm/Transforms/Utils/CodeExtractor.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
@@ -65,6 +66,92 @@ std::vector<InSectionDefProps> collectInSectionDefProps(
 
 	return inSectionDefs;
 }
+llvm::MemoryAccess* MSSAU_createNewAccess(llvm::MemorySSAUpdater *MSSAU,
+		Instruction *NewI) {
+	const MemoryUseOrDef *FirstNonDom = nullptr;
+	const auto *AL = MSSAU->getMemorySSA()->getBlockAccesses(NewI->getParent());
+
+	// If there are accesses in the current basic block, find the first one
+	// that does not come before NewS. The new memory access is inserted
+	// after the found access or before the terminator if no such access is
+	// found.
+	if (AL) {
+		for (const auto &Acc : *AL) {
+			if (auto *Current = dyn_cast<MemoryUseOrDef>(&Acc))
+				if (!Current->getMemoryInst()->comesBefore(NewI)) {
+					FirstNonDom = Current;
+					break;
+				}
+		}
+	}
+
+	MemoryAccess *NewMA;
+	if (FirstNonDom)
+		NewMA = MSSAU->createMemoryAccessBefore(NewI, nullptr,
+				const_cast<MemoryUseOrDef*>(FirstNonDom));
+	else
+		NewMA = MSSAU->createMemoryAccessInBB(NewI, nullptr, NewI->getParent(),
+				MemorySSA::BeforeTerminator);
+	return NewMA;
+}
+
+// based on llvm::GVNPass::eliminatePartiallyRedundantLoad
+void MSSAU_addNewLoad(llvm::MemorySSAUpdater *MSSAU, Instruction *OrigInstr,
+		LoadInst *NewLoad) {
+	NewLoad->setDebugLoc(OrigInstr->getDebugLoc());
+	if (MSSAU) {
+		auto *NewAccess = MSSAU_createNewAccess(MSSAU, NewLoad);
+		if (auto *NewDef = dyn_cast<MemoryDef>(NewAccess))
+			MSSAU->insertDef(NewDef, /*RenameUses=*/true);
+		else
+			MSSAU->insertUse(cast<MemoryUse>(NewAccess), /*RenameUses=*/true);
+	}
+}
+
+// based on llvm::GVNPass::processAssumeIntrinsic
+void MSSAU_addNewStore(llvm::MemorySSAUpdater *MSSAU, Instruction *OrigInstr,
+		Instruction *NewStore) {
+	NewStore->setDebugLoc(OrigInstr->getDebugLoc());
+	if (MSSAU) {
+		auto *NewDef = MSSAU_createNewAccess(MSSAU, NewStore);
+		MSSAU->insertDef(cast<MemoryDef>(NewDef), /*RenameUses=*/true);
+	}
+}
+
+void makeSectionOfLoopConditionalyReexecuted_rerouteExits(
+		bool conditionIsNegated, llvm::BasicBlock *prequelBlock,
+		llvm::BasicBlock *bypassSuccessor, llvm::Value *condition,
+		llvm::DomTreeUpdater &DTU, llvm::MemorySSAUpdater *MSSAU) {
+	// :note: inspired by BlockExtractor::runOnModule
+	BranchInst *prequelTerm = dyn_cast<BranchInst>(
+			prequelBlock->getTerminator());
+	assert(!prequelTerm->isConditional());
+	auto entryBlock = prequelTerm->getSuccessor(0);
+	assert(entryBlock != bypassSuccessor);
+	BasicBlock *prequelTSucc = entryBlock;
+	BasicBlock *prequelFSucc = bypassSuccessor;
+	prequelTerm->eraseFromParent();
+	if (conditionIsNegated) {
+		std::swap(prequelTSucc, prequelFSucc);
+	}
+	prequelTerm = BranchInst::Create(prequelTSucc, prequelFSucc, condition,
+			prequelBlock);
+	assert(
+			!MSSAU && !bypassSuccessor->getUniquePredecessor()
+					&& "MSSAU not supported because it does not construct MemoryPhi in bypassSuccessor correctly if it has multiple predecessors");
+	{
+		SmallVector<DominatorTree::UpdateType, 1> Updates;
+		Updates.push_back( { DominatorTree::Insert, prequelBlock,
+				bypassSuccessor });
+		// done as in llvm::splitBlockBefore
+		DTU.applyUpdates(Updates);
+		//DTU.flush();
+		if (MSSAU) {
+			auto &DT = DTU.getDomTree();
+			MSSAU->applyUpdates(Updates, DT);
+		}
+	}
+}
 
 SmallVector<AllocaInst*> makeSectionOfLoopConditionalyReexecuted(
 		llvm::Loop &parentLoop, llvm::BasicBlock *prequelBlock,
@@ -74,13 +161,19 @@ SmallVector<AllocaInst*> makeSectionOfLoopConditionalyReexecuted(
 		llvm::MemorySSAUpdater *MSSAU, llvm::BlockFrequencyInfo *BFI,
 		llvm::BranchProbabilityInfo *BPI, llvm::AssumptionCache *AC,
 		bool conditionIsNegated) {
+	auto &F = *DTU.getDomTree().getRoot()->getParent();
+	assert(bypassSuccessor->getParent() == &F && "bypassSuccessor not removed");
+	for (auto BB : sectionToExtract) {
+		assert(BB->getParent() == &F && "sectionToExtract item not removed");
+	}
+
 	// everything defined in begin section, used somewhere else in begin section potentially requires PHIs
 	auto inSectionDefProps = collectInSectionDefProps(sectionToExtract,
 			parentLoop);
-	std::unordered_set<Instruction*> inSectionDefs(inSectionDefProps.size());
-	for (auto &p : inSectionDefProps) {
-		inSectionDefs.insert(p.def);
-	}
+	//std::unordered_set<Instruction*> inSectionDefs(inSectionDefProps.size());
+	//for (auto &p : inSectionDefProps) {
+	//	inSectionDefs.insert(p.def);
+	//}
 
 	BasicBlock *preheader = parentLoop.getLoopPreheader();
 	auto *preheaderTerm = preheader->getTerminator();
@@ -92,17 +185,24 @@ SmallVector<AllocaInst*> makeSectionOfLoopConditionalyReexecuted(
 	for (auto BB : ExitBlocks) {
 		ExitBlockAfterPhi.push_back(BB->getFirstNonPHI());
 	}
+
 	for (auto &p : inSectionDefProps) {
 		if (p.usedOutsideOfSection) {
+			// create tmp alloca in preheaderTerm
 			Builder.SetInsertPoint(preheaderTerm);
 			auto Ty = p.def->getType();
 			auto Name = p.def->getName();
 			auto Alloca = Builder.CreateAlloca(Ty, 0, Name);
 			Allocas.push_back(Alloca);
-			if (!p.usedOutsideOfParentLoop)
-				Builder.CreateLifetimeStart(Alloca);
+			if (!p.usedOutsideOfParentLoop) {
+				auto ls = Builder.CreateLifetimeStart(Alloca);
+				MSSAU_addNewStore(MSSAU, p.def, ls);
+			}
+			assert(p.def->getNextNode() != nullptr);
+			// create store to tmp alloca on original place where instuction is
 			Builder.SetInsertPoint(p.def->getNextNode());
-			Builder.CreateStore(p.def, Alloca);
+			auto newStore = Builder.CreateStore(p.def, Alloca);
+			MSSAU_addNewStore(MSSAU, p.def, newStore);
 
 			std::map<BasicBlock*, LoadInst*> tmpDefs;
 			auto getValInBlock = [&](BasicBlock *BB) {
@@ -111,6 +211,8 @@ SmallVector<AllocaInst*> makeSectionOfLoopConditionalyReexecuted(
 				if (curReplacement == tmpDefs.end()) {
 					Builder.SetInsertPoint(BB->getFirstNonPHI());
 					newV = Builder.CreateLoad(Ty, Alloca, Name + ".reload");
+					//MSSAUpdates.push_back({p.def, newV});
+					MSSAU_addNewLoad(MSSAU, p.def, newV);
 					tmpDefs[BB] = newV;
 				} else {
 					newV = curReplacement->second;
@@ -141,7 +243,6 @@ SmallVector<AllocaInst*> makeSectionOfLoopConditionalyReexecuted(
 					} else {
 						UInst->replaceUsesOfWith(p.def, getValInBlock(BB));
 					}
-
 				}
 			}
 
@@ -153,66 +254,11 @@ SmallVector<AllocaInst*> makeSectionOfLoopConditionalyReexecuted(
 			}
 		}
 	}
-	// :note: inspired by BlockExtractor::runOnModule
-	//CodeExtractorAnalysisCache CEAC(*prequelBlock->getParent());
-	//SetVector<Value*> inputs;
-	//SetVector<Value*> outputs;
-	//if (DTU.hasPendingUpdates())
-	//	DTU.flush();
-	//llvm::DominatorTree *DT = &DTU.getDomTree();
-	//CodeExtractor CE(sectionToExtract.getArrayRef(), DT, /*AggregateArgs*/false,
-	//		BFI, BPI, AC);
-	//assert(CE.isEligible());
-	//Function *F = CE.extractCodeRegion(CEAC, inputs, outputs);
-	//assert(F);
 
-	//auto *CB = dyn_cast<CallBase>(F->getUniqueUndroppableUser());
-	//assert(CB);
-	//BasicBlock *beginSection = CB->getParent();
-	//BasicBlock *afterSection = SplitBlock(beginSection, CB->getNextNode(), &DTU,
-	//		&LI, MSSAU);
-	//auto beginSectionTerm = beginSection->getTerminator();
-	auto prequelTerm = dyn_cast<BranchInst>(prequelBlock->getTerminator());
-	assert(!prequelTerm->isConditional());
-	auto entryBlock = prequelTerm->getSuccessor(0);
-	prequelTerm->eraseFromParent();
-
-	if (conditionIsNegated) {
-		prequelTerm = BranchInst::Create(bypassSuccessor, entryBlock, condition,
-				prequelBlock);
-	} else {
-		prequelTerm = BranchInst::Create(entryBlock, bypassSuccessor, condition,
-				prequelBlock);
-	}
-	{
-		SmallVector<DominatorTree::UpdateType, 1> Updates;
-		Updates.push_back( { DominatorTree::Insert, prequelBlock,
-				bypassSuccessor });
-		if (MSSAU) {
-			if (DTU.hasPendingUpdates())
-				DTU.flush();
-			MSSAU->applyUpdates(Updates, DTU.getDomTree());
-		} else {
-			DTU.applyUpdates(Updates);
-		}
-	}
-	// :note: inspired by InlinerPass::run
-	// Setup the data structure used to plumb customization into the
-	// `InlineFunction` routine.
-	//if (DTU.hasPendingUpdates())
-	//	DTU.flush();
-	//InlineFunctionInfo IFI(nullptr, /*PSI*/nullptr, BFI,
-	///*CalleeBFI*/nullptr);
-	//
-	//InlineResult IR = InlineFunction(*CB, IFI, /*MergeAttributes=*/true,
-	///*CalleeAAR*/nullptr);
-	//assert(IR.isSuccess());
-	//if (MSSAU) {
-	//	llvm_unreachable("NotImplemented");
-	//} else {
-	//	// [todo] update from inlined function
-	//	DT->recalculate(*prequelBlock->getParent());
-	//}
+	// must be called after creating allocas, because otherwise MSSA is not updated correctly
+	// because the the dominance would be different and MemoryPhis would not get constructed correctly
+	makeSectionOfLoopConditionalyReexecuted_rerouteExits(conditionIsNegated,
+			prequelBlock, bypassSuccessor, condition, DTU, MSSAU);
 
 	return Allocas;
 }
