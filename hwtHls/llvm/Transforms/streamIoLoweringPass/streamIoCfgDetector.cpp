@@ -7,6 +7,10 @@
 
 namespace hwtHls {
 
+
+// [todo] FindNearestCommonDominator
+
+
 llvm::raw_ostream& StreamChunkLastMeta::print(llvm::raw_ostream &OS) const {
 	OS << "<StreamChunkLastMeta isLast:" << isLast << " isLastExpr:";
 	if (isLastExpr) {
