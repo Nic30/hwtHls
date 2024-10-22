@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from typing import Iterator
+
+from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import propagateClkRstn
 from hwt.hwParam import HwParam
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
+from hwtHls.frontend.pyBytecode.pragmaLoop import PyBytecodeLoopFlattenUsingIf
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeBlockLabel
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.handshaked.reg import HandshakedReg
@@ -120,6 +125,17 @@ class WhileSendSequence0(WhileTrueReadWrite):
             else:
                 hls.write(size, sizeBuff.dataIn)
 
+    def model(self, dataIn: Iterator[HBitsConst]):
+        size = self.dataIn.T.from_py(0)
+        while True:
+            while size != 0:
+                yield size
+                size = size - 1
+            try:
+                size = next(dataIn)
+            except StopIteration:
+                return
+
 
 class WhileSendSequence1(WhileSendSequence0):
     """
@@ -146,9 +162,14 @@ class WhileSendSequence1(WhileSendSequence0):
     def _implPy(self, hls: HlsScope):
         size = self.dataIn.T.from_py(0)
         while TRUE:
+            PyBytecodeBlockLabel("WhileSendSequence1.mainLoop")
             while size != 0:
+                PyBytecodeBlockLabel("WhileSendSequence1.whileSize")
                 hls.write(size, self.dataOut)
                 size = size - 1
+                PyBytecodeLoopFlattenUsingIf()
+
+            PyBytecodeBlockLabel("WhileSendSequence1.read")
             size = hls.read(self.dataIn).data
 
 
@@ -187,6 +208,9 @@ class WhileSendSequence2(WhileTrueReadWrite):
             while size != 0:
                 hls.write(size, self.dataOut)
                 size = size - 1
+    
+    def model(self, dataIn: Iterator[HBitsConst]):
+        yield from WhileSendSequence0.model(self, dataIn)
 
 
 class WhileSendSequence3(WhileSendSequence0):
@@ -263,5 +287,5 @@ if __name__ == "__main__":
     m = WhileTrueWriteCntr1()
     m.USE_PY_FRONTEND = True
     # m.DATA_WIDTH = 32
-    m.FREQ = int(20e6)
+    m.FREQ = int(200e6)
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
