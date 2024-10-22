@@ -201,6 +201,8 @@ class MemorySSAUpdater():
         phi.replaceUseBy(same)  # Reroute all uses of phi to same and remove phi
         phi.block.phis.remove(phi)
         phi.block = None
+        if isinstance(same, SsaInstr):
+            same.mergeMetadata(phi.metadata)
         sameIsAlsoPhi = isinstance(same, SsaPhi)
         for b, varList in self.currentDefRev[phi].items():
             for v in varList:
