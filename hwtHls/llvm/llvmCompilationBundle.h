@@ -66,6 +66,8 @@ public:
 	void _addVectorPasses(llvm::OptimizationLevel Level,
 			llvm::FunctionPassManager &FPM, bool IsFullLTO);
 	void _addInstrCombinePasses(llvm::FunctionPassManager &FPM);
+	void _addAfterUnrollFollowupPasses(llvm::FunctionPassManager &FPM);
+
 	// for arg description see HwtFpgaTargetPassConfig
 	void _addMachineCodegenPasses(
 			hwtHls::HwtFpgaToNetlist::ConvesionFnT &toNetlistConversionFn);
@@ -103,6 +105,7 @@ public:
 	// (which is then translated to MIR which is then processed by VRegIfConverter)
 	void _testVRegIfConverterForIr(bool lowerSsaToNonSsa);
 	void _testHwtFpgaPreToNetlistCombiner();
+	~LlvmCompilationBundle();
 };
 
 }
