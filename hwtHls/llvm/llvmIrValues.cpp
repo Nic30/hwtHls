@@ -1,8 +1,12 @@
 #include <hwtHls/llvm/llvmIrValues.h>
 
+#include <sstream>
+
+#include <pybind11/stl.h>
 #include <hwtHls/llvm/llvmIrCommon.h>
 
 #include <llvm/ADT/APInt.h>
+#include <llvm/ADT/APFloat.h>
 #include <llvm/ADT/APSInt.h>
 #include <llvm/ADT/SmallString.h>
 #include <llvm/IR/Constants.h>
@@ -32,6 +36,40 @@ T* llvmValueCaster(llvm::Value *V) {
 	}
 }
 
+class ConstantElementIterator {
+	llvm::Constant& C;
+	size_t currentIndex;
+public:
+	ConstantElementIterator(llvm::Constant &C, size_t currentIndex) :
+			C(C), currentIndex(currentIndex) {
+	}
+
+    llvm::Constant & operator*() const {
+    	return *C.getAggregateElement(currentIndex);
+    }
+    llvm::Constant * operator->() const {
+    	return C.getAggregateElement(currentIndex);
+    }
+
+    ConstantElementIterator& operator++() {
+    	currentIndex++;
+    	return *this;
+    }
+    ConstantElementIterator operator++(int) {
+    	currentIndex++;
+    	return *this;
+    }
+
+    friend bool operator==(ConstantElementIterator a, ConstantElementIterator b) {
+    	assert(&a.C == &b.C);
+    	return a.currentIndex == b.currentIndex;
+    }
+    friend bool operator!=(ConstantElementIterator a, ConstantElementIterator b){
+    	assert(&a.C == &b.C);
+    	return a.currentIndex != b.currentIndex;
+    }
+};
+
 void register_Values_and_Use(pybind11::module_ & m) {
 	py::class_<llvm::Value, std::unique_ptr<llvm::Value, py::nodelete>>(m, "Value")
 			.def("__repr__", &printToStr<llvm::Value>)
@@ -44,6 +82,9 @@ void register_Values_and_Use(pybind11::module_ & m) {
 			})
 			.def("getType", &llvm::Value::getType, py::return_value_policy::reference)
 			.def("getName", &llvm::Value::getName)
+			.def("getNumUses", &llvm::Value::getNumUses)
+			.def("hasOneUse", &llvm::Value::hasOneUse)
+			.def("hasOneUser", &llvm::Value::hasOneUser)
 			.def("users", [](llvm::Value &v) {
 				auto users = v.users();
 			 	return py::make_iterator(users.begin(), users.end());
@@ -67,18 +108,59 @@ void register_Values_and_Use(pybind11::module_ & m) {
 		.def(py::init<unsigned, llvm::StringRef, uint8_t>())
 		.def_static("getAllOnes", llvm::APInt::getAllOnes)
 		.def_static("getBitsSet", llvm::APInt::getBitsSet)
+		.def("getZExtValue", &llvm::APInt::getZExtValue)
 		.def("__int__", [](llvm::APInt* I) {
 		 	llvm::SmallString<256> str;
 			I->toString(str, 16, I->isNegative());
 			return pybind11::int_fromStr(str.c_str());
 		});
+	py::class_<llvm::APFloat>(m, "APFloat")
+		.def(py::init<double>())
+		.def("__float__", [](llvm::APFloat* self) {
+			return self->convertToDouble();
+		})
+		.def("__str__", [](llvm::APFloat* self) {
+			std::stringstream sb("<APFloat ");
+			sb << self->convertToDouble();
+			sb << ">";
+			return sb.str();
+		});
 
-	py::class_<llvm::Constant, std::unique_ptr<llvm::Constant, py::nodelete>, llvm::User>(m, "Constant");
-	py::class_<llvm::GlobalValue, std::unique_ptr<llvm::GlobalValue, py::nodelete>, llvm::Constant>(m, "GlobalValue");
+	py::class_<llvm::Constant, std::unique_ptr<llvm::Constant, py::nodelete>, llvm::User> Constant(m, "Constant");
+	Constant
+	.def("__iter__", [](llvm::Constant &self) {
+		size_t numElements;
+		if (auto ArrTy = dyn_cast<llvm::ArrayType>(self.getType())) {
+			numElements = ArrTy->getNumElements();
+		}
+		return py::make_iterator(ConstantElementIterator(self, 0), ConstantElementIterator(self, numElements));
+	}, py::keep_alive<0, 1>()) /* Keep vector alive while iterator is used */
+	.def("getAggregateElement",
+			[](llvm::Constant &self, unsigned index) {
+				return self.getAggregateElement(index);
+			}, py::return_value_policy::reference);
+	py::class_<llvm::GlobalValue, std::unique_ptr<llvm::GlobalValue, py::nodelete>, llvm::Constant> GlobalValue(m, "GlobalValue");
+	py::enum_<llvm::GlobalValue::LinkageTypes>(GlobalValue, "LinkageTypes")
+    	 .value("ExternalLinkage",           llvm::GlobalValue::LinkageTypes::ExternalLinkage,           "Externally visible function")
+    	 .value("AvailableExternallyLinkage",llvm::GlobalValue::LinkageTypes::AvailableExternallyLinkage,"Available for inspection, not emission.")
+    	 .value("LinkOnceAnyLinkage",        llvm::GlobalValue::LinkageTypes::LinkOnceAnyLinkage,        "Keep one copy of function when linking (inline)")
+    	 .value("LinkOnceODRLinkage",        llvm::GlobalValue::LinkageTypes::LinkOnceODRLinkage,        "Same, but only replaced by something equivalent.")
+    	 .value("WeakAnyLinkage",            llvm::GlobalValue::LinkageTypes::WeakAnyLinkage,            "Keep one copy of named function when linking (weak)")
+    	 .value("WeakODRLinkage",            llvm::GlobalValue::LinkageTypes::WeakODRLinkage,            "Same, but only replaced by something equivalent.")
+    	 .value("AppendingLinkage",          llvm::GlobalValue::LinkageTypes::AppendingLinkage,          "Special purpose, only applies to global arrays")
+    	 .value("InternalLinkage",           llvm::GlobalValue::LinkageTypes::InternalLinkage,           "Rename collisions when linking (static functions).")
+    	 .value("PrivateLinkage",            llvm::GlobalValue::LinkageTypes::PrivateLinkage,            "Like Internal, but omit from symbol table.")
+    	 .value("ExternalWeakLinkage",       llvm::GlobalValue::LinkageTypes::ExternalWeakLinkage,       "ExternalWeak linkage description.")
+    	 .value("CommonLinkage",             llvm::GlobalValue::LinkageTypes::CommonLinkage,             "Tentative definitions.")
+    	 .export_values();
+	py::enum_<llvm::GlobalValue::UnnamedAddr>(GlobalValue, "UnnamedAddr")
+		.value("None",   llvm::GlobalValue::UnnamedAddr::None)
+		.value("Local",  llvm::GlobalValue::UnnamedAddr::Local)
+		.value("Global", llvm::GlobalValue::UnnamedAddr::Global)
+		.export_values();
 	py::class_<llvm::ConstantData, std::unique_ptr<llvm::ConstantData, py::nodelete>, llvm::Constant>(m, "ConstantData");
 	py::class_<llvm::ConstantAggregate,  std::unique_ptr<llvm::ConstantAggregate, py::nodelete>, llvm::Constant>(m, "ConstantAggregate");
 	py::class_<llvm::ConstantDataSequential,  std::unique_ptr<llvm::ConstantDataSequential, py::nodelete>, llvm::ConstantData>(m, "ConstantDataSequential");
-
 
 	py::class_<llvm::ConstantInt, std::unique_ptr<llvm::ConstantInt, py::nodelete>, llvm::ConstantData>(m, "ConstantInt")
 		.def_static("get", [](llvm::Type* Ty, llvm::APInt& V) {
@@ -87,9 +169,24 @@ void register_Values_and_Use(pybind11::module_ & m) {
 		.def("getValue", &llvm::ConstantInt::getValue);
 	m.def("ValueToConstantInt", &llvmValueCaster<llvm::ConstantInt>, py::return_value_policy::reference);
 
-	py::class_<llvm::ConstantArray, std::unique_ptr<llvm::ConstantArray, py::nodelete>, llvm::ConstantAggregate>(m, "ConstantArray");
-	m.def("ValueToConstantArray", &llvmValueCaster<llvm::ConstantArray>, py::return_value_policy::reference);
+	py::class_<llvm::ConstantFP, std::unique_ptr<llvm::ConstantFP, py::nodelete>, llvm::ConstantData>(m, "ConstantFP")
+		.def_static("get", [](llvm::Type* Ty, llvm::APFloat& V) {
+			return llvm::ConstantFP::get(Ty, V);
+		}, py::return_value_policy::reference)
+		.def_static("get", [](llvm::Type* Ty, double V) {
+			return llvm::ConstantFP::get(Ty, V);
+		}, py::return_value_policy::reference)
+		.def("getValue", &llvm::ConstantFP::getValue);
+	m.def("ValueToConstantFP", &llvmValueCaster<llvm::ConstantFP>, py::return_value_policy::reference);
 
+	py::class_<llvm::ConstantArray, std::unique_ptr<llvm::ConstantArray, py::nodelete>, llvm::ConstantAggregate> ConstantArray(m, "ConstantArray");
+	ConstantArray //
+	.def_static("get",
+			[](llvm::ArrayType *T, const std::vector<llvm::Constant*> &V) {
+				return llvm::ConstantArray::get(T, V);
+			});
+
+	m.def("ValueToConstantArray", &llvmValueCaster<llvm::ConstantArray>, py::return_value_policy::reference);
 	py::class_<llvm::ConstantDataArray, std::unique_ptr<llvm::ConstantDataArray, py::nodelete>, llvm::ConstantDataSequential>(m, "ConstantDataArray");
 	m.def("ValueToConstantDataArray", &llvmValueCaster<llvm::ConstantDataArray>, py::return_value_policy::reference);
 
