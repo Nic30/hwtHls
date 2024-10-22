@@ -1,8 +1,12 @@
 #include <hwtHls/llvm/Transforms/SelectPruningPass.h>
+#include <llvm/ADT/STLExtras.h>
+
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitRewriter.h>
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitPartsUseAnalysis.h>
+#include <hwtHls/llvm/Transforms/bitwidthReducePass/utils.h>
+#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 
-#include <llvm/ADT/STLExtras.h>
+#define DEBUG_TYPE "hwtfpga-select-pruning"
 
 using namespace llvm;
 
@@ -54,24 +58,63 @@ protected:
 		}
 	}
 public:
+	static bool isCompatibleInstruction(const llvm::Instruction &I) {
+		switch (I.getOpcode()) {
+		// instruction with cost <= cost of select
+		case Instruction::Select:
+		case Instruction::And:
+		case Instruction::Or:
+		case Instruction::Xor:
+		case Instruction::ZExt:
+		case Instruction::SExt:
+		case Instruction::BitCast:
+			//case Instruction::ICmp:
+			return true;
+		case Instruction::Call: {
+			auto *CI = dyn_cast<CallInst>(&I);
+			return IsBitRangeGet(CI) || IsBitConcat(CI);
+		}
+		default:
+			return false;
+		}
+	}
 	ConstBitPartsAnalysisContextSelectPruning(DceWorklist &DCE,
 			ConstBitPartsAnalysisContextSelectPruning *parent = nullptr,
-			std::optional<std::function<bool(const llvm::Instruction&)>> analysisHandle =
-					{ }) :
-			ConstBitPartsAnalysisContext(parent, analysisHandle), DCE(DCE) {
+			std::optional<std::function<bool(const llvm::Instruction&)>> analysisPredicate =
+					isCompatibleInstruction) :
+			ConstBitPartsAnalysisContext(parent, analysisPredicate), DCE(DCE) {
+		tryAnalyzeOperandsOfUnsupportedInstructions = false;
+	}
+
+	void _initRewriterReplacementCacheWithNotReplacedTerms(
+			BitPartsRewriter &rew, llvm::Instruction &I) {
+		if (!analysisPredicate.value()(I)) {
+			rew.addReplacement(&I, &I);
+		} else {
+			for (auto &O : I.operands()) {
+				if (auto OI = dyn_cast<Instruction>(O)) {
+					_initRewriterReplacementCacheWithNotReplacedTerms(rew, *OI);
+				}
+			}
+		}
 	}
 
 	VarBitConstraint& visitSelectInst(const llvm::SelectInst *_I) override {
 		const auto &I = *_I;
+		auto *SINonConst = const_cast<SelectInst*>(_I);
 		const Value *C = I.getCondition();
 		const Value *VT = I.getTrueValue();
 		const Value *VF = I.getFalseValue();
 		auto knownBits = getKnownBitBoolValue(C);
-
+		for (auto V : { C, VT, VF }) {
+			if (auto VI = dyn_cast<Instruction>(V))
+				DCE.insert(*const_cast<Instruction*>(VI));
+		}
 		if (knownBits.has_value()) {
 			// if value is already known we may continue with current bit knowledge
 			const Value *_res = knownBits.value() ? VT : VF;
 			auto res = visitValue(_res);
+			DCE.insert(*SINonConst);
 			return initConstraintMember(const_cast<SelectInst*>(_I), res);
 		} else {
 			// select condition value is unknown, each branch has to be pruned with own context
@@ -94,10 +137,22 @@ public:
 			// merge useMask
 
 			// copy discovered pruned value from T/F branch
-			constraints[VT] = std::make_unique<VarBitConstraint>(
-					*CBPA_T->constraints[VT]);
-			constraints[VF] = std::make_unique<VarBitConstraint>(
-					*CBPA_F->constraints[VF]);
+			//errs() << "CBPA_T\n";
+			//CBPA_T->dumpConstraints();
+			//errs() << "\n";
+			//errs() << "CBPA_F\n";
+			//CBPA_T->dumpConstraints();
+			//errs() << "\n";
+            //
+			//errs() << "This CBPA\n";
+			//dumpConstraints();
+			//errs() << "\n";
+
+			if (auto VTConstr = CBPA_T->findInConstraints(VT))
+				constraints[VT] = std::make_unique<VarBitConstraint>(*VTConstr);
+
+			if (auto *VFConstr = CBPA_F->findInConstraints(VF))
+				constraints[VF] = std::make_unique<VarBitConstraint>(*VFConstr);
 
 			auto &newSelVBC = ConstBitPartsAnalysisContext::visitSelectInst(_I);
 			auto selectUseMask = newSelVBC.getTrullyComputedBitMask(_I);
@@ -117,7 +172,7 @@ public:
 			//UA_F.updateUseMask(_I, selectUseMask);
 			UA_F.updateUseMask(VF, selectUseMask);
 
-			useMask_accumulate(Uses_T); // return useMask to this, CBPA_T
+			useMask_accumulate(Uses_T); // return useMask to this from original state of CBPA_T
 			CBPA_T->useMaks_mergeOnSameLevel(*CBPA_F);
 			CBPA_F->useMaks_mergeOnSameLevel(*CBPA_T);
 
@@ -127,25 +182,39 @@ public:
 				// this select without any scoped context
 				if (!parent) {
 					auto U = I.getSingleUndroppableUse();
-					if (U && U->getUser() == _I)
+					if (U && U->getUser() == _I) {
 						return true;
+					}
 				}
 				return false;
 			};
-			BitPartsRewriter rewT(*CBPA_T,
+			BitPartsRewriter rewT(*CBPA_T, &DCE,
 					thisIsTopSelectAndInstrHasOnlyUserWhichIsParentSelect);
+			_initRewriterReplacementCacheWithNotReplacedTerms(rewT,
+					*SINonConst);
 			auto newVT = rewT.rewriteIfRequired(const_cast<Value*>(VT));
-			//if (newVT == nullptr) // nullptr means replaced by itself
-			//	newVT = const_cast<Value*>(VT);
-			BitPartsRewriter rewF(*CBPA_F,
+			//errs() << "newVT " <<  *VT << "\n";
+			//if (newVT)
+			//	errs() << *newVT << "\n";
+			//else
+			//	errs() << "null\n";
+
+			BitPartsRewriter rewF(*CBPA_F, &DCE,
 					thisIsTopSelectAndInstrHasOnlyUserWhichIsParentSelect);
-			auto newVF = rewT.rewriteIfRequired(const_cast<Value*>(VF));
-			//if (newVF == nullptr)
-			//	newVF = const_cast<Value*>(VF);
+			_initRewriterReplacementCacheWithNotReplacedTerms(rewF,
+					*SINonConst);
+			auto newVF = rewF.rewriteIfRequired(const_cast<Value*>(VF));
+
+			//errs() << "newVF " <<  *VF << "\n";
+			//if (newVF)
+			//	errs() << *newVF << "\n";
+			//else
+			//	errs() << "null\n";
 
 			for (const auto& [newV, oldV] : std::array<
-					std::pair<Value*, const Value*>, 2>( { { newVT, VT }, {
-					newVF, VF } })) {
+					std::pair<Value*, const Value*>, 2>(				//
+					{ { newVT, VT }, { newVF, VF } }	//
+					)) {
 				if (newV != oldV) {
 					if (auto oldI = dyn_cast<Instruction>(
 							const_cast<Value*>(oldV))) {
@@ -156,16 +225,19 @@ public:
 
 			BitPartsUseAnalysisContext UA(*this);
 			UA.updateUseMask(_I, selectUseMask);
-			BitPartsRewriter rewSel(*this, [_I, parent=parent](Instruction &I) {
+			BitPartsRewriter rewSel(*this, &DCE, [_I, parent=parent](Instruction &I) {
 				return !parent && _I == &I;
 			});
+			_initRewriterReplacementCacheWithNotReplacedTerms(rewSel,
+					*SINonConst);
 			// add replacements which had to be resolved in advance because CBPA_T/CBPA_F is a separate context
 			if (newVT)
 				rewSel.addReplacement(const_cast<Value*>(VT), newVT);
 			if (newVF)
 				rewSel.addReplacement(const_cast<Value*>(VF), newVF);
-			auto *SINonConst = const_cast<SelectInst*>(_I);
+			//errs() << " rewSel 0 " << *SINonConst << "\n";
 			auto *newSel = rewSel.rewriteIfRequiredAndExpand(SINonConst);
+			//errs() << " rewSel 1 " << *newSel << "\n";
 			if (newSel != _I) {
 				if (!parent) {
 					// replace only top select value for everyone else, nested selects are always specific to parent select
@@ -181,9 +253,11 @@ public:
 	}
 	std::unique_ptr<ConstBitPartsAnalysisContextSelectPruning> createChild() {
 		auto res = std::make_unique<ConstBitPartsAnalysisContextSelectPruning>(
-				DCE, this, this->analysisHandle);
+				DCE, this, this->analysisPredicate);
 		if (resolvePhiValues)
 			res->setShouldResolvePhiValues();
+		res->tryAnalyzeOperandsOfUnsupportedInstructions =
+				tryAnalyzeOperandsOfUnsupportedInstructions;
 		return res;
 	}
 	virtual ~ConstBitPartsAnalysisContextSelectPruning() {
@@ -196,11 +270,11 @@ llvm::PreservedAnalyses SelectPruningPass::run(llvm::Function &F,
 	DceWorklist DCE(TLI, nullptr);
 	bool Changed = false;
 	for (auto &&BB : F) {
-		for (auto &I : make_early_inc_range(BB)) {
-			if (auto *SI = dyn_cast<SelectInst>(&I)) {
-				ConstBitPartsAnalysisContextSelectPruning selectPruning(DCE,
-						nullptr);
+		for (auto Iit = BB.begin(); Iit != BB.end(); ++Iit) {
+			if (SelectInst *SI = dyn_cast<SelectInst>(&*Iit)) {
+				ConstBitPartsAnalysisContextSelectPruning selectPruning(DCE);
 				Changed |= !selectPruning.visitSelectInst(SI).isValue(SI);
+				Changed |= DCE.runToCompletition(Iit);
 			}
 		}
 	}
