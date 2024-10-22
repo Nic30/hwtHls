@@ -15,7 +15,9 @@ struct OffsetWidthValue {
 	bool operator<(OffsetWidthValue &other) const;
 	void print(llvm::raw_ostream &OS) const;
 	static OffsetWidthValue fromValue(llvm::Value*);
-	bool isMsbOf(const llvm::Value* v);
+	bool isMsbOf(const llvm::Value* v) const;
+	// returns true if this item is just original value not sliced
+	bool isIdentity() const;
 };
 
 inline llvm::raw_ostream& operator<<(llvm::raw_ostream &OS,

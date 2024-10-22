@@ -26,11 +26,18 @@ OffsetWidthValue OffsetWidthValue::fromValue(Value *V) {
 	} else if (auto *TI = dyn_cast<TruncInst>(V)) {
 		return BitRangeGetOffsetWidthValue(TI);
 	}
-	return {0, V->getType()->getIntegerBitWidth(), V};
+	// default case, build OffsetWidthValue equal to original V
+	auto Ty = V->getType();
+	return {0, Ty->isIntegerTy() ? Ty->getIntegerBitWidth() : 1, V};
 }
 
-bool OffsetWidthValue::isMsbOf(const llvm::Value* v) {
+bool OffsetWidthValue::isMsbOf(const llvm::Value* v) const {
 	return width == 1 && value == v && offset == v->getType()->getIntegerBitWidth() - 1;
+}
+
+bool OffsetWidthValue::isIdentity() const {
+	auto Ty = value->getType();
+	return offset == 0  && width == Ty->isIntegerTy() ? Ty->getIntegerBitWidth() : 1;
 }
 
 
