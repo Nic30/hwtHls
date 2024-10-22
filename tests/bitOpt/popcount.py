@@ -14,7 +14,7 @@ from hwtHls.scope import HlsScope
 
 
 @hlsBytecode
-def popcount(num: RtlSignal, bitsToLookupInROM: int=4):
+def popcount(num: RtlSignal, bitsToLookupInROM: int=4, dbgRomInPyList=False):
     """
     Dalalah, A., Baba, S.E., & Tubaishat, A. (2006). New hardware architecture for bit-counting.
     http://fpgacpu.ca/fpga/Population_Count.html
@@ -29,12 +29,15 @@ def popcount(num: RtlSignal, bitsToLookupInROM: int=4):
         res = num
     elif w <= bitsToLookupInROM:
         itemT = res._dtype
-        # :note: this is not ideal as the ROM is constructed manytimes during recursion
+        # :note: this is not ideal as the ROM is constructed many times during recursion
+        #   and then it must be recognized from CFG that this is a ROM and then that it has same value as other instances
         popcountRom = [itemT.from_py(i.bit_count()) for i in range(1 << w)]
+        if not dbgRomInPyList:
+            popcountRom = itemT[len(popcountRom)].from_py(popcountRom)
         res = popcountRom[num]
     else:
-        leftRes = PyBytecodeInline(popcount)(num[w // 2:], bitsToLookupInROM=bitsToLookupInROM)
-        rightRes = PyBytecodeInline(popcount)(num[:w // 2], bitsToLookupInROM=bitsToLookupInROM)
+        leftRes = PyBytecodeInline(popcount)(num[w // 2:], bitsToLookupInROM=bitsToLookupInROM, dbgRomInPyList=dbgRomInPyList)
+        rightRes = PyBytecodeInline(popcount)(num[:w // 2], bitsToLookupInROM=bitsToLookupInROM, dbgRomInPyList=dbgRomInPyList)
         res = leftRes._reinterpret_cast(res._dtype) + rightRes._reinterpret_cast(res._dtype)
 
     return res
@@ -47,6 +50,7 @@ class Popcount(HwModule):
         self.FREQ = HwParam(int(100e6))
         self.DATA_WIDTH = HwParam(8)
         self.BITS_TO_LOOKUP_IN_ROM = HwParam(4)
+        self.DBG_ROM_IN_PYLIST = HwParam(False)
 
     @override
     def hwDeclr(self):
@@ -60,11 +64,11 @@ class Popcount(HwModule):
     def mainThread(self, hls: HlsScope):
         while b1:
             i = hls.read(self.data_in)
-            hls.write(PyBytecodeInline(popcount)(i, bitsToLookupInROM=self.BITS_TO_LOOKUP_IN_ROM), self.data_out)
+            hls.write(PyBytecodeInline(popcount)(i, bitsToLookupInROM=self.BITS_TO_LOOKUP_IN_ROM, dbgRomInPyList=self.DBG_ROM_IN_PYLIST), self.data_out)
 
     @override
     def hwImpl(self):
-        hls = HlsScope(self, freq=int(100e6))
+        hls = HlsScope(self)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
         hls.addThread(mainThread)
         hls.compile()
@@ -78,8 +82,11 @@ if __name__ == "__main__":
 
     sys.setrecursionlimit(int(1e6))
     m = Popcount()
-    m.DATA_WIDTH = 8
+    m.DATA_WIDTH = 64
     m.BITS_TO_LOOKUP_IN_ROM = 4
 
-    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
+        debugFilter=HlsDebugBundle.ALL_RELIABLE,
+        # llvmCliArgs=[("print-after-all", 0, "", "true"), ]
+    )))
 
