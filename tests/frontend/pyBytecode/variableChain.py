@@ -27,7 +27,7 @@ class VariableChain(HwModule):
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
         # :note: all variables are supposed to be reduced out and just direct connection should remain
-        path = [hls.var(f"i{i}", self.i._dtype) for i in range(self.LEN)]
+        path = [hls.var(f"i{i:d}", self.i._dtype) for i in range(self.LEN)]
         while BIT.from_py(1):
             for i, p in enumerate(path):
                 if i == 0:
