@@ -3,6 +3,7 @@
 
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -11,7 +12,6 @@ from hwtLib.examples.statements.ifStm import SimpleIfStatement
 from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import get_bit
 from tests.baseSsaTest import BaseSsaTC
-from hwt.pyUtils.typingFuture import override
 
 
 class HlsSimpleIfStatement(SimpleIfStatement):
