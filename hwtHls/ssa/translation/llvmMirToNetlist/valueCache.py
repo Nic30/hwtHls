@@ -8,6 +8,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     HlsNetNodeOutAny
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.ssa.translation.llvmMirToNetlist.branchOutLabel import BranchOutLabel
+from hwtHls.netlist.nodes.portsUtils import HlsNetNodeOutLazy_replace
 
 
 MirValue = Union[Register, MachineBasicBlock, BranchOutLabel]
@@ -15,6 +16,11 @@ MirValue = Union[Register, MachineBasicBlock, BranchOutLabel]
 
 class MirToHwtHlsNetlistValueCache():
     """
+    This class implements a value cache for MIR to HlsNetlist translator.
+    Each stored record is scoped to some MachineBasicBlock but the cache itself is flat.
+    HlsNetNodeOutLazy is used to provide value which is not yet translated.
+    HlsNetNodeOutLazy is replaced once the value is resolved.
+    
     :ivar _unresolvedBlockInputs: container of HlsNetNodeOutLazy object which are inputs inputs to block
         and needs to be replaced once the value is resolved in the predecessor block
     """
@@ -30,7 +36,9 @@ class MirToHwtHlsNetlistValueCache():
     def items(self):
         return self._toHlsCache.items()
 
-    def add(self, block: MachineBasicBlock, reg: MirValue, v: Union[HlsNetNodeOut, HlsNetNodeOutLazy], isFromInsideOfBlock: bool) -> None:
+    def add(self, block: MachineBasicBlock, reg: MirValue,
+            v: Union[HlsNetNodeOut, HlsNetNodeOutLazy],
+            isFromInsideOfBlock: bool) -> None:
         """
         Register object in _toHlsCache dictionary, which is used to avoid duplication of object in the circuit.
         """
@@ -82,7 +90,7 @@ class MirToHwtHlsNetlistValueCache():
                         v.obj._associatedReadSync = user.obj
                         break
 
-            ubi.replaceDriverObj(v)
+            HlsNetNodeOutLazy_replace(ubi, v)
             self._unresolvedBlockInputs[block].pop(reg)  # rm ubi
         else:
             assert isinstance(cur, HlsNetNodeOutLazy), ("redefining already defined", k, cur, v)
@@ -94,7 +102,7 @@ class MirToHwtHlsNetlistValueCache():
                     if isinstance(user.obj, HlsNetNodeReadSync):
                         v.obj._associatedReadSync = user.obj
                         break
-            cur.replaceDriverObj(v)
+            HlsNetNodeOutLazy_replace(cur, v)
             if self._toHlsCache[k] is cur:
                 self._toHlsCache[k] = v
 

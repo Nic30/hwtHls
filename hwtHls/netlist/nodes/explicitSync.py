@@ -11,7 +11,7 @@ from hwtHls.netlist.hdlTypeVoid import HVoidOrdering, HVoidData, \
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.orderable import HlsNetNodeOrderable
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
-    link_hls_nodes, HlsNetNodeOutLazy
+    HlsNetNodeOutLazy
 from hwtHls.netlist.scheduler.clk_math import epsilon
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
@@ -27,14 +27,14 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
     It is used to stall/drop/not-require some data based on external conditions.
     
     Explicit sync flag combinations (both flags are optional)
-    ---------------------------------------------|
-    | extra cond | skip when | meaning for read  |
-    ==============================================
-    | 0          | 0         | block             |
-    | 1          | 0         | accept            |
-    | 0          | 1         | skip read/peek    |
-    | 1          | 1         | read non blocking |
-    ----------------------------------------------
+    ---------------------------------------------|---------------------------|
+    | extraCond | skipWhen | meaning for read  | meaning for write           |
+    ==========================================================================
+    | 0         | 0        | block             | block                       |
+    | 1         | 0        | read, accept      | write, produce              |
+    | 0         | 1        | skip read/peek    | skip set data but no valid  |
+    | 1         | 1        | read non blocking | write non blocking          |
+    --------------------------------------------------------------------------
 
 
     :ivar extraCond: an input for a flag which must be true to allow the transaction (is blocking until 1)
@@ -44,8 +44,6 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
     :ivar _orderingOut: an output used for ordering connections
     :ivar _dataVoidOut: an output which is used for data connection of a void type,
         this is used to represent the ordering after data dependency was optimized out, but previously was there.
-    :ivar _inputOfCluster: an input which is connected to HlsNetNodeIoCluster node in which it is an input
-    :ivar _outputOfCluster: an input which is connected to HlsNetNodeIoCluster node in which it is an output
     :ivar _ready: output with "ready" signal for writes this signalizes that the write was successful.
         Reading of this port requires write to be performed.
     :ivar _readyNB: same as "_ready" but reading this does not cause write from main interface.
@@ -54,7 +52,8 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
     :ivar _validNB: same as "_valid" but reading this does not cause read from main interface.
     :attention: valid/ready is not affected by any other flag (extraCond, skipWhen) and it may become 1
         even if node operation was not performed. (done to avoid comb. path inside of this node)
-
+    :ivar _forceEnPort: A port of sync flag which tells that the function of this node should be performed even if
+        the parent sync node is not activated.
     :note: _valid for read means that the read was triggered and the returned data is available.
     :note: _valid for writes is always 1 (because direction of signal is from the operation itself to read)
     :note: _ready for read is always 1 (because direction of signal is from the operation itself to write)
@@ -65,8 +64,9 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
         but it is not driven from handshake logic but it is used to pass skipWhen/extraCond to receiver.
         Same applies to read, ready and _rtlUseReady.
     """
-    _PORT_ATTR_NAMES = ["_valid", "_validNB", "_ready", "_readyNB", "extraCond", "skipWhen", "_orderingOut",
-                        "_dataVoidOut", "_outputOfCluster", "_inputOfCluster"]
+    _PORT_ATTR_NAMES = ["_valid", "_validNB", "_ready", "_readyNB",
+                         "extraCond", "skipWhen", "_forceEnPort",
+                         "_orderingOut", "_dataVoidOut", ]
 
     def __init__(self, netlist: "HlsNetlistCtx", dtype: HdlType, name:Optional[str]=None):
         HlsNetNode.__init__(self, netlist, name=name)
@@ -81,12 +81,26 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
 
         self.extraCond: Optional[HlsNetNodeIn] = None
         self.skipWhen: Optional[HlsNetNodeIn] = None
+        self._forceEnPort: Optional[HlsNetNodeOut] = None
         self._orderingOut: Optional[HlsNetNodeOut] = None
         self._dataVoidOut: Optional[HlsNetNodeOut] = None
-        self._outputOfCluster: Optional[HlsNetNodeIn] = None
-        self._inputOfCluster: Optional[HlsNetNodeIn] = None
         self._rtlUseReady = io is None or isinstance(io, (HwIORdVldSync, HwIODataRd))
         self._rtlUseValid = io is None or isinstance(io, (HwIORdVldSync, HwIODataVld))
+
+    def setRtlUseValid(self, rtlUseValid: bool):
+        if not rtlUseValid:
+            for valid in (self._valid, self._validNB):
+                if valid is not None:
+                    self._removeOutput(valid.out_i)
+        self._rtlUseValid = rtlUseValid
+
+    def setRtlUseReady(self, rtlUseReady: bool):
+        if not rtlUseReady:
+            for ready in (self._ready, self._readyNB):
+                if ready is not None:
+                    self._removeOutput(ready.out_i)
+
+        self._rtlUseReady = rtlUseReady
 
     @override
     def clone(self, memo:dict, keepTopPortsConnected: bool) -> Tuple["HlsNetNode", bool]:
@@ -102,7 +116,7 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
         return y, isNew
 
     def iterOrderingInputs(self) -> Generator[HlsNetNodeIn, None, None]:
-        nonOrderingInputs = (self._inputs[0], self.extraCond, self.skipWhen, self._inputOfCluster, self._outputOfCluster)
+        nonOrderingInputs = (self._inputs[0], self.extraCond, self.skipWhen)
         for i in self._inputs:
             if i not in nonOrderingInputs:
                 assert HdlType_isVoid(self.dependsOn[i.in_i]._dtype), i
@@ -140,19 +154,6 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
                 return True
         return False
 
-    def hasValidOnlyToPassFlags(self):
-        """
-        :see: note at the end of doc for :class:`~.HlsNetNodeExplicitSync`
-        """
-        if self._rtlUseValid:
-            return False
-
-        for valid in (self._valid, self._validNB):
-            if valid and self.usedBy[valid.out_i]:
-                return True
-
-        return False
-
     def hasAnyFormOfValidPort(self):
         return self._rtlUseValid or self.hasValid() or self.hasValidNB()
 
@@ -188,18 +189,19 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
                 return True
         return False
 
-    def hasReadyOnlyToPassFlags(self):
+    def getForceEnPort(self) -> HlsNetNodeIn:
         """
-        :see: note at the end of doc for :class:`~.HlsNetNodeExplicitSync`
+        :see: doc of :class:`HlsNetNodeExplicitSync` for \\_forceEnPort flag
         """
-        if self._rtlUseReady:
-            return False
-
-        for ready in (self._ready, self._readyNB):
-            if ready and self.usedBy[ready.out_i]:
-                return True
-
-        return False
+        forceEn = self._forceEnPort
+        if forceEn is None:
+            netlist = self.netlist
+            forceEn = self._forceEnPort = self._addInput(
+                "forceEn", addDefaultScheduling=True,
+                # = at the end of clock where this write is
+                inputClkTickOffset=0,
+                inputWireDelay=netlist.normalizedClkPeriod - self.scheduledZero - netlist.scheduler.epsilon)
+        return forceEn
 
     def getDataVoidOutPort(self) -> HlsNetNodeOut:
         """
@@ -218,18 +220,6 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
         if o is None:
             o = self._orderingOut = self._addOutput(HVoidOrdering, "orderingOut", addDefaultScheduling=True)
         return o
-
-    def getInputOfClusterPort(self) -> HlsNetNodeIn:
-        i = self._inputOfCluster
-        if i is None:
-            i = self._inputOfCluster = self._addInput("inputOfCluster", addDefaultScheduling=True)
-        return i
-
-    def getOutputOfClusterPort(self) -> HlsNetNodeIn:
-        i = self._outputOfCluster
-        if i is None:
-            i = self._outputOfCluster = self._addInput("outputOfCluster", addDefaultScheduling=True)
-        return i
 
     def getExtraCondDriver(self) -> Optional[HlsNetNodeOut]:
         if self.extraCond is None:
@@ -250,12 +240,7 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
             self.extraCond = None
         elif self.skipWhen is iObj:
             self.skipWhen = None
-        elif self._inputOfCluster is iObj:
-            self._inputOfCluster = None
-            # raise AssertionError("_inputOfCluster input port can not be removed because the cluster must be always present")
-        elif self._outputOfCluster is iObj:
-            self._outputOfCluster = None
-            # raise AssertionError("_outputOfCluster input port can not be removed because the cluster must be always present")
+
         return HlsNetNodeOrderable._removeInput(self, index)
 
     @override
@@ -265,49 +250,67 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
             self._orderingOut = None
         elif oObj is self._dataVoidOut:
             self._dataVoidOut = None
+        elif oObj is self._valid:
+            self._valid = None
+        elif oObj is self._validNB:
+            self._validNB = None
+        elif oObj is self._ready:
+            self._ready = None
+        elif oObj is self._readyNB:
+            self._readyNB = None
 
         return HlsNetNodeOrderable._removeOutput(self, index)
 
     @override
     def rtlAlloc(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
-        raise AssertionError("This node should be translated to channel communication and is not intended for RTL")
+        raise AssertionError("This is an abstract class and the child class should override this", self.__class__)
 
-    def addControlSerialExtraCond(self, en: Union[HlsNetNodeOut, HlsNetNodeOutLazy], addDefaultScheduling:bool=False):
+    def addControlSerialExtraCond(self, en: Union[HlsNetNodeOut, HlsNetNodeOutLazy], addDefaultScheduling:bool=False, checkCycleFree:bool=True):
         """
         Add additional extraCond flag and if there was already some flag join them as if they were in sequence.
         """
         i = self.extraCond
         if i is None:
             self.extraCond = i = self._addInput("extraCond", addDefaultScheduling=addDefaultScheduling)
-            link_hls_nodes(en, i)
+            en.connectHlsIn(i, checkCycleFree=checkCycleFree)
         else:
             # create "and" of existing and new extraCond and use it instead
             cur = self.dependsOn[i.in_i]
             if cur is en:
                 return  # no need to update
-            en = self.netlist.builder.buildAnd(cur, en)
+            en = self.getHlsNetlistBuilder().buildAnd(cur, en)
             if en is not cur:
                 i.replaceDriver(en)
 
-    def addControlSerialSkipWhen(self, skipWhen: Union[HlsNetNodeOut, HlsNetNodeOutLazy], addDefaultScheduling:bool=False):
+    def addControlSerialSkipWhen(self, skipWhen: Union[HlsNetNodeOut, HlsNetNodeOutLazy], addDefaultScheduling:bool=False, checkCycleFree:bool=True):
         """
         Add additional skipWhen flag and if there was already some flag join them as if they were in sequence.
         """
         i = self.skipWhen
         if i is None:
             self.skipWhen = i = self._addInput("skipWhen", addDefaultScheduling=addDefaultScheduling)
-            link_hls_nodes(skipWhen, i)
+            skipWhen.connectHlsIn(i, checkCycleFree=checkCycleFree)
         else:
             cur = self.dependsOn[i.in_i]
             if cur is skipWhen:
                 return  # no need to update
-            skipWhen = self.netlist.builder.buildOr(cur, skipWhen)
+            skipWhen = self.getHlsNetlistBuilder().buildOr(cur, skipWhen)
             if cur is not skipWhen:
                 i.replaceDriver(skipWhen)
 
     @override
     def resolveRealization(self):
         self.assignRealization(IO_COMB_REALIZATION)
+
+    def _stringFormatRtlUseReadyAndValid(self):
+        if self._rtlUseReady and self._rtlUseValid:
+            return "<r, v>"
+        elif self._rtlUseReady:
+            return "<r>"
+        elif self._rtlUseValid:
+            return "<v>"
+        else:
+            return "<>"
 
     def __repr__(self, minify=False):
         if minify:

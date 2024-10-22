@@ -1,6 +1,8 @@
-from typing import Set, List, Generator, Tuple, Optional
+from typing import Set, List, Generator, Tuple, Optional, Dict, Union, Literal
 
-from hwt.hdl.operatorDefs import HwtOps
+from hwt.constants import NOT_SPECIFIED
+from hwt.hdl.const import HConst
+from hwt.hdl.operatorDefs import HwtOps, HOperatorDef, ALWAYS_COMMUTATIVE_OPS
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.slice import HSlice
 from hwt.pyUtils.setList import SetList
@@ -9,10 +11,10 @@ from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn, \
-    unlink_hls_nodes, link_hls_nodes
-from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith, \
-    disconnectAllInputs, getConstOfOutput
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
+from hwtHls.netlist.transformation.simplifyUtils import getConstOfOutput
+from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOperatorNodeWith, \
+    disconnectAllInputs
 from pyMathBitPrecise.bit_utils import ValidityError
 
 
@@ -48,19 +50,19 @@ def netlistReduceMuxToRom(builder: HlsNetlistBuilder, n: HlsNetNodeMux, worklist
         origNe = cases[-2][1]
         origNeArgs = origNe.obj.dependsOn
         cIn = n._inputs[preLastcaseIndex * 2 + 1]
-        unlink_hls_nodes(origNe, cIn)
+        cIn.disconnectFromHlsOut(origNe)
         worklist.append(origNe.obj)
         newEq = builder.buildEq(origNeArgs[0], origNeArgs[1])
-        link_hls_nodes(newEq, cIn)
+        newEq.connectHlsIn(cIn)
 
         v0In = n._inputs[preLastcaseIndex * 2]
         v0 = n.dependsOn[preLastcaseIndex * 2]
         v1In = n._inputs[preLastcaseIndex * 2 + 2]
         v1 = n.dependsOn[preLastcaseIndex * 2 + 2]
-        unlink_hls_nodes(v0, v0In)
-        unlink_hls_nodes(v1, v1In)
-        link_hls_nodes(v0, v1In)
-        link_hls_nodes(v1, v0In)
+        v0In.disconnectFromHlsOut(v0)
+        v1In.disconnectFromHlsOut(v1)
+        v0.connectHlsIn(v1In)
+        v1.connectHlsIn(v0In)
         everyConditionIsEq = True
         lastConditionIsNe = False
         cases = tuple(n._iterValueConditionDriverPairs())
@@ -117,7 +119,7 @@ def netlistReduceMuxToRom(builder: HlsNetlistBuilder, n: HlsNetNodeMux, worklist
         if romCompatible:
             assert index is not None
             rom = builder.buildRom(romData, index)
-            replaceOperatorNodeWith(n, rom, worklist, removed)
+            replaceOperatorNodeWith(n, rom, worklist)
             return True
 
     return False
@@ -134,9 +136,8 @@ def popConcatOfSlices(o: HlsNetNodeOut, depthLimit: int) -> Generator[Tuple[HlsN
         for op in obj.dependsOn:
             yield from popConcatOfSlices(op, depthLimit - 1)
         return
-    elif obj.operator == HwtOps.INDEX and isinstance(o._dtype, HBits):
+    elif obj.operator == HwtOps.INDEX and isinstance(o._dtype, HBits) and isinstance(obj.dependsOn[1].obj, HlsNetNodeConst):
         v, indx = obj.dependsOn
-        assert isinstance(indx.obj, HlsNetNodeConst), indx
         indx = indx.obj.val
         if isinstance(indx._dtype, HBits):
             indx = int(indx)
@@ -155,7 +156,7 @@ def popConcatOfSlices(o: HlsNetNodeOut, depthLimit: int) -> Generator[Tuple[HlsN
         yield (o, 0, o._dtype.bit_length())
 
 
-def netlistReduceMuxToShift(builder: HlsNetlistBuilder, n: HlsNetNodeMux, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
+def netlistReduceMuxToShift(builder: HlsNetlistBuilder, n: HlsNetNodeMux, worklist: SetList[HlsNetNode]):
     assert len(n._inputs) % 2 == 1, n
     msbShiftIn = None
     shiftedVal = None
@@ -224,7 +225,7 @@ def netlistReduceMuxToShift(builder: HlsNetlistBuilder, n: HlsNetNodeMux, workli
     # check if all condition operands can are form of equality comparison
     return False
 
-# def netlistReduceMuxOverspecifiedConditions(n: HlsNetNodeMux, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
+# def netlistReduceMuxOverspecifiedConditions(n: HlsNetNodeMux, worklist: SetList[HlsNetNode]):
 #    """
 #    convert
 #
@@ -234,8 +235,8 @@ def netlistReduceMuxToShift(builder: HlsNetlistBuilder, n: HlsNetNodeMux, workli
 #    """
 
 
-def netlistReduceMuxConstantConditionsAndChildMuxSink(n: HlsNetNodeMux, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
-    builder: HlsNetlistBuilder = n.netlist.builder
+def netlistReduceMuxConstantConditionsAndChildMuxSink(n: HlsNetNodeMux, worklist: SetList[HlsNetNode]):
+    builder: HlsNetlistBuilder = n.getHlsNetlistBuilder()
     # resolve constant conditions
     newCondSet: Set[HlsNetNodeOut] = set()
     newOps: List[HlsNetNodeIn] = []
@@ -283,31 +284,19 @@ def netlistReduceMuxConstantConditionsAndChildMuxSink(n: HlsNetNodeMux, worklist
             i: HlsNetNodeOut = newOps[0]
         else:
             i = builder.buildMux(n._outputs[0]._dtype, tuple(newOps))
-            if i.obj.name is None:
-                i.obj.name = n.name
+            i.obj.tryToInheritName(n)
             worklist.append(i.obj)  # may have become ROM
 
-        replaceOperatorNodeWith(n, i, worklist, removed)
+        replaceOperatorNodeWith(n, i, worklist)
         return True
 
     return False
 
-
-def netlistReduceMux(n: HlsNetNodeMux, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
-    inpCnt = len(n._inputs)
-    if inpCnt == 1:
-        # mux x = x
-        i: HlsNetNodeOut = n.dependsOn[0]
-        replaceOperatorNodeWith(n, i, worklist, removed)
-        return True
-
-    if netlistReduceMuxConstantConditionsAndChildMuxSink(n, worklist, removed):
-        return True
-
-    builder: HlsNetlistBuilder = n.netlist.builder
-
-    # merge mux to only user which is mux if this is the case and it is possible
-    if inpCnt % 2 == 1:
+def netlistReduceMuxMergeToUserMux(n: HlsNetNodeMux, worklist: SetList[HlsNetNode]):
+    """
+    merge mux to only user which is mux if this is the case and it is possible
+    """
+    if len(n._inputs) % 2 == 1:
         assert len(n._outputs) == 1, n
         if len(n.usedBy[0]) == 1:
             u: HlsNetNodeIn = n.usedBy[0][0]
@@ -317,53 +306,78 @@ def netlistReduceMux(n: HlsNetNodeMux, worklist: SetList[HlsNetNode], removed: S
                 # el
                 if u.in_i == len(u.obj._inputs) - 1:
                     newOps = u.obj.dependsOn[:-1] + n.dependsOn
+                    builder = n.getHlsNetlistBuilder()
                     res = builder.buildMux(n._outputs[0]._dtype, tuple(newOps))
-                    replaceOperatorNodeWith(u.obj, res, worklist, removed)
+                    replaceOperatorNodeWith(u.obj, res, worklist)
                     disconnectAllInputs(n, worklist)
-                    removed.add(n)
-
+                    n.markAsRemoved()
                     return True
 
-    # x ? x: v1 -> x | v1
-    if inpCnt == 3:
-        v0, c, v1 = n.dependsOn
-        if v0 is c:
-            newO = builder.buildOr(c, v1)
-            replaceOperatorNodeWith(n, newO, worklist, removed)
-            return True
-        # if one operand is undef, replace this with other value operand
-        v0Const = getConstOfOutput(v0)
-        if v0Const is not None and v0Const.vld_mask == 0:
-            replaceOperatorNodeWith(n, v1, worklist, removed)
-            return True
-        v1Const = getConstOfOutput(v1)
-        if v1Const is not None and v1Const.vld_mask == 0:
-            replaceOperatorNodeWith(n, v0, worklist, removed)
-            return True
+    return False
 
-    # search large ROMs implemented as MUX
-    if inpCnt >= 3:
-        if netlistReduceMuxToRom(builder, n, worklist, removed):
-            return True
 
-    # ~c ? v0: v1 -> c ? v1: v0 (supports arbitrary number of operands, swaps last two values if last condition is negated to remove negation of c)
+def netlistReduceMuxUnnegateConditions(n: HlsNetNodeMux, worklist: SetList[HlsNetNode]):
+    """
+    supports arbitrary number of operands, swaps last two values if last condition is negated to remove negation of c
+    
+    .. code-block::
+        ~c ? v0: v1 -> c ? v1: v0
+    """
+    inpCnt = len(n._inputs)
     if inpCnt % 2 == 1 and inpCnt >= 3:
         v0, c, v1 = n.dependsOn[-3:]
         if isinstance(c.obj, HlsNetNodeOperator) and c.obj.operator == HwtOps.NOT:
             cIn = n._inputs[-2]
-            unlink_hls_nodes(c, cIn)
+            cIn.disconnectFromHlsOut(c)
             worklist.append(c.obj)
-            link_hls_nodes(c.obj.dependsOn[0], cIn)
+            c.obj.dependsOn[0].connectHlsIn(cIn)
             v0In = n._inputs[-3]
             v1In = n._inputs[-1]
-            unlink_hls_nodes(v0, v0In)
-            unlink_hls_nodes(v1, v1In)
-            link_hls_nodes(v0, v1In)
-            link_hls_nodes(v1, v0In)
+            v0In.disconnectFromHlsOut(v0)
+            v1In.disconnectFromHlsOut(v1)
+            v0.connectHlsIn(v1In)
+            v1.connectHlsIn(v0In)
+            return True
+    return False
+
+
+def netlistReduceMux(n: HlsNetNodeMux, worklist: SetList[HlsNetNode]):
+    inpCnt = len(n._inputs)
+    if inpCnt == 1:
+        # mux x = x
+        i: HlsNetNodeOut = n.dependsOn[0]
+        replaceOperatorNodeWith(n, i, worklist)
+        return True
+
+    if netlistReduceMuxConstantConditionsAndChildMuxSink(n, worklist):
+        return True
+
+    if netlistReduceMuxMergeToUserMux(n, worklist):
+        return True
+    if inpCnt == 3:
+        if netlistReduceMuxToOr(n, worklist):
+            return True
+        elif netlistReduceMuxToAndOrNot(n, worklist):
             return True
 
-    if inpCnt > 2 and inpCnt % 2 == 1:
-        if netlistReduceMuxToShift(builder, n, worklist, removed):
+    builder: HlsNetlistBuilder = n.getHlsNetlistBuilder()
+    # search large ROMs implemented as MUX
+    if inpCnt >= 3:
+        if netlistReduceMuxWitAllSameValues(n, worklist):
             return True
+
+        elif netlistReduceMuxToRom(builder, n, worklist):
+            return True
+
+    if inpCnt % 2 == 1:
+        if inpCnt >= 3:
+            if netlistReduceMuxUnnegateConditions(n, worklist):
+                return True
+
+        if inpCnt > 2:
+            if netlistReduceMuxToShift(builder, n, worklist):
+                return True
+            if netlistReduceMuxSinkIncommingValueArithOperators(n, worklist):
+                return True
 
     return False

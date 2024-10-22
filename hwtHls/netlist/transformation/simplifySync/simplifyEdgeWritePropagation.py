@@ -1,9 +1,6 @@
-from typing import Set
-
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hwIOs.std import HwIORdVldSync
 from hwt.pyUtils.setList import SetList
-from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
@@ -12,20 +9,17 @@ from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel, \
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.hdlTypeVoid import _HVoidConst, HVoidOrdering, \
     HdlType_isNonData, HdlType_isVoid
-from hwtHls.netlist.nodes.ports import unlink_hls_nodes, \
-    link_hls_nodes, unlink_hls_node_input_if_exists,\
-    unlink_hls_node_input_if_exists_with_worklist
+from hwtHls.netlist.nodes.ports import unlink_hls_node_input_if_exists_with_worklist
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.netlist.transformation.simplifyUtils import getConstDriverOf
 from hwtHls.netlist.transformation.simplifySync.reduceChannelGroup import netlistTryRemoveChannelGroup
+from hwtHls.netlist.analysis.ioOrdering import HlsNetlistAnalysisPassIoOrdering
 
 
 def netlistEdgeWritePropagation(
         dbgTracer: DebugTracer,
         writeNode: HlsNetNodeWriteAnyChannel,
-        worklist: SetList[HlsNetNode],
-        removed: Set[HlsNetNode],
-        reachDb: HlsNetlistAnalysisPassReachability) -> bool:
+        worklist: SetList[HlsNetNode]) -> bool:
     """
     Propagate a constant write to channel to a value of the read. The channel itself is not removed
     because the presence of data must be somehow notified although the value is known.
@@ -39,22 +33,22 @@ def netlistEdgeWritePropagation(
         return False
 
     r: HlsNetNodeReadAnyChannel = writeNode.associatedRead
-    if r is None or HdlType_isVoid(r._outputs[0]._dtype):
+    if r is None or HdlType_isVoid(r._portDataOut._dtype):
         return False
 
     # g = writeNode._loopChannelGroup
-    # if g is not None and g.getChannelWhichIsUsedToImplementControl() is writeNode:
+    # if g is not None and g.getChannelUsedAsControl() is writeNode:
     #    # can not remove because it has control flow purpose
     #    return False
 
     with dbgTracer.scoped(netlistEdgeWritePropagation, writeNode):
-        init = writeNode.channelInitValues
+        init = r.channelInitValues
         if init:
             if len(init) == 1:
                 # if write value is same as init allow propagation
                 if isinstance(d, HBitsConst) and len(init[0]) == 1 and int(d) == int(init[0][0]):
                     dbgTracer.log("reduce init values")
-                    writeNode.channelInitValues = ((),)
+                    r.channelInitValues = ((),)
                 elif isinstance(d, _HVoidConst) and len(init[0]) == 1  and len(init[0]) == 0:
                     # channelInitValues already in correct format
                     pass
@@ -66,18 +60,21 @@ def netlistEdgeWritePropagation(
 
         # replace data out of read with this const
         # reduce data of this backedge channel to void
-        builder: HlsNetlistBuilder = writeNode.netlist.builder
+        wBuilder: HlsNetlistBuilder = writeNode.getHlsNetlistBuilder()
+        rBuilder: HlsNetlistBuilder = r.getHlsNetlistBuilder()
 
         # sync which is using the value coming from "r"
         # dependentSync: SetList[HlsNetNodeIn] = SetList()
-        directDataSuccessors = tuple(reachDb.getDirectDataSuccessors(r))
+        directDataSuccessors = tuple(HlsNetlistAnalysisPassIoOrdering.getDirectDataSuccessors(r))
         # for user in directDataSuccessors:
-        #    if user.__class__ is HlsNetNodeExplicitSync and reachDb.doesReachTo(r._outputs[0], user._inputs[0]):
+        #    if user.__class__ is HlsNetNodeExplicitSync and reachDb.doesReachTo(r._portDataOut, user._inputs[0]):
         #        dependentSync.append(user._inputs[0])
 
         dataReplacement = writeNode.dependsOn[0]
         # replace every use of data, except for sync nodes which will be converted to void data type later
-        builder.replaceOutput(r._outputs[0], dataReplacement, True)
+        if r.usedBy[r._portDataOut.out_i]:
+            dRepl = rBuilder.buildConst(d)
+            rBuilder.replaceOutput(r._portDataOut, dRepl, True)
 
         # if dependentSync:
         #    # propagate constant behind sync
@@ -85,8 +82,8 @@ def netlistEdgeWritePropagation(
         #        for u in depSync.obj.usedBy[0]:
         #            worklist.append(u.obj)
         #        builder.replaceOutput(
-        #            depSync.obj._outputs[0], dataReplacement, True)
-        #        depSync.obj._outputs[0]._dtype = HVoidOrdering
+        #            depSync.obj._portDataOut, dataReplacement, True)
+        #        depSync.obj._portDataOut._dtype = HVoidOrdering
         #        modified = True
 
         # if modified:
@@ -109,12 +106,12 @@ def netlistEdgeWritePropagation(
             else:
                 writeNode.dst = HwIORdVldSync()
 
-        r._outputs[0]._dtype = HVoidOrdering
+        r._portDataOut._dtype = HVoidOrdering
         worklist.append(writeNode.dependsOn[0].obj)
         worklist.append(r)
-        unlink_hls_nodes(writeNode.dependsOn[0], writeNode._inputs[0])
-        c = builder.buildConst(HVoidOrdering.from_py(None))
-        link_hls_nodes(c, writeNode._inputs[0])
+        writeNode._inputs[0].disconnectFromHlsOut(dataReplacement)
+        c = wBuilder.buildConst(HVoidOrdering.from_py(None))
+        c.connectHlsIn(writeNode._inputs[0])
 
         return True
 
@@ -122,8 +119,7 @@ def netlistEdgeWritePropagation(
 def netlistEdgeWriteVoidWithoudDeps(
         dbgTracer: DebugTracer,
         writeNode: HlsNetNodeWriteAnyChannel,
-        worklist: SetList[HlsNetNode],
-        removed: Set[HlsNetNode]) -> bool:
+        worklist: SetList[HlsNetNode]) -> bool:
     if len(writeNode._inputs) != 1:
         return False
     if isinstance(writeNode, HlsNetNodeWriteBackedge) and writeNode.channelInitValues:
@@ -137,19 +133,19 @@ def netlistEdgeWriteVoidWithoudDeps(
         return False
 
     g = writeNode._loopChannelGroup
-    isControlOfG = g is not None and g.getChannelWhichIsUsedToImplementControl() is writeNode
-    if isControlOfG and not netlistTryRemoveChannelGroup(g, worklist):
+    isControlOfG = g is not None and g.getChannelUsedAsControl() is writeNode
+    if isControlOfG and not netlistTryRemoveChannelGroup(dbgTracer, g, worklist):
         # can not remove because it has control flow purpose
         return False
 
     g: LoopChanelGroup
     with dbgTracer.scoped(netlistEdgeWriteVoidWithoudDeps, writeNode):
-        builder: HlsNetlistBuilder = writeNode.netlist.builder
+        builder: HlsNetlistBuilder = writeNode.getHlsNetlistBuilder()
         netlistExplicitSyncDisconnectFromOrderingChain(dbgTracer, writeNode, worklist)
 
         dConst = writeNode.dependsOn[0]
         worklist.append(dConst.obj)
-        unlink_hls_nodes(dConst, writeNode._inputs[0])
+        writeNode._inputs[0].disconnectFromHlsOut(dConst)
         readNode = writeNode.associatedRead
         if readNode.usedBy[0]:
             dOut = readNode._output[0]
@@ -170,8 +166,8 @@ def netlistEdgeWriteVoidWithoudDeps(
         netlistExplicitSyncDisconnectFromOrderingChain(dbgTracer, readNode, worklist)
         unlink_hls_node_input_if_exists_with_worklist(readNode.skipWhen, worklist, False)
         unlink_hls_node_input_if_exists_with_worklist(readNode.extraCond, worklist, False)
-        removed.add(writeNode)
-        removed.add(readNode)
+        writeNode.markAsRemoved()
+        readNode.markAsRemoved()
         if g is not None and not isControlOfG:
             g.members.remove(writeNode)
 

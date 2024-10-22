@@ -7,9 +7,9 @@ from hwtHls.io.bram import HlsNetNodeWriteBramCmd
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement
-from hwtHls.netlist.nodes.archElementNoSync import ArchElementNoSync
-from hwtHls.netlist.nodes.read import HlsNetNodeReadIndexed
-from hwtHls.netlist.nodes.write import HlsNetNodeWriteIndexed
+from hwtHls.netlist.nodes.archElementNoImplicitSync import ArchElementNoImplicitSync
+from hwtHls.netlist.nodes.readIndexed import HlsNetNodeReadIndexed
+from hwtHls.netlist.nodes.writeIndexed import HlsNetNodeWriteIndexed
 
 
 def detectReadModifyWrite(alu: ArchElement, ram: IoProxyAddressed):
@@ -57,10 +57,9 @@ def ArchImplementStaling(netlist: HlsNetlistCtx, ram: IoProxyAddressed):
     alu: ArchElement = netlist.nodes[0]
     rClkI, _, wClkI, _, rAddr = detectReadModifyWrite(alu, ram)
     # create an element to store stalling logic
-    stallLogicElm = ArchElementNoSync.createEmptyScheduledInstance(netlist, "stallingForRam")
+    stallLogicElm = ArchElementNoImplicitSync.createEmptyScheduledInstance(netlist, "stallingForRam")
     tpc = ArchElementTermPropagationCtx({}, stallLogicElm, {})
-    builder: HlsNetlistBuilder = netlist.builder.scoped(stallLogicElm)
-    builder.operatorCache.clear()  # because we must not reuse expressions from other elements because
+    builder: HlsNetlistBuilder = stallLogicElm.builder
     # the schedule may be different
 
     hasNoAddrColision = None
@@ -85,10 +84,9 @@ def ArchImplementWriteForwarding(netlist: HlsNetlistCtx, ram: IoProxyAddressed):
     alu: ArchElement = netlist.nodes[0]
     rClkI, r, wClkI, w, rAddr = detectReadModifyWrite(alu, ram)
     # create an element to store write forwarding logic
-    stallLogicElm = ArchElementNoSync.createEmptyScheduledInstance(netlist, "writeForwardingForRam")
+    stallLogicElm = ArchElementNoImplicitSync.createEmptyScheduledInstance(netlist, "writeForwardingForRam")
     tpc = ArchElementTermPropagationCtx({}, stallLogicElm, {})
-    builder: HlsNetlistBuilder = netlist.builder.scoped(stallLogicElm)
-    builder.operatorCache.clear()  # because we must not reuse expressions from other elements because
+    builder: HlsNetlistBuilder = stallLogicElm.builder
     # the schedule may be different
 
     # if same data is loaded while previous version is not stored yet

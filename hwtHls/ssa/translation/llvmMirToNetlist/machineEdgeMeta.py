@@ -29,6 +29,16 @@ MachineEdge = Tuple[MachineBasicBlock, MachineBasicBlock]
 
 
 class MACHINE_EDGE_TYPE(Enum):
+
+    def isChannel(self):
+        return self == MACHINE_EDGE_TYPE.FORWARD or self == MACHINE_EDGE_TYPE.BACKWARD
+
+    def isPhysicallyExisting(self):
+        if self == MACHINE_EDGE_TYPE.RESET or self == MACHINE_EDGE_TYPE.DISCARDED:
+            return False
+        else:
+            return True
+
     NORMAL = 0  # an edge with no special meaning, inlined to circuit as is
     RESET = 1  # an edge which source will be used to generate reset values (this edge will ot physically exist in circuit)
     FORWARD = 2  # a normal edge which has to have explicit channel because destination needs to have separate control
@@ -41,7 +51,7 @@ class MachineEdgeMeta():
     A container for an information about the edge in Control Flow Graph
 
     :ivar inlineRstDataToEdge: an edge where values coming on this edge should be inlined as a initialization of the buffers to implement loop in circuit.
-    :ivar reuseDataAsControl: the optional register which datachannel should be used to implement this control edge
+    :ivar reuseDataAsControl: the optional register which data channel should be used to implement this control edge
     :ivar enteringLoops: loops which are entered if this control follows this edge
     :ivar reenteringLoops: loops which are reentered if this control follows this edge
     :ivar exitingLoops: loops which are exited if this control follows this edge
@@ -74,7 +84,7 @@ class MachineEdgeMeta():
 
     def loopChannelGroupAppendWrite(self, wn: HlsNetNodeWriteAnyChannel, isControl: bool):
         self.getLoopChannelGroup().appendWrite(wn, isControl)
-    
+
     def getBufferForReg(self, dReg: Union[Register, MachineEdge]) -> HlsNetNodeOut:
         assert self.etype != MACHINE_EDGE_TYPE.DISCARDED, self
         for reg, r in self.buffers:

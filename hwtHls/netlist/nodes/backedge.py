@@ -1,172 +1,83 @@
-from enum import Enum
 from itertools import zip_longest
-from typing import Optional, Generator, Union, Tuple
+from typing import Optional, Generator, Union, Tuple, Callable
 
 from hwt.code import If
 from hwt.code_utils import rename_signal
 from hwt.constants import NOT_SPECIFIED
+from hwt.hdl.const import HConst
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
-from hwt.hwIOs.hwIOStruct import HdlType_to_HwIO
-from hwt.hwIOs.hwIOStruct import HwIOStructRd, HwIOStructRdVld, HwIOStructVld
-from hwt.hwIOs.std import HwIORdVldSync, HwIOVldSync, HwIORdSync
-from hwt.hwModule import HwModule
-from hwt.mainBases import RtlSignalBase
 from hwt.pyUtils.typingFuture import override
-from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_without_registration
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
-from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, \
-    HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import OutputMinUseTimeGetter
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtLib.handshaked.builder import HsBuilder
-from hwtLib.logic.rtlSignalBuilder import RtlSignalBuilder
 
 
 class HlsNetNodeReadBackedge(HlsNetNodeRead):
     """
     The read from HLS pipeline which is binded to a buffer for data/sync on backward edge in dataflow graph.
+    
+    :ivar _rtlDataVldReg: a rtl signal or register holding data and validity signal
+    :ivar _rtlFullReg: for allocationType == CHANNEL_ALLOCATION_TYPE.REG with full port this holds a register
+        which is 1 if data was written (or there is init value) and not yet read
     """
 
-    def __init__(self, netlist:"HlsNetlistCtx", dtype: HdlType, name: Optional[str]=None):
-        HlsNetNodeRead.__init__(self, netlist, None, dtype=dtype, name=name)
-        self._rtlIoAllocated = False
+    def __init__(self, netlist:"HlsNetlistCtx", dtype: HdlType, name: Optional[str]=None, channelInitValues=()):
+        HlsNetNodeRead.__init__(self, netlist, None, dtype=dtype, name=name, channelInitValues=channelInitValues)
         self._rtlDataVldReg:Optional[Union[RtlSyncSignal, HwIO]] = None
+        self._rtlFullReg:Optional[Union[RtlSyncSignal, HwIO]] = None
 
     @override
     def getSchedulingResourceType(self):
         return self
 
     @override
-    def scheduleAlapCompaction(self, endOfLastClk:int, outputMinUseTimeGetter:Optional[OutputMinUseTimeGetter]):
+    def scheduleAlapCompaction(self,
+                               endOfLastClk:int,
+                               outputMinUseTimeGetter:Optional[OutputMinUseTimeGetter],
+                               excludeNode: Optional[Callable[[HlsNetNode], bool]]):
         if not self._inputs and not any(self.usedBy):
             # use time from backedge because this node is not connected to anything and floating freely in time
             raise AssertionError("The node must have at least ordering connection to write, it can not just freely float in time", self)
-        return HlsNetNodeRead.scheduleAlapCompaction(self, endOfLastClk, outputMinUseTimeGetter)
+        return HlsNetNodeRead.scheduleAlapCompaction(self, endOfLastClk, outputMinUseTimeGetter, excludeNode)
 
-    @override
-    def hasValidOnlyToPassFlags(self):
-        if self._rtlUseValid:
-            return False
-
-        w = self.associatedWrite
-        if w is None:
-            return False
-
-        if w.extraCond is not None and HlsNetNodeExplicitSync.hasValidOnlyToPassFlags(self):
-            return True
-
-        if w._loopChannelGroup is not None and\
-                w._loopChannelGroup.getChannelUsedAsControl() == w:
-            return True  # because we need valid for loop to know that the channel is active
-
-        return False
-
-    @override
-    def hasReadyOnlyToPassFlags(self):
-        if self._rtlUseReady or isinstance(self, HlsNetNodeReadBackedge):
-            # backedges do not require ready=read.extraCond
-            # because if ready was removed it means that ready is always 1
-            # it the write is going to be performed
-            return False
-
-        w = self.associatedWrite
-        if w is None:
-            return False
-
-        if self.extraCond is not None and\
-                HlsNetNodeExplicitSync.hasReadyOnlyToPassFlags(w):
-            # read extra cond may cause stall, and w is checking ready
-            return True
-
-        return False
-
-    def _rtlAllocDatapathIo(self):
-        """
-        Load declaration of the interface and construct its RTL signals.
-        """
-        if not self._rtlIoAllocated:
-            hasValid = self._rtlUseValid or self.hasValidOnlyToPassFlags()
-            hasReady = self._rtlUseReady or self.hasReadyOnlyToPassFlags()
-            # if (isinstance(self, HlsNetNodeRead) and self.associatedWrite._getBufferCapacity() == 0) or \
-            #        (isinstance(self, HlsNetNodeWrite) and self._getBufferCapacity() == 0):
-            #        hasValid &= self._rtlUseReady
-            #        hasReady &= self._rtlUseValid
-
-            u:HwModule = self.netlist.parentHwModule
-            assert self.src is None, (
-                "Src interface must not be yet instantiated on parent HwModule", self, self.src)
-            w = self.associatedWrite
-            assert w.dst is None, (w, w.dst)
-            dtype = self._portDataOut._dtype
-            if HdlType_isVoid(dtype):
-                if hasValid and hasReady:
-                    src = HwIORdVldSync()
-                elif hasValid:
-                    src = HwIOVldSync()
-                elif hasReady:
-                    src = HwIORdSync()
-                else:
-                    src = None
-
-            else:
-                if hasValid and hasReady:
-                    src = HwIOStructRdVld()
-                    src.T = dtype
-                elif hasValid:
-                    src = HwIOStructVld()
-                    src.T = dtype
-                elif hasReady:
-                    src = HwIOStructRd()
-                    src.T = dtype
-                else:
-                    src = HdlType_to_HwIO().apply(dtype)
-
-            if src is not None:
-                src._name = self.netlist.namePrefix + self.name
-                self.src = HwIO_without_registration(u, src, src._name)
-
-            # :note: getattr used to avoid cyclic dependencies in HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge classes
-            allocTy = getattr(w, "allocationType", None)
-            if allocTy == BACKEDGE_ALLOCATION_TYPE.IMMEDIATE:
-                w.dst = self.src
-            elif src is None:
-                w.dst = None
-            else:
-                w.dst = HwIO_without_registration(u, self.src.__copy__(), self.netlist.namePrefix + w.name)
-
-            self._rtlIoAllocated = True
-
-    def rtlAllocDataVldReg(self, allocator:"ArchElement") -> RtlSignalBase:
-        assert self.hasAnyFormOfValidPort(), self
-
+    def rtlAllocDataVldAndFullReg(self, allocator:"ArchElement") -> Tuple[Optional[Union[RtlSyncSignal, HwIO]], Optional[Union[RtlSyncSignal, HwIO]]]:
         # check if this was already allocated to support re-entrability
-        if self._rtlDataVldReg is not None:
-            return self._rtlDataVldReg
+        if self._rtlDataVldReg is not None or self._rtlFullReg is not None:
+            return self._rtlDataVldReg, self._rtlFullReg
 
         # for vldOut in (self._valid, self._validNB):
         #    if vldOut is None:
         #        continue
         #    cur = allocator.netNodeToRtl.get(vldOut)
         #    assert cur is None, (vldOut, "port should not be allocated because _rtlDataVldReg was not set yet")
-
+        hasVld = self.hasAnyFormOfValidPort()
+        hasFull = self.associatedWrite is not None and self.associatedWrite._fullPort is not None
+        dataVldReg: Optional[Union[RtlSyncSignal, HwIO]] = None
+        fullReg: Optional[Union[RtlSyncSignal, HwIO]] = None
         srcWrite: HlsNetNodeWriteBackedge = self.associatedWrite
-        dataRegName = f"{allocator.name:s}{self.name:s}"
+        dataRegName = f"{allocator.namePrefix:s}{self.name:s}"
         capacity = srcWrite._getBufferCapacity()
-        if srcWrite.allocationType == BACKEDGE_ALLOCATION_TYPE.REG and capacity > 0:
-            hadInit = bool(srcWrite.channelInitValues)
-            dataVldReg = allocator._reg(f"{dataRegName:s}_vld", BIT, def_val=int(hadInit))
-            dataVldReg.hidden = False
-        elif srcWrite.allocationType == BACKEDGE_ALLOCATION_TYPE.IMMEDIATE or capacity == 0:
+        if srcWrite.allocationType == CHANNEL_ALLOCATION_TYPE.REG and capacity == 1:
+            hadInit = bool(self.channelInitValues)
+            if hasVld:
+                dataVldReg = allocator._reg(f"{dataRegName:s}_vld", BIT, def_val=int(hadInit))
+                dataVldReg.hidden = False
+            if hasFull:
+                fullReg = allocator._reg(f"{dataRegName:s}_full", BIT, def_val=int(hadInit))
+                fullReg.hidden = False
+        elif srcWrite.allocationType == CHANNEL_ALLOCATION_TYPE.IMMEDIATE or capacity == 0:
             dataVldReg = allocator._sig(f"{dataRegName:s}_vld", BIT)
+            assert not hasFull, self
         else:
             raise NotImplementedError(self)
 
@@ -176,8 +87,20 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
             allocator.rtlRegisterOutputRtlSignal(vldOut, dataVldReg, False, False, True)
 
         self._rtlDataVldReg = dataVldReg
+        self._rtlFullReg = fullReg
 
-        return dataVldReg
+        return dataVldReg, fullReg
+
+    def _mayHappenConcurrentlyWithWrite(self):
+        w = self.associatedWrite
+        assert w is not None, self
+        rParent, rClkI = self.getParentSyncNode()
+        rParent: "ArchElement"
+        wParent, wClkI = w.getParentSyncNode()
+        if rParent is wParent:
+            return rClkI == wClkI or rParent.rtlStatesMayHappenConcurrently(rClkI, wClkI)
+        else:
+            return True
 
     @override
     def rtlAlloc(self, allocator:"ArchElement") -> TimeIndependentRtlResource:
@@ -191,7 +114,7 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
         self._rtlAllocDatapathIo()
 
         srcWrite: HlsNetNodeWriteBackedge = self.associatedWrite
-        if srcWrite is None or srcWrite.allocationType == BACKEDGE_ALLOCATION_TYPE.BUFFER:
+        if srcWrite is None or srcWrite.allocationType == CHANNEL_ALLOCATION_TYPE.BUFFER:
             # allocate as a read from buffer output interface
             return HlsNetNodeRead.rtlAlloc(self, allocator)
         else:
@@ -200,14 +123,13 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
             if self._dataVoidOut is not None:
                 HlsNetNodeRead._rtlAllocDataVoidOut(self, allocator)
 
-            init = self.associatedWrite.channelInitValues
+            init = self.channelInitValues
             assert self.name is not None, self
-            dataRegName = f"{allocator.name:s}{self.name:s}"
+            dataRegName = f"{allocator.namePrefix:s}{self.name:s}"
             dtype = dataOut._dtype
             if not HdlType_isVoid(dtype):
                 dtype = self.getRtlDataSig()._dtype
-            requiresVld = self.hasAnyFormOfValidPort()
-            if srcWrite.allocationType == BACKEDGE_ALLOCATION_TYPE.REG and srcWrite._getBufferCapacity() > 0:
+            if srcWrite.allocationType == CHANNEL_ALLOCATION_TYPE.REG and srcWrite._getBufferCapacity() > 0:
                 if init:
                     if len(init) > 1:
                         raise NotImplementedError(self, init)
@@ -222,37 +144,38 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
                     dataReg = allocator._reg(dataRegName, dtype, def_val=_init)
                     dataReg.hidden = False
             else:
-                assert srcWrite.allocationType in (BACKEDGE_ALLOCATION_TYPE.IMMEDIATE,
-                                                   BACKEDGE_ALLOCATION_TYPE.REG), srcWrite.allocationType
+                assert srcWrite.allocationType in (CHANNEL_ALLOCATION_TYPE.IMMEDIATE,
+                                                   CHANNEL_ALLOCATION_TYPE.REG), srcWrite.allocationType
                 assert not init, ("Immediate channels can not have init value", srcWrite, init)
                 dataReg = allocator._sig(dataRegName, dtype)
 
-            if requiresVld:
-                dataVldReg = self.rtlAllocDataVldReg(allocator)
+            dataVldReg, fullReg = self.rtlAllocDataVldAndFullReg(allocator)
 
             dstRead = self
             clkPeriod = self.netlist.normalizedClkPeriod
-            rTime = dstRead.scheduledOut[0]
-            rClkI = indexOfClkPeriod(rTime, clkPeriod)
+            rClkI = indexOfClkPeriod(dstRead.scheduledOut[0], clkPeriod)
             rStageCon = allocator.connections[rClkI]
-            if requiresVld:
-                if srcWrite.allocationType == BACKEDGE_ALLOCATION_TYPE.REG:
-                    wTime = srcWrite.scheduledIn[0]
-                    wClkI = indexOfClkPeriod(wTime, clkPeriod)
-                    rwMayHappenAtOnce = rClkI == wClkI or allocator.rtlStatesMayHappenConcurrently(rClkI, wClkI)
-
+            res = []
+            if fullReg is not None or dataVldReg is not None:
+                if srcWrite.allocationType == CHANNEL_ALLOCATION_TYPE.REG:
+                    rwMayHappenAtOnce = self._mayHappenConcurrentlyWithWrite()
                     if rwMayHappenAtOnce:
                         # if this may happen concurrently this is handled in rtlAlloc of write
                         pass
                     else:
                         # resolve "ready"
-                        res = dataVldReg(0)
-                        en = allocator._rtlAllocDatapathGetIoAck(self, allocator.name)
+                        if fullReg is not None:
+                            res = [fullReg(0), ]
+                        else:
+                            res = [dataVldReg(0), ]
+                        #en = allocator._rtlAllocDatapathGetIoAck(self, allocator.namePrefix)
+                        en = allocator.rtlAllocHlsNetNodeInDriverIfExists(self.extraCond)
                         if en is not None:
-                            res = If(en, res)
-                        rStageCon.stDependentDrives.append(res)
-
-                if self._rtlUseValid and not self.hasValidOnlyToPassFlags():
+                            res = [If(en.data, res), ]
+                        # rStageCon.stateChangeDependentDrives.append(res)
+                
+            if  dataVldReg is not None:
+                if self._rtlUseValid:
                     assert not self.src.vld._sig.drivers, (self, self.src.vld._sig.drivers)
                     self.src.vld(dataVldReg)
 
@@ -261,22 +184,12 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
                 # assert not self.usedBy[0], self
                 dataRegTir = allocator.netNodeToRtl[dataOut] = []
             else:
-                isReg = srcWrite.allocationType == BACKEDGE_ALLOCATION_TYPE.REG
+                isReg = srcWrite.allocationType == CHANNEL_ALLOCATION_TYPE.REG
                 dataRegTir = allocator.rtlRegisterOutputRtlSignal(dataOut, dataReg, isReg, False, True)
 
-            allocator.rtlAllocDatapathRead(self, rStageCon, [], validHasCustomDriver=True, readyHasCustomDriver=True)
+            allocator.rtlAllocDatapathRead(self, None, rStageCon, res)  # , validHasCustomDriver=True, readyHasCustomDriver=True
             self._isRtlAllocated = True
             return dataRegTir if hasNoSpecialControl else []
-
-
-class BACKEDGE_ALLOCATION_TYPE(Enum):
-    """
-    :cvar IMMEDIATE: The signal will be used as is without any buffer. This also means that the value of data is not stable and must be immediately used.
-        An extra care must be taken to prove that this kind of buffer does not create a combinational loop.
-    :cvar REG: Allocate as a DFF register. Used if it is proven that the size of buffer will be max 1 to spare HW resources and to simplify synchronization logic.
-    :cvar BUFFER: Object allocates a buffer of length specified by time difference between read/write.
-    """
-    IMMEDIATE, REG, BUFFER = range(3)
 
 
 class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
@@ -285,16 +198,12 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
 
     :ivar buffName: name which can be used to override the name of the buffer in RTL
     """
-    _PORT_ATTR_NAMES = HlsNetNodeWrite._PORT_ATTR_NAMES + ["_fullPort", "_forceWritePort"]
+    _PORT_ATTR_NAMES = HlsNetNodeWrite._PORT_ATTR_NAMES + ["_fullPort"]
 
     def __init__(self, netlist:"HlsNetlistCtx",
-                 channelInitValues=(),
                  name:Optional[str]=None,
                  mayBecomeFlushable:bool=False):
         HlsNetNodeWrite.__init__(self, netlist, None, name=name, mayBecomeFlushable=mayBecomeFlushable)
-        self.channelInitValues = channelInitValues
-        self.allocationType = BACKEDGE_ALLOCATION_TYPE.BUFFER
-        self.buffName = None
         self._loopChannelGroup: Optional["LoopChanelGroup"] = None
 
     @override
@@ -321,69 +230,78 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
         return HlsNetNodeWrite._removeOutput(self, index)
 
     @override
-    def hasValidOnlyToPassFlags(self):
-        return self.associatedRead.hasValidOnlyToPassFlags()
-
-    @override
-    def hasReadyOnlyToPassFlags(self):
-        return self.associatedRead.hasReadyOnlyToPassFlags()
-
-    @override
     def getSchedulingResourceType(self):
         return self
 
     @override
     def _getBufferCapacity(self):
-        srcWrite = self
+        # srcWrite = self
         dstRead = self.associatedRead
-        if dstRead is None or self.allocationType == BACKEDGE_ALLOCATION_TYPE.IMMEDIATE:
+        if dstRead is None or self.allocationType == CHANNEL_ALLOCATION_TYPE.IMMEDIATE:
             return 0
         assert dstRead is not None
-        dst_t = dstRead.scheduledOut[0]
-        src_t = srcWrite.scheduledIn[0]
-        assert dst_t < src_t, (self, dst_t, src_t)
+        # dst_t = dstRead.scheduledOut[0]
+        # src_t = srcWrite.scheduledIn[0]
+        # assert dst_t < src_t, (self, dst_t, src_t)
         return 1
 
-    def rtlAllocAsBuffer(self, allocator: "ArchElement", dstRead: HlsNetNodeReadBackedge):
+    def _rtlAllocRegisterReadySignal(self, allocator: "ArchElement", readySignalGetter: Callable[[], RtlSyncSignal]):
+        if self._rtlUseReady:
+            if self._ready is not None or self._readyNB is not None:
+                readySignal = readySignalGetter()
+                for rdOut in (self._ready, self._readyNB):
+                    if rdOut is None:
+                        continue
+                    allocator.rtlRegisterOutputRtlSignal(rdOut, readySignal, False, False, True)
+        else:
+            assert self._ready is None, ("If _rtlUseReady is False the the ready port should not be used because it is const 1", self)
+            assert self._readyNB is None, ("If _rtlUseReady is False the the readyNB port should not be used because it is const 1", self)
+
+    def _rtlAllocRegisterFullSignal(self, allocator: "ArchElement", full: RtlSyncSignal):
+        if self._fullPort is not None:
+            assert full is not None, ("If node has full port it should also have a valid port", self)
+            if allocator._dbgAddSignalNamesToSync:
+                full = rename_signal(allocator, full, f"{self.name:s}_full")
+            allocator.rtlRegisterOutputRtlSignal(self._fullPort, full, True, False, True)
+
+    def _rtlAllocAsBuffer(self, allocator: "ArchElement", dstRead: HlsNetNodeReadBackedge):
         """
         :note: if the write is flushable the srcWrite.dst sync signals drivers are altered
             and the code of this function does not care about it
         """
         srcWrite = self
+        dst = srcWrite.dst
         res = HlsNetNodeWrite.rtlAlloc(self, allocator)
         assert dstRead is not None
         regCnt = self._getBufferCapacity()
-        assert srcWrite.dst is not dstRead.src or (srcWrite.dst is None), (srcWrite, dstRead)
+        assert dst is not dstRead.src or (dst is None), (srcWrite, dstRead)
+        hasValid = self._rtlUseValid
+        hasReady = self._rtlUseReady
+
         if regCnt == 0:
-            assert not srcWrite._rtlUseValid and srcWrite._rtlUseReady or dstRead not in allocator._subNodes, (
-                dstRead, "Channels to same cycle in same ArchElement would create a combinational loops in sync")
+            # assert (not srcWrite._rtlUseValid and not srcWrite._rtlUseReady) or dstRead not in allocator.subNodes, (
+            #    dstRead, "Channels to same cycle in same ArchElement would create a combinational loops in sync")
             assert self._fullPort is None, self
-            if srcWrite.dst is None and dstRead.src is None:
+            if dst is None and dstRead.src is None:
                 assert HdlType_isVoid(dstRead._portDataOut._dtype), (srcWrite, dstRead)
             else:
-                dstRead.src(srcWrite.dst)
+                dstRead.src(dst)
+            vld = None
         else:
             assert regCnt >= 0, self
-            hasValid = self._rtlUseValid or self.hasValidOnlyToPassFlags()
-            hasReady = self._rtlUseReady or self.hasReadyOnlyToPassFlags()
             parentHwModule = allocator.netlist.parentHwModule
 
             for hwIO in dstRead.src._hwIOs:
                 hwIO._sig.hidden = False
-
-            forceWrite = allocator.rtlAllocHlsNetNodeInDriverIfExists(self._forceWritePort)
+            
+            channelInitValues = self.associatedRead.channelInitValues
             if hasValid and hasReady:
-                dst = srcWrite.dst
-                name = self.buffName if self.buffName else f"{allocator.name:s}n{self._id:d}"
-                
+                name = self.buffName if self.buffName else f"{allocator.namePrefix:s}n{self._id:d}"
+
                 buffs = HsBuilder(parentHwModule, dst, name)\
-                    .buff(regCnt, init_data=self.channelInitValues).end
-                
-                if forceWrite is not None:
-                    dstRead.src.connect(buffs, exclude=(buffs.rd))
-                    buffs.rd(dstRead.src.rd | forceWrite.data)
-                else:
-                    dstRead.src(buffs)
+                    .buff(regCnt, init_data=channelInitValues).end
+
+                dstRead.src(buffs)
 
                 for hwIO in buffs._hwIOs:
                     hwIO._sig.hidden = False
@@ -394,17 +312,17 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
                 hasData = not HdlType_isVoid(dstRead._portDataOut._dtype)
                 if hasData:
                     if hasReady or hasValid:
-                        data = srcWrite.dst.data
+                        data = dst.data
                     else:
-                        data = srcWrite.dst
+                        data = dst
 
-                namePrefix = f"{allocator.name:s}n{self._id:d}_"
+                namePrefix = f"{allocator.namePrefix:s}n{self._id:d}_"
                 vld = None
                 if hasValid:
-                    assert dstRead.src is not srcWrite.dst, dstRead
-                    vld = srcWrite.dst.vld
-                    assert len(self.channelInitValues) <= regCnt, self
-                    for i, initVal in zip_longest(range(regCnt), self.channelInitValues, fillvalue=NOT_SPECIFIED):
+                    assert dstRead.src is not dst, dstRead
+                    vld = dst.vld
+                    assert len(channelInitValues) <= regCnt, self
+                    for i, initVal in zip_longest(range(regCnt), channelInitValues, fillvalue=NOT_SPECIFIED):
                         if hasData:
                             if initVal is NOT_SPECIFIED:
                                 initVal = None
@@ -414,7 +332,7 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
                             data = parentHwModule._reg(f"{namePrefix:s}{i:d}_data", data._dtype,
                                                        nextSig=data, def_val=initVal)
 
-                        # vld = dstRead.rtlAllocDataVldReg(allocator)
+                        # vld, full = dstRead.rtlAllocDataVldAndFullReg(allocator)
                         vld = parentHwModule._reg(f"{namePrefix:s}{i:d}_vld", nextSig=vld,
                                                   def_val=int(initVal is not NOT_SPECIFIED))
                     if hasData:
@@ -423,8 +341,8 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
                 elif hasReady:
                     raise NotImplementedError(self)
                 elif hasData:
-                    assert dstRead.src is not srcWrite.dst, dstRead
-                    for i, initVal in zip_longest(range(regCnt), self.channelInitValues, fillvalue=NOT_SPECIFIED):
+                    assert dstRead.src is not dst, dstRead
+                    for i, initVal in zip_longest(range(regCnt), channelInitValues, fillvalue=NOT_SPECIFIED):
                         if initVal is NOT_SPECIFIED:
                             initVal = None
                         else:
@@ -434,166 +352,169 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
                                                    nextSig=data, def_val=initVal)
                     dstRead.src(data)
 
-            if self._fullPort is not None:
-                if vld is None:
-                    raise AssertionError("This channel has no form of valid but it has full which is form of valid", self)
-
-                if allocator._dbgAddSignalNamesToSync:
-                    full = rename_signal(allocator, vld, f"{self.name:s}_full")
-                else:
-                    full = vld
-                allocator.rtlRegisterOutputRtlSignal(self._fullPort, full, True, False, True)
+        # self._rtlAllocRegisterReadySignal(allocator, lambda: dst.rd)
+        self._rtlAllocRegisterFullSignal(allocator, vld)
 
         return res
 
-    @override
-    def rtlAlloc(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
-        """
-        :note: If allocationType is BACKEDGE_ALLOCATION_TYPE.REG the registers are always allocated in the time
-            of read. If read and write may happen in different times
-            the creates a logic which will reset the validity bit of this reg.
-        """
-        assert not self._isRtlAllocated, self
-        dstRead: HlsNetNodeReadBackedge = self.associatedRead
-        dstRead._rtlAllocDatapathIo()
+    def _rtlAllocAsRegOrImmediate(self, allocator: "ArchElement", dstRead: HlsNetNodeReadBackedge):
         srcWrite = self
         clkPeriod = allocator.netlist.normalizedClkPeriod
         wTime = srcWrite.scheduledIn[0]
         rTime = dstRead.scheduledOut[0]
         wClkI = indexOfClkPeriod(wTime, clkPeriod)
         rClkI = indexOfClkPeriod(rTime, clkPeriod)
+        assert dstRead in allocator.subNodes, (
+            self, allocator, "If this backedge is not buffer both write and read must be in same element")
 
-        # isForwardEdge = wTime < rTime
-        if self.allocationType == BACKEDGE_ALLOCATION_TYPE.BUFFER:
-            res = self.rtlAllocAsBuffer(allocator, dstRead)
-
+        hasOnlyVoidData = HdlType_isVoid(self.dependsOn[0]._dtype)
+        # :var dataDst: the signal which holds the value which is an output of an associated read
+        # :var dataSrc: the signal which holds the value which is an input to this write
+        if hasOnlyVoidData:
+            dataDst = dataSrc = None
         else:
-            if self._isFlushable:
-                raise NotImplementedError(self)
-            assert dstRead in allocator._subNodes, (
-                self, allocator, "If this backedge is not buffer both write and read must be in same element")
-
-            hasOnlyVoidData = HdlType_isVoid(self.dependsOn[0]._dtype)
-            # :var dataDst: the signal which holds the value which is an output of an associated read
-            # :var dataSrc: the signal which holds the value which is an input to this write
-            if hasOnlyVoidData:
-                dataDst = dataSrc = None
+            rData: TimeIndependentRtlResource = allocator.rtlAllocHlsNetNodeOut(self.associatedRead._portDataOut)
+            src = allocator.rtlAllocHlsNetNodeOut(self.dependsOn[0])
+            if HdlType_isVoid(self.dependsOn[0]._dtype):
+                dataSrc = 1
             else:
-                rData: TimeIndependentRtlResource = allocator.rtlAllocHlsNetNodeOut(self.associatedRead._portDataOut)
-                src = allocator.rtlAllocHlsNetNodeOut(self.dependsOn[0])
-                if HdlType_isVoid(self.dependsOn[0]._dtype):
-                    dataSrc = 1
+                dataSrc = src.get(wTime).data
+
+            dataDst = rData.get(rTime).data
+
+        # the value is not cleared properly on read if it is not written
+        vldDst, fullReg = dstRead.rtlAllocDataVldAndFullReg(allocator)
+        wEn = allocator.rtlAllocHlsNetNodeInDriverIfExists(self.extraCond)
+        # wEn = allocator._rtlAllocDatapathGetIoAck(self, allocator.namePrefix)
+        #forceEn = allocator.rtlAllocHlsNetNodeInDriverIfExists(self._forceEnPort)
+        if wEn is not None:
+            wEn = wEn.data
+        #if wEn is None:
+        #    if forceEn is not None:
+        #        wEn = forceEn.data
+        #elif forceEn is not None:
+        #    wEn = wEn.data | forceEn.data
+        #else:
+        #    wEn = wEn.data
+
+        isReg = self.allocationType == CHANNEL_ALLOCATION_TYPE.REG
+        rwMayHappenAtOnce = rClkI == wClkI or allocator.rtlStatesMayHappenConcurrently(rClkI, wClkI)
+        wStageCon: ConnectionsOfStage = allocator.connections[wClkI]
+
+        if wEn is None:
+            # write is always active
+            res = []
+            if vldDst is not None:
+                res.append(vldDst(1))
+            if fullReg is not None:
+                assert isReg, self
+                res.append(fullReg(1))
+            if dataDst is not None:
+                res.append(dataDst(dataSrc))
+            # if isRegWithCapacity:
+            #    wStageCon.stateChangeDependentDrives.extend(res)
+        else:
+            if isReg:
+                if rwMayHappenAtOnce:
+                    assert dstRead in allocator.subNodes, ("If this is REG this the other side of port must be in the same ArchElement")
+                    rEn = allocator.rtlAllocHlsNetNodeInDriverIfExists(dstRead.extraCond)
+                    if rEn is not None:
+                        rEn = rEn.data
+                    #rEn = allocator._rtlAllocDatapathGetIoAck(dstRead, allocator.namePrefix)
                 else:
-                    dataSrc = src.get(wTime).data
+                    rEn = None
 
-                dataDst = rData.get(rTime).data
-
-            # the value is not cleared properly on read if it is not written
-            if dstRead.hasAnyFormOfValidPort():
-                vldDst = dstRead.rtlAllocDataVldReg(allocator)
-            else:
-                vldDst = None
-
-            wEn = allocator._rtlAllocDatapathGetIoAck(self, allocator.name)
-            forceWrite = allocator.rtlAllocHlsNetNodeInDriverIfExists(self._forceWritePort)
-            if forceWrite is not None:
-                wEn = wEn | forceWrite.data
-    
-            isReg = self.allocationType == BACKEDGE_ALLOCATION_TYPE.REG
-            isRegWithCapacity = isReg and self._getBufferCapacity() > 0
-            rwMayHappenAtOnce = rClkI == wClkI or allocator.rtlStatesMayHappenConcurrently(rClkI, wClkI)
-            wStageCon: ConnectionsOfStage = allocator.connections[wClkI]
-
-            if dstRead.hasValidOnlyToPassFlags():
-                assert not dstRead.src.vld._sig.drivers, (self, dstRead.src.vld._sig.drivers)
-                _wEn = RtlSignalBuilder.buildAndOptional(wEn, wStageCon.getRtlStageEnableSignal())
-                dstRead.src.vld(1 if _wEn is None else _wEn)
-
-            if wEn is None:
-                res = []
-                if vldDst is not None:
-                    res.append(vldDst(1))
-                if dataDst is not None:
-                    res.append(dataDst(dataSrc))
-                if isRegWithCapacity:
-                    wStageCon.stDependentDrives.extend(res)
-            else:
-                if isReg:
-                    if rwMayHappenAtOnce:
-                        if dstRead not in allocator._subNodes:
-                            raise NotImplementedError()
-                        rEn = allocator._rtlAllocDatapathGetIoAck(dstRead, allocator.name)
+                assert vldDst is not None or dataDst is not None or fullReg is not None, self
+                # :attention: HlsArchPassSyncLowering may replace original valid/validNB. 
+                #   If read was blocking the parent syncNode is stalling while not full.
+                #   if read was non-blocking the valid/validNB is replaced with validNB & full
+                #   this expression is captured in register directly after clock window with read.
+                if fullReg is None:
+                    regToSignalizeFull = vldDst
+                else:
+                    regToSignalizeFull = fullReg
+                if isinstance(wEn, HConst):
+                    if wEn:
+                        res = [
+                            fullReg(1) if fullReg is not None else (),
+                            vldDst(1) if vldDst is not None else (),
+                            dataDst(dataSrc) if dataDst is not None else (),
+                        ]
                     else:
-                        rEn = None
-
-                    if vldDst is not None:
-                        if dataDst is not None:
-
-                            res = If(wEn,
-                                    vldDst(1),
-                                    dataDst(dataSrc),
-                                  )
+                        if regToSignalizeFull is not None and rwMayHappenAtOnce:
+                            # clear fullReg if read is performed
                             if rEn is None:
-                                res = res.Else(
-                                        vldDst(0),
-                                        dataDst(None)
-                                      )
+                                # read is always performed
+                                res = [regToSignalizeFull(0), ]
                             else:
-                                res = res.Elif(rEn,
-                                        vldDst(0),
-                                        dataDst(None)
-                                      )
-                            res = [res, ]
-                        else:
-                            if rEn is None:
-                                res = [vldDst(wEn), ]
-                            else:
-                                res = [vldDst(wEn | (vldDst & ~rEn)), ]
-
-                    else:
-                        if dataDst is not None:
-                            res = If(wEn,
-                                    dataDst(dataSrc),
-                                  )
-                            if rEn is None:
-                                res = res.Else(
-                                        dataDst(None)
-                                      )
-                            else:
-                                res = res.Elif(rEn,
-                                        dataDst(None)
-                                      )
-                            res = [res]
+                                res = [
+                                    If(rEn,
+                                        regToSignalizeFull(0),
+                                    ),
+                                ]
                         else:
                             res = []
-                    if isRegWithCapacity:
-                        wStageCon.stDependentDrives.extend(res)
                 else:
-                    assert self.allocationType == BACKEDGE_ALLOCATION_TYPE.IMMEDIATE, self.allocationType
-                    if dataDst is None:
-                        res = []
-                    else:
-                        assert dataDst._dtype == BIT, ("This was only intended for control", dataDst, dataDst._dtype)
-                        res = [dataDst(dataSrc & wEn)]
-
-                    if vldDst is not None:
-                        assert vldDst._nop_val is NOT_SPECIFIED, (vldDst, vldDst._nop_val)
-                        vldDst._nop_val = vldDst._dtype.from_py(0)
-                        _res = vldDst(wEn)
-                        wStageCon.stDependentDrives.append(_res)
-                        res.append(_res)
-
-            if self._fullPort is not None:
-                if vldDst is None:
-                    raise NotImplementedError()
+                    res = If(wEn,
+                             fullReg(1) if fullReg is not None else (),
+                             vldDst(1) if vldDst is not None else (),
+                             dataDst(dataSrc) if dataDst is not None else (),
+                          )
+                    if regToSignalizeFull is not None and rwMayHappenAtOnce:
+                        # clear fullReg if read is performed
+                        if rEn is None:
+                            # read is always performed
+                            res = res.Else(
+                                    regToSignalizeFull(0),
+                                  )
+                        else:
+                            res = res.Elif(rEn,
+                                    regToSignalizeFull(0),
+                                  )
+                    res = [res, ]
+                # if isRegWithCapacity:
+                #    wStageCon.stateChangeDependentDrives.extend(res)
+            else:
+                assert self.allocationType == CHANNEL_ALLOCATION_TYPE.IMMEDIATE, self.allocationType
+                if dataDst is None:
+                    res = []
                 else:
-                    if allocator._dbgAddSignalNamesToSync:
-                        full = rename_signal(allocator, vldDst, f"{self.name:s}_full")
-                    else:
-                        full = vldDst
-                    allocator.rtlRegisterOutputRtlSignal(self._fullPort, full, True, False, True)
+                    assert dataDst._dtype == BIT, ("This was only intended for control", dataDst, dataDst._dtype)
+                    res = [dataDst(dataSrc & wEn)]
 
-            allocator.rtlAllocDatapathWrite(self, wStageCon, [], validHasCustomDriver=True, readyHasCustomDriver=True)
+                if vldDst is not None:
+                    assert vldDst._nop_val is NOT_SPECIFIED, (vldDst, vldDst._nop_val)
+                    vldDst._nop_val = vldDst._dtype.from_py(0)
+                    _res = vldDst(wEn)
+                    # wStageCon.stateChangeDependentDrives.append(_res)
+                    res.append(_res)
+
+        self._rtlAllocRegisterReadySignal(allocator, lambda:~vldDst | rEn if rwMayHappenAtOnce else ~vldDst)
+        self._rtlAllocRegisterFullSignal(allocator, vldDst if fullReg is None else fullReg)
+
+        # vldDst is not provided to rtlAllocDatapathWrite because it has custom driver in res
+        allocator.rtlAllocDatapathWrite(self, None, wStageCon, res)
+        return res
+
+    @override
+    def rtlAlloc(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
+        """
+        :note: If allocationType is CHANNEL_ALLOCATION_TYPE.REG the registers are always allocated in the time
+            of read. If read and write may happen in different times
+            the creates a logic which will reset the validity bit of this reg.
+        """
+        assert not self._isRtlAllocated, self
+        assert self.skipWhen is None, ("skipWhen should have been lowered during HlsArchPassSyncLowering", self)
+        assert self._forceEnPort is None, ("forceEnPort should have been lowered during HlsArchPassSyncLowering", self)
+
+        dstRead: HlsNetNodeReadBackedge = self.associatedRead
+        dstRead._rtlAllocDatapathIo()
+
+        # isForwardEdge = wTime < rTime
+        if self.allocationType == CHANNEL_ALLOCATION_TYPE.BUFFER:
+            res = self._rtlAllocAsBuffer(allocator, dstRead)
+        else:
+            res = self._rtlAllocAsRegOrImmediate(allocator, dstRead)
 
         allocator.netNodeToRtl[self] = res
         self._isRtlAllocated = True

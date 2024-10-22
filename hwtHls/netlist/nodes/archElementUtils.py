@@ -2,17 +2,16 @@ from itertools import chain, zip_longest
 from typing import Optional, Dict
 
 from hwt.pyUtils.setList import SetList
-from hwtHls.netlist.analysis.detectFsms import IoFsm
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
-from hwtHls.netlist.nodes.ports import unlink_hls_nodes, HlsNetNodeIn, \
+from hwtHls.netlist.nodes.ports import HlsNetNodeIn, \
     HlsNetNodeOut
 
 
 def ArchElement_mergePorts(srcElm: ArchElement, dstElm: ArchElement):
-    builder: HlsNetlistBuilder = dstElm.netlist.builder
+    builder: HlsNetlistBuilder = dstElm.getHlsNetlistBuilder()
     # dictionary mapping external output to some existing input on dstElm
     outIndexOffset = len(dstElm._outputs)
     for o in srcElm._outputs:
@@ -28,11 +27,16 @@ def ArchElement_mergePorts(srcElm: ArchElement, dstElm: ArchElement):
 
     dstElm._inputs.extend(srcElm._inputs)
     dstElm._inputsInside.extend(srcElm._inputsInside)
+    for ii in srcElm._inputsInside:
+        ii.parent = dstElm
     dstElm.dependsOn.extend(srcElm.dependsOn)
     dstElm.scheduledIn = tuple(chain(dstElm.scheduledIn, srcElm.scheduledIn))
     dstElm._outputs.extend(srcElm._outputs)
     dstElm.usedBy.extend(srcElm.usedBy)
     dstElm._outputsInside.extend(srcElm._outputsInside)
+    for oi in srcElm._outputsInside:
+        oi.parent = dstElm
+
     dstElm.scheduledOut = tuple(chain(dstElm.scheduledOut, srcElm.scheduledOut))
 
     # prune self loops, de-duplicate ports
@@ -46,7 +50,7 @@ def ArchElement_mergePorts(srcElm: ArchElement, dstElm: ArchElement):
             # the driver is declared directly in dstNode, use it directly instead using aggregate port
             dstInternOut = dstElm._outputsInside[outerDep.out_i]
             builder.replaceOutput(internIn._outputs[0], dstInternOut.dependsOn[0], True)
-            unlink_hls_nodes(outerDep, outerIn)
+            outerIn.disconnectFromHlsOut(outerDep)
             inputsToRemove.append(outerIn)
             continue
 
@@ -63,7 +67,7 @@ def ArchElement_mergePorts(srcElm: ArchElement, dstElm: ArchElement):
             dstInternIn = dstElm._inputsInside[existingIn.in_i]
             dstInternIn._setScheduleZero(t)
             builder.replaceOutput(internIn._outputs[0], dstInternIn._outputs[0], True)
-            unlink_hls_nodes(outerDep, outerIn)
+            outerIn.disconnectFromHlsOut(outerDep)
             inputsToRemove.append(outerIn)
 
     dstElm.scheduledIn = tuple(dstElm.scheduledIn)
@@ -74,27 +78,25 @@ def ArchElement_mergePorts(srcElm: ArchElement, dstElm: ArchElement):
     for o, aggregateOutPort, uses in tuple(zip(dstElm._outputs, dstElm._outputsInside, dstElm.usedBy)):
         if uses:
             continue
-        unlink_hls_nodes(aggregateOutPort.dependsOn[0], aggregateOutPort._inputs[0])
+        aggregateOutPort._inputs[0].disconnectFromHlsOut(aggregateOutPort.dependsOn[0])
         assert dstElm._outputs[o.out_i] is o
         dstElm._removeOutput(o.out_i)
 
 
 def ArchElement_mergeFsms(src: ArchElementFsm, dst: ArchElementFsm):
-    srcFsm: IoFsm = src.fsm
-    dstFsm: IoFsm = dst.fsm
+    assert not dst._isMarkedRemoved, dst
+    assert not src._isMarkedRemoved, src
 
-    dstFsm.syncIslands.extend(srcFsm.syncIslands)
-    # rename FSM states in FSM to match names in dst
-    for clkI, srcSt in enumerate(srcFsm.states):
-        dstSt = dstFsm.addState(clkI)
-        dstSt.extend(srcSt)
+    dst.fsm.mergeFsm(src.fsm)
+    for clkI, _ in src.iterStages():
         srcConnections = src.connections[clkI]
         if srcConnections is not None:
             dst.connections[clkI].merge(srcConnections)
-
-    dst._subNodes.extend(src._subNodes)
+    dst.subNodes.extend(src.subNodes)
+    for n in src.subNodes:
+        n.parent = dst
     ArchElement_mergePorts(src, dst)
-    dstFsm.hwIO = None  # because there are now 2 interfaces and thus this FSM is not associated with a single io
+    src.markAsRemoved()
     src.destroy()
 
 
@@ -103,15 +105,18 @@ def ArchElement_mergePipeToFsm(src: ArchElementPipeline,
     for c in src.connections:
         assert c is None or not c.signals, ("RTL for this element should not yet be instantiated", src)
 
-    dstFsm: IoFsm = dst.fsm
-    dstFsm.syncIslands.append(src.syncIsland)
+    raise NotImplementedError()
+    dstFsm = dst.fsm
     for clkI, nodes in enumerate(src.stages):
         dstSt = dstFsm.addState(clkI)
         dstSt.extend(nodes)
         dst.connections[clkI].merge(src.connections[clkI])
 
-    dst._subNodes.extend(src._subNodes)
+    dst.subNodes.extend(src.subNodes)
+    for n in src.subNodes:
+        n.parent = dst
     ArchElement_mergePorts(src, dst)
+    src.markAsRemoved()
     src.destroy()
 
 
@@ -120,12 +125,14 @@ def ArchElement_mergePipeline(src: ArchElementPipeline,
     for c in src.connections:
         assert c is None or not c.signals, ("RTL for this element should not yet be instantiated", src)
 
+    raise NotImplementedError()
     for srcNodes, dstNodes in zip_longest(src.stages, dst.stages):
         if srcNodes:
             dstNodes.extend(srcNodes)
 
-    dst._subNodes.extend(src._subNodes)
+    dst.subNodes.extend(src.subNodes)
     ArchElement_mergePorts(src, dst)
+    src.markAsRemoved()
     src.destroy()
 
 

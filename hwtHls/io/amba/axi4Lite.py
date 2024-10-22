@@ -1,12 +1,12 @@
 
 from functools import lru_cache
-from typing import Union, Tuple, Sequence
+from typing import Union, Tuple, Sequence, Optional
 
+from hwt.hdl.const import HConst
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.const import HConst
-from hwt.hwIOs.std import HwIOBramPort_noClk
 from hwt.hwIOs.hwIOStruct import HwIO_to_HdlType
+from hwt.hwIOs.std import HwIOBramPort_noClk
 from hwt.math import log2ceil
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.statementsRead import HlsReadAddressed
@@ -15,12 +15,12 @@ from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
 from hwtHls.llvm.llvmIr import LoadInst, Register
 from hwtHls.llvm.llvmIr import MachineInstr
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.hdlTypeVoid import HVoidExternData
-from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes
+from hwtHls.netlist.nodes.archElement import ArchElement
+from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.ssa.translation.llvmMirToNetlist.insideOfBlockSyncTracker import InsideOfBlockSyncTracker
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
@@ -50,6 +50,7 @@ class HlsReadAxi4Lite(HlsReadAddressed):
     def _constructAddrWrite(cls,
             netlist: HlsNetlistCtx,
             mirToNetlist:HlsNetlistAnalysisPassMirToNetlist,
+            parent: ArchElement,
             mbSync:MachineBasicBlockMeta,
             addr: Axi4Lite_addr,
             addrVal: HlsNetNodeOutAny,
@@ -58,17 +59,17 @@ class HlsReadAxi4Lite(HlsReadAddressed):
             cond:Union[int, HlsNetNodeOutAny]):
 
         if isinstance(prot, int):
-            prot = netlist.builder.buildConst(addr.prot._dtype.from_py(prot))
+            prot = parent.builder.buildConst(addr.prot._dtype.from_py(prot))
 
-        aVal = netlist.builder.buildConcat(HBits(offsetWidth).from_py(0), addrVal, prot)
+        aVal = parent.builder.buildConcat(HBits(offsetWidth).from_py(0), addrVal, prot)
 
         aNode = HlsNetNodeWrite(netlist, addr)
-        link_hls_nodes(aVal, aNode._inputs[0])
+        parent.addNode(aNode)
+        aVal.connectHlsIn(aNode._inputs[0])
 
-        mirToNetlist._addExtraCond(aNode, cond, mbSync.blockEn)
-        mirToNetlist._addSkipWhen_n(aNode, cond, mbSync.blockEn)
+        mirToNetlist._addExtraCond(aNode, cond, None)
+        mirToNetlist._addSkipWhen_n(aNode, cond, None)
         mbSync.addOrderedNode(aNode)
-        mirToNetlist.outputs.append(aNode)
         return aNode
 
     @staticmethod
@@ -79,18 +80,17 @@ class HlsReadAxi4Lite(HlsReadAddressed):
         """
         eddo = n0._addOutput(HVoidExternData, "externalDataDep")
         eddi = n1._addInput("externalDataDep")
-        link_hls_nodes(eddo, eddi)
+        eddo.connectHlsIn(eddi)
 
     @classmethod
     def _translateMirToNetlist(cls,
             representativeReadStm: "HlsReadAxi4Lite",
             mirToNetlist:HlsNetlistAnalysisPassMirToNetlist,
-            syncTracker: InsideOfBlockSyncTracker,
-            mbSync:MachineBasicBlockMeta,
+            mbMeta:MachineBasicBlockMeta,
             instr:LoadInst,
             srcIo:Axi4Lite,
             index:Union[int, HlsNetNodeOutAny],
-            cond:HlsNetNodeOutAny,
+            cond: Optional[HlsNetNodeOutAny],
             instrDstReg:Register) -> Sequence[HlsNetNode]:
 
         if not representativeReadStm._isBlocking:
@@ -103,19 +103,22 @@ class HlsReadAxi4Lite(HlsReadAddressed):
         if isinstance(index, int):
             raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", srcIo, instr)
 
-        _cond = syncTracker.resolveControlOutput(cond)
-        aNode = cls._constructAddrWrite(netlist, mirToNetlist, mbSync, srcIo.ar, index, proxy.offsetWidth, PROT_DEFAULT, _cond)
+        _cond = cond  # mbMeta.syncTracker.resolveControlOutput(cond)
+        aNode = cls._constructAddrWrite(netlist, mirToNetlist, mbMeta.parentElement,
+                                        mbMeta, srcIo.ar, index, proxy.offsetWidth, PROT_DEFAULT, _cond)
         if proxy.LATENCY_AR_TO_R:
-            mbSync.addOrderingDelay(proxy.LATENCY_AR_TO_R)
+            mbMeta.addOrderingDelay(proxy.LATENCY_AR_TO_R)
+        else:
+            _cond = mbMeta.parentElement.buildAndOptional(_cond, aNode.getReadyNB())
 
         rNode = HlsNetNodeRead(netlist, srcIo.r)
+        mbMeta.parentElement.addNode(rNode)
+        mbMeta.addOrderedNode(rNode)
         HlsReadAxi4Lite._connectUsingExternalDataDep(aNode, rNode)
 
-        mirToNetlist._addExtraCond(rNode, _cond, mbSync.blockEn)
-        mirToNetlist._addSkipWhen_n(rNode, _cond, mbSync.blockEn)
-        mbSync.addOrderedNode(rNode)
-        mirToNetlist.inputs.append(rNode)
-        rDataO = rNode._outputs[0]
+        mirToNetlist._addExtraCond(rNode, _cond, None)
+        mirToNetlist._addSkipWhen_n(rNode, _cond, None)
+        rDataO = rNode._portDataOut
 
         rWordWidth = representativeReadStm._getNativeInterfaceWordType().bit_length()
         nativeWordWidth = proxy.nativeType.element_t.bit_length()
@@ -123,12 +126,13 @@ class HlsReadAxi4Lite(HlsReadAddressed):
             # the read data is larger because pointer representing IO is pointing to a larger word
             # because write is using larger word and this must be the same pointer for reads and writes
             # :note: The next node which uses data output should be the slice to correct width.
-            padding = netlist.builder.buildConst(HBits(nativeWordWidth - rWordWidth).from_py(None))
-            rDataO = netlist.builder.buildConcat(rDataO, padding)
+            builder = mbMeta.parentElement.builder
+            padding = builder.buildConst(HBits(nativeWordWidth - rWordWidth).from_py(None))
+            rDataO = builder.buildConcat(rDataO, padding)
         else:
             assert rWordWidth == nativeWordWidth
 
-        valCache.add(mbSync.block, instrDstReg, rDataO, True)
+        valCache.add(mbMeta.block, instrDstReg, rDataO, True)
 
         return [aNode, rNode]
 
@@ -141,8 +145,9 @@ class HlsWriteAxi4Lite(HlsWriteAddressed):
             src:Union[SsaValue, HConst],
             dst:Union[HwIOBramPort_noClk, Tuple[HwIOBramPort_noClk]],
             index:Union[SsaValue, RtlSignal, HConst],
-            element_t:HdlType):
-        HlsWriteAddressed.__init__(self, parent, src, dst, index, element_t)
+            element_t:HdlType,
+            mayBecomeFlushable=False):
+        HlsWriteAddressed.__init__(self, parent, src, dst, index, element_t, mayBecomeFlushable)
         self.parentProxy = parentProxy
 
     @lru_cache(maxsize=None, typed=True)
@@ -154,44 +159,49 @@ class HlsWriteAxi4Lite(HlsWriteAddressed):
     def _translateMirToNetlist(cls,
             representativeWriteStm: "HlsWriteAxi4Lite",
             mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
-            syncTracker: InsideOfBlockSyncTracker,
-            mbSync: MachineBasicBlockMeta,
+            mbMeta: MachineBasicBlockMeta,
             instr: MachineInstr,
             srcVal: HlsNetNodeOutAny,
             dstIo: Axi4Lite,
             index: Union[int, HlsNetNodeOutAny],
-            cond: Union[int, HlsNetNodeOutAny]) -> Sequence[HlsNetNode]:
+            cond: Optional[HlsNetNodeOutAny]) -> Sequence[HlsNetNode]:
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         assert isinstance(dstIo, Axi4Lite), dstIo
         if isinstance(index, int):
             raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", dstIo, instr)
-        _cond = syncTracker.resolveControlOutput(cond)
+        _cond = cond
+        #_cond = mbMeta.syncTracker.resolveControlOutput(cond)
         proxy:Axi4LiteArrayProxy = representativeWriteStm.parentProxy
         aNode = HlsReadAxi4Lite._constructAddrWrite(
-            netlist, mirToNetlist, mbSync, dstIo.aw, index,
+            netlist, mirToNetlist, mbMeta.parentElement, mbMeta, dstIo.aw, index,
             proxy.offsetWidth, PROT_DEFAULT, _cond)
 
         if proxy.LATENCY_AW_TO_W:
-            mbSync.addOrderingDelay(proxy.LATENCY_AW_TO_W)
+            mbMeta.addOrderingDelay(proxy.LATENCY_AW_TO_W)
+        else:
+            _cond = mbMeta.parentElement.builder.buildAndOptional(_cond, aNode.getReadyNB())
+
         wNode = HlsNetNodeWrite(netlist, dstIo.w)
+        mbMeta.parentElement.addNode(wNode)
         HlsReadAxi4Lite._connectUsingExternalDataDep(aNode, wNode)
         assert srcVal._dtype.bit_length() == proxy.wWordT.bit_length(), (dstIo, srcVal._dtype, dstIo.DATA_WIDTH)
-        link_hls_nodes(srcVal, wNode._inputs[0])
+        srcVal.connectHlsIn(wNode._inputs[0])
 
-        mirToNetlist._addExtraCond(wNode, _cond, mbSync.blockEn)
-        mirToNetlist._addSkipWhen_n(wNode, _cond, mbSync.blockEn)
-        mbSync.addOrderedNode(wNode)
-        mirToNetlist.outputs.append(wNode)
+        mirToNetlist._addExtraCond(wNode, _cond, None)
+        mirToNetlist._addSkipWhen_n(wNode, _cond, None)
+        mbMeta.addOrderedNode(wNode)
         if proxy.LATENCY_W_TO_B:
-            mbSync.addOrderingDelay(proxy.LATENCY_W_TO_B)
+            mbMeta.addOrderingDelay(proxy.LATENCY_W_TO_B)
+        else:
+            _cond = mbMeta.parentElement.buildAndOptional(_cond, aNode.getReadyNB())
 
         bNode = HlsNetNodeRead(netlist, dstIo.b)
+        mbMeta.parentElement.addNode(bNode)
         HlsReadAxi4Lite._connectUsingExternalDataDep(wNode, bNode)
 
-        mirToNetlist._addExtraCond(bNode, _cond, mbSync.blockEn)
-        mirToNetlist._addSkipWhen_n(bNode, _cond, mbSync.blockEn)
-        mbSync.addOrderedNode(bNode)
-        mirToNetlist.inputs.append(bNode)
+        mirToNetlist._addExtraCond(bNode, _cond, None)
+        mirToNetlist._addSkipWhen_n(bNode, _cond, None)
+        mbMeta.addOrderedNode(bNode)
 
         return [aNode, wNode, bNode]
 

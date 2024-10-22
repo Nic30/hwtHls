@@ -1,15 +1,13 @@
-from typing import Set
-
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.defs import SLICE
 from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith
+from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOperatorNodeWith
 
 
-def netlistReduceIndexOnIndex(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
+def netlistReduceIndexOnIndex(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
     assert n.operator is HwtOps.INDEX, n
     srcObj = n.dependsOn[0].obj
     indxObj = n.dependsOn[1].obj
@@ -21,7 +19,7 @@ def netlistReduceIndexOnIndex(n: HlsNetNodeOperator, worklist: SetList[HlsNetNod
         i1 = indxObj.val
         i0 = srcObj.dependsOn[1].obj.val
         newSrc = srcObj.dependsOn[0]
-        # flatten newSrc[i0][i1]
+        # flatten newSrc[i0h:i0l][i1h:i1l] -> newSrc[i0l+i1h: i0l+i1l]
         if i0._dtype == i1._dtype:
             if i0._dtype == SLICE:
                 i0 = i0.to_py()
@@ -32,8 +30,12 @@ def netlistReduceIndexOnIndex(n: HlsNetNodeOperator, worklist: SetList[HlsNetNod
                 offset = i0.stop + i1.stop
                 w = i1.start - i1.stop
                 assert w > 0, i1
-                newOut = n.netlist.builder.buildIndexConstSlice(curOut._dtype, newSrc, w + offset, offset, worklist)
-                replaceOperatorNodeWith(n, newOut, worklist, removed)
+                newOut = n.getHlsNetlistBuilder().buildIndexConstSlice(
+                    curOut._dtype, newSrc,
+                    offset + w,
+                    offset,
+                    worklist)
+                replaceOperatorNodeWith(n, newOut, worklist)
 
                 return True
 

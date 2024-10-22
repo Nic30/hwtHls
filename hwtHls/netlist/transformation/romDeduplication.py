@@ -1,9 +1,10 @@
-from typing import Dict
+from typing import Dict, Union
 
 from hwt.hdl.types.array import HArray
 from hwt.hdl.types.arrayConst import HArrayConst
 from hwt.pyUtils.typingFuture import override
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
@@ -17,12 +18,10 @@ class HlsNetlistPassRomDeduplication(HlsNetlistPass):
     :note: Used after scheduling to remove code duplication.
     """
 
-    @override
-    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
-        builder = netlist.builder
+    def _runOnNodes(self, parent: Union[HlsNetlistCtx, HlsNetNodeAggregate]) -> bool:
+        changed = False
         constCache: Dict[HArrayConst, HlsNetNodeOut] = {}
-        removed = set()
-        for n in netlist.nodes:
+        for n in parent.subNodes:
             if isinstance(n, HlsNetNodeConst):
                 n: HlsNetNodeConst
                 v = n.val
@@ -32,11 +31,24 @@ class HlsNetlistPassRomDeduplication(HlsNetlistPass):
                     if cur is None:
                         constCache[v] = o
                     else:
-                        builder.replaceOutput(o, cur, True)
+                        n.getHlsNetlistBuilder().replaceOutput(o, cur, True)
                         assert not n._inputs, n
-                        removed.add(n)
-        if removed:
-            netlist.filterNodesUsingSet(removed)
+                        n.markAsRemoved()
+                        changed = True
+
+            elif isinstance(n, HlsNetNodeAggregate):
+                changed |= self._runOnNodes(n)
+
+        if parent.builder._removedNodes:
+            parent.filterNodesUsingRemovedSet(recursive=False)
+            changed = True
+
+        return changed
+
+    @override
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
+        changed = self._runOnNodes(netlist)
+        if changed:
             return PreservedAnalysisSet.preserveScheduling()
         else:
             return PreservedAnalysisSet.preserveAll()

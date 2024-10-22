@@ -10,13 +10,12 @@ from hwtHls.netlist.nodes.archElementNoImplicitSync import ArchElementNoImplicit
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
     HlsNetNodeReadBackedge
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn, \
-    unlink_hls_nodes
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.scheduler.clk_math import start_clk
 from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
 
-class RtlArchPassLoopControlPrivatization(HlsArchPass):
+class HlsArchPassLoopControlPrivatization(HlsArchPass):
     """
     This transformation tries to extract loop control scheme from strongly connected component of ArchElement instances.
     The goal is to write to control channels more early if possible to allow execution of another loop body iteration before
@@ -27,6 +26,9 @@ class RtlArchPassLoopControlPrivatization(HlsArchPass):
         (in :class:`hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist.HlsNetlistAnalysisPassMirToNetlist`).
         This extra ordering info is required for FSM reconstruction. Without it the reasoning about which stages
         can be skipped when converting pipeline to FSM would be very computationally complex.
+    
+    :attention: this is dangerous because it may cause flushing to flush even without valid data if data
+        is provided from channel which validity was guaranteed by original control channel which would be written more early
     """
 
     @staticmethod
@@ -37,7 +39,7 @@ class RtlArchPassLoopControlPrivatization(HlsArchPass):
                 depTime = dep.obj.scheduledOut[dep.out_i]
                 if depTime > inpTime:
                     portsToRemove.append(inp)
-                    unlink_hls_nodes(dep, inp)
+                    inp.disconnectFromHlsOut(dep)
 
         for port in portsToRemove:
             port: HlsNetNodeIn
@@ -48,7 +50,7 @@ class RtlArchPassLoopControlPrivatization(HlsArchPass):
         ownerOfControl: Dict[Union[HlsNetNodeWriteBackedge, HlsNetNodeReadBackedge],
                              Tuple[ArchElement, int]] = {}
         toSearch: HlsNetNodeWriteBackedge = []
-        for elm in netlist.nodes:
+        for elm in netlist.iterAllNodes():
             elm: ArchElement
             assert isinstance(elm, ArchElement), elm
             if isinstance(elm, ArchElementFsm):
@@ -109,13 +111,13 @@ class RtlArchPassLoopControlPrivatization(HlsArchPass):
                 removeFromTail = False
                 if isinstance(headerElm, ArchElementFsm):
                     headerElm: ArchElementFsm
-                    if jumpSrcVal.obj in headerElm._subNodes or (
+                    if jumpSrcVal.obj in headerElm.subNodes or (
                             jumpSrcValStI >= headerElm._beginClkI and
                             jumpSrcValStI <= headerElm._endClkI):
                         if headerElm is tailElm and wStI == len(headerElm.fsm.states) - 1:
                             pass  # skip moving to same stage in the same element
                         else:
-                            headerElm._subNodes.append(w)
+                            headerElm.subNodes.append(w)
                             headerElm.fsm.states[-1].append(w)
                             t = (headerElm._endClkI + 1) * clkPeriod - ffdelay
                             assert wMinTime <= t, (w, wMinTime, t)
@@ -123,8 +125,8 @@ class RtlArchPassLoopControlPrivatization(HlsArchPass):
                             removeFromTail = True
 
                 elif isinstance(headerElm, ArchElementPipeline):
-                    if jumpSrcVal.obj in headerElm._subNodes:
-                        headerElm._subNodes.append(w)
+                    if jumpSrcVal.obj in headerElm.subNodes:
+                        headerElm.subNodes.append(w)
                         t = max(wMinTime, jumpSrcValT)
                         newStI = start_clk(t, clkPeriod)
                         if newStI != wStI:
@@ -143,7 +145,7 @@ class RtlArchPassLoopControlPrivatization(HlsArchPass):
                     if isinstance(tailElm, ArchElementFsm):
                         # rm write node from current element
                         if headerElm is not tailElm:
-                            tailElm._subNodes.remove(w)
+                            tailElm.subNodes.remove(w)
                         tailElm.fsm.states[wStI].remove(w)
                         if wStI != len(tailElm.fsm.states) - 1:
                             raise NotImplementedError("This jump in CFG was not in last state and can be used to optimize tailElm"
@@ -151,7 +153,7 @@ class RtlArchPassLoopControlPrivatization(HlsArchPass):
 
                     elif isinstance(tailElm, ArchElementPipeline):
                         if headerElm is not tailElm:
-                            tailElm._subNodes.remove(w)
+                            tailElm.subNodes.remove(w)
                         tailElm.stages[wStI].remove(w)
                     else:
                         raise NotImplementedError(headerElm)

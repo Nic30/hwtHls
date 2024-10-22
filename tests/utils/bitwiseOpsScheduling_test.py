@@ -9,7 +9,6 @@ from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.aggregateBitwiseOps import HlsNetlistPassAggregateBitwiseOps
@@ -30,22 +29,22 @@ class BitwiseOpsScheduling_TC(SimTestCase):
 
     def _test_3not(self, freq:float):
         platform = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
-        net = HlsNetlistCtx(None, freq, f"3not{int(freq//1e6)}Mhz", platform=platform)
+        net = HlsNetlistCtx(None, freq, f"3not{int(freq//1e6)}Mhz", {}, platform=platform)
         net.builder = HlsNetlistBuilder(net)
         t = HBits(8)
         r = HlsNetNodeRead(net, HwIOVectSignal(8), t, name="r0")
-        net.inputs.append(r)
+        net.addNode(r)
         n0 = HlsNetNodeOperator(net, HwtOps.NOT, 1, t, "n0")
         n1 = HlsNetNodeOperator(net, HwtOps.NOT, 1, t, "n1")
         n2 = HlsNetNodeOperator(net, HwtOps.NOT, 1, t, "n2")
-        net.nodes.extend((n0, n1, n2))
+        net.addNodes((n0, n1, n2))
 
         w = HlsNetNodeWrite(net, HwIOVectSignal(8), name="w0")
-        net.outputs.append(w)
+        net.addNode(w)
 
         prev = r
         for n in (n0, n1, n2, w):
-            link_hls_nodes(prev._outputs[0], n._inputs[0])
+            prev._outputs[0].connectHlsIn(n._inputs[0])
             prev = n
 
         HlsNetlistPassAggregateBitwiseOps().runOnHlsNetlist(net)
@@ -61,25 +60,25 @@ class BitwiseOpsScheduling_TC(SimTestCase):
 
     def _test_2not1and(self, freq:float):
         platform = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
-        net = HlsNetlistCtx(None, freq, f"2not1and{int(freq//1e6)}Mhz", platform=platform)
+        net = HlsNetlistCtx(None, freq, f"2not1and{int(freq//1e6)}Mhz", {}, platform=platform)
         net.builder = HlsNetlistBuilder(net)
         t = HBits(8)
         r0 = HlsNetNodeRead(net, HwIOVectSignal(8), t, name="r0")
         r1 = HlsNetNodeRead(net, HwIOVectSignal(8), t, name="r1")
-        net.inputs.extend((r0, r1))
+        net.addNodes((r0, r1))
         n0 = HlsNetNodeOperator(net, HwtOps.NOT, 1, t, "n0")
         n1 = HlsNetNodeOperator(net, HwtOps.NOT, 1, t, "n1")
         n2 = HlsNetNodeOperator(net, HwtOps.AND, 2, t, "n2")
-        net.nodes.extend((n0, n1, n2))
+        net.addNodes((n0, n1, n2))
 
         w = HlsNetNodeWrite(net, HwIOVectSignal(8), name="w0")
-        net.outputs.append(w)
+        net.addNode(w)
 
         prev = r0
         for n in (n0, n1, n2, w):
-            link_hls_nodes(prev._outputs[0], n._inputs[0])
+            prev._outputs[0].connectHlsIn(n._inputs[0])
             prev = n
-        link_hls_nodes(r1._outputs[0], n2._inputs[1])
+        r1._outputs[0].connectHlsIn(n2._inputs[1])
 
         HlsNetlistPassAggregateBitwiseOps().runOnHlsNetlist(net)
         #HlsNetlistAnalysisPassDumpNodesDot(outputFileGetter("tmp", ".nodes.dot")).runOnHlsNetlist(net)

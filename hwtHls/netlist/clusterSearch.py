@@ -4,8 +4,7 @@ from typing import List, Set, Dict, Callable, Optional
 from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
-    link_hls_nodes
+from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.observableList import ObservableList
 
@@ -79,7 +78,7 @@ class HlsNetlistClusterSearch():
         self._discover(n, seen, predicateFn)
         self.inputs = ObservableList(i for i in self.inputs if i.obj not in self.nodes)
         self.inputsDict = {k: v for k, v in self.inputsDict.items() if k.obj not in self.nodes}
-        self.consystencyCheck()
+        self.consistencyCheck()
 
     @classmethod
     def discoverFromNodeList(cls, nodeList: List[HlsNetNode]):
@@ -183,7 +182,7 @@ class HlsNetlistClusterSearch():
                 for i in oldUsedBy
                 if i not in internInputs
             ]
-            link_hls_nodes(outerOutput, boundaryIn)
+            outerOutput.connectHlsIn(boundaryIn)
             portUses = boundaryInPort.obj.usedBy[0]
             for i in internInputs:
                 i.obj.dependsOn[i.in_i] = boundaryInPort
@@ -260,7 +259,7 @@ class HlsNetlistClusterSearch():
             if dep.obj in self.nodes:
                 yield from self.collectPredecesorsInCluster(dep.obj)
 
-    def consystencyCheck(self):
+    def consistencyCheck(self):
         assert len(self.inputs) == len(set(self.inputs)), [(o.obj._id, o.out_i) for o in self.inputs]
         assert len(self.inputsDict) == len(self.inputs), (
             [(o.obj._id, o.out_i) for o in self.inputsDict.keys()],
@@ -282,13 +281,13 @@ class HlsNetlistClusterSearch():
                     uObj = u.obj
                     uObj.dependsOn[u.in_i] = oi
                     if isinstance(uObj, HlsNetNodeAggregate):
-                        uObj._subNodes.updateOuterInputs(outerInputMap)
+                        uObj.subNodes.updateOuterInputs(outerInputMap)
 
     def splitToPreventOuterCycles(self):
         """
         If the cluster construction resulted into an outer cycle cut this cluster so the cycle disappears.
         """
-        self.consystencyCheck()
+        self.consistencyCheck()
         # >1 because if there was just 1 output the cycle has been there even before this cluster was generated.
         if len(self.outputs) > 1:
             outputsCausingLoop: List[HlsNetNodeOut] = []
@@ -362,10 +361,10 @@ class HlsNetlistClusterSearch():
                                 # assert o not in predCluster.outputs, o
                                 predCluster.outputs.append(o)
 
-                self.consystencyCheck()
+                self.consistencyCheck()
                 yield from predCluster.splitToPreventOuterCycles()
                 yield self  # self is guaranteed to not have outer cycle because we removed all outputs which caused such a thing
                 return
 
-        self.consystencyCheck()
+        self.consistencyCheck()
         yield self

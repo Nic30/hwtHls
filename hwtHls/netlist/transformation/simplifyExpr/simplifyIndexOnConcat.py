@@ -1,4 +1,4 @@
-from typing import Set, Union
+from typing import Union
 
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.bitsConst import HBitsConst
@@ -10,11 +10,10 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.transformation.simplifyExpr.simplifyIndexOnMuxOfConcats import sliceOutValueFromConcatOrConst, \
     sliceOrIndexToHighLowBitNo, _buildConcatFromSliceTuples
-from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith
+from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOperatorNodeWith
 
 
-def netlistReduceIndexOnConcat(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode],
-                               removed: Set[HlsNetNode]):
+def netlistReduceIndexOnConcat(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
     v, i = n.dependsOn
     if not (isinstance(v.obj, HlsNetNodeOperator) and v.obj.operator == HwtOps.CONCAT):
         return False
@@ -26,9 +25,9 @@ def netlistReduceIndexOnConcat(n: HlsNetNodeOperator, worklist: SetList[HlsNetNo
 
     highBitNo, lowBitNo = sliceOrIndexToHighLowBitNo(i)
     _extracted, _ = sliceOutValueFromConcatOrConst(v, lowBitNo, highBitNo, False)
-    builder: HlsNetlistBuilder = n.netlist.builder
+    builder: HlsNetlistBuilder = n.getHlsNetlistBuilder()
     if _extracted is not None:
         newO = _buildConcatFromSliceTuples(builder, worklist, _extracted)
-        replaceOperatorNodeWith(n, newO, worklist, removed)
+        replaceOperatorNodeWith(n, newO, worklist)
         return True
     return False

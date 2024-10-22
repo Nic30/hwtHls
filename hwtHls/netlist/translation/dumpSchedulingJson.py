@@ -171,7 +171,7 @@ class HwtHlsNetlistToTimelineJson():
                                        seenNodes: Set[HlsNetNode]):
         if self.expandCompositeNodes and isinstance(obj, HlsNetNodeAggregate):
             compositeNodes.add(obj)
-            for subNode in obj._subNodes:
+            for subNode in obj.subNodes:
                 self.translateNodeToTimelineItemTransitively(subNode, ioGroupIds, nodesFlat, compositeNodes, seenNodes)
         else:
             for n in self._iterateUsersTransitively(obj, seenNodes):
@@ -179,25 +179,27 @@ class HwtHlsNetlistToTimelineJson():
                 nodesFlat.append(n)
 
     def translateNodeToTimelineItem(self, obj: HlsNetNode, io_group_ids: Dict[HwIO, int]):
+        assert obj.scheduledOut is not None, (obj, "node was not scheduled so it is not possible to add it into output graph")
+        start = inf
         if obj.scheduledIn:
-            start = min(obj.scheduledIn)
-        else:
-            assert obj.scheduledOut is not None, (obj, "node was not scheduled so it is not possible to add it into output graph")
-            if isinstance(obj, HlsNetNodeAggregate):
-                start = min(min(min(n.scheduledIn, default=inf), min(n.scheduledOut, default=inf))
-                            for n in obj.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT))
-                assert not isinf(start)
-            else:
-                start = max(obj.scheduledOut)
-
+            start = min(obj.scheduledIn, default=start)
         if obj.scheduledOut:
-            if isinstance(obj, HlsNetNodeAggregate):
-                end = max(max(max(n.scheduledIn, default=-inf), max(n.scheduledOut, default=-inf))
-                           for n in obj.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT))
-                assert not isinf(end)
-            else:
-                end = max(obj.scheduledOut)
-        else:
+            start = min(min(obj.scheduledOut, default=start), start)
+        if isinstance(obj, HlsNetNodeAggregate):
+            start = min(
+                min(min(min(n.scheduledIn, default=start), min(n.scheduledOut, default=start))
+                        for n in obj.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT)),
+                start)
+        end = -inf
+        if obj.scheduledOut:
+            end = max(obj.scheduledOut, default=end)
+        if isinstance(obj, HlsNetNodeAggregate):
+            end = max(
+                max(max(max(n.scheduledIn, default=end), max(n.scheduledOut, default=end))
+                       for n in obj.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT)),
+                end)
+            assert not isinf(end), obj
+        if not isfinite(end):
             end = start
 
         start *= self.time_scale
@@ -246,11 +248,11 @@ class HwtHlsNetlistToTimelineJson():
 
             if isinstance(obj, HlsNetNodeWriteBackedge):
                 representativeIo = obj.associatedRead.src if obj.associatedRead is not None else obj.dst
-                if obj.channelInitValues:
-                    label = f"{label:s} init:{obj.channelInitValues}"
+                if obj.associatedRead.channelInitValues:
+                    label = f"{label:s} init:{obj.associatedRead.channelInitValues}"
             color = "lime"
 
-        elif isinstance(obj, HlsNetNodeRead):
+        elif isinstance(obj, HlsNetNodeRead) and obj.src is not None:
             name = obj.name
             if not name:
                 name = obj._getInterfaceName(obj.src) if obj.src is not None else None
@@ -302,7 +304,7 @@ class HwtHlsNetlistToTimelineJson():
 
     def iterAtomicNodes(self, n: HlsNetNode):
         if isinstance(n, HlsNetNodeAggregate):
-            for subNode in n._subNodes:
+            for subNode in n.subNodes:
                 yield from self.iterAtomicNodes(subNode)
         else:
             yield n
@@ -339,7 +341,9 @@ class HwtHlsNetlistToTimelineJson():
                     depObj = dep.obj
 
                 depOutI = dep.out_i
-                color = 'lime' if dep._dtype is HVoidOrdering else 'yellow' if dep._dtype is HVoidExternData else 'white'
+                color = 'lime' if dep._dtype is HVoidOrdering else\
+                        'yellow' if dep._dtype is HVoidExternData else\
+                        'white'
                 depJsonObj = objToJsonObj[depObj]
                 jObj.portsIn.append(_mkPortIn(t * self.time_scale, i.name, depJsonObj, depOutI, color))
 
@@ -370,7 +374,7 @@ class HlsNetlistAnalysisPassDumpSchedulingJson(HlsNetlistAnalysisPass):
         to_timeline = HwtHlsNetlistToTimelineJson(netlist.normalizedClkPeriod,
                                               netlist.scheduler.resolution,
                                               expandCompositeNodes=self.expandCompositeNodes)
-        to_timeline.construct(list(netlist.iterAllNodes()))
+        to_timeline.construct(list(netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT)))
         if self.outStreamGetter is not None:
             out, doClose = self.outStreamGetter(netlist.label)
             try:

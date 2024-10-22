@@ -10,7 +10,9 @@ from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.transformation.simplifyExpr.simplifyLlvmIrExpr import runLlvmCmpOpt
-from tests.hlsNetlist.netlistReduceCmpInAnd_test import HlsNetlistReduceCmpInAndTC
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.platform.virtual import VirtualHlsPlatform
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 
 
 b8_t = HBits(8)
@@ -18,15 +20,24 @@ b8_t = HBits(8)
 
 class HlsNetlistReduceCmpUsingLlvmTC(unittest.TestCase):
 
+
     @staticmethod
     def _createNetlist() -> Tuple[HlsNetlistCtx, HlsNetlistBuilder]:
-        return HlsNetlistReduceCmpInAndTC._createNetlist()
+        netlist = HlsNetlistCtx(None, int(100e6), "test", {}, platform=VirtualHlsPlatform())
+        return netlist, netlist.builder
 
-    def _r(self, netlist: HlsNetlistCtx):
-        return HlsNetlistReduceCmpInAndTC._r(self, netlist, dtype=b8_t)
+    def _r(self, netlist: HlsNetlistCtx, dtype=b8_t):
+        r = HlsNetNodeRead(netlist, None, dtype=dtype)
+        netlist.addNode(r)
+        return r._outputs[0]
 
     def _w(self, src: HlsNetNodeOut):
-        return HlsNetlistReduceCmpInAndTC._w(self, src)
+        netlist = src.obj.netlist
+        w = HlsNetNodeWrite(netlist, None)
+        netlist.addNode(w)
+        src.connectHlsIn(w._inputs[0])
+        return w
+
 
     def test_reduceEqTo0(self):
         netlist, b = self._createNetlist()
@@ -38,7 +49,7 @@ class HlsNetlistReduceCmpUsingLlvmTC(unittest.TestCase):
         )
         w = self._w(res)
 
-        runLlvmCmpOpt(b, [], set(), netlist.iterAllNodes())
+        runLlvmCmpOpt(b, [], netlist.iterAllNodes())
         resOpt = w.dependsOn[0].obj
         self.assertIsInstance(resOpt, HlsNetNodeConst)
         self.assertEqual(int(resOpt.val), 0)
@@ -54,7 +65,7 @@ class HlsNetlistReduceCmpUsingLlvmTC(unittest.TestCase):
         )
         w = self._w(res)
 
-        runLlvmCmpOpt(b, [], set(), netlist.iterAllNodes())
+        runLlvmCmpOpt(b, [], netlist.iterAllNodes())
         resOpt = w.dependsOn[0].obj
         self.assertIs(resOpt, eq.obj)
 
@@ -63,15 +74,15 @@ class HlsNetlistReduceCmpUsingLlvmTC(unittest.TestCase):
         netlist, b = self._createNetlist()
         r0 = self._r(netlist)
 
-        e0 = b.buildOp(HwtOps.ULE, BIT, r0, b.buildConstPy(b8_t, 10))
-        e1 = b.buildOp(HwtOps.UGE, BIT, r0, b.buildConstPy(b8_t, 10))
+        e0 = b.buildOp(HwtOps.ULE, None, BIT, r0, b.buildConstPy(b8_t, 10))
+        e1 = b.buildOp(HwtOps.UGE, None, BIT, r0, b.buildConstPy(b8_t, 10))
         res = b.buildAnd(
             e0,
             e1,
         )
         w = self._w(res)
 
-        runLlvmCmpOpt(b, [], set(), netlist.iterAllNodes())
+        runLlvmCmpOpt(b, [], netlist.iterAllNodes())
         resOpt = w.dependsOn[0].obj
         self.assertIsInstance(resOpt, HlsNetNodeOperator)
         self.assertEqual(resOpt.operator, HwtOps.EQ)
@@ -86,15 +97,15 @@ class HlsNetlistReduceCmpUsingLlvmTC(unittest.TestCase):
         netlist, b = self._createNetlist()
         r0 = self._r(netlist)
 
-        e0 = b.buildOp(HwtOps.ULT, BIT, r0, b.buildConstPy(b8_t, 10))
-        e1 = b.buildOp(HwtOps.UGT, BIT, r0, b.buildConstPy(b8_t, 10))
+        e0 = b.buildOp(HwtOps.ULT, None, BIT, r0, b.buildConstPy(b8_t, 10))
+        e1 = b.buildOp(HwtOps.UGT, None, BIT, r0, b.buildConstPy(b8_t, 10))
         res = b.buildAnd(
             e0,
             e1,
         )
         w = self._w(res)
         
-        runLlvmCmpOpt(b, [], set(), netlist.iterAllNodes())
+        runLlvmCmpOpt(b, [], netlist.iterAllNodes())
         resOpt = w.dependsOn[0].obj
         self.assertIsInstance(resOpt, HlsNetNodeConst)
         self.assertEqual(int(resOpt.val), 0)
@@ -103,7 +114,7 @@ class HlsNetlistReduceCmpUsingLlvmTC(unittest.TestCase):
         netlist, b = self._createNetlist()
         r0 = self._r(netlist)
 
-        e0 = b.buildOp(HwtOps.ULT, BIT, r0, b.buildConstPy(b8_t, 10))
+        e0 = b.buildOp(HwtOps.ULT, None, BIT, r0, b.buildConstPy(b8_t, 10))
         e1 = b.buildNe(r0, b.buildConstPy(b8_t, 15))
         res = b.buildAnd(
             e0,
@@ -111,7 +122,7 @@ class HlsNetlistReduceCmpUsingLlvmTC(unittest.TestCase):
         )
         w = self._w(res)
 
-        runLlvmCmpOpt(b, [], set(), netlist.iterAllNodes())
+        runLlvmCmpOpt(b, [], netlist.iterAllNodes())
         resOpt = w.dependsOn[0]
         self.assertIs(resOpt, e0)
 
@@ -119,7 +130,7 @@ class HlsNetlistReduceCmpUsingLlvmTC(unittest.TestCase):
         netlist, b = self._createNetlist()
         r0 = self._r(netlist)
 
-        e0 = b.buildOp(HwtOps.ULE, BIT, r0, b.buildConstPy(b8_t, 255))
+        e0 = b.buildOp(HwtOps.ULE, None, BIT, r0, b.buildConstPy(b8_t, 255))
         c15 = b.buildConstPy(b8_t, 15)
         e1 = b.buildNe(r0, c15)
         res = b.buildAnd(
@@ -128,7 +139,7 @@ class HlsNetlistReduceCmpUsingLlvmTC(unittest.TestCase):
         )
         w = self._w(res)
         
-        runLlvmCmpOpt(b, [], set(), netlist.iterAllNodes())
+        runLlvmCmpOpt(b, [], netlist.iterAllNodes())
         resOpt = w.dependsOn[0]
         self.assertIs(resOpt, b.buildNot(b.buildEq(r0, c15)))
 

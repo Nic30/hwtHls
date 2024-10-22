@@ -1,11 +1,10 @@
 from typing import Tuple, List, Optional, Union, Dict
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
-from hwt.hdl.types.defs import BIT
 from hwt.constants import NOT_SPECIFIED
+from hwt.hdl.types.defs import BIT
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, \
     MachineInstr, TargetOpcode, Register
-from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
     HlsNetNodeReadBackedge
@@ -19,6 +18,7 @@ from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import Machin
 from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdgeMeta, \
     MACHINE_EDGE_TYPE
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
+from hwtHls.netlist.nodes.portsUtils import HlsNetNodeOutLazy_replace
 
 
 def _mergeBrachOutConditions(builder: HlsNetlistBuilder,
@@ -53,6 +53,7 @@ def _mergeBrachOutConditions(builder: HlsNetlistBuilder,
             _brCond = builder.buildAnd(brCond, anyPrevBranchEn_n)
         else:
             _brCond = builder.buildAndVariadic((mbEn, anyPrevBranchEn_n, brCond))
+
     assert _brCond is not None
     if isinstance(_brCond.obj, HlsNetNodeOperator) and _brCond.obj.name is None:
         _brCond.obj.name = f"bb{srcBbNumber:d}_br_bb{dstBbNumber:d}"
@@ -60,7 +61,7 @@ def _mergeBrachOutConditions(builder: HlsNetlistBuilder,
 
 
 def _resolveBranchOutLabels(self: "HlsNetlistAnalysisPassMirToNetlist", mb: MachineBasicBlock,
-                            mbSync: MachineBasicBlockMeta,
+                            mbMeta: MachineBasicBlockMeta,
                             translatedBranchConditions: Dict[Register, HlsNetNodeOutAny]):
     """
     For specified block resolve BranchOutLabel for every exit from this block.
@@ -68,8 +69,8 @@ def _resolveBranchOutLabels(self: "HlsNetlistAnalysisPassMirToNetlist", mb: Mach
     """
 
     valCache = self.valCache
-    builder = self.builder
-    mbEn = mbSync.blockEn
+    builder = mbMeta.parentElement.builder
+    mbEn = mbMeta.blockEn
     anyPrevBranchEn: Union[HlsNetNodeOutAny, NOT_SPECIFIED, None] = NOT_SPECIFIED
     brCond = None
     for last, ter in iter_with_last(mb.terminators()):
@@ -90,7 +91,7 @@ def _resolveBranchOutLabels(self: "HlsNetlistAnalysisPassMirToNetlist", mb: Mach
                 brCond = brCond.getLatestReplacement()
             dstBlock = dstBlock.getMBB()
 
-        elif opc == TargetOpcode.PseudoRET:
+        elif opc == TargetOpcode.HWTFPGA_RET:
             assert last, ("return must be last instruction in block", ter)
             return
         else:
@@ -110,7 +111,7 @@ def _resolveBranchOutLabels(self: "HlsNetlistAnalysisPassMirToNetlist", mb: Mach
     fallThroughDstBlock = mb.getFallThrough(False)
     if fallThroughDstBlock is not None:
         brCond = None  # because now it is default jump
-        _brCond = _mergeBrachOutConditions(builder, mbEn, anyPrevBranchEn, brCond,  mb.getNumber(), fallThroughDstBlock.getNumber())
+        _brCond = _mergeBrachOutConditions(builder, mbEn, anyPrevBranchEn, brCond, mb.getNumber(), fallThroughDstBlock.getNumber())
         # the BranchOutLabel is set only once
         valCache.add(mb, BranchOutLabel(fallThroughDstBlock), _brCond, False)
 
@@ -118,7 +119,7 @@ def _resolveBranchOutLabels(self: "HlsNetlistAnalysisPassMirToNetlist", mb: Mach
 def _resolveBranchEnFromPredecessor(self: "HlsNetlistAnalysisPassMirToNetlist",
                                     pred: MachineBasicBlock,
                                     mb: MachineBasicBlock,
-                                    mbSync: MachineBasicBlockMeta,
+                                    mbMeta: MachineBasicBlockMeta,
                                     edgeMeta: MachineEdgeMeta)\
         ->Tuple[HlsNetNodeOutAny, HlsNetNodeOutAny, bool]:
     """
@@ -128,15 +129,11 @@ def _resolveBranchEnFromPredecessor(self: "HlsNetlistAnalysisPassMirToNetlist",
         fromPredBrCondInPred,
     """
     valCache = self.valCache
-    # curInPred = valCache.get(pred, BranchOutLabel(mb), BIT)
     dataUsedAsControl = edgeMeta.reuseDataAsControl
-    # if not isinstance(curInPred, HlsNetNodeOutLazy):
-    #    curInMb = valCache.get(mb, pred, BIT)
-    #    #assert not isinstance(curInMb, HlsNetNodeOutLazy), (pred.getNumber(), mb.getNumber(), curInMb)
-    #    return curInMb, curInPred
 
     fromPredBrCondInPred = valCache.get(pred, BranchOutLabel(mb), BIT)
-    if edgeMeta.etype in (MACHINE_EDGE_TYPE.DISCARDED, MACHINE_EDGE_TYPE.RESET):
+    if edgeMeta.etype in (MACHINE_EDGE_TYPE.DISCARDED,
+                          MACHINE_EDGE_TYPE.RESET):
         assert (mb, pred) not in valCache
         return None, fromPredBrCondInPred
 
@@ -145,48 +142,53 @@ def _resolveBranchEnFromPredecessor(self: "HlsNetlistAnalysisPassMirToNetlist",
         return curInMb, fromPredBrCondInPred
 
     if dataUsedAsControl is None:
-        if edgeMeta.etype in (MACHINE_EDGE_TYPE.FORWARD, MACHINE_EDGE_TYPE.BACKWARD):
+        if edgeMeta.etype in (MACHINE_EDGE_TYPE.FORWARD,
+                              MACHINE_EDGE_TYPE.BACKWARD):
             # we need to insert backedge buffer to get block en flag from pred to mb
             # [fixme] write order must be asserted because we can not release a control token until all block operations finished
+
+            # add blockEn flag in predecessor to write to the channel for data used to implement control
             assert fromPredBrCondInPred is not None, fromPredBrCondInPred
             fromPredBrCondInMb = edgeMeta.getBufferForReg((pred, mb))
             fromPredBrCondInMb = fromPredBrCondInMb.obj.getValidNB()
             wn: HlsNetNodeWriteBackedge = fromPredBrCondInMb.obj.associatedWrite
-            predEn = self.blockSync[pred].blockEn
+            predEn = self.blockMeta[pred].blockEn
             self._addExtraCond(wn, fromPredBrCondInPred, predEn)
             self._addSkipWhen_n(wn, fromPredBrCondInPred, predEn)
-            if mbSync.rstPredeccessor is not None:
-                assert not wn.channelInitValues
-                # we must add CFG token because we removed rst predecessor and now
-                # the circuit does not have way to start
-                wn.channelInitValues = (tuple(),)
+            if mbMeta.rstPredeccessor is not None:
+                assert not wn.associatedRead.channelInitValues
+                # CFG token must be added, because rst predecessor
+                # will not physically exist and the circuit does not have way to start
+                wn.associatedRead.channelInitValues = (tuple(),)
             # edgeMeta.loopChannelGroupAppendWrite(wn, True)
         else:
             fromPredBrCondInMb = fromPredBrCondInPred
 
         return fromPredBrCondInMb, fromPredBrCondInPred
     else:
-        builder = self.builder
+        builder = mbMeta.parentElement.builder
         dRead: HlsNetNodeOut = edgeMeta.getBufferForReg(dataUsedAsControl)
         dRead.obj.setNonBlocking()
         dVld = builder.buildReadSync(dRead)
-        if mbSync.isLoopHeader:
-            _dRead, fromPredBrCondInMb = mbSync.loopStatusNode._bbNumberToPorts[(pred.getNumber(), mb.getNumber())]
-            assert dRead.obj is _dRead, ("Loop port for this predecessor must be this port", (pred, mb), dRead.obj, _dRead)
+        if mbMeta.isLoopHeader:
+            edge = (pred.getNumber(), mb.getNumber())
+            _dRead, fromPredBrCondInMb = mbMeta.loopStatusNode._bbNumberToPorts[edge]
+            assert dRead.obj is _dRead, ("Loop port for this predecessor must be this port", edge, dRead.obj, _dRead)
         else:
             fromPredBrCondInMb = dVld
 
         dWrite: HlsNetNodeWrite = dRead.obj.associatedWrite
         if fromPredBrCondInPred is not None:
             dWrite.addControlSerialExtraCond(fromPredBrCondInPred)
-            dWrite.addControlSerialSkipWhen(builder.buildNot(fromPredBrCondInPred))
+            wBuilder = dWrite.getHlsNetlistBuilder()
+            dWrite.addControlSerialSkipWhen(wBuilder.buildNot(fromPredBrCondInPred))
 
         # should be already a read sync of input channel for dataUsedAsControl
         return fromPredBrCondInMb, fromPredBrCondInPred
 
 
 def _resolveEnFromPredecessors(self: "HlsNetlistAnalysisPassMirToNetlist", mb: MachineBasicBlock,
-                               mbSync: MachineBasicBlockMeta) -> List[HlsNetNodeOutLazy]:
+                               mbMeta: MachineBasicBlockMeta) -> List[HlsNetNodeOutLazy]:
     """
     :note: enFromPredccs is generated even if the block does not need control because it may still require require enFromPredccs
         for input MUXes
@@ -194,7 +196,7 @@ def _resolveEnFromPredecessors(self: "HlsNetlistAnalysisPassMirToNetlist", mb: M
     """
 
     valCache: MirToHwtHlsNetlistValueCache = self.valCache
-    builder: HlsNetlistBuilder = self.netlist.builder
+    builder: HlsNetlistBuilder = mbMeta.parentElement.builder
     # construct CFG flags
     enFromPredccs = []
     for pred in mb.predecessors():
@@ -202,19 +204,18 @@ def _resolveEnFromPredecessors(self: "HlsNetlistAnalysisPassMirToNetlist", mb: M
         edge = (pred, mb)
         edgeMeta: MachineEdgeMeta = self.edgeMeta[edge]
 
-        if not mbSync.needsControl or edgeMeta.etype == MACHINE_EDGE_TYPE.RESET or (
+        if not mbMeta.needsControl or edgeMeta.etype == MACHINE_EDGE_TYPE.RESET or (
                 edgeMeta.etype == MACHINE_EDGE_TYPE.DISCARDED and
                 not edgeMeta.buffersForLoopExit
             ):
             # skip if control is not required or because all live ins were inlined to backedge buffer initialization
             c1 = builder.buildConstBit(1)
-            # valCache.add(pred, BranchOutLabel(mb), c1, False)
             valCache.add(mb, pred, c1, False)
             continue
 
         else:
-            assert mbSync.needsControl
-            fromPredBrCondInMb, fromPredBrCondInPred = _resolveBranchEnFromPredecessor(self, pred, mb, mbSync, edgeMeta)
+            assert mbMeta.needsControl
+            fromPredBrCondInMb, fromPredBrCondInPred = _resolveBranchEnFromPredecessor(self, pred, mb, mbMeta, edgeMeta)
 
         # dataUsedAsControl = edgeMeta.reuseDataAsControl
         for _, srcVal in edgeMeta.buffers:
@@ -223,98 +224,90 @@ def _resolveEnFromPredecessors(self: "HlsNetlistAnalysisPassMirToNetlist", mb: M
             #    # avoid synchronizing channel with itself
             #    continue
             w: HlsNetNodeWriteBackedge = srcValObj.associatedWrite
-            self._addExtraCond(w, 1, fromPredBrCondInPred)
-            self._addSkipWhen_n(w, 1, fromPredBrCondInPred)
+            self._addExtraCond(w, None, fromPredBrCondInPred)
+            self._addSkipWhen_n(w, None, fromPredBrCondInPred)
 
         for rVal in edgeMeta.buffersForLoopExit:
             w: HlsNetNodeWriteBackedge = rVal.obj.associatedWrite
-            self._addExtraCond(w, 1, fromPredBrCondInPred)
-            self._addSkipWhen_n(w, 1, fromPredBrCondInPred)
+            self._addExtraCond(w, None, fromPredBrCondInPred)
+            self._addSkipWhen_n(w, None, fromPredBrCondInPred)
 
-        isLoopHeader = mbSync.needsControl and mbSync.isLoopHeader and not mbSync.isLoopHeaderOfFreeRunning
+        isLoopHeader = mbMeta.needsControl and mbMeta.isLoopHeader and not mbMeta.isLoopHeaderOfFreeRunning
         if edgeMeta.etype == MACHINE_EDGE_TYPE.DISCARDED:
             c1 = builder.buildConstBit(1)
             if not isLoopHeader:
                 valCache.add(mb, pred, c1, False)
         else:
             # fromPredBrCond = valCache.get(pred, brOutLabel, BIT)
-            # if mbSync.needsControl:
+            # if mbMeta.needsControl:
             # assert fromPredBrCond is not None, (mb.getName().str(), mb.getNumber())
             # because we need to use latest value not the input value which we just added (r_from_in)
             # if not fromPredBrCondInMbExists:
             if not isLoopHeader:
                 valCache.add(mb, pred, fromPredBrCondInMb, False)
-            # brCond = valCache.get(mb, pred, BIT)
             enFromPredccs.append(fromPredBrCondInMb)
-            # else:
-            #    #assert brCond is None, brCond
-            #    if dataUsedAsControl is None:
-            #        brCond = self._translateIntBit(1)
-            #        valCache.add(mb, pred, brCond, False)
-            #    #brCond = None
 
     return enFromPredccs
 
 
 def resolveBlockEn(self: "HlsNetlistAnalysisPassMirToNetlist", mf: MachineFunction,
-                   threads: HlsNetlistAnalysisPassDataThreadsForBlocks,
-                   translatedBranchConditions: Dict[MachineBasicBlock, Dict[Register, HlsNetNodeOutAny]]):
+                   blockMeta: Dict[MachineBasicBlock, MachineBasicBlockMeta]):
     """
     Resolve control flow enable for instructions in the block.
     """
-    builder = self.builder
     for mb in mf:
         mb: MachineBasicBlock
         # resolve control enable flag for a block
-        mbSync: MachineBasicBlockMeta = self.blockSync[mb]
-        assert mbSync.block == mb, ("sanity check", mbSync.block.getNumber(), mb.getNumber())
-        if mbSync.needsStarter:
-            if mbSync.needsControl:
+        mbMeta: MachineBasicBlockMeta = self.blockMeta[mb]
+        builder = mbMeta.parentElement.builder
+        assert mbMeta.block == mb, ("sanity check", mbMeta.block.getNumber(), mb.getNumber())
+        if mbMeta.needsStarter:
+            if mbMeta.needsControl:
                 assert mb.pred_size() == 0, mb.getNumber()
                 # add starter and use it as en
                 n = HlsProgramStarter(self.netlist)
-                self.nodes.append(n)
-                blockEn = n._outputs[0]
+                mbMeta.parentElement.addNode(n)
+                blockEn = n.getStartEnPort()
             else:
                 # no en and extract the constants set there as a reset values
                 blockEn = None
         else:
-            enFromPredccs = _resolveEnFromPredecessors(self, mb, mbSync)
+            enFromPredccs = _resolveEnFromPredecessors(self, mb, mbMeta)
 
-            if enFromPredccs and mbSync.needsControl:
+            if enFromPredccs and mbMeta.needsControl:
                 if None in enFromPredccs:
                     raise AssertionError(enFromPredccs)
                 blockEn = builder.buildOrVariadic(enFromPredccs)
             else:
                 blockEn = None
 
-        assert isinstance(mbSync.blockEn, HlsNetNodeOutLazy), (mbSync.blockEn, "Must not be resolved yet")
+        assert isinstance(mbMeta.blockEn, HlsNetNodeOutLazy), (mbMeta.blockEn, "Must not be resolved yet")
 
         if blockEn is None:
             # replace with '1' because there is nothing but internal presure blocking the block execution
             blockEn = 1
 
         if isinstance(blockEn, int) and blockEn == 1:
-            for i in tuple(mbSync.blockEn.dependent_inputs):
+            for i in tuple(mbMeta.blockEn.dependent_inputs):
                 i: HlsNetNodeIn
                 if isinstance(i, HlsNetNodeIn):
-                    self._replaceInputDriverWithConst1b(i, threads)
+                    i.obj.getHlsNetlistBuilder()._replaceInputDriverWithConst1b(i)
                 else:
                     raise NotImplementedError(i)
 
-            mbSync.blockEn.dependent_inputs.clear()
+            mbMeta.blockEn.dependent_inputs.clear()
             blockEn = None
 
         if blockEn is None:
-            assert not mbSync.blockEn.dependent_inputs, (mb, mbSync.blockEn.dependent_inputs)
+            assert not mbMeta.blockEn.dependent_inputs, (mb, mbMeta.blockEn.dependent_inputs)
         else:
-            mbSync.blockEn.replaceDriverObj(blockEn)
+            HlsNetNodeOutLazy_replace(mbMeta.blockEn, blockEn)
 
-        assert mbSync.blockEn.replaced_by is blockEn or not mbSync.blockEn.dependent_inputs, (mbSync.blockEn, blockEn)
-        mbSync.blockEn = blockEn
+        assert mbMeta.blockEn.replaced_by is blockEn or not mbMeta.blockEn.dependent_inputs, (mbMeta.blockEn, blockEn)
+        mbMeta.blockEn = blockEn
         if (blockEn is not None and
                 not isinstance(blockEn, HlsNetNodeOutLazy) and
                 blockEn.obj.name is None and
                 isinstance(blockEn.obj, HlsNetNodeOperator)):
             blockEn.obj.name = f"bb{mb.getNumber():d}_en"
-        _resolveBranchOutLabels(self, mb, mbSync, translatedBranchConditions[mb])
+        _resolveBranchOutLabels(self, mb, mbMeta, blockMeta[mb].translatedBranchConditions)

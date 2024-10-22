@@ -13,12 +13,13 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, SchedTime
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod, beginOfClk, \
     beginOfClkWindow, beginOfNextClk
-from hwtHls.netlist.scheduler.resourceList import HlsSchedulerResourceUseList
+from hwtHls.netlist.scheduler.resourceList import HlsSchedulerResourceUseList, \
+    SchedulingResourceConstraints
 
 
 def asapSchedulePartlyScheduled(o: HlsNetNodeOut,
                                 beforeSchedulingFn: Optional[Callable[[HlsNetNode], bool]],
-                                beginOfFirstClk:int=0) -> List[HlsNetNode]:
+                                beginOfFirstClk:SchedTime=0) -> List[HlsNetNode]:
     """
     Run ASAP scheduling partly scheduled netlist.
 
@@ -29,7 +30,7 @@ def asapSchedulePartlyScheduled(o: HlsNetNodeOut,
     if n.scheduledIn is None:
         if beforeSchedulingFn is not None and not beforeSchedulingFn(n):
             return newlyScheduledNodes
-        # add all not scheduled nodes to elmTimeSlot
+        # search all nodes which will be newly scheduled
         toSearch = [n]
         seen = set()
         while toSearch:
@@ -40,11 +41,48 @@ def asapSchedulePartlyScheduled(o: HlsNetNodeOut,
                 newlyScheduledNodes.append(n1)
                 seen.add(n1)
                 for dep in n1.dependsOn:
+                    assert dep is not None, ("each input must be connected to something", n1)
                     toSearch.append(dep.obj)
 
         n.scheduleAsap(None, beginOfFirstClk, None)
 
     return newlyScheduledNodes
+
+
+def alapSchedulePartlyScheduled(o: HlsNetNodeOut,
+                                beforeSchedulingFn: Optional[Callable[[HlsNetNode], bool]],
+                                endOfLastClk: SchedTime,
+                                allowNewClockWindow:bool=False) -> List[HlsNetNode]:
+    """
+    Run ASAP scheduling partly scheduled netlist.
+
+    :param beforeSchedulingFn: :see: :func:`asapSchedulePartlyScheduled`
+    """
+    n: HlsNetNode = o.obj
+    if n.scheduledOut is None:
+        if beforeSchedulingFn is not None and not beforeSchedulingFn(n):
+            return
+
+        netlist: "HlsNetlistCtx" = n.netlist
+        clkPeriod = netlist.normalizedClkPeriod
+        epsilon = netlist.scheduler.epsilon
+        ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
+        toSearch = [n]
+        while toSearch:
+            n1 = toSearch.pop()
+            if n1.scheduledOut is None:
+                if beforeSchedulingFn is not None and not beforeSchedulingFn(n1):
+                    continue
+
+                for dep in n1.dependsOn:
+                    toSearch.append(dep.obj)
+
+                if n1.isMulticlock:
+                    n1._setScheduleZeroTimeMultiClock(endOfLastClk, clkPeriod, epsilon, ffdelay)
+                else:
+                    n1._setScheduleZeroTimeSingleClock(endOfLastClk)
+                if n1.parent is not None:
+                    n1.parent._addNodeIntoScheduled(n1.scheduledZero // clkPeriod, n1, allowNewClockWindow=allowNewClockWindow)
 
 
 class HlsScheduler():
@@ -60,11 +98,11 @@ class HlsScheduler():
     :ivar resourceUsage: resource usage list used for list scheduling algorithm, (resource available is stored in node which is using this list)
     """
 
-    def __init__(self, netlist: "HlsNetlistCtx", resolution: float):
+    def __init__(self, netlist: "HlsNetlistCtx", resolution: float, resourceConstraints:SchedulingResourceConstraints):
         self.netlist = netlist
         self.resolution = resolution
         self.epsilon = 1
-        self.resourceUsage = HlsSchedulerResourceUseList()
+        self.resourceUsage = HlsSchedulerResourceUseList(resourceConstraints)
         self.debug = False
 
     def _checkAllNodesScheduled(self):
@@ -73,22 +111,6 @@ class HlsScheduler():
         """
         for node in self.netlist.iterAllNodes():
             node.checkScheduling()
-
-    def _scheduleAsap(self):
-        """
-        As Soon As Possible scheduler
-        * The graph must not contain cycles.
-        * DFS from outputs, decorate nodes with scheduledIn,scheduledOut time.
-        """
-        if self.debug:
-            # debug run which will raise an exception containing cycle node ids
-            debugPath = SetList()
-        else:
-            # normal run without checking for cycles
-            debugPath = None
-
-        for o in self.netlist.iterAllNodes():
-            o.scheduleAsap(debugPath, 0, None)
 
     def _copyAndResetScheduling(self):
         currentSchedule: SchedulizationDict = {}
@@ -129,6 +151,38 @@ class HlsScheduler():
         if clkI0 != 0:
             self.moveSchedulingTime(-clkI0, clkPeriod)
 
+    def _scheduleIsMulticlock(self):
+        clkPeriod = self.netlist.normalizedClkPeriod
+        curBegin = None
+        curEnd = None
+        for n in self.netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT):
+            for t in chain(n.scheduledIn, n.scheduledOut):
+                if curBegin is None:
+                    # compute boundaries of clock window
+                    curBegin = beginOfClk(t, clkPeriod)
+                    curEnd = curBegin + clkPeriod
+                else:
+                    # compare if time is in current clock window
+                    if t < curBegin or t >= curEnd:
+                        return True
+        return False
+
+    def _scheduleAsap(self):
+        """
+        As Soon As Possible scheduler
+        * The graph must not contain cycles.
+        * DFS from outputs, decorate nodes with scheduledIn,scheduledOut time.
+        """
+        if self.debug:
+            # debug run which will raise an exception containing cycle node ids
+            pathForDebug = SetList()
+        else:
+            # normal run without checking for cycles
+            pathForDebug = None
+
+        for o in self.netlist.iterAllNodes():
+            o.scheduleAsap(pathForDebug, 0, None)
+
     def _scheduleAlapCompaction(self, freezeRightSideOfSchedule: bool):
         """
         Iteratively try to move any node to a later time if dependencies allow it.
@@ -150,8 +204,10 @@ class HlsScheduler():
                 if isinstance(n, (HlsNetNodeWriteBackedge, HlsNetNodeWriteForwardedge)) or not any(n.usedBy):
                     nodesBannedToMove.add(n)
             toSearch: Deque[HlsNetNode] = deque(n for n in reversed(allNodes) if n not in nodesBannedToMove)
+            excludeNode = nodesBannedToMove.__contains__
         else:
             nodesBannedToMove = None
+            excludeNode = None
             toSearch: Deque[HlsNetNode] = deque(reversed(allNodes))
 
         toSearchSet: Set[HlsNetNode] = set(toSearch)
@@ -159,8 +215,9 @@ class HlsScheduler():
         while toSearch:
             node0 = toSearch.popleft()
             toSearchSet.remove(node0)
-            for node1 in node0.scheduleAlapCompaction(endOfLastClk, None):
-                if node1 not in toSearchSet and (nodesBannedToMove is None or node1 not in nodesBannedToMove):
+            for node1 in node0.scheduleAlapCompaction(endOfLastClk, None, excludeNode):
+                if node1 not in toSearchSet and (excludeNode is None or
+                                                 not excludeNode(node1)):
                     toSearch.append(node1)
                     toSearchSet.add(node1)
 
@@ -185,34 +242,19 @@ class HlsScheduler():
                     toSearchSet.add(node1)
             # self._checkAllNodesScheduled()
 
-    def _scheduleIsMulticlock(self):
-        clkPeriod = self.netlist.normalizedClkPeriod
-        curBegin = None
-        curEnd = None
-        for n in self.netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT):
-            for t in chain(n.scheduledIn, n.scheduledOut):
-                if curBegin is None:
-                    # compute boundaries of clock window
-                    curBegin = beginOfClk(t, clkPeriod)
-                    curEnd = curBegin + clkPeriod
-                else:
-                    # compare if time is in current clock window
-                    if t < curBegin or t >= curEnd:
-                        return True
-        return False
-
     def schedule(self):
         dbgDir = self.netlist.platform._debug.dir
-        if dbgDir:
+        if self.debug and dbgDir:
             from hwtHls.netlist.translation.dumpSchedulingJson import HlsNetlistAnalysisPassDumpSchedulingJson
             from hwtHls.platform.fileUtils import outputFileGetter
-
+        
         self._scheduleAsap()
         self._checkAllNodesScheduled()
 
         if self.debug and dbgDir is not None:
-            HlsNetlistAnalysisPassDumpSchedulingJson(outputFileGetter(dbgDir, "schedulingDbg.0.asap0.hwschedule.json"),
-                                             expandCompositeNodes=True).runOnHlsNetlist(self.netlist)
+            HlsNetlistAnalysisPassDumpSchedulingJson(
+                outputFileGetter(dbgDir, "schedulingDbg.0.asap0.hwschedule.json"),
+                expandCompositeNodes=True).runOnHlsNetlist(self.netlist)
 
         if self._scheduleIsMulticlock():
             # if circuit schedule spans over multiple clock periods
@@ -220,22 +262,25 @@ class HlsScheduler():
             if self.debug:
                 self._checkAllNodesScheduled()
                 if dbgDir is not None:
-                    HlsNetlistAnalysisPassDumpSchedulingJson(outputFileGetter(dbgDir, "schedulingDbg.1.alap0.hwschedule.json"),
-                                                     expandCompositeNodes=True).runOnHlsNetlist(self.netlist)
+                    HlsNetlistAnalysisPassDumpSchedulingJson(
+                        outputFileGetter(dbgDir, "schedulingDbg.1.alap0.hwschedule.json"),
+                        expandCompositeNodes=True).runOnHlsNetlist(self.netlist)
 
             self._scheduleAsapCompaction()
             if self.debug:
                 self._checkAllNodesScheduled()
                 if dbgDir is not None:
-                    HlsNetlistAnalysisPassDumpSchedulingJson(outputFileGetter(dbgDir, "schedulingDbg.2.asap1.hwschedule.json"),
-                                                     expandCompositeNodes=True).runOnHlsNetlist(self.netlist)
-
+                    HlsNetlistAnalysisPassDumpSchedulingJson(
+                        outputFileGetter(dbgDir, "schedulingDbg.2.asap1.hwschedule.json"),
+                        expandCompositeNodes=True).runOnHlsNetlist(self.netlist)
+            
             self._scheduleAlapCompaction(True)
             if self.debug:
                 self._checkAllNodesScheduled()
                 if dbgDir is not None:
-                    HlsNetlistAnalysisPassDumpSchedulingJson(outputFileGetter(dbgDir, "schedulingDbg.3.alap1.hwschedule.json"),
-                                                     expandCompositeNodes=True).runOnHlsNetlist(self.netlist)
+                    HlsNetlistAnalysisPassDumpSchedulingJson(
+                        outputFileGetter(dbgDir, "schedulingDbg.3.alap1.hwschedule.json"),
+                        expandCompositeNodes=True).runOnHlsNetlist(self.netlist)
 
     def _dbgDumpResources(self, out:StringIO=sys.stdout):
         clkPeriod = self.netlist.normalizedClkPeriod

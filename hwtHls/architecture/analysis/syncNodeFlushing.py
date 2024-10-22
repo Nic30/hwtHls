@@ -1,11 +1,10 @@
-from hwt.pyUtils.setList import SetList
-from hwtHls.architecture.analysis.handshakeSCCs import HlsArchAnalysisPassHandshakeSCC,\
+from hwtHls.architecture.analysis.handshakeSCCs import HlsAndRtlNetlistAnalysisPassHandshakeSCC, \
     ReadOrWriteType
 from hwtHls.architecture.analysis.hlsArchAnalysisPass import HlsArchAnalysisPass
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 
 
-class HlsArchAnalysisPassSyncNodeFlushing(HlsArchAnalysisPass):
+class HlsAndRtlNetlistAnalysisPassSyncNodeFlushing(HlsArchAnalysisPass):
     """
     Detect which write nodes in ArchSyncNode are subject to flushing.
     
@@ -22,7 +21,7 @@ class HlsArchAnalysisPassSyncNodeFlushing(HlsArchAnalysisPass):
     
     .. _figflushing:
     
-    .. figure:: _static/pipeline_flushing.png
+    .. figure:: _static/syncLowering_pipeline_flushing.png
     
        Two cases when write data flushing is required
     
@@ -30,9 +29,9 @@ class HlsArchAnalysisPassSyncNodeFlushing(HlsArchAnalysisPass):
     """
 
     def runOnHlsNetlistImpl(self, netlist:"HlsNetlistCtx"):
-        hsSccs: HlsArchAnalysisPassHandshakeSCC = netlist.getAnalysis(HlsArchAnalysisPassHandshakeSCC)
+        hsSccs: HlsAndRtlNetlistAnalysisPassHandshakeSCC = netlist.getAnalysis(HlsAndRtlNetlistAnalysisPassHandshakeSCC)
 
-        # stalling: HlsArchAnalysisPassSyncNodeStallling = netlist.getAnalysis(HlsArchAnalysisPassSyncNodeStallling)
+        # stalling: HlsAndRtlNetlistAnalysisPassSyncNodeStallling = netlist.getAnalysis(HlsAndRtlNetlistAnalysisPassSyncNodeStallling)
         self._detectFlushing(hsSccs)
 
     # @classmethod
@@ -64,22 +63,14 @@ class HlsArchAnalysisPassSyncNodeFlushing(HlsArchAnalysisPass):
     #
     #    return syncGraphComponent
     @classmethod
-    def _detectFlushing(cls,
-                        hsSccs: HlsArchAnalysisPassHandshakeSCC):
+    def _detectFlushing(cls, hsSccs: HlsAndRtlNetlistAnalysisPassHandshakeSCC):
         # divide sync node graph to components of nodes which are in the same clock window and are connected
         # by channel where source can stall (has valid)
         # :note: it does not matter if dst can stall or not (has ready) because flushing
         # is required when src node can partially stall
 
-        graphComponetsForFlushing = []
-        graphComponetsForFlushing.extend(hsSccs.sccs)
-
-        for syncNode, allNodeIOs in hsSccs.nodesOutsideOfAnySCC:
-            syncGraphComponent = SetList((syncNode,))
-            graphComponetsForFlushing.append((syncGraphComponent, allNodeIOs))
-
         # collect all IO in component
-        for _, allIOs in graphComponetsForFlushing:
+        for _, allIOs in hsSccs.sccs:
             # Flushing is required for:
             #  * forward edges if there is a triangle in "CFG" in a single clock window
             #    and right side is a loop and jump back to common successor does not happen immediately
@@ -89,25 +80,46 @@ class HlsArchAnalysisPassSyncNodeFlushing(HlsArchAnalysisPass):
 
             # Obscurities:
             # * write may be also flushed if there are some stalling inputs which are not used by this out
-            # * flushing may change total order of IO operations, this is problem
+            # * flushing may change total order of IO operations, this is problem as it may lead to a deadlock
             # * Loops are translated in a way where last iteration also loads new data for next iteration
             #   in this situation all writes are requiring flush
-            
-            # Write flushing makes sence in situation when
+
+            # Write flushing makes sense in situation when
             #  * there are multiple IO operations potentially causing stall of parent node
             #  * this output does not depend on all other nodes all the time
             # write do not need flushing if:
             #  * src can not stall (_rtlUseValid=False)
             #  * or all IOs scheduled after can be stalled by external means
             externalStallSourceSeen = False
-            for (_, ioNode, _, ioTy) in reversed(allIOs):
+            ioNodesInSameTime = []
+            lastIoNodeTime = None
+            for (ioNodeTime, ioNode, _, ioTy) in reversed(allIOs):
+                # :note: some ioNodes may be scheduled to a same time
+                #        in this case stalling of on may be source of stalling for all others
                 isWrite = ioTy == ReadOrWriteType.CHANNEL_W or ioTy == ReadOrWriteType.W
                 if isWrite:
                     isExternalStallCause = ioNode._rtlUseReady
                 else:
                     isExternalStallCause = ioNode._rtlUseValid
+
                 if externalStallSourceSeen and isWrite:
                     ioNode: HlsNetNodeWrite
                     if ioNode._mayBecomeFlushable and ioNode._rtlUseValid:
                         ioNode.setFlushable()
+
+                if lastIoNodeTime != ioNodeTime:
+                    lastIoNodeTime = ioNodeTime
+                    ioNodesInSameTime.clear()
+                
+
+                if isExternalStallCause and not externalStallSourceSeen and ioNodesInSameTime:
+                    # it was just found that this node may cause stall for nodes in same time
+                    for _ioNode in ioNodesInSameTime:
+                        _ioNode: HlsNetNodeWrite
+                        if _ioNode._mayBecomeFlushable and _ioNode._rtlUseValid:
+                            _ioNode.setFlushable()
+                    
+                if isWrite:
+                    ioNodesInSameTime.append(ioNode)
+                    
                 externalStallSourceSeen |= isExternalStallCause

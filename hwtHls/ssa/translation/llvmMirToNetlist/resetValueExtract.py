@@ -2,7 +2,6 @@ from typing import Optional, Set, Dict
 
 from hwt.hwIO import HwIO
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register
-from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
@@ -13,8 +12,7 @@ from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, HlsNetNodeOutLazy, \
-    HlsNetNodeOut, unlink_hls_nodes, HlsNetNodeIn, \
-    unlink_hls_node_input_if_exists
+    HlsNetNodeOut, unlink_hls_node_input_if_exists
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdge, MachineEdgeMeta
@@ -26,17 +24,16 @@ class ResetValueExtractor():
     Rewrite multiplexor cases for reset to an initialization of channels.
     """
 
-    def __init__(self, builder: HlsNetlistBuilder,
+    def __init__(self,
                  valCache: MirToHwtHlsNetlistValueCache,
                  liveness: Dict[MachineBasicBlock, Dict[MachineBasicBlock, Set[Register]]],
-                 blockSync: Dict[MachineBasicBlock, MachineBasicBlockMeta],
+                 blockMeta: Dict[MachineBasicBlock, MachineBasicBlockMeta],
                  edgeMeta: Dict[MachineEdge, MachineEdgeMeta],
                  regToIo: Dict[Register, HwIO],
                  dbgTracer: DebugTracer):
-        self.builder = builder
         self.valCache = valCache
         self.liveness = liveness
-        self.blockSync = blockSync
+        self.blockMeta = blockMeta
         self.edgeMeta = edgeMeta
         self.regToIo = regToIo
         self.dbgTracer = dbgTracer
@@ -64,6 +61,7 @@ class ResetValueExtractor():
                        " rst:", rstPred, "rstEn: ", resetPredEn, " other:",
                        otherPred, " otherEn:", otherPredEn))
 
+        mbMeta = self.blockMeta[mb]
         if resetPredEn is None and otherPredEn is None:
             # case where there are no live variables and thus no reset value extraction is required
             for pred in mb.predecessors():
@@ -72,13 +70,12 @@ class ResetValueExtractor():
                     assert r in self.regToIo, (
                         r, "Block is supposed to have no live in registers because any en from predecessor was not used in input mux")
             assert newResetEdgeMeta.reuseDataAsControl is None
-            mbSync = self.blockSync[mb]
-            if mbSync.needsControl and not mbSync.isLoopHeaderOfFreeRunning:
+            if mbMeta.needsControl and not mbMeta.isLoopHeaderOfFreeRunning:
                 dbgTracer.log("appending init value to control channel from rst")
                 rstBuff = newResetEdgeMeta.getBufferForReg(newResetEdge)
-                assert HdlType_isVoid(rstBuff.obj._outputs[0]._dtype), (rstBuff, rstBuff.obj._outputs[0]._dtype)
-                rstBuffW = rstBuff.obj.associatedWrite
-                rstBuffW.channelInitValues = tuple([(), *rstBuffW.channelInitValues])
+                assert HdlType_isVoid(rstBuff.obj._portDataOut._dtype), (rstBuff, rstBuff.obj._portDataOut._dtype)
+                rstBuffR = rstBuff.obj
+                rstBuffR.channelInitValues = tuple([(), *rstBuffR.channelInitValues])
             else:
                 dbgTracer.log("Ignoring reset behavior because it has no effect")
 
@@ -95,7 +92,7 @@ class ResetValueExtractor():
             else:
                 dependentOnControlInput = resetPredEn.dependent_inputs + otherPredEn.dependent_inputs
 
-            builder = self.builder
+            builder = mbMeta.parentElement.builder
             alreadyUpdated: Set[HlsNetNode] = set()
             for i in dependentOnControlInput:
                 # en from predecessor should now be connected to all MUXes as some selector/condition
@@ -154,7 +151,8 @@ class ResetValueExtractor():
                        not isinstance(v0.obj, HlsNetNodeReadBackedge)):
                     v0 = v0.obj.dependsOn[0]
 
-                assert isinstance(v0, HlsNetNodeOut) and isinstance(v0.obj, HlsNetNodeReadBackedge), (mb, v0)
+                assert isinstance(v0, HlsNetNodeOut) and isinstance(v0.obj, HlsNetNodeReadBackedge), (
+                    "Expected channel for livein initialization from reset", mb, v0, )
                 backedgeBuffRead = v0.obj
 
                 assert backedgeBuffRead is not None
@@ -162,7 +160,6 @@ class ResetValueExtractor():
                 assert not isinstance(vRst, HlsNetNodeOutLazy), (
                     "This transformation should be performed only after all links were resolved and def must be always before use", vRst)
                 rstValObj = vRst.obj
-                removed = self.builder._removedNodes
                 while True:
                     if isinstance(rstValObj, HlsNetNodeReadForwardedge):
                         wr = rstValObj.associatedWrite
@@ -170,11 +167,10 @@ class ResetValueExtractor():
                             netlistExplicitSyncDisconnectFromOrderingChain(dbgTracer, n, None)
                             unlink_hls_node_input_if_exists(n.skipWhen)
                             unlink_hls_node_input_if_exists(n.extraCond)
-                            removed.add(n)
+                            n.markAsRemoved()
 
-                        removed.add(wr)
                         dep = wr.dependsOn[0]
-                        unlink_hls_nodes(dep, wr._inputs[0])
+                        wr._inputs[0].disconnectFromHlsOut(dep)
                     else:
                         break
 
@@ -186,14 +182,14 @@ class ResetValueExtractor():
                     "Must be const otherwise it is impossible to extract this as reset",
                     rstValObj, mb)
                 # add reset value to backedge buffer init
-                init = backedgeBuffRead.associatedWrite.channelInitValues
+                init = backedgeBuffRead.channelInitValues
                 if init:
                     raise NotImplementedError("Merge init values")
                 else:
                     t = rstValObj.val._dtype
-                    assert t == backedgeBuffRead._outputs[0]._dtype, (backedgeBuffRead, t, backedgeBuffRead._outputs[0]._dtype)
+                    assert t == backedgeBuffRead._portDataOut._dtype, (backedgeBuffRead, t, backedgeBuffRead._portDataOut._dtype)
                     assert t == mux._outputs[0]._dtype, (mux, t, mux._outputs[0]._dtype)
-                    backedgeBuffRead.associatedWrite.channelInitValues = ((rstValObj.val,),)
+                    backedgeBuffRead.channelInitValues = ((rstValObj.val,),)
 
                 # pop mux inputs for reset
                 if resetPredEnI is not None:
@@ -205,32 +201,22 @@ class ResetValueExtractor():
                     condI = otherPredEnI
 
                 builder.unregisterOperatorNode(mux)
-                unlink_hls_nodes(vRst, vRstI)
+                vRstI.disconnectFromHlsOut(vRst)
                 mux._removeInput(vRstI.in_i)  # remove reset input which was moved to backedge buffer init
 
-                unlink_hls_nodes(cond, condI)
+                condI.disconnectFromHlsOut(cond)
                 mux._removeInput(condI.in_i)  # remove condition because we are not using it
 
                 builder.registerOperatorNode(mux)
                 alreadyUpdated.add(mux)
 
         # :attention: If there is a control channel we must place an initial CFG token into it once it is generated
-    def _replaceInputDriverWithConst1b(self, i: HlsNetNodeIn, threads: HlsNetlistAnalysisPassDataThreadsForBlocks):
-        c = self.builder._replaceInputDriverWithConst1b(i)
-        t = threads.threadPerNode[i.obj]
-        t.add(c.obj)
-        threads.threadPerNode[c.obj] = t
 
-    def apply(self, mf: MachineFunction, threads: HlsNetlistAnalysisPassDataThreadsForBlocks):
-        # b = self.builder
+    def apply(self, mf: MachineFunction):
         for mb in mf:
             mb: MachineBasicBlock
-            mbSync: MachineBasicBlockMeta = self.blockSync[mb]
+            mbMeta: MachineBasicBlockMeta = self.blockMeta[mb]
 
-            if mbSync.rstPredeccessor is not None:
-                self._rewriteControlOfInfLoopWithReset(self.dbgTracer, mb, mbSync.rstPredeccessor)
-                # if not mbSync.needsControl:
-                # for i in tuple(mbSync.blockEn.dependent_inputs):
-                #    i: HlsNetNodeIn
-                #    assert isinstance(i.obj, (HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeOperator)), i.obj
-                #    self._replaceInputDriverWithConst1b(i, threads)
+            if mbMeta.rstPredeccessor is not None:
+                self._rewriteControlOfInfLoopWithReset(self.dbgTracer, mb, mbMeta.rstPredeccessor)
+

@@ -1,5 +1,3 @@
-from typing import Set
-
 from hwt.hdl.operatorDefs import COMPARE_OPS, BITWISE_OPS, \
     ALWAYS_COMMUTATIVE_OPS, ALWAYS_ASSOCIATIVE_COMMUTATIVE_OPS, CMP_OP_SWAP
 from hwt.pyUtils.setList import SetList
@@ -7,13 +5,14 @@ from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith
+from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOperatorNodeWith
+
 
 BINARY_OPS_WITH_SWAPABLE_OPERANDS = {*BITWISE_OPS, *COMPARE_OPS, *ALWAYS_COMMUTATIVE_OPS}
 
 
-def netlistNormalizeConstToRhs(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]) -> bool:
-    b: HlsNetlistBuilder = n.netlist.builder
+def netlistNormalizeConstToRhs(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]) -> bool:
+    b: HlsNetlistBuilder = n.getHlsNetlistBuilder()
     op = n.operator
     assert op in BINARY_OPS_WITH_SWAPABLE_OPERANDS, "This function should be only called if this is satisfied"
     op0, op1 = n.dependsOn
@@ -23,9 +22,9 @@ def netlistNormalizeConstToRhs(n: HlsNetNodeOperator, worklist: SetList[HlsNetNo
         else:
             op = CMP_OP_SWAP[op]
 
-        newN = b.buildOp(op, n._outputs[0]._dtype, op1, op0)
+        newN = b.buildOp(op, n.operatorSpecialization, n._outputs[0]._dtype, op1, op0)
         assert newN is not n
-        replaceOperatorNodeWith(n, newN, worklist, removed)
+        replaceOperatorNodeWith(n, newN, worklist)
         worklist.append(newN.obj)
         return True
 

@@ -1,15 +1,13 @@
-from typing import Set, List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Set
 
 from hwt.hdl.types.defs import BIT
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
 from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineLoopInfo, \
     MachineLoop, MachineInstr, Register, TargetOpcode, MachineFunction, MachineRegisterInfo
-from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
-from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import \
@@ -20,13 +18,16 @@ from ipCorePackager.constants import DIRECTION
 
 class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
     '''
-    This pass updates blockSync dictionary in :class:`hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist.HlsNetlistAnalysisPassMirToNetlist` with
-    flags which are describing what type of synchronization for block should be used.
+    This pass updates blockMeta dictionary in :class:`hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist.HlsNetlistAnalysisPassMirToNetlist` with
+    flags which are describing what type of synchronization for block/block edge should be used.
 
     :note: This is thread level synchronization of control flow in blocks not RTL type of synchronization.
         That means this does not solve synchronization of pipeline stages but
         it must solve the synchronization between accesses to exclusive resources.
-
+    
+    :attention: This algorithm expects optimized code (after if-conversion, branch folding)
+        and does not check for trivial cases removed by mentioned passes.
+    
     .. code-block:: llvm
 
         entry: #
@@ -65,6 +66,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
         TargetOpcode.G_CONSTANT,
         TargetOpcode.HWTFPGA_BR,
         TargetOpcode.HWTFPGA_ARG_GET,
+        TargetOpcode.HWTFPGA_GLOBAL_VALUE,
         TargetOpcode.IMPLICIT_DEF
     }
 
@@ -83,19 +85,20 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
         return True
 
     def _resolveRstPredecessor(self, mb: MachineBasicBlock,
-                               mbSync: MachineBasicBlockMeta,
+                               mbMeta: MachineBasicBlockMeta,
                                loop: MachineLoop) -> Optional[MachineBasicBlock]:
         if loop.getHeader() != mb:
             # can not extract reset if this not a top loop
-            return mbSync.rstPredeccessor
+            return mbMeta.rstPredeccessor
 
         topLoop = loop
         while True:
             p = topLoop.getParentLoop()
             if p is None or p.getHeader() != mb:
                 break
+            topLoop = p
 
-        if mbSync.rstPredeccessor is None and mb.pred_size() >= 2:
+        if mbMeta.rstPredeccessor is None and mb.pred_size() >= 2:
             # check if some predecessor is bb0 and check if all other predecessors are reenter from the loop which has this block as header
             p0 = None
             mostOuterOuterPred = None
@@ -120,7 +123,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
 
             assert mostOuterOuterPred is not None, ("Can not find block where to inline initialization for rst block for", mb)
 
-            mbSync.rstPredeccessor = p0
+            mbMeta.rstPredeccessor = p0
             rstE: MachineEdgeMeta = self.edgeMeta[(p0, mb)]
             rstE.etype = MACHINE_EDGE_TYPE.RESET
             rstE.inlineRstDataToEdge = (mostOuterOuterPred, mb)
@@ -128,41 +131,32 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
             assert rstReplaceEdge.etype != MACHINE_EDGE_TYPE.DISCARDED, (rstE, rstReplaceEdge)
             rstReplaceEdge.inlineRstDataFromEdge = (p0, mb)
 
-        return mbSync.rstPredeccessor
+        return mbMeta.rstPredeccessor
 
-    def _tryToFindRegWhichCanBeUsedAsControl(self, mir: "HlsNetlistAnalysisPassMirToNetlist", MRI: MachineRegisterInfo,
+    def _tryToFindRegWhichCanBeUsedAsControl(self, mir: "HlsNetlistAnalysisPassMirToNetlist",
+                                             MRI: MachineRegisterInfo,
                                              pred: MachineBasicBlock, mb: MachineBasicBlock,
                                              eMeta: MachineEdgeMeta) -> Optional[Register]:
         assert eMeta.srcBlock is pred and eMeta.dstBlock is mb, (eMeta, pred, mb)
         if eMeta.reuseDataAsControl is not None:
             return eMeta.reuseDataAsControl
+        constLiveouts = self.blockMeta[pred].constLiveOuts
         for liveIn in mir.liveness[pred][mb]:
             # [todo] prefer using same liveIns from every predecessor
             # [todo] prefer using variables which are used the most early
-            if mir._regIsValidLiveIn(MRI, liveIn):
-                latestDefInPrevBlock = None
-                for predMI in pred:
-                    if predMI.definesRegister(liveIn):
-                        latestDefInPrevBlock = predMI
-                if latestDefInPrevBlock is not None and\
-                    latestDefInPrevBlock.getOpcode() == TargetOpcode.HWTFPGA_MUX and\
-                    latestDefInPrevBlock.getNumOperands() == 2 and\
-                    latestDefInPrevBlock.getOperand(1).isCImm():
-                    # skip because this will be trivially sinked
-                    continue
-
+            if liveIn not in constLiveouts and mir._regIsValidLiveIn(MRI, liveIn):
                 eMeta.reuseDataAsControl = liveIn
                 return liveIn
 
         return None
 
-    def _resolveUsedLoops(self, mb: MachineBasicBlock, mbSync: MachineBasicBlockMeta, loop: MachineLoop):
+    def _resolveUsedLoops(self, mb: MachineBasicBlock, mbMeta: MachineBasicBlockMeta, loop: MachineLoop):
         mir = self.originalMir
         MRI = mir.mf.getRegInfo()
         assert loop.getHeader() == mb, (mb, loop)
         edgeMeta: MachineEdgeMeta = self.edgeMeta
         topLoop = loop
-        mbSync.isLoopHeader = True
+        mbMeta.isLoopHeader = True
         while True:
             depth = loop.getLoopDepth()
             loopId = MachineLoopId(mb.getNumber(), depth)
@@ -244,28 +238,15 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
         :note: They synchronization is always marked for the start of the thread.
         """
         # resolve control enable flag for a block
-        mbSync: MachineBasicBlockMeta = self.blockSync[mb]
-        mbThreads: List[Set[HlsNetNode]] = self.threadsPerBlock[mb]
+        mbMeta: MachineBasicBlockMeta = self.blockMeta[mb]
         loops: MachineLoopInfo = self.loops
-        needsControlOld = mbSync.needsControl
+        needsControlOld = mbMeta.needsControl
 
         if mb.pred_size() == 0 and mb.succ_size() == 0:
-            mbSync.needsControl = True
-            mbSync.needsStarter = True
+            assert next(iter(self.originalMir.mf)) == mb, "No predecessor is allowed only for entry block"
+            mbMeta.needsControl = True
+            mbMeta.needsStarter = True
         else:
-            predThreadIds: Set[int] = set()
-            for pred in mb.predecessors():
-                pred: MachineBasicBlock
-                predThreadIds.update(id(t) for t in self.threadsPerBlock[pred])
-            threadsStartingThere = [t for t in mbThreads if id(t) not in predThreadIds]
-
-            # if mb.pred_size() == 0:
-            #    if mb.succ_size() == 1:
-            #        suc = tuple(mb.successors())[0]
-            #        if self._resolveRstPredecessor(suc, self.blockSync[suc]) is not mb:
-            #            mbSync.needsStarter = True
-            #    else:
-            #        mbSync.needsStarter = True
 
             if self.loops.isLoopHeader(mb):
                 loop: MachineLoop = loops.getLoopFor(mb)
@@ -273,20 +254,13 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                 # It can be done by data itself if there is an single output/write which has all
                 # input as transitive dependencies (unconditionally.) And if this is an infinite cycle.
                 # So we do not need to check the number of executions.
-                self._resolveRstPredecessor(mb, mbSync, loop)
-                self._resolveUsedLoops(mb, mbSync, loop)
+                self._resolveRstPredecessor(mb, mbMeta, loop)
+                self._resolveUsedLoops(mb, mbMeta, loop)
 
-                if not mbSync.needsControl:
-                    # if not loop.hasNoExitBlocks():
-                    #    # need sync to synchronize code behind the loop
-                    #    mbSync.needsControl = True
-
-                    if mbThreads and HlsNetlistAnalysisPassDataThreadsForBlocks.threadContainsNonConcurrentIo(mbThreads[0]):
-                        mbSync.needsControl = True
-
-                    elif (len(mbThreads) != 1 or
+                if not mbMeta.needsControl:
+                    if (
                           (mb.pred_size() > 1 and
-                           (mb.pred_size() != 2 or not mbSync.rstPredeccessor)  # and
+                           (mb.pred_size() != 2 or not mbMeta.rstPredeccessor)  # and
                             # not self._hasSomeLiveInFromEveryPredec(mb)
                            )
                           ):
@@ -297,123 +271,38 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                             isLoopReenter = loop.containsBlock(pred)
                             # reenter does not need explicit sync because it is synced by data
                             # rstPredeccessor does not need explicit sync because it will be inlined to reset values
-                            if not isLoopReenter and mbSync.rstPredeccessor is not pred:
+                            if not isLoopReenter and mbMeta.rstPredeccessor is not pred:
                                 loopBodySelfSynchronized = False
                                 break
 
                         if loopBodySelfSynchronized and mb.pred_size() == 2:
                             pass
                         else:
-                            mbSync.needsControl = True
-
-                    elif mb.succ_size() > 1:
-                        mbSync.needsControl = True
-                        # # we can use input data as control to activate this block
-                        # # so we do not require control if there is some data
-                        # mbSync.needsControl = not self._hasSomeLiveInFromEveryPredec(mb)
+                            mbMeta.needsControl = True
 
                     else:
-                        sucThreadIds = set()
-                        for suc in mb.successors():
-                            for t in self.threadsPerBlock[suc]:
-                                sucThreadIds.add(id(t))
-                        if len(sucThreadIds) > 1:
-                            mbSync.needsControl = True
+                        mbMeta.needsControl = True
 
-                # if mbSync.needsControl and not mbSync.uselessOrderingFrom:
-                #    loopHasOnly1Thread = True
-                #    onlyDataThread = None
-                #    for _mb in loop.getBlocks():
-                #        _mbThreads = self.threadsPerBlock[_mb]
-                #        if len(_mbThreads) > 1:
-                #            loopHasOnly1Thread = True
-                #        elif onlyDataThread is None:
-                #            if _mbThreads:
-                #                onlyDataThread = _mbThreads[0]
-                #        elif _mbThreads:
-                #            if onlyDataThread is not _mbThreads[0]:
-                #                loopHasOnly1Thread = False
-                #    # [fixme] if the block is part of FSM there is a problem caused by storing of control bit to register
-                #    #         the FSM detect state transitions by the time when write happens
-                #    #         if we allow the write of this bit before all IO is finished the FSM transition detection alg.
-                #    #         will resolve IO as to skip if after control bit is written which is incorrect
-                #    if loopHasOnly1Thread:
-                #        for pred in mb.predecessors():
-                #            if loop.containsBlock(pred):
-                #                mbSync.uselessOrderingFrom.add(pred)
-
-            elif not mbSync.needsControl:
+            elif not mbMeta.needsControl:
                 needsControl = False
-                if (len(threadsStartingThere) > 1 or
-                    any(HlsNetlistAnalysisPassDataThreadsForBlocks.threadContainsNonConcurrentIo(t) for t in threadsStartingThere)):
-                    needsControl = True
-                elif (bool(mbThreads) and
-                        (
-                            any(self.blockSync[pred].needsControl for pred in mb.predecessors()) or
-                            any(self.blockSync[suc].needsControl for suc in mb.successors())
-                        )
+                if (any(self.blockMeta[pred].needsControl for pred in mb.predecessors()) or
+                    any(self.blockMeta[suc].needsControl for suc in mb.successors())
                     ):
                     needsControl = True
-                elif (mbSync.needsStarter and
+                elif (mbMeta.needsStarter and
                           (mb.succ_size() == 0 or
                            any(loops.getLoopFor(suc) is None for suc in mb.successors()))):
                     needsControl = True
-                elif self._isPredecessorOfBlocksWithPotentiallyConcurrentIoAccess(mb):
-                    needsControl = True
 
-                mbSync.needsControl = needsControl
+                mbMeta.needsControl = needsControl
 
-        if not needsControlOld and mbSync.needsControl:
+        if not needsControlOld and mbMeta.needsControl:
             self._onBlockNeedsControl(mb)
 
-    def _getPotentiallyConcurrentIoAccessFromSuccessors(self, mb: MachineBasicBlock):
-        backedges = self.backedges
-        accesses: Dict[Register, Set[MachineInstr]] = {}
-        for suc in mb.successors():
-            suc: MachineBasicBlock
-            if (mb, suc) in backedges:
-                # skip because on this edge there will be some sort of synchronization naturally
-                # we do not have to mark it explicitly
-                continue
-
-            sucAccesses = self._getPotentiallyConcurrentIoAccess(suc)
-            for reg, accessSet in sucAccesses.items():
-                accs = accesses.get(reg, None)
-                if accs is None:
-                    accesses[reg] = accs = set()
-                accs.update(accessSet)
-
-        return accesses
-
-    def _getPotentiallyConcurrentIoAccess(self, mb: MachineBasicBlock):
-        """
-        :note: Potentially concurrent accesses are those which are to same interface and are in different code branches which may execute concurrently.
-        """
-        accesses = self._getPotentiallyConcurrentIoAccessFromSuccessors(mb)
-        for instr in mb:
-            instr: MachineInstr
-            opc = instr.getOpcode()
-            if opc not in (TargetOpcode.HWTFPGA_CLOAD, TargetOpcode.HWTFPGA_CSTORE):
-                continue
-
-            io = instr.getOperand(1).getReg()
-            # overwrite because now there is a single load/store and all successors load/stores are ordered after it
-            accSet = accesses.get(io, None)
-            if accSet is None:
-                accesses[io] = {instr, }
-            else:
-                accSet.add(instr)
-
-        return accesses
-
-    def _isPredecessorOfBlocksWithPotentiallyConcurrentIoAccess(self, mb: MachineBasicBlock):
-        accesses = self._getPotentiallyConcurrentIoAccessFromSuccessors(mb)
-        return any(len(accessList) > 1 for accessList in accesses.values())
-
     def _onBlockNeedsControl(self, mb: MachineBasicBlock):
-        blockSync = self.blockSync
-        mbSync: MachineBasicBlockMeta = blockSync[mb]
-        rstPred = mbSync.rstPredeccessor
+        blockMeta = self.blockMeta
+        mbMeta: MachineBasicBlockMeta = blockMeta[mb]
+        rstPred = mbMeta.rstPredeccessor
         allRstLiveInsInlinable = True
         if rstPred is not None:
             rstPred: MachineBasicBlock
@@ -439,23 +328,24 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
             if allRstLiveInsInlinable and pred is rstPred:
                 continue
 
-            predMbSync: MachineBasicBlockMeta = blockSync[pred]
-            canUseDataAsControl = False
+            predMbMeta: MachineBasicBlockMeta = blockMeta[pred]
+            # canUseDataAsControl = False
             eMeta: MachineEdgeMeta = self.edgeMeta[(pred, mb)]
             if loop is not None or (pred, mb) in self.backedges or eMeta.etype == MACHINE_EDGE_TYPE.FORWARD:
-                canUseDataAsControl = self._tryToFindRegWhichCanBeUsedAsControl(mir, MRI, pred, mb, eMeta) is not None
+                # canUseDataAsControl =  is not None
+                self._tryToFindRegWhichCanBeUsedAsControl(mir, MRI, pred, mb, eMeta)
 
-            if not canUseDataAsControl and not predMbSync.needsControl:
-                predMbSync.needsControl = True
-                if not predMbSync.needsStarter and not pred.pred_size():
-                    predMbSync.needsStarter = True
+            if eMeta.etype != MACHINE_EDGE_TYPE.RESET and not predMbMeta.needsControl: # not canUseDataAsControl and
+                predMbMeta.needsControl = True
+                if not predMbMeta.needsStarter and not pred.pred_size():
+                    predMbMeta.needsStarter = True
 
                 self._onBlockNeedsControl(pred)
 
         for suc in mb.successors():
-            mbSync: MachineBasicBlockMeta = blockSync[suc]
-            if not mbSync.needsControl:
-                mbSync.needsControl = True
+            mbMeta: MachineBasicBlockMeta = blockMeta[suc]
+            if not mbMeta.needsControl:
+                mbMeta.needsControl = True
                 self._onBlockNeedsControl(suc)
 
     def _collectBlockNeighbors(self, mb: MachineBasicBlock, branchDirection: DIRECTION,
@@ -483,17 +373,33 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                 self._collectBlockNeighbors(suc, DIRECTION.IN, predecessors, successors)
 
     @staticmethod
-    def constructBlockMeta(mf: MachineFunction,
+    def _initBlockMeta(mf: MachineFunction,
                            netlist: HlsNetlistCtx,
                            valCache: MirToHwtHlsNetlistValueCache,
-                           blockSync:Dict[MachineBasicBlock, MachineBasicBlockMeta]):
+                           blockMeta:Dict[MachineBasicBlock, MachineBasicBlockMeta]):
         for mb in mf:
             mb: MachineBasicBlock
-            mbSync = MachineBasicBlockMeta(
+
+            constLiveOuts: Set[Register] = set()
+            for instr in mb:
+                instr: MachineInstr
+                isConstDef = \
+                    instr.getOpcode() == TargetOpcode.HWTFPGA_MUX and\
+                    instr.getNumOperands() == 2 and\
+                    instr.getOperand(1).isCImm()
+                if isConstDef:
+                    constLiveOuts.add(instr.getOperand(0).getReg())
+                else:
+                    for op in instr.operands():
+                        if op.isReg() and op.isDef():
+                            constLiveOuts.discard(op.getReg())  
+
+            mbMeta = MachineBasicBlockMeta(
                 mb,
+                constLiveOuts,
                 HlsNetNodeOutLazy(netlist, [], valCache, BIT, name=f"bb{mb.getNumber():d}_en"),
                 HlsNetNodeOutLazy(netlist, [], valCache, HVoidOrdering, name=f"bb{mb.getNumber():d}_orderingIn"))
-            blockSync[mb] = mbSync
+            blockMeta[mb] = mbMeta
 
     def _prunebackedgesOfFreeRunningLoops(self):
         """
@@ -505,14 +411,13 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
         mir = self.originalMir
         MRI = mir.mf.getRegInfo()
         for mb in originalMir.mf:
-            mbSync: MachineBasicBlockMeta = self.blockSync[mb]
-            if mbSync.needsControl and mbSync.isLoopHeader:
+            mbMeta: MachineBasicBlockMeta = self.blockMeta[mb]
+            if mbMeta.needsControl and mbMeta.isLoopHeader:
                 # if the only enter is of reset type and
                 # if every used backedge does not hold any data we may discard it
                 # if this block has reset predecessor, some edge may have channelInitValues
                 compatible = True
                 edgesToDiscard: List[Tuple[MachineEdge, MachineEdgeMeta]] = []
-                # print(mb)
                 for pred in mb.predecessors():
                     e = (pred, mb)
                     eMeta: MachineEdgeMeta = self.edgeMeta[e]
@@ -536,7 +441,8 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                     edgesToDiscard.append((e, eMeta))
 
                 if compatible and edgesToDiscard:
-                    mbSync.isLoopHeaderOfFreeRunning = True
+                    mbMeta.isLoopHeaderOfFreeRunning = True
+                    mbMeta.needsControl = False
                     for _, eMeta in edgesToDiscard:
                         # assert eMeta.inlineRstDataFromEdge is None, ("Can not discard edge holding reset data", eMeta)
                         eMeta.etype = MACHINE_EDGE_TYPE.DISCARDED
@@ -593,15 +499,14 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
         from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 
         originalMir: HlsNetlistAnalysisPassMirToNetlist = netlist.getAnalysis(HlsNetlistAnalysisPassMirToNetlist)
-        threads: HlsNetlistAnalysisPassDataThreadsForBlocks = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)
 
         self.originalMir = originalMir
-        self.threadsPerBlock = threads.threadsPerBlock
-        self.blockSync = originalMir.blockSync
+        self.blockMeta = originalMir.blockMeta
         self.loops: MachineLoopInfo = originalMir.loops
         self.backedges = originalMir.backedges
         self.edgeMeta = originalMir.edgeMeta
 
+        self._initBlockMeta(originalMir.mf, netlist, originalMir.valCache, originalMir.blockMeta)
         self._initEdgeMeta(originalMir.mf)
 
         for mb in originalMir.mf:
@@ -609,20 +514,20 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
             self._resolveBlockMeta(mb)
 
         entry: MachineBasicBlock = next(iter(originalMir.mf))
-        entrySync: MachineBasicBlockMeta = self.blockSync[entry]
+        entryMeta: MachineBasicBlockMeta = self.blockMeta[entry]
         # if everything from entry was inlined to reset values and the successor is infinite loop we do not need starter
-        if entrySync.needsStarter and not entrySync.needsControl and entry.succ_size() == 1:
+        if entryMeta.needsStarter and not entryMeta.needsControl and entry.succ_size() == 1:
             suc = next(iter(entry.successors()))
-            sucSync: MachineBasicBlockMeta = self.blockSync[suc]
+            sucMeta: MachineBasicBlockMeta = self.blockMeta[suc]
             if (self.loops.isLoopHeader(suc) and
-                self.blockSync[suc].rstPredeccessor is entry and
-                not sucSync.needsControl):
-                entrySync.needsStarter = False
+                self.blockMeta[suc].rstPredeccessor is entry and
+                not sucMeta.needsControl):
+                entryMeta.needsStarter = False
 
         self._prunebackedgesOfFreeRunningLoops()
 
         for mb in originalMir.mf:
-            mbSync: MachineBasicBlockMeta = self.blockSync[mb]
-            if mbSync.needsControl and not mbSync.needsStarter and mb.pred_size() == 0:
-                mbSync.needsStarter = True
+            mbMeta: MachineBasicBlockMeta = self.blockMeta[mb]
+            if mbMeta.needsControl and not mbMeta.needsStarter and mb.pred_size() == 0:
+                mbMeta.needsStarter = True
 

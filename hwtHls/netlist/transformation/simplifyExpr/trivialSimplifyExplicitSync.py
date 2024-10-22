@@ -1,14 +1,11 @@
-from typing import Set
-
 from hwt.pyUtils.typingFuture import override
-from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.transformation.simplifySync.simplifyNonBlockingIo import netlistReduceExplicitSyncFlags
 from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
+from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import iterAllHierachies
 
 
 class HlsNetlistPassTrivialSimplifyExplicitSync(HlsNetlistPass):
@@ -19,12 +16,14 @@ class HlsNetlistPassTrivialSimplifyExplicitSync(HlsNetlistPass):
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
         dbgTracer = self.dbgTracer
-        removed: Set[HlsNetNode] = netlist.builder._removedNodes
-        for n in netlist.iterAllNodes():
-            if isinstance(n, HlsNetNodeExplicitSync) and n not in removed:
-                netlistReduceExplicitSyncFlags(dbgTracer, n, None, removed)
-        if removed:
-            netlist.filterNodesUsingSet(removed)
+        changed = False
+        for parent in iterAllHierachies(netlist):
+            for n in parent.subNodes:
+                if isinstance(n, HlsNetNodeExplicitSync) and not n._isMarkedRemoved:
+                    netlistReduceExplicitSyncFlags(dbgTracer, n, None)
+            changed |= parent.filterNodesUsingRemovedSet()
+
+        if changed:
             return PreservedAnalysisSet.preserveReachablity()
         else:
             return PreservedAnalysisSet.preserveAll()

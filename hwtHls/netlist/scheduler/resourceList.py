@@ -1,5 +1,22 @@
 from itertools import islice
-from typing import List, Dict
+from typing import List, Dict, Any, Sequence
+from hwtHls.io.portGroups import BankedPortGroup, MultiPortGroup
+
+SchedulingResourceType = Any
+SchedulingResourceConstraints = Dict[SchedulingResourceType, int]
+
+
+def initSchedulingResourceConstraintsFromIO(resourceConstraints: SchedulingResourceConstraints, ioResources: Sequence[SchedulingResourceType]):
+    for schedResT in ioResources:
+        if schedResT is not None and schedResT not in resourceConstraints:
+            if isinstance(schedResT, BankedPortGroup):
+                maxIosPerClk = len(schedResT)
+            elif isinstance(schedResT, MultiPortGroup):
+                maxIosPerClk = len(schedResT)
+            else:
+                maxIosPerClk = 1
+
+            resourceConstraints[schedResT] = maxIosPerClk
 
 
 class HlsSchedulerResourceUseList(List[Dict[object, int]]):
@@ -11,22 +28,23 @@ class HlsSchedulerResourceUseList(List[Dict[object, int]]):
     :note: This is used for list scheduling greedy algorithm to track how many resources were used in individual clock cycle windows.
     """
 
-    def __init__(self):
+    def __init__(self, resourceConstraints:SchedulingResourceConstraints):
         list.__init__(self)
         self.clkOffset = 0  # always >= 0, used to allow negative indexes on self
+        self.resourceConstraints = resourceConstraints
 
-    def getUseCount(self, resourceType, clkI: int) -> int:
+    def getUseCount(self, resourceType: SchedulingResourceType, clkI: int) -> int:
         assert resourceType is not None
         return self[self.clkOffset + clkI].get(resourceType, 0)
 
-    def addUse(self, resourceType, clkI: int, useCount:int=1):
+    def addUse(self, resourceType: SchedulingResourceType, clkI: int, useCount:int=1):
         # print("add use ", resourceType, clkI, end="")
         assert resourceType is not None
         cur = self[clkI]  # offset applied in __getitem__
         cur[resourceType] = cur.get(resourceType, 0) + useCount
         # print(" v:", cur[resourceType])
 
-    def removeUse(self, resourceType, clkI: int):
+    def removeUse(self, resourceType: SchedulingResourceType, clkI: int):
         # print("rm use", resourceType, clkI)
         assert resourceType is not None
         i = self.clkOffset + clkI
@@ -43,7 +61,7 @@ class HlsSchedulerResourceUseList(List[Dict[object, int]]):
             assert curCnt > 0, (clkI, resourceType, "Resource must be used in order to remove the use")
             cur[resourceType] = curCnt - 1
 
-    def moveUse(self, resourceType, fromClkI: int, toClkI: int):
+    def moveUse(self, resourceType: SchedulingResourceType, fromClkI: int, toClkI: int):
         assert resourceType is not None
         assert fromClkI != toClkI, (resourceType, "if this is the case this function should not be called at all", fromClkI)
         # print("mv use ", resourceType, fromClkI, toClkI)
@@ -72,27 +90,35 @@ class HlsSchedulerResourceUseList(List[Dict[object, int]]):
         toCnt = to.get(resourceType, 0)
         to[resourceType] = toCnt + 1
 
-    def findFirstClkISatisfyingLimit(self, resourceType, beginClkI: int, limit: int) -> int:
+    def findFirstClkISatisfyingLimit(self, resourceType: SchedulingResourceType, beginClkI: int) -> int:
         """
         Find the first clock period index where limit on resource usage is satisfied.
         """
-        assert resourceType is not None
-        assert limit > 0, limit
+        assert resourceType is not None, ""
         clkI = beginClkI
+        limit = self.resourceConstraints.get(resourceType, None)
+        if limit is None:
+            return clkI  # can be allocated in this clock as there is no constraint
+
+        assert limit > 0, limit
         while True:
             res = self[clkI]  # offset applied in __getitem__
             if res.get(resourceType, 0) < limit:
                 return clkI
             clkI += 1
 
-    def findFirstClkISatisfyingLimitEndToStart(self, resourceType, endClkI: int, limit: int) -> int:
+    def findFirstClkISatisfyingLimitEndToStart(self, resourceType: SchedulingResourceType, endClkI: int) -> int:
         """
         :attention: Limit for first clk period where search is increased because it is expected that the requested
             resource is already allocated there.
         """
         assert resourceType is not None
-        assert limit > 0, limit
         clkI = endClkI
+        limit = self.resourceConstraints.get(resourceType, None)
+        if limit is None:
+            return clkI  # can be allocated in this clock as there is no constraint
+
+        assert limit > 0, limit
         while True:
             res = self[clkI]  # offset applied in __getitem__
             if res.get(resourceType, 0) < (limit + 1 if clkI == endClkI else limit):

@@ -10,15 +10,15 @@ from hwtHls.architecture.analysis.handshakeSCCs import HlsAndRtlNetlistAnalysisP
 from hwtHls.architecture.analysis.hlsArchAnalysisPass import HlsArchAnalysisPass
 from hwtHls.architecture.analysis.syncNodeGraph import HlsAndRtlNetlistAnalysisPassSyncNodeGraph
 from hwtHls.architecture.analysis.syncNodeStalling import HlsAndRtlNetlistAnalysisPassSyncNodeStallling
-from hwtHls.architecture.transformation.hlsArchPass import HlsArchPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
+from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeWriteAnyChannel
 from hwtHls.platform.fileUtils import OutputStreamGetter
 
 
-class HsSCCsToGraphwiz():
+class HsSCCsToGraphviz():
     """
     Dump handshake synchronization Strongly Connected Component graph.
     """
@@ -110,12 +110,19 @@ class HsSCCsToGraphwiz():
             succDict = syncGraph.successors.get(n, None)
             if not succDict:
                 continue
+            srcArchElm, srcClkI = n
             nDot = nodeToDot[n]
             nParent = parentNode.get(n)
             for suc, sucChannels in succDict.items():
                 sucDot = nodeToDot[suc]
                 edgeId = self._getNewEdgeId()
                 first = True
+                if srcArchElm == suc[0] and\
+                        not srcArchElm.rtlStatesMayHappenConcurrently(srcClkI, suc[1]) and\
+                        all(chan.allocationType == CHANNEL_ALLOCATION_TYPE.REG for _, chan in sucChannels):
+                    # skip because this channel is just register in FSM
+                    continue
+                    
                 for chTy, chWrite in sucChannels:
                     if isinstance(chWrite, HlsNetNodeWriteForwardedge):
                         chDir = "F"
@@ -189,13 +196,13 @@ class RtlArchAnalysisPassDumpHsSCCsDot(HlsArchAnalysisPass):
         name = netlist.label
         out, doClose = self.outStreamGetter(name)
         try:
-            toGraphwiz = HsSCCsToGraphwiz(name)
+            toGraphviz = HsSCCsToGraphviz(name)
             chanels = netlist.getAnalysis(HlsAndRtlNetlistAnalysisPassChannelGraph)
             syncGraph = netlist.getAnalysis(HlsAndRtlNetlistAnalysisPassSyncNodeGraph)
             stalling = netlist.getAnalysis(HlsAndRtlNetlistAnalysisPassSyncNodeStallling)
             hsSccs = netlist.getAnalysis(HlsAndRtlNetlistAnalysisPassHandshakeSCC)
-            toGraphwiz.construct(chanels, syncGraph, stalling, hsSccs)
-            out.write(toGraphwiz.dumps())
+            toGraphviz.construct(chanels, syncGraph, stalling, hsSccs)
+            out.write(toGraphviz.dumps())
         finally:
             if doClose:
                 out.close()

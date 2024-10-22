@@ -1,7 +1,7 @@
 from copy import copy
-from enum import Enum
+from enum import Enum, auto
 from itertools import chain, islice
-from typing import List, Optional, Union, Tuple, Generator
+from typing import Optional, Union, Tuple, Generator, Set, Self
 
 from hwt.hdl.types.hdlType import HdlType
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
@@ -26,7 +26,22 @@ def _tupleSetItem(arr: tuple, index: int, replacement):
 
 
 class NODE_ITERATION_TYPE(Enum):
-    PREORDER, POSTORDER, OMMIT_PARENT = range(3)
+    """
+    Enum for recursive iteration of HlsNetNode
+    
+    :note: parent in this context means HlsNetNodeAggregate, children are nodes directly in it
+    
+    :ivar PREORDER: parent before children
+    :ivar POSTORDER: children before parent
+    :ivar OMMIT_PARENT: only children (no HlsNetNodeAggregate instances)
+    :ivar ONLY_PARENT_PREORDER: iterate  HlsNetlistCtx/HlsNetNodeAggregate instances only, parent is yielded first
+    :ivar ONLY_PARENT_POSTORDER: same as ONLY_PARENT_PREORDER but parent is yielded last
+    """
+    PREORDER = auto()
+    POSTORDER = auto()
+    OMMIT_PARENT = auto()
+    ONLY_PARENT_PREORDER = auto()
+    ONLY_PARENT_POSTORDER = auto()
 
 
 class _HlsNetNodeDeepcopyNil():
@@ -56,12 +71,17 @@ class HlsNetNode(SchedulableNode):
 
     :ivar _inputs: list of inputs of this node
     :ivar _outputs: list of inputs of this node
+    :ivar _isMarkedRemoved: flag used to check that this node was removed from netlist and is now tombstone
+    :ivar _isRtlAllocated: flag which is set after conversion to RTL, used in various asserts
     """
 
     def __init__(self, netlist: "HlsNetlistCtx", name: str=None):
+        assert name is None or name, 'Check that the name is not ""'
         self.name = name
         self._id = netlist.getUniqId()
         SchedulableNode.__init__(self, netlist)
+        self.parent: Optional[HlsNetNode] = None
+        self._isMarkedRemoved = False
         self._isRtlAllocated = False
 
     def clone(self, memo: dict, keepTopPortsConnected: bool) -> Tuple["HlsNetNode", bool]:
@@ -87,10 +107,16 @@ class HlsNetNode(SchedulableNode):
                                      for dep in self.dependsOn)
         return y, True
 
+    def markAsRemoved(self):
+        assert not self._isMarkedRemoved, self
+        self.getHlsNetlistBuilder()._removedNodes.add(self)
+        self._isMarkedRemoved = True
+
     def destroy(self):
         """
         Delete properties of this object to prevent unintentional use.
         """
+        assert self._isMarkedRemoved, self
         self.usedBy = None
         self.dependsOn = None
         self._inputs = None
@@ -99,6 +125,27 @@ class HlsNetNode(SchedulableNode):
         self.scheduledIn = None
         self.scheduledOut = None
 
+    def getHlsNetlistBuilder(self) -> "HlsNetlistBuilder":
+        p = self.parent
+        if p is None:
+            return self.netlist.builder
+        else:
+            return p.builder
+
+    def getParent(self) -> Union["HlsNetlistCtx", "HlsNetNodeAggregate"]:
+        if self.parent is None:
+            return self.netlist
+        else:
+            return self.parent
+
+    def getParentSyncNode(self) -> Tuple["ArchElement", int]:
+        assert self.parent is not None
+        return self.parent, self.scheduledZero // self.netlist.normalizedClkPeriod
+
+    def tryToInheritName(self, other: Self):
+        if self.name is None and other.name is None:
+            self.name = other.name
+
     def getInputDtype(self, index: int) -> HdlType:
         return self.dependsOn[index]._dtype
 
@@ -106,7 +153,8 @@ class HlsNetNode(SchedulableNode):
         """
         :attention: does not disconnect the input
         """
-        self.dependsOn.pop(index)
+        dep = self.dependsOn.pop(index)
+        assert dep is None, (self, index, "Can remove only disconnected ports", dep)
         self._inputs.pop(index)
         for inp in islice(self._inputs, index, None):
             inp.in_i -= 1
@@ -121,7 +169,8 @@ class HlsNetNode(SchedulableNode):
         """
         :attention: does not disconnect the output
         """
-        self.usedBy.pop(index)
+        uses = self.usedBy.pop(index)
+        assert not uses, (self, index, "Can remove only disconnected ports", uses)
         self._outputs.pop(index)
         for out in islice(self._outputs, index, None):
             out.out_i -= 1
@@ -186,6 +235,10 @@ class HlsNetNode(SchedulableNode):
         self.usedBy.append([])
         return o
 
+    def filterNodesUsingSet(self, removed: Set[Self], recursive=False, clearRemoved=False):
+        assert not self._isMarkedRemoved, self
+        assert self not in removed, self
+
     def deleteRealization(self):
         self.realization = None
         self.inputClkTickOffset = None
@@ -244,19 +297,10 @@ class HlsNetNode(SchedulableNode):
         raise NotImplementedError(
             "Override this method in derived class", self)
 
-    def createSubNodeRefrenceFromPorts(self, beginTime: SchedTime, endTime: SchedTime,
-                                       inputs: List[HlsNetNodeIn], outputs: List[HlsNetNodeOut]) -> "HlsNetNodePartRef":
-        raise NotImplementedError(
-            "Override this method in derived class", self)
-
-    def partsComplement(self, otherParts: List["HlsNetNodePartRef"]):
-        """
-        Create a parts which contains the rest of node not contained in otherParts.
-        """
-        raise NotImplementedError(
-            "Override this method in derived class", self)
-
     def iterAllNodesFlat(self, itTy: NODE_ITERATION_TYPE):
+        assert not self._isMarkedRemoved, self
+        if itTy == NODE_ITERATION_TYPE.ONLY_PARENT_PREORDER or itTy == NODE_ITERATION_TYPE.ONLY_PARENT_POSTORDER:
+            return
         yield self
 
     def _get_rtl_context(self):
@@ -313,22 +357,3 @@ def HlsNetNode_numberForEachOutputNormalized(node: HlsNetNode, val: Union[float,
         assert len(val) == len(node._outputs)
         return tuple(int(v // scale) for v in val)
 
-
-class HlsNetNodePartRef(HlsNetNode):
-    """
-    Abstract class for references of :class:`~.HlsNetNode` parts.
-
-    :note: The reason for this class is that we need to split nodes during analysis passes when we can not modify nodes.
-    """
-
-    def __init__(self, netlist:"HlsNetlistCtx", parentNode: HlsNetNode, name:str=None):
-        HlsNetNode.__init__(self, netlist, name=name)
-        self.parentNode = parentNode
-        # deleting because real value is stored in parent node and this is just reference
-        self._inputs = None
-        self._outputs = None
-        self.dependsOn = None
-        self.usedBy = None
-        self.scheduledIn = None
-        self.scheduledOut = None
-        self._subNodes: Optional["HlsNetlistClusterSearch"] = None

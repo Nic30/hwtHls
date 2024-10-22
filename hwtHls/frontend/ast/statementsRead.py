@@ -16,11 +16,11 @@ from hwtHls.llvm.llvmIr import Register, MachineInstr, Argument, ArrayType, Type
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes
-from hwtHls.netlist.nodes.read import HlsNetNodeRead, HlsNetNodeReadIndexed
+from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.readIndexed import HlsNetNodeReadIndexed
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
-from hwtHls.ssa.translation.llvmMirToNetlist.insideOfBlockSyncTracker import InsideOfBlockSyncTracker
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from hwtHls.ssa.value import SsaValue
@@ -71,10 +71,11 @@ class HlsRead(HdlStatement, SsaInstr):
         elif isinstance(sig, HwIO) or not isBlocking:
             w = dtype.bit_length()
             force_vector = False
-            if w == 1 and isinstance(dtype, HBits):
+            totalWidth = w + (0 if isBlocking else 1)
+            if totalWidth == 1 and isinstance(dtype, HBits):
                 force_vector = dtype.force_vector
 
-            sig_flat = var(name, HBits(w + (0 if isBlocking else 1), force_vector=force_vector))
+            sig_flat = var(name, HBits(totalWidth, force_vector=force_vector))
             # use flat signal and make type member fields out of slices of that signal
             if isBlocking:
                 sig = sig_flat._reinterpret_cast(dtype)
@@ -113,12 +114,11 @@ class HlsRead(HdlStatement, SsaInstr):
     def _translateMirToNetlist(cls,
                                representativeReadStm: "HlsRead",
                                mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
-                               syncTracker: InsideOfBlockSyncTracker,
-                               mbSync: MachineBasicBlockMeta,
+                               mbMeta: MachineBasicBlockMeta,
                                instr: MachineInstr,
                                srcIo: Union[HwIO, RtlSignalBase],
                                index: Union[int, HlsNetNodeOutAny],
-                               cond: Union[int, HlsNetNodeOutAny],
+                               cond: Optional[HlsNetNodeOutAny],
                                instrDstReg: Register) -> Sequence[HlsNetNode]:
         """
         This method is called to generated HlsNetlist nodes from LLVM MIR.
@@ -145,21 +145,20 @@ class HlsRead(HdlStatement, SsaInstr):
                            srcIo,
                            dtype=dtype,
                            name=f"ld_r{instr.getOperand(0).getReg().virtRegIndex():d}")
+        mbMeta.parentElement.addNode(n)
         if not representativeReadStm._isBlocking:
             n.setNonBlocking()
 
-        _cond = syncTracker.resolveControlOutput(cond)
-        mirToNetlist._addExtraCond(n, _cond, mbSync.blockEn)
-        mirToNetlist._addSkipWhen_n(n, _cond, mbSync.blockEn)
-        mbSync.addOrderedNode(n)
-        mirToNetlist.inputs.append(n)
+        mirToNetlist._addExtraCond(n, cond, mbMeta.blockEn)
+        mirToNetlist._addSkipWhen_n(n, cond, mbMeta.blockEn)
+        mbMeta.addOrderedNode(n)
         if representativeReadStm._isBlocking:
             o = n._portDataOut
         else:
             o = n.getRawValue()
         assert not isinstance(o._dtype, HBits) or not o._dtype.signed, (
             "At this stage all values of HBits type should have signed=None", o)  # can potentially be of void type
-        valCache.add(mbSync.block, instrDstReg, o, True)
+        valCache.add(mbMeta.block, instrDstReg, o, True)
 
         return [n, ]
 
@@ -217,13 +216,14 @@ class HlsReadAddressed(HlsRead):
         return toLlvm.b.CreateLoad(elmT, ptr, True, name)
 
     @classmethod
-    def _translateMirToNetlist(cls, mirToNetlist: "HlsNetlistAnalysisPassMirToNetlist",
-                               mbSync: MachineBasicBlockMeta,
-                               syncTracker: InsideOfBlockSyncTracker,
+    def _translateMirToNetlist(cls,
+                               representativeReadStm: "HlsReadAddresed",
+                               mirToNetlist: "HlsNetlistAnalysisPassMirToNetlist",
+                               mbMeta: MachineBasicBlockMeta,
                                instr: MachineInstr,
                                srcIo: HwIO,
                                index: Union[int, HlsNetNodeOutAny],
-                               cond: Union[int, HlsNetNodeOutAny],
+                               cond: Optional[HlsNetNodeOutAny],
                                instrDstReg: Register) -> Sequence[HlsNetNode]:
         """
         :see: :meth:`~.HlsRead._translateMirToNetlist`
@@ -235,13 +235,13 @@ class HlsReadAddressed(HlsRead):
             raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", srcIo, instr)
 
         n = HlsNetNodeReadIndexed(netlist, srcIo, name=f"ld_r{instr.getOperand(0).getReg().virtRegIndex()}")
-        link_hls_nodes(index, n.indexes[0])
-
-        _cond = syncTracker.resolveControlOutput(cond)
-        mirToNetlist._addExtraCond(n, _cond, mbSync.blockEn)
-        mirToNetlist._addSkipWhen_n(n, _cond, mbSync.blockEn)
-        mbSync.addOrderedNode(n)
-        mirToNetlist.inputs.append(n)
+        index.connectHlsIn(n.indexes[0])
+        _cond = cond
+        # _cond = mbMeta.syncTracker.resolveControlOutput(cond)
+        mirToNetlist._addExtraCond(n, _cond, None)
+        mirToNetlist._addSkipWhen_n(n, _cond, None)
+        mbMeta.parentElement.addNode(n)
+        mbMeta.addOrderedNode(n)
         o = n._portDataOut
         assert isinstance(o._dtype, HBits)
         sign = o._dtype.signed
@@ -251,7 +251,7 @@ class HlsReadAddressed(HlsRead):
             raise NotImplementedError()
         else:
             raise NotImplementedError()
-        valCache.add(mbSync.block, instrDstReg, o, True)
+        valCache.add(mbMeta.block, instrDstReg, o, True)
 
         return [n, ]
 

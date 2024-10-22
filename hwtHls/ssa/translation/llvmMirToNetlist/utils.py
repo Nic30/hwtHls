@@ -1,13 +1,7 @@
 from typing import Optional, List, Tuple
 
-from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineLoop
-from hwtHls.netlist.builder import HlsNetlistBuilder
-from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge
-from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge
-from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel
-from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, HlsNetNodeOut
+from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
 
 
 class LiveInMuxMeta():
@@ -27,80 +21,59 @@ def getTopLoopForBlock(mb: MachineBasicBlock, loop: MachineLoop) -> MachineLoop:
             break
     return topLoop
 
-
 # tuples (controlEn, controlObj, allInputDataChannels)
-LoopPortGroup = List[Tuple[HlsNetNodeOutAny,
-                           HlsNetNodeReadAnyChannel,
-                           List[HlsNetNodeExplicitSync]]]
+# LoopPortGroup = List[Tuple[HlsNetNodeOutAny,
+#                           HlsNetNodeReadAnyChannel,
+#                           List[HlsNetNodeExplicitSync]]]
 
-
-def _createSyncForAnyInputSelector(builder: HlsNetlistBuilder,
-                                   inputCases: LoopPortGroup,
-                                   externalEn: HlsNetNodeOut,
-                                   externalEn_n: HlsNetNodeOut):
-    """
-    Create a logic circuit which select a first control input which is valid and enables all its associated data inputs.
-    All inputs except last one are non blocking.
-    Last input has skipWhen=anyPrevVld
-
-    :param inputCases: list of case tuple (control channel, all input data channels)
-    """
-    anyPrevVld = None
-    for last, (vld, controlPort, data) in iter_with_last(inputCases):
-        # convertedToNb = False
-        assert isinstance(controlPort, (HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge)), controlPort
-        controlPort: HlsNetNodeReadBackedge
-        if not last:
-            # only last is non blocking because we need at least one to be blocking so body does not execute
-            # if no input is available
-            controlPort.setNonBlocking()
-        elif anyPrevVld is not None:
-            #controlPort.addControlSerialExtraCond(builder.buildNot(anyPrevVld))
-            controlPort.addControlSerialSkipWhen(anyPrevVld)
-
-        # vld: HlsNetNodeOut = controlPort.getValidNB()
-        # convertedToNb = True
-
-        # the actual value of controlSrc is not important there because
-        # it is interpreted by the circuit, there we only need to provide any data for rest of the circuit
-        # controlPort.addControlSerialExtraCond(externalEn)
-        # controlPort.addControlSerialSkipWhen(externalEn_n)
-
-        if anyPrevVld is None:
-            # if last or convertedToNb:
-            #    cEn = 1
-            # else:
-            #    cEn = vld_n
-
-            # first item
-            if data:
-                dEn = builder.buildAnd(externalEn, vld)
-                dSw = builder.buildOr(externalEn_n, builder.buildNot(vld))
-            anyPrevVld = vld
-        else:
-            # if last or convertedToNb:
-            #    cEn = anyPrevVld
-            # else:
-            #    cEn = builder.buildOr(anyPrevVld, vld_n)
-
-            if data:
-                en = builder.buildAnd(builder.buildNot(anyPrevVld), vld)
-                dEn = builder.buildAnd(externalEn, en)
-                dSw = builder.buildOr(externalEn_n, builder.buildNot(en))
-            anyPrevVld = builder.buildOr(anyPrevVld, vld)
-
-        # if isinstance(cEn, int):
-        #    assert cEn == 1, cEn
-        #    cEn = externalEn_n
-        # else:
-        #    cEn = builder.buildOr(externalEn_n, cEn)
-
-        # controlPort.addControlSerialSkipWhen(cEn)
-        for liveInSync in data:
-            liveInSync: HlsNetNodeExplicitSync
-            if liveInSync is controlPort:
-                continue
-            liveInSync.addControlSerialExtraCond(dEn)
-            liveInSync.addControlSerialSkipWhen(dSw)
-
-    return anyPrevVld
+# def _createSyncForAnyInputSelector(builder: HlsNetlistBuilder,
+#                                   inputCases: LoopPortGroup,
+#                                   externalEn: Optional[HlsNetNodeOut],
+#                                   externalEn_n: Optional[HlsNetNodeOut]):
+#    """
+#    Create a logic circuit which enables data inputs associated some control read port.
+#    :param inputCases: list of case tuple (control channel, all input data channels)
+#    """
+#    if externalEn is None:
+#        assert externalEn_n is None
+#    else:
+#        assert externalEn_n is not None
+#
+#    #anyPrevVld = None
+#    for (controlEn, controlPort, data) in inputCases:
+#        controlEn: HlsNetNodeOut
+#        data: List[HlsNetNodeExplicitSync]
+#        controlPort: Union[HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge]
+#        assert controlEn is not None
+#        assert isinstance(controlPort, (HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge)), controlPort
+#
+#        #if not last:
+#        #    # only last is non blocking because we need at least one to be blocking so body does not execute
+#        #    # if no input is available
+#        #    controlPort.setNonBlocking()
+#        #if anyPrevVld is not None:
+#        #    # controlPort.addControlSerialExtraCond(builder.buildNot(anyPrevVld))
+#        #    controlPort.addControlSerialSkipWhen(builder.buildAndOptional(externalEn, anyPrevVld))
+#
+#        hasData = data and (len(data) > 1 or data[0] is not controlPort)
+#        if hasData:
+#            # construct conditions for data channels on demand
+#            #if anyPrevVld is None:
+#            #    # first item
+#            #    en = controlEn
+#            #else:
+#            #    en = builder.buildAnd(builder.buildNot(anyPrevVld), controlEn)
+#            #en = builder.buildAndOptional(controlVld, en)
+#            en = builder.buildAnd(controlEn, controlPort.getValidNB())
+#            dEn = builder.buildAndOptional(externalEn, en)
+#            dSw = builder.buildOrOptional(externalEn_n, builder.buildNot(en))
+#
+#            for liveInSync in data:
+#                liveInSync: HlsNetNodeRead
+#                if liveInSync is controlPort:
+#                    continue
+#                liveInSync.addControlSerialExtraCond(dEn)
+#                liveInSync.addControlSerialSkipWhen(dSw)
+#
+#        #anyPrevVld = builder.buildOrOptional(anyPrevVld, controlVld)
+#    #return anyPrevVld

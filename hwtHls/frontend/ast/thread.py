@@ -1,4 +1,4 @@
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Optional
 
 from hwt.hwIO import HwIO
 from hwt.hwIOs.hwIOStruct import HdlType_to_HwIO
@@ -13,12 +13,14 @@ from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.statements import HlsStmCodeBlock
 from hwtHls.thread import HlsThread
 from ipCorePackager.constants import DIRECTION
+from hwtHls.netlist.scheduler.resourceList import SchedulingResourceConstraints
 
 
 class HlsThreadFromAst(HlsThread):
 
-    def __init__(self, hls: "HlsScope", code: List[AnyStm], name: str):
-        super(HlsThreadFromAst, self).__init__(hls)
+    def __init__(self, hls: "HlsScope", code: List[AnyStm], name: str,
+                 resourceConstraints: Optional[SchedulingResourceConstraints]=None):
+        super(HlsThreadFromAst, self).__init__(hls, resourceConstraints)
         self.code = code
         self.name = name
 

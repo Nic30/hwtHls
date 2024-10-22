@@ -21,7 +21,7 @@ class HlsNetlistAnalysisPassDumpBlockSync(HlsNetlistAnalysisPass):
 
     @staticmethod
     def dumpBlockSyncToDot(mf: MachineFunction,
-                           blockSync: Dict[MachineBasicBlock, MachineBasicBlockMeta],
+                           blockMeta: Dict[MachineBasicBlock, MachineBasicBlockMeta],
                            edgeMeta: Dict[MachineEdge, MachineEdgeMeta],
                            liveness: Dict[MachineBasicBlock, Dict[MachineBasicBlock, Set[Register]]],
                            regToIo: Dict[Register, HwIO],
@@ -46,17 +46,17 @@ class HlsNetlistAnalysisPassDumpBlockSync(HlsNetlistAnalysisPass):
             label = f"bb{i:d}"
             blockNames[b] = label
             name = f"bb{i:d}.{b.getName().str():s}"
-            mbSync: MachineBasicBlockMeta = blockSync[b]
+            mbMeta: MachineBasicBlockMeta = blockMeta[b]
             flags = []
-            if mbSync.needsStarter:
+            if mbMeta.needsStarter:
                 flags.append("needsStarter")
-            if mbSync.needsControl:
+            if mbMeta.needsControl:
                 flags.append("needsControl")
-            if mbSync.rstPredeccessor:
-                flags.append(f"rstPredeccessor=bb{mbSync.rstPredeccessor.getNumber()}")
-            if mbSync.isLoopHeader:
+            if mbMeta.rstPredeccessor:
+                flags.append(f"rstPredeccessor=bb{mbMeta.rstPredeccessor.getNumber()}")
+            if mbMeta.isLoopHeader:
                 flags.append(f"isLoopHeader")
-            if mbSync.isLoopHeaderOfFreeRunning:
+            if mbMeta.isLoopHeaderOfFreeRunning:
                 flags.append(f"isLoopHeaderOfFreeRunning")
             inputs = set()
             outputs = set()
@@ -80,9 +80,10 @@ class HlsNetlistAnalysisPassDumpBlockSync(HlsNetlistAnalysisPass):
                 f"            <tr><td>{', '.join(flags)}</td></tr>\n"
                 f"            <tr><td>IO in={inputs}</td></tr>\n"
                 f"            <tr><td>IO out={outputs}</td></tr>\n"
-                f"            <tr><td>blockEn={html.escape(str(mbSync.blockEn))}</td></tr>\n"
-                f"            <tr><td>orderingIn={html.escape(str(mbSync.orderingIn))}</td></tr>\n"
-                f"            <tr><td>orderingOut={html.escape(str(mbSync.orderingOut))}</td></tr>\n"
+                f"            <tr><td>blockEn={html.escape(str(mbMeta.blockEn))}</td></tr>\n"
+                f"            <tr><td>orderingIn={html.escape(str(mbMeta.orderingIn))}</td></tr>\n"
+                f"            <tr><td>orderingOut={html.escape(str(mbMeta.orderingOut))}</td></tr>\n"
+                f"            <tr><td>constLiveOuts={[r.virtRegIndex() for r in mbMeta.constLiveOuts]}</td></tr>\n"
                 '        </table>'
             )
             p = pydot.Node(label, fillcolor=color, style='filled', shape="plaintext", label=f"<\n{body:s}\n>")
@@ -151,7 +152,7 @@ class HlsNetlistAnalysisPassDumpBlockSync(HlsNetlistAnalysisPass):
         out, doClose = self.outStreamGetter(netlist.label)
 
         try:
-            P = self.dumpBlockSyncToDot(toNetlist.mf, toNetlist.blockSync,
+            P = self.dumpBlockSyncToDot(toNetlist.mf, toNetlist.blockMeta,
                                         toNetlist.edgeMeta, toNetlist.liveness,
                                         toNetlist.regToIo, self.addLegend)
             out.write(P.to_string())

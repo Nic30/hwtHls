@@ -1,16 +1,19 @@
 from functools import lru_cache
 from math import log2
 from pathlib import Path
-from typing import Dict, Optional, Union, Set
+from typing import Dict, Optional, Union, Set, List
 
 from hwt.hdl.operator import HOperatorNode
 from hwt.hdl.operatorDefs import HwtOps, HOperatorDef
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
-from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwtHls.platform.platform import DefaultHlsPlatform, DebugId, HlsDebugBundle
-from hwtHls.ssa.instr import OP_ASSIGN
-from hwtHls.code import OP_ASHR, OP_SHL, OP_LSHR, OP_CTLZ, OP_CTPOP, OP_CTTZ,\
+from hwtHls.code import OP_ASHR, OP_SHL, OP_LSHR, OP_CTLZ, OP_CTPOP, OP_CTTZ, \
     OP_BITREVERSE, OP_FSHR, OP_FSHL
+from hwtHls.llvm.llvmIr import HFloatTmpConfig
+from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+from hwtHls.platform.platform import DefaultHlsPlatform, DebugId, HlsDebugBundle, \
+    LlvmCliArgTuple
+from hwtHls.ssa.instr import OP_ASSIGN
+
 
 _OPS_T_GROWING_EXP = {
     HwtOps.UDIV,
@@ -70,8 +73,10 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
     :note: latencies like in average 28nm FPGA
     """
 
-    def __init__(self, debugDir:Optional[Union[str, Path]]="tmp", debugFilter: Optional[Set[DebugId]]=HlsDebugBundle.DEFAULT):
-        super(VirtualHlsPlatform, self).__init__(debugDir=debugDir, debugFilter=debugFilter)
+    def __init__(self, debugDir:Optional[Union[str, Path]]="tmp",
+                 debugFilter: Optional[Set[DebugId]]=HlsDebugBundle.DEFAULT,
+                 llvmCliArgs:List[LlvmCliArgTuple]=[]):
+        super(VirtualHlsPlatform, self).__init__(debugDir=debugDir, debugFilter=debugFilter, llvmCliArgs=llvmCliArgs)
 
         # operator: seconds to perform
         self._OP_DELAYS: Dict[HOperatorNode, float] = {
@@ -83,12 +88,12 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
             HwtOps.MOD: 0.9e-9,
 
             # nearly constant with bit width
-            HwtOps.NOT: 1.2e-9,
+            HwtOps.NOT: 0.0,  # set to 0 because in FPGA invertor is inlined to successor/predecessor node
             HwtOps.XOR: 1.2e-9,
             HwtOps.AND: 1.2e-9,
             HwtOps.OR: 1.2e-9,
 
-            # nearly logarithmical with bit widht
+            # nearly logarithmical with bit width
             OP_ASHR: 1.2e-9,
             OP_LSHR: 1.2e-9,
             OP_SHL: 1.2e-9,
@@ -123,8 +128,11 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
         }
 
     @lru_cache()
-    def get_op_realization(self, op: HOperatorDef, bit_width: int,
+    def get_op_realization(self, op: HOperatorDef, opSpecialization: Optional[HFloatTmpConfig], bit_width: int,
                            input_cnt: int, clkPeriod: float) -> OpRealizationMeta:
+        if opSpecialization is not None:
+            raise NotImplementedError(op, opSpecialization)
+
         base_delay = self._OP_DELAYS[op]
         if op in _OPS_T_GROWING_CONST:
             inputWireDelay = base_delay
@@ -148,4 +156,4 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
 
     @lru_cache()
     def get_ff_store_time(self, realTimeClkPeriod: float, schedulerResolution: float):
-        return int(self.get_op_realization(ResourceFF, 1, 1, realTimeClkPeriod).inputWireDelay // schedulerResolution)
+        return int(self.get_op_realization(ResourceFF, None, 1, 1, realTimeClkPeriod).inputWireDelay // schedulerResolution)

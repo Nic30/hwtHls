@@ -6,14 +6,17 @@ from typing import Dict, List, Tuple, Set
 
 from hwt.pyUtils.setList import SetList
 from hwtHls.architecture.analysis.channelGraph import ArchSyncNodeTy, \
-    HlsArchAnalysisPassChannelGraph, ArchSyncNodeIoDict
+    HlsAndRtlNetlistAnalysisPassChannelGraph, ArchSyncNodeIoDict, \
+    ArchSyncNeighborDict
 from hwtHls.architecture.analysis.hlsArchAnalysisPass import HlsArchAnalysisPass
-from hwtHls.architecture.analysis.syncNodeGraph import HlsArchAnalysisPassSyncNodeGraph, \
+from hwtHls.architecture.analysis.syncNodeGraph import HlsAndRtlNetlistAnalysisPassSyncNodeGraph, \
     ArchSyncSuccDiGraphDict, ArchSyncNodeTy_stringFormat_short, \
-    getOtherPortOfChannel, ArchSyncNeighborDict
+    getOtherPortOfChannel
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
     HlsNetNodeWriteBackedge
+from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadOrWriteToAnyChannel
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -37,59 +40,57 @@ TimeOffsetOrderedIoItem = Tuple[SchedTime, HlsNetNodeExplicitSync, ArchSyncNodeT
 # :note: AllIOsOfSyncNode contains both channel IO and external IO nodes
 AllIOsOfSyncNode = List[TimeOffsetOrderedIoItem]
 
-class HlsArchAnalysisPassHandshakeSCC(HlsArchAnalysisPass):
+
+class HlsAndRtlNetlistAnalysisPassHandshakeSCC(HlsArchAnalysisPass):
 
     def __init__(self):
-        super(HlsArchAnalysisPassHandshakeSCC, self).__init__()
+        super(HlsAndRtlNetlistAnalysisPassHandshakeSCC, self).__init__()
         self.sccs: List[Tuple[SetList[ArchSyncNodeTy], AllIOsOfSyncNode]] = []
-        self.nodesOutsideOfAnySCC: List[Tuple[ArchSyncNodeTy, AllIOsOfSyncNode]] = []
 
     def runOnHlsNetlistImpl(self, netlist:HlsNetlistCtx):
-        channels: HlsArchAnalysisPassChannelGraph = netlist.getAnalysis(HlsArchAnalysisPassChannelGraph)
-        channelGraph = netlist.getAnalysis(HlsArchAnalysisPassSyncNodeGraph)
+        channels: HlsAndRtlNetlistAnalysisPassChannelGraph = netlist.getAnalysis(HlsAndRtlNetlistAnalysisPassChannelGraph)
+        syncGraph = netlist.getAnalysis(HlsAndRtlNetlistAnalysisPassSyncNodeGraph)
         # detect combinational cycles in handshake ready/valid signal
-        self.sccs, self.nodesOutsideOfAnySCC = self.detectHandshakeSCCs(
-            channelGraph.successors, channelGraph.getNeighborDict(),
-            channels.nodes, channels.nodeIo)
+        self.detectHandshakeSCCs(
+            syncGraph.successors, channels.neighborDict,
+            channels.nodes, channels.nodeIo, self.sccs)
 
     @staticmethod
     def detectHandshakeSCCs(
             successors: ArchSyncSuccDiGraphDict,
             neighborDict: ArchSyncNeighborDict,
             nodes: List[ArchSyncNodeTy],
-            nodeIo: ArchSyncNodeIoDict)\
+            nodeIo: ArchSyncNodeIoDict,
+            sccs: List[Tuple[SetList[ArchSyncNodeTy], AllIOsOfSyncNode]])\
             ->List[SetList[ArchSyncNodeTy]]:
         """
         Detect paths in handshake logic which would result in combinational loop on logic level.
         """
+        assert not sccs
         g = DiGraph()
         for n, _successors in successors.items():
-            for suc in _successors:
+            srcArchElm, srcClkI = n
+            srcArchElm: ArchElement
+            for suc, channels in _successors.items():
+                if srcArchElm == suc[0] and\
+                        not srcArchElm.rtlStatesMayHappenConcurrently(srcClkI, suc[1]) and\
+                        all(chan.allocationType == CHANNEL_ALLOCATION_TYPE.REG for _, chan in channels):
+                    # skip because this channel is just register in FSM
+                    continue
                 g.add_edge(n, suc)
 
         nodeOrder: Dict[ArchSyncNodeTy, int] = {n: i for i, n in enumerate(nodes)}
-        # filter out independent nodes which do not have reflexive loop
-        nodesOutsideOfAnySCC = []
-        for n in nodes:
-            _successors = successors.get(n)
-            if not _successors:
-                nodesOutsideOfAnySCC.append((n, sortIoByOffsetInClkWindow(neighborDict, nodeIo, [n])))
 
-        sccs = []
         for scc in strongly_connected_components(g):
-            if len(scc) == 1:
-                n = tuple(scc)[0]
-                if not g.has_edge(n, n):
-                    if not successors.get(n):
-                        pass  # already added
-                    else:
-                        nodesOutsideOfAnySCC.append((n, sortIoByOffsetInClkWindow(neighborDict, nodeIo, [n])))
-                    continue
-
             sccSorted = SetList(sorted(scc, key=nodeOrder.get))
             sccs.append((sccSorted, sortIoByOffsetInClkWindow(neighborDict, nodeIo, sccSorted)))
+        # handle nodes which were not added into g because it has no edge
+        for n in nodes:
+            if not g.has_node(n):
+                hsScc = ([n], sortIoByOffsetInClkWindow(neighborDict, nodeIo, [n]))
+                sccs.append(hsScc)
 
-        return sccs, nodesOutsideOfAnySCC
+        return sccs
 
 
 def HandshakeScc_stringFormat(scc: List[ArchSyncNodeTy]):

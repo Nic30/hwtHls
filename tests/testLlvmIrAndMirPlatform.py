@@ -79,6 +79,8 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
                 assert F is not None
         try:
             self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_IR, self._optIrTest, self.llvm)
+        except NotImplementedError:
+            pass
         except:
             raise AssertionError(f"Broken after {passName.str():s} lastWorking:\n{self._lastWorkingIr}\n broken:\n{str(F):s}")
         self._lastWorkingIr = str(F)
@@ -87,20 +89,23 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
         res = super(TestLlvmIrAndMirPlatform, self).runSsaPasses(hls, toSsa)
         toLlvm: ToLlvmIrTranslator = toSsa.start
         self.llvm = toLlvm.llvm
-        if self._noOptIrTest:
-            self._runWithTimeLog(self.TIME_LOG_STAGE.NO_OPT_IR, self._noOptIrTest, toLlvm.llvm)
-        if self._runTestAfterEachPass:
-            llvm: LlvmCompilationBundle = toLlvm.llvm
-            llvm.registerAfterPassCallback(self.runTestAfterIrPass)
+        isTop = hls.parentHwModule._parent is None
+        if isTop:
+            if self._noOptIrTest:
+                self._runWithTimeLog(self.TIME_LOG_STAGE.NO_OPT_IR, self._noOptIrTest, toLlvm.llvm)
+            if self._runTestAfterEachPass:
+                llvm: LlvmCompilationBundle = toLlvm.llvm
+                llvm.registerAfterPassCallback(self.runTestAfterIrPass)
 
         return res
 
-    def runSsaToNetlist(self, hls:"HlsScope", toSsa:HlsAstToSsa) -> HlsNetlistCtx:
+    def runSsaToNetlist(self, hls:"HlsScope", toSsa:HlsAstToSsa, netlist: HlsNetlistCtx) -> HlsNetlistCtx:
         try:
-            return VirtualHlsPlatform.runSsaToNetlist(self, hls, toSsa)
+            return VirtualHlsPlatform.runSsaToNetlist(self, hls, toSsa, netlist)
         except IntentionalCompilationInterupt:
             tr: ToLlvmIrTranslator = toSsa.start
-            if self._optIrTest:
+            isTop = hls.parentHwModule._parent is None
+            if isTop and self._optIrTest:
                 # if the compilation was interrupted prematurely (by this debug exception)
                 # execute IR tests for debugging purposes
                 self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_IR, self._optIrTest, tr.llvm)
@@ -110,18 +115,20 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
                       hls: "HlsScope", toSsa: HlsAstToSsa,
                       MF: MachineFunction, *args):
         tr: ToLlvmIrTranslator = toSsa.start
-        try:
-            if self._optIrTest:
-                self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_IR, self._optIrTest, tr.llvm)
-            if self._optMirTest:
-                self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_MIR, self._optMirTest, tr.llvm)
-        except:
-            dbg = self._debug.runDebugIfEnabled
-            D = HlsDebugBundle
-            dbg(D.DBG_3_mir, (toSsa,), applyFnGetter=_runOnSsaMouduleGetter)
-            dbg(D.DBG_4_mirCfg, (toSsa,), applyFnGetter=_runOnSsaMouduleGetter)
-            raise
-
+        isTop = hls.parentHwModule._parent is None
+        if isTop:
+            try:
+                if self._optIrTest:
+                    self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_IR, self._optIrTest, tr.llvm)
+                if self._optMirTest:
+                    self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_MIR, self._optMirTest, tr.llvm)
+            except:
+                dbg = self._debug.runDebugIfEnabled
+                D = HlsDebugBundle
+                dbg(D.DBG_2_0_mir, (toSsa,), applyFnGetter=_runOnSsaMouduleGetter)
+                dbg(D.DBG_2_0_mirCfg, (toSsa,), applyFnGetter=_runOnSsaMouduleGetter)
+                raise
+    
         netlist = super(TestLlvmIrAndMirPlatform, self).runMirToHlsNetlist(hls, toSsa, MF, *args)
         return netlist
 

@@ -1,18 +1,9 @@
-from copy import copy
 from itertools import chain
-from typing import Set, Dict, Optional, Tuple, Union, Literal, List, Generator
+from typing import Set, Optional, Union, Literal
 
-from hwt.hdl.operatorDefs import HwtOps
-from hwt.pyUtils.setList import SetList
-from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
-from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.hdlTypeVoid import HdlType_isNonData, HVoidData, \
-    HdlType_isVoid
+from hwtHls.netlist.hdlTypeVoid import HdlType_isNonData
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
-from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.observableList import ObservableList, ObservableListRm
 from hwtHls.netlist.analysis.reachabilityCpp.reachabiltyCpp import DagGraphWithDFSReachQuery
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability, \
@@ -23,42 +14,23 @@ class HlsNetlistAnalysisPassReachabilityCpp(HlsNetlistAnalysisPassReachability):
 
     def __init__(self, removed: Optional[Set[HlsNetNode]]=None):
         super(HlsNetlistAnalysisPassReachabilityCpp, self).__init__()
-        self._dataGraph: Optional[DagGraphWithDFSReachQuery] = None
-        self._anyConGraph: Optional[DagGraphWithDFSReachQuery] = None
+        self._connectionGraph: Optional[DagGraphWithDFSReachQuery] = None
         self.removed = removed
 
     def doesReachTo(self, src:NodeOrPort, dst:NodeOrPort):
-        return self._anyConGraph.isReachable(src, dst)
-
-    def doesReachToControl(self, src:HlsNetNode, dst:HlsNetNodeExplicitSync):
-        for i in (dst.extraCond, dst.skipWhen):
-            if i is not None and self._anyConGraph.isReadable(src, i):
-                return True
-
-        return False
-
-    def doesReachToData(self, src:HlsNetNode, dst:HlsNetNode):
-        return self._dataGraph.isReachable(src, dst)
-
-    def doesUseControlOf(self, n: HlsNetNodeExplicitSync, user: HlsNetNode):
-        if isinstance(n, HlsNetNodeRead) and n._validNB is not None:
-            return self._anyConGraph.isReachable(n._validNB, user)
-
-        return False
+        return self._connectionGraph.isReachable(src, dst)
 
     def _beforeNodeAddedListener(self, _, parentList: ObservableList[HlsNetNode], index: Union[slice, int], val: Union[HlsNetNode, Literal[ObservableListRm]]):
         if isinstance(val, HlsNetNode):
             val.dependsOn._setObserver(self._beforeInputDriveUpdate, val)
             n = val
             for io in chain(n._inputs, n._outputs):
-                self._anyConGraph.insertNode(io)
-                self._dataGraph.insertNode(io)
+                self._connectionGraph.insertNode(io)
             for dep in n.dependsOn:
                 assert dep is None
             for uses in n.usedBy:
                 assert not uses
-            self._anyConGraph.insertNodeWithLinks(n, n._inputs, n._outputs)
-            self._dataGraph.insertNodeWithLinks(n, n._inputs, n._outputs)
+            self._connectionGraph.insertNodeWithLinks(n, n._inputs, n._outputs)
 
     def _beforeInputDriveUpdate(self, n: HlsNetNode,
                                 parentList: ObservableList[HlsNetNodeOut],
@@ -76,8 +48,7 @@ class HlsNetlistAnalysisPassReachabilityCpp(HlsNetlistAnalysisPassReachability):
                 isAppend = index == _len
                 if isAppend:
                     assert val is None, val
-                    self._anyConGraph.insertNode(inp)
-                    self._dataGraph.insertNode(inp)
+                    self._connectionGraph.insertNode(inp)
 
                 if curDep is not None:
                     if index < _len:
@@ -95,8 +66,7 @@ class HlsNetlistAnalysisPassReachabilityCpp(HlsNetlistAnalysisPassReachability):
 
                 if val is ObservableListRm:
                     # remove input from internal dictionaries
-                    for d in (self._dataGraph, self._anyConGraph):
-                        d.removeNode(inp)
+                    self._connectionGraph.removeNode(inp)
             else:
                 raise NotImplementedError(n, index, val)
         else:
@@ -119,8 +89,7 @@ class HlsNetlistAnalysisPassReachabilityCpp(HlsNetlistAnalysisPassReachability):
                 val.obj.usedBy[val.out_i].append(inp)
 
                 if isAppend:
-                    self._anyConGraph.insertNode(inp)
-                    self._dataGraph.insertNode(inp)
+                    self._connectionGraph.insertNode(inp)
 
                 self._updateAfterLinkAdd(val, inp)
                 tmp = val.obj.usedBy[val.out_i].pop()
@@ -145,44 +114,39 @@ class HlsNetlistAnalysisPassReachabilityCpp(HlsNetlistAnalysisPassReachability):
             isAppend = index == _len
             if isAppend:
                 outp = val
-                self._anyConGraph.insertNodeWithLinks(outp, [n], [])
-                if HdlType_isNonData(outp._dtype):
-                    self._dataGraph.insertNodeWith(outp)
+                if self.ommitNonData:
+                    if HdlType_isNonData(outp._dtype):
+                        self._connectionGraph.insertNodeWith(outp)
+                    else:
+                        self._connectionGraph.insertNodeWithLinks(outp, [n], [])
                 else:
-                    self._dataGraph.insertNodeWithLinks(outp, [n], [])
+                    self._connectionGraph.insertNodeWithLinks(outp, [n], [])
+
             else:
                 raise NotImplementedError(n, index, val)
 
     def _updateAfterLinkAdd(self, o: HlsNetNodeOut, i: HlsNetNodeIn):
-        self._anyConGraph.insertLink(o, i)
-        if not HdlType_isNonData(o._dtype):
-            self._anyConGraph.dataLink(o, i)
+        if not self.ommitNonData or not HdlType_isNonData(o._dtype):
+            self._connectionGraph.dataLink(o, i)
 
     def _linkDiscard(self, o: HlsNetNodeOut, i:HlsNetNodeIn):
-        self._anyConGraph.removeLink(o, i)
-        if not HdlType_isNonData(o._dtype):
-            self._dataGraph.removeLink(o, i)
+        if  not self.ommitNonData or not HdlType_isNonData(o._dtype):
+            self._connectionGraph.removeLink(o, i)
 
     def runOnHlsNetlistImpl(self, netlist:"HlsNetlistCtx"):
         assert self._dataGraph is None
-        assert self._anyConGraph is None
         removed = self.removed
         anyConG = self._dataGraph = HlsNetlistAnalysisPassReachability()
-        dataG = self._anyConGraph = HlsNetlistAnalysisPassReachability()
         addAnyNode = anyConG.insertNode
-        addDataNode = dataG.insertNode
         addAnyNodeWithLinks = anyConG.insertNodeWithLinks
-        addDataNodeWithLinks = dataG.insertNodeWithLinks
 
         for n in netlist.iterAllNodes():
             if removed is not None and n in removed:
                 continue
             for io in chain(n._inputs, n._outputs):
                 addAnyNode(io)
-                addDataNode(io)
 
             addAnyNodeWithLinks(n, n._inputs, n._outputs)
-            addDataNodeWithLinks(n, n._inputs, n._outputs)
 
         for n in netlist.iterAllNodes():
             if removed is not None and n in removed:

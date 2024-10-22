@@ -79,7 +79,7 @@ class RtlArchPassMergeTiedFsms(HlsArchPass):
         clkPeriod = netlist.normalizedClkPeriod
         syncMatrix: Dict[ArchElmEdge, List[int]] = {}
         fsmConnectedWithMultipleSync: SetList[ArchElmEdge] = SetList()
-        for elm in netlist.nodes:
+        for elm in netlist.iterAllNodes():
             assert isinstance(elm, ArchElement), elm
             for dep, users in zip(elm._outputs, elm.usedBy):
                 for use in users:
@@ -95,9 +95,9 @@ class RtlArchPassMergeTiedFsms(HlsArchPass):
                     clkI = start_clk(use.obj.scheduledIn[use.in_i], clkPeriod)
                     syncClks.add(clkI)
 
-        # for dstElm in netlist.nodes:
+        # for dstElm in netlist.iterAllNodes():
         #    dstElm: ArchElement
-        #    for n in dstElm._subNodes:
+        #    for n in dstElm.subNodes:
         #        n: HlsNetNode
         #        for dep, useTime in zip(n.dependsOn, n.scheduledIn):
         #            if depElm is not dstElm:
@@ -105,7 +105,7 @@ class RtlArchPassMergeTiedFsms(HlsArchPass):
         #                raise NotImplementedError()
 
         # iterate left top of
-        # for elm in netlist.nodes:
+        # for elm in netlist.iterAllNodes():
         #     elm: ArchElement
         #     for con in elm.connections:
         #         con: ConnectionsOfStage

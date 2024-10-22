@@ -1,4 +1,4 @@
-from typing import Set, Dict, List, Optional
+from typing import Set, Dict, List, Optional, Union
 
 from hwt.hdl.operatorDefs import BITWISE_OPS
 from hwt.pyUtils.setList import SetList
@@ -33,15 +33,14 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
                 userList = otherAggregateInputs[dep] = SetList()
             userList.append(n)
 
-    def _searchClusters(self, nodes: ObservableList[HlsNetNode],
-                        parentAggregate: Optional[HlsNetNodeAggregate],
-                        seen: Set[HlsNetNode],
-                        removedNodes: Set[HlsNetNode],
-                        newOutMap: Dict[HlsNetNodeOut, HlsNetNodeOut],
+    def _searchClusters(self, parent: Union[HlsNetlistCtx, HlsNetNodeAggregate],
                         otherAggregateInputs: Dict[HlsNetNodeOut, SetList[HlsNetNodeAggregate]]) -> ObservableList[HlsNetNode]:
+        seen: Set[HlsNetNodeOperator] = set()
+        removedNodes: Set[HlsNetNode] = set()
+        newOutMap: Dict[HlsNetNodeOut, HlsNetNodeOut] = {}
         changed = False
         changedOnThisLevel = False
-        for n in nodes:
+        for n in parent.subNodes:
             if n not in seen and self._isBitwiseOperator(n):
                 cluster = HlsNetlistClusterSearch()
                 cluster.discover(n, seen, self._isBitwiseOperator)
@@ -52,7 +51,7 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
                             changedOnThisLevel = True
                             c.updateOuterInputs(newOutMap)
                             clusterNode = HlsNetNodeBitwiseOps(n.netlist, c.nodes)
-                            nodes.append(clusterNode)
+                            parent.addNode(clusterNode)
                             clusterOutputs = c.outputs
                             c.substituteWithNode(clusterNode)
                             assert clusterNode._inputs
@@ -69,27 +68,26 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
 
             elif isinstance(n, HlsNetNodeAggregate) and not isinstance(n, HlsNetNodeBitwiseOps):
                 # the input uses were updated if something was extracted
-                changed |= self._searchClusters(n._subNodes, n, seen, removedNodes, newOutMap, otherAggregateInputs)
+                changed |= self._searchClusters(n, otherAggregateInputs)
 
         if changedOnThisLevel:
-            nodes[:] = (n for n in nodes if n not in removedNodes)
+            parent.filterNodesUsingSet(removedNodes, recursive=False)
+            # drop builder.operatorCache because we removed most of bitwise operator from the circuit
+            builder = parent.getHlsNetlistBuilder()
+            builder.operatorCache.clear()
+
         return changed or changedOnThisLevel
 
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
-        seen: Set[HlsNetNodeOperator] = set()
-        removedNodes: Set[HlsNetNode] = set()
-        newOutMap: Dict[HlsNetNodeOut, HlsNetNodeOut] = {}
+
         otherAggregateInputs: Dict[HlsNetNodeOut, SetList[HlsNetNodeAggregate]] = {}
-        for n in netlist.nodes:
+        for n in netlist.subNodes:
             if isinstance(n, HlsNetNodeAggregate):
                 self._registerInternalyStoredClusterInputs(n, otherAggregateInputs)
 
         # discover clusters of bitwise operators
-        changed = self._searchClusters(netlist.nodes, None, seen, removedNodes, newOutMap, otherAggregateInputs)
-        # drop builder.operatorCache because we removed most of bitwise operator from the circuit
-        netlist.builder.operatorCache.clear()
-
+        changed = self._searchClusters(netlist, otherAggregateInputs)
         if changed:
             return PreservedAnalysisSet()
         else:

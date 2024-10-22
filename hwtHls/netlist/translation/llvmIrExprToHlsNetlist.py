@@ -9,14 +9,15 @@ from hwtHls.llvm.llvmIr import Function, Value, ValueToConstantInt, ValueToUndef
     ValueToArgument, Argument, BasicBlock, Instruction, InstructionToLoadInst, \
     LoadInst, InstructionToStoreInst, StoreInst, Type, TypeToIntegerType, IntegerType, \
     ConstantInt, InstructionToReturnInst, InstructionToBinaryOperator, BinaryOperator, \
-    InstructionToICmpInst, ICmpInst, InstructionToSelectInst, SelectInst, InstructionToCallInst
+    InstructionToICmpInst, ICmpInst, InstructionToSelectInst, SelectInst, InstructionToCallInst,\
+    ValueToInstruction, UserToInstruction
 from hwtHls.netlist.builder import HlsNetlistBuilder
-from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.translation.hlsNetlistExprToLlvmIr import HlsNetlistExprToLlvmIr
 from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
 from pyMathBitPrecise.bit_utils import to_unsigned
+from hwt.hdl.const import HConst
 
 
 class LlvmIrExprToHlsNetlist():
@@ -31,8 +32,8 @@ class LlvmIrExprToHlsNetlist():
         Instruction.UDiv: HwtOps.UDIV,
     }
 
-    def __init__(self, netlist: HlsNetlistCtx):
-        self.netlist = netlist
+    def __init__(self, builder: HlsNetlistBuilder):
+        self.builder = builder
         self.varMap: Dict[Value, HlsNetNodeOut] = {}
 
     def fillInConstantNodesFromToLlvmIrExpr(self, toLlvmIr: HlsNetlistExprToLlvmIr):
@@ -83,8 +84,12 @@ class LlvmIrExprToHlsNetlist():
                 return v
             else:
                 return _v
-
-        return self.varMap[v]  # if variable was defined it must be there
+        try:
+            return self.varMap[v]  # if variable was defined it must be there, or it must be inlined select in parent select
+        except KeyError:
+            si = InstructionToSelectInst(ValueToInstruction(v))
+            # opC, opV0, opV1
+            return tuple(self._translateExpr(op) for op in si.iterOperandValues())
 
     def translate(self, fn: Function, inputs: SetList[HlsNetNodeOut], outputs: SetList[HlsNetNodeOut]):
         newOutputs = [None for _ in range(len(outputs))]
@@ -92,7 +97,7 @@ class LlvmIrExprToHlsNetlist():
         # for a, inp in zip(fn.args(), inputs):
         #     a: Argument
         #     self.varMap[a] = inp
-        b: HlsNetlistBuilder = self.netlist.builder
+        b: HlsNetlistBuilder = self.builder
         outputArgIndexOffset = len(inputs)
         varMap = self.varMap
         for bb in fn:
@@ -145,7 +150,7 @@ class LlvmIrExprToHlsNetlist():
                     resT = op0._dtype
                     operator = self.OPS_MAP[opc]
                     op1 = self._translateExpr(_op1)
-                    v = b.buildOp(operator, resT, op0, op1, name=i.getName().str())
+                    v = b.buildOp(operator, None, resT, op0, op1, name=i.getName().str())
                     varMap[i] = v
                     continue
 
@@ -159,7 +164,7 @@ class LlvmIrExprToHlsNetlist():
                     operator: HOperatorDef = HlsNetlistAnalysisPassMirToNetlistLowLevel.CMP_PREDICATE_TO_OP[pred]
                     assert not op0._dtype.signed, ("signed types should not be used internally", cmp, op0)
                     assert not op1._dtype.signed, ("signed types should not be used internally", cmp, op1)
-                    v = b.buildOp(operator, BIT, op0, op1)
+                    v = b.buildOp(operator, None, BIT, op0, op1)
                     name = i.getName().str()
                     if name and v.obj.name is None:
                         v.obj.name = name
@@ -169,11 +174,33 @@ class LlvmIrExprToHlsNetlist():
                 si = InstructionToSelectInst(i)
                 if si is not None:
                     si: SelectInst
+                    if si.hasOneUse():
+                        u = next(si.users())
+                        ui = UserToInstruction(u)
+                        if ui is not None:
+                            uSel: SelectInst = InstructionToSelectInst(ui)
+                            if uSel is not None and uSel.getOperand(2) == si:
+                                continue  # this will be translated later as this select is inlined in parent select
+
+                    # translate top level mux with potentially nested selects which will be all merged into one large MUX
                     opC, opV0, opV1 = (self._translateExpr(op) for op in si.iterOperandValues())
+                    muxArgs = []
+                    while True:
+                        assert isinstance(opV0, (HlsNetNodeOut, HConst)), (si, opV0)
+                        assert isinstance(opC, HlsNetNodeOut), (si, opC)
+                        muxArgs.append(opV0)
+                        muxArgs.append(opC)
+                        if isinstance(opV1, (HlsNetNodeOut, HConst)):
+                            muxArgs.append(opV1)
+                            break
+                        else:
+                            assert len(opV1) == 3, (si, opV1)
+                            opC, opV0, opV1 = opV1
+
                     name = si.getName().str()
                     if not name:
                         name = None
-                    v = b.buildMux(opV0._dtype, (opV0, opC, opV1), name)
+                    v = b.buildMux(opV0._dtype, tuple(muxArgs), name)
                     varMap[i] = v
                     continue
 
@@ -193,7 +220,7 @@ class LlvmIrExprToHlsNetlist():
                         lt = b.buildULt(opV0, opV1)
                         v = b.buildMux(opV0._dtype, (opV1, lt, opV0), name)
                     else:
-                        raise NotImplementedError()
+                        raise NotImplementedError(ci)
                     varMap[i] = v
                     continue
                 opc = i.getOpcode()

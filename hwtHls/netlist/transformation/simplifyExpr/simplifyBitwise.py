@@ -1,4 +1,4 @@
-from typing import Set, Generator, Tuple, Literal
+from typing import Generator, Tuple, Literal
 
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.bits import HBits
@@ -9,7 +9,7 @@ from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
-from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith
+from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOperatorNodeWith
 from pyMathBitPrecise.bit_utils import get_bit, mask, ValidityError
 
 
@@ -54,8 +54,8 @@ def isAll0OrAll1(v: HBitsConst):
     return vInt == 0 or vInt == mask(v._dtype.bit_length())
 
 
-def netlistReduceNot(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
-    builder: HlsNetlistBuilder = n.netlist.builder
+def netlistReduceNot(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
+    builder: HlsNetlistBuilder = n.getHlsNetlistBuilder()
     o0, = n.dependsOn
     o0Const = isinstance(o0.obj, HlsNetNodeConst)
     newO = None
@@ -66,14 +66,14 @@ def netlistReduceNot(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode], remov
         newO = o0.obj.dependsOn[0]
 
     if newO is not None:
-        replaceOperatorNodeWith(n, newO, worklist, removed)
+        replaceOperatorNodeWith(n, newO, worklist)
         return True
 
     return False
 
 
-def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
-    builder: HlsNetlistBuilder = n.netlist.builder
+def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
+    builder: HlsNetlistBuilder = n.getHlsNetlistBuilder()
     # search for const in for commutative operator
     o0, o1 = n.dependsOn
     o0Const = isinstance(o0.obj, HlsNetNodeConst)
@@ -184,7 +184,7 @@ def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode], 
             newO = builder.buildConst(t.from_py(0))
 
     if newO is not None:
-        replaceOperatorNodeWith(n, newO, worklist, removed)
+        replaceOperatorNodeWith(n, newO, worklist)
         return True
 
     return False

@@ -1,17 +1,20 @@
 from math import inf
-from typing import Optional, Generator, List, Tuple
+from typing import Optional, Generator, List, Tuple, Union, Literal, Callable
 
 from hwt.pyUtils.setList import SetList
-from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
+from hwt.pyUtils.typingFuture import override
+from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregateTmpForScheduling, \
+    HlsNetNodeAggregate
+from hwtHls.netlist.nodes.aggregatePorts import HlsNetNodeAggregatePortIn, \
+    HlsNetNodeAggregatePortOut
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.schedulableNode import OutputTimeGetter, \
     OutputMinUseTimeGetter, SchedulizationDict, SchedTime
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
-from hwt.pyUtils.typingFuture import override
 
 
-class HlsNetNodeLoop(HlsNetNodeAggregate):
+class HlsNetNodeAggregateLoop(HlsNetNodeAggregateTmpForScheduling):
     """
     A cluster of nodes where all node inputs must be scheduled in a same clock period window to assert desired behavior of IO port.
     """
@@ -21,18 +24,18 @@ class HlsNetNodeLoop(HlsNetNodeAggregate):
         beginOfFirstClk:SchedTime,
         outputTimeGetter:Optional[OutputTimeGetter]) -> List[int]:
         if self.scheduledOut is None:
-            #if pathForDebug is not None:
+            # if pathForDebug is not None:
             #    if self in pathForDebug:
             #        raise AssertionError("Cycle in graph", self, [n._id for n in pathForDebug[pathForDebug.index(self):]])
             #    else:
             #        pathForDebug.append(self)
-            #try:
-            for n in self._subNodes:
+            # try:
+            for n in self.subNodes:
                 n: HlsNetNode
                 n.scheduleAsap(pathForDebug, beginOfFirstClk, outputTimeGetter)
 
             self.copySchedulingFromChildren()
-            #finally:
+            # finally:
             #    if pathForDebug is not None:
             #        pathForDebug.pop()
 
@@ -59,12 +62,14 @@ class HlsNetNodeLoop(HlsNetNodeAggregate):
         return beginClkI, endClkI, minTime, maxTime
 
     @override
-    def scheduleAlapCompaction(self, endOfLastClk:SchedTime, outputMinUseTimeGetter:Optional[OutputMinUseTimeGetter]):
+    def scheduleAlapCompaction(self,
+                               endOfLastClk:SchedTime,
+                               outputMinUseTimeGetter:Optional[OutputMinUseTimeGetter],
+                               excludeNode: Optional[Callable[[HlsNetNode], bool]]):
         """
         Schedule loop body by ALAP and if the latency of the loop body is increased shift end of this group to time -1 clk_period boundary.
         Decrease time while the loop body latency is increased. If the latency of loop or/and end time is worse than original use original schedule.
         """
-
         self.checkScheduling()
         originalSchedule: SchedulizationDict = {}
         self.copyScheduling(originalSchedule)
@@ -83,10 +88,13 @@ class HlsNetNodeLoop(HlsNetNodeAggregate):
         while True:
             isBest = False
             try:
-                self.scheduleAlapCompactionForSubnodes(endCurClk, outputMinUseTimeGetter)
+                self.scheduleAlapCompactionForSubnodes(endCurClk, outputMinUseTimeGetter, excludeNode)
             except TimeConstraintError:
                 break  # scheduling impossible, use previous best schedule
             beginClkI, endClkI, _, maxTime = self._getTimeSpanInClkTicks(clkPeriod)
+            self.copySchedulingFromChildren()  # update timing in ports
+            self.checkScheduling()
+
             if maxTime > endCurClk:
                 # left side (lower time) of the circuit is blocked an moving end clkI has no effect
                 break
@@ -107,8 +115,12 @@ class HlsNetNodeLoop(HlsNetNodeAggregate):
             prevWasBest = isBest
 
         self.setScheduling(bestSchedule)
+        if bestSchedule is originalSchedule:
+            # alap at least for in ports (recursively)
+            self._scheduleCompaction_onlyForPorts(endOfLastClk, outputMinUseTimeGetter, False)
+        else:
+            self.copySchedulingFromChildren()
 
-        self.copySchedulingFromChildren()
         self.checkScheduling()
 
         scheduledZero, scheduledIn, scheduledOut = originalSchedule[self]
@@ -129,12 +141,13 @@ class HlsNetNodeLoop(HlsNetNodeAggregate):
         netlist = self.netlist
         clkPeriod = netlist.normalizedClkPeriod
 
-        bestSchedule = {}
-        self.copyScheduling(bestSchedule)
+        originalSchedule = {}
+        self.copyScheduling(originalSchedule)
         bestBeginClkI, bestEndClkI, initialMinTime, _ = self._getTimeSpanInClkTicks(clkPeriod)
 
         prevWasBest = isBest = True
         firstRun = True
+        bestSchedule = originalSchedule
         while True:
             prevWasBest = isBest
             isBest = False
@@ -164,9 +177,101 @@ class HlsNetNodeLoop(HlsNetNodeAggregate):
             beginOfFirstClk += clkPeriod
 
         self.setScheduling(bestSchedule)
+        if bestSchedule is originalSchedule:
+            # asap at least for ports recursively
+            self._scheduleCompaction_onlyForPorts(beginOfFirstClk, outputTimeGetter, True)
+        else:
+            self.copySchedulingFromChildren()
+
         assert self.scheduledZero <= zeroTime, ("asap compact", self, zeroTime, "->", self.scheduledZero)
         # self.checkScheduling()
         if outTimes != self.scheduledOut:
             for uses in self.usedBy:
                 for u in uses:
                     yield u.obj
+
+    def _scheduleCompaction_onlyForPorts(self, boundaryTime:SchedTime, outputTimeGetter:Optional[OutputTimeGetter], isASAP:bool):
+        """
+        Recursively and iteratively move all HlsNetNodeAggregatePortIn, HlsNetNodeAggregatePortOut to
+        ASAP time (timeClipingFunction=min) or
+        ALAP time (timeClipingFunction=max).
+        """
+        worklist: SetList[HlsNetNodeAggregate] = SetList(self.iterAllNodesFlat(NODE_ITERATION_TYPE.ONLY_PARENT_PREORDER))
+
+        self.checkScheduling()
+        while worklist:
+            aNode: HlsNetNodeAggregate = worklist.pop()
+            change = False
+            # try to reschedule inputs
+            for inInside, dep, curTime in zip(aNode._inputsInside, aNode.dependsOn, aNode.scheduledIn):
+                if isASAP:
+                    newTime = dep.obj.scheduledOut[dep.out_i]
+                else:
+                    newTime = min((u.obj.scheduledIn[u.in_i]
+                                   for u in inInside.usedBy[0]), default=boundaryTime)
+
+                if outputTimeGetter is not None:
+                    newTime = outputTimeGetter(dep, newTime)
+
+                if newTime != curTime:
+                    inInside._setScheduleZero(newTime)
+                    if isASAP:
+                        for u in inInside.usedBy[0]:
+                            if isinstance(u.obj, HlsNetNodeAggregate):
+                                worklist.append(u.obj)
+                    elif aNode is not self:  # check to not jump into parent
+                        depObj = dep.obj
+                        if isinstance(depObj, HlsNetNodeAggregate):
+                            worklist.append(depObj)
+                        elif isinstance(depObj, HlsNetNodeAggregatePortIn):
+                            worklist.append(depObj.parent)
+
+                    change = True
+
+            # try to reschedule outputs
+            for o, oInside, users, curTime in zip(aNode._outputs, aNode._outputsInside, aNode.usedBy, aNode.scheduledOut):
+                oDef = oInside.dependsOn[0]
+                oDefTime = oDef.obj.scheduledOut[oDef.out_i]
+                if isASAP and oDefTime == curTime:
+                    continue  # can not get any better
+
+                if isASAP:
+                    # ASAP boundaryTime = beginOfFirstClk
+                    newTime = max(boundaryTime, oDefTime)
+                else:
+                    # ALAP boundaryTime = endOfLastClk
+                    # get earliest time of port required by users
+                    useEarliestTime = min((u.obj.scheduledIn[u.in_i]
+                                   for u in users), default=boundaryTime)
+                    newTime = useEarliestTime
+
+                if outputTimeGetter is not None:
+                    newTime = outputTimeGetter(o, newTime)
+
+                if newTime != curTime:
+                    oInside._setScheduleZero(newTime)
+                    if isASAP:
+                        if aNode is not self:  # check to not jump into parent
+                            for u in users:
+                                uNode = u.obj
+                                if isinstance(uNode, HlsNetNodeAggregate):
+                                    # input to some sibling
+                                    worklist.append(uNode)
+                                elif isinstance(uNode, HlsNetNodeAggregatePortOut):
+                                    # output from parent
+                                    worklist.append(uNode.parent)
+                    else:
+                        oDefNode = oDef.obj
+                        if isinstance(oDefNode, HlsNetNodeAggregate):
+                            # input to some child
+                            worklist.append(oDefNode)
+                        elif isinstance(oDefNode, HlsNetNodeAggregatePortIn):
+                            # input driven from input of self
+                            assert oDefNode.parent == aNode, (oDefNode, aNode, oDefNode.parent)
+                            worklist.append(aNode)
+
+                    change = True
+
+            if change:
+                aNode.copySchedulingFromChildren()
+            aNode.checkScheduling()

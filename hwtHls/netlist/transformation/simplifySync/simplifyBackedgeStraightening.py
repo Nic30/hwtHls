@@ -1,23 +1,23 @@
-from typing import Set, List
+from typing import List
 
 from hwt.pyUtils.setList import SetList
+from hwtHls.netlist.analysis.ioOrdering import HlsNetlistAnalysisPassIoOrdering
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.debugTracer import DebugTracer
+from hwtHls.netlist.hdlTypeVoid import HVoidData, HdlType_isVoid
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ports import unlink_hls_nodes, HlsNetNodeOut, \
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut, \
     HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
-from hwtHls.netlist.hdlTypeVoid import HVoidData
-from hwtHls.netlist.transformation.simplifyUtils import addAllUsersToWorklist
 from hwtHls.netlist.transformation.simplifySync.reduceChannelGroup import netlistTryRemoveChannelGroup
+from hwtHls.netlist.transformation.simplifyUtils import addAllUsersToWorklist
 
 
 def netlistBackedgeStraightening(dbgTracer: DebugTracer,
                                  w: HlsNetNodeWriteBackedge,
                                  worklist: SetList[HlsNetNode],
-                                 removed: Set[HlsNetNode],
                                  reachDb: HlsNetlistAnalysisPassReachability):
     """
     If it is possible to move write to channel before its read
@@ -32,7 +32,10 @@ def netlistBackedgeStraightening(dbgTracer: DebugTracer,
     if r is None:
         return False
 
-    if w.channelInitValues:
+    if r.channelInitValues:
+        return False
+
+    if w.parent is not r.parent:
         return False
 
     rValidPortReplacement = None
@@ -40,7 +43,7 @@ def netlistBackedgeStraightening(dbgTracer: DebugTracer,
     hasUsedValidNBPort = r.hasValidNB() and r.usedBy[r._validNB.out_i]
     hasUsedValidPort = r.hasValid() and r.usedBy[r._valid.out_i]
     if hasUsedValidNBPort or hasUsedValidPort:
-        dataPredecs = reachDb.getDirectDataPredecessors(w)
+        dataPredecs = HlsNetlistAnalysisPassIoOrdering.getDirectDataPredecessors(w)
         if hasUsedValidPort:
             if len(dataPredecs) == 1 and isinstance(dataPredecs[0], HlsNetNodeRead):
                 rValidPortReplacement = dataPredecs[0].getValid()
@@ -59,13 +62,15 @@ def netlistBackedgeStraightening(dbgTracer: DebugTracer,
     if w.extraCond is not None or w.extraCond is not None:
         return False
 
-    if reachDb.doesReachTo(r, w):  # [todo] ignore ordering and void data
+    if any(reachDb.doesReachTo(rOut, w) for rOut in r._outputs if not HdlType_isVoid(rOut._dtype)):
+        # [todo] ignore ordering and void data transitively
         # if write is dependent on read the channel can not be removed
         # because state of the channel state can is required
         return False
+
     g = w._loopChannelGroup
-    isControlOfG = g is not None and g.getChannelWhichIsUsedToImplementControl() is w
-    if isControlOfG and not netlistTryRemoveChannelGroup(g, worklist):
+    isControlOfG = g is not None and g.getChannelUsedAsControl() is w
+    if isControlOfG and not netlistTryRemoveChannelGroup(dbgTracer, g, worklist):
         # can not remove because it has control flow purpose
         return False
 
@@ -77,12 +82,12 @@ def netlistBackedgeStraightening(dbgTracer: DebugTracer,
                 dep = n.dependsOn[i.in_i]
                 if i.obj not in (r, w):
                     orderingDeps.append(dep)
-                unlink_hls_nodes(dep, i)
+                i.disconnectFromHlsOut(dep)
             oo = n.getOrderingOutPort()
             for u in n.usedBy[oo.out_i]:
                 if u.obj not in (r, w):
                     orderingUses.append(u)
-                unlink_hls_nodes(oo, u)
+                u.disconnectFromHlsOut(oo)
 
         if orderingDeps or orderingUses:
             if len(orderingDeps) + len(orderingUses) > 1:
@@ -93,10 +98,10 @@ def netlistBackedgeStraightening(dbgTracer: DebugTracer,
                     u.obj._removeInput(u.in_i)
 
         # replace this read-write pair with a straight connection
-        data = w.dependsOn[0]
-        unlink_hls_nodes(data, w._inputs[0])
-        rData = r._outputs[0]
-        b: HlsNetlistBuilder = r.netlist.builder
+        data = w.dependsOn[w._portSrc.in_i]
+        w._portSrc.disconnectFromHlsOut(data, )
+        rData = r._portDataOut
+        b: HlsNetlistBuilder = r.getHlsNetlistBuilder()
         dbgTracer.log(("replace", rData, data))
         b.replaceOutput(rData, data, True)
         worklist.append(data.obj)
@@ -114,8 +119,8 @@ def netlistBackedgeStraightening(dbgTracer: DebugTracer,
         if rValidNBPortReplacement is not None:
             b.replaceOutput(r._validNB, rValidNBPortReplacement, True)
 
-        removed.add(r)
-        removed.add(w)
+        r.markAsRemoved()
+        w.markAsRemoved()
         if g is not None and not isControlOfG:
             g.members.remove(w)
         return True

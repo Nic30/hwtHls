@@ -1,7 +1,7 @@
-from typing import List, Dict, Tuple, Union, Generator
+from itertools import islice
+from typing import List, Dict, Tuple, Union, Generator, Optional
 
 from hwt.code import If
-from hwt.code_utils import rename_signal
 from hwt.hdl.const import HConst
 from hwt.hwIO import HwIO
 from hwt.pyUtils.setList import SetList
@@ -11,17 +11,18 @@ from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, \
     ConnectionsOfStageList
 from hwtHls.architecture.timeIndependentRtlResource import INVARIANT_TIME, \
     TimeIndependentRtlResourceItem
-from hwtHls.netlist.analysis.betweenSyncIslands import BetweenSyncIsland
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering, HdlType_isVoid
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
-    HlsNetNodeWriteBackedge, BACKEDGE_ALLOCATION_TYPE
+    HlsNetNodeWriteBackedge
+from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge, \
     HlsNetNodeReadForwardedge
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut
+from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
@@ -35,18 +36,35 @@ class ArchElementPipeline(ArchElement):
 
     :see: `~.ArchElement`
 
-    :ivar syncIsland: synchronization regions which are handled by this element
     :ivar stages: list of lists of nodes representing the nodes managed by this pipeline in individual clock stages
     :note: stages always start in time 0 and empty lists on beginning marking where the pipeline actually starts.
         This is to have uniform index when we scope into some other element.
     """
 
-    def __init__(self, netlist: HlsNetlistCtx, name: str, subNodes: SetList[HlsNetNode],
-                 stages: List[List[HlsNetNode]], syncIsland: BetweenSyncIsland):
-        self.syncIsland = syncIsland
-        self.stages = stages
-        stageCons = ConnectionsOfStageList(netlist.normalizedClkPeriod, (ConnectionsOfStage(self, clkI) for clkI, _ in enumerate(self.stages)))
-        ArchElement.__init__(self, netlist, name, subNodes, stageCons)
+    def __init__(self, netlist: HlsNetlistCtx,
+                 name: str, namePrefix:str,
+                 subNodes: SetList[HlsNetNode]=None,
+                 stages: List[List[HlsNetNode]]=None):
+        if subNodes is None:
+            hadStagesButNoSubNodes = bool(stages)
+            subNodes = SetList()
+        else:
+            hadStagesButNoSubNodes = False
+
+        if stages is None:
+            self.stages = []
+            stageCons = ConnectionsOfStageList(netlist.normalizedClkPeriod, ())
+        else:
+            self.stages = stages
+            stageCons = ConnectionsOfStageList(netlist.normalizedClkPeriod,
+                                               (ConnectionsOfStage(self, clkI)
+                                                for clkI, _ in enumerate(self.stages)))
+        ArchElement.__init__(self, netlist, name, namePrefix, subNodes, stageCons)
+
+        if hadStagesButNoSubNodes:
+            # add nodes from stages to subNodes and initialize parent
+            for nodes in stages:
+                self.addNodes(nodes)
 
     @override
     def clone(self, memo:dict, keepTopPortsConnected:bool) -> Tuple["HlsNetNode", bool]:
@@ -60,13 +78,16 @@ class ArchElementPipeline(ArchElement):
         endClkI = None
         for stI, (nodes, con) in enumerate(zip(self.stages, self.connections)):
             con: ConnectionsOfStage
-            if not nodes and not con.inputs and not con.outputs:
+            if not nodes and (con is None or (not con.inputs and not con.outputs)):
                 # if there is nothing in this stage, we skip it
                 continue
             else:
                 if beginClkI is None:
                     beginClkI = stI
                 endClkI = stI
+
+        assert beginClkI is not None, self
+        assert endClkI is not None, self
         return (beginClkI, endClkI)
 
     @override
@@ -81,6 +102,7 @@ class ArchElementPipeline(ArchElement):
 
         previousClkI = None
         connections = self.connections
+        changed = False
         for clkI, _ in self.iterStages():
             if previousClkI is not None:
                 # build r/w node pairs for sync between pipeline stages (previousClkI -> clkI)
@@ -88,15 +110,17 @@ class ArchElementPipeline(ArchElement):
                 dummyC = HlsNetNodeConst(netlist, HVoidOrdering.from_py(None))
                 dummyC.resolveRealization()
                 dummyC._setScheduleZeroTimeSingleClock(wTime - epsilon)
-                self._addNodeIntoScheduled(clkI, dummyC)
+                # allowNewClockWindow=True because the empty stage may be there to implement delay
+                self._addNodeIntoScheduled(clkI, dummyC, allowNewClockWindow=True)
 
-                name = f"{self.name:s}stSync_{previousClkI:d}_to_{clkI:d}"
+                name = f"{self.namePrefix:s}stSync_{previousClkI:d}_to_{clkI:d}"
                 wNode = HlsNetNodeWriteForwardedge(netlist,
+                                                   mayBecomeFlushable=False,
                                                    name=f"{name}_atSrc")
-                link_hls_nodes(dummyC._outputs[0], wNode._inputs[0])
                 wNode.resolveRealization()
                 wNode._setScheduleZeroTimeSingleClock(wTime)  # at the end of previousClkI
                 self._addNodeIntoScheduled(previousClkI, wNode)
+                dummyC._outputs[0].connectHlsIn(wNode._portSrc)
 
                 rNode = HlsNetNodeReadForwardedge(netlist, dtype=HVoidOrdering,
                                                   name=f"{name:s}_atDst")
@@ -106,9 +130,11 @@ class ArchElementPipeline(ArchElement):
                 wNode.associateRead(rNode)
                 self._addNodeIntoScheduled(clkI, rNode)
                 con: ConnectionsOfStage = connections[clkI]
-                con.implicitSyncFromPrevStage = rNode
+                con.pipelineSyncIn = rNode
+                changed = True
 
             previousClkI = clkI
+        return changed
 
     @override
     def iterStages(self) -> Generator[Tuple[int, List[HlsNetNode]], None, None]:
@@ -125,9 +151,38 @@ class ArchElementPipeline(ArchElement):
             if beginClkI is not None:
                 yield (clkI, nodes)
 
+    def isBeginStage(self, clkIndex: int) -> bool:
+        assert len(self.stages) > clkIndex
+        return all(st is None for st in islice(self.stages, 0, clkIndex)) and self.stages[clkIndex] is not None
+
+    def isLastStage(self, clkIndex: int) -> bool:
+        assert len(self.stages) > clkIndex
+        return len(self.stages) - 1 == clkIndex or (
+            all(st is None for st in islice(self.stages, clkIndex + 1))
+        )
+
     @override
-    def getStageForClock(self, clkIndex: int) -> List[HlsNetNode]:
-        return self.stages[clkIndex]
+    def getStageForClock(self, clkIndex: int, createIfNotExists=False) -> List[HlsNetNode]:
+        assert clkIndex >= 0, clkIndex
+        stages = self.stages
+        if createIfNotExists and len(stages) <= clkIndex:
+            stages.extend([] for _ in range(len(stages), clkIndex + 1))
+
+        return stages[clkIndex]
+
+    @override
+    def getStageEnable(self, clkIndex: int) -> Tuple[Optional[HlsNetNodeOut], bool]:
+        if not any(nodes and clkI < clkIndex for (clkI, nodes) in self.iterStages()):
+            return None, False  # first stage of pipeline
+        return super().getStageEnable()
+
+    def removeStage(self, clkIndex: int):
+        assert not self.stages[clkIndex], ("can not remove non empty stage", self, clkIndex)
+        self.connections[clkIndex] = None
+        if self._beginClkI == clkIndex:
+            self._beginClkI += 1
+            while self.getStageForClock(self._beginClkI) is None:
+                self._beginClkI += 1
 
     @override
     def rtlRegisterOutputRtlSignal(self, outOrTime: Union[HlsNetNodeOut, SchedTime], data: Union[RtlSignal, HwIO, HConst],
@@ -138,10 +193,10 @@ class ArchElementPipeline(ArchElement):
 
         # if isinstance(outOrTime, HlsNetNodeOut):
         #    n = outOrTime.obj
-        #    if isinstance(n, HlsNetNodeReadBackedge) and n.associatedWrite.allocationType == BACKEDGE_ALLOCATION_TYPE.REG:
+        #    if isinstance(n, HlsNetNodeReadBackedge) and n.associatedWrite.allocationType == CHANNEL_ALLOCATION_TYPE.REG:
         #        clkPeriod = self.netlist.normalizedClkPeriod
         #        con: ConnectionsOfStage = self.connections[n.scheduledIn[0] // clkPeriod]
-        #        con.stDependentDrives.append(tir)
+        #        con.stateChangeDependentDrives.append(tir)
 
         if tir.timeOffset is not INVARIANT_TIME:
             self.connections.getForTime(tir.timeOffset).signals.append(tir.valuesInTime[0])
@@ -150,13 +205,13 @@ class ArchElementPipeline(ArchElement):
     def _privatizeLocalOnlyChannels(self):
         clkPeriod = self.netlist.normalizedClkPeriod
 
-        for stI, nodes in enumerate(self.stages):
+        for stI, nodes in self.iterStages():
             for node in nodes:
                 if isinstance(node, HlsNetNodeReadBackedge):
                     w = node.associatedWrite
-                    if w.allocationType == BACKEDGE_ALLOCATION_TYPE.BUFFER and w in self._subNodes and w.scheduledIn[0] // clkPeriod == stI:
+                    if w.allocationType == CHANNEL_ALLOCATION_TYPE.BUFFER and w in self.subNodes and w.scheduledIn[0] // clkPeriod == stI:
                         # allocate as a register because this is connect just this stage with itself
-                        w.allocationType = BACKEDGE_ALLOCATION_TYPE.REG
+                        w.allocationType = CHANNEL_ALLOCATION_TYPE.REG
 
     @override
     def rtlStatesMayHappenConcurrently(self, stateClkI0: int, stateClkI1: int):
@@ -173,35 +228,42 @@ class ArchElementPipeline(ArchElement):
         rToCon: Dict[HwIO, ConnectionsOfStage] = {}
         wToCon: Dict[HwIO, ConnectionsOfStage] = {}
         for (nodes, con) in zip(self.stages, self.connections):
+            if not nodes:
+                assert con is None, self
+                continue
+
             con: ConnectionsOfStage
+            assert con is not None, self
             for node in nodes:
                 node: HlsNetNode
+                assert not node._isMarkedRemoved, node
                 # this is one level of nodes,
                 # node can not be dependent on nodes behind in this list
                 # because this engine does not support backward edges in DFG
                 if node._isRtlAllocated:
                     continue
 
+                assert node.parent is self, ("Check if node parent is set correctly", node, node.parent, self)
                 assert node.scheduledIn is not None, ("Node must be scheduled", node)
                 assert node.dependsOn is not None, ("Node must not be destroyed", node)
                 node.rtlAlloc(self)
 
                 if isinstance(node, HlsNetNodeRead):
                     if isinstance(node, HlsNetNodeReadBackedge):
-                        if node.associatedWrite.allocationType != BACKEDGE_ALLOCATION_TYPE.BUFFER:
+                        if node.associatedWrite.allocationType != CHANNEL_ALLOCATION_TYPE.BUFFER:
                             # only buffer has an explicit IO from pipeline
                             continue
 
                     if node.src is None:
                         # local only channel
-                        assert (
-                            isinstance(node, (HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge)) and
-                            node.associatedWrite in self._subNodes
+                        assert isinstance(node, HlsProgramStarter) or\
+                            (isinstance(node, (HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge)) and
+                                node.associatedWrite in self.subNodes
                             ) or (
                                 not node._rtlUseReady and
                                 not node._rtlUseValid and
-                                HdlType_isVoid(node._outputs[0]._dtype)
-                                ), node
+                                HdlType_isVoid(node._portDataOut._dtype)
+                            ), node
                         continue
 
                     currentStageForIo = rToCon.get(node.src, con)
@@ -210,14 +272,14 @@ class ArchElementPipeline(ArchElement):
 
                 elif isinstance(node, HlsNetNodeWrite):
                     if isinstance(node, HlsNetNodeWriteBackedge):
-                        if node.allocationType != BACKEDGE_ALLOCATION_TYPE.BUFFER:
+                        if node.allocationType != CHANNEL_ALLOCATION_TYPE.BUFFER:
                             # only buffer has an explicit IO from pipeline
                             continue
 
                     if node.dst is None:
                         # local only channel
                         assert (isinstance(node, (HlsNetNodeWriteBackedge, HlsNetNodeWriteForwardedge)) and
-                                node.associatedRead in self._subNodes
+                                node.associatedRead in self.subNodes
                                 ) or (
                                       not node._rtlUseReady and
                                       not node._rtlUseValid and
@@ -230,7 +292,9 @@ class ArchElementPipeline(ArchElement):
                     wToCon[node.dst] = con
 
         for con in self.connections:
-            for _ in self._rtlAllocIoMux(con.ioMuxes, con.ioMuxesKeysOrdered):
+            if con is None:
+                continue
+            for _ in con.rtlAllocIoMux():
                 pass
         self._rtlDatapathAllocated = True
 
@@ -249,7 +313,7 @@ class ArchElementPipeline(ArchElement):
             for (pipeline_st_i, con) in enumerate(self.connections):
                 con: ConnectionsOfStage
                 if pipeline_st_i < self._beginClkI:
-                    assert con.isUnused(), (self, pipeline_st_i, self._beginClkI, con)
+                    assert con is None or con.isUnused(), (self, pipeline_st_i, self._beginClkI, con)
                 else:
                     self.rtlAllocSyncForStage(con, pipeline_st_i)
 
@@ -277,37 +341,30 @@ class ArchElementPipeline(ArchElement):
             if nextStVal is not None and nextStVal.isRltRegister():
                 nextStRegDrivers.append(nextStVal.data.next.drivers[0])
 
-        nextStRegDrivers.extend(con.stDependentDrives)
+        nextStRegDrivers.extend(con.stateChangeDependentDrives)
 
-        if con.inputs or con.outputs:
-            sync = con.syncNode = self._rtlAllocateSyncStreamNode(con)
-            # check if results of this stage do validity register
-            sync.sync()
-            ack = sync.ack()
-            if isinstance(ack, (HConst, int)):
-                ack = int(ack)
-                assert ack == 1, ("If statge ack is a constant, it must be 1, otherwise this stage is always stalling", self, pipeline_st_i, con, ack)
-                if con.syncNodeAck is not None:
-                    assert not con.syncNodeAck.drivers
-                    con.syncNodeAck(1)
-            else:
-                if con.syncNodeAck is None:
-                    ack = rename_signal(self.netlist.parentHwModule, ack, f"{self.name:s}st{pipeline_st_i:d}_ack")
-                    con.syncNodeAck = ack
+        #if con.inputs or con.outputs:
+        #    con.rtlChannelSyncFinalize(self.netlist.parentHwModule,
+        #                               self._dbgAddSignalNamesToSync,
+        #                               self._dbgExplicitlyNamedSyncSignals)
+        #con.rtlAllocSync()
+        # check if results of this stage do validity register
+        ack = con.stageAck
+        if isinstance(ack, (HConst, int)):
+            ack = int(ack)
+            assert ack == 1, ("If stage ack is a constant, it must be 1, otherwise this stage is always stalling", self, pipeline_st_i, con, ack)
+        else:
+
+            if con.stageEnable is not None:
+                if con.pipelineSyncIn is None:
+                    con.stageEnable(1)  # there are no implicit data
                 else:
-                    assert not con.syncNodeAck.drivers
-                    con.syncNodeAck(ack)
-                    ack = con.syncNodeAck
+                    con.stageEnable(con.pipelineSyncIn.src.vld)
 
-                if con.stageEnable is not None:
-                    if con.implicitSyncFromPrevStage is None:
-                        con.stageEnable(1)  # there are no implicit data
-                    else:
-                        con.stageEnable(con.implicitSyncFromPrevStage.src.vld)
-
-                if nextStRegDrivers:
-                    # add enable signal for register load derived from synchronization of stage
-                    If(ack,
-                       *nextStRegDrivers,
-                    )
+            if nextStRegDrivers:
+                assert ack is not None, ("stageAck should be already pre-filled by HlsNetNodeFsmStateAck", self, pipeline_st_i, nextStRegDrivers)
+                # add enable signal for register load derived from synchronization of stage
+                If(ack,
+                   *nextStRegDrivers,
+                )
 

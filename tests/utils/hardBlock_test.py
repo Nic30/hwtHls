@@ -15,7 +15,6 @@ from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.scope import HlsScope
-from hwtHls.ssa.translation.llvmMirToNetlist.insideOfBlockSyncTracker import InsideOfBlockSyncTracker
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
@@ -35,7 +34,6 @@ class ExampleHardBlockHwModule_netlist_add1(HardBlockHwModule):
     @override
     def translateMirToNetlist(self,
                                mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
-                               syncTracker: InsideOfBlockSyncTracker,
                                mbSync: MachineBasicBlockMeta,
                                instr: MachineInstr,
                                builder: HlsNetlistBuilder,
@@ -49,7 +47,7 @@ class ExampleHardBlockHwModule_netlist_add1(HardBlockHwModule):
         instrDstReg = instr.getOperand(0).getReg()
         assert len(inputs) == 1, inputs
         i = inputs[0]
-        res = builder.buildOp(HwtOps.ADD, i._dtype, i, builder.buildConstPy(i._dtype, 1))
+        res = builder.buildOp(HwtOps.ADD, None, i._dtype, i, builder.buildConstPy(i._dtype, 1))
         res.name = dstName
         valCache.add(mbSync.block, instrDstReg, res, True)
 

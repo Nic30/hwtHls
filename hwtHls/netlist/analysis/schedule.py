@@ -4,4 +4,4 @@ from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPas
 class HlsNetlistAnalysisPassRunScheduler(HlsNetlistAnalysisPass):
 
     def runOnHlsNetlistImpl(self, netlist:"HlsNetlistCtx"):
-        netlist.schedule()
+        netlist.scheduler.schedule()

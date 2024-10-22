@@ -59,7 +59,7 @@ class HlsNetlistAnalysisPassIoDiscover(HlsNetlistAnalysisPass):
 
             opList.append(op)
 
-        for op in chain(netlist.outputs, outputs):
+        for op in outputs:
             op: HlsNetNodeWrite
             i = op.dst
             if i is None:

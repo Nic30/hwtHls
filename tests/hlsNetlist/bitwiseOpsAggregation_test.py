@@ -7,15 +7,14 @@ from typing import Type
 from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOSignal
 from hwt.hwIOs.utils import addClkRstn
-from hwt.simulator.simTestCase import SimTestCase
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
+from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.netlist import HlsThreadFromNetlist
-from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
+from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
-from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -52,22 +51,23 @@ class HlsNetlistBitwiseOpsPreorder0HwModule(HwModule):
             i0andI1 = next(i0) & next(i1)
 
     def mainThread(self, netlist: HlsNetlistCtx, treeOrder:TREE_ORDER):
+        elm = ArchElementPipeline(netlist, "p0", "p0_")
+        netlist.addNode(elm)
         i0 = HlsNetNodeRead(netlist, self.i0)
         i1 = HlsNetNodeRead(netlist, self.i1)
         i2 = HlsNetNodeRead(netlist, self.i2)
+        elm.addNodes([i0, i1, i2])
         
         # scheduling offset 1clk for i2 from i1
-        link_hls_nodes(i0.getOrderingOutPort(), i1._addInput("orderingIn"))
-        lat = HlsNetNodeDelayClkTick(netlist, 1, HVoidOrdering)
-        netlist.nodes.append(lat)
-        link_hls_nodes(i1.getOrderingOutPort(), lat._inputs[0])
-        link_hls_nodes(lat._outputs[0], i2._addInput("orderingIn"))
-        netlist.inputs.extend([i0, i1, i2])
-        
-        o = HlsNetNodeWrite(netlist, self.o)
-        netlist.outputs.append(o)
-        b = HlsNetlistBuilder(netlist)
+        i0.getOrderingOutPort().connectHlsIn(i1._addInput("orderingIn"))
+        lat = HlsNetNodeDelayClkTick(netlist, HVoidOrdering, 1)
+        elm.addNode(lat)
+        i1.getOrderingOutPort().connectHlsIn(lat._inputs[0])
+        lat._outputs[0].connectHlsIn(i2._addInput("orderingIn"))
 
+        o = HlsNetNodeWrite(netlist, self.o)
+        elm.addNode(o)
+        b = elm.builder
         if treeOrder == TREE_ORDER.PRE:
             i0andI1 = b.buildAnd(i0._outputs[0], i1._outputs[0])
             i0andI1andI2 = b.buildAnd(i0andI1, i2._outputs[0])
@@ -81,7 +81,7 @@ class HlsNetlistBitwiseOpsPreorder0HwModule(HwModule):
             i1andI2 = b.buildAnd(i1._outputs[0], i2._outputs[0])
             i0andI1andI2 = b.buildAnd(i1andI2, i0._outputs[0])
             
-        link_hls_nodes(i0andI1andI2, o._inputs[0])
+        i0andI1andI2.connectHlsIn(o._inputs[0])
 
     def hwImpl(self, treeOrder:TREE_ORDER=TREE_ORDER.PRE) -> None:
         hls = HlsScope(self, self.CLK_FREQ)

@@ -21,7 +21,7 @@ class HlsNetlistAnalysisPassDumpNodesTxt(HlsNetlistAnalysisPass):
             n: HlsNetNode
             out.write(f"{indent:s}{n}\n")
             if isinstance(n, HlsNetNodeAggregate):
-                cls._printNodes(indent + "  ", n._subNodes, out)
+                cls._printNodes(indent + "  ", n.subNodes, out)
 
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):

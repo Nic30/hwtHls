@@ -47,7 +47,7 @@ class RtlArchPassTransplantArchElementsToSubunits(HlsArchPass):
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
         parentHwModule = netlist.parentHwModule
-        for e in netlist.nodes:
+        for e in netlist.subNodes:
             e: ArchElement
             for pipeline_st_i, con in enumerate(e.connections):
                 stateRegisters = SetList()

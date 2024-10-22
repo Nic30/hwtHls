@@ -1,41 +1,55 @@
 from typing import Set, Tuple, Dict, List, Union, Optional
 
+from hwt.hdl.const import HConst
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.array import HArray
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
-from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
-from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, \
+from hwtHls.code import OP_ASHR, OP_LSHR, OP_SHL, OP_CTLZ, OP_CTTZ, OP_CTPOP
+from hwtHls.frontend.ast.astToSsa import NetlistIoConstructorDictT
+from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, MachineInstr, MachineRegisterInfo, Register, \
     TargetOpcode, CmpInst, ConstantInt, TypeToIntegerType, TypeToArrayType, IntegerType, Type as LlvmType, ArrayType, \
     MachineLoopInfo, GlobalValue, ValueToConstantArray, ValueToConstantInt, ValueToConstantDataArray, ConstantArray
-from hwtHls.netlist.analysis.dataThreadsForBlocks import HlsNetlistAnalysisPassDataThreadsForBlocks, \
-    DataFlowThread
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
+from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
     HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge, \
+    HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
-    link_hls_nodes, HlsNetNodeOutAny, HlsNetNodeIn
+    HlsNetNodeOutAny
+from hwtHls.netlist.nodes.portsUtils import HlsNetNodeOut_connectHlsIn_crossingHierarchy
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.observableList import ObservableList
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdgeMeta, MachineEdge
-from hwtHls.ssa.translation.llvmMirToNetlist.resetValueExtract import ResetValueExtractor
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
-from hwtHls.code import OP_ASHR, OP_LSHR, OP_SHL, OP_CTLZ, OP_CTTZ, OP_CTPOP
+from tests.math.fp.hFloatTmpOps import OP_FADD, OP_FSUB, OP_FMUL, OP_FDIV
 
 
 class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
     """
     This object translates low level elements of LLVM MIR to hwtHls HlsNetlist
+    
+    :ivar valCache: cache for translated values which automatically construct HlsNetNodeOutLazy and replaces it once the value is resolved.
+    :ivar _valueCopiedIntoElement: dictionary to avoid duplication of values which are copied into hierarchy containers
+    :ivar _argIToIo: dictionary to speed up lookup of HwIO by Argument the Function
+    :ivar placeholderObjectSlots: container python objects registered in frontend and passes into backend
+    :ivar blockMeta: dictionary mapping :class:`MachineBasicBlock` to :class:`MachineBasicBlockMeta`
+    :ivar edgeMeta: dictionary mapping :class:`MachineEdge` to :class:`MachineEdgeMeta`
+    :ivar mf: translated :class:`MachineFunction`
+    :ivar backedges: backedges of every loop
+    :ivar liveness: dictionary for register liveness tracking
+    :ivar registerTypes: dictionary for Register bitwidth lookup
+    :ivar regToIo: dictionary for lookup of of HwIO by Register
+    :ivar loops: :class:`MachineLoopInfo`
     """
     OPC_TO_OP = {
         TargetOpcode.HWTFPGA_ADD: HwtOps.ADD,
@@ -47,7 +61,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         TargetOpcode.HWTFPGA_OR: HwtOps.OR,
         TargetOpcode.HWTFPGA_XOR: HwtOps.XOR,
         TargetOpcode.HWTFPGA_NOT: HwtOps.NOT,
-        
+
         TargetOpcode.HWTFPGA_ASHR: OP_ASHR,
         TargetOpcode.HWTFPGA_LSHR: OP_LSHR,
         TargetOpcode.HWTFPGA_SHL: OP_SHL,
@@ -56,19 +70,47 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         TargetOpcode.HWTFPGA_CTTZ: OP_CTTZ,
         TargetOpcode.HWTFPGA_CTTZ_ZERO_UNDEF: OP_CTTZ,
         TargetOpcode.HWTFPGA_CTPOP: OP_CTPOP,
+        
+        TargetOpcode.HWTFPGA_FP_FADD: OP_FADD,
+        TargetOpcode.HWTFPGA_FP_FSUB: OP_FSUB,
+        TargetOpcode.HWTFPGA_FP_FMUL: OP_FMUL,
+        TargetOpcode.HWTFPGA_FP_FDIV: OP_FDIV,
     }
 
     CMP_PREDICATE_TO_OP = {
-        CmpInst.Predicate.ICMP_EQ:HwtOps.EQ,
-        CmpInst.Predicate.ICMP_NE:HwtOps.NE,
-        CmpInst.Predicate.ICMP_UGT:HwtOps.UGT,
-        CmpInst.Predicate.ICMP_UGE:HwtOps.UGE,
-        CmpInst.Predicate.ICMP_ULT:HwtOps.ULT,
-        CmpInst.Predicate.ICMP_ULE:HwtOps.ULE,
-        CmpInst.Predicate.ICMP_SGT:HwtOps.SGT,
-        CmpInst.Predicate.ICMP_SGE:HwtOps.SGE,
-        CmpInst.Predicate.ICMP_SLT:HwtOps.SLT,
-        CmpInst.Predicate.ICMP_SLE:HwtOps.SLE,
+        CmpInst.Predicate.ICMP_EQ: HwtOps.EQ,
+        CmpInst.Predicate.ICMP_NE: HwtOps.NE,
+        CmpInst.Predicate.ICMP_UGT: HwtOps.UGT,
+        CmpInst.Predicate.ICMP_UGE: HwtOps.UGE,
+        CmpInst.Predicate.ICMP_ULT: HwtOps.ULT,
+        CmpInst.Predicate.ICMP_ULE: HwtOps.ULE,
+        CmpInst.Predicate.ICMP_SGT: HwtOps.SGT,
+        CmpInst.Predicate.ICMP_SGE: HwtOps.SGE,
+        CmpInst.Predicate.ICMP_SLT: HwtOps.SLT,
+        CmpInst.Predicate.ICMP_SLE: HwtOps.SLE,
+    }
+    OPC_TO_OP_SCHEDULING_RESOURCE = {
+        TargetOpcode.HWTFPGA_MUX: HwtOps.TERNARY,
+        TargetOpcode.HWTFPGA_EXTRACT: HwtOps.INDEX,
+        TargetOpcode.HWTFPGA_MERGE_VALUES: HwtOps.CONCAT,
+        **OPC_TO_OP
+    }
+    _HWTFPGA_CLOAD_CSTORE = (
+        TargetOpcode.HWTFPGA_CLOAD,
+        TargetOpcode.HWTFPGA_CSTORE,
+    )
+    _BITCOUNT_OPCODES = {
+        TargetOpcode.HWTFPGA_CTLZ,
+        TargetOpcode.HWTFPGA_CTLZ_ZERO_UNDEF,
+        TargetOpcode.HWTFPGA_CTTZ,
+        TargetOpcode.HWTFPGA_CTTZ_ZERO_UNDEF,
+        TargetOpcode.HWTFPGA_CTPOP,
+    }
+    _FP_BIN_OPCODES = {
+        TargetOpcode.HWTFPGA_FP_FADD,
+        TargetOpcode.HWTFPGA_FP_FSUB,
+        TargetOpcode.HWTFPGA_FP_FMUL,
+        TargetOpcode.HWTFPGA_FP_FDIV,
     }
 
     def __init__(self, hls: "HlsScope", tr: ToLlvmIrTranslator,
@@ -78,29 +120,27 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
                  ioRegs: List[Register],
                  registerTypes: Dict[Register, int],
                  loops: MachineLoopInfo,
+                 netlist: HlsNetlistCtx,
+                 ioNodeConstructors: NetlistIoConstructorDictT,
                  ):
         super(HlsNetlistAnalysisPassMirToNetlistLowLevel, self).__init__()
+        self.netlist = netlist
         # :note: value of a block in block0 means that the control flow was passed to block0 from block
-        netlist = self.netlist = HlsNetlistCtx(hls.parentHwModule, hls.freq, tr.label, namePrefix=hls.namePrefix,
-                                               platform=hls.parentHwModule._target_platform)
-        self.builder = HlsNetlistBuilder(netlist)
-        netlist._setBuilder(self.builder)
         self.valCache = MirToHwtHlsNetlistValueCache(netlist)
-        aargToArgIndex = {a: i for (i, a) in enumerate(tr.llvm.main.args())}
-        self._argIToIo = {aargToArgIndex[a]: io for (io, (a, _, _)) in tr.ioToVar.items()}
+        self._valueCopiedIntoElement: Dict[Tuple[HlsNetNodeAggregate, MachineBasicBlock, Register]] = {}
+
+        argToArgIndex = {a: i for (i, a) in enumerate(tr.llvm.main.args())}
+        self._argIToIo = {argToArgIndex[a]: io for (io, (a, _, _)) in tr.ioToVar.items()}
         self.placeholderObjectSlots = [obj for (obj, _) in tr.placeholderObjectSlots]
-        self.blockSync: Dict[MachineBasicBlock, MachineBasicBlockMeta] = {}
+        self.blockMeta: Dict[MachineBasicBlock, MachineBasicBlockMeta] = {}
         self.edgeMeta: Dict[MachineEdge, MachineEdgeMeta] = {}
-        self.nodes: ObservableList[HlsNetNode] = netlist.nodes
-        self.inputs: ObservableList[HlsNetNodeRead] = netlist.inputs
-        self.outputs: ObservableList[HlsNetNodeWrite] = netlist.outputs
         self.mf = mf
         self.backedges = backedges
         self.liveness = liveness
         self.registerTypes = registerTypes
         self.regToIo: Dict[Register, HwIO] = {ioRegs[ai]: io for (ai, io) in self._argIToIo.items()}
+        self.ioNodeConstructors: NetlistIoConstructorDictT = ioNodeConstructors
         self.loops = loops
-        self.translatedBranchConditions: Dict[MachineBasicBlock, Dict[Register, HlsNetNodeOutAny]] = {}
         # register self in netlist analysis cache
         netlist._analysis_cache[self.__class__] = self
         self.dbgTracer: Optional[DebugTracer] = None
@@ -111,27 +151,49 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         """
         self.dbgTracer = dbgTracer
 
-    def _constructBackedgeBuffer(self, name: str,
-                                 srcBlock: MachineBasicBlock,
-                                 dstBlock: MachineBasicBlock,
-                                 cacheKey,
-                                 val: HlsNetNodeOutAny,
-                                 isControl: bool=False) -> HlsNetNodeOut:
-        # we need to insert backedge buffer to get block en flag from pred to mb
+    def _getSchedulingResourceForInstruction(self, MRI: MachineRegisterInfo, instr: MachineInstr):
+        opc = instr.getOpcode()
+        opDef = self.OPC_TO_OP.get(opc, None)
+        if opDef is not None:
+            return opDef
+        elif opc == TargetOpcode.HWTFPGA_CLOAD or \
+             opc == TargetOpcode.HWTFPGA_CSTORE:
+            baseAddrOp = instr.getOperand(1)
+            assert baseAddrOp.isReg(), instr
+            r = baseAddrOp.getReg()
+            io = self.regToIo.get(r, None)
+            if io is not None:
+                return io
+            # could still be load or write from ROM
+        elif opc == TargetOpcode.HWTFPGA_ICMP:
+            predicate = CmpInst.Predicate(instr.getOperand(1).getPredicate())
+            return self.CMP_PREDICATE_TO_OP[predicate]
+
+        return None
+
+    def _constructBuffer(self, name: str,
+                         srcBlock: MachineBasicBlock,
+                         dstBlock: MachineBasicBlock,
+                         cacheKey,
+                         val: Union[HlsNetNodeOutAny, HConst],
+                         isBackedge: bool=False,
+                         isControl: bool=False,
+                         addWriteToOrderingChain=True) -> HlsNetNodeOut:
         namePrefix = f"bb{srcBlock.getNumber():d}_to_bb{dstBlock.getNumber():d}_{name:s}"
-        rFromIn = HlsNetNodeReadBackedge(
+        rCls = HlsNetNodeReadBackedge if isBackedge else HlsNetNodeReadForwardedge
+        rFromIn = rCls(
             self.netlist,
             val._dtype,
             name=f"{namePrefix:s}_dst",
         )
-        self.inputs.append(rFromIn)
-        rFromIn = rFromIn._outputs[0]
+        dstBlockMeta: MachineBasicBlockMeta = self.blockMeta[dstBlock]
+        dstBlockMeta.parentElement.addNode(rFromIn)
+
+        rFromIn = rFromIn._portDataOut
         if isControl and HdlType_isVoid(val._dtype):
-            rFromIn.obj.setNonBlocking()
             rFromIn = rFromIn.obj.getValidNB()
             # add as a src to all dependencies of orderingIn where this read exists
-            dstBlockSync: MachineBasicBlockMeta = self.blockSync[dstBlock]
-            orderingIn = dstBlockSync.orderingIn
+            orderingIn = dstBlockMeta.orderingIn
             assert isinstance(orderingIn, HlsNetNodeOutLazy), orderingIn
             orderingIn: HlsNetNodeOutLazy
             if orderingIn.dependent_inputs:
@@ -139,23 +201,32 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
                 for user in orderingIn.dependent_inputs:
                     userObj = user.obj
                     userObj: HlsNetNodeExplicitSync
-                    link_hls_nodes(oo, userObj._addInput("orderingIn"))
+                    oo.connectHlsIn(userObj._addInput("orderingIn"))
 
         if cacheKey is not None:
             self.valCache.add(dstBlock, cacheKey, rFromIn, False)
 
-        wToOut = HlsNetNodeWriteBackedge(
+        wCls = HlsNetNodeWriteBackedge if isBackedge else HlsNetNodeWriteForwardedge
+        wToOut = wCls(
             self.netlist,
             name=f"{namePrefix:s}_src")
-        link_hls_nodes(val, wToOut._inputs[0])
-        oi = wToOut._addInput("orderingIn", True)
-        link_hls_nodes(rFromIn.obj.getOrderingOutPort(), oi)
-        self.outputs.append(wToOut)
+        srcBlockMeta = self.blockMeta[srcBlock]
+        srcBlockMeta.parentElement.addNode(wToOut)
+        if isinstance(val, HConst):
+            val = srcBlockMeta.parentElement.builder.buildConst(val)
+        val.connectHlsIn(wToOut._inputs[0])
+        if isBackedge:
+            oi = wToOut._addInput("orderingIn", True)
+            HlsNetNodeOut_connectHlsIn_crossingHierarchy(rFromIn.obj.getOrderingOutPort(), oi, "ordering")
+        else:
+            oi = rFromIn.obj._addInput("orderingIn", True)
+            HlsNetNodeOut_connectHlsIn_crossingHierarchy(wToOut.getOrderingOutPort(), oi, "ordering")
 
         wToOut.associateRead(rFromIn.obj)
         wToOut.buffName = f"{namePrefix:s}_backedge_buff"
-        srcMbSync = self.blockSync[srcBlock]
-        srcMbSync.addOrderedNodeForControlWrite(wToOut, self.blockSync[dstBlock])
+
+        if addWriteToOrderingChain:
+            srcBlockMeta.addOrderedNodeForControlWrite(wToOut, dstBlockMeta)
 
         if cacheKey is not None:
             # because we need to use latest value not the input value which we just added (rFromIn)
@@ -176,13 +247,13 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         else:
             raise NotImplementedError(t)
 
-    def _translateConstant(self, c: ConstantInt):
+    def _translateConstant(self, builder: HlsNetlistBuilder, c: ConstantInt):
         val = int(c.getValue())
         t = self._translateType(c.getType())
         if not t.signed and val < 0:  # convert to unsigned
             val = t.all_mask() + val + 1
         v = t.from_py(val)
-        return self.builder.buildConst(v)
+        return builder.buildConst(v)
 
     @classmethod
     def _translateConstantArrayToPy(cls, t: HArray, arr: ConstantArray):
@@ -194,18 +265,18 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         elif not element_t.signed:
             # convert to unsigned if required
             m = element_t.all_mask()
-            for v in arr.iterOperands():
-                v = int(ValueToConstantInt(v.get()).getValue())
+            for v in arr:
+                v = int(ValueToConstantInt(v).getValue())
                 if v < 0:
                     v = m + v + 1
                 res.append(v)
         else:
-            for v in arr.iterOperands():
-                v = int(ValueToConstantInt(v.get()).getValue())
+            for v in arr:
+                v = int(ValueToConstantInt(v).getValue())
                 res.append(v)
         return res
 
-    def _translateGlobal(self, g: GlobalValue):
+    def _translateGlobal(self, builder:HlsNetlistBuilder, g: GlobalValue):
         val = g.getOperand(0)
         t = self._translateType(val.getType())
         if not isinstance(t, HArray):
@@ -216,16 +287,16 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         assert arrVal is not None, (val.__class__, val)
         pyVal = self._translateConstantArrayToPy(t, arrVal)
         v = t.from_py(pyVal)
-        c = self.builder.buildConst(v)
+        c = builder.buildConst(v)
         c.obj.name = g.getName().str()
         return c
 
-    def _translateIntBits(self, val: int, dtype: HBits):
-        v = dtype.from_py(val)
-        return self.builder.buildConst(v)
-
-    def _translateIntBit(self, val: int):
-        return self._translateIntBits(val, BIT)
+    # def _translateIntBits(self, builder: HlsNetlistBuilder, val: int, dtype: HBits):
+    #    v = dtype.from_py(val)
+    #    return builder.buildConst(v)
+    #
+    # def _translateIntBit(self, builder: HlsNetlistBuilder, val: int):
+    #    return self._translateIntBits(builder, val, BIT)
 
     def _translateRegister(self, block: MachineBasicBlock, r: Register):
         bw = self.registerTypes.get(r, None)
@@ -237,50 +308,35 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         return self.valCache.get(block, block, BIT)
 
     def _addExtraCond(self, n: Union[HlsNetNodeRead, HlsNetNodeWrite],
-                      cond: Union[int, HlsNetNodeOutAny],
+                      cond: Union[HlsNetNodeOutAny, bool, None],
                       blockEn: Optional[HlsNetNodeOutAny]):
-        if isinstance(cond, int):
-            assert cond == 1, cond
+        if cond is None or isinstance(cond, int):
+            assert cond is None or cond == 1, cond
             if blockEn is None:
                 return
             cond = blockEn
         elif blockEn is not None:
-            cond = self.builder.buildOp(HwtOps.AND, BIT, blockEn, cond)
+            cond = n.getHlsNetlistBuilder().buildAnd(blockEn, cond)
 
         n.addControlSerialExtraCond(cond)
 
-    def _addSkipWhen_n(self, n: Union[HlsNetNodeRead, HlsNetNodeWrite], cond_n: Union[int, HlsNetNodeOutAny], blockEn: Optional[HlsNetNodeOutAny]):
+    def _addSkipWhen_n(self, n: Union[HlsNetNodeRead, HlsNetNodeWrite],
+                       cond_n: Union[HlsNetNodeOutAny, bool, None],
+                       blockEn: Optional[HlsNetNodeOutAny]):
         """
         add skipWhen condition to read or write, the condition itself is negated
         """
-        b = self.builder
-        blockEn_n = None if blockEn is None else b.buildOp(HwtOps.NOT, BIT, blockEn)
-        if isinstance(cond_n, int):
-            assert cond_n == 1, cond_n
+        b = n.getHlsNetlistBuilder()
+        blockEn_n = None if blockEn is None else b.buildNot(blockEn)
+        if cond_n is None or isinstance(cond_n, int):
+            assert cond_n is None or cond_n == 1, cond_n
             if blockEn_n is None:
                 return
             cond = blockEn_n
         else:
-            cond = b.buildOp(HwtOps.NOT, BIT, cond_n)
+            cond = b.buildNot(cond_n)
             if blockEn_n is not None:
-                cond = b.buildOp(HwtOps.OR, BIT, blockEn_n, cond)
+                cond = b.buildOr(blockEn_n, cond)
 
         n.addControlSerialSkipWhen(cond)
-
-    def _replaceInputDriverWithConst1b(self, i: HlsNetNodeIn, threads: HlsNetlistAnalysisPassDataThreadsForBlocks):
-        return ResetValueExtractor._replaceInputDriverWithConst1b(self, i, threads)
-
-    def _getThreadOfReg(self, threads: HlsNetlistAnalysisPassDataThreadsForBlocks,
-                        mb: MachineBasicBlock, reg: Register, dtype: HdlType) -> Optional[DataFlowThread]:
-        """
-        Get thread where the register is used.
-        HVoidOrdering outputs and lazy outputs are ignored and for them this function returns None.
-        """
-        nodeOut: HlsNetNodeOutAny = self.valCache.get(mb, reg, dtype)
-        obj = nodeOut if isinstance(nodeOut, HlsNetNodeOutLazy) else nodeOut.obj
-        t, newlyAdded = threads.searchForThreads(obj)
-        if newlyAdded:
-            threads.threadsPerBlock[mb].append(t)
-            threads.threadIdToBlock[id(t)] = [mb]
-        return t
 

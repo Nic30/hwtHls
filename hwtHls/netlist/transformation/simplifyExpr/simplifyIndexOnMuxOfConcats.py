@@ -1,10 +1,11 @@
-from typing import Set, Tuple, List, Optional, Union, Sequence
+from typing import Tuple, List, Optional, Union, Sequence
 
+from hwt.hdl.const import HConst
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
+from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.sliceConst import HSliceConst
-from hwt.hdl.const import HConst
 from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
@@ -13,9 +14,8 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.transformation.simplifyExpr.simplifyMux import popConcatOfSlices
-from hwtHls.netlist.transformation.simplifyUtils import getConstOfOutput, \
-    replaceOperatorNodeWith
-from hwt.hdl.types.defs import BIT
+from hwtHls.netlist.transformation.simplifyUtils import getConstOfOutput
+from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOperatorNodeWith
 
 # value, low, high
 BitChunkTuple = Union[HConst, Tuple[HlsNetNodeOut, int, int]]
@@ -161,7 +161,7 @@ def sliceOrIndexToHighLowBitNo(index: Union[HSliceConst, HBitsConst]):
     return highBitNo, lowBitNo
 
 
-def netlistReduceIndexOnMuxOfConcats(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
+def netlistReduceIndexOnMuxOfConcats(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
     assert n.operator == HwtOps.INDEX, n
 
     index = getConstOfOutput(n.dependsOn[1])
@@ -197,13 +197,13 @@ def netlistReduceIndexOnMuxOfConcats(n: HlsNetNodeOperator, worklist: SetList[Hl
         extracted.append((_extracted, c))
         worklist.append(vObj)
 
-    builder: HlsNetlistBuilder = n.netlist.builder
+    builder: HlsNetlistBuilder = n.getHlsNetlistBuilder()
 
     selfResT = n._outputs[0]._dtype
     extractedMuxOps = _constructMuxOps(builder, extracted, worklist)
 
     extractedO = builder.buildMux(selfResT, extractedMuxOps, name=n.name)
-    replaceOperatorNodeWith(n, extractedO, worklist, removed)  # slice -> value extracted from mux
+    replaceOperatorNodeWith(n, extractedO, worklist)  # slice -> value extracted from mux
     worklist.append(extractedO.obj)
 
     # for rest of the users create a concatenation which will merge extracted and leftover value back
@@ -233,7 +233,7 @@ def netlistReduceIndexOnMuxOfConcats(n: HlsNetNodeOperator, worklist: SetList[Hl
         worklist.extend(o.obj for o in origConcatVals)
         inpReplacement = builder.buildConcat(*origConcatVals)
         worklist.append(inpReplacement.obj)
-        replaceOperatorNodeWith(inp.obj, inpReplacement, worklist, removed)
+        replaceOperatorNodeWith(inp.obj, inpReplacement, worklist)
 
     return True
 

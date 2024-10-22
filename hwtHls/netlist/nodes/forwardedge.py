@@ -1,4 +1,4 @@
-from typing import Optional, Union, List, Tuple, Generator
+from typing import Optional, Union, List, Tuple, Callable
 
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.hdlType import HdlType
@@ -6,11 +6,10 @@ from hwt.hwIO import HwIO
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
-from hwtHls.netlist.nodes.backedge import BACKEDGE_ALLOCATION_TYPE, HlsNetNodeWriteBackedge, \
+from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
     HlsNetNodeReadBackedge
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ports import link_hls_nodes, HlsNetNodeOut, \
-    HlsNetNodeIn
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 
@@ -20,30 +19,21 @@ class HlsNetNodeReadForwardedge(HlsNetNodeRead):
     A read of data from loop enter block or from loop exit block.
     """
 
-    def __init__(self, netlist:"HlsNetlistCtx", dtype: HdlType, name: Optional[str]=None):
-        HlsNetNodeRead.__init__(self, netlist, None, dtype=dtype, name=name)
+    def __init__(self, netlist:"HlsNetlistCtx", dtype: HdlType, name: Optional[str]=None, channelInitValues=()):
+        HlsNetNodeRead.__init__(self, netlist, None, dtype=dtype, name=name, channelInitValues=channelInitValues)
         self.associatedWrite: Optional[HlsNetNodeWriteForwardedge] = None
-        self.maxIosPerClk = 2  # read, write
-        self._rtlIoAllocated = False
         self._rtlDataVldReg:Optional[Union[RtlSyncSignal, HwIO]] = None
 
     @override
     def getSchedulingResourceType(self):
-        return self
-
-    @override
-    def hasValidOnlyToPassFlags(self):
-        return HlsNetNodeReadBackedge.hasValidOnlyToPassFlags(self)
-
-    @override
-    def hasReadyOnlyToPassFlags(self):
-        return HlsNetNodeReadBackedge.hasReadyOnlyToPassFlags(self)
+        # edges are asserted to be unique read/write pairs
+        return None
 
     def _rtlAllocDatapathIo(self):
         return HlsNetNodeReadBackedge._rtlAllocDatapathIo(self)
 
-    def rtlAllocDataVldReg(self, allocator:"ArchElement"):
-        return HlsNetNodeReadBackedge.rtlAllocDataVldReg(self, allocator)
+    def rtlAllocDataVldAndFullReg(self, allocator:"ArchElement"):
+        return HlsNetNodeReadBackedge.rtlAllocDataVldAndFullReg(self, allocator)
 
     @override
     def rtlAlloc(self, allocator:"ArchElement") -> Union[TimeIndependentRtlResource, List[HdlStatement]]:
@@ -58,17 +48,23 @@ class HlsNetNodeWriteForwardedge(HlsNetNodeWrite):
 
     def __init__(self, netlist:"HlsNetlistCtx", mayBecomeFlushable=False, name:Optional[str]=None):
         HlsNetNodeWrite.__init__(self, netlist, None, mayBecomeFlushable=mayBecomeFlushable, name=name)
-        self.associatedRead: Optional[HlsNetNodeReadForwardedge] = None
-        self.maxIosPerClk = 2  # read, write
-        self.allocationType = BACKEDGE_ALLOCATION_TYPE.BUFFER
-        self.buffName = name
-        self.channelInitValues = ()
+        self.associatedRead: Optional[HlsNetNodeReadForwardedge]
         self._loopChannelGroup: Optional["LoopChanelGroup"] = None
-        self._fullPort: Optional[HlsNetNodeOut] = None
+
+    @override
+    def getSchedulingResourceType(self):
+        # edges are asserted to be unique read/write pairs
+        return None
 
     @override
     def clone(self, memo:dict, keepTopPortsConnected: bool) -> Tuple["HlsNetNode", bool]:
         return HlsNetNodeWriteBackedge.clone(self, memo, keepTopPortsConnected)
+
+    def _rtlAllocRegisterReadySignal(self, allocator: "ArchElement", readySignalGetter: Callable[[], RtlSyncSignal]):
+        return HlsNetNodeWriteBackedge._rtlAllocRegisterReadySignal(self, allocator, readySignalGetter)
+
+    def _rtlAllocRegisterFullSignal(self, allocator: "ArchElement", full: RtlSyncSignal):
+        return HlsNetNodeWriteBackedge._rtlAllocRegisterFullSignal(self, allocator, full)
 
     @override
     def associateRead(self, r: HlsNetNodeReadForwardedge):
@@ -83,33 +79,24 @@ class HlsNetNodeWriteForwardedge(HlsNetNodeWrite):
     def isBackedge(self):
         return False
 
-    @override
-    def getSchedulingResourceType(self):
-        return self
-
     @staticmethod
-    def createPredSucPair(netlist: "HlsNetlistCtx", name: str, srcV: HlsNetNodeOut)\
+    def createPredSucPair(netlist: "HlsNetlistCtx",
+                          parentForWrite:"ArchElement",
+                          parentForRead: "ArchElement",
+                          name: str, srcV: HlsNetNodeOut)\
             ->Tuple["HlsNetNodeLoopDataWrite", HlsNetNodeReadForwardedge, HlsNetNodeOut]:
         r = HlsNetNodeReadForwardedge(netlist, srcV._dtype, name=name + "_dst")
         w = HlsNetNodeWriteForwardedge(netlist, name=name + "_src")
-        link_hls_nodes(srcV, w._portSrc)
+        parentForRead.addNode(r)
+        parentForWrite.addNode(w)
+        srcV.connectHlsIn(w._portSrc)
         w.associateRead(r)
-        link_hls_nodes(w.getOrderingOutPort(), r._addInput("orderingIn"))
-        netlist.outputs.append(w)
-        netlist.inputs.append(r)
+        w.getOrderingOutPort().connectHlsIn(r._addInput("orderingIn"))
 
         return w, r, r._portDataOut
 
-    @override
-    def hasValidOnlyToPassFlags(self):
-        return HlsNetNodeWriteBackedge.hasValidOnlyToPassFlags(self)
-
-    @override
-    def hasReadyOnlyToPassFlags(self):
-        return HlsNetNodeWriteBackedge.hasReadyOnlyToPassFlags(self)
-
-    def rtlAllocAsBuffer(self, allocator: "ArchElement", dstRead: HlsNetNodeReadForwardedge):
-        return HlsNetNodeWriteBackedge.rtlAllocAsBuffer(self, allocator, dstRead)
+    def _rtlAllocAsBuffer(self, allocator: "ArchElement", dstRead: HlsNetNodeReadForwardedge):
+        return HlsNetNodeWriteBackedge._rtlAllocAsBuffer(self, allocator, dstRead)
 
     @override
     def rtlAlloc(self, allocator: "ArchElement"):

@@ -1,41 +1,33 @@
-from copy import copy
-from typing import List, Set, Tuple, Union, Dict, Generator
+from typing import List, Set, Tuple, Union, Generator, Optional
 
-from hdlConvertorAst.to.hdlUtils import iter_with_last
-from hwt.code import SwitchLogic, Switch, If
-from hwt.code_utils import rename_signal
+from hwt.code import Switch, If
 from hwt.hdl.const import HConst
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import HBits
-from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hwIO import HwIO
 from hwt.math import log2ceil
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
+from hwtHls.architecture.analysis.fsmStateEncoding import HlsAndRtlNetlistAnalysisPassFsmStateEncoding
 from hwtHls.architecture.connectionsOfStage import \
     setNopValIfNotSet, ConnectionsOfStage, ConnectionsOfStageList
 from hwtHls.architecture.syncUtils import HwIO_getSyncSignals
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME, \
     TimeIndependentRtlResourceItem
-from hwtHls.netlist.analysis.detectFsms import IoFsm
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HdlType_isNonData
 from hwtHls.netlist.nodes.archElement import ArchElement
-from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
-    HlsNetNodeWriteBackedge, BACKEDGE_ALLOCATION_TYPE
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge, \
-    HlsNetNodeWriteForwardedge
-from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel, \
-    HlsNetNodeWriteAnyChannel
-from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
+from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
+from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
 from hwtHls.netlist.nodes.read import  HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.scheduler.clk_math import start_clk, indexOfClkPeriod
+from hwtHls.netlist.scheduler.clk_math import start_clk
 from hwtLib.logic.rtlSignalBuilder import RtlSignalBuilder
 from ipCorePackager.constants import INTF_DIRECTION
 
@@ -48,50 +40,70 @@ class ArchElementFsm(ArchElement):
 
     :see: `~.ArchElement`
 
-    :ivar fsm: an original IoFsm object from which this was created
-    :ivar transitionTable: a dictionary source stateI to dictionary destination stateI to condition for transition
-    :ivar stateEncoding: a dictionary mapping state index to a value which will be used in RTL to represent this state.
+    #:ivar fsm: an original FsmMeta object from which this was created
     """
 
-    def __init__(self, netlist: HlsNetlistCtx, name: str, subNodes: SetList[HlsNetNode], fsm: IoFsm):
-        self.fsm = fsm
-        clkPeriod = self.normalizedClkPeriod = netlist.normalizedClkPeriod
-        assert fsm.states, fsm
-
+    def __init__(self, netlist: HlsNetlistCtx, name: str, namePrefix:str,
+                 subNodes: Optional[SetList[HlsNetNode]]=None,
+                 stages: List[List[HlsNetNode]]=None):
         beginClkI = None
         endClkI = None
-        for clkI, st in enumerate(fsm.states):
-            if st:
-                if beginClkI is None:
-                    beginClkI = clkI
-                endClkI = clkI
-
-        stateCons = ConnectionsOfStageList(clkPeriod, (ConnectionsOfStage(self, i) if st else None for i, st in enumerate(fsm.states)))
-        ArchElement.__init__(self, netlist, name, subNodes, stateCons)
+        if subNodes is None:
+            subNodes = SetList()
+        if stages is None:
+            self.stages = []
+            stageCons = ConnectionsOfStageList(netlist.normalizedClkPeriod, ())
+        else:
+            self.stages = stages
+            stageCons = ConnectionsOfStageList(netlist.normalizedClkPeriod,
+                                               (ConnectionsOfStage(self, clkI)
+                                                for clkI, _ in enumerate(self.stages)))
+        # if fsm is None:
+        #    stateCons = ConnectionsOfStageList(netlist.normalizedClkPeriod, ())
+        # else:
+        #    assert fsm.states, fsm
+        #    for clkI, st in enumerate(fsm.states):
+        #        if st:
+        #            if beginClkI is None:
+        #                beginClkI = clkI
+        #            endClkI = clkI
+        #
+        #    stateCons = ConnectionsOfStageList(clkPeriod, (ConnectionsOfStage(self, i)
+        #                                                    if st else None for i, st in enumerate(fsm.states)))
+        ArchElement.__init__(self, netlist, name, namePrefix, subNodes, stageCons)
         self._beginClkI = beginClkI
         self._endClkI = endClkI
-        self.transitionTable: Dict[int, Dict[int, Union[bool, RtlSignal]]] = {}
-        self.stateEncoding: Dict[int, int] = {}
+        self._rtlStateReg: Optional[RtlSyncSignal] = None
 
     @override
     def clone(self, memo:dict, keepTopPortsConnected:bool) -> Tuple["HlsNetNode", bool]:
-        y, isNew = ArchElement.clone(self, memo, keepTopPortsConnected)
-        if isNew:
-            y.fsm = self.fsm.clone(memo)[0]
-            y.transitionTable = copy(self.transitionTable)
-            y.stateEncoding = copy(self.stateEncoding)
-        return y, isNew
+        return ArchElementPipeline.clone(memo, keepTopPortsConnected)
+        # y, isNew = ArchElement.clone(self, memo, keepTopPortsConnected)
+        # if isNew:
+        #    y.fsm = self.fsm.clone(memo)[0]
+        #    y.stateEncoding = copy(self.stateEncoding)
+        # return y, isNew
 
     @override
     def iterStages(self) -> Generator[Tuple[int, List[HlsNetNode]], None, None]:
-        fsm = self.fsm
-        for clkI, nodes in enumerate(fsm.states):
-            if nodes:
-                yield (clkI, nodes)
+        return ArchElementPipeline.iterStages(self)
+        # fsm = self.fsm
+        # if fsm is None:
+        #    return
+        # for clkI, nodes in enumerate(fsm.states):
+        #    if nodes:
+        #        yield (clkI, nodes)
+
+    def hasUsedStateForClkI(self, clkI: int) -> bool:
+        return clkI < len(self.stages) and self.stages[clkI]
 
     @override
-    def getStageForClock(self, clkIndex: int) -> List[HlsNetNode]:
-        return self.fsm.states[clkIndex]
+    def getStageForClock(self, clkIndex: int, createIfNotExists=False) -> List[HlsNetNode]:
+        return ArchElementPipeline.getStageForClock(self, clkIndex, createIfNotExists)
+        # if createIfNotExists:
+        #    return self.fsm.addState(clkIndex)
+        # else:
+        #    return self.fsm.states[clkIndex]
 
     def _iterTirsOfNode(self, n: HlsNetNode) -> Generator[TimeIndependentRtlResource, None, None]:
         for o in n._outputs:
@@ -114,21 +126,42 @@ class ArchElementFsm(ArchElement):
         if isinstance(outOrTime, HlsNetNodeOut) and isinstance(outOrTime.obj, HlsProgramStarter):
             # because we want to consume token from the starter only on transition in this FSM
             con: ConnectionsOfStage = self.connections[0]
-            con.stDependentDrives.append(tir.valuesInTime[0].data.next.drivers[0])
+            con.stateChangeDependentDrives.append(tir.valuesInTime[0].data.next.drivers[0])
 
         if tir.timeOffset == INVARIANT_TIME:
+            # this is stable value and does not need any register storage
             return
 
-        clkPeriod = self.normalizedClkPeriod
+        clkPeriod = self.netlist.normalizedClkPeriod
         _endClkI = self._endClkI
 
         assert len(tir.valuesInTime) == 1, ("Value must not be used yet because we need to set persistence ranges first.", tir)
 
-        if not tir.persistenceRanges and tir.timeOffset is not INVARIANT_TIME:
+        if not tir.persistenceRanges:
+            # if value persistenceRanges were not discovered yet
+            peristentFromThisClk = False
+            if isinstance(outOrTime, HlsNetNodeOut):
+                node = outOrTime.obj
+                if isinstance(node, HlsNetNodeRead) and node._isBlocking:
+                    w = node.associatedWrite
+                    if w is not None and w.allocationType == CHANNEL_ALLOCATION_TYPE.REG:
+                        wClkI = w.scheduledZero // clkPeriod
+                        for u in node.usedBy[outOrTime.out_i]:
+                            if u.obj.scheduledOut[u.in_i] // clkPeriod > wClkI:
+                                raise NotImplementedError("Use after write, need to create reg for copy of current val")
+                        peristentFromThisClk = True
+                        
+                elif isinstance(node, HlsNetNodeWrite) and node.allocationType == CHANNEL_ALLOCATION_TYPE.REG:
+                    r = node.associatedRead
+                    if r is not None and r.parent is self:
+                        peristentFromThisClk = True
+
             # value for the first clock behind this clock period and the rest is persistent in this register
-            nextClkI = start_clk(tir.timeOffset, clkPeriod) + 1
-            if nextClkI <= _endClkI:
-                tir.markPersistent(nextClkI, _endClkI)
+            persistentFromClkI = start_clk(tir.timeOffset, clkPeriod)
+            if not peristentFromThisClk:
+                persistentFromClkI += 1
+            if persistentFromClkI <= _endClkI:
+                tir.markPersistent(persistentFromClkI, _endClkI)
 
             self.connections.getForTime(tir.timeOffset).signals.append(tir.valuesInTime[0])
 
@@ -150,7 +183,7 @@ class ArchElementFsm(ArchElement):
         """
         initialize nop value which will drive the IO when not used
         """
-        for nodes in self.fsm.states:
+        for nodes in self.stages:
             for node in nodes:
                 if isinstance(node, HlsNetNodeWrite):
                     if node.dst is not None:
@@ -160,169 +193,45 @@ class ArchElementFsm(ArchElement):
                     if node.src is not None:
                         self._initNopValsOfIoForHwIO(node.src, INTF_DIRECTION.SLAVE)
 
-    def _collectLoopsAndSetBackedgesToReg(self):
-        localControlReads: SetList[HlsNetNodeReadAnyChannel] = SetList()
-        controlToStateI: Dict[Union[HlsNetNodeReadAnyChannel, HlsNetNodeWriteAnyChannel], int] = {}
-        clkPeriod = self.normalizedClkPeriod
-        for stI, nodes in enumerate(self.fsm.states):
-            for node in nodes:
-                node: HlsNetNode
-                if isinstance(node, (HlsNetNodeReadForwardedge, HlsNetNodeReadBackedge)):
-                    node: HlsNetNodeReadBackedge
-                    wr = node.associatedWrite
-                    if wr in self._subNodes and wr.allocationType == BACKEDGE_ALLOCATION_TYPE.BUFFER:
-                        # is in the same arch. element
-                        # allocate as a register because this is just local control channel
-                        wr.allocationType = BACKEDGE_ALLOCATION_TYPE.REG
-
-                elif isinstance(node, HlsNetNodeLoopStatus):
-                    for g in node.fromReenter:
-                        e = g.getChannelWhichIsUsedToImplementControl().associatedRead
-                        assert isinstance(e, HlsNetNodeReadBackedge), e
-                        assert e in self._subNodes, e
-                        if e.associatedWrite in self._subNodes:
-                            localControlReads.append(e)
-                            controlToStateI[e] = stI
-                            wr = e.associatedWrite
-                            wrTime = max(wr.scheduledIn, default=wr.scheduledZero)
-                            controlToStateI[e.associatedWrite] = indexOfClkPeriod(wrTime, clkPeriod)
-
-                    # for g in node.fromExitToHeaderNotify:
-                    #    w = g.getChannelWhichIsUsedToImplementControl()
-                    #    r = w.associatedRead
-                    #    if isinstance(r, HlsNetNodeReadBackedge):
-                    #        assert r in self._subNodes, e
-                    #        if w in self._subNodes:
-                    #            raise NotImplementedError("Convert loop to FSM transitions")
-                    #        # dstI =
-        return localControlReads, controlToStateI
-
-    def _collectStatesWhichCanNotBeSkipped(self) -> Set[int]:
-        # element: clockTickIndex
-        clkPeriod = self.normalizedClkPeriod
-        nonSkipableStateI: Set[int] = set()
-        otherElmConnectionFirstTimeSeen: Dict[ArchElement, int] = {}
-        for o, uses, outTime in zip(self._outputs, self.usedBy, self.scheduledOut):
-            o: HlsNetNodeOut
-            clkI = start_clk(outTime, clkPeriod)
-            if not self.fsm.hasUsedStateForClkI(clkI):
-                raise AssertionError("fsm is missing state for time where node is scheduled", o, clkI)
-            for i in uses:
-                otherElm: ArchElement = i.obj
-                curFistCommunicationStI = otherElmConnectionFirstTimeSeen.get(otherElm, None)
-                if curFistCommunicationStI is None:
-                    otherElmConnectionFirstTimeSeen[otherElm] = clkI
-                elif curFistCommunicationStI == clkI:
-                    continue
-                elif curFistCommunicationStI > clkI:
-                    otherElmConnectionFirstTimeSeen[otherElm] = clkI
-                    nonSkipableStateI.add(curFistCommunicationStI)
-                else:
-                    nonSkipableStateI.add(clkI)
-
-        return nonSkipableStateI
-
-    def _resolveTranstitionTableFromLoopControlChannels(self,
-                localControlReads: SetList[HlsNetNodeReadBackedge],
-                controlToStateI: Dict[Union[HlsNetNodeReadBackedge, HlsNetNodeWriteBackedge], int],
-                nonSkipableStateI: Set[int]):
-        transitionTable = self.transitionTable
-        assert not transitionTable, "This should be called only once"
-        usedStates = []
-        for clkI, st in enumerate(self.fsm.states):
-            if st:
-                usedStates.append(clkI)
-
-        prev = None
-        for isLast, clkI in iter_with_last(usedStates):
-            transitionTable[prev] = {clkI: 1}  # jump to next by default
-            if isLast:
-                transitionTable[clkI] = {usedStates[0]: 1}  # jump back to start by default
-            prev = clkI
-
-        for r in localControlReads:
-            r: HlsNetNodeReadBackedge
-            assert r.associatedWrite in self._subNodes, r
-            srcStI = controlToStateI[r.associatedWrite]
-            dstStI = controlToStateI[r]
-            possible = True
-            if dstStI >= srcStI:
-                # check if there is any state between these two which can not be skipped
-                for i in range(srcStI, dstStI):
-                    if i in nonSkipableStateI:
-                        possible = False
-                        break
-            else:
-                # check that there is no non optional state behind this state
-                for i in range(srcStI, len(self.fsm.states)):
-                    if i in nonSkipableStateI:
-                        possible = False
-                        break
-            if not possible:
-                continue
-            curTrans = transitionTable[srcStI].get(dstStI, None)
-            # [fixme] we do not know for sure that IO in skipped states has cond as a skipWhen condition
-            #         and thus it may be required to enter dstState
-            if r.hasValid():
-                condO = r._valid
-            elif r.hasValidNB():
-                condO = r._validNB
-            else:
-                condO = r.getValidNB()
-                # assert not HdlType_isVoid(r._outputs[0]._dtype), r
-                # condO = r._outputs[0]
-                # assert condO._dtype.bit_length() == 1, (condO, condO._dtype)
-
-            cond = self.rtlAllocHlsNetNodeOut(condO).valuesInTime[0].data.next
-            if curTrans is not None:
-                cond = cond | curTrans
-            transitionTable[srcStI][dstStI] = cond
-
-        self.stateEncoding = {clkI: i for i, clkI in enumerate(usedStates)}
-
-    def _detectStateTransitions(self):
-        """
-        Detect the state propagation logic and resolve how to replace it wit a state bit
-        * state bit will be just stored as a register in this FSM
-        * read will just read this bit
-        * write will set this bit to a value specified in write src if all write conditions are meet
-        * if the value written to channel is 1 it means that FSM jump to state where associated read is
-          There could be multiple channels written but the 1 should be written to just single one
-        * All control channel registers which are not written but do have scheduled potential write in this state must be set to 0
-        * Because the control channel is just local it is safe to replace it with register.
-          However we must keep it in allNodes list so the node is still registered for this element
-
-        :note: This must be called before construction of data-path because we need to resolve how control channels will be realized
-        :note: The state transition can not be extracted if there is communication with some other FSM
-            which already have some communication with this FSM. (In order to prevent deadlock.)
-        """
-        localControlReads, controlToStateI = self._collectLoopsAndSetBackedgesToReg()
-        nonSkipableStateI = self._collectStatesWhichCanNotBeSkipped()
-        self._resolveTranstitionTableFromLoopControlChannels(localControlReads, controlToStateI, nonSkipableStateI)
-
     @override
     def rtlStatesMayHappenConcurrently(self, stateClkI0: int, stateClkI1: int):
         return stateClkI0 == stateClkI1
 
-    @override
-    def rtlAllocDatapathRead(self, node: HlsNetNodeRead, con: ConnectionsOfStage, rtl: List[HdlStatement],
-                              validHasCustomDriver:bool=False, readyHasCustomDriver:bool=False):
-        if isinstance(node, (HlsNetNodeReadForwardedge, HlsNetNodeReadBackedge)) and \
-                node.associatedWrite is not None and \
-                node.associatedWrite.allocationType != BACKEDGE_ALLOCATION_TYPE.BUFFER:
-            # nodes of this type are just registers and do not have any IO
-            return
-        self._rtlAllocDatapathIo(node.src, node, con, rtl, True, validHasCustomDriver, readyHasCustomDriver)
+    #@override
+    #def rtlAllocDatapathRead(self, node: HlsNetNodeRead, con: ConnectionsOfStage, rtl: List[HdlStatement],
+    #                          validHasCustomDriver:bool=False, readyHasCustomDriver:bool=False):
+    #    if isinstance(node, (HlsNetNodeReadForwardedge, HlsNetNodeReadBackedge)) and \
+    #            node.associatedWrite is not None and \
+    #            node.associatedWrite.allocationType != CHANNEL_ALLOCATION_TYPE.BUFFER:
+    #        # nodes of this type are just registers and do not have any IO
+    #        return
+    #    self._rtlAllocDatapathIo(node.src, node, con, rtl, True, validHasCustomDriver, readyHasCustomDriver)
+    #
+    #@override
+    #def rtlAllocDatapathWrite(self, node: HlsNetNodeWrite, con: ConnectionsOfStage, rtl: List[HdlStatement],
+    #                          validHasCustomDriver:bool=False, readyHasCustomDriver:bool=False):
+    #    if isinstance(node, (HlsNetNodeWriteForwardedge, HlsNetNodeWriteBackedge)) and\
+    #            node.allocationType != CHANNEL_ALLOCATION_TYPE.BUFFER:
+    #        con.stateChangeDependentDrives.extend(rtl)
+    #        # nodes of this type are just registers and do not have any IO
+    #        return
+    #    self._rtlAllocDatapathIo(node.dst, node, con, rtl, False, validHasCustomDriver, readyHasCustomDriver)
 
-    @override
-    def rtlAllocDatapathWrite(self, node: HlsNetNodeWrite, con: ConnectionsOfStage, rtl: List[HdlStatement],
-                              validHasCustomDriver:bool=False, readyHasCustomDriver:bool=False):
-        if isinstance(node, (HlsNetNodeWriteForwardedge, HlsNetNodeWriteBackedge)) and\
-                node.allocationType != BACKEDGE_ALLOCATION_TYPE.BUFFER:
-            con.stDependentDrives.extend(rtl)
-            # nodes of this type are just registers and do not have any IO
-            return
-        self._rtlAllocDatapathIo(node.dst, node, con, rtl, False, validHasCustomDriver, readyHasCustomDriver)
+    def _rtlAllocDeclareStateReg(self):
+        stateEncodingA: HlsAndRtlNetlistAnalysisPassFsmStateEncoding = self.netlist.getAnalysisIfAvailable(HlsAndRtlNetlistAnalysisPassFsmStateEncoding)
+        assert stateEncodingA is not None, ("HlsAndRtlNetlistAnalysisPassFsmStateEncoding should be already prepared before calling rtlAlloc")
+        stateEncoding = stateEncodingA.stateEncoding[self]
+
+        stateCnt = sum(1 if st else 0 for st in self.iterStages())
+        if stateCnt > 1:
+            # if there is more than 1 state
+            stReg = self._reg(f"n{self._id:d}_fsmSt",
+                           HBits(log2ceil(max(stateEncoding.values()) + 1)),
+                           def_val=0)
+        else:
+            # because there is just a single state, the state value has no meaning
+            stReg = None
+        self._rtlStateReg = stReg
 
     @override
     def rtlAllocDatapath(self):
@@ -333,9 +242,9 @@ class ArchElementFsm(ArchElement):
             Instead each value is store in individual register.
             The register is created when value (TimeIndependentRtlResource) is first used from other state/clock cycle.
         """
-        self._detectStateTransitions()
-
-        for (nodes, con) in zip(self.fsm.states, self.connections):
+        # assert self.fsm.transitionTable, ("Transition table should be already generated by HlsAndRtlNetlistPassFsmDetectTransitionTable", self)
+        self._rtlAllocDeclareStateReg()
+        for (nodes, con) in zip(self.stages, self.connections):
             con: ConnectionsOfStage
             for node in nodes:
                 node: HlsNetNode
@@ -346,36 +255,33 @@ class ArchElementFsm(ArchElement):
                 node.rtlAlloc(self)
 
         for con in self.connections:
+            con: ConnectionsOfStage
             if con is None:
                 continue
-            for rtl in self._rtlAllocIoMux(con.ioMuxes, con.ioMuxesKeysOrdered):
-                con.stDependentDrives.extend(rtl)
+            for rtl in con.rtlAllocIoMux():
+                con.stateDependentDrives.extend(rtl)
 
     @override
     def rtlAllocSync(self):
+        stateEncodingA: HlsAndRtlNetlistAnalysisPassFsmStateEncoding = self.netlist.getAnalysisIfAvailable(HlsAndRtlNetlistAnalysisPassFsmStateEncoding)
+        assert stateEncodingA is not None, ("HlsAndRtlNetlistAnalysisPassFsmStateEncoding should be already prepared before calling rtlAlloc")
+        stateEncoding = stateEncodingA.stateEncoding[self]
+
         self._initNopValsOfIo()
-        stateCnt = sum(1 if st else 0 for st in self.fsm.states)
-        if stateCnt > 1:
-            # if there is more than 1 state
-            stReg = self._reg(f"{self.name}st",
-                           HBits(log2ceil(max(self.stateEncoding.values()) + 1)),
-                           def_val=0)
-        else:
-            # because there is just a single state, the state value has no meaning
-            stReg = None
         # instantiate control of the FSM
 
         # used to prevent duplication of registers which are just latching the value
         # without modification through multiple stages
         seenRegs: Set[TimeIndependentRtlResourceItem] = set()
-
+        stReg = self._rtlStateReg
         stateTrans: List[Tuple[RtlSignal, List[HdlStatement]]] = []
-        usedClks = iter([clkI for clkI, con in enumerate(self.connections) if con is not None])
+        usedClks = iter([clkI for clkI in stateEncodingA.usedStates[self]])
         next(usedClks, None)  # skip first
         for clkI, con in enumerate(self.connections):
-            if not self.fsm.hasUsedStateForClkI(clkI):
+            if not self.hasUsedStateForClkI(clkI):
                 assert con is None, (self, clkI)
                 continue
+
             nextClkI = next(usedClks, None)
             con: ConnectionsOfStage
             assert con is not None, ("If state is used there must be ConnectionsOfStage object for this clock window", self, clkI)
@@ -385,15 +291,16 @@ class ArchElementFsm(ArchElement):
                     # if the value has a register at the end of this stage
                     nextStVal = curV.parent.checkIfExistsInClockCycle(nextClkI)
                     if nextStVal is not None and nextStVal.isRltRegister() and not nextStVal in seenRegs:
-                        con.stDependentDrives.append(nextStVal.data.next.drivers[0])
+                        con.stateChangeDependentDrives.append(nextStVal.data.next.drivers[0])
                         seenRegs.add(nextStVal)
 
-            unconditionalTransSeen = False
-            inStateTrans: List[Tuple[RtlSignal, List[HdlStatement]]] = []
-            sync = self._rtlAllocateSyncStreamNode(con)
+            # unconditionalTransSeen = False
+            # inStateTrans: List[Tuple[RtlSignal, List[HdlStatement]]] = []
+            #con.rtlChannelSyncFinalize(self.netlist.parentHwModule,
+            #                           self._dbgAddSignalNamesToSync, self._dbgExplicitlyNamedSyncSignals)
 
             # prettify stateAck signal name if required
-            stateAck = sync.ack()
+            stateAck = con.stageAck
 
             # reduce if ack is a constant value
             if isinstance(stateAck, (bool, int, HConst)):
@@ -402,7 +309,8 @@ class ArchElementFsm(ArchElement):
             else:
                 assert stateAck._dtype.bit_length() == 1, (stateAck, self, clkI)
 
-            stI = self.stateEncoding[clkI]
+            stI = stateEncoding[clkI]
+            _stateAck = stateAck
             # and ack with state en, to assert that
             if stReg is not None:
                 stEn = stReg._eq(stI)
@@ -412,48 +320,38 @@ class ArchElementFsm(ArchElement):
             elif con.stageEnable is not None:
                 con.stageEnable(1)
 
-            # update con.syncNodeAck
-            if stateAck is None:
-                if con.syncNodeAck is not None:
-                    assert not con.syncNodeAck.drivers
-                    con.syncNodeAck(1)
-            else:
-                if con.syncNodeAck is None:
-                    con.syncNodeAck = stateAck = rename_signal(self.netlist.parentHwModule, stateAck, f"{self.name}st{clkI:d}_ack")
-                else:
-                    assert not con.syncNodeAck.drivers
-                    con.syncNodeAck(stateAck)
-                    stateAck = con.syncNodeAck
-
+            assert con.fsmStateWriteNode is not None, ("Should be constructed by syncLowering", self, clkI)
             # build next state logic from transitionTable
             # :note: isinstance(x[1], int) to have unconditional transitions as last
-            for dstStI, c in sorted(self.transitionTable[clkI].items(), key=lambda tr: (isinstance(tr[1], (int, HBitsConst)), tr[0])):
-                assert not unconditionalTransSeen, "If there is an unconditional transition from this state it must be the last one"
-                if c == 1:
-                    unconditionalTransSeen = True
-                    c = stateAck
+            # for dstStI, c in sorted(self.fsm.transitionTable[clkI].items(), key=lambda tr: (isinstance(tr[1], (int, HBitsConst)), tr[0])):
+            #    assert not unconditionalTransSeen, "If there is an unconditional transition from this state it must be the last one"
+            #    if c == 1:
+            #        unconditionalTransSeen = True
+            #        c = stateAck
+            #
+            #    elif isinstance(c, (bool, int)):
+            #        assert c == 0, c
+            #        continue
+            #    else:
+            #        assert c._dtype.bit_length() == 1, c
+            #        c = RtlSignalBuilder.buildAndOptional(c, stateAck)
+            #
+            #    if stReg is not None:
+            #        if c is None:
+            #            c = True
+            #        inStateTrans.append((c, stReg(self.stateEncoding[dstStI])))
 
-                elif isinstance(c, (bool, int)):
-                    assert c == 0, c
-                    continue
-                else:
-                    assert c._dtype.bit_length() == 1, c
-                    c = RtlSignalBuilder.buildAndOptional(c, stateAck)
-
-                if stReg is not None:
-                    if c is None:
-                        c = True
-                    inStateTrans.append((c, stReg(self.stateEncoding[dstStI])))
-
-            stDependentDrives = con.stDependentDrives
+            stateChangeDependentDrives = con.stateChangeDependentDrives
 
             if stateAck is not None:
                 # if stateAck is not always satisfied create parent if to load registers conditionally
-                stDependentDrives = If(stateAck, stDependentDrives)
+                stateChangeDependentDrives = If(_stateAck, stateChangeDependentDrives)
 
-            stateTrans.append((stI, [SwitchLogic(inStateTrans),
-                                     stDependentDrives,
-                                     sync.sync()]))
+            stateTrans.append((stI, [  # SwitchLogic(inStateTrans),
+                                     *con.stateDependentDrives,
+                                     stateChangeDependentDrives,
+                                     #con.rtlAllocSync()
+                                     ]))
 
         self._rtlSyncAllocated = True
 

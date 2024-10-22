@@ -15,13 +15,12 @@ from hwtHls.netlist.nodes.archElementUtils import ArchElement_merge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge, \
     HlsNetNodeWriteForwardedge
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut, unlink_hls_nodes,\
-    unlink_hls_node_input_if_exists
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut, unlink_hls_node_input_if_exists
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
 
-class RtlArchPassArchStructureSimplify(HlsArchPass):
+class HlsArchPassArchStructureSimplify(HlsArchPass):
 
     @staticmethod
     def findSuccessorsPredecessors(archElements: List[ArchElement]):
@@ -87,14 +86,14 @@ class RtlArchPassArchStructureSimplify(HlsArchPass):
 
         for nodes in src.stages:
             for node in nodes:
-                if isinstance(node, HlsNetNodeReadForwardedge) and node.associatedWrite in dst._subNodes:
+                if isinstance(node, HlsNetNodeReadForwardedge) and node.associatedWrite in dst.subNodes:
                     return False
-                elif isinstance(node, HlsNetNodeWriteForwardedge) and node.associatedRead in dst._subNodes:
+                elif isinstance(node, HlsNetNodeWriteForwardedge) and node.associatedRead in dst.subNodes:
                     return False
         return True
 
     def _tryRemoveElementIfEmpty(self, archElm: ArchElement):
-        for n in archElm._subNodes:
+        for n in archElm.subNodes:
             if not isinstance(n, (HlsNetNodeAggregatePortIn, HlsNetNodeAggregatePortOut, HlsNetNodeConst)):
                 return False
         clkPeriod = archElm.netlist.normalizedClkPeriod
@@ -107,41 +106,41 @@ class RtlArchPassArchStructureSimplify(HlsArchPass):
                 raise NotImplementedError()
             if isinstance(src.obj, HlsNetNodeConst):
                 srcUsers = src.obj.usedBy[src.out_i]
-                for last, u in iter_with_last(archElm.usedBy[o.out_i]):
+                for last, u in iter_with_last(tuple(archElm.usedBy[o.out_i])):
                     userElm: ArchElement = u.obj
                     assert userElm is not archElm, u
                     if last and len(srcUsers) == 1:
-                        unlink_hls_nodes(src, srcUsers[0]) # [todo] src may not be the direct driver of u
+                        srcUsers[0].disconnectFromHlsOut(src) # [todo] src may not be the direct driver of u
                         # move constant nodes between arch elements
                         if src.obj.scheduledIn is not None:
                             clkI = indexOfClkPeriod(src.obj.scheduledZero, clkPeriod)
                             userElm._addNodeIntoScheduled(clkI, src.obj)
                         else:
-                            userElm._subNodes.append(src.obj)
+                            userElm.subNodes.append(src.obj)
 
                         builder.replaceOutput(userElm._inputsInside[u.in_i]._outputs[0], src, False)
+                        unlink_hls_node_input_if_exists(u)
                         userElm._removeInput(u.in_i)
                     else:
                         # duplicate constant in user ArchElement
                         raise NotImplementedError(archElm, u, src)
 
         for i, dep in zip(archElm._inputs, archElm.dependsOn):
-            unlink_hls_nodes(dep, i)
+            i.disconnectFromHlsOut(dep)
         return True
 
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
-        if len(netlist.nodes) <= 1:
+        if len(netlist.subNodes) <= 1:
             return PreservedAnalysisSet.preserveAll()
-        archElmPredecessors, archElmSuccessors = self.findSuccessorsPredecessors(netlist.nodes)
-        removed: Set[ArchElement] = set()
-        for archElm in netlist.nodes:
+        archElmPredecessors, archElmSuccessors = self.findSuccessorsPredecessors(netlist.subNodes)
+        for archElm in netlist.subNodes:
             archElm: ArchElement
-            if archElm in removed:
+            if archElm._isMarkedRemoved:
                 continue
 
             if self._tryRemoveElementIfEmpty(archElm):
-                removed.add(archElm)
+                archElm.markAsRemoved()
                 continue
 
             if isinstance(archElm, ArchElementFsm):
@@ -157,14 +156,14 @@ class RtlArchPassArchStructureSimplify(HlsArchPass):
                     if isinstance(suc, ArchElementPipeline):
                         if self.shouldMergePipelineToFsm(suc, archElm):
                             ArchElement_merge(suc, archElm, archElmPredecessors, archElmSuccessors)
-                            removed.add(suc)
+                            suc.markAsRemoved()
                             continue
 
             if isinstance(archElm, ArchElementPipeline):
                 for suc in tuple(archElmSuccessors[archElm]):
                     if suc is archElm:
                         continue
-                    if suc in removed:
+                    if suc._isMarkedRemoved:
                         # If suc is removed it should not be in archElmSuccessors dict
                         # but we modifying it during the iteration so we used a copy of values
                         # which may not be up to date
@@ -173,11 +172,10 @@ class RtlArchPassArchStructureSimplify(HlsArchPass):
                     if isinstance(suc, ArchElementPipeline):
                         if self.shouldMergePipelineToPipeline(suc, archElm):
                             ArchElement_merge(suc, archElm, archElmPredecessors, archElmSuccessors)
-                            removed.add(suc)
+                            suc.markAsRemoved()
                             continue
 
-        if removed:
-            netlist.filterNodesUsingSet(removed)
+        if netlist.filterNodesUsingRemovedSet():
             return PreservedAnalysisSet.preserveScheduling()
         else:
             return PreservedAnalysisSet.preserveAll()

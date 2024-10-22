@@ -2,19 +2,14 @@ from collections import OrderedDict
 from enum import Enum
 from io import StringIO
 import sys
-from typing import Union, List, Tuple, Optional
+from typing import Union, List, Tuple
 
-from hwt.pyUtils.setList import SetList
-from hwtHls.architecture.analysis.channelGraph import HlsArchAnalysisPassChannelGraph
+from hwtHls.architecture.analysis.channelGraph import HlsAndRtlNetlistAnalysisPassChannelGraph
 from hwtHls.architecture.analysis.hlsArchAnalysisPass import HlsArchAnalysisPass
-from hwtHls.architecture.transformation.utils.termPropagationContext import ArchSyncNodeTy
+from hwtHls.architecture.analysis.nodeParentSyncNode import ArchSyncNodeTy
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
-    HlsNetNodeWriteBackedge
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge, \
-    HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel, \
-    HlsNetNodeWriteAnyChannel, HlsNetNodeReadOrWriteToAnyChannel
+    HlsNetNodeWriteAnyChannel
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 
@@ -41,80 +36,25 @@ ArchSyncSuccDiGraphDict = OrderedDict[ArchSyncNodeTy,
     OrderedDict[ArchSyncNodeTy, List[Tuple[ChannelSyncType, HlsNetNodeWriteAnyChannel]]],
 ]
 
-ArchSyncNeighborDict = OrderedDict[ArchSyncNodeTy, Tuple[
-    OrderedDict[ArchSyncNodeTy, List[HlsNetNodeReadOrWriteToAnyChannel]],
-]]
+
 
 """
 :var ArchSyncSuccDiGraphDict: A directed graph of ArchSyncNodeTy, with an extra list to allow iteration in deterministic order.
     src -> (dict dst -> channels connected to dst, dstList)
 :note: Write in ArchSyncSuccDiGraphDict is in src for ChannelSyncType.VALID and in dst for ChannelSyncType.READY
-:var ArchSyncNeighborDict: An undirected version of ArchSyncSuccDiGraphDict, IO node is the one present in src
 :var ArchSyncNodeIoDict: dictionary storing IO nodes for every ArchSyncNodeTy
 """
 
 
-class HlsArchAnalysisPassSyncNodeGraph(HlsArchAnalysisPass):
+class HlsAndRtlNetlistAnalysisPassSyncNodeGraph(HlsArchAnalysisPass):
 
     def __init__(self):
-        super(HlsArchAnalysisPassSyncNodeGraph, self).__init__()
+        super(HlsAndRtlNetlistAnalysisPassSyncNodeGraph, self).__init__()
         self.successors: ArchSyncSuccDiGraphDict = OrderedDict()
-        self._neighborDict: Optional[ArchSyncNeighborDict] = None  # lazy computed from performance reasons
 
     def runOnHlsNetlistImpl(self, netlist:HlsNetlistCtx):
-        channels = netlist.getAnalysis(HlsArchAnalysisPassChannelGraph)
+        channels = netlist.getAnalysis(HlsAndRtlNetlistAnalysisPassChannelGraph)
         self.successors = self.colllectArchSyncGraph(channels)
-
-    def getNeighborDict(self) -> ArchSyncNeighborDict:
-        neighborDict = self._neighborDict
-        if neighborDict is None:
-            neighborDict = self._successorsUndirected = \
-                self.ArchSyncSuccDiGraphDict_to_ArchSyncNeighborDict(self.successors)
-        return neighborDict
-
-    @staticmethod
-    def ArchSyncSuccDiGraphDict_to_ArchSyncNeighborDict(directed: ArchSyncSuccDiGraphDict)\
-                                                   ->ArchSyncNeighborDict:
-        """
-        Convert directed graph to undirected.
-        """
-        undirected: ArchSyncNeighborDict = OrderedDict()
-        for src, srcSuccessors in directed.items():
-            assert srcSuccessors, src
-            # copy existing
-            unSrcSucessors = undirected.get(src, None)
-            if unSrcSucessors is None:
-                unSrcSucessors = undirected[src] = OrderedDict()
-            for dst, dstChannels in srcSuccessors.items():
-                # list of channel ports inside of src
-                newChannelList = unSrcSucessors.get(dst, None)
-                if newChannelList is None:
-                    newChannelList = unSrcSucessors[dst] = SetList()
-
-                for chTy, ch in dstChannels:
-                    # add src -> dst
-                    chOpposite = getOtherPortOfChannel(ch)
-                    if chTy == ChannelSyncType.VALID:
-                        chSrcToDst = ch
-                        chDstToSrc = chOpposite
-                    else:
-                        chSrcToDst = chOpposite
-                        chDstToSrc = ch
-
-                    newChannelList.append(chSrcToDst)
-
-                    # add dst -> src
-                    dstSuccessors = undirected.get(dst, None)
-                    if dstSuccessors is None:
-                        dstSuccessors = undirected[dst] = OrderedDict()
-
-                    dstChannels = dstSuccessors.get(src, None)
-                    if dstChannels is None:
-                        dstChannels = dstSuccessors[src] = SetList()
-
-                    dstChannels.append(chDstToSrc)
-
-        return undirected
 
     @staticmethod
     def _addSuccessorToSuccessorDict(successors: ArchSyncSuccDiGraphDict, src:ArchSyncNodeTy,
@@ -130,13 +70,13 @@ class HlsArchAnalysisPassSyncNodeGraph(HlsArchAnalysisPass):
             dstChannels.append((chTy, w))
 
     @classmethod
-    def colllectArchSyncGraph(cls, channels: HlsArchAnalysisPassChannelGraph):
+    def colllectArchSyncGraph(cls, channels: HlsAndRtlNetlistAnalysisPassChannelGraph):
         successors = ArchSyncSuccDiGraphDict = OrderedDict()
         for w in channels.allChannelWrites:
             w: HlsNetNodeWriteAnyChannel
-            src = channels.ioNodeToParentSyncNode[w]
+            src = w.getParentSyncNode()
             assert w.associatedRead is not None, ("Missing read for channel", w)
-            dst = channels.ioNodeToParentSyncNode[w.associatedRead]
+            dst = w.associatedRead.getParentSyncNode()
             if w._rtlUseValid and w._getBufferCapacity() == 0:
                 cls._addSuccessorToSuccessorDict(successors, src, dst, w, ChannelSyncType.VALID)
 
@@ -210,18 +150,4 @@ def ArchSyncSuccDiGraphDict_print(successors: ArchSyncSuccDiGraphDict, out:Strin
                 out.write("\n")
 
 
-def ArchSyncNeighborDict_print(neighbors: ArchSyncNeighborDict, out:StringIO=sys.stderr):
-    for n, _neighbors in neighbors.items():
-        out.write(repr(n))
-        out.write("\n")
-        sucChannels, sucList = _neighbors
-        for suc in sucList:
-            suc: ArchSyncNodeTy
-            out.write("    -> ")
-            out.write(repr(suc))
-            out.write("\n")
-            for ch in sucChannels[suc]:
-                ch: HlsNetNodeReadOrWriteToAnyChannel
-                out.write("        +> ")
-                out.write(repr(ch))
-                out.write("\n")
+

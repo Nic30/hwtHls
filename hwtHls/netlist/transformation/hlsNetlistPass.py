@@ -23,6 +23,7 @@ class HlsNetlistPass():
                         toRm.append(k)
                 for k in toRm:
                     netlist.invalidateAnalysis(k)
-
+        assert netlist.subNodes, ("Netlist was completly optimized out", self)
+        
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
         raise NotImplementedError("Should be implemented in child class", self)

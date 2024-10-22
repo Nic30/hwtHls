@@ -1,11 +1,16 @@
+from typing import Optional
+
 from hwt.code import Concat
 from hwt.code_utils import rename_signal
 from hwt.hdl.const import HConst
 from hwt.hdl.operatorDefs import HOperatorDef, HwtOps
 from hwt.hdl.types.bits import HBits
 from hwt.pyUtils.typingFuture import override
+from hwt.serializer.generic.ops import HWT_TO_HDLCONVERTOR_OPS
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem, INVARIANT_TIME
+from hwtHls.code import OP_LSHR, OP_ASHR, OP_SHL
+from hwtHls.llvm.llvmIr import HFloatTmpConfig
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
@@ -16,23 +21,37 @@ class HlsNetNodeOperator(HlsNetNode):
     """
     Abstract implementation of RTL operator
 
-    :ivar operator: parent RTL operator for this hls operator
-    :ivar _dtype: RTL data type of output
-
+    :ivar operator: parent RTL operator for this HLS operator
+    :ivar operatorSpecialization: optional object holding details about operator implementation
+    :ivar _rtlAddName: an override flag which forces name to be present in output HDL
+    
     :note: CONCAT operands are in lowest bits first format (Same as LLVM MERGE_VALUES)
     """
+    NATIVE_HWT_OPS = {
+        *HWT_TO_HDLCONVERTOR_OPS.keys(),
+        OP_LSHR,
+        OP_ASHR,
+        OP_SHL,
+        HwtOps.INDEX,
+    }
 
     def __init__(self, netlist: "HlsNetlistCtx",
                  operator: HOperatorDef,
                  operandCnt: int,
                  dtype: HBits,
-                 name=None):
+                 name=None,
+                 operatorSpecialization:Optional[HFloatTmpConfig]=None):
+        """
+        :param _dtype: RTL data type of output
+        """
         super(HlsNetNodeOperator, self).__init__(netlist, name=name)
         self.operator = operator
+        self.operatorSpecialization = operatorSpecialization
         for _ in range(operandCnt):
             self._addInput(None)
         # add containers for io pins
         self._addOutput(dtype, None)
+        self._rtlAddName: bool = False
 
     @override
     def resolveRealization(self):
@@ -40,17 +59,17 @@ class HlsNetNodeOperator(HlsNetNode):
         input_cnt = len(self.dependsOn)
 
         bit_length = self.getInputDtype(0).bit_length()
-        if self.operator is HwtOps.TERNARY:
-            input_cnt = input_cnt // 2 + 1
+        assert self.operator is not HwtOps.TERNARY
 
         r = netlist.platform.get_op_realization(
-            self.operator, bit_length,
+            self.operator, self.operatorSpecialization, bit_length,
             input_cnt, netlist.realTimeClkPeriod)
         self.assignRealization(r)
 
     @override
     def rtlAlloc(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
-        assert not self._isRtlAllocated
+        assert not self._isMarkedRemoved, self
+        assert not self._isRtlAllocated, self
         op_out = self._outputs[0]
         if HdlType_isVoid(op_out._dtype):
             assert self.operator == HwtOps.CONCAT, self
@@ -60,11 +79,17 @@ class HlsNetNodeOperator(HlsNetNode):
 
         operands = []
         for (dep, t) in zip(self.dependsOn, self.scheduledIn):
+            assert dep is not None, ("All inputs must be connected", self, self.dependsOn)
             _o = allocator.rtlAllocHlsNetNodeOutInTime(dep, t)
             assert isinstance(_o, TimeIndependentRtlResourceItem), (dep, _o)
             operands.append(_o)
 
+        assert not self._isRtlAllocated, ("After allocation of dependencies this node become allocated,"
+                                          " that means that there is a cycle in netlist "
+                                          "(immediate backedge should be used to provide forward declaration of RtlSignal if cycle is intentional)", self)
+
         s = None
+        assert self.operator in self.NATIVE_HWT_OPS, ("The operator must be lowered to HWT native form", self)
         if self.operator == HwtOps.CONCAT:
             if HdlType_isVoid(op_out._dtype):
                 s = op_out._dtype.from_py(None)
@@ -74,7 +99,10 @@ class HlsNetNodeOperator(HlsNetNode):
             evalFn = self.operator._evalFn
 
         if s is None:
-            s = evalFn(*(o.data for o in operands))
+            if self.operator in (OP_SHL, OP_ASHR, OP_LSHR):
+                s = evalFn(*(o.data for o in operands), zextShift=False)  # zextShift=True is only required for LLVM
+            else:
+                s = evalFn(*(o.data for o in operands))
 
         if isinstance(s, HConst):
             t = INVARIANT_TIME
@@ -84,12 +112,12 @@ class HlsNetNodeOperator(HlsNetNode):
             t = self.scheduledOut[0] + self.netlist.scheduler.epsilon
             if s.hasGenericName:
                 if self.name is not None:
-                    s._name = f"{allocator.name:s}{self.name:s}"
+                    s._name = f"{allocator.namePrefix:s}{self.name:s}"
                 else:
                     s._name = f"{allocator.name:s}n{self._id:d}"
                 s.hasGenericName = False
 
-                if self.netlist._dbgAddSignalNamesToData and s.hidden:
+                if s.hidden and (self._rtlAddName or self.netlist._dbgAddSignalNamesToData):
                     # create an explicit rename of this potentially hidden signal
                     s = rename_signal(allocator.netlist.parentHwModule, s, s._name)
 

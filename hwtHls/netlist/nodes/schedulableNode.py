@@ -1,7 +1,7 @@
 from itertools import zip_longest
 from math import inf, isfinite
 from typing import Tuple, Dict, Optional, Callable, Union, Literal, List, \
-    Generator
+    Generator, Self
 
 from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
@@ -45,6 +45,9 @@ class SchedulableNode():
         self.scheduledOut: Optional[TimeSpec] = None
         self.realization: Optional[OpRealizationMeta] = None
         self.isMulticlock: bool = False
+
+    def getSchedulingResourceType(self):
+        return None  # None marks that there is no constraint
 
     def copyScheduling(self, schedule: SchedulizationDict):
         schedule[self] = (self.scheduledZero, self.scheduledIn, self.scheduledOut)
@@ -260,10 +263,14 @@ class SchedulableNode():
                 self._setScheduleZeroTimeMultiClock(nodeZeroTime, clkPeriod, epsilon, ffdelay)
             else:
                 self._setScheduleZeroTimeSingleClock(nodeZeroTime)
+            assert self.scheduledOut is not None, self
 
         return self.scheduledOut
 
-    def scheduleAlapCompaction(self, endOfLastClk: SchedTime, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter])\
+    def scheduleAlapCompaction(self,
+                               endOfLastClk: SchedTime,
+                               outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter],
+                               excludeNode: Optional[Callable[[Self], bool]])\
             ->Generator["HlsNetNode", None, None]:
         """
         Single clock variant (inputClkTickOffset and outputClkTickOffset are all zeros)
@@ -352,7 +359,8 @@ class SchedulableNode():
                 yield dep.obj
 
     def scheduleAlapCompactionMultiClock(self, endOfLastClk: SchedTime,
-                                         outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]) -> Generator["HlsNetNode", None, None]:
+                                         outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter],
+                                         excludeNode: Optional[Callable[[Self], bool]]) -> Generator["HlsNetNode", None, None]:
         """
         Move node to a later time if possible. Netlist is expected to be scheduled.
         This allows to move trees of nodes to later times and allow for possibly better fit of nodes
@@ -522,3 +530,8 @@ class SchedulableNode():
         startClkI = start_clk(beginTime, clkPeriod)
         endClkI = int(endTime // clkPeriod)
         yield from range(startClkI, endClkI + 1)
+
+    def splitOnClkWindows(self):
+        assert not self.isMulticlock, ("This node class does not have clock splitting implemented", self)
+        return
+        yield

@@ -1,4 +1,5 @@
 
+from itertools import chain
 from typing import Union, Set, Generator, Callable, Sequence
 
 from hwt.hdl.const import HConst
@@ -14,8 +15,8 @@ from hwt.pyUtils.typingFuture import override
 from hwt.serializer.utils import RtlSignal_sort_key
 from hwt.synthesizer.rtlLevel.exceptions import SignalDriverErr
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwtHls.architecture.analysis.fsmStateEncoding import HlsAndRtlNetlistAnalysisPassFsmStateEncoding
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
-from hwtHls.architecture.syncUtils import HwIO_getSyncTuple
 from hwtHls.architecture.transformation.hlsAndRtlNetlistPass import HlsAndRtlNetlistPass
 from hwtHls.netlist.abc.abcAigToRtlNetlist import AbcAigToRtlNetlist
 from hwtHls.netlist.abc.abcCpp import Abc_Frame_t, Abc_Ntk_t, Abc_Aig_t  # , Io_FileType_t
@@ -142,33 +143,33 @@ class HlsAndRtlNetlistPassControlLogicMinimize(HlsAndRtlNetlistPass):
         allControlIoOutputs: SetList[RtlSignal] = SetList()
         inputs: SetList[RtlSignal] = []
         inTreeOutputs: Set[RtlSignal] = set()
-        for elm in netlist.nodes:
+        for elm in netlist.iterAllNodes():
             elm: ArchElement
             for con in elm.connections:
                 if con is None:
                     continue
                 con: ConnectionsOfStage
 
-                if con.syncNodeAck is not None:
-                    if con.syncNodeAck.hidden:
-                        src = con.syncNodeAck
+                if con.stageAck is not None:
+                    if con.stageAck.hidden:
+                        src = con.stageAck
                     else:
-                        src = con.syncNodeAck.singleDriver().src
+                        src = con.stageAck.singleDriver().src
                     collect(src, allControlIoOutputs, inputs, inTreeOutputs)
 
-                if con.syncNode:
-                    for m in con.syncNode.masters:
-                        _, rd = HwIO_getSyncTuple(m)
-                        collect(rd, allControlIoOutputs, inputs, inTreeOutputs)
-
-                    for s in con.syncNode.slaves:
-                        vld, _ = HwIO_getSyncTuple(s)
-                        collect(vld, allControlIoOutputs, inputs, inTreeOutputs)
+                # for _, rdOrVld in chain(con.finalInputs, con.finalOutputs):
+                for ioMuxCaseList in con.fsmIoMuxCases.values():
+                    for _, _, rdOrVld, _ in ioMuxCaseList:
+                        if rdOrVld is None:
+                            break
+                        collect(rdOrVld, allControlIoOutputs, inputs, inTreeOutputs)
 
             if elm._dbgAddSignalNamesToSync:
                 for s in sorted(elm._dbgExplicitlyNamedSyncSignals, key=RtlSignal_sort_key):
                     assert s._dtype.bit_length() == 1
                     while True:
+                        if isinstance(s, HConst):
+                            break
                         d = s.singleDriver()
                         if isinstance(d, HdlAssignmentContainer):
                             s = d.src  # skip all copies
@@ -251,5 +252,8 @@ class HlsAndRtlNetlistPassControlLogicMinimize(HlsAndRtlNetlistPass):
                         raise NotImplementedError(ep, o)
 
             abcFrame.DeleteAllNetworks()
-            return PreservedAnalysisSet.preserveScheduling()
+            pa = PreservedAnalysisSet.preserveScheduling()
+            pa.add(HlsAndRtlNetlistAnalysisPassFsmStateEncoding)
+            return pa
+
         return PreservedAnalysisSet.preserveAll()

@@ -3,14 +3,14 @@
 
 from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
-from hwt.hwParam import HwParam
 from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
 from hwtHls.frontend.netlist import HlsThreadFromNetlist
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
     HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
-from hwtHls.netlist.nodes.ports import link_hls_nodes
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
@@ -34,20 +34,22 @@ class CycleDelayHwModule(HwModule):
         backedge = 9
         dataOut = backedge
         """
-        b = netlist.builder
+        elm = ArchElementPipeline(netlist, self.__class__.__name__, self.__class__.__name__ + "_")
+        netlist.addNode(elm)
+        b = elm.builder
         T = self.dataOut.data._dtype
         br = HlsNetNodeReadBackedge(netlist, T)
-        netlist.inputs.append(br)
+        elm.addNode(br)
 
         bw = HlsNetNodeWriteBackedge(netlist)
-        netlist.outputs.append(bw)
+        elm.addNode(bw)
         c9 = b.buildConst(T.from_py(9))
-        link_hls_nodes(c9, bw._inputs[0])
+        c9.connectHlsIn(bw._portSrc)
         bw.associateRead(br)
 
         w = HlsNetNodeWrite(netlist, self.dataOut)
-        netlist.outputs.append(w)
-        link_hls_nodes(br._outputs[0], w._inputs[0])
+        elm.addNode(w)
+        br._portDataOut.connectHlsIn(w._portSrc)
 
     def hwImpl(self) -> None:
         self.hls = hls = HlsScope(self, self.CLK_FREQ)
@@ -62,7 +64,8 @@ class HlsCycleDelayHwModule(BaseSsaTC):
         dut = CycleDelayHwModule()
         dut.FREQ = int(f)
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
-        self.assertEqual(len(list(dut.hls._threads[0].toHw.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT))), 4)  # const 9, 2xio cluster, write
+        nodes = list(dut.hls._threads[0].netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT))
+        self.assertEqual(len(nodes), 2, nodes)  # const 9, write
 
 
 if __name__ == "__main__":

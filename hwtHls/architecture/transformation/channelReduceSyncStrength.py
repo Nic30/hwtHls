@@ -9,7 +9,7 @@ from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel, \
 from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
 
-class RtlArchPassChannelReduceSyncStrength(HlsArchPass):
+class HlsArchPassChannelReduceSyncStrength(HlsArchPass):
 
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
@@ -22,17 +22,21 @@ class RtlArchPassChannelReduceSyncStrength(HlsArchPass):
             if not canStall.inputCanStall and rList:
                 # input is always provides data, RTL valid signal is not required
                 # for internal channels to this node
-                #print(n, "in can't stall rm valid for ", [(r._id, r.associatedWrite._id) for r in rList])
+                # print(n, "in can't stall rm valid for ", [(r._id, r.associatedWrite._id) for r in rList])
                 for r in rList:
                     r: HlsNetNodeReadAnyChannel
+                    if r._rtlUseValid or r.associatedWrite._rtlUseValid:
+                        changed = True
                     r._rtlUseValid = r.associatedWrite._rtlUseValid = False
 
             if not canStall.outputCanStall and wList:
                 # output is always ready, RTL ready signal is not required
                 # for internal channels from this node
-                #print(n, "out can't stall rm valid for ", [(w._id, w.associatedRead._id) for w in wList])
+                # print(n, "out can't stall rm valid for ", [(w._id, w.associatedRead._id) for w in wList])
                 for w in wList:
                     w: HlsNetNodeWriteAnyChannel
+                    if w._rtlUseReady or w.associatedRead._rtlUseReady:
+                        changed = True
                     w._rtlUseReady = w.associatedRead._rtlUseReady = False
         
         if changed:

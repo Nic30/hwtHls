@@ -1,8 +1,8 @@
 from collections import OrderedDict
 from io import StringIO
-from itertools import chain
 from math import ceil
-from typing import Union, Optional, Set, Callable, Dict, List, Self, Sequence
+from typing import Union, Optional, Set, Callable, Dict, List, Self, Sequence, \
+    Type, Tuple
 
 from hwt.hwIO import HwIO
 from hwt.hwModule import HwModule
@@ -10,7 +10,6 @@ from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwtHls.hwIOMeta import HwIOMeta
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
-from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
@@ -18,6 +17,7 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.observableList import ObservableList, ObservableListRm
 from hwtHls.netlist.scheduler.scheduler import HlsScheduler
 from hwtHls.ssa.analysisCache import AnalysisCache
+from hwtHls.netlist.scheduler.resourceList import SchedulingResourceConstraints
 
 
 class HlsNetlistCtx(AnalysisCache):
@@ -30,10 +30,7 @@ class HlsNetlistCtx(AnalysisCache):
     :ivar parentHwModule: parent unit where RTL should be instantiated
     :ivar platform: platform with configuration of this HLS context
     :ivar freq: target frequency for RTL (in Hz)
-    :ivar resource_constrain: optional resource constrains
-    :ivar inputs: list of HlsNetNodeRead operations in this pipeline
-    :ivar outputs: list of HlsNetNodeWrite operations in this pipeline
-    :ivar nodes: list of all schedulization nodes present in this pipeline (except inputs/outputs)
+    :ivar nodes: list of all schedulization nodes present in this pipeline
     :ivar ctx: RtlNetlist (container of RTL signals for this HLS context)
         the purpose of objects in this ctx is only to store the input code
         these objects are not present in output circuit and are only form of code
@@ -45,6 +42,7 @@ class HlsNetlistCtx(AnalysisCache):
     def __init__(self, parentHwModule: HwModule,
                  freq: Union[float, int],
                  label: str,
+                 resourceConstraints:SchedulingResourceConstraints,
                  namePrefix:str="",
                  schedulerResolution:float=0.01e-9,
                  platform: Optional["VirtualHlsPlatform"]=None):
@@ -64,76 +62,112 @@ class HlsNetlistCtx(AnalysisCache):
 
         self.realTimeClkPeriod = 1 / int(freq)
         self.normalizedClkPeriod = int(ceil(self.realTimeClkPeriod / schedulerResolution))
-        self.inputs: ObservableList[HlsNetNodeRead] = ObservableList()
-        self.outputs: ObservableList[HlsNetNodeWrite] = ObservableList()
-        self.nodes: ObservableList[HlsNetNode] = ObservableList()
+        self.subNodes: ObservableList[HlsNetNode] = ObservableList()
 
         self.ctx = RtlNetlist()
         AnalysisCache.__init__(self)
-        self.scheduler: HlsScheduler = self.platform.schedulerCls(self, schedulerResolution)
+        self.scheduler: HlsScheduler = self.platform.schedulerCls(self, schedulerResolution, resourceConstraints)
         self._dbgAddSignalNamesToSync = False
         self._dbgAddSignalNamesToData = False
         self._dbgLogPassExec:Optional[StringIO] = None
         if platform is not None:
             self._dbgLogPassExec = platform.getPassManagerDebugLogFile()
 
+        from hwtHls.netlist.builder import HlsNetlistBuilder
+        self.builder = HlsNetlistBuilder(self)
+
+    def getHlsNetlistBuilder(self) -> "HlsNetlistBuilder":
+        return self.builder
+
     @override
     def _runAnalysisImpl(self, a: HlsNetlistAnalysisPass):
         return a.runOnHlsNetlist(self)
-
-    def _setBuilder(self, b: "HlsNetlistBuilder"):
-        self.builder = b
 
     def getUniqId(self):
         n = self._uniqNodeCntr
         self._uniqNodeCntr += 1
         return n
 
+    def addNode(self, n: HlsNetNode):
+        assert n.parent is None, (n, n.parent)
+        self.subNodes.append(n)
+
+    def addNodes(self, nodes: Sequence[HlsNetNode]):
+        append = self.subNodes.append
+        for n in nodes:
+            assert n.parent is None, (n, n.parent)
+            append(n)
+
     def iterAllNodes(self):
         """
         :returns: iterator of all nodes on top hierarchy level
         """
-        return chain(self.inputs, self.nodes, self.outputs)
+        return iter(self.subNodes)
 
     def iterAllNodesFlat(self, itTy: NODE_ITERATION_TYPE):
         """
         :returns: iterator of all non aggregate nodes on any level of hierarchy
         """
         for n in self.iterAllNodes():
+            if n._isMarkedRemoved:
+                continue
             yield from n.iterAllNodesFlat(itTy)
 
-    def schedule(self):
-        self.scheduler.schedule()
+    def iterNodesFlatWithParentByType(self, cls_or_tuple: Union[Type, Tuple[Type, ...]], postOrder=True):
+        """
+        Iterate tuples (parent, childNodes), child nodes are filtered for a specific class using cls_or_tuple parameter
+        :attention: if nodes are added or removed from parent it breaks the iterator, nodes can be added but the child
+            node iterator will not reflect it
+        """
+        if not postOrder:
+            childNodeIt = (n for n in self.subNodes if isinstance(n, cls_or_tuple))
+            yield (self, childNodeIt)
 
-    def filterNodesUsingSet(self, removed: Set[HlsNetNode], recursive=False):
+        itTy = NODE_ITERATION_TYPE.ONLY_PARENT_POSTORDER if postOrder else NODE_ITERATION_TYPE.ONLY_PARENT_PREORDER
+        for elm in self.iterAllNodesFlat(itTy):
+            childNodeIt = (n for n in elm.subNodes if isinstance(n, cls_or_tuple))
+            yield (elm, childNodeIt)
+
+        if postOrder:
+            childNodeIt = (n for n in self.subNodes if isinstance(n, cls_or_tuple))
+            yield (self, childNodeIt)
+
+    def filterNodesUsingRemovedSet(self, recursive=False):
+        removed = self.builder._removedNodes
+        changed = bool(removed)
+        self.filterNodesUsingSet(removed, recursive=False)
+        if recursive:
+            for n in self.subNodes:
+                n: HlsNetNode
+                if getattr(n, "subNodes", None):
+                    changed |= n.filterNodesUsingRemovedSet(recursive=recursive)
+        return changed
+
+    def filterNodesUsingSet(self, removed: Set[HlsNetNode], recursive=False, clearRemoved=True):
         if removed:
-            self.inputs[:] = (n for n in self.inputs if n not in removed)
-            self.nodes[:] = (n for n in self.nodes if n not in removed)
-            self.outputs[:] = (n for n in self.outputs if n not in removed)
+            self.subNodes[:] = (n for n in self.subNodes if n not in removed)
             if recursive:
                 for n in self.iterAllNodes():
-                    if isinstance(n, HlsNetNodeAggregate):
-                        n.filterNodesUsingSet(removed, recursive=recursive)
+                    n.filterNodesUsingSet(removed, recursive=recursive, clearRemoved=False)
 
-            removed.clear()
+            if clearRemoved:
+                removed.clear()
 
     def setupNetlistListeners(self,
                               beforeNodeAddedListener: Callable[[object, Union[slice, int], Union[HlsNetNode, ObservableListRm]], None],
                               beforeInputDriveUpdate: Callable[[object, Union[slice, int], Union[HlsNetNodeOut, None, ObservableListRm]], None],
-                              beforeOutputUpdate: Callable[[object, Union[slice, int], Union[HlsNetNodeOut, None, ObservableListRm]], None],
-                              removed: Set[HlsNetNode]):
-        for nodeList in (self.inputs, self.nodes, self.outputs):
-            nodeList._setObserver(beforeNodeAddedListener, None)
+                              beforeOutputUpdate: Callable[[object, Union[slice, int], Union[HlsNetNodeOut, None, ObservableListRm]], None]
+                              ):
+        self.subNodes._setObserver(beforeNodeAddedListener, None)
 
         for n in self.iterAllNodes():
-            if n in removed:
+            if n._isMarkedRemoved:
                 continue
             n.dependsOn._setObserver(beforeInputDriveUpdate, n)
             n._outputs._setObserver(beforeOutputUpdate, n)
 
     def dropNetlistListeners(self):
-        for nodeList in (self.inputs, self.nodes, self.outputs):
-            nodeList._setObserver(None, None)
+        self.subNodes._setObserver(None, None)
 
         for n in self.iterAllNodes():
             n.dependsOn._setObserver(None, None)
@@ -182,12 +216,18 @@ class HlsNetlistCtx(AnalysisCache):
         assert len(others) == len(offsetsOfOthers)
         return selfOffset, offsetsOfOthers
 
+    def _mergeResourceConstraints(self, otherResources: SchedulingResourceConstraints):
+        constr = self.scheduler.resourceUsage.resourceConstraints
+        for k, v in otherResources.items():
+            cur = constr.get(k, 0)
+            constr[k] = cur + v
+
     def merge(self, hwIOMeta: Dict[HwIO, HwIOMeta], others: Sequence[Self]):
         """
         Merge nodes of the other netlists to this one
         """
         nodesPerIO: OrderedDict[HwIO, List[Union[HlsNetNodeRead, HlsNetNodeWrite]]] = {}
-        maxOpsForIO: Dict[HwIO, int] = {}
+        # maxOpsForIO: Dict[HwIO, int] = {}
         hwIoUserNetlists: Dict[HwIO, List[HlsNetlistCtx]] = {}
 
         for n in self.iterAllNodesFlat(NODE_ITERATION_TYPE.PREORDER):
@@ -207,7 +247,7 @@ class HlsNetlistCtx(AnalysisCache):
 
             ioList = nodesPerIO.get(hwio, None)
             if ioList is None:
-                maxOpsForIO[hwio] = n.maxIosPerClk
+                # maxOpsForIO[hwio] = n.maxIosPerClk
                 ioList = nodesPerIO[hwio] = []
 
             ioList.append(n)
@@ -257,20 +297,20 @@ class HlsNetlistCtx(AnalysisCache):
                     ioList = nodesPerIO.get(hwio, None)
                     if ioList is None:
                         # this IO is globally first seen
-                        newMaxOpsPerClk = maxOpsForIO[hwio, 0] = n.maxIosPerClk
+                        # newMaxOpsPerClk = maxOpsForIO[hwio, 0] = n.maxIosPerClk
                         ioList = nodesPerIO[hwio] = [n]
                     else:
                         # this IO was used in some other netlist
-                        newMaxOpsPerClk = maxOpsForIO.get(hwio, 0) + n.maxIosPerClk
-                        maxOpsForIO[hwio] = newMaxOpsPerClk
+                        # newMaxOpsPerClk = maxOpsForIO.get(hwio, 0) + n.maxIosPerClk
+                        # maxOpsForIO[hwio] = newMaxOpsPerClk
                         ioList.append(n)
 
-                    for _n in ioList:
-                        _n.maxIosPerClk = newMaxOpsPerClk
+                    # for _n in ioList:
+                    #    _n.maxIosPerClk = newMaxOpsPerClk
 
                 else:
                     ioList = nodesPerIO[hwio]
-                    n.maxIosPerClk = maxOpsForIO[hwio]
+                    # n.maxIosPerClk = maxOpsForIO[hwio]
                     ioList.append(n)
 
                 # [todo] association of backedges
@@ -279,19 +319,18 @@ class HlsNetlistCtx(AnalysisCache):
                         if isinstance(_n, HlsNetNodeWrite) and _n.associatedRead is None and _n.scheduledZero <= n.scheduledZero:
                             _n.associateRead(n)
                             break
+
                 else:
                     meta: Optional[HwIOMeta] = hwIOMeta.get(hwio, None)
-                    if meta is not None:
-                        n.channelInitValues = meta.channelInit
                     for _n in ioList:
                         if isinstance(_n, HlsNetNodeRead) and _n.associatedWrite is None and _n.scheduledZero >= n.scheduledZero:
                             n.associateRead(_n)
+                            if meta is not None:
+                                _n.channelInitValues = meta.channelInit
                             break
-
-            self.inputs.extend(other.inputs)
-            self.outputs.extend(other.outputs)
-            self.nodes.extend(other.nodes)
+            self.subNodes.extend(other.subNodes)
             self._uniqNodeCntr += other._uniqNodeCntr
+            self._mergeResourceConstraints(other.scheduler.resourceUsage.resourceConstraints)
             self.scheduler.resourceUsage.merge(other.scheduler.resourceUsage)
 
     def __repr__(self) -> str:

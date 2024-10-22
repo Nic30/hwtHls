@@ -1,7 +1,7 @@
-from typing import Dict, List, Union
+from typing import Dict, List
 
 from hwt.pyUtils.setList import SetList
-from hwtHls.architecture.analysis.channelGraph import HlsArchAnalysisPassChannelGraph, \
+from hwtHls.architecture.analysis.channelGraph import HlsAndRtlNetlistAnalysisPassChannelGraph, \
     ArchSyncNodeIoDict, ArchSyncNodeTy
 from hwtHls.architecture.analysis.hlsArchAnalysisPass import HlsArchAnalysisPass
 from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
@@ -34,7 +34,7 @@ class ArchSyncNodeStallingMeta():
                 f"{' outputCanStall' if self.outputCanStall else '' }>")
 
 
-class HlsArchAnalysisPassSyncNodeStallling(HlsArchAnalysisPass):
+class HlsAndRtlNetlistAnalysisPassSyncNodeStallling(HlsArchAnalysisPass):
     """
     Detect which nodes in architecture are subject to stalling.
     
@@ -42,18 +42,17 @@ class HlsArchAnalysisPassSyncNodeStallling(HlsArchAnalysisPass):
     """
 
     def __init__(self):
-        super(HlsArchAnalysisPassSyncNodeStallling, self).__init__()
+        super(HlsAndRtlNetlistAnalysisPassSyncNodeStallling, self).__init__()
         self.nodeCanStall: Dict[ArchSyncNodeTy, ArchSyncNodeStallingMeta] = {}
 
     def runOnHlsNetlistImpl(self, netlist:"HlsNetlistCtx"):
-        channels = netlist.getAnalysis(HlsArchAnalysisPassChannelGraph)
+        channels = netlist.getAnalysis(HlsAndRtlNetlistAnalysisPassChannelGraph)
         self.nodeCanStall = self.detectStalling(channels.nodes, channels.nodeChannels,
-                                                channels.ioNodeToParentSyncNode, channels.nodeIo)
+                                                channels.nodeIo)
 
     @classmethod
     def detectStalling(cls, nodes: List[ArchSyncNodeTy],
                        nodeChannels: ArchSyncNodeIoDict,
-                       ioNodeToParentSyncNode: Dict[Union[HlsNetNodeReadAnyChannel, HlsNetNodeWriteAnyChannel], ArchSyncNodeTy],
                        nodeIo: ArchSyncNodeIoDict):
         """
         Detect stalling in pipeline from IO of the circuit.
@@ -84,7 +83,7 @@ class HlsArchAnalysisPassSyncNodeStallling(HlsArchAnalysisPass):
                     outputCanStall = True
                     break
 
-            rList, wList = nodeChannels[n]
+            rList, wList = nodeChannels.get(n, ((), ()))
             # channels can also be a source of stalling
             # * if the capacity of output channel is not sufficient
             # * if input channel has skipWhen or extraCond the node may stall this channel,
@@ -101,14 +100,14 @@ class HlsArchAnalysisPassSyncNodeStallling(HlsArchAnalysisPass):
                             or w.getExtraCondDriver() is not None:
                         inputCanStall = True
                         break
-                    elif len(w.channelInitValues) < w._getBufferCapacity():
+                    elif len(r.channelInitValues) < w._getBufferCapacity():
                         inputCanStall = True
                         break
                     elif (isinstance(w, HlsNetNodeWriteBackedge) and
-                                ioNodeToParentSyncNode[r] != ioNodeToParentSyncNode[w]):
+                                r.getParentSyncNode() != w.getParentSyncNode()):
                         inputCanStall = True
                         break
-                    elif isinstance(ioNodeToParentSyncNode[w][0], ArchElementFsm):
+                    elif isinstance(w.parent, ArchElementFsm):
                         inputCanStall = True
                         break
 
@@ -118,38 +117,37 @@ class HlsArchAnalysisPassSyncNodeStallling(HlsArchAnalysisPass):
                     if r.getSkipWhenDriver() is not None or r.getExtraCondDriver() is not None:
                         outputCanStall = True
                         break
-                    elif len(w.channelInitValues) > w._getBufferCapacity():
+                    elif len(r.channelInitValues) > w._getBufferCapacity():
                         outputCanStall = True
                         break
                     elif (isinstance(w, HlsNetNodeWriteBackedge) and
-                                ioNodeToParentSyncNode[r] != ioNodeToParentSyncNode[w]):
+                            r.getParentSyncNode() != w.getParentSyncNode()):
                         outputCanStall = True
                         break
-                    elif isinstance(ioNodeToParentSyncNode[r][0], ArchElementFsm):
+                    elif isinstance(r.parent, ArchElementFsm):
                         outputCanStall = True
                         break
 
             nodeCanStall[n] = ArchSyncNodeStallingMeta(inputCanStall, outputCanStall)
 
-        cls.propagateStallingFlags(nodes, ioNodeToParentSyncNode, nodeChannels, nodeCanStall)
+        cls.propagateStallingFlags(nodes, nodeChannels, nodeCanStall)
         return nodeCanStall
 
     @classmethod
     def propagateStallingFlags(cls, nodes: List[ArchSyncNodeTy],
-                               ioNodeToParentSyncNode: Dict[Union[HlsNetNodeReadAnyChannel, HlsNetNodeWriteAnyChannel], ArchSyncNodeTy],
                                nodeChannels:ArchSyncNodeIoDict,
                                nodeCanStall: Dict[ArchSyncNodeTy, ArchSyncNodeStallingMeta]):
         # propagate this property over whole graph
         toSearch: SetList[ArchSyncNodeTy] = SetList(n for n in nodes if nodeCanStall[n])
         while toSearch:
             n = toSearch.pop()
-            rList, wList = nodeChannels[n]  # channel ports for node
+            rList, wList = nodeChannels.get(n, ((), ()))  # channel ports for node
             canStall: ArchSyncNodeStallingMeta = nodeCanStall[n]
             if canStall.inputCanStall:
                 # input to this node may stall -> all nodes reading from this node may have input stalled
                 for w in wList:
                     w: HlsNetNodeWriteAnyChannel
-                    other: ArchSyncNodeTy = ioNodeToParentSyncNode[w.associatedRead]
+                    other: ArchSyncNodeTy = w.associatedRead.getParentSyncNode()
                     otherCanStall: ArchSyncNodeStallingMeta = nodeCanStall[other]
                     # n w -> r other
                     if not otherCanStall.inputCanStall:
@@ -160,7 +158,7 @@ class HlsArchAnalysisPassSyncNodeStallling(HlsArchAnalysisPass):
                 # output from this node may stall -> all nodes writing to this node may have output stalled
                 for r in rList:
                     r: HlsNetNodeReadAnyChannel
-                    other: ArchSyncNodeTy = ioNodeToParentSyncNode[r.associatedWrite]
+                    other: ArchSyncNodeTy = r.associatedWrite.getParentSyncNode()
                     otherCanStall: ArchSyncNodeStallingMeta = nodeCanStall[other]
                     # other w -> r n
                     if not otherCanStall.outputCanStall:

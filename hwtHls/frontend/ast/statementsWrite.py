@@ -1,4 +1,4 @@
-from typing import Union, Tuple, Sequence
+from typing import Union, Tuple, Sequence, Optional
 
 from hwt.hdl.const import HConst
 from hwt.hdl.types.defs import BIT
@@ -13,10 +13,10 @@ from hwtHls.frontend.ast.utils import _getNativeInterfaceWordType, \
 from hwtHls.llvm.llvmIr import MachineInstr, Argument, Type, ArrayType, TypeToArrayType
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, link_hls_nodes
-from hwtHls.netlist.nodes.write import HlsNetNodeWrite, HlsNetNodeWriteIndexed
+from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from hwtHls.netlist.nodes.writeIndexed import HlsNetNodeWriteIndexed
 from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
-from hwtHls.ssa.translation.llvmMirToNetlist.insideOfBlockSyncTracker import InsideOfBlockSyncTracker
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.value import SsaValue
 
@@ -30,7 +30,9 @@ class HlsWrite(HlsStm, SsaInstr):
                  parent: "HlsScope",
                  src:Union[SsaValue, HConst],
                  dst: ANY_HLS_STREAM_INTF_TYPE,
-                 dtype: HdlType):
+                 dtype: HdlType,
+                 mayBecomeFlushable=True,
+                 ):
         HlsStm.__init__(self, parent)
         if isinstance(dst, RtlSignal):
             hwIO, indexes, sign_cast_seen = dst._getIndexCascade()
@@ -50,6 +52,7 @@ class HlsWrite(HlsStm, SsaInstr):
         # store original source for debugging
         self._origSrc = src
         self.dst = dst
+        self.mayBecomeFlushable = mayBecomeFlushable
 
     def getSrc(self):
         assert len(self.operands) == 1, self
@@ -73,13 +76,12 @@ class HlsWrite(HlsStm, SsaInstr):
     def _translateMirToNetlist(cls,
             representativeWriteStm: "HlsWrite",
             mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
-            syncTracker: InsideOfBlockSyncTracker,
-            mbSync: MachineBasicBlockMeta,
+            mbMeta: MachineBasicBlockMeta,
             instr: MachineInstr,
             srcVal: HlsNetNodeOutAny,
             dstIo: Union[HwIO, RtlSignal],
             index: Union[int, HlsNetNodeOutAny],
-            cond: Union[int, HlsNetNodeOutAny]) -> Sequence[HlsNetNode]:
+            cond: Optional[HlsNetNodeOutAny],) -> Sequence[HlsNetNode]:
         """
         :see: :meth:`hwtHls.frontend.ast.statementsRead.HlsRead._translateMirToNetlist`
         """
@@ -87,14 +89,15 @@ class HlsWrite(HlsStm, SsaInstr):
         # srcVal, dstIo, index, cond = ops
         assert isinstance(dstIo, (HwIO, RtlSignal)), dstIo
         assert isinstance(index, int) and index == 0, (instr, index, "Because this read is not addressed there should not be any index")
-        n = HlsNetNodeWrite(netlist, dstIo)
-        link_hls_nodes(srcVal, n._inputs[0])
+        n = HlsNetNodeWrite(netlist, dstIo, mayBecomeFlushable=representativeWriteStm.mayBecomeFlushable)
+        mbMeta.parentElement.addNode(n)
+        srcVal.connectHlsIn(n._inputs[0])
 
-        _cond = syncTracker.resolveControlOutput(cond)
-        mirToNetlist._addExtraCond(n, _cond, mbSync.blockEn)
-        mirToNetlist._addSkipWhen_n(n, _cond, mbSync.blockEn)
-        mbSync.addOrderedNode(n)
-        mirToNetlist.outputs.append(n)
+        _cond = cond
+        # _cond = mbMeta.syncTracker.resolveControlOutput(cond)
+        mirToNetlist._addExtraCond(n, _cond, None)
+        mirToNetlist._addSkipWhen_n(n, _cond, None)
+        mbMeta.addOrderedNode(n)
         return [n, ]
 
     def __repr__(self):
@@ -109,8 +112,9 @@ class HlsWriteAddressed(HlsWrite):
             src:Union[SsaValue, HConst],
             dst:HwIO,
             index: ANY_SCALAR_INT_VALUE,
-            element_t: HdlType):
-        HlsWrite.__init__(self, parent, src, dst, element_t)
+            element_t: HdlType,
+            mayBecomeFlushable=True):
+        HlsWrite.__init__(self, parent, src, dst, element_t, mayBecomeFlushable=mayBecomeFlushable)
         self.operands = (src, index)
         if isinstance(index, SsaValue):
             # assert index.block is not None, (index, "Must not construct instruction with operands which are not in SSA")
@@ -146,13 +150,12 @@ class HlsWriteAddressed(HlsWrite):
     def _translateMirToNetlist(cls,
             representativeWriteStm: "HlsWrite",
             mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
-            syncTracker: InsideOfBlockSyncTracker,
-            mbSync: MachineBasicBlockMeta,
+            mbMeta: MachineBasicBlockMeta,
             instr: MachineInstr,
             srcVal: HlsNetNodeOutAny,
             dstIo: HwIO,
             index: Union[int, HlsNetNodeOutAny],
-            cond: Union[int, HlsNetNodeOutAny]) -> Sequence[HlsNetNode]:
+            cond: Optional[HlsNetNodeOutAny],) -> Sequence[HlsNetNode]:
         """
         :see: :meth:`hwtHls.frontend.ast.statementsRead.HlsRead._translateMirToNetlist`
         """
@@ -161,15 +164,16 @@ class HlsWriteAddressed(HlsWrite):
         assert isinstance(dstIo, HwIO), dstIo
         if isinstance(index, int):
             raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", dstIo, instr)
-        n = HlsNetNodeWriteIndexed(netlist, dstIo)
-        link_hls_nodes(index, n.indexes[0])
-        link_hls_nodes(srcVal, n._inputs[0])
+        n = HlsNetNodeWriteIndexed(netlist, dstIo, mayBecomeFlushable=representativeWriteStm.mayBecomeFlushable)
+        index.connectHlsIn(n.indexes[0])
+        srcVal.connectHlsIn(n._inputs[0])
 
-        _cond = syncTracker.resolveControlOutput(cond)
-        mirToNetlist._addExtraCond(n, _cond, mbSync.blockEn)
-        mirToNetlist._addSkipWhen_n(n, _cond, mbSync.blockEn)
-        mbSync.addOrderedNode(n)
-        mirToNetlist.outputs.append(n)
+        _cond = cond
+        # _cond = mbMeta.syncTracker.resolveControlOutput(cond)
+        mirToNetlist._addExtraCond(n, _cond, None)
+        mirToNetlist._addSkipWhen_n(n, _cond, None)
+        mbMeta.parentElement.addNode(n)
+        mbMeta.addOrderedNode(n)
         return [n, ]
 
     def __repr__(self):

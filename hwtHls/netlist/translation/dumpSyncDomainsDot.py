@@ -8,28 +8,30 @@ from hwtHls.netlist.analysis.syncGroupClusterContext import SyncGroupLabel
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.translation.dumpNodesDot import HwtHlsNetlistToGraphwiz
+from hwtHls.netlist.translation.dumpNodesDot import HwtHlsNetlistToGraphviz
 from hwtHls.platform.fileUtils import OutputStreamGetter
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 
 
-class HwtHlsNetlistSyncDomainsToGraphwiz(HwtHlsNetlistToGraphwiz):
+class HwtHlsNetlistSyncDomainsToGraphviz(HwtHlsNetlistToGraphviz):
     """
-    Generate a Graphwiz (dot) diagram of sync domains extracted from the netlist.
+    Generate a Graphviz (dot) diagram of sync domains extracted from the netlist.
     """
 
-    def __init__(self, name:str, nodes:List[HlsNetNode], expandAggregates:bool=False, addLegend:bool=True):
-        HwtHlsNetlistToGraphwiz.__init__(self, name, nodes, expandAggregates=expandAggregates, addLegend=addLegend)
+    def __init__(self, name:str, nodes:List[HlsNetNode], expandAggregates:bool=False, addLegend:bool=True, addOrderingNodes:bool=True):
+        HwtHlsNetlistToGraphviz.__init__(self, name, nodes, expandAggregates=expandAggregates, addLegend=addLegend, addOrderingNodes=addOrderingNodes)
         self.syncGroupOfSyncNode: Dict[HlsNetNodeExplicitSync, SyncGroupLabel] = {}
         self.groupGraphNodes: Dict[SyncGroupLabel, pydot.Cluster] = {}
 
+    @override
     def _getGraph(self, n:HlsNetNode):
         try:
             syncGroup = self.syncGroupOfSyncNode[n]
         except KeyError:
-            return self.graph
-        return self.groupGraphNodes[syncGroup]
+            return self.graph, None, None
+        return self.groupGraphNodes[syncGroup], None, None
 
+    @override
     def construct(self, syncDomains: HlsNetlistAnalysisPassSyncDomains):
         g = self.graph
 
@@ -47,7 +49,7 @@ class HwtHlsNetlistSyncDomainsToGraphwiz(HwtHlsNetlistToGraphwiz):
                 assert n not in syncGroupOfSyncNode
                 syncGroupOfSyncNode[n] = syncGroup
 
-        super(HwtHlsNetlistSyncDomainsToGraphwiz, self).construct()
+        super(HwtHlsNetlistSyncDomainsToGraphviz, self).construct()
 
     def dumps(self):
         return self.graph.to_string()
@@ -64,10 +66,10 @@ class HlsNetlistAnalysisPassDumpSyncDomainsDot(HlsNetlistAnalysisPass):
         name = netlist.label
         out, doClose = self.outStreamGetter(name)
         try:
-            toGraphwiz = HwtHlsNetlistSyncDomainsToGraphwiz(name, netlist.iterAllNodes(), addLegend=self.addLegend)
+            toGraphviz = HwtHlsNetlistSyncDomainsToGraphviz(name, netlist.iterAllNodes(), addLegend=self.addLegend)
             syncDomains = netlist.getAnalysis(HlsNetlistAnalysisPassSyncDomains)
-            toGraphwiz.construct(syncDomains)
-            out.write(toGraphwiz.dumps())
+            toGraphviz.construct(syncDomains)
+            out.write(toGraphviz.dumps())
         finally:
             if doClose:
                 out.close()

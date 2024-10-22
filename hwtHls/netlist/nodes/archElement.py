@@ -1,38 +1,32 @@
 from typing import Union, List, Dict, Tuple, Optional, Generator, Literal, Set
 
-from hwt.code import SwitchLogic
 from hwt.code_utils import rename_signal
 from hwt.constants import NOT_SPECIFIED
 from hwt.hdl.const import HConst
 from hwt.hdl.operatorDefs import HOperatorDef
-from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
-from hwt.hwIOs.std import HwIOSignal
-from hwt.hwModule import HwModule
-from hwt.mainBases import HwIOBase
 from hwt.mainBases import RtlSignalBase
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, \
-    ExtraCondMemberList, SkipWhenMemberList, \
-    InterfaceOrReadWriteNodeOrValidReadyTuple, IORecord, ConnectionsOfStageList, \
-    MayFlushMemberList
+    InterfaceOrReadWriteNodeOrValidReadyTuple, ConnectionsOfStageList, \
+    OrMemberList  # , IORecord
 from hwtHls.architecture.syncUtils import HwIO_getSyncTuple
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem, INVARIANT_TIME
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
-from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
-    HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge, \
     HlsNetNodeWriteForwardedge
+from hwtHls.netlist.nodes.fsmStateEn import HlsNetNodeFsmStateEn, \
+    HlsNetNodeStageAck
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
@@ -40,9 +34,7 @@ from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import start_clk, indexOfClkPeriod
 from hwtHls.platform.opRealizationMeta import EMPTY_OP_REALIZATION
-from hwtLib.handshaked.streamNode import StreamNode, HwIOOrValidReadyTuple, \
-    ValidReadyTuple
-from hwtLib.logic.rtlSignalBuilder import RtlSignalBuilder
+from hwtHls.netlist.nodes.fsmStateWrite import HlsNetNodeFsmStateWrite
 
 
 class ArchElement(HlsNetNodeAggregate):
@@ -74,10 +66,11 @@ class ArchElement(HlsNetNodeAggregate):
         within the same element
     """
 
-    def __init__(self, netlist: "HlsNetlistCtx", name:str,
+    def __init__(self, netlist: "HlsNetlistCtx", name:str, namePrefix:str,
                  subNodes: SetList[HlsNetNode],
                  connections: ConnectionsOfStageList):
         HlsNetNodeAggregate.__init__(self, netlist, subNodes, name)
+        self.namePrefix = namePrefix
         self.netlist = netlist
         self.netNodeToRtl: Dict[
             Union[
@@ -132,7 +125,7 @@ class ArchElement(HlsNetNodeAggregate):
         outerO, internI = super(ArchElement, self)._addOutput(t, name, time=time)
         if time is not None:
             clkIndex = indexOfClkPeriod(time, self.netlist.normalizedClkPeriod)
-            self._addNodeIntoScheduled(clkIndex, internI.obj)
+            self._addNodeIntoScheduled(clkIndex, internI.obj, allowNewClockWindow=True)
         return outerO, internI
 
     @override
@@ -140,34 +133,46 @@ class ArchElement(HlsNetNodeAggregate):
         outerI, internO = super(ArchElement, self)._addInput(t, name, time=time)
         if time is not None:
             clkIndex = indexOfClkPeriod(time, self.netlist.normalizedClkPeriod)
-            self._addNodeIntoScheduled(clkIndex, internO.obj)
+            self._addNodeIntoScheduled(clkIndex, internO.obj, allowNewClockWindow=True)
         return outerI, internO
 
+    # @override
+    # def _removeInput(self, index:int):
+    #    inInside = self._inputsInside[index]
+    #    if inInside.scheduledOut is not None:
+    #        clkPeriod = self.netlist.normalizedClkPeriod
+    #        clkI = inInside.scheduledOut[0] // clkPeriod
+    #        self.getStageForClock(clkI).remove(inInside)
+    #
+    #    HlsNetNodeAggregate._removeInput(self, index)
+    #
+    # @override
+    # def _removeOutput(self, index:int):
+    #    outInside = self._outputsInside[index]
+    #    if outInside.scheduledIn is not None:
+    #        clkPeriod = self.netlist.normalizedClkPeriod
+    #        clkI = outInside.scheduledIn[0] // clkPeriod
+    #        self.getStageForClock(clkI).remove(outInside)
+    #
+    #    HlsNetNodeAggregate._removeOutput(self, index)
+
     @override
-    def _removeInput(self, index:int):
-        inInside = self._inputsInside[index]
-        if inInside.scheduledOut is not None:
-            clkPeriod = self.netlist.normalizedClkPeriod
-            clkI = inInside.scheduledOut[0] // clkPeriod
-            self.getStageForClock(clkI).remove(inInside)
+    def filterNodesUsingSet(self, removed: Set[HlsNetNode], recursive=False, clearRemoved=True):
+        if self.scheduledZero is not None:
+            for _, state in self.iterStages():
+                state[:] = (n for n in state if n not in removed)
+        super(ArchElement, self).filterNodesUsingSet(removed, recursive=recursive, clearRemoved=clearRemoved)
 
-        HlsNetNodeAggregate._removeInput(self, index)
+    def filterNodesUsingSetInSingleStage(self, removed: Set[HlsNetNode], stageIndex: int, recursive=False, clearRemoved=True):
+        stage = self.getStageForClock(stageIndex)
+        stage[:] = (n for n in stage if n not in removed)
+        super(ArchElement, self).filterNodesUsingSet(removed, recursive=recursive, clearRemoved=clearRemoved)
 
-    @override
-    def _removeOutput(self, index:int):
-        outInside = self._outputsInside[index]
-        if outInside.scheduledIn is not None:
-            clkPeriod = self.netlist.normalizedClkPeriod
-            clkI = outInside.scheduledIn[0] // clkPeriod
-            self.getStageForClock(clkI).remove(outInside)
-
-        HlsNetNodeAggregate._removeOutput(self, index)
-
-    @override
-    def filterNodesUsingSet(self, removed: Set[HlsNetNode], recursive=False):
-        super(ArchElement, self).filterNodesUsingSet(removed, recursive=recursive)
-        for _, state in self.iterStages():
-            state[:] = (n for n in state if n not in removed)
+    def filterNodesUsingRemovedSetInSingleStage(self, stageIndex: int, recursive=False):
+        stage = self.getStageForClock(stageIndex)
+        removed = self.getHlsNetlistBuilder()._removedNodes
+        stage[:] = (n for n in stage if n not in removed)
+        super(ArchElement, self).filterNodesUsingRemovedSet(recursive=recursive)
 
     def iterStages(self) -> Generator[Tuple[int, List[HlsNetNode]], None, None]:
         """
@@ -179,41 +184,97 @@ class ArchElement(HlsNetNodeAggregate):
         assert time >= 0, time
         return self.getStageForClock(time // self.netlist.normalizedClkPeriod)
 
-    def getStageForClock(self, clkIndex: int) -> List[HlsNetNode]:
+    def getStageForClock(self, clkIndex: int, createIfNotExists=False) -> List[HlsNetNode]:
         """
         Get clock window slot for a specified clock index.
+        :param createIfNotExists: generate a new clock window container if it is 
+            missing in this element
         """
         raise NotImplementedError("Implement this method in child class", self)
 
-    def _addNodeIntoScheduled(self, clkI: int, node: HlsNetNode):
+    def getStageEnable(self, clkIndex: int) -> Tuple[Optional[HlsNetNodeOut], bool]:
+        """
+        Get existing or create a :class:`HlsNetNodeFsmStateEn` (is 1 if stage is allowed to perform its function)
+        
+        :return: tuple optional out of HlsNetNodeFsmStateEn for specified and flag which is True if HlsNetNodeFsmStateEn was just allocated
+        """
+        netlist = self.netlist
+        con = self.connections[clkIndex]
+        if con.fsmStateEnNode:
+            return con.fsmStateEnNode._outputs[0], False
+
+        enNode = HlsNetNodeFsmStateEn(netlist)
+        enNode.resolveRealization()
+        enNode._setScheduleZeroTimeSingleClock(clkIndex * netlist.normalizedClkPeriod)
+        self._addNodeIntoScheduled(clkIndex, enNode)
+        return enNode._outputs[0], True
+
+    def getStageAckNode(self, clkIndex: int) -> Tuple[HlsNetNodeStageAck, bool]:
+        """
+        Get existing or create a :class:`HlsNetNodeStageAck` (a sink for ack signal which is 1 if stage performing its function)
+        """
+        con: ConnectionsOfStage = self.connections.getForClkIndex(clkIndex)
+        if con.fsmStateAckNode is not None:
+            return con.fsmStateAckNode, False
+        stAck = HlsNetNodeStageAck(self.netlist)
+        stAck.resolveRealization()
+        stAck._setScheduleZeroTimeSingleClock((clkIndex + 1) * self.netlist.normalizedClkPeriod - 1)
+        self._addNodeIntoScheduled(clkIndex, stAck)
+        return stAck, True
+
+    def _addNodeIntoScheduled(self, clkI: int, node: HlsNetNode, allowNewClockWindow=False):
         """
         :attention: It is expected that the node itself is already scheduled
         """
-        if self._beginClkI is not None and clkI < self._beginClkI:
+        if node.parent is None:
+            node.parent = self
+        else:
+            assert node.parent is self, ("Node can have only one parent", node, node.parent, self)
+        if self._beginClkI is None or clkI < self._beginClkI:
             self._beginClkI = clkI
         if clkI >= len(self.connections):
-            for _ in range(len(self.connections) - 1, clkI + 1):
-                self.connections.append(ConnectionsOfStage(self, len(self.connections)))
+            assert allowNewClockWindow, (self, clkI, node)
+            for _ in range(len(self.connections), clkI):
+                self.connections.append(None)
+            self.connections.append(ConnectionsOfStage(self, len(self.connections)))
 
-        if self.connections[clkI] is None:
-            self.connections[clkI] = ConnectionsOfStage(self, clkI)
-        e = self._endClkI
-        if self._endClkI is not None and e < clkI:
+        con = self.connections[clkI]
+        if con is None:
+            assert allowNewClockWindow, (self, clkI, node)
+            con = self.connections[clkI] = ConnectionsOfStage(self, clkI)
+
+        con: ConnectionsOfStage
+        beginClkI = self._beginClkI
+        if beginClkI is None or beginClkI > clkI:
+            self._beginClkI = clkI
+        endClkI = self._endClkI
+        if endClkI is None or endClkI < clkI:
             self._endClkI = clkI
 
-        self.getStageForClock(clkI).append(node)
-        self._subNodes.append(node)
+        self.getStageForClock(clkI, createIfNotExists=allowNewClockWindow).append(node)
+        self.subNodes.append(node)
+        if isinstance(node, HlsNetNodeFsmStateEn):
+            assert con.fsmStateEnNode is None, ("only one per clk window", self, con, node)
+            con.fsmStateEnNode = node
+        elif isinstance(node, HlsNetNodeStageAck):
+            assert con.fsmStateAckNode is None, ("only one per clk window", self, con, node)
+            con.fsmStateAckNode = node
+        elif isinstance(node, HlsNetNodeFsmStateWrite):
+            assert con.fsmStateWriteNode is None, ("only one per clk window", self, con, node)
+            con.fsmStateWriteNode = node
 
     @override
     def resolveRealization(self):
         self.assignRealization(EMPTY_OP_REALIZATION)  # ports do not have any extra delay
 
-    def addImplicitSyncChannelsInsideOfElm(self):
+    def addImplicitSyncChannelsInsideOfElm(self) -> bool:
         """
         Create HlsNetNodeReadForwardedge/HlsNetNodeWriteForwardedge pairs to implement synchronization
         between parts of this element.
+        
+        :returns: True if netlist was changed
         """
-        pass
+        return False
 
     @override
     def rtlStatesMayHappenConcurrently(self, stateClkI0: int, stateClkI1: int):
@@ -229,6 +290,8 @@ class ArchElement(HlsNetNodeAggregate):
         """
         Construct the container for RtlSignal and alike which is used for resolving of synchronization for it.
         """
+        assert data is not None
+        assert outOrTime is not None
         notAddToNetNodeToRtl = isinstance(outOrTime, SchedTime) or outOrTime is NOT_SPECIFIED
         timeOffset = \
             timeOffset if timeOffset is not NOT_SPECIFIED else\
@@ -240,7 +303,7 @@ class ArchElement(HlsNetNodeAggregate):
             curTir = self.netNodeToRtl.get(outOrTime, None)
             if curTir is not None:
                 curTir: TimeIndependentRtlResource
-                assert curTir.isForwardDeclr, ("Only forward declarations may be redefined", curTir)
+                assert curTir.isForwardDeclr, ("Only forward declarations may be redefined", curTir, outOrTime, data)
                 dataSig = curTir.valuesInTime[0].data
                 assert not dataSig.drivers, ("The signal should be forward declaration and this should be its only driver", dataSig)
                 assert curTir.timeOffset == timeOffset or timeOffset == INVARIANT_TIME, (curTir, curTir.timeOffset, timeOffset)
@@ -256,7 +319,7 @@ class ArchElement(HlsNetNodeAggregate):
 
         return tir
 
-    def rtlAllocHlsNetNodeOut(self, o: HlsNetNodeOut) -> TimeIndependentRtlResource:
+    def rtlAllocHlsNetNodeOut(self, o: HlsNetNodeOut) -> Union[TimeIndependentRtlResourceItem, List[HdlStatement]]:
         """
         Allocate all RTL which is represented by provided output
         """
@@ -266,18 +329,19 @@ class ArchElement(HlsNetNodeAggregate):
         if _o is None:
             if HdlType_isVoid(o._dtype):
                 return []
-            
-            assert not o.obj._isRtlAllocated, (
+            oObj: HlsNetNode = o.obj
+            assert not oObj._isRtlAllocated, (
                 "Node was allocated, but the output rtl is missing, this could be the case only for outputs of void type, "
                 "This error could be also a sign of node being allocated/used directly in other element (without port on this element)", o)
 
-            clkI = start_clk(o.obj.scheduledOut[o.out_i], self.netlist.normalizedClkPeriod)
+            assert oObj.scheduledOut is not None, ("Node must be scheduled", oObj)
+            clkI = start_clk(oObj.scheduledOut[o.out_i], self.netlist.normalizedClkPeriod)
             if len(self.connections) <= clkI or self.connections[clkI] is None:
                 raise AssertionError("Asking for node output which should have forward declaration but it is missing", self, o, clkI)
             # new allocation, use registered automatically
-            assert not o.obj._isRtlAllocated, (o, "if rtl is allocated the output should already had the rlt in netNodeToRtl")
-            _o = o.obj.rtlAlloc(self)
-            assert o.obj._isRtlAllocated, o
+            assert not oObj._isRtlAllocated, (o, "if rtl is allocated the output should already had the rlt in netNodeToRtl")
+            _o = oObj.rtlAlloc(self)
+            assert oObj._isRtlAllocated, o
             if (_o is None or not isinstance(_o, TimeIndependentRtlResource)) and not HdlType_isVoid(o._dtype):
                 # to support the return of the value directly to avoid lookup from dict
                 try:
@@ -289,7 +353,7 @@ class ArchElement(HlsNetNodeAggregate):
                              if isinstance(res, TimeIndependentRtlResource) else None)
                     return res
                 except KeyError:
-                    raise AssertionError(self, "Node did not instantiate its output", o.obj, o)
+                    raise AssertionError(self, "Node did not instantiate its output", oObj, o)
         else:
             # used and previously allocated
             assert HdlType_isVoid(o._dtype) or (
@@ -305,7 +369,7 @@ class ArchElement(HlsNetNodeAggregate):
     def rtlAllocHlsNetNodeOutInTime(self, o: HlsNetNodeOut, time:int,
                                        ) -> Union[TimeIndependentRtlResourceItem, List[HdlStatement]]:
         """
-        :meth:`~.rtlAllocHlsNetNodeOut` method with also gets the RTL resorce in specified time.
+        :meth:`~.rtlAllocHlsNetNodeOut` method with also gets the RTL resource in specified time.
         """
         clkPeriod = self.netlist.normalizedClkPeriod
         assert self._beginClkI is None or time // clkPeriod >= self._beginClkI, (
@@ -324,447 +388,224 @@ class ArchElement(HlsNetNodeAggregate):
                 return res.get(time)
             return res
 
-    def rtlAllocHlsNetNodeInInTime(self, i: HlsNetNodeOut, time:int,
+    def rtlAllocHlsNetNodeInInTime(self, i: HlsNetNodeIn, time:int,
                                       ) -> TimeIndependentRtlResourceItem:
         return self.rtlAllocHlsNetNodeOutInTime(i.obj.dependsOn[i.in_i], time)
 
-    def rtlAllocDatapathRead(self, node: HlsNetNodeRead, con: ConnectionsOfStage, rtl: List[HdlStatement],
-                             validHasCustomDriver:bool=False, readyHasCustomDriver:bool=False):
-        """
-        :attention: :see: :meth:`~._rtlAllocDatapathIo`
-        """
-        self._rtlAllocDatapathIo(node.src, node, con, rtl, True, validHasCustomDriver, readyHasCustomDriver)
+    def rtlAllocHlsNetNodeInDriverIfAlocatedElseForwardDeclr(self, i: HlsNetNodeIn)\
+            ->Union[TimeIndependentRtlResourceItem, List[HdlStatement]]:
+        obj = i.obj
+        dep = obj.dependsOn[i.in_i]
+        assert isinstance(dep, HlsNetNodeOut), dep
+        _o = self.netNodeToRtl.get(dep, None)
+        if _o is None:
+            defT = dep.obj.scheduledOut[dep.out_i]
+            useT = obj.scheduledIn[i.in_i]
+            return self.rtlAllocOutDeclr(self, dep, defT).get(useT)
 
-    def rtlAllocDatapathWrite(self, node: HlsNetNodeWrite, con: ConnectionsOfStage, rtl: List[HdlStatement],
-                              validHasCustomDriver:bool=False, readyHasCustomDriver:bool=False):
-        """
-        :attention: :see: :meth:`~._rtlAllocDatapathIo`
-        """
-        self._rtlAllocDatapathIo(node.dst, node, con, rtl, False, validHasCustomDriver, readyHasCustomDriver)
+        return self.rtlAllocHlsNetNodeOutInTime(dep, obj.scheduledIn[i.in_i])
+
+    def rtlAllocHlsNetNodeInDriverIfExists(self, i: Optional[HlsNetNodeIn])\
+            ->Union[TimeIndependentRtlResourceItem, List[HdlStatement]]:
+        if i is None:
+            return None
+        obj = i.obj
+        dep = obj.dependsOn[i.in_i]
+        assert dep
+        return self.rtlAllocHlsNetNodeOutInTime(dep, obj.scheduledIn[i.in_i])
+
+    # def rtlAllocDatapathRead(self, node: HlsNetNodeRead, con: ConnectionsOfStage, rtl: List[HdlStatement],
+    #                         validHasCustomDriver:bool=False, readyHasCustomDriver:bool=False):
+    #    """
+    #    :attention: :see: :meth:`~._rtlAllocDatapathIo`
+    #    """
+    #    self._rtlAllocDatapathIo(node.src, node, con, rtl, True, validHasCustomDriver, readyHasCustomDriver)
+    #
+    # def rtlAllocDatapathWrite(self, node: HlsNetNodeWrite, con: ConnectionsOfStage, rtl: List[HdlStatement],
+    #                          validHasCustomDriver:bool=False, readyHasCustomDriver:bool=False):
+    #    """
+    #    :attention: :see: :meth:`~._rtlAllocDatapathIo`
+    #    """
+    #    self._rtlAllocDatapathIo(node.dst, node, con, rtl, False, validHasCustomDriver, readyHasCustomDriver)
+    def rtlAllocDatapathRead(self, node: HlsNetNodeRead, rtlReadySignal: Optional[RtlSignal], con: ConnectionsOfStage, rtl: List[HdlStatement]):
+        self._rtlAllocDatapathIo(node.src, node, rtlReadySignal, con, rtl)
+
+    def rtlAllocDatapathWrite(self, node: HlsNetNodeWrite, rtlValidSignal: Optional[RtlSignal], con: ConnectionsOfStage, rtl: List[HdlStatement]):
+        self._rtlAllocDatapathIo(node.dst, node, rtlValidSignal, con, rtl)
 
     def _rtlAllocDatapathIo(self,
                     hwIO: Optional[HwIO],
                     node: Union[HlsNetNodeRead, HlsNetNodeWrite],
+                    rtlIoEnableSignal: Optional[RtlSignal],
                     con: ConnectionsOfStage,
-                    rtl: List[HdlStatement],
-                    isRead: bool,
-                    validHasCustomDriver:bool,
-                    readyHasCustomDriver:bool):
+                    rtl: List[HdlStatement]):
         """
         There may be multiple read/write instances accessing the same hw interface in this ConnectionsOfStage.
         If this is the case it is proven that the access is concurrent.
-        Because of this we first have to see all nodes in stage before resolving enable conditions for hw interface.
-
-        :attention: validHasCustomDriver are related to IO and must be set always the same when calling this method multiple times for this IO
+        Because of this we first have to see all nodes in stage before resolving enable conditions and multiplexing for hw interface.
         """
         assert isinstance(rtl, list), (node, rtl.__class__, rtl)
-        if hwIO is None:
-            assert not node._rtlUseValid and not node._rtlUseReady, node
-            valid = 1
-            ready = 1
-            validReadyPhysicallyPresent = (1, 1)
-            if isRead:
-                assert HdlType_isVoid(node._portDataOut._dtype), (
-                    "Node without any hw HwIO or sync must not have any data", node)
-                if isinstance(node, (HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge)):
-                    hwIO = node.associatedWrite
-            else:
-                assert HdlType_isVoid(node.dependsOn[node._portSrc.out_i]._dtype), (
-                    "Node without any hw HwIO or sync must not have any data", node)
-            # we need some object to store extraCond and skipWhen
-        else:
-            assert isinstance(hwIO, (HwIO, RtlSignalBase)), ("Node should already have interface resolved", node, hwIO)
-            validReadyPhysicallyPresent = HwIO_getSyncTuple(hwIO)
-            valid, ready = validReadyPhysicallyPresent
-
-            if isinstance(node, HlsNetNodeWrite) and node._isFlushable:
-                ready, valid = node.getRtlFlushReadyValidSignal()
-                if ready is None:
-                    ready = 1
-
-            # rm ready/valid from sync as it will be driven only form node flags instead from StreamNode
-            if isRead:
-                if not node._isBlocking:
-                    valid = 1  # rm valid from sync because we do not have to wait for it
-                if not node._rtlUseReady or node.hasReadyOnlyToPassFlags():
-                    ready = 1
-                if isinstance(node, HlsNetNodeReadForwardedge):
-                    if not node._rtlUseValid:
-                        valid = 1
-            else:
-                if not node._isBlocking:
-                    ready = 1  # rm ready from sync because we do not have to wait for it
-                if (not node._rtlUseValid or node.hasValidOnlyToPassFlags()) and not node._isFlushable:
-                    valid = 1
-                if isinstance(node, HlsNetNodeWriteForwardedge):
-                    if not node._rtlUseReady:
-                        ready = 1
-
-        if isRead:
-            ioContainer = con.inputs
-        else:
-            ioContainer = con.outputs
-
-        validReadyForSync = (valid, ready)
-
-        if valid == 1 and ready == 1:
-            if hwIO is None:
-                keyForFlagDicts = node
-            else:
-                keyForFlagDicts = hwIO
-        else:
-            keyForFlagDicts = validReadyForSync
-
-        assert keyForFlagDicts is not None and\
-               not (isinstance(keyForFlagDicts , tuple) and\
-                    keyForFlagDicts == (1, 1)), node
-
-        io = IORecord(node, hwIO, validReadyForSync, keyForFlagDicts, validReadyPhysicallyPresent,
-                      validHasCustomDriver, readyHasCustomDriver)
-        ioContainer.append(io)
+        ec = self.rtlAllocHlsNetNodeInDriverIfExists(node.extraCond)
+        if ec is not None:
+            ec = ec.data
 
         if hwIO is None:
-            assert not rtl, ("If it has no HW interface (it is only virtual read/write)"
-                             " it should not produce any rtl", node)
+            hwIO = node
+
+        muxVariants = con.fsmIoMuxCases.get(hwIO, None)
+        if muxVariants is None:
+            muxVariants = con.fsmIoMuxCases[hwIO] = []
         else:
-            muxVariants = con.ioMuxes.get(hwIO, None)
-            if muxVariants is None:
-                con.ioMuxesKeysOrdered.append(hwIO)
-                muxVariants = con.ioMuxes[hwIO] = []
-            muxVariants.append((node, rtl))
+            assert hwIO is not None, ("Nodes without hwIO can not be duplicated", node)
+        muxVariants.append((node, ec, rtlIoEnableSignal, rtl))
 
-        if isRead:
-            assert keyForFlagDicts not in con.outputs_extraCond, node
-            assert keyForFlagDicts not in con.outputs_skipWhen, node
-            assert keyForFlagDicts not in con.outputs_mayFlush, node
-            io_extraCond = con.inputs_extraCond
-            io_skipWhen = con.inputs_skipWhen
-            io_mayFlush = None
-        else:
-            assert keyForFlagDicts not in con.inputs_extraCond, node
-            assert keyForFlagDicts not in con.inputs_skipWhen, node
-            io_extraCond = con.outputs_extraCond
-            io_skipWhen = con.outputs_skipWhen
-            io_mayFlush = con.outputs_mayFlush
-
-        self._rtlAllocDatapathAddIoToConnections(node, isRead, keyForFlagDicts, validReadyForSync,
-                                                 io_extraCond, io_skipWhen, io_mayFlush)
-
-    def _rtlAllocDatapathAddIoToConnections(self,
-                   node: Union[HlsNetNodeRead, HlsNetNodeWrite],
-                   isRead: bool,
-                   keyForFlagDicts: InterfaceOrReadWriteNodeOrValidReadyTuple,
-                   validReadyTupleUsedInSyncGeneration: ValidReadyTuple,
-                   io_extraConds: Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, ExtraCondMemberList],
-                   io_skipWhens: Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, SkipWhenMemberList],
-                   io_mayFlush: Optional[Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, MayFlushMemberList]]):
-        """
-        Add IO extraCond, skipWhen flag to io_extraConds, io_skipWhens dictionaries
-
-        :attention: This function is run for a single read/write node but there may be multiple such nodes
-            in a single clock period slot. Such a IO may be concurrent and thus skipWhen and extraCond must be merged.
-        """
-        extraCond = self.rtlAllocHlsNetNodeInDriverIfExists(node.extraCond)
-        if extraCond is not None:
-            if isRead:
-                ack = validReadyTupleUsedInSyncGeneration[0]
-            else:
-                ack = validReadyTupleUsedInSyncGeneration[1]
-
-            if extraCond.data is ack:
-                extraCond = None  # it is useless to use this twice
-            else:
-                extraCond = extraCond.data
-
-        skipWhen = self.rtlAllocHlsNetNodeInDriverIfExists(node.skipWhen)
-        if skipWhen is not None:
-            skipWhen = skipWhen.data
-            curSkipWhen = io_skipWhens.get(keyForFlagDicts, None)
-            if curSkipWhen is not None:
-                curSkipWhen.data.append(skipWhen)
-            else:
-                curSkipWhen = SkipWhenMemberList([skipWhen, ])
-                io_skipWhens[keyForFlagDicts] = curSkipWhen
-
-        if extraCond is not None:
-            curExtraCond = io_extraConds.get(keyForFlagDicts, None)
-            if curExtraCond is not None:
-                curExtraCond.data.append((skipWhen, extraCond))
-            else:
-                curExtraCond = ExtraCondMemberList([(skipWhen, extraCond), ])
-                io_extraConds[keyForFlagDicts] = curExtraCond
-
-        if not isRead and node._isFlushable:
-            mayFlush = self.rtlAllocHlsNetNodeInDriverIfExists(node._mayFlushPort)
-            assert mayFlush is not None, node
-            mayFlush = mayFlush.data
-            curMayFlush = io_mayFlush.get(keyForFlagDicts, None)
-            if curMayFlush is not None:
-                curMayFlush.data.append(mayFlush)
-            else:
-                curMayFlush = MayFlushMemberList([mayFlush, ])
-                io_mayFlush[keyForFlagDicts] = curMayFlush
-
-    def _rtlAllocDatapathGetIoAck(self, node: Union[HlsNetNodeRead, HlsNetNodeWrite], namePrefix:str) -> Optional[RtlSignal]:
-        """
-        Use extraCond, skipWhen condition to get enable condition.
-        """
-        ack = None
-        extraCond = self.rtlAllocHlsNetNodeInDriverIfExists(node.extraCond)
-        if extraCond is not None:
-            ack = extraCond.data
-
-        skipWhen = self.rtlAllocHlsNetNodeInDriverIfExists(node.skipWhen)
-        if skipWhen is not None:
-            ack = RtlSignalBuilder.buildOrNegatedMaskOptional(ack, skipWhen.data)
-
-        if isinstance(ack, HBitsConst):
-            assert int(ack) == 1, (node, "If ack=0 this means that channel is always stalling")
-            ack = None
-
-        if ack is not None and self._dbgAddSignalNamesToSync:
-            ack = rename_signal(self.netlist.parentHwModule, ack, f"{namePrefix:s}n{node._id}_ack")
-
-        return ack
-
-    def _rtlChannelSyncFinalizeFlag(self, parentHwModule: HwModule,
-                                    flagDict: Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, Union[ExtraCondMemberList, SkipWhenMemberList]],
-                                    flagsDictKey: InterfaceOrReadWriteNodeOrValidReadyTuple,
-                                    baseName:Optional[str],
-                                    flagName:Optional[str],
-                                    defaultVal: int) -> Optional[RtlSignal]:
-        flagBundle = flagDict.get(flagsDictKey, None)
-        if flagBundle is None or not flagBundle:
-            return None
-
-        flag = flagBundle.resolve()
-
-        if flag is None:
-            return None
-
-        elif isinstance(flag, HBitsConst):
-            assert int(flag) == defaultVal, (baseName, flagName, flag,
-                "Enable condition is never satisfied, channel would be always disabled")
-            return None
-
-        else:
-            assert isinstance(flag, (RtlSignal, HwIOSignal)), (baseName, flagName, flag)
-            if self._dbgAddSignalNamesToSync and baseName is not None and baseName is not flagName:
-                newName = f"{baseName:s}_{flagName:s}"
-                flag = rename_signal(parentHwModule, flag, newName)
-                self._dbgExplicitlyNamedSyncSignals.add(flag)
-
-            return flag
-
-    def _rtlChannelSyncFinalize(self, con: ConnectionsOfStage):
-        """
-        Before this function all concurrent IOs and their conditions are collected.
-        In this function we resolve final enable conditions.
-        """
-        masters: List[HwIOOrValidReadyTuple] = []
-        slaves: List[HwIOOrValidReadyTuple] = []
-        extraConds: Dict[HwIOOrValidReadyTuple, RtlSignal] = {}
-        skipWhens: Dict[HwIOOrValidReadyTuple, RtlSignal] = {}
-
-        parentHwModule = self.netlist.parentHwModule
-        seen: Set[InterfaceOrReadWriteNodeOrValidReadyTuple] = set()
-        # :attention: It is important that outputs are iterated first, because if IO is
-        # in inputs and outputs it needs to be slave and we are using first found and then
-        # we are using seen set to filter already seen
-        for masterOrSlaveList, ioList in ((slaves, con.outputs), (masters, con.inputs),):
-            for ioRecord in ioList:
-                ioRecord: IORecord
-                node: Union[HlsNetNodeRead, HlsNetNodeWrite] = ioRecord.node
-                hwIO: Optional[HwIO] = ioRecord.io
-                flagsDictKey: InterfaceOrReadWriteNodeOrValidReadyTuple = ioRecord.ioUniqueKey
-                if flagsDictKey in seen:
-                    continue
-                else:
-                    seen.add(flagsDictKey)
-
-                if hwIO is None or not isinstance(hwIO, (HwIOBase, RtlSignalBase)):
-                    baseName = node.name
-                else:
-                    baseName = hwIO._name
-
-                # resolve conditions for IO as input and output (some IO may be both)
-                inputExtraCond = self._rtlChannelSyncFinalizeFlag(parentHwModule, con.inputs_extraCond, flagsDictKey, baseName, "extraCond", 1)
-                inputSkipWhen = self._rtlChannelSyncFinalizeFlag(parentHwModule, con.inputs_skipWhen, flagsDictKey, baseName, "skipWhen", 0)
-                outputExtraCond = self._rtlChannelSyncFinalizeFlag(parentHwModule, con.outputs_extraCond, flagsDictKey, baseName, "extraCond", 1)
-                outputSkipWhen = self._rtlChannelSyncFinalizeFlag(parentHwModule, con.outputs_skipWhen, flagsDictKey, baseName, "skipWhen", 0)
-                outputMayFlush = self._rtlChannelSyncFinalizeFlag(parentHwModule, con.outputs_mayFlush, flagsDictKey, baseName, "mayFlush", 1)
-
-                extraCond = RtlSignalBuilder.buildAndOptional(inputExtraCond, outputExtraCond)
-                if extraCond is not None:
-                    if isinstance(extraCond, HBitsConst):
-                        assert int(extraCond) == 1, (node, "Must be 1 otherwise IO is never activated")
-                        extraCond = None
-
-                skipWhen = RtlSignalBuilder.buildAndOptional(inputSkipWhen, outputSkipWhen)
-                if skipWhen is not None:
-                    if isinstance(skipWhen, HBitsConst):
-                        assert int(skipWhen) == 0, (node, "Must be 0 otherwise IO is never activated")
-                        skipWhen = None
-
-                valid, ready = ioRecord.validReady
-                _valid, _ready = ioRecord.validReadyPresent
-                isRead = isinstance(node, HlsNetNodeRead)
-                hasValidDrivenFromLocalAck = node.hasValidOnlyToPassFlags() or (
-                    not isRead and not isinstance(_valid, int) and isinstance(valid, int))
-                hasReadyDrivenFromLocalAck = node.hasReadyOnlyToPassFlags() or (
-                    isRead and not isinstance(_ready, int) and isinstance(ready, int))
-                ack = NOT_SPECIFIED
-                # exclude immediate edges because
-                driveReadyFromLocalAck = True
-                driveValidFromLocalAck = True
-                # if (isinstance(node, (HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge))\
-                #        and node.associatedWrite._getBufferCapacity() == 0) or \
-                #    (isinstance(node, (HlsNetNodeWriteForwardedge, HlsNetNodeWriteBackedge))\
-                #        and node._getBufferCapacity() == 0):
-                #    driveValidFromLocalAck &= node._rtlUseValid
-                #    driveReadyFromLocalAck &= node._rtlUseReady
-
-                driveValidFromLocalAck &= hasValidDrivenFromLocalAck and not isRead and not ioRecord.validHasCustomDriver
-                driveReadyFromLocalAck &= hasReadyDrivenFromLocalAck and isRead and not ioRecord.readyHasCustomDriver
-
-                if driveReadyFromLocalAck or driveValidFromLocalAck:
-                    ack = RtlSignalBuilder.buildOrNegatedMaskOptional(extraCond, skipWhen)
-                    if ack is None:
-                        ack = 1
-                    elif isinstance(ack, HBitsConst):
-                        assert int(ack) == 1, node
-                        ack = 1
-
-                    if hasValidDrivenFromLocalAck:
-                        if driveValidFromLocalAck:
-                            assert isinstance(_valid, (RtlSignalBase, HwIOSignal)), (node, _valid)
-                            if not isRead and node._isFlushable:
-                                _ack = outputMayFlush
-                            else:
-                                _ack = ack
-                            con.stDependentDrives.append(_valid(ack))
-
-                        if not isRead:
-                            assert valid == 1 or valid is not _valid, ("valid should not be used in sync tuple and should be present"
-                                            " only in ioRecord.validReadyPresent", node, valid)
-                    if hasReadyDrivenFromLocalAck:
-                        if driveReadyFromLocalAck:
-                            assert isinstance(_ready, (RtlSignalBase, HwIOSignal)), (node, _ready)
-                            con.stDependentDrives.append(_ready(ack))
-                        if isRead:
-                            assert ready == 1 or ready is not _ready, ("ready should not be used in sync tuple and should be present"
-                                            " only in ioRecord.validReadyPresent", node, ready)
-                # rm ready or valid which would be driven from this port because it has custom driver specified
-                if isRead:
-                    if ioRecord.readyHasCustomDriver:
-                        ready = 1
-                else:
-                    if ioRecord.validHasCustomDriver:
-                        valid = 1
-
-                if valid == 1 and ready == 1:
-                    # this IO has no read valid on its own but we may have to add virtual IO to implement stalling
-                    # of this node if there is some extraCond or skipWhen condition
-                    if ack is NOT_SPECIFIED:
-                        ack = RtlSignalBuilder.buildOrOptional(extraCond, skipWhen)
-                        if isinstance(ack, HBitsConst):
-                            assert int(ack) == 1, node
-                            ack = None
-
-                    if isinstance(ack, int):
-                        assert ack == 1, node
-                        ack = None
-
-                    if ack is not None:
-                        # add virtual masters to implement stalling of this node for IO which
-                        if baseName is not None:
-                            ack = rename_signal(self.netlist.parentHwModule, ack, f"{baseName}_ack")
-                            self._dbgExplicitlyNamedSyncSignals.add(ack)
-
-                        virtualMaster = (ack, 1)
-                        if virtualMaster not in seen:
-                            masters.append(virtualMaster)
-                            seen.add(virtualMaster)
-
-                        if skipWhen is not None:
-                            skipWhens[virtualMaster] = skipWhen
-
-                        # :note: it is not required to set extraCond because it is part of ack
-                else:
-                    if skipWhen is not None:
-                        skipWhens[(valid, ready)] = skipWhen
-
-                    if extraCond is not None:
-                        extraConds[(valid, ready)] = extraCond
-
-                    masterOrSlaveList.append((valid, ready))
-
-        if not skipWhens:
-            skipWhens = None
-
-        if not extraConds:
-            extraConds = None
-
-        return masters, slaves, extraConds, skipWhens
-
-    def _rtlAllocateSyncStreamNode(self, con: ConnectionsOfStage) -> StreamNode:
-        assert con.syncNode is None, "This method should be called only once per ConnectionsOfStage"
-        if not con.inputs and not con.outputs:
-            masters = []
-            slaves = []
-            extraConds = None
-            skipWhen = None
-            assert not con.inputs_extraCond, (self, con, con.inputs_extraCond)
-            assert not con.outputs_extraCond, (self, con, con.outputs_extraCond)
-            assert not con.inputs_skipWhen, (self, con, con.inputs_skipWhen)
-            assert not con.outputs_skipWhen, (self, con, con.outputs_skipWhen)
-
-        else:
-            masters, slaves, extraConds, skipWhen = self._rtlChannelSyncFinalize(con)
-
-        sync = StreamNode(
-            masters,
-            slaves,
-            extraConds=extraConds,
-            skipWhen=skipWhen,
-        )
-        con.syncNode = sync
-        return sync
-
-    def _rtlAllocIoMux(self, ioMuxes: Dict[HwIO, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]],
-                             ioMuxesKeysOrdered: SetList[HwIO]):
-        """
-        After all read/write nodes constructed all RTL create a HDL switch to select RTL which should be active.
-        """
-        for io in ioMuxesKeysOrdered:
-            muxCases = ioMuxes[io]
-            if len(muxCases) == 1:
-                if isinstance(muxCases[0][0], HlsNetNodeWrite):
-                    caseList = muxCases[0][1]
-                    assert isinstance(caseList, list), (caseList.__class__, caseList)
-                    yield caseList
-                else:
-                    assert isinstance(muxCases[0][0], HlsNetNodeRead), muxCases
-                    # no MUX needed and we already merged the synchronization
-            else:
-                if isinstance(muxCases[0][0], HlsNetNodeWrite):
-                    # create a write MUX
-                    rtlMuxCases = []
-                    for w, stms in muxCases:
-                        caseCond = self._rtlAllocDatapathGetIoAck(w, self.name)
-                        assert caseCond is not None, ("Because write object do not have any condition it is not possible to resolve which value should be MUXed to output interface", muxCases[0][0].dst)
-                        rtlMuxCases.append((caseCond, stms))
-
-                    stms = rtlMuxCases[0][1]
-                    # create default case to prevent lath in HDL
-                    if isinstance(stms, HdlAssignmentContainer):
-                        defaultCase = [stms.dst(None), ]
-                    else:
-                        defaultCase = [asig.dst(None) for asig in stms]
-                    yield SwitchLogic(rtlMuxCases, default=defaultCase)
-                else:
-                    assert isinstance(muxCases[0][0], HlsNetNodeRead), muxCases
-                    # no MUX needed and we already merged the synchronization
+    # def _rtlAllocDatapathIo(self,
+    #                hwIO: Optional[HwIO],
+    #                node: Union[HlsNetNodeRead, HlsNetNodeWrite],
+    #                con: ConnectionsOfStage,
+    #                rtl: List[HdlStatement],
+    #                isRead: bool,
+    #                validHasCustomDriver:bool,
+    #                readyHasCustomDriver:bool):
+    #    """
+    #    There may be multiple read/write instances accessing the same hw interface in this ConnectionsOfStage.
+    #    If this is the case it is proven that the access is concurrent.
+    #    Because of this we first have to see all nodes in stage before resolving enable conditions for hw interface.
+    #
+    #    :attention: validHasCustomDriver are related to IO and must be set always the same when calling this method multiple times for this IO
+    #    """
+    #    assert isinstance(rtl, list), (node, rtl.__class__, rtl)
+    #    if hwIO is None:
+    #        assert not node._rtlUseValid and not node._rtlUseReady, node
+    #        valid = 1
+    #        ready = 1
+    #        validReadyPhysicallyPresent = (1, 1)
+    #        if isRead:
+    #            assert HdlType_isVoid(node._portDataOut._dtype), (
+    #                "Node without any HwIO or sync must not have any data", node)
+    #            # if isinstance(node, (HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge)):
+    #            #    hwIO = node.associatedWrite
+    #        else:
+    #            assert HdlType_isVoid(node.dependsOn[node._portSrc.in_i]._dtype), (
+    #                "Node without any HwIO or sync must not have any data", node)
+    #        # we need some object to store extraCond and skipWhen
+    #    else:
+    #        assert isinstance(hwIO, (HwIO, RtlSignalBase)), ("Node should already have interface resolved", node, hwIO)
+    #        validReadyPhysicallyPresent = HwIO_getSyncTuple(hwIO)
+    #        valid, ready = validReadyPhysicallyPresent
+    #
+    #        # if isinstance(node, HlsNetNodeWrite) and node._isFlushable:
+    #        #    ready, valid = node.getRtlFlushReadyValidSignal()
+    #        #    if ready is None:
+    #        #        ready = 1
+    #
+    #        # rm ready/valid from sync as it will be driven only form node flags instead from StreamNode
+    #        if isRead:
+    #            if not node._isBlocking:
+    #                valid = 1  # rm valid from sync because we do not have to wait for it
+    #            if not node._rtlUseReady:
+    #                ready = 1
+    #            if isinstance(node, HlsNetNodeReadForwardedge):
+    #                if not node._rtlUseValid:
+    #                    valid = 1
+    #        else:
+    #            if not node._isBlocking:
+    #                ready = 1  # rm ready from sync because we do not have to wait for it
+    #            if not node._rtlUseValid:  #  and not node._isFlushable
+    #                valid = 1
+    #            if isinstance(node, HlsNetNodeWriteForwardedge):
+    #                if not node._rtlUseReady:
+    #                    ready = 1
+    #
+    #    if isRead:
+    #        ioContainer = con.inputs
+    #    else:
+    #        ioContainer = con.outputs
+    #
+    #    validReadyForSync = (valid, ready)
+    #
+    #    if valid == 1 and ready == 1:
+    #        if hwIO is None:
+    #            keyForFlagDicts = node
+    #        else:
+    #            keyForFlagDicts = hwIO
+    #    else:
+    #        keyForFlagDicts = validReadyForSync
+    #
+    #    assert keyForFlagDicts is not None and\
+    #           not (isinstance(keyForFlagDicts , tuple) and\
+    #                keyForFlagDicts == (1, 1)), node
+    #
+    #    io = IORecord(node, hwIO, validReadyForSync,
+    #                  keyForFlagDicts, validReadyPhysicallyPresent,
+    #                  validHasCustomDriver, readyHasCustomDriver)
+    #    ioContainer.append(io)
+    #
+    #    if hwIO is None:
+    #        assert not rtl, ("If it has no HW interface (it is only virtual read/write)"
+    #                         " it should not produce any rtl", node)
+    #    else:
+    #        muxVariants = con.ioMuxes.get(hwIO, None)
+    #        if muxVariants is None:
+    #            muxVariants = con.ioMuxes[hwIO] = []
+    #        muxVariants.append((node, rtl))
+    #
+    #    if isRead:
+    #        assert keyForFlagDicts not in con.outputs_extraCond, (node, keyForFlagDicts)
+    #        io_extraCond = con.inputs_extraCond
+    #    else:
+    #        assert keyForFlagDicts not in con.inputs_extraCond, (node, keyForFlagDicts)
+    #        io_extraCond = con.outputs_extraCond
+    #
+    #    self._rtlAllocDatapathAddIoToConnections(node, isRead, keyForFlagDicts,
+    #                                             io_extraCond)
+    #
+    # def _rtlAllocDatapathAddIoToConnections(self,
+    #               node: Union[HlsNetNodeRead, HlsNetNodeWrite],
+    #               isRead: bool,
+    #               keyForFlagDicts: InterfaceOrReadWriteNodeOrValidReadyTuple,
+    #               io_extraCond: Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, OrMemberList],
+    #               ):
+    #    """
+    #    Add IO extraCond to io_extraConds dictionary
+    #
+    #    :attention: This function is run for a single read/write node but there may be multiple such nodes
+    #        in a single clock period slot. Such a IO may be concurrent and thus skipWhen and extraCond must be merged.
+    #    """
+    #    ec = self.rtlAllocHlsNetNodeInDriverIfExists(node.extraCond)
+    #    if ec is not None:
+    #        ec = ec.data
+    #        curFlag = io_extraCond.get(keyForFlagDicts, None)
+    #        if curFlag is not None:
+    #            curFlag.data.append(ec)
+    #        else:
+    #            curFlag = OrMemberList([ec, ])
+    #            io_extraCond[keyForFlagDicts] = curFlag
+    #
+    #    assert node.skipWhen is None, ("This port should be already lowered by RtlArchPassSyncLower", node)
+    #    if not isRead:
+    #        assert node._forceEnPort is None, ("This port should be already lowered by RtlArchPassSyncLower", node)
+    #        # assert node._mayFlushPort is None, ("This port should be already lowered by RtlArchPassSyncLower", node)
+    #
+    # def _rtlAllocDatapathGetIoAck(self, node: Union[HlsNetNodeRead, HlsNetNodeWrite], namePrefix:str) -> Optional[RtlSignal]:
+    #    """
+    #    Use extraCond, skipWhen condition to get enable condition.
+    #    """
+    #    ack = None
+    #    extraCond = self.rtlAllocHlsNetNodeInDriverIfExists(node.extraCond)
+    #    if extraCond is not None:
+    #        ack = extraCond.data
+    #
+    #    assert node.skipWhen is None, ("skipWhen should be already lowered", node,)
+    #
+    #    if isinstance(ack, HBitsConst):
+    #        assert int(ack) == 1, (node, "If ack=0 this means that channel is always stalling")
+    #        ack = None
+    #
+    #    if ack is not None and self._dbgAddSignalNamesToSync:
+    #        ack = rename_signal(self.netlist.parentHwModule, ack, f"{namePrefix:s}n{node._id}_ack")
+    #
+    #    return ack
 
     def rtlAllocDatapath(self):
         """

@@ -1,4 +1,3 @@
-from typing import Set
 
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.pyUtils.setList import SetList
@@ -6,16 +5,16 @@ from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
-from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith
+from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOperatorNodeWith
 
 
-def netlistReduceValidAndOrXorEqValidNb(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
-    builder: HlsNetlistBuilder = n.netlist.builder
+def netlistReduceValidAndOrXorEqValidNb(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
+    builder: HlsNetlistBuilder = n.getHlsNetlistBuilder()
     # search for const in for commutative operator
     o0, o1 = n.dependsOn
     r = o0.obj
     if not isinstance(r, HlsNetNodeRead) or r._valid is None or r._validNB is None:
-        # retur because there is not a possibility that this op. is in reducible format
+        # return because there is not a possibility that this op. is in reducible format
         return False
 
     if o0 is r._valid:
@@ -30,15 +29,15 @@ def netlistReduceValidAndOrXorEqValidNb(n: HlsNetNodeOperator, worklist: SetList
 
     o = n.operator
     if o is HwtOps.AND or o is HwtOps.OR:
-        replaceOperatorNodeWith(n, r._valid, worklist, removed)
+        replaceOperatorNodeWith(n, r._validNB, worklist)
         return True
     elif o is HwtOps.XOR:
-        replaceOperatorNodeWith(n, builder.buildConstBit(0), worklist, removed)
+        replaceOperatorNodeWith(n, builder.buildConstBit(0), worklist)
         return True
     elif o is HwtOps.EQ:
-        replaceOperatorNodeWith(n, builder.buildConstBit(1), worklist, removed)
+        replaceOperatorNodeWith(n, builder.buildConstBit(1), worklist)
         return True
     else:
-        raise AssertionError("unsuported operator", n)
+        raise AssertionError("unsupported operator", n)
 
 

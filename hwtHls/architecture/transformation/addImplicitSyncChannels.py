@@ -8,8 +8,7 @@ from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge, \
     HlsNetNodeReadForwardedge
-from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
-    link_hls_nodes
+from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.scheduler.clk_math import start_clk
 from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
@@ -18,7 +17,7 @@ from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 SyncCacheKey = Tuple[int, ArchElement, ArchElement]
 
 
-class RtlArchPassAddImplicitSyncChannels(HlsArchPass):
+class HlsArchPassAddImplicitSyncChannels(HlsArchPass):
     """
     Analyze ports of ArchElements and add HlsNetNodeWriteForwardedge/HlsNetNodeReadForwardedge pairs.
     Note that these r/w pairs are only synchronization and do not hold any data.
@@ -27,10 +26,10 @@ class RtlArchPassAddImplicitSyncChannels(HlsArchPass):
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
         syncAdded: Set[SyncCacheKey] = set()
-        elementIndex: Dict[ArchElement, int] = {a: i for i, a in enumerate(netlist.nodes)}
+        elementIndex: Dict[ArchElement, int] = {a: i for i, a in enumerate(netlist.subNodes)}
         clkPeriod: SchedTime = netlist.normalizedClkPeriod
         changed = False
-        for srcElm in netlist.nodes:
+        for srcElm in netlist.subNodes:
             srcElm: ArchElement
             srcElmIndex = elementIndex[srcElm]
             for o, uses, srcTime in zip(srcElm._outputs, srcElm.usedBy, srcElm.scheduledOut):
@@ -85,6 +84,7 @@ class RtlArchPassAddImplicitSyncChannels(HlsArchPass):
             syncCacheKey = (clkIndex, dstElm, srcElm)
 
         if syncCacheKey not in syncAdded:
+            # [todo] inject read.ready to extraCond/skipWhen of all successor IO nodes
             clkPeriod: SchedTime = netlist.normalizedClkPeriod
             epsilon: SchedTime = netlist.scheduler.epsilon
 
@@ -101,7 +101,7 @@ class RtlArchPassAddImplicitSyncChannels(HlsArchPass):
 
             name = f"{netlist.namePrefix:s}sync_clk{clkIndex}_{srcBaseName:s}_to_{dstBaseName:s}"
             wNode = HlsNetNodeWriteForwardedge(srcElm.netlist, name=f"{name:s}_atSrc")
-            link_hls_nodes(dummyC._outputs[0], wNode._portSrc)
+            dummyC._outputs[0].connectHlsIn(wNode._portSrc)
             wNode.resolveRealization()
             wNode._setScheduleZeroTimeSingleClock(time)
             srcElm._addNodeIntoScheduled(clkIndex, wNode)
@@ -114,4 +114,5 @@ class RtlArchPassAddImplicitSyncChannels(HlsArchPass):
 
             syncAdded.add(syncCacheKey)
             return True
+
         return False

@@ -1,4 +1,4 @@
-from typing import Generator
+from typing import Generator, Optional
 
 from hwt.code import If
 from hwt.hdl.const import HConst
@@ -7,8 +7,10 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.arrayQuery import grouper
 from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
+from hwtHls.llvm.llvmIr import HFloatTmpConfig
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
+from hwtHls.netlist.transformation.simplifyUtils import getConstOfOutput
 
 
 class HlsNetNodeMux(HlsNetNodeOperator):
@@ -18,9 +20,11 @@ class HlsNetNodeMux(HlsNetNodeOperator):
     :note: inputs in format value, (condition, value)*
     """
 
-    def __init__(self, netlist: "HlsNetlistCtx", dtype: HdlType, name: str=None):
+    def __init__(self, netlist: "HlsNetlistCtx", dtype: HdlType, name: str=None,
+                 operatorSpecialization:Optional[HFloatTmpConfig]=None):
         super(HlsNetNodeMux, self).__init__(
-            netlist, HwtOps.TERNARY, 0, dtype, name=name)
+            netlist, HwtOps.TERNARY, 0, dtype, name=name, operatorSpecialization=operatorSpecialization)
+        self._rtlAddName = True  # True by default because there is named RtlSignal implementing this node in RTL
 
     @override
     def rtlAlloc(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
@@ -30,16 +34,14 @@ class HlsNetNodeMux(HlsNetNodeOperator):
         assert self._inputs, ("Mux has to have operands", self)
         name = self.name
         if name:
-            name = f"{allocator.name:s}{name}"
+            name = f"{allocator.namePrefix:s}{name}"
         else:
-            name = f"{allocator.name:s}mux{self._id:d}"
+            name = f"{allocator.namePrefix:s}mux{self._id:d}"
 
-        v0 = allocator.rtlAllocHlsNetNodeOutInTime(self.dependsOn[0], self.scheduledIn[0])
-        mux_out_s = allocator._sig(name, v0.data._dtype)
+        mux_out_s = allocator._sig(name, self._outputs[0]._dtype)
         if len(self._inputs) == 1:
-            v = self.dependsOn[0]
             v = allocator.rtlAllocHlsNetNodeOutInTime(
-                    v,
+                    self.dependsOn[0],
                     self.scheduledIn[0])
             mux_out_s(v.data)
         else:

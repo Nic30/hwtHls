@@ -1,7 +1,6 @@
 from itertools import chain, islice
 from typing import List
 
-from hwt.hdl.operatorDefs import HwtOps
 from hwt.pyUtils.setList import SetList
 from hwtHls.frontend.ast.astToSsa import IoPortToIoOpsDictionary
 from hwtHls.llvm.llvmIr import Type, BasicBlock, PointerType, Argument, verifyFunction
@@ -16,7 +15,7 @@ class HlsNetlistExprToLlvmIr(ToLlvmIrTranslator):
     def __init__(self, label: str):
         topIo: IoPortToIoOpsDictionary = {}
         parentHwModule = None
-        super(HlsNetlistExprToLlvmIr, self).__init__(label, topIo, parentHwModule)
+        super(HlsNetlistExprToLlvmIr, self).__init__(label, label, topIo, parentHwModule)
 
     def _translateExpr(self, out: HlsNetNodeOut):
         v = self.varMap.get(out, None)
@@ -31,12 +30,7 @@ class HlsNetlistExprToLlvmIr(ToLlvmIrTranslator):
             return c
         else:
             assert isinstance(obj, HlsNetNodeOperator), obj
-            ops = obj.dependsOn
-            if obj.operator == HwtOps.TERNARY:
-                assert len(ops) == 3
-                ops = (ops[1], ops[0], ops[2])
-
-            v = self._translateExprOperand(obj.operator, obj._outputs[0]._dtype, ops, obj.name, obj)
+            v = self._translateExprOperand(obj.operator, obj._outputs[0]._dtype, obj.dependsOn, obj.name, obj)
             self.varMap[out] = v
             return v
 

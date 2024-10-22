@@ -1,16 +1,43 @@
 from itertools import islice
-from typing import Set, Dict
+from typing import Set, Dict, List
 
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.pyUtils.setList import SetList
-from hwtHls.netlist.analysis.reachability import _collectConcatOfVoidTreeInputs
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
-from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith
+from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOperatorNodeWith
+
+
+def _collectConcatOfVoidTreeOutputs(o: HlsNetNodeOut):
+    for use in o.obj.usedBy[o.out_i]:
+        useO = use.obj
+        if isinstance(useO, HlsNetNodeOperator) and useO.operator == HwtOps.CONCAT:
+            yield from _collectConcatOfVoidTreeOutputs(useO._outputs[0])
+        else:
+            yield use
+
+
+def _collectConcatOfVoidTreeInputs(o: HlsNetNodeOut, inputs: List[HlsNetNodeOut], seen:Set[HlsNetNodeOut]):
+    if o in seen:
+        return True
+
+    seen.add(o)
+
+    duplicitySeen = False
+    obj: HlsNetNode = o.obj
+    if isinstance(obj, HlsNetNodeOperator) and obj.operator == HwtOps.CONCAT:
+        t = obj.dependsOn[0]._dtype
+        assert HdlType_isVoid(t), obj
+        for i in obj.dependsOn:
+            duplicitySeen |= _collectConcatOfVoidTreeInputs(i, inputs, seen)
+    else:
+        inputs.append(o)
+
+    return duplicitySeen
 
 
 def _getOrderingOutStrenght(o: HlsNetNodeOut):
@@ -26,7 +53,7 @@ def _getOrderingOutStrenght(o: HlsNetNodeOut):
             return 1
 
 
-def netlistReduceConcat(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
+def netlistReduceConcat(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
     if len(n.usedBy[0]) == 1:
         onlyUser = n.usedBy[0][0]
         onlyUserObj = onlyUser.obj
@@ -37,17 +64,16 @@ def netlistReduceConcat(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode], re
             newOps.extend(n.dependsOn)
             newOps.extend(onlyUserObj.dependsOn[onlyUser.in_i + 1:])
 
-            replacement = n.netlist.builder.buildConcat(*newOps)
-            if replacement.obj.name is None:
-                replacement.obj.name = onlyUser.obj.name
+            replacement = n.getHlsNetlistBuilder().buildConcat(*newOps)
+            replacement.obj.tryToInheritName(onlyUser.obj)
 
-            replaceOperatorNodeWith(onlyUserObj, replacement, worklist, removed)
+            replaceOperatorNodeWith(onlyUserObj, replacement, worklist)
             return True
 
     return False
 
 
-def netlistReduceConcatOfVoid(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode], removed: Set[HlsNetNode]):
+def netlistReduceConcatOfVoid(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
     """
     For concatenation of data of void type the ordering of operands does not matter. Also some ports (output, dataVoidOut)
     have stronger meaning than regular ordering and lesser strength ordering dependencies can be removed from expression.
@@ -71,26 +97,26 @@ def netlistReduceConcatOfVoid(n: HlsNetNodeOperator, worklist: SetList[HlsNetNod
             opsWithoutConst.append(o)
 
     if allIsSameO:
-        replaceOperatorNodeWith(n, o0, worklist, removed)
+        replaceOperatorNodeWith(n, o0, worklist)
         return True
     elif allIsSameObj:
         obj = o0.obj
         if (obj._outputs[0] in n.dependsOn):
             # data of a void sync is the strongest port
-            replaceOperatorNodeWith(n, obj._outputs[0], worklist, removed)
+            replaceOperatorNodeWith(n, obj._outputs[0], worklist)
             return True
         elif (obj._dataVoidOut in n.dependsOn):
             # dataVoidOut is stronger than regular ordering
-            replaceOperatorNodeWith(n, obj._dataVoidOut, worklist, removed)
+            replaceOperatorNodeWith(n, obj._dataVoidOut, worklist)
             return True
     elif len(opsWithoutConst) < len(n.dependsOn):
         # we can cut out some constants
         if opsWithoutConst:
-            replacement = n.netlist.builder.buildConcat(*opsWithoutConst)
+            replacement = n.getHlsNetlistBuilder().buildConcat(*opsWithoutConst)
         else:
             replacement = n.dependsOn[0]  # reuse first const
 
-        replaceOperatorNodeWith(n, replacement, worklist, removed)
+        replaceOperatorNodeWith(n, replacement, worklist)
         return True
 
     if len(n.usedBy[0]) > 1 or (not isinstance(n.usedBy[0][0].obj, HlsNetNodeOperator)
@@ -120,8 +146,8 @@ def netlistReduceConcatOfVoid(n: HlsNetNodeOperator, worklist: SetList[HlsNetNod
                 seen.add(obj)
                 newInputs.append(representativeInput[obj])
 
-            newO = n.netlist.builder.buildConcat(*newInputs)
-            replaceOperatorNodeWith(n, newO, worklist, removed)
+            newO = n.getHlsNetlistBuilder().buildConcat(*newInputs)
+            replaceOperatorNodeWith(n, newO, worklist)
             return True
 
     return False

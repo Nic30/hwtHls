@@ -1,11 +1,10 @@
-from typing import Set, Sequence, List, Dict
+from typing import Sequence, List, Dict
 
 from hwt.hdl.operatorDefs import BITWISE_OPS, COMPARE_OPS, HwtOps
 from hwt.hdl.const import HConst
 from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
@@ -16,6 +15,7 @@ from hwtHls.netlist.translation.llvmIrExprToHlsNetlist import LlvmIrExprToHlsNet
 _collectCmpContainingExpr_OPS = {
     *BITWISE_OPS,
     *COMPARE_OPS,
+    HwtOps.TERNARY,
 }
 
 
@@ -29,15 +29,16 @@ def _collectCmpContainingExprInToOut(o: HlsNetNodeOut, collectedNodes: SetList[H
         if uObj in collectedNodes:
             continue
         if isinstance(uObj, HlsNetNodeOperator) and (
-            uObj.operator in _collectCmpContainingExpr_OPS or
-            uObj.operator == HwtOps.TERNARY and len(uObj._inputs) == 3):
+            uObj.operator in _collectCmpContainingExpr_OPS # or
+            #uObj.operator == HwtOps.TERNARY and len(uObj._inputs) == 3
+            ):
             assert len(uObj._outputs) == 1, uObj
             collectedNodes.append(uObj)
             _collectCmpContainingExprInToOut(uObj._outputs[0], collectedNodes)
 
 
 def runLlvmCmpOpt(builder: HlsNetlistBuilder, worklist: SetList[HlsNetNode],
-                  removed: Set[HlsNetNode], allNodeIt: Sequence[HlsNetNode]):
+                  allNodeIt: Sequence[HlsNetNode]):
     """
     Run LLVM expression simplify pipeline to optimize expressions with comparisons
     """
@@ -45,7 +46,7 @@ def runLlvmCmpOpt(builder: HlsNetlistBuilder, worklist: SetList[HlsNetNode],
     cmpCoutPerOut: Dict[HlsNetNodeOut, int] = {}
     for n in allNodeIt:
         n: HlsNetNode
-        if n in removed:
+        if n._isMarkedRemoved:
             continue
         if isinstance(n, HlsNetNodeOperator) and n.operator in COMPARE_OPS:
             for op in n.dependsOn:
@@ -90,7 +91,7 @@ def runLlvmCmpOpt(builder: HlsNetlistBuilder, worklist: SetList[HlsNetNode],
         toLlvmIr.translate(inputs, outputs)
         toLlvmIr.llvm.runExprOpt()
 
-        toHlsNetlist = LlvmIrExprToHlsNetlist(builder.netlist)
+        toHlsNetlist = LlvmIrExprToHlsNetlist(builder)
         toHlsNetlist.fillInConstantNodesFromToLlvmIrExpr(toLlvmIr)
         newOutputs = toHlsNetlist.translate(toLlvmIr.llvm.main, inputs, outputs)
         assert len(outputs) == len(newOutputs)
@@ -101,9 +102,9 @@ def runLlvmCmpOpt(builder: HlsNetlistBuilder, worklist: SetList[HlsNetNode],
                     newO = builder.buildConst(newO)
                 else:
                     newObj = newO.obj
-                    if isinstance(newObj, HlsNetNodeOperator) and newObj.name is None:
+                    if isinstance(newObj, HlsNetNodeOperator):
                         # inherit the name is possible
-                        newObj.name = o.obj.name
+                        newObj.tryToInheritName(o.obj)
 
                 builder.replaceOutput(o, newO, True)
                 # we can remove "o" immediately because its parent node may have multiple outputs
@@ -116,7 +117,7 @@ def runLlvmCmpOpt(builder: HlsNetlistBuilder, worklist: SetList[HlsNetNode],
 
 
 def runLlvmMuxCondOpt(builder: HlsNetlistBuilder, worklist: SetList[HlsNetNode],
-                  removed: Set[HlsNetNode], allNodeIt: Sequence[HlsNetNode]):
+                  allNodeIt: Sequence[HlsNetNode]):
     """
     Use (~prevC | C) & (prevC | C) for each condition of MUX to prune duplicated checks
     in MUX conditions. Because check for previous conditions in later condition inputs are useless.

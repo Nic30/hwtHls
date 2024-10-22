@@ -1,10 +1,12 @@
 from math import inf
-from typing import List, Dict, Optional, Generator
+from typing import List, Dict, Optional, Generator, Callable, Union, Tuple
 
-from hwt.hdl.operatorDefs import  HwtOps
+from hwt.hdl.operatorDefs import HwtOps
 from hwt.pyUtils.setList import SetList
-from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate, \
-    HlsNetNodeAggregatePortIn, HlsNetNodeAggregatePortOut
+from hwt.pyUtils.typingFuture import override
+from hwtHls.netlist.nodes.aggregate import \
+    HlsNetNodeAggregatePortIn, HlsNetNodeAggregatePortOut, \
+    HlsNetNodeAggregateTmpForScheduling
 from hwtHls.netlist.nodes.node import HlsNetNode_numberForEachInput, \
     HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
@@ -14,10 +16,9 @@ from hwtHls.netlist.nodes.schedulableNode import OutputTimeGetter, OutputMinUseT
 from hwtHls.netlist.scheduler.clk_math import start_of_next_clk_period, \
     indexOfClkPeriod
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
-from hwt.pyUtils.typingFuture import override
 
 
-class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
+class HlsNetNodeBitwiseOps(HlsNetNodeAggregateTmpForScheduling):
     """
     Container of cluster of bitwise operators.
 
@@ -26,45 +27,47 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
     """
 
     def __init__(self, netlist:"HlsNetlistCtx", subNodes: List[HlsNetNode], name:str=None):
-        HlsNetNodeAggregate.__init__(self, netlist, subNodes, name=name)
+        HlsNetNodeAggregateTmpForScheduling.__init__(self, netlist, subNodes, name=name)
         self._totalInputCnt: Dict[HlsNetNodeOperator, int] = {}
+
+    @staticmethod
+    def _resolveSubnodeRealization_normalizeTiming(node: HlsNetNodeOperator, wireDelay: Union[float, Tuple[float]]):
+        if not isinstance(wireDelay, (int, float)):
+            wireDelay = wireDelay[0]
+
+        return HlsNetNode_numberForEachInput(node, wireDelay)
 
     def resolveSubnodeRealization(self, node: HlsNetNodeOperator, input_cnt: int):
         netlist = self.netlist
         assert isinstance(node, HlsNetNodeOperator), node
         bit_length = node._outputs[0]._dtype.bit_length()
 
-        if node.operator is HwtOps.TERNARY:
-            input_cnt = input_cnt // 2 + 1
+        # if node.operator is HwtOps.TERNARY:
+        #    input_cnt = input_cnt // 2 + 1
 
+        representativeOperator = HwtOps.NOT if input_cnt == 1 else HwtOps.AND
         rWithThisNode = netlist.platform.get_op_realization(
-            node.operator, bit_length,
+            representativeOperator, None, bit_length,
             input_cnt, netlist.realTimeClkPeriod)
 
-        if input_cnt == 1 and node.operator == HwtOps.NOT or input_cnt == 2:
+        if input_cnt <= 2:
             node.assignRealization(rWithThisNode)  # the first operator in cluster does not need any latency modifications
             return
 
+        representativeOperatorForChildren = HwtOps.NOT if input_cnt - 2 == 1 else HwtOps.AND
         rWithoutThisNode = netlist.platform.get_op_realization(
-            node.operator, bit_length,
+            representativeOperatorForChildren, None, bit_length,
             input_cnt - 2, netlist.realTimeClkPeriod)
 
         # substract the latency which is counted in some input latency
         if not isinstance(rWithThisNode.inputClkTickOffset, int):
             rWithThisNode.inputClkTickOffset = rWithoutThisNode.inputClkTickOffset[:2]
 
-        inputWireDelay_with = rWithThisNode.inputWireDelay
-        if not isinstance(inputWireDelay_with, (int, float)):
-            inputWireDelay_with = inputWireDelay_with[:2]
-
-        inputWireDelay_without = rWithoutThisNode.inputWireDelay
-        if not isinstance(inputWireDelay_without, (int, float)):
-            inputWireDelay_without = inputWireDelay_without[:2]
-
+        inputWireDelay_with = self._resolveSubnodeRealization_normalizeTiming(node, rWithThisNode.inputWireDelay)
+        inputWireDelay_without = self._resolveSubnodeRealization_normalizeTiming(node, rWithoutThisNode.inputWireDelay)
         rWithThisNode.inputWireDelay = tuple(
             max((latWith - latWithout, 0))
-            for latWith, latWithout in zip(HlsNetNode_numberForEachInput(node, inputWireDelay_with),
-                                           HlsNetNode_numberForEachInput(node, inputWireDelay_without))
+            for latWith, latWithout in zip(inputWireDelay_with, inputWireDelay_without)
         )
         node.assignRealization(rWithThisNode)
 
@@ -72,7 +75,7 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
                                      pathForDebug: Optional[SetList["HlsNetNode"]],
                                      beginOfFirstClk: SchedTime,
                                      outputTimeGetter: Optional[OutputTimeGetter]):
-        assert node in self._subNodes, (node, self._subNodes)
+        assert node in self.subNodes, (node, self.subNodes)
         if node.scheduledOut is None:
             if pathForDebug is not None:
                 if node in pathForDebug:
@@ -173,7 +176,8 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
                                         internalOut: HlsNetNodeOut,
                                         clkBoundaryTime: SchedTime,
                                         currentInputs: SetList[HlsNetNodeIn],
-                                        outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
+                                        outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter],
+                                        excludeNode: Optional[Callable[[HlsNetNode], bool]]):
         """
         BFS consume all inputs until the start or until the boundary is found
 
@@ -209,11 +213,12 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
                 continue
 
             # check if dependency has some other uses which are affecting the schedule
-            if outputMinUseTimeGetter is not None:
-                depT = outputMinUseTimeGetter(dep, depT)
+
             isInPort = isinstance(depObj, HlsNetNodeAggregatePortIn)
             if isInPort:
-                depT = self._getAlapOutsideOutMinUseTime(depObj, clkBoundaryTime, depT, outputMinUseTimeGetter)
+                depT = self._getAlapOutsideOutMinUseTime(depObj, clkBoundaryTime, depT, outputMinUseTimeGetter, excludeNode)
+            elif outputMinUseTimeGetter is not None:
+                depT = outputMinUseTimeGetter(dep, depT)
 
             if depT is not None:
                 # if time of this dependency can be resolved, set its schedule and continue scheduling there
@@ -234,17 +239,18 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
                     depObj._setScheduleZeroTimeSingleClock(min(clkBoundaryTime - ffdelay, depT))  # move to start of clock cycle - ffdealy
                     # all uses known and time crossing clock boundary, start a new cluster from this output
                     self.scheduleAlapCompactionForOutput(dep, newClkBeginBoundary,
-                                                             SetList(), outputMinUseTimeGetter)
+                                                             SetList(), outputMinUseTimeGetter, excludeNode)
                 else:
                     # somewhere inside clock cycle, no need to modify time
                     depObj._setScheduleZeroTimeSingleClock(depT)
                     self.scheduleAlapCompactionForOutput(dep, clkBoundaryTime,
-                                                             currentInputs, outputMinUseTimeGetter)
+                                                             currentInputs, outputMinUseTimeGetter, excludeNode)
 
     @override
     def scheduleAlapCompaction(self,
                                endOfLastClk: SchedTime,
-                               outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]) -> Generator["HlsNetNode", None, None]:
+                               outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter],
+                               excludeNode: Optional[Callable[[HlsNetNode], bool]]) -> Generator["HlsNetNode", None, None]:
         """
         1. Resolve ALAP times for all inputs outside of this node where outputs are connected.
            Note that this time is not the output time of internal output because output value may be required sooner.
@@ -271,7 +277,8 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
 
         self.resetScheduling()
         for oPort in self._outputsInside:
-            assert not any(oPort.scheduleAlapCompaction(endOfLastClk, outputMinUseTimeGetter)), (oPort, "Should only copy times from uses")
+            assert not any(oPort.scheduleAlapCompaction(endOfLastClk, outputMinUseTimeGetter, excludeNode)), (
+                oPort, "Should only copy times from uses")
 
         for outerO, oPort in zip(self._outputs, self._outputsInside):
             o: HlsNetNodeOut = oPort.dependsOn[0]
@@ -283,7 +290,7 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
                 if outputMinUseTimeGetter is not None:
                     t = outputMinUseTimeGetter(outerO, t)
 
-                assert len(o.obj.usedBy) == 1, ("Should be only bitwise operator wit a single output", o)
+                assert len(o.obj.usedBy) == 1, ("Should be only bitwise operator with a single output", o)
                 self.resolveSubnodeRealization(o.obj, len(o.obj._inputs))
                 clkStartBoundary = indexOfClkPeriod(t, clkPeriod) * clkPeriod
                 if t - o.obj.inputWireDelay[0] <= clkStartBoundary:
@@ -296,7 +303,8 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregate):
                 self.scheduleAlapCompactionForOutput(o,
                                                      clkStartBoundary,
                                                      SetList(),
-                                                     outputMinUseTimeGetter)
+                                                     outputMinUseTimeGetter,
+                                                     excludeNode)
 
         self.copySchedulingFromChildren()
         for inT, dep in zip(self.scheduledIn, self.dependsOn):

@@ -1,18 +1,18 @@
 from math import inf, isfinite
-from typing import Optional, List
+from typing import Optional, List, Callable
 
 from hwt.pyUtils.setList import SetList
-from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate, \
-    HlsNetNodeAggregatePortOut
+from hwt.pyUtils.typingFuture import override
+from hwtHls.netlist.nodes.aggregate import \
+    HlsNetNodeAggregatePortOut, HlsNetNodeAggregateTmpForScheduling
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, OutputTimeGetter, \
     OutputMinUseTimeGetter, SchedTime
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
-from hwt.pyUtils.typingFuture import override
 
 
-class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
+class HlsNetNodeIoSyncScc(HlsNetNodeAggregateTmpForScheduling):
     """
     A cluster of nodes where all node inputs must be scheduled in a same clock period window to assert desired behavior of IO port.
     """
@@ -60,7 +60,7 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
                 maxTime = -inf
                 schedulingFail = False
 
-                for n in self._subNodes:
+                for n in self.subNodes:
                     n: HlsNetNode
                     n.scheduleAsap(pathForDebug, beginOfClkWhereLastInputIs, _outputTimeGetter)
                     if n._inputs:
@@ -79,11 +79,11 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
 
                 if schedulingFail:
                     # if moveTried:
-                    #    from hwtHls.netlist.translation.dumpNodesDot import HwtHlsNetlistToGraphwiz
-                    #    toGraphwiz = HwtHlsNetlistToGraphwiz(f"IoScc{self._id:d}", self._subNodes)
-                    #    toGraphwiz.construct()
-                    #    with open(f"tmp/TimeConstraintError.{toGraphwiz.name:s}.dot", "w") as f:
-                    #        f.write(toGraphwiz.dumps())
+                    #    from hwtHls.netlist.translation.dumpNodesDot import HwtHlsNetlistToGraphviz
+                    #    toGraphviz = HwtHlsNetlistToGraphviz(f"IoScc{self._id:d}", self.subNodes)
+                    #    toGraphviz.construct()
+                    #    with open(f"tmp/TimeConstraintError.{toGraphviz.name:s}.dot", "w") as f:
+                    #        f.write(toGraphviz.dumps())
                     #
                     #     raise TimeConstraintError(
                     #        "Impossible scheduling, clkPeriod too low IO synchronization realization ",
@@ -99,12 +99,13 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
                     break
 
             self.copySchedulingFromChildren()
+
         self.checkScheduling()
         return self.scheduledOut
 
     @override
     def checkScheduling(self):
-        HlsNetNodeAggregate.checkScheduling(self)
+        HlsNetNodeAggregateTmpForScheduling.checkScheduling(self)
         clkPeriod = self.netlist.normalizedClkPeriod
         beginOfClk = indexOfClkPeriod(self.scheduledZero, clkPeriod) * clkPeriod
         endOfClk = beginOfClk + clkPeriod
@@ -112,14 +113,15 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
             assert t >= beginOfClk and t < endOfClk, (self, (beginOfClk, endOfClk), self.scheduledIn)
 
     @override
-    def scheduleAlapCompaction(self, endOfLastClk: SchedTime, outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter]):
+    def scheduleAlapCompaction(self,
+                               endOfLastClk: SchedTime,
+                               outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter],
+                               excludeNode: Optional[Callable[[HlsNetNode], bool]]):
         """
         Use the same principle as :meth:`~.HlsNetNodeIoSyncScc.scheduleAsap` just schedule from uses to defs.
         In addition there may be internal and also outer uses of a single output and we have to resolve scheduling time from all uses.
         """
         self.checkScheduling()
-        prevSchedule: SchedulizationDict = {}
-        self.copyScheduling(prevSchedule)
 
         epsilon = self.netlist.scheduler.epsilon
         clkPeriod = self.netlist.normalizedClkPeriod
@@ -129,12 +131,19 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
         for oPort in self._outputsInside:
             oPort: HlsNetNodeAggregatePortOut
             oPort.resetScheduling()
-            assert not any(oPort.scheduleAlapCompaction(endOfLastClk, outputMinUseTimeGetter))
+            assert not any(oPort.scheduleAlapCompaction(endOfLastClk, outputMinUseTimeGetter, excludeNode))
             minClkI = min(minClkI, indexOfClkPeriod(oPort.scheduledIn[0], clkPeriod))
+        
+        self.copySchedulingFromChildren()
+        self.checkScheduling()
+
+        origSchedule: SchedulizationDict = {}
+        self.copyScheduling(origSchedule)
+
 
         assert isinstance(minClkI, int), minClkI
         moveToPrevClkTried = False
-        lastSchedule:SchedulizationDict = {}
+        #lastSchedule:SchedulizationDict = {}
         # move outputs to a clock where first output is required,
         # if move failed move -1 clk if fails again it is not possible to move and original scheduling must be restored
         while True:
@@ -144,13 +153,13 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
             #    oPort: HlsNetNodeAggregatePortOut
             #    if oPort.scheduledZero is None or oPort.scheduledZero > endCurClk:
             #        oPort._setScheduleZero(endCurClk)
-            self.scheduleAlapCompactionForSubnodes(endCurClk, outputMinUseTimeGetter)
+            self.scheduleAlapCompactionForSubnodes(endCurClk, outputMinUseTimeGetter, excludeNode)
 
             # check if scheduling was successful to fit all nodes in this clock cycle
             fail = False
             curClkBegin = None
             curClkEnd = None
-            for node0 in self._subNodes:
+            for node0 in self.subNodes:
                 t = node0.scheduledZero
                 if curClkBegin is None:
                     curClkBegin = indexOfClkPeriod(t, clkPeriod) * clkPeriod
@@ -160,19 +169,19 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregate):
                     break
 
             if not moveToPrevClkTried and fail:
-                self.copyScheduling(lastSchedule)
-                self.setScheduling(prevSchedule)
+                #self.copyScheduling(lastSchedule)
+                self.setScheduling(origSchedule)
                 # does not fit in clk where first output is, we move -1 clk
                 minClkI -= 1
                 moveToPrevClkTried = True
 
             else:
                 if moveToPrevClkTried and fail:
-                    self.setScheduling(prevSchedule)
+                    self.setScheduling(origSchedule)
                 self.copySchedulingFromChildren()
                 self.checkScheduling()
 
-                scheduledZero, scheduledIn, scheduledOut = prevSchedule[self]
+                scheduledZero, scheduledIn, scheduledOut = origSchedule[self]
                 if self.scheduledZero != scheduledZero or self.scheduledIn != scheduledIn or self.scheduledOut != scheduledOut:
                     for dep in self.dependsOn:
                         yield dep.obj

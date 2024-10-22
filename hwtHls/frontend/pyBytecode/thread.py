@@ -14,7 +14,7 @@ from ipCorePackager.constants import DIRECTION
 class HlsThreadFromPy(HlsThread):
 
     def __init__(self, hls: HlsScope, fn: FunctionType, *fnArgs, **fnKwargs):
-        super(HlsThreadFromPy, self).__init__(hls)
+        super(HlsThreadFromPy, self).__init__(hls, None)
         self.fn = fn
         self.fnName = getattr(fn, "__qualname__", fn.__name__)
         self.bytecodeToSsa = PyBytecodeToSsa(self.hls, DebugTracer(None), self.fnName, hls.namePrefix)
@@ -29,10 +29,10 @@ class HlsThreadFromPy(HlsThread):
         d = p._debug
         debugDir = d.dir
         if debugDir is not None:
-            debugBytecode = d.isActivated(HlsDebugBundle.DBG_0_pyFrontedBytecode)
-            debugCfgBeing = d.isActivated(HlsDebugBundle.DBG_0_pyFrontedBeginCfg)
-            debugCfgGen = d.isActivated(HlsDebugBundle.DBG_0_pyFrontedPreprocCfg)
-            debugCfgFinal = d.isActivated(HlsDebugBundle.DBG_0_pyFrontedFinalCfg)
+            debugBytecode = d.isActivated(HlsDebugBundle.DBG_0_0_pyFrontedBytecode)
+            debugCfgBeing = d.isActivated(HlsDebugBundle.DBG_0_0_pyFrontedBeginCfg)
+            debugCfgGen = d.isActivated(HlsDebugBundle.DBG_0_0_pyFrontedPreprocCfg)
+            debugCfgFinal = d.isActivated(HlsDebugBundle.DBG_0_1_pyFrontedFinalCfg)
             if d.firstRun and (debugBytecode, debugCfgGen, debugCfgFinal):
                 if debugDir and not debugDir.exists():
                     debugDir.mkdir()
@@ -40,7 +40,7 @@ class HlsThreadFromPy(HlsThread):
 
             toSsa = self.bytecodeToSsa
             self.dbgTracer, self._doCloseTrace = p._getDebugTracer(
-                self.fnName, HlsDebugBundle.DBG_0_pyFrontedBytecodeTrace)
+                self.fnName, HlsDebugBundle.DBG_0_0_pyFrontedBytecodeTrace)
             toSsa.dbgTracer = self.dbgTracer
             toSsa.debugDirectory = debugDir
             toSsa.debugBytecode = debugBytecode
@@ -49,8 +49,12 @@ class HlsThreadFromPy(HlsThread):
             toSsa.debugCfgFinal = debugCfgFinal
 
     def getLabel(self) -> str:
-        i = self.hls._threads.index(self)
-        return f"t{i:d}_{self.fnName:s}"
+        namePrefix = ""
+        if len(self.hls._threads) > 1:
+            i = self.hls._threads.index(self)
+            namePrefix = f"t{i:d}_"
+
+        return f"{namePrefix:s}{self.fnName:s}"
 
     def compileToSsa(self):
         try:
@@ -60,9 +64,5 @@ class HlsThreadFromPy(HlsThread):
                 self.dbgTracer._out.close()
 
         self.toSsa: Optional[HlsAstToSsa] = self.bytecodeToSsa.toSsa
-        namePrefix = self.hls.namePrefix
-        if len(self.hls._threads) > 1:
-            i = self.hls._threads.index(self)
-            namePrefix = f"{self.hls.namePrefix}t{i:d}_"
-        self.toSsa.namePrefix = namePrefix
+        self.toSsa.namePrefix = self.getNamePrefix()
 

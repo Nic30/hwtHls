@@ -3,12 +3,12 @@
 
 from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
-from hwt.simulator.simTestCase import SimTestCase
-from hwt.hwParam import HwParam
 from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
+from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.netlist import HlsThreadFromNetlist
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.ports import link_hls_nodes
+from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -41,19 +41,21 @@ class ReadNonBlockingHwModule(HwModule):
             d = 0
         dataOut.write(d)
         """
-        b = netlist.builder
+        elm = ArchElementPipeline(netlist, self.__class__.__name__, self.__class__.__name__ + "_")
+        netlist.addNode(elm)
+        b = elm.builder
 
         r = HlsNetNodeRead(netlist, self.dataIn)
         r._isBlocking = False
-        netlist.inputs.append(r)
-        rOut = r._outputs[0]
+        elm.addNode(r)
+        rOut = r._portDataOut
         rVld = b.buildReadSync(rOut)
         t = rOut._dtype
 
         mux = b.buildMux(t, (rOut, rVld, t.from_py(0)))
         w = HlsNetNodeWrite(netlist, self.dataOut)
-        netlist.outputs.append(w)
-        link_hls_nodes(mux, w._inputs[0])
+        elm.addNode(w)
+        mux.connectHlsIn(w._portSrc)
 
     def hwImpl(self) -> None:
         hls = HlsScope(self, self.CLK_FREQ)

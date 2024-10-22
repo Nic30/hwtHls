@@ -14,9 +14,9 @@ from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
-from hwtHls.netlist.transformation.simplifyUtils import replaceOperatorNodeWith
+from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOperatorNodeWith
 from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
-from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
+from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
 
 
 class HlsNetlistPassReadSyncToAckOfIoNodes(HlsNetlistPass):
@@ -54,7 +54,7 @@ class HlsNetlistPassReadSyncToAckOfIoNodes(HlsNetlistPass):
         """
         n = o.obj
         _collectSyncValidFromExpr = self._collectSyncValidFromExpr
-        builder: HlsNetlistBuilder = n.netlist.builder
+        builder: HlsNetlistBuilder = n.getHlsNetlistBuilder()
         if isinstance(n, HlsNetNodeOperator):
             if isinstance(n, HlsNetNodeMux) and len(n._inputs) > 1:
                 n: HlsNetNodeMux
@@ -119,31 +119,31 @@ class HlsNetlistPassReadSyncToAckOfIoNodes(HlsNetlistPass):
 
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
-        builder: HlsNetlistBuilder = netlist.builder
         worklistPlaceholder = []
         removed = set()
-        for n in netlist.nodes:
-            if not isinstance(n, HlsNetNodeReadSync):
-                continue
+        for elm, nodes in netlist.iterNodesFlatWithParentByType(HlsNetNodeReadSync):
+            builder: HlsNetlistBuilder = elm.getHlsNetlistBuilder()
+            for n in nodes:
+                removed.add(n)
+                # rm this if the source object does not have sync
+                dep = n.dependsOn[0].obj
+                if isinstance(dep, HlsNetNodeExplicitSync) and dep._associatedReadSync is n:
+                    dep._associatedReadSync = None
 
-            removed.add(n)
-            # rm this if the source object does not have sync
-            dep = n.dependsOn[0].obj
-            if isinstance(dep, HlsNetNodeExplicitSync) and dep._associatedReadSync is n:
-                dep._associatedReadSync = None
+                # replace with the expression made from
+                origDepO = n.dependsOn[0]
 
-            # replace with the expression made from
-            origDepO = n.dependsOn[0]
+                newDep = self._collectSyncValidFromExpr(origDepO)
+                if newDep is None:
+                    newDep = builder.buildConstBit(1)
+                replaceOperatorNodeWith(n, newDep, worklistPlaceholder, removed)
 
-            newDep = self._collectSyncValidFromExpr(origDepO)
-            if newDep is None:
-                newDep = builder.buildConstBit(1)
-            replaceOperatorNodeWith(n, newDep, worklistPlaceholder, removed)
+            if removed:
+                # update because nodes list may have listeners set
+                elm.filterNodesUsingSet(removed)
+                assert not removed
 
         if removed:
-            # update because nodes list may have listeners set
-            netlist.nodes[:] = (n for n in netlist.nodes if n not in removed)
-
             return PreservedAnalysisSet.preserveReachablity()
         else:
             return PreservedAnalysisSet.preserveAll()

@@ -32,7 +32,6 @@ from hwtHls.thread import HlsThread, HlsThreadDoesNotUseSsa
 from hwtLib.amba.axi_common import Axi_hs
 from ipCorePackager.constants import INTF_DIRECTION
 
-
 ANY_HLS_COMPATIBLE_IO = Union[HwIODataRdVld, HwIOStructRdVld,
                               HwIORdVldSync, Axi_hs,
                               HwIODataVld, HwIODataRd, HwIOSignal,
@@ -152,7 +151,7 @@ class HlsScope():
         return HlsRead(self, _src, dtype, blocking)
 
     @hlsLowLevel
-    def write(self, src: Union[HlsRead, bytes, int, HConst], dst: ANY_HLS_COMPATIBLE_IO) -> HlsWrite:
+    def write(self, src: Union[HlsRead, bytes, int, HConst], dst: ANY_HLS_COMPATIBLE_IO, mayBecomeFlushable=True) -> HlsWrite:
         """
         Create a write statement for simple interfaces.
         """
@@ -178,10 +177,10 @@ class HlsScope():
             dst: PyObjectHwSubscriptRef
             mem: IoProxyAddressed = dst.sequence
             assert isinstance(mem, IoProxyAddressed), (dst, mem)
-            return mem.WRITE_CLS(mem, self, src, mem.interface, dst.index, mem.wWordT)
+            return mem.WRITE_CLS(mem, self, src, mem.interface, dst.index, mem.wWordT, mayBecomeFlushable=mayBecomeFlushable)
         else:
             assert dst._direction != INTF_DIRECTION.MASTER, (dst, "Can not write to input")
-            return HlsWrite(self, src, dst, dtype)
+            return HlsWrite(self, src, dst, dtype, mayBecomeFlushable=mayBecomeFlushable)
 
     def addThread(self, t: HlsThread) -> HlsThread:
         """
@@ -193,8 +192,8 @@ class HlsScope():
     def _mergeNetlists(self, threads: List[HlsThread]):
         # merge content of all netlist to the first one and return it
         assert threads
-        netlist: "HlsNetlistCtx" = threads[0].toHw
-        netlist.merge(self.hwIOMeta, [t.toHw for t in islice(threads, 1, None)])
+        netlist: "HlsNetlistCtx" = threads[0].netlist
+        netlist.merge(self.hwIOMeta, [t.netlist for t in islice(threads, 1, None)])
 
         return netlist
 
@@ -217,29 +216,30 @@ class HlsScope():
                 p.runSsaPasses(self, t.toSsa)
 
             t.compileToNetlist(p)
+            assert t.netlist.subNodes, ("Thread produced empty netlist", t)
             for callback in t.netlistCallbacks:
                 callback(self, t)
 
             if not isThread0:
-                channels.propagateChannelTimingConstraints(t.toHw)
+                channels.propagateChannelTimingConstraints(t.netlist)
 
-            p.runHlsNetlistPasses(self, t.toHw)
+            p.runHlsNetlistPasses(self, t.netlist)
 
             if isThread0:
                 isThread0 = False
-                t.toHw.scheduler.normalizeSchedulingTime(t.toHw.normalizedClkPeriod)
+                t.netlist.scheduler.normalizeSchedulingTime(t.netlist.normalizedClkPeriod)
                 if len(self._threads) > 1:
-                    channels.propagateChannelTimingConstraints(t.toHw)
+                    channels.propagateChannelTimingConstraints(t.netlist)
 
         for t in self._threads:
-            p.runHlsNetlistToArchNetlist(self, t.toHw)
+            p.runHlsNetlistToArchNetlist(self, t.netlist)
             for callback in t.archNetlistCallbacks:
                 callback(self, t)
 
         netlist: "HlsNetlistCtx" = self._mergeNetlists(self._threads)
         if len(self._threads) > 1:
             channels.assertAllResolved()
-        
+
         # drop all analysis except scheduling
         for a in tuple(netlist._analysis_cache.keys()):
             if a is not HlsNetlistAnalysisPassRunScheduler:

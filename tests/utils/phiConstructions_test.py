@@ -16,9 +16,9 @@ from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.platform.fileUtils import outputFileGetter
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
-from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
+from hwtHls.ssa.analysis.consistencyCheck import SsaPassConsistencyCheck
 from hwtHls.ssa.context import SsaContext
-from hwtHls.ssa.translation.toGraphwiz import SsaPassDumpToDot
+from hwtHls.ssa.translation.toGraphviz import SsaPassDumpToDot
 from hwtLib.types.ctypes import uint8_t
 from tests.baseSsaTest import TestFinishedSuccessfuly
 
@@ -27,7 +27,7 @@ class PhiConstruction_TC(unittest.TestCase):
 
     def testAstWhileCondWrite(self):
         ssaCtx = SsaContext()
-        toSsa = HlsAstToSsa(ssaCtx, "entry", None, None)
+        toSsa = HlsAstToSsa(ssaCtx, "entry", None, None, None)
         toSsa._onAllPredecsKnown(toSsa.start)
         netlist = RtlNetlist()
 
@@ -79,7 +79,7 @@ class PhiConstruction_TC(unittest.TestCase):
 
             def runSsaPasses(self, hls:"HlsScope", toSsa:HlsAstToSsa):
                 SsaPassDumpToDot(outputFileGetter("tmp", "0.dot"), extractPipeline=False).runOnSsaModule(toSsa)
-                SsaPassConsystencyCheck().runOnSsaModule(toSsa)
+                SsaPassConsistencyCheck().runOnSsaModule(toSsa)
                 raise TestFinishedSuccessfuly()
 
         try:

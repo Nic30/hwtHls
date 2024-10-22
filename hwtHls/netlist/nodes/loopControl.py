@@ -1,26 +1,26 @@
 from itertools import chain
-from typing import List, Generator, Tuple, Dict, Optional, Union
+from typing import List, Generator, Tuple, Dict, Optional
 
 from hwt.hdl.types.defs import BIT
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
-from hwtHls.netlist.analysis.nodeParentAggregate import HlsNetlistAnalysisPassNodeParentAggregate
+from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.hdlTypeVoid import HVoidData, HVoidOrdering
 from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
-    HlsNetNodeWriteBackedge, BACKEDGE_ALLOCATION_TYPE
+    HlsNetNodeWriteBackedge
+from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.explicitSync import IO_COMB_REALIZATION
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.loopChannelGroup import \
     LoopChanelGroup, LOOP_CHANEL_GROUP_ROLE, HlsNetNodeReadOrWriteToAnyChannel
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.orderable import HlsNetNodeOrderable
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut, link_hls_nodes, \
-    HlsNetNodeIn
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
+from hwtHls.netlist.nodes.portsUtils import HlsNetNodeOut_connectHlsIn_crossingHierarchy
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.builder import HlsNetlistBuilder
 
 
 class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
@@ -152,8 +152,8 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         self.assignRealization(IO_COMB_REALIZATION)
 
     def _connectVoidDataConst(self, w: HlsNetNodeWrite):
-        v = self.netlist.builder.buildConst(HVoidData.from_py(None))
-        link_hls_nodes(v, w._portSrc)
+        v = self.getHlsNetlistBuilder().buildConst(HVoidData.from_py(None))
+        v.connectHlsIn(w._portSrc)
 
     def addEnterPort(self, srcBlockNumber: int, dstBlockNumber: int, lcg:LoopChanelGroup)\
             ->Tuple[HlsNetNodeRead, HlsNetNodeOut]:
@@ -169,19 +169,26 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         # fromStatusOut = self._addOutput(BIT, name)
         w = lcg.getChannelUsedAsControl()
         r: HlsNetNodeReadBackedge = w.associatedRead
+        busy = self.getBusyOutPort()
+        busy_n = self.getHlsNetlistBuilder().buildNot(busy)
+        LoopChanelGroup.appendToListOfPriorityEncodedReads(self.fromEnter, busy_n, busy, lcg, name)
+
         assert isinstance(r, HlsNetNodeRead), r
-        # assert not r._isBlocking, r
-        b: HlsNetlistBuilder = self.netlist.builder
-        if self.fromReenter:
-            lastReenter: HlsNetNodeRead = self.fromReenter[0].getChannelUsedAsControl().associatedRead
-            enOut = b.buildAnd(lastReenter.dependsOn[lastReenter.extraCond.in_i], b.buildNot(lastReenter.getValidNB()), name)
-        else:
-            enOut = b.buildNot(self.getBusyOutPort())
-        link_hls_nodes(w.getOrderingOutPort(), self._addInput("orderingIn"))
-        self.fromEnter.append(lcg)
+        # # assert not r._isBlocking, r
+        # b: HlsNetlistBuilder = self.getHlsNetlistBuilder()
+        # if self.fromEnter:
+        #    lastEnter: HlsNetNodeRead = self.fromEnter[0].getChannelUsedAsControl().associatedRead
+        #    lastEnter.setNonBlocking()
+        #    lastEc = lastEnter.dependsOn[lastEnter.extraCond.in_i]
+        #    enOut = b.buildAnd(lastEc, b.buildNot(lastEnter.getValidNB()))
+        # else:
+        #    enOut = b.buildNot(self.getBusyOutPort())
+        HlsNetNodeOut_connectHlsIn_crossingHierarchy(w.getOrderingOutPort(), self._addInput("orderingIn"), "ordering")
+        #self.fromEnter.append(lcg)
         self._bbNumberToPorts[(srcBlockNumber, dstBlockNumber)] = (lcg, None)
-        
-        return r, enOut
+
+        # enOut = b.buildAnd(enOut, r.getValidNB(), name=f"enterFrom_bb{srcBlockNumber:}")
+        # return r, enOut
 
     def addReenterPort(self, srcBlockNumber: int, dstBlockNumber: int, lcg: LoopChanelGroup)\
             ->Tuple[HlsNetNodeRead, HlsNetNodeOut]:
@@ -195,21 +202,22 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         # fromStatusOut = self._addOutput(BIT, name)
         r: HlsNetNodeReadBackedge = lcg.getChannelUsedAsControl().associatedRead
         assert isinstance(r, HlsNetNodeReadBackedge), r
-        
-        if self.fromReenter:
-            lastReenter: HlsNetNodeRead = self.fromReenter[0].getChannelUsedAsControl().associatedRead
-            b: HlsNetlistBuilder = self.netlist.builder
-            lastEC = lastReenter.dependsOn[lastReenter.extraCond.in_i]
-            enOut = b.buildAnd(lastEC, b.buildNot(lastReenter.getValidNB()), name)
-        else:
-            enOut = self.getBusyOutPort()
-        
+        busy = self.getBusyOutPort()
+        busy_n = self.getHlsNetlistBuilder().buildNot(busy)
+        LoopChanelGroup.appendToListOfPriorityEncodedReads(self.fromReenter, busy, busy_n, lcg, name)
+        # if self.fromReenter:
+        #    lastReenter: HlsNetNodeRead = self.fromReenter[0].getChannelUsedAsControl().associatedRead
+        #    b: HlsNetlistBuilder = self.getHlsNetlistBuilder()
+        #    lastEC = lastReenter.dependsOn[lastReenter.extraCond.in_i]
+        #    enOut = b.buildAnd(lastEC, b.buildNot(lastReenter.getValidNB()), name)
+        # else:
+        #    enOut = self.getBusyOutPort()
+        #
         # assert not r._isBlocking, r
-        self.fromReenter.append(lcg)
+        #self.fromReenter.append(lcg)
         self._bbNumberToPorts[(srcBlockNumber, dstBlockNumber)] = (lcg, None)
 
-
-        return r, enOut
+        # return r, enOut
 
     def addExitToHeaderNotifyPort(self, srcBlockNumber: int, dstBlockNumber: int, lcg: LoopChanelGroup)\
             ->HlsNetNodeWrite:
@@ -224,14 +232,14 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         """
         lcg.associateWithLoop(self, LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER)
         w: HlsNetNodeWriteBackedge = lcg.getChannelUsedAsControl()
-        assert w.allocationType == BACKEDGE_ALLOCATION_TYPE.IMMEDIATE, (
+        assert w.allocationType == CHANNEL_ALLOCATION_TYPE.IMMEDIATE, (
             "Must be IMMEDIATE because this information modifies busy flag immediately",
             w, w.allocationType)
         assert isinstance(w, HlsNetNodeWriteBackedge), w
         r = w.associatedRead
         assert not r._isBlocking, ("Must be non-blocking because busy flag must be reset without blocking to prevent deadlock", r)
         exitIn = self._addInput(f"exit_from_bb{srcBlockNumber:d}_to_bb{dstBlockNumber:d}", True)
-        link_hls_nodes(r.getValidNB(), exitIn)
+        r.getValidNB().connectHlsIn(exitIn)
 
         self.fromExitToHeaderNotify.append(lcg)
         self._bbNumberToPorts[(srcBlockNumber, dstBlockNumber)] = (lcg, exitIn)
@@ -247,13 +255,13 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         self.fromExitToSuccessor.append(lcg)
         return w
 
-    def _getAckOfStageWhereNodeIs(self, parents: HlsNetlistAnalysisPassNodeParentAggregate,
+    def _getAckOfStageWhereNodeIs(self,
                                   n: HlsNetNodeReadOrWriteToAnyChannel) -> Optional[RtlSignal]:
-        elm = parents.getBottomMostArchElementParent(n)
+        elm = n.parent
         t = n.scheduledOut[0] if n.scheduledOut else n.scheduledIn[0]
         con: ConnectionsOfStage = elm.connections.getForTime(t)
 
-        selfParent = parents.getBottomMostArchElementParent(self)
+        selfParent = self.parent
         selfT = n.scheduledOut[0] if n.scheduledOut else n.scheduledIn[0]
         selfCon: ConnectionsOfStage = selfParent.connections.getForTime(selfT)
         if con is selfCon:
@@ -261,18 +269,13 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
 
         return con.getRtlStageAckSignal()
 
-    def _lazyLoadParents(self, parents: Optional[HlsNetlistAnalysisPassNodeParentAggregate]):
-        if parents is None:
-            parents = self.netlist.getAnalysis(HlsNetlistAnalysisPassNodeParentAggregate)
-        return parents
-
     @override
     def rtlAlloc(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
         """
         This node should be lowered before RTL allocation to simplify search for combinational loops etc.
         :see: :class:`HlsAndRtlNetlistPassHlsNetNodeLoopStatus`
         """
-        raise AssertionError("This node is not meant for RTL allocation and it should have been lowered before")
+        raise AssertionError("This node is not meant for RTL allocation and it should have been lowered before", self)
 
     @override
     def debugIterShadowConnectionDst(self) -> Generator[Tuple[HlsNetNode, bool], None, None]:

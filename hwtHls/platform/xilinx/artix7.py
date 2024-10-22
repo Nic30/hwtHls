@@ -113,6 +113,14 @@ class Artix7Medium(AbstractXilinxPlatform):
             HwtOps.NOT: LogicGate,
             HwtOps.MUL: MulnS,
             HwtOps.TERNARY: MuxnS,
+            OP_ASHR: MuxnS,
+            OP_LSHR: MuxnS,
+            OP_SHL: MuxnS,
+            OP_CTLZ: MuxnS,
+            OP_CTTZ: MuxnS,
+            OP_CTPOP: MuxnS,
+            OP_FSHL: MuxnS,
+            OP_FSHR: MuxnS,
             ResourceFF: Sel
         }
 
@@ -163,6 +171,14 @@ class Artix7Fast(AbstractXilinxPlatform):
             HwtOps.NOT: LogicGate,
             HwtOps.MUL: MulnS,
             HwtOps.TERNARY: MuxnS,
+            OP_ASHR: MuxnS,
+            OP_LSHR: MuxnS,
+            OP_SHL: MuxnS,
+            OP_CTLZ: MuxnS,
+            OP_CTTZ: MuxnS,
+            OP_CTPOP: MuxnS,
+            OP_FSHL: MuxnS,
+            OP_FSHR: MuxnS,
             ResourceFF: Sel
         }
 

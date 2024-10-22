@@ -2,16 +2,16 @@
 # -*- coding: utf-8 -*-
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
+from hwt.hObjList import HObjList
 from hwt.hwIOs.std import HwIOVectSignal, HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
-from hwt.simulator.simTestCase import SimTestCase
-from hwt.hObjList import HObjList
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
+from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.netlist import HlsThreadFromNetlist
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.ports import link_hls_nodes
+from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -37,17 +37,19 @@ class ReadOrDefaultHwModule(HwModule):
             d = 0
         dataOut.write(d)
         """
-        b = netlist.builder
+        elm = ArchElementPipeline(netlist, self.__class__.__name__, self.__class__.__name__ + "_")
+        netlist.addNode(elm)
+        b = elm.builder
         r = HlsNetNodeRead(netlist, self.dataIn)
-        netlist.inputs.append(r)
+        elm.addNode(r)
         r = r._outputs[0]
         rVld = b.buildReadSync(r)
         t = r._dtype
 
         mux = b.buildMux(r._dtype, (r, rVld, t.from_py(0)))
         w = HlsNetNodeWrite(netlist, self.dataOut)
-        netlist.outputs.append(w)
-        link_hls_nodes(mux, w._inputs[0])
+        elm.addNode(w)
+        mux.connectHlsIn(w._portSrc)
 
     def hwImpl(self) -> None:
         hls = HlsScope(self, self.CLK_FREQ)
@@ -65,18 +67,21 @@ class ReadNonBlockingOrDefaultHwModule(ReadOrDefaultHwModule):
             d = 0
         dataOut.write(d)
         """
-        b = netlist.builder
+        elm = ArchElementPipeline(netlist, self.__class__.__name__, self.__class__.__name__ + "_")
+        netlist.addNode(elm)
+        b = elm.builder
+
         r = HlsNetNodeRead(netlist, self.dataIn)
         r._isBlocking = False
-        netlist.inputs.append(r)
+        elm.addNode(r)
         r = r._outputs[0]
         rVld = b.buildReadSync(r)
         t = r._dtype
 
         mux = b.buildMux(t, (r, rVld, t.from_py(0)))
         w = HlsNetNodeWrite(netlist, self.dataOut)
-        netlist.outputs.append(w)
-        link_hls_nodes(mux, w._inputs[0])
+        elm.addNode(w)
+        mux.connectHlsIn(w._portSrc)
 
 
 class ReadOrDefaultHwModuleHs(ReadOrDefaultHwModule):
@@ -123,12 +128,15 @@ class ReadAnyHsHwModule(ReadOrDefaultHwModule):
         if d is not None:
             dataOut.write(d)
         """
-        b = netlist.builder
+        elm = ArchElementPipeline(netlist, self.__class__.__name__, self.__class__.__name__ + "_")
+        netlist.addNode(elm)
+        b = elm.builder
+
         inputs = []
         anyPrevVld = None
         for last, i in iter_with_last(self.dataIn):
             r = HlsNetNodeRead(netlist, i)
-            netlist.inputs.append(r)
+            elm.addNode(r)
             if not last:
                 r.setNonBlocking()
             if anyPrevVld:
@@ -155,8 +163,8 @@ class ReadAnyHsHwModule(ReadOrDefaultHwModule):
         muxOps.append(t.from_py(0))
         mux = b.buildMux(r._dtype, tuple(muxOps))
         w = HlsNetNodeWrite(netlist, self.dataOut)
-        netlist.outputs.append(w)
-        link_hls_nodes(mux, w._inputs[0])
+        elm.addNode(w)
+        mux.connectHlsIn(w._portSrc)
 
 
 class HlsNetlistReadSyncTC(SimTestCase):
@@ -215,7 +223,7 @@ if __name__ == "__main__":
     import unittest
     from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    m = ReadNonBlockingOrDefaultHwModule()
+    m = ReadAnyHsHwModule()
     # m.DATA_WIDTH = 32
     m.CLK_FREQ = int(40e6)
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
