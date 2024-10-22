@@ -5,13 +5,15 @@ from types import FunctionType
 from typing import Optional, List, Tuple, Callable
 
 from hwt.hdl.const import HConst
+from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.defs import BIT
 from hwt.hwIO import HwIO
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.errors import HlsSyntaxError
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.frontend.pyBytecode.blockLabel import BlockLabelTmp
-from hwtHls.frontend.pyBytecode.blockPredecessorTracker import BlockLabel
+from hwtHls.frontend.pyBytecode.blockPredecessorTracker import BlockLabel, \
+    BlockPredecessorTracker
 from hwtHls.frontend.pyBytecode.errorUtils import createInstructionException
 from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
 from hwtHls.frontend.pyBytecode.fromPythonLowLevel import PyBytecodeToSsaLowLevel, \
@@ -24,7 +26,7 @@ from hwtHls.frontend.pyBytecode.instructions import JUMP_FORWARD, JUMP_BACKWARD,
     POP_JUMP_IF_NOT_NONE, POP_JUMP_IF_NONE, RETURN_CONST, NULL
 from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo, \
     BranchTargetPlaceholder, LoopExitJumpInfo
-from hwtHls.frontend.pyBytecode.markers import PyBytecodePreprocDivergence, \
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodePreprocDivergence, \
     PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.utils import isLastJumpFromBlock, blockHasBranchPlaceholder
 from hwtHls.ssa.basicBlock import SsaBasicBlock
@@ -283,6 +285,12 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
             if self.debugCfgGen:
                 self._debugDump(frame, f"_afterLoopExit{loopInfo.loop.entryPoint}")
 
+    def _getNextIterationBlockLabel(self, blockTracker: BlockPredecessorTracker, loopInfo: PyBytecodeLoopInfo, blockOffset: int):
+        loopInfo.iteraionI += 1
+        nextIterationLoopHeaderLabel = blockTracker._getBlockLabel(blockOffset)
+        loopInfo.iteraionI -= 1
+        return nextIterationLoopHeaderLabel
+
     def _finalizeJumpsFromHwLoopBody(self, frame: PyBytecodeFrame,
                                      headerBlock: SsaBasicBlock,
                                      headerOffset: int,
@@ -337,9 +345,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                     j.branchPlaceholder.replace(c, latchBlock)
 
                     # make "temporary next iteration header block" as not generated
-                    loopInfo.iteraionI += 1
-                    nextIterationLoopHeaderLabel = blockTracker._getBlockLabel(j.dstBlockOffset)
-                    loopInfo.iteraionI -= 1
+                    nextIterationLoopHeaderLabel = self._getNextIterationBlockLabel(blockTracker, loopInfo, j.dstBlockOffset)
                     self._addNotGeneratedJump(j.frame, srcBlockLabel, nextIterationLoopHeaderLabel)
 
                     if not blockHasBranchPlaceholder(j.srcBlock):
@@ -462,24 +468,31 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
         is exhausted then the byte code counter is incremented by delta.
         Changed in version 3.12: Up until 3.11 the iterator was popped when it was exhausted.
         """
-        # preproc eval for loop
         curLoopInfo: PyBytecodeLoopInfo = frame.loopStack[-1]
         curBlockLabel = self.blockToLabel[curBlock]
         # curLoop = curLoopInfo.loop
         assert curLoopInfo.loop.entryPoint == curBlockLabel[-1], (curLoopInfo, curBlock)
         a = frame.stack[-1]
         exitBlockOffset = forIter.argval
+        off = forIter.offset
+        if off not in frame.blockTracker.originalCfg:
+            off -= 2 # case of EXTENDED_ARG 
+        forIterOrigCfgSuccessors = frame.blockTracker.originalCfg[off]
         bodyBlockOffset = [
             o
-            for o in frame.blockTracker.originalCfg[forIter.offset].keys()
+            for o in forIterOrigCfgSuccessors.keys()
             if o != exitBlockOffset
         ]
         assert len(bodyBlockOffset) == 1
         bodyBlockOffset = bodyBlockOffset[0]
         if isinstance(a, HwIterator):
             curLoopInfo.mustBeEvaluatedInPreproc = False
+            # if curLoopInfo.iteraionI == 0:
+            #    self.dbgTracer.log(("for loop hw iterator", curBlockLabel))
+            #    curBlock = a.hwInit(self, frame, curBlock)
+
             c, curCondBlock = a.hwCondition(self, frame, curBlock)
-            assert isinstance(c, SsaValue), c
+            assert isinstance(c, (SsaValue, HBitsConst)), c
             assert c._dtype.bit_length() == 1, (c, "Iterator continue condition must be 1b type")
             v = a.hwIterStepValue()
             frame.stack.append(PyBytecodeInPreproc(v))
@@ -503,39 +516,47 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
             curLoopInfo.onAdditionalLatchBlockPredecessorsAdded = lambda frame, bb: a.hwStep(self, frame, bb)
             curBlock = curCondBlock
             addExitJump = True
-            cancelJumpToNextIteration = False
+            cancelJumpToNextIterationOnExit = False
         else:
-            curLoopInfo.mustBeEvaluatedInPreproc = True
-            addExitJump = False
-            cancelJumpToNextIteration = True
+            if curLoopInfo.iteraionI == 0:
+                self.dbgTracer.log(("for loop preproc", curBlockLabel))
 
-        if not addExitJump:
+            # preproc eval for loop
+            curLoopInfo.mustBeEvaluatedInPreproc = True
+            cancelJumpToNextIterationOnExit = True
+
             try:
                 v = next(a)
                 addExitJump = False
+                # continue iteration, jump to next body
             except StopIteration:
                 addExitJump = True
+                # break iteration, jump outside of loop
 
         if addExitJump:
             # assert curLoop.entryPoint == forIter.offset
             # create only branch placeholder to delegate processing of this jump from the loop to a _translateBlockBody on a loop header
 
-            # :attention: there may be issue with python doc, FOR_ITER is actually skipping END_FOR
+            # :attention: there may be issue with python3.12 doc, FOR_ITER is actually skipping END_FOR
             # There we can not skip instruction because it would be impossible to lookup block by offset.
             # Instead we add dummy NULL value on stack.
             frame.stack.append(NULL)
-
+            self.dbgTracer.log(("for loop exit", curBlockLabel))
             branchPlaceholder = BranchTargetPlaceholder.create(curBlock)
             lei = LoopExitJumpInfo(None, curBlock, None, None, exitBlockOffset, None, None, branchPlaceholder, frame)
             frame.markJumpFromBodyOfCurrentLoop(lei)
-            if cancelJumpToNextIteration:
-                _curBlockLabel = self.blockToLabel[curBlock]
-                assert _curBlockLabel != curBlockLabel, ("This was supposed to be a jump to next iteration", curBlockLabel)
-                self._addNotGeneratedJump(frame, _curBlockLabel, frame.blockTracker._getBlockLabel(bodyBlockOffset))
+
+            if cancelJumpToNextIterationOnExit:
+                currentHeaderBlockLabel = frame.blockTracker._getBlockLabel(curLoopInfo.loop.entryPoint)
+                currentBodyEntryBlockLabel = frame.blockTracker._getBlockLabel(bodyBlockOffset)
+                # nextIterationBodyLabel = self._getNextIterationBlockLabel(frame.blockTracker, curLoopInfo, bodyBlockOffset)
+                self._addNotGeneratedJump(frame, currentHeaderBlockLabel, currentBodyEntryBlockLabel)
         else:
-            frame.stack.append(PyBytecodeInPreproc(v))
+            # jump to next body
+
             # :attention: Jump to exit block can not be marked as notGenerate immediately
-            #   It must be done after last iteration because we need to keep exit block alive unitl the loop is completly resolved.
+            #   It must be done after last iteration because we need to keep exit block alive until the loop is completely resolved.
+            frame.stack.append(PyBytecodeInPreproc(v))
 
             # mark jump from loop in header as not performed
             exitBlockLabel = frame.blockTracker._getBlockLabel(exitBlockOffset)

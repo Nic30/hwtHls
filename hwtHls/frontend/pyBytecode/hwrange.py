@@ -12,10 +12,14 @@ from hwtHls.frontend.pyBytecode.fromPython import PyBytecodeToSsa
 from hwtHls.frontend.pyBytecode.hwIterator import HwIterator
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.exprBuilder import SsaExprBuilder
+from hwtHls.ssa.phi import SsaPhi
 from hwtHls.ssa.value import SsaValue
 
 
 class hwrange_iterator(HwIterator):
+    """
+    :class:`HwIterator` object returned by :class:`hwrange`
+    """
 
     def __init__(self, name: Optional[str],
                  start:Union[HBitsConst, SsaValue],
@@ -68,8 +72,10 @@ class hwrange_iterator(HwIterator):
 
     @override
     def hwCondition(self, toSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: SsaBasicBlock) -> Tuple[SsaBasicBlock, SsaValue]:
+        assert self.inductionVar is not None, ("This HwIterator should have been initialized during GET_ITER")
         m_ssa_u = toSsa.toSsa.m_ssa_u
         v = m_ssa_u.readVariable(self.inductionVar, curBlock)
+        assert isinstance(v, SsaPhi), v
         b = SsaExprBuilder(curBlock)
         c = b._binaryOp(v, HwtOps.NE, self._getValueOf(curBlock, m_ssa_u, self.stop))
         return c, curBlock
@@ -86,6 +92,9 @@ class hwrange_iterator(HwIterator):
 
 
 class hwrange():
+    """
+    Python range() equivalent which is conversible to llvm (is not expanded during preprocessing)
+    """
 
     def __init__(self, start, stop=None, step=1, name=None):
         if stop is None:

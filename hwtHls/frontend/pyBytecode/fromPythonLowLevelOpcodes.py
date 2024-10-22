@@ -18,22 +18,22 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.frontend.ast.statementsWrite import HlsWrite
 from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
-from hwtHls.frontend.pyBytecode.hwIterator import HwIterator
 from hwtHls.frontend.pyBytecode.indexExpansion import expandBeforeUse, \
     PyObjectHwSubscriptRef, expandBeforeUseSequence
 from hwtHls.frontend.pyBytecode.instructions import CMP_OPS, BINARY_OPS, UN_OPS, BUILD_OPS, BINARY_OP, NOP, \
     POP_TOP, COPY, SWAP, LOAD_DEREF, LOAD_ATTR, LOAD_FAST, LOAD_CONST, LOAD_GLOBAL, \
-    LOAD_METHOD, LOAD_CLOSURE, STORE_ATTR, STORE_FAST, STORE_DEREF, CALL, CALL_FUNCTION_EX, \
+    LOAD_METHOD, LOAD_CLOSURE, STORE_ATTR, STORE_FAST, STORE_DEREF, CALL, CALL_FUNCTION_EX, CALL_INTRINSIC_1, \
     COMPARE_OP, GET_ITER, UNPACK_SEQUENCE, MAKE_FUNCTION, STORE_SUBSCR, EXTENDED_ARG, DELETE_DEREF, DELETE_FAST, \
     FORMAT_VALUE, IS_OP, RAISE_VARARGS, LOAD_ASSERTION_ERROR, \
     RESUME, MAKE_CELL, KW_NAMES, NULL, PUSH_NULL, BINARY_SUBSCR, COPY_FREE_VARS, \
     CONTAINS_OP, INPLACE_UPDATE_OPS, LOAD_BUILD_CLASS, BINARY_SLICE, STORE_SLICE, \
-    LOAD_FAST_CHECK, LOAD_FAST_AND_CLEAR, END_FOR
+    LOAD_FAST_CHECK, LOAD_FAST_AND_CLEAR, END_FOR, CALL_INTRINSIC_1_FUNCTIONS
 from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc, \
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInPreproc, \
     PyBytecodeInline, _PyBytecodePragma, PyBytecodePreprocHwCopy
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
+from hwtHls.frontend.pyBytecode.hwIterator import HwIterator
 
 
 class PyBytecodeToSsaLowLevelOpcodes():
@@ -72,6 +72,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
             RESUME: self.opcode_RESUME,
             CALL: self.opcode_CALL,
             CALL_FUNCTION_EX: self.opcode_CALL_FUNCTION_EX,
+            CALL_INTRINSIC_1: self.opcode_CALL_INTRINSIC_1,
             COMPARE_OP: self.opcode_COMPARE_OP,
             GET_ITER: self.opcode_GET_ITER,
             EXTENDED_ARG: self.opcode_EXTENDED_ARG,
@@ -200,7 +201,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
         container, curBlock = expandBeforeUse(self, instr.offset, frame, container, curBlock)
         key, curBlock = expandBeforeUse(self, instr.offset, frame, key, curBlock)
         if (isinstance(key, (RtlSignal, HwIO, SsaValue)) and
-            not isinstance(container, (RtlSignal, SsaValue))):
+            not isinstance(container, (RtlSignal, SsaValue, HConst))):
             # if this is indexing using hw value on non hw object we need to expand it to a switch-case on individual cases
             # must generate blocks for switch cases,
             # for this we need container to keep track of start/end for each block because we do not have this newly generated blocks in original CFG
@@ -712,6 +713,18 @@ class PyBytecodeToSsaLowLevelOpcodes():
         stack.append(res)
         return curBlock
 
+    def opcode_CALL_INTRINSIC_1(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
+        "v3.12"
+        stack = frame.stack
+        try:
+            fn = CALL_INTRINSIC_1_FUNCTIONS[instr.argval]
+        except KeyError:
+            raise NotImplementedError(instr)
+
+        a = stack.pop()
+        stack.append(fn(a))
+        return curBlock
+
     def _shouldExpandArgsOfFn(self, fn):
         return not isinstance(fn, PyBytecodeInline) and fn is not PyBytecodePreprocHwCopy and not getattr(fn, "__hlsIsLowLevelFn", False)
 
@@ -731,10 +744,10 @@ class PyBytecodeToSsaLowLevelOpcodes():
         a = stack.pop()
         a, curBlock = expandBeforeUse(self, instr.offset, frame, a, curBlock)
         it = iter(a)
-        if isinstance(it, HwIterator):
-            curBlock = it.hwInit(self, frame, curBlock)
-
         stack.append(it)
+        if isinstance(it, HwIterator):
+            self.dbgTracer.log(("for loop hw iterator", curBlock.label))
+            curBlock = it.hwInit(self, frame, curBlock)
         return curBlock
 
     def opcode_EXTENDED_ARG(self, frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction) -> SsaBasicBlock:
@@ -813,10 +826,12 @@ class PyBytecodeToSsaLowLevelOpcodes():
         value = stack.pop()
         key, curBlock = expandBeforeUse(self, instr.offset, frame, key, curBlock)
         value, curBlock = expandBeforeUse(self, instr.offset, frame, value, curBlock)
+
         if isinstance(key, (RtlSignal, SsaValue, HwIOSignal)) and not isinstance(container, (RtlSignal, SsaValue, HwIOSignal)):
             if not isinstance(container, PyObjectHwSubscriptRef):
                 container = PyObjectHwSubscriptRef(instr.offset, container, key)
             return container.expandSetitemAsSwitchCase(self, instr.offset, frame, curBlock, lambda i, dst: dst(value))
+
         if isinstance(container, (RtlSignal, HwIOSignal)):
             if isinstance(key, (RtlSignal, SsaValue, HwIOSignal)):
                 raise NotImplementedError()

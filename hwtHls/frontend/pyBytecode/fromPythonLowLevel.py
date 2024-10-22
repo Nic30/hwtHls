@@ -26,6 +26,7 @@ from hwtHls.scope import HlsScope
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
 
+
 JumpCondition = Union[None, HConst, RtlSignal, SsaValue, Literal[False]]
 
 
@@ -103,7 +104,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
         If some block will get all edges know mark it recursively.
         """
         self.dbgTracer.log(("_addNotGeneratedJump", srcBlockLabel, "->", dstBlockLabel))
-        for bl in frame.blockTracker.addNotGenerated(srcBlockLabel, dstBlockLabel):
+        for bl in frame.blockTracker.addNotGenerated(frame.loops, srcBlockLabel, dstBlockLabel):
             # sealing begin should be sufficient because all block behind begin in this
             # group should already have all predecessors known
             # :attention: The header of hardware loop can be sealed only after all body blocks were generated
@@ -274,11 +275,12 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
                     self._onBlockGenerated(frame, headerLabel)
 
             elif loopInfo.mustBeEvaluatedInHw():
-                self._finalizeJumpsFromHwLoopBody(frame, block, blockOffset, loopInfo,
-                                                  latchBlock=loopInfo.additionalLatchBlock,
-                                                  onAdditionalLatchBlockPredecessorsAdded=loopInfo.onAdditionalLatchBlockPredecessorsAdded)
+                self._finalizeJumpsFromHwLoopBody(
+                    frame, block, blockOffset, loopInfo,
+                    latchBlock=loopInfo.additionalLatchBlock,
+                    onAdditionalLatchBlockPredecessorsAdded=loopInfo.onAdditionalLatchBlockPredecessorsAdded)
                 if loopInfo.pragma:
-                    _applyLoopPragma(block, loopInfo)
+                    _applyLoopPragma(block, loopInfo, loopInfo.additionalLatchBlock)
 
             else:
                 assert loopInfo.additionalLatchBlock is None, block
@@ -305,7 +307,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
             curBlock: SsaBasicBlock):
         """
         Evaluate instruction list and translate to SSA all which is using HW types and which can not be evaluated compile time.
-        Follow jumps recursively unless the jump is out of current loop body. If it is the case just stagg it for later.
+        Follow jumps recursively unless the jump is out of current loop body. If it is the case just stag it for later.
         """
         for last, instr in iter_with_last(instructions):
             opcode = instr.opcode
@@ -318,6 +320,8 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
                 if last:
                     # jump to next block, there was no explicit jump because this is regular code flow, but the next instruction
                     # is jump target
-                    self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curBlock, self._getFalltroughOffset(frame, curBlock), None, None)
+                    self._getOrCreateSsaBasicBlockAndJumpRecursively(
+                        frame, curBlock,
+                        self._getFalltroughOffset(frame, curBlock), None, None)
                     if not blockHasBranchPlaceholder(curBlock):
                         self._onBlockGenerated(frame, self.blockToLabel[curBlock])
