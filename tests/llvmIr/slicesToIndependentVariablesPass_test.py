@@ -16,10 +16,10 @@ from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
-from hwtHls.ssa.analysis.consystencyCheck import SsaPassConsystencyCheck
+from hwtHls.ssa.analysis.consistencyCheck import SsaPassConsistencyCheck
 from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm
 from tests.baseSsaTest import TestFinishedSuccessfuly
-from tests.bitOpt.countBits import CountLeadingZeros
+from hwtHls.architecture.transformation._operatorToHwtLowering.operatorHwImplementations.countBits import CountLeadingZeros
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
 
 
@@ -177,7 +177,7 @@ class BaseSliceBreakTestPlatform(VirtualHlsPlatform):
         self.postSliceBreak = StringIO()
 
     def runSsaPasses(self, hls:"HlsScope", toSsa:HlsAstToSsa):
-        SsaPassConsystencyCheck().runOnSsaModule(toSsa)
+        SsaPassConsistencyCheck().runOnSsaModule(toSsa)
         SsaPassToLlvm(hls, self._llvmCliArgs).runOnSsaModule(toSsa)
         f = toSsa.start.llvm._testSlicesToIndependentVariablesPass()
         fStr = repr(f)
