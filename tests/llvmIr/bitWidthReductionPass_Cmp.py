@@ -12,7 +12,7 @@ from hwt.hwModule import HwModule
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeBlockLabel
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeBlockLabel
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
