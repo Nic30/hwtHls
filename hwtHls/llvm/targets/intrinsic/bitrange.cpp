@@ -16,10 +16,9 @@ llvm::Value* CreateBitRangeGetConst(llvm::IRBuilder<> *Builder,
 	if (lowBitNo == 0 && bitWidth == bitVec->getType()->getIntegerBitWidth())
 		return bitVec;
 	size_t indexWidth = log2ceil(bitVec->getType()->getIntegerBitWidth()) + 1;
-	return CreateBitRangeGet(Builder, bitVec,
-			ConstantInt::get(
-					IntegerType::get(Builder->getContext(), indexWidth),
-					lowBitNo), bitWidth);
+	auto _lowBitNo = ConstantInt::get(
+			IntegerType::get(Builder->getContext(), indexWidth), lowBitNo);
+	return CreateBitRangeGet(Builder, bitVec, _lowBitNo, bitWidth);
 }
 
 llvm::Value* SearchBitRangeGet(Instruction *bitVec, Value *lowBitNo,
@@ -30,6 +29,7 @@ llvm::Value* SearchBitRangeGet(Instruction *bitVec, Value *lowBitNo,
 			isTrunc = true;
 		}
 	}
+
 	for (auto suc = BasicBlock::iterator(bitVec);
 			suc != bitVec->getParent()->end(); ++suc) {
 		if (&*suc == bitVec)
@@ -37,14 +37,16 @@ llvm::Value* SearchBitRangeGet(Instruction *bitVec, Value *lowBitNo,
 		if (isa<PHINode>(suc))
 			continue;
 		if (auto *Trunc = dyn_cast<TruncInst>(suc)) {
-			if (isTrunc && Trunc->getType()->getIntegerBitWidth() == bitWidth)
+			if (isTrunc && Trunc->getType()->getIntegerBitWidth() == bitWidth) {
 				return Trunc;
+			}
 		}
 		if (auto *sucI = dyn_cast<CallInst>(suc)) {
 			if (IsBitRangeGet(sucI) && sucI->getArgOperand(0) == bitVec) {
 				if (sucI->getType()->getIntegerBitWidth() == bitWidth
-						&& sucI->getArgOperand(1) == lowBitNo)
+						&& sucI->getArgOperand(1) == lowBitNo) {
 					return sucI;
+				}
 			} else {
 				break;
 			}
@@ -90,12 +92,18 @@ llvm::Value* CreateBitRangeGet(IRBuilder<> *Builder, Value *bitVec,
 		}
 	}
 	if (auto *bitVecInst = dyn_cast<Instruction>(bitVec)) {
-		auto existing = SearchBitRangeGet(bitVecInst, lowBitNo, bitWidth);
+		auto *existing = SearchBitRangeGet(bitVecInst, lowBitNo, bitWidth);
 		if (existing)
 			return existing;
 	}
 
 	Value *Ops[] = { bitVec, lowBitNo };
+	for (auto O : Ops) {
+		if (auto OAsI = dyn_cast<Instruction>(O)) {
+			assert(OAsI->getParent() && "Check that the value is not erased");
+			assert(OAsI->getParent()->getParent() && "Check that the value is not erased");
+		}
+	}
 	Type *ResT = Builder->getIntNTy(bitWidth);
 	Type *Tys[] = { bitVec->getType(), lowBitNo->getType() };
 	Type *TysForName[] = { bitVec->getType(), lowBitNo->getType(), ResT };
@@ -116,7 +124,7 @@ llvm::Value* CreateBitRangeGet(IRBuilder<> *Builder, Value *bitVec,
 	if (auto *bitVecInst = dyn_cast<Instruction>(bitVec)) {
 		auto origIpPoint = origIP.getPoint();
 		if (origIpPoint != origIP.getBlock()->begin()) {
-			Instruction* pred;
+			Instruction *pred;
 			if (origIpPoint == origIP.getBlock()->end()) {
 				pred = &origIP.getBlock()->back();
 			} else {
@@ -141,12 +149,15 @@ llvm::Value* CreateBitRangeGet(IRBuilder<> *Builder, Value *bitVec,
 	} else {
 		updateIP = true;
 	}
+
 	CI = Builder->CreateCall(TheFn, Ops);
+	CI->setDoesNotAccessMemory();
+
 	if (!updateIP) {
 		// restore IP because we changed it to be close to def of bitVec
 		Builder->restoreIP(origIP);
 	}
-	CI->setDoesNotAccessMemory();
+
 	return CI;
 }
 
@@ -190,7 +201,9 @@ llvm::Value* CreateBitConcat(llvm::IRBuilder<> *Builder,
 			throw std::runtime_error(
 					"CreateBitConcat called with non-integer type");
 		}
-		assert((!lastWasConst || !lastWasUndef) && "Only one of flags may be set at once");
+		assert(
+				(!lastWasConst || !lastWasUndef)
+						&& "Only one of flags may be set at once");
 		if (auto *C = dyn_cast<ConstantInt>(o)) {
 			if (lastWasConst) {
 				// merge constants in operand vector
@@ -225,6 +238,9 @@ llvm::Value* CreateBitConcat(llvm::IRBuilder<> *Builder,
 					OpsLowFirst.push_back(UndefValue::get(Ty));
 					ArgTys.push_back(Ty);
 					continue;
+				} else if (auto OAsI = dyn_cast<Instruction>(o)) {
+					assert(OAsI->getParent() && "Check that the value is not erased");
+					assert(OAsI->getParent()->getParent() && "Check that the value is not erased");
 				}
 				lastWasUndef = true;
 			} else {
@@ -269,6 +285,7 @@ llvm::Value* CreateBitConcat(llvm::IRBuilder<> *Builder,
 
 	CallInst *CI = Builder->CreateCall(TheFn, OpsLowFirst);
 	CI->setDoesNotAccessMemory();
+
 	return CI;
 }
 
