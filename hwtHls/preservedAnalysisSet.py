@@ -25,6 +25,7 @@ class PreservedAnalysisSet(Set[AnalysisKey]):
     @classmethod
     def preserveScheduling(cls):
         return cls(((HlsNetlistAnalysisPassReachability, HlsNetlistAnalysisPassRunScheduler)))
+
     @classmethod
     def preserveSchedulingOnly(cls):
         return cls(((HlsNetlistAnalysisPassRunScheduler, )))
