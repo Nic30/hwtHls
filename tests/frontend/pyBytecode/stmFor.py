@@ -30,6 +30,64 @@ class HlsPythonPreprocFor(HwModule):
         hls.compile()
 
 
+class HlsPythonPreprocForInIf0(HlsPythonPreprocFor):
+
+    def hwConfig(self) -> None:
+        HlsPythonPreprocFor.hwConfig(self)
+        self.IF_COND = HwParam(True)
+
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        if self.IF_COND:
+            for i in range(5):
+                hls.write(i, self.o)
+        else:
+            for i in range(3):
+                hls.write(i, self.o)
+
+
+class HlsPythonPreprocForInIf1(HlsPythonPreprocForInIf0):
+
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        PyBytecodeBlockLabel("begin")
+        cntr = self.o._dtype.from_py(0)
+        # while TRUE:
+        if self.IF_COND:
+            PyBytecodeBlockLabel("if.true")
+            for _ in range(1, 3):
+                PyBytecodeBlockLabel("for.head")
+                hls.write(cntr, self.o)
+                if cntr._eq(2):
+                    PyBytecodeBlockLabel("for.break")
+                    break
+
+        PyBytecodeBlockLabel("exit")
+        hls.write(cntr, self.o)
+        # cntr += 1
+
+
+class HlsPythonPreprocForInIf2(HlsPythonPreprocForInIf0):
+
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        PyBytecodeBlockLabel("begin")
+        cntr = self.o._dtype.from_py(0)
+        while b1:
+            if self.IF_COND:
+                PyBytecodeBlockLabel("if.true")
+                for _ in range(1, 3):
+                    PyBytecodeBlockLabel("for.head")
+                    hls.write(cntr, self.o)
+                    if cntr._eq(2):
+                        PyBytecodeBlockLabel("for.break")
+                        break
+
+            PyBytecodeBlockLabel("exit")
+            hls.write(cntr, self.o)
+            cntr += 1
+
+
 class HlsPythonPreprocForPreprocWhile(HlsPythonPreprocFor):
 
     @hlsBytecode
