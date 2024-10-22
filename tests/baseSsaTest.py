@@ -33,16 +33,15 @@ class BaseTestPlatform(VirtualHlsPlatform):
         VirtualHlsPlatform.__init__(self, debugDir=None, debugFilter=HlsDebugBundle.NONE)
         self.postPyOpt = StringIO()
         self.mir = StringIO()
-        self.dataThreads = StringIO()
         self.blockSync = StringIO()
 
     def runSsaPasses(self, hls:"HlsScope", toSsa:HlsAstToSsa):
-        SsaPassConsystencyCheck().runOnSsaModule(toSsa)
+        SsaPassConsistencyCheck().runOnSsaModule(toSsa)
         SsaPassDumpToLl(lambda name: (self.postPyOpt, False)).runOnSsaModule(toSsa)
         SsaPassToLlvm(hls, self._llvmCliArgs).runOnSsaModule(toSsa)
 
     def runMirToHlsNetlist(self,
-                              hls: "HlsScope", toSsa: HlsAstToSsa,
+                              hls: "HlsScope", toSsa: HlsAstToSsa, netlist: HlsNetlistCtx,
                               mf: MachineFunction,
                               backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]],
                               liveness: Dict[MachineBasicBlock, Dict[MachineBasicBlock, Set[Register]]],
@@ -52,27 +51,25 @@ class BaseTestPlatform(VirtualHlsPlatform):
         tr: ToLlvmIrTranslator = toSsa.start
         assert isinstance(tr, ToLlvmIrTranslator), tr
         toNetlist = HlsNetlistAnalysisPassMirToNetlist(
-            hls, tr, mf, backedges, liveness, ioRegs, registerTypes, loops)
-        netlist = toNetlist.netlist
-        dbgTracer, doCloseTrace = self._getDebugTracer(netlist.label, HlsDebugBundle.DBG_5_netlistConsttructionTrace)
+            hls, tr, mf, backedges, liveness, ioRegs, registerTypes, loops, netlist, toSsa.ioNodeConstructors)
+
+        initSchedulingResourceConstraintsFromIO(netlist.scheduler.resourceUsage.resourceConstraints, tr.topIo.keys())
+
+        dbgTracer, doCloseTrace = self._getDebugTracer(netlist.label, HlsDebugBundle.DBG_2_1_netlistConstructionTrace)
         toNetlist.setDebugTracer(dbgTracer)
 
         SsaPassDumpMIR(lambda name: (self.mir, False)).runOnSsaModule(toSsa)
 
         try:
-            toNetlist.translateDatapathInBlocks(mf, toSsa.ioNodeConstructors)
-            threads = netlist.getAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)
-            toNetlist.updateThreadsOnLiveInMuxes(threads)
-            HlsNetlistAnalysisPassDumpDataThreads(lambda name: (self.dataThreads, False)).runOnHlsNetlist(netlist)
+            toNetlist.translateDatapathInBlocks(mf)
 
             netlist.getAnalysis(HlsNetlistAnalysisPassBlockSyncType)
             HlsNetlistAnalysisPassDumpBlockSync(lambda name: (self.blockSync, False), addLegend=False).runOnHlsNetlist(netlist)
 
             blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist.constructLiveInMuxes(mf)
-            toNetlist.extractRstValues(mf, threads)
-            toNetlist.resolveLoopControl(mf, blockLiveInMuxInputSync)
-            toNetlist.resolveBlockEn(mf, threads)
-            toNetlist.netlist.invalidateAnalysis(HlsNetlistAnalysisPassDataThreadsForBlocks)  # because we modified the netlist
+            toNetlist.extractRstValues(mf)
+            toNetlist.resolveControlForBlockWithChannelLivein(mf, blockLiveInMuxInputSync)
+            toNetlist.resolveBlockEn(mf)
             toNetlist.connectOrderingPorts(mf)
         finally:
             if doCloseTrace:
