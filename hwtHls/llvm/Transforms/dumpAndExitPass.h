@@ -22,15 +22,20 @@ class DumpAndExitPass: public llvm::PassInfoMixin<DumpAndExitPass> {
 	bool throwErrAndExit;
 	bool verify;
 	std::optional<std::string> cfgDumpFileName;
+	bool dumpModule;
 public:
-	explicit DumpAndExitPass(bool dumpFn, bool throwErrAndExit, std::optional<std::string> cfgDumpFileName={}, bool verify=false) :
-			dumpFn(dumpFn), throwErrAndExit(throwErrAndExit), verify(verify), cfgDumpFileName(cfgDumpFileName) {
+	explicit DumpAndExitPass(bool dumpFn, bool throwErrAndExit, std::optional<std::string> cfgDumpFileName={}, bool verify=false, bool dumpModule=false) :
+			dumpFn(dumpFn), throwErrAndExit(throwErrAndExit), verify(verify), cfgDumpFileName(cfgDumpFileName), dumpModule(dumpModule) {
 	}
 
 	llvm::PreservedAnalyses run(llvm::Function &F,
 			llvm::FunctionAnalysisManager &AM) {
-		if (dumpFn)
+		if (dumpFn) {
 			F.dump();
+		}
+		if (dumpModule)
+			F.getParent()->dump();
+
 		if (cfgDumpFileName.has_value()) {
 			writeCFGToDotFile(F, cfgDumpFileName.value(), AM);
 		}
