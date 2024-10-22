@@ -7,6 +7,7 @@
 #define DEBUG_TYPE "simplifycfg2"
 
 using namespace llvm;
+
 namespace hwtHls {
 
 bool SimplifyCFG2Pass_normalizeLookupTableIndex(llvm::BasicBlock &BB) {

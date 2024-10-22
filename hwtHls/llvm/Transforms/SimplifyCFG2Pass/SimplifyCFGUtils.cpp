@@ -59,7 +59,7 @@ bool isSafeToHoistInstr(Instruction *I, unsigned Flags) {
 }
 
 Value* CreateGlobalDataWithGEP(IRBuilder<> &builder, Module &M,
-		Value *switch_tableidx, const SmallVector<Constant*> &romData,
+		Value *switch_tableidx, ArrayRef<Constant *> romData,
 		const Twine &ROMName, const Twine &IndexName, const Twine &GepName) {
 	auto *ArrayTy = ArrayType::get(romData[0]->getType(), romData.size());
 	auto *newCRom = ConstantArray::get(ArrayTy, romData);
