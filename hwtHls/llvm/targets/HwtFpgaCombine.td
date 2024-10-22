@@ -407,12 +407,12 @@ def constCmpConstAdd_to_constCmp: GICombineRule<
 def HwtFpgaPreRegAllocGICombiner: GICombiner<
   "HwtFpgaPreRegAllocGICombinerImpl", [
   	copy_to_HWTFPGA_mux,
-  	G_CONSTANT_to_HWTFPGA_MUX,
     extract_on_merge_values,
     extract_on_const_shift,
     const_eval_combines,
     trivial_copy_propagate,
     mux_trivial_const_propagation,
+    xor_right_allOnes,
     ]> {
 }
 // rewrite all remaining generic opcodes to HWTFPGA_*
