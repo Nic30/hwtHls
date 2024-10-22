@@ -40,6 +40,7 @@ py3.extension_module(
      'llvmIrAny.cpp',
      'llvmIrBuilder.cpp',
      'llvmIrFunction.cpp',
+     'llvmIrGlobalVariable.cpp',
      'llvmIrInstruction.cpp',
      'llvmIrLoop.cpp',
      'llvmIrMachineFunction.cpp',
@@ -104,7 +105,6 @@ py3.extension_module(
      'targets/Transforms/vregIfConversionNormalizeBranchCondition.cpp',
      'targets/Transforms/vregIfConversionReturnBlockMerge.cpp',
      'targets/Transforms/writeCFGToDotFile.cpp',
-     'targets/Transforms/utils/machineDceWorklist.cpp',
 
      'Transforms/bitwidthReducePass/bitPartsUseAnalysis.cpp',
      'Transforms/bitwidthReducePass/bitRewriter.cpp',

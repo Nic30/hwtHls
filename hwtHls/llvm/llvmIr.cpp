@@ -4,6 +4,7 @@
 #include <hwtHls/llvm/llvmIrLoop.h>
 #include <hwtHls/llvm/llvmIrBuilder.h>
 #include <hwtHls/llvm/llvmIrFunction.h>
+#include <hwtHls/llvm/llvmIrGlobalVariable.h>
 #include <hwtHls/llvm/llvmIrInstruction.h>
 #include <hwtHls/llvm/llvmIrStrings.h>
 #include <hwtHls/llvm/llvmIrValues.h>
@@ -177,6 +178,7 @@ PYBIND11_MODULE(llvmIr, m) {
 	register_Attribute(m);
 	register_MDNode(m);
 	register_Instruction(m);
+	register_GlobalVariable(m);
 	register_llvmAny(m);
 	register_IRBuilder(m);
 	register_Loop(m);
