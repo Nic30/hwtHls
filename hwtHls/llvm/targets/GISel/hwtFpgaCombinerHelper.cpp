@@ -19,6 +19,9 @@ bool HwtFpgaCombinerHelper::isUndefOperand(const MachineOperand &MO) {
 
 MachineInstr* HwtFpgaCombinerHelper::getOpcodeDef(unsigned Opcode, Register Reg,
 		const MachineRegisterInfo &MRI) {
+	if (!MRI.hasOneDef(Reg))
+		return nullptr;
+
 	MachineInstr *DefMI = getDefIgnoringCopies(Reg, MRI);
 	if (DefMI == nullptr) {
 		auto DefMO = MRI.getOneDef(Reg);
@@ -104,9 +107,19 @@ bool HwtFpgaCombinerHelper::matchAllOnesConstantOp(
 	if (!MOP.isReg()) {
 		return false;
 	}
-	auto *MI = MRI.getVRegDef(MOP.getReg());
-	auto MaybeCst = isConstantOrConstantSplatVector(*MI, MRI);
-	return MaybeCst.has_value() && MaybeCst->isAllOnes();
+	if (auto *MI = MRI.getVRegDef(MOP.getReg())) {
+		auto MaybeCst = isConstantOrConstantSplatVector(*MI, MRI);
+		if (MaybeCst.has_value() && MaybeCst->isAllOnes())
+			return true;
+		if (MI->getOpcode() == HwtFpga::HWTFPGA_MUX && MI->getNumExplicitOperands() == 2) {
+			auto &_MOP = MI->getOperand(1);
+			if (_MOP.isCImm()) {
+				return _MOP.getCImm()->isAllOnesValue();
+			}
+			return false;
+		}
+	}
+	return false;
 }
 
 bool HwtFpgaCombinerHelper::matchOperandIsAllOnes(llvm::MachineInstr &MI,
