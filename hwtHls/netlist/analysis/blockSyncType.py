@@ -67,7 +67,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
         TargetOpcode.HWTFPGA_BR,
         TargetOpcode.HWTFPGA_ARG_GET,
         TargetOpcode.HWTFPGA_GLOBAL_VALUE,
-        TargetOpcode.IMPLICIT_DEF
+        TargetOpcode.HWTFPGA_IMPLICIT_DEF
     }
 
     @classmethod

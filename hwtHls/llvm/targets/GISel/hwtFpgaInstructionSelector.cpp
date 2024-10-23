@@ -280,7 +280,7 @@ bool HwtFpgaTargetInstructionSelector::select(MachineInstr &I) {
 			_Opc = HwtFpga::HWTFPGA_MERGE_VALUES;
 			break;
 		case G_IMPLICIT_DEF:
-			_Opc = HwtFpga::IMPLICIT_DEF;
+			_Opc = HwtFpga::HWTFPGA_IMPLICIT_DEF;
 			break;
 		case G_CTLZ_ZERO_UNDEF:
 			_Opc = HwtFpga::HWTFPGA_CTLZ_ZERO_UNDEF;
@@ -325,6 +325,9 @@ bool HwtFpgaTargetInstructionSelector::select(MachineInstr &I) {
 				MIB.addImm(
 						MRI.getType(I.getOperand(i).getReg()).getSizeInBits()); // add dstWidth
 			}
+		} else if (Opc == G_IMPLICIT_DEF) {
+			auto dst = I.getOperand(0).getReg();
+			MIB.addImm(MRI.getType(dst).getSizeInBits()); // add dstWidth
 		}
 
 		return finalizeReplacementOfInstruction(MIB, I);
@@ -418,10 +421,14 @@ bool HwtFpgaTargetInstructionSelector::select_G_LOAD_or_G_STORE(
 	default:
 		errs() << MI << " address operand defined by:\n" << *addrDef;
 		llvm_unreachable(
-				"Unknonwn instruction specifing address for load or store");
+				"Unknown instruction specifying address for load or store");
 	}
 
 	MIB.addImm(1); // cond
+	if (NewOpc == HwtFpga::HWTFPGA_CLOAD) {
+		auto dst = MI.getOperand(0).getReg();
+		MIB.addImm(MRI.getType(dst).getSizeInBits()); // add dstWidth
+	}
 	MIB.cloneMemRefs(MI); // copy part behind :: in "G_LOAD %0:anyregcls :: (volatile load (s4) from %ir.dataIn)"
 
 	return finalizeReplacementOfInstruction(MIB, MI);

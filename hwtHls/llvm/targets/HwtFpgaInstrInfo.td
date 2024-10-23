@@ -37,6 +37,11 @@ def HWTFPGA_ARG_GET : HwtFpgaInst<
 
 let hasSideEffects = 0, isAsCheapAsAMove = 1 in {
 
+def HWTFPGA_IMPLICIT_DEF : HwtFpgaInst<
+    (outs anyregcls:$dst),
+    (ins i64imm:$dstWidth),
+    []>;
+
 // G_EXTRACT variant which have a number of extracted bits explicitely specified in last operand
 def HWTFPGA_EXTRACT : HwtFpgaInst<
     (outs anyregcls:$dst),
@@ -99,7 +104,7 @@ let mayLoad = 1, canFoldAsLoad=1, hasSideEffects = 0, isPredicable = 0, isNotDup
 	// :attention: this is not predicated instruction because dst is always modified
 	def HWTFPGA_CLOAD : HwtFpgaInst<
 	    (outs anyregcls:$dst),
-	    (ins anyregcls:$baseaddr, unknown: $index, unknown:$cond),
+	    (ins anyregcls:$baseaddr, unknown: $index, unknown:$cond, i64imm:$dstWidth),
 	    []>; // no pattern because we match in C++
 }
 

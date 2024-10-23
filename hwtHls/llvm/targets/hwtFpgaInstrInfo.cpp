@@ -176,7 +176,7 @@ bool HwtFpgaInstrInfo::ClobbersPredicate(MachineInstr &MI,
 	bool Found = false;
 	auto opc = MI.getOpcode();
 	switch (opc) {
-	case HwtFpga::HWTFPGA_CLOAD: // dst, baseaddr, index, cond
+	case HwtFpga::HWTFPGA_CLOAD: // dst, baseaddr, index, cond, dstWidth
 	case HwtFpga::HWTFPGA_CSTORE: { // val, baseaddr, index, cond
 		const auto &MO = MI.getOperand(3);
 		if (!MO.isReg() || (MO.isDead() && SkipDead))
@@ -433,7 +433,7 @@ bool HwtFpgaInstrInfo::PredicateInstruction(MachineInstr &MI,
 	switch (opc) {
 	case HwtFpga::HWTFPGA_CLOAD:
 	case HwtFpga::HWTFPGA_CSTORE: {
-		// dst/val, addr, index, cond
+		// dst/val, addr, index, cond, [dstWidth]
 		//assert(MI.getNumOperands() == 4);
 		bool hasSomePred = false;
 		Register curPred;

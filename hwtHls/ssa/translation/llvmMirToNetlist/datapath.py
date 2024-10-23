@@ -110,7 +110,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                         isUndef = r not in self.regToIo and MRI.def_empty(r)
                         if not isUndef:
                             rDef = MRI.getOneDef(r)
-                            isUndef = rDef is not None and rDef.getParent().getOpcode() == TargetOpcode.IMPLICIT_DEF
+                            isUndef = rDef is not None and rDef.getParent().getOpcode() == TargetOpcode.HWTFPGA_IMPLICIT_DEF
 
                         if isUndef:
                             bw = self.registerTypes[r]
@@ -168,7 +168,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
 
             elif opc == TargetOpcode.HWTFPGA_CLOAD:
                 # load from data channel
-                srcIo, index, cond = ops  # [todo] implicit operands
+                srcIo, index, cond, width = ops  # [todo] implicit operands
                 if isinstance(srcIo, HlsNetNodeOut):
                     # this would be rom load implemented as INDEX operator
                     res = builder.buildOp(HwtOps.INDEX, None, srcIo._dtype.element_t, srcIo, index, name=name)
@@ -263,7 +263,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
             elif opc == TargetOpcode.HWTFPGA_RET:
                 pass
 
-            elif opc == TargetOpcode.IMPLICIT_DEF:
+            elif opc == TargetOpcode.HWTFPGA_IMPLICIT_DEF:
                 assert not ops, ops
                 BW = self.registerTypes[dst]
                 v = HBits(BW).from_py(None)
@@ -651,7 +651,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
             defInstr = oneDef.getParent()
             if defInstr.getOpcode() in (TargetOpcode.HWTFPGA_GLOBAL_VALUE,
                                         TargetOpcode.HWTFPGA_ARG_GET,
-                                        TargetOpcode.IMPLICIT_DEF):
+                                        TargetOpcode.HWTFPGA_IMPLICIT_DEF):
                 return False  # this is a pointer to a local memory which exists globally
         return True
 

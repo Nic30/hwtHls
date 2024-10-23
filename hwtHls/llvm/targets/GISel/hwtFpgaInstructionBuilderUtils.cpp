@@ -189,7 +189,7 @@ void MuxReducibleValuesInfo::loadKnonwBitsFromValueOperand(
 		}
 	} else if (MO.isReg()) {
 		auto *V1Def = MRI.getOneDef(MO.getReg());
-		if (V1Def && V1Def->getParent()->getOpcode() == HwtFpga::IMPLICIT_DEF) {
+		if (V1Def && V1Def->getParent()->getOpcode() == HwtFpga::HWTFPGA_IMPLICIT_DEF) {
 			return; // skip this because undef is a default state and it does not override other definitions
 		} else if (V1Def && recursionLimit
 				&& V1Def->getParent()->getOpcode()

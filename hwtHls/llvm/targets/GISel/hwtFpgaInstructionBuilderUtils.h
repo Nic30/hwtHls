@@ -29,7 +29,7 @@ struct CImmOrRegOrUndefWithWidth {
 	CImmOrRegOrUndefWithWidth(const llvm::ConstantInt *c);
 	CImmOrRegOrUndefWithWidth(size_t width);
 	CImmOrRegOrUndefWithWidth(size_t width, llvm::Register reg);
-	// :param Builder: builder used to build IMPLICIT_DEF for undefs at the beginning of the entry block
+	// :param Builder: builder used to build HWTFPGA_IMPLICIT_DEF for undefs at the beginning of the entry block
 	void addAsUse(llvm::MachineIRBuilder &Builder,
 			llvm::MachineInstrBuilder &MIB) const;
 };

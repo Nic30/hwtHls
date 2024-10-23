@@ -290,12 +290,15 @@ bool resolveTypes(MachineInstr &MI) {
 
 	case HwtFpga::HWTFPGA_CSTORE:
 	case HwtFpga::HWTFPGA_CLOAD: {
-		// val/dst, addr, index, cond
+		// val/dst, addr, index, cond, [dstWidth]
 		Type *elemT;
 		size_t indexWidth;
 		std::tie(elemT, indexWidth) = getLoadOrStoreElementType(MRI, MI);
 
 		unsigned bitWidth = elemT->getIntegerBitWidth();
+		if (Opc == HwtFpga::HWTFPGA_CLOAD) {
+			assert(bitWidth == MI.getOperand(4).getImm());
+		}
 
 		if (MI.getOperand(0).isReg())
 			MRI.setType(MI.getOperand(0).getReg(), LLT::scalar(bitWidth));

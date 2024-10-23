@@ -8,6 +8,7 @@ namespace llvm {
 
 /// HwtFpga Code Generator Pass Configuration Options.
 class HwtFpgaTargetPassConfig: public llvm::TargetPassConfig {
+	PassInstrumentation PI;
 public:
 	// callback function which is used to translate final MIR to Python objects
 	// the callback is used because the translation must be performed until exit
@@ -47,6 +48,10 @@ public:
 	//bool addRegAssignAndRewriteOptimized() override {
 	//	return false;
 	//}
+	void setPassInstrumentationCallbacks(llvm::PassInstrumentationCallbacks * PIC);
+	void addPassCallbackFromPI(Pass * P);
+	AnalysisID addPass(AnalysisID PassID);
+	void addPass(Pass *P);
 	// exposed addPass method for testing purposes
 	AnalysisID _testAddPass(AnalysisID PassID);
 	void _testAddPass(Pass *P);

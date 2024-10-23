@@ -62,6 +62,15 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         TargetOpcode.HWTFPGA_XOR: HwtOps.XOR,
         TargetOpcode.HWTFPGA_NOT: HwtOps.NOT,
 
+        TargetOpcode.G_ADD: HwtOps.ADD,
+        TargetOpcode.G_SUB: HwtOps.SUB,
+        TargetOpcode.G_MUL: HwtOps.MUL,
+        TargetOpcode.G_UDIV: HwtOps.UDIV,
+        TargetOpcode.G_SDIV: HwtOps.SDIV,
+        TargetOpcode.G_AND: HwtOps.AND,
+        TargetOpcode.G_OR: HwtOps.OR,
+        TargetOpcode.G_XOR: HwtOps.XOR,
+
         TargetOpcode.HWTFPGA_ASHR: OP_ASHR,
         TargetOpcode.HWTFPGA_LSHR: OP_LSHR,
         TargetOpcode.HWTFPGA_SHL: OP_SHL,
@@ -70,6 +79,15 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         TargetOpcode.HWTFPGA_CTTZ: OP_CTTZ,
         TargetOpcode.HWTFPGA_CTTZ_ZERO_UNDEF: OP_CTTZ,
         TargetOpcode.HWTFPGA_CTPOP: OP_CTPOP,
+ 
+        TargetOpcode.G_ASHR: OP_ASHR,
+        TargetOpcode.G_LSHR: OP_LSHR,
+        TargetOpcode.G_SHL: OP_SHL,
+        TargetOpcode.G_CTLZ: OP_CTLZ,
+        TargetOpcode.G_CTLZ_ZERO_UNDEF: OP_CTLZ,
+        TargetOpcode.G_CTTZ: OP_CTTZ,
+        TargetOpcode.G_CTTZ_ZERO_UNDEF: OP_CTTZ,
+        TargetOpcode.G_CTPOP: OP_CTPOP,
         
         TargetOpcode.HWTFPGA_FP_FADD: OP_FADD,
         TargetOpcode.HWTFPGA_FP_FSUB: OP_FSUB,

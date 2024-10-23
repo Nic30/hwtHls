@@ -100,6 +100,7 @@ py3.extension_module(
      'targets/Transforms/EarlyMachineCopyPropagation.cpp',
      'targets/Transforms/hwtFpgaToNetlist.cpp',
      'targets/Transforms/hwtHlsCodeGenPrepare.cpp',
+     'targets/Transforms/HwtHlsRunPassInstrumentationCallbacksPass.cpp',
      'targets/Transforms/liveVRegs.cpp',
      'targets/Transforms/machineDumpAndExitPass.cpp',
      'targets/Transforms/vregConditionUtils.cpp',

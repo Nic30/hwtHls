@@ -135,7 +135,6 @@ static llvm::cl::opt<bool> VerifyEach("verify-each",
 		llvm::cl::desc("Verify after each transform"));
 
 
-
 // https://discourse.llvm.org/t/how-to-implement-a-disable-pass-option/71149/12
 LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
 		ctx(), strCtx(), module(new llvm::Module(strCtx.addStringRef(moduleName), ctx)),
@@ -392,6 +391,15 @@ void LlvmCompilationBundle::_addInitialNormalizationPasses(
 			/*UseMemorySSA=*/ false,
 			/*UseBlockFrequencyInfo=*/ true,
 			/*UseBranchProbabilityInfo=*/ true));
+
+	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true)); // simplify trivial cases so IR is more easy to read
+	llvm::LoopPassManager LPM1;
+	LPM1.addPass(hwtHls::LoopFlattenUsingIfPass());
+	FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM1),
+			/*UseMemorySSA=*/ false,
+			/*UseBlockFrequencyInfo=*/ true,
+			/*UseBranchProbabilityInfo=*/ true));
+
 	// [fixme] LoopUnrotatePass probably breaks SE and TrivialSimplifyCFGPass forces to recompute it
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true)); // simplify trivial cases so IR is more easy to read
 	FPM.addPass(llvm::UnifyFunctionExitNodesPass()); // llvm mergereturn

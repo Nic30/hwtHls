@@ -11,8 +11,10 @@ namespace llvm {
 bool HwtFpgaCombinerHelper::isUndefOperand(const MachineOperand &MO) {
 	if (MO.isReg()) {
 		return (MO.isUndef()
+				|| getOpcodeDef(HwtFpga::HWTFPGA_IMPLICIT_DEF, MO.getReg(), MRI)
 				|| getOpcodeDef(TargetOpcode::G_IMPLICIT_DEF, MO.getReg(), MRI)
-				|| getOpcodeDef(TargetOpcode::IMPLICIT_DEF, MO.getReg(), MRI));
+				|| getOpcodeDef(TargetOpcode::IMPLICIT_DEF, MO.getReg(), MRI)
+				);
 	}
 	return false;
 }
@@ -382,7 +384,10 @@ void HwtFpgaCombinerHelper::rewriteGenericOpcodeToHwtFpga(llvm::MachineInstr &MI
 		newOpc = HwtFpga::HWTFPGA_ICMP;
 		break;
 	case TargetOpcode::G_IMPLICIT_DEF:
-		newOpc = HwtFpga::IMPLICIT_DEF;
+		newOpc = HwtFpga::HWTFPGA_IMPLICIT_DEF;
+		break;
+	case TargetOpcode::IMPLICIT_DEF:
+		newOpc = HwtFpga::HWTFPGA_IMPLICIT_DEF;
 		break;
 	case TargetOpcode::G_GLOBAL_VALUE:
 		newOpc = HwtFpga::HWTFPGA_GLOBAL_VALUE;
@@ -419,6 +424,14 @@ void HwtFpgaCombinerHelper::rewriteGenericOpcodeToHwtFpga(llvm::MachineInstr &MI
 				"All cases should be covered in this switch in generic_opcode_to_hwtfpga");
 	}
 	replaceOpcodeWith(MI, newOpc);
+	if (newOpc == HwtFpga::HWTFPGA_IMPLICIT_DEF) {
+		Observer.changingInstr(MI);
+		auto dst = MI.getOperand(0).getReg();
+		auto MIB = MachineInstrBuilder(*MI.getMF(), &MI);
+		MIB.addImm(MRI.getType(dst).getSizeInBits()); // add dstWidth
+		Observer.changedInstr(MI);
+
+	}
 }
 
 bool HwtFpgaCombinerHelper::matchConstMergeValues(llvm::MachineInstr &MI,
