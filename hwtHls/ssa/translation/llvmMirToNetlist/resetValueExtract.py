@@ -12,7 +12,7 @@ from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, HlsNetNodeOutLazy, \
-    HlsNetNodeOut, unlink_hls_node_input_if_exists
+    HlsNetNodeOut, unlink_hls_node_input_if_exists, HlsNetNodeIn
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdge, MachineEdgeMeta
@@ -37,6 +37,60 @@ class ResetValueExtractor():
         self.edgeMeta = edgeMeta
         self.regToIo = regToIo
         self.dbgTracer = dbgTracer
+
+    @staticmethod
+    def _findResetAndOtherValueInLiveinMux(mb: MachineBasicBlock, otherPredEn: HlsNetNodeOutAny, resetPredEn: HlsNetNodeOutAny, mux: HlsNetNodeMux):
+        v0: Optional[HlsNetNodeOutAny] = None  # value for otherPredEn which is supposed to be a buffer and where reset value should be inlined
+        vRst: Optional[HlsNetNodeOutAny] = None  # value for reset
+        vRstI: Optional[HlsNetNodeIn] = None  # input of the mux connected to reset value
+        # the mux may contain otherPredEn or resetPredEn or both
+        otherPredEnI: Optional[HlsNetNodeIn] = None  # input of the mux connected to otherPredEn
+        resetPredEnI: Optional[HlsNetNodeIn] = None  # input of the mux connected to resetPredEn
+        # mux likely in format  (v0I, v0), (condI, cond), (vRstI, vRst)
+        for (vDep, vIn), (cDep, cIn) in mux._iterValueConditionDriverInputPairs():
+            if cDep is otherPredEn:
+                otherPredEnI = cIn
+                v0 = vDep
+            elif cDep is resetPredEn:
+                resetPredEnI = cIn
+                vRstI = vIn
+                vRst = vDep
+        if otherPredEnI is None and resetPredEnI is None:
+            assert otherPredEnI is not None, ("LiveIn mux must have at least one of otherPredEn/resetPredEn as condition",
+                                              mux, otherPredEn, resetPredEn)
+        elif otherPredEnI is None:
+            # v0 coming from otherPred is a mux default
+            v0 = mux.dependsOn[-1]
+        elif resetPredEnI is None:
+            # vRst coming from resetPred is a mux default
+            vRstI = mux._inputs[-1]
+            vRst = mux.dependsOn[-1]
+
+        # assert len(mux.dependsOn) == 3, (mux, "rst", resetPredEn, "nonRst", otherPredEn)
+        # (v0I, v0), (condI, cond), (vRstI, vRst) = zip(mux._inputs, mux.dependsOn)
+        # if cond is resetPredEn:
+        #    # vRst cond v0
+        #    (v0, v0I), (vRst, vRstI) = (vRst, vRstI), (v0, v0I)
+        # elif cond is otherPredEn:
+        #    # v0 cond vRst
+        #    pass
+        # else:
+        #    raise AssertionError("Can not recognize reset value in MUX in loop header")
+        # find backedge buffer on value from loop body
+        while (isinstance(v0, HlsNetNodeOut) and
+               isinstance(v0.obj, HlsNetNodeExplicitSync) and
+               not isinstance(v0.obj, HlsNetNodeReadBackedge)):
+            v0 = v0.obj.dependsOn[0]
+
+        assert isinstance(v0, HlsNetNodeOut) and isinstance(v0.obj, HlsNetNodeReadBackedge), (
+            "Expected channel for livein initialization from reset", mb, v0, mux)
+        backedgeBuffRead: HlsNetNodeReadBackedge = v0.obj
+        assert backedgeBuffRead is not None
+        backedgeBuffRead: HlsNetNodeReadBackedge
+        assert not isinstance(vRst, HlsNetNodeOutLazy), (
+            "This transformation should be performed only after all links were resolved and def must be always before use", vRst)
+
+        return backedgeBuffRead, resetPredEnI, otherPredEnI, vRst, vRstI
 
     def _rewriteControlOfInfLoopWithReset(self, dbgTracer: DebugTracer, mb: MachineBasicBlock, rstPred: MachineBasicBlock):
         """
@@ -110,55 +164,8 @@ class ResetValueExtractor():
                 dbgTracer.log(("Rewriting livein mux", mux))
 
                 # pop reset value to initialization of the channel
-                backedgeBuffRead: Optional[HlsNetNodeReadBackedge] = None
+                backedgeBuffRead, resetPredEnI, otherPredEnI, vRst, vRstI = self._findResetAndOtherValueInLiveinMux(mb, otherPredEn, resetPredEn, mux)
 
-                v0 = None  # value for otherPredEn which is supposed to be a buffer and where reset value should be inlined
-                vRst = None  # value for reset
-                vRstI = None  # input for value of reset
-                # the mux may contain otherPredEn or resetPredEn or both
-                otherPredEnI = None
-                resetPredEnI = None
-                # mux likely in format  (v0I, v0), (condI, cond), (vRstI, vRst)
-                condValuePairs = tuple(mux._iterValueConditionDriverInputPairs())
-                for i, ((vDep, vIn), (cDep, cIn)) in enumerate(condValuePairs):
-                    if cDep is otherPredEn:
-                        otherPredEnI = cIn
-                        v0 = vDep
-                        if vRst is None:  # check for None because resetPredEn may already have been found
-                            vRstI, vRst = condValuePairs[i + 1][0]
-                    elif cDep is resetPredEn:
-                        resetPredEnI = cIn
-                        vRstI = vIn
-                        vRst = vDep
-                        if v0 is None:  # check for None because otherPredEn may already have been found
-                            v0, _ = condValuePairs[i + 1][0]
-
-                assert otherPredEnI is not None or resetPredEnI is not None, (mux, otherPredEn, resetPredEn)
-                # assert len(mux.dependsOn) == 3, (mux, "rst", resetPredEn, "nonRst", otherPredEn)
-                # (v0I, v0), (condI, cond), (vRstI, vRst) = zip(mux._inputs, mux.dependsOn)
-                # if cond is resetPredEn:
-                #    # vRst cond v0
-                #    (v0, v0I), (vRst, vRstI) = (vRst, vRstI), (v0, v0I)
-                # elif cond is otherPredEn:
-                #    # v0 cond vRst
-                #    pass
-                # else:
-                #    raise AssertionError("Can not recognize reset value in MUX in loop header")
-
-                # find backedge buffer on value from loop body
-                while (isinstance(v0, HlsNetNodeOut) and
-                       isinstance(v0.obj, HlsNetNodeExplicitSync) and
-                       not isinstance(v0.obj, HlsNetNodeReadBackedge)):
-                    v0 = v0.obj.dependsOn[0]
-
-                assert isinstance(v0, HlsNetNodeOut) and isinstance(v0.obj, HlsNetNodeReadBackedge), (
-                    "Expected channel for livein initialization from reset", mb, v0, )
-                backedgeBuffRead = v0.obj
-
-                assert backedgeBuffRead is not None
-                backedgeBuffRead: HlsNetNodeReadBackedge
-                assert not isinstance(vRst, HlsNetNodeOutLazy), (
-                    "This transformation should be performed only after all links were resolved and def must be always before use", vRst)
                 rstValObj = vRst.obj
                 while True:
                     if isinstance(rstValObj, HlsNetNodeReadForwardedge):
