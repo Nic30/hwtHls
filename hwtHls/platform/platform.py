@@ -152,12 +152,12 @@ class DefaultHlsPlatform(DummyPlatform):
         DBG(D.DBG_2_0_mir, (toSsa,), applyFnGetter=_runOnSsaMouduleGetter)
         DBG(D.DBG_2_0_mirCfg, (toSsa,), applyFnGetter=_runOnSsaMouduleGetter)
 
+        dbgTracer, doCloseTrace = self._getDebugTracer(netlist.label, D.DBG_2_1_netlistConstructionTrace)
         toNetlist = HlsNetlistAnalysisPassMirToNetlist(
-            hls, tr, mf, backedges, liveness, ioRegs, registerTypes, loops, netlist, toSsa.ioNodeConstructors)
+            hls, tr, mf, backedges, liveness, ioRegs, registerTypes,
+            loops, netlist, toSsa.ioNodeConstructors, dbgTracer)
 
         initSchedulingResourceConstraintsFromIO(netlist.scheduler.resourceUsage.resourceConstraints, tr.topIo.keys())
-        dbgTracer, doCloseTrace = self._getDebugTracer(netlist.label, D.DBG_2_1_netlistConstructionTrace)
-        toNetlist.setDebugTracer(dbgTracer)
         try:
             toNetlist.translateDatapathInBlocks(mf)
             DBG(D.DBG_2_1_blockSync, (netlist,))

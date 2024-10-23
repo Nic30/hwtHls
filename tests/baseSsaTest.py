@@ -50,13 +50,11 @@ class BaseTestPlatform(VirtualHlsPlatform):
                               loops: MachineLoopInfo):
         tr: ToLlvmIrTranslator = toSsa.start
         assert isinstance(tr, ToLlvmIrTranslator), tr
+        dbgTracer, doCloseTrace = self._getDebugTracer(netlist.label, HlsDebugBundle.DBG_2_1_netlistConstructionTrace)
         toNetlist = HlsNetlistAnalysisPassMirToNetlist(
-            hls, tr, mf, backedges, liveness, ioRegs, registerTypes, loops, netlist, toSsa.ioNodeConstructors)
+            hls, tr, mf, backedges, liveness, ioRegs, registerTypes, loops, netlist, toSsa.ioNodeConstructors, dbgTracer)
 
         initSchedulingResourceConstraintsFromIO(netlist.scheduler.resourceUsage.resourceConstraints, tr.topIo.keys())
-
-        dbgTracer, doCloseTrace = self._getDebugTracer(netlist.label, HlsDebugBundle.DBG_2_1_netlistConstructionTrace)
-        toNetlist.setDebugTracer(dbgTracer)
 
         SsaPassDumpMIR(lambda name: (self.mir, False)).runOnSsaModule(toSsa)
 

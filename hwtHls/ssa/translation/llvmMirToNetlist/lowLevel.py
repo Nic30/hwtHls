@@ -122,6 +122,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
                  loops: MachineLoopInfo,
                  netlist: HlsNetlistCtx,
                  ioNodeConstructors: NetlistIoConstructorDictT,
+                 dbgTracer: Optional[DebugTracer],
                  ):
         super(HlsNetlistAnalysisPassMirToNetlistLowLevel, self).__init__()
         self.netlist = netlist
@@ -143,13 +144,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         self.loops = loops
         # register self in netlist analysis cache
         netlist._analysis_cache[self.__class__] = self
-        self.dbgTracer: Optional[DebugTracer] = None
-
-    def setDebugTracer(self, dbgTracer: DebugTracer):
-        """
-        :attention: This must be called before this object is used, it can not be done in constructor
-        """
-        self.dbgTracer = dbgTracer
+        self.dbgTracer: Optional[DebugTracer] = dbgTracer
 
     def _getSchedulingResourceForInstruction(self, MRI: MachineRegisterInfo, instr: MachineInstr):
         opc = instr.getOpcode()
