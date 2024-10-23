@@ -6,7 +6,7 @@ from typing import Optional, Union, Callable, Set, List
 from hwt.hdl.const import HConst
 from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, MachineFunction, IntentionalCompilationInterupt, \
-    StringRef, Any, AnyToFunction, AnyToModule, AnyToLoop, Module, Function
+    StringRef, Any, AnyToFunction, AnyToModule, AnyToLoop, AnyToMachineFunction, Module, Function
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.platform.platform import DebugId, HlsDebugBundle, \
     _runOnSsaMouduleGetter
@@ -61,13 +61,25 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
             time1 = datetime.now()
             self._debugLogTime(stage, time1 - time0)
 
-    def runTestAfterIrPass(self, passName: StringRef, ir: Any):
+    def runTestAfterPass(self, passName: StringRef, ir: Any):
         F = AnyToFunction(ir)
         if F is None:
             M = AnyToModule(ir)
             if M is None:
                 L = AnyToLoop(ir)
-                assert L
+                if L is None:
+                    MF = AnyToMachineFunction(ir)
+                    if MF is not None:
+                        try:
+                            self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_MIR, self._optMirTest, self.llvm)
+                        except:
+                            raise AssertionError(f"Broken after {passName.str():s} lastWorking:\n{self._lastWorkingIr}\n broken:\n{str(MF):s}")
+                        self._lastWorkingIr = str(MF)
+                        return
+                    else:
+                        raise TypeError("unknown type of ir", ir)
+                        
+                        
                 F = L.getHeader().getParent()
                 assert F
             else:
@@ -79,8 +91,6 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
                 assert F is not None
         try:
             self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_IR, self._optIrTest, self.llvm)
-        except NotImplementedError:
-            pass
         except:
             raise AssertionError(f"Broken after {passName.str():s} lastWorking:\n{self._lastWorkingIr}\n broken:\n{str(F):s}")
         self._lastWorkingIr = str(F)
@@ -95,7 +105,7 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
                 self._runWithTimeLog(self.TIME_LOG_STAGE.NO_OPT_IR, self._noOptIrTest, toLlvm.llvm)
             if self._runTestAfterEachPass:
                 llvm: LlvmCompilationBundle = toLlvm.llvm
-                llvm.registerAfterPassCallback(self.runTestAfterIrPass)
+                llvm.registerAfterPassCallback(self.runTestAfterPass)
 
         return res
 
@@ -113,7 +123,7 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
 
     def runMirToHlsNetlist(self,
                       hls: "HlsScope", toSsa: HlsAstToSsa,
-                      MF: MachineFunction, *args):
+                      *args):
         tr: ToLlvmIrTranslator = toSsa.start
         isTop = hls.parentHwModule._parent is None
         if isTop:
@@ -128,8 +138,8 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
                 dbg(D.DBG_2_0_mir, (toSsa,), applyFnGetter=_runOnSsaMouduleGetter)
                 dbg(D.DBG_2_0_mirCfg, (toSsa,), applyFnGetter=_runOnSsaMouduleGetter)
                 raise
-    
-        netlist = super(TestLlvmIrAndMirPlatform, self).runMirToHlsNetlist(hls, toSsa, MF, *args)
+
+        netlist = super(TestLlvmIrAndMirPlatform, self).runMirToHlsNetlist(hls, toSsa, *args)
         return netlist
 
     @classmethod
@@ -149,7 +159,7 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
         :param inputCnt: number of inputs of tested function (inputs must be at the beginning of parameters)
         :param outputCnt: number of outputs of tested function (outputs must be at the end of parameters) 
         """
-        
+
         def createDataInDataOut():
             dataIn = prepareDataInFn()
             dataOut = []
@@ -165,7 +175,7 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
                 args.append(dataOut)
             else:
                 args.extend([] for _ in range(outputCnt))
-            
+
             return dataIn, dataOut, args
 
         def testLlvmOptIr(llvm: LlvmCompilationBundle):
