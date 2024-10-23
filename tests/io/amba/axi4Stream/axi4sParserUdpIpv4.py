@@ -9,7 +9,7 @@ from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
 from hwtHls.scope import HlsScope
@@ -41,14 +41,15 @@ class Axi4SParseUdpIpv4(HwModule):
 
     @hlsBytecode
     def parseEth(self, hls: HlsScope):
+        p = PyBytecodeInPreproc
         i = IoProxyAxi4Stream(hls, self.i)
         while BIT.from_py(1):
             i.readStartOfFrame()
-            eth = PyBytecodeInPreproc(i.read(Eth2Header_t))
+            eth = p(i.read(Eth2Header_t))
             if eth.data.type._eq(ETHER_TYPE.IPv4):
-                ipv4 = PyBytecodeInPreproc(i.read(IPv4Header_t))
+                ipv4 = p(i.read(IPv4Header_t))
                 if ipv4.data.protocol._eq(IP_PROTOCOL.UDP):
-                    udp = PyBytecodeInPreproc(i.read(UDP_header_t))
+                    udp = p(i.read(UDP_header_t))
                     hls.write(ipv4.data.src, self.src_ip)
                     hls.write(udp.data.srcp, self.srcp)
             i.readEndOfFrame()

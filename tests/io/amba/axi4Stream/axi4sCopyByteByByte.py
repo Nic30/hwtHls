@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
-from hwt.hwParam import HwParam
 from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc, \
-    PyBytecodeLLVMLoopUnroll, PyBytecodeStreamLoopUnroll
+from hwtHls.frontend.pyBytecode.pragmaLoop import PyBytecodeLLVMLoopUnroll, \
+    PyBytecodeStreamLoopUnroll
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
 from hwtHls.scope import HlsScope
@@ -50,7 +52,7 @@ class Axi4SPacketCopyByteByByteHs(HwModule):
         while BIT.from_py(1):
             rx.readStartOfFrame()
             # pass body to txBody output
-            while BIT.from_py(1):
+            while b1:
                 self.doUnrolling()
                 d = PyBytecodeInPreproc(rx.read(HBits(8), reliable=False))
                 hls.write(d.data, self.txBody)
@@ -92,11 +94,11 @@ class Axi4SPacketCopyByteByByte(HwModule):
 
     @hlsBytecode
     def mainThread(self, rx: IoProxyAxi4Stream, txBody: IoProxyAxi4Stream):
-        while BIT.from_py(1):
+        while b1:
             # pass body to txBody output
             rx.readStartOfFrame()
             txBody.writeStartOfFrame()
-            while BIT.from_py(1):
+            while b1:
                 Axi4SPacketCopyByteByByteHs.doUnrolling(self)
                 d = PyBytecodeInPreproc(rx.read(HBits(8), reliable=False))  # PyBytecodeInPreproc is used because we want to access internal properties of data (_isLast)
                 txBody.write(d.data)

@@ -10,7 +10,7 @@ from hwtHls.frontend.ast.builder import HlsAstBuilder
 from hwtHls.frontend.ast.statementsRead import HlsStmReadStartOfFrame, \
     HlsStmReadEndOfFrame
 from hwtHls.frontend.ast.thread import HlsThreadFromAst
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
 from hwtHls.io.amba.axi4Stream.stmRead import HlsStmReadAxi4Stream
