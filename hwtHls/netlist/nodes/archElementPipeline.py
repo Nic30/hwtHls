@@ -119,7 +119,7 @@ class ArchElementPipeline(ArchElement):
                                                    name=f"{name}_atSrc")
                 wNode.resolveRealization()
                 wNode._setScheduleZeroTimeSingleClock(wTime)  # at the end of previousClkI
-                self._addNodeIntoScheduled(previousClkI, wNode)
+                self._addNodeIntoScheduled(previousClkI, wNode, allowNewClockWindow=True)
                 dummyC._outputs[0].connectHlsIn(wNode._portSrc)
 
                 rNode = HlsNetNodeReadForwardedge(netlist, dtype=HVoidOrdering,
@@ -128,7 +128,7 @@ class ArchElementPipeline(ArchElement):
                 rNode.resolveRealization()
                 rNode._setScheduleZeroTimeSingleClock((clkI * clkPeriod) + epsilon)  # at the beginning of ClkI
                 wNode.associateRead(rNode)
-                self._addNodeIntoScheduled(clkI, rNode)
+                self._addNodeIntoScheduled(clkI, rNode, allowNewClockWindow=True)
                 con: ConnectionsOfStage = connections[clkI]
                 con.pipelineSyncIn = rNode
                 changed = True

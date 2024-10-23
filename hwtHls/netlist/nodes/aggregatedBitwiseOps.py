@@ -1,3 +1,4 @@
+from copy import copy
 from math import inf
 from typing import List, Dict, Optional, Generator, Callable, Union, Tuple
 
@@ -50,7 +51,15 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregateTmpForScheduling):
             representativeOperator, None, bit_length,
             input_cnt, netlist.realTimeClkPeriod)
 
+        rWithThisNode = copy(rWithThisNode)
         if input_cnt <= 2:
+            if isinstance(rWithThisNode.inputWireDelay, tuple):
+                rWithThisNode.inputWireDelay = tuple(
+                    rWithThisNode.inputWireDelay[0] for _ in node._inputs)
+            if isinstance(rWithThisNode.inputClkTickOffset, tuple):
+                rWithThisNode.inputClkTickOffset = tuple(
+                    rWithThisNode.inputClkTickOffset[0] for _ in node._inputs)
+
             node.assignRealization(rWithThisNode)  # the first operator in cluster does not need any latency modifications
             return
 
@@ -65,10 +74,15 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregateTmpForScheduling):
 
         inputWireDelay_with = self._resolveSubnodeRealization_normalizeTiming(node, rWithThisNode.inputWireDelay)
         inputWireDelay_without = self._resolveSubnodeRealization_normalizeTiming(node, rWithoutThisNode.inputWireDelay)
-        rWithThisNode.inputWireDelay = tuple(
-            max((latWith - latWithout, 0))
-            for latWith, latWithout in zip(inputWireDelay_with, inputWireDelay_without)
-        )
+        inDelay = max((inputWireDelay_with[0] - inputWireDelay_without[0], 0))
+        rWithThisNode.inputWireDelay = tuple(inDelay for _ in node._inputs)
+            # max((latWith - latWithout, 0))
+            # for latWith, latWithout in zip(inputWireDelay_with, inputWireDelay_without)
+        
+        if isinstance(rWithThisNode.inputClkTickOffset, tuple):
+            rWithThisNode.inputClkTickOffset = tuple(
+                rWithThisNode.inputClkTickOffset[0] for _ in node._inputs)
+
         node.assignRealization(rWithThisNode)
 
     def scheduleAsapWithQuantization(self, node: HlsNetNodeOperator,
