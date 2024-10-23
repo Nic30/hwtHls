@@ -6,12 +6,12 @@ from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.math import log2ceil
-from hwtHls.frontend.pyBytecode.markers import PyBytecodeInPreproc
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInPreproc
 from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4s import Axi4Stream
 from hwtLib.types.ctypes import uint16_t
-from tests.io.amba.axi4Stream.axisPacketCntr import Axi4SPacketCntr
+from tests.io.amba.axi4Stream.axi4sPacketCntr import Axi4SPacketCntr
 
 
 class Axi4SPacketByteCntr0(Axi4SPacketCntr):
@@ -71,8 +71,11 @@ class Axi4SPacketByteCntr2(Axi4SPacketByteCntr0):
             wordByteCnt = HBits(log2ceil(strbWidth + 1), signed=False).from_py(strbWidth)
             # this for is just MUX
             for i, strbBit in enumerate(i.read(self.i.data._dtype).strb):
+                # this is required because value of i would not get captured once leaving the loop
+                iHw = wordByteCnt._dtype.from_py(i)
                 if ~strbBit:
-                    wordByteCnt = i
+                    # :attention: this code block is outside of the loop 
+                    wordByteCnt = iHw
                     break
 
             # there is just 1 adder
@@ -91,12 +94,18 @@ class Axi4SPacketByteCntr3(Axi4SPacketByteCntr1):
             # the read object is converted to a RtlSignal because word= is a store to a word variable
             word = PyBytecodeInPreproc(i.read(self.i.data._dtype))
             wordByteCnt = HBits(log2ceil(strbWidth + 1), signed=False).from_py(strbWidth)
+            PyBytecodeInPreproc(f"strbCheckBefore")
             # this for is just MUX
-            for i, strbBit in enumerate(word.strb):
+            for i, strbBit in enumerate(word.strb): # unrolled in preproc
+                # this is required because value of i would not get captured once leaving the loop
+                iHw = wordByteCnt._dtype.from_py(i)
                 if ~strbBit:  # [TODO] preproc variable divergence dependent on hw evaluated value
-                    wordByteCnt = i
+                    # :attention: this code block is outside of the loop 
+                    PyBytecodeInPreproc(f"strb{i:d}")
+                    wordByteCnt = iHw
                     break
-
+            
+            PyBytecodeInPreproc(f"strbCheckAfter")
             # there is just 1 adder
             byte_cnt += wordByteCnt._reinterpret_cast(byte_cnt._dtype)
             if word.last:
