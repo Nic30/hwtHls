@@ -381,9 +381,11 @@ void LlvmCompilationBundle::runExprOpt() {
 void LlvmCompilationBundle::_addInitialNormalizationPasses(
 		llvm::FunctionPassManager &FPM) {
 	// FPM.addPass(hwtHls::OverwriteBlockNamesPass());
-	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true));
+	// FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true));
 	llvm::LoopPassManager LPM0;
-	LPM0.addPass(hwtHls::LoopUnrotatePass());
+	LPM0.addPass(llvm::LoopRotatePass()); // normalize to rotated form
+	LPM0.addPass(hwtHls::LoopUnrotatePass()); // unrotate loop with costly header
+
 	LPM0.addPass(hwtHls::LoopFlattenUsingIfPass());
 
 	FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM0),
