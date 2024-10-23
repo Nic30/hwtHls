@@ -385,8 +385,6 @@ void LlvmCompilationBundle::_addInitialNormalizationPasses(
 	LPM0.addPass(llvm::LoopRotatePass()); // normalize to rotated form
 	LPM0.addPass(hwtHls::LoopUnrotatePass()); // unrotate loop with costly header
 
-	LPM0.addPass(hwtHls::LoopFlattenUsingIfPass());
-
 	FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM0),
 			/*UseMemorySSA=*/ false,
 			/*UseBlockFrequencyInfo=*/ true,
@@ -789,6 +787,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 
 void LlvmCompilationBundle::_addMachineCodegenPasses(
 		hwtHls::HwtFpgaToNetlist::ConvesionFnT &toNetlistConversionFn) {
+
 	//llvm::MachineFunctionAnalysisManager MFAM;
 	//llvm::MachineFunctionPassManager MPM;
 	//
@@ -804,6 +803,7 @@ void LlvmCompilationBundle::_addMachineCodegenPasses(
 	// check for incompatible passes
 	TPC = static_cast<llvm::HwtFpgaTargetPassConfig*>(static_cast<llvm::LLVMTargetMachine&>(*TM).createPassConfig(
 			PM));
+	TPC->setPassInstrumentationCallbacks(&PIC);
 	// :note: we can not use pass constructor to pass toNetlistConversionFn because
 	//        because constructor must be callable without arguments because of INITIALIZE_PASS macros
 	// :note: we can not call pass explicitly after PM.run() because addRequired/getAnalysis will not work
