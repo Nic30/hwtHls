@@ -16,7 +16,7 @@ from hwtLib.amba.axi4Lite import Axi4Lite
 
 class Axi4LiteRead(HwModule):
     """
-    Sequentially read data from Axi4Lite port.
+    Sequentially read data from Axi4Lite port and write it to dataOut.
     """
 
     @override
