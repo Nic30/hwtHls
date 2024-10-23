@@ -511,7 +511,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
             # jump into loop body
             self._getOrCreateSsaBasicBlockAndJumpRecursively(frame, curCondBlock, bodyBlockOffset, c, None)
             latchBlock = self._insertLatchForLoop(frame, curBlockLabel)
-            assert curLoopInfo.additionalLatchBlock  is None
+            assert curLoopInfo.additionalLatchBlock is None, curLoopInfo
             curLoopInfo.additionalLatchBlock = latchBlock
             curLoopInfo.onAdditionalLatchBlockPredecessorsAdded = lambda frame, bb: a.hwStep(self, frame, bb)
             curBlock = curCondBlock
