@@ -5,6 +5,7 @@ import sys
 from unittest import TestLoader, TextTestRunner, TestSuite
 
 from tests.adt.collections.hashTable_test import HashTable_TC
+from tests.bitOpt.abc_NtkExpandExternalCombLoops_test import Abc_NtkExpandExternalCombLoops_TC
 from tests.bitOpt.abc_test import AbcTC
 from tests.bitOpt.andShiftInLoop_test import AndShiftInLoop_TC
 from tests.bitOpt.cmpReduction_test import CmpReduction_TC
@@ -46,11 +47,12 @@ from tests.frontend.pyBytecode.tupleAssign import HlsPythonTupleAssign_TC
 from tests.frontend.pyBytecode.variableChain_test import VariableChain_TC
 from tests.hlsNetlist.bitwiseOpsAggregation_test import HlsNetlistBitwiseOpsTC
 from tests.hlsNetlist.breakHandshakeCycles_test import BreakHandshakeCycles_TC
-from tests.hlsNetlist.discoverSyncIsland_test import HlsNetlistDiscoverSyncIslandTC
-from tests.hlsNetlist.netlistReduceCmpInAnd_test import HlsNetlistReduceCmpInAndTC
+from tests.hlsNetlist.netlistReduceMux_test import HlsNetlistReduceMuxTC
 from tests.hlsNetlist.readNonBlocking_test import ReadNonBockingTC
 from tests.hlsNetlist.readSync_test import HlsNetlistReadSyncTC
 from tests.hlsNetlist.simplifyBackedgeWritePropagation_test import HlsCycleDelayHwModule
+from tests.hlsNetlist.syncLowering_exprExtraction_negations_test import RtlArchPassSyncLowering_exprExtraction_negations_TC
+from tests.hlsNetlist.syncLowering_exprExtraction_test import RtlArchPassSyncLowering_exprExtraction_1Pipeline_TC
 from tests.hlsNetlist.wire_test import HlsNetlistWireTC
 from tests.io.amba.axi4Lite.axi4LiteCopy_test import Axi4LiteCopy_TC
 from tests.io.amba.axi4Lite.axi4LiteRead_test import Axi4LiteRead_TC
@@ -66,25 +68,30 @@ from tests.io.bram.bramRead_test import BramRead_TC
 from tests.io.bram.bramWrite_test import BramWrite_TC
 from tests.io.bram.counterArray_test import BramCounterArray_TC
 from tests.io.bram.readSizeFromRamAndSendSequence_test import ReadSizeFromRamAndSendSequence_TC
+from tests.io.flushing_test import Flushing_TC
 from tests.io.ioFsm2_test import IoFsm2_TC
 from tests.io.ioFsm_test import IoFsm_TC
 from tests.io.readAtleastOne_test import ReadAtleastOne_TC
+from tests.llvmIr.PruneLoopPhiDeadIncomingValuesPass_test import PruneLoopPhiDeadIncomingValuesPass_TC
 from tests.llvmIr.SimplifyCFG2Pass_test import SimplifyCFG2Pass_TC
 from tests.llvmIr.bitWidthReductionPass_Cmp_test import BitWidthReductionPass_Cmp_example_TC
 from tests.llvmIr.bitWidthReductionPass_PHI_test import BitwidthReductionPass_PHI_TC
 from tests.llvmIr.bitWidthReduction_test import BitwidthReductionPass_TC
 from tests.llvmIr.llvmLoopUnroll_test import LlvmLoopUnroll_TC
+from tests.llvmIr.loopFlattenUsingIfPass_test import LoopFlattenUsingIfPass_TC
 from tests.llvmIr.loopUnrotatePass_test import LoopUnrotatePass_TC
 from tests.llvmIr.rewriteExtractOnMergeValues_test import RewriteExtractOnMergeValuesPass_TC
+from tests.llvmIr.selectPruningPass_test import SelectPruningPass_TC
 from tests.llvmIr.slicesMergePass_test import SlicesMergePass_TC
 from tests.llvmIr.slicesToIndependentVariablesPass_test import SlicesToIndependentVariablesPass_TC
 from tests.llvmMir.earlyIfConverter_test import EarlyIfConverter_TC
 from tests.llvmMir.vregIfConverter_test import VRegIfConverter_TC
-from tests.syntehesis_checks import HlsSynthesisChecksTC
+from tests.syntehesisChecks_test import HlsSynthesisChecksTC
 from tests.utils.alapAsapDiffExample import AlapAsapDiffExample_TC
 from tests.utils.bitwiseOpsScheduling_test import BitwiseOpsScheduling_TC
 from tests.utils.phiConstructions_test import PhiConstruction_TC
 from tests.utils.schedulingNodeFunctions_test import SchedulingNodeFunctions_TC
+from tests.floatingpoint.mul_test import IEEE754FpMultipier_TC
 
 
 def testSuiteFromTCs(*tcs):
@@ -98,14 +105,17 @@ def testSuiteFromTCs(*tcs):
 
 suite = testSuiteFromTCs(
     AbcTC,
+    Abc_NtkExpandExternalCombLoops_TC,
     SchedulingNodeFunctions_TC,
     HlsNetlistWireTC,
     HlsNetlistBitwiseOpsTC,
-    HlsNetlistDiscoverSyncIslandTC,
-    HlsNetlistReduceCmpInAndTC,
+    HlsNetlistReduceMuxTC,
     #HlsNetlistPassInjectVldMaskToSkipWhenConditionsTC,
     HlsNetlistReadSyncTC,
+    RtlArchPassSyncLowering_exprExtraction_1Pipeline_TC,
+    RtlArchPassSyncLowering_exprExtraction_negations_TC,
     BreakHandshakeCycles_TC,
+    Flushing_TC,
     SlicesToIndependentVariablesPass_TC,
     HlsSlicingTC,
     BitwiseOpsScheduling_TC,
@@ -116,11 +126,14 @@ suite = testSuiteFromTCs(
     HlsPythonTupleAssign_TC,
     SimplifyCFG2Pass_TC,
     LoopUnrotatePass_TC,
+    LoopFlattenUsingIfPass_TC,
+    PruneLoopPhiDeadIncomingValuesPass_TC,
     RewriteExtractOnMergeValuesPass_TC,
     SlicesMergePass_TC,
     BitwidthReductionPass_TC,
     BitwidthReductionPass_PHI_TC,
     BitWidthReductionPass_Cmp_example_TC,
+    SelectPruningPass_TC,
     CmpReduction_TC,
     EarlyIfConverter_TC,
     VRegIfConverter_TC,
@@ -129,6 +142,7 @@ suite = testSuiteFromTCs(
     IEEE754FpFromInt_TC,
     IEEE754FpToInt_TC,
     IEEE754FpAdder_TC,
+    IEEE754FpMultipier_TC,
     HlsAstReadIfTc,
     HlsMAC_example_TC,
     *BitonicSorterHLS_TCs,
