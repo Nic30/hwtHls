@@ -7,10 +7,13 @@ namespace hwtHls {
 
 /**
  *  Simplify trivial patterns in CFG
- *  * Remove empty basic block if has single successor and predecessor and may be replaced by predecessor in successor PHIs
- *    * only if pruneSinglePredSingleSucBlocks=true
- *    * breaks loop canonical form which many passes depends on
+ *  * Remove empty basic block if:
+ *    * has single successor and predecessor or no phis
+ *    * and may be replaced by predecessor in successor PHIs
+ *       * only if pruneSinglePredSingleSucBlocks=true
+ *       * breaks loop canonical form which many passes depends on
  *  * Remove one operand PHIs and PHIs with all same values
+ *    * breaks loop canonical form for exit blocks
  *  * Simplifies conditional jumps jumping to the same target for every value of condition
  *
  *  :note: Primary purpose of this pass is to make code more readable for debugging. For real
