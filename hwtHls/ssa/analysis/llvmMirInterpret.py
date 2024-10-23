@@ -131,7 +131,7 @@ class LlvmMirInterpret():
         newPhiVals: List[Tuple[Register, HConst]] = []
         for mi in bb:
             opc = mi.getOpcode()
-            if opc != TargetOpcode.G_PHI:
+            if opc != TargetOpcode.G_PHI and opc != TargetOpcode.PHI:
                 break
             vOp = None
             res = None
@@ -218,7 +218,7 @@ class LlvmMirInterpret():
 
                 # print(mi)
                 opc = mi.getOpcode()
-                if opc == TargetOpcode.G_PHI:
+                if opc == TargetOpcode.G_PHI or opc == TargetOpcode.PHI:
                     # this should be already evaluated
                     continue
                 ops.clear()
@@ -460,10 +460,10 @@ class LlvmMirInterpret():
 
                     raise NotImplementedError(mi)
 
-            if nextMb is not None:
-                mb = nextMb
-            else:
-                mb = mb.getFallThrough(False)
+            if nextMb is None:
+                nextMb = mb.getFallThrough(False)
+            self._runBlockPhis(MRI, mb, nextMb, waveLog, regs, timeNow)
+            mb = nextMb
 
     @classmethod
     def runMirStr(cls, mirStr: str, nameOfMain: str, args: list):
