@@ -55,6 +55,7 @@ This is useful when debugging issues which are happening in LLVM code.
   If you do not use debug build of LLVM you still will be able to debug c++ code in this project and gdb will start in <1s.
   But you wont be able to debug inside LLVM functions.
 * It is highly recommended to index LLVM libraries in order to lower gdb start time `gdb-add-index llvm_install/lib/libLLVM-16.so`
+* https://stackoverflow.com/questions/3982036/how-can-i-use-valgrind-with-python-c-extensions
 
 Using -dbg package of llvm
 --------------------------
@@ -175,6 +176,9 @@ Dictionary
 * nuw no unsigned wrap
 * nsw no signed wrap
 * invoke - call with exception handling, InvokeInstr is a terminator CallBase is not
+* clober - Clobber refers to an access (or instruction) overwriting some part of the memory that another access (or instruction)
+	is either reading from or writing to. The terminology for “clobber” is used similar to that of the synonym “thrash”,
+	when saying “the cache is being thrashed”; both refer to overwriting memory.
 
 
 In IR debugging meta-information
@@ -202,4 +206,5 @@ LLVM alias analysis
 LLVM tutorials
 --------------
 * https://lowlevelbits.org/how-to-learn-compilers-llvm-edition/
+
 

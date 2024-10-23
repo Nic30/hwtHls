@@ -2,7 +2,8 @@
 RTL name conventions
 --------------------
 
-* inverted signals have \_n suffix
+* https://github.com/lowRISC/style-guides/blob/master/VerilogCodingStyle.md
+* inverted signals have \_n suffix (do not use #)
 * names of constants in uppercase snakecase
 
 
@@ -20,3 +21,8 @@ RTL name conventions
     gnt,grant         req, request                                            gnt source is returning transaction credit                              
     full/empty + en                                   full:S->M, empty:M->S   fifo sync, en enables transaction, must not be set if full/empty        
    ================= =============================== ======================= =========================================================================
+
+
+RTL resource minimization guides
+---------------------------------
+* https://zipcpu.com/blog/2017/06/12/minimizing-luts.html

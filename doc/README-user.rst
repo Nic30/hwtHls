@@ -10,5 +10,6 @@ hwtHls library modules
   
 netlist and ssa module do contain sets of analysis, transformations and translation. The meaning is following:
 * analysis - an algorithm which does not modify code and extract some information about it and this information is cachable and programatically accessible
-* translation - an algorithm which does not modify the input code and generates a new repersentation of the code
+* translation - an analysis which generates a new repersentation of the code
 * transformation - an algorithm which does modify the input code
+
