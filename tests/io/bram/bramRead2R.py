@@ -14,6 +14,7 @@ from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
 from hwtHls.io.portGroups import MultiPortGroup
 from hwtHls.netlist.debugTracer import DebugTracer
+from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.scope import HlsScope
@@ -60,16 +61,17 @@ class BramRead2R(HwModule):
         Allow loop execute new loop iteration as soon as "i" is available.
         (Do not wait until the read completes)
         """
-        netlist = thread.toHw
-        for rwNode in netlist.outputs:
-            rwNode: HlsNetNodeWrite
-            for hwIO in (self.dataOut0, self.dataOut1, self.ram0, self.ram1):
-                if rwNode.dst is hwIO:
-                    netlistExplicitSyncDisconnectFromOrderingChain(DebugTracer(None), rwNode, None,
-                                                                   disconnectPredecessors=False,
-                                                                   disconnectSuccesors=True)
-                    break
-
+        netlist = thread.netlist
+        for rwNode in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT):
+            if isinstance(rwNode, HlsNetNodeWrite):
+                rwNode: HlsNetNodeWrite
+                for hwIO in (self.dataOut0, self.dataOut1, self.ram0, self.ram1):
+                    if rwNode.dst is hwIO:
+                        netlistExplicitSyncDisconnectFromOrderingChain(DebugTracer(None), rwNode, None,
+                                                                       disconnectPredecessors=False,
+                                                                       disconnectSuccesors=True)
+                        break
+    
     @override
     def hwImpl(self) -> None:
         hls = HlsScope(self)

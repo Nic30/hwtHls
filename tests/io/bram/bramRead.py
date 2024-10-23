@@ -17,6 +17,7 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import \
     netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.scope import HlsScope
+from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
 
 
 class BramRead(HwModule):
@@ -52,15 +53,16 @@ class BramRead(HwModule):
         Allow loop execute new loop iteration as soon as "i" is available.
         (Do not wait until the read completes)
         """
-        netlist = thread.toHw
-        for rwNode in netlist.outputs:
-            rwNode: HlsNetNodeWrite
-            for hwIO in (self.dataOut, self.ram):
-                if rwNode.dst is hwIO:
-                    netlistExplicitSyncDisconnectFromOrderingChain(DebugTracer(None), rwNode, None,
-                                                                   disconnectPredecessors=False,
-                                                                   disconnectSuccesors=True)
-                    break
+        netlist = thread.netlist
+        for rwNode in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT):
+            if isinstance(rwNode, HlsNetNodeWrite):
+                rwNode: HlsNetNodeWrite
+                for hwIO in (self.dataOut, self.ram):
+                    if rwNode.dst is hwIO:
+                        netlistExplicitSyncDisconnectFromOrderingChain(DebugTracer(None), rwNode, None,
+                                                                       disconnectPredecessors=False,
+                                                                       disconnectSuccesors=True)
+                        break
 
     @override
     def hwImpl(self) -> None:
