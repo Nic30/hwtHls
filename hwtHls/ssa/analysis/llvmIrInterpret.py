@@ -303,7 +303,7 @@ class LlvmIrInterpret():
             else:
                 raise NotImplementedError(instr)
 
-        # prepare values for argumens
+        # prepare values for arguments
         ops: List[Union[HConst, BasicBlock, Function]] = []
         for v in instr.iterOperandValues():
             vAsConst = ValueToConstantInt(v)
