@@ -23,7 +23,7 @@ from tests.frontend.pyBytecode.stmWhile import TRUE
 
 class BramCounterArray0nocheck(HwModule):
     """
-    Array of counters stored in BRAM without any data consystency handling.
+    Array of counters stored in BRAM without any data consistency handling.
     """
 
     def hwConfig(self) -> None:
@@ -72,8 +72,8 @@ class BramCounterArray0nocheck(HwModule):
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
         hls.addThread(mainThread)
         hls.compile()
-        assert len(hls._threads[0].toHw.scheduler.resourceUsage) == 2, (
-            "Intended only for 2 cycle operation", len(hls._threads[0].toHw.scheduler.resourceUsage))
+        assert len(hls._threads[0].netlist.scheduler.resourceUsage) == 2, (
+            "Intended only for 2 cycle operation", len(hls._threads[0].netlist.scheduler.resourceUsage))
 
 
 class BramCounterArray1hardcodedWriteForwarding(BramCounterArray0nocheck):
@@ -117,14 +117,14 @@ class BramCounterArray3stall(BramCounterArray0nocheck):
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
 
         def implementStaling(hls: HlsScope, thread: HlsThreadFromPy):
-            netlist: HlsNetlistCtx = thread.toHw
+            netlist: HlsNetlistCtx = thread.netlist
             return ArchImplementStaling(netlist, ram)
 
         mainThread.archNetlistCallbacks.append(implementStaling)
         hls.addThread(mainThread)
         hls.compile()
-        assert len(hls._threads[0].toHw.scheduler.resourceUsage) == 2, (
-            "Intended only for 2 cycle operation", len(hls._threads[0].toHw.scheduler.resourceUsage))
+        assert len(hls._threads[0].netlist.scheduler.resourceUsage) == 2, (
+            "Intended only for 2 cycle operation", len(hls._threads[0].netlist.scheduler.resourceUsage))
 
 
 class BramCounterArray4WriteForwarding(BramCounterArray0nocheck):
@@ -139,14 +139,14 @@ class BramCounterArray4WriteForwarding(BramCounterArray0nocheck):
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
 
         def implementWriteForwarding(hls: HlsScope, thread: HlsThreadFromPy):
-            netlist: HlsNetlistCtx = thread.toHw
+            netlist: HlsNetlistCtx = thread.netlist
             return ArchImplementWriteForwarding(netlist, ram)
 
         mainThread.archNetlistCallbacks.append(implementWriteForwarding)
         hls.addThread(mainThread)
         hls.compile()
-        assert len(hls._threads[0].toHw.scheduler.resourceUsage) == 2, (
-            "Intended only for 2 cycle operation", len(hls._threads[0].toHw.scheduler.resourceUsage))
+        assert len(hls._threads[0].netlist.scheduler.resourceUsage) == 2, (
+            "Intended only for 2 cycle operation", len(hls._threads[0].netlist.scheduler.resourceUsage))
 
 
     @hlsBytecode
@@ -154,7 +154,7 @@ class BramCounterArray4WriteForwarding(BramCounterArray0nocheck):
         # reset
         # PyBytecodeInline(self.resetRam)(hls, ram)
         p = hls.parentHwModule._target_platform
-        p.runHlsNetlistPostSchedulingPasses = self.createGenerateLSU(ram, p.runHlsNetlistPostSchedulingPasses)
+        p.runHlsNetlistPostSchedulingPasses = self.generateLSU(ram, p.runHlsNetlistPostSchedulingPasses)
         while TRUE:
             index = hls.read(self.incr).data
             # The ram[index] can not be read until write is finished or there is an LSU to update read data later
@@ -169,7 +169,7 @@ if __name__ == "__main__":
     from hwtHls.platform.xilinx.artix7 import Artix7Slow
     from hwtHls.platform.platform import HlsDebugBundle
    
-    m = BramCounterArray4WriteForwarding()
+    m = BramCounterArray1hardcodedWriteForwarding()
     m.CLK_FREQ = int(10e6)
     print(to_rtl_str(m, target_platform=Artix7Slow(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
