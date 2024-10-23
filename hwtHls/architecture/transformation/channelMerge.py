@@ -117,7 +117,14 @@ class RtlArchPassChannelMerge(HlsArchPass):
             if width != 0:
                 assert len(init) == len(w.associatedRead.channelInitValues)
                 for i, (cur, new) in enumerate(zip(init, w.associatedRead.channelInitValues)):
-                    if isinstance(cur, tuple) and len(cur) == 1 and isinstance(new, tuple) and len(new) == 1:
+                    if isinstance(cur, tuple) and not cur and isinstance(new, tuple) and len(new) == 1:
+                        # () + (n, ) = (n, )
+                        cur = new
+                    elif isinstance(cur, tuple) and len(cur) == 1 and isinstance(new, tuple) and not new:
+                        # (n, ) + () = (n, )
+                        pass
+                    elif isinstance(cur, tuple) and len(cur) == 1 and isinstance(new, tuple) and len(new) == 1:
+                        # (n0, ) + (n1, ) = (Concat(n1, n0), )
                         cur = cur[0]
                         new = new[0]
 
