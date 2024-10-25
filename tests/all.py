@@ -17,6 +17,7 @@ from tests.floatingpoint.add_test import IEEE754FpAdder_TC
 from tests.floatingpoint.cmp_test import IEEE754FpCmp_TC
 from tests.floatingpoint.fptypes_test import IEEE754Fp_TC
 from tests.floatingpoint.fromInt_test import IEEE754FpFromInt_TC
+from tests.math.fp.mul_test import IEEE754FpMultipier_TC
 from tests.floatingpoint.toInt_test import IEEE754FpToInt_TC
 from tests.frontend.ast.bitonicSort import BitonicSorterHLS_TCs
 from tests.frontend.ast.exprTree3 import HlsAstExprTree3_example_TC
@@ -34,6 +35,7 @@ from tests.frontend.pyBytecode.basics_test import FromPythonBasics_TC
 from tests.frontend.pyBytecode.binToBcd_test import BinToBcd_TC
 from tests.frontend.pyBytecode.errors_test import PyBytecodeErrors_TC
 from tests.frontend.pyBytecode.fnClosue_test import FnClosure_TC
+from tests.frontend.pyBytecode.hwrange_test import HlsPythonHwrange_TC
 from tests.frontend.pyBytecode.pragmaInline_test import PyBytecodeInline_TC
 from tests.frontend.pyBytecode.preprocLoopMultiExit_test import PreprocLoopMultiExit_TCs
 from tests.frontend.pyBytecode.pyArrHwIndex_test import PyArrHwIndex_TC
@@ -44,6 +46,7 @@ from tests.frontend.pyBytecode.stmFor_test import StmFor_TC
 from tests.frontend.pyBytecode.stmIf_test import StmIf_TC
 from tests.frontend.pyBytecode.stmWhile_test import StmWhile_ll_TC, StmWhile_sim_TC
 from tests.frontend.pyBytecode.tupleAssign import HlsPythonTupleAssign_TC
+from tests.frontend.pyBytecode.varReference import VarReference_TC
 from tests.frontend.pyBytecode.variableChain_test import VariableChain_TC
 from tests.hlsNetlist.bitwiseOpsAggregation_test import HlsNetlistBitwiseOpsTC
 from tests.hlsNetlist.breakHandshakeCycles_test import BreakHandshakeCycles_TC
@@ -91,7 +94,7 @@ from tests.utils.alapAsapDiffExample import AlapAsapDiffExample_TC
 from tests.utils.bitwiseOpsScheduling_test import BitwiseOpsScheduling_TC
 from tests.utils.phiConstructions_test import PhiConstruction_TC
 from tests.utils.schedulingNodeFunctions_test import SchedulingNodeFunctions_TC
-from tests.floatingpoint.mul_test import IEEE754FpMultipier_TC
+from tests.crypto.md5_test import Md5_TC
 
 
 def testSuiteFromTCs(*tcs):
@@ -137,12 +140,15 @@ suite = testSuiteFromTCs(
     CmpReduction_TC,
     EarlyIfConverter_TC,
     VRegIfConverter_TC,
+    VarReference_TC,
+    HlsPythonHwrange_TC,
     IEEE754Fp_TC,
     IEEE754FpCmp_TC,
     IEEE754FpFromInt_TC,
     IEEE754FpToInt_TC,
     IEEE754FpAdder_TC,
     IEEE754FpMultipier_TC,
+    Md5_TC,
     HlsAstReadIfTc,
     HlsMAC_example_TC,
     *BitonicSorterHLS_TCs,
