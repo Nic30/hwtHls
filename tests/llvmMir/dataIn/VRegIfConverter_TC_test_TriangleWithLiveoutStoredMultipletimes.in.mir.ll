@@ -33,6 +33,7 @@ callsUnwindInit: false
 hasEHCatchret:   false
 hasEHScopes:     false
 hasEHFunclets:   false
+isOutlined:      false
 debugInstrRef:   false
 failsVerification: false
 tracksDebugUserValues: false
@@ -65,6 +66,7 @@ frameInfo:
   restorePoint:    ''
 fixedStack:      []
 stack:           []
+entry_values:    []
 callSites:       []
 debugValueSubstitutions: []
 constants:       []
@@ -79,7 +81,7 @@ body:             |
   bb.1.EBB:
     successors: %bb.2(0x30000000), %bb.3(0x50000000)
   
-    %2:anyregcls(s1) = HWTFPGA_CLOAD %0, 0, 1 :: (volatile load (s16) from %ir.iC0, addrspace 1)
+    %2:anyregcls(s1) = HWTFPGA_CLOAD %0, 0, 1, 1 :: (volatile load (s16) from %ir.iC0, addrspace 1)
     %3:anyregcls(s64) = HWTFPGA_MUX i64 0
     HWTFPGA_BRCOND %2(s1), %bb.3
   
@@ -92,7 +94,7 @@ body:             |
   
   bb.3.FBB:
 
-    HWTFPGA_CSTORE %3(s64), %1, 0, 1 :: (volatile store (s64) into %ir.o, align 4, addrspace 2)
-    PseudoRET
+    HWTFPGA_CSTORE %3(s64), %1, 0, 64, 1 :: (volatile store (s64) into %ir.o, align 4, addrspace 2)
+    HWTFPGA_RET
 
 ...

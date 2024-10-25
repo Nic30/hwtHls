@@ -20,12 +20,12 @@ class HwtFpgaPreToNetlistGICombiner_TC(BaseLlvmMirTC):
   
   bb.1.bb1:
 
-    %2:anyregcls(s16) = IMPLICIT_DEF ; %2 is register holding value between loop iterations
+    %2:anyregcls(s16) = HWTFPGA_IMPLICIT_DEF, 16 ; %2 is register holding value between loop iterations
   
   bb.2.bb2:
   
     %2:anyregcls(s16) = HWTFPGA_MUX i16 1 ; set default value for %2
-    %3:anyregcls(s16) = HWTFPGA_CLOAD %0, 0, 1 :: (volatile load (s16) from %ir.rx, addrspace 1)
+    %3:anyregcls(s16) = HWTFPGA_CLOAD %0, 0, 1, 16 :: (volatile load (s16) from %ir.rx, addrspace 1)
     %4:anyregcls(s1) = HWTFPGA_EXTRACT %3(s16), 0, 1 ; condition for mux
     %2:anyregcls(s16) = HWTFPGA_MUX %2(s16), %4(s1), %3(s16) ; conditionally update %2
     HWTFPGA_CSTORE %2(s16), %1, 0, 1:: (volatile store (s16) into %ir.txBody, addrspace 2)
@@ -43,14 +43,14 @@ class HwtFpgaPreToNetlistGICombiner_TC(BaseLlvmMirTC):
   
   bb.1.bb1:
 
-    %2:anyregcls(s16) = IMPLICIT_DEF ; %2 is register holding value between loop iterations
+    %2:anyregcls(s16) = HWTFPGA_IMPLICIT_DEF, 16 ; %2 is register holding value between loop iterations
   
   bb.2.bb2:
   
     %2:anyregcls(s16) = HWTFPGA_MUX i16 1 ; set default value for %2
     %5:anyregcls(s16) = HWTFPGA_ADD %2(s16), i16 1
     HWTFPGA_CSTORE %5(s16), %1, 0, 1:: (volatile store (s16) into %ir.txBody, addrspace 2)
-    %3:anyregcls(s16) = HWTFPGA_CLOAD %0, 0, 1 :: (volatile load (s16) from %ir.rx, addrspace 1)
+    %3:anyregcls(s16) = HWTFPGA_CLOAD %0, 0, 1, 16 :: (volatile load (s16) from %ir.rx, addrspace 1)
     %4:anyregcls(s1) = HWTFPGA_EXTRACT %3(s16), 0, 1 ; condition for mux
     %2:anyregcls(s16) = HWTFPGA_MUX %2(s16), %4(s1), %3(s16) ; conditionally update %2
     HWTFPGA_CSTORE %2(s16), %1, 0, 1:: (volatile store (s16) into %ir.txBody, addrspace 2)
@@ -73,7 +73,7 @@ class HwtFpgaPreToNetlistGICombiner_TC(BaseLlvmMirTC):
 
   bb.2.bb2:
   
-    %3:anyregcls(s8) = HWTFPGA_CLOAD %0, 0, 1 :: (volatile load (s8) from %ir.dataIn, addrspace 1)
+    %3:anyregcls(s8) = HWTFPGA_CLOAD %0, 0, 1, 8 :: (volatile load (s8) from %ir.dataIn, addrspace 1)
     HWTFPGA_BR %bb.1
 
 """)
@@ -105,7 +105,7 @@ class HwtFpgaPreToNetlistGICombiner_TC(BaseLlvmMirTC):
     
     bb.3.WhileSendSequence1.read:
     
-      %12:anyregcls = HWTFPGA_CLOAD %0:anyregcls, 0, 1 :: (volatile load (s8) from %ir.dataIn, addrspace 1)
+      %12:anyregcls = HWTFPGA_CLOAD %0:anyregcls, 0, 1, 8 :: (volatile load (s8) from %ir.dataIn, addrspace 1)
       HWTFPGA_BR %bb.1
 """)
       

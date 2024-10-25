@@ -433,15 +433,16 @@ bool HwtFpgaInstrInfo::PredicateInstruction(MachineInstr &MI,
 	switch (opc) {
 	case HwtFpga::HWTFPGA_CLOAD:
 	case HwtFpga::HWTFPGA_CSTORE: {
-		// dst/val, addr, index, cond, [dstWidth]
-		//assert(MI.getNumOperands() == 4);
+		// dst/val, addr, index, dstWidth, cond
+		assert(MI.getNumExplicitOperands() == 5);
 		bool hasSomePred = false;
 		Register curPred;
-		if (MI.getOperand(3).isReg()) {
+		constexpr size_t condOpIndex = 4;
+		if (MI.getOperand(condOpIndex).isReg()) {
 			hasSomePred = true;
-			curPred = MI.getOperand(3).getReg();
+			curPred = MI.getOperand(condOpIndex).getReg();
 		}
-		MI.removeOperand(3); // remove current condition
+		MI.removeOperand(condOpIndex); // remove current condition
 		bool isNegated = Pred[1].getImm();
 		Register Cond;
 		if (isNegated) {

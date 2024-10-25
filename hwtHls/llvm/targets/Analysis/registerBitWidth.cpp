@@ -180,7 +180,6 @@ bool resolveTypes(MachineInstr &MI) {
 	case HwtFpga::HWTFPGA_BR:
 	case HwtFpga::HWTFPGA_BRCOND:
 	case HwtFpga::HWTFPGA_RET:
-	case TargetOpcode::IMPLICIT_DEF:
 		// no resolving needed
 		return true;
 		// constants should be already lowered to IMM or global values
@@ -188,6 +187,9 @@ bool resolveTypes(MachineInstr &MI) {
 		//	MRI.setType(MI.getOperand(0).getReg(),
 		//			LLT::scalar(MI.getOperand(1).getCImm()->getBitWidth()));
 		//	return true;
+	case HwtFpga::HWTFPGA_IMPLICIT_DEF:
+		MRI.setType(MI.getOperand(0).getReg(), LLT::scalar(MI.getOperand(1).getImm()));
+		return true;
 	case HwtFpga::HWTFPGA_GLOBAL_VALUE: {
 		auto ptrT = MI.getOperand(1).getGlobal()->getType();
 		Type *_t;
@@ -290,15 +292,14 @@ bool resolveTypes(MachineInstr &MI) {
 
 	case HwtFpga::HWTFPGA_CSTORE:
 	case HwtFpga::HWTFPGA_CLOAD: {
-		// val/dst, addr, index, cond, [dstWidth]
+		// HWTFPGA_CSTORE val, addr, index, valWidth, cond
+		// HWTFPGA_CLOAD dst, addr, index, dstWidth, cond
 		Type *elemT;
 		size_t indexWidth;
 		std::tie(elemT, indexWidth) = getLoadOrStoreElementType(MRI, MI);
 
 		unsigned bitWidth = elemT->getIntegerBitWidth();
-		if (Opc == HwtFpga::HWTFPGA_CLOAD) {
-			assert(bitWidth == MI.getOperand(4).getImm());
-		}
+		assert(bitWidth == MI.getOperand(3).getImm());
 
 		if (MI.getOperand(0).isReg())
 			MRI.setType(MI.getOperand(0).getReg(), LLT::scalar(bitWidth));

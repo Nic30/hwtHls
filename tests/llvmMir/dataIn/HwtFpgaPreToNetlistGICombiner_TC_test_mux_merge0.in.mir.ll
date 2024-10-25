@@ -246,7 +246,7 @@ body:             |
   
     %42:anyregcls(s2) = HWTFPGA_MUX i2 0
     %43:anyregcls(s3) = HWTFPGA_MUX i3 0
-    %44:anyregcls(s16) = IMPLICIT_DEF
+    %44:anyregcls(s16) = HWTFPGA_IMPLICIT_DEF, 16
   
   bb.2.bb3:
     successors: %bb.1(0x04000000), %bb.2(0x7c000000)
@@ -254,13 +254,13 @@ body:             |
     %4:anyregcls(s16) = HWTFPGA_MUX %44(s16)
     %3:anyregcls(s3) = HWTFPGA_MUX %43(s3)
     %5:anyregcls(s2) = HWTFPGA_EXTRACT %3(s3), 0, 2
-    %7:anyregcls(s10) = HWTFPGA_CLOAD %0, 0, 1 :: (volatile load (s10) from %ir.rx, addrspace 1)
+    %7:anyregcls(s10) = HWTFPGA_CLOAD %0, 0, 1, 10 :: (volatile load (s10) from %ir.rx, addrspace 1)
     %8:anyregcls(s8) = HWTFPGA_EXTRACT %7(s10), 0, 8
     %10:anyregcls(s1) = HWTFPGA_EXTRACT %7(s10), 9, 1
     %12:anyregcls(s5) = HWTFPGA_MERGE_VALUES i3 0, %42(s2), 3, 2
     %16:anyregcls(s1) = HWTFPGA_ICMP intpred(eq), %12(s5), i5 -16
     %45:anyregcls(s27) = HWTFPGA_MERGE_VALUES %4(s16), %8(s8), %5(s2), i1 true, 16, 8, 2, 1
-    %46:anyregcls(s16) = IMPLICIT_DEF
+    %46:anyregcls(s16) = HWTFPGA_IMPLICIT_DEF, 16
     %18:anyregcls(s1) = HWTFPGA_ICMP intpred(eq), %12(s5), i5 8
     %65:anyregcls(s27) = HWTFPGA_MERGE_VALUES %8(s8), undef %28:anyregcls(s16), i3 1, 8, 16, 3
     %49:anyregcls(s16) = HWTFPGA_MERGE_VALUES %8(s8), undef %24:anyregcls(s8), 8, 8

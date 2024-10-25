@@ -37,7 +37,9 @@ def HWTFPGA_ARG_GET : HwtFpgaInst<
 
 let hasSideEffects = 0, isAsCheapAsAMove = 1 in {
 
-def HWTFPGA_IMPLICIT_DEF : HwtFpgaInst<
+// G_IMPLICIT_DEF - generic variant defined in LLVM
+// IMPLICIT_DEF - selected variant defined in LLVM (avoid using this)
+def HWTFPGA_IMPLICIT_DEF : HwtFpgaInst< // IMPLICIT_DEF with dstWidth
     (outs anyregcls:$dst),
     (ins i64imm:$dstWidth),
     []>;
@@ -104,7 +106,7 @@ let mayLoad = 1, canFoldAsLoad=1, hasSideEffects = 0, isPredicable = 0, isNotDup
 	// :attention: this is not predicated instruction because dst is always modified
 	def HWTFPGA_CLOAD : HwtFpgaInst<
 	    (outs anyregcls:$dst),
-	    (ins anyregcls:$baseaddr, unknown: $index, unknown:$cond, i64imm:$dstWidth),
+	    (ins anyregcls:$baseaddr, unknown: $index, i64imm:$dstWidth, unknown:$cond),
 	    []>; // no pattern because we match in C++
 }
 
@@ -112,7 +114,7 @@ let mayLoad = 0, mayStore = 1, hasSideEffects = 0, isPredicable = 1, isNotDuplic
 	// conditional store
 	def HWTFPGA_CSTORE : HwtFpgaInst<
 	    (outs),
-	    (ins anyregcls:$val, anyregcls:$addr, unknown: $index, unknown:$cond),
+	    (ins anyregcls:$val, anyregcls:$addr, unknown: $index, i64imm:$valWidth, unknown:$cond),
 	    []>; // no pattern because we match in C++
 }
 // return from a function, if this is a top function the whole circuit execution is halted

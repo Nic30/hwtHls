@@ -424,11 +424,9 @@ bool HwtFpgaTargetInstructionSelector::select_G_LOAD_or_G_STORE(
 				"Unknown instruction specifying address for load or store");
 	}
 
+	auto dst = MI.getOperand(0).getReg();
+	MIB.addImm(MRI.getType(dst).getSizeInBits()); // add dstWidth/val width
 	MIB.addImm(1); // cond
-	if (NewOpc == HwtFpga::HWTFPGA_CLOAD) {
-		auto dst = MI.getOperand(0).getReg();
-		MIB.addImm(MRI.getType(dst).getSizeInBits()); // add dstWidth
-	}
 	MIB.cloneMemRefs(MI); // copy part behind :: in "G_LOAD %0:anyregcls :: (volatile load (s4) from %ir.dataIn)"
 
 	return finalizeReplacementOfInstruction(MIB, MI);

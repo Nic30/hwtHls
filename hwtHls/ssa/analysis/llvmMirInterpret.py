@@ -265,7 +265,7 @@ class LlvmMirInterpret():
                     regs[i] = args[i]
 
                 elif opc == TargetOpcode.HWTFPGA_CLOAD:
-                    val, io, index, cond, width = ops
+                    val, io, index, width, cond = ops
                     isBlocking = isinstance(cond, int)
                     if isBlocking:
                         if not cond:
@@ -315,7 +315,7 @@ class LlvmMirInterpret():
                     regs[val.virtRegIndex()] = v
 
                 elif opc == TargetOpcode.HWTFPGA_CSTORE:
-                    val, io, index, cond = ops
+                    val, io, index, width, cond = ops
                     isBlocking = isinstance(cond, int)
                     if isBlocking:
                         if not cond:
@@ -398,6 +398,10 @@ class LlvmMirInterpret():
                     else:
                         res = srcF
                     regs[dst.virtRegIndex()] = res
+
+                elif opc == TargetOpcode.COPY:
+                    dst, src = ops
+                    regs[dst.virtRegIndex()] = src
 
                 elif opc == TargetOpcode.HWTFPGA_ICMP or opc == TargetOpcode.G_ICMP:
                     dst, pred, src0, src1 = ops

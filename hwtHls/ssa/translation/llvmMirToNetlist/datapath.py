@@ -168,7 +168,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
 
             elif opc == TargetOpcode.HWTFPGA_CLOAD:
                 # load from data channel
-                srcIo, index, cond, width = ops  # [todo] implicit operands
+                srcIo, index, width, cond = ops  # [todo] implicit operands
                 if isinstance(srcIo, HlsNetNodeOut):
                     # this would be rom load implemented as INDEX operator
                     res = builder.buildOp(HwtOps.INDEX, None, srcIo._dtype.element_t, srcIo, index, name=name)
@@ -205,7 +205,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
 
             elif opc == TargetOpcode.HWTFPGA_CSTORE:
                 # store to data channel
-                srcVal, dstIo, index, cond = ops
+                srcVal, dstIo, index, width, cond = ops
                 constructor: HlsWrite = ioNodeConstructors[dstIo][1]
                 if isinstance(cond, int):
                     assert cond == 1, instr
@@ -264,8 +264,9 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 pass
 
             elif opc == TargetOpcode.HWTFPGA_IMPLICIT_DEF:
-                assert not ops, ops
+                expectedWIdth, = ops 
                 BW = self.registerTypes[dst]
+                assert BW == expectedWIdth, (instr, expectedWIdth, BW)
                 v = HBits(BW).from_py(None)
                 valCache.add(mb, dst, builder.buildConst(v), True)
             elif opc in (TargetOpcode.HWTFPGA_PYOBJECT_PLACEHOLDER,
