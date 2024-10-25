@@ -129,7 +129,7 @@ class LoopAfterLoop_TC(BaseSsaTC):
                 HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
             }
             ))
-        self.runSim(int(10 * freq_to_period(dut.FREQ)))
+        self.runSim(int(9 * freq_to_period(dut.FREQ)))
 
         self.assertValSequenceEqual(dut.dataOut0._ag.data, [4 for _ in range(4)])
         self.assertValSequenceEqual(dut.dataOut1._ag.data, [5 for _ in range(5)])
@@ -148,7 +148,7 @@ class LoopAfterLoop_TC(BaseSsaTC):
         dut = WriteAfterFiniteWhileInWhileTrue()
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform(
             ))
-        self.runSim(int(6 * freq_to_period(dut.FREQ)))
+        self.runSim(int(5 * freq_to_period(dut.FREQ)))
 
         self.assertValSequenceEqual(dut.dataOut0._ag.data, [4 for _ in range(4)])
         self.assertValSequenceEqual(dut.dataOut1._ag.data, [5])
@@ -157,7 +157,7 @@ class LoopAfterLoop_TC(BaseSsaTC):
         dut = WriteBeforeFiniteWhileInWhileTrue()
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform(
             ))
-        self.runSim(int(10 * freq_to_period(dut.FREQ)))
+        self.runSim(int(9 * freq_to_period(dut.FREQ)))
 
         self.assertValSequenceEqual(dut.dataOut0._ag.data, [4 for _ in range(8)])
         self.assertValSequenceEqual(dut.dataOut1._ag.data, [5, 5, 5])

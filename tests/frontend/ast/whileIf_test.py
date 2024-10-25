@@ -21,7 +21,7 @@ class HlsAstWhileIf_TC(BaseSsaTC):
         CLK = 8
         clk_period = int(freq_to_period(dut.FREQ))
 
-        self.runSim((CLK + 2) * clk_period)
+        self.runSim((CLK + 1) * clk_period)
         BaseIrMirRtl_TC._test_no_comb_loops(self)
 
         expected = []
