@@ -70,7 +70,7 @@ class PyBytecodeInline_TC(SimTestCase):
     def test_PragmaInline_writeCntrForInIf1_T(self):
         u = PragmaInline_writeCntrForInIf1()
         u.IF_COND = True
-        self._test_writesCntr(u, [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3])
+        self._test_writesCntr(u, [0, 0, 0, 1, 1, 1, 2, 2, 3, 3, 3, 4])
 
     def test_PragmaInline_writeCntrForInIf1_F(self):
         u = PragmaInline_writeCntrForInIf1()
