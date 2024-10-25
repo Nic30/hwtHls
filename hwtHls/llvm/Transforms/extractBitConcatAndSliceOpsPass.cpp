@@ -236,38 +236,6 @@ static bool tryOrToBitConcat(BinaryOperator *BO) {
 	return false;
 }
 
-static bool tryTruncToBitRangeGet(CastInst *CI) {
-	// resT truncat(x >> C) -> resT hwthls.bitrangeGet1(x, C)
-	auto resWidth = CI->getType()->getIntegerBitWidth();
-	auto baseInfo = getOperandOffsetAndBaseValue(CI->getOperand(0));
-	if (baseInfo.offset == 0 && baseInfo.leftOffset == 0) {
-		IRBuilder<> Builder(CI);
-		if (!baseInfo.val) {
-			// all 0
-			auto res = Builder.getIntN(resWidth, 0);
-			CI->replaceAllUsesWith(res);
-			return true;
-
-		} else {
-			llvm::Value *res = nullptr;
-			if (auto *BI = dyn_cast<BinaryOperator>(CI->getOperand(0))) {
-				if (BI->getOpcode() == Instruction::BinaryOps::Shl) {
-					// non const shift
-					res = CreateBitRangeGet(&Builder, CI, BI, resWidth);
-				}
-			}
-			if (!res) {
-				// just truncatenation (select of lower bits)
-				res = CreateBitRangeGetConst(&Builder, CI, 0, resWidth);
-			}
-			CI->replaceAllUsesWith(res);
-			return true;
-		}
-	}
-
-	return false;
-}
-
 static bool tryShlToBitConcat(BinaryOperator *BO) {
 	// %0 = zext i4 %i0 to i8
 	// %1 = shl nuw i8 %0, 4
@@ -344,11 +312,6 @@ PreservedAnalyses ExtractBitConcatAndSliceOpsPass::run(llvm::Function &F,
 					} else if (BO->getOpcode() == Instruction::BinaryOps::Shl) {
 						if (tryShlToBitConcat(BO))
 							toRemove.push_back(BO);
-					}
-				} else if (auto *CI = dyn_cast<CastInst>(&I)) {
-					if (CI->getOpcode() == Instruction::CastOps::Trunc) {
-						if (tryTruncToBitRangeGet(CI))
-							toRemove.push_back(CI);
 					}
 				}
 			}
