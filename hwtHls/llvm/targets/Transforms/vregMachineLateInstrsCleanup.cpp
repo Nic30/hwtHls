@@ -212,26 +212,20 @@ bool VRegMachineLateInstrsCleanup::normalizeConstOperands(
 		MachineIRBuilder &Builder, MachineInstr &MI) {
 	// implements g_constant_to_imm combiner
 	switch (MI.getOpcode()) {
-	case TargetOpcode::G_PHI:
-	case TargetOpcode::G_LOAD:
-	case TargetOpcode::G_STORE:
-	case TargetOpcode::G_ADD:
-	case TargetOpcode::G_AND:
-	case TargetOpcode::G_BR:
-	case TargetOpcode::G_BRCOND:
-	case TargetOpcode::G_ICMP:
-	case TargetOpcode::G_PTR_ADD:
-	case TargetOpcode::G_MUL:
-	case TargetOpcode::G_UDIV:
-	case TargetOpcode::G_SDIV:
-	case TargetOpcode::G_UREM:
-	case TargetOpcode::G_SREM:
-	case TargetOpcode::G_OR:
-	case TargetOpcode::G_SELECT:
-	case TargetOpcode::G_SUB:
-	case TargetOpcode::G_XOR:
-	case TargetOpcode::G_SEXT:
-	case TargetOpcode::G_ZEXT:
+	// :attenton: rewrite operands of G_* opcodes would damage MIR and many (e.g. GISelKnownBitsAnalysis) LLVM passes would fail
+	case HwtFpga::HWTFPGA_ADD:
+	case HwtFpga::HWTFPGA_AND:
+	case HwtFpga::HWTFPGA_BR:
+	case HwtFpga::HWTFPGA_BRCOND:
+	case HwtFpga::HWTFPGA_ICMP:
+	case HwtFpga::HWTFPGA_MUL:
+	case HwtFpga::HWTFPGA_UDIV:
+	case HwtFpga::HWTFPGA_SDIV:
+	case HwtFpga::HWTFPGA_UREM:
+	case HwtFpga::HWTFPGA_SREM:
+	case HwtFpga::HWTFPGA_OR:
+	case HwtFpga::HWTFPGA_SUB:
+	case HwtFpga::HWTFPGA_XOR:
 	case HwtFpga::HWTFPGA_EXTRACT:
 	case HwtFpga::HWTFPGA_MERGE_VALUES:
 	case HwtFpga::HWTFPGA_NOT:
