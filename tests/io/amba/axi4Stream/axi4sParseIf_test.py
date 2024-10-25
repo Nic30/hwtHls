@@ -262,7 +262,7 @@ class Axi4SParseIfTC(SimTestCase):
 
         self.compileSimAndStart(dut, target_platform=TestLlvmIrAndMirPlatform(
                 debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
-                    HlsDebugBundle.DBG_20_addSignalNamesToSync}),
+                    HlsDebugBundle.DBG_4_0_addSignalNamesToSync}),
                 optIrTest=testLlvmOptIr,
                 optMirTest=testLlvmOptMir,
                 # runTestAfterEachPass=True
@@ -462,7 +462,7 @@ if __name__ == '__main__':
     
     testLoader = unittest.TestLoader()
     
-    # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2If_24b_100MHz")])
-    suite = testLoader.loadTestsFromTestCase(Axi4SParseIfTC)
+    suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2IfAndSequel_16b_100MHz")])
+    # suite = testLoader.loadTestsFromTestCase(Axi4SParseIfTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
