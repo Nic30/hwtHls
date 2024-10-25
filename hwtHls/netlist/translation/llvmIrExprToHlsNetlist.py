@@ -9,7 +9,7 @@ from hwtHls.llvm.llvmIr import Function, Value, ValueToConstantInt, ValueToUndef
     ValueToArgument, Argument, BasicBlock, Instruction, InstructionToLoadInst, \
     LoadInst, InstructionToStoreInst, StoreInst, Type, TypeToIntegerType, IntegerType, \
     ConstantInt, InstructionToReturnInst, InstructionToBinaryOperator, BinaryOperator, \
-    InstructionToICmpInst, ICmpInst, InstructionToSelectInst, SelectInst, InstructionToCallInst,\
+    InstructionToICmpInst, ICmpInst, InstructionToSelectInst, SelectInst, InstructionToCallInst, \
     ValueToInstruction, UserToInstruction
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
@@ -219,10 +219,18 @@ class LlvmIrExprToHlsNetlist():
                         opV0, opV1 = (self._translateExpr(op.get()) for op in ci.args())
                         lt = b.buildULt(opV0, opV1)
                         v = b.buildMux(opV0._dtype, (opV1, lt, opV0), name)
+                    elif fnName.startswith("hwtHls.bitConcat."):
+                        ops = tuple(self._translateExpr(op.get()) for op in ci.args())
+                        v = b.buildConcat(ops)
+                    elif fnName.startswith("hwtHls.bitRangeGet."):
+                        src, lowBitNo, bitwidth = (self._translateExpr(op.get()) for op in ci.args())
+                        v = b.buildIndexConstSlice(HBits(bitwidth), src, bitwidth + lowBitNo, lowBitNo)
                     else:
                         raise NotImplementedError(ci)
+
                     varMap[i] = v
                     continue
+
                 opc = i.getOpcode()
                 if opc in (Instruction.SExt, Instruction.ZExt):
                     opV0, = (self._translateExpr(op) for op in i.iterOperandValues())
