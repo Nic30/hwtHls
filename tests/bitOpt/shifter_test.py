@@ -1,23 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from typing import Optional, Set
+from typing import Optional, Set, List, Tuple
 
 from hwt.hdl.types.bits import HBits
 from hwt.math import log2ceil
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.frontend.pyBytecode.pragmaLoop import PyBytecodeLLVMLoopUnroll
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle, StringRef, Any, AnyToModule, \
-    AnyToFunction, AnyToLoop, Module, Function, MachineFunction
-from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function, MachineFunction, LLVMStringContext
 from hwtHls.platform.debugBundle import DebugId
 from hwtHls.platform.platform import HlsDebugBundle
-from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.ssa.analysis.llvmIrInterpret import LlvmIrInterpret, \
     SimIoUnderflowErr
 from hwtHls.ssa.analysis.llvmMirInterpret import LlvmMirInterpret
-from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtSimApi.triggers import StopSimumulation
 from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import mask
@@ -26,9 +21,50 @@ from tests.bitOpt.shifter import ShifterLeft0, ShifterLeft1, \
     ShifterLeftBarrelUsingLoop0, ShifterLeftBarrelUsingLoop1, ShifterLeftBarrelUsingLoop2, \
     ShifterLeftBarrelUsingPyExprConstructor, ShifterLeftUsingHwLoopWithWhileNot0, \
     ShifterLeftUsingHwLoopWithBreakIf0
+from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 
 class ShifterTC(SimTestCase):
+
+    def _testLlvmMir(self, dut: ShifterLeft0, MF: MachineFunction, TEST_DATA: List[Tuple[int, int]], REF_DATA: List[int]):
+        dataTy = HBits(dut.DATA_WIDTH)
+        shTy = HBits(log2ceil(dut.DATA_WIDTH))
+        wallTime = len(REF_DATA) * 1000
+        i = (dataTy.from_py(d) for d, _ in TEST_DATA)
+        sh = (shTy.from_py(sh) for _, sh in TEST_DATA)
+        o = []
+        args = (iter(i), o, iter(sh))
+        try:
+            interpret = LlvmMirInterpret(MF)
+            interpret.run(args, wallTime=wallTime * interpret.timeStep)
+        except SimIoUnderflowErr:
+            pass  # all inputs consumed
+        except StopSimumulation:
+            pass
+        o = [int(d) for d in o]
+        # print("test:", [f"0x{int(d):x}" for d in o])
+        self.assertSequenceEqual(o, REF_DATA)
+
+    def _testLlvmIr(self, dut: ShifterLeft0,
+                    strCtx: LLVMStringContext, F: Function, TEST_DATA: List[Tuple[int, int]], REF_DATA: List[int]):
+        dataTy = HBits(dut.DATA_WIDTH)
+        shTy = HBits(log2ceil(dut.DATA_WIDTH))
+        wallTime = len(REF_DATA) * 1000
+        i = (dataTy.from_py(d) for d, _ in TEST_DATA)
+        sh = (shTy.from_py(sh) for _, sh in TEST_DATA)
+        o = []
+        args = (iter(i), o, iter(sh))
+        try:
+            interpret = LlvmIrInterpret(F)
+            interpret.run(args, wallTime=wallTime * interpret.timeStep)
+        except SimIoUnderflowErr:
+            pass  # all inputs consumed
+        except StopSimumulation:
+            pass
+
+        o = [int(d) for d in o]
+        # print("test:", [f"0x{int(d):x}" for d in o])
+        self.assertSequenceEqual(o, REF_DATA)
 
     def _test_shifter(self, dut: ShifterLeft0, timeMultiplier=1,
                       debugFilter: Optional[Set[DebugId]]=HlsDebugBundle.DEFAULT,
@@ -40,81 +76,21 @@ class ShifterTC(SimTestCase):
         REF_DATA = [MASK & (d << sh) for d, sh in TEST_DATA]
 
         dut.CLK_FREQ = int(1e6)
-        wallTime = len(REF_DATA) * 1000
-        dataTy = HBits(dut.DATA_WIDTH)
-        shTy = HBits(log2ceil(dut.DATA_WIDTH))
         tc = self
-        lastWorkingIr = None
 
-        class TestPlatform(VirtualHlsPlatform):
+        def testLlvmOptIr(llvm: LlvmCompilationBundle):
+            tc._testLlvmIr(dut, llvm.strCtx, llvm.main, TEST_DATA, REF_DATA)
 
-            def runTestAfterPass(self, passName: StringRef, ir: Any):
-                nonlocal lastWorkingIr
-                F = AnyToFunction(ir)
-                if F is None:
-                    M = AnyToModule(ir)
-                    if M is None:
-                        L = AnyToLoop(ir)
-                        assert L
-                        F = L.getHeader().getParent()
-                        assert F
-                    else:
-                        M: Module
-                        for obj in M:
-                            if isinstance(obj, Function):
-                                F = obj
-                                break
-                        assert F is not None
+        def testLlvmOptMir(llvm: LlvmCompilationBundle):
+            tc._testLlvmMir(dut, llvm.getMachineFunction(llvm.main), TEST_DATA, REF_DATA)
 
-                # print(passName.str())
-                i = (dataTy.from_py(d) for d, _ in TEST_DATA)
-                sh = (shTy.from_py(sh) for _, sh in TEST_DATA)
-                o = []
-                args = (iter(i), o, iter(sh))
-                try:
-                    interpret = LlvmIrInterpret(F)
-                    interpret.run(args, wallTime=wallTime * interpret.timeStep)
-                except SimIoUnderflowErr:
-                    pass  # all inputs consumed
-                except StopSimumulation:
-                    pass
-
-                o = [int(d) for d in o]
-                # print("test:", [f"0x{int(d):x}" for d in o])
-                tc.assertSequenceEqual(o, REF_DATA, f"Broken after {passName.str():s} lastWorking:\n{lastWorkingIr}\n broken:\n{str(F):s}")
-                lastWorkingIr = str(F)
-
-            def runTestOnMachineFuncion(self, MF: MachineFunction):
-                i = (dataTy.from_py(d) for d, _ in TEST_DATA)
-                sh = (shTy.from_py(sh) for _, sh in TEST_DATA)
-                o = []
-                args = (iter(i), o, iter(sh))
-                try:
-                    interpret = LlvmMirInterpret(MF)
-                    interpret.run(args, wallTime=wallTime * interpret.timeStep)
-                except SimIoUnderflowErr:
-                    pass  # all inputs consumed
-                except StopSimumulation:
-                    pass
-                o = [int(d) for d in o]
-                # print("test:", [f"0x{int(d):x}" for d in o])
-                tc.assertSequenceEqual(o, REF_DATA)
-
-            def runSsaPasses(self, hls: "HlsScope", toSsa: HlsAstToSsa):
-                super(TestPlatform, self).runSsaPasses(hls, toSsa)
-                if runTestAfterEachPass:
-                    toLlvm: ToLlvmIrTranslator = toSsa.start
-                    llvm: LlvmCompilationBundle = toLlvm.llvm
-                    llvm.registerAfterPassCallback(self.runTestAfterPass)
-
-            def runMirToHlsNetlist(self,
-                              hls: "HlsScope", toSsa: HlsAstToSsa, netlist: HlsNetlistCtx,
-                              mf: MachineFunction, *args, **kwargs):
-                self.runTestOnMachineFuncion(mf)
-                return super(TestPlatform, self).runMirToHlsNetlist(hls, toSsa, netlist, mf,
-                                                                       *args, **kwargs)
-
-        self.compileSimAndStart(dut, target_platform=TestPlatform(debugFilter=debugFilter))  # debugFilter=HlsDebugBundle.ALL_RELIABLE
+        platform = TestLlvmIrAndMirPlatform(
+            optIrTest=testLlvmOptIr,
+            optMirTest=testLlvmOptMir,
+            debugFilter=debugFilter,
+            runTestAfterEachPass=runTestAfterEachPass,
+            )
+        self.compileSimAndStart(dut, target_platform=platform)  # debugFilter=HlsDebugBundle.ALL_RELIABLE
         for i, sh in TEST_DATA:
             dut.i._ag.data.append(i)
             dut.sh._ag.data.append(sh)
@@ -146,7 +122,7 @@ class ShifterTC(SimTestCase):
     def test_ShifterLeftUsingHwLoopWithWhileNot0_unrol2(self):
         dut = ShifterLeftUsingHwLoopWithWhileNot0()
         dut.UNROLL_META = PyBytecodeLLVMLoopUnroll(True, 2)
-        self._test_shifter(dut, timeMultiplier=4, 
+        self._test_shifter(dut, timeMultiplier=4,
                            debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
                                HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
                                HlsDebugBundle.DBG_4_0_addSignalNamesToData})
@@ -160,7 +136,7 @@ class ShifterTC(SimTestCase):
     def test_ShifterLeftUsingHwLoopWithWhileNot0_unrolFull(self):
         dut = ShifterLeftUsingHwLoopWithWhileNot0()
         dut.UNROLL_META = PyBytecodeLLVMLoopUnroll(True, dut.DATA_WIDTH - 1)
-        self._test_shifter(dut, runTestAfterEachPass=False)
+        self._test_shifter(dut)
 
     def test_ShifterLeftUsingHwLoopWithBreakIf0_noUnroll(self):
         dut = ShifterLeftUsingHwLoopWithBreakIf0()
@@ -172,8 +148,9 @@ class ShifterTC(SimTestCase):
     def test_ShifterLeftUsingHwLoopWithBreakIf0_unrol2(self):
         dut = ShifterLeftUsingHwLoopWithBreakIf0()
         dut.UNROLL_META = PyBytecodeLLVMLoopUnroll(True, 2)
-        self._test_shifter(dut, timeMultiplier=4, debugFilter=HlsDebugBundle.ALL_RELIABLE.union({HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
-                                                     HlsDebugBundle.DBG_4_0_addSignalNamesToData}))
+        self._test_shifter(dut, timeMultiplier=4)
+#        debugFilter=HlsDebugBundle.ALL_RELIABLE.union({HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+#                                                     HlsDebugBundle.DBG_4_0_addSignalNamesToData})
 
     def test_ShifterLeftUsingHwLoopWithBreakIf0_unrol4(self):
         dut = ShifterLeftUsingHwLoopWithBreakIf0()
@@ -203,12 +180,12 @@ class ShifterTC(SimTestCase):
 
 
 if __name__ == "__main__":
-    #from hwt.synth import to_rtl_str
-    #dut = ShifterLeftUsingHwLoopWithWhileNot0()
-    #dut.DATA_WIDTH = 3
-    ## # u.UNROLL_META = PyBytecodeLLVMLoopUnroll(True, dut.DATA_WIDTH - 1)
-    #dut.CLK_FREQ = int(1e6)
-    #print(to_rtl_str(dut, target_platform=VirtualHlsPlatform(
+    # from hwt.synth import to_rtl_str
+    # dut = ShifterLeftUsingHwLoopWithWhileNot0()
+    # dut.DATA_WIDTH = 3
+    # # # u.UNROLL_META = PyBytecodeLLVMLoopUnroll(True, dut.DATA_WIDTH - 1)
+    # dut.CLK_FREQ = int(1e6)
+    # print(to_rtl_str(dut, target_platform=VirtualHlsPlatform(
     #  debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
     #      HlsDebugBundle.DBG_20_addSignalNamesToSync,
     #      HlsDebugBundle.DBG_20_addSignalNamesToData,
@@ -217,8 +194,8 @@ if __name__ == "__main__":
 
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([ShifterTC("test_ShifterLeft0")])
+    # suite = unittest.TestSuite([ShifterTC("test_ShifterLeftUsingHwLoopWithBreakIf0_unrol2")])
     suite = testLoader.loadTestsFromTestCase(ShifterTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
-        
+
