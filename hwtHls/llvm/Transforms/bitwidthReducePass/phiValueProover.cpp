@@ -249,6 +249,7 @@ void PHIValueProover::knownBits_insert(const KnownBitRangeInfo &kbri) {
 	// index must be used because adding to vector causes iterator invalidation
 	size_t dstBeginBitI = firstOverlappingKbri - knownBits.begin();
 	size_t curWidth = firstOverlappingKbri->width;
+
 	if (dstBeginBitI == kbri.dstBeginBitI) {
 		if (curWidth == kbri.width) {
 			// 1:1 width and offset match

@@ -103,6 +103,8 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
                         n._mayBecomeFlushable = False
                         inArbiterR.setNonBlocking()
                     else:
+                        # IO does not have control signals necessary for stalling of producer
+                        # ArchElements 
                         raise NotImplementedError(n)
 
                     nodesForArbitration.append(inArbiterR)
