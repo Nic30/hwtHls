@@ -35,10 +35,10 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
 
     def test_noOptSingleBlock(self):
         ir = """\
-        define void @noOptSingleBlock(i8 addrspace(2)* %o) {
+        define void @noOptSingleBlock(i8 addrspace(1)* %o) {
           bb.0:
             %0 = call i8 @hwtHls.bitConcat.i4.i4(i4 1, i4 2) #2
-            store volatile i8 %0, i8 addrspace(2)* %o, align 1
+            store volatile i8 %0, i8 addrspace(1)* %o, align 1
             ret void
         }
         """
@@ -46,9 +46,9 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
 
     def test_returnBlockMerge0(self):
         ir = """\
-        define void @returnBlockMerge0(i1 addrspace(2)* %iC0, i8 addrspace(2)* %o) {
+        define void @returnBlockMerge0(i1 addrspace(1)* %iC0, i8 addrspace(2)* %o) {
           bb.0:
-            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            %c0 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             %v0 = call i8 @hwtHls.bitConcat.i4.i4(i4 1, i4 2) #2
             store volatile i8 %v0, i8 addrspace(2)* %o, align 1
             br i1 %c0, label %TBB, label %FBB
@@ -63,14 +63,14 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
     def test_SimpleFalse(self):
         # Same as ICSimple, but on the false path.
         ir = """\
-        define void @SimpleFalse(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
+        define void @SimpleFalse(i1 addrspace(1)* %iC0, i8 addrspace(2)* %o) {
           EBB:
-            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            %c0 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br i1 %c0, label %TBB, label %FBB
           TBB:
             ret void
           FBB:
-            store volatile i8 0, i8 addrspace(3)* %o, align 1
+            store volatile i8 0, i8 addrspace(2)* %o, align 1
             ret void
         }
         """
@@ -86,12 +86,12 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
         #   FBB
         # BB is entry of an one split, no rejoin sub-CFG.
         ir = """\
-        define void @simple(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
+        define void @simple(i1 addrspace(1)* %iC0, i8 addrspace(2)* %o) {
           EBB:
-            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            %c0 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br i1 %c0, label %TBB, label %FBB
           TBB:
-            store volatile i8 0, i8 addrspace(3)* %o, align 1
+            store volatile i8 0, i8 addrspace(2)* %o, align 1
             ret void
           FBB:
             ret void
@@ -111,24 +111,24 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
         #   FT TF
         # In this case it is not possible to merge branch of TBB to
         ir = """\
-        define void @simpleWithTooManyBranches(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
+        define void @simpleWithTooManyBranches(i1 addrspace(1)* %iC0, i8 addrspace(2)* %o) {
           EBB:
-            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            %c0 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br i1 %c0, label %TBB, label %FBB
           TBB:
-            store volatile i8 0, i8 addrspace(3)* %o, align 1
+            store volatile i8 0, i8 addrspace(2)* %o, align 1
             br label %L0
           FBB:
-            %c1 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            %c1 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br i1 %c1, label %FTBB, label %FFBB
           FTBB:
-            store volatile i8 3, i8 addrspace(3)* %o, align 1
+            store volatile i8 3, i8 addrspace(2)* %o, align 1
             br label %FTBB
           FFBB:
-            store volatile i8 2, i8 addrspace(3)* %o, align 1
+            store volatile i8 2, i8 addrspace(2)* %o, align 1
             br label %FFBB
           L0:
-            store volatile i8 1, i8 addrspace(3)* %o, align 1
+            store volatile i8 1, i8 addrspace(2)* %o, align 1
             br label %L0
         }
         """
@@ -146,21 +146,21 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
         #   BotBB
         # * merge EBB to EntryBB, and Then TBB
         ir = """\
-        define void @simpleInDiamondLike(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
+        define void @simpleInDiamondLike(i1 addrspace(1)* %iC0, i8 addrspace(2)* %o) {
           EntryBB:
-            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            %c0 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br i1 %c0, label %L0, label %EBB
           L0:
-            %cL0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            %cL0 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br i1 %cL0, label %L0, label %FBB
           EBB:
-            %c1 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            %c1 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br i1 %c1, label %TBB, label %FBB
           FBB:
-            store volatile i8 0, i8 addrspace(3)* %o, align 1
+            store volatile i8 0, i8 addrspace(2)* %o, align 1
             br label %BotBB
           TBB:
-            store volatile i8 1, i8 addrspace(3)* %o, align 1
+            store volatile i8 1, i8 addrspace(2)* %o, align 1
             br label %BotBB
           BotBB:
             ret void
@@ -173,12 +173,12 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
 #    def test_TriangleRev(self):  # Same as ICTriangle, but true path rev condition.
     def test_TriangleFalse(self):  # Same as ICTriangle, but on the false path.
         ir = """\
-        define void @triangleFalse(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
+        define void @triangleFalse(i1 addrspace(1)* %iC0, i8 addrspace(2)* %o) {
           EBB:
-            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            %c0 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br i1 %c0, label %FBB, label %TBB
           TBB:
-            store volatile i8 0, i8 addrspace(3)* %o, align 1
+            store volatile i8 0, i8 addrspace(2)* %o, align 1
             br label %FBB
           FBB:
             ret void
@@ -195,12 +195,12 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
         #   |  /
         #   FBB
         ir = """\
-        define void @triangle(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
+        define void @triangle(i1 addrspace(1)* %iC0, i8 addrspace(2)* %o) {
           EBB:
-            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            %c0 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br i1 %c0, label %TBB, label %FBB
           TBB:
-            store volatile i8 0, i8 addrspace(3)* %o, align 1
+            store volatile i8 0, i8 addrspace(2)* %o, align 1
             br label %FBB
           FBB:
             ret void
@@ -211,16 +211,16 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
     def test_TriangleWithLiveoutSsa(self):
         # same as test_Triangle but with phi at end
         ir = """\
-        define void @triangleWithLiveoutSsa(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
+        define void @triangleWithLiveoutSsa(i1 addrspace(1)* %iC0, i8 addrspace(2)* %o) {
           EBB:
-            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            %c0 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br i1 %c0, label %TBB, label %FBB
           TBB:
-            store volatile i8 0, i8 addrspace(3)* %o, align 1
+            store volatile i8 0, i8 addrspace(2)* %o, align 1
             br label %FBB
           FBB:
             %res = phi i8 [ 2, %EBB ], [ 3, %TBB ]
-            store volatile i8 %res, i8 addrspace(3)* %o, align 1
+            store volatile i8 %res, i8 addrspace(2)* %o, align 1
             ret void
         }
         """
@@ -229,16 +229,16 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
     def test_TriangleWithLiveout(self):
         # same as test_TriangleWidthLiveoutSsa just with lowering to non-SSA
         ir = """\
-        define void @triangleWithLiveout(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
+        define void @triangleWithLiveout(i1 addrspace(1)* %iC0, i8 addrspace(2)* %o) {
           EBB:
-            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            %c0 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br i1 %c0, label %TBB, label %FBB
           TBB:
-            store volatile i8 0, i8 addrspace(3)* %o, align 1
+            store volatile i8 0, i8 addrspace(2)* %o, align 1
             br label %FBB
           FBB:
             %res = phi i8 [ 2, %EBB ], [ 3, %TBB ]
-            store volatile i8 %res, i8 addrspace(3)* %o, align 1
+            store volatile i8 %res, i8 addrspace(2)* %o, align 1
             ret void
         }
         """
@@ -257,18 +257,18 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
         #   |  /
         #   FBB
         ir = """\
-        define void @forkedTriangle0(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
+        define void @forkedTriangle0(i1 addrspace(1)* %iC0, i8 addrspace(2)* %o) {
           EBB:
-            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            %c0 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br i1 %c0, label %TBB, label %FBB
           TBB:
-            store volatile i8 0, i8 addrspace(3)* %o, align 1
-            %c1 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            store volatile i8 0, i8 addrspace(2)* %o, align 1
+            %c1 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br i1 %c1, label %FBB, label %BBLoop
           FBB:
             ret void
           BBLoop:
-            store volatile i8 1, i8 addrspace(3)* %o, align 1
+            store volatile i8 1, i8 addrspace(2)* %o, align 1
             br label %BBLoop
         }
         """
@@ -277,16 +277,16 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
     def test_ForkedTriangle1(self):
         # test_ForkedTriangle with reordered blocks
         ir = """\
-        define void @forkedTriangle1(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
+        define void @forkedTriangle1(i1 addrspace(1)* %iC0, i8 addrspace(2)* %o) {
           EBB:
-            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            %c0 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br i1 %c0, label %TBB, label %FBB
           TBB:
-            store volatile i8 0, i8 addrspace(3)* %o, align 1
-            %c1 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            store volatile i8 0, i8 addrspace(2)* %o, align 1
+            %c1 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br i1 %c1, label %FBB, label %BBLoop
           BBLoop:
-            store volatile i8 1, i8 addrspace(3)* %o, align 1
+            store volatile i8 1, i8 addrspace(2)* %o, align 1
             br label %BBLoop
           FBB:
             ret void
@@ -306,24 +306,24 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
         #   BBLoopTail----+
 
         ir = """\
-        define void @forkedTriangleInLoop(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
+        define void @forkedTriangleInLoop(i1 addrspace(1)* %iC0, i8 addrspace(2)* %o) {
           BBEntry:
             br label %BBLoopHead
           BBLoopHead:
             br label %EBB
           EBB:
-            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
-            store volatile i8 0, i8 addrspace(3)* %o, align 1
+            %c0 = load volatile i1, i1 addrspace(1)* %iC0, align 1
+            store volatile i8 0, i8 addrspace(2)* %o, align 1
             br i1 %c0, label %TBB, label %FBB
           TBB:
-            %c1 = load volatile i1, i1 addrspace(2)* %iC0, align 1
-            store volatile i8 1, i8 addrspace(3)* %o, align 1
+            %c1 = load volatile i1, i1 addrspace(1)* %iC0, align 1
+            store volatile i8 1, i8 addrspace(2)* %o, align 1
             br i1 %c1, label %FBB, label %BBLoopTail
           FBB:
-            store volatile i8 2, i8 addrspace(3)* %o, align 1
+            store volatile i8 2, i8 addrspace(2)* %o, align 1
             br label %BBLoopTail
           BBLoopTail:
-            store volatile i8 3, i8 addrspace(3)* %o, align 1
+            store volatile i8 3, i8 addrspace(2)* %o, align 1
             br label %BBLoopHead
         }
         """
@@ -341,26 +341,26 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
         #   BBLoopTail----+
 
         ir = """\
-        define void @forkedTriangleWhichIsLoopInLoop0(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
+        define void @forkedTriangleWhichIsLoopInLoop0(i1 addrspace(1)* %iC0, i8 addrspace(2)* %o) {
           BBEntry:
             br label %BBLoopHead
           BBLoopHead:
-            store volatile i8 0, i8 addrspace(3)* %o, align 1
+            store volatile i8 0, i8 addrspace(2)* %o, align 1
             br label %EBB
           EBB:
-            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
-            store volatile i8 1, i8 addrspace(3)* %o, align 1
+            %c0 = load volatile i1, i1 addrspace(1)* %iC0, align 1
+            store volatile i8 1, i8 addrspace(2)* %o, align 1
             br i1 %c0, label %TBB, label %FBB
           TBB:
-            %c1 = load volatile i1, i1 addrspace(2)* %iC0, align 1
-            store volatile i8 2, i8 addrspace(3)* %o, align 1
+            %c1 = load volatile i1, i1 addrspace(1)* %iC0, align 1
+            store volatile i8 2, i8 addrspace(2)* %o, align 1
             br i1 %c1, label %FBB, label %BBLoopTail
           FBB:
-            store volatile i8 3, i8 addrspace(3)* %o, align 1
+            store volatile i8 3, i8 addrspace(2)* %o, align 1
             br label %BBLoopTail
           BBLoopTail:
-            store volatile i8 4, i8 addrspace(3)* %o, align 1
-            %c2 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            store volatile i8 4, i8 addrspace(2)* %o, align 1
+            %c2 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br i1 %c2, label %EBB, label %BBLoopHead
         }
         """
@@ -369,26 +369,26 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
     def test_ForkedTriangleWhichIsLoopInLoop1(self):  # BB is entry of a triangle sub-CFG.
         # forkedTriangleWhichIsLoopInLoop0 with modified branch order
         ir = """\
-        define void @forkedTriangleWhichIsLoopInLoop1(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
+        define void @forkedTriangleWhichIsLoopInLoop1(i1 addrspace(1)* %iC0, i8 addrspace(2)* %o) {
           BBEntry:
             br label %BBLoopHead
           BBLoopHead:
-            store volatile i8 0, i8 addrspace(3)* %o, align 1
+            store volatile i8 0, i8 addrspace(2)* %o, align 1
             br label %EBB
           EBB:
-            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
-            store volatile i8 1, i8 addrspace(3)* %o, align 1
+            %c0 = load volatile i1, i1 addrspace(1)* %iC0, align 1
+            store volatile i8 1, i8 addrspace(2)* %o, align 1
             br i1 %c0, label %FBB, label %TBB
           TBB:
-            %c1 = load volatile i1, i1 addrspace(2)* %iC0, align 1
-            store volatile i8 2, i8 addrspace(3)* %o, align 1
+            %c1 = load volatile i1, i1 addrspace(1)* %iC0, align 1
+            store volatile i8 2, i8 addrspace(2)* %o, align 1
             br i1 %c1, label %FBB, label %BBLoopTail
           FBB:
-            store volatile i8 3, i8 addrspace(3)* %o, align 1
+            store volatile i8 3, i8 addrspace(2)* %o, align 1
             br label %BBLoopTail
           BBLoopTail:
-            store volatile i8 4, i8 addrspace(3)* %o, align 1
-            %c2 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            store volatile i8 4, i8 addrspace(2)* %o, align 1
+            %c2 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br i1 %c2, label %BBLoopHead, label %EBB
         }
         """
@@ -405,15 +405,15 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
         #  TailBB
         # Note TailBB can be empty.
         ir = """\
-        define void @diamond0(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
+        define void @diamond0(i1 addrspace(1)* %iC0, i8 addrspace(2)* %o) {
           EBB:
-            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            %c0 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br i1 %c0, label %TBB, label %FBB
           TBB:
-            store volatile i8 10, i8 addrspace(3)* %o, align 1
+            store volatile i8 10, i8 addrspace(2)* %o, align 1
             br label %TailBB
           FBB:
-            store volatile i8 11, i8 addrspace(3)* %o, align 1
+            store volatile i8 11, i8 addrspace(2)* %o, align 1
             br label %TailBB
           TailBB:
             ret void
@@ -424,16 +424,16 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
     def test_Diamond1(self):
         # same as Diamond0 just Branch condition in EBB reversed
         ir = """\
-        define void @diamond1(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
+        define void @diamond1(i1 addrspace(1)* %iC0, i8 addrspace(2)* %o) {
           EBB:
-            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            %c0 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             %c0_n = xor i1 %c0, true
             br i1 %c0_n, label %FBB, label %TBB
           TBB:
-            store volatile i8 10, i8 addrspace(3)* %o, align 1
+            store volatile i8 10, i8 addrspace(2)* %o, align 1
             br label %TailBB
           FBB:
-            store volatile i8 11, i8 addrspace(3)* %o, align 1
+            store volatile i8 11, i8 addrspace(2)* %o, align 1
             br label %TailBB
           TailBB:
             ret void
@@ -444,19 +444,19 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
     def test_Diamond0withLiveout(self):
         # same as Diamond0 just with extra live registers on entry to TailBB
         ir = """\
-        define void @diamond0withLiveout(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
+        define void @diamond0withLiveout(i1 addrspace(1)* %iC0, i8 addrspace(2)* %o) {
           EBB:
-            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            %c0 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br i1 %c0, label %TBB, label %FBB
           TBB:
-            store volatile i8 10, i8 addrspace(3)* %o, align 1
+            store volatile i8 10, i8 addrspace(2)* %o, align 1
             br label %TailBB
           FBB:
-            store volatile i8 11, i8 addrspace(3)* %o, align 1
+            store volatile i8 11, i8 addrspace(2)* %o, align 1
             br label %TailBB
           TailBB:
             %res = phi i8 [ 2, %TBB ], [ 3, %FBB ]
-            store volatile i8 %res, i8 addrspace(3)* %o, align 1
+            store volatile i8 %res, i8 addrspace(2)* %o, align 1
             ret void
         }
         """
@@ -481,18 +481,18 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
     def test_linearSequenceOfBlocksWithSameTail(self):
         # while iC0 load is 1 continue upto 4x
         ir = """\
-        define void @linearSequenceOfBlocksWithSameTail(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
+        define void @linearSequenceOfBlocksWithSameTail(i1 addrspace(1)* %iC0, i8 addrspace(2)* %o) {
           BB0:
-            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            %c0 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br i1 %c0, label %BB1, label %TailBB
           BB1:
-            %c1 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            %c1 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br i1 %c1, label %BB2, label %TailBB
           BB2:
-            %c2 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            %c2 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br i1 %c2, label %BB3, label %TailBB
           BB3:
-            %c3 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            %c3 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br label %TailBB
           TailBB:
             ret void
@@ -503,14 +503,14 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
 
     def test_LoopTail0(self):
         ir = """\
-        define void @LoopTail0(i1 addrspace(2)* %iC0, i8 addrspace(3)* %o) {
+        define void @LoopTail0(i1 addrspace(1)* %iC0, i8 addrspace(2)* %o) {
           BB0:
             br label %BBL0
           BBL0:
-            %c0 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            %c0 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br i1 %c0, label %BBTail, label %BBExit
           BBTail:
-            %c1 = load volatile i1, i1 addrspace(2)* %iC0, align 1
+            %c1 = load volatile i1, i1 addrspace(1)* %iC0, align 1
             br i1 %c1, label %BBL0, label %BBExit
           BBExit:
             ret void
@@ -700,7 +700,7 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([VRegIfConverter_TC('test_switchInLoop0')])
+    # suite = unittest.TestSuite([VRegIfConverter_TC('test_returnBlockMerge0')])
     suite = testLoader.loadTestsFromTestCase(VRegIfConverter_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
