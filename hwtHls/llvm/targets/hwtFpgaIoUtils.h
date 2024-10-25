@@ -10,12 +10,12 @@ llvm::MachineInstr* getLoadOrStoreFromAddrOperand(
 /*
  * :returns: element type, number of bits for address signal (0 means no address is required because it is scalar)
  * */
-std::pair<llvm::Type*, size_t> getLoadOrStoreElementType(
+std::tuple<llvm::Type*, size_t, llvm::MachineInstr*> getLoadOrStoreElementType(
 		llvm::MachineRegisterInfo &MRI, llvm::MachineInstr &MI);
 /*
  * :returns: element type, number of bits for address signal (0 means no address is required because it is scalar)
  * */
-std::optional<std::pair<llvm::Type*, size_t>> getPointerElementTypeFromAnyLoadOrStore(
+std::optional<std::tuple<llvm::Type*, size_t, llvm::MachineInstr*>> getPointerElementTypeFromAnyLoadOrStore(
 		llvm::MachineRegisterInfo &MRI, llvm::MachineOperand &addrOp);
 /*
  * :returns: element type, number of bits for address signal (0 means no address is required because it is scalar)

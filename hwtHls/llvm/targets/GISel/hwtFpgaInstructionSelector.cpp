@@ -46,6 +46,10 @@ private:
 			MachineInstr &I);
 	bool select_G_TRUNC(MachineRegisterInfo &MRI, MachineIRBuilder &MIRB,
 			MachineInstr &I);
+	MachineOperand rewrite_G_PTR_ADD_exprToIndexADD(MachineFunction &MF, MachineRegisterInfo &MRI,
+			MachineIRBuilder &MIRB, Register baseAddrDefiningReg, size_t indexWidth,
+			TypeSize itemSize, MachineInstr &addrDefMI,
+			std::map<Register, Register> &replacements);
 	bool select_G_LOAD_or_G_STORE(MachineFunction &MF, MachineRegisterInfo &MRI,
 			MachineIRBuilder &MIRB, MachineInstr &MI);
 	std::optional<Register> _getSelectedMsb(MachineIRBuilder &MIRB,
@@ -345,6 +349,153 @@ bool HwtFpgaTargetInstructionSelector::select(MachineInstr &I) {
 	return false; // all is selected because this is just a dummy selector
 }
 
+MachineOperand HwtFpgaTargetInstructionSelector::rewrite_G_PTR_ADD_exprToIndexADD(MachineFunction &MF, MachineRegisterInfo &MRI,
+		MachineIRBuilder &MIRB, Register baseAddrDefiningReg, size_t indexWidth,
+		TypeSize itemSize, MachineInstr &addrDefMI,
+		std::map<Register, Register> &replacements) {
+	// :note: replacements must be updated before calling this function in recurse
+
+	// set to insert before addrDefMI
+	auto existing = replacements.find(addrDefMI.getOperand(0).getReg());
+	if (existing != replacements.end())
+		return  MachineOperand::CreateReg(existing->second, false);
+
+	switch (addrDefMI.getOpcode()) {
+	case TargetOpcode::G_PTR_ADD: {
+		// %1:_(p0) = G_PTR_ADD %0:_(p0), %1:_(s32)
+		if (isPow2(itemSize)) {
+			// use HWTFPGA_EXTRACT to slice off lower bits to convert from address to index
+			assert(indexWidth > 0 && "G_PTR_ADD should not be used for memories which are just 1 scalar");
+			// dst, src, offset, dstWidth
+			assert(addrDefMI.getParent());
+			MIRB.setInsertPt(*addrDefMI.getParent(), addrDefMI.getIterator());
+			MachineInstrBuilder indexMIB = MIRB.buildInstr(
+					HwtFpga::HWTFPGA_EXTRACT);
+			Register indexReg = MRI.createGenericVirtualRegister(
+					LLT::scalar(indexWidth));
+			indexMIB.addDef(indexReg);
+			//indexMIB.addUse(addrDefMI.getOperand(2).isReg());  // G_PTR_ADD right operand to index src operand
+			//assert(addrDefMI.getOperand(2).isReg());
+			//assert(!MRI.getType(addrDefMI.getOperand(2).getReg()).isPointer());
+			auto srcMO = addrDefMI.getOperand(2);
+			//auto srcDef = MRI.getUniqueVRegDef(srcMO.getReg());
+			//assert(srcDef);
+			//auto srcMOSelected = rewrite_G_PTR_ADD_exprToIndexADD(MF, MRI, MIRB, baseAddrDefiningReg, indexWidth, itemSize, *srcDef, replacements);
+			selectInstrArg(MF, indexMIB, MRI, srcMO);
+			indexMIB.addImm(log2ceil(itemSize)); // offset
+			indexMIB.addImm(indexWidth); // dstWidth
+
+			auto &IndexSliceMI = *indexMIB.getInstr();
+			assert(constrainInstRegOperands(IndexSliceMI, TII, TRI, RBI));
+
+			auto p0Op = addrDefMI.getOperand(1).getReg();
+			if (p0Op != baseAddrDefiningReg) {
+				// this is not just base + n format, HWTFPGA_ADD must be constructed
+				replacements[indexReg] = indexReg;
+				replacements[addrDefMI.getOperand(0).getReg()] = indexReg;
+				auto p0Def = MRI.getUniqueVRegDef(p0Op);
+				assert(p0Def);
+				auto p0OpSelected = rewrite_G_PTR_ADD_exprToIndexADD(MF, MRI,
+						MIRB, baseAddrDefiningReg, indexWidth, itemSize, *p0Def,
+						replacements);
+				Register indexAddedReg = MRI.createGenericVirtualRegister(
+						LLT::scalar(indexWidth));
+				MIRB.setInsertPt(*IndexSliceMI.getParent(), ++IndexSliceMI.getIterator());
+				auto indexAddMIB = MIRB.buildInstr(HwtFpga::HWTFPGA_ADD, { indexAddedReg }, {
+						 });
+				auto _indexReg = MachineOperand::CreateReg(indexReg, false);
+				selectInstrArg(MF, indexAddMIB, MRI, _indexReg);
+				selectInstrArg(MF, indexAddMIB, MRI, p0OpSelected);
+				assert(constrainInstRegOperands(*indexAddMIB.getInstr(), TII, TRI, RBI));
+
+				indexReg = indexAddedReg;
+			} else {
+				replacements[indexReg] = indexReg;
+				replacements[addrDefMI.getOperand(0).getReg()] = indexReg;
+			}
+			return MachineOperand::CreateReg(indexReg, false);
+		} else {
+			llvm_unreachable(
+					"NotImplemented, extract the multiplier from the index");
+		}
+		break;
+	}
+	case TargetOpcode::PHI:
+	case TargetOpcode::G_PHI: {
+		// construct new phi just for index part
+		assert(addrDefMI.getParent());
+		MIRB.setInsertPt(*addrDefMI.getParent(), addrDefMI.getIterator());
+		auto indexPhiMIB = MIRB.buildInstr(TargetOpcode::PHI);
+		Register indexReg = MRI.createGenericVirtualRegister(
+				LLT::scalar(indexWidth));
+		replacements[indexReg] = indexReg;
+		replacements[addrDefMI.getOperand(0).getReg()] = indexReg;
+		indexPhiMIB.addDef(indexReg);
+		for (size_t i = 1; i < addrDefMI.getNumExplicitOperands(); i += 2) {
+			const MachineOperand& ValMO = addrDefMI.getOperand(i);
+			const MachineOperand& MbMO = addrDefMI.getOperand(i+1);
+			auto valDef = MRI.getUniqueVRegDef(ValMO.getReg());
+			assert(valDef);
+			auto ValMOSelected = rewrite_G_PTR_ADD_exprToIndexADD(MF, MRI,
+									MIRB, baseAddrDefiningReg, indexWidth, itemSize, *valDef,
+									replacements);
+			if (!ValMOSelected.isReg()) {
+				MIRB.setInsertPt(*MF.begin(), MF.begin()->terminators().begin());
+				if (ValMOSelected.isImm()) {
+					 // convert phi operand from imm to reg format (because lowering (PHIElimination and others) of phi requires it)
+					Register indexReg = MRI.createGenericVirtualRegister(
+							LLT::scalar(indexWidth));
+					auto cImmMIB = MIRB.buildConstant(indexReg, APInt(indexWidth, ValMOSelected.getImm()));
+					assert(constrainInstRegOperands(*cImmMIB.getInstr(), TII, TRI, RBI));
+					ValMOSelected =  MachineOperand::CreateReg(indexReg, false);
+				} else {
+					errs() << addrDefMI << "\n";
+					errs() << ValMOSelected << "\n";
+					llvm_unreachable("Unknown type of operator for phi for index");
+				}
+			}
+			indexPhiMIB.addUse(ValMOSelected.getReg());
+			indexPhiMIB.add(MbMO);
+			//selectInstrArg(MF, indexPhiMIB, MRI, ValMOSelected);
+			//MachineOperand _MbMO  = MbMO;
+			//selectInstrArg(MF, indexPhiMIB, MRI, _MbMO);
+		}
+		assert(constrainInstRegOperands(*indexPhiMIB.getInstr(), TII, TRI, RBI));
+
+		return MachineOperand::CreateReg(indexReg, false);
+	}
+	case TargetOpcode::G_CONSTANT: {
+		Register indexReg = MRI.createGenericVirtualRegister(
+				LLT::scalar(indexWidth));
+		auto v = addrDefMI.getOperand(1).getCImm()->getValue();
+		if (isPow2(itemSize)) {
+			size_t offset = log2ceil(itemSize);
+			v = v.extractBits(indexWidth, offset);
+		} else {
+			llvm_unreachable(
+					"NotImplemented, extract the multiplier from the index");
+		}
+		auto cImmMIB = MIRB.buildConstant(indexReg, v);
+		assert(constrainInstRegOperands(*cImmMIB.getInstr(), TII, TRI, RBI));
+		return MachineOperand::CreateReg(indexReg, false);
+	}
+	case TargetOpcode::G_GLOBAL_VALUE:
+	case HwtFpga::HWTFPGA_GLOBAL_VALUE:
+	case HwtFpga::HWTFPGA_ARG_GET: {
+		if (addrDefMI.getOperand(0).getReg() != baseAddrDefiningReg) {
+			auto& F = MIRB.getMF();
+			F.dump();
+			assert(addrDefMI.getOperand(0).getReg() == baseAddrDefiningReg); // there should be only one
+		}
+		return MachineOperand::CreateImm(0);
+	}
+	default:
+		errs() << "Address operand defined by: " << addrDefMI << "\n";
+		llvm_unreachable(
+				"Unknown instruction specifying address for load or store");
+	}
+}
+
 bool HwtFpgaTargetInstructionSelector::select_G_LOAD_or_G_STORE(
 		MachineFunction &MF, MachineRegisterInfo &MRI, MachineIRBuilder &MIRB,
 		MachineInstr &MI) {
@@ -377,53 +528,17 @@ bool HwtFpgaTargetInstructionSelector::select_G_LOAD_or_G_STORE(
 	selectInstrArg(MF, MIB, MRI, MI.getOperand(0)); // val/dst - copy as it is
 
 	MachineInstr *addrDef = MRI.getOneDef(addrMO.getReg())->getParent();
-	switch (addrDef->getOpcode()) {
-	case HwtFpga::HWTFPGA_ARG_GET: {
-		// this is just original base address
-		selectInstrArg(MF, MIB, MRI, addrMO); // base address
-		MIB.addImm(0); // index
-		break;
-	}
-	case TargetOpcode::G_PTR_ADD: {
-		// [todo] slice the index during instr. selection so we do have a minimal width and value without size multiplier
-		MachineOperand &baseAddrMO = addrDef->getOperand(1);
-		selectInstrArg(MF, MIB, MRI, baseAddrMO); // base address
-		Type * elmT;
-		size_t indexWidth;
-		std::tie(elmT, indexWidth) = hwtHls::getLoadOrStoreElementType(MRI, MI);
+	Type * elmT;
+	size_t indexWidth;
+	MachineInstr* ioDefiningInstr;
+	std::tie(elmT, indexWidth, ioDefiningInstr) = hwtHls::getLoadOrStoreElementType(MRI, MI);
+	const DataLayout &DL = MF.getFunction().getParent()->getDataLayout();
+	TypeSize itemSize = elmT ? DL.getTypeAllocSize(elmT) : MRI.getType(MI.getOperand(0).getReg()).getSizeInBytes();
 
-		const DataLayout &DL = MF.getFunction().getParent()->getDataLayout();
-		TypeSize itemSize = DL.getTypeAllocSize(elmT);
-
-		assert(indexWidth > 0);
-
-		if (isPow2(itemSize)) {
-			// set to insert before newly added HWTFPGA_CLOAD/HWTFPGA_CSTORE
-			MIRB.setInsertPt(*MIRB.getInsertPt()->getParent(),
-					--MIRB.getInsertPt());
-			// dst, src, offset, dstWidth
-			MachineInstrBuilder indexMIB = MIRB.buildInstr(
-					HwtFpga::HWTFPGA_EXTRACT);
-			Register indexReg = MRI.createGenericVirtualRegister(
-					LLT::scalar(indexWidth));
-			indexMIB.addDef(indexReg);
-			selectInstrArg(MF, indexMIB, MRI, addrDef->getOperand(2)); // index as src
-			indexMIB.addImm(log2ceil(itemSize)); // offset
-			indexMIB.addImm(indexWidth); // dstWidth
-			MIB.addReg(indexReg); // index
-		} else {
-			llvm_unreachable(
-					"NotImplemented, extract the multiplier from the index");
-		}
-
-		break;
-	}
-	default:
-		errs() << MI << " address operand defined by:\n" << *addrDef;
-		llvm_unreachable(
-				"Unknown instruction specifying address for load or store");
-	}
-
+	std::map<Register, Register> replacements;
+	MachineOperand indexMO = rewrite_G_PTR_ADD_exprToIndexADD(MF, MRI, MIRB, ioDefiningInstr->getOperand(0).getReg(), indexWidth, itemSize, *addrDef, replacements);
+	MIB.addUse(ioDefiningInstr->getOperand(0).getReg()); // base addr
+	selectInstrArg(MF, MIB, MRI, indexMO); // index
 	auto dst = MI.getOperand(0).getReg();
 	MIB.addImm(MRI.getType(dst).getSizeInBits()); // add dstWidth/val width
 	MIB.addImm(1); // cond

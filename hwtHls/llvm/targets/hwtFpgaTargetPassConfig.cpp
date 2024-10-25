@@ -22,10 +22,12 @@
 #include <hwtHls/llvm/targets/Transforms/EarlyMachineCopyPropagation.h>
 #include <hwtHls/llvm/targets/Transforms/hwtHlsCodeGenPrepare.h>
 #include <hwtHls/llvm/targets/Transforms/machineDumpAndExitPass.h>
+#include <hwtHls/llvm/targets/Transforms/RemovePointerArithmeticPass.h>
 #include <hwtHls/llvm/targets/Transforms/vregIfConversion.h>
 #include <hwtHls/llvm/targets/Transforms/vregMachineLateInstrsCleanup.h>
 #include <hwtHls/llvm/targets/Transforms/HwtHlsRunPassInstrumentationCallbacksPass.h>
 #include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
+
 
 #include <iostream>
 
@@ -114,7 +116,10 @@ bool HwtFpgaTargetPassConfig::addRegBankSelect() {
 }
 
 bool HwtFpgaTargetPassConfig::addGlobalInstructionSelect() {
+	// addPass(new hwtHls::MachineDumpAndExitPass(true, false));
 	addPass(new InstructionSelect(getOptLevel()));
+	addPass(hwtHls::createRemovePointerArithmeticPass());
+	// addPass(new hwtHls::MachineDumpAndExitPass(true, true));
 	return false;
 }
 

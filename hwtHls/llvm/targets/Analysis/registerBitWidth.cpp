@@ -296,7 +296,8 @@ bool resolveTypes(MachineInstr &MI) {
 		// HWTFPGA_CLOAD dst, addr, index, dstWidth, cond
 		Type *elemT;
 		size_t indexWidth;
-		std::tie(elemT, indexWidth) = getLoadOrStoreElementType(MRI, MI);
+		MachineInstr * addrDef;
+		std::tie(elemT, indexWidth, addrDef) = getLoadOrStoreElementType(MRI, MI);
 
 		unsigned bitWidth = elemT->getIntegerBitWidth();
 		assert(bitWidth == MI.getOperand(3).getImm());
