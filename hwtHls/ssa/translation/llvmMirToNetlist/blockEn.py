@@ -55,7 +55,7 @@ def _mergeBrachOutConditions(builder: HlsNetlistBuilder,
             _brCond = builder.buildAndVariadic((mbEn, anyPrevBranchEn_n, brCond))
 
     assert _brCond is not None
-    if isinstance(_brCond.obj, HlsNetNodeOperator) and _brCond.obj.name is None:
+    if isinstance(_brCond, HlsNetNodeOut) and isinstance(_brCond.obj, HlsNetNodeOperator) and _brCond.obj.name is None:
         _brCond.obj.name = f"bb{srcBbNumber:d}_br_bb{dstBbNumber:d}"
     return _brCond
 
