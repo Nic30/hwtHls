@@ -1,12 +1,16 @@
+from copy import copy
 from typing import Callable
 
 from hwt.code import Concat, rol
+from hwt.hdl.const import HConst
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.struct import HStruct
+from hwt.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.hwrange import hwrange
 from hwtHls.frontend.pyBytecode.pragma import _PyBytecodeLoopPragma
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodePreprocHwCopy
 from hwtLib.types.ctypes import uint32_t
 
 
@@ -41,6 +45,7 @@ MD5_s = HBits(5)[64].from_py([HBits(5).from_py(n) for n in [
 
 # init for A, B, C, D variables used in MD6 computation
 MD5_INIT = [uint32_t.from_py(n) for n in [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476]]
+MD5_INIT_DICT = {"a0": MD5_INIT[0], "b0": MD5_INIT[1], "c0":MD5_INIT[2], "d0":MD5_INIT[3]}
 
 md5_accumulator_t = HStruct(
     (HBits(32), "a0"),
@@ -52,9 +57,10 @@ md5_accumulator_t = HStruct(
 
 
 @hlsBytecode
-def md5ProcessChunk(chunk: RtlSignal, acc: RtlSignal, loopPragmaGetter: Callable[[], _PyBytecodeLoopPragma]=lambda: None):
+def md5ProcessChunk(chunk: RtlSignal, acc: RtlSignalBase[md5_accumulator_t], loopPragmaGetter: Callable[[], _PyBytecodeLoopPragma]=lambda: None):
     """
     Based on https://github.com/jcastillo4/systemc-verilog-md5/blob/master/rtl/verilog/md5.v
+     https://github.com/buenorafa/md5-python/blob/main/md5.py
 
     The message is padded so that its length is divisible by 512
      * First, a single bit, 1, is appended to the end of the message.
@@ -66,14 +72,19 @@ def md5ProcessChunk(chunk: RtlSignal, acc: RtlSignal, loopPragmaGetter: Callable
 
     assert chunk._dtype.bit_length() == 32 * 16
     M = [chunk[32 * (i + 1):32 * i] for i in range(16)]
+
     T = HBits(32)
     MIndex_t = HBits(4)
-    A = acc.a0
-    B = acc.b0
-    C = acc.c0
-    D = acc.d0
+    if isinstance(chunk, HConst):
+        _copy = copy  # in sim
+    else:
+        _copy = PyBytecodePreprocHwCopy
+    A = _copy(acc.a0)
+    B = _copy(acc.b0)
+    C = _copy(acc.c0)
+    D = _copy(acc.d0)
 
-    for i in hwrange(64):
+    for i in hwrange(4 * 16):
         F = T.from_py(None)
         g = MIndex_t.from_py(None)
         if i < 16:
@@ -89,7 +100,12 @@ def md5ProcessChunk(chunk: RtlSignal, acc: RtlSignal, loopPragmaGetter: Callable
             F = C ^ (B | ~D)
             g = (i * 7)[4:]
 
+        if isinstance(g, HConst):
+            # this is in simulation
+            g = int(g)  # to int because of M[g]
+
         F = F + A + MD5_SINES_OF_INTEGERS[i] + M[g]
+        
         A = D
         D = C
         C = B
@@ -109,4 +125,7 @@ def md5ProcessChunk(chunk: RtlSignal, acc: RtlSignal, loopPragmaGetter: Callable
 @hlsBytecode
 def md5BuildDigist(acc):
     ":note: output is 128b wide"
-    return Concat(acc.a0, acc.b0, acc.c0, acc.d0)
+    return Concat(acc.d0,
+                  acc.c0,
+                  acc.b0,
+                  acc.a0,)
