@@ -2,7 +2,6 @@ from typing import Optional, Set, Dict
 
 from hwt.hwIO import HwIO
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register
-from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge
@@ -122,7 +121,7 @@ class ResetValueExtractor():
                 for r in self.liveness[pred][mb]:
                     r: Register
                     assert r in self.regToIo, (
-                        r, "Block is supposed to have no live in registers because any en from predecessor was not used in input mux")
+                        r, r.virtRegIndex(), "Block is supposed to have no live in registers because any en from predecessor was not used in input mux")
             assert newResetEdgeMeta.reuseDataAsControl is None
             if mbMeta.needsControl and not mbMeta.isLoopHeaderOfFreeRunning:
                 dbgTracer.log("appending init value to control channel from rst")
