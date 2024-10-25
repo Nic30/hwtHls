@@ -234,7 +234,13 @@ class LlvmMirInterpret():
                             width = llt.getSizeInBits()
                             ops.append(HBits(width).from_py(None))
                         else:
-                            ops.append(regs[r.virtRegIndex()])
+                            v = regs[r.virtRegIndex()]
+                            if v is None:
+                                llt = MRI.getType(r)
+                                assert llt.isValid(), r
+                                width = llt.getSizeInBits()
+                                v = HBits(width).from_py(None)
+                            ops.append(v)
 
                     elif mo.isMBB():
                         ops.append(mo.getMBB())
