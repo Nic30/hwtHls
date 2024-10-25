@@ -75,6 +75,16 @@ public:
 			override {
 		return true;
 	}
+    virtual void computeKnownBitsForTargetInstr(GISelKnownBits &Analysis,
+                                                Register R, KnownBits &Known,
+                                                const APInt &DemandedElts,
+                                                const MachineRegisterInfo &MRI,
+                                                unsigned Depth = 0) const override;
+    // virtual Align computeKnownAlignForTargetInstr(GISelKnownBits &Analysis,
+    //                                               Register R,
+    //                                               const MachineRegisterInfo &MRI,
+    //                                               unsigned Depth = 0) const override;
+    //
 	/// Return the register class that should be used for the specified value
 	/// type.
 	virtual const llvm::TargetRegisterClass* getRegClassFor(llvm::MVT VT,
