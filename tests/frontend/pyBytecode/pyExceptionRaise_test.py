@@ -4,6 +4,7 @@
 from typing import Type
 import unittest
 
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOVectSignal
@@ -34,7 +35,7 @@ class PyExceptionJustRaise(HwModule):
     def mainThread(self, hls: HlsScope):
         raise TestException0()
 
-        while BIT.from_py(1):
+        while b1:
             hls.write(hls.read(self.i), self.o)
 
     @override
@@ -57,7 +58,7 @@ class PyExceptionRaisePyConditionaly(PyExceptionJustRaise):
         if self.RAISE:
             raise TestException0()
 
-        while BIT.from_py(1):
+        while b1:
             hls.write(hls.read(self.i), self.o)
 
 
@@ -68,7 +69,7 @@ class PyExceptionRaiseRaiseUsingAssert(PyExceptionRaisePyConditionaly):
     def mainThread(self, hls: HlsScope):
         assert not self.RAISE
 
-        while BIT.from_py(1):
+        while b1:
             hls.write(hls.read(self.i), self.o)
 
 
@@ -78,7 +79,7 @@ class PyExceptionRaiseRaiseUsingAssertFromInlined0(PyExceptionRaisePyConditional
     def mainThreadMainPart(self, hls: HlsScope):
         assert not self.RAISE
 
-        while BIT.from_py(1):
+        while b1:
             hls.write(hls.read(self.i), self.o)
 
     @hlsBytecode
@@ -98,7 +99,7 @@ class PyExceptionRaiseRaiseUsingAssertFromInlined1(PyExceptionRaisePyConditional
     @override
     def mainThread(self, hls: HlsScope):
         PyBytecodeInline(self.mainThreadMainPart)(hls)
-        while BIT.from_py(1):
+        while b1:
             hls.write(hls.read(self.i), self.o)
 
 
@@ -113,7 +114,7 @@ class PyExceptionRaiseRaiseUsingAssertFromInlinedWithLognerCond(PyExceptionRaise
     @override
     def mainThread(self, hls: HlsScope):
         PyBytecodeInline(self.mainThreadMainPart)(hls)
-        while BIT.from_py(1):
+        while b1:
             hls.write(hls.read(self.i), self.o)
 
 
@@ -137,7 +138,7 @@ class PyExceptionRaiseRaiseUsingAssertFromInlined2(PyExceptionRaisePyConditional
     @override
     def mainThread(self, hls: HlsScope):
         PyBytecodeInline(self.mainThreadMainPart)(hls)
-        while BIT.from_py(1):
+        while b1:
             hls.write(hls.read(self.i), self.o)
 
 
@@ -148,7 +149,7 @@ class PyExceptionRaiseRaiseUsingAssertWithMsg(PyExceptionRaisePyConditionaly):
     def mainThread(self, hls: HlsScope):
         assert not self.RAISE, "Err msg"
 
-        while BIT.from_py(1):
+        while b1:
             hls.write(hls.read(self.i), self.o)
 
 
@@ -159,7 +160,7 @@ class PyExceptionRaiseRaiseUsingAssertWithLongerCond(PyExceptionRaisePyCondition
     def mainThread(self, hls: HlsScope):
         assert self.RAISE != True or self.RAISE != 1
 
-        while BIT.from_py(1):
+        while b1:
             hls.write(hls.read(self.i), self.o)
 
 
@@ -173,7 +174,7 @@ class PyExceptionRaiseRaiseCatch(PyExceptionJustRaise):
         except TestException0:
             pass
 
-        while BIT.from_py(1):
+        while b1:
             hls.write(hls.read(self.i), self.o)
 
 
@@ -230,11 +231,11 @@ class PyBytecodePyException_TC(SimTestCase):
 
 
 if __name__ == "__main__":
-    # from hwt.synth import to_rtl_str
-    # from hwtHls.platform.platform import HlsDebugBundle
-    # m = PyExceptionJustRaise()
-    # #m.RAISE = False
-    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    from hwt.synth import to_rtl_str
+    from hwtHls.platform.platform import HlsDebugBundle
+    m = PyExceptionRaiseRaiseUsingAssertFromInlined2()
+    m.RAISE = False
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     testLoader = unittest.TestLoader()
     # suite = unittest.TestSuite([PyBytecodePyException_TC("test_frameHeader")])
