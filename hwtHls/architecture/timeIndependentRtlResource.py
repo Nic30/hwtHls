@@ -7,7 +7,6 @@ from hwt.hdl.operatorDefs import CAST_OPS
 from hwt.hwIO import HwIO
 from hwt.synthesizer.rtlLevel.exceptions import SignalDriverErr
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.netlist.scheduler.clk_math import start_clk
 
 
@@ -24,10 +23,10 @@ class TimeIndependentRtlResourceItem():
         self.isExplicitRegister = isExplicitRegister
 
     def isRltRegister(self) -> bool:
-        return self.isExplicitRegister or (
-                self.parent.valuesInTime[0] is not self or
-                isinstance(self.parent.valuesInTime[0].data, RtlSyncSignal)
-        )
+        if self.isExplicitRegister:
+            return True
+        v0 = self.parent.valuesInTime[0]
+        return v0 is not self or (isinstance(v0.data, RtlSignal) and v0.data.next is not None)
 
     def __repr__(self):
         return f"<{self.__class__.__name__:s} {self.data}>"
@@ -139,7 +138,7 @@ class TimeIndependentRtlResource():
 
         # allocate registers to propagate value into next cycles
         sig = self.valuesInTime[0]
-        
+
         # base name for delayed signal
         # :note: HConst instance should have never get the there
         if isinstance(sig.data, HwIO):

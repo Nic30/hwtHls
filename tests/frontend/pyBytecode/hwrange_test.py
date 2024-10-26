@@ -1,12 +1,12 @@
 from hwt.code import Concat
 from hwt.hdl.commonConstants import b1
+from hwt.hdl.types.bitsCastUtils import fitTo_t
 from hwt.hwIOs.std import HwIOVectSignal, HwIOClk
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwt.simulator.simTestCase import SimTestCase
-from hwt.synthesizer.vectorUtils import fitTo_t
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.hwrange import hwrange
 from hwtHls.frontend.pyBytecode.pragmaLoop import PyBytecodeLoopFlattenUsingIf

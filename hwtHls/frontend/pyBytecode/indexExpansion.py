@@ -3,7 +3,6 @@ from typing import Sequence, Union, Callable, List, Tuple, Optional
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.const import HConst
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
-from hwt.hdl.types.bitConstFunctions import AnyHValue
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
 from hwt.mainBases import HwIOBase
@@ -14,6 +13,7 @@ from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
 from hwtHls.ssa.basicBlock import SsaBasicBlock
 from hwtHls.ssa.value import SsaValue
+from hwt.math import AnyHValue
 
 
 class PyObjectHwSubscriptRef():

@@ -1,7 +1,12 @@
+from typing import Self
+
 from hwt.doc_markers import internal
 from hwt.hdl.const import HConst
+from hwt.hdl.operator import HOperatorNode
+from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.typingFuture import override
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 
 
 class _HVoidOrdering(HdlType):
@@ -22,6 +27,16 @@ class _HVoidOrdering(HdlType):
             cls._constCls = _HVoidConst
             return cls._constCls
 
+    @internal
+    @override
+    @classmethod
+    def getRtlSignalCls(cls):
+        try:
+            return cls._rtlSignalCls
+        except AttributeError:
+            cls._rtlSignalCls = _HVoidRtlSignal
+            return cls._rtlSignalCls
+
 
 class _HVoidConst(HConst):
 
@@ -37,6 +52,13 @@ class _HVoidConst(HConst):
 
     def __repr__(self):
         return f"<void>"
+
+
+class _HVoidRtlSignal(RtlSignal):
+
+    def _concat(self, other: "_HVoidConst") -> Self:
+        assert self._dtype is other._dtype, (self._dtype, other._dtype)
+        return HOperatorNode.withRes(HwtOps.CONCAT, [self, other], self._dtype)
 
 
 class _HVoidData(_HVoidOrdering):

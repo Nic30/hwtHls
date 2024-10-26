@@ -4,7 +4,7 @@ from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
 from hwt.pyUtils.typingFuture import override
-from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
     HlsNetNodeReadBackedge
@@ -22,7 +22,7 @@ class HlsNetNodeReadForwardedge(HlsNetNodeRead):
     def __init__(self, netlist:"HlsNetlistCtx", dtype: HdlType, name: Optional[str]=None, channelInitValues=()):
         HlsNetNodeRead.__init__(self, netlist, None, dtype=dtype, name=name, channelInitValues=channelInitValues)
         self.associatedWrite: Optional[HlsNetNodeWriteForwardedge] = None
-        self._rtlDataVldReg:Optional[Union[RtlSyncSignal, HwIO]] = None
+        self._rtlDataVldReg:Optional[Union[RtlSignal, HwIO]] = None
 
     @override
     def getSchedulingResourceType(self):
@@ -60,10 +60,10 @@ class HlsNetNodeWriteForwardedge(HlsNetNodeWrite):
     def clone(self, memo:dict, keepTopPortsConnected: bool) -> Tuple["HlsNetNode", bool]:
         return HlsNetNodeWriteBackedge.clone(self, memo, keepTopPortsConnected)
 
-    def _rtlAllocRegisterReadySignal(self, allocator: "ArchElement", readySignalGetter: Callable[[], RtlSyncSignal]):
+    def _rtlAllocRegisterReadySignal(self, allocator: "ArchElement", readySignalGetter: Callable[[], RtlSignal]):
         return HlsNetNodeWriteBackedge._rtlAllocRegisterReadySignal(self, allocator, readySignalGetter)
 
-    def _rtlAllocRegisterFullSignal(self, allocator: "ArchElement", full: RtlSyncSignal):
+    def _rtlAllocRegisterFullSignal(self, allocator: "ArchElement", full: RtlSignal):
         return HlsNetNodeWriteBackedge._rtlAllocRegisterFullSignal(self, allocator, full)
 
     @override

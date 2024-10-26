@@ -9,7 +9,6 @@ from hwt.math import log2ceil
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.architecture.analysis.fsmStateEncoding import HlsAndRtlNetlistAnalysisPassFsmStateEncoding
 from hwtHls.architecture.connectionsOfStage import \
     setNopValIfNotSet, ConnectionsOfStage, ConnectionsOfStageList
@@ -73,7 +72,7 @@ class ArchElementFsm(ArchElement):
         ArchElement.__init__(self, netlist, name, namePrefix, subNodes, stageCons)
         self._beginClkI = beginClkI
         self._endClkI = endClkI
-        self._rtlStateReg: Optional[RtlSyncSignal] = None
+        self._rtlStateReg: Optional[RtlSignal] = None
 
     @override
     def clone(self, memo:dict, keepTopPortsConnected:bool) -> Tuple["HlsNetNode", bool]:

@@ -5,6 +5,7 @@ from typing import List, Iterator, Union
 
 from hwt.code import Concat
 from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.bitsCastUtils import fitTo_t
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
@@ -13,7 +14,6 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
-from hwt.synthesizer.vectorUtils import fitTo_t
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline, \
     PyBytecodeBlockLabel

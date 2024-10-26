@@ -1,12 +1,10 @@
 from typing import Union, List, Dict, Tuple, Optional, Generator, Literal, Set
 
-from hwt.code_utils import rename_signal
 from hwt.constants import NOT_SPECIFIED
 from hwt.hdl.const import HConst
 from hwt.hdl.operatorDefs import HOperatorDef
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import HBits
-from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
@@ -14,17 +12,12 @@ from hwt.mainBases import RtlSignalBase
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, \
-    InterfaceOrReadWriteNodeOrValidReadyTuple, ConnectionsOfStageList, \
-    OrMemberList  # , IORecord
-from hwtHls.architecture.syncUtils import HwIO_getSyncTuple
+    ConnectionsOfStageList
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem, INVARIANT_TIME
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge, \
-    HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.fsmStateEn import HlsNetNodeFsmStateEn, \
     HlsNetNodeStageAck
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -105,7 +98,7 @@ class ArchElement(HlsNetNodeAggregate):
              def_val: Union[int, None, dict, list]=None,
              clk: Union[RtlSignalBase, None, Tuple[RtlSignalBase, HOperatorDef]]=None,
              rst: Optional[RtlSignalBase]=None,
-             nextSig:Optional[RtlSignalBase]=NOT_SPECIFIED) -> RtlSyncSignal:
+             nextSig:Optional[RtlSignalBase]=NOT_SPECIFIED) -> RtlSignal:
         """
         :see: :meth:`hwt.synthesizer.interfaceLevel.hwModuleImplHelpers._reg`
         """
@@ -135,26 +128,6 @@ class ArchElement(HlsNetNodeAggregate):
             clkIndex = indexOfClkPeriod(time, self.netlist.normalizedClkPeriod)
             self._addNodeIntoScheduled(clkIndex, internO.obj, allowNewClockWindow=True)
         return outerI, internO
-
-    # @override
-    # def _removeInput(self, index:int):
-    #    inInside = self._inputsInside[index]
-    #    if inInside.scheduledOut is not None:
-    #        clkPeriod = self.netlist.normalizedClkPeriod
-    #        clkI = inInside.scheduledOut[0] // clkPeriod
-    #        self.getStageForClock(clkI).remove(inInside)
-    #
-    #    HlsNetNodeAggregate._removeInput(self, index)
-    #
-    # @override
-    # def _removeOutput(self, index:int):
-    #    outInside = self._outputsInside[index]
-    #    if outInside.scheduledIn is not None:
-    #        clkPeriod = self.netlist.normalizedClkPeriod
-    #        clkI = outInside.scheduledIn[0] // clkPeriod
-    #        self.getStageForClock(clkI).remove(outInside)
-    #
-    #    HlsNetNodeAggregate._removeOutput(self, index)
 
     @override
     def filterNodesUsingSet(self, removed: Set[HlsNetNode], recursive=False, clearRemoved=True):

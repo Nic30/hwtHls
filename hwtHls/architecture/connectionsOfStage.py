@@ -1,20 +1,14 @@
 from collections import OrderedDict
-from typing import Dict, Optional, List, Tuple, Union, Set
+from typing import Optional, List, Tuple, Union
 
 from hwt.code import Or, SwitchLogic
-from hwt.code_utils import rename_signal
 from hwt.constants import NOT_SPECIFIED
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.statement import HdlStatement
-from hwt.hdl.types.bitConstFunctions import AnyHValue
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hwIO import HwIO
-from hwt.hwIOs.std import HwIOSignal
-from hwt.hwModule import HwModule
-from hwt.mainBases import RtlSignalBase, HwIOBase
 from hwt.pyUtils.setList import SetList
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwt.synthesizer.rtlLevel.rtlSyncSignal import RtlSyncSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResourceItem
 from hwtHls.netlist.nodes.fsmStateEn import HlsNetNodeFsmStateEn, \
     HlsNetNodeStageAck
@@ -121,7 +115,7 @@ class ConnectionsOfStage():
         self.fsmStateEnNode: Optional[HlsNetNodeFsmStateEn] = None
         self.fsmStateWriteNode: Optional[HlsNetNodeFsmStateWrite] = None
         self.stageAck: Optional[RtlSignal] = None
-        self.stageEnable: Optional[RtlSyncSignal] = None
+        self.stageEnable: Optional[RtlSignal] = None
         self.stateChangeDependentDrives: List[HdlStatement] = []
         self.stateDependentDrives: List[HdlStatement] = []
 

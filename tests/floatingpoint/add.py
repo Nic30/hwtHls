@@ -1,9 +1,9 @@
 from hwt.code import Concat
 from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.bitsCastUtils import fitTo
 from hwt.hdl.types.defs import BIT
 from hwt.mainBases import RtlSignalBase
 from hwt.math import log2ceil
-from hwt.synthesizer.vectorUtils import fitTo
 from hwtHls.code import getMsb, lshr, ctlz, hwUMin, shl
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.pragmaInstruction import PyBytecodeNoSplitSlices

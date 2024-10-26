@@ -1,12 +1,12 @@
 from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.bitsCastUtils import fitTo_t
 from hwt.mainBases import RtlSignalBase
-from hwt.synthesizer.vectorUtils import fitTo_t
+from hwtHls.architecture.transformation._operatorToHwtLowering.operatorHwImplementations import countBits
 from hwtHls.code import ctlz, shl
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.pragmaInstruction import PyBytecodeNoSplitSlices
 from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
 from pyMathBitPrecise.bit_utils import mask
-from hwtHls.architecture.transformation._operatorToHwtLowering.operatorHwImplementations import countBits
 from tests.floatingpoint.fptypes import IEEE754Fp
 
 
