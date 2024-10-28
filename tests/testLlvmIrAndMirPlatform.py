@@ -73,7 +73,7 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
                         try:
                             self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_MIR, self._optMirTest, self.llvm)
                         except:
-                            raise AssertionError(f"Broken after {passName.str():s} lastWorking:\n{self._lastWorkingIr}\n broken:\n{str(MF):s}")
+                            raise AssertionError(f"Broken after {passName.str():s}, lastWorking:\n{self._lastWorkingIr}\n broken:\n{str(MF):s}")
                         self._lastWorkingIr = str(MF)
                         return
                     else:
