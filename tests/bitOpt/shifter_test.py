@@ -116,16 +116,17 @@ class ShifterTC(SimTestCase):
     def test_ShifterLeftUsingHwLoopWithWhileNot0_noUnroll(self):
         dut = ShifterLeftUsingHwLoopWithWhileNot0()
         dut.DATA_WIDTH = 3
-        self._test_shifter(dut, timeMultiplier=8, debugFilter=HlsDebugBundle.ALL_RELIABLE.union({HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
-                                                     HlsDebugBundle.DBG_4_0_addSignalNamesToData}))
+        self._test_shifter(dut, timeMultiplier=8, #debugFilter=HlsDebugBundle.ALL_RELIABLE.union({HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+                                                  #   HlsDebugBundle.DBG_4_0_addSignalNamesToData})
+        )
 
     def test_ShifterLeftUsingHwLoopWithWhileNot0_unrol2(self):
         dut = ShifterLeftUsingHwLoopWithWhileNot0()
         dut.UNROLL_META = PyBytecodeLLVMLoopUnroll(True, 2)
         self._test_shifter(dut, timeMultiplier=4,
-                           debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
-                               HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
-                               HlsDebugBundle.DBG_4_0_addSignalNamesToData})
+                          # debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
+                          #     HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+                          #     HlsDebugBundle.DBG_4_0_addSignalNamesToData})
         )
 
     def test_ShifterLeftUsingHwLoopWithWhileNot0_unrol4(self):
@@ -148,9 +149,12 @@ class ShifterTC(SimTestCase):
     def test_ShifterLeftUsingHwLoopWithBreakIf0_unrol2(self):
         dut = ShifterLeftUsingHwLoopWithBreakIf0()
         dut.UNROLL_META = PyBytecodeLLVMLoopUnroll(True, 2)
-        self._test_shifter(dut, timeMultiplier=4)
-#        debugFilter=HlsDebugBundle.ALL_RELIABLE.union({HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
-#                                                     HlsDebugBundle.DBG_4_0_addSignalNamesToData})
+        self._test_shifter(dut, timeMultiplier=4,
+                           #debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
+                           #    HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+                           #    HlsDebugBundle.DBG_4_0_addSignalNamesToData}),
+                           #runTestAfterEachPass=True,
+                           )
 
     def test_ShifterLeftUsingHwLoopWithBreakIf0_unrol4(self):
         dut = ShifterLeftUsingHwLoopWithBreakIf0()
