@@ -139,6 +139,11 @@ static llvm::cl::opt<bool> VerifyEach("verify-each",
 LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
 		ctx(), strCtx(), module(new llvm::Module(strCtx.addStringRef(moduleName), ctx)),
 		builder(ctx), main(nullptr), MMIWP(nullptr), VerifyEachPass(VerifyEach), DebugPM(DebugPMCliOpt.getValue()) {
+	// clear all current CLI options
+	llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
+	for (auto &Opt: Map) {
+		Opt.second->reset();
+	}
 	Target = &getTheHwtFpgaTarget(); //llvm::TargetRegistry::targets()[0];
 	Level = llvm::OptimizationLevel::O3;
 	EnableO3NonTrivialUnswitching = true;
