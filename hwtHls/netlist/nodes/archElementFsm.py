@@ -57,18 +57,7 @@ class ArchElementFsm(ArchElement):
             stageCons = ConnectionsOfStageList(netlist.normalizedClkPeriod,
                                                (ConnectionsOfStage(self, clkI)
                                                 for clkI, _ in enumerate(self.stages)))
-        # if fsm is None:
-        #    stateCons = ConnectionsOfStageList(netlist.normalizedClkPeriod, ())
-        # else:
-        #    assert fsm.states, fsm
-        #    for clkI, st in enumerate(fsm.states):
-        #        if st:
-        #            if beginClkI is None:
-        #                beginClkI = clkI
-        #            endClkI = clkI
-        #
-        #    stateCons = ConnectionsOfStageList(clkPeriod, (ConnectionsOfStage(self, i)
-        #                                                    if st else None for i, st in enumerate(fsm.states)))
+        
         ArchElement.__init__(self, netlist, name, namePrefix, subNodes, stageCons)
         self._beginClkI = beginClkI
         self._endClkI = endClkI
