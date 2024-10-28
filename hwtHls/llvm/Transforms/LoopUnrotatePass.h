@@ -3,6 +3,8 @@
 
 namespace llvm {
 class LPMUpdater;
+class DomTreeUpdater;
+class MemorySSAUpdater;
 class Loop;
 }
 
@@ -71,9 +73,19 @@ namespace hwtHls {
  * */
 class LoopUnrotatePass: public llvm::PassInfoMixin<LoopUnrotatePass> {
 public:
+	LoopUnrotatePass() :
+			dbgCntr(0) {
+	}
 	llvm::PreservedAnalyses run(llvm::Loop &L, llvm::LoopAnalysisManager &AM,
 			llvm::LoopStandardAnalysisResults &AR, llvm::LPMUpdater &U);
-	static bool isRequired() { return false; }
+	static bool isRequired() {
+		return false;
+	}
+protected:
+	size_t dbgCntr;
+	bool processLoop(llvm::Loop &L, llvm::LoopStandardAnalysisResults &AR,
+			llvm::DomTreeUpdater &DTU, llvm::MemorySSAUpdater *MSSAU,
+			llvm::LPMUpdater &LPMU);
 };
 
 }

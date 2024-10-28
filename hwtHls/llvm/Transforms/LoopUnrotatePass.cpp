@@ -21,6 +21,7 @@
 #include <llvm/Transforms/Scalar/LoopPassManager.h>
 #include <llvm/Transforms/Utils/LoopUtils.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
+#include <llvm/Transforms/Utils/LoopRotationUtils.h>
 
 #include <hwtHls/llvm/Transforms/utils/dceWorklist.h>
 #include <hwtHls/llvm/Transforms/utils/loopMerging.h>
@@ -29,7 +30,6 @@
 using namespace llvm;
 #define DEBUG_TYPE "loop-unrotate"
 // #define DEBUG_DUMP_CFG_AFTER_EACH_STEP
-
 // #undef LLVM_DEBUG
 // #define LLVM_DEBUG(x) x
 
@@ -200,8 +200,8 @@ void moveBlockBetweenLoops(LoopInfo &LI, BasicBlock *BB, llvm::Loop *Lsrc,
 }
 
 BasicBlock* moveGuardAndGuardExitBlocksToLoop(llvm::Loop **L, LoopInfo &LI,
-		ScalarEvolution *SE, LPMUpdater & LPMU, BasicBlock *Guard, BasicBlock *LoopHeader,
-		BasicBlock *LoopExit, BasicBlock *GuardExit) {
+		ScalarEvolution *SE, LPMUpdater &LPMU, BasicBlock *Guard,
+		BasicBlock *LoopHeader, BasicBlock *LoopExit, BasicBlock *GuardExit) {
 	//auto L0 = LI.getLoopFor(Guard);
 	//if (!L0 || L0->getHeader() != Guard) {
 	//	auto SplitPoint = Guard->begin();
@@ -234,7 +234,9 @@ BasicBlock* moveGuardAndGuardExitBlocksToLoop(llvm::Loop **L, LoopInfo &LI,
 			// already in this loop
 		} else if (L0 != nullptr) {
 			if (L0->getHeader() == Guard) {
-				LLVM_DEBUG(dbgs() << "LoopUnroll: Merging loops " << **L << "\n -> \n" << *L0 <<"\n");
+				LLVM_DEBUG(
+						dbgs() << "LoopUnroll: Merging loops " << **L
+								<< "\n -> \n" << *L0 << "\n");
 				// merge to parent loop
 				mergeNestedLoops(LI, SE, LPMU, *L, L0);
 				*L = L0;
@@ -242,7 +244,10 @@ BasicBlock* moveGuardAndGuardExitBlocksToLoop(llvm::Loop **L, LoopInfo &LI,
 			} else {
 				assert(L0->contains(*L));
 				assert(BB != L0->getHeader());
-				LLVM_DEBUG(dbgs() << "LoopUnroll: Move between loops " << BB->getName() << " \n" << *L0 << " -> " << **L << "\n");
+				LLVM_DEBUG(
+						dbgs() << "LoopUnroll: Move between loops "
+								<< BB->getName() << " \n" << *L0 << " -> "
+								<< **L << "\n");
 				moveBlockBetweenLoops(LI, BB, L0, *L);
 			}
 		} else {
@@ -307,8 +312,7 @@ void rerouteJumpsToLoopHeaderToGuardBlock(llvm::Loop &L, BasicBlock *Guard,
 	}
 
 	for (BasicBlock *HeaderPred : make_early_inc_range(predecessors(LoopHeader))) {
-		if (HeaderPred != Guard &&
-				HeaderPred != originalPreHeader
+		if (HeaderPred != Guard && HeaderPred != originalPreHeader
 				&& L.contains(HeaderPred)) {
 			assert(HeaderPred != LoopExit);
 			bool guardAlreadyHasThisPredec = any_of(predecessors(Guard),
@@ -325,9 +329,9 @@ void rerouteJumpsToLoopHeaderToGuardBlock(llvm::Loop &L, BasicBlock *Guard,
 			if (!guardAlreadyHasThisPredec) {
 				//if (HeaderPred != LoopHeader) {
 				//	// else this would be added as re-entry later
-					for (PHINode &PHI : Guard->phis()) {
-						PHI.addIncoming(&PHI, HeaderPred);
-					}
+				for (PHINode &PHI : Guard->phis()) {
+					PHI.addIncoming(&PHI, HeaderPred);
+				}
 				//}
 			}
 		}
@@ -365,9 +369,9 @@ void movePHIFromGuardExitToGuardBlock(RotatedLoopAssociatedPHIs &phis,
 		bool livesTroughIterations = phis.inLoopHeader != nullptr
 				&& fromLoopReentryVal != fromGuardPredVal;
 		LLVM_DEBUG(dbgs() << phis << "\n" << //
-					"livesTroughIterations:" << livesTroughIterations << "\n" << //
-					"fromGuardPredVal:" << *fromGuardPredVal << "\n" << //
-					"fromLoopReentryVal:" << *fromLoopReentryVal << "\n");
+				"livesTroughIterations:" << livesTroughIterations << "\n" << //
+				"fromGuardPredVal:" << *fromGuardPredVal << "\n" << //
+				"fromLoopReentryVal:" << *fromLoopReentryVal << "\n");
 		auto *GuardPhi = dyn_cast<PHINode>(fromGuardPredVal);
 		if (GuardPhi) {
 			if (GuardPhi->getParent() != Guard) {
@@ -429,6 +433,17 @@ void movePHIFromGuardExitToGuardBlock(RotatedLoopAssociatedPHIs &phis,
 	}
 }
 
+struct LoopAnalysisResultIfDoWhile {
+	std::map<Value*, Value*> valueMap; // ConditionValueMap
+	BasicBlock *Guard;
+	BasicBlock *LoopHeader;
+	BasicBlock *LoopExit;
+	BasicBlock *GuardExit;
+	SmallVector<RotatedLoopAssociatedPHIs> associatedPHIs;
+	Value *PreHeaderExitCond; // GuardBranchCondition
+	Value *ToExitCond; // LoopHeaderExitCondition
+};
+
 /*
  * Rewrite
  *
@@ -455,20 +470,18 @@ void movePHIFromGuardExitToGuardBlock(RotatedLoopAssociatedPHIs &phis,
  *
  * */
 void rewriteGuardedDoWhileToWhile(llvm::Loop *L, LoopInfo &LI,
-		ScalarEvolution *SE, TargetLibraryInfo &TLI, llvm::LPMUpdater &LPMU,
-		std::map<Value*, Value*> ConditionValueMap, BasicBlock *Guard,
-		BasicBlock *LoopHeader, BasicBlock *LoopExit, BasicBlock *GuardExit,
-		SmallVector<RotatedLoopAssociatedPHIs> &associatedPHIs,
-		Value *GuardBranchCondition, Value *LoopHeaderExitCondition) {
+		TargetLibraryInfo &TLI, ScalarEvolution *SE, llvm::LPMUpdater &LPMU,
+		LoopAnalysisResultIfDoWhile &analysisRes) {
 	auto origL = L;
-	auto *originalPreHeader = moveGuardAndGuardExitBlocksToLoop(&L, LI, SE, LPMU,
-			Guard, LoopHeader, LoopExit, GuardExit);
+	auto *originalPreHeader = moveGuardAndGuardExitBlocksToLoop(&L, LI, SE,
+			LPMU, analysisRes.Guard, analysisRes.LoopHeader,
+			analysisRes.LoopExit, analysisRes.GuardExit);
 
-	assert(Guard != LoopExit);
+	assert(analysisRes.Guard != analysisRes.LoopExit);
 	// remove LoopExit because we remove it completely from IR
-	auto L1 = LI.getLoopFor(LoopExit);
+	auto L1 = LI.getLoopFor(analysisRes.LoopExit);
 	if (L1 != nullptr) {
-		LI.removeBlock(LoopExit);
+		LI.removeBlock(analysisRes.LoopExit);
 		//L1->removeBlockFromLoop(LoopExit);
 		if (L1->block_begin() == L1->block_end()) {
 			//LI.removeBlock(LoopExit);
@@ -477,18 +490,19 @@ void rewriteGuardedDoWhileToWhile(llvm::Loop *L, LoopInfo &LI,
 	}
 
 	SmallVector<BasicBlock*, 4> OriginalGuardPredecessors;
-	for (auto *Pred : predecessors(Guard)) {
+	for (auto *Pred : predecessors(analysisRes.Guard)) {
 		OriginalGuardPredecessors.push_back(Pred);
 	}
 	SmallVector<BasicBlock*, 4> reentrySources;
-	rerouteJumpsToLoopHeaderToGuardBlock(*L, Guard, LoopHeader, LoopExit,
-			originalPreHeader, reentrySources);
+	rerouteJumpsToLoopHeaderToGuardBlock(*L, analysisRes.Guard,
+			analysisRes.LoopHeader, analysisRes.LoopExit, originalPreHeader,
+			reentrySources);
 
 	// LoopHeader condition cleanup
 	// volatile loads in condition expression in loopHeader block
 	// for those we must check if they are used after DCE, because DCE would not remove them automatically
 	SmallVector<std::pair<Value*, LoadInst*>, 4> VolatileLoadsInCondExpr;
-	for (auto &item : ConditionValueMap) {
+	for (auto &item : analysisRes.valueMap) {
 		auto e = item.second;
 		if (LoadInst *l = dyn_cast<LoadInst>(e)) {
 			if (l->isVolatile()) {
@@ -499,25 +513,26 @@ void rewriteGuardedDoWhileToWhile(llvm::Loop *L, LoopInfo &LI,
 
 	// cleanup dead condition expression for LoopHeader
 	runDCEOnLoopConditions(VolatileLoadsInCondExpr, TLI,
-			LoopHeaderExitCondition);
+			analysisRes.ToExitCond);
 
 	// move PHIs from guardExit to guard and update their operands
-	for (auto &phis : associatedPHIs) {
-		movePHIFromGuardExitToGuardBlock(phis, GuardExit, Guard, LoopExit,
-				reentrySources, OriginalGuardPredecessors);
+	for (auto &phis : analysisRes.associatedPHIs) {
+		movePHIFromGuardExitToGuardBlock(phis, analysisRes.GuardExit,
+				analysisRes.Guard, analysisRes.LoopExit, reentrySources,
+				OriginalGuardPredecessors);
 	}
 
 	// LoopHeader is now behind Guard
-	assert(LoopHeader->hasNPredecessors(1));
+	assert(analysisRes.LoopHeader->hasNPredecessors(1));
 	//L->removeBlockFromLoop(LoopHeader);
 	//LI.removeBlock(LoopHeader);
 	//LoopHeader->eraseFromParent();
 	// LoopExit is now replaced by GuardExit
-	assert(LoopExit->hasNPredecessors(0));
+	assert(analysisRes.LoopExit->hasNPredecessors(0));
 	//auto LExit = LI.getLoopFor(LoopExit);
 	//if (LExit)
 	//	LI.removeBlock(LoopExit);
-	LoopExit->eraseFromParent();
+	analysisRes.LoopExit->eraseFromParent();
 	//L->verifyLoop();
 
 	if (origL == L) {
@@ -538,10 +553,8 @@ void rewriteGuardedDoWhileToWhile(llvm::Loop *L, LoopInfo &LI,
 	}
 }
 
-bool processLoop(llvm::Loop &L, LoopInfo &LI, TargetLibraryInfo &TLI,
-		ScalarEvolution *SE, DomTreeUpdater &DTU, MemorySSAUpdater *MSSAU,
-		llvm::LPMUpdater &LPMU) {
-	bool Changed = false;
+std::optional<LoopAnalysisResultIfDoWhile> analyzeLoopForIfDoWhile(
+		llvm::Loop &L) {
 	// if (!L.isCanonical(*SE))
 	//	return Changed;
 
@@ -551,143 +564,189 @@ bool processLoop(llvm::Loop &L, LoopInfo &LI, TargetLibraryInfo &TLI,
 	//       do {
 	//       } while (x);
 	//     }
+	LoopAnalysisResultIfDoWhile res;
+	BasicBlock *ExitBlock = L.getExitBlock();
+	if (!ExitBlock)
+		return std::nullopt;
 
-	if (BasicBlock *ExitBlock = L.getExitBlock()) {
-		if (BasicBlock *PreHeader = L.getLoopPreheader()) {
-			while (isEmptyLinearlyConnectedBlock(*ExitBlock)) {
-				// skip empty linear blocks between exit block and the potential block where loop guard jumps
-				ExitBlock = ExitBlock->getSingleSuccessor();
-			}
-			llvm::SmallVector<BasicBlock*, 4> PreHeaderBlocks;
-			while (isEmptyLinearlyConnectedBlock(*PreHeader)) {
-				// skip linear blocks between header(body) block and the
-				PreHeaderBlocks.push_back(PreHeader);
-				PreHeader = PreHeader->getSinglePredecessor();
-			}
-			PreHeaderBlocks.push_back(PreHeader);
-			if (succ_size(PreHeader) != 2) {
-				return Changed;
-			}
-			auto PreHeaderTerm = PreHeader->getTerminator();
-			Value *PreHeaderExitCond = nullptr;
-			bool PreHeaderExitCondIsBreak;
-			if (auto *PreHeaderBr = dyn_cast<BranchInst>(PreHeaderTerm)) {
-				assert(PreHeaderBr->getNumOperands() == 3);
-				PreHeaderExitCond = PreHeaderBr->getCondition();
-				if (PreHeaderBr->getSuccessor(0) == ExitBlock) {
-					PreHeaderExitCondIsBreak = true; // condition in used as loop break
-				} else if (PreHeaderBr->getSuccessor(1) == ExitBlock) {
-					PreHeaderExitCondIsBreak = false; // condition in used as loop continue
-				} else {
-					// the successor is not exit block which means this is not a loop guard
-					return Changed;
-				}
-			} else {
-				throw std::runtime_error(
-						"NotImplementedError LoopUnrotatePass: unknown type of terminator in pre header block");
-			}
-			SmallVector<llvm::Loop::Edge, 1> ExitEdges;
-			L.getExitEdges(ExitEdges);
-			if (ExitEdges.size() != 1) {
-				// there are multiple jumps from loop body to loop exit, the analysis for this is not implemented
-				return Changed;
-			}
+	BasicBlock *PreHeader = L.getLoopPreheader();
+	if (!PreHeader)
+		return std::nullopt;
+	while (isEmptyLinearlyConnectedBlock(*ExitBlock)) {
+		// skip empty linear blocks between exit block and the potential block where loop guard jumps
+		ExitBlock = ExitBlock->getSingleSuccessor();
+	}
+	llvm::SmallVector<BasicBlock*, 4> PreHeaderBlocks;
+	while (isEmptyLinearlyConnectedBlock(*PreHeader)) {
+		// skip linear blocks between header(body) block and the
+		PreHeaderBlocks.push_back(PreHeader);
+		PreHeader = PreHeader->getSinglePredecessor();
+	}
+	PreHeaderBlocks.push_back(PreHeader);
+	if (succ_size(PreHeader) != 2) {
+		return std::nullopt;
+	}
+	auto PreHeaderTerm = PreHeader->getTerminator();
+	res.PreHeaderExitCond = nullptr;
+	bool PreHeaderExitCondIsBreak;
+	if (auto *PreHeaderBr = dyn_cast<BranchInst>(PreHeaderTerm)) {
+		assert(PreHeaderBr->getNumOperands() == 3);
+		res.PreHeaderExitCond = PreHeaderBr->getCondition();
+		if (PreHeaderBr->getSuccessor(0) == ExitBlock) {
+			PreHeaderExitCondIsBreak = true; // condition in used as loop break
+		} else if (PreHeaderBr->getSuccessor(1) == ExitBlock) {
+			PreHeaderExitCondIsBreak = false; // condition in used as loop continue
+		} else {
+			// the successor is not exit block which means this is not a loop guard
+			return std::nullopt;
+		}
+	} else {
+		throw std::runtime_error(
+				"NotImplementedError LoopUnrotatePass: unknown type of terminator in pre header block");
+	}
+	SmallVector<llvm::Loop::Edge, 1> ExitEdges;
+	L.getExitEdges(ExitEdges);
+	if (ExitEdges.size() != 1) {
+		// there are multiple jumps from loop body to loop exit, the analysis for this is not implemented
+		return std::nullopt;
+	}
 
-			Value *ToExitCond = nullptr;
-			bool ToExitCondIsBreak;
-			if (auto *ToExitTerm = dyn_cast<BranchInst>(
-					ExitEdges[0].first->getTerminator())) {
-				ToExitCond = ToExitTerm->getCondition();
-				if (ToExitTerm->getSuccessor(0) == L.getHeader()) {
-					ToExitCondIsBreak = false;
-				} else if (ToExitTerm->getSuccessor(1) == L.getHeader()) {
-					ToExitCondIsBreak = false;
-				} else {
-					// latch block somehow does not have jump back to header of the loop
-					return Changed;
-				}
-			} else {
-				throw std::runtime_error(
-						"NotImplementedError LoopUnrotatePass: unknown type of terminator in latch block");
-			}
+	res.ToExitCond = nullptr;
+	bool ToExitCondIsBreak;
+	if (auto *ToExitTerm = dyn_cast<BranchInst>(
+			ExitEdges[0].first->getTerminator())) {
+		res.ToExitCond = ToExitTerm->getCondition();
+		if (ToExitTerm->getSuccessor(0) == L.getHeader()) {
+			ToExitCondIsBreak = false;
+		} else if (ToExitTerm->getSuccessor(1) == L.getHeader()) {
+			ToExitCondIsBreak = false;
+		} else {
+			// latch block somehow does not have jump back to header of the loop
+			return std::nullopt;
+		}
+	} else {
+		throw std::runtime_error(
+				"NotImplementedError LoopUnrotatePass: unknown type of terminator in latch block");
+	}
 
-			std::map<Value*, Value*> valueMap;
-			auto isOutsideOfLoop = [&L](Instruction &I) {
-				return !L.contains(I.getParent());
-			};
-			auto isOutsideOfPreHeader = [&PreHeaderBlocks](Instruction &I) {
-				return std::find(PreHeaderBlocks.begin(), PreHeaderBlocks.end(),
-						I.getParent()) == PreHeaderBlocks.end();
-			};
-			if (PreHeaderExitCondIsBreak != ToExitCondIsBreak) {
-				return Changed; // not implemented operand polarity swap
-			}
+	std::map<Value*, Value*> &valueMap = res.valueMap;
+	auto isOutsideOfLoop = [&L](Instruction &I) {
+		return !L.contains(I.getParent());
+	};
+	auto isOutsideOfPreHeader = [&PreHeaderBlocks](Instruction &I) {
+		return std::find(PreHeaderBlocks.begin(), PreHeaderBlocks.end(),
+				I.getParent()) == PreHeaderBlocks.end();
+	};
+	if (PreHeaderExitCondIsBreak != ToExitCondIsBreak) {
+		return std::nullopt; // not implemented operand polarity swap
+	}
 
-			if (!matchSameExpression(valueMap, PreHeaderExitCond, ToExitCond,
-					isOutsideOfPreHeader, isOutsideOfLoop)) {
-				return Changed;
-			}
-			for (auto &PHI : ExitBlock->phis()) {
-				if (any_of(PHI.incoming_values(),
-						[PreHeader, &valueMap](const Use &u) {
-							if (auto *I = dyn_cast<Instruction>(u.get())) {
-								if (I->getParent() == PreHeader
-										&& !isa<PHINode>(I) && // for phi we can merge operands
-										valueMap.find(I) == valueMap.end()) {
-									// [todo] some PHI of exit block uses value defined in preheader block
-									// we can not move this PHI as is and instead we have to use SelectInst to select correct
-									// value for first iteration
-									return true;
-								}
-							}
-							return false;
-						})) {
-					return Changed;
+	if (!matchSameExpression(valueMap, res.PreHeaderExitCond, res.ToExitCond,
+			isOutsideOfPreHeader, isOutsideOfLoop)) {
+		return std::nullopt;
+	}
+	for (auto &PHI : ExitBlock->phis()) {
+		if (any_of(PHI.incoming_values(), [PreHeader, &valueMap](const Use &u) {
+			if (auto *I = dyn_cast<Instruction>(u.get())) {
+				if (I->getParent() == PreHeader && !isa<PHINode>(I) && // for phi we can merge operands
+						valueMap.find(I) == valueMap.end()) {
+					// [todo] some PHI of exit block uses value defined in preheader block
+					// we can not move this PHI as is and instead we have to use SelectInst to select correct
+					// value for first iteration
+					return true;
 				}
 			}
-#ifdef DEBUG_DUMP_CFG_AFTER_EACH_STEP
-			writeCFGToDotFile(*L.getHeader()->getParent(),
-					"LoopUnrotatePass.0.dot", nullptr, nullptr);
-#endif
-			LLVM_DEBUG(dbgs() << "LoopUnrotate: loop:" << L << "\n");
-			LLVM_DEBUG(dbgs() << "PreHeader: " << PreHeader->getName() << "\n");
-			LLVM_DEBUG(dbgs() << "ExitBlock: " << ExitBlock->getName() << "\n");
-			LLVM_DEBUG(dbgs() << "PreHeaderExitCondIsBreak: " << PreHeaderExitCondIsBreak <<
-					   " ToExitCondIsBreak: " << ToExitCondIsBreak << "\n");
-			LLVM_DEBUG(dbgs() << "PreHeaderExitCond: " << *PreHeaderExitCond << "\n");
-			LLVM_DEBUG(dbgs() << "ToExitCond: " << *ToExitCond << "\n");
-			LLVM_DEBUG(dbgs() << "valueMap\n");
-			if (::llvm::DebugFlag && ::llvm::isCurrentDebugType(DEBUG_TYPE)) {
-				for (auto v : valueMap) {
-					dbgs() << "    " << *v.first << "\n";
-					dbgs() << "        " << *v.second << "\n";
-				}
-			}
-			BasicBlock *Guard = PreHeader;
-			BasicBlock *LoopHeader = L.getHeader();
-			BasicBlock *LoopExit = L.getExitBlock();
-			BasicBlock *GuardExit = ExitBlock;
-
-			SmallVector<RotatedLoopAssociatedPHIs> associatedPHIs;
-			if (!collectAssociatedPHIs(L, Guard, LoopHeader, LoopExit,
-					GuardExit, associatedPHIs)) {
-				return Changed;
-			}
-#ifdef DEBUG_DUMP_CFG_AFTER_EACH_STEP
-			auto &F = *L.getHeader()->getParent();
-#endif
-			rewriteGuardedDoWhileToWhile(&L, LI, SE, TLI, LPMU, valueMap, Guard,
-					LoopHeader, LoopExit, GuardExit, associatedPHIs,
-					PreHeaderExitCond, ToExitCond);
-			Changed = true;
-#ifdef DEBUG_DUMP_CFG_AFTER_EACH_STEP
-			writeCFGToDotFile(F, "LoopUnrotatePass.1.dot", nullptr, nullptr);
-			if (verifyFunction(F, &errs())) {
-				throw std::runtime_error("Function broken by LoopUnrotatePass");
-			}
-#endif
+			return false;
+		})) {
+			return std::nullopt;
 		}
 	}
+	LLVM_DEBUG(dbgs() << "LoopUnrotate: loop:" << L << "\n");
+	LLVM_DEBUG(dbgs() << "PreHeader: " << PreHeader->getName() << "\n");
+	LLVM_DEBUG(dbgs() << "ExitBlock: " << ExitBlock->getName() << "\n");
+	LLVM_DEBUG(
+			dbgs() << "PreHeaderExitCondIsBreak: " << PreHeaderExitCondIsBreak
+					<< " ToExitCondIsBreak: " << ToExitCondIsBreak << "\n");
+	LLVM_DEBUG(
+			dbgs() << "PreHeaderExitCond: " << *res.PreHeaderExitCond << "\n");
+	LLVM_DEBUG(dbgs() << "ToExitCond: " << *res.ToExitCond << "\n");
+	LLVM_DEBUG(dbgs() << "valueMap\n");
+	if (::llvm::DebugFlag && ::llvm::isCurrentDebugType(DEBUG_TYPE)) {
+		for (auto v : valueMap) {
+			dbgs() << "    " << *v.first << "\n";
+			dbgs() << "        " << *v.second << "\n";
+		}
+	}
+	res.Guard = PreHeader;
+	res.LoopHeader = L.getHeader();
+	res.LoopExit = L.getExitBlock();
+	res.GuardExit = ExitBlock;
+
+	if (!collectAssociatedPHIs(L, res.Guard, res.LoopHeader, res.LoopExit,
+			res.GuardExit, res.associatedPHIs)) {
+		return std::nullopt;
+	}
+	return res;
+}
+
+bool headerForRotationIsCostly(llvm::Loop &L) {
+	// for header and linear sequence of blocks after it check the cost of instructions
+	auto Header = L.getHeader();
+	while (Header) {
+		for (Instruction& I: *Header) {
+			//TTI.getInstructionCost(U, Operands, CostKind)
+			if (I.mayReadOrWriteMemory())
+				return true;
+		}
+		Header = Header->getUniqueSuccessor();
+	}
+	return false;
+}
+
+bool LoopUnrotatePass::processLoop(llvm::Loop &L, llvm::LoopStandardAnalysisResults &AR,
+		DomTreeUpdater &DTU, MemorySSAUpdater *MSSAU, llvm::LPMUpdater &LPMU) {
+	bool Changed = false;
+	auto analysis = analyzeLoopForIfDoWhile(L);
+#ifdef DEBUG_DUMP_CFG_AFTER_EACH_STEP
+		auto &F = *L.getHeader()->getParent();
+		if (dbgCntr == 0)
+			writeCFGToDotFile(*L.getHeader()->getParent(), "LoopUnrotatePass." + std::to_string(dbgCntr++) + ".dot",
+					AR.BFI, AR.BPI);
+#endif
+	if (analysis.has_value()) {
+		LoopAnalysisResultIfDoWhile &analysisRes = analysis.value();
+		rewriteGuardedDoWhileToWhile(&L, AR.LI, AR.TLI, &AR.SE, LPMU,
+				analysisRes);
+		Changed = true;
+#ifdef DEBUG_DUMP_CFG_AFTER_EACH_STEP
+		writeCFGToDotFile(F, "LoopUnrotatePass." + std::to_string(dbgCntr++) + ".unrotate.dot", AR.BFI, AR.BPI);
+		if (verifyFunction(F, &errs())) {
+			throw std::runtime_error("Function broken by LoopUnrotatePass");
+		}
+#endif
+	} else {
+		bool EnableHeaderDuplication = !headerForRotationIsCostly(L);
+		// The default maximum header size for automatic loop rotation
+		int DefaultRotationThreshold = 0xffff;
+		// Run loop-rotation in the prepare-for-lto stage. This option should be used for testing only.
+		bool PrepareForLTO = false;
+		// Vectorization requires loop-rotation. Use default threshold for loops the
+		// user explicitly marked for vectorization, even when header duplication is
+		// disabled.
+		int Threshold =
+				EnableHeaderDuplication
+						|| hasVectorizeTransformation(&L) == TM_ForcedByUser ?
+						DefaultRotationThreshold : 0;
+		const DataLayout &DL = L.getHeader()->getModule()->getDataLayout();
+		const SimplifyQuery SQ = getBestSimplifyQuery(AR, DL);
+
+		Changed |= LoopRotation(&L, &AR.LI, &AR.TTI, &AR.AC, &AR.DT, &AR.SE,
+				MSSAU, SQ, false, Threshold, false, PrepareForLTO);
+#ifdef DEBUG_DUMP_CFG_AFTER_EACH_STEP
+		writeCFGToDotFile(F, "LoopUnrotatePass." + std::to_string(dbgCntr++) + ".rotate.dot", AR.BFI, AR.BPI);
+#endif
+	}
+
 	if (!Changed)
 		return Changed;
 
@@ -704,15 +763,12 @@ bool processLoop(llvm::Loop &L, LoopInfo &LI, TargetLibraryInfo &TLI,
 llvm::PreservedAnalyses LoopUnrotatePass::run(llvm::Loop &L,
 		llvm::LoopAnalysisManager &AM, llvm::LoopStandardAnalysisResults &AR,
 		llvm::LPMUpdater &U) {
-	//const DataLayout &DL = L.getHeader()->getModule()->getDataLayout();
-	//const SimplifyQuery SQ = getBestSimplifyQuery(AR, DL);
 	std::optional<MemorySSAUpdater> MSSAU;
 	if (AR.MSSA)
 		MSSAU = MemorySSAUpdater(AR.MSSA);
 
 	DomTreeUpdater DTU(AR.DT, DomTreeUpdater::UpdateStrategy::Lazy);
-	bool Changed = processLoop(L, AR.LI, AR.TLI, &AR.SE, DTU,
-			MSSAU ? &*MSSAU : nullptr, U);
+	bool Changed = processLoop(L, AR, DTU, MSSAU ? &*MSSAU : nullptr, U);
 	if (Changed) {
 		U.markLoopNestChanged(true);
 	}
