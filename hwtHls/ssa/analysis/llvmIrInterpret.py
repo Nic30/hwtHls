@@ -5,17 +5,20 @@ from operator import and_, or_, xor, add, mul, sub, floordiv, rshift, lshift
 import re
 from typing import Tuple, Generator, Union, List, Optional, Dict
 
+from hdlConvertorAst.to.hdlUtils import to_unsigned
 from hwt.code import Concat
-from hwt.hdl.types.bits import HBits
 from hwt.hdl.const import HConst
+from hwt.hdl.types.bits import HBits
 from hwt.pyUtils.arrayQuery import grouper
+from hwtHls.code import ctlz, zext, hwUMax, hwUMin, hwSMax, hwSMin, fshl, fshr
 from hwtHls.llvm.llvmIr import Function, BasicBlock, BinaryOperator, InstructionToBranchInst, InstructionToCallInst, \
     InstructionToGetElementPtrInst, InstructionToICmpInst, InstructionToPHINode, ValueToBasicBlock, \
     ValueToConstantInt, ValueToFunction, ValueToInstruction, Instruction, InstructionToBinaryOperator, \
-    InstructionToLoadInst, InstructionToStoreInst, ValueToArgument, TypeToPointerType, TypeToIntegerType, \
+    InstructionToLoadInst, InstructionToStoreInst, ValueToArgument, ValueToGlobalValue, ValueToConstantArray, \
+    TypeToPointerType, TypeToIntegerType, \
     Argument, LLVMStringContext, MDOperand, MetadataAsMDNode, MetadataAsValueAsMetadata, Value, User, \
     UserToInstruction, InstructionToSelectInst, ValueToUndefValue, InstructionToCastInst, InstructionToSwitchInst, \
-    Intrinsic, InstructionToFreezeInst
+    Intrinsic, InstructionToFreezeInst, GlobalValue, ValueToConstantDataArray
 from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
 from hwtSimApi.constants import CLK_PERIOD
 from hwtSimApi.triggers import StopSimumulation
@@ -23,7 +26,6 @@ from pyDigitalWaveTools.vcd.common import VCD_SIG_TYPE
 from pyDigitalWaveTools.vcd.value_format import VcdBitsFormatter, \
     LogValueFormatter
 from pyDigitalWaveTools.vcd.writer import VcdWriter
-from hwtHls.code import ctlz, zext, hwUMax, hwUMin, hwSMax, hwSMin, fshl, fshr
 
 
 class SimIoUnderflowErr(Exception):
@@ -272,12 +274,35 @@ class LlvmIrInterpret():
                     not res._dtype.signed, ("Input value must be must be unsigned BitsVal", instr, res)
                 assert res._dtype.bit_length() == instr.getType().getIntegerBitWidth(), (
                     "Input value must be must have correct width", instr, res)
-                if waveLog is not None:
-                    waveLog.logChange(nowTime, load, res, None)
-                regs[instr] = res
-                return bb, False
             else:
-                raise NotImplementedError(instr, srcPtr)
+                # load with GEP from GlobalVariable
+                _base, i0, i1 = regs[srcPtr]
+                assert int(i0) == 0, (srcPtr, i0)
+                assert isinstance(_base, GlobalValue), _base
+                base = _base.getOperand(0)
+                
+                arrVal = ValueToConstantArray(base)
+                if arrVal is None:
+                    arrVal = ValueToConstantDataArray(base)
+                    assert arrVal, (instr, base)
+                    if not i1._is_full_valid() or i1 >= arrVal.getNumElements():
+                        raise NotImplementedError()
+                    else:
+                        v = arrVal.getElementAsAPInt(int(i1))
+                else:
+                    if not i1._is_full_valid() or i1 >= arrVal.getNumOperands():
+                        raise NotImplementedError()
+                    else:
+                        v = ValueToConstantInt(arrVal.getOperand(int(i1))).getValue()
+                    
+                width = instr.getType().getIntegerBitWidth()
+                v = to_unsigned(int(v), width)
+                res = HBits(width).from_py(v)
+
+            if waveLog is not None:
+                waveLog.logChange(nowTime, load, res, None)
+            regs[instr] = res
+            return bb, False
 
         store = InstructionToStoreInst(instr)
         if store is not None:
@@ -335,6 +360,11 @@ class LlvmIrInterpret():
             vAsFunction = ValueToFunction(v)
             if vAsFunction is not None:
                 ops.append(vAsFunction)
+                continue
+
+            vAsGlobalValue = ValueToGlobalValue(v)
+            if vAsGlobalValue is not None:
+                ops.append(vAsGlobalValue)
             else:
                 raise NotImplementedError(v)
 
@@ -397,7 +427,8 @@ class LlvmIrInterpret():
 
         gep = InstructionToGetElementPtrInst(instr)
         if gep is not None:
-            raise NotImplementedError(instr)
+            regs[instr] = ops
+            return bb, False
 
         cmp = InstructionToICmpInst(instr)
         if cmp is not None:
