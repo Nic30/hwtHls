@@ -41,6 +41,7 @@ public:
 	};
 	DebugLogging DebugPM;
 	llvm::PassInstrumentationCallbacks PIC;
+	llvm::PassInstrumentationCallbacks PICForLegacyPM;
 	llvm::PrintPassOptions PrintPassOpts;
 	static const std::string TargetTriple;
 	static const std::string CPU;
@@ -74,6 +75,7 @@ public:
 	void _addCommonPasses(llvm::FunctionPassManager &FPM);
 
 	void runExprOpt();
+
 	// for param doc :see: SimplifyCFG2Options
 	llvm::Function& _testSimplifyCFG2Pass(
 			int BonusInstThreshold,           //

@@ -56,6 +56,9 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 			self->PIC.registerAfterPassCallback([callbackFn](llvm::StringRef PassName, llvm::Any IR, const llvm::PreservedAnalyses& PA) {
 				 callbackFn.operator() <py::return_value_policy::reference, llvm::StringRef&, llvm::Any&>(PassName, IR);
 			 });
+			self->PICForLegacyPM.registerAfterPassCallback([callbackFn](llvm::StringRef PassName, llvm::Any IR, const llvm::PreservedAnalyses& PA) {
+				 callbackFn.operator() <py::return_value_policy::reference, llvm::StringRef&, llvm::Any&>(PassName, IR);
+			});
 		})
 		.def("getMachineFunction", &hwtHls::LlvmCompilationBundle::getMachineFunction, py::return_value_policy::reference_internal)
 		.def("getMachineModuleInfo", &hwtHls::LlvmCompilationBundle::getMachineModuleInfo, py::return_value_policy::reference_internal)
