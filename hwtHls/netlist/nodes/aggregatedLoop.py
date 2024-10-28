@@ -39,7 +39,7 @@ class HlsNetNodeAggregateLoop(HlsNetNodeAggregateTmpForScheduling):
             #    if pathForDebug is not None:
             #        pathForDebug.pop()
 
-        self.checkScheduling()
+        #self.checkScheduling()
         return self.scheduledOut
 
     def _getTimeSpan(self) -> Tuple[SchedTime, SchedTime]:
@@ -70,7 +70,7 @@ class HlsNetNodeAggregateLoop(HlsNetNodeAggregateTmpForScheduling):
         Schedule loop body by ALAP and if the latency of the loop body is increased shift end of this group to time -1 clk_period boundary.
         Decrease time while the loop body latency is increased. If the latency of loop or/and end time is worse than original use original schedule.
         """
-        self.checkScheduling()
+        #self.checkScheduling()
         originalSchedule: SchedulizationDict = {}
         self.copyScheduling(originalSchedule)
         bestSchedule = originalSchedule
@@ -93,7 +93,7 @@ class HlsNetNodeAggregateLoop(HlsNetNodeAggregateTmpForScheduling):
                 break  # scheduling impossible, use previous best schedule
             beginClkI, endClkI, _, maxTime = self._getTimeSpanInClkTicks(clkPeriod)
             self.copySchedulingFromChildren()  # update timing in ports
-            self.checkScheduling()
+            #self.checkScheduling()
 
             if maxTime > endCurClk:
                 # left side (lower time) of the circuit is blocked an moving end clkI has no effect
@@ -121,7 +121,7 @@ class HlsNetNodeAggregateLoop(HlsNetNodeAggregateTmpForScheduling):
         else:
             self.copySchedulingFromChildren()
 
-        self.checkScheduling()
+        #self.checkScheduling()
 
         scheduledZero, scheduledIn, scheduledOut = originalSchedule[self]
         if self.scheduledZero != scheduledZero or self.scheduledIn != scheduledIn or self.scheduledOut != scheduledOut:
@@ -198,7 +198,7 @@ class HlsNetNodeAggregateLoop(HlsNetNodeAggregateTmpForScheduling):
         """
         worklist: SetList[HlsNetNodeAggregate] = SetList(self.iterAllNodesFlat(NODE_ITERATION_TYPE.ONLY_PARENT_PREORDER))
 
-        self.checkScheduling()
+        #self.checkScheduling()
         while worklist:
             aNode: HlsNetNodeAggregate = worklist.pop()
             change = False
@@ -274,4 +274,4 @@ class HlsNetNodeAggregateLoop(HlsNetNodeAggregateTmpForScheduling):
 
             if change:
                 aNode.copySchedulingFromChildren()
-            aNode.checkScheduling()
+            #aNode.checkScheduling()

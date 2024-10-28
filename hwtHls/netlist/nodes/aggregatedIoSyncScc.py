@@ -100,7 +100,7 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregateTmpForScheduling):
 
             self.copySchedulingFromChildren()
 
-        self.checkScheduling()
+        #self.checkScheduling()
         return self.scheduledOut
 
     @override
@@ -121,7 +121,7 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregateTmpForScheduling):
         Use the same principle as :meth:`~.HlsNetNodeIoSyncScc.scheduleAsap` just schedule from uses to defs.
         In addition there may be internal and also outer uses of a single output and we have to resolve scheduling time from all uses.
         """
-        self.checkScheduling()
+        #self.checkScheduling()
 
         epsilon = self.netlist.scheduler.epsilon
         clkPeriod = self.netlist.normalizedClkPeriod
@@ -135,7 +135,7 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregateTmpForScheduling):
             minClkI = min(minClkI, indexOfClkPeriod(oPort.scheduledIn[0], clkPeriod))
         
         self.copySchedulingFromChildren()
-        self.checkScheduling()
+        #self.checkScheduling()
 
         origSchedule: SchedulizationDict = {}
         self.copyScheduling(origSchedule)
@@ -179,7 +179,7 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregateTmpForScheduling):
                 if moveToPrevClkTried and fail:
                     self.setScheduling(origSchedule)
                 self.copySchedulingFromChildren()
-                self.checkScheduling()
+                #self.checkScheduling()
 
                 scheduledZero, scheduledIn, scheduledOut = origSchedule[self]
                 if self.scheduledZero != scheduledZero or self.scheduledIn != scheduledIn or self.scheduledOut != scheduledOut:

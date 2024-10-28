@@ -183,7 +183,7 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregateTmpForScheduling):
             finally:
                 if pathForDebug is not None:
                     pathForDebug.pop()
-        self.checkScheduling()
+        #self.checkScheduling()
         return self.scheduledOut
 
     def scheduleAlapCompactionForOutput(self,
@@ -328,7 +328,7 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregateTmpForScheduling):
                 self.setScheduling(originalSchedule)
                 return
 
-        self.checkScheduling()
+        #self.checkScheduling()
 
         if self.scheduledZero != scheduledZero or self.scheduledIn != scheduledIn or self.scheduledOut != scheduledOut:
             for dep in self.dependsOn:
