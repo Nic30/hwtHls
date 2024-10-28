@@ -30,6 +30,5 @@ void register_GlobalVariable(pybind11::module_ &m) {
 					llvm::GlobalValue::LinkageTypes, llvm::Constant*>() //
 			)//
 	.def("setUnnamedAddr", &llvm::GlobalVariable::setUnnamedAddr);
-
 }
 }
