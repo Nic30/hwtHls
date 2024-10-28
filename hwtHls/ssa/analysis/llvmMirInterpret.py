@@ -237,7 +237,7 @@ class LlvmMirInterpret():
                             v = regs[r.virtRegIndex()]
                             if v is None:
                                 llt = MRI.getType(r)
-                                assert llt.isValid(), r
+                                assert llt.isValid(), (r, r.virtRegIndex(), "This may happen if use is not dominated by any def")
                                 width = llt.getSizeInBits()
                                 v = HBits(width).from_py(None)
                             ops.append(v)
@@ -353,6 +353,7 @@ class LlvmMirInterpret():
                     if src is None:
                         raise AssertionError("Indexing on uninitialized value (this is use before def)", mi)
                     res = src[index]
+                    assert res is not None, mi
                     regs[dst.virtRegIndex()] = res
                 elif opc == TargetOpcode. G_EXTRACT:
                     dst, src, index = ops
