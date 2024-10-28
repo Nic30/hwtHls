@@ -1,4 +1,4 @@
-#include <hwtHls/llvm/Transforms/LoopUnrotatePass.h>
+#include "LoopRotationNormalizationPass.h"
 
 #include <map>
 
@@ -28,7 +28,7 @@
 #include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
 
 using namespace llvm;
-#define DEBUG_TYPE "loop-unrotate"
+#define DEBUG_TYPE "loop-rotation-normalization"
 // #define DEBUG_DUMP_CFG_AFTER_EACH_STEP
 // #undef LLVM_DEBUG
 // #define LLVM_DEBUG(x) x
@@ -626,7 +626,7 @@ std::optional<LoopAnalysisResultIfDoWhile> analyzeLoopForIfDoWhile(
 		}
 	} else {
 		throw std::runtime_error(
-				"NotImplementedError LoopUnrotatePass: unknown type of terminator in latch block");
+				"NotImplementedError " DEBUG_TYPE ": unknown type of terminator in latch block");
 	}
 
 	std::map<Value*, Value*> &valueMap = res.valueMap;
@@ -703,14 +703,14 @@ bool headerForRotationIsCostly(llvm::Loop &L) {
 	return false;
 }
 
-bool LoopUnrotatePass::processLoop(llvm::Loop &L, llvm::LoopStandardAnalysisResults &AR,
+bool LoopRotationNormalizationPass::processLoop(llvm::Loop &L, llvm::LoopStandardAnalysisResults &AR,
 		DomTreeUpdater &DTU, MemorySSAUpdater *MSSAU, llvm::LPMUpdater &LPMU) {
 	bool Changed = false;
 	auto analysis = analyzeLoopForIfDoWhile(L);
 #ifdef DEBUG_DUMP_CFG_AFTER_EACH_STEP
 		auto &F = *L.getHeader()->getParent();
 		if (dbgCntr == 0)
-			writeCFGToDotFile(*L.getHeader()->getParent(), "LoopUnrotatePass." + std::to_string(dbgCntr++) + ".dot",
+			writeCFGToDotFile(*L.getHeader()->getParent(), DEBUG_TYPE "." + std::to_string(dbgCntr++) + ".dot",
 					AR.BFI, AR.BPI);
 #endif
 	if (analysis.has_value()) {
@@ -719,9 +719,9 @@ bool LoopUnrotatePass::processLoop(llvm::Loop &L, llvm::LoopStandardAnalysisResu
 				analysisRes);
 		Changed = true;
 #ifdef DEBUG_DUMP_CFG_AFTER_EACH_STEP
-		writeCFGToDotFile(F, "LoopUnrotatePass." + std::to_string(dbgCntr++) + ".unrotate.dot", AR.BFI, AR.BPI);
+		writeCFGToDotFile(F, DEBUG_TYPE "." + std::to_string(dbgCntr++) + ".unrotate.dot", AR.BFI, AR.BPI);
 		if (verifyFunction(F, &errs())) {
-			throw std::runtime_error("Function broken by LoopUnrotatePass");
+			throw std::runtime_error("Function broken by LoopRotationNormalizationPass");
 		}
 #endif
 	} else {
@@ -743,7 +743,7 @@ bool LoopUnrotatePass::processLoop(llvm::Loop &L, llvm::LoopStandardAnalysisResu
 		Changed |= LoopRotation(&L, &AR.LI, &AR.TTI, &AR.AC, &AR.DT, &AR.SE,
 				MSSAU, SQ, false, Threshold, false, PrepareForLTO);
 #ifdef DEBUG_DUMP_CFG_AFTER_EACH_STEP
-		writeCFGToDotFile(F, "LoopUnrotatePass." + std::to_string(dbgCntr++) + ".rotate.dot", AR.BFI, AR.BPI);
+		writeCFGToDotFile(F, DEBUG_TYPE "." + std::to_string(dbgCntr++) + ".rotate.dot", AR.BFI, AR.BPI);
 #endif
 	}
 
@@ -760,7 +760,7 @@ bool LoopUnrotatePass::processLoop(llvm::Loop &L, llvm::LoopStandardAnalysisResu
 	return Changed;
 }
 
-llvm::PreservedAnalyses LoopUnrotatePass::run(llvm::Loop &L,
+llvm::PreservedAnalyses LoopRotationNormalizationPass::run(llvm::Loop &L,
 		llvm::LoopAnalysisManager &AM, llvm::LoopStandardAnalysisResults &AR,
 		llvm::LPMUpdater &U) {
 	std::optional<MemorySSAUpdater> MSSAU;

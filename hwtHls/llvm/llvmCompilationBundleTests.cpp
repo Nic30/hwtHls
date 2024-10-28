@@ -23,7 +23,7 @@
 
 #include <hwtHls/llvm/Transforms/slicesMerge/slicesMerge.h>
 #include <hwtHls/llvm/Transforms/LoopFlattenUsingIfPass.h>
-#include <hwtHls/llvm/Transforms/LoopUnrotatePass.h>
+#include <hwtHls/llvm/Transforms/LoopRotationNormalizationPass.h>
 #include <hwtHls/llvm/Transforms/PruneLoopPhiDeadIncomingValuesPass/PruneLoopPhiDeadIncomingValuesPass.h>
 #include <hwtHls/llvm/Transforms/SelectPruningPass.h>
 #include <hwtHls/llvm/Transforms/StripProfMetadataPass.h>
@@ -184,7 +184,7 @@ llvm::Function& LlvmCompilationBundle::_testSlicesMergePass() {
 llvm::Function& LlvmCompilationBundle::_testLoopUnrotatePass() {
 	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
 		llvm::LoopPassManager LPM0;
-		LPM0.addPass(hwtHls::LoopUnrotatePass());
+		LPM0.addPass(hwtHls::LoopRotationNormalizationPass());
 
 		FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM0),
 				/*UseMemorySSA=*/ false,

@@ -5,11 +5,11 @@ from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
 
 
-class LoopUnrotatePass_TC(BaseLlvmIrTC):
+class LoopRotationNormalizationPass_TC(BaseLlvmIrTC):
     __FILE__ = __file__
 
     def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
-        return llvm._testLoopUnrotatePass()
+        return llvm._testLoopRotationNormalizationPass()
 
     def test_phiInGuard(self):
         llvmIr = """\
@@ -67,7 +67,7 @@ class LoopUnrotatePass_TC(BaseLlvmIrTC):
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([LoopUnrotatePass_TC('test_phiInGuard')])
-    suite = testLoader.loadTestsFromTestCase(LoopUnrotatePass_TC)
+    # suite = unittest.TestSuite([LoopRotationNormalizationPass_TC('test_phiInGuard')])
+    suite = testLoader.loadTestsFromTestCase(LoopRotationNormalizationPass_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

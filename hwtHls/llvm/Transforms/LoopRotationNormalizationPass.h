@@ -11,9 +11,10 @@ class Loop;
 namespace hwtHls {
 
 /*
- * Undo LoopRotatePass (GCC calls it loop header copying)
- * This is beneficial in the cases where we can remove number of load instructions
- * by moving pre-header check back to loop.
+ * This pass may undo LoopRotatePass (GCC calls it loop header copying) or apply it to the loop.
+ * The unroation is beneficial in cases where we can remove costly instructions (memory in this case)
+ * by moving pre-header check back to the loop.
+ * The LoopRotatePass pass is explained in llvm. The unroatation is explained on following examples:
  *
  * From:
  * .. code-block:: c
@@ -69,11 +70,11 @@ namespace hwtHls {
  *    are not used behind the loop the loopHeader block will contain additional PHIs which must be moved to guard block
  *
  *  Similar passes in other projects:
- *   * https://github.com/arcana-lab/noelle/blob/master/src/core/loop_whilifier/src/LoopWhilify.cpp
+ *   * unrotation https://github.com/arcana-lab/noelle/blob/master/src/core/loop_whilifier/src/LoopWhilify.cpp
  * */
-class LoopUnrotatePass: public llvm::PassInfoMixin<LoopUnrotatePass> {
+class LoopRotationNormalizationPass: public llvm::PassInfoMixin<LoopRotationNormalizationPass> {
 public:
-	LoopUnrotatePass() :
+	LoopRotationNormalizationPass() :
 			dbgCntr(0) {
 	}
 	llvm::PreservedAnalyses run(llvm::Loop &L, llvm::LoopAnalysisManager &AM,

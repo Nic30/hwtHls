@@ -101,7 +101,7 @@
 #include <hwtHls/llvm/Transforms/trivialSimplifyCFGPass.h>
 #include <hwtHls/llvm/Transforms/LoopAddLatchPass.h>
 #include <hwtHls/llvm/Transforms/LoopFlattenUsingIfPass.h>
-#include <hwtHls/llvm/Transforms/LoopUnrotatePass.h>
+#include <hwtHls/llvm/Transforms/LoopRotationNormalizationPass.h>
 #include <hwtHls/llvm/Transforms/overwriteBlockNamesPass.h>
 #include <hwtHls/llvm/Transforms/ReconfigureHwtFpgaTTIPass.h>
 #include <hwtHls/llvm/Transforms/RomExtractPass.h>
@@ -110,7 +110,7 @@
 #include <hwtHls/llvm/Transforms/streamLoopUnrollPass/streamLoopUnrollPass.h>
 #include <hwtHls/llvm/Transforms/IcmpToOnlyEqLtLe.h>
 #include <hwtHls/llvm/Transforms/PruneLoopPhiDeadIncomingValuesPass/PruneLoopPhiDeadIncomingValuesPass.h>
-#include "Transforms/HFloatTmpLoweringPass.h"
+#include <hwtHls/llvm/Transforms/HFloatTmpLoweringPass.h>
 
 namespace hwtHls {
 
@@ -387,7 +387,7 @@ void LlvmCompilationBundle::_addInitialNormalizationPasses(
 	// FPM.addPass(hwtHls::OverwriteBlockNamesPass());
 	// FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true));
 	llvm::LoopPassManager LPM0;
-	LPM0.addPass(hwtHls::LoopUnrotatePass()); // normalize to rotated form, unrotate loop with costly header
+	LPM0.addPass(hwtHls::LoopRotationNormalizationPass()); // normalize to rotated form, unrotate loop with costly header
 
 	FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM0),
 			/*UseMemorySSA=*/ false,

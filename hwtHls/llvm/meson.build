@@ -129,7 +129,7 @@ py3.extension_module(
      'Transforms/IcmpToOnlyEqLtLe.cpp',
      'Transforms/LoopAddLatchPass.cpp',
      'Transforms/LoopFlattenUsingIfPass.cpp',
-     'Transforms/LoopUnrotatePass.cpp',
+     'Transforms/LoopRotationNormalizationPass.cpp',
      'Transforms/overwriteBlockNamesPass.cpp',
      'Transforms/PruneLoopPhiDeadIncomingValuesPass/PruneLoopPhiDeadIncomingValuesPass.cpp',
      'Transforms/PruneLoopPhiDeadIncomingValuesPass/KnownValue.cpp',

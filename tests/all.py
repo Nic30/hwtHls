@@ -82,7 +82,7 @@ from tests.llvmIr.bitWidthReductionPass_PHI_test import BitwidthReductionPass_PH
 from tests.llvmIr.bitWidthReduction_test import BitwidthReductionPass_TC
 from tests.llvmIr.llvmLoopUnroll_test import LlvmLoopUnroll_TC
 from tests.llvmIr.loopFlattenUsingIfPass_test import LoopFlattenUsingIfPass_TC
-from tests.llvmIr.loopUnrotatePass_test import LoopUnrotatePass_TC
+from tests.llvmIr.LoopRotationNormalizationPass_test import LoopRotationNormalizationPass_TC
 from tests.llvmIr.rewriteExtractOnMergeValues_test import RewriteExtractOnMergeValuesPass_TC
 from tests.llvmIr.selectPruningPass_test import SelectPruningPass_TC
 from tests.llvmIr.slicesMergePass_test import SlicesMergePass_TC
@@ -128,7 +128,7 @@ suite = testSuiteFromTCs(
     HlsCycleDelayHwModule,
     HlsPythonTupleAssign_TC,
     SimplifyCFG2Pass_TC,
-    LoopUnrotatePass_TC,
+    LoopRotationNormalizationPass_TC,
     LoopFlattenUsingIfPass_TC,
     PruneLoopPhiDeadIncomingValuesPass_TC,
     RewriteExtractOnMergeValuesPass_TC,
