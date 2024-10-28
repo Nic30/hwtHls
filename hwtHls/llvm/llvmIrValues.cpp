@@ -160,8 +160,11 @@ void register_Values_and_Use(pybind11::module_ & m) {
 		.export_values();
 	py::class_<llvm::ConstantData, std::unique_ptr<llvm::ConstantData, py::nodelete>, llvm::Constant>(m, "ConstantData");
 	py::class_<llvm::ConstantAggregate,  std::unique_ptr<llvm::ConstantAggregate, py::nodelete>, llvm::Constant>(m, "ConstantAggregate");
-	py::class_<llvm::ConstantDataSequential,  std::unique_ptr<llvm::ConstantDataSequential, py::nodelete>, llvm::ConstantData>(m, "ConstantDataSequential");
-
+	py::class_<llvm::ConstantDataSequential,  std::unique_ptr<llvm::ConstantDataSequential, py::nodelete>, llvm::ConstantData> ConstantDataSequential(m, "ConstantDataSequential");
+	ConstantDataSequential
+		.def("getNumElements", &llvm::ConstantDataSequential::getNumElements)
+		.def("getElementAsAPInt", &llvm::ConstantDataSequential::getElementAsAPInt)
+		.def("getElementAsDouble", &llvm::ConstantDataSequential::getElementAsDouble);
 	py::class_<llvm::ConstantInt, std::unique_ptr<llvm::ConstantInt, py::nodelete>, llvm::ConstantData>(m, "ConstantInt")
 		.def_static("get", [](llvm::Type* Ty, llvm::APInt& V) {
 			return llvm::ConstantInt::get(Ty, V);
@@ -187,12 +190,15 @@ void register_Values_and_Use(pybind11::module_ & m) {
 			});
 
 	m.def("ValueToConstantArray", &llvmValueCaster<llvm::ConstantArray>, py::return_value_policy::reference);
-	py::class_<llvm::ConstantDataArray, std::unique_ptr<llvm::ConstantDataArray, py::nodelete>, llvm::ConstantDataSequential>(m, "ConstantDataArray");
+	py::class_<llvm::ConstantDataArray, std::unique_ptr<llvm::ConstantDataArray, py::nodelete>, llvm::ConstantDataSequential> (m, "ConstantDataArray");
+
 	m.def("ValueToConstantDataArray", &llvmValueCaster<llvm::ConstantDataArray>, py::return_value_policy::reference);
 
 	py::class_<llvm::UndefValue, std::unique_ptr<llvm::UndefValue, py::nodelete>, llvm::ConstantData>(m, "UndefValue")
 		.def_static("get", &llvm::UndefValue::get, py::return_value_policy::reference);
 	m.def("ValueToUndefValue", &llvmValueCaster<llvm::UndefValue>, py::return_value_policy::reference);
+
+	m.def("ValueToGlobalValue", &llvmValueCaster<llvm::GlobalValue>, py::return_value_policy::reference);
 
 }
 
