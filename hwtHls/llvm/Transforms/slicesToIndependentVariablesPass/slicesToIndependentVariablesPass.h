@@ -15,6 +15,8 @@ namespace hwtHls {
 class SlicesToIndependentVariablesPass: public llvm::PassInfoMixin<
 		SlicesToIndependentVariablesPass> {
 public:
+	static const std::string metadataNameNoSplit;
+
 	llvm::PreservedAnalyses run(llvm::Function &F,
 			llvm::FunctionAnalysisManager &AM);
 	static bool isRequired() { return false; }

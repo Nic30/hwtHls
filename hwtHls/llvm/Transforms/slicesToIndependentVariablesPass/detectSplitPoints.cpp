@@ -1,4 +1,5 @@
 #include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/detectSplitPoints.h>
+#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
 #include <llvm/IR/Instruction.h>
 #include <llvm/IR/Instructions.h>
 
@@ -9,13 +10,26 @@ using namespace llvm;
 
 namespace hwtHls {
 
-const char *metadataNameNoSplit = "hwtHls.slicesToIndependentVariables.noSplit";
+using SplitPointSet = std::set<uint64_t>;
 
-inline bool _splitPointsPropagateUpdate(SplitPoints::iterator &_splitPoints,
+SplitPointSet & splitPointsGetAndInit(SplitPoints &result, Instruction &I) {
+	SplitPointSet * splitPoints;
+	auto _splitPoints = result.find(&I);
+	if (_splitPoints == result.end()) {
+		auto tmp = std::make_unique<std::set<uint64_t>>();
+		splitPoints = tmp.get();
+		result[&I] = std::move(tmp);
+	} else {
+		splitPoints = _splitPoints->second.get();
+	}
+	return *splitPoints;
+}
+
+inline bool _splitPointsPropagateUpdate(SplitPointSet& _splitPoints,
 		bool updated, uint64_t bitNo) {
 	if (!updated) {
-		if (_splitPoints->second.find(bitNo) == _splitPoints->second.end()) {
-			_splitPoints->second.insert(bitNo);
+		if (bitNo != 0 && _splitPoints.find(bitNo) == _splitPoints.end()) {
+			_splitPoints.insert(bitNo);
 			updated = true;
 		}
 	}
@@ -36,7 +50,7 @@ void splitPointPropagate(SplitPoints &result, User *U, uint64_t bitNo,
 }
 
 bool splitPointPropagate_BitRangeGet(Instruction &I, int operandNo,
-		bool updated, SplitPoints::iterator &_splitPoints, uint64_t bitNo,
+		bool updated, SplitPointSet& _splitPoints, uint64_t bitNo,
 		uint64_t &resultBitNo, bool forcePropagation,
 		const hwtHls::OffsetWidthValue &v, SplitPoints &result,
 		InstrSet &noSplitInstrs) {
@@ -71,7 +85,7 @@ bool splitPointPropagate_BitRangeGet(Instruction &I, int operandNo,
  * :return: true if operand O matches the requested range and the search for operand may end
  * */
 bool splitPointPropagate_BitConcatOperand(Instruction &I, const Use &O,
-		int operandNo, bool &updated, SplitPoints::iterator &_splitPoints,
+		int operandNo, bool &updated, SplitPointSet &_splitPoints,
 		uint64_t bitNo, uint64_t &resultBitNo, SplitPoints &result,
 		size_t &offset, InstrSet &noSplitInstrs) {
 	uint64_t oWidth = O.get()->getType()->getIntegerBitWidth();
@@ -103,7 +117,7 @@ bool splitPointPropagate_BitConcatOperand(Instruction &I, const Use &O,
 }
 
 bool splitPointPropagate_BinaryOperator(bool updated,
-		SplitPoints::iterator &_splitPoints, uint64_t bitNo,
+		SplitPointSet &_splitPoints, uint64_t bitNo,
 		bool forcePropagation, int operandNo, llvm::BinaryOperator *BO,
 		SplitPoints &result, InstrSet &noSplitInstrs) {
 	switch (BO->getOpcode()) {
@@ -141,7 +155,7 @@ bool splitPointPropagate_BinaryOperator(bool updated,
 }
 
 bool splitPointPropagate_SelectInst(bool updated,
-		SplitPoints::iterator &_splitPoints, uint64_t bitNo,
+		SplitPointSet &_splitPoints, uint64_t bitNo,
 		bool forcePropagation, int operandNo, llvm::SelectInst *SI,
 		SplitPoints &result, InstrSet &noSplitInstrs) {
 	updated = _splitPointsPropagateUpdate(_splitPoints, updated, bitNo);
@@ -185,7 +199,7 @@ bool splitPointPropagate_SelectInst(bool updated,
 }
 
 bool splitPointPropagate_CallInst(int operandNo, bool updated,
-		SplitPoints::iterator &_splitPoints, uint64_t bitNo,
+		SplitPointSet& _splitPoints, uint64_t bitNo,
 		bool forcePropagation, llvm::CallInst *C, uint64_t &resultBitNo,
 		SplitPoints &result, InstrSet &noSplitInstrs) {
 	if (IsBitConcat(C)) {
@@ -227,32 +241,35 @@ void splitPointPropagate(SplitPoints &result, Instruction &I, uint64_t bitNo,
 	assert(operandNo == -1 || user == nullptr);
 	bool updated = false;
 	auto _splitPoints = result.find(&I);
+	SplitPointSet *  splitPoints;
 	// process cases where the update is forced or allocation of new set is required
 	if (_splitPoints != result.end()) {
+		splitPoints = _splitPoints->second.get();
 		if (operandNo == -1) {
-			updated = _splitPointsPropagateUpdate(_splitPoints, false, bitNo);
+			updated = _splitPointsPropagateUpdate(*splitPoints, false, bitNo);
 		}
 	} else {
 		// the split point set does not exist, we have to create it and initialize it
+		auto tmp = std::make_unique<SplitPointSet>();
 		if (operandNo == -1) {
-			result[&I] = std::set<uint64_t>( { bitNo, });
+			assert(bitNo > 0 && bitNo < I.getType()->getIntegerBitWidth());
+			tmp->insert(bitNo);
 			updated = true;
-		} else {
-			result[&I] = std::set<uint64_t>();
 		}
-		_splitPoints = result.find(&I);
+		splitPoints = tmp.get();
+		result[&I] = std::move(tmp);
 	}
 	uint64_t resultBitNo = bitNo;
 
 	if (noSplitInstrs.find(&I) == noSplitInstrs.end()) {
 		// process cases specific to each instruction type
 		if (auto *BO = dyn_cast<BinaryOperator>(&I)) {
-			updated = splitPointPropagate_BinaryOperator(updated, _splitPoints,
+			updated = splitPointPropagate_BinaryOperator(updated, *splitPoints,
 					bitNo, forcePropagation, operandNo, BO, result,
 					noSplitInstrs);
 
 		} else if (auto SI = dyn_cast<PHINode>(&I)) {
-			updated = _splitPointsPropagateUpdate(_splitPoints, updated, bitNo);
+			updated = _splitPointsPropagateUpdate(*splitPoints, updated, bitNo);
 			if (updated || forcePropagation) {
 				int i = 0;
 				for (auto &O : SI->incoming_values()) {
@@ -268,12 +285,12 @@ void splitPointPropagate(SplitPoints &result, Instruction &I, uint64_t bitNo,
 			}
 
 		} else if (auto *SI = dyn_cast<SelectInst>(&I)) {
-			updated = splitPointPropagate_SelectInst(updated, _splitPoints,
+			updated = splitPointPropagate_SelectInst(updated, *splitPoints,
 					bitNo, forcePropagation, operandNo, SI, result,
 					noSplitInstrs);
 		} else if (auto *C = dyn_cast<CallInst>(&I)) {
 			updated = splitPointPropagate_CallInst(operandNo, updated,
-					_splitPoints, bitNo, forcePropagation, C, resultBitNo,
+					*splitPoints, bitNo, forcePropagation, C, resultBitNo,
 					result, noSplitInstrs);
 
 		} else if (auto CI = dyn_cast<CastInst>(&I)) {
@@ -282,7 +299,7 @@ void splitPointPropagate(SplitPoints &result, Instruction &I, uint64_t bitNo,
 				OffsetWidthValue v = BitRangeGetOffsetWidthValue(
 						dyn_cast<TruncInst>(CI));
 				updated = splitPointPropagate_BitRangeGet(I, operandNo, updated,
-						_splitPoints, bitNo, resultBitNo, forcePropagation, v,
+						*splitPoints, bitNo, resultBitNo, forcePropagation, v,
 						result, noSplitInstrs);
 				break;
 			}
@@ -292,7 +309,7 @@ void splitPointPropagate(SplitPoints &result, Instruction &I, uint64_t bitNo,
 				if (bitNo < o0.get()->getType()->getIntegerBitWidth()) {
 					size_t offset = 0;
 					splitPointPropagate_BitConcatOperand(I, o0, operandNo,
-							updated, _splitPoints, bitNo, resultBitNo, result,
+							updated, *splitPoints, bitNo, resultBitNo, result,
 							offset, noSplitInstrs);
 				}
 				break;
@@ -322,7 +339,7 @@ SplitPoints collectSplitPoints(Function &F, InstrSet &noSplitInstrs) {
 	// collect indexes from slices
 	for (auto &B : F) {
 		for (Instruction &I : B) {
-			bool hasNoSplit = I.getMetadata(metadataNameNoSplit);
+			bool hasNoSplit = I.getMetadata(SlicesToIndependentVariablesPass::metadataNameNoSplit);
 			if (hasNoSplit) {
 				noSplitInstrs.insert(&I);
 				//continue;
@@ -348,25 +365,23 @@ SplitPoints collectSplitPoints(Function &F, InstrSet &noSplitInstrs) {
 				} else if (isa<SExtInst>(&I)) {
 					if (!hasNoSplit) {
 						// mark all bits in extension as split points of self
-						auto o0 = I.getOperand(0);
-						size_t o0Width = o0->getType()->getIntegerBitWidth();
+						auto srcOp = I.getOperand(0);
+						size_t srcOpWidth = srcOp->getType()->getIntegerBitWidth();
 
-						auto splitPoints = result.find(&I);
-						if (splitPoints == result.end()) {
-							result[&I] = std::set<uint64_t>();
-							splitPoints = result.find(&I);
-						}
+						SplitPointSet & splitPoints = splitPointsGetAndInit(result, I);
 						size_t resWidth = I.getType()->getIntegerBitWidth();
 						assert(resWidth >= 2);
 						// add split point on every position where MSB is replicated
-						for (size_t i = o0Width - 1; i < resWidth - 1; ++i) {
-							splitPoints->second.insert(i);
+						for (size_t i = srcOpWidth - 1; i < resWidth - 1; ++i) {
+							if (i == 0)
+								continue;
+							splitPoints.insert(i);
 						}
-						if (auto *I2 = dyn_cast<Instruction>(o0)) {
+						if (auto *I2 = dyn_cast<Instruction>(srcOp)) {
 							// handle extract of msb from operand 0
 							v = OffsetWidthValue();
 							v.value().width = 1;
-							v.value().offset = o0Width - 1 - 1; // msb bit is sliced from rest of the o0
+							v.value().offset = srcOpWidth - 1; // msb bit is sliced from rest of the srcOp
 							v.value().value = I2;
 						}
 					}
@@ -375,19 +390,15 @@ SplitPoints collectSplitPoints(Function &F, InstrSet &noSplitInstrs) {
 			if (v.has_value()) {
 				auto _v = v.value();
 				if (auto *I2 = dyn_cast<Instruction>(_v.value)) {
-					auto splitPoints = result.find(I2);
-					if (splitPoints == result.end()) {
-						result[I2] = std::set<uint64_t>();
-						splitPoints = result.find(I2);
-					}
-					// add split points, but exclude boundary values
+					SplitPointSet & splitPoints = splitPointsGetAndInit(result, *I2);
+						// add split points, but exclude boundary values
 					assert(_v.width > 0);
 					if (_v.offset != 0) {
-						splitPoints->second.insert(_v.offset);
+						splitPoints.insert(_v.offset);
 					}
-					if (_v.offset + _v.width
-							!= _v.value->getType()->getIntegerBitWidth()) {
-						splitPoints->second.insert(_v.offset + _v.width);
+					auto srcWidth = _v.value->getType()->getIntegerBitWidth();
+					if (_v.offset + _v.width != srcWidth) {
+						splitPoints.insert(_v.offset + _v.width);
 					}
 				}
 			}
@@ -398,12 +409,18 @@ SplitPoints collectSplitPoints(Function &F, InstrSet &noSplitInstrs) {
 		for (Instruction &I : B) {
 			// we have to propagate in both directions because the propagation may end on non splitable instructions like multiplication etc.
 			auto splitPoints = result.find(&I);
-			if (splitPoints != result.end()) {
-				std::set<uint64_t> pointsCopy = splitPoints->second;
-				for (uint64_t bitNo : pointsCopy) {
-					splitPointPropagate(result, I, bitNo, true, -1, nullptr,
-							noSplitInstrs);
-				}
+			if (splitPoints == result.end())
+				continue;
+			std::set<uint64_t> pointsCopy = *splitPoints->second;
+#ifndef NDEBUG
+			for (auto bitNo : pointsCopy) {
+				assert(bitNo > 0);
+				assert(bitNo < I.getType()->getIntegerBitWidth());
+			}
+#endif
+			for (uint64_t bitNo : pointsCopy) {
+				splitPointPropagate(result, I, bitNo, true, -1, nullptr,
+						noSplitInstrs);
 			}
 		}
 	}

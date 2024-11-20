@@ -104,20 +104,20 @@ public:
 							<< ":" << lowBitNo << "]\n");
 			auto splits = splitPoints.find(I);
 			auto *C = dyn_cast<CallInst>(I);
-			bool isConcat = C && IsBitConcat(C);
-			bool isBitRangeGet = C && !isConcat && IsBitRangeGet(C);
+			bool isConcat = (C && IsBitConcat(C)) || isa<ZExtInst>(I)|| isa<SExtInst>(I);
+			bool isBitRangeGet = (C && !isConcat && IsBitRangeGet(C)) || isa<TruncInst>(I);
 			bool hasNoSplit = noSplitInstrs.find(I) != noSplitInstrs.end();
 			if (!hasNoSplit
 					&& (isConcat || isBitRangeGet
 							|| (splits != splitPoints.end()
-									&& splits->second.size() != 0))) {
+									&& splits->second->size() != 0))) {
 				// if there are split points it means that we have to use primitive slices generated from split points
 				// and we must not use this composite value (because the split on primitive slice values is what this optimization does)
 				bool doFillUpperBits = true;
 				uint64_t lastOffset = 0;
 				if (splits != splitPoints.end()) {
 					bool exactStartFound = lowBitNo == 0;
-					for (uint64_t splitPoint : splits->second) {
+					for (uint64_t splitPoint : *splits->second) {
 						assert(splitPoint > lastOffset);
 						if (splitPoint < lowBitNo) {
 							continue;
@@ -214,15 +214,16 @@ public:
 		bool Changed = false;
 		if (O->getType()->isIntegerTy()) {
 			auto width = O->getType()->getIntegerBitWidth();
-			auto *newO = resolveValue(O.get(), width, 0);
+			auto _O = O.get();
+			auto *newO = resolveValue(_O, width, 0);
 			if (O.get() != newO) {
 				Changed = true;
 				LLVM_DEBUG(
 						dbgs() << "replacing:" << *O.get() << "\n    with:"
 								<< *newO << "\n");
 				assert(width == newO->getType()->getIntegerBitWidth());
+				O.set(newO);
 			}
-			O.set(newO);
 		}
 		return Changed;
 	}
@@ -522,12 +523,12 @@ bool splitOnSplitPoints(const InstrSet &noSplitInstrs,
 			if (SlicedValueResolver::isInstructionSplitable(noSplitInstrs, I)) {
 				auto sp = splitPoints.find(&I);
 
-				if (sp != splitPoints.end() && sp->second.size()) {
+				if (sp != splitPoints.end() && sp->second->size()) {
 					toRemove.insert(&I);
 				} else if (auto *C = dyn_cast<CallInst>(&I)) {
 					if (IsBitConcat(C) || IsBitRangeGet(C))
 						toRemove.insert(&I);
-				} else if (isa<CastInst>(&I)) {
+				} else if (isa<CastInst>(&I)) { // covers TruncInst, ZExt, SExt, Bitcast and others
 					toRemove.insert(&I);
 				}
 			}
@@ -592,6 +593,9 @@ bool splitOnSplitPoints(const InstrSet &noSplitInstrs,
 //		}
 //	}
 //}
+
+
+const std::string SlicesToIndependentVariablesPass::metadataNameNoSplit = "hwtHls.slicesToIndependentVariables.noSplit";
 
 /*
  * There are several things to resolve:
