@@ -2,12 +2,13 @@
 
 #include <hwtHls/llvm/llvmCompilationBundle.h>
 #include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
-
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Module.h>
+#include <llvm/IR/PassManager.h>
+#include <llvm/Analysis/LoopInfo.h>
 #include <hwtHls/llvm/targets/hwtFpga.h>
 #include <hwtHls/llvm/targets/Transforms/hwtFpgaToNetlist.h>
 
@@ -19,6 +20,20 @@
 namespace py = pybind11;
 
 namespace hwtHls {
+
+class ForwardLoopAnalysisPass: public llvm::PassInfoMixin<ForwardLoopAnalysisPass> {
+	std::function<void(llvm::LoopInfo&)> callbackFn;
+public:
+	ForwardLoopAnalysisPass(std::function<void(llvm::LoopInfo&)> callbackFn): callbackFn(callbackFn) {
+	}
+	llvm::PreservedAnalyses run(llvm::Function &F,
+			llvm::FunctionAnalysisManager &AM) {
+		auto &LI = AM.getResult<llvm::LoopAnalysis>(F);
+		callbackFn(LI);
+		return llvm::PreservedAnalyses::all();
+	}
+};
+
 
 void register_LlvmCompilationBundle(pybind11::module_ &m) {
 	py::register_local_exception<hwtHls::IntentionalCompilationInterupt>(m, "IntentionalCompilationInterupt", PyExc_RuntimeError);
@@ -52,10 +67,19 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 			return returnObj;
 		})
 		.def("runExprOpt", &hwtHls::LlvmCompilationBundle::runExprOpt)
-		.def("registerAfterPassCallback", [](hwtHls::LlvmCompilationBundle * self, py::function & callbackFn) {
+		.def("runLoopAnalysisGet", [](hwtHls::LlvmCompilationBundle * LCB, py::function & callbackFn) {
+			LCB->_runCustomFunctionPass([&callbackFn](llvm::FunctionPassManager &FPM) {
+				FPM.addPass(ForwardLoopAnalysisPass([&callbackFn](llvm::LoopInfo &LI) {
+					callbackFn.operator() <py::return_value_policy::reference, llvm::LoopInfo &>(LI);
+				}));
+			});
+		})
+		.def("registerAfterPassCallbackForIr", [](hwtHls::LlvmCompilationBundle * self, py::function & callbackFn) {
 			self->PIC.registerAfterPassCallback([callbackFn](llvm::StringRef PassName, llvm::Any IR, const llvm::PreservedAnalyses& PA) {
 				 callbackFn.operator() <py::return_value_policy::reference, llvm::StringRef&, llvm::Any&>(PassName, IR);
 			 });
+		})
+		.def("registerAfterPassCallbackForMir", [](hwtHls::LlvmCompilationBundle * self, py::function & callbackFn) {
 			self->PICForLegacyPM.registerAfterPassCallback([callbackFn](llvm::StringRef PassName, llvm::Any IR, const llvm::PreservedAnalyses& PA) {
 				 callbackFn.operator() <py::return_value_policy::reference, llvm::StringRef&, llvm::Any&>(PassName, IR);
 			});
