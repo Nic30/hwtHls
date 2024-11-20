@@ -1,13 +1,16 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/phiValueProover.h>
 #include <llvm/IR/IRBuilder.h>
 #include <hwtHls/llvm/bitMath.h>
+#include <hwtHls/llvm/Transforms/utils/bitWidthInfo.h>
+#include <llvm/Support/Debug.h>
 
 using namespace llvm;
+
 namespace hwtHls {
 
 PHIValueProover::PHIValueProover(const llvm::PHINode *phi) :
 		phi(phi) {
-	auto w = phi->getType()->getIntegerBitWidth();
+	auto w = getIntegerBitWidthOr1(phi);
 	knownBits.resize(w);
 	knownBits[0] = ValueInfo(w);
 }
@@ -22,7 +25,7 @@ PHIValueProover::ValueInfo::ValueInfo(size_t width) :
 
 PHIValueProover::ValueInfo::ValueInfo(const llvm::PHINode *phi,
 		const KnownBitRangeInfo &kbri) :
-		hasMultipleValues(false), width(phi->getType()->getIntegerBitWidth()) {
+		hasMultipleValues(false), width(getIntegerBitWidthOr1(phi)) {
 	if (kbri.src != phi) {
 		currentValue = kbri;
 	}
@@ -308,12 +311,12 @@ void PHIValueProover::knownBits_splitItem(KnownBitsIteraor knownBitsItem,
 
 VarBitConstraint PHIValueProover::resolve() {
 	assert(!knownBits.empty());
-	VarBitConstraint res(phi->getType()->getIntegerBitWidth());
+	VarBitConstraint res(getIntegerBitWidthOr1(phi));
 
 	consistencyCheck();
 	size_t offset = 0;
 	for (auto vi = knownBits.begin();
-			vi != knownBits.begin() + phi->getType()->getIntegerBitWidth();
+			vi != knownBits.begin() + getIntegerBitWidthOr1(phi);
 			vi += vi->width) {
 		size_t width = vi->width;
 		if (vi->currentValue.has_value()) {
@@ -356,13 +359,13 @@ bool PHIValueProover::consistencyCheck() const {
 			assert(kb.currentValue.value().width == kb.width);
 		}
 		for (size_t depOff : kb.phiDeps) {
-			assert(depOff < phi->getType()->getIntegerBitWidth());
+			assert(depOff < getIntegerBitWidthOr1(phi));
 			const auto &dep = knownBits[depOff];
 			assert(dep.width == kb.width);
 			assert(dep.users.find(offset) != dep.users.end());
 		}
 		for (size_t uOff : kb.users) {
-			assert(uOff < phi->getType()->getIntegerBitWidth());
+			assert(uOff < getIntegerBitWidthOr1(phi));
 			const auto &u = knownBits[uOff];
 			assert(u.width == kb.width);
 			assert(u.phiDeps.find(offset) != u.phiDeps.end());
@@ -370,7 +373,7 @@ bool PHIValueProover::consistencyCheck() const {
 		if (kb.width)
 			offsetNext = offset + kb.width;
 		offset += 1;
-		assert(offset <= phi->getType()->getIntegerBitWidth());
+		assert(offset <= getIntegerBitWidthOr1(phi));
 	}
 	return true;
 }
@@ -396,5 +399,10 @@ void PHIValueProover::print(llvm::raw_ostream &O, bool IsForDebug) const {
 	}
 	O << ")";
 }
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+LLVM_DUMP_METHOD void PHIValueProover::dump() const {
+  llvm::dbgs() << "  " << *this;
+}
+#endif
 
 }

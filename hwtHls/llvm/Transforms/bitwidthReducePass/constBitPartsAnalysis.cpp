@@ -3,6 +3,7 @@
 #include <llvm/IR/IRBuilder.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/bitMath.h>
+#include <hwtHls/llvm/Transforms/utils/bitWidthInfo.h>
 
 using namespace llvm;
 
@@ -93,8 +94,7 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitConstantInt(
 VarBitConstraint& ConstBitPartsAnalysisContext::visitSelectInst(
 		const SelectInst *I) {
 	// propagate from ops to this, union of masks an known values
-	VarBitConstraint &c = initConstraintMember(I,
-			I->getType()->getIntegerBitWidth());
+	VarBitConstraint &c = initConstraintMember(I, getIntegerBitWidthOr1(I));
 	auto CknownBits = getKnownBitBoolValue(I->getCondition());
 	if (CknownBits.has_value()) {
 		const Value *V;
@@ -158,9 +158,9 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitPHINode(const PHINode *I) {
 
 VarBitConstraint& ConstBitPartsAnalysisContext::visitAsAllInputBitsUsedAllOutputBitsKnown(
 		const Value *V) {
-	// this function is called for every value which can not be dissolved
+	bool tryAnalize = tryAnalyzeOperandsOfUnsupportedInstructions && constraints.find(V) == constraints.end();
 	VarBitConstraint &cur = initConstraintMember(V);
-	if (tryAnalyzeOperandsOfUnsupportedInstructions) {
+	if (tryAnalize) {
 		if (auto *I = dyn_cast<Instruction>(V)) {
 			for (Value *O : I->operands()) {
 				if (O->getType()->isIntegerTy())
@@ -564,6 +564,26 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCmpInst(const CmpInst *I) {
 	auto w = lhs.useMask.getBitWidth();
 	res.addAllSetOperandMask(w);
 	res.addAllSetOperandMask(w);
+
+	switch (op) {
+	case CmpInst::Predicate::ICMP_EQ:
+	case CmpInst::Predicate::ICMP_NE:
+	case CmpInst::Predicate::ICMP_UGT:
+	case CmpInst::Predicate::ICMP_UGE:
+	case CmpInst::Predicate::ICMP_ULT:
+	case CmpInst::Predicate::ICMP_ULE:
+	case CmpInst::Predicate::ICMP_SGT:
+	case CmpInst::Predicate::ICMP_SGE:
+	case CmpInst::Predicate::ICMP_SLT:
+	case CmpInst::Predicate::ICMP_SLE:
+		break;
+	default: {
+		// not implemented predicate
+		assert(res.replacements.size() == 1 && "Must stay 1b value");
+		assert(res.consistencyCheck());
+		return res;
+	}
+	}
 
 	unsigned lastBitEnd = w; // bit position in operands
 	// [todo] if sign_val > -1 -> ~sign_val[MSB]

@@ -1,8 +1,12 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitRewriter.h>
-#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+
 #include <iostream>
 
+#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <hwtHls/llvm/Transforms/utils/bitWidthInfo.h>
+
 using namespace llvm;
+
 namespace hwtHls {
 
 BitPartsRewriter::BitPartsRewriter(BitPartsConstraints &_constraints,
@@ -31,8 +35,7 @@ std::vector<KnownBitRangeInfo> iterUsedBitRanges(const APInt &useMask,
 
 llvm::Value* BitPartsRewriter::rewriteKnownBitRangeInfo(IRBuilder<> *Builder,
 		const KnownBitRangeInfo &kbri) {
-	auto *T = cast<IntegerType>(kbri.src->getType());
-	if (kbri.srcBeginBitI == 0 && kbri.width == (T ? T->getBitWidth() : 1)) {
+	if (kbri.srcBeginBitI == 0 && kbri.width == getIntegerBitWidthOr1(kbri.src)) {
 		llvm::Value *src = const_cast<Value*>(kbri.src);
 		// check for possible replace of src
 		if (auto *I = dyn_cast<llvm::Instruction>(src)) {
@@ -124,7 +127,7 @@ bool BitPartsRewriter::tryResolveAndUpdateOperands(IRBuilder<> &b,
 			newOVal = rewriteKnownBitRangeInfoVector(&b, usedBits);
 			assert(newOVal && "This can not be null because it has use (this one)");
 			assert(
-					newOVal->getType()->getIntegerBitWidth()
+					getIntegerBitWidthOr1(newOVal)
 							== useMask[i].popcount());
 		} else {
 			newOVal = O;
@@ -475,7 +478,7 @@ llvm::Value* BitPartsRewriter::rewriteIfRequiredAndExpand(llvm::Value *V) {
 
 llvm::Value* BitPartsRewriter::rewritePHINodeArgsIfRequired(
 		llvm::PHINode *phi) {
-	APInt phiUseMask = APInt::getAllOnes(phi->getType()->getIntegerBitWidth());
+	APInt phiUseMask = APInt::getAllOnes(getIntegerBitWidthOr1(phi));
 	auto phiConstr = constraints.findInConstraints(phi);
 	if (phiConstr) {
 		const VarBitConstraint &vbc = *phiConstr;

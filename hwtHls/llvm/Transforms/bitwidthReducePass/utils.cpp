@@ -5,6 +5,7 @@
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/targets/intrinsic/concatMemberVector.h>
 #include <hwtHls/llvm/bitMath.h>
+#include <hwtHls/llvm/Transforms/utils/bitWidthInfo.h>
 
 using namespace llvm;
 namespace hwtHls {
@@ -17,8 +18,7 @@ KnownBitRangeInfo::KnownBitRangeInfo(const ConstantInt *CI) :
 }
 KnownBitRangeInfo::KnownBitRangeInfo(const Value *V) :
 		dstBeginBitI(0), srcBeginBitI(0), width(
-				V->getType()->isIntegerTy() ?
-						V->getType()->getIntegerBitWidth() : 1), src(V) {
+				getIntegerBitWidthOr1(V)), src(V) {
 }
 
 KnownBitRangeInfo::KnownBitRangeInfo(const OffsetWidthValue &owv,
@@ -44,7 +44,7 @@ KnownBitRangeInfo KnownBitRangeInfo::slice(unsigned offset,
 	assert(width > 0);
 	assert(
 			srcBeginBitI + offset + width
-					<= src->getType()->getIntegerBitWidth()
+					<= getIntegerBitWidthOr1(src)
 					&& "Bit range does not overflow");
 	KnownBitRangeInfo res(width);
 	if (auto *CI = dyn_cast<const ConstantInt>(src)) {
@@ -206,9 +206,7 @@ VarBitConstraint::VarBitConstraint(const ConstantInt *CI) :
 }
 
 VarBitConstraint::VarBitConstraint(const Value *V) :
-		useMask(
-				V->getType()->isIntegerTy() ?
-						V->getType()->getIntegerBitWidth() : 1, 0) {
+		useMask(getIntegerBitWidthOr1(V), 0) {
 	replacements.push_back(KnownBitRangeInfo(V)); // represent value with this value
 }
 
@@ -229,7 +227,8 @@ VarBitConstraint VarBitConstraint::fromConcat(const llvm::CallInst *V) {
 				auto OWV = OffsetWidthValue::fromValue(OC);
 				size_t dstOffset = 0;
 				if (!newParts.empty()) {
-					dstOffset = newParts.back().dstBeginBitI + newParts.back().width;
+					dstOffset = newParts.back().dstBeginBitI
+							+ newParts.back().width;
 				}
 				newParts.push_back(KnownBitRangeInfo(OWV, dstOffset));
 				assert(op.consistencyCheck());
@@ -252,7 +251,8 @@ VarBitConstraint VarBitConstraint::fromConcat(const llvm::CallInst *V) {
 	return res;
 }
 
-bool VarBitConstraint::valuesHaveSameMeaning(const llvm::Value *V0, const llvm::Value *V1) {
+bool VarBitConstraint::valuesHaveSameMeaning(const llvm::Value *V0,
+		const llvm::Value *V1) {
 	if (V0 == V1)
 		return true;
 	if (V0->getType() != V1->getType())
@@ -260,7 +260,8 @@ bool VarBitConstraint::valuesHaveSameMeaning(const llvm::Value *V0, const llvm::
 	if (auto V0C = dyn_cast<CallInst>(V0)) {
 		if (auto V1C = dyn_cast<CallInst>(V1)) {
 			if (IsBitConcat(V0C) && IsBitConcat(V1C)) {
-				return fromConcat(V0C).replacements == fromConcat(V1C).replacements;
+				return fromConcat(V0C).replacements
+						== fromConcat(V1C).replacements;
 			}
 		}
 	}
@@ -291,7 +292,8 @@ bool VarBitConstraint::_valuesHaveSameMeaning(const llvm::Value *V1) const {
 bool VarBitConstraint::valuesHaveSameMeaning(const llvm::Value *V1) const {
 	bool hasSameWidth;
 	if (V1->getType()->isIntegerTy())
-		hasSameWidth = useMask.getBitWidth() == V1->getType()->getIntegerBitWidth();
+		hasSameWidth = useMask.getBitWidth()
+				== getIntegerBitWidthOr1(V1);
 	else
 		hasSameWidth = useMask.getBitWidth() == 1 && useMask.getZExtValue();
 	if (useMask.isAllOnes()) {
@@ -302,7 +304,7 @@ bool VarBitConstraint::valuesHaveSameMeaning(const llvm::Value *V1) const {
 	} else {
 		if (hasSameWidth || !V1->getType()->isIntegerTy())
 			return false; // after pruning this would have less bits than V1
-		else if (useMask.popcount() != V1->getType()->getIntegerBitWidth()) {
+		else if (useMask.popcount() != getIntegerBitWidthOr1(V1)) {
 			return false; // after pruning this would have a different number of bits than V1
 		} else {
 			return toAllOnesUseMask()._valuesHaveSameMeaning(V1);
@@ -347,7 +349,6 @@ llvm::APInt VarBitConstraint::getTrullyComputedBitMask(
 	return m;
 }
 
-
 VarBitConstraint VarBitConstraint::toAllOnesUseMask() const {
 	if (useMask.isAllOnes())
 		return *this;
@@ -356,14 +357,15 @@ VarBitConstraint VarBitConstraint::toAllOnesUseMask() const {
 
 	VarBitConstraint res(useMask.popcount());
 	res.useMask.setAllBits();
-	for (const auto& r: replacements) {
+	for (const auto &r : replacements) {
 		auto useM = useMask.extractBits(r.width, r.dstBeginBitI);
 		if (useM.isAllOnes())
 			res.replacements.push_back(r);
 		else {
-			iterUsedBitRangeSlices(useM, [&res, &r](size_t offset, size_t width) {
-				res.replacements.push_back(r.slice(offset, width));
-			});
+			iterUsedBitRangeSlices(useM,
+					[&res, &r](size_t offset, size_t width) {
+						res.replacements.push_back(r.slice(offset, width));
+					});
 		}
 	}
 	assert(res.consistencyCheck());
@@ -500,13 +502,13 @@ void VarBitConstraint::srcUnionPushBackWithMerge(
 		size_t srcOffset, size_t srcWidth) {
 	assert(srcWidth > 0);
 	assert(item.width >= srcWidth);
+#ifndef NDEBUG
+	size_t srcTWidth = getIntegerBitWidthOr1(item.src);
+	assert(item.srcBeginBitI < srcTWidth && "bit range does not overflow");
 	assert(
-			item.srcBeginBitI < item.src->getType()->getIntegerBitWidth()
+			item.srcBeginBitI + srcOffset + srcWidth <= srcTWidth
 					&& "bit range does not overflow");
-	assert(
-			item.srcBeginBitI + srcOffset + srcWidth
-					<= item.src->getType()->getIntegerBitWidth()
-					&& "bit range does not overflow");
+#endif
 	// select [srcOffset:srcOffset+srcWidth] bits from input item
 	item.srcBeginBitI += srcOffset;
 	item.dstBeginBitI += srcOffset;
@@ -598,7 +600,8 @@ VarBitConstraint VarBitConstraint::slice(unsigned offset,
 	return res;
 }
 
-void VarBitConstraint::substituteValue(const llvm::Value *oldV, llvm::Value *newV) {
+void VarBitConstraint::substituteValue(const llvm::Value *oldV,
+		llvm::Value *newV) {
 	assert(newV->getType() == oldV->getType());
 	for (auto &r : replacements) {
 		if (r.src == oldV) {
@@ -610,7 +613,7 @@ void VarBitConstraint::substituteValue(const llvm::Value *oldV, llvm::Value *new
 bool VarBitConstraint::isValue(const llvm::Value *V) const {
 	if (replacements.size() == 1 && replacements[0].isValue(V))
 		return true;
-	else if (auto* VC = dyn_cast<CallInst>(V)) {
+	else if (auto *VC = dyn_cast<CallInst>(V)) {
 		return IsBitConcat(VC) && replacements == fromConcat(VC).replacements;
 	}
 	return false;
