@@ -14,6 +14,7 @@ from hwtHls.architecture.analysis.syncNodeGraph import HlsAndRtlNetlistAnalysisP
     getOtherPortOfChannel
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement
+from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
 from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
     HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
@@ -87,8 +88,12 @@ class HlsAndRtlNetlistAnalysisPassHandshakeSCC(HlsArchAnalysisPass):
         # handle nodes which were not added into g because it has no edge
         for n in nodes:
             if not g.has_node(n):
-                hsScc = ([n], sortIoByOffsetInClkWindow(neighborDict, nodeIo, [n]))
-                sccs.append(hsScc)
+                ioSorted = sortIoByOffsetInClkWindow(neighborDict, nodeIo, [n])
+                if isinstance(n[0], ArchElementFsm) and not n[0].hasUsedStateForClkI(n[1]):
+                    assert not ioSorted, n
+                else:
+                    hsScc = ([n], ioSorted)
+                    sccs.append(hsScc)
 
         return sccs
 
@@ -136,7 +141,7 @@ HlsNetNodePreceCmpKey = cmp_to_key(HlsNetNodePreceCmp)
 @staticmethod
 def sortIoByOffsetInClkWindow(neighborDict: ArchSyncNeighborDict,
                   nodeIo: ArchSyncNodeIoDict,
-                  scc: SetList[ArchSyncNodeTy]):
+                  scc: SetList[ArchSyncNodeTy]) -> AllIOsOfSyncNode:
     clkPeriod = scc[0][0].netlist.normalizedClkPeriod
     allIo: AllIOsOfSyncNode = []
     seen: Set[HlsNetNodeReadOrWriteToAnyChannel] = set()
