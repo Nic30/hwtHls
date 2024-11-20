@@ -44,14 +44,14 @@ llvm::CallInst* CreateStreamWriteEndOfFrame(llvm::IRBuilder<> *Builder,
 bool IsStreamWriteEndOfFrame(const llvm::CallInst *C);
 bool IsStreamWriteEndOfFrame(const llvm::Function *F);
 
-bool IsStreamIo(const llvm::CallInst *C);
-size_t streamIoGetOrigChunkBitWidth(const llvm::CallInst *I);
-
 inline bool IsStreamIoStartOfFrame(const llvm::CallInst *I) {
 	return IsStreamReadStartOfFrame(I) || IsStreamWriteStartOfFrame(I);
 }
 inline bool IsStreamIoEndOfFrame(const llvm::CallInst *I) {
 	return IsStreamReadEndOfFrame(I) || IsStreamWriteEndOfFrame(I);
 }
+// :returns: true if the function is hwtHls.stream intrinsic
+bool IsStreamIo(const llvm::CallInst *C);
+size_t streamIoGetOrigChunkBitWidth(const llvm::CallInst *I);
 
 }
