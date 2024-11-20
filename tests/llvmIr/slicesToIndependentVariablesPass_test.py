@@ -11,14 +11,13 @@ from hwt.hwIOs.std import HwIOVectSignal, HwIOSignal
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwtHls.architecture.transformation._operatorToHwtLowering.operatorHwImplementations.countBits import CountLeadingZeros
-from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtHls.ssa.analysis.consistencyCheck import SsaPassConsistencyCheck
-from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm
+from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from tests.baseSsaTest import TestFinishedSuccessfuly
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
 
@@ -176,10 +175,9 @@ class BaseSliceBreakTestPlatform(VirtualHlsPlatform):
         VirtualHlsPlatform.__init__(self)
         self.postSliceBreak = StringIO()
 
-    def runSsaPasses(self, hls:"HlsScope", toSsa:HlsAstToSsa):
-        SsaPassConsistencyCheck().runOnSsaModule(toSsa)
-        SsaPassToLlvm(hls, self._llvmCliArgs).runOnSsaModule(toSsa)
-        f = toSsa.start.llvm._testSlicesToIndependentVariablesPass()
+    def runSsaPasses(self, hls:"HlsScope", toLlvm:ToLlvmIrTranslator):
+        SsaPassConsistencyCheck().runOnSsaModule(toLlvm)
+        f = toLlvm.llvm._testSlicesToIndependentVariablesPass()
         fStr = repr(f)
         # print(fStr)
         self.postSliceBreak.write(fStr)
@@ -392,7 +390,7 @@ if __name__ == "__main__":
 
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([SlicesToIndependentVariablesPass_TC('test_ShifterLeftBarrelUsingLoop2')])
+    # suite = unittest.TestSuite([SlicesToIndependentVariablesPass_TC('test_CountLeadingZeros')])
     suite = testLoader.loadTestsFromTestCase(SlicesToIndependentVariablesPass_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
