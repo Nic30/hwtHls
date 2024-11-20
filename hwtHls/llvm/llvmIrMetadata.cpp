@@ -88,7 +88,7 @@ void register_MDNode(pybind11::module_ & m) {
 		.def_static("get", llvm::ValueAsMetadata::get, py::return_value_policy::reference_internal)
 		.def("getValue", &llvm::ValueAsMetadata::getValue, py::return_value_policy::reference_internal)
 		.def("__repr__", &printToStr<llvm::ValueAsMetadata>);
-	m.def("MetadataAsValueAsMetadata", [](llvm::Metadata * MD) {
+	m.def("MetadataToValueAsMetadata", [](llvm::Metadata * MD) {
 		return dyn_cast<llvm::ValueAsMetadata>(MD);
 	}, py::return_value_policy::reference_internal);
 
