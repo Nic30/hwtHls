@@ -31,6 +31,12 @@ public:
 	bool legalizeCustomBitcount(LegalizerHelper &Helper, MachineInstr &MI) const;
 	// translate to HwtFpga equivalent, truncate shiftAmount operand to emulate llvm variant
 	bool legalizeCustomShift(LegalizerHelper &Helper, MachineInstr &MI) const;
+	bool legalizeCustomFunnelShift(LegalizerHelper &Helper,
+			MachineInstr &MI) const;
+	bool legalizeCustomG_SEXT_INREG(LegalizerHelper &Helper,
+			MachineInstr &MI) const;
+	bool legalizeCustomG_ANYEXT(LegalizerHelper &Helper,
+			MachineInstr &MI) const;
 };
 
 }

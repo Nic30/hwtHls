@@ -18,11 +18,13 @@ HwtFpgaLegalizerInfo::HwtFpgaLegalizerInfo(const HwtFpgaTargetSubtarget &ST) :
 	//auto & LLI = getLegacyLegalizerInfo();
 	using namespace TargetOpcode;
 	// add natively supported ops as legal
-	for (auto op : { G_IMPLICIT_DEF, G_CONSTANT, G_GLOBAL_VALUE, G_SELECT,
-			G_BRCOND, G_ICMP, G_ADD, G_SUB, G_MUL, G_UREM, G_UDIV, G_SREM,
-			G_SDIV, G_LOAD, G_STORE, G_INDEXED_LOAD, G_INDEXED_STORE, G_PHI,
-			G_AND, G_OR, G_XOR, G_EXTRACT, G_MERGE_VALUES, G_ZEXT, G_SEXT,
-			G_PTR_ADD,
+	for (unsigned op : {
+		G_IMPLICIT_DEF, G_CONSTANT, G_GLOBAL_VALUE, G_SELECT,
+		G_BRCOND, G_ICMP, G_ADD, G_SUB, G_MUL, G_UREM, G_UDIV, G_SREM,
+		G_SDIV, G_LOAD, G_STORE, G_INDEXED_LOAD, G_INDEXED_STORE, G_PHI,
+		G_AND, G_OR, G_XOR, G_EXTRACT, G_MERGE_VALUES,
+		G_ZEXT, G_SEXT, G_ANYEXT,
+		G_PTR_ADD,
 	}) {
 		getActionDefinitionsBuilder(op) //
 		.alwaysLegal();
@@ -31,19 +33,19 @@ HwtFpgaLegalizerInfo::HwtFpgaLegalizerInfo(const HwtFpgaTargetSubtarget &ST) :
 		G_SEXTLOAD, G_ZEXTLOAD,
 		// shift and bit ops
 		G_SHL, G_LSHR, G_ASHR,
+		// funnel shifts/rotations
+		G_FSHL, G_FSHR,
 		G_CTLZ_ZERO_UNDEF, G_CTTZ_ZERO_UNDEF,
 		G_CTLZ, G_CTTZ, G_CTPOP,
 		// see llvm::FreezeInst
 		G_FREEZE,
+		G_SEXT_INREG,
 	}).custom();
 	//.lower();
 	getActionDefinitionsBuilder( {
 		// high order functions
 		G_MEMCPY, G_MEMCPY_INLINE, G_MEMMOVE,
 	    G_MEMSET, G_ABS, G_SMIN, G_SMAX, G_UMAX, G_UMIN,
-		// funnel shifts/rotations
-		G_FSHL, G_FSHR,
-	    G_SEXT_INREG,
 	    // saturated arithmetic
 	    G_SADDSAT, G_UADDSAT, G_SSUBSAT, G_USUBSAT, G_SSHLSAT, G_USHLSAT,
 	    // add/sub/modulo with carry out
@@ -174,6 +176,63 @@ bool HwtFpgaLegalizerInfo::legalizeCustomBitcount(LegalizerHelper &Helper,
 	return true;
 }
 
+bool HwtFpgaLegalizerInfo::legalizeCustomFunnelShift(LegalizerHelper &Helper,
+		MachineInstr &MI) const {
+	MachineFunction &MF = Helper.MIRBuilder.getMF();
+	MachineIRBuilder &MIRBuilder = Helper.MIRBuilder;
+	MachineRegisterInfo &MRI = MF.getRegInfo();
+
+	Register Dst = MI.getOperand(0).getReg();
+	auto &Src0MO = MI.getOperand(1);
+	auto &Src1MO = MI.getOperand(2);
+	Register Src0 = Src0MO.getReg();
+	Register Src1 = Src1MO.getReg();
+	Register Sh = MI.getOperand(3).getReg();
+	LLT DstTy = MRI.getType(Dst);
+	LLT Src0Ty = MRI.getType(Src0);
+	LLT Src1Ty = MRI.getType(Src1);
+	LLT ShTy = MRI.getType(Sh);
+	unsigned dataWidth = Src0Ty.getSizeInBits();
+	assert(dataWidth == DstTy.getSizeInBits());
+	assert(dataWidth == Src1Ty.getSizeInBits());
+	assert(dataWidth == ShTy.getSizeInBits());
+
+	unsigned newShBitWidth = log2ceil(dataWidth + 1);
+
+	unsigned NewOpc;
+	auto opc = MI.getOpcode();
+	switch (opc) {
+	case TargetOpcode::G_FSHL:
+		NewOpc = HwtFpga::HWTFPGA_FSHL;
+		break;
+	case TargetOpcode::G_FSHR:
+		NewOpc = HwtFpga::HWTFPGA_FSHR;
+		break;
+	default:
+		errs() << MI << "\n";
+		llvm_unreachable("NotImplemented shift");
+	}
+
+	auto ShTruncated = MRI.cloneVirtualRegister(Sh);
+	MRI.setType(ShTruncated, LLT::scalar(newShBitWidth));
+	MIRBuilder.buildTrunc(ShTruncated, Sh);
+	auto ShTruncatedMO = MachineOperand::CreateReg(ShTruncated, false);
+
+	auto MIB1 = MIRBuilder.buildInstr(NewOpc, { Dst }, { });
+	for (auto R : { Dst, Src0, Src1, ShTruncated })
+		MRI.setRegClass(R, &HwtFpga::anyregclsRegClass);
+
+	hwtHls::HwtFpgaInstructionSelector::selectInstrArg(MF, MIB1, MRI, Src0MO);
+	hwtHls::HwtFpgaInstructionSelector::selectInstrArg(MF, MIB1, MRI, Src1MO);
+	hwtHls::HwtFpgaInstructionSelector::selectInstrArg(MF, MIB1, MRI,
+			ShTruncatedMO);
+	MIB1.addImm(Src0Ty.getScalarSizeInBits());
+
+	MI.eraseFromParent();
+	return true;
+
+}
+
 bool HwtFpgaLegalizerInfo::legalizeCustomShift(LegalizerHelper &Helper,
 		MachineInstr &MI) const {
 	MachineFunction &MF = Helper.MIRBuilder.getMF();
@@ -235,6 +294,62 @@ bool HwtFpgaLegalizerInfo::legalizeCustomShift(LegalizerHelper &Helper,
 	hwtHls::HwtFpgaInstructionSelector::selectInstrArg(MF, MIB1, MRI, SrcMO);
 	hwtHls::HwtFpgaInstructionSelector::selectInstrArg(MF, MIB1, MRI,
 			ShTruncatedMO);
+	MIB1.addImm(SrcTy.getScalarSizeInBits());
+
+	MI.eraseFromParent();
+	return true;
+}
+
+bool HwtFpgaLegalizerInfo::legalizeCustomG_SEXT_INREG(LegalizerHelper &Helper,
+		MachineInstr &MI) const {
+	// %1:_(s64) = G_SEXT_INREG %0:_, 7
+	// is equal to (the default legalizer rule)
+	// %2:_(s64) = G_CONSTANT i64 57
+	// %3:_(s64) = G_SHL %0:_, %2:_(s64)
+	// %1:_(s64) = G_ASHR %3:_, %2:_(s64)
+	// :attention: can not legalize to TRUNC SEXT pair because it would be immediately combined back
+
+	// The default generates unnecessary shift which may be hard to remove
+	// legalize to HWTFPGA_SEXT(HWTFPGA_TRUNC(%0)) instead
+	MachineFunction &MF = Helper.MIRBuilder.getMF();
+	MachineIRBuilder &MIRBuilder = Helper.MIRBuilder;
+	MachineRegisterInfo &MRI = MF.getRegInfo();
+
+	Register Dst = MI.getOperand(0).getReg();
+	auto &SrcMO = MI.getOperand(1);
+	Register Src = SrcMO.getReg(); // %0 from example in previous comment
+	int64_t width = MI.getOperand(2).getImm();
+	LLT SrcTy = MRI.getType(Src);
+
+	auto SrcTruncated = MRI.cloneVirtualRegister(Src);
+	MRI.setType(SrcTruncated, LLT::scalar(width));
+	auto MIBTrunc = MIRBuilder.buildInstr(HwtFpga::HWTFPGA_EXTRACT, {SrcTruncated}, {Src});
+	MIBTrunc.addImm(SrcTy.getSizeInBits());
+	MIBTrunc.addImm(0);
+	MIBTrunc.addImm(width);
+	assert(MIBTrunc.getInstr()->getNumExplicitOperands() == 5);
+
+	MIRBuilder.buildSExt(Dst, SrcTruncated);
+	for (auto R : { Dst, Src, SrcTruncated })
+		MRI.setRegClass(R, &HwtFpga::anyregclsRegClass);
+
+	MI.eraseFromParent();
+	return true;
+}
+
+bool HwtFpgaLegalizerInfo::legalizeCustomG_ANYEXT(LegalizerHelper &Helper,
+		MachineInstr &MI) const {
+	// lower G_ANYEXT to G_ZEXT instead of default G_SEXT_INREG
+	MachineFunction &MF = Helper.MIRBuilder.getMF();
+	MachineIRBuilder &MIRBuilder = Helper.MIRBuilder;
+	MachineRegisterInfo &MRI = MF.getRegInfo();
+
+	Register Dst = MI.getOperand(0).getReg();
+	auto &SrcMO = MI.getOperand(1);
+	MIRBuilder.buildZExt(Dst, SrcMO);
+	for (auto R : { Dst, SrcMO.getReg()})
+		MRI.setRegClass(R, &HwtFpga::anyregclsRegClass);
+
 	MI.eraseFromParent();
 	return true;
 }
@@ -248,6 +363,12 @@ bool HwtFpgaLegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
 	case TargetOpcode::G_LSHR:
 	case TargetOpcode::G_ASHR: {
 		if (legalizeCustomShift(Helper, MI))
+			return true;
+		break;
+	}
+	case TargetOpcode::G_FSHL:
+	case TargetOpcode::G_FSHR: {
+		if (legalizeCustomFunnelShift(Helper, MI))
 			return true;
 		break;
 	}
@@ -268,11 +389,20 @@ bool HwtFpgaLegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
 		return true;
 	}
 	case TargetOpcode::G_ZEXTLOAD:
-	case TargetOpcode::G_SEXTLOAD:
+	case TargetOpcode::G_SEXTLOAD: {
 		if (customLowerLoad(Helper, cast<GAnyLoad>(MI)))
 			return true;
 		return Helper.lowerLoad(cast<GAnyLoad>(MI))
 				!= LegalizerHelper::LegalizeResult::UnableToLegalize;
+	}
+	case TargetOpcode::G_ANYEXT:
+		if (legalizeCustomG_ANYEXT(Helper, MI))
+			return true;
+		break;
+	case TargetOpcode::G_SEXT_INREG:
+		if (legalizeCustomG_SEXT_INREG(Helper, MI))
+			return true;
+		break;
 	}
 	return Helper.lower(MI, 0, LLT()) != LegalizerHelper::LegalizeResult::UnableToLegalize;
 }
