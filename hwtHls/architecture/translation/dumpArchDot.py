@@ -283,8 +283,11 @@ class RtlArchToGraphviz():
                 continue
 
             if stateEncoding is not None:
-                stVal = stateEncoding[clkI]
-                label = f"st{stVal:d}-clk{clkI}"
+                try:
+                    stVal = str(stateEncoding[clkI])
+                except KeyError:
+                    stVal = "-unused"
+                label = f"st{stVal:s}-clk{clkI}"
             else:
                 label = f"clk{clkI}"
 
@@ -300,70 +303,64 @@ class RtlArchToGraphviz():
                 # skip unused stages
                 continue
 
-            # seen = set()
+            seen = set() # set to avoid duplication of links to IO nodes
             for node in st:
-
-            # for ioRecord in con.inputs:
-            #    ioRecord: IORecord
-            #    node = ioRecord.node
                 if isinstance(node, HlsNetNodeRead):
+                    node: HlsNetNodeRead
                     #  add to iec for later construction
                     w = node.associatedWrite
-                    if w is None or w.allocationType == CHANNEL_ALLOCATION_TYPE.REG:
+                    if w is None:
                         # this is local only channel
+                        #    # construct and connect node for input read
+                        hwIO = self._getReadHwIO(node.src, node)
+                        if hwIO in seen:
+                            continue
+                        seen.add(hwIO)
+                        iN = self._getInterfaceNode(hwIO, COLOR_INPUT_READ)
+                        label = self._stringFormatValidReadTupleType((node._rtlUseValid, node._rtlUseReady))
+                        # link connecting element node slot with node for interface
+                        e = Edge(f"{iN.get_name():s}:0", f"n{nodeId:d}:i{clkI:d}",
+                                 label=f"{node._id} {html.escape(label)}",
+                                 color=COLOR_INPUT_READ)
+                        g.add_edge(e)
+                    elif w.allocationType == CHANNEL_ALLOCATION_TYPE.REG:
                         continue
+                    else:
+                        # channel
+                        dstElm = elm
+                        dstClkI = clkI
+                        srcElm = w.parent
+                        assert srcElm is not None, w
+                        srcClkI = self._getIndexOfTime(w.scheduledIn[0])
+                        iec.insert((srcElm, srcClkI), (dstElm, dstClkI), w, isReversed=True)
 
-                    dstElm = elm
-                    dstClkI = clkI
-                    srcElm = w.parent
-                    assert srcElm is not None, w
-                    srcClkI = self._getIndexOfTime(w.scheduledIn[0])
-                    iec.insert((srcElm, srcClkI), (dstElm, dstClkI), w, isReversed=True)
-                # else:
-                #    # construct and connect node for input read
-                #    hwIO = ioRecord.io
-                #    hwIO = self._getReadHwIO(hwIO, node)
-                #    if hwIO in seen:
-                #        continue
-                #    seen.add(hwIO)
-                #    iN = self._getInterfaceNode(hwIO, COLOR_INPUT_READ)
-                #    label = self._stringFormatValidReadTupleType(ioRecord.validReady)
-                #    # link connecting element node slot with node for interface
-                #    e = Edge(f"{iN.get_name():s}:0", f"n{nodeId:d}:i{clkI:d}",
-                #             label=f"{node._id} {html.escape(label)}",
-                #             color=COLOR_INPUT_READ)
-                #    g.add_edge(e)
-                #
-            # seen.clear()
-            # for ioRecord in con.outputs:
-            #    ioRecord: IORecord
-            #    node = ioRecord.node
-            #    assert node, node
                 elif isinstance(node, HlsNetNodeWrite):
+                    node: HlsNetNodeWrite
                     #  add to iec for later construction
-                    if node.associatedRead is None or node.allocationType == CHANNEL_ALLOCATION_TYPE.REG:
-                        # this is local only channel
+                    if node.allocationType == CHANNEL_ALLOCATION_TYPE.REG:
                         continue
-                    srcElm = elm
-                    srcClkI = clkI
-                    r = node.associatedRead
-                    dstElm = r.parent
-                    dstClkI = self._getIndexOfTime(r.scheduledZero)
-                    iec.insert((srcElm, srcClkI), (dstElm, dstClkI), node)
-
-                # else:
-                #    # construct and connect node for output write
-                #    hwIO = self._getWriteHwIO(ioRecord.io, node)
-                #    if hwIO in seen:
-                #        continue
-                #    seen.add(hwIO)
-                #    oN = self._getInterfaceNode(hwIO, COLOR_OUTPUT_WRITE)
-                #    label = self._stringFormatValidReadTupleType(ioRecord.validReady)
-                #    # link connecting element node slot with node for interface
-                #    e = Edge(f"n{nodeId:d}:o{clkI:d}", f"{oN.get_name():s}:0",
-                #             label=f"{node._id:d} {html.escape(label)}",
-                #             color=COLOR_OUTPUT_WRITE)
-                #    g.add_edge(e)
+                    elif node.associatedRead is None:
+                        # this is local only channel
+                        # construct and connect node for output write
+                        hwIO = self._getWriteHwIO(node.dst, node)
+                        if hwIO in seen:
+                            continue
+                        seen.add(hwIO)
+                        oN = self._getInterfaceNode(hwIO, COLOR_OUTPUT_WRITE)
+                        label = self._stringFormatValidReadTupleType((node._rtlUseValid, node._rtlUseReady))
+                        # link connecting element node slot with node for interface
+                        e = Edge(f"n{nodeId:d}:o{clkI:d}", f"{oN.get_name():s}:0",
+                                 label=f"{node._id:d} {html.escape(label)}",
+                                 color=COLOR_OUTPUT_WRITE)
+                        g.add_edge(e)
+                    else:
+                        # channel
+                        srcElm = elm
+                        srcClkI = clkI
+                        r = node.associatedRead
+                        dstElm = r.parent
+                        dstClkI = self._getIndexOfTime(r.scheduledZero)
+                        iec.insert((srcElm, srcClkI), (dstElm, dstClkI), node)
 
     def construct(self):
         g = self.graph
