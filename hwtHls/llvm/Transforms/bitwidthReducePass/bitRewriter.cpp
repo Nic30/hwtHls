@@ -259,6 +259,8 @@ llvm::Value* BitPartsRewriter::rewriteCmpInst(llvm::CmpInst &I,
 	if (tryResolveAndUpdateOperands<2>(b, I,
 			{ vbc.operandUseMask[0], vbc.operandUseMask[1] }, newOps)) {
 		res = &I;
+	} else if (I.getPredicate() == ICmpInst::ICMP_NE && newOps[0]->getType()->getIntegerBitWidth() == 1) {
+		res = b.CreateXor(newOps[0], newOps[1], I.getName());
 	} else {
 		res = b.CreateCmp(I.getPredicate(), newOps[0], newOps[1], I.getName());
 	}
