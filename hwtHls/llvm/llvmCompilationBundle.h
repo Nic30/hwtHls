@@ -48,6 +48,7 @@ public:
 	static const std::string Features;
 
 	LlvmCompilationBundle(const std::string &moduleName);
+	void clearCliOpts();
 	void _initPassBuilder();
 
 	void addLlvmCliArgOccurence(const std::string &OptionName, unsigned pos,
@@ -66,6 +67,9 @@ public:
 	void _addLoopPasses(llvm::FunctionPassManager &FPM);
 	void _addVectorPasses(llvm::OptimizationLevel Level,
 			llvm::FunctionPassManager &FPM, bool IsFullLTO);
+
+	// light version of _addInstrCombinePasses
+	void _addInstrCombinePassesLight(llvm::FunctionPassManager &FPM);
 	void _addInstrCombinePasses(llvm::FunctionPassManager &FPM);
 	void _addAfterUnrollFollowupPasses(llvm::FunctionPassManager &FPM);
 

@@ -96,6 +96,7 @@
 #include <hwtHls/llvm/Transforms/HFloatTmpLoweringPass.h>
 #include <hwtHls/llvm/Transforms/SelectPruningPass.h>
 #include <hwtHls/llvm/Transforms/StripProfMetadataPass.h>
+#include <hwtHls/llvm/Transforms/TmpAllocaLoweringPass.h>
 #include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
 #include <hwtHls/llvm/Transforms/slicesMerge/slicesMerge.h>
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass.h>
@@ -104,8 +105,10 @@
 #include <hwtHls/llvm/Transforms/LoopFlattenUsingIfPass.h>
 #include <hwtHls/llvm/Transforms/LoopRotationNormalizationPass.h>
 #include <hwtHls/llvm/Transforms/overwriteBlockNamesPass.h>
+#include <hwtHls/llvm/Transforms/PromoteAllocaToGlobalPass.h>
 #include <hwtHls/llvm/Transforms/ReconfigureHwtFpgaTTIPass.h>
 #include <hwtHls/llvm/Transforms/RomExtractPass.h>
+#include <hwtHls/llvm/Transforms/SimpleConstEvalPass.h>
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamReadLoweringPass.h>
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamWriteLoweringPass.h>
 #include <hwtHls/llvm/Transforms/streamLoopUnrollPass/streamLoopUnrollPass.h>
@@ -162,6 +165,13 @@ LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
 	llvm::LLVMTargetMachine &LLVMTM = static_cast<llvm::LLVMTargetMachine&>(*TM);
 	MMIWP = new llvm::MachineModuleInfoWrapperPass(&LLVMTM);
 	_updateDebugPM();
+}
+
+void LlvmCompilationBundle::clearCliOpts() {
+	llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
+	for (auto &Opt: Map) {
+		Opt.second->reset();
+	}
 }
 
 void LlvmCompilationBundle::_updateDebugPM() {
@@ -291,6 +301,7 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	FPM.addPass(llvm::ReassociatePass());
 
 	_addLoopPasses(FPM);
+
 	_addVectorPasses(Level, FPM, false); // directly after loop passes
 
 	_addCommonPasses(FPM);
@@ -329,7 +340,7 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 
 	_addInstrCombinePasses(FPM);
 	FPM.addPass(hwtHls::HFloatTmpLoweringPass());
-
+	FPM.addPass(hwtHls::PromoteAllocaToGlobalPass());
 	FPM.run(F, FAM);
 
 	// module cleanup section
@@ -368,40 +379,55 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 
 void LlvmCompilationBundle::runExprOpt() {
 	_runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
-			 FPM.addPass(llvm::EarlyCSEPass());
-			 // FPM.addPass(hwtHls::BitwidthReductionPass());
-			 FPM.addPass(llvm::CorrelatedValuePropagationPass());
-			 FPM.addPass(llvm::AggressiveInstCombinePass());
-			 FPM.addPass(llvm::InstCombinePass());
-			 FPM.addPass(hwtHls::SelectPruningPass());
-			 FPM.addPass(llvm::InstCombinePass());
-			 // FPM.addPass(hwtHls::SlicesMergePass());
-			 FPM.addPass(hwtHls::IcmpToOnlyEqLtLePass());
-		});
+		FPM.addPass(llvm::EarlyCSEPass());
+		// FPM.addPass(hwtHls::BitwidthReductionPass());
+		FPM.addPass(llvm::CorrelatedValuePropagationPass());
+		FPM.addPass(llvm::AggressiveInstCombinePass());
+		FPM.addPass(llvm::InstCombinePass());
+		FPM.addPass(hwtHls::SimpleConstEvalPass());
+		FPM.addPass(hwtHls::SelectPruningPass());
+		FPM.addPass(hwtHls::SimpleConstEvalPass());
+		FPM.addPass(llvm::InstCombinePass());
+		FPM.addPass(hwtHls::SimpleConstEvalPass());
+
+		// FPM.addPass(hwtHls::SlicesMergePass());
+		FPM.addPass(hwtHls::IcmpToOnlyEqLtLePass());
+	});
 }
 
 void LlvmCompilationBundle::_addInitialNormalizationPasses(
 		llvm::FunctionPassManager &FPM) {
+	FPM.addPass(llvm::DCEPass());
+	FPM.addPass(hwtHls::TmpAllocaLoweringPass());
+	//FPM.addPass(hwtHls::DumpAndExitPass(true, true, "dump.dot"));
 	// FPM.addPass(hwtHls::OverwriteBlockNamesPass());
 	// FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true));
 	llvm::LoopPassManager LPM0;
-	LPM0.addPass(hwtHls::LoopRotationNormalizationPass()); // normalize to rotated form, unrotate loop with costly header
-
+	LPM0.addPass(hwtHls::LoopRotationNormalizationPass(0)); // normalize to rotated form, unrotate loop with costly header
+	bool debugUse_BFI_BPI = false;
 	FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM0),
 			/*UseMemorySSA=*/ false,
-			/*UseBlockFrequencyInfo=*/ true,
-			/*UseBranchProbabilityInfo=*/ true));
+			/*UseBlockFrequencyInfo=*/ debugUse_BFI_BPI,
+			/*UseBranchProbabilityInfo=*/ debugUse_BFI_BPI));
 
-	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true)); // simplify trivial cases so IR is more easy to read
+	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true, false)); // simplify trivial cases so IR is more easy to read
+	llvm::LoopPassManager LPM0_1; // again the LoopRotationNormalizationPass because some patterns were not recognized because of redundant blocks
+	LPM0_1.addPass(hwtHls::LoopRotationNormalizationPass(10000));
+	FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM0_1),
+			/*UseMemorySSA=*/ false,
+			/*UseBlockFrequencyInfo=*/ debugUse_BFI_BPI,
+			/*UseBranchProbabilityInfo=*/ debugUse_BFI_BPI));
+
+
 	llvm::LoopPassManager LPM1;
 	LPM1.addPass(hwtHls::LoopFlattenUsingIfPass());
 	FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM1),
 			/*UseMemorySSA=*/ false,
-			/*UseBlockFrequencyInfo=*/ true,
-			/*UseBranchProbabilityInfo=*/ true));
+			/*UseBlockFrequencyInfo=*/ debugUse_BFI_BPI,
+			/*UseBranchProbabilityInfo=*/ debugUse_BFI_BPI));
 
 	// [fixme] LoopUnrotatePass probably breaks SE and TrivialSimplifyCFGPass forces to recompute it
-	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true)); // simplify trivial cases so IR is more easy to read
+	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true, false)); // simplify trivial cases so IR is more easy to read
 	FPM.addPass(llvm::UnifyFunctionExitNodesPass()); // llvm mergereturn
 	// Form SSA out of local memory accesses after breaking apart aggregates into
 	// scalars.
@@ -425,13 +451,13 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 
 	FPM.addPass(hwtHls::StreamReadLoweringPass());
 
-	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true));
+	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true, false));
 	FPM.addPass(hwtHls::SimplifyCFG2Pass());
 	//FPM.addPass(hwtHls::DumpAndExitPass(false, false, "tmp/SimplifyCFG2Pass.1.dot", true));
 
 	FPM.addPass(hwtHls::StreamWriteLoweringPass());
 
-	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true));
+	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true, false));
 	FPM.addPass(hwtHls::SimplifyCFG2Pass());
 
 	FPM.addPass(llvm::LoopSimplifyPass());
@@ -461,10 +487,11 @@ void LlvmCompilationBundle::_addCommonPasses(llvm::FunctionPassManager &FPM) {
 	// computations, and then ADCE will run later to exploit any new DCE
 	// opportunities that creates).
 	FPM.addPass(llvm::BDCEPass());
-	FPM.addPass(hwtHls::RomExtractPass());
+
 	// Run instcombine after redundancy and dead bit elimination to exploit
 	// opportunities opened up by them.
-	FPM.addPass(llvm::InstCombinePass());
+	_addInstrCombinePassesLight(FPM);
+
 	//invokePeepholeEPCallbacks(FPM, Level);
 	// Re-consider control flow based optimizations after redundancy elimination,
 	// redo DCE, etc.
@@ -496,18 +523,28 @@ void LlvmCompilationBundle::_addCommonPasses(llvm::FunctionPassManager &FPM) {
 					.hoistCommonInsts(true)//
 					.sinkCommonInsts(true)//
 			));
-	FPM.addPass(hwtHls::RomExtractPass());
-	FPM.addPass(llvm::InstCombinePass());
+	_addInstrCombinePassesLight(FPM);
 }
 
+void LlvmCompilationBundle::_addInstrCombinePassesLight(llvm::FunctionPassManager &FPM) {
+	FPM.addPass(hwtHls::RomExtractPass());
+	FPM.addPass(hwtHls::SimpleConstEvalPass());
+	FPM.addPass(llvm::InstCombinePass());
+	FPM.addPass(hwtHls::SimpleConstEvalPass());
+}
 void LlvmCompilationBundle::_addInstrCombinePasses(llvm::FunctionPassManager &FPM) {
 	FPM.addPass(hwtHls::RomExtractPass());
+	FPM.addPass(hwtHls::SimpleConstEvalPass());
 	FPM.addPass(llvm::InstCombinePass()); // hwtHls specific
+	FPM.addPass(hwtHls::SimpleConstEvalPass());
 	FPM.addPass(llvm::AggressiveInstCombinePass()); // hwtHls specific
 	FPM.addPass(hwtHls::BitwidthReductionPass());
 	FPM.addPass(llvm::InstCombinePass()); // hwtHls specific
+	FPM.addPass(hwtHls::SimpleConstEvalPass());
 	FPM.addPass(hwtHls::SelectPruningPass());
+	FPM.addPass(hwtHls::SimpleConstEvalPass());
 	FPM.addPass(llvm::InstCombinePass()); // hwtHls specific
+	FPM.addPass(hwtHls::SimpleConstEvalPass());
 }
 
 void LlvmCompilationBundle::_addAfterUnrollFollowupPasses(llvm::FunctionPassManager &FPM) {
@@ -540,6 +577,7 @@ void LlvmCompilationBundle::_addLoopPasses(llvm::FunctionPassManager &FPM) {
 	// fully replace `SimplifyCFGPass`, and the closest to the other we have is
 	// `LoopInstSimplify`.
 	llvm::LoopPassManager LPM1, LPM2;
+	//LPM1.addPass(hwtHls::LoopBackedgeSimplifyPass());
 	// Simplify the loop body. We do this initially to clean up after other loop
 	// passes run, either when iterating on a loop or on inner loops with
 	// implications on the outer loop.
@@ -593,8 +631,8 @@ void LlvmCompilationBundle::_addLoopPasses(llvm::FunctionPassManager &FPM) {
 			hwtHls::SimplifyCFG2Pass(
 					hwtHls::SimplifyCFG2Options().convertSwitchRangeToICmp(true)));
 	FPM.addPass(llvm::LoopSimplifyPass());
-	FPM.addPass(hwtHls::RomExtractPass());
-	FPM.addPass(llvm::InstCombinePass());
+	_addInstrCombinePassesLight(FPM);
+
 	// The loop passes in LPM2 (LoopIdiomRecognizePass, IndVarSimplifyPass,
 	// LoopDeletionPass and LoopFullUnrollPass) do not preserve MemorySSA.
 	// *All* loop passes must preserve it, in order to be able to use it.
@@ -651,8 +689,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 		FPM.addPass(llvm::LoopDistributePass());
 	}
 	// Cleanup after the loop optimization passes.
-	FPM.addPass(hwtHls::RomExtractPass());
-	FPM.addPass(llvm::InstCombinePass());
+	_addInstrCombinePassesLight(FPM);
 
 	if (Level.getSpeedupLevel() > 1) { //  && ExtraVectorizerPasses
 		llvm::ExtraVectorPassManager ExtraPasses;
@@ -664,8 +701,8 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 		// dead (or speculatable) control flows or more combining opportunities.
 		ExtraPasses.addPass(llvm::EarlyCSEPass());
 		ExtraPasses.addPass(llvm::CorrelatedValuePropagationPass());
-		ExtraPasses.addPass(hwtHls::RomExtractPass());
-		ExtraPasses.addPass(llvm::InstCombinePass());
+		_addInstrCombinePassesLight(FPM);
+
 		llvm::LoopPassManager LPM;
 		LPM.addPass(
 				llvm::LICMPass(PTO.LicmMssaOptCap,
@@ -709,6 +746,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 				.hoistCommonInsts(true)\
 				.sinkCommonInsts(true)\
 	));
+
 	FPM.addPass(llvm::LoopSimplifyPass());
 
 	if (IsFullLTO) {
@@ -782,8 +820,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 	FPM.addPass(llvm::AlignmentFromAssumptionsPass());
 
 	if (IsFullLTO) {
-		FPM.addPass(hwtHls::RomExtractPass());
-		FPM.addPass(llvm::InstCombinePass());
+		_addInstrCombinePassesLight(FPM);
 	}
 }
 

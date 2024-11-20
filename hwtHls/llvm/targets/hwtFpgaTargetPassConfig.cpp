@@ -100,7 +100,7 @@ void HwtFpgaTargetPassConfig::addPreLegalizeMachineIR() {
 	// concat, slice calls to instructions
 	addPass(createHwtFpgaPreLegalizerCombiner());
 	// based on AArch64
-	addPass(new LoadStoreOpt());
+	addPass(new LoadStoreOpt()); // :attention: removes stores of undef
 }
 
 bool HwtFpgaTargetPassConfig::addLegalizeMachineIR() {
@@ -240,6 +240,10 @@ void HwtFpgaTargetPassConfig::addMachinePasses() {
 	// Insert before XRay Instrumentation.
 	addPass(&FEntryInserterID);
 
+	addPass(hwtHls::createVRegMachineLateInstrsCleanup());
+	addPass(createHwtFpgaPreToNetlistCombiner());
+	// because there may be G_SELECT and copy propagation was not working first time
+	addPass(hwtHls::createVRegMachineLateInstrsCleanup());
 	addPass(createHwtFpgaPreToNetlistCombiner());
 	// because InstructionSelect::runOnMachineFunction() intentionally removes all types using MRI.clearVirtRegTypes();
 	// we need to regenerate this information
