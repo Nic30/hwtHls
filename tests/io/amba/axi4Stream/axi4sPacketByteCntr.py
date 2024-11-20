@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
-from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.math import log2ceil
@@ -31,7 +31,7 @@ class Axi4SPacketByteCntr0(Axi4SPacketCntr):
     def mainThread(self, hls: HlsScope, i: IoProxyAxi4Stream):
         byte_cnt = uint16_t.from_py(0)
         i.readStartOfFrame()
-        while BIT.from_py(1):
+        while b1:
             # end of frame is ignored
             for strbBit in i.read(self.i.data._dtype).strb:
                 if strbBit:
@@ -48,7 +48,7 @@ class Axi4SPacketByteCntr1(Axi4SPacketByteCntr0):
     def mainThread(self, hls: HlsScope, i: IoProxyAxi4Stream):
         byte_cnt = uint16_t.from_py(0)
         i.readStartOfFrame()
-        while BIT.from_py(1):
+        while b1:
             wordByteCnt = HBits(log2ceil(self.i.strb._dtype.bit_length() + 1), signed=False).from_py(0)
             # this for is just MUX
             for i, strbBit in enumerate(i.read(self.i.data._dtype).strb):
@@ -67,7 +67,7 @@ class Axi4SPacketByteCntr2(Axi4SPacketByteCntr0):
         byte_cnt = uint16_t.from_py(0)
         strbWidth = self.i.strb._dtype.bit_length()
         i.readStartOfFrame()
-        while BIT.from_py(1):
+        while b1:
             wordByteCnt = HBits(log2ceil(strbWidth + 1), signed=False).from_py(strbWidth)
             # this for is just MUX
             for i, strbBit in enumerate(i.read(self.i.data._dtype).strb):
@@ -89,7 +89,7 @@ class Axi4SPacketByteCntr3(Axi4SPacketByteCntr1):
         byte_cnt = uint16_t.from_py(0)
         strbWidth = self.i.strb._dtype.bit_length()
         i.readStartOfFrame()
-        while BIT.from_py(1):
+        while b1:
             # PyBytecodeInPreproc is used because otherwise 
             # the read object is converted to a RtlSignal because word= is a store to a word variable
             word = PyBytecodeInPreproc(i.read(self.i.data._dtype))
@@ -116,10 +116,12 @@ class Axi4SPacketByteCntr3(Axi4SPacketByteCntr1):
 if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS 
 
     m = Axi4SPacketByteCntr1()
     m.DATA_WIDTH = 16
     m.CLK_FREQ = int(100e6)
-    p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
+    p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE,
+                           #llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL]
+                           )
     print(to_rtl_str(m, target_platform=p))

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.hdl.types.defs import BIT
+from hwt.hdl.commonConstants import b1
 from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
-from hwt.hwParam import HwParam
 from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
@@ -33,7 +33,7 @@ class Axi4SWriteEth(HwModule):
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope, dataOut: IoProxyAxi4Stream):
-        while BIT.from_py(1):
+        while b1:
             v = Eth2Header_t.from_py(None)
             v.type = ETHER_TYPE.IPv4
             v.src = hls.read(self.src).data

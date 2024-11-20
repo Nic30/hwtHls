@@ -4,6 +4,7 @@ from typing import Optional
 
 from hwt.code import In
 from hwt.constants import WRITE, READ
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
@@ -92,7 +93,7 @@ class HashTable(HwModule):
         res_t = HwIO_to_HdlType().apply(self.cmdRes, exclude=(self.cmdRes.rd, self.cmdRes.vld))
         ram_index_t = self.tableRam.port[0].addr._dtype
 
-        while BIT.from_py(1):
+        while b1:
             cmd = hls.read(self.cmd).data
 
             # resolve index for ram read/write

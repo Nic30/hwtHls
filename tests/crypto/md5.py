@@ -1,12 +1,13 @@
 from copy import copy
 from typing import Callable
 
-from hwt.code import Concat, rol
+from hwt.code import Concat
 from hwt.hdl.const import HConst
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.struct import HStruct
 from hwt.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwtHls.code import rol
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.hwrange import hwrange
 from hwtHls.frontend.pyBytecode.pragma import _PyBytecodeLoopPragma
@@ -45,7 +46,7 @@ MD5_s = HBits(5)[64].from_py([HBits(5).from_py(n) for n in [
 
 # init for A, B, C, D variables used in MD6 computation
 MD5_INIT = [uint32_t.from_py(n) for n in [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476]]
-MD5_INIT_DICT = {"a0": MD5_INIT[0], "b0": MD5_INIT[1], "c0":MD5_INIT[2], "d0":MD5_INIT[3]}
+MD5_INIT_DICT = {"a0": MD5_INIT[0], "b0": MD5_INIT[1], "c0": MD5_INIT[2], "d0": MD5_INIT[3]}
 
 md5_accumulator_t = HStruct(
     (HBits(32), "a0"),
@@ -54,6 +55,11 @@ md5_accumulator_t = HStruct(
     (HBits(32), "d0"),
     name="md5_accumulator_t"
 )
+
+# other HLS implementations:
+# * https://github.com/Xilinx/Vitis_Libraries/blob/main/security/L1/include/xf_security/md5.hpp
+# * https://github.com/Gatsby253/HLS-MD5
+# * https://adaptivesupport.amd.com/s/question/0D54U00006qTG3LSAW/vitis-hls-20222-error-hls-2001715-encountered-problem-during-source-synthesis?language=en_US
 
 
 @hlsBytecode
@@ -79,6 +85,8 @@ def md5ProcessChunk(chunk: RtlSignal, acc: RtlSignalBase[md5_accumulator_t], loo
         _copy = copy  # in sim
     else:
         _copy = PyBytecodePreprocHwCopy
+    # variables private to computation of hash for this chunk
+    # :note: original value of acc can not be used instead
     A = _copy(acc.a0)
     B = _copy(acc.b0)
     C = _copy(acc.c0)
@@ -105,12 +113,12 @@ def md5ProcessChunk(chunk: RtlSignal, acc: RtlSignalBase[md5_accumulator_t], loo
             g = int(g)  # to int because of M[g]
 
         F = F + A + MD5_SINES_OF_INTEGERS[i] + M[g]
-        
+
         A = D
         D = C
         C = B
         B = B + rol(F, MD5_s[i])
-        # del is just used to simplify analysis of loop body
+        # del is just used to simplify analysis of loop body (compiler performance reasons)
         del g
         del F
         loopPragmaGetter()

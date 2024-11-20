@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
-from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
@@ -43,7 +43,7 @@ class Axi4SParseUdpIpv4(HwModule):
     def parseEth(self, hls: HlsScope):
         p = PyBytecodeInPreproc
         i = IoProxyAxi4Stream(hls, self.i)
-        while BIT.from_py(1):
+        while b1:
             i.readStartOfFrame()
             eth = p(i.read(Eth2Header_t))
             if eth.data.type._eq(ETHER_TYPE.IPv4):

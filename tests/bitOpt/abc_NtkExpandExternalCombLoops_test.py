@@ -1,13 +1,13 @@
 from typing import Set, Dict, List
 import unittest
 
+from hwt.hdl.commonConstants import b1
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.netlist.abc.abcAigToRtlNetlist import AbcAigToRtlNetlist
 from hwtHls.netlist.abc.abcCpp import Abc_NtkExpandExternalCombLoops, \
     MapAbc_Obj_tToSetOfAbc_Obj_t, MapAbc_Obj_tToAbc_Obj_t, Abc_Ntk_t  # , Io_FileType_t
 from hwtHls.netlist.abc.rtlNetlistToAbcAig import RtlNetlistToAbcAig
-from tests.frontend.pyBytecode.stmWhile import TRUE
 
 
 class Abc_NtkExpandExternalCombLoops_TC(unittest.TestCase):
@@ -91,7 +91,7 @@ class Abc_NtkExpandExternalCombLoops_TC(unittest.TestCase):
         outputsFromAbcNet = {0}
         res = self._run_Abc_NtkExpandExternalCombLoops(inputs, exampleExpr, inToOutConnections, outputsFromAbcNet)
         self.assertSequenceEqual(res, [
-            TRUE
+            b1
         ])
 
     def test_1cycleCond(self):

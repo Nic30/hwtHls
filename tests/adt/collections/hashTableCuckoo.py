@@ -16,8 +16,10 @@ from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.math import log2ceil
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline, \
+    PyBytecodeBlockLabel
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
 from hwtHls.io.portGroups import MultiPortGroup
@@ -28,6 +30,8 @@ from tests.adt.collections.hashTableIo import HashTableCmd, HashTableCmdResult, 
     HASH_TABLE_CMD
 
 
+# other HLS implementations:
+# https://github.com/Xilinx/HLS_packet_processing/blob/master/apps/common/cam.h
 class HashTableCuckoo(HwModule):
     """
     Hash table utilizing Cuckoo hashing scheme
@@ -100,6 +104,7 @@ class HashTableCuckoo(HwModule):
         """
         return ~occupiedFlags[index] & (occupiedFlags[index:]._eq(mask(index)) if index > 0 else BIT.from_py(1))
 
+    @hlsBytecode
     def mainThread(self, hls: HlsScope, rams: List[IoProxyAddressed]):
         item_t = self.item_t
         item_flat_t = HBits(item_t.bit_length())
@@ -114,15 +119,18 @@ class HashTableCuckoo(HwModule):
             d.itemValid = 0
 
         while b1:
+            PyBytecodeBlockLabel("mainLoop")
             cmd = hls.read(self.cmd).data
             indexes = [hls.var(f"ram{tI:d}_index", ram_index_t) for tI, _ in enumerate(rams)]
             if In(cmd.cmd, [HASH_TABLE_CMD.LOOKUP, HASH_TABLE_CMD.SWAP]):
                 for i, index in enumerate(indexes):
+                    PyBytecodeBlockLabel("hashPrepareLoop")
                     # index = cmd.key[index._dtype.bit_length():]
                     PyBytecodeInline(self.hash)(cmd.key, i, index)
             else:
                 #  READ_BY_INDEX, SWAP_BY_INDEX
                 for index in indexes:
+                    PyBytecodeBlockLabel("indexPrepareLoop")
                     # call used instead of assignment because index is a reference in preproc var. and we need to assign value
                     index(cmd.index)
 
@@ -143,6 +151,7 @@ class HashTableCuckoo(HwModule):
 
             # handle update of rams
             for i, (ram, index, d) in enumerate(zip(rams, indexes, curData)):
+                PyBytecodeBlockLabel("ramUpdateLoop")
                 swapThis = isSwapByIndex & cmd.table_oh[i]
                 _found = foundInRam[i] | swapThis
                 if _found:
@@ -151,23 +160,30 @@ class HashTableCuckoo(HwModule):
                     res.table_oh = 1 << i
 
                 if isSwap | swapThis:
+                    PyBytecodeBlockLabel("ramUpdateLoop.swap")
                     newItem = item_t.from_py(None)
                     self._copyItem(d, newItem)
                     isFirstEmpty = self._isFirstEmpty(occupiedInRam, i)
                     if _found | (isFirstEmpty & foundInStash._eq(0)):
                         hls.write(newItem._reinterpret_cast(item_flat_t), ram[index])
+                    # delete to cancel live over iterations
+                    del newItem
+                    del isFirstEmpty
 
             # handle update of stash registers
             stashTableI = len(rams)
             for i, d in enumerate(stash):
+                PyBytecodeBlockLabel("stashUpdateLoop")
                 swapThis = isSwapByIndex & cmd.table_oh[stashTableI]
                 _found = foundInStash[i] | swapThis
                 if _found:
+                    PyBytecodeBlockLabel("stashUpdateLoop.copyToRes")
                     self._copyOriginalItem(d, res)
                     res.index = i
                     res.table_oh = 1 << stashTableI
 
                 if _found | (self._isFirstEmpty(occupiedInStash, i) & occupiedInStash._eq(0)):
+                    PyBytecodeBlockLabel("stashUpdateLoop.update")
                     self._copyItem(cmd, d)
 
             res.found = Or(*foundInRam, *foundInStash)
@@ -177,6 +193,7 @@ class HashTableCuckoo(HwModule):
 
             if ~res.found & And(*occupiedInRam, *occupiedInStash):
                 while stash[-1].itemValid:
+                    PyBytecodeBlockLabel("stallWhileFullLoop")
                     # [todo] deadlock if the stash is full (not implemented stash swapping)
                     pass
 
@@ -194,36 +211,39 @@ class HashTableCuckoo(HwModule):
 if __name__ == "__main__":
     # from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.xilinx.artix7 import Artix7Fast
+    from hwtHls.platform.xilinx.artix7 import Artix7Medium
     from hwtHls.platform.platform import HlsDebugBundle
     import sys
     sys.setrecursionlimit(int(10e6))
-    for tableCnt in [1]:  # ,2,3,4
+    for tableCnt in [4]:  # 1,2,3,4
         m = HashTableCuckoo()
         m.KEY_T = HBits(16)
         m.CLK_FREQ = int(100e6)
         m.TABLE_CNT = tableCnt
         m.STASH_CAM_SIZE = 1
         m.ITEMS_PER_TABLE = 1024
-        print(to_rtl_str(m, target_platform=Artix7Fast(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
-
-        # from sphinx_hwt.debugUtils import hwt_unit_to_html
-        # hwt_unit_to_html(m, "tmp/HashTableCuckoo.scheme.html")
-        # import sqlite3
-        # import os
-        # import datetime
-        # from hwtBuildsystem.vivado.executor import VivadoExecutor
-        # from hwtBuildsystem.vivado.part import XilinxPart
-        # from hwtBuildsystem.examples.synthetizeHwModule import buildHwModule,\
-        #   store_vivado_report_in_db
+        print(to_rtl_str(m, target_platform=Artix7Medium(
+            debugFilter=HlsDebugBundle.ALL_RELIABLE,
+            )))
+        # 
+        #from sphinx_hwt.debugUtils import hwt_unit_to_html
+        #hwt_unit_to_html(m, "tmp/HashTableCuckoo.scheme.html")
+        
+        #import sqlite3
+        #import os
+        #import datetime
+        #from hwtBuildsystem.vivado.executor import VivadoExecutor
+        #from hwtBuildsystem.vivado.part import XilinxPart
+        #from hwtBuildsystem.examples.synthetizeHwModule import buildHwModule,\
+        #  store_vivado_report_in_db
         #
         #
-        # conn = sqlite3.connect('build_report.db')
-        # c = conn.cursor()
-        # logComunication = True
+        #conn = sqlite3.connect('build_report.db')
+        #c = conn.cursor()
+        #logComunication = True
         #
-        # start = datetime.datetime.now()
-        # with VivadoExecutor(logComunication=logComunication) as executor:
+        #start = datetime.datetime.now()
+        #with VivadoExecutor(logComunication=logComunication) as executor:
         #    __pb = XilinxPart
         #    part = XilinxPart(
         #            __pb.Family.kintex7,
@@ -231,7 +251,7 @@ if __name__ == "__main__":
         #            __pb.Package.ffg676,
         #            __pb.Speedgrade._2)
         #    project = buildHwModule(executor, m, f"tmp/vivado{tableCnt:d}", part,
-        #                        targetPlatform=Artix7Fast(debugDir=f"tmp/hls{tableCnt:d}"),
+        #                        targetPlatform=Artix7Medium(debugDir=f"tmp/hls{tableCnt:d}"),
         #                  synthesize=True,
         #                  implement=False,
         #                  writeBitstream=False,

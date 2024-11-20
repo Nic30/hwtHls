@@ -12,6 +12,7 @@ from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4Lite import Axi4Lite
 from pyMathBitPrecise.bit_utils import mask
 from tests.io.bram.bramRead import BramRead
+from hwt.hdl.commonConstants import b1
 
 
 class Axi4LiteCopy(BramRead):
@@ -38,7 +39,7 @@ class Axi4LiteCopy(BramRead):
     @hlsBytecode
     def mainThread(self, hls: HlsScope, ram: Axi4LiteArrayProxy):
         i = ram.indexT.from_py(0)
-        while BIT.from_py(1):
+        while b1:
             d = hls.read(ram[i]).data.data
             w = ram.wWordT.from_py(None)
             w.data = d
@@ -61,7 +62,11 @@ class Axi4LiteCopy(BramRead):
 if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
 
     m = Axi4LiteCopy()
-    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
+        debugFilter=HlsDebugBundle.ALL_RELIABLE,
+        # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL]
+        
+        )))
