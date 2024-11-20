@@ -353,6 +353,32 @@ bool IsHwtHlsFp(const llvm::Function *F) {
 	return F->getName().str().rfind("hwtHls.fp.", 0) == 0;
 }
 
+llvm::CallInst* CreateHwtHlsFUnOp(llvm::IRBuilder<> *Builder,
+		const std::string &intrinsicFnName, llvm::Value *op0,
+		HFloatTmpConfig_PARAMS, const llvm::Twine &Name) {
+	if (isInQFromat)
+		assert(
+				!supportSubnormal
+						&& "supportSubnormal is only relevant for floating point representation (not Q fixed point)");
+	HFloatTmpConfig tyCfg = HFloatTmpConfig_FROM_LOCALS;
+	assert(op0->getType()->isIntegerTy());
+	assert(op0->getType()->getIntegerBitWidth() == tyCfg.getBitWidth());
+
+	Value *Ops[] = { op0, HFloatTmpConfig_ARGS_TO_LLVM(Builder) };
+	Type *ResT = Builder->getIntNTy(tyCfg.getBitWidth());
+	Type *TysForName[] = { ResT };
+	Module *M = Builder->GetInsertBlock()->getParent()->getParent();
+	Function *TheFn =
+			cast<Function>(
+					M->getOrInsertFunction(
+							Intrinsic_getName(intrinsicFnName, TysForName),
+							ResT, HFloatTmpConfig_UN_OP_ARG_TYPES(Ops)).getCallee());
+	AddDefaultFunctionAttributes(*TheFn);
+	CallInst *CI = Builder->CreateCall(TheFn, Ops);
+	CI->setDoesNotAccessMemory();
+	CI->setName(Name);
+	return CI;
+}
 
 llvm::CallInst* CreateHwtHlsFBinOp(llvm::IRBuilder<> *Builder,
 		const std::string &intrinsicFnName, llvm::Value *op0, llvm::Value *op1,
@@ -363,6 +389,7 @@ llvm::CallInst* CreateHwtHlsFBinOp(llvm::IRBuilder<> *Builder,
 						&& "supportSubnormal is only relevant for floating point representation (not Q fixed point)");
 	HFloatTmpConfig tyCfg = HFloatTmpConfig_FROM_LOCALS;
 	assert(op0->getType()->isIntegerTy());
+	assert(op0->getType()->getIntegerBitWidth() == tyCfg.getBitWidth());
 	assert(op0->getType() == op1->getType());
 
 	Value *Ops[] = { op0, op1, HFloatTmpConfig_ARGS_TO_LLVM(Builder) };
@@ -381,27 +408,89 @@ llvm::CallInst* CreateHwtHlsFBinOp(llvm::IRBuilder<> *Builder,
 	return CI;
 }
 
+// macros for definition of unary an binary operator functions and name variable
+
 #define CONCAT_(prefix, suffix) prefix##suffix
 /// Concatenate `prefix, suffix` into `prefixsuffix`
 #define CONCAT(prefix, suffix) CONCAT_(prefix, suffix)
-#define DEFINE_FP_BINOP(name, intrinsicName)                                           \
-const std::string CONCAT(CONCAT(hwtHlsFp, name), Name) = "hwtHls.fp." #intrinsicName;  \
-llvm::CallInst* CreateHwtHlsFp##name(llvm::IRBuilder<> *Builder, llvm::Value *op0,     \
-		llvm::Value *op1, HFloatTmpConfig_PARAMS, const llvm::Twine &Name) {           \
-	return CreateHwtHlsFBinOp(Builder, CONCAT(CONCAT(hwtHlsFp, name), Name), op0, op1, \
-			HFloatTmpConfig_ARGS, Name);                                               \
-}                                                                                      \
-bool IsHwtHlsFp##name(const llvm::CallInst *C) {                                       \
-	return IsHwtHlsFpFAdd(C->getCalledFunction());                                     \
-}                                                                                      \
-bool IsHwtHlsFp##name(const llvm::Function *F) {                                       \
-	return F->getName().str().rfind(hwtHlsFpFAddName + ".", 0) == 0;               \
+
+#define DEFINE_FP_BINOP(name, intrinsicName)                                             \
+const std::string CONCAT(CONCAT(hwtHlsFp, name), Name) = "hwtHls.fp." #intrinsicName;    \
+llvm::CallInst* CreateHwtHlsFp##name(llvm::IRBuilder<> *Builder, llvm::Value *op0,       \
+		llvm::Value *op1, HFloatTmpConfig_PARAMS, const llvm::Twine &Name) {             \
+	return CreateHwtHlsFBinOp(Builder, CONCAT(CONCAT(hwtHlsFp, name), Name), op0, op1,   \
+			HFloatTmpConfig_ARGS, Name);                                                 \
+}                                                                                        \
+bool IsHwtHlsFp##name(const llvm::CallInst *C) {                                         \
+	return IsHwtHlsFp##name(C->getCalledFunction());                                     \
+}                                                                                        \
+bool IsHwtHlsFp##name(const llvm::Function *F) {                                         \
+	return F->getName().str().rfind(CONCAT(CONCAT(hwtHlsFp, name), Name) + ".", 0) == 0; \
 }
+
+
+#define DEFINE_FP_UNOP(name, intrinsicName)                                              \
+const std::string CONCAT(CONCAT(hwtHlsFp, name), Name) = "hwtHls.fp." #intrinsicName;    \
+llvm::CallInst* CreateHwtHlsFp##name(llvm::IRBuilder<> *Builder, llvm::Value *op0,       \
+		HFloatTmpConfig_PARAMS, const llvm::Twine &Name) {                               \
+	return CreateHwtHlsFUnOp(Builder, CONCAT(CONCAT(hwtHlsFp, name), Name), op0,         \
+			HFloatTmpConfig_ARGS, Name);                                                 \
+}                                                                                        \
+bool IsHwtHlsFp##name(const llvm::CallInst *C) {                                         \
+	return IsHwtHlsFp##name(C->getCalledFunction());                                     \
+}                                                                                        \
+bool IsHwtHlsFp##name(const llvm::Function *F) {                                         \
+	return F->getName().str().rfind(CONCAT(CONCAT(hwtHlsFp, name), Name) + ".", 0) == 0; \
+}
+
 
 DEFINE_FP_BINOP(FAdd, fadd)
 DEFINE_FP_BINOP(FSub, fsub)
 DEFINE_FP_BINOP(FMul, fmul)
 DEFINE_FP_BINOP(FDiv, fdiv)
 DEFINE_FP_BINOP(FRem, frem)
+
+
+const std::string hwtHlsFpFCmpName = "hwtHls.fp.fcmp";
+llvm::CallInst* CreateHwtHlsFpFCmp(llvm::IRBuilder<> *Builder,
+		llvm::CmpInst::Predicate predicate,
+		llvm::Value *op0, llvm::Value *op1,
+		HFloatTmpConfig_PARAMS, const llvm::Twine &Name) {
+	if (isInQFromat)
+			assert(
+					!supportSubnormal
+							&& "supportSubnormal is only relevant for floating point representation (not Q fixed point)");
+	HFloatTmpConfig tyCfg = HFloatTmpConfig_FROM_LOCALS;
+	assert(op0->getType()->isIntegerTy());
+	assert(op0->getType()->getIntegerBitWidth() == tyCfg.getBitWidth());
+	assert(op0->getType() == op1->getType());
+
+	Value *Ops[] = { Builder->getInt8(predicate), op0, op1, HFloatTmpConfig_ARGS_TO_LLVM(Builder) };
+	Type *ResT = Builder->getIntNTy(1);
+	Type *TysForName[] = { op0->getType() };
+	Module *M = Builder->GetInsertBlock()->getParent()->getParent();
+	std::string name = (Intrinsic_getName(hwtHlsFpFCmpName, TysForName) + "." + llvm::CmpInst::getPredicateName(predicate)).str();
+	Function *TheFn =
+			cast<Function>(
+					M->getOrInsertFunction(
+							name,
+							ResT,
+							HFloatTmpConfig_BIN_OP_ARG_TYPES(Ops),
+							Ops[11]->getType()).getCallee());
+	AddDefaultFunctionAttributes(*TheFn);
+	CallInst *CI = Builder->CreateCall(TheFn, Ops);
+	CI->setDoesNotAccessMemory();
+	CI->setName(Name);
+	return CI;
+}
+
+bool IsHwtHlsFpFCmp(const llvm::CallInst *C) {
+	return IsHwtHlsFpFCmp(C->getCalledFunction());
+}
+bool IsHwtHlsFpFCmp(const llvm::Function *F) {
+	return F->getName().str().rfind(hwtHlsFpFCmpName + ".", 0) == 0;
+}
+
+DEFINE_FP_UNOP(FNeg, fneg)
 
 }

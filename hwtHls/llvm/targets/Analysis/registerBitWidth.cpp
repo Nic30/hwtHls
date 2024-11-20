@@ -388,12 +388,21 @@ bool resolveTypes(MachineInstr &MI) {
 
 		return false;
 	}
+	case HwtFpga::HWTFPGA_FP_FCMP:
+		MRI.setType(MI.getOperand(0).getReg(), LLT::scalar(1));
+		return true;
+
+	case HwtFpga::HWTFPGA_FP_FNEG:
 	case HwtFpga::HWTFPGA_FP_FADD:
 	case HwtFpga::HWTFPGA_FP_FSUB:
 	case HwtFpga::HWTFPGA_FP_FMUL:
 	case HwtFpga::HWTFPGA_FP_FDIV: {
 		HFloatTmpConfig fpCfg;
 		size_t opOff = 3;
+		if (Opc == HwtFpga::HWTFPGA_FP_FNEG) {
+			// unary operators
+			opOff = 2;
+		}
 		assert(HFloatTmpConfig::MEMBER_CNT == 9);
 		assert(MI.getNumExplicitOperands() == opOff + HFloatTmpConfig::MEMBER_CNT);
 		fpCfg.exponentOrIntWidth = MI.getOperand(opOff++).getImm();

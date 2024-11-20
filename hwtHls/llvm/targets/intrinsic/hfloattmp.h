@@ -41,6 +41,17 @@ struct HFloatTmpConfig {
 			const llvm::APFloat &v) const;
 };
 
+#define __HFloatTmpConfig_opts(name) \
+    name.exponentOrIntWidth,         \
+	name.mantissaOrFracWidth,        \
+	name.isInQFromat,                \
+	name.supportSubnormal,           \
+	name.hasSign,                    \
+	name.hasIsNaN,                   \
+	name.hasIsInf,                   \
+	name.hasIs1,                     \
+	name.hasIs0                      \
+
 #define __HFloatTmpConfig_PARAMS_WITH_DEFAULT \
 	std::uint8_t exponentOrIntWidth, std::uint8_t mantissaOrFracWidth,  \
 	bool isInQFromat = false, bool supportSubnormal = true, \
@@ -83,9 +94,12 @@ bool IsHwtHlsFp(const llvm::Function *F);
  * after HFloatTmpLoweringPass
  * :note: Thins are not defined using macro to make search in code easier
  * **/
+#define __CreateHwtHlsFpUnOpParams llvm::IRBuilder<> *Builder, llvm::Value *op0, \
+	__HFloatTmpConfig_PARAMS_WITH_DEFAULT, const llvm::Twine &Name = ""
 #define __CreateHwtHlsFpBinOpParams llvm::IRBuilder<> *Builder, llvm::Value *op0, llvm::Value *op1,\
 	__HFloatTmpConfig_PARAMS_WITH_DEFAULT, const llvm::Twine &Name = ""
 
+// common arithmetic binary operators
 extern const std::string hwtHlsFpFAddName;
 llvm::CallInst* CreateHwtHlsFpFAdd(__CreateHwtHlsFpBinOpParams);
 bool IsHwtHlsFpFAdd(const llvm::CallInst *C);
@@ -110,4 +124,20 @@ extern const std::string hwtHlsFpFRemName;
 llvm::CallInst* CreateHwtHlsFpFRem(__CreateHwtHlsFpBinOpParams);
 bool IsHwtHlsFpFRem(const llvm::CallInst *C);
 bool IsHwtHlsFpFRem(const llvm::Function *F);
+
+// cmp operators
+extern const std::string hwtHlsFpFCmpName;
+llvm::CallInst* CreateHwtHlsFpFCmp(llvm::IRBuilder<> *Builder,
+		llvm::CmpInst::Predicate predicate, llvm::Value *op0, llvm::Value *op1,
+		__HFloatTmpConfig_PARAMS_WITH_DEFAULT, const llvm::Twine &Name = "");
+bool IsHwtHlsFpFCmp(const llvm::CallInst *C);
+bool IsHwtHlsFpFCmp(const llvm::Function *F);
+
+
+// common unary operators
+extern const std::string hwtHlsFpFNegName;
+llvm::CallInst* CreateHwtHlsFpFNeg(__CreateHwtHlsFpUnOpParams);
+bool IsHwtHlsFpFNeg(const llvm::CallInst *C);
+bool IsHwtHlsFpFNeg(const llvm::Function *F);
+
 }

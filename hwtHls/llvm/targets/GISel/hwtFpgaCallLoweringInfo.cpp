@@ -190,8 +190,14 @@ bool HwtFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 				opc = HwtFpga::HWTFPGA_FP_FMUL;
 			} else if (hwtHls::IsHwtHlsFpFDiv(F)) {
 				opc = HwtFpga::HWTFPGA_FP_FDIV;
+			} else if (hwtHls::IsHwtHlsFpFNeg(F)) {
+				opc = HwtFpga::HWTFPGA_FP_FNEG;
+				opArgCnt = 1;
+			} else if (hwtHls::IsHwtHlsFpFCmp(F)) {
+				opArgCnt = 3; // predicate, op0, op1
+				opc = HwtFpga::HWTFPGA_FP_FCMP;
 			} else {
-				std::string errStr = "Not implemented, Unknown hwtHls.fp. intrinsic: ";
+				std::string errStr = " : ";
 				llvm::raw_string_ostream ss(errStr);
 				Info.CB->print(ss);
 				throw std::runtime_error(ss.str());
@@ -205,7 +211,18 @@ bool HwtFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 
 			assert(Info.OrigArgs.size() == opArgCnt + hwtHls::HFloatTmpConfig::MEMBER_CNT);
 			for (size_t i = 0; i < opArgCnt; ++i) {
-				MIB.addUse(Info.OrigArgs[i].Regs[0]);
+				if (opc == HwtFpga::HWTFPGA_FP_FCMP && i == 0) {
+					if (!addIntImmByRegiter(MRI, MIB,
+							Info.OrigArgs[i].Regs[0])) {
+						std::string errStr =
+								"hwtHls.fp.fcmp predicate operand must be constant: ";
+						llvm::raw_string_ostream ss(errStr);
+						Info.CB->print(ss);
+						throw std::runtime_error(ss.str());
+					}
+				} else {
+					MIB.addUse(Info.OrigArgs[i].Regs[0]);
+				}
 			}
 
 	    	for (size_t i = opArgCnt; i < opArgCnt + hwtHls::HFloatTmpConfig::MEMBER_CNT; ++i) {

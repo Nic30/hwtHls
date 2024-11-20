@@ -35,7 +35,9 @@ from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdgeM
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtHls.ssa.translation.toLlvmUtils import NetlistIoConstructorDictT
-
+from tests.math.hFloatTmp.hFloatTmpOps import OP_FADD, OP_FSUB, OP_FMUL, OP_FDIV, \
+    OP_FCMP_OEQ, OP_FCMP_OGT, OP_FCMP_OGE, OP_FCMP_OLT, OP_FCMP_OLE, OP_FCMP_ONE, \
+    OP_FNEG
 
 
 class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
@@ -115,6 +117,12 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         CmpInst.Predicate.ICMP_SLT: HwtOps.SLT,
         CmpInst.Predicate.ICMP_SLE: HwtOps.SLE,
 
+        CmpInst.Predicate.FCMP_OEQ: OP_FCMP_OEQ,
+        CmpInst.Predicate.FCMP_OGT: OP_FCMP_OGT,
+        CmpInst.Predicate.FCMP_OGE: OP_FCMP_OGE,
+        CmpInst.Predicate.FCMP_OLT: OP_FCMP_OLT,
+        CmpInst.Predicate.FCMP_OLE: OP_FCMP_OLE,
+        CmpInst.Predicate.FCMP_ONE: OP_FCMP_ONE,
     }
     OPC_TO_OP_SCHEDULING_RESOURCE = {
         TargetOpcode.HWTFPGA_MUX: HwtOps.TERNARY,
@@ -140,7 +148,9 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         TargetOpcode.HWTFPGA_FSHL,
         TargetOpcode.HWTFPGA_FSHR,
     }
-
+    _FP_UNARY_OPCODES = {
+        TargetOpcode.HWTFPGA_FP_FNEG,
+    }
     _FP_BIN_OPCODES = {
         TargetOpcode.HWTFPGA_FP_FADD,
         TargetOpcode.HWTFPGA_FP_FSUB,

@@ -38,4 +38,19 @@ let hasSideEffects = 0 in {
 	def HWTFPGA_FP_FSUB: HwtFpgaFpBin;
 	def HWTFPGA_FP_FMUL: HwtFpgaFpBin;
 	def HWTFPGA_FP_FDIV: HwtFpgaFpBin;
+
+	def HWTFPGA_FP_FCMP : HwtFpgaInst<
+	    (outs type0:$dst),
+	    (ins i64imm:$predicate, anyregcls:$src1, anyregcls:$src2,
+		    // HFloatTmpConfig options
+		    i64imm:$exponentOrIntWidth,
+			i64imm:$mantissaOrFracWidth,
+			i64imm:$isInQFromat,
+			i64imm:$supportSubnormal,
+			i64imm:$hasSign,
+			i64imm:$hasIsNaN,
+			i64imm:$hasIsInf,
+			i64imm:$hasIs1,
+			i64imm:$hasIs0),
+	    []>;
 }
