@@ -26,7 +26,7 @@ class HwtFpgaPreToNetlistGICombiner_TC(BaseLlvmMirTC):
   
     %2:anyregcls(s16) = HWTFPGA_MUX i16 1 ; set default value for %2
     %3:anyregcls(s16) = HWTFPGA_CLOAD %0, 0, 1, 16 :: (volatile load (s16) from %ir.rx, addrspace 1)
-    %4:anyregcls(s1) = HWTFPGA_EXTRACT %3(s16), 0, 1 ; condition for mux
+    %4:anyregcls(s1) = HWTFPGA_EXTRACT %3(s16), 16, 0, 1 ; condition for mux
     %2:anyregcls(s16) = HWTFPGA_MUX %2(s16), %4(s1), %3(s16) ; conditionally update %2
     HWTFPGA_CSTORE %2(s16), %1, 0, 16, 1:: (volatile store (s16) into %ir.txBody, addrspace 2)
 
@@ -51,7 +51,7 @@ class HwtFpgaPreToNetlistGICombiner_TC(BaseLlvmMirTC):
     %5:anyregcls(s16) = HWTFPGA_ADD %2(s16), i16 1
     HWTFPGA_CSTORE %5(s16), %1, 0, 16, 1:: (volatile store (s16) into %ir.txBody, addrspace 2)
     %3:anyregcls(s16) = HWTFPGA_CLOAD %0, 0, 1, 16 :: (volatile load (s16) from %ir.rx, addrspace 1)
-    %4:anyregcls(s1) = HWTFPGA_EXTRACT %3(s16), 0, 1 ; condition for mux
+    %4:anyregcls(s1) = HWTFPGA_EXTRACT %3(s16), 16, 0, 1 ; condition for mux
     %2:anyregcls(s16) = HWTFPGA_MUX %2(s16), %4(s1), %3(s16) ; conditionally update %2
     HWTFPGA_CSTORE %2(s16), %1, 0, 16, 1:: (volatile store (s16) into %ir.txBody, addrspace 2)
 
@@ -108,11 +108,62 @@ class HwtFpgaPreToNetlistGICombiner_TC(BaseLlvmMirTC):
       %12:anyregcls = HWTFPGA_CLOAD %0:anyregcls, 0, 8, 1 :: (volatile load (s8) from %ir.dataIn, addrspace 1)
       HWTFPGA_BR %bb.1
 """)
+        
+    def test_mux_trivial_const_propagation_shiftedVal0(self):
+        # while 1:
+        #   %2 = dataIn.read()
+        #   %3 = shIn.read()
+        #   if %3 == 2:
+        #     %9 = %2 << 2
+        #   else:
+        #     %9 = %2 << 3
+        
+        self._test_mir(f"""\
+    bb.0.{self.getTestName()}:   
+    
+      %0:anyregcls = HWTFPGA_ARG_GET 0
+      %1:anyregcls = HWTFPGA_ARG_GET 1
+      %2:anyregcls = HWTFPGA_ARG_GET 2
+
+    bb.1:
+      %2:anyregcls = HWTFPGA_CLOAD %0:anyregcls, 0, 8, 1 :: (volatile load (s8) from %ir.dataIn, addrspace 1)
+      %3:anyregcls = HWTFPGA_CLOAD %1:anyregcls, 0, 3, 1 :: (volatile load (s8) from %ir.shIn, addrspace 1)
+      %4:anyregcls = HWTFPGA_ICMP intpred(eq), %3:anyregcls, i3 2
+      %5:anyregcls = HWTFPGA_EXTRACT %2:anyregcls, 8, 0, 6
+      %6:anyregcls = HWTFPGA_MERGE_VALUES i2 0, %5:anyregcls, 2, 6
+      %7:anyregcls = HWTFPGA_EXTRACT %2:anyregcls, 8, 0, 5
+      %8:anyregcls = HWTFPGA_MERGE_VALUES i3 0, %7:anyregcls, 3, 5
+      %9:anyregcls = HWTFPGA_MUX %6:anyregcls, %4:anyregcls, %8:anyregcls
+      HWTFPGA_CSTORE %9:anyregcls, %2:anyregcls, 0, 8, 1 :: (volatile store (s8) into %ir.dataOut, addrspace 2)
+      HWTFPGA_BR %bb.1
+
+""")
+        
+    def test_mux_trivial_const_propagation_shiftedVal1(self):
+        # while 1:
+        #   %2 = dataIn.read()
+        #   %3 = shIn.read()
+        #   %9 = %2 << 3
+        
+        self._test_mir(f"""\
+    bb.0.{self.getTestName()}:   
+    
+      %0:anyregcls = HWTFPGA_ARG_GET 0
+      %1:anyregcls = HWTFPGA_ARG_GET 1
+
+    bb.1:
+      %2:anyregcls = HWTFPGA_CLOAD %0:anyregcls, 0, 8, 1 :: (volatile load (s8) from %ir.dataIn, addrspace 1)
+      %5:anyregcls = HWTFPGA_EXTRACT %2:anyregcls, 8, 0, 6
+      %6:anyregcls = HWTFPGA_MERGE_VALUES i2 0, %5:anyregcls, 2, 6
+      HWTFPGA_CSTORE %6:anyregcls, %2:anyregcls, 0, 8, 1 :: (volatile store (s8) into %ir.dataOut, addrspace 2)
+      HWTFPGA_BR %bb.1
+
+""")
       
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([HwtFpgaPreToNetlistGICombiner_TC('test_mux_merge0')])
+    # suite = unittest.TestSuite([HwtFpgaPreToNetlistGICombiner_TC('test_mux_trivial_const_propagation_shiftedVal0')])
     suite = testLoader.loadTestsFromTestCase(HwtFpgaPreToNetlistGICombiner_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
