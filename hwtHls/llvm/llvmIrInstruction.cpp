@@ -13,6 +13,15 @@ namespace py = pybind11;
 namespace hwtHls {
 
 template<typename T>
+T* llvmValueCaster(llvm::Value *V) {
+	if (T *Inst = llvm::dyn_cast<T>(V)) {
+		return Inst;
+	} else {
+		return (T*) nullptr;
+	}
+}
+
+template<typename T>
 T* llvmInstructionCaster(llvm::Instruction *I) {
 	if (T *Inst = llvm::dyn_cast<T>(I)) {
 		return Inst;
@@ -46,6 +55,9 @@ void register_Instruction(pybind11::module_ & m) {
 		})
 		.def("getNextNode", [](llvm::Instruction * I) {
 			return I->getNextNode();
+		}, py::return_value_policy::reference_internal)
+		.def("getIterator", [](llvm::Instruction * I) {
+			return I->getIterator();
 		}, py::return_value_policy::reference_internal)
 		.def("printAsOperand", [](const llvm::Instruction & I) {
 			std::string tmp;
@@ -105,6 +117,16 @@ void register_Instruction(pybind11::module_ & m) {
 		.value("Or", llvm::Instruction::BinaryOps::Or)
 		.value("Xor", llvm::Instruction::BinaryOps::Xor)
 		.export_values();
+
+	py::class_<llvm::AllocaInst, std::unique_ptr<llvm::AllocaInst, py::nodelete>, llvm::Instruction> AllocaInst(m, "AllocaInst");
+	AllocaInst
+	    .def("getAccessType", &llvm::AllocaInst::getAccessType)
+		.def("getAllocatedType", &llvm::AllocaInst::getAllocatedType)
+		;
+
+	py::implicitly_convertible<llvm::AllocaInst, llvm::Instruction>();
+	m.def("ValueToAllocaInst", &llvmValueCaster<llvm::AllocaInst>, py::return_value_policy::reference_internal);
+	m.def("InstructionToAllocaInst", &llvmInstructionCaster<llvm::AllocaInst>, py::return_value_policy::reference_internal);
 
 	py::class_<llvm::BinaryOperator, std::unique_ptr<llvm::BinaryOperator, py::nodelete>, llvm::Instruction>(m, "BinaryOperator");
 	py::implicitly_convertible<llvm::BinaryOperator, llvm::Instruction>();
@@ -241,7 +263,14 @@ void register_Instruction(pybind11::module_ & m) {
 	py::implicitly_convertible<llvm::ReturnInst, llvm::Instruction>();
 	m.def("InstructionToReturnInst", &llvmInstructionCaster<llvm::ReturnInst>, py::return_value_policy::reference_internal);
 
-	py::class_<llvm::BranchInst, std::unique_ptr<llvm::BranchInst, py::nodelete>, llvm::Instruction>(m, "BranchInst");
+	py::class_<llvm::BranchInst, std::unique_ptr<llvm::BranchInst, py::nodelete>, llvm::Instruction> BranchInst(m, "BranchInst");
+	BranchInst
+		.def("isConditional", &llvm::BranchInst::isConditional, py::return_value_policy::reference_internal)
+		.def("getCondition", &llvm::BranchInst::getCondition, py::return_value_policy::reference_internal)
+		.def("getSuccessor", &llvm::BranchInst::getSuccessor, py::return_value_policy::reference_internal)
+		.def("setSuccessor", &llvm::BranchInst::setSuccessor)
+		;
+
 	py::implicitly_convertible<llvm::BranchInst, llvm::Instruction>();
 	m.def("InstructionToBranchInst", &llvmInstructionCaster<llvm::BranchInst>, py::return_value_policy::reference_internal);
 
@@ -268,9 +297,12 @@ void register_Instruction(pybind11::module_ & m) {
 			 }, py::keep_alive<0, 1>()); /* Keep vector alive while iterator is used */
 	py::implicitly_convertible<llvm::PHINode, llvm::Instruction>();
 	m.def("InstructionToPHINode", &llvmInstructionCaster<llvm::PHINode>, py::return_value_policy::reference_internal);
-	py::class_<llvm::GetElementPtrInst,  std::unique_ptr<llvm::GetElementPtrInst, py::nodelete>, llvm::Instruction>(m, "GetElementPtrInst");
+	py::class_<llvm::GetElementPtrInst,  std::unique_ptr<llvm::GetElementPtrInst, py::nodelete>, llvm::Instruction> GetElementPtrInst(m, "GetElementPtrInst");
 	py::implicitly_convertible<llvm::GetElementPtrInst, llvm::Instruction>();
 	m.def("InstructionToGetElementPtrInst", &llvmInstructionCaster<llvm::GetElementPtrInst>, py::return_value_policy::reference_internal);
+	GetElementPtrInst
+		.def("getSourceElementType", &llvm::GetElementPtrInst::getSourceElementType)
+		.def("getResultElementType", &llvm::GetElementPtrInst::getResultElementType);
 
 
 	py::class_<llvm::FreezeInst, std::unique_ptr<llvm::FreezeInst, py::nodelete>, llvm::Instruction>(m, "FreezeInst");
