@@ -331,6 +331,9 @@ std::vector<StreamChannelProps> getStreamIoProps(llvm::Function &F,
 					if (cur == streamProps.end()) {
 						// if there was not record for this argument yet, construct it from function metadata
 						auto *md = F.getMetadata("hwtHls.streamIo");
+						if (!md) {
+							throw std::runtime_error("Can not find hwtHls.streamIo metadata on function");
+						}
 						auto srcArg = dyn_cast<Argument>(src);
 						assert(srcArg);
 						size_t argI = srcArg->getArgNo();
