@@ -59,24 +59,25 @@ bool mergeConsequentSlices(Instruction &I,
 	 * Merge instructions which are parallel to instruction I and are performed on a consequent slice of same bit vector
 	 * */
 	bool modified = false;
-
-	if (auto *BO = dyn_cast<BinaryOperator>(&I)) {
-		if (IsBitwiseOperator(*BO))
-			modified = mergeConsequentSlicesBinOp(*BO, createSlice, dce);
-	}
-	//else if (auto *C = dyn_cast<CallInst>(&I)) {
-	//	if (IsBitConcat(C)) {
-	//		uint64_t offset = 0;
-	//		for (auto &O : C->args()) {
-	//			uint64_t width = O->getType()->getIntegerBitWidth();
-	//			uint64_t end = offset + width;
-	//		}
-	//	}
-	//} else if (auto *PHI = dyn_cast<PHINode>(I)) {
-	//
-	//}
-	else if (auto *SI = dyn_cast<SelectInst>(&I)) {
-		modified = mergeConsequentSlicesSelect(*SI, createSlice, dce);
+	if (I.getType()->isIntegerTy()) {
+		if (auto *BO = dyn_cast<BinaryOperator>(&I)) {
+			if (IsBitwiseOperator(*BO))
+				modified = mergeConsequentSlicesBinOp(*BO, createSlice, dce);
+		}
+		//else if (auto *C = dyn_cast<CallInst>(&I)) {
+		//	if (IsBitConcat(C)) {
+		//		uint64_t offset = 0;
+		//		for (auto &O : C->args()) {
+		//			uint64_t width = O->getType()->getIntegerBitWidth();
+		//			uint64_t end = offset + width;
+		//		}
+		//	}
+		//} else if (auto *PHI = dyn_cast<PHINode>(I)) {
+		//
+		//}
+		else if (auto *SI = dyn_cast<SelectInst>(&I)) {
+			modified = mergeConsequentSlicesSelect(*SI, createSlice, dce);
+		}
 	}
 	return modified;
 }
