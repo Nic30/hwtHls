@@ -47,7 +47,14 @@ class SyncLogicSearcher():
     def __init__(self, clkPeriod: SchedTime, scc: SetList[ArchSyncNodeTy], onPrimaryInputFound: Callable[[HlsNetNodeOut, ArchSyncNodeTy], None]):
         self.clkPeriod = clkPeriod
         self.scc = scc
+
+#        class SetList0(SetList):
+#
+#            def append(self, v):
+#                return super().append(v)
+
         self.primaryInputs: SetList[Tuple[HlsNetNodeOut, ArchSyncNodeTy]] = SetList()
+
         self.primaryInputsReplacedByNegationOf: Dict[Tuple[HlsNetNodeOut, int], Tuple[HlsNetNodeOut, int]] = {}
         self.primaryOutputs: SetList[Tuple[HlsNetNodeOut, ArchSyncNodeTy]] = SetList()
         self.nodes: SetList[Tuple[Union[HlsNetNodeOperator, HlsNetNodeAggregatePortIn, HlsNetNodeAggregatePortOut], int]] = SetList()

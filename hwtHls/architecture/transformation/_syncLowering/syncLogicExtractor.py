@@ -319,6 +319,7 @@ class SyncLogicExtractor():
                     name = f"{o.obj.name:}_clk{clkIndex:d}"
                 else:
                     name = o.getPrettyName(useParentName=False)
+
                 newO = termPropagationCtx.propagate(srcNode, o, name =name)
                 assert newO.obj.parent is parentElm, (newO, o, newO.obj.parent, parentElm)
                 newOutpustFromSrcElements.add(HlsNetNodeAggregatePortIn_getInput(newO))
