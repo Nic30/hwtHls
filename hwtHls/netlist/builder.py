@@ -537,15 +537,16 @@ class HlsNetlistBuilder():
         return self.buildIndexConstSlice(resT, a, high, low, worklist, operatorSpecialization=operatorSpecialization)
 
     def buildIndexConstSlice(self, resT: HdlType, a: HlsNetNodeOut, high: int, low: Optional[int], worklist: SetList[HlsNetNode],
-                             operatorSpecialization:Optional[HFloatTmpConfig]=None):
+                             operatorSpecialization:Optional[HFloatTmpConfig]=None,
+                             name:Optional[str]=None):
         if low is None:
             assert resT == BIT, resT
-            i = self.buildConst(INT.from_py(high))
+            i = self.buildConst(INT.from_py(high), name=name)
         else:
             assert high > low, (high, low)
-            i = self.buildConst(SLICE.from_py(slice(high, low, -1)))
+            i = self.buildConst(SLICE.from_py(slice(high, low, -1)), name=name)
 
-        return self.buildOp(HwtOps.INDEX, operatorSpecialization, resT, a, i, worklist=worklist)
+        return self.buildOp(HwtOps.INDEX, operatorSpecialization, resT, a, i, worklist=worklist, name=name)
 
     def buildShlConst(self, op0: HlsNetNodeOut, shAmount: int, worklist: SetList[HlsNetNode]):
         if shAmount == 0:
