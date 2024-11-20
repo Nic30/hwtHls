@@ -12,7 +12,6 @@
 
 namespace llvm {
 
-
 void copyOperand(MachineInstrBuilder &MIB, MachineRegisterInfo &MRI,
 		MachineFunction &MF, MachineOperand &MO) {
 	if (MO.isReg() && MO.isDef()) {
@@ -196,6 +195,7 @@ bool HwtFpgaCombinerHelper::matchNestedMux(MachineInstr &MI,
 	requiresAndWithParentCond.clear();
 	// check if is used only by a HWTFPGA_MUX and can merge operands into user
 	auto DstRegNo = MI.getOperand(0).getReg();
+
 	if (!MRI.hasOneDef(DstRegNo) && MI.findRegisterUseOperandIdx(DstRegNo) > 0) {
 		// Dst must have just this def or previous def must not be operand
 		return false;
@@ -213,6 +213,7 @@ bool HwtFpgaCombinerHelper::matchNestedMux(MachineInstr &MI,
 			return false;
 		otherUse = &*MRI.use_begin(DstRegNo);
 	}
+
 	MachineInstr *otherMI = otherUse->getParent();
 	if (otherMI == &MI) {
 		return false; // can not inline operands of self to self
@@ -226,6 +227,7 @@ bool HwtFpgaCombinerHelper::matchNestedMux(MachineInstr &MI,
 	bool otherUseIsValueOp = otherUseOpIndex % 2 == 1;
 	if (!otherUseIsValueOp)
 		return false;
+
 	// check that the operand register are not redefined between this and other
 	if (checkAnyOperandRedefined(MI, *otherMI)) {
 		return false;
