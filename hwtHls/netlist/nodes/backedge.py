@@ -195,8 +195,6 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
 class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
     """
     The read from HLS pipeline which is binded to a buffer for data/sync on backward edge in dataflow graph.
-
-    :ivar buffName: name which can be used to override the name of the buffer in RTL
     """
     _PORT_ATTR_NAMES = HlsNetNodeWrite._PORT_ATTR_NAMES + ["_fullPort"]
 
@@ -204,8 +202,7 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
                  name:Optional[str]=None,
                  mayBecomeFlushable:bool=False):
         HlsNetNodeWrite.__init__(self, netlist, None, name=name, mayBecomeFlushable=mayBecomeFlushable)
-        self._loopChannelGroup: Optional["LoopChanelGroup"] = None
-
+        
     @override
     def clone(self, memo:dict, keepTopPortsConnected: bool) -> Tuple["HlsNetNodeWriteBackedge", bool]:
         y, isNew = HlsNetNodeRead.clone(self, memo, keepTopPortsConnected)

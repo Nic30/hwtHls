@@ -22,7 +22,6 @@ from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import OutputTimeGetter, \
     OutputMinUseTimeGetter, SchedulizationDict
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
-from hwtHls.ssa.value import SsaValue
 
 
 class HlsNetNodeWrite(HlsNetNodeExplicitSync):
@@ -40,6 +39,8 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
     #    to mark that the data was already flushed from parent it is not required to (and must not) write it it.
     #:ivar _isFlushedPort: the netlist out port with the status of isFlushed flag (explained in _mayFlushPort).
     :ivar _fullPort: :see: :meth:`~.HlsNetNodeWrite.getFullPort`
+    
+    :ivar buffName: name which can be used to override the name of the buffer in RTL
     :note: Flushing is required and may be set to True only if _rtlUseValid=True
     Flushing:
         * ready/valid for internal sync in node where this node is scheduled should use
@@ -54,7 +55,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
     _PORT_ATTR_NAMES = HlsNetNodeExplicitSync._PORT_ATTR_NAMES + ["_portSrc"]
 
     def __init__(self, netlist: "HlsNetlistCtx",
-                 dst: Union[RtlSignal, HwIO, SsaValue, None],
+                 dst: Union[RtlSignal, HwIO, None],
                  mayBecomeFlushable=False,
                  name:Optional[str]=None,
                  addSrcPort=True):
@@ -78,6 +79,8 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         self._fullPort: Optional[HlsNetNodeOut] = None
         self.allocationType = CHANNEL_ALLOCATION_TYPE.BUFFER
         self.buffName = None
+        self._loopChannelGroup: Optional["LoopChanelGroup"] = None
+
 
     @override
     def clone(self, memo:dict, keepTopPortsConnected:bool) -> Tuple["HlsNetNode", bool]:
@@ -117,21 +120,11 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         src = self._portSrc
         if src is not None and src.in_i == index:
             self._portSrc = None
-        # mayFlush = self._mayFlushPort
-        # if mayFlush is not None and mayFlush.in_i == index:
-        #    self._mayFlushPort = None
 
         forceEn = self._forceEnPort
         if forceEn is not None and forceEn.in_i == index:
             self._forceEnPort = None
         return HlsNetNodeExplicitSync._removeInput(self, index)
-
-    # @override
-    # def _removeOutput(self, index:int):
-    #    isFlushed = self._isFlushedPort
-    #    if isFlushed is not None and isFlushed.out_i == index:
-    #        self._isFlushedPort = None
-    #    return HlsNetNodeExplicitSync._removeOutput(self, index)
 
     def getSchedulingResourceType(self):
         resourceType = self.dst
@@ -195,26 +188,11 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
             assert self._mayBecomeFlushable, self
             assert self._rtlUseValid, self
             self._isFlushable = True
-            # timeUntilClkEndFromZero = timeUntilClkEnd(self.scheduledZero, self.netlist.normalizedClkPeriod)
-            # timeUntilClkEndFromZero -= self.netlist.scheduler.epsilon
-            # self._mayFlushPort = self._addInput("mayFlush", addDefaultScheduling=True, inputWireDelay=-timeUntilClkEndFromZero)
         else:
-            # assert self._isFlushable, self
-            # assert self.dependsOn[self._mayFlushPort.in_i] is None, self
-            # self._removeInput(self._mayFlushPort.in_i)
-            # isFlushedPort = self._isFlushedPort
-            # if isFlushedPort is not None:
-            #    assert not self.usedBy[isFlushedPort.out_i], self
-            #    self._removeOutput(isFlushedPort.out_i)
+
             self._isFlushable = False
 
-    # def getIsFlushedPort(self) -> HlsNetNodeOut:
-    #    f = self._isFlushedPort
-    #    if f is None:
-    #        assert self._isFlushable
-    #        f = self._isFlushedPort = self._addOutput(BIT, "isFlushed", addDefaultScheduling=True)
-    #    return f
-    #
+
     def getFullPort(self) -> HlsNetNodeOut:
         """
         The full port is HlsNetlistOut. Only usable for channels with capacity>0.
@@ -253,26 +231,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         assert self._getBufferCapacity() > 0, (
             "If this edge is not buffer this port should not be used, because it would do nothing", self)
         return HlsNetNodeExplicitSync.getForceEnPort(self)
-        # forceEn = self._forceEnPort
-        # if forceEn is None:
-        #    netlist = self.netlist
-        #    forceEn = self._forceEnPort = self._addInput("forceEn", addDefaultScheduling=True,
-        #                                            # = at the end of clock where this write is
-        #                                            inputClkTickOffset=0,
-        #                                            inputWireDelay=netlist.normalizedClkPeriod - self.scheduledZero - netlist.scheduler.epsilon)
-        # return forceEn
-
-    # def getRtlFlushReadyValidSignal(self):
-    #    selfName = self.name if self.name else f'{self.netlist.namePrefix}n{self._id}'
-    #    if self._rtlUseReady:
-    #        if self._rtlReady_forFlush is None:
-    #            self._rtlReady_forFlush = self.netlist.parentHwModule._sig(f"{selfName}_ready_forFlush", BIT, nop_val=0)
-    #    # valid is always needed because we need to detect when write is performed to reset isFlushed register
-    #    if self._rtlValid_forFlush is None:
-    #        self._rtlValid_forFlush = self.netlist.parentHwModule._sig(f"{selfName}_valid_forFlush", BIT, nop_val=0)
-    #
-    #    return self._rtlReady_forFlush, self._rtlValid_forFlush
-
+ 
     @override
     def getAllocatedRTL(self, allocator: "ArchElement"):
         assert self._isRtlAllocated, self
@@ -285,48 +244,12 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         if isinstance(readyRtl, int):
             raise NotImplementedError("rtl ready should not be requested because it is constant", self)
 
-        # if self._isFlushable:
-        #    mayFlushI = self._mayFlushPort.in_i
-        #    mayFlush = allocator.rtlAllocHlsNetNodeOutInTime(self.dependsOn[mayFlushI], self.scheduledIn[mayFlushI])
-        #    readyRtl = readyRtl | mayFlush.data
-
         if self.hasReady():
             allocator.rtlRegisterOutputRtlSignal(self._ready, readyRtl, False, False, True)
 
         if self.hasReadyNB():
             allocator.rtlRegisterOutputRtlSignal(self._readyNB, readyRtl, False, False, True)
 
-    # def _rtlAllocIsFlushedReg(self, allocator: "ArchElement"):
-    #    mayFlush = allocator.rtlAllocHlsNetNodeInDriverIfExists(self._mayFlushPort).data
-    #    extraCond = allocator.rtlAllocHlsNetNodeInDriverIfExists(self.extraCond)
-    #    if extraCond is not None:
-    #        mayFlush = mayFlush & extraCond.data
-    #    skipWhen = allocator.rtlAllocHlsNetNodeInDriverIfExists(self.skipWhen)
-    #    if skipWhen is not None:
-    #        mayFlush = mayFlush & ~skipWhen.data
-    #    isFlushed = allocator._reg(f"{self.netlist.namePrefix}n{self._id}_isFlushed", def_val=0)
-    #    if self._isFlushedPort is not None:
-    #        allocator.rtlRegisterOutputRtlSignal(self._isFlushedPort, isFlushed, True, False, True)
-    #
-    #    valid, ready = HwIO_getSyncTuple(self.dst)
-    #    if not self._rtlUseReady:
-    #        # if there is no RTL ready signal we can use ack of stage where read from this channel is
-    #        # and read flags or IO does not use any ready and thus ready=1
-    #        ready = 1
-    #    readyForFlush, validForFlush = self.getRtlFlushReadyValidSignal()
-    #    assert validForFlush is not None
-    #    If(validForFlush,
-    #       isFlushed(0)
-    #    ).Elif(mayFlush & ready,
-    #       isFlushed(1)
-    #    )
-    #    if self._rtlUseValid:
-    #        valid(~isFlushed & mayFlush)
-    #
-    #    if self._rtlUseReady:
-    #        readyForFlush(isFlushed | ready)
-    #    else:
-    #        assert readyForFlush is None, self
 
     @override
     def rtlAlloc(self, allocator: "ArchElement") -> List[HdlStatement]:
@@ -341,12 +264,9 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         assert dep is not None, self
         assert self.skipWhen is None, ("This port should be already lowered by RtlArchPassSyncLower", self)
         assert self._forceEnPort is None, ("This port should be already lowered by RtlArchPassSyncLower", self)
-        # assert self._mayFlushPort is None, ("This port should be already lowered by RtlArchPassSyncLower", self)
 
         if self.hasValid() or self.hasValidNB():
             raise AssertionError("Valid of write is always 1 and this port should be already optimized out")
-        # if self._isFlushable:
-        #    self._rtlAllocIsFlushedReg(allocator)
 
         if self.hasAnyUsedReadyPort():
             self._rtlAllocReadyPorts(allocator)

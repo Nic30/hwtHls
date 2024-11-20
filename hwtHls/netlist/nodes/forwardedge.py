@@ -49,7 +49,6 @@ class HlsNetNodeWriteForwardedge(HlsNetNodeWrite):
     def __init__(self, netlist:"HlsNetlistCtx", mayBecomeFlushable=False, name:Optional[str]=None):
         HlsNetNodeWrite.__init__(self, netlist, None, mayBecomeFlushable=mayBecomeFlushable, name=name)
         self.associatedRead: Optional[HlsNetNodeReadForwardedge]
-        self._loopChannelGroup: Optional["LoopChanelGroup"] = None
 
     @override
     def getSchedulingResourceType(self):
