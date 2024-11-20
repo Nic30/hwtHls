@@ -72,23 +72,24 @@ public:
 
 void register_Values_and_Use(pybind11::module_ & m) {
 	py::class_<llvm::Value, std::unique_ptr<llvm::Value, py::nodelete>>(m, "Value")
-			.def("__repr__", &printToStr<llvm::Value>)
-			.def("__str__", &printToStr<llvm::Value>)
-			.def("__hash__", [](llvm::Value * v) {
-				return reinterpret_cast<intptr_t>(v);
-			})
-			.def("__eq__", [](llvm::Value * v0, llvm::Value * v1){
-				return v0 == v1;
-			})
-			.def("getType", &llvm::Value::getType, py::return_value_policy::reference)
-			.def("getName", &llvm::Value::getName)
-			.def("getNumUses", &llvm::Value::getNumUses)
-			.def("hasOneUse", &llvm::Value::hasOneUse)
-			.def("hasOneUser", &llvm::Value::hasOneUser)
-			.def("users", [](llvm::Value &v) {
-				auto users = v.users();
-			 	return py::make_iterator(users.begin(), users.end());
-			 }, py::keep_alive<0, 1>());
+		.def("__repr__", &printToStr<llvm::Value>)
+		.def("__str__", &printToStr<llvm::Value>)
+		.def("__hash__", [](llvm::Value * v) {
+			return reinterpret_cast<intptr_t>(v);
+		})
+		.def("__eq__", [](llvm::Value * v0, llvm::Value * v1){
+			return v0 == v1;
+		})
+		.def("getType", &llvm::Value::getType, py::return_value_policy::reference)
+		.def("getName", &llvm::Value::getName)
+		.def("getNumUses", &llvm::Value::getNumUses)
+		.def("hasOneUse", &llvm::Value::hasOneUse)
+		.def("hasOneUser", &llvm::Value::hasOneUser)
+		.def("users", [](llvm::Value &v) {
+			auto users = v.users();
+		 	return py::make_iterator(users.begin(), users.end());
+		 }, py::keep_alive<0, 1>())
+		.def("replaceAllUsesWith", &llvm::Value::replaceAllUsesWith);
 
 	// owned by context => no delete
 	py::class_<llvm::User, std::unique_ptr<llvm::User, py::nodelete>, llvm::Value>(m, "User")
@@ -105,9 +106,11 @@ void register_Values_and_Use(pybind11::module_ & m) {
 		.def("get", &llvm::Use::get, py::return_value_policy::reference);
 
 	py::class_<llvm::APInt>(m, "APInt")
-		.def(py::init<unsigned, llvm::StringRef, uint8_t>())
+		.def(py::init<unsigned, llvm::StringRef, uint8_t>(), py::arg("numBits"), py::arg("str"), py::arg("radix"))
+		.def(py::init<unsigned, uint64_t, bool>(), py::arg("numBits"), py::arg("val"), py::arg("isSigned")=false)
 		.def_static("getAllOnes", llvm::APInt::getAllOnes)
 		.def_static("getBitsSet", llvm::APInt::getBitsSet)
+		.def_static("getZero", llvm::APInt::getZero)
 		.def("getZExtValue", &llvm::APInt::getZExtValue)
 		.def("__int__", [](llvm::APInt* I) {
 		 	llvm::SmallString<256> str;
@@ -159,6 +162,9 @@ void register_Values_and_Use(pybind11::module_ & m) {
 		.value("Global", llvm::GlobalValue::UnnamedAddr::Global)
 		.export_values();
 	py::class_<llvm::ConstantData, std::unique_ptr<llvm::ConstantData, py::nodelete>, llvm::Constant>(m, "ConstantData");
+	py::class_<llvm::ConstantAggregateZero, std::unique_ptr<llvm::ConstantAggregateZero, py::nodelete>, llvm::ConstantData>(m, "ConstantAggregateZero");
+	m.def("ValueToConstantAggregateZero", &llvmValueCaster<llvm::ConstantAggregateZero>, py::return_value_policy::reference);
+
 	py::class_<llvm::ConstantAggregate,  std::unique_ptr<llvm::ConstantAggregate, py::nodelete>, llvm::Constant>(m, "ConstantAggregate");
 	py::class_<llvm::ConstantDataSequential,  std::unique_ptr<llvm::ConstantDataSequential, py::nodelete>, llvm::ConstantData> ConstantDataSequential(m, "ConstantDataSequential");
 	ConstantDataSequential
@@ -197,6 +203,10 @@ void register_Values_and_Use(pybind11::module_ & m) {
 	py::class_<llvm::UndefValue, std::unique_ptr<llvm::UndefValue, py::nodelete>, llvm::ConstantData>(m, "UndefValue")
 		.def_static("get", &llvm::UndefValue::get, py::return_value_policy::reference);
 	m.def("ValueToUndefValue", &llvmValueCaster<llvm::UndefValue>, py::return_value_policy::reference);
+
+	py::class_<llvm::PoisonValue, std::unique_ptr<llvm::PoisonValue, py::nodelete>, llvm::UndefValue>(m, "PoisonValue")
+		.def_static("get", &llvm::PoisonValue::get, py::return_value_policy::reference);
+	m.def("ValueToPoisonValue", &llvmValueCaster<llvm::PoisonValue>, py::return_value_policy::reference);
 
 	m.def("ValueToGlobalValue", &llvmValueCaster<llvm::GlobalValue>, py::return_value_policy::reference);
 
