@@ -171,18 +171,28 @@ class SyncLogicSearcher():
                         # to keep original values for later code
                         wClkI = w.scheduledZero // clkPeriod
                         if clkI > wClkI:
-                            return (elm, wClkI + 1), lastClkWhenIsPersistent
+                            _clkI = wClkI + 1
+                            while not elm.hasUsedStateForClkI(_clkI):  # skip unused clock windows
+                                assert _clkI < elm._endClkI
+                                _clkI += 1
+                            return (elm, _clkI), lastClkWhenIsPersistent
                         else:
                             lastClkWhenIsPersistent = wClkI
 
                     # use value directly from read
+                    assert elm.hasUsedStateForClkI(defClkI), (elm, defClkI)
                     return (elm, defClkI), lastClkWhenIsPersistent
 
             # use value from next clk if it is < clkI
             if defClkI + 1 < clkI:
-                return (elm, defClkI + 1), lastClkWhenIsPersistent
+                _clkI = defClkI + 1
             else:
-                return syncNode, lastClkWhenIsPersistent
+                _clkI = syncNode[1]
+
+            while not elm.hasUsedStateForClkI(_clkI):  # skip unused clock windows
+                assert _clkI < elm._endClkI
+                _clkI += 1
+            return (elm, _clkI), lastClkWhenIsPersistent
 
         return syncNode, syncNode[1]
 
@@ -361,17 +371,21 @@ class SyncLogicSearcher():
         for syncNode in scc:
             elm, clkI = syncNode
             if isinstance(elm, ArchElementFsm):
-                en, _ = elm.getStageEnable(clkI)
-
-                self.collectFromOutput(syncNode, en)
+                elm: ArchElementFsm
+                if elm.hasUsedStateForClkI(clkI):
+                    en, _ = elm.getStageEnable(clkI)
+                    self.collectFromOutput(syncNode, en)
 
     def collectFromFsmStateNextWrite(self, scc: SetList[ArchSyncNodeTy]):
         for syncNode in scc:
             elm, clkI = syncNode
             if isinstance(elm, ArchElementFsm):
-                stWrite: HlsNetNodeFsmStateWrite = elm.connections[clkI].fsmStateWriteNode
-                for i in stWrite._inputs:
-                    self.collectFromInput(syncNode, i)
+                elm: ArchElementFsm
+                if elm.hasUsedStateForClkI(clkI):
+                    stWrite: HlsNetNodeFsmStateWrite = elm.connections[clkI].fsmStateWriteNode
+                    assert stWrite is not None, (elm, clkI)
+                    for i in stWrite._inputs:
+                        self.collectFromInput(syncNode, i)
 
     def pruneAggegatePortsInSyncNodes(self):
         """
