@@ -1,4 +1,5 @@
 #include <hwtHls/llvm/llvmIrBuilder.h>
+#include <hwtHls/llvm/llvmIrMetadata.h>
 
 #include <pybind11/stl.h>
 #include <pybind11/stl_bind.h>
@@ -35,7 +36,18 @@ void register_IRBuilder(pybind11::module_ & m) {
 		.def("SetInsertPoint", [](llvm::IRBuilder<> * self, llvm::BasicBlock *TheBB) {
 				return self->SetInsertPoint(TheBB);
 			}, py::return_value_policy::reference)
+		.def("SetInsertPoint", [](llvm::IRBuilder<> * self, llvm::BasicBlock * TheBB, llvm::BasicBlock::iterator IP) {
+				self->SetInsertPoint(TheBB, IP);
+			})
+		.def("SetInsertPoint", [](llvm::IRBuilder<> * self, llvm::BasicBlock * TheBB, llvm::Instruction* I) {
+				self->SetInsertPoint(TheBB, I->getIterator());
+			})
+		.def("saveIP",	&llvm::IRBuilder<>::saveIP)
+		.def("restoreIP",	&llvm::IRBuilder<>::restoreIP)
 		.def("getContext", &llvm::IRBuilder<>::getContext, py::return_value_policy::reference)
+		.def("CreateAlloca", [](llvm::IRBuilder<> * self, llvm::Type *Ty, llvm::Value *ArraySize = nullptr, const llvm::Twine &Name = "") {
+				return self->CreateAlloca(Ty, ArraySize, Name);
+			}, py::return_value_policy::reference)
 		.def("CreateAnd", [](llvm::IRBuilder<> * self, llvm::Value *LHS, llvm::Value *RHS, const llvm::Twine &Name = "") {
 				return self->CreateAnd(LHS, RHS, Name);
 			}, py::return_value_policy::reference)
@@ -70,11 +82,35 @@ void register_IRBuilder(pybind11::module_ & m) {
 			return self->CreateShl(LHS, RHS, Name, HasNUW, HasNSW);
 		}, COMMON_BIN_OP_ARGS, py::return_value_policy::reference)
 		.def("CreateRetVoid", &llvm::IRBuilder<>::CreateRetVoid, py::return_value_policy::reference)
-		.def("CreateStore", &llvm::IRBuilder<>::CreateStore, py::return_value_policy::reference)
+		.def("CreateStore", [](llvm::IRBuilder<> &self, llvm::Value *Val, llvm::Value *Ptr, bool isVolatile = false) {
+				if (!Val->getType()->isSized())
+					throw std::runtime_error("StoreInst is implemented only for sized types");
+				return self.CreateStore(Val, Ptr, isVolatile);
+			}, py::arg("Val"), py::arg("Ptr"), py::arg("isVolatile") = false,
+			py::return_value_policy::reference)
+		.def("CreateMemCpy", [](llvm::IRBuilder<> &self,
+				llvm::Value *Dst, llvm::MaybeAlign DstAlign, llvm::Value *Src,
+                llvm::MaybeAlign SrcAlign, uint64_t Size,
+                bool isVolatile = false, MDNodeWithDeletedDelete *TBAATag = nullptr,
+                MDNodeWithDeletedDelete *TBAAStructTag = nullptr,
+                MDNodeWithDeletedDelete *ScopeTag = nullptr,
+                MDNodeWithDeletedDelete *NoAliasTag = nullptr) {
+			return self.CreateMemCpy(Dst, DstAlign, Src, SrcAlign, Size, isVolatile, TBAATag, TBAAStructTag, ScopeTag, NoAliasTag);
+		},
+			py::arg("Dst"), py::arg("DstAlign"), py::arg("Src"),
+			py::arg("SrcAlign"), py::arg("Size"),
+			py::arg("isVolatile") = false, py::arg("TBAATag") = static_cast<MDNodeWithDeletedDelete*>(nullptr),
+		    py::arg("TBAAStructTag") = static_cast<MDNodeWithDeletedDelete*>(nullptr),
+		    py::arg("ScopeTag") = static_cast<MDNodeWithDeletedDelete*>(nullptr),
+		    py::arg("NoAliasTag") = static_cast<MDNodeWithDeletedDelete*>(nullptr),
+			py::return_value_policy::reference
+		)
 		.def("CreateLoad", [](llvm::IRBuilder<> * self, llvm::Type *Ty, llvm::Value *Ptr, bool isVolatile,
                 const llvm::Twine &Name = "") {
+				if (!Ty->isSized())
+					throw std::runtime_error("LoadInst is implemented only for sized types");
 				return self->CreateLoad(Ty, Ptr, isVolatile, Name);
-			}, py::return_value_policy::reference)
+			}, py::arg("Ty"), py::arg("Ptr"), py::arg("isVolatile") = false, py::arg("Name")=llvm::Twine(""), py::return_value_policy::reference)
 		.def("CreateStreamRead", [](llvm::IRBuilder<> * self, llvm::Value *ioArgPtr, size_t chunkBitWidth, size_t returnBitWidth,
 				const llvm::Twine &Name = "") {
 				auto I = CreateStreamRead(self, ioArgPtr, chunkBitWidth, returnBitWidth);
@@ -86,9 +122,6 @@ void register_IRBuilder(pybind11::module_ & m) {
 		.def("CreateStreamWrite", &CreateStreamWrite, py::return_value_policy::reference)
 		.def("CreateStreamWriteStartOfFrame", &CreateStreamWriteStartOfFrame, py::return_value_policy::reference)
 		.def("CreateStreamWriteEndOfFrame", &CreateStreamWriteEndOfFrame, py::return_value_policy::reference)
-		.def("SetInsertPoint", [](llvm::IRBuilder<> * self, llvm::BasicBlock * bb) {
-			self->SetInsertPoint(bb);
-		})
 		.def("CreateZExt", &llvm::IRBuilder<>::CreateZExt,
 				py::arg("V"), py::arg("DestTy"), py::arg("Name")=llvm::Twine(""), py::arg("IsNonNeg")=false,
 				py::return_value_policy::reference)
@@ -111,7 +144,17 @@ void register_IRBuilder(pybind11::module_ & m) {
 				llvm::Instruction *MDSrc) {
 				return self->CreateCondBr(Cond, True, False, MDSrc);
 			}, py::return_value_policy::reference)
-		.def("CreateSwitch", &llvm::IRBuilder<>::CreateSwitch, py::return_value_policy::reference)
+		.def("CreateSwitch", [](llvm::IRBuilder<> & self, llvm::Value *V, llvm::BasicBlock *Dest, unsigned NumCases = 10,
+				MDNodeWithDeletedDelete *BranchWeights = nullptr,
+				MDNodeWithDeletedDelete *Unpredictable = nullptr) {
+					return self.CreateSwitch(V, Dest, NumCases, BranchWeights, Unpredictable);
+				},
+				py::arg("V"),
+				py::arg("Dest"),
+				py::arg("NumCases")=10,
+				py::arg("BranchWeights")=(MDNodeWithDeletedDelete *)nullptr,
+				py::arg("Unpredictable")=(MDNodeWithDeletedDelete *)nullptr,
+				py::return_value_policy::reference)
 		.def("CreateBitRangeGet", &CreateBitRangeGet, py::return_value_policy::reference)
 		.def("CreateBitRangeGetConst", &CreateBitRangeGetConst, py::return_value_policy::reference)
 		.def("CreateBitConcat", [](llvm::IRBuilder<> * self, std::vector<llvm::Value*> & OpsLowFirst) {
@@ -174,6 +217,10 @@ void register_IRBuilder(pybind11::module_ & m) {
 
     	py::bind_vector<std::vector<llvm::Value*>>(m, "VectorValuePtr");
 		py::implicitly_convertible<py::list, std::vector<llvm::Value*>>();
+
+		py::class_<llvm::IRBuilder<>::InsertPoint>(m, "InsertPoint")
+		.def("getBlock", &llvm::IRBuilder<>::InsertPoint::getBlock, py::return_value_policy::reference);
+
 
 }
 
