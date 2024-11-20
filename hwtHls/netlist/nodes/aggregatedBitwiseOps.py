@@ -206,7 +206,13 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregateTmpForScheduling):
         for dep in internalOut.obj.dependsOn:
             # get first time when dep is used
             depObj: HlsNetNode = dep.obj
-            assert depObj.scheduledOut is None, (internalOut, depObj, "Must not be scheduled because its successor (internalOut.obj) is not scheduled yet")
+            if depObj.scheduledOut is not None:
+                for _dep in internalOut.obj.dependsOn:
+                    assert _dep.obj.realization is not None, (internalOut, _dep)
+                    assert _dep.obj.scheduledOut is not None, (internalOut, _dep)
+                break # this node was scheduled when dome user node consumed it to layer of LUTs
+                #assert depObj.scheduledOut is None, (internalOut, depObj, "Must not be scheduled because its successor (internalOut.obj) is not scheduled yet")
+
             assert depObj.realization is not None, (depObj, "realization should be resolved in ASAP")
             depT = None
             for idou in depObj.usedBy[dep.out_i]:
@@ -250,15 +256,18 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregateTmpForScheduling):
                 elif depT - depObj.inputWireDelay[0] <= clkBoundaryTime:
                     # can not fit this node inside current clock cycle
                     newClkBeginBoundary = indexOfClkPeriod(depT, clkPeriod) * clkPeriod
-                    depObj._setScheduleZeroTimeSingleClock(min(clkBoundaryTime - ffdelay, depT))  # move to start of clock cycle - ffdealy
+                    # move to start of clock cycle - ffdealy
+                    depObj._setScheduleZeroTimeSingleClock(min(clkBoundaryTime - ffdelay, depT))
                     # all uses known and time crossing clock boundary, start a new cluster from this output
-                    self.scheduleAlapCompactionForOutput(dep, newClkBeginBoundary,
-                                                             SetList(), outputMinUseTimeGetter, excludeNode)
+                    self.scheduleAlapCompactionForOutput(
+                        dep, newClkBeginBoundary,
+                        SetList(), outputMinUseTimeGetter, excludeNode)
                 else:
                     # somewhere inside clock cycle, no need to modify time
                     depObj._setScheduleZeroTimeSingleClock(depT)
-                    self.scheduleAlapCompactionForOutput(dep, clkBoundaryTime,
-                                                             currentInputs, outputMinUseTimeGetter, excludeNode)
+                    self.scheduleAlapCompactionForOutput(
+                        dep, clkBoundaryTime,
+                        currentInputs, outputMinUseTimeGetter, excludeNode)
 
     @override
     def scheduleAlapCompaction(self,
@@ -291,34 +300,45 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregateTmpForScheduling):
 
         self.resetScheduling()
         for oPort in self._outputsInside:
-            assert not any(oPort.scheduleAlapCompaction(endOfLastClk, outputMinUseTimeGetter, excludeNode)), (
+            assert not any(
+                oPort.scheduleAlapCompaction(endOfLastClk, outputMinUseTimeGetter, excludeNode)
+                ), (
                 oPort, "Should only copy times from uses")
 
         for outerO, oPort in zip(self._outputs, self._outputsInside):
             o: HlsNetNodeOut = oPort.dependsOn[0]
             insideClusterUses = o.obj.usedBy[o.out_i]
-            if len(insideClusterUses) == 1:
-                assert insideClusterUses[0] is oPort._inputs[0], (oPort, insideClusterUses)
-                # this is just output to outside, copy timing from outside input
-                t = oPort.scheduledIn[0]
-                if outputMinUseTimeGetter is not None:
-                    t = outputMinUseTimeGetter(outerO, t)
+            if len(insideClusterUses) != 1:
+                # run only if driver of this output is connected to node which is connected
+                # sorely to this output
+                continue
 
-                assert len(o.obj.usedBy) == 1, ("Should be only bitwise operator with a single output", o)
-                self.resolveSubnodeRealization(o.obj, len(o.obj._inputs))
-                clkStartBoundary = indexOfClkPeriod(t, clkPeriod) * clkPeriod
-                if t - o.obj.inputWireDelay[0] <= clkStartBoundary:
-                    t = clkStartBoundary - ffdelay
-                    clkStartBoundary -= clkPeriod
+            if o.obj.scheduledOut is not None:
+                # output is scheduled, this may happen if some other port translated
+                # some expression which is subexpression of "o"
+                continue
+                
+            assert insideClusterUses[0] is oPort._inputs[0], (oPort, insideClusterUses)
+            # this is just output to outside, copy timing from outside input
+            t = oPort.scheduledIn[0]
+            if outputMinUseTimeGetter is not None:
+                t = outputMinUseTimeGetter(outerO, t)
 
-                o.obj._setScheduleZeroTimeSingleClock(t)
+            assert len(o.obj.usedBy) == 1, ("Should be only bitwise operator with a single output", o)
+            self.resolveSubnodeRealization(o.obj, len(o.obj._inputs))
+            clkStartBoundary = indexOfClkPeriod(t, clkPeriod) * clkPeriod
+            if t - o.obj.inputWireDelay[0] <= clkStartBoundary:
+                t = clkStartBoundary - ffdelay
+                clkStartBoundary -= clkPeriod
 
-                # set time for all dependencies in this cluster as last as possible
-                self.scheduleAlapCompactionForOutput(o,
-                                                     clkStartBoundary,
-                                                     SetList(),
-                                                     outputMinUseTimeGetter,
-                                                     excludeNode)
+            o.obj._setScheduleZeroTimeSingleClock(t)
+
+            # set time for all dependencies in this cluster as last as possible
+            self.scheduleAlapCompactionForOutput(o,
+                                                 clkStartBoundary,
+                                                 SetList(),
+                                                 outputMinUseTimeGetter,
+                                                 excludeNode)
 
         self.copySchedulingFromChildren()
         for inT, dep in zip(self.scheduledIn, self.dependsOn):
