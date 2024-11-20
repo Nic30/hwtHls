@@ -132,6 +132,7 @@ py3.extension_module(
      'Transforms/LoopFlattenUsingIfPass.cpp',
      'Transforms/LoopRotationNormalizationPass.cpp',
      'Transforms/overwriteBlockNamesPass.cpp',
+     'Transforms/PromoteAllocaToGlobalPass.cpp',
      'Transforms/PruneLoopPhiDeadIncomingValuesPass/PruneLoopPhiDeadIncomingValuesPass.cpp',
      'Transforms/PruneLoopPhiDeadIncomingValuesPass/KnownValue.cpp',
      'Transforms/ReconfigureHwtFpgaTTIPass.cpp',
