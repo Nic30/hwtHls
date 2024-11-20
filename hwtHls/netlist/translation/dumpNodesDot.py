@@ -291,9 +291,16 @@ class HwtHlsNetlistToGraphviz():
         else:
             clkPeriod: SchedTime = node.netlist.normalizedClkPeriod
             if isinstance(node, HlsNetNodeAggregatePortIn):
-                outerTime = node.parent.scheduledIn[node.parentIn.in_i]
+                if node.parent.scheduledIn is None:
+                    outerTime = None
+                else:
+                    outerTime = node.parent.scheduledIn[node.parentIn.in_i]
+                
             elif isinstance(node, HlsNetNodeAggregatePortOut):
-                outerTime = node.parent.scheduledOut[node.parentOut.out_i]
+                if node.parent.scheduledOut is None:
+                    outerTime = None
+                else:
+                    outerTime = node.parent.scheduledOut[node.parentOut.out_i]
             else:
                 outerTime = None
 
