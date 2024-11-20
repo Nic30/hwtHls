@@ -261,6 +261,7 @@ void PHIValueProover::knownBits_insert(const KnownBitRangeInfo &kbri) {
 			// must split kbri
 			knownBits_insertSameSize(firstOverlappingKbri,
 					kbri.slice(0, curWidth));
+			// continue with leftover of kbri
 			knownBits_insert(kbri.slice(curWidth, kbri.width - curWidth));
 		} else {
 			assert(kbri.width < curWidth);
@@ -286,6 +287,8 @@ void PHIValueProover::knownBits_splitItem(KnownBitsIteraor knownBitsItem,
 	size_t originalWidth = knownBitsItem->width;
 	if (originalWidth == newWidthOfLeft)
 		return;
+
+	size_t knownBitsItemBitIndex = knownBitsItem - knownBits.begin();
 	assert(originalWidth > newWidthOfLeft);
 
 	// split this item,
@@ -300,13 +303,25 @@ void PHIValueProover::knownBits_splitItem(KnownBitsIteraor knownBitsItem,
 		knownBitsItem->currentValue = knownBitsItem->currentValue.value().slice(
 				0, newWidthOfLeft);
 	}
+	// generate new users/phiDeps for secondPart which was just cut of knownBitsItem
+	for (auto uOff : knownBitsItem->users) {
+		secondPart->users.insert(uOff + newWidthOfLeft);
+	}
+	for (auto uDep : knownBitsItem->phiDeps) {
+		secondPart->phiDeps.insert(uDep + newWidthOfLeft);
+	}
+	assert(!knownBitsItem->users.contains(knownBitsItemBitIndex));
+	// the transitive enclosure of splitting must be computed
+	// the problem is that this knownBitsItem will be split during the computation
+	// that means that also newly generated items will have to be updated as well
 	for (auto uOff : knownBitsItem->users) {
 		knownBits_splitItem(knownBits.begin() + uOff, newWidthOfLeft);
+		assert(knownBitsItem->width == newWidthOfLeft);
 	}
 	for (auto uDep : knownBitsItem->phiDeps) {
 		knownBits_splitItem(knownBits.begin() + uDep, newWidthOfLeft);
+		assert(knownBitsItem->width == newWidthOfLeft);
 	}
-
 }
 
 VarBitConstraint PHIValueProover::resolve() {

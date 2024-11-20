@@ -92,6 +92,7 @@ protected:
 	// if value is of non int type the mask wit 1 bit is used
 
 	VarBitConstraint& visitPHINode(const llvm::PHINode *I);
+	// this function is called for every value which can not be dissolved
 	VarBitConstraint& visitAsAllInputBitsUsedAllOutputBitsKnown(
 			const llvm::Value *V);
 	VarBitConstraint& visitInstruction(const llvm::Instruction *I);

@@ -7,16 +7,16 @@
 namespace hwtHls {
 
 /**
- * This class can used to discover if PHINode bits contain some specific value
+ * This class can be used to discover if PHINode bits contain some specific value
  *
- * We can not simply loop at the operands and check for matching bits as in case of SelectInst
+ * We can not simply loop at the operands and check for matching bits as in the case of SelectInst
  * because PHI may use itself with arbitrary shift.
  * This complicates the prove of some bits having some exact value because
  * values may rotate in PHI.
  *
  * We have to build an info about which possible values may appear on each bit from every input value.
  * First we initialize it with replacement values from all input values.
- * Then we iteratively propagate values to bit which are using them until total PHI value
+ * Then we iteratively propagate values to bits which are using them until total PHI value
  * does not change or we know that every bit may have multiple values
  * (The PHI itself, no matter the slice, is not counted in this number) and thus it can not be extracted.
  */
@@ -48,8 +48,12 @@ protected:
 		ValueInfo(const llvm::PHINode *phi, const KnownBitRangeInfo &kbri);
 	};
 	// vector of size of width with record for all bits in phi
+	// :note: items with width==0 are placeholder and if item width!=0 it means that width-items after this are placeholders
+	// :note: the placeholder items are there so it is safe to iterate vector during update
 	std::vector<ValueInfo> knownBits;
+
 	using KnownBitsIteraor = typename std::vector<ValueInfo>::iterator;
+
 	// append to knownToBe item under valInfoIt
 	// :attention: This updates flags in ValueInfo and may add items into knownToBe
 	void knownBits_insertSameSize(KnownBitsIteraor valInfoIt,
@@ -73,12 +77,17 @@ public:
 
 	bool consistencyCheck() const;
 	void print(llvm::raw_ostream &O, bool IsForDebug = false) const;
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+	void dump() const;
+#endif
 };
 
 }
-
+namespace llvm {
 inline llvm::raw_ostream& operator<<(llvm::raw_ostream &OS,
 		const hwtHls::PHIValueProover &V) {
 	V.print(OS);
 	return OS;
+}
 }
