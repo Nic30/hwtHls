@@ -6,8 +6,12 @@
 #include <llvm/Analysis/TargetLibraryInfo.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Transforms/InstCombine/InstCombine.h>
-#include <llvm/Transforms/Scalar/NewGVN.h>
+//#include <llvm/Transforms/Scalar/NewGVN.h>
+#include <llvm/Transforms/Scalar/GVN.h>
 #include <llvm/IR/Dominators.h>
+
+#include <llvm/Analysis/AssumptionCache.h>
+#include <llvm/Analysis/MemorySSA.h>
 
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/targets/intrinsic/concatMemberVector.h>
@@ -19,7 +23,7 @@
 using namespace llvm;
 using namespace std;
 
-//#define DBG_VERIFY_AFTER_EVERY_MODIFICATION
+#define DBG_VERIFY_AFTER_EVERY_MODIFICATION
 
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 #include <hwtHls/llvm/Transforms/utils/irConsistencyChecks.h>
@@ -200,12 +204,21 @@ PreservedAnalyses SlicesMergePass::run(Function &F,
 		}
 		firstRun = false;
 		bool _change = false;
+		// discard all analysis used by NewGVNPass
+		//PreservedAnalyses _PA;
+		//_PA.preserve<AssumptionAnalysis>();
+		//_PA.preserve<DominatorTreeAnalysis>();
+		//_PA.preserve<TargetLibraryAnalysis>();
+		//_PA.preserve<AAManager>();
+		//_PA.preserve<MemorySSAAnalysis>();
+		//AM.invalidate(F, _PA);
 		InstCombinePass ic;
 		auto ICres = ic.run(F, AM);
 		if (!ICres.areAllPreserved()) {
 			_change = true;
 		}
-		NewGVNPass gnv;
+		GVNPass gnv;
+		//NewGVNPass gnv;
 		auto gnvRes = gnv.run(F, AM);
 		if (!gnvRes.areAllPreserved()) {
 			_change = true;

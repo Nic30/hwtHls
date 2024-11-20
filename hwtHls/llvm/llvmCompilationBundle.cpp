@@ -37,7 +37,8 @@
 #include <llvm/Transforms/IPO/ConstantMerge.h>
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/Transforms/Scalar/Reassociate.h>
-#include <llvm/Transforms/Scalar/NewGVN.h>
+// #include <llvm/Transforms/Scalar/NewGVN.h>
+#include <llvm/Transforms/Scalar/GVN.h>
 #include <llvm/Transforms/Scalar/DCE.h>
 #include <llvm/Transforms/Scalar/SCCP.h>
 #include <llvm/Transforms/Scalar/SROA.h>
@@ -140,10 +141,7 @@ LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
 		ctx(), strCtx(), module(new llvm::Module(strCtx.addStringRef(moduleName), ctx)),
 		builder(ctx), main(nullptr), MMIWP(nullptr), VerifyEachPass(VerifyEach), DebugPM(DebugPMCliOpt.getValue()) {
 	// clear all current CLI options
-	llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
-	for (auto &Opt: Map) {
-		Opt.second->reset();
-	}
+	clearCliOpts();
 	Target = &getTheHwtFpgaTarget(); //llvm::TargetRegistry::targets()[0];
 	Level = llvm::OptimizationLevel::O3;
 	EnableO3NonTrivialUnswitching = true;
@@ -452,9 +450,9 @@ void LlvmCompilationBundle::_addCommonPasses(llvm::FunctionPassManager &FPM) {
 			llvm::MergedLoadStoreMotionPass(llvm::MergedLoadStoreMotionOptions(/*SplitFooterBB=*/
 			true)));
 	//if (RunNewGVN)
-	FPM.addPass(llvm::NewGVNPass());
+	// FPM.addPass(llvm::NewGVNPass());
 	//else
-	//  FPM.addPass(GVN());
+	FPM.addPass(llvm::GVNPass());
 	// Sparse conditional constant propagation.
 	// FIXME: It isn't clear why we do this *after* loop passes rather than
 	// before...
