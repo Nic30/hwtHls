@@ -292,7 +292,7 @@ void runDCEOnLoopConditions(
 	}
 }
 
-void rerouteJumpsToLoopHeaderToGuardBlock(llvm::Loop &L, BasicBlock *Guard,
+void rerouteJumpsToLoopHeaderToGuardBlock(llvm::Loop &L, DomTreeUpdater &DTU, MemorySSAUpdater *MSSAU, BasicBlock *Guard,
 		BasicBlock *LoopHeader, BasicBlock *LoopExit,
 		BasicBlock *originalPreHeader,
 		SmallVector<BasicBlock*, 4> &reentrySources) {
@@ -310,6 +310,7 @@ void rerouteJumpsToLoopHeaderToGuardBlock(llvm::Loop &L, BasicBlock *Guard,
 		assert(pred != LoopHeader);
 		assert(pred != LoopExit);
 	}
+	SmallVector<DominatorTree::UpdateType, 2> Updates;
 
 	for (BasicBlock *HeaderPred : make_early_inc_range(predecessors(LoopHeader))) {
 		if (HeaderPred != Guard && HeaderPred != originalPreHeader
@@ -319,6 +320,16 @@ void rerouteJumpsToLoopHeaderToGuardBlock(llvm::Loop &L, BasicBlock *Guard,
 					[HeaderPred](BasicBlock *BB) {
 						return BB == HeaderPred;
 					});
+
+			Updates.push_back( { DominatorTree::Delete, HeaderPred, LoopHeader });
+			Updates.push_back( { DominatorTree::Insert, HeaderPred, Guard });
+			// DTU, MSSAU update as done in llvm::splitBlockBefore
+			DTU.applyUpdates(Updates);
+			DTU.flush();
+			if (MSSAU) {
+				MSSAU->applyUpdates(Updates, DTU.getDomTree());
+			}
+			Updates.clear();
 
 			HeaderPred->getTerminator()->eraseFromParent();
 
@@ -470,7 +481,7 @@ struct LoopAnalysisResultIfDoWhile {
  *
  * */
 void rewriteGuardedDoWhileToWhile(llvm::Loop *L, LoopInfo &LI,
-		TargetLibraryInfo &TLI, ScalarEvolution *SE, llvm::LPMUpdater &LPMU,
+		TargetLibraryInfo &TLI, ScalarEvolution *SE, DomTreeUpdater &DTU, MemorySSAUpdater *MSSAU, llvm::LPMUpdater &LPMU,
 		LoopAnalysisResultIfDoWhile &analysisRes) {
 	auto origL = L;
 	auto *originalPreHeader = moveGuardAndGuardExitBlocksToLoop(&L, LI, SE,
@@ -494,7 +505,7 @@ void rewriteGuardedDoWhileToWhile(llvm::Loop *L, LoopInfo &LI,
 		OriginalGuardPredecessors.push_back(Pred);
 	}
 	SmallVector<BasicBlock*, 4> reentrySources;
-	rerouteJumpsToLoopHeaderToGuardBlock(*L, analysisRes.Guard,
+	rerouteJumpsToLoopHeaderToGuardBlock(*L, DTU, MSSAU, analysisRes.Guard,
 			analysisRes.LoopHeader, analysisRes.LoopExit, originalPreHeader,
 			reentrySources);
 
@@ -532,7 +543,18 @@ void rewriteGuardedDoWhileToWhile(llvm::Loop *L, LoopInfo &LI,
 	//auto LExit = LI.getLoopFor(LoopExit);
 	//if (LExit)
 	//	LI.removeBlock(LoopExit);
-	analysisRes.LoopExit->eraseFromParent();
+	if (MSSAU) {
+		SmallSetVector<BasicBlock *, 8> removedBlocks;
+		removedBlocks.insert(analysisRes.LoopExit);
+		MSSAU->removeBlocks(removedBlocks);
+	}
+	DTU.deleteBB(analysisRes.LoopExit);
+	DTU.flush();
+    if (SE) {
+      // Merging blocks may remove blocks reference in the block disposition cache. Clear the cache.
+      SE->forgetBlockAndLoopDispositions();
+    }
+	// analysisRes.LoopExit->eraseFromParent(); // done in DTU.deleteBB
 	//L->verifyLoop();
 
 	if (origL == L) {
@@ -713,9 +735,16 @@ bool LoopRotationNormalizationPass::processLoop(llvm::Loop &L, llvm::LoopStandar
 			writeCFGToDotFile(*L.getHeader()->getParent(), DEBUG_TYPE "." + std::to_string(dbgCntr++) + ".dot",
 					AR.BFI, AR.BPI);
 #endif
+
 	if (analysis.has_value()) {
 		LoopAnalysisResultIfDoWhile &analysisRes = analysis.value();
-		rewriteGuardedDoWhileToWhile(&L, AR.LI, AR.TLI, &AR.SE, LPMU,
+#ifdef DEBUG_DUMP_CFG_AFTER_EACH_STEP
+		writeCFGToDotFile(F, DEBUG_TYPE "." + std::to_string(dbgCntr++) + ".unrotate-before.dot", AR.BFI, AR.BPI);
+		if (verifyFunction(F, &errs())) {
+			throw std::runtime_error("Function broken by LoopRotationNormalizationPass");
+		}
+#endif
+		rewriteGuardedDoWhileToWhile(&L, AR.LI, AR.TLI, &AR.SE, DTU, MSSAU, LPMU,
 				analysisRes);
 		Changed = true;
 #ifdef DEBUG_DUMP_CFG_AFTER_EACH_STEP
@@ -739,7 +768,7 @@ bool LoopRotationNormalizationPass::processLoop(llvm::Loop &L, llvm::LoopStandar
 						DefaultRotationThreshold : 0;
 		const DataLayout &DL = L.getHeader()->getModule()->getDataLayout();
 		const SimplifyQuery SQ = getBestSimplifyQuery(AR, DL);
-
+		DTU.flush();
 		Changed |= LoopRotation(&L, &AR.LI, &AR.TTI, &AR.AC, &AR.DT, &AR.SE,
 				MSSAU, SQ, false, Threshold, false, PrepareForLTO);
 #ifdef DEBUG_DUMP_CFG_AFTER_EACH_STEP
@@ -763,6 +792,7 @@ bool LoopRotationNormalizationPass::processLoop(llvm::Loop &L, llvm::LoopStandar
 llvm::PreservedAnalyses LoopRotationNormalizationPass::run(llvm::Loop &L,
 		llvm::LoopAnalysisManager &AM, llvm::LoopStandardAnalysisResults &AR,
 		llvm::LPMUpdater &U) {
+	assert(!AR.BFI && !AR.BPI && "NotImplemented");
 	std::optional<MemorySSAUpdater> MSSAU;
 	if (AR.MSSA)
 		MSSAU = MemorySSAUpdater(AR.MSSA);
@@ -775,6 +805,8 @@ llvm::PreservedAnalyses LoopRotationNormalizationPass::run(llvm::Loop &L,
 	for (auto &L0 : AR.LI) {
 		L0->verifyLoop();
 	}
+	DTU.flush();
+	AR.DT.verify();
 
 	//AR.LI.verify(AR.DT);
 	//AR.SE.verify();

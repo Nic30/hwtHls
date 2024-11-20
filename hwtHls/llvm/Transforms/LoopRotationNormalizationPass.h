@@ -74,8 +74,8 @@ namespace hwtHls {
  * */
 class LoopRotationNormalizationPass: public llvm::PassInfoMixin<LoopRotationNormalizationPass> {
 public:
-	LoopRotationNormalizationPass() :
-			dbgCntr(0) {
+	LoopRotationNormalizationPass(size_t dbgCntrInitValue=0) :
+			dbgCntr(dbgCntrInitValue) {
 	}
 	llvm::PreservedAnalyses run(llvm::Loop &L, llvm::LoopAnalysisManager &AM,
 			llvm::LoopStandardAnalysisResults &AR, llvm::LPMUpdater &U);
