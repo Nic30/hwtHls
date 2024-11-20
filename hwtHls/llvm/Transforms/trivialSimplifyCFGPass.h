@@ -22,8 +22,11 @@ namespace hwtHls {
 class TrivialSimplifyCFGPass: public llvm::PassInfoMixin<
 TrivialSimplifyCFGPass> {
 	bool pruneSinglePredSingleSucBlocks;
+	bool allowPhiNewIncommingValues; // allow to add new incoming values for PHIs
+		// this option is dangerous in general case because it may result in loop header blocks being
+	    // merged with to block with PHIs with many incoming values which is then hard to optimize.
 public:
-	TrivialSimplifyCFGPass(bool pruneSinglePredSingleSucBlocks);
+	TrivialSimplifyCFGPass(bool pruneSinglePredSingleSucBlocks, bool allowPhiNewIncommingValues);
 	llvm::PreservedAnalyses run(llvm::Function &F,
 			llvm::FunctionAnalysisManager &AM);
 };

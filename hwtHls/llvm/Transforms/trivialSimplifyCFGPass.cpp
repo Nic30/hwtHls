@@ -66,6 +66,7 @@ bool tryRemoveSingleSuccessorSinglePredecessorBlock(BasicBlock *BB,
 }
 bool tryRemoveSingleSuccessorManyPredecessorBlock(BasicBlock *BB,
 		BasicBlock *SucBB, llvm::SmallSetVector<BasicBlock*, 16> &WorkList) {
+
 	SmallVector<PHINode*, 4> alreadyHasTheValueInPhis;
 	for (PHINode &SucPhi : SucBB->phis()) {
 		for (auto *SucPredBB : SucPhi.blocks()) {
@@ -125,7 +126,7 @@ bool tryRemoveSingleSuccessorManyPredecessorBlock(BasicBlock *BB,
 
 }
 
-bool tryRemoveSingleSuccessorBlock(BasicBlock *BB,
+bool tryRemoveSingleSuccessorBlock(const bool allowPhiNewIncommingValues, BasicBlock *BB,
 		llvm::SmallSetVector<BasicBlock*, 16> &WorkList) {
 	auto *SucBB = BB->getSingleSuccessor();
 	if (!SucBB)
@@ -150,29 +151,58 @@ bool tryRemoveSingleSuccessorBlock(BasicBlock *BB,
 				SucBB, WorkList);
 	} else if (BB->hasNPredecessors(0)) {
 		return false;
-	} else {
-
+	} else if (allowPhiNewIncommingValues || SucBB->phis().empty()) {
 		return tryRemoveSingleSuccessorManyPredecessorBlock(BB, SucBB, WorkList);
 	}
+	return false;
 }
 
 bool trySimplifyTerminator(BasicBlock &BB,
 		llvm::SmallSetVector<BasicBlock*, 16> &worklist) {
-	if (auto br = dyn_cast<BranchInst>(BB.getTerminator())) {
-		if (br->isConditional() && br->getSuccessor(0) == br->getSuccessor(1)) {
-			// br c, bb0, bb0 -> br bb0
-			IRBuilder<> Builder(br);
-			auto *newBr = Builder.CreateBr(br->getSuccessor(0));
-			scavengeTerminatorMetadata(br, newBr);
-			br->eraseFromParent();
-			return true;
+	auto Term = BB.getTerminator();
+	if (!Term) {
+		throw std::runtime_error("AssertionError: Each block must have terminator");
+	}
+	if (auto br = dyn_cast<BranchInst>(Term)) {
+		if (br->isConditional()) {
+			int _newSuc = -1;
+			int _sucToRm = -1;
+			if (br->getSuccessor(0) == br->getSuccessor(1)) {
+				// br c, bb0, bb0 -> br bb0
+				_newSuc = 0;
+				_sucToRm = 1;
+			} else if (auto C = dyn_cast<ConstantInt>(br->getCondition())) {
+				if (C->getZExtValue()) {
+					// br 1, bb0, bb1 -> br bb0
+					_newSuc = 0;
+					_sucToRm = 1;
+				} else {
+					// br 0, bb0, bb1 -> br bb1
+					_newSuc = 1;
+					_sucToRm = 0;
+				}
+			}
+			BasicBlock* NewSuc = _newSuc == -1 ? nullptr: br->getSuccessor(_newSuc);
+			if (NewSuc != nullptr) {
+				IRBuilder<> Builder(br);
+				auto *newBr = Builder.CreateBr(NewSuc);
+				scavengeTerminatorMetadata(br, newBr);
+				br->eraseFromParent();
+
+				assert(_sucToRm == 0 || _sucToRm == 1);
+				BasicBlock* sucToRm = br->getSuccessor(_sucToRm);
+				for (PHINode& PHI: make_early_inc_range(sucToRm->phis())) {
+					PHI.removeIncomingValue(&BB, true);
+				}
+				return true;
+			}
 		}
 	}
 	return false;
 }
 TrivialSimplifyCFGPass::TrivialSimplifyCFGPass(
-		bool pruneSinglePredSingleSucBlocks) :
-		pruneSinglePredSingleSucBlocks(pruneSinglePredSingleSucBlocks) {
+		bool pruneSinglePredSingleSucBlocks, bool allowPhiNewIncommingValues) :
+		pruneSinglePredSingleSucBlocks(pruneSinglePredSingleSucBlocks), allowPhiNewIncommingValues(allowPhiNewIncommingValues) {
 }
 llvm::PreservedAnalyses TrivialSimplifyCFGPass::run(llvm::Function &F,
 		llvm::FunctionAnalysisManager &AM) {
@@ -194,7 +224,7 @@ llvm::PreservedAnalyses TrivialSimplifyCFGPass::run(llvm::Function &F,
 			Changed = true;
 		}
 		if (pruneSinglePredSingleSucBlocks)
-			Changed |= tryRemoveSingleSuccessorBlock(BB, WorkList);
+			Changed |= tryRemoveSingleSuccessorBlock(allowPhiNewIncommingValues, BB, WorkList);
 	}
 	if (Changed) {
 		PreservedAnalyses PA;
