@@ -122,6 +122,7 @@ py3.extension_module(
      'Transforms/bitwidthReducePass/utils.cpp',
      'Transforms/SelectPruningPass.cpp',
      'Transforms/StripProfMetadataPass.cpp',
+     'Transforms/TmpAllocaLoweringPass.cpp',
      'Transforms/slicesToIndependentVariablesPass/detectSplitPoints.cpp',
      'Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.cpp',
      'Transforms/extractBitConcatAndSliceOpsPass.cpp',
