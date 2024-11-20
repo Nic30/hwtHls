@@ -14,6 +14,7 @@ from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
 
 
 class HlsNetlistAnalysisPassIoDiscover(HlsNetlistAnalysisPass):
@@ -51,7 +52,7 @@ class HlsNetlistAnalysisPassIoDiscover(HlsNetlistAnalysisPass):
             if i is None:
                 continue
 
-            assert isinstance(i, (RtlSignalBase, HwIOBase, MultiPortGroup, BankedPortGroup)), (i, op)
+            assert isinstance(i, (RtlSignalBase, HwIOBase, MultiPortGroup, BankedPortGroup, MemoryAllocationMeta)), (i, op)
             opList = ioByInterface.get(i, None)
             if opList is None:
                 opList = ioByInterface[i] = SetList()
@@ -64,7 +65,7 @@ class HlsNetlistAnalysisPassIoDiscover(HlsNetlistAnalysisPass):
             i = op.dst
             if i is None:
                 continue
-            assert isinstance(i, (tuple, RtlSignalBase, HwIOBase, MultiPortGroup, BankedPortGroup)), (i, op)
+            assert isinstance(i, (tuple, RtlSignalBase, HwIOBase, MultiPortGroup, BankedPortGroup, MemoryAllocationMeta)), (i, op)
             opList = ioByInterface.get(i, None)
             if opList  is None:
                 opList = ioByInterface[i] = SetList()
