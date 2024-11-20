@@ -1,5 +1,7 @@
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamReadLoweringPass.h>
 #include <algorithm>
+#include <sstream>
+
 #include <llvm/ADT/SetVector.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
@@ -248,9 +250,21 @@ void StreamReadRewriter::_rewriteAdtAccessToWordAccessInstruction(
 		bool isStart = read != nullptr && IsStreamReadStartOfFrame(read);
 		if (isStart) {
 			if (possibleOffsets.size() != 1) {
-				// read words to satisfy initial offset
-				throw std::runtime_error(
-						"Use first word mask to resolve the offsetVar");
+				if (possibleOffsets.empty()) {
+					throw std::runtime_error(
+							"Can not find any offset of of which the frame may start");
+				} else {
+					std::string err;
+					std::stringstream ss(err);
+					ss << "Use first word mask to resolve the offsetVar, possibleOffsets: [";
+					for (size_t off: possibleOffsets) {
+						ss << off << ", ";
+					}
+					ss << "]";
+
+					// read words to satisfy initial offset
+					throw std::runtime_error(ss.str());
+				}
 			} else {
 				IRBuilder<> builder(read);
 				streamProps.setOffsetVar(builder, possibleOffsets[0]);
