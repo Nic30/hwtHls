@@ -1,6 +1,5 @@
 from typing import Union, Optional, Generator, Tuple
 
-from hwt.constants import NOT_SPECIFIED
 from hwt.hwIO import HwIO
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
@@ -8,7 +7,6 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn
 from hwtHls.netlist.nodes.readIndexed import HlsNetNodeReadIndexed
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.ssa.value import SsaValue
 
 
 class HlsNetNodeWriteIndexed(HlsNetNodeWrite):
@@ -16,7 +14,7 @@ class HlsNetNodeWriteIndexed(HlsNetNodeWrite):
     Same as :class:`~.HlsNetNodeWrite` but for memory mapped interfaces with address or index.
     """
 
-    def __init__(self, netlist:"HlsNetlistCtx", dst:Union[RtlSignal, HwIO, SsaValue],
+    def __init__(self, netlist:"HlsNetlistCtx", dst:Union[RtlSignal, HwIO],
                  mayBecomeFlushable=False,
                  name:Optional[str]=None,
                  addSrcPort=True):
@@ -42,9 +40,7 @@ class HlsNetNodeWriteIndexed(HlsNetNodeWrite):
                 yield i
 
     def __repr__(self, minify=False):
-        src = self.src
-        if src is NOT_SPECIFIED:
-            src = self.dependsOn[0]
+        src = self.dependsOn[0]
         dstName = self._getInterfaceName(self.dst)
         if minify:
             return (f"<{self.__class__.__name__:s}{'' if self._isBlocking else ' NB'} {self._id:d}{' ' + self.name if self.name else ''}"

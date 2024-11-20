@@ -1,5 +1,6 @@
 from typing import Union, Optional, Tuple, Generator, List
 
+from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
@@ -14,8 +15,8 @@ class HlsNetNodeReadIndexed(HlsNetNodeRead):
     Same as :class:`~.HlsNetNodeRead` but for memory mapped interfaces with address or index.
     """
 
-    def __init__(self, netlist:"HlsNetlistCtx", src:Union[RtlSignal, HwIO], name:Optional[str]=None):
-        HlsNetNodeRead.__init__(self, netlist, src, name=name)
+    def __init__(self, netlist:"HlsNetlistCtx", src:Union[RtlSignal, HwIO], dtype: Optional[HdlType]=None, name:Optional[str]=None):
+        HlsNetNodeRead.__init__(self, netlist, src, dtype=dtype, name=name)
         self.indexes = [self._addInput("index0"), ]
 
     @override
