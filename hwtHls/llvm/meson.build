@@ -147,6 +147,7 @@ py3.extension_module(
      'Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass.cpp',
      'Transforms/SimplifyCFG2Pass/SimplifyCFGUtils.cpp',
      'Transforms/trivialSimplifyCFGPass.cpp',
+     'Transforms/SimpleConstEvalPass.cpp',
      'Transforms/slicesMerge/rewritePhiShift.cpp',
      'Transforms/slicesMerge/rewriteConcat.cpp',
      'Transforms/slicesMerge/slicesMerge.cpp',
