@@ -7,7 +7,8 @@ from hwt.hwModule import HwModule
 from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.analysis.fsmStateEncoding import HlsAndRtlNetlistAnalysisPassFsmStateEncoding
 from hwtHls.architecture.transformation.hlsAndRtlNetlistPass import HlsAndRtlNetlistPass
-from hwtHls.code import OP_LSHR, OP_ASHR, OP_SHL, OP_CTLZ, OP_ZEXT
+from hwtHls.code import OP_LSHR, OP_ASHR, OP_SHL, OP_CTLZ, OP_ZEXT, OP_FSHL, \
+    OP_FSHR, OP_ROL, OP_ROR
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement
@@ -23,7 +24,6 @@ from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
 from hwtSimApi.constants import Time
 from hwtSimApi.utils import period_to_freq
-
 
 HwModuleHwIoForNodePortGetter = Callable[[HlsNetNodeOperator, HwModule], Sequence[HwIO]]
 
@@ -104,25 +104,76 @@ class HlsAndRtlNetlistPassOperatorToHwtLowering(HlsAndRtlNetlistPass):
         assert isinstance(n, HlsNetNodeOperator) and n.operator == HwtOps.CONCAT, n
         return True
 
+    @staticmethod
+    def _assertIsConcatAnyShiftOrIndex(n: HlsNetNode):
+        assert isinstance(n, HlsNetNodeOperator) and n.operator in (HwtOps.CONCAT, HwtOps.INDEX, OP_LSHR, OP_ASHR, OP_SHL, OP_ROL, OP_ROR), n
+        return True
+
+    def _replaceNodeWithExpression(self, n: HlsNetNodeOperator, newO: HlsNetNodeOut, newNodeCnt: int, newNodeTypeCheckFn: Callable[[HlsNetNode], bool]):
+        parent: ArchElement = n.parent
+        netlist = n.netlist
+        clkI = n.scheduledZero // netlist.normalizedClkPeriod
+        newlyScheduledNodes = asapSchedulePartlyScheduled(newO, newNodeTypeCheckFn, beginOfFirstClk=n.scheduledIn[0])
+        assert len(newlyScheduledNodes) == newNodeCnt, newlyScheduledNodes
+        for newNode in newlyScheduledNodes:
+            parent._addNodeIntoScheduled(clkI, newNode)
+
+        builder: HlsNetlistBuilder = n.getHlsNetlistBuilder()
+        builder.replaceOutput(n._outputs[0], newO, True)
+        disconnectAllInputs(n, [])
+        n.markAsRemoved()
+
     def _lower_OP_ZEXT(self, n: HlsNetNodeOperator):
         nodeOut = n._outputs[0]
         paddingWidth = nodeOut._dtype.bit_length() - n.dependsOn[0]._dtype.bit_length()
         assert paddingWidth > 0, n
         builder: HlsNetlistBuilder = n.getHlsNetlistBuilder()
-        netlist = n.netlist
-        parent: ArchElement = n.parent
-        clkI = n.scheduledZero // netlist.normalizedClkPeriod
 
+        # replace with Concat(0, src0)
         padding = builder.buildConst(HBits(paddingWidth).from_py(0))
-        newO = builder.buildOp(HwtOps.CONCAT, None, nodeOut._dtype, (n.dependsOn[0], padding._outputs[0]))
-        newlyScheduledNodes = asapSchedulePartlyScheduled(newO, self._assertIsConcat, beginOfFirstClk=n.scheduledIn[0])
-        assert len(newlyScheduledNodes) == 2, newlyScheduledNodes
-        for newNode in newlyScheduledNodes:
-            parent._addNodeIntoScheduled(clkI, newNode)
+        newO = builder.buildConcat(n.dependsOn[0], padding._outputs[0])
+        self._replaceNodeWithExpression(n, newO, 2, self._assertIsConcat)
 
-        builder.replaceOutput(nodeOut, newO, True)
-        disconnectAllInputs(n, [])
-        n.markAsRemoved()
+    def _lower_OP_FSHL(self, n: HlsNetNodeOperator):
+        src0, src1, sh = n.dependsOn
+        builder: HlsNetlistBuilder = n.getHlsNetlistBuilder()
+        nodeOut = n._outputs[0]
+        isRotateLeft = src0 == src1
+        if isRotateLeft:
+            newO = builder.buildOp(OP_ROL, None, nodeOut._dtype, src0, sh, name=n.name)
+            newNodeCnt = 1
+        else:
+            # (Concat(src0, src1) << sh)[:width]
+            newConc = builder.buildConcat(src1, src0)  # lowest bits first
+            newShVal = builder.buildOp(OP_SHL, None, newConc._dtype, (newConc, sh))
+            width0 = src0._dtype.bit_length()
+            width1 = src1._dtype.bit_length()
+            _worklist = []
+            newO = builder.buildIndexConstSlice(nodeOut._dtype, newShVal, width0 + width1, width1, _worklist, None, name=n.name)
+            assert not _worklist
+            newNodeCnt = 3
+
+        self._replaceNodeWithExpression(n, newO, newNodeCnt, self._assertIsConcatAnyShiftOrIndex)
+
+    def _lower_OP_FSHR(self, n: HlsNetNodeOperator):
+        src0, src1, sh = n.dependsOn
+        builder: HlsNetlistBuilder = n.getHlsNetlistBuilder()
+        nodeOut = n._outputs[0]
+        isRotateRight = src0 == src1
+        if isRotateRight:
+            newO = builder.buildOp(OP_ROR, None, nodeOut._dtype, src0, sh, name=n.name)
+            newNodeCnt = 1
+        else:
+            # (Concat(src1, src0) >> sh)[width:]
+            newConc = builder.buildConcat(src0, src1)  # lowest bits first
+            newShVal = builder.buildOp(OP_LSHR, None, newConc._dtype, (newConc, sh))
+            width0 = src0._dtype.bit_length()
+            _worklist = []
+            newO = builder.buildIndexConstSlice(nodeOut._dtype, newShVal, width0, 0, _worklist, None, name=n.name)
+            assert not _worklist
+            newNodeCnt = 3
+
+        self._replaceNodeWithExpression(n, newO, newNodeCnt, self._assertIsConcatAnyShiftOrIndex)
 
     @override
     def runOnHlsNetlistImpl(self, netlist:HlsNetlistCtx) -> PreservedAnalysisSet:
@@ -141,6 +192,10 @@ class HlsAndRtlNetlistPassOperatorToHwtLowering(HlsAndRtlNetlistPass):
                 elif n.operator == OP_CTLZ:
                     opModule, inGetter, outGetter = self._createHwModule_OP_CTLZ(n)
                     self._replaceHlsNetNodeOperatorWithHwModule(compBuilder, n, opModule, inGetter, outGetter)
+                elif n.operator == OP_FSHL:
+                    self._lower_OP_FSHL(n)
+                elif n.operator == OP_FSHR:
+                    self._lower_OP_FSHR(n)
                 else:
                     raise NotImplementedError(n)
                 changed = True
