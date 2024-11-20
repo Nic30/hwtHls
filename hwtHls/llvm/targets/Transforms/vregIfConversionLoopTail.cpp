@@ -45,23 +45,38 @@ bool VRegIfConverter::ValidLoopTail(BBInfo &BBI, BBInfo &SuccBBI,
 	Dups = 0;
 	if (!SuccBBI.IsBrAnalyzable)
 		return false; // can not be merge tail if main loop body can not be analyzed
-
+	auto tail = BBI.BB;
+	auto head = SuccBBI.BB;
 	// SuccBBI successor of BBI and also potential predecessor and head of the loop
-	if (BBI.BB->pred_size() != 1 || !SuccBBI.BB->isSuccessor(BBI.BB))
+	if (tail->pred_size() != 1 || !head->isSuccessor(tail))
 		return false;
 
-	MachineBasicBlock *SuccBBIFalse = findFalseBlock(SuccBBI.BB,
-			SuccBBI.TrueBB);
-	if (SuccBBI.TrueBB == BBI.BB) {
+	MachineBasicBlock *SuccBBIFalse = findFalseBlock(head, SuccBBI.TrueBB);
+	MachineBasicBlock *BBIFalse = findFalseBlock(tail, BBI.TrueBB);
+	if (SuccBBI.TrueBB == tail) { // check for loop head jump to BB
 		HeadCondRev = false;
-		if (SuccBBIFalse != OtherSuccBBI.BB)
+		if (SuccBBIFalse != OtherSuccBBI.BB) // check that loop head jumps to FBB
 			return false;
+		// check that other successor of BB is FBB
+		if (BBIFalse) {
+			if (!((BBI.TrueBB == head && BBIFalse == SuccBBIFalse)
+					|| (BBI.TrueBB == SuccBBIFalse && BBIFalse == head))) {
+				return false;
+			}
+		}
 
 	} else {
+		assert(SuccBBIFalse == tail);
 		HeadCondRev = true;
-		assert(SuccBBIFalse == BBI.BB);
-		if (SuccBBI.TrueBB != OtherSuccBBI.BB)
+		if (SuccBBI.TrueBB != OtherSuccBBI.BB) // check that loop head jumps to FBB
 			return false;
+		// check that other successor of BB is FBB
+		if (BBIFalse) {
+			if (!((BBI.TrueBB == head && BBIFalse == SuccBBI.TrueBB)
+					|| (BBI.TrueBB == SuccBBI.TrueBB && BBIFalse == head))) {
+				return false;
+			}
+		}
 	}
 
 	return true;

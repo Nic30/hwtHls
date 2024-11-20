@@ -255,8 +255,32 @@ void predicateInstructionUsingDefRegRename(llvm::MachineRegisterInfo &MRI,
 		if (MO.isDef()) {
 			// check if we have to create a temporary register for this define
 			// or if it used only locally
-			if (VRegLiveins.isAnyPredecessorLiveout(MBB, MOReg)
-					&& VRegLiveins.isLiveout(MBB, MOReg)) {
+			//if (MOReg.virtRegIndex() == 58) {
+			//	errs() << "VRegLiveins:\n";
+			//	VRegLiveins.dump();
+			//}
+
+			// :attention: Predicating using extra tmp register may result
+			//  in artificial register live extension which is highly undesired because
+			//  it is hard to detect and remove and it leads to code explosion problems.
+
+			// The register needs to be replaced if there is a possibility that there
+			// is some user which is not predicated in this step (e.g. user is in some other block).
+
+			// There are specific corner cases where the tmp register is no required even if the register has use in other block.
+			// * This block is the only user of this register.
+			// * The register is used elsewhere but each use is dominated by other def.
+
+			// register needs rewrite if it is livein of some sibling or successor block
+			// In other words if MMB does not dominate all uses. But the DominatorTree is not available.
+
+			// * MBB is going to be inlined into predecessor (there may be many)
+			// * predecessor may have multiple successors
+			bool isLatchOfLoop = any_of(MBB.predecessors(), [&MBB](MachineBasicBlock* PredMBB) {
+				return is_contained(MBB.successors(), PredMBB);
+			});
+			if ((VRegLiveins.isAnyPredecessorLiveout(MBB, MOReg) || isLatchOfLoop) &&
+					VRegLiveins.isLiveout(MBB, MOReg)) {
 				// used also outside of this block, must generate new reg
 				if (!curReplacement.has_value()) {
 					// if it was not yet replaced we create a temporary register as a replacement for this
