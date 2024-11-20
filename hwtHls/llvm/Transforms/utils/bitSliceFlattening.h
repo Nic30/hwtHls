@@ -23,8 +23,8 @@ struct ConcatMember {
  * :param widthOfIRes: a number of bits to select from this operand
  * */
 bool collectConcatMembers(llvm::Value *_MI, std::vector<ConcatMember> &members,
-		uint64_t mainOffset, uint64_t mainWidth, uint64_t &currentOffset,
-		uint64_t offsetOfIRes, uint64_t widthOfIRes);
+		uint64_t mainOffset, uint64_t mainWidth, uint64_t &mainOffsetCurrent, uint64_t miResOffset,
+		uint64_t miResWidth);
 
 /*
  * Recursively rewrite BitRangeGet and Concat expression to concatenation of slices (if required)

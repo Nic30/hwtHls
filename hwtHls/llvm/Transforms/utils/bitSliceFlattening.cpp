@@ -9,44 +9,44 @@ namespace hwtHls {
 // for params meaning see collectConcatMembers
 inline bool collectConcatMembersAsItIs(Value *v,
 		std::vector<ConcatMember> &members, uint64_t mainOffset,
-		uint64_t mainWidth, uint64_t &currentOffset, uint64_t offsetOfIRes,
-		uint64_t widthOfIRes) {
+		uint64_t mainWidth, uint64_t &mainOffsetCurrent, uint64_t vOffset,
+		uint64_t vWidth) {
 	size_t unusedPrefixWidth = 0;
 	bool didModify = false;
-	if (mainOffset > currentOffset) {
+	if (mainOffset > mainOffsetCurrent) {
 		didModify = true;
-		unusedPrefixWidth = mainOffset - currentOffset;
-		if (widthOfIRes <= unusedPrefixWidth) {
+		unusedPrefixWidth = mainOffset - mainOffsetCurrent;
+		if (vWidth <= unusedPrefixWidth) {
 			// skipping this member entirely because it is the unused prefix
 			return didModify;
 		}
 		//widthOfIRes -= unusedPrefixWidth;
 		//currentOffset += unusedPrefixWidth;
-		offsetOfIRes += unusedPrefixWidth;
+		vOffset += unusedPrefixWidth;
 	}
 	uint64_t mainEnd = mainOffset + mainWidth;
 	// take slice from this instruction as it is
-	uint64_t bitsToTake = std::min((widthOfIRes - unusedPrefixWidth), /* available in "v"*/
-	mainEnd - currentOffset /*remaining from main requested*/);
+	uint64_t bitsToTake = std::min((vWidth - unusedPrefixWidth), /* available in "v"*/
+	mainEnd - mainOffsetCurrent /*remaining from main requested*/);
 	assert(
 			bitsToTake > 0
 					&& "If it is 0 this function should not be called in the first place");
 
-	currentOffset += widthOfIRes; // this may result in possition behind main slice but it is intended
+	mainOffsetCurrent += vWidth; // this may result in position behind main slice but it is intended
 	// as currentOffset is a position for processing and we processed this member v
 	members.push_back(
-			ConcatMember { v, offsetOfIRes, widthOfIRes, bitsToTake });
+			ConcatMember { v, vOffset, vWidth, bitsToTake });
 	return didModify;
 }
 
 bool collectConcatMembersSlice(llvm::Instruction *ParentI, size_t &subSliceOffset,
 		Value *_src, std::vector<ConcatMember> &members, uint64_t mainOffset,
-		uint64_t mainWidth, uint64_t &currentOffset, uint64_t offsetOfIRes,
-		uint64_t widthOfIRes, bool &didReduce) {
+		uint64_t mainWidth, uint64_t &mainOffsetCurrent, uint64_t vOffset,
+		uint64_t vWidth, bool &didReduce) {
 	uint64_t subSliceResWidth = ParentI->getType()->getIntegerBitWidth();
-	subSliceOffset += offsetOfIRes;
-	if (widthOfIRes > subSliceResWidth) {
-		errs() << *ParentI << " widthOfIRes:" << widthOfIRes << "\n";
+	subSliceOffset += vOffset;
+	if (vWidth > subSliceResWidth) {
+		errs() << *ParentI << " widthOfIRes:" << vWidth << "\n";
 		llvm_unreachable(
 				"extract bits provides value of less bits than expected");
 	}
@@ -67,7 +67,7 @@ bool collectConcatMembersSlice(llvm::Instruction *ParentI, size_t &subSliceOffse
 
 	if (mayContainOtherSlicesAndConcats) {
 		didReduce = collectConcatMembers(_src, members, mainOffset, mainWidth,
-				currentOffset, subSliceOffset, subSliceResWidth)
+				mainOffsetCurrent, subSliceOffset, subSliceResWidth)
 				|| isBitRangeGetOnBitRangeGet;
 		assert(members.size());
 		auto &lastAdded = members.back();
@@ -79,34 +79,34 @@ bool collectConcatMembersSlice(llvm::Instruction *ParentI, size_t &subSliceOffse
 
 bool collectConcatMembersStackConcatMember(llvm::Value *V,
 		std::vector<ConcatMember> &members, uint64_t mainOffset,
-		uint64_t mainWidth, size_t mainEnd, uint64_t &currentOffset,
-		uint64_t &offsetOfIRes, uint64_t widthOfIRes, bool &didReduce,
+		uint64_t mainWidth, size_t mainEnd, uint64_t &mainOffsetCurrent,
+		uint64_t &vOffset, uint64_t vWidth, bool &didReduce,
 		size_t argI, size_t argSize) {
 	// [todo] check if thisMemberOffset is computed correctly for more than 2 operands
 	uint64_t thisMemberOffset = 0;
 	uint64_t width = V->getType()->getIntegerBitWidth();
-	if (offsetOfIRes) {
-		if (offsetOfIRes > width) {
+	if (vOffset) {
+		if (vOffset > width) {
 			thisMemberOffset = width;
-			offsetOfIRes -= width;
+			vOffset -= width;
 			width = 0;
 		} else {
-			thisMemberOffset = offsetOfIRes;
-			width -= offsetOfIRes;
-			offsetOfIRes = 0;
+			thisMemberOffset = vOffset;
+			width -= vOffset;
+			vOffset = 0;
 		}
 	}
-	if (currentOffset + width < mainOffset || width == 0) {
+	if (mainOffsetCurrent + width < mainOffset || width == 0) {
 		didReduce = true;
-		currentOffset += width;
+		mainOffsetCurrent += width;
 		// skipping the unused prefix
 	} else {
 		// can look trough
 		didReduce |= collectConcatMembers(V, members, mainOffset, mainWidth,
-				currentOffset, thisMemberOffset, width);
+				mainOffsetCurrent, thisMemberOffset, width);
 
 	}
-	if (currentOffset >= mainEnd) {
+	if (mainOffsetCurrent >= mainEnd) {
 		// we do not care about successors because parent EXTRACT does not select them
 		didReduce |= argI != argSize - 1;
 		return true;
@@ -115,8 +115,8 @@ bool collectConcatMembersStackConcatMember(llvm::Value *V,
 }
 
 bool collectConcatMembers(llvm::Value *_v, std::vector<ConcatMember> &members,
-		uint64_t mainOffset, uint64_t mainWidth, uint64_t &currentOffset,
-		uint64_t offsetOfIRes, uint64_t widthOfIRes) {
+		uint64_t mainOffset, uint64_t mainWidth, uint64_t &mainOffsetCurrent,
+		uint64_t vOffset, uint64_t vWidth) {
 	uint64_t mainEnd = mainOffset + mainWidth;
 	if (auto *CI = dyn_cast<CallInst>(_v)) {
 		if (IsBitConcat(CI)) {
@@ -126,8 +126,8 @@ bool collectConcatMembers(llvm::Value *_v, std::vector<ConcatMember> &members,
 			for (auto &_arg : CI->args()) {
 				auto *arg = _arg.get();
 				if (collectConcatMembersStackConcatMember(arg, members,
-						mainOffset, mainWidth, mainEnd, currentOffset,
-						offsetOfIRes, widthOfIRes, didReduce, argI,
+						mainOffset, mainWidth, mainEnd, mainOffsetCurrent,
+						vOffset, vWidth, didReduce, argI,
 						CI->arg_size()))
 					break;
 				++argI;
@@ -141,8 +141,8 @@ bool collectConcatMembers(llvm::Value *_v, std::vector<ConcatMember> &members,
 				auto *_src = CI->getArgOperand(0);
 				bool didReduce = false;
 				if (collectConcatMembersSlice(CI, subSliceOffset, _src, members,
-						mainOffset, mainWidth, currentOffset, offsetOfIRes,
-						widthOfIRes, didReduce))
+						mainOffset, mainWidth, mainOffsetCurrent, vOffset,
+						vWidth, didReduce))
 					return didReduce;
 			}
 		}
@@ -151,14 +151,14 @@ bool collectConcatMembers(llvm::Value *_v, std::vector<ConcatMember> &members,
 		auto *_src = TI->getOperand(0);
 		bool didReduce = false;
 		collectConcatMembersSlice(CI, subSliceOffset, _src, members, mainOffset,
-				mainWidth, currentOffset, offsetOfIRes, widthOfIRes, didReduce);
+				mainWidth, mainOffsetCurrent, vOffset, vWidth, didReduce);
 		return didReduce;
 
 	} else if (auto zext = dyn_cast<ZExtInst>(_v)) {
 		bool didReduce = false;
 		if (collectConcatMembersStackConcatMember(zext->getOperand(0), members,
-				mainOffset, mainWidth, mainEnd, currentOffset, offsetOfIRes,
-				widthOfIRes, didReduce, 0, 2))
+				mainOffset, mainWidth, mainEnd, mainOffsetCurrent, vOffset,
+				vWidth, didReduce, 0, 2))
 			return didReduce;
 
 		size_t paddingWidth = zext->getType()->getIntegerBitWidth()
@@ -166,7 +166,7 @@ bool collectConcatMembers(llvm::Value *_v, std::vector<ConcatMember> &members,
 		auto *paddingVal = ConstantInt::get(
 				IntegerType::get(zext->getContext(), paddingWidth), 0);
 		collectConcatMembersStackConcatMember(paddingVal, members, mainOffset,
-				mainWidth, mainEnd, currentOffset, offsetOfIRes, widthOfIRes,
+				mainWidth, mainEnd, mainOffsetCurrent, vOffset, vWidth,
 				didReduce, 1, 2);
 		return didReduce;
 
@@ -177,7 +177,7 @@ bool collectConcatMembers(llvm::Value *_v, std::vector<ConcatMember> &members,
 		size_t paddingWidth = resultWidth
 				- sextOp0->getType()->getIntegerBitWidth();
 		if (collectConcatMembersStackConcatMember(sextOp0, members, mainOffset,
-				mainWidth, mainEnd, currentOffset, offsetOfIRes, widthOfIRes,
+				mainWidth, mainEnd, mainOffsetCurrent, vOffset, vWidth,
 				didReduce, 0, 1 + paddingWidth))
 			return didReduce;
 		IRBuilder<> Builder(sext);
@@ -191,8 +191,8 @@ bool collectConcatMembers(llvm::Value *_v, std::vector<ConcatMember> &members,
 				1);
 		for (size_t i = 0; i < paddingWidth; ++i) {
 			if (collectConcatMembersStackConcatMember(msb, members, mainOffset,
-					mainWidth, mainEnd, currentOffset, offsetOfIRes,
-					widthOfIRes, didReduce, i + 1, 1 + paddingWidth))
+					mainWidth, mainEnd, mainOffsetCurrent, vOffset,
+					vWidth, didReduce, i + 1, 1 + paddingWidth))
 				return didReduce;
 
 		}
@@ -200,7 +200,7 @@ bool collectConcatMembers(llvm::Value *_v, std::vector<ConcatMember> &members,
 	}
 
 	return collectConcatMembersAsItIs(_v, members, mainOffset, mainWidth,
-			currentOffset, offsetOfIRes, widthOfIRes);
+			mainOffsetCurrent, vOffset, vWidth);
 }
 
 llvm::Value* rewriteExtractOnMergeValues(llvm::IRBuilder<> &Builder,
