@@ -1,8 +1,10 @@
 #include <hwtHls/llvm/Transforms/PruneLoopPhiDeadIncomingValuesPass/KnownValue.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/ADT/STLExtras.h>
+#include <hwtHls/llvm/Transforms/utils/bitWidthInfo.h>
 
 using namespace llvm;
+
 namespace hwtHls {
 
 KnownValue::KnownValue() :
@@ -31,9 +33,7 @@ KnownValue::KnownValue(ConstantInt &V) :
 		V(nullptr), KB(KnownBits::makeConstant(V.getValue())) {
 }
 KnownValue::KnownValue(Value &V) :
-		V(&V), KB(
-				V.getType()->isIntegerTy() ?
-						V.getType()->getIntegerBitWidth() : 1) {
+		V(&V), KB(getIntegerBitWidthOr1(&V)) {
 	assert(
 			!isa<ConstantData>(&V)
 					&& "Check that this is not undef, poison or any other special const");
@@ -209,7 +209,7 @@ KnownValue KnownValue::resolveShl(const KnownValue &o1,
 }
 KnownValue KnownValue::resolveSExt(const KnownValue &o1,
 		SExtInst &CurVal) const {
-	size_t BitWidth = CurVal.getType()->getIntegerBitWidth();
+	size_t BitWidth = getIntegerBitWidthOr1(&CurVal);
 	KnownValue tmp = *this;
 	tmp.KB = tmp.KB.sext(BitWidth);
 	if (V) {
@@ -220,7 +220,7 @@ KnownValue KnownValue::resolveSExt(const KnownValue &o1,
 }
 KnownValue KnownValue::resolveZExt(const KnownValue &o1,
 		ZExtInst &CurVal) const {
-	size_t BitWidth = CurVal.getType()->getIntegerBitWidth();
+	size_t BitWidth = getIntegerBitWidthOr1(&CurVal);
 	KnownValue tmp = *this;
 	tmp.KB = tmp.KB.zext(BitWidth);
 	if (V) {
@@ -235,7 +235,7 @@ KnownValue KnownValue::resolveBitCast(const KnownValue &o1,
 }
 KnownValue KnownValue::resolveBitConcat(const SmallVectorImpl<KnownValue> &Ops,
 		CallInst &CurVal) {
-	KnownValue res(CurVal.getType()->getIntegerBitWidth());
+	KnownValue res(getIntegerBitWidthOr1(&CurVal));
 	size_t offset = 0;
 	for (auto O : Ops) {
 		res.KB.insertBits(O.KB, offset);
@@ -248,7 +248,7 @@ KnownValue KnownValue::resolveBitConcat(const SmallVectorImpl<KnownValue> &Ops,
 }
 KnownValue KnownValue::resolveBitRangeGet(const KnownValue &o1,
 		CallInst &CurVal) const {
-	size_t BitWidth = CurVal.getType()->getIntegerBitWidth();
+	size_t BitWidth = getIntegerBitWidthOr1(&CurVal);
 	KnownValue res(BitWidth);
 	if (o1.KB.isConstant()) {
 		size_t BitPosition = o1.KB.getConstant().getZExtValue();
@@ -267,7 +267,7 @@ KnownValue findValueInStack(const InBlockValuesStack &frameStack, Value *V) {
 		return KnownValue(*CI);
 	} else if (isa<ConstantData>(V)) {
 		// undef, poison and others
-		return KnownValue(V->getType()->getIntegerBitWidth());
+		return KnownValue(getIntegerBitWidthOr1(V));
 	}
 	if (auto I = dyn_cast<Instruction>(V)) {
 		for (auto &Values : reverse(frameStack)) {
