@@ -327,7 +327,7 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 					.forwardSwitchCondToPhi(true)//
 					.convertSwitchRangeToICmp(true)//
 					.convertSwitchToLookupTable(true)//
-					.needCanonicalLoops(false)//
+					.needCanonicalLoops(false)// :attention: conversion back to canonical loops will spawn new loops if loop header has phi and more than 2 predecessors
 					.hoistCommonInsts(true)//
 					.sinkCommonInsts(true)//
 					.hoistCommonInsts(true)//
@@ -600,8 +600,9 @@ void LlvmCompilationBundle::_addLoopPasses(llvm::FunctionPassManager &FPM) {
 	Level == llvm::OptimizationLevel::O3 && EnableO3NonTrivialUnswitching));
 	// if (EnableLoopFlatten)
 	//   LPM1.addPass(llvm::LoopFlattenPass());
+	//LPM1.addPass(hwtHls::LoopBackedgeSimplifyPass());
 	LPM2.addPass(llvm::LoopIdiomRecognizePass());
-	LPM2.addPass(llvm::IndVarSimplifyPass());
+	LPM2.addPass(llvm::IndVarSimplifyPass(/*WidenIndVars*/ true));
 	//for (auto &C : LateLoopOptimizationsEPCallbacks)
 	//  C(LPM2, Level);
 	LPM2.addPass(llvm::LoopDeletionPass());
@@ -742,7 +743,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 				.forwardSwitchCondToPhi(true)\
 				.convertSwitchRangeToICmp(true)\
 				//.convertSwitchToLookupTable(true)
-				.needCanonicalLoops(false)\
+				.needCanonicalLoops(true)\
 				.hoistCommonInsts(true)\
 				.sinkCommonInsts(true)\
 	));
