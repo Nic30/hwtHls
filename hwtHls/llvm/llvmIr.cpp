@@ -15,6 +15,7 @@
 #include <hwtHls/llvm/targets/intrinsic/hfloattmp.h>
 
 #include <llvm/IR/BasicBlock.h>
+#include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
@@ -57,13 +58,19 @@ void register_VectorOfTypePtr(pybind11::module_ & m) {
 }
 
 void register_Types(pybind11::module_ & m) {
+	py::class_<llvm::MaybeAlign> MaybeAlign(m, "MaybeAlign");
+	MaybeAlign.def(py::init<uint64_t>());
+
 	// owned by context => no delete
 	py::class_<llvm::Type, std::unique_ptr<llvm::Type, py::nodelete>>(m, "Type")
 		.def("getVoidTy", &llvm::Type::getVoidTy, py::return_value_policy::reference_internal)
 		.def("getIntNTy", &llvm::Type::getIntNTy, py::return_value_policy::reference_internal)
 		.def("isIntegerTy", [](llvm::Type * self) { return self->isIntegerTy(); })
 		.def("isDoubleTy", [](llvm::Type * self) { return self->isDoubleTy(); })
+		.def("isPointerTy", [](llvm::Type * self) { return self->isPointerTy(); })
 		.def("getIntegerBitWidth", &llvm::Type::getIntegerBitWidth)
+		.def("getPrimitiveSizeInBits", &llvm::Type::getPrimitiveSizeInBits)
+		.def("getScalarSizeInBits", &llvm::Type::getScalarSizeInBits)
 		.def("getPointerTo", &llvm::Type::getPointerTo, py::return_value_policy::reference)
 		.def("getDoubleTy", &llvm::Type::getDoubleTy, py::return_value_policy::reference)
 		.def("__repr__",  &printToStr<llvm::Type>)
@@ -126,7 +133,6 @@ void register_Types(pybind11::module_ & m) {
 		.def("__eq__", [](hwtHls::HFloatTmpConfig * self, hwtHls::HFloatTmpConfig * other) {
 			return *self == *other;
 		})
-		.def("getBitWidth", &hwtHls::HFloatTmpConfig::getBitWidth)
 		.def_readwrite("exponentOrIntWidth", &HFloatTmpConfig::exponentOrIntWidth)
 		.def_readwrite("mantissaOrFracWidth", &HFloatTmpConfig::mantissaOrFracWidth)
 		.def_readwrite("isInQFromat", &HFloatTmpConfig::isInQFromat)
@@ -136,15 +142,17 @@ void register_Types(pybind11::module_ & m) {
 		.def_readwrite("hasIsInf", &HFloatTmpConfig::hasIsInf)
 		.def_readwrite("hasIs1", &HFloatTmpConfig::hasIs1)
 		.def_readwrite("hasIs0", &HFloatTmpConfig::hasIs0)
+		.def("getBitWidth", &hwtHls::HFloatTmpConfig::getBitWidth)
+		.def("bitCastAPFloatToHFloatTmpAPInt", &HFloatTmpConfig::bitCastAPFloatToHFloatTmpAPInt)
 		.def("__repr__", [](hwtHls::HFloatTmpConfig & self) {
 			std::stringstream ss;
 			ss << "<HFloatTmpConfig";
 			if (self.isInQFromat) {
-				ss << " format=Q, intWidth=" << (unsigned) self.exponentOrIntWidth
-				   << ", fracWidth=" << (unsigned) self.mantissaOrFracWidth;
+				ss << " format=Q" << (unsigned) self.exponentOrIntWidth
+				   << "." << (unsigned) self.mantissaOrFracWidth;
 			} else {
-				ss << " format=FP, exponentWidth=" << (unsigned) self.exponentOrIntWidth
-				   << ", mantissaWidth=" << (unsigned) self.mantissaOrFracWidth;
+				ss << " format=FP" << (unsigned) self.exponentOrIntWidth
+				   << "_" << (unsigned) self.mantissaOrFracWidth;
 			}
 			if (self.supportSubnormal)
 				ss << ", supportSubnormal";
@@ -168,6 +176,7 @@ void register_BasicBlock(pybind11::module_ & m) {
 	py::class_<llvm::BasicBlock, std::unique_ptr<llvm::BasicBlock, py::nodelete>, llvm::Value>(m, "BasicBlock")
 		.def("Create", &llvm::BasicBlock::Create, py::return_value_policy::reference_internal)
 		.def("getName", &llvm::BasicBlock::getName)
+		.def("setName", &llvm::BasicBlock::setName)
 		.def("getParent", [](llvm::BasicBlock & BB) {return BB.getParent();}, py::return_value_policy::reference_internal)
 		.def("insertInto", &llvm::BasicBlock::insertInto)
 		.def("printAsOperand", [](const llvm::BasicBlock & BB) {
@@ -176,12 +185,24 @@ void register_BasicBlock(pybind11::module_ & m) {
 			BB.printAsOperand(ss, true,  BB.getParent() ? BB.getParent()->getParent() : nullptr);
 			return ss.str();
 		})
+		.def("predecessors", [](llvm::BasicBlock &BB) {
+			auto preds = llvm::predecessors(&BB);
+			return py::make_iterator(preds.begin(), preds.end());
+		}, py::keep_alive<0, 1>())
+		.def("successors", [](llvm::BasicBlock &BB) {
+			auto sucs = llvm::successors(&BB);
+			return py::make_iterator(sucs.begin(), sucs.end());
+		}, py::keep_alive<0, 1>())
+		.def("getTerminator", [](llvm::BasicBlock * self) { return self->getTerminator(); }, py::return_value_policy::reference_internal)
+		.def("eraseFromParent", [](llvm::BasicBlock * self){ self->eraseFromParent();})
 		.def("__iter__", [](llvm::BasicBlock &BB) {
 				return py::make_iterator(BB.begin(), BB.end());
 			}, py::keep_alive<0, 1>()) /* Keep vector alive while iterator is used */
 	    .def("__repr__", [](llvm::BasicBlock &BB) {
 			return (std::string("<BasicBlock ") + BB.getName() + ">").str();
 		});
+	py::class_<llvm::BasicBlock::iterator>(m, "BasicBlockIterator");
+	py::class_<llvm::SymbolTableList<llvm::BasicBlock>::iterator>(m, "SymbolTableListBasicBlockIterator");
 
 	m.def("ValueToBasicBlock", [](llvm::Value *V) {
 		if (llvm::BasicBlock *BB = llvm::dyn_cast<llvm::BasicBlock>(V)) {
@@ -190,6 +211,7 @@ void register_BasicBlock(pybind11::module_ & m) {
 			return (llvm::BasicBlock*) nullptr;
 		}
 	});
+
 }
 
 std::string Module__repr__(llvm::Module *self) {
@@ -221,7 +243,10 @@ void register_Module(pybind11::module_ & m) {
 // http://nondot.org/~sabre/LLVMNotes/TypeSystemChanges.txt
 PYBIND11_MODULE(llvmIr, m) {
 	hwtFpgaTargetInitialize();
-	// it is recommended to construct LLVMContext using LlvmCompilationBundle
+	// :note: If order of registrations is wrong this error usually appears after startup:
+	//       Could not convert default argument 'x' in method '<class 'y' into a Python object (type not registered yet?)
+	// :note: Some llvm classes have to be modified e.g. MDNodeWithDeletedDelete any python API should use this new class instead original
+	// :note: it is recommended to construct LLVMContext using LlvmCompilationBundle
 	py::class_<llvm::LLVMContext, std::unique_ptr<llvm::LLVMContext, py::nodelete>>(m, "LLVMContext");
 	register_Module(m);
 	register_VectorOfTypePtr(m);
@@ -235,8 +260,8 @@ PYBIND11_MODULE(llvmIr, m) {
 	register_Instruction(m);
 	register_GlobalVariable(m);
 	register_llvmAny(m);
-	register_IRBuilder(m);
 	register_Loop(m);
+	register_IRBuilder(m);
 	register_MachineFunction(m);
 	register_MachineLoop(m);
 	register_LlvmCompilationBundle(m);
