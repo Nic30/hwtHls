@@ -9,6 +9,7 @@ class SlicesMergePass_TC(BaseLlvmIrTC):
     __FILE__ = __file__
 
     def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
+        #llvm.addLlvmCliArgOccurence("debug-only", 0, "", "newgvn")
         return llvm._testSlicesMergePass()
 
     def test_notingToReduce(self):
@@ -321,6 +322,48 @@ class SlicesMergePass_TC(BaseLlvmIrTC):
         }
         """
         self._test_ll(ir)
+    
+    def test_phiSelect(self):
+        ir = """\
+        define void @ExampleCam.updateThread(ptr addrspace(1) %keyForMatchThread_0, ptr addrspace(2) %keyForMatchThread_1, ptr addrspace(3) %write) {
+        bb0:
+          br label %bb.header
+        
+        bb.header:
+          %k1_key.0 = phi i16 [ undef, %bb0 ], [ %k1_key.0, %bb.sw_c3 ], [ %k1_key.0, %bb.sw_c2 ], [ %5, %bb.sw_c1 ], [ %k1_key.0, %bb.header ]
+          %k0_key.0 = phi i16 [ undef, %bb0 ], [ %k0_key.0, %bb.sw_c3 ], [ %k0_key.0, %bb.sw_c2 ], [ %k0_key.0, %bb.sw_c1 ], [ %5, %bb.header ]
+          %k0_vld.018 = phi i1 [ false, %bb0 ], [ %k0_vld.018, %bb.sw_c3 ], [ %k0_vld.018, %bb.sw_c2 ], [ %k0_vld.018, %bb.sw_c1 ], [ %4, %bb.header ]
+          %k1_vld.020 = phi i1 [ false, %bb0 ], [ %k1_vld.020, %bb.sw_c3 ], [ %k1_vld.020, %bb.sw_c2 ], [ %4, %bb.sw_c1 ], [ %k1_vld.020, %bb.header ]
+          %0 = call i17 @hwtHls.bitConcat.i16.i1(i16 %k0_key.0, i1 %k0_vld.018) #2
+          store volatile i17 %0, ptr addrspace(1) %keyForMatchThread_0, align 4
+          %1 = call i17 @hwtHls.bitConcat.i16.i1(i16 %k1_key.0, i1 %k1_vld.020) #2
+          store volatile i17 %1, ptr addrspace(2) %keyForMatchThread_1, align 4
+          %write_read = load volatile i19, ptr addrspace(3) %write, align 4
+          %4 = call i1 @hwtHls.bitRangeGet.i19.i6.i1.18(i19 %write_read, i6 18) #2
+          %5 = call i16 @hwtHls.bitRangeGet.i19.i6.i16.2(i19 %write_read, i6 2) #2
+          %6 = call i2 @hwtHls.bitRangeGet.i19.i6.i2.0(i19 %write_read, i6 0) #2
+          switch i2 %6, label %bb.header.unreachabledefault [
+            i2 0, label %bb.header
+            i2 1, label %bb.sw_c1
+            i2 -2, label %bb.sw_c2
+            i2 -1, label %bb.sw_c3
+          ]
+        
+        bb.header.unreachabledefault:
+          unreachable
+        
+        bb.sw_c1:
+          br label %bb.header
+        
+        bb.sw_c2:
+          br label %bb.header
+        
+        bb.sw_c3:
+          br label %bb.header
+        }
+        """
+        self._test_ll(ir)
+
 
 if __name__ == "__main__":
     # from hwt.synth import to_rtl_str
@@ -331,7 +374,7 @@ if __name__ == "__main__":
     import unittest
     import sys
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([SlicesMergePass_TC('test_crc32_3b_reduced')])
+    # suite = unittest.TestSuite([SlicesMergePass_TC('test_phiSelect')])
     suite = testLoader.loadTestsFromTestCase(SlicesMergePass_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     sys.exit(not runner.run(suite).wasSuccessful())
