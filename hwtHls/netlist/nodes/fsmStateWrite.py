@@ -55,9 +55,9 @@ class HlsNetNodeFsmStateWrite(HlsNetNode):
                 assert isinstance(c, TimeIndependentRtlResourceItem), (_c, c)
                 cSig = c.data
                 assert cSig._dtype.bit_length() == 1, c
+                    
+                nextStateCases.append((cSig, stateReg(dstStVal)))
 
-                nextStateCases.append((cSig, stateReg(stateEncoding[dstStVal])))
-            
             con: "ConnectionsOfStage" = allocator.connections.getForTime(self.scheduledIn[0])
             con.stateChangeDependentDrives.append(SwitchLogic(nextStateCases))
 
