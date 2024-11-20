@@ -1,6 +1,7 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitPartsUseAnalysis.h>
 #include <llvm/IR/IRBuilder.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <hwtHls/llvm/Transforms/utils/bitWidthInfo.h>
 
 using namespace llvm;
 
@@ -122,7 +123,7 @@ void BitPartsUseAnalysisContext::updateUseMask(const llvm::Value *V,
 										r.dstBeginBitI, r.dstBeginBitI + r.width)) // clear unrelated bits
 						.zext(
 								std::max(newMask.getBitWidth(),
-										 r.src->getType()->getIntegerBitWidth())) // extend to size of src
+										(unsigned)getIntegerBitWidthOr1(r.src))) // extend to size of src
 						.ashr(r.dstBeginBitI) // align so bit 0 is where replacement value starts in dst
 						.shl(r.srcBeginBitI) // align so the mask value is compatible with src
 						.trunc(r.src->getType()->getIntegerBitWidth());
@@ -153,6 +154,15 @@ void BitPartsUseAnalysisContext::propagateUseMaskInstruction(
 				|| op == Instruction::CastOps::SExt) {
 			return propagateUseMaskExt(CI, vbc);
 		}
+	} else if (auto *CMP = dyn_cast<ICmpInst>(I)) {
+		if (vbc.operandUseMask.empty()) {
+			// case where this ICmpInst is excluded from analysis
+		} else {
+			assert(vbc.operandUseMask.size() == 2);
+			updateUseMask(CMP->getOperand(0), vbc.operandUseMask[0]);
+			updateUseMask(CMP->getOperand(1), vbc.operandUseMask[1]);
+		}
+		return;
 	}
 	// unknown instruction propagate with use all
 	for (const Use &op : I->operands()) {
