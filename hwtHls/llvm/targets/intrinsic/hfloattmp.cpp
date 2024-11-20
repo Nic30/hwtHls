@@ -1,6 +1,7 @@
 #include <hwtHls/llvm/targets/intrinsic/hfloattmp.h>
 #include <hwtHls/llvm/targets/intrinsic/utils.h>
 #include <llvm/ADT/StringExtras.h>
+#include <math.h>
 
 using namespace llvm;
 
@@ -22,8 +23,196 @@ size_t HFloatTmpConfig::__hash__() const {
 	Bits.push_back(hasIs0);
 
 	return llvm::hash_combine_range(Bits.begin(), Bits.end());
-
 }
+
+
+template<typename INT_T>
+INT_T mask(size_t numberOfBits) {
+	static_assert(!std::is_signed<INT_T>::value);
+	INT_T v = -1;
+	v >>= (sizeof v) * 8 - numberOfBits;
+	return v;
+}
+
+APInt HFloatTmpConfig::bitCastAPFloatToHFloatTmpAPInt(const APFloat &v) const {
+	// IEEE-754 s special meanings
+	//
+	// Meaning             Sign Field   Exponent Field    Mantissa Field
+	// Zero                Don't care   All 0s            All 0s
+	// Positive subnormal  0            All 0s            Non-zero
+	// Negative subnormal  1            All 0s            Non-zero
+	// Positive Infinity   0            All 1s            All 0s
+	// Negative Infinity   1            All 1s            All 0s
+	// Not a Number(NaN)   Don't care   All 1s            Non-zero
+	const HFloatTmpConfig &fpCfg = *this;
+	auto res = APInt(fpCfg.getBitWidth(), 0);
+
+	auto vAsDouble = v.convertToDouble();
+	auto vAsAPInt = v.bitcastToAPInt();
+	// bool issubnormal_ = issubnormal(vAsDouble);
+	size_t CUR_MANTISA_W = 52;
+	size_t CUR_EXP_W = 11;
+
+	uint64_t mantissa = vAsAPInt.extractBits(CUR_MANTISA_W, 0).getZExtValue();
+	uint64_t _exponent =
+			vAsAPInt.extractBits(CUR_EXP_W, CUR_MANTISA_W).getZExtValue();
+	int exponent = ((int) _exponent) + -mask<unsigned>(CUR_EXP_W - 1);
+	uint64_t sign =
+			vAsAPInt.extractBits(1, CUR_EXP_W + CUR_MANTISA_W).getZExtValue();
+	size_t offset = 0;
+	bool isInf = isinf(vAsDouble);
+	// resolve mantissa/exponent or int and frac part if it is in Q format
+	if (fpCfg.isInQFromat) {
+		const size_t numWidth = fpCfg.exponentOrIntWidth
+				+ fpCfg.mantissaOrFracWidth;
+		if (isnan(vAsDouble) || vAsDouble == 0.0
+				|| (issubnormal(vAsDouble) && !fpCfg.supportSubnormal)) {
+			// keep all bits 0
+			offset += numWidth;
+		} else if (isinf(vAsDouble)) {
+			if (vAsDouble < 0.0) {
+				// set to min value
+				offset += numWidth;
+				if (fpCfg.hasSign) {
+					res.setBit(offset - 1);
+				}
+			} else {
+				// set to max value (all bits except first set, if number is signed)
+				res.setBits(offset, offset + fpCfg.mantissaOrFracWidth);
+				offset += fpCfg.mantissaOrFracWidth;
+				res.setBits(offset, offset + fpCfg.exponentOrIntWidth);
+				offset += fpCfg.exponentOrIntWidth;
+				if (fpCfg.hasSign) {
+					res.clearBit(offset - 1);
+				}
+			}
+		} else {
+			assert(
+					fpCfg.exponentOrIntWidth + fpCfg.mantissaOrFracWidth < 64
+							&& "Rounding may have happened");
+			if (issubnormal(vAsDouble))
+				llvm_unreachable(
+						"NotImplemented: convert subnormal constant to Q format");
+			// shift mantissa on proper position
+			mantissa |= 1ul << CUR_MANTISA_W; // set first 1 which was omitted in FP mantissa format
+			int fracWidth = CUR_MANTISA_W;
+			int requiredFracWidth = fpCfg.mantissaOrFracWidth;
+			int rshiftAmountToAliginFrac = fracWidth - requiredFracWidth;
+			int rshiftAmount = rshiftAmountToAliginFrac - exponent;
+			if (rshiftAmount < 0) {
+				mantissa <<= -rshiftAmount;
+			} else {
+				mantissa >>= rshiftAmount;
+			}
+			res |= mantissa & mask<uint64_t>(numWidth);
+			if (fpCfg.hasSign && vAsDouble < 0.0) {
+				res = -res;
+			}
+			offset += numWidth;
+		}
+	} else {
+		size_t newMantisaW = fpCfg.mantissaOrFracWidth;
+		if (_exponent == 0) {
+			// exponent == all 0
+			if (mantissa == 0) {
+				// zero case
+			} else {
+				// subnormal case
+				if (fpCfg.supportSubnormal) {
+					if (newMantisaW < CUR_MANTISA_W)
+						mantissa >>= CUR_MANTISA_W - newMantisaW;
+				} else {
+					mantissa = 0;
+				}
+			}
+		} else if (_exponent == mask<uint64_t>(CUR_EXP_W)) {
+			// exponent == all 1
+			if (mantissa == 0) {
+				// inf case
+			} else {
+				// nan case
+				mantissa = mask<uint64_t>(newMantisaW);
+			}
+		} else {
+			size_t shiftedOutBits = 0;
+			if (CUR_MANTISA_W > newMantisaW) {
+				// need to shift mantissa and update exponent
+				auto shAmount = CUR_MANTISA_W - newMantisaW;
+				shiftedOutBits |= (mantissa & mask<uint64_t>(shAmount)) << (64 - shAmount);
+				mantissa >>= shAmount;
+			}
+			int newExpOffset = -mask<unsigned>(fpCfg.exponentOrIntWidth - 1);
+			int newExpMin = newExpOffset;
+			int newExpMax = -newExpOffset + 1;
+			if (exponent < newExpMin) {
+				// may become 0 or subnormal
+				size_t shAmount = -exponent - -newExpMin;
+				shiftedOutBits >>= shAmount;
+				shiftedOutBits |= (mantissa & mask<uint64_t>(shAmount)) << (64 - shAmount);
+				if (shiftedOutBits != 0 && fpCfg.supportSubnormal) {
+					llvm_unreachable("NotImplemented: convert fp constant which become subnormal to a fp type of a different width");
+				}
+			} else if (exponent > newExpMax) {
+				// become +-inf
+				isInf = true;
+				exponent = newExpMin - 1;
+				mantissa = 0;
+			}
+			res.insertBits(mantissa, offset, fpCfg.mantissaOrFracWidth);
+			offset += fpCfg.mantissaOrFracWidth;
+			size_t newExponent = (exponent + -newExpOffset) & mask<uint64_t>(fpCfg.exponentOrIntWidth);
+			res.insertBits(newExponent, offset, fpCfg.exponentOrIntWidth);
+			offset += fpCfg.exponentOrIntWidth;
+		}
+		// fill sign and other special flags
+		if (fpCfg.hasSign) {
+			if (sign) {
+				res.setBit(offset);
+			}
+			offset += 1;
+		} else {
+			assert(
+					!sign
+							&& "Can not convert negative float constant to type without sign");
+		}
+	}
+
+	if (fpCfg.hasIsNaN) {
+		if (isnan(vAsDouble)) {
+			res.setBit(offset);
+		}
+		offset += 1;
+	}
+	// else {
+	// 	assert(
+	// 			!(fpCfg.isInQFromat && isnan(vAsDouble))
+	// 					&& "Can not convert NaN constant to q formated number without isNaN flag");
+	// }
+	if (fpCfg.hasIsInf) {
+		if (isInf) {
+			res.setBit(offset);
+		}
+		offset += 1;
+	} else {
+		assert(
+				!(fpCfg.isInQFromat && isInf)
+						&& "Can not convert Inf constant to q formated number without isInf flag");
+	}
+	if (fpCfg.hasIs1) {
+		if (vAsDouble == 1.0) {
+			res.setBit(offset);
+		}
+		offset += 1;
+	}
+	if (fpCfg.hasIs0) {
+		if (vAsDouble == 0.0) {
+			res.setBit(offset);
+		}
+		offset += 1;
+	}
+	return res;
+}
+
 static uint64_t extractConstIntFromArg(User::op_iterator &A,
 		User::op_iterator AEnd) {
 	assert(A != AEnd);

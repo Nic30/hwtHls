@@ -10,8 +10,12 @@ namespace hwtHls {
  * CastToHFloatTmp/CastFromHFloatTmp holds the info about type specialization for later lowering.
  * (The HFloatTmp exists because LLVM does support just some floating type variants and this is to allow any floating type.
  *  :see: llvm::Type::TypeID)
+ * :note: LLVM has some intrinsics for fixed point like llvm.smul.fix.*, but they are not used, because there is only few of them
  *
  * */
+
+
+// :note: in Q is in ARM notation, IntWidth includes sign
 struct HFloatTmpConfig {
 	std::uint8_t exponentOrIntWidth;
 	std::uint8_t mantissaOrFracWidth;
@@ -26,12 +30,15 @@ struct HFloatTmpConfig {
 	static constexpr size_t MEMBER_CNT = 9;
 	bool operator==(const HFloatTmpConfig &other) const;
 	size_t getBitWidth() const {
-		return exponentOrIntWidth + mantissaOrFracWidth + hasSign + hasIsNaN
-				+ hasIsInf + hasIs1 + hasIs0;
+		return exponentOrIntWidth + mantissaOrFracWidth
+				+ (isInQFromat ? 0 : hasSign) + hasIsNaN + hasIsInf + hasIs1
+				+ hasIs0;
 	}
 	size_t __hash__() const;
 	static HFloatTmpConfig fromCallArgs(llvm::CallInst &CI, size_t argsToSkip =
 			1);
+	llvm::APInt bitCastAPFloatToHFloatTmpAPInt(
+			const llvm::APFloat &v) const;
 };
 
 #define __HFloatTmpConfig_PARAMS_WITH_DEFAULT \
