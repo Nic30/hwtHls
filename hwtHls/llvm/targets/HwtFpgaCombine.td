@@ -96,6 +96,8 @@ def trivial_instr_deduplication: GICombineRule<
 			G_SHL,
 			G_LSHR,
 			G_ASHR,
+			G_FSHL,
+			G_FSHR,
 			G_CTLZ_ZERO_UNDEF, G_CTTZ_ZERO_UNDEF,
 			G_CTLZ, G_CTTZ, G_CTPOP,
 			HWTFPGA_EXTRACT,
@@ -113,6 +115,11 @@ def trivial_instr_deduplication: GICombineRule<
 			HWTFPGA_OR,
 			HWTFPGA_SUB,
 			HWTFPGA_XOR,
+			HWTFPGA_SHL,
+			HWTFPGA_LSHR,
+			HWTFPGA_ASHR,
+			HWTFPGA_FSHL,
+			HWTFPGA_FSHR,
 			HWTFPGA_CTLZ_ZERO_UNDEF, HWTFPGA_CTTZ_ZERO_UNDEF,
 			HWTFPGA_CTLZ, HWTFPGA_CTTZ, HWTFPGA_CTPOP,
             HWTFPGA_FP_FADD,
@@ -188,16 +195,24 @@ def const_val_mux_eval : GICombineRule<
 >;
 
 
-// // convert (HWTFPGA_SHL, HWTFPGA_ASHR, HWTFPGA_LSHR), x, constShAmount
-// //   to new const if x is const
-// //   to HWTFPGA_EXTRACT x, shAmount
-// def const_shift_eval : GICombineRule<
-//   (defs root:$root),
-//   (match (wip_match_opcode HWTFPGA_SHL, HWTFPGA_ASHR, HWTFPGA_LSHR):$root,
-//     [{ return !${root}->getOperand(2).isReg(); }]),
-//   (apply [{ Helper.rewriteConstShift(*${root}); }])
-// >;
+// convert (HWTFPGA_SHL, HWTFPGA_ASHR, HWTFPGA_LSHR), x, constShAmount
+//   to new const if x is const
+//   to HWTFPGA_EXTRACT x, shAmount
+def const_shift_eval : GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode HWTFPGA_SHL, HWTFPGA_ASHR, HWTFPGA_LSHR):$root,
+    [{ return !${root}->getOperand(2).isReg() ; }]),
+  (apply [{ Helper.rewriteConstShift(*${root}); }])
+>;
 
+// convert (HWTFPGA_FSHL, HWTFPGA_FSHR), x, y, constShAmount
+//   to HWTFPGA_MERGE or HWTFPGA_EXTRACT x, HWTFPGA_EXTRACT y or just x depending on constShAmount
+def const_funnel_shift_eval : GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode HWTFPGA_FSHL, HWTFPGA_FSHR):$root,
+    [{ return !${root}->getOperand(3).isReg(); }]),
+  (apply [{ Helper.rewriteConstFunnelShift(*${root}); }])
+>;
 
 // // generalized const_val_mux_eval which probes every bit for every condition operand separately
 // def mux_sink_directly_cond_driven_val_bits_matchdata : GIDefMatchData<"hwtHls::MuxDirectlyCondDrivenBits">;
@@ -278,7 +293,8 @@ def const_eval_combines : GICombineGroup<[
 	const_mul_eval,
 	const_mux_eval,
 	const_val_mux_eval,
-	// const_shift_eval,
+	const_shift_eval,
+	const_funnel_shift_eval,
 	undef_propagation,
 	const_merge_values_eval,
 	trivial_instr_deduplication,

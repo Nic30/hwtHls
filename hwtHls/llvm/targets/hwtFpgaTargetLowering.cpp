@@ -279,12 +279,12 @@ void HwtFpgaTargetLowering::computeKnownBitsForTargetInstr(
 		break;
 	}
 	case HwtFpga::HWTFPGA_EXTRACT: {
-		// dst, src, offset, width
+		// $dst, $src, $srcWidth, $offset, $width
 		KnownBits SrcOpKnown;
 		computeKnownBitsImpl(Analysis, MI.getOperand(1), SrcOpKnown,
 				DemandedElts, Depth + 1);
-		assert(BitWidth == MI.getOperand(3).getImm());
-		Known = SrcOpKnown.extractBits(BitWidth, MI.getOperand(2).getImm());
+		assert(BitWidth == MI.getOperand(4).getImm());
+		Known = SrcOpKnown.extractBits(BitWidth, MI.getOperand(3).getImm());
 		break;
 	}
 	case HwtFpga::HWTFPGA_CTPOP: {

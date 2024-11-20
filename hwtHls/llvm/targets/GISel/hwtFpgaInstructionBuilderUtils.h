@@ -15,6 +15,7 @@ struct CImmOrRegWithNegFlag {
 struct CImmOrReg {
 	const llvm::ConstantInt *c;
 	llvm::Register reg;
+	CImmOrReg(llvm::Register reg);
 	CImmOrReg(const llvm::MachineOperand &MOP);
 	CImmOrReg(const llvm::ConstantInt *c);
 	void addAsUse(llvm::MachineInstrBuilder &MIB) const;
@@ -30,8 +31,10 @@ struct CImmOrRegOrUndefWithWidth {
 	CImmOrRegOrUndefWithWidth(size_t width);
 	CImmOrRegOrUndefWithWidth(size_t width, llvm::Register reg);
 	// :param Builder: builder used to build HWTFPGA_IMPLICIT_DEF for undefs at the beginning of the entry block
-	void addAsUse(llvm::MachineIRBuilder &Builder,
-			llvm::MachineInstrBuilder &MIB) const;
+	void addAsUse(llvm::MachineInstrBuilder &MIB) const;
+	bool isReg() const {
+		return c == nullptr && !isUndef;
+	}
 };
 
 /*
@@ -95,9 +98,9 @@ public:
 };
 
 size_t MERGE_VALUES_getResultWidth(llvm::MachineInstr &MI);
+size_t MERGE_VALUES_getSrcOperandCount(const llvm::MachineInstr &MI);
 llvm::iterator_range<llvm::MachineOperand*> MERGE_VALUES_iter_values(
 		llvm::MachineInstr &MI);
-
 // returns Imm operands with width of each value
 llvm::iterator_range<llvm::MachineOperand*> MERGE_VALUES_iter_widths(
 		llvm::MachineInstr &MI);
@@ -113,12 +116,33 @@ CImmOrRegOrUndefWithWidth buildHWTFPGA_EXTRACT(llvm::MachineIRBuilder &Builder,
 CImmOrRegOrUndefWithWidth buildHWTFPGA_EXTRACT(llvm::MachineIRBuilder &Builder,
 		const llvm::MachineOperand &src, size_t srcWidth, size_t offset,
 		size_t resWidth);
+llvm::MachineInstrBuilder buildHWTFPGA_EXTRACT(llvm::MachineIRBuilder &Builder,
+		llvm::GISelChangeObserver &Observer, llvm::Register DstReg,
+		const llvm::MachineOperand &SrcValMO, size_t srcWidth, size_t offset,
+		size_t dstWidth);
+CImmOrRegOrUndefWithWidth buildHWTFPGA_EXTRACT(llvm::MachineIRBuilder &Builder,
+		llvm::GISelChangeObserver &Observer, const llvm::MachineOperand &SrcValMO,
+		size_t srcWidth, size_t offset, size_t dstWidth);
 CImmOrRegOrUndefWithWidth buildHWTFPGA_MERGE_VALUES(
 		llvm::MachineIRBuilder &Builder,
 		llvm::SmallVector<hwtHls::CImmOrRegOrUndefWithWidth> &ConcatMembers);
+
+llvm::MachineInstrBuilder buildHWTFPGA_MERGE_VALUES(
+		llvm::MachineIRBuilder &Builder, llvm::GISelChangeObserver *Observer,
+		llvm::Register DstReg,
+		llvm::SmallVector<hwtHls::CImmOrRegOrUndefWithWidth> &ConcatMembers,
+		size_t *_width=nullptr);
+
 llvm::Register buildMsbGet(llvm::MachineIRBuilder &Builder,
 		llvm::GISelChangeObserver &Observer, CImmOrReg x, unsigned bitWidth,
 		std::optional<llvm::Register> dst);
+
+struct HWTFPGA_EXTRACTOptions {
+	size_t srcWidth;
+	size_t offset;
+	size_t dstWidth;
+	static HWTFPGA_EXTRACTOptions get(llvm::MachineInstr & MI);
+};
 
 // same as llvm::InsertPointGuard for IRBuilder just for MachineIRBuilder
 // (simplifies temporal swaps of insertion point in builder)

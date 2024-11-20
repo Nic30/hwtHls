@@ -16,14 +16,28 @@ class HwtFpgaInst<
   let Pattern = pattern;
 }
 
+// common unary operators
 class HwtFpgaUnOp : HwtFpgaInst<
     (outs anyregcls:$dst),
     (ins unknown:$src),
     []>;
 
+// common binary operators
 class HwtFpgaBinOp : HwtFpgaInst<
     (outs anyregcls:$dst),
     (ins unknown:$src0, unknown:$src1),
+    []>;
+
+// shift operatos
+class HwtFpgaShOp : HwtFpgaInst<
+    (outs anyregcls:$dst),
+    (ins unknown:$src0,  unknown:$shAmount, i64imm:$width),
+    []>;
+
+// funnel shift operators
+class HwtFpgaFShOp : HwtFpgaInst<
+    (outs anyregcls:$dst),
+    (ins unknown:$src0, unknown:$src1, unknown:$shAmount, i64imm:$width),
     []>;
 
 // an instruction which gets the argument of the function (used for IO of the circuit)
@@ -47,7 +61,7 @@ def HWTFPGA_IMPLICIT_DEF : HwtFpgaInst< // IMPLICIT_DEF with dstWidth
 // G_EXTRACT variant which have a number of extracted bits explicitely specified in last operand
 def HWTFPGA_EXTRACT : HwtFpgaInst<
     (outs anyregcls:$dst),
-    (ins anyregcls:$src, i64imm:$offset, i64imm:$dstWidth),
+    (ins anyregcls:$src, i64imm:$srcWidth, i64imm:$offset, i64imm:$dstWidth),
     []>;
 
 // G_MERGE_VALUES which have a number of concatenated bits explicitely specified
@@ -71,9 +85,11 @@ let hasSideEffects = 0 in {
 	def HWTFPGA_UREM : HwtFpgaBinOp;
 	def HWTFPGA_SREM : HwtFpgaBinOp;
 
-	def HWTFPGA_SHL : HwtFpgaBinOp;
-	def HWTFPGA_LSHR : HwtFpgaBinOp;
-	def HWTFPGA_ASHR : HwtFpgaBinOp;
+	def HWTFPGA_SHL : HwtFpgaShOp;
+	def HWTFPGA_LSHR : HwtFpgaShOp;
+	def HWTFPGA_ASHR : HwtFpgaShOp;
+	def HWTFPGA_FSHL : HwtFpgaFShOp;
+	def HWTFPGA_FSHR : HwtFpgaFShOp;
 	
 	def HWTFPGA_SUB : HwtFpgaBinOp;
 	def HWTFPGA_ICMP : HwtFpgaInst<

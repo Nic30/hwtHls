@@ -59,9 +59,8 @@ bool HwtFpgaCombinerHelper::hashOnlyConstUses(llvm::MachineInstr &MI) {
 void HwtFpgaCombinerHelper::rewriteConstExtract(llvm::MachineInstr &MI) {
 	auto _v = MI.getOperand(1).getCImm();
 	const APInt &v = _v->getValue();
-	auto bitPosition = MI.getOperand(2).getImm();
-	auto numBits = MI.getOperand(3).getImm();
-	replaceInstWithConstant(MI, v.extractBits(numBits, bitPosition));
+	auto extractOpt = hwtHls::HWTFPGA_EXTRACTOptions::get(MI);
+	replaceInstWithConstant(MI, v.extractBits(extractOpt.dstWidth, extractOpt.offset));
 }
 
 bool HwtFpgaCombinerHelper::hasG_CONSTANTasUse(llvm::MachineInstr &MI) {
@@ -120,7 +119,7 @@ bool HwtFpgaCombinerHelper::matchAllOnesConstantOp(
 	if (!MOP.isReg()) {
 		return false;
 	}
-	if (auto *MI = MRI.getVRegDef(MOP.getReg())) {
+	if (auto *MI = MRI.getUniqueVRegDef(MOP.getReg())) {
 		auto MaybeCst = isConstantOrConstantSplatVector(*MI, MRI);
 		if (MaybeCst.has_value() && MaybeCst->isAllOnes())
 			return true;
@@ -161,88 +160,98 @@ void HwtFpgaCombinerHelper::rewriteConstBinOp(llvm::MachineInstr &MI,
 
 inline bool collectConcatMembersAsItIs(llvm::MachineOperand &MIOp,
 		std::vector<HwtFpgaCombinerHelper::ConcatMember> &members,
-		uint64_t mainOffset, uint64_t mainWidth, uint64_t &currentOffset,
-		uint64_t offsetOfIRes, uint64_t widthOfIRes) {
+		uint64_t mainOffset, uint64_t mainWidth, uint64_t &mainOffsetCurrent,
+		uint64_t miResOffset, uint64_t miResWidth) {
 	uint64_t mainEnd = mainOffset + mainWidth;
 	// take slice from this instruction as it is
-	uint64_t bitsToTake = std::min(widthOfIRes, mainEnd - currentOffset);
-	currentOffset += widthOfIRes;
-	if (currentOffset < mainOffset) {
+	uint64_t bitsToTake = std::min(miResWidth - miResOffset, mainEnd - mainOffsetCurrent);
+	mainOffsetCurrent += bitsToTake;
+	if (mainOffsetCurrent < mainOffset) {
 		// skip prefix
 		return true;
 	} else {
 		members.push_back(HwtFpgaCombinerHelper::ConcatMember { MIOp,
-				offsetOfIRes, widthOfIRes, bitsToTake });
+				miResOffset, miResWidth, bitsToTake });
 		return false;
 	}
 }
 
 bool HwtFpgaCombinerHelper::collectConcatMembers(llvm::MachineOperand &MIOp,
 		std::vector<ConcatMember> &members, uint64_t mainOffset,
-		uint64_t mainWidth, uint64_t &currentOffset, uint64_t offsetOfIRes,
-		uint64_t widthOfIRes) {
+		uint64_t mainWidth, uint64_t &mainOffsetCurrent, uint64_t miResOffset,
+		uint64_t miResWidth) {
 	uint64_t mainEnd = mainOffset + mainWidth;
 	MachineInstr &MI = *MIOp.getParent();
+#ifndef NDEBUG
+	assert(miResOffset < miResWidth);
+	MachineRegisterInfo& MRI = MI.getParent()->getParent()->getRegInfo();
+	auto MIOpTy = MRI.getType(MIOp.getReg());
+	if (MIOpTy.isValid()) {
+		assert(MIOpTy.getScalarSizeInBits() == miResWidth && "Has enough bits to extract");
+	}
+#endif
 	switch (MI.getOpcode()) {
 	case HwtFpga::HWTFPGA_MERGE_VALUES: {
 		//  $dst $src{N}, $width{N} (lowest bits first)
-		uint64_t srcCnt = (MI.getNumExplicitOperands() - 1) / 2;
+		uint64_t srcCnt = hwtHls::MERGE_VALUES_getSrcOperandCount(MI);
 		bool didReduce = false;
-		for (unsigned i = 0; i < srcCnt; ++i) {
-			// [todo] check if thisMemberOffset is computed correctly for more than 2 operands
+		size_t valMOIndex = 0;
+		for (const auto& [valMO, widthMO] : hwtHls::MERGE_VALUES_iter_valuesWidthPairs(
+				MI)) {
 			uint64_t thisMemberOffset = 0;
-			uint64_t width = MI.getOperand(1 + srcCnt + i).getImm();
-			if (offsetOfIRes) {
-				if (offsetOfIRes > width) {
-					thisMemberOffset = width;
-					offsetOfIRes -= width;
-					width = 0;
+			uint64_t valMOWidth = widthMO.getImm();
+			uint64_t valMOWidthToExtract = valMOWidth;
+			if (miResOffset) { // if slice on this MERGE_VALUES instruction does not start at current operand
+				if (miResOffset > valMOWidth) { // this operand is entirely sliced out
+					thisMemberOffset = valMOWidth;
+					miResOffset -= valMOWidth;
+					valMOWidthToExtract = 0;
 				} else {
-					thisMemberOffset = offsetOfIRes;
-					width -= offsetOfIRes;
-					offsetOfIRes = 0;
+					thisMemberOffset = miResOffset;
+					valMOWidthToExtract -= miResOffset;
+					miResOffset = 0;
 				}
 			}
-			if (currentOffset + width < mainOffset || width == 0) {
+			if (mainOffsetCurrent + valMOWidthToExtract < mainOffset || valMOWidthToExtract == 0) {
 				didReduce = true;
-				currentOffset += width;
-				// skipping the unused prefix
+				mainOffsetCurrent += valMOWidthToExtract;
+				// skipping the entirely unused prefix
 			} else {
-				auto &op = MI.getOperand(1 + i);
 				MachineOperand *src = nullptr;
-				if (op.isReg())
-					src = MRI.getOneDef(op.getReg());
+				if (valMO.isReg())
+					src = MRI.getOneDef(valMO.getReg());
 				if (src) {
 					// can look trough
 					didReduce |= collectConcatMembers(*src, members, mainOffset,
-							mainWidth, currentOffset, thisMemberOffset, width);
+							mainWidth, mainOffsetCurrent, thisMemberOffset, valMOWidth);
 				} else {
 					// must take as it is
-					collectConcatMembersAsItIs(op, members, mainOffset,
-							mainWidth, currentOffset, thisMemberOffset, width);
+					collectConcatMembersAsItIs(valMO, members, mainOffset,
+							mainWidth, mainOffsetCurrent, thisMemberOffset, valMOWidth);
 				}
 			}
-			if (currentOffset >= mainEnd) {
+			if (mainOffsetCurrent >= mainEnd) {
 				// we do not care about successors because parent EXTRACT does not select them
-				didReduce |= i != srcCnt;
+				didReduce |= valMOIndex != srcCnt - 1;
 				break;
 			}
+			valMOIndex++;
 		}
 		return didReduce;
 	}
 	case HwtFpga::HWTFPGA_EXTRACT: {
-		// $dst $src $offset $dstWidth
-		uint64_t subSliceOffset = MI.getOperand(2).getImm();
-		uint64_t subSliceResWidth = MI.getOperand(3).getImm();
-		subSliceOffset += offsetOfIRes;
-		if (widthOfIRes > subSliceResWidth) {
-			errs() << MI << " widthOfIRes:" << widthOfIRes << "\n";
+		// fit this is a HWTFPGA_EXTRACT try to use src operand instead
+		auto subSlice = hwtHls::HWTFPGA_EXTRACTOptions::get(MI);
+		subSlice.offset += miResOffset;
+		if (miResWidth != subSlice.dstWidth) {
+			errs() << MI << " widthOfIRes:" << miResWidth << " subSlice.dstWidth:" << subSlice.dstWidth << "\n";
 			llvm_unreachable(
 					"HWTFPGA_EXTRACT provides value of less bits than expected");
 		}
 
 		if (auto *src = MRI.getOneDef(MI.getOperand(1).getReg())) {
-			// look trough the source operand of this extract instruction
+			// look trough the source operand of this HWTFPGA_EXTRACT instruction
+			// if src operand is extract or merge we drill down to find most primitive inputs
 			bool mayContainOtherSlicesAndConcats = false;
 			switch (src->getParent()->getOpcode()) {
 			case HwtFpga::HWTFPGA_MERGE_VALUES:
@@ -252,8 +261,8 @@ bool HwtFpgaCombinerHelper::collectConcatMembers(llvm::MachineOperand &MIOp,
 			}
 			if (mayContainOtherSlicesAndConcats) {
 				bool didReduce = collectConcatMembers(*src, members, mainOffset,
-						mainWidth, currentOffset, subSliceOffset,
-						subSliceResWidth); // [fixme] subSliceResWidth is not correct it should be the width of src but it is unknown at this point
+						mainWidth, mainOffsetCurrent, subSlice.offset,
+						subSlice.srcWidth);
 				assert(members.size());
 				const auto &lastAdded = members.back();
 				didReduce |= &lastAdded.op != src;
@@ -265,7 +274,7 @@ bool HwtFpgaCombinerHelper::collectConcatMembers(llvm::MachineOperand &MIOp,
 	}
 	}
 	return collectConcatMembersAsItIs(MIOp, members, mainOffset, mainWidth,
-			currentOffset, offsetOfIRes, widthOfIRes);
+			mainOffsetCurrent, miResOffset, miResWidth);
 }
 
 
@@ -428,7 +437,10 @@ void HwtFpgaCombinerHelper::rewriteGenericOpcodeToHwtFpga(llvm::MachineInstr &MI
 		Observer.changingInstr(MI);
 		auto dst = MI.getOperand(0).getReg();
 		auto MIB = MachineInstrBuilder(*MI.getMF(), &MI);
-		MIB.addImm(MRI.getType(dst).getSizeInBits()); // add dstWidth
+		auto Ty = MRI.getType(dst);
+		assert(Ty.isValid());
+		assert(Ty.isScalar());
+		MIB.addImm(Ty.getSizeInBits()); // add dstWidth
 		Observer.changedInstr(MI);
 
 	}
@@ -472,7 +484,7 @@ bool HwtFpgaCombinerHelper::matchTrivialInstrDuplication(
 			|| NextInst->getNumOperands() != MI.getNumOperands()) {
 		return false;
 	}
-	// chechk def operands
+	// check def operands
 	for (auto I0 : { &MI, NextInst }) {
 		auto I1 = I0 == &MI ? NextInst : &MI;
 		for (auto def : I0->defs()) {
@@ -505,7 +517,7 @@ void HwtFpgaCombinerHelper::rewriteTrivialInstrDuplication(
 	auto def1 = OtherMI->getOperand(0);
 	assert(def1.isDef());
 	if (def0.getReg() != def1.getReg())
-		MRI.replaceRegWith(def0.getReg(), def1.getReg());
+		replaceRegWith(MRI, def0.getReg(), def1.getReg());
 
 	MI.eraseFromParent();
 }
@@ -568,7 +580,7 @@ void HwtFpgaCombinerHelper::rewriteAndOrSequenceReduce(llvm::MachineInstr &MI,
 				{ replacement });
 		replacement = _replacement;
 	}
-	MRI.replaceRegWith(MI.getOperand(0).getReg(), replacement);
+	replaceRegWith(MRI, MI.getOperand(0).getReg(), replacement);
 	MI.eraseFromParent();
 }
 

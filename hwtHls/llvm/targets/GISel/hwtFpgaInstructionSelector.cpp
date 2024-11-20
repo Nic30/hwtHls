@@ -315,23 +315,36 @@ bool HwtFpgaTargetInstructionSelector::select(MachineInstr &I) {
 			break;
 		}
 		auto MIB = Builder.buildInstr(_Opc);
-		selectInstrArgs(I, MIB, Opc != G_BRCOND && Opc != G_BR);
 
 		// add extra type spec operands if required
 		if (Opc == G_EXTRACT) {
-			// dst, src, offset, dstWidth, (dst, src and offset already added)
+			// $dst, $src, $srcWidth, $offset, $dstWidth
 			auto dst = I.getOperand(0).getReg();
+			auto & srcMO = I.getOperand(1);
+			auto offset = I.getOperand(2).getImm();
+			MIB.addDef(dst);
+			selectInstrArg(MF, MIB, MRI, srcMO);
+			MIB.addImm(MRI.getType(I.getOperand(1).getReg()).getSizeInBits()); // add srcWidth
+			MIB.addImm(offset);
 			MIB.addImm(MRI.getType(dst).getSizeInBits()); // add dstWidth
-			//MRI.setType(VReg, Ty)
-		} else if (Opc == G_MERGE_VALUES) {
-			// dst, src{N}, width{N}, (dst, srcs were already added)
-			for (unsigned i = 1; i < I.getNumOperands(); i++) {
-				MIB.addImm(
-						MRI.getType(I.getOperand(i).getReg()).getSizeInBits()); // add dstWidth
+#ifndef NDEBUG
+			auto & NewMI = *MIB.getInstr();
+			assert(NewMI.getNumOperands() == 5);
+			hwtHls::HWTFPGA_EXTRACTOptions::get(NewMI);
+#endif
+
+		} else {
+			selectInstrArgs(I, MIB, Opc != G_BRCOND && Opc != G_BR);
+			if (Opc == G_MERGE_VALUES) {
+				// dst, src{N}, width{N}, (dst, srcs were already added)
+				for (unsigned i = 1; i < I.getNumOperands(); i++) {
+					size_t opSize = MRI.getType(I.getOperand(i).getReg()).getSizeInBits();
+					MIB.addImm(opSize); // add dstWidth
+				}
+			} else if (Opc == G_IMPLICIT_DEF) {
+				auto dst = I.getOperand(0).getReg();
+				MIB.addImm(MRI.getType(dst).getSizeInBits()); // add dstWidth
 			}
-		} else if (Opc == G_IMPLICIT_DEF) {
-			auto dst = I.getOperand(0).getReg();
-			MIB.addImm(MRI.getType(dst).getSizeInBits()); // add dstWidth
 		}
 
 		return finalizeReplacementOfInstruction(MIB, I);
@@ -339,6 +352,7 @@ bool HwtFpgaTargetInstructionSelector::select(MachineInstr &I) {
 	case G_SEXT:
 		return select_G_SEXT(MRI, Builder, I);
 	case G_ZEXT:
+	case G_ANYEXT:
 		return select_G_ZEXT(MRI, Builder, I);
 	case G_TRUNC:
 		return select_G_TRUNC(MRI, Builder, I);
@@ -382,8 +396,10 @@ MachineOperand HwtFpgaTargetInstructionSelector::rewrite_G_PTR_ADD_exprToIndexAD
 			//assert(srcDef);
 			//auto srcMOSelected = rewrite_G_PTR_ADD_exprToIndexADD(MF, MRI, MIRB, baseAddrDefiningReg, indexWidth, itemSize, *srcDef, replacements);
 			selectInstrArg(MF, indexMIB, MRI, srcMO);
-			indexMIB.addImm(log2ceil(itemSize)); // offset
-			indexMIB.addImm(indexWidth); // dstWidth
+			indexMIB.addImm(MRI.getType(srcMO.getReg()).getScalarSizeInBits()); // $srcWidth
+			indexMIB.addImm(log2ceil(itemSize)); // $offset
+			indexMIB.addImm(indexWidth); // $dstWidth
+			assert(indexMIB->getNumExplicitOperands() == 5);
 
 			auto &IndexSliceMI = *indexMIB.getInstr();
 			assert(constrainInstRegOperands(IndexSliceMI, TII, TRI, RBI));
@@ -570,14 +586,17 @@ bool HwtFpgaTargetInstructionSelector::select_G_SHL(
 		auto *paddingCI = ConstantInt::get(Context, padding);
 		unsigned dstWidth =
 				MRI.getType(I.getOperand(0).getReg()).getSizeInBits();
-		// dst, src, offset, dstWidth
+		// $dst, $src, $srcWidth, $offset, $dstWidth
 		Register upperBits = MRI.createGenericVirtualRegister(
 				LLT::scalar(dstWidth - paddingWidth));
 		MIB0.addDef(upperBits);
 		selectInstrArg(*MF, MIB0, MRI, I.getOperand(1));
 		// lhs
+		MIB0.addImm(dstWidth);
 		MIB0.addImm(0);
 		MIB0.addImm(dstWidth - paddingWidth);
+		assert(MIB0->getNumExplicitOperands() == 5);
+
 		if (!constrainInstRegOperands(*MIB0.getInstr(), TII, TRI, RBI))
 			return false;
 
@@ -605,6 +624,8 @@ bool HwtFpgaTargetInstructionSelector::select_G_TRUNC(
 	auto &vOp = I.getOperand(1);
 	ConstantInt *vConst = machineOperandTryGetConst(Context, MRI, vOp);
 	unsigned dstWidth = MRI.getType(I.getOperand(0).getReg()).getSizeInBits();
+	unsigned srcWidth = MRI.getType(I.getOperand(1).getReg()).getSizeInBits();
+
 	if (vConst) {
 		// directly resolve to constant
 		APInt v = vConst->getValue().trunc(dstWidth);
@@ -615,6 +636,7 @@ bool HwtFpgaTargetInstructionSelector::select_G_TRUNC(
 		MachineInstrBuilder MIB0 = MIRB.buildInstr(HwtFpga::HWTFPGA_EXTRACT);
 		MIB0.addDef(I.getOperand(0).getReg());
 		selectInstrArg(*MF, MIB0, MRI, vOp);
+		MIB0.addImm(srcWidth);
 		MIB0.addImm(0);
 		MIB0.addImm(dstWidth);
 		return finalizeReplacementOfInstruction(MIB0, I);
@@ -662,9 +684,11 @@ bool HwtFpgaTargetInstructionSelector::select_G_SHR(
 		Register lshSlice = MRI.createGenericVirtualRegister(LLT::scalar(1));
 		MIB0.addDef(lshSlice);
 		selectInstrArg(*MF, MIB0, MRI, lhs);
-		MIB0.addImm(prefixWidth);
 		unsigned lshSliceWidth = srcWidth - prefixWidth;
+		MIB0.addImm(srcWidth);
+		MIB0.addImm(prefixWidth);
 		MIB0.addImm(lshSliceWidth);
+		assert(MIB0.getInstr()->getNumExplicitOperands() == 5);
 
 		MachineInstrBuilder MIB = MIRB.buildInstr(
 				HwtFpga::HWTFPGA_MERGE_VALUES);
@@ -706,8 +730,11 @@ std::optional<Register> HwtFpgaTargetInstructionSelector::_getSelectedMsb(
 	msbMIB.addDef(msb);
 	selectInstrArg(*MF, msbMIB, MRI, inputMo);
 	// lhs
+	msbMIB.addImm(srcWidth);
 	msbMIB.addImm(srcWidth - 1);
 	msbMIB.addImm(1);
+	assert(msbMIB.getInstr()->getNumExplicitOperands() == 5);
+
 	if (!constrainInstRegOperands(*msbMIB.getInstr(), TII, TRI, RBI))
 		return {};
 	return msb;

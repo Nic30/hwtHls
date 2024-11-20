@@ -15,6 +15,10 @@ public:
 	struct ConcatMember {
 		MachineOperand &op;
 		uint64_t offsetOfUse, width, widthOfUse;
+		ConcatMember(MachineOperand &op, uint64_t offsetOfUse, uint64_t width, uint64_t widthOfUse):
+			op(op), offsetOfUse(offsetOfUse), width(width), widthOfUse(widthOfUse)  {
+			assert(width >= offsetOfUse + widthOfUse);
+		}
 	};
 
 	using llvm::CombinerHelper::CombinerHelper;
@@ -53,14 +57,15 @@ public:
 	 * :param members: output vector of records containing the operand and the information about which bits are selected
 	 * :param mainOffset: offsets (number of bits) where selected value from whole value
 	 * :param mainWidth: number of bits to select in total
-	 * :param currentOffset: a number of bits already collected
-	 * :param offsetOfIRes: offsets (number of bits) where selected value from this operand starts
-	 * :param widthOfIRes: a number of bits to select from this operand
+	 * :param mainOffsetCurrent: a number of bits already collected
+	 * :param miResOffset: offsets (number of bits) where selected value from this operand starts
+	 * :param miResWidth: a number of bits for MIOp (the result operand of some instruction)
 	 * */
 	bool collectConcatMembers(llvm::MachineOperand &MIOp,
 			std::vector<ConcatMember> &members, uint64_t mainOffset,
-			uint64_t mainWidth, uint64_t &currentOffset, uint64_t offsetOfIRes,
-			uint64_t widthOfIRes);
+			uint64_t mainWidth, uint64_t &mainOffsetCurrent, uint64_t miResOffset,
+			uint64_t miResWidths);
+
 	void convertG_SELECT_to_HWTFPGA_MUX(llvm::MachineInstr &MI);
 	void convertPHI_to_HWTFPGA_MUX(llvm::MachineInstr &MI);
 	bool hasSomeConstConditions(llvm::MachineInstr &MI);
@@ -68,6 +73,9 @@ public:
 
 	bool matchMuxForConstPropagation(llvm::MachineInstr &MI,
 			hwtHls::MuxReducibleValuesInfo &matchInfo);
+	/*
+	 * Build a value which represents the original value before some bits were reduced
+	 * */
 	[[nodiscard]] Register _rewriteMuxConstPropagationExpandReducedBits(llvm::MachineInstr &MI,
 			hwtHls::MuxReducibleValuesInfo &matchInfo,
 			const std::vector<std::pair<bool, unsigned>> &usedBitsVec);
@@ -119,6 +127,10 @@ public:
 
 	bool matchAndOrSequenceReduce(llvm::MachineInstr &MI, bool& removeRightOp);
 	void rewriteAndOrSequenceReduce(llvm::MachineInstr &MI, bool removeRightOp);
+
+	void rewriteConstShift(llvm::MachineInstr &MI);
+	void rewriteConstFunnelShift(llvm::MachineInstr &MI);
+
 };
 
 }

@@ -8,6 +8,7 @@
 #include <hwtHls/llvm/targets/hwtFpgaIoUtils.h>
 #include <hwtHls/llvm/targets/bitMathUtils.h>
 #include <hwtHls/llvm/targets/intrinsic/hfloattmp.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtils.h>
 
 using namespace llvm;
 
@@ -57,11 +58,23 @@ void checkOrSetWidth(MachineRegisterInfo &MRI, MachineOperand &MO,
 		auto w = MO.getCImm()->getBitWidth();
 		if (w != bitWidth) {
 			auto opc = MO.getParent()->getOpcode();
-			if (MO.getParent()->getOperandNo(&MO) == 2
-					&& (opc == HwtFpga::HWTFPGA_SHL
-							|| opc == HwtFpga::HWTFPGA_ASHR
-							|| opc == HwtFpga::HWTFPGA_LSHR)) {
-				// shift amount can reuce bitwidth if we discover that the actual value
+			auto opIndex = MO.getParent()->getOperandNo(&MO);
+			bool opIsShiftAmount;
+			switch (opc) {
+			case HwtFpga::HWTFPGA_SHL:
+			case HwtFpga::HWTFPGA_ASHR:
+			case HwtFpga::HWTFPGA_LSHR:
+				opIsShiftAmount = opIndex == 2;
+				break;
+			case HwtFpga::HWTFPGA_FSHL:
+			case HwtFpga::HWTFPGA_FSHR:
+				opIsShiftAmount = opIndex == 3;
+				break;
+			default:
+				opIsShiftAmount = false;
+			}
+			if (opIsShiftAmount) {
+				// shift amount can reduce bitwidth if we discover that the actual value
 				// in register has fewer bits than during legalization
 				assert(bitWidth < w);
 				auto newVal = CI->getValue().trunc(bitWidth).getZExtValue();
@@ -230,9 +243,21 @@ bool resolveTypes(MachineInstr &MI) {
 		auto &src = MI.getOperand(1);
 		auto &shiftAmount = MI.getOperand(2);
 		std::vector dataOps( { &dst, &src });
-		unsigned bitWidth = tryResolveBitWidthFromOperands(MRI, dataOps);
-		if (bitWidth == 0)
-			return false;
+		unsigned bitWidth = MI.getOperand(3).getImm();
+		for (auto MO : dataOps)
+			checkOrSetWidth(MRI, *MO, bitWidth);
+		unsigned shWidth = log2ceil(bitWidth + 1);
+		checkOrSetWidth(MRI, shiftAmount, shWidth);
+		return true;
+	}
+	case HwtFpga::HWTFPGA_FSHL:
+	case HwtFpga::HWTFPGA_FSHR: {
+		auto &dst = MI.getOperand(0);
+		auto &src0 = MI.getOperand(1);
+		auto &src1 = MI.getOperand(2);
+		auto &shiftAmount = MI.getOperand(3);
+		std::vector dataOps( { &dst, &src0, &src1 });
+		unsigned bitWidth = MI.getOperand(4).getImm();
 		for (auto MO : dataOps)
 			checkOrSetWidth(MRI, *MO, bitWidth);
 		unsigned shWidth = log2ceil(bitWidth + 1);
@@ -298,7 +323,7 @@ bool resolveTypes(MachineInstr &MI) {
 		size_t indexWidth;
 		MachineInstr * addrDef;
 		std::tie(elemT, indexWidth, addrDef) = getLoadOrStoreElementType(MRI, MI);
-
+		assert(elemT && elemT->isIntegerTy() && "Instruction load/store type must be resolvable");
 		unsigned bitWidth = elemT->getIntegerBitWidth();
 		assert(bitWidth == MI.getOperand(3).getImm());
 
@@ -332,11 +357,9 @@ bool resolveTypes(MachineInstr &MI) {
 		return true;
 	}
 	case HwtFpga::HWTFPGA_EXTRACT: {
-		// $dst $src $offset $dstWidth
-		auto dstWidth = MI.getOperand(3).getImm();
+		auto subSlice = hwtHls::HWTFPGA_EXTRACTOptions::get(MI);
 
-		assert(checkOrSetWidth(MRI, MI.getOperand(0), dstWidth, nullptr));
-		auto offset = MI.getOperand(2).getImm();
+		assert(checkOrSetWidth(MRI, MI.getOperand(0), subSlice.dstWidth, nullptr));
 		auto &src = MI.getOperand(1);
 		if (src.isUndef()) {
 			MF.dump();
@@ -347,17 +370,19 @@ bool resolveTypes(MachineInstr &MI) {
 		if (src.isReg()) {
 			LLT srcT = MRI.getType(src.getReg());
 			if (srcT.isValid()) {
-				if (unsigned(offset + dstWidth) > srcT.getSizeInBits()) {
+				if (srcT.getSizeInBits() != subSlice.srcWidth ) {
 					MF.dump();
 					errs() << MI;
 					llvm_unreachable(
-							"HWTFPGA_EXTRACT with incorret operands, selecting more bits than is provided from src");
+							"HWTFPGA_EXTRACT with incorrect operand width (src)");
 				}
 				return true;
+			} else {
+				MRI.setType(src.getReg(), LLT::scalar(subSlice.srcWidth ));
 			}
 		} else {
 			unsigned srcWidth = src.getCImm()->getType()->getIntegerBitWidth();
-			assert(offset + dstWidth <= srcWidth);
+			assert(subSlice.srcWidth == srcWidth);
 			return true;
 		}
 

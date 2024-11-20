@@ -1,11 +1,12 @@
 from copy import copy
 from itertools import chain
-from typing import Tuple, Dict, List, Set, Optional
+from typing import Tuple, Dict, List, Set, Optional, Union
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT, SLICE, INT
+from hwt.hwIO import HwIO
 from hwt.math import log2ceil
 from hwt.pyUtils.setList import SetList
 from hwtHls.frontend.ast.statementsRead import HlsRead
@@ -148,6 +149,9 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     ops = ops[:-HFloatTmpConfig.MEMBER_CNT]
                 elif opc in self._BITCOUNT_OPCODES:
                     resT = HBits(log2ceil(resT.bit_length() + 1))
+                elif opc in self._SHIFT_OPCODES:
+                    # cut-off last argument which is the width
+                    ops = ops[:-1]
 
                 res = builder.buildOp(opDef, opSpecialization, resT, *ops, name=name)
                 valCache.add(mb, dst, res, True)
@@ -224,7 +228,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 valCache.add(mb, dst, res, True)
 
             elif opc == TargetOpcode.HWTFPGA_EXTRACT:
-                src, offset, width = ops
+                src, srcWidth, offset, width = ops
                 if isinstance(offset, int):
                     if width == 1:
                         # to prefer more simple notation

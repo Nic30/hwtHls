@@ -6,8 +6,8 @@ from hwt.hdl.types.array import HArray
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.hwIO import HwIO
-from hwtHls.code import OP_ASHR, OP_LSHR, OP_SHL, OP_CTLZ, OP_CTTZ, OP_CTPOP
-from hwtHls.frontend.ast.astToSsa import NetlistIoConstructorDictT
+from hwtHls.code import OP_ASHR, OP_LSHR, OP_SHL, OP_CTLZ, OP_CTTZ, OP_CTPOP,\
+    OP_FSHL, OP_FSHR
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, MachineInstr, MachineRegisterInfo, Register, \
     TargetOpcode, CmpInst, ConstantInt, TypeToIntegerType, TypeToArrayType, IntegerType, Type as LlvmType, ArrayType, \
     MachineLoopInfo, GlobalValue, ValueToConstantArray, ValueToConstantInt, ValueToConstantDataArray, ConstantArray
@@ -74,12 +74,14 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         TargetOpcode.HWTFPGA_ASHR: OP_ASHR,
         TargetOpcode.HWTFPGA_LSHR: OP_LSHR,
         TargetOpcode.HWTFPGA_SHL: OP_SHL,
+        TargetOpcode.HWTFPGA_FSHL: OP_FSHL,
+        TargetOpcode.HWTFPGA_FSHR: OP_FSHR,
         TargetOpcode.HWTFPGA_CTLZ: OP_CTLZ,
         TargetOpcode.HWTFPGA_CTLZ_ZERO_UNDEF: OP_CTLZ,
         TargetOpcode.HWTFPGA_CTTZ: OP_CTTZ,
         TargetOpcode.HWTFPGA_CTTZ_ZERO_UNDEF: OP_CTTZ,
         TargetOpcode.HWTFPGA_CTPOP: OP_CTPOP,
- 
+
         TargetOpcode.G_ASHR: OP_ASHR,
         TargetOpcode.G_LSHR: OP_LSHR,
         TargetOpcode.G_SHL: OP_SHL,
@@ -118,11 +120,18 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         TargetOpcode.HWTFPGA_CSTORE,
     )
     _BITCOUNT_OPCODES = {
-        TargetOpcode.HWTFPGA_CTLZ,
+        TargetOpcode.HWTFPGA_CTLZ,  # count leading zeros
         TargetOpcode.HWTFPGA_CTLZ_ZERO_UNDEF,
-        TargetOpcode.HWTFPGA_CTTZ,
+        TargetOpcode.HWTFPGA_CTTZ,  # count tailing zeros
         TargetOpcode.HWTFPGA_CTTZ_ZERO_UNDEF,
-        TargetOpcode.HWTFPGA_CTPOP,
+        TargetOpcode.HWTFPGA_CTPOP,  # count population (total number of 1 )
+    }
+    _SHIFT_OPCODES = {
+        TargetOpcode.HWTFPGA_ASHR,
+        TargetOpcode.HWTFPGA_LSHR,
+        TargetOpcode.HWTFPGA_SHL,
+        TargetOpcode.HWTFPGA_FSHL,
+        TargetOpcode.HWTFPGA_FSHR,
     }
     _FP_BIN_OPCODES = {
         TargetOpcode.HWTFPGA_FP_FADD,
