@@ -12,6 +12,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import \
     MachineEdgeMeta, MachineEdge, MACHINE_EDGE_TYPE, MachineLoopId
+from hwtHls.ssa.translation.llvmMirToNetlist.utils import _regIsValidLiveIn
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from ipCorePackager.constants import DIRECTION
 
@@ -137,14 +138,14 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                                              MRI: MachineRegisterInfo,
                                              pred: MachineBasicBlock, mb: MachineBasicBlock,
                                              eMeta: MachineEdgeMeta) -> Optional[Register]:
-        assert eMeta.srcBlock is pred and eMeta.dstBlock is mb, (eMeta, pred, mb)
+        assert eMeta.srcBlock == pred and eMeta.dstBlock == mb, (eMeta, pred, mb)
         if eMeta.reuseDataAsControl is not None:
             return eMeta.reuseDataAsControl
         constLiveouts = self.blockMeta[pred].constLiveOuts
         for liveIn in mir.liveness[pred][mb]:
             # [todo] prefer using same liveIns from every predecessor
             # [todo] prefer using variables which are used the most early
-            if liveIn not in constLiveouts and mir._regIsValidLiveIn(MRI, liveIn):
+            if liveIn not in constLiveouts and _regIsValidLiveIn(mir.regToIo, MRI, liveIn):
                 eMeta.reuseDataAsControl = liveIn
                 return liveIn
 
@@ -223,7 +224,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
     #        liveInGroup = liveness[pred][mb]
     #        someLiveInFound = False
     #        for liveIn in liveInGroup:
-    #            if mir._regIsValidLiveIn(MRI, liveIn):
+    #            if _regIsValidLiveIn(mir.regToIo, MRI, liveIn):
     #                someLiveInFound = True
     #                break
     #        if not someLiveInFound:
@@ -433,7 +434,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                     elif eT == MACHINE_EDGE_TYPE.BACKWARD:
                         # backedge will be discarded if has no live ins
                         lives = mir.liveness[pred][mb]
-                        if any(mir._regIsValidLiveIn(MRI, liveIn) for liveIn in lives):
+                        if any(_regIsValidLiveIn(mir.regToIo, MRI, liveIn) for liveIn in lives):
                             compatible = False
                             break
 
