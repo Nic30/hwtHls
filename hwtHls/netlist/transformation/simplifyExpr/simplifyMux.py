@@ -183,13 +183,15 @@ def popConcatOfSlices(o: HlsNetNodeOut, depthLimit: int) -> Generator[Tuple[HlsN
         yield (o, 0, o._dtype.bit_length())
 
 
+ShiftValueBitsTuple = Tuple[HlsNetNodeOut, int, int] # vMember, beginBitI, endBitI
+
 def netlistReduceMuxToShift(builder: HlsNetlistBuilder, n: HlsNetNodeMux, worklist: SetList[HlsNetNode]):
     assert len(n._inputs) % 2 == 1, n
     msbShiftIn = None
     shiftedVal = None
     lsbShiftIn = None
-    # Tuple(condition, shiftAmountValue, shiftedValueConcatMembers)
-    shiftVariants: List[Tuple[HlsNetNodeOut, Optional[int], Tuple[HlsNetNodeOut, int, int]]] = []
+    # Tuple(condition, shiftAmountValue, shiftedValueConcatMembers), shiftedValueConcatMembers is a list for consecutive bits in this case of mux
+    shiftVariants: List[Tuple[HlsNetNodeOut, Optional[int], List[ShiftValueBitsTuple]]] = []
     for _v, c in n._iterValueConditionDriverPairs():
         v = tuple(popConcatOfSlices(_v, 1))
         if len(v) == 1:
@@ -213,7 +215,7 @@ def netlistReduceMuxToShift(builder: HlsNetlistBuilder, n: HlsNetNodeMux, workli
                 # * v shift or
                 # *  Concat(msbShiftIn slice, v slice)
                 # *  Concat(v slice, lsbShitIn slice)
-                v = variant[2]
+                v: List[ShiftValueBitsTuple] = variant[2]
                 if len(v) == 1:
                     # this is not concat, it must be msbShiftIn lsbShiftIn
                     if len(shiftInCandidates) == 2:
@@ -764,8 +766,8 @@ def netlistReduceMux(n: HlsNetNodeMux, worklist: SetList[HlsNetNode]):
                 return True
 
         if inpCnt > 2:
-            if netlistReduceMuxToShift(builder, n, worklist):
-                return True
+            #if netlistReduceMuxToShift(builder, n, worklist):
+            #    return True
             if netlistReduceMuxSinkIncommingValueArithOperators(n, worklist):
                 return True
 
