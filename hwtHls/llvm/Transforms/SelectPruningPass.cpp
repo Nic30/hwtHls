@@ -269,7 +269,7 @@ llvm::PreservedAnalyses SelectPruningPass::run(llvm::Function &F,
 	TargetLibraryInfo *TLI = &AM.getResult<TargetLibraryAnalysis>(F);
 	DceWorklist DCE(TLI, nullptr);
 	bool Changed = false;
-	for (auto &&BB : F) {
+	for (auto &BB : F) {
 		for (auto Iit = BB.begin(); Iit != BB.end(); ++Iit) {
 			if (SelectInst *SI = dyn_cast<SelectInst>(&*Iit)) {
 				ConstBitPartsAnalysisContextSelectPruning selectPruning(DCE);
