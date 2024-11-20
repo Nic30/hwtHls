@@ -20,13 +20,13 @@ bool isInstructionWhichIsKeeptOutOfLiveness(llvm::MachineRegisterInfo &MRI,
 		return true;  // constant which represents the IO port
 	case HwtFpga::HWTFPGA_GLOBAL_VALUE:
 		return true;  // constant which represents the local memory
-	case HwtFpga::IMPLICIT_DEF:
-	case HwtFpga::HWTFPGA_IMPLICIT_DEF:
-		auto def = MRI.getOneDef(MI.getOperand(0).getReg());
-		if (def && def->getParent() == &MI) {
-			return true; // constant undef
-		}
-		break;
+	//case HwtFpga::IMPLICIT_DEF:
+	//case HwtFpga::HWTFPGA_IMPLICIT_DEF:
+	//	auto def = MRI.getOneDef(MI.getOperand(0).getReg());
+	//	if (def && def->getParent() == &MI) {
+	//		return true; // constant undef
+	//	}
+	//	break;
 	}
 	return false;
 }
