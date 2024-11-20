@@ -80,6 +80,7 @@ py3.extension_module(
      'targets/GISel/hwtFpgaCombinerHelperMux.cpp',
      'targets/GISel/hwtFpgaCombinerHelperMuxSinkDirectlyDrivenValBits.cpp',
      'targets/GISel/hwtFpgaCombinerHelperMuxValPropagation.cpp',
+     'targets/GISel/hwtFpgaCombinerHelperShift.cpp',
      'targets/GISel/hwtFpgaInstructionBuilderUtils.cpp',
 
 	 'targets/hwtFpgaInstrInfo.cpp',
