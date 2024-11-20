@@ -57,7 +57,7 @@ class ArchElementFsm(ArchElement):
             stageCons = ConnectionsOfStageList(netlist.normalizedClkPeriod,
                                                (ConnectionsOfStage(self, clkI)
                                                 for clkI, _ in enumerate(self.stages)))
-        
+
         ArchElement.__init__(self, netlist, name, namePrefix, subNodes, stageCons)
         self._beginClkI = beginClkI
         self._endClkI = endClkI
@@ -83,7 +83,11 @@ class ArchElementFsm(ArchElement):
         #        yield (clkI, nodes)
 
     def hasUsedStateForClkI(self, clkI: int) -> bool:
-        return clkI < len(self.stages) and self.stages[clkI]
+        return clkI < len(self.stages) and bool(self.stages[clkI])
+
+    def getStageEnable(self, clkIndex: int) -> Tuple[Optional[HlsNetNodeOut], bool]:
+        assert self.hasUsedStateForClkI(clkIndex), (self, clkIndex)
+        return ArchElement.getStageEnable(self, clkIndex)
 
     @override
     def getStageForClock(self, clkIndex: int, createIfNotExists=False) -> List[HlsNetNode]:
@@ -138,7 +142,7 @@ class ArchElementFsm(ArchElement):
                             if u.obj.scheduledOut[u.in_i] // clkPeriod > wClkI:
                                 raise NotImplementedError("Use after write, need to create reg for copy of current val")
                         peristentFromThisClk = True
-                        
+
                 elif isinstance(node, HlsNetNodeWrite) and node.allocationType == CHANNEL_ALLOCATION_TYPE.REG:
                     r = node.associatedRead
                     if r is not None and r.parent is self:
@@ -185,8 +189,8 @@ class ArchElementFsm(ArchElement):
     def rtlStatesMayHappenConcurrently(self, stateClkI0: int, stateClkI1: int):
         return stateClkI0 == stateClkI1
 
-    #@override
-    #def rtlAllocDatapathRead(self, node: HlsNetNodeRead, con: ConnectionsOfStage, rtl: List[HdlStatement],
+    # @override
+    # def rtlAllocDatapathRead(self, node: HlsNetNodeRead, con: ConnectionsOfStage, rtl: List[HdlStatement],
     #                          validHasCustomDriver:bool=False, readyHasCustomDriver:bool=False):
     #    if isinstance(node, (HlsNetNodeReadForwardedge, HlsNetNodeReadBackedge)) and \
     #            node.associatedWrite is not None and \
@@ -195,8 +199,8 @@ class ArchElementFsm(ArchElement):
     #        return
     #    self._rtlAllocDatapathIo(node.src, node, con, rtl, True, validHasCustomDriver, readyHasCustomDriver)
     #
-    #@override
-    #def rtlAllocDatapathWrite(self, node: HlsNetNodeWrite, con: ConnectionsOfStage, rtl: List[HdlStatement],
+    # @override
+    # def rtlAllocDatapathWrite(self, node: HlsNetNodeWrite, con: ConnectionsOfStage, rtl: List[HdlStatement],
     #                          validHasCustomDriver:bool=False, readyHasCustomDriver:bool=False):
     #    if isinstance(node, (HlsNetNodeWriteForwardedge, HlsNetNodeWriteBackedge)) and\
     #            node.allocationType != CHANNEL_ALLOCATION_TYPE.BUFFER:
@@ -284,7 +288,7 @@ class ArchElementFsm(ArchElement):
 
             # unconditionalTransSeen = False
             # inStateTrans: List[Tuple[RtlSignal, List[HdlStatement]]] = []
-            #con.rtlChannelSyncFinalize(self.netlist.parentHwModule,
+            # con.rtlChannelSyncFinalize(self.netlist.parentHwModule,
             #                           self._dbgAddSignalNamesToSync, self._dbgExplicitlyNamedSyncSignals)
 
             # prettify stateAck signal name if required
@@ -338,7 +342,7 @@ class ArchElementFsm(ArchElement):
             stateTrans.append((stI, [  # SwitchLogic(inStateTrans),
                                      *con.stateDependentDrives,
                                      stateChangeDependentDrives,
-                                     #con.rtlAllocSync()
+                                     # con.rtlAllocSync()
                                      ]))
 
         self._rtlSyncAllocated = True
