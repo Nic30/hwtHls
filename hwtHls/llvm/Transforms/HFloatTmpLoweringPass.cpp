@@ -2,7 +2,6 @@
 
 #include <unordered_map>
 #include <unordered_set>
-#include <math.h>
 
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/BasicBlock.h>
@@ -15,8 +14,15 @@ using namespace llvm;
 
 namespace hwtHls {
 
+// :note: newInstructionType is used also as a defToUse seen set
+
+void propagateTypeUseToDef(const HFloatTmpConfig &fpCfg, Instruction &I,
+		std::unordered_map<Instruction*, HFloatTmpConfig> &newInstructionType,
+		std::unordered_set<Instruction*> &useToDefSeen);
+
 void propagateTypeDefToUse(const HFloatTmpConfig &fpCfg, Instruction &I,
-		std::unordered_map<Instruction*, HFloatTmpConfig> &newInstructionType) {
+		std::unordered_map<Instruction*, HFloatTmpConfig> &newInstructionType,
+		std::unordered_set<Instruction*> &useToDefSeen) {
 	auto curUserFpCfg = newInstructionType.find(&I);
 	if (curUserFpCfg != newInstructionType.end()) {
 		assert(
@@ -28,19 +34,22 @@ void propagateTypeDefToUse(const HFloatTmpConfig &fpCfg, Instruction &I,
 	newInstructionType[&I] = fpCfg;
 	// propagate type def->use until CastFromHFloatTmp, FCmp is found
 	for (auto *_UI : I.users()) {
-		if (auto UI = dyn_cast<Instruction>(_UI)) {
-			if (!UI->getType()->isDoubleTy()) {
-				newInstructionType[&I] = fpCfg;
+		if (auto UserInstr = dyn_cast<Instruction>(_UI)) {
+			if (!UserInstr->getType()->isDoubleTy()) {
+				newInstructionType[UserInstr] = fpCfg;
 				continue;
 			}
-			propagateTypeDefToUse(fpCfg, *UI, newInstructionType);
+			propagateTypeDefToUse(fpCfg, *UserInstr, newInstructionType,
+					useToDefSeen);
+			propagateTypeUseToDef(fpCfg, *UserInstr, newInstructionType,
+					useToDefSeen);
 		}
 	}
 }
 
 void propagateTypeUseToDef(const HFloatTmpConfig &fpCfg, Instruction &I,
 		std::unordered_map<Instruction*, HFloatTmpConfig> &newInstructionType,
-		std::unordered_set<Instruction*> &seen) {
+		std::unordered_set<Instruction*> &useToDefSeen) {
 	// :note: seen is required because DefToUse search can
 	// propagate type use->def until CastToHFloatTmp is found
 	auto curUserFpCfg = newInstructionType.find(&I);
@@ -48,195 +57,34 @@ void propagateTypeUseToDef(const HFloatTmpConfig &fpCfg, Instruction &I,
 		assert(
 				curUserFpCfg->second == fpCfg
 						&& "All paths in code must resolve to the same type");
-		if (seen.contains(&I))
+		if (useToDefSeen.contains(&I))
 			return;
 	} else {
 		newInstructionType[&I] = fpCfg;
 	}
-	seen.insert(&I);
+	useToDefSeen.insert(&I);
 	for (auto &O : I.operands()) {
 		if (!O.get()->getType()->isDoubleTy())
 			continue;
 
-		if (auto UI = dyn_cast<Instruction>(O.get())) {
-			if (auto CI = dyn_cast<CallInst>(UI)) {
+		if (auto UsedInstr = dyn_cast<Instruction>(O.get())) {
+			if (auto CI = dyn_cast<CallInst>(UsedInstr)) {
 				if (IsCastToHFloatTmp(CI))
 					continue;
 			}
-			propagateTypeUseToDef(fpCfg, *UI, newInstructionType, seen);
+
+			propagateTypeDefToUse(fpCfg, *UsedInstr, newInstructionType,
+					useToDefSeen);
+			propagateTypeUseToDef(fpCfg, *UsedInstr, newInstructionType,
+					useToDefSeen);
 		}
 	}
 }
 
-template<typename INT_T>
-INT_T mask(size_t numberOfBits) {
-	static_assert(!std::is_signed<INT_T>::value);
-	INT_T v = -1;
-	v >>= (sizeof v) * 8 - numberOfBits;
-	return v;
-}
-
-ConstantInt* bitCastConstantFPToHFlowatTmp(const HFloatTmpConfig &fpCfg,
+ConstantInt* bitCastConstantFPToHFloatTmp(const HFloatTmpConfig &fpCfg,
 		const ConstantFP &CF) {
-	// IEEE-754 s special meanings
-	//
-	// Meaning             Sign Field   Exponent Field    Mantissa Field
-	// Zero                Don't care   All 0s            All 0s
-	// Positive subnormal  0            All 0s            Non-zero
-	// Negative subnormal  1            All 0s            Non-zero
-	// Positive Infinity   0            All 1s            All 0s
-	// Negative Infinity   1            All 1s            All 0s
-	// Not a Number(NaN)   Don't care   All 1s            Non-zero
-	auto res = APInt(fpCfg.getBitWidth(), 0);
 	auto v = CF.getValue();
-	auto vAsDouble = v.convertToDouble();
-	auto vAsAPInt = v.bitcastToAPInt();
-	// bool issubnormal_ = issubnormal(vAsDouble);
-	size_t CUR_MANTISA_W = 52;
-	size_t CUR_EXP_W = 11;
-
-	uint64_t mantissa = vAsAPInt.extractBits(CUR_MANTISA_W, 0).getZExtValue();
-	uint64_t _exponent =
-			vAsAPInt.extractBits(CUR_EXP_W, CUR_MANTISA_W).getZExtValue();
-	int exponent = ((int) _exponent) + -mask<unsigned>(CUR_EXP_W - 1);
-	uint64_t sign =
-			vAsAPInt.extractBits(1, CUR_EXP_W + CUR_MANTISA_W).getZExtValue();
-	size_t offset = 0;
-	bool isInf = isinf(vAsDouble);
-	// resolve mantissa/exponent or int and frac part if it is in Q format
-	if (fpCfg.isInQFromat) {
-		const size_t numWidth = fpCfg.exponentOrIntWidth
-				+ fpCfg.mantissaOrFracWidth;
-		if (isnan(vAsDouble) || vAsDouble == 0.0
-				|| (issubnormal(vAsDouble) && !fpCfg.supportSubnormal)) {
-			// keep all bits 0
-			offset += numWidth;
-		} else if (isinf(vAsDouble)) {
-			// set to max value
-			res.setBits(offset, offset + fpCfg.mantissaOrFracWidth);
-			offset += fpCfg.mantissaOrFracWidth;
-			res.setBits(offset, offset + fpCfg.exponentOrIntWidth);
-			offset += fpCfg.exponentOrIntWidth;
-		} else {
-			assert(
-					fpCfg.exponentOrIntWidth + fpCfg.mantissaOrFracWidth < 64
-							&& "Rounding may have happened");
-			if (issubnormal(vAsDouble))
-				llvm_unreachable(
-						"NotImplemented: convert subnormal constant to Q format");
-			// shift mantissa on proper position
-			mantissa |= 1 << CUR_MANTISA_W; // set first 1 which was omitted in FP mantissa format
-			int fracWidth = CUR_MANTISA_W;
-			int requiredFracWidth = fpCfg.mantissaOrFracWidth;
-			int rshiftAmountToAliginFrac = fracWidth - requiredFracWidth;
-			int rshiftAmount = rshiftAmountToAliginFrac + exponent;
-			if (rshiftAmount < 0) {
-				mantissa <<= -rshiftAmount;
-			} else {
-				mantissa >>= rshiftAmount;
-			}
-			res |= mantissa & mask<uint64_t>(numWidth);
-			offset += numWidth;
-		}
-	} else {
-		size_t newMantisaW = fpCfg.mantissaOrFracWidth;
-		if (_exponent == 0) {
-			// exponent == all 0
-			if (mantissa == 0) {
-				// zero case
-			} else {
-				// subnormal case
-				if (fpCfg.supportSubnormal) {
-					if (newMantisaW < CUR_MANTISA_W)
-						mantissa >>= CUR_MANTISA_W - newMantisaW;
-				} else {
-					mantissa = 0;
-				}
-			}
-		} else if (_exponent == mask<uint64_t>(CUR_EXP_W)) {
-			// exponent == all 1
-			if (mantissa == 0) {
-				// inf case
-			} else {
-				// nan case
-				mantissa = mask<uint64_t>(newMantisaW);
-			}
-		} else {
-			size_t shiftedOutBits = 0;
-			if (CUR_MANTISA_W > newMantisaW) {
-				// need to shift mantissa and update exponent
-				auto shAmount = CUR_MANTISA_W - newMantisaW;
-				shiftedOutBits |= (mantissa & mask<uint64_t>(shAmount)) << (64 - shAmount);
-				mantissa >>= shAmount;
-			}
-			int newExpOffset = -mask<unsigned>(fpCfg.exponentOrIntWidth - 1);
-			int newExpMin = newExpOffset;
-			int newExpMax = -newExpOffset + 1;
-			if (exponent < newExpMin) {
-				// may become 0 or subnormal
-				size_t shAmount = -exponent - -newExpMin;
-				shiftedOutBits >>= shAmount;
-				shiftedOutBits |= (mantissa & mask<uint64_t>(shAmount)) << (64 - shAmount);
-				if (shiftedOutBits != 0 && fpCfg.supportSubnormal) {
-					llvm_unreachable("NotImplemented: convert fp constant which become subnormal to a fp type of a different width");
-				}
-			} else if (exponent > newExpMax) {
-				// become +-inf
-				isInf = true;
-				exponent = newExpMin - 1;
-				mantissa = 0;
-			}
-			res.insertBits(mantissa, offset, fpCfg.mantissaOrFracWidth);
-			offset += fpCfg.mantissaOrFracWidth;
-			size_t newExponent = (exponent + -newExpOffset) & mask<uint64_t>(fpCfg.exponentOrIntWidth);
-			res.insertBits(newExponent, offset, fpCfg.exponentOrIntWidth);
-			offset += fpCfg.exponentOrIntWidth;
-		}
-	}
-
-	// fill sign and other special flags
-	if (fpCfg.hasSign) {
-		if (sign) {
-			res.setBit(offset);
-		}
-		offset += 1;
-	} else {
-		assert(
-				!sign
-						&& "Can not convert negative float constant to type without sign");
-	}
-	if (fpCfg.hasIsNaN) {
-		if (isnan(vAsDouble)) {
-			res.setBit(offset);
-		}
-		offset += 1;
-	} else {
-		assert(
-				!(fpCfg.isInQFromat && isnan(vAsDouble))
-						&& "Can not convert NaN constant to q formated number without isNaN flag");
-	}
-	if (fpCfg.hasIsInf) {
-		if (isInf) {
-			res.setBit(offset);
-		}
-		offset += 1;
-	} else {
-		assert(
-				!(fpCfg.isInQFromat && isInf)
-						&& "Can not convert Inf constant to q formated number without isInf flag");
-	}
-	if (fpCfg.hasIs1) {
-		if (vAsDouble == 1.0) {
-			res.setBit(offset);
-		}
-		offset += 1;
-	}
-	if (fpCfg.hasIs0) {
-		if (vAsDouble == 0.0) {
-			res.setBit(offset);
-		}
-		offset += 1;
-	}
+	auto res = fpCfg.bitCastAPFloatToHFloatTmpAPInt(v);
 	return ConstantInt::get(CF.getContext(), res);
 }
 
@@ -253,7 +101,7 @@ Value* createSpecializedValue(IRBuilder<> &Builder,
 		return createSpecializedInstruction(Builder, *I, newInstructionType,
 				newInstructions);
 	} else if (auto CF = dyn_cast<ConstantFP>(&V)) {
-		return bitCastConstantFPToHFlowatTmp(fpCfg, *CF);
+		return bitCastConstantFPToHFloatTmp(fpCfg, *CF);
 	} else {
 		errs() << V << "\n";
 		llvm_unreachable("Unsupported value for HFloatTmpLoweringPass");
@@ -285,8 +133,8 @@ Value* createSpecializedInstruction(IRBuilder<> &Builder, Instruction &I,
 		return newI;
 	} else {
 		Value *newI = nullptr;
-		auto *opConstructor = &CreateHwtHlsFpFAdd;
 		if (auto binOp = dyn_cast<BinaryOperator>(&I)) {
+			auto *opConstructor = &CreateHwtHlsFpFAdd;
 			switch (binOp->getOpcode()) {
 			case BinaryOperator::BinaryOps::FAdd:
 				opConstructor = &CreateHwtHlsFpFAdd;
@@ -313,12 +161,28 @@ Value* createSpecializedInstruction(IRBuilder<> &Builder, Instruction &I,
 			auto op1 = binOp->getOperand(1);
 			op1 = createSpecializedValue(Builder, newFpTyCfg, *op1,
 					newInstructionType, newInstructions);
+			assert(op0->getType() == op1->getType());
+			Builder.SetInsertPoint(&I);
 			newI = (*opConstructor)(&Builder, op0, op1,
-					newFpTyCfg.exponentOrIntWidth,
-					newFpTyCfg.mantissaOrFracWidth, newFpTyCfg.isInQFromat,
-					newFpTyCfg.supportSubnormal, newFpTyCfg.hasSign,
-					newFpTyCfg.hasIsNaN, newFpTyCfg.hasIsInf, newFpTyCfg.hasIs1,
-					newFpTyCfg.hasIs0, I.getName());
+					__HFloatTmpConfig_opts(newFpTyCfg), I.getName());
+
+		} else if (auto UnI = dyn_cast<UnaryInstruction>(&I)) {
+			auto *opConstructor = &CreateHwtHlsFpFNeg;
+			switch (UnI->getOpcode()) {
+			case UnaryInstruction::UnaryOps::FNeg:
+				opConstructor = &CreateHwtHlsFpFNeg;
+				break;
+			default:
+				errs() << I << "\n";
+				llvm_unreachable("Unsupported value for HFloatTmpLoweringPass");
+			}
+			auto op0 = UnI->getOperand(0);
+			op0 = createSpecializedValue(Builder, newFpTyCfg, *op0,
+					newInstructionType, newInstructions);
+			Builder.SetInsertPoint(&I);
+			newI = (*opConstructor)(&Builder, op0,
+					__HFloatTmpConfig_opts(newFpTyCfg), I.getName());
+
 		} else if (auto SI = dyn_cast<SelectInst>(&I)) {
 			auto opC = SI->getCondition();
 			opC = createSpecializedValue(Builder, newFpTyCfg, *opC,
@@ -329,6 +193,8 @@ Value* createSpecializedInstruction(IRBuilder<> &Builder, Instruction &I,
 			auto opF = SI->getFalseValue();
 			opF = createSpecializedValue(Builder, newFpTyCfg, *opF,
 					newInstructionType, newInstructions);
+			assert(opT->getType() == opF->getType());
+			Builder.SetInsertPoint(&I);
 			newI = Builder.CreateSelect(opC, opT, opF, I.getName());
 		} else if (auto CI = dyn_cast<CallInst>(&I)) {
 			if (IsCastToHFloatTmp(CI)) {
@@ -338,15 +204,28 @@ Value* createSpecializedInstruction(IRBuilder<> &Builder, Instruction &I,
 			} else if (IsCastFromHFloatTmp(CI)) {
 				auto *srcOp = CI->getArgOperand(0);
 				assert(CI->getType() == newTy);
+				Builder.SetInsertPoint(&I);
 				newI = createSpecializedValue(Builder, newFpTyCfg, *srcOp,
 						newInstructionType, newInstructions);
 			} else {
 				errs() << I << "\n";
 				llvm_unreachable("Unsupported value for HFloatTmpLoweringPass");
 			}
+		} else if (auto CMP = dyn_cast<FCmpInst>(&I)) {
+			auto op0 = CMP->getOperand(0);
+			op0 = createSpecializedValue(Builder, newFpTyCfg, *op0,
+					newInstructionType, newInstructions);
+			auto op1 = CMP->getOperand(1);
+			op1 = createSpecializedValue(Builder, newFpTyCfg, *op1,
+					newInstructionType, newInstructions);
+			assert(op0->getType() == op1->getType());
+			Builder.SetInsertPoint(&I);
+			newI = CreateHwtHlsFpFCmp(&Builder, CMP->getPredicate(), op0, op1,
+					__HFloatTmpConfig_opts(newFpTyCfg), I.getName());
 		} else {
 			errs() << I << "\n";
-			llvm_unreachable("Unsupported value for HFloatTmpLoweringPass");
+			llvm_unreachable(
+					"Unsupported Instruction for HFloatTmpLoweringPass");
 		}
 		newInstructions[&I] = newI;
 		if (auto _newI = dyn_cast<Instruction>(newI)) {
@@ -379,7 +258,8 @@ llvm::PreservedAnalyses HFloatTmpLoweringPass::run(llvm::Function &F,
 			//        and any output does not use CastFromHFloatTmp (e.g. expression tree ending with FCmp)
 			if (IsCastToHFloatTmp(CI)) {
 				auto fpCfg = HFloatTmpConfig::fromCallArgs(*CI);
-				propagateTypeDefToUse(fpCfg, *CI, newInstructionType);
+				propagateTypeDefToUse(fpCfg, *CI, newInstructionType,
+						useToDefSeen);
 			} else if (IsCastFromHFloatTmp(CI)) {
 				auto fpCfg = HFloatTmpConfig::fromCallArgs(*CI);
 				propagateTypeUseToDef(fpCfg, *CI, newInstructionType,
@@ -406,6 +286,7 @@ llvm::PreservedAnalyses HFloatTmpLoweringPass::run(llvm::Function &F,
 		for (BasicBlock &BB : F) {
 			for (auto &I : make_early_inc_range(BB)) {
 				if (newInstructionType.find(&I) != newInstructionType.end()) {
+					I.replaceAllUsesWith(PoisonValue::get(I.getType()));
 					I.eraseFromParent();
 				}
 			}
