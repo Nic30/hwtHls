@@ -28,7 +28,7 @@ class IoFsm2_TC(SimTestCase):
 
     def test_WriteFsmFor(self, cls=WriteFsmFor, ref=[1, 2, 3,
                                                      1, 2, 3,
-                                                     1, 2, 3, ], CLK=18):
+                                                     1, 2, 3, ], CLK=10):
         self._test_Write(cls, ref, CLK)
 
     def test_WriteFsmPrequel(self, cls=WriteFsmPrequel,
@@ -71,9 +71,8 @@ class IoFsm2_TC(SimTestCase):
         ref = [next(m) for _ in range(CLK)]
         self._test_Write(cls, ref, CLK + 1)
 
-    def _test_ReadWrite(self, cls: Type[HwModule], dinRef: List[Optional[int]], ref: List[Optional[int]], CLK: int, USE_PY_FRONTEND=False):
+    def _test_ReadWrite(self, cls: Type[HwModule], dinRef: List[Optional[int]], ref: List[Optional[int]], CLK: int):
         dut = cls()
-        dut.USE_PY_FRONTEND = USE_PY_FRONTEND
         target_platform = VirtualHlsPlatform()
         # target_platform = VirtualHlsPlatform(debugFilter={
         #    *HlsDebugBundle.ALL_RELIABLE,
@@ -135,34 +134,26 @@ class IoFsm2_TC(SimTestCase):
                 ref.append(next(m))
             except (StopIteration, RuntimeError):
                 break
-        self._test_ReadWrite(cls, dinRef, ref, CLK + 25, USE_PY_FRONTEND=True)
+        self._test_ReadWrite(cls, dinRef, ref, CLK + 25)
 
 
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
     #m = WriteFsmPrequel()
-    #m.USE_PY_FRONTEND = True
     #print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={
     #        *HlsDebugBundle.ALL_RELIABLE,
     #        # HlsDebugBundle.DBG_20_addSignalNamesToSync,
     #        # HlsDebugBundle.DBG_20_addSignalNamesToData,
     #    },
     #    llvmCliArgs=[
-    #        # ("print-after-all", 0, "", "true"),
-    #        #("debug-only", 0, "", "vreg-machine-latecleanup"),
-    #
-    #        # ("print-before", 0, "", "vreg-if-converter"),
-    #        # ("print-after", 0, "", "vreg-if-converter"),
-    #
-    #        #("print-before", 0, "", "vreg-machine-latecleanup"),
-    #        #("print-after", 0, "", "vreg-machine-latecleanup")
+    #        LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL,
     #    ]
     #    )))
-    #
+    
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([IoFsm2_TC("test_WriteFsmPrequel")])
+    #suite = unittest.TestSuite([IoFsm2_TC("test_WriteFsmPrequel")])
     suite = testLoader.loadTestsFromTestCase(IoFsm2_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

@@ -1,11 +1,11 @@
 from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOVectSignal, HwIOSignal
-from hwt.hwParam import HwParam
 from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
-from hwt.pyUtils.typingFuture import override
 
 
 class RedundantCmpGT(HwModule):
@@ -24,7 +24,7 @@ class RedundantCmpGT(HwModule):
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
-            i0 = hls.read(self.i0)
+            i0 = hls.read(self.i0).data
             # i1 = hls.read(self.i1)
 
             hls.write((i0 > 1) | (i0 > 2), self.o)

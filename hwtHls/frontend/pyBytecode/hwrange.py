@@ -1,19 +1,15 @@
 from typing import Optional, Union, Tuple
 
-from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.math import log2ceil
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.ast.memorySSAUpdater import MemorySSAUpdater
 from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
 from hwtHls.frontend.pyBytecode.fromPython import PyBytecodeToSsa
 from hwtHls.frontend.pyBytecode.hwIterator import HwIterator
-from hwtHls.ssa.basicBlock import SsaBasicBlock
-from hwtHls.ssa.exprBuilder import SsaExprBuilder
-from hwtHls.ssa.phi import SsaPhi
-from hwtHls.ssa.value import SsaValue
+from hwtHls.llvm.llvmIr import Value, BasicBlock
+from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 
 
 class hwrange_iterator(HwIterator):
@@ -22,9 +18,9 @@ class hwrange_iterator(HwIterator):
     """
 
     def __init__(self, name: Optional[str],
-                 start:Union[HBitsConst, SsaValue],
-                 stop:Union[HBitsConst, SsaValue],
-                 step:Union[HBitsConst, SsaValue], stepUsesAdd: bool):
+                 start:Union[HBitsConst, Value],
+                 stop:Union[HBitsConst, Value],
+                 step:Union[HBitsConst, Value], stepUsesAdd: bool):
         self.name = name
         self.start = start
         self.stop = stop
@@ -52,43 +48,40 @@ class hwrange_iterator(HwIterator):
 
         return start
 
-    def _getValueOf(self, curBlock: SsaBasicBlock, m_ssa_u: MemorySSAUpdater, v: Union):
-        if isinstance(v, (HBitsConst, SsaValue)):
-            return v
-        elif isinstance(v, RtlSignal):
-            return m_ssa_u.readVariable(v, curBlock)
-        else:
-            raise ValueError(v)
+    @override
+    def hwInit(self, toSsa: PyBytecodeToSsa, frame: PyBytecodeFrame, block: BasicBlock) -> BasicBlock:
+        self.inductionVar = toSsa.hls.var(self.__class__.__name__ + ".i", self.start._dtype)
+        toLlvm: ToLlvmIrTranslator = toSsa.toLlvm
+        # write initialization data to inductionVar
+        block, start = toLlvm._translateExprToLlvm(block, self.start)
+        toLlvm._variableInBlock_insertRedef(block, self.inductionVar, (), start)
+        return block
 
     @override
-    def hwInit(self, toSsa: PyBytecodeToSsa, frame: PyBytecodeFrame, curBlock: SsaBasicBlock) -> SsaBasicBlock:
-        self.inductionVar = toSsa.hls.var(self.__class__.__name__ + ".i", self.start._dtype)
-        m_ssa_u = toSsa.toSsa.m_ssa_u
-        m_ssa_u.writeVariable(self.inductionVar, (), curBlock, self.start)
-        return curBlock
-
-    def hwIterStepValue(self):
+    def hwIterStepValue(self) -> RtlSignal:
         return self.inductionVar
 
     @override
-    def hwCondition(self, toSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: SsaBasicBlock) -> Tuple[SsaBasicBlock, SsaValue]:
+    def hwCondition(self, toSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, block: BasicBlock) -> Tuple[BasicBlock, Value]:
         assert self.inductionVar is not None, ("This HwIterator should have been initialized during GET_ITER")
-        m_ssa_u = toSsa.toSsa.m_ssa_u
-        v = m_ssa_u.readVariable(self.inductionVar, curBlock)
-        assert isinstance(v, SsaPhi), v
-        b = SsaExprBuilder(curBlock)
-        c = b._binaryOp(v, HwtOps.NE, self._getValueOf(curBlock, m_ssa_u, self.stop))
-        return c, curBlock
+        toLlvm: ToLlvmIrTranslator = toSsa.toLlvm
+        block, v = toLlvm._translateExprToLlvm(block, self.inductionVar)
+        block, stop = toLlvm._translateExprToLlvm(block, self.stop)
+        c = toLlvm.b.CreateICmpNE(v, stop, toLlvm.strCtx.addTwine("hwrange.continue"))
+        return c, block
 
     @override
-    def hwStep(self, toSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: SsaBasicBlock) -> SsaBasicBlock:
-        m_ssa_u = toSsa.toSsa.m_ssa_u
-        curVal = m_ssa_u.readVariable(self.inductionVar, curBlock)
-        step = self._getValueOf(curBlock, m_ssa_u, self.step)
-        b = SsaExprBuilder(curBlock)
-        nextVal = b._binaryOp(curVal, HwtOps.ADD if self.stepUsesAdd else HwtOps.SUB, step)
-        m_ssa_u.writeVariable(self.inductionVar, (), curBlock, nextVal)
-        return curBlock
+    def hwStep(self, toSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, block: BasicBlock) -> BasicBlock:
+        toLlvm: ToLlvmIrTranslator = toSsa.toLlvm
+        block, curVal = toLlvm._translateExprToLlvm(block, self.inductionVar)
+        block, step = toLlvm._translateExprToLlvm(block, self.step)
+        if self.stepUsesAdd:
+            nextVal = toLlvm.b.CreateAdd(curVal, step)
+        else:
+            nextVal = toLlvm.b.CreateSub(curVal, step)
+
+        toLlvm._variableInBlock_insertRedef(block, self.inductionVar, (), nextVal)
+        return block
 
 
 class hwrange():

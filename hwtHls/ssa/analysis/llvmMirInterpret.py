@@ -5,18 +5,23 @@ from typing import Tuple, List, Generator, Union, Optional, Dict, Iterable, Any,
     Callable
 
 from hwt.code import Concat
-from hwt.hdl.operatorDefs import HwtOps
+from hwt.constants import NOT_SPECIFIED
+from hwt.hdl.const import HConst
+from hwt.hdl.operatorDefs import HwtOps, HOperatorDef
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import INT, SLICE
-from hwt.hdl.const import HConst
+from hwt.math import log2ceil
 from hwt.pyUtils.arrayQuery import grouper
-from hwt.constants import NOT_SPECIFIED
-from hwtHls.code import OP_CTLZ, OP_CTTZ, OP_CTPOP
-from hwtHls.llvm.llvmIr import parseMIR, LlvmCompilationBundle, MachineFunction, MachineBasicBlock, MachineInstr, TargetOpcode, MachineOperand, \
-    CmpInst, TypeToIntegerType, Register, LLVMStringContext, MachineRegisterInfo
+from hwtHls.code import OP_CTLZ, OP_CTTZ, OP_CTPOP, fshl, fshr, OP_SHL, OP_ASHR, \
+    OP_LSHR, OP_FSHL, OP_FSHR
+from hwtHls.llvm.llvmIr import parseMIR, LlvmCompilationBundle, MachineFunction, \
+    MachineBasicBlock, MachineInstr, TargetOpcode, MachineOperand, \
+    CmpInst, TypeToIntegerType, Register, LLVMStringContext, MachineRegisterInfo, \
+    GlobalValue, ValueToGlobalValue, ValueToConstantArray, ValueToConstantDataArray, \
+    ConstantDataArray, TypeToArrayType, ArrayType
 from hwtHls.ssa.analysis.llvmIrInterpret import VcdLlvmIrCodelineFormatter, \
     VcdLlvmIrSimTimeFormatter, VcdLlvmIrBBFormatter, SimIoUnderflowErr, _prepareWaveWriterTopIo, \
-    LlvmIrInterpret
+    LlvmIrInterpret, PtrAddrTuple
 from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
 from hwtSimApi.constants import CLK_PERIOD
 from hwtSimApi.triggers import StopSimumulation
@@ -24,6 +29,7 @@ from pyDigitalWaveTools.vcd.common import VCD_SIG_TYPE
 from pyDigitalWaveTools.vcd.value_format import LogValueFormatter, \
     VcdBitsFormatter
 from pyDigitalWaveTools.vcd.writer import VcdWriter
+from pyMathBitPrecise.bit_utils import mask
 
 
 class VcdLlvmIrBBFormatter(LogValueFormatter):
@@ -67,6 +73,37 @@ class LlvmMirInterpret():
         self.waveLog: Optional[VcdWriter] = None
         self.strCtx: Optional[LLVMStringContext] = None
         self.codelineOffset: int = 0
+
+        self._dispatchDict: Dict[int, Callable] = {
+            TargetOpcode.HWTFPGA_ARG_GET.value: self._opcode_HWTFPGA_ARG_GET,
+            TargetOpcode.HWTFPGA_CLOAD.value: self._opcode_HWTFPGA_CLOAD,
+            TargetOpcode.G_LOAD.value: self._opcode_G_LOAD,
+            TargetOpcode.HWTFPGA_CSTORE.value: self._opcode_HWTFPGA_CSTORE,
+            TargetOpcode.G_STORE.value: self._opcode_G_STORE,
+            TargetOpcode.HWTFPGA_EXTRACT.value: self._opcode_HWTFPGA_EXTRACT,
+            TargetOpcode.G_EXTRACT.value: self._opcode_G_EXTRACT,
+            TargetOpcode.HWTFPGA_MERGE_VALUES.value: self._opcode_HWTFPGA_MERGE_VALUES,
+            TargetOpcode.HWTFPGA_MUX.value: self._opcode_HWTFPGA_MUX,
+            TargetOpcode.G_SELECT.value: self._opcode_G_SELECT,
+            TargetOpcode.G_FSHL.value: self._opcode_G_FSHL,
+            TargetOpcode.G_FSHR.value: self._opcode_G_FSHR,
+            TargetOpcode.COPY.value: self._opcode_COPY,
+            TargetOpcode.G_ICMP.value: self._opcode_G_ICMP,
+            TargetOpcode.HWTFPGA_ICMP.value: self._opcode_G_ICMP,
+            TargetOpcode.HWTFPGA_IMPLICIT_DEF.value: self._opcode_HWTFPGA_IMPLICIT_DEF,
+            TargetOpcode.G_IMPLICIT_DEF.value: self._opcode_G_IMPLICIT_DEF,
+            TargetOpcode.G_CONSTANT.value: self._opcode_G_CONSTANT,
+            TargetOpcode.G_GLOBAL_VALUE.value: self._opcode_G_GLOBAL_VALUE,
+            TargetOpcode.HWTFPGA_GLOBAL_VALUE.value: self._opcode_G_GLOBAL_VALUE,
+            TargetOpcode.G_TRUNC.value: self._opcode_G_TRUNC,
+            TargetOpcode.G_ZEXT.value: self._opcode_G_ZEXT,
+            TargetOpcode.G_SEXT.value: self._opcode_G_SEXT,
+            TargetOpcode.G_PTR_ADD.value: self._opcode_G_PTR_ADD,
+        }
+
+        for opc, op in HlsNetlistAnalysisPassMirToNetlistLowLevel.OPC_TO_OP.items():
+            self._dispatchDict[opc.value] = self._makeOpcodeFunction(op)
+        self.fnArgs: Optional[Tuple] = None
 
     def installWaveLog(self, waveLog: VcdWriter, strCtx: LLVMStringContext, codelineOffset: int=0):
         LlvmIrInterpret.installWaveLog(self, waveLog, strCtx, codelineOffset)
@@ -171,12 +208,337 @@ class LlvmMirInterpret():
         for phiDst, v in newPhiVals:
             regs[phiDst.virtRegIndex()] = v
 
-    def run(self, args: Tuple[Generator[Union[int, HConst], None, None], List[HConst], ...],
+    def _makeOpcodeFunction(self, op: HOperatorDef):
+        """
+        Create opcode function for rest of the perands
+        """
+        if op in (HwtOps.NOT, OP_CTLZ, OP_CTTZ, OP_CTPOP):
+
+            def _opcode_HWTFPGA_NOT_and_bitcounts(MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+                dst, src0 = ops
+                if src0._dtype.signed is not None:
+                    src0 = src0.cast_sign(None)
+                res = op._evalFn(src0)
+                regs[dst.virtRegIndex()] = res
+
+            return _opcode_HWTFPGA_NOT_and_bitcounts
+
+        elif op in (OP_SHL, OP_ASHR, OP_LSHR):
+
+            def _opcode_shift(MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+                dst, src0, src1, width = ops
+                if src0._dtype.signed is not None:
+                    src0 = src0.cast_sign(None)
+                if src1._dtype.signed is not None:
+                    src1 = src1.cast_sign(None)
+                src1 = src1[log2ceil(width + 1):]  # truncate shiftAmount
+                res = op._evalFn(src0, src1)
+                regs[dst.virtRegIndex()] = res
+
+            return _opcode_shift
+
+        elif op in (OP_FSHL, OP_FSHR):
+
+            def _opcode_funel_shift(MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+                dst, src0, src1, sh, width = ops
+                if src0._dtype.signed is not None:
+                    src0 = src0.cast_sign(None)
+                if src1._dtype.signed is not None:
+                    src1 = src1.cast_sign(None)
+                if sh._dtype.signed is not None:
+                    sh = sh.cast_sign(None)
+                sh = sh[log2ceil(width + 1):]  # truncate shiftAmount
+                res = op._evalFn(src0, src1, sh)
+                regs[dst.virtRegIndex()] = res
+
+            return _opcode_funel_shift
+
+        else:
+
+            def _opcode_arithmetic(MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+                dst, src0, src1 = ops
+                if src0._dtype.signed is not None:
+                    src0 = src0.cast_sign(None)
+                if src1._dtype.signed is not None:
+                    src1 = src1.cast_sign(None)
+                res = op._evalFn(src0, src1)
+                regs[dst.virtRegIndex()] = res
+
+            return _opcode_arithmetic
+
+    def _opcode_HWTFPGA_ARG_GET(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+        dst, i = ops
+        assert dst.virtRegIndex() == i
+        assert regs[i] is None, regs[i]
+        regs[i] = self.fnArgs[i]
+
+    def _opcode_HWTFPGA_CLOAD(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+        val, io, index, width, cond = ops
+        isBlocking = isinstance(cond, int)
+        if isBlocking:
+            if not cond:
+                raise AssertionError("Always disabled load or store, this instruction should not exits", mi)
+        else:
+            assert cond._is_full_valid(), mi
+            if not cond:
+                t = HBits(width)
+                regs[val.virtRegIndex()] = t.from_py(0, vld_mask=1 << width - 1)
+                return
+
+        if not isinstance(index, int) or index != 0:
+            assert isinstance(io, GlobalValue), io
+            v = LlvmIrInterpret._getItemFromLocalPointer(regs, PtrAddrTuple((io, index)), width, mi)
+        else:
+            try:
+                v = next(io)
+            except StopIteration:
+                raise SimIoUnderflowErr("underflow on io argument", mi)
+
+            t = HBits(width)
+            if isinstance(v, HConst):
+                if v._dtype != t:
+                    assert v._dtype.bit_length() == t.bit_length(), (mi, v._dtype, t, v)
+                    v = v._reinterpret_cast(t)
+            else:
+                v = t.from_py(v)
+        regs[val.virtRegIndex()] = v
+
+    def _opcode_G_LOAD(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+        dst, io = ops
+        llt = MRI.getType(dst)
+        assert llt.isValid()
+        width = llt.getSizeInBits()
+        if isinstance(io, (GlobalValue, PtrAddrTuple)):
+            # load from local memory
+            v = LlvmIrInterpret._getItemFromLocalPointer(regs, io, width, mi)
+        else:
+            # load from IO
+            try:
+                v = next(io)
+            except StopIteration:
+                raise SimIoUnderflowErr("underflow on io argument", mi)
+
+            t = HBits(width)
+            if isinstance(v, HConst):
+                if v._dtype != t:
+                    assert v._dtype.bit_length() == t.bit_length(), (mi, v._dtype, t, v)
+                    v = v._reinterpret_cast(t)
+            else:
+                v = t.from_py(v)
+        regs[dst.virtRegIndex()] = v
+
+    def _opcode_HWTFPGA_CSTORE(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+        val, io, index, width, cond = ops
+        isBlocking = isinstance(cond, int)
+        if isBlocking:
+            if not cond:
+                raise AssertionError("Always disabled load or store, this instruction should not exits", mi)
+        else:
+            assert cond._is_full_valid(), mi
+            if not cond:
+                return
+
+        if not isinstance(index, int) or index != 0:
+            raise NotImplementedError(mi)
+
+        io.append(val)
+
+    def _opcode_G_STORE(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+        val, io = ops
+        io.append(val)
+
+    def _opcode_HWTFPGA_EXTRACT(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+        dst, src, srcWidth, index, width = ops
+        if isinstance(index, int):
+            if width == 1:
+                # to prefer more simple notation
+                index = INT.from_py(index)
+            else:
+                index = SLICE.from_py(slice(index + width, index, -1))
+        else:
+            raise NotImplementedError(mi)
+        if src is None:
+            raise AssertionError("Indexing on uninitialized value (this is use before def)", mi)
+        if not isinstance(src, HConst):
+            raise AssertionError(mi, src)
+        assert src._dtype.bit_length() == srcWidth, (src._dtype.bit_length() == srcWidth)
+        res = src[index]
+        assert res is not None, mi
+        regs[dst.virtRegIndex()] = res
+
+    def _opcode_G_EXTRACT(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+        dst, src, index = ops
+        width = MRI.getType(dst).getSizeInBits()
+        if isinstance(index, int):
+            if width == 1:
+                # to prefer more simple notation
+                index = INT.from_py(index)
+            else:
+                index = SLICE.from_py(slice(index + width, index, -1))
+        else:
+            raise NotImplementedError(mi)
+        if src is None:
+            raise AssertionError("Indexing on uninitialized value (this is use before def)", mi)
+        res = src[index]
+        regs[dst.virtRegIndex()] = res
+
+    def _opcode_HWTFPGA_MERGE_VALUES(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+        dst = ops[0]
+        # dst src{N}, width{N} - lowest bits first
+        assert (len(ops) - 1) % 2 == 0, ops
+        half = (len(ops) - 1) // 2
+        res = Concat(*reversed(ops[1:half + 1]))
+        regs[dst.virtRegIndex()] = res
+
+    def _opcode_HWTFPGA_MUX(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+        dst = ops[0]
+        res = NOT_SPECIFIED
+        for v, c in grouper(2, islice(ops, 1, None), padvalue=None):
+            if c is None:
+                res = v
+                break
+            else:
+                if not c._is_full_valid():
+                    res = v._dtype.from_py(None)
+                    break
+                elif c:
+                    res = v
+                    break
+        if res is not NOT_SPECIFIED:
+            regs[dst.virtRegIndex()] = res
+
+    def _opcode_G_SELECT(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+        dst, c, srcT, srcF = ops
+        if not c._is_full_valid():
+            res = srcT._dtype.from_py(None)
+        elif c:
+            res = srcT
+        else:
+            res = srcF
+        regs[dst.virtRegIndex()] = res
+
+    def _opcode_G_FSHL(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+        dst, a, b, c = ops
+        regs[dst.virtRegIndex()] = fshl(a, b, c)
+
+    def _opcode_G_FSHR(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+        dst, a, b, c = ops
+        regs[dst.virtRegIndex()] = fshr(a, b, c)
+
+    def _opcode_COPY(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+        dst, src = ops
+        regs[dst.virtRegIndex()] = src
+
+    def _opcode_G_ICMP(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+        dst, pred, src0, src1 = ops
+        op = HlsNetlistAnalysisPassMirToNetlistLowLevel.CMP_PREDICATE_TO_OP[pred]
+        if src0._dtype.signed is not None:
+            src0 = src0.cast_sign(None)
+        if src1._dtype.signed is not None:
+            src1 = src1.cast_sign(None)
+        res = op._evalFn(src0, src1)
+        regs[dst.virtRegIndex()] = res
+
+    def _opcode_HWTFPGA_IMPLICIT_DEF(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+        dst, width = ops
+        t = HBits(width)
+        regs[dst.virtRegIndex()] = t.from_py(None)
+
+    def _opcode_G_IMPLICIT_DEF(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+        dst, = ops
+        llt = MRI.getType(ops[0])
+        assert llt.isValid(), mi
+        t = HBits(llt.getSizeInBits())
+        regs[dst.virtRegIndex()] = t.from_py(None)
+
+    def _opcode_G_CONSTANT(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+        dst, val = ops
+        regs[dst.virtRegIndex()] = val
+
+    def _opcode_G_GLOBAL_VALUE(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+        dst, val = ops
+        regs[dst.virtRegIndex()] = ValueToGlobalValue(val)
+
+    def _opcode_G_TRUNC(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+        dst, val = ops
+        llt = MRI.getType(dst)
+        assert llt.isValid(), mi
+        regs[dst.virtRegIndex()] = val[llt.getSizeInBits():]
+
+    def _opcode_G_ZEXT(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+        dst, val = ops
+        llt = MRI.getType(dst)
+        assert llt.isValid(), mi
+        width = val._dtype.bit_length()
+        newWidth = llt.getSizeInBits()
+        regs[dst.virtRegIndex()] = HBits(newWidth - width).from_py(0)._concat(val)
+
+    def _opcode_G_SEXT(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+        dst, val = ops
+        llt = MRI.getType(dst)
+        assert llt.isValid(), mi
+        width = val._dtype.bit_length()
+        if width == 1:
+            msb = val
+        else:
+            msb = val[width - 1]
+
+        newWidth = llt.getSizeInBits()
+        padBits = newWidth - width
+        if msb._is_full_valid():
+            if msb:
+                pad = mask(padBits)
+            else:
+                pad = 0
+        else:
+            pad = None
+
+        regs[dst.virtRegIndex()] = HBits(padBits).from_py(pad)._concat(val)
+
+    def _opcode_G_PTR_ADD(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+        dst, op0, op1 = ops
+
+        if isinstance(op0, PtrAddrTuple):
+            _base, index = op0
+        else:
+            _base = op0
+            index = 0
+        if isinstance(_base, GlobalValue):
+            base = _base
+        else:
+            base = ValueToGlobalValue(_base)
+            assert base is not None, _base
+
+        baseMem = base.getOperand(0)  # extract data from GlobalValue
+        # scale op1 from uint8_t* to native type of array
+        arrVal = ValueToConstantArray(baseMem)
+        if arrVal is None:
+            arrVal = ValueToConstantDataArray(baseMem)
+            assert arrVal, (mi, baseMem)
+            arrVal: ConstantDataArray
+            arrTy: ArrayType = TypeToArrayType(arrVal.getType())
+            assert arrTy, baseMem
+            elementTy = arrTy.getElementType()
+        else:
+            elementTy = arrVal.getOperand(0).getType()
+        elementWidth = elementTy.getScalarSizeInBits()
+        elementSize = elementWidth // 8
+        if elementWidth > elementSize * 8:
+            elementSize += 1
+        op1 = op1 // elementSize
+
+        index = op1 + index
+
+        assert isinstance(base, GlobalValue), base
+        regs[dst.virtRegIndex()] = PtrAddrTuple((base, index))
+
+    def run(self, fnArgs: Tuple[Generator[Union[int, HConst], None, None], List[HConst], ...],
             wallTime:Optional[int]=None):
         """
-        :param args: arguments for executed function, generator is used for inputs,
+        :param fnArgs: arguments for executed function, generator is used for inputs,
             list is for RAM/ROMs and outputs streams 
         """
+        self.fnArgs = fnArgs
         MF = self.MF
         timeStep = self.timeStep
         MRI: MachineRegisterInfo = MF.getRegInfo()
@@ -187,6 +549,9 @@ class LlvmMirInterpret():
             _, simCodelineLabel, simTimeLabel, simBlockLabel = self._prepareVcdWriter()
 
             def logToWave(_:List[HConst], i: int, v: HConst):
+                if not isinstance(v, HConst):
+                    return  # case of HWTFPGA_ARG_GET and similar
+
                 if i in waveLog._idScope:
                     waveLog.logChange(timeNow, i, v, None)
 
@@ -209,18 +574,19 @@ class LlvmMirInterpret():
                 waveLog.logChange(timeNow, simBlockLabel, mb, None)
             nextMb = None
             ops: List[Union[Register, MachineBasicBlock, int, HConst]] = []
+            PHI_OPS = (TargetOpcode.G_PHI.value, TargetOpcode.PHI.value)
             for mi in mb:
                 mi: MachineInstr
+                # print(mi)
+                opc = mi.getOpcode()
+                if opc in PHI_OPS:
+                    # this should be already evaluated
+                    continue
 
                 if waveLog is not None:
                     waveLog.logChange(timeNow, simTimeLabel, timeNow, None)
                     waveLog.logChange(timeNow, simCodelineLabel, mi, None)
 
-                # print(mi)
-                opc = mi.getOpcode()
-                if opc == TargetOpcode.G_PHI or opc == TargetOpcode.PHI:
-                    # this should be already evaluated
-                    continue
                 ops.clear()
                 for mo in mi.operands():
                     mo: MachineOperand
@@ -264,161 +630,9 @@ class LlvmMirInterpret():
                     else:
                         raise NotImplementedError(mi, mo)
 
-                if opc == TargetOpcode.HWTFPGA_ARG_GET:
-                    dst, i = ops
-                    assert dst.virtRegIndex() == i
-                    assert regs[i] is None, regs[i]
-                    regs[i] = args[i]
-
-                elif opc == TargetOpcode.HWTFPGA_CLOAD:
-                    val, io, index, width, cond = ops
-                    isBlocking = isinstance(cond, int)
-                    if isBlocking:
-                        if not cond:
-                            raise AssertionError("Always disabled load or store, this instruction should not exits", mi)
-                    else:
-                        assert cond._is_full_valid(), mi
-                        if not cond:
-                            llt = MRI.getType(val)
-                            assert llt.isValid()
-                            t = HBits(width)
-                            regs[val.virtRegIndex()] = t.from_py(0, vld_mask=1 << width - 1)
-                            continue
-
-                    if not isinstance(index, int) or index != 0:
-                        raise NotImplementedError(mi)
-
-                    try:
-                        v = next(io)
-                    except StopIteration:
-                        raise SimIoUnderflowErr("underflow on io argument", mi)
-
-                    t = HBits(width)
-                    if isinstance(v, HConst):
-                        if v._dtype != t:
-                            assert v._dtype.bit_length() == t.bit_length(), (mi, v._dtype, t, v)
-                            v = v._reinterpret_cast(t)
-                    else:
-                        v = t.from_py(v)
-                    regs[val.virtRegIndex()] = v
-
-                elif opc == TargetOpcode.G_LOAD:
-                    val, io = ops
-                    try:
-                        v = next(io)
-                    except StopIteration:
-                        raise SimIoUnderflowErr("underflow on io argument", mi)
-
-                    llt = MRI.getType(val)
-                    assert llt.isValid()
-                    t = HBits(llt.getSizeInBits())
-                    if isinstance(v, HConst):
-                        if v._dtype != t:
-                            assert v._dtype.bit_length() == t.bit_length(), (mi, v._dtype, t, v)
-                            v = v._reinterpret_cast(t)
-                    else:
-                        v = t.from_py(v)
-                    regs[val.virtRegIndex()] = v
-
-                elif opc == TargetOpcode.HWTFPGA_CSTORE:
-                    val, io, index, width, cond = ops
-                    isBlocking = isinstance(cond, int)
-                    if isBlocking:
-                        if not cond:
-                            raise AssertionError("Always disabled load or store, this instruction should not exits", mi)
-                    else:
-                        assert cond._is_full_valid(), mi
-                        if not cond:
-                            continue
-
-                    if not isinstance(index, int) or index != 0:
-                        raise NotImplementedError(mi)
-
-                    io.append(val)
-
-                elif opc == TargetOpcode.G_STORE:
-                    val, io = ops
-                    io.append(val)
-
-                elif opc == TargetOpcode.HWTFPGA_EXTRACT:
-                    dst, src, index, width = ops
-                    if isinstance(index, int):
-                        if width == 1:
-                            # to prefer more simple notation
-                            index = INT.from_py(index)
-                        else:
-                            index = SLICE.from_py(slice(index + width, index, -1))
-                    else:
-                        raise NotImplementedError(mi)
-                    if src is None:
-                        raise AssertionError("Indexing on uninitialized value (this is use before def)", mi)
-                    res = src[index]
-                    assert res is not None, mi
-                    regs[dst.virtRegIndex()] = res
-                elif opc == TargetOpcode. G_EXTRACT:
-                    dst, src, index = ops
-                    width = MRI.getType(dst).getSizeInBits()
-                    if isinstance(index, int):
-                        if width == 1:
-                            # to prefer more simple notation
-                            index = INT.from_py(index)
-                        else:
-                            index = SLICE.from_py(slice(index + width, index, -1))
-                    else:
-                        raise NotImplementedError(mi)
-                    if src is None:
-                        raise AssertionError("Indexing on uninitialized value (this is use before def)", mi)
-                    res = src[index]
-                    regs[dst.virtRegIndex()] = res
-
-                elif opc == TargetOpcode.HWTFPGA_MERGE_VALUES:
-                    dst = ops[0]
-                    # dst src{N}, width{N} - lowest bits first
-                    assert (len(ops) - 1) % 2 == 0, ops
-                    half = (len(ops) - 1) // 2
-                    res = Concat(*reversed(ops[1:half + 1]))
-                    regs[dst.virtRegIndex()] = res
-
-                elif opc == TargetOpcode.HWTFPGA_MUX:
-                    dst = ops[0]
-                    res = NOT_SPECIFIED
-                    for v, c in grouper(2, islice(ops, 1, None), padvalue=None):
-                        if c is None:
-                            res = v
-                            break
-                        else:
-                            if not c._is_full_valid():
-                                res = v._dtype.from_py(None)
-                                break
-                            elif c:
-                                res = v
-                                break
-                    if res is not NOT_SPECIFIED:
-                        regs[dst.virtRegIndex()] = res
-
-                elif opc == TargetOpcode.G_SELECT:
-                    dst, c, srcT, srcF = ops
-                    if not c._is_full_valid():
-                        res = v._dtype.from_py(None)
-                    elif c:
-                        res = srcT
-                    else:
-                        res = srcF
-                    regs[dst.virtRegIndex()] = res
-
-                elif opc == TargetOpcode.COPY:
-                    dst, src = ops
-                    regs[dst.virtRegIndex()] = src
-
-                elif opc == TargetOpcode.HWTFPGA_ICMP or opc == TargetOpcode.G_ICMP:
-                    dst, pred, src0, src1 = ops
-                    op = HlsNetlistAnalysisPassMirToNetlistLowLevel.CMP_PREDICATE_TO_OP[pred]
-                    if src0._dtype.signed is not None:
-                        src0 = src0.cast_sign(None)
-                    if src1._dtype.signed is not None:
-                        src1 = src1.cast_sign(None)
-                    res = op._evalFn(src0, src1)
-                    regs[dst.virtRegIndex()] = res
+                opcodeFn = self._dispatchDict.get(opc)
+                if opcodeFn is not None:
+                    opcodeFn(MRI, regs, mi, ops)
                 elif opc == TargetOpcode.HWTFPGA_BR or opc == TargetOpcode.G_BR:
                     nextMb = ops[0]
                     self._runBlockPhis(MRI, mb, nextMb, waveLog, regs, timeNow)
@@ -429,46 +643,9 @@ class LlvmMirInterpret():
                         nextMb = _mb
                         self._runBlockPhis(MRI, mb, nextMb, waveLog, regs, timeNow)
                         break
-
-                elif opc == TargetOpcode.HWTFPGA_IMPLICIT_DEF:
-                    dst, width = ops
-                    t = HBits(width)
-                    regs[dst.virtRegIndex()] = t.from_py(None)
-
-                elif opc == TargetOpcode.G_IMPLICIT_DEF:
-                    dst, = ops
-                    llt = MRI.getType(ops[0])
-                    assert llt.isValid(), mi
-                    t = HBits(llt.getSizeInBits())
-                    regs[dst.virtRegIndex()] = t.from_py(None)
-
-                elif opc == TargetOpcode.G_CONSTANT:
-                    dst, val = ops
-                    regs[dst.virtRegIndex()] = val
-
+                elif opc == TargetOpcode.HWTFPGA_RET:
+                    return
                 else:
-                    op = HlsNetlistAnalysisPassMirToNetlistLowLevel.OPC_TO_OP.get(opc)
-                    if op in (HwtOps.NOT, OP_CTLZ, OP_CTTZ, OP_CTPOP):
-                        dst, src0 = ops
-                        if src0._dtype.signed is not None:
-                            src0 = src0.cast_sign(None)
-                        res = op._evalFn(src0)
-                        regs[dst.virtRegIndex()] = res
-                        continue
-
-                    if op is not None:
-                        dst, src0, src1 = ops
-                        if src0._dtype.signed is not None:
-                            src0 = src0.cast_sign(None)
-                        if src1._dtype.signed is not None:
-                            src1 = src1.cast_sign(None)
-                        res = op._evalFn(src0, src1)
-                        regs[dst.virtRegIndex()] = res
-                        continue
-
-                    if opc == TargetOpcode.HWTFPGA_RET:
-                        return
-
                     raise NotImplementedError(mi)
 
             if nextMb is None:

@@ -17,8 +17,8 @@ from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import int64_t
 from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import mask, ValidityError, to_signed
-from tests.floatingpoint.fptypes import IEEE754Fp64
-from tests.floatingpoint.toInt import IEEE754FpToInt
+from tests.math.fp.fptypes import IEEE754Fp64
+from tests.math.fp.toInt import IEEE754FpToInt
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 
@@ -42,7 +42,7 @@ class IEEE754FpToIntConventor(HwModule):
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
-            a = hls.read(self.a)
+            a = hls.read(self.a).data
             res = self.res.T.from_py(None)
             PyBytecodeInline(IEEE754FpToInt)(a, res)
             hls.write(res, self.res)
@@ -128,7 +128,7 @@ class IEEE754FpToInt_TC(SimTestCase):
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    from tests.floatingpoint.fptypes import IEEE754Fp
+    from tests.math.fp.fptypes import IEEE754Fp
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtLib.types.ctypes import int8_t
     

@@ -1,21 +1,25 @@
+from hwt.hObjList import HObjList
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.utils import addClkRstn
-from hwt.hObjList import HObjList
-from hwt.hwParam import HwParam
 from hwt.hwModule import HwModule
-from hwtHls.frontend.ast.builder import HlsAstBuilder
-from hwtHls.frontend.ast.thread import HlsThreadFromAst
+from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
+from tests.frontend.ast.exprTree3 import HlsAstExprTree3_example
 
 
 class ForLoopWithIoSelectIn(HwModule):
 
+    @override
     def hwConfig(self) -> None:
         self.DATA_WIDTH = HwParam(8)
         self.FREQ = HwParam(int(100e6))
 
+    @override
     def hwDeclr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.FREQ
@@ -25,60 +29,55 @@ class ForLoopWithIoSelectIn(HwModule):
         self.dataOut0: HwIOStructRdVld = HwIOStructRdVld()._m()
         self.dataOut0.T = HBits(self.DATA_WIDTH, signed=False)
 
-    def hwImpl(self) -> None:
-        hls = HlsScope(self)
+    @override
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
         din = self.dataIn
-        res = hls.var("res", self.dataOut0.T)
-        i = hls.var("i", uint8_t)
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
-            ast.While(True,
-                res(0),
-                ast.For(i(0), i < 3, i(i + 1),
-                    # if this for is not unrolled the execution is sequential,
-                    # in each clock only a single input is read
-                    ast.If(i._eq(0),
-                        res(hls.read(din[0]).data),
-                    ).Elif(i._eq(1),
-                        res(hls.read(din[1]).data),
-                    ).Elif(i._eq(2),
-                        res(hls.read(din[2]).data),
-                    )
-                ),
-                hls.write(res, self.dataOut0),
-            ),
-            self._name)
-        )
-        hls.compile()
+        res = self.dataOut0.T.from_py(0)
+        while b1:
+            i = uint8_t.from_py(0)
+            while i < 3:
+                # if this for is not unrolled the execution is sequential,
+                # in each clock only a single input is read
+                if i._eq(0):
+                    res = hls.read(din[0]).data
+                elif i._eq(1):
+                    res = hls.read(din[1]).data
+                elif i._eq(2):
+                    res = hls.read(din[2]).data
+
+                i += 1
+
+            hls.write(res, self.dataOut0)
+
+    @override
+    def hwImpl(self) -> None:
+        HlsAstExprTree3_example.hwImpl(self)
 
 
 class ForLoopAccumulateSumInputSelByIndex(ForLoopWithIoSelectIn):
 
-    def hwImpl(self) -> None:
-        hls = HlsScope(self)
+    @override
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
         din = self.dataIn
-        res = hls.var("res", self.dataOut0.T)
-        i = hls.var("i", uint8_t)
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
-            ast.While(True,
-                res(0),
-                ast.For(i(0), i < 3, i(i + 1),
-                    # if this for is not unrolled the execution is sequential,
-                    # in each clock only a single input is read
-                    ast.If(i._eq(0),
-                        res(res + hls.read(din[0]).data),
-                    ).Elif(i._eq(1),
-                        res(res + hls.read(din[1]).data),
-                    ).Elif(i._eq(2),
-                        res(res + hls.read(din[2]).data),
-                    )
-                ),
-                hls.write(res, self.dataOut0),
-            ),
-            self._name)
-        )
-        hls.compile()
+        res = self.dataOut0.T.from_py(0)
+        while b1:
+            i = uint8_t.from_py(0)
+            while i < 3:
+                # if this for is not unrolled the execution is sequential,
+                # in each clock only a single input is read
+                if i._eq(0):
+                    res += hls.read(din[0]).data
+                elif i._eq(1):
+                    res += hls.read(din[1]).data
+                elif i._eq(2):
+                    res += hls.read(din[2]).data
+
+                i += 1
+
+            hls.write(res, self.dataOut0)
+
 
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str

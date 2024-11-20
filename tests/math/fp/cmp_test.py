@@ -17,8 +17,8 @@ from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
-from tests.floatingpoint.cmp import IEEE754FpCmp, IEEE754FpCmpResult
-from tests.floatingpoint.fptypes import IEEE754Fp32, IEEE754Fp
+from tests.math.fp.cmp import IEEE754FpCmp, IEEE754FpCmpResult
+from tests.math.fp.fptypes import IEEE754Fp32, IEEE754Fp
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 
@@ -42,8 +42,8 @@ class IEEE754FpComparator(HwModule):
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
-            a = hls.read(self.a)
-            b = hls.read(self.b)
+            a = hls.read(self.a).data
+            b = hls.read(self.b).data
             res = PyBytecodeInline(IEEE754FpCmp)(a, b)
             hls.write(res, self.res)
 

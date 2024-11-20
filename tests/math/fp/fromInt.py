@@ -7,7 +7,7 @@ from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.pragmaInstruction import PyBytecodeNoSplitSlices
 from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
 from pyMathBitPrecise.bit_utils import mask
-from tests.floatingpoint.fptypes import IEEE754Fp
+from tests.math.fp.fptypes import IEEE754Fp
 
 
 # based on:

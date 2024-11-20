@@ -4,7 +4,7 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.const import HConst
 from hwt.hwIO import HwIO
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.ssa.value import SsaValue
+from hwtHls.llvm.llvmIr import Value
 from hwtHls.frontend.ast.statementsRead import HlsStmReadStartOfFrame, \
     HlsStmReadEndOfFrame
 from hwtHls.frontend.ast.statementsWrite import HlsStmWriteStartOfFrame, \
@@ -37,7 +37,7 @@ class IoProxyStream(object):
     def writeStartOfFrame(self):
         return HlsStmWriteStartOfFrame(self.hls, self.interface)
 
-    def write(self, v: Union[HConst, RtlSignal, SsaValue, HwIO]):
+    def write(self, v: Union[HConst, RtlSignal, Value, HwIO]):
         raise NotImplementedError("Must be implemented in an implementation of this class for the specific interface")
 
     def writeEndOfFrame(self):

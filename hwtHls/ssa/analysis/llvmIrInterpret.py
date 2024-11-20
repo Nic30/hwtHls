@@ -3,22 +3,25 @@ from io import StringIO
 from itertools import islice
 from operator import and_, or_, xor, add, mul, sub, floordiv, rshift, lshift
 import re
-from typing import Tuple, Generator, Union, List, Optional, Dict
+from typing import Tuple, Generator, Union, List, Optional, Dict, Callable, Any
 
 from hdlConvertorAst.to.hdlUtils import to_unsigned
 from hwt.code import Concat
+from hwt.constants import NOT_SPECIFIED
 from hwt.hdl.const import HConst
 from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.pyUtils.arrayQuery import grouper
 from hwtHls.code import ctlz, zext, hwUMax, hwUMin, hwSMax, hwSMin, fshl, fshr
 from hwtHls.llvm.llvmIr import Function, BasicBlock, BinaryOperator, InstructionToBranchInst, InstructionToCallInst, \
     InstructionToGetElementPtrInst, InstructionToICmpInst, InstructionToPHINode, ValueToBasicBlock, \
     ValueToConstantInt, ValueToFunction, ValueToInstruction, Instruction, InstructionToBinaryOperator, \
     InstructionToLoadInst, InstructionToStoreInst, ValueToArgument, ValueToGlobalValue, ValueToConstantArray, \
-    TypeToPointerType, TypeToIntegerType, \
-    Argument, LLVMStringContext, MDOperand, MetadataAsMDNode, MetadataAsValueAsMetadata, Value, User, \
+    TypeToPointerType, TypeToIntegerType, TypeToArrayType, GetElementPtrInst, AllocaInst, \
+    Argument, LLVMStringContext, MDOperand, MetadataAsMDNode, MetadataToValueAsMetadata, Value, User, \
     UserToInstruction, InstructionToSelectInst, ValueToUndefValue, InstructionToCastInst, InstructionToSwitchInst, \
-    Intrinsic, InstructionToFreezeInst, GlobalValue, ValueToConstantDataArray
+    Intrinsic, InstructionToFreezeInst, InstructionToAllocaInst, GlobalValue, ValueToConstantDataArray, \
+    ValueToAllocaInst
 from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
 from hwtSimApi.constants import CLK_PERIOD
 from hwtSimApi.triggers import StopSimumulation
@@ -26,6 +29,13 @@ from pyDigitalWaveTools.vcd.common import VCD_SIG_TYPE
 from pyDigitalWaveTools.vcd.value_format import VcdBitsFormatter, \
     LogValueFormatter
 from pyDigitalWaveTools.vcd.writer import VcdWriter
+
+
+class PtrAddrTuple(tuple[Any, Union[int, HConst]]):
+    """
+    Tuple (basePointer, index)
+    """
+    pass
 
 
 class SimIoUnderflowErr(Exception):
@@ -96,17 +106,33 @@ class VcdLlvmIrSimTimeFormatter(LogValueFormatter):
         out.write(f"b{newVal//self.step:b} {self.vcdId:s}\n")
 
 
-def _findLoadOrStoreWidthForValue(v: Value) -> int:
+def _getMetadataInt(v: MDOperand) -> int:
+    return int(ValueToConstantInt(MetadataToValueAsMetadata(v.get()).getValue()).getValue())
+
+
+def _findLoadOrStoreWidthForValue(strCtx: LLVMStringContext, v: Value) -> int:
+    if isinstance(v, Argument):
+        v: Argument
+        argNo = v.getArgNo()
+        streamIo = v.getParent().getMetadata(strCtx.addStringRef("hwtHls.streamIo"))
+        if streamIo is not None:
+            for ioTuple in streamIo.iterOperands():
+                ioTuple = MetadataAsMDNode(ioTuple.get())
+                argIndex, dataWidth, hasMask = ioTuple.iterOperands()
+                if _getMetadataInt(argIndex) == argNo:
+                    dataWidth = _getMetadataInt(dataWidth)
+                    return dataWidth + (dataWidth // 8 if _getMetadataInt(hasMask) else 0)
+
     for u in v.users():
         u: User
         userInstr = UserToInstruction(u)
         assert userInstr is not None, (v, u)
         ld = InstructionToLoadInst(userInstr)
         if ld is not None:
-            return ld.getType().getIntegerBitWidth()
+            return ld.getType().getScalarSizeInBits()
         st = InstructionToStoreInst(userInstr)
         if st is not None:
-            return st.getOperand(0).getType().getIntegerBitWidth()
+            return st.getOperand(0).getType().getScalarSizeInBits()
 
         gep = InstructionToGetElementPtrInst(userInstr)
         if gep is not None:
@@ -127,13 +153,13 @@ def _prepareWaveWriterTopIo(waveLog: VcdWriter, strCtx: LLVMStringContext, fn: F
         for arg, argAddrWidth in zip(fn.args(), argAddrWidths.iterOperands()):
             arg: Argument
             argAddrWidth: MDOperand
-            argAddrWidth = MetadataAsValueAsMetadata(argAddrWidth.get())
+            argAddrWidth = MetadataToValueAsMetadata(argAddrWidth.get())
             argAddrWidth = ValueToConstantInt(argAddrWidth.getValue())
             argAddrWidth = int(argAddrWidth.getValue())
             if argAddrWidth != 0:
                 raise NotImplementedError(arg, argAddrWidth)
             name = RE_ID.sub("_", arg.getName().str())
-            argWidth = _findLoadOrStoreWidthForValue(arg)
+            argWidth = _findLoadOrStoreWidthForValue(strCtx, arg)
             argScope.addVar(arg, name, VCD_SIG_TYPE.WIRE, argWidth, VcdBitsFormatter())
 
 
@@ -157,6 +183,26 @@ class LlvmIrInterpret():
         self.waveLog: Optional[VcdWriter] = None
         self.strCtx: Optional[LLVMStringContext] = None
         self.codelineOffset: int = 0
+        self.fnArgs: Optional[LlvmIrInterpretArgs] = None
+        # instructions with special handling of operands
+        self._dispatchDict0: Dict[int, Callable] = {
+            Instruction.Load.value: self._opcode_Load,
+            Instruction.Store.value: self._opcode_Store,
+        }
+        self._dispatchDict1: Dict[int, Callable] = {
+            Instruction.GetElementPtr.value: self._opcode_GetElementPtr,
+            Instruction.Call.value: self._opcode_CallInst,
+            Instruction.ICmp.value: self._opcode_ICmpInst,
+            Instruction.Select.value: self._opcode_SelectInst,
+            Instruction.Freeze.value: self._opcode_Freeze,
+            Instruction.Alloca.value: self._opcode_Alloca,
+
+        }
+        for opcode in (Instruction.CastOps.BitCast, Instruction.CastOps.Trunc, Instruction.CastOps.ZExt, Instruction.CastOps.SExt):
+            self._dispatchDict1[opcode.value] = self._opcode_CastInst
+
+        for opcode, fn in BINARY_OPS_TO_FN.items():
+            self._dispatchDict1[opcode.value] = self._makeOpcodeFunction_BinaryOperator(fn)
 
     def installWaveLog(self, waveLog: VcdWriter, strCtx: LLVMStringContext, codelineOffset: int=0):
         self.waveLog = waveLog
@@ -200,7 +246,9 @@ class LlvmIrInterpret():
         waveLog.enddefinitions()
         return instrCodeline, simCodelineLabel, simTimeLabel, simBlockLabel
 
-    def _runBlockPhis(self, predBb: BasicBlock, bb: BasicBlock, waveLog: Optional[VcdWriter], regs: Dict[Instruction, HConst], nowTime: int):
+    def _runBlockPhis(self, predBb: BasicBlock, bb: BasicBlock,
+                      waveLog: Optional[VcdWriter],
+                      regs: Dict[Instruction, HConst], nowTime: int):
         """
         Atomically evaluate PHIs at the top of the block.
         """
@@ -214,7 +262,7 @@ class LlvmIrInterpret():
             assert v is not None, phi
             vvConst = ValueToConstantInt(v)
             if vvConst is not None:
-                pyT = HBits(vvConst.getType().getIntegerBitWidth())
+                pyT = HBits(vvConst.getType().getScalarSizeInBits())
                 v = int(vvConst.getValue())
                 if v < 0:  # convert to unsigned
                     v = pyT.all_mask() + v + 1
@@ -234,17 +282,328 @@ class LlvmIrInterpret():
 
             vvUndef = ValueToUndefValue(v)
             if vvUndef is not None:
-                pyT = HBits(vvUndef.getType().getIntegerBitWidth())
+                pyT = HBits(vvUndef.getType().getScalarSizeInBits())
                 v = pyT.from_py(None)
                 if waveLog is not None:
                     waveLog.logChange(nowTime, phi, v, None)
                 newPhiVals.append((phi, v))
                 continue
 
+            vvGlobalValue = ValueToGlobalValue(v)
+            if vvGlobalValue is not None:
+                newPhiVals.append((phi, PtrAddrTuple((vvGlobalValue, 0))))
+                continue
+
             raise NotImplementedError("NotImplemented type of value", phi, v)
 
         for phi, v in newPhiVals:
             regs[phi] = v
+
+    def _makeOpcodeFunction_BinaryOperator(self, fn: Callable[[HConst, HConst], HConst]):
+
+        def _opcode_BinaryOperator(waveLog: Optional[VcdWriter], nowTime: int, bb: BasicBlock, regs: List[HConst],
+                                   instr: Instruction, ops: List[Union[HConst, BasicBlock, Function]]) -> Tuple[BasicBlock, bool]:
+            bi: BinaryOperator = InstructionToBinaryOperator(instr)
+            assert bi is not None, instr
+            res = fn(*ops)
+            if waveLog is not None:
+                waveLog.logChange(nowTime, instr, res, None)
+            regs[instr] = res
+            return bb, False
+
+        return _opcode_BinaryOperator
+
+    @staticmethod
+    def _getItemFromLocalPointer(regs: Dict[Instruction, HBitsConst], srcPtr: Instruction, width: int, debugScope):
+        if isinstance(srcPtr, PtrAddrTuple):
+            base = srcPtr
+        else:
+            alloca = ValueToAllocaInst(srcPtr)
+            if alloca is not None:
+                res = regs[srcPtr]
+                assert res._dtype.bit_length() == width, (debugScope, srcPtr)
+                return res
+
+            base = regs[srcPtr]
+        
+        v = NOT_SPECIFIED
+        if isinstance(base, PtrAddrTuple):  # consume products of gep
+            base, i0 = base
+            if not isinstance(i0, int) and not i0._is_full_valid():
+                i0 = None
+            else:
+                i0 = int(i0)
+        else:
+            i0 = 0
+
+        if i0 is None:
+            v = None
+        else:
+            if isinstance(base, GlobalValue):
+                base = base.getOperand(0)  # extract data
+
+            if v is NOT_SPECIFIED:
+                arrVal = ValueToConstantArray(base)
+                if arrVal is None:
+                    arrVal = ValueToConstantDataArray(base)
+                    assert arrVal, (debugScope, base)
+                    if i0 >= arrVal.getNumElements():
+                        v = None
+                    else:
+                        v = arrVal.getElementAsAPInt(i0)
+                else:
+                    if i0 >= arrVal.getNumOperands():
+                        v = None
+                    else:
+                        v = ValueToConstantInt(arrVal.getOperand(i0)).getValue()
+                if v is not None:
+                    v = to_unsigned(int(v), width)
+        return HBits(width).from_py(v)
+
+    def _opcode_Load(self, waveLog: Optional[VcdWriter], nowTime: int, bb: BasicBlock, regs: List[HConst],
+                     instr: Instruction) -> Tuple[BasicBlock, bool]:
+        load = InstructionToLoadInst(instr)
+        assert load is not None, instr
+        srcPtr, = load.iterOperandValues()
+        srcPtrAsArg = ValueToArgument(srcPtr)
+        if srcPtrAsArg is not None:
+            t = TypeToPointerType(srcPtrAsArg.getType())
+            ioValues = self.fnArgs[t.getAddressSpace() - 1]
+            try:
+                res = next(ioValues)
+            except StopIteration:
+                raise SimIoUnderflowErr()
+            except:
+                raise
+
+            assert isinstance(res, HConst) and \
+                isinstance(res._dtype, HBits) and\
+                not res._dtype.signed, ("Input value must be must be unsigned BitsVal", instr, res)
+            assert res._dtype.bit_length() == instr.getType().getScalarSizeInBits(), (
+                "Input value must be must have correct width", instr, res)
+        else:
+            # load with GEP from GlobalVariable
+            width = instr.getType().getScalarSizeInBits()
+            res = self._getItemFromLocalPointer(regs, srcPtr, width, instr)
+
+        if waveLog is not None:
+            waveLog.logChange(nowTime, load, res, None)
+        regs[instr] = res
+        return bb, False
+
+    def _opcode_Store(self, waveLog: Optional[VcdWriter], nowTime: int, bb: BasicBlock, regs: List[HConst],
+                      instr: Instruction) -> Tuple[BasicBlock, bool]:
+        store = InstructionToStoreInst(instr)
+        assert store is not None, instr
+        v, dstPtr = store.iterOperandValues()
+        vAsConstInt = ValueToConstantInt(v)
+        if vAsConstInt is not None:
+            pyT = HBits(vAsConstInt.getType().getScalarSizeInBits())
+            v = int(vAsConstInt.getValue())
+            if v < 0:  # convert to unsigned
+                v = pyT.all_mask() + v + 1
+            v = pyT.from_py(v)
+        else:
+            if ValueToUndefValue(v) is not None:  # :note: class PoisonValue final : public UndefValue
+                pyT = HBits(v.getType().getScalarSizeInBits())
+                v = pyT.from_py(None)
+            else:
+                v = regs[v]
+        dstPtrAsArg = ValueToArgument(dstPtr)
+        if dstPtrAsArg is not None:
+            t = TypeToPointerType(dstPtrAsArg.getType())
+            ioValues = self.fnArgs[t.getAddressSpace() - 1]
+            ioValues.append(v)
+            if waveLog is not None:
+                waveLog.logChange(nowTime, dstPtrAsArg, v, None)
+            return bb, False
+        else:
+            alloca = ValueToAllocaInst(dstPtr)
+            if alloca is not None:
+                curV = regs[alloca]
+                allocatedWidth = curV._dtype.bit_length()
+                storeWidth = v._dtype.bit_length()
+                if allocatedWidth == storeWidth:
+                    regs[alloca] = v
+                else:
+                    regs[alloca] = curV[allocatedWidth: storeWidth]._concat(v)
+                return bb, False
+
+            raise NotImplementedError(instr)
+
+    def _opcode_GetElementPtr(self, waveLog: Optional[VcdWriter], nowTime: int, bb: BasicBlock, regs: List[HConst],
+                              instr: Instruction, ops: List[Union[HConst, BasicBlock, Function]]) -> Tuple[BasicBlock, bool]:
+        gep = InstructionToGetElementPtrInst(instr)
+        assert gep is not None, instr
+        for i1 in ops[1:-1]:
+            # assert that only last index is non zero
+            assert int(i1) == 0, (gep, i1)
+
+        base = ops[0]
+        _i0 = ops[-1]
+
+        if not _i0._is_full_valid():
+            i0 = _i0._dtype.from_py(None)
+        else:
+            if isinstance(base, PtrAddrTuple):
+                base, i0 = base
+            else:
+                i0 = _i0._dtype.from_py(0)
+
+            if int(_i0) != 0:
+                srcElmTy = gep.getSourceElementType()
+                srcElmArrayTy = TypeToArrayType(srcElmTy)
+                baseElmTy = base.getOperand(0).getType()
+                if srcElmArrayTy is not None:
+                    # normal GEP accessing using index
+                    assert srcElmArrayTy == baseElmTy
+                else:
+                    # gep using uint8_t pointer arithmetic, translating to index native to base
+                    assert srcElmTy.isIntegerTy() and srcElmTy.getScalarSizeInBits() == 8, srcElmTy
+                    srcElementWidth = TypeToArrayType(baseElmTy).getElementType().getScalarSizeInBits()
+                    srcElementSize = srcElementWidth // 8
+                    if srcElementWidth > srcElementSize * 8:
+                        srcElementSize += 1
+                    _i0 = _i0 // srcElementSize
+
+                i0 = i0 + _i0
+
+        regs[instr] = PtrAddrTuple((base, i0))
+        return bb, False
+
+    def _opcode_CallInst(self, waveLog: Optional[VcdWriter], nowTime: int, bb: BasicBlock, regs: List[HConst],
+                              instr: Instruction, ops: List[Union[HConst, BasicBlock, Function]]) -> Tuple[BasicBlock, bool]:
+        call = InstructionToCallInst(instr)
+        assert call is not None, instr
+        fn = ops[-1]
+        fnName = fn.getName().str()
+        inId = fn.getIntrinsicID()
+        if fnName.startswith("hwtHls.bitRangeGet"):
+            resW = instr.getType().getScalarSizeInBits()
+            bitVector, index, _ = ops
+            if resW == 1:
+                res = bitVector[index]
+            else:
+                res = bitVector[(index + resW): index]
+            if res._dtype.signed is not None:
+                res = res._convSign(None)
+        elif fnName.startswith("hwtHls.bitConcat"):
+            res = Concat(*reversed(ops[:-1]))
+            assert res._dtype.bit_length() == instr.getType().getScalarSizeInBits(), (
+                instr, res._dtype, [o._dtype for o in ops[:-1]])
+            if res._dtype.signed is not None:
+                res = res._convSign(None)
+        elif inId == Intrinsic.ctlz:
+            res = ctlz(*ops[:-1])
+            res = zext(res, ops[0]._dtype.bit_length())
+        elif inId == Intrinsic.umax:
+            res = hwUMax(*ops[:-1])
+        elif inId == Intrinsic.umin:
+            res = hwUMin(*ops[:-1])
+        elif inId == Intrinsic.smax:
+            res = hwSMax(*ops[:-1])
+        elif inId == Intrinsic.smin:
+            res = hwSMin(*ops[:-1])
+        elif inId == Intrinsic.assume:
+            return bb, False
+        elif inId == Intrinsic.fshl:
+            res = fshl(*ops[:-1])
+        elif inId == Intrinsic.fshr:
+            res = fshr(*ops[:-1])
+        else:
+            raise NotImplementedError(instr, Intrinsic.IndependentIntrinsics(inId))
+
+        if waveLog is not None:
+            waveLog.logChange(nowTime, instr, res, None)
+        regs[instr] = res
+        return bb, False
+
+    def _opcode_ICmpInst(self, waveLog: Optional[VcdWriter], nowTime: int, bb: BasicBlock, regs: List[HConst],
+                              instr: Instruction, ops: List[Union[HConst, BasicBlock, Function]]) -> Tuple[BasicBlock, bool]:
+        cmp = InstructionToICmpInst(instr)
+        assert cmp is not None, instr
+
+        pred = cmp.getPredicate()
+        op = HlsNetlistAnalysisPassMirToNetlistLowLevel.CMP_PREDICATE_TO_OP[pred]
+        src0, src1 = ops
+        assert not src0._dtype.signed, ("Use only unsigned internally", cmp, src0)
+        assert not src1._dtype.signed, ("Use only unsigned internally", cmp, src1)
+
+        if src0._dtype != src1._dtype:
+            # cases where force_vector, strict_sign or strict_width flag is different
+            assert src0._dtype.bit_length() == src1._dtype.bit_length(), (
+                "Operands must be of compatible type", instr, src0._dtype, src1._dtype)
+            src1 = src1._auto_cast(src0._dtype)
+
+        res = op._evalFn(src0, src1)
+        if waveLog is not None:
+            waveLog.logChange(nowTime, instr, res, None)
+        regs[instr] = res
+        return bb, False
+
+    def _opcode_SelectInst(self, waveLog: Optional[VcdWriter], nowTime: int, bb: BasicBlock, regs: List[HConst],
+                              instr: Instruction, ops: List[Union[HConst, BasicBlock, Function]]) -> Tuple[BasicBlock, bool]:
+        select = InstructionToSelectInst(instr)
+        assert select is not None, instr
+
+        c, tVal, fVal = ops
+        if c._is_full_valid():
+            if c:
+                res = tVal
+            else:
+                res = fVal
+        else:
+            res = tVal._dtype.from_py(None)
+        regs[instr] = res
+        return bb, False
+
+    def _opcode_CastInst(self, waveLog: Optional[VcdWriter], nowTime: int, bb: BasicBlock, regs: List[HConst],
+                              instr: Instruction, ops: List[Union[HConst, BasicBlock, Function]]) -> Tuple[BasicBlock, bool]:
+        cast = InstructionToCastInst(instr)
+        assert cast is not None, instr
+
+        opc = cast.getOpcode()
+        o, = ops
+        CastOps = Instruction.CastOps
+        newWidth = cast.getType().getScalarSizeInBits()
+        oWidth = o._dtype.bit_length()
+
+        if opc == CastOps.ZExt:
+            res = Concat(HBits(newWidth - oWidth).from_py(0), o)
+        elif opc == CastOps.SExt:
+            msb = o[oWidth - 1]
+            res = Concat(*(msb for _ in range(newWidth - oWidth)), o)
+        elif opc == CastOps.Trunc:
+            res = o[newWidth:]
+        else:
+            raise NotImplementedError(instr)
+        if res._dtype.signed is not None:
+            res = res._convSign(None)
+        regs[instr] = res
+        return bb, False
+
+    def _opcode_Freeze(self, waveLog: Optional[VcdWriter], nowTime: int, bb: BasicBlock, regs: List[HConst],
+                              instr: Instruction, ops: List[Union[HConst, BasicBlock, Function]]) -> Tuple[BasicBlock, bool]:
+        freeze = InstructionToFreezeInst(instr)
+        assert freeze is not None, instr
+        o, = ops
+        regs[instr] = o
+        return bb, False
+
+    def _opcode_Alloca(self, waveLog: Optional[VcdWriter], nowTime: int, bb: BasicBlock, regs: List[HConst],
+                              instr: Instruction, ops: List[Union[HConst, BasicBlock, Function]]) -> Tuple[BasicBlock, bool]:
+        alloca = InstructionToAllocaInst(instr)
+        assert alloca is not None, instr
+        assert len(ops) == 1  # alignment value
+        Ty = alloca.getAllocatedType()
+        intTy = TypeToIntegerType(Ty)
+        if intTy is not None:
+            v = HBits(intTy.getIntegerBitWidth()).from_py(None)
+        else:
+            raise NotImplementedError(instr)
+
+        regs[instr] = v
+        return bb, False
 
     def _runLlvmIrFunctionInstr(self, waveLog: Optional[VcdWriter],
                                 nowTime: int,
@@ -256,84 +615,17 @@ class LlvmIrInterpret():
         """
         :return: bb, isJump
         """
+        self.fnArgs = fnArgs
         # check for instructions which require special handling of operands
-        load = InstructionToLoadInst(instr)
-        if load is not None:
-            srcPtr, = load.iterOperandValues()
-            srcPtrAsArg = ValueToArgument(srcPtr)
-            if srcPtrAsArg is not None:
-                t = TypeToPointerType(srcPtrAsArg.getType())
-                ioValues = fnArgs[t.getAddressSpace() - 1]
-                try:
-                    res = next(ioValues)
-                except StopIteration:
-                    raise SimIoUnderflowErr()
-
-                assert isinstance(res, HConst) and \
-                    isinstance(res._dtype, HBits) and\
-                    not res._dtype.signed, ("Input value must be must be unsigned BitsVal", instr, res)
-                assert res._dtype.bit_length() == instr.getType().getIntegerBitWidth(), (
-                    "Input value must be must have correct width", instr, res)
-            else:
-                # load with GEP from GlobalVariable
-                _base, i0, i1 = regs[srcPtr]
-                assert int(i0) == 0, (srcPtr, i0)
-                assert isinstance(_base, GlobalValue), _base
-                base = _base.getOperand(0)
-                
-                arrVal = ValueToConstantArray(base)
-                if arrVal is None:
-                    arrVal = ValueToConstantDataArray(base)
-                    assert arrVal, (instr, base)
-                    if not i1._is_full_valid() or i1 >= arrVal.getNumElements():
-                        raise NotImplementedError()
-                    else:
-                        v = arrVal.getElementAsAPInt(int(i1))
-                else:
-                    if not i1._is_full_valid() or i1 >= arrVal.getNumOperands():
-                        raise NotImplementedError()
-                    else:
-                        v = ValueToConstantInt(arrVal.getOperand(int(i1))).getValue()
-                    
-                width = instr.getType().getIntegerBitWidth()
-                v = to_unsigned(int(v), width)
-                res = HBits(width).from_py(v)
-
-            if waveLog is not None:
-                waveLog.logChange(nowTime, load, res, None)
-            regs[instr] = res
-            return bb, False
-
-        store = InstructionToStoreInst(instr)
-        if store is not None:
-            v, dstPtr = store.iterOperandValues()
-            vAsConst = ValueToConstantInt(v)
-            if vAsConst is not None:
-                pyT = HBits(vAsConst.getType().getIntegerBitWidth())
-                v = int(vAsConst.getValue())
-                if v < 0:  # convert to unsigned
-                    v = pyT.all_mask() + v + 1
-                v = pyT.from_py(v)
-            else:
-                v = regs[v]
-
-            dstPtrAsArg = ValueToArgument(dstPtr)
-            if dstPtrAsArg is not None:
-                t = TypeToPointerType(dstPtrAsArg.getType())
-                ioValues = fnArgs[t.getAddressSpace() - 1]
-                ioValues.append(v)
-                if waveLog is not None:
-                    waveLog.logChange(nowTime, dstPtrAsArg, v, None)
-                return bb, False
-            else:
-                raise NotImplementedError(instr)
-
+        opcodeFn = self._dispatchDict0.get(instr.getOpcode(), None)
+        if opcodeFn is not None:
+            return opcodeFn(waveLog, nowTime, bb, regs, instr)
         # prepare values for arguments
         ops: List[Union[HConst, BasicBlock, Function]] = []
         for v in instr.iterOperandValues():
             vAsConst = ValueToConstantInt(v)
             if vAsConst is not None:
-                pyT = HBits(vAsConst.getType().getIntegerBitWidth())
+                pyT = HBits(vAsConst.getType().getScalarSizeInBits())
                 v = int(vAsConst.getValue())
                 if v < 0:  # convert to unsigned
                     v = pyT.all_mask() + v + 1
@@ -343,7 +635,7 @@ class LlvmIrInterpret():
 
             vAsUndef = ValueToUndefValue(v)
             if vAsUndef is not None:
-                pyT = HBits(vAsUndef.getType().getIntegerBitWidth())
+                pyT = HBits(vAsUndef.getType().getScalarSizeInBits())
                 ops.append(pyT.from_py(None))
                 continue
 
@@ -368,123 +660,9 @@ class LlvmIrInterpret():
             else:
                 raise NotImplementedError(v)
 
-        bi = InstructionToBinaryOperator(instr)
-        if bi is not None:
-            bi: BinaryOperator
-            fn = BINARY_OPS_TO_FN.get(bi.getOpcode(), None)
-            if fn is None:
-                raise NotImplementedError(bi)
-            res = fn(*ops)
-            if waveLog is not None:
-                waveLog.logChange(nowTime, instr, res, None)
-            regs[instr] = res
-            return bb, False
-
-        call = InstructionToCallInst(instr)
-        if call is not None:
-            fn = ops[-1]
-            fnName = fn.getName().str()
-            inId = fn.getIntrinsicID()
-            if fnName.startswith("hwtHls.bitRangeGet"):
-                resW = instr.getType().getIntegerBitWidth()
-                bitVector, index, _ = ops
-                if resW == 1:
-                    res = bitVector[index]
-                else:
-                    res = bitVector[(index + resW): index]
-                if res._dtype.signed is not None:
-                    res = res._convSign(None)
-            elif fnName.startswith("hwtHls.bitConcat"):
-                res = Concat(*reversed(ops[:-1]))
-                assert res._dtype.bit_length() == instr.getType().getIntegerBitWidth(), (
-                    instr, res._dtype, [o._dtype for o in ops[:-1]])
-                if res._dtype.signed is not None:
-                    res = res._convSign(None)
-            elif inId == Intrinsic.ctlz:
-                res = ctlz(*ops[:-1])
-                res = zext(res, ops[0]._dtype.bit_length())
-            elif inId == Intrinsic.umax:
-                res = hwUMax(*ops[:-1])
-            elif inId == Intrinsic.umin:
-                res = hwUMin(*ops[:-1])
-            elif inId == Intrinsic.smax:
-                res = hwSMax(*ops[:-1])
-            elif inId == Intrinsic.smin:
-                res = hwSMin(*ops[:-1])
-            elif inId == Intrinsic.assume:
-                return bb, False
-            elif inId == Intrinsic.fshl:
-                res = fshl(*ops[:-1])
-            elif inId == Intrinsic.fshr:
-                res = fshr(*ops[:-1])
-            else:
-                raise NotImplementedError(instr, Intrinsic.IndependentIntrinsics(inId))
-
-            if waveLog is not None:
-                waveLog.logChange(nowTime, instr, res, None)
-            regs[instr] = res
-            return bb, False
-
-        gep = InstructionToGetElementPtrInst(instr)
-        if gep is not None:
-            regs[instr] = ops
-            return bb, False
-
-        cmp = InstructionToICmpInst(instr)
-        if cmp is not None:
-            pred = cmp.getPredicate()
-            op = HlsNetlistAnalysisPassMirToNetlistLowLevel.CMP_PREDICATE_TO_OP[pred]
-            src0, src1 = ops
-            assert not src0._dtype.signed, ("Use only unsigned internally", cmp, src0)
-            assert not src1._dtype.signed, ("Use only unsigned internally", cmp, src1)
-
-            if src0._dtype != src1._dtype:
-                # cases where force_vector, strict_sign or strict_width flag is different
-                assert src0._dtype.bit_length() == src1._dtype.bit_length(), (
-                    "Operands must be of compatible type", instr, src0._dtype, src1._dtype)
-                src1 = src1._auto_cast(src0._dtype)
-
-            res = op._evalFn(src0, src1)
-            if waveLog is not None:
-                waveLog.logChange(nowTime, instr, res, None)
-            regs[instr] = res
-            return bb, False
-
-        select = InstructionToSelectInst(instr)
-        if select is not None:
-            c, tVal, fVal = ops
-            if c._is_full_valid():
-                if c:
-                    res = tVal
-                else:
-                    res = fVal
-            else:
-                res = tVal._dtype.from_py(None)
-            regs[instr] = res
-            return bb, False
-
-        cast = InstructionToCastInst(instr)
-        if cast is not None:
-            opc = cast.getOpcode()
-            o, = ops
-            CastOps = Instruction.CastOps
-            newWidth = cast.getType().getIntegerBitWidth()
-            oWidth = o._dtype.bit_length()
-
-            if opc == CastOps.ZExt:
-                res = Concat(HBits(newWidth - oWidth).from_py(0), o)
-            elif opc == CastOps.SExt:
-                msb = o[oWidth - 1]
-                res = Concat(*(msb for _ in range(newWidth - oWidth)), o)
-            elif opc == CastOps.Trunc:
-                res = o[newWidth:]
-            else:
-                raise NotImplementedError(instr)
-            if res._dtype.signed is not None:
-                res = res._convSign(None)
-            regs[instr] = res
-            return bb, False
-
+        opcodeFn = self._dispatchDict1.get(instr.getOpcode(), None)
+        if opcodeFn is not None:
+            return opcodeFn(waveLog, nowTime, bb, regs, instr, ops)
         # resolve instruction type and execute it
         br = InstructionToBranchInst(instr)
         if br is not None:
@@ -533,12 +711,6 @@ class LlvmIrInterpret():
             self._runBlockPhis(bb, defDst, waveLog, regs, nowTime)
             bb = defDst
             return bb, True
-
-        freeze = InstructionToFreezeInst(instr)
-        if freeze:
-            o, = ops
-            regs[instr] = o
-            return bb, False
 
         raise NotImplementedError(instr)
 

@@ -13,7 +13,6 @@ from hwt.simulator.simTestCase import SimTestCase
 from hwt.hwModule import HwModule
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, MachineFunction, Function
 from hwtHls.platform.platform import HlsDebugBundle
-from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.ssa.analysis.llvmIrInterpret import LlvmIrInterpret, \
     SimIoUnderflowErr
 from hwtHls.ssa.analysis.llvmMirInterpret import LlvmMirInterpret
@@ -196,11 +195,10 @@ class Axi4SParseIfTC(SimTestCase):
             ", ".join("0x%x" % i for i in outputRef)
         ))
 
-    def _test_Axi4SParse2IfAndSequel(self, DATA_WIDTH:int, freq=int(1e6), N=16, WRITE_FOOTER=True, USE_PY_FRONTEND=False):
+    def _test_Axi4SParse2IfAndSequel(self, DATA_WIDTH:int, freq=int(1e6), N=16, WRITE_FOOTER=True):
         dut = Axi4SParse2IfAndSequel()
         dut.WRITE_FOOTER = WRITE_FOOTER
         dut.DATA_WIDTH = DATA_WIDTH
-        dut.USE_PY_FRONTEND = USE_PY_FRONTEND
         dut.CLK_FREQ = freq
 
         T0 = HStruct(
@@ -261,8 +259,8 @@ class Axi4SParseIfTC(SimTestCase):
             tc._testLlvmMir(dut, llvm.getMachineFunction(llvm.main), inputFrames, outputRef)
 
         self.compileSimAndStart(dut, target_platform=TestLlvmIrAndMirPlatform(
-                debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
-                    HlsDebugBundle.DBG_4_0_addSignalNamesToSync}),
+                #debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
+                #    HlsDebugBundle.DBG_4_0_addSignalNamesToSync}),
                 optIrTest=testLlvmOptIr,
                 optMirTest=testLlvmOptMir,
                 # runTestAfterEachPass=True
@@ -450,19 +448,20 @@ class Axi4SParseIfTC(SimTestCase):
 
 
 if __name__ == '__main__':
+    #from hwtHls.platform.virtual import VirtualHlsPlatform
     #from hwt.synth import to_rtl_str
     #m = Axi4SParse2IfAndSequel()
-    #m.WRITE_FOOTER = True
+    #m.WRITE_FOOTER = False
     #m.DATA_WIDTH = 16
     #m.CLK_FREQ = int(1e6)
     #print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
     #    debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
-    #        HlsDebugBundle.DBG_20_addSignalNamesToSync
+    #        HlsDebugBundle.DBG_4_0_addSignalNamesToSync
     #}))))
     
     testLoader = unittest.TestLoader()
     
-    suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2IfAndSequel_16b_100MHz")])
-    # suite = testLoader.loadTestsFromTestCase(Axi4SParseIfTC)
+    # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2IfAndSequel_16b_100MHz")])
+    suite = testLoader.loadTestsFromTestCase(Axi4SParseIfTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from hwt.hdl.commonConstants import b1
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
-from hwtHls.frontend.ast.builder import HlsAstBuilder
-from hwtHls.frontend.ast.thread import HlsThreadFromAst
+from hwtHls.frontend.pyBytecode import hlsBytecode
+from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
@@ -39,32 +40,29 @@ class HlsAstExprTree3_example(HwModule):
         self.f2 = HwIOVectSignal(32, signed=False)._m()
         self.f3 = HwIOVectSignal(32, signed=False)._m()
 
-    @override
-    def hwImpl(self):
-        hls = HlsScope(self)
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
         r = hls.read
-        _a, _b, _c, _d = r(self.a), r(self.b), r(self.c), r(self.d)
-        # x, y, z, w are happending after f1 was written
-        x, y, z, w = r(self.x).data, r(self.y).data, r(self.z).data, r(self.w).data
-        a, b, c, d = _a.data, _b.data, _c.data, _d.data
-        f1 = (a + b + c) * d
-        xy = x + y
-        f2 = xy * z
-        f3 = xy * w
-
         wr = hls.write
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
-            ast.While(True,
-                _a, _b, _c, _d,
-                wr(f1, self.f1),
-                wr(f2, self.f2),
-                wr(f3, self.f3),
-            ),
-            self._name)
-        )
-        hls.compile()
+        while b1:
+            _a, _b, _c, _d = r(self.a), r(self.b), r(self.c), r(self.d)
+            # x, y, z, w are happening after f1 was written
+            x, y, z, w = r(self.x).data, r(self.y).data, r(self.z).data, r(self.w).data
+            a, b, c, d = _a.data, _b.data, _c.data, _d.data
+            f1 = (a + b + c) * d
+            xy = x + y
+            f2 = xy * z
+            f3 = xy * w
+    
+            wr(f1, self.f1)
+            wr(f2, self.f2)
+            wr(f3, self.f3)
 
+    @override
+    def hwImpl(self) -> None:
+        hls = HlsScope(self, namePrefix="")
+        hls.addThread(HlsThreadFromPy(hls, self.mainThread, hls))
+        hls.compile()
 
 
 class HlsAstExprTree3_example_TC(BaseSsaTC):

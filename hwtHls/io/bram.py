@@ -16,8 +16,7 @@ from hwtHls.frontend.ast.utils import ANY_SCALAR_INT_VALUE
 from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
 from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup, \
     isInstanceOfInterfacePort, getFirstInterfaceInstance
-from hwtHls.llvm.llvmIr import LoadInst, Register
-from hwtHls.llvm.llvmIr import MachineInstr
+from hwtHls.llvm.llvmIr import LoadInst, Register, MachineInstr, Value
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
@@ -35,7 +34,6 @@ from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
-from hwtHls.ssa.value import SsaValue
 
 AnyBramPort = Union[HwIOBramPort_noClk, BankedPortGroup[HwIOBramPort_noClk], MultiPortGroup[HwIOBramPort_noClk]]
 
@@ -48,7 +46,7 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
 
     def __init__(self, netlist:"HlsNetlistCtx",
                  dst:AnyBramPort,
-                 cmd: Union[Literal[READ], Literal[WRITE]]):
+                 cmd: Literal[READ, WRITE]):
         self.dst = dst
         _dst = self._getNominaInterface()
 
@@ -64,8 +62,8 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
         if cmd == READ:
             assert _dst.HAS_R, dst
             # set write data to None
-
-        elif cmd == WRITE:
+        else:
+            assert cmd == WRITE, cmd
             assert _dst.HAS_W, dst
 
     @override
@@ -144,21 +142,17 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
         key = (ram, addr, wData)
         return allocator.netNodeToRtl[key]
 
-    @override
-    def rtlAlloc(self, allocator: "ArchElement") -> List[HdlStatement]:
+    def _rtlAlloc(self, allocator: "ArchElement", cmd: Literal[READ, WRITE], ram: HwIOBramPort_noClk) -> List[HdlStatement]:
         """
-        Instantiate write operation on RTL level
+        Instantiate command write operation on RTL level
         """
         assert not self._isRtlAllocated, self
-        assert len(self.dependsOn) >= 2, self.dependsOn
-        # [0] - data, [1] - addr, [2:] control dependencies
-        for sync, t in zip(self.dependsOn[1:], self.scheduledIn[1:]):
+        for sync, t in zip(self.dependsOn, self.scheduledIn):
             # prepare sync inputs but do not connect it because we do not implement synchronization
             # in this step we are building only datapath
             if sync._dtype != HVoidOrdering:
                 allocator.rtlAllocHlsNetNodeOutInTime(sync, t)
 
-        ram: HwIOBramPort_noClk = self.dst
         assert not isinstance(ram, (MultiPortGroup, BankedPortGroup)), (self, ram,
             "If this was an operation with a group of ports the individual ports should have already been assigned")
         en = ram.en
@@ -184,7 +178,7 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
             HlsNetNodeReadIndexed._rtlAllocDataVoidOut(self, allocator)
         if hasWData:
             _wData = allocator.rtlAllocHlsNetNodeOutInTime(wData, self.scheduledIn[0])
-        _addr = allocator.rtlAllocHlsNetNodeOutInTime(addr, self.scheduledIn[1])
+        _addr = allocator.rtlAllocHlsNetNodeOutInTime(addr, self.scheduledIn[addrInPort.in_i])
 
         rtlObj = [
             # [todo] llvm MIR lefts bits which are sliced out
@@ -197,7 +191,7 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
                 rtlObj.append(ram.din(_wData.data))
             we = getattr(ram, "we", None)
             if we is not None:
-                rtlObj.append(ram.we(0 if self.cmd is READ else 1))
+                rtlObj.append(ram.we(0 if cmd is READ else 1))
 
         allocator.netNodeToRtl[key] = rtlObj
         if self._portDataOut is not None:
@@ -205,10 +199,17 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
             allocator.rtlRegisterOutputRtlSignal(self._portDataOut, ram.dout, False, False, False)
 
         clkI = indexOfClkPeriod(self.scheduledIn[addrInPort.in_i], allocator.netlist.normalizedClkPeriod)
-        allocator.rtlAllocDatapathWrite(self, ram.en, allocator.connections[clkI], rtlObj)
-
+        allocator._rtlAllocDatapathIo(ram, self, ram.en, allocator.connections[clkI], rtlObj)
         self._isRtlAllocated = True
+
         return rtlObj
+
+    @override
+    def rtlAlloc(self, allocator: "ArchElement") -> List[HdlStatement]:
+        ram: HwIOBramPort_noClk = self.dst
+        # [0] - data, [1] - addr, [2:] control dependencies
+        assert len(self.dependsOn) >= 2, self.dependsOn
+        return self._rtlAlloc(allocator, self.cmd, ram)
 
     def __repr__(self, minify=False):
         src = self.dependsOn[0]
@@ -282,10 +283,9 @@ class HlsReadBram(HlsReadAddressed):
             mbMeta.parentElement.addNode(xWrData)
             xWrData._outputs[0].connectHlsIn(n._inputs[0])
         index.connectHlsIn(n.indexes[0])
-        _cond = cond
-        # _cond = mbMeta.syncTracker.resolveControlOutput(cond)
-        mirToNetlist._addExtraCond(n, _cond, None)
-        mirToNetlist._addSkipWhen_n(n, _cond, None)
+
+        mirToNetlist._addExtraCond(n, cond, None)
+        mirToNetlist._addSkipWhen_n(n, cond, None)
 
         valCache.add(mbMeta.block, instrDstReg, n._portDataOut, True)
         return [n, ]
@@ -304,9 +304,9 @@ class HlsWriteBram(HlsWriteAddressed):
     def __init__(self,
             parentProxy: "BramArrayProxy",
             parent:"HlsScope",
-            src:Union[SsaValue, RtlSignal, HConst],
+            src:Union[Value, RtlSignal, HConst],
             dst:AnyBramPort,
-            index:Union[SsaValue, RtlSignal, HConst],
+            index:Union[Value, RtlSignal, HConst],
             element_t:HdlType,
             mayBecomeFlushable=True):
 

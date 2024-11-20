@@ -25,4 +25,8 @@ class PyBytecodeSkipPass(_PyBytecodeFunctionPragma):
         getStr = irTranslator.mdGetStr
         getTuple = irTranslator.mdGetTuple
         items = [getStr(passName) for passName in self.skipedPassNames]
-        mainFn.setMetadata(irTranslator.strCtx.addStringRef("hwtHls.skipPass"), getTuple(items, False))
+        mdName = irTranslator.strCtx.addStringRef("hwtHls.skipPass")
+        cur = mainFn.getMetadata(mdName)
+        if cur is not None:
+            items.extend(op.get() for op in cur.iterOperands())
+        mainFn.setMetadata(mdName, getTuple(items, False))

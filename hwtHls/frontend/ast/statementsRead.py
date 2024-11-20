@@ -1,32 +1,67 @@
 from typing import Optional, Union, Tuple, Sequence
 
 from hwt.doc_markers import internal
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.statements.statement import HdlStatement
+from hwt.hdl.types.array import HArray
 from hwt.hdl.types.bits import HBits
-from hwt.hdl.types.defs import BIT
+from hwt.hdl.types.bitsRtlSignal import HBitsRtlSignal
 from hwt.hdl.types.hdlType import HdlType
+from hwt.hdl.types.struct import HStruct, HStructField
 from hwt.hwIO import HwIO
 from hwt.mainBases import RtlSignalBase
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.ast.utils import _getNativeInterfaceWordType, \
     ANY_HLS_STREAM_INTF_TYPE, ANY_SCALAR_INT_VALUE
 from hwtHls.frontend.utils import HwIO_getName
 from hwtHls.io.portGroups import getFirstInterfaceInstance, MultiPortGroup, \
     BankedPortGroup
-from hwtHls.llvm.llvmIr import Register, MachineInstr, Argument, ArrayType, TypeToArrayType, Type
+from hwtHls.llvm.llvmIr import Register, MachineInstr, Argument, ArrayType, TypeToArrayType, \
+    Type, BasicBlock
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
+from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid, HVoidOrdering
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readIndexed import HlsNetNodeReadIndexed
-from hwtHls.ssa.basicBlock import SsaBasicBlock
-from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
-from hwtHls.ssa.value import SsaValue
+from hwtHls.ssa.translation.toLlvmArgumentUtils import getArgumentForHwIO
 
 
-class HlsRead(HdlStatement, SsaInstr):
+def _copySliceNamesToFlattenedSignal(flatSig: HBitsRtlSignal, t: HdlType, name: str, offset:int):
+    if isinstance(t, HStruct):
+        for f in t.fields:
+            f: HStructField
+            w = f.dtype.bit_length()
+            fTy = f.dtype
+            if f.name is None:
+                offset += fTy.bit_length()
+            else:
+                newName = f"{name:s}_{f.name:s}"
+                offset = _copySliceNamesToFlattenedSignal(flatSig, fTy, newName, offset)
+
+    elif isinstance(t, HArray):
+        for i in range(t.size):
+            newName = f"{name:s}_{i:d}"
+            offset = _copySliceNamesToFlattenedSignal(flatSig, fTy, newName, offset)
+    else:
+        w = t.bit_length()
+        cur = flatSig[offset + w: offset]
+        if cur.hasGenericName:
+            cur.hasGenericName = False
+            cur._name = name
+        if w == 1:
+            cur = flatSig[offset]
+            if cur.hasGenericName:
+                cur.hasGenericName = False
+                cur._name = name
+        offset += w
+
+    return offset
+
+
+class HlsRead(HdlStatement):
     """
     Container of informations about read from some IO.
     This object behaves as a HdlStatement and SsaInstr instance.
@@ -45,14 +80,15 @@ class HlsRead(HdlStatement, SsaInstr):
         self._parent = parent
         self._src = src
         self._isBlocking = isBlocking
-        self.block: Optional[SsaBasicBlock] = None
+        self.block: Optional[BasicBlock] = None
 
         if hwIOName is None:
             hwIOName = self._getInterfaceName(src)
 
         # create an interface and signals which will hold value of this object
-        var = parent.var
+        var = parent._sig # can not use .var() because it would prematurely create tmp alloca for result
         name = f"{hwIOName:s}_read"
+        self._name = name
         isVoid = HdlType_isVoid(dtype)
         if isVoid:
             sig = None
@@ -84,7 +120,7 @@ class HlsRead(HdlStatement, SsaInstr):
             sig._name = name
             sig_flat.drivers.append(self)
             sig_flat.origin = self
-
+            _copySliceNamesToFlattenedSignal(sig_flat, dtype, name, 0)
         else:
             sig_flat = sig
             sig.drivers.append(self)
@@ -92,14 +128,11 @@ class HlsRead(HdlStatement, SsaInstr):
 
         self._sig = sig_flat
         self._GEN_NAME_PREFIX = hwIOName
-        SsaInstr.__init__(self, parent.ssaCtx,
-                          sig_flat._dtype if sig_flat is not None else dtype,
-                          OP_ASSIGN, (),
-                          origin=sig)
+        self._dtype = sig_flat._dtype if sig_flat is not None else dtype
         self._dtypeOrig = dtype
         self.data = sig
         if isBlocking:
-            self.valid = BIT.from_py(1)
+            self.valid = b1
         else:
             self.valid = sig_flat[w]
 
@@ -109,6 +142,13 @@ class HlsRead(HdlStatement, SsaInstr):
 
     def _getNativeInterfaceWordType(self) -> HdlType:
         return _getNativeInterfaceWordType(getFirstInterfaceInstance(self._src))
+
+    def _translateToLlvm(self, toLlvm: "ToLlvmIrTranslator", bb: BasicBlock):
+        src, elmT = getArgumentForHwIO(toLlvm, self._src, self, True)
+        src: Argument
+        elmT: Type
+        # [todo] see mustSuppressSpeculation
+        return bb, toLlvm.b.CreateLoad(elmT, src, True, toLlvm.strCtx.addTwine(self._name))
 
     @classmethod
     def _translateMirToNetlist(cls,
@@ -165,15 +205,6 @@ class HlsRead(HdlStatement, SsaInstr):
     def _getInterfaceName(self, io: Union[HwIO, Tuple[HwIO]]) -> str:
         return HwIO_getName(self._parent.parentHwModule, io)
 
-    def _translateToLlvm(self, toLlvm: "ToLlvmIrTranslator"):
-        src, _, t = toLlvm.ioToVar[self._src]
-        src: Argument
-        t: Type
-        elmT = t
-        name = toLlvm.strCtx.addTwine(toLlvm._formatVarName(self._name))
-        # [todo] see mustSuppressSpeculation
-        return toLlvm.b.CreateLoad(elmT, src, True, name)
-
     def __repr__(self):
         t = self._dtype
         tName = getattr(t, "name", None)
@@ -196,24 +227,23 @@ class HlsReadAddressed(HlsRead):
                  hwIOName: Optional[str]=None):
         super(HlsReadAddressed, self).__init__(parent, src, element_t, isBlocking, hwIOName=hwIOName)
         self.operands = (index,)
-        if isinstance(index, SsaValue):
-            # assert index.block is not None, (index, "Must not construct instruction with operands which are not in SSA")
-            index.users.append(self)
 
-    def _translateToLlvm(self, toLlvm: "ToLlvmIrTranslator"):
-        src, _, t = toLlvm.ioToVar[self._src]
+    @override
+    def _translateToLlvm(self, toLlvm: "ToLlvmIrTranslator", bb: BasicBlock):
+        src, t = getArgumentForHwIO(toLlvm, self._src, self, True)
         src: Argument
         t: Type
         # :note: the index type does not matter much as llvm::InstCombine extends it to i64
         index_t = Type.getIntNTy(toLlvm.ctx, self.operands[0]._dtype.bit_length())
-        indexes = [toLlvm._translateExprInt(0, index_t),
-                   toLlvm._translateExpr(self.operands[0]), ]
+        indexes = [toLlvm._translateExprInt(0, index_t)]
+        bb, index0 = toLlvm._translateExprToLlvm(bb, self.operands[0])
+        indexes.append(index0)
         arrTy: ArrayType = TypeToArrayType(t)
         assert arrTy is not None, ("It is expected that this object access data of array type", self, t)
         elmT = arrTy.getElementType()
         ptr = toLlvm.b.CreateGEP(arrTy, src, indexes)
-        name = toLlvm.strCtx.addTwine(toLlvm._formatVarName(self._name))
-        return toLlvm.b.CreateLoad(elmT, ptr, True, name)
+        name = toLlvm.strCtx.addTwine(self._name)
+        return bb, toLlvm.b.CreateLoad(elmT, ptr, True, name)
 
     @classmethod
     def _translateMirToNetlist(cls,
@@ -271,15 +301,14 @@ class HlsStmReadStartOfFrame(HlsRead):
     :attention: This does not read SOF flag from interface. (To get EOF you have to read data which contains also SOF flag.)
     """
 
-    def __init__(self,
-            parent:"HlsScope",
-            src:ANY_HLS_STREAM_INTF_TYPE):
-        HlsRead.__init__(self, parent, src, BIT, True)
+    def __init__(self, parent:"HlsScope", src:ANY_HLS_STREAM_INTF_TYPE):
+        HlsRead.__init__(self, parent, src, HVoidOrdering, True)
 
-    def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator"):
-        src, _, _ = toLlvm.ioToVar[self._src]
+    @override
+    def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
+        src, _ = getArgumentForHwIO(toLlvm, self._src, self, True)
         src: Argument
-        return toLlvm.b.CreateStreamReadStartOfFrame(src)
+        return bb, toLlvm.b.CreateStreamReadStartOfFrame(src)
 
 
 class HlsStmReadEndOfFrame(HlsRead):
@@ -289,12 +318,11 @@ class HlsStmReadEndOfFrame(HlsRead):
     :attention: Does not read EOF flag from interface. (To get SOF you have to read data which contains also EOF flag.)
     """
 
-    def __init__(self,
-            parent:"HlsScope",
-            src:ANY_HLS_STREAM_INTF_TYPE):
-        HlsRead.__init__(self, parent, src, BIT, True)
+    def __init__(self, parent:"HlsScope", src:ANY_HLS_STREAM_INTF_TYPE):
+        HlsRead.__init__(self, parent, src, HVoidOrdering, True)
 
-    def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator"):
-        src, _, _ = toLlvm.ioToVar[self._src]
+    @override
+    def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
+        src, _ = getArgumentForHwIO(toLlvm, self._src, self, True)
         src: Argument
-        return toLlvm.b.CreateStreamReadEndOfFrame(src)
+        return bb, toLlvm.b.CreateStreamReadEndOfFrame(src)

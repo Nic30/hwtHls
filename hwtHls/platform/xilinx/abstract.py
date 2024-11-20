@@ -5,6 +5,8 @@ from typing import Dict, Callable, Tuple, Optional, Union, Set, List
 from hwt.hdl.operatorDefs import HOperatorDef, HwtOps
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
 from hwtHls.llvm.llvmIr import HFloatTmpConfig
+from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
+from hwtHls.platform.componentGeneratorMemory import ComponentGeneratorMemory
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.platform.platform import DefaultHlsPlatform, DebugId, HlsDebugBundle, \
     LlvmCliArgTuple
@@ -23,6 +25,16 @@ class AbstractXilinxPlatform(DefaultHlsPlatform):
                  llvmCliArgs:List[LlvmCliArgTuple]=[]):
         super(AbstractXilinxPlatform, self).__init__(debugDir=debugDir, debugFilter=debugFilter, llvmCliArgs=llvmCliArgs)
         self._init_coefs()
+        # AMD/Xilinx 7-series https://0x04.net/~mwk/xidocs/ug/xc7-ram.pdf
+        self._BRAM_GEOMETRIES = [
+            (512, 36),
+            (1024, 18),
+            (2048, 9),
+            (4096, 4),
+            (8192, 2),
+            (16384, 1),
+        ]
+        self._componentGenerators[MemoryAllocationMeta] = ComponentGeneratorMemory(self)
 
     def _init_coefs(self):
         """
@@ -31,7 +43,7 @@ class AbstractXilinxPlatform(DefaultHlsPlatform):
         raise NotImplementedError(
             "Override this in your implementation of platform")
         self._OP_DELAYS: Dict[str, Callable[[int, int, int, float], Tuple[int, float]]] = {}
-
+        
     @lru_cache()
     def get_op_realization(self, op: HOperatorDef, opSpecialization: Optional[HFloatTmpConfig], bit_width: int,
                            input_cnt: int, clkPeriod: float) -> OpRealizationMeta:
@@ -46,3 +58,9 @@ class AbstractXilinxPlatform(DefaultHlsPlatform):
     @lru_cache()
     def get_ff_store_time(self, realTimeClkPeriod: float, schedulerResolution: float):
         return int(self.get_op_realization(ResourceFF, None, 1, 1, realTimeClkPeriod).inputWireDelay // schedulerResolution)
+
+    def get_lut_inputs_max(self):
+        """
+        get maximum number of lut inputs
+        """
+        return 7

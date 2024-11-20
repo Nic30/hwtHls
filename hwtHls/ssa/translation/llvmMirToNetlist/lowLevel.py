@@ -3,6 +3,7 @@ from typing import Set, Tuple, Dict, List, Union, Optional
 from hwt.hdl.const import HConst
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.array import HArray
+from hwt.hdl.types.arrayConst import HArrayConst
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.hwIO import HwIO
@@ -10,7 +11,8 @@ from hwtHls.code import OP_ASHR, OP_LSHR, OP_SHL, OP_CTLZ, OP_CTTZ, OP_CTPOP,\
     OP_FSHL, OP_FSHR
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, MachineInstr, MachineRegisterInfo, Register, \
     TargetOpcode, CmpInst, ConstantInt, TypeToIntegerType, TypeToArrayType, IntegerType, Type as LlvmType, ArrayType, \
-    MachineLoopInfo, GlobalValue, ValueToConstantArray, ValueToConstantInt, ValueToConstantDataArray, ConstantArray
+    MachineLoopInfo, GlobalValue, ValueToConstantArray, ValueToConstantInt, ValueToConstantDataArray, ConstantArray, \
+    ValueToUndefValue, ValueToConstantAggregateZero, ConstantAggregateZero
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -22,6 +24,7 @@ from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge, \
     HlsNetNodeWriteForwardedge
+from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     HlsNetNodeOutAny
 from hwtHls.netlist.nodes.portsUtils import HlsNetNodeOut_connectHlsIn_crossingHierarchy
@@ -31,7 +34,8 @@ from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import Machin
 from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdgeMeta, MachineEdge
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
-from tests.math.fp.hFloatTmpOps import OP_FADD, OP_FSUB, OP_FMUL, OP_FDIV
+from hwtHls.ssa.translation.toLlvmUtils import NetlistIoConstructorDictT
+
 
 
 class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
@@ -90,13 +94,15 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         TargetOpcode.G_CTTZ: OP_CTTZ,
         TargetOpcode.G_CTTZ_ZERO_UNDEF: OP_CTTZ,
         TargetOpcode.G_CTPOP: OP_CTPOP,
-        
+
+        TargetOpcode.HWTFPGA_FP_FNEG: OP_FNEG,
         TargetOpcode.HWTFPGA_FP_FADD: OP_FADD,
         TargetOpcode.HWTFPGA_FP_FSUB: OP_FSUB,
         TargetOpcode.HWTFPGA_FP_FMUL: OP_FMUL,
         TargetOpcode.HWTFPGA_FP_FDIV: OP_FDIV,
     }
 
+    # U - unsigned, S - signed, O - ordered
     CMP_PREDICATE_TO_OP = {
         CmpInst.Predicate.ICMP_EQ: HwtOps.EQ,
         CmpInst.Predicate.ICMP_NE: HwtOps.NE,
@@ -108,6 +114,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         CmpInst.Predicate.ICMP_SGE: HwtOps.SGE,
         CmpInst.Predicate.ICMP_SLT: HwtOps.SLT,
         CmpInst.Predicate.ICMP_SLE: HwtOps.SLE,
+
     }
     OPC_TO_OP_SCHEDULING_RESOURCE = {
         TargetOpcode.HWTFPGA_MUX: HwtOps.TERNARY,
@@ -133,6 +140,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         TargetOpcode.HWTFPGA_FSHL,
         TargetOpcode.HWTFPGA_FSHR,
     }
+
     _FP_BIN_OPCODES = {
         TargetOpcode.HWTFPGA_FP_FADD,
         TargetOpcode.HWTFPGA_FP_FSUB,
@@ -140,7 +148,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         TargetOpcode.HWTFPGA_FP_FDIV,
     }
 
-    def __init__(self, hls: "HlsScope", tr: ToLlvmIrTranslator,
+    def __init__(self, hls: "HlsScope", toLlvm: ToLlvmIrTranslator,
                  mf: MachineFunction,
                  backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]],
                  liveness: Dict[MachineBasicBlock, Dict[MachineBasicBlock, Set[Register]]],
@@ -157,9 +165,8 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         self.valCache = MirToHwtHlsNetlistValueCache(netlist)
         self._valueCopiedIntoElement: Dict[Tuple[HlsNetNodeAggregate, MachineBasicBlock, Register]] = {}
 
-        argToArgIndex = {a: i for (i, a) in enumerate(tr.llvm.main.args())}
-        self._argIToIo = {argToArgIndex[a]: io for (io, (a, _, _)) in tr.ioToVar.items()}
-        self.placeholderObjectSlots = [obj for (obj, _) in tr.placeholderObjectSlots]
+        self._argIToIo = {i: io for io, i in toLlvm.ioToArgIndex.items()}
+        self.placeholderObjectSlots = [obj for (obj, _) in toLlvm.placeholderObjectSlots]
         self.blockMeta: Dict[MachineBasicBlock, MachineBasicBlockMeta] = {}
         self.edgeMeta: Dict[MachineEdge, MachineEdgeMeta] = {}
         self.mf = mf
@@ -168,6 +175,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         self.registerTypes = registerTypes
         self.regToIo: Dict[Register, HwIO] = {ioRegs[ai]: io for (ai, io) in self._argIToIo.items()}
         self.ioNodeConstructors: NetlistIoConstructorDictT = ioNodeConstructors
+        self.globalMemories: Dict[GlobalValue, MemoryAllocationMeta] = {}
         self.loops = loops
         # register self in netlist analysis cache
         netlist._analysis_cache[self.__class__] = self
@@ -186,7 +194,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
             io = self.regToIo.get(r, None)
             if io is not None:
                 return io
-            # could still be load or write from ROM
+            # could still be load or write from ROM/RAM constructed from alloca/GlobalValue
         elif opc == TargetOpcode.HWTFPGA_ICMP:
             predicate = CmpInst.Predicate(instr.getOperand(1).getPredicate())
             return self.CMP_PREDICATE_TO_OP[predicate]
@@ -278,19 +286,29 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         return builder.buildConst(v)
 
     @classmethod
-    def _translateConstantArrayToPy(cls, t: HArray, arr: ConstantArray):
+    def _translateConstantArrayToPy(cls, t: HArray, arr: ConstantArray) -> HArrayConst:
         element_t = t.element_t
         res = []
         if isinstance(element_t, HArray):
             for elmVals in arr.iterOperands():
                 res.append(cls._normalizeArrayVal(element_t, ValueToConstantArray(elmVals.get())))
+        elif isinstance(arr, ConstantAggregateZero):
+            res.extend(0 for _ in range(t.size))
         elif not element_t.signed:
             # convert to unsigned if required
             m = element_t.all_mask()
             for v in arr:
-                v = int(ValueToConstantInt(v).getValue())
-                if v < 0:
-                    v = m + v + 1
+                vAsCi = ValueToConstantInt(v)
+                if vAsCi is not None:
+                    v = int(vAsCi.getValue())
+                    if v < 0:
+                        v = m + v + 1
+                else:
+                    vAsUndef = ValueToUndefValue(v)
+                    if vAsUndef is not None:
+                        v = None
+                    else:
+                        raise ValueError(v)
                 res.append(v)
         else:
             for v in arr:
@@ -299,6 +317,9 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         return res
 
     def _translateGlobal(self, builder:HlsNetlistBuilder, g: GlobalValue):
+        cur = self.globalMemories.get(g, None)
+        if cur is not None:
+            return cur
         val = g.getOperand(0)
         t = self._translateType(val.getType())
         if not isinstance(t, HArray):
@@ -306,12 +327,13 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         arrVal = ValueToConstantArray(val)
         if arrVal is None:
             arrVal = ValueToConstantDataArray(val)
+            if arrVal is None:
+                arrVal = ValueToConstantAggregateZero(val)
         assert arrVal is not None, (val.__class__, val)
         pyVal = self._translateConstantArrayToPy(t, arrVal)
-        v = t.from_py(pyVal)
-        c = builder.buildConst(v)
-        c.obj.name = g.getName().str()
-        return c
+        mem = MemoryAllocationMeta(g.getName().str(), t, pyVal)
+        self.globalMemories[g] = mem
+        return mem
 
     # def _translateIntBits(self, builder: HlsNetlistBuilder, val: int, dtype: HBits):
     #    v = dtype.from_py(val)

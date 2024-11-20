@@ -2,15 +2,16 @@
 # -*- coding: utf-8 -*-
 
 from hwt.constants import Time
+from hwt.hdl.commonConstants import b1
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.pyUtils.typingFuture import override
-from hwtHls.frontend.ast.builder import HlsAstBuilder
-from hwtHls.frontend.ast.thread import HlsThreadFromAst
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from tests.baseSsaTest import BaseSsaTC
+from tests.frontend.ast.trivial import WriteOnce
 
 
 class TwoTimesA0(HwModule):
@@ -26,36 +27,25 @@ class TwoTimesA0(HwModule):
         self.a = HwIOVectSignal(8)
         self.b = HwIOVectSignal(8)._m()
 
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        while b1:
+            a = hls.read(self.a).data
+            hls.write(a + a, self.b)
+
     @override
-    def hwImpl(self):
-        hls = HlsScope(self)
-        # a = hls.read(self.a).data
-        a = hls.var("a", self.a._dtype)
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
-            ast.While(True,
-                a(hls.read(self.a).data),
-                hls.write(a + a, self.b)
-            ),
-            self._name)
-        )
-        hls.compile()
+    def hwImpl(self) -> None:
+        WriteOnce.hwImpl(self)
 
 
 class TwoTimesA1(TwoTimesA0):
 
-    @override
-    def hwImpl(self):
-        hls = HlsScope(self)
-        a = hls.read(self.a).data
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
-            ast.While(True,
-                hls.write(a + a, self.b)
-            ),
-            self._name)
-        )
-        hls.compile()
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        while b1:
+            a = hls.read(self.a).data
+            b = a + a
+            hls.write(b, self.b)
 
 
 class TwoTimesA_TC(BaseSsaTC):

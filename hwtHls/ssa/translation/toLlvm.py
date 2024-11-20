@@ -1,64 +1,46 @@
-import re
-from typing import List, Tuple, Dict, Union, Sequence, Callable, Optional
+from _io import StringIO
+from typing import List, Tuple, Dict, Union, Sequence, Callable, Optional, Set
 
-from hdlConvertorAst.hdlAst._expr import HdlOpType
 from hwt.hdl.const import HConst
+from hwt.hdl.operator import HOperatorNode
 from hwt.hdl.operatorDefs import HwtOps, HOperatorDef
+from hwt.hdl.portItem import HdlPortItem
+from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.types.array import HArray
+from hwt.hdl.types.arrayConst import HArrayRtlSignal, HArrayConst
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
-from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.function import HFunctionConst
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.slice import HSlice
+from hwt.hdl.types.sliceConst import HSliceConst
 from hwt.hdl.types.struct import HStruct
 from hwt.hwIO import HwIO
-from hwt.hwIOs.std import HwIOBramPort_noClk
+from hwt.hwIOs.hwIOStruct import HwIOStruct
+from hwt.hwIOs.std import HwIOSignal
 from hwt.hwModule import HwModule
-from hwt.mainBases import RtlSignalBase
-from hwt.pyUtils.arrayQuery import grouper
-from hwt.pyUtils.typingFuture import override
-from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_getName
-from hwtHls.code import OP_CTLZ, OP_CTTZ, OP_CTPOP, OP_BITREVERSE, \
-    OP_FSHL, OP_FSHR, OP_ZEXT, OP_SEXT, OP_ASHR, OP_LSHR, OP_SHL, OP_UMAX, \
-    OP_SMAX, OP_UMIN, OP_SMIN
-from hwtHls.frontend.ast.astToSsa import HlsAstToSsa, IoPortToIoOpsDictionary
+from hwt.pyUtils.arrayQuery import grouper, flatten
+from hwt.synthesizer.interfaceLevel.utils import HwIO_pack
+from hwt.synthesizer.rtlLevel.exceptions import SignalDriverErr
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.frontend.ast.statementsWrite import HlsWrite
+from hwtHls.frontend.hOperatorDefLlvm import HOperatorDefLlvm
 from hwtHls.frontend.hardBlock import HardBlockHwModule
 from hwtHls.frontend.pyBytecode.pragma import _PyBytecodeIntrinsic
-from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup, \
-    getFirstInterfaceInstance
-from hwtHls.llvm.llvmIr import Value, Type, FunctionType, Function, VectorOfTypePtr, BasicBlock, Argument, \
-    PointerType, ConstantInt, ConstantArray, ConstantFP, APInt, verifyFunction, verifyModule, TypeToIntegerType, \
-    PHINode, LlvmCompilationBundle, LLVMContext, LLVMStringContext, ArrayType, MDString, \
-    ConstantAsMetadata, MDNode, Module, IRBuilder, UndefValue, Intrinsic, TypeToArrayType, \
-    GlobalVariable, GlobalValue, Align
+from hwtHls.llvm.llvmIr import Value, Type, FunctionType, Function, VectorOfTypePtr, BasicBlock, \
+    ConstantInt, ConstantArray, APInt, TypeToIntegerType, \
+    LlvmCompilationBundle, LLVMContext, LLVMStringContext, ArrayType, MDString, \
+    ConstantAsMetadata, MDNode, Module, IRBuilder, UndefValue, PoisonValue, \
+    GlobalVariable, GlobalValue, Align, AllocaInst, ValueToInstruction, ValueToAllocaInst, \
+    TypeToArrayType, MaybeAlign, ValueToGlobalValue
 from hwtHls.netlist.hdlTypeVoid import _HVoidOrdering, HdlType_isVoid
-from hwtHls.ssa.analysis.blockUtils import collect_all_blocks
-from hwtHls.ssa.basicBlock import SsaBasicBlock
-from hwtHls.ssa.instr import SsaInstr
-from hwtHls.ssa.phi import SsaPhi
-from hwtHls.ssa.transformation.ssaPass import SsaPass
-from hwtHls.ssa.value import SsaValue
-from hwtLib.amba.axi4Lite import Axi4Lite
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.ssa.translation.toLlvmUtils import addHwtHlsFunctionMetadata, \
+    ToLlvmIrTranslator_createOperatorConstructorDictionaries, \
+    llvmFunctionSortArgsByName, ToLlvmIoRecordTuple, applyLateLoopPragma
 from hwtLib.types.ctypes import uint32_t
 from pyMathBitPrecise.bit_utils import iter_bits_sequences, get_bit_range
-from tests.math.fp.hFloatTmp import HFloatTmp
-
-
-RE_ID_WITH_NUMBER = re.compile('[^0-9]+|[0-9]+')
-
-
-class HOperatorDefLlvm(HOperatorDef):
-
-    def __init__(self, evalFn, llvmOperatorConstructor: Callable[[IRBuilder, ...], Value],
-                 allowsAssignTo=False,
-                 idStr:Optional[str]=None,
-                 hdlConvertoAstOp:Optional[HdlOpType]=None):
-        HOperatorDef.__init__(self, evalFn, allowsAssignTo=allowsAssignTo, idStr=idStr,
-                              hdlConvertoAstOp=hdlConvertoAstOp)
-        self.llvmOperatorConstructor = llvmOperatorConstructor
 
 
 class ToLlvmIrTranslator():
@@ -70,15 +52,24 @@ class ToLlvmIrTranslator():
     1. LLVM does not have multi-level logic type like VHDL STD_LOGIC_VECTOR or Verilog wire/logic.
       * all x/z/u are replaced with 0 or with UndefValue if value is fully undefined
     2. LLVM does not have bit slicing and concatenation operators.
-      * all replaced with zext, sext, hwtHls.bitrangeGet/hwtHls.bitConcat
+      * all replaced with zext, sext, trunc, hwtHls.bitrangeGet/hwtHls.bitConcat
     
+    :ivar currentDef: dictionary mapping a value for each variable in each block
+    :ivar ioNodeConstructors: dictionary of read/write statements associated with io used to construct HlsNetlist node later
+    :ivar _variableInBlock: A dictionary holding a variable which currently
+        contains an expression for each expression in each block.
+        This dictionary is used to use already translated variable currently storing
+        the expression instead of translating whole expression again.
+    :ivar _allocaForVariable: an AllocaInst which represents memory for variable
+    :ivar _initializedAllocaVariables: after AllocaInst is created it is not initialized
+        after it is first written it is appears in this set, this is required for handling
+        of the case where HlsRead output signal has been accessed before HlsRead itself was seen
+        and thus variable was not initialized yet
+
     :note: Information about IO are stored in function attributes
-    :ivar _branchTmpBlocks: dictionary to keep track of BasicBlocks generated during conversion of branch instruction
-        used to resolve argument of PHIs, specified in dictionary format
-        original block to list of tuples LLVM basic block and list of original successors
     """
 
-    def __init__(self, label: str, namePrefix:str, topIo: IoPortToIoOpsDictionary, parentHwModule: HwModule):
+    def __init__(self, label: str, namePrefix:str, parentHwModule: HwModule, dbgLogPassExec:Optional[StringIO]):
         self.label = label
         self.namePrefix = namePrefix
         self.llvm = LlvmCompilationBundle(label)
@@ -86,58 +77,259 @@ class ToLlvmIrTranslator():
         self.strCtx: LLVMStringContext = self.llvm.strCtx
         self.module: Module = self.llvm.module
         self.b: IRBuilder = self.llvm.builder
-        self.topIo = topIo
-        self.ioSorted: Optional[Tuple[str, Union[HwIO, MultiPortGroup, BankedPortGroup],
-                 Tuple[List[HlsRead],
-                       List[HlsWrite]]]] = None
         self.parentHwModule = parentHwModule
-        self.ioToVar: Dict[HwIO, Tuple[Argument, Type, Type]] = {}
-        self.varMap: Dict[Union[SsaValue, SsaBasicBlock], Value] = {}
-        self._branchTmpBlocks: Dict[SsaBasicBlock, List[Tuple[BasicBlock, List[SsaBasicBlock]]]] = {}
-        self._afterTranslation: List[Callable[[ToLlvmIrTranslator], None]] = []
+
+        # :note: can not store Argument itself because it may reallocate if function type is mutated
+        self.ioToArgIndex: Dict[HwIO, int] = {}
+        # order of items in ioSorted corresponds to arguments of main function
+        self.ioSorted: List[ToLlvmIoRecordTuple] = []
+
+        self._afterTranslation: List[Callable[[ToLlvmIrTranslator], None]] = [
+            llvmFunctionSortArgsByName,
+            addHwtHlsFunctionMetadata,
+            applyLateLoopPragma,
+        ]
         self.placeholderObjectSlots = []
+        self._lateLoopPragmaToApply: List[Tuple[BasicBlock, List["_PyBytecodeLoopPragma", ]]] = []
 
-        b = self.b
-        self._opConstructorMap = {
-            HwtOps.AND: b.CreateAnd,
-            HwtOps.OR: b.CreateOr,
-            HwtOps.XOR: b.CreateXor,
+        self._allocaForVariable: Dict[RtlSignal, AllocaInst] = {}
+        self._initializedAllocaVariables: Set[RtlSignal] = set()
+        self._variableInBlock: Dict[BasicBlock, Dict[RtlSignal, Value]] = {}
 
-            HwtOps.ADD: b.CreateAdd,
-            HwtOps.SUB: b.CreateSub,
-            HwtOps.MUL: b.CreateMul,
-            HwtOps.UDIV: b.CreateUDiv,
-            HwtOps.SDIV: b.CreateSDiv,
-            OP_ASHR: b.CreateAShr,
-            OP_LSHR: b.CreateLShr,
-            OP_SHL: b.CreateShl,
-        }
-        self._opIntrinsic = {
-            OP_CTLZ: Intrinsic.ctlz,
-            OP_CTTZ: Intrinsic.cttz,
-            OP_CTPOP: Intrinsic.ctpop,
-            OP_BITREVERSE: Intrinsic.bitreverse,
-            OP_FSHL: Intrinsic.fshl,
-            OP_FSHR: Intrinsic.fshr,
-            OP_UMAX: Intrinsic.umax,
-            OP_SMAX: Intrinsic.smax,
-            OP_UMIN: Intrinsic.umin,
-            OP_SMIN: Intrinsic.smin,
-        }
-        self._opConstructorMapCmp = {
-            HwtOps.NE: b.CreateICmpNE,
-            HwtOps.EQ: b.CreateICmpEQ,
+        self._loop_stack: List[Tuple[BasicBlock, List[BasicBlock]]] = []
+        self._dbgLogPassExec:Optional[StringIO] = dbgLogPassExec
+        self._opConstructorMap, self._opConstructorMapCmp = ToLlvmIrTranslator_createOperatorConstructorDictionaries(self.b)
 
-            HwtOps.SLE: b.CreateICmpSLE,
-            HwtOps.SLT: b.CreateICmpSLT,
-            HwtOps.SGT: b.CreateICmpSGT,
-            HwtOps.SGE: b.CreateICmpSGE,
+    def _getOrCreateAllocaForTmpVariable(self, var: RtlSignal,
+                                         allocaKnownToBeMissing: bool):
+        assert isinstance(var, RtlSignal), var
+        alloca = None if allocaKnownToBeMissing else self._allocaForVariable.get(var)
+        builder: IRBuilder = self.b
+        if alloca is None:
+            # ip = builder.saveIP()
+            # entryBB: BasicBlock = next(iter(self.llvm.main))
+            # term = entryBB.getTerminator()
+            # if term is None:
+            #    builder.SetInsertPoint(entryBB)
+            # else:
+            #    builder.SetInsertPoint(entryBB, entryBB.getTerminator())
 
-            HwtOps.ULE: b.CreateICmpULE,
-            HwtOps.ULT: b.CreateICmpULT,
-            HwtOps.UGT: b.CreateICmpUGT,
-            HwtOps.UGE: b.CreateICmpUGE,
-        }
+            typeToLlvm = getattr(var._dtype, "toLlvm", None)
+            if typeToLlvm is not None:
+                Ty = typeToLlvm(self)
+            else:
+                # :attentino: variables on stack (alloca) must have minimum aligment of 1B otherwise
+                #     load/store to different allocas would interfere with each other
+                #     this allocates type as is and then it relies on TmpAllocaLoweringPass to
+                #     widen it to handle problems with alignment
+                Ty = self._translateType(var._dtype)
+
+            alloca = builder.CreateAlloca(Ty, None, self.strCtx.addTwine(var._name))
+            allocaInst = ValueToInstruction(alloca)
+            allocaInst.setMetadata(
+                self.strCtx.addStringRef("hwtHls.tmp.alloca"),
+                self.mdGetTuple([], False))
+
+            self._allocaForVariable[var] = alloca
+            builder.CreateStore(UndefValue.get(Ty), alloca)  # initialize to undef to always have def before use
+            # builder.restoreIP(ip)
+
+        return alloca
+
+    def _variableInBlock_insertNoRedef(self, block: BasicBlock, var: Union[RtlSignal, HConst], newVal: Union[Value, HConst], createAlloca: bool=False)\
+            ->Tuple[BasicBlock, Union[Value, HConst]]:
+        if not isinstance(var, HConst):
+            varDict = self._variableInBlock.get(block, None)
+            if varDict is None:
+                # check for case that expression was already translated in this block
+                varDict = self._variableInBlock[block] = {}
+            varDict[var] = newVal
+
+        if createAlloca:
+            alloca = self._getOrCreateAllocaForTmpVariable(var, False)
+            builder: IRBuilder = self.b
+            builder.CreateStore(newVal, alloca, False)
+            self._initializedAllocaVariables.add(var)
+
+        return block, newVal
+
+    def _variableInBlock_insertRedef(self,
+                                     block: BasicBlock,
+                                     var: RtlSignal,
+                                     indexes: Optional[List[Union[RtlSignal, HConst]]],
+                                     newVal: Union[Value, HConst]):
+        """
+        Handle store to variable and update current definitions
+        """
+        block, _newVal = self._handleVariableStore(var, indexes, block, newVal)
+
+        varDict = self._variableInBlock.get(block, None)
+        if varDict is None:
+            varDict = self._variableInBlock[block] = {}
+            wasDefined = False
+        else:
+            wasDefined = varDict.pop(var, None) is not None
+
+        # transitively remove all users which were already defined because value of this variable was just changed
+        if wasDefined:
+            toRm = [*var.endpoints]
+            while toRm:
+                op = toRm.pop()
+                if isinstance(op, HOperatorNode):
+                    _wasDefined = varDict.pop(op.result, None) is not None
+                    if _wasDefined:
+                        toRm.extend(op.result.endpoints)
+
+        if indexes:
+            pass
+        else:
+            varDict[var] = _newVal
+
+    def _handleVariableStoreBitVectorSlice(self, block: BasicBlock, var: RtlSignal, indexes: Union[HConst, Value], value: Value):
+        assert isinstance(var._dtype, HBits), (var, var._dtype)
+        _hwIO, _indexes, _sign_cast_seen = var._getIndexCascade()
+        assert not _indexes, (var, "Must not be a slice of signal")
+        if len(indexes) != 1 or not isinstance(var._dtype, HBits):
+            raise NotImplementedError(block, var, indexes, value)
+
+        i = indexes[0]
+        if isinstance(i, Value):
+            raise NotImplementedError("indexing using address variable, we need to use getelementptr/extractelement/insertelement etc.")
+
+        else:
+            assert isinstance(i, HConst), (block, var, indexes, value)
+            if isinstance(i, HBitsConst):
+                assert value.getType().isIntegerTy() and value.getType().getIntegerBitWidth() == 1, value
+                low = int(i)
+                high = low + 1
+
+            else:
+                assert isinstance(i, HSliceConst), (block, var, indexes, value)
+                assert int(i.val.step) == -1, (block, var, indexes, value)
+                low = int(i.val.stop)
+                high = int(i.val.start)
+
+            assert isinstance(var, RtlSignal), var
+            width = var._dtype.bit_length()
+            parts: List[Value] = []  # high first
+
+            # append unmodified lower bits
+            if low > 0:
+                new_bb, new_var = self._translateExprToLlvm(block, var[low:0])
+                parts.append(new_var)
+
+            # append modified bits
+            # if isinstance(value, HlsRead):
+            #    parts.append(value._sig[value._dtype.bit_length():])
+
+            # el
+            if isinstance(value, Value):
+                # assert value.origin is not None, value
+                # assert isinstance(value.origin, RtlSignal), (value, value.origin)
+                parts.append(value)
+
+            else:
+                new_bb, new_var = self._translateExprToLlvm(block, value)
+                parts.append(new_var)
+
+            if high < width:
+                # append unmodified upper bits
+                new_bb, new_var = self._translateExprToLlvm(block, var[width:high])
+                parts.append(new_var)
+
+            value = self.b.CreateBitConcat(parts)
+        return new_bb, value
+
+    def _handleVariableStore(self,
+                      var: RtlSignal,
+                      indexes: Tuple[Union[Value, HBitsConst, HSliceConst], ...],
+                      block: BasicBlock,
+                      value: Value) -> int:
+        """
+        :param variable: A variable which is being written to.
+        :param indexes: A list of indexes where in the variable is written.
+        :param block: A block where this is taking place.
+        :param value: A value which is being written.
+
+        :return: unique index of tmp variable for PHI function
+        """
+        assert isinstance(var, RtlSignal), var
+        assert isinstance(block, BasicBlock), block
+        assert isinstance(value, Value), value
+        alloca = self._getOrCreateAllocaForTmpVariable(var, False)
+        new_bb = block
+        builder: IRBuilder = self.b
+
+        storeCreated = False
+        if indexes:
+            if isinstance(var._dtype, HArray):
+                assert len(indexes) == 1
+                new_bb, alloca = self._translateExprSubscriptGEP(block, alloca, indexes[0])
+
+            else:
+                new_bb, value = self._handleVariableStoreBitVectorSlice(block, var, indexes, value)
+        else:
+            t: Type = value.getType()
+            if t.isDoubleTy():
+                pass
+            elif t.isPointerTy():
+                # copy content of value to alloca memory
+                arrTy = TypeToArrayType(alloca.getAllocatedType())
+                assert arrTy is not None, alloca
+                elementWidth = arrTy.getElementType().getIntegerBitWidth()
+                elementSize = elementWidth // 8
+                if elementSize * 8 < elementWidth:
+                    elementSize += 1
+                size = arrTy.getNumElements() * elementSize  # :note: if size is not correct the DSEPass will remove memcopy
+                builder.CreateMemCpy(alloca, MaybeAlign(1), value, MaybeAlign(1), size)
+                storeCreated = True
+            else:
+                assert t.getScalarSizeInBits() == var._dtype.bit_length(), (var, t, var._dtype)
+
+        if not storeCreated:
+            builder.CreateStore(value, alloca, False)
+
+        if not var.hasGenericName and isinstance(value, RtlSignal) and value.hasGenericName:
+            # inherit name
+            value.setName(self.strCtx.addTwine(var.name))
+        self._initializedAllocaVariables.add(var)
+
+        return new_bb, value
+
+    def visit_Assignment(self, block: BasicBlock, o: HdlAssignmentContainer) -> BasicBlock:
+        block, src = self._translateExprToLlvm(block, o.src)
+        # this may result in:
+        # * store instruction
+        # * just the registration of the variable for the symbol
+        #   * only a segment in bit vector can be assigned, this result in the assignment of the concatenation of previous and new value
+        self._variableInBlock_insertRedef(block, o.dst, o.indexes, src)
+
+        return block
+
+    def visit_Assignments(self, block: BasicBlock, stm: Union[HdlAssignmentContainer, Sequence[HdlAssignmentContainer]]) -> BasicBlock:
+        for _stm in flatten(stm):
+            block = self.visit_Assignment(block, _stm)
+        return block
+
+    def visit_Write(self, block: BasicBlock, o: HlsWrite) -> BasicBlock:
+        builder = self.b
+        builder.SetInsertPoint(block)
+        o._translateToLlvm(self, block)
+        return block
+
+    def visit_Read(self, block, r: HlsRead) -> Union[BasicBlock, Value]:
+        if r._sig is not None and r._sig in self._initializedAllocaVariables:
+            # already existing HlsRead was found, reuse existing value
+            return self._translateExprToLlvm(block, r._sig)
+
+        block, newVar = r._translateToLlvm(self, block)
+        # HlsRead is a SsaValue and thus represents "variable"
+        if r._sig is not None:
+            # :note: it is None for reads of void
+            return self._variableInBlock_insertNoRedef(block, r._sig, newVar, True)
+        else:
+            assert r._isBlocking and HdlType_isVoid(r._dtype), r
+            return block, newVar
 
     def addAfterTranslationUnique(self, fn: Callable[['ToLlvmIrTranslator'], None]):
         if fn not in self._afterTranslation:
@@ -163,7 +355,7 @@ class ToLlvmIrTranslator():
         res = MDNode.get(self.ctx, itemsAsMetadata, insertTmpAsFirts=insertSelfAsFirts)
         return res
 
-    def createFunctionPrototype(self, name: str, args:List[Tuple[str, Type, Type, int]], returnType: Type, addHwtHlsMeta=True):
+    def createFunctionPrototype(self, name: str, args:List[Tuple[str, Type, Type, int]], returnType: Type):
         """
         :param args: tuples name, pointer type, element type, address width 
         """
@@ -178,24 +370,22 @@ class ToLlvmIrTranslator():
         for a, (aName, _, _, _) in zip(F.args(), args):
             a.setName(strCtx.addTwine(aName))
 
-        if addHwtHlsMeta:
-            argAddrWidths = self.mdGetTuple([self.mdGetUInt32(addrWidth) for (_, _, _, addrWidth) in args], False)
-            F.setMetadata(self.strCtx.addStringRef("hwtHls.param_addr_width"),
-                           self.mdGetTuple([argAddrWidths, ], True))
         return F
 
-    def _formatVarName(self, name):
-        return name.replace("%", "")
-
-    def _translateType(self, hdlType: HdlType):
-        if isinstance(hdlType, (HBits, HStruct)):
+    def _translateType(self, hdlType: HdlType) -> Type:
+        toLlvm = getattr(hdlType, "toLlvm", None)
+        if toLlvm is not None:
+            return toLlvm(self)
+        elif isinstance(hdlType, (HBits, HStruct)):
             return Type.getIntNTy(self.ctx, hdlType.bit_length())
         elif HdlType_isVoid(hdlType):
             return Type.getVoidTy(self.ctx)
+        elif isinstance(hdlType, HArray):
+            return self._translateArrayType(hdlType)
         else:
             raise NotImplementedError(hdlType)
 
-    def _translatePtrType(self, hdlType: HdlType, addressSpace: int):
+    def _translatePtrType(self, hdlType: HdlType, addressSpace: int) -> Type:
         if isinstance(hdlType, (HBits, HStruct)):
             return Type.getPointerTo(self.ctx, addressSpace)
         else:
@@ -205,20 +395,27 @@ class ToLlvmIrTranslator():
         elemType = self._translateType(hdlType.element_t)
         return ArrayType.get(elemType, int(hdlType.size))
 
-    def _translateExprInt(self, v: int, t: Type):
+    def _translateExprInt(self, v: int, t: HdlType):
         if v < 0:
             raise NotImplementedError()
 
         _v = APInt(t.getBitWidth(), self.strCtx.addStringRef(f"{v:x}"), 16)
-        # t = self._translateType(HBits(v), ptr=False)
         return ConstantInt.get(t, _v)
 
-    def _translateExprHConst(self, v: HConst):
-        if isinstance(v, HBitsConst):
-            if v._dtype == HFloatTmp:
-                t = Type.getDoubleTy(self.ctx)
-                return ConstantFP.get(t, float(v))
-            elif v._is_full_valid():
+    def _translateExprIntLlvmTy(self, v: int, t: Type):
+        if v < 0:
+            raise NotImplementedError()
+
+        _v = APInt(t.getIntegerBitWidth(), self.strCtx.addStringRef(f"{v:x}"), 16)
+        return ConstantInt.get(t, _v)
+
+    def _translateExprHConst(self, block: BasicBlock, v: HConst) -> Value:
+        toLlvm = getattr(v, "toLlvm", None)
+        if toLlvm is not None:
+            return toLlvm(self)
+
+        elif isinstance(v, HBitsConst):
+            if v._is_full_valid():
                 t = self._translateType(v._dtype)
                 _v = APInt(v._dtype.bit_length(), self.strCtx.addStringRef(f"{v.val:x}"), 16)
                 return ConstantInt.get(t, _v)
@@ -282,7 +479,9 @@ class ToLlvmIrTranslator():
         elif isinstance(v._dtype, HArray):
             # :see: CreateGlobalDataWithGEP
             arrayTy = self._translateArrayType(v._dtype)
-            newCRom = ConstantArray.get(arrayTy, [self._translateExpr(item) for item in v])
+            _block, items = self._translateExprsToLlvm(block, v)
+            assert _block is block, ("During translation of constants there was no reason to new block to appear", _block, block)
+            newCRom = ConstantArray.get(arrayTy, items)
             isConstant = True
             newArray = GlobalVariable(self.module, arrayTy,
                                       isConstant, GlobalVariable.PrivateLinkage,
@@ -294,88 +493,239 @@ class ToLlvmIrTranslator():
         else:
             raise NotImplementedError(v)
 
-    def _translateExpr(self, v: Union[SsaInstr, HConst]):
-        if isinstance(v, HConst):
-            c = self.varMap.get(v, None)
-            if c is None:
-                c = self._translateExprHConst(v)
-                self.varMap[v] = c
+    def _translateExprsToLlvm(self, block: BasicBlock, variables: Sequence[Union[RtlSignal, Value, HConst]]):
+        results = []
+        for v in variables:
+            block, _v = self._translateExprToLlvm(block, v)
+            results.append(_v)
+        return block, results
 
-            return c
+    def _createLoadFromTmpAllocaIfExists(self, builder: IRBuilder, block: BasicBlock, var: RtlSignal):
+        alloca = self._allocaForVariable.get(var)
+        if alloca is not None:
+            if var not in self._initializedAllocaVariables:
+                if var.drivers:
+                    d = var.singleDriver()
+                    if isinstance(d, HlsRead):
+                        self.visit_Read(block, d)
+                    else:
+                        raise NotImplementedError("This was supposed to be the case only for tmp variables for HlsRead results", var, d)
+
+                    self._initializedAllocaVariables.add(var)
+
+            # this is known variable, create load from it
+            name = self.strCtx.addTwine(var._name)
+            if isinstance(var._dtype, HArray):
+                llvmValue = alloca
+            else:
+                allocatedTy = self._translateType(var._dtype)
+                llvmValue = builder.CreateLoad(allocatedTy, alloca, False, name)
+            return self._variableInBlock_insertNoRedef(block, var, llvmValue)
         else:
-            return self.varMap[v]  # if variable was defined it must be there
+            return None
 
-    def _translateExprOperand(self, operator: HOperatorDef, resTy: HdlType,
-                              operands: Tuple[Union[SsaInstr, HConst]],
-                              instrName: str, instrForDebug):
-        b = self.b
-        if operator == HwtOps.CONCAT and isinstance(resTy, HBits):
-            ops = [self._translateExpr(op) for op in operands]
-            return b.CreateBitConcat(ops)
+    def _setInsertPointBeforeTerminator(self, block: BasicBlock):
+        builder = self.b
+        term = block.getTerminator()
+        if term is not None:
+            builder.SetInsertPoint(block, term)
+        else:
+            builder.SetInsertPoint(block)
 
-        elif operator == HwtOps.INDEX:
-            op0, op1 = operands
-            op0t = op0._dtype
-            if isinstance(op0t, HBits):
-                op0 = self._translateExpr(op0)
-                if isinstance(op1._dtype, HSlice):
-                    op1 = int(op1.val.stop)
+    def _translateExprToLlvm(self, block: BasicBlock, var: Union[RtlSignal, Value, HConst], allowHConst:bool=False) -> Tuple[BasicBlock, Union[Value, HConst]]:
+        """
+        Translate RtlSignal expression to SSA with constant propagation and expression cache
+        """
+        if isinstance(var, Value):
+            return block, var
+
+        if isinstance(var, HwIOSignal):
+            var = var._sig  # normalize to use RtlSignal only
+
+        varDict = self._variableInBlock.get(block, None)
+        if varDict is not None:
+            # check for case that expression was already translated in this block
+            cur = varDict.get(var, None)
+            if cur is not None:
+                return block, cur
+
+        builder = self.b
+
+        allocaLoad = self._createLoadFromTmpAllocaIfExists(builder, block, var)
+        if allocaLoad is not None:
+            return allocaLoad
+
+        if isinstance(var, RtlSignal):
+            try:
+                op = var.singleDriver()
+            except SignalDriverErr:
+                op = None
+
+            if op is None or not isinstance(op, HOperatorNode):
+                if op is None:
+                    # initial set
+                    llvmValue = self._translateExprHConst(block, var._dtype.from_py(None))
+                    return self._variableInBlock_insertNoRedef(block, var, llvmValue)
+                elif isinstance(op, HdlPortItem):
+                    raise NotImplementedError(op)
+                elif isinstance(op, HlsRead):
+                    # raise AssertionError("Result of HlsRead should already have tmp alloca created in constructor and this code should never been reached", op)
+                    assert var is op._sig, (var, op._sig)
+                    return self.visit_Read(block, op)
                 else:
-                    op1 = int(op1)
+                    raise NotImplementedError(op)
 
-                return b.CreateBitRangeGetConst(op0, op1, resTy.bit_length())
+            if op.operator in (HwtOps.BitsAsVec, HwtOps.BitsAsUnsigned) and not var._dtype.signed and not op.operands[0]._dtype.signed:
+                # skip implicit conversions between vec without sign and unsigned
+                assert len(op.operands) == 1
+                return self._translateExprToLlvm(block, op.operands[0])
 
-            elif isinstance(op0t, HArray):
-                op0Llvm = self._translateExpr(op0)
-                elmT = op0t.element_t
+            elif (op.operator == HwtOps.INDEX
+                and var._dtype.bit_length() == 1
+                and len(op.operands) == 2
+                and isinstance(op.operands[1], HBitsConst)
+                and int(op.operands[1]) == 0
+                and op.operands[0]._dtype.bit_length() == 1):
+                # skip indexing on 1b vectors/ 1b bits
+                return self._translateExprToLlvm(block, op.operands[0])
+
+            ops: List[Union[Value, HConst]] = []
+
+            precompute = var._dtype._PRECOMPUTE_CONSTANT_SIGNALS
+            for o in op.operands:
+                precompute &= o._dtype._PRECOMPUTE_CONSTANT_SIGNALS
+                block, _o = self._translateExprToLlvm(block, o, allowHConst=True)
+                ops.append(_o)
+                if precompute and not isinstance(_o, HConst):
+                    precompute = False
+
+            sig = var
+            if precompute:
+                var = op.operator._evalFn(*ops)
+            else:
+                if op.operator == HwtOps.CONCAT:
+                    ops = list(reversed(ops))
+                elif op.operator == HwtOps.TERNARY:
+                    cond, trueVal, falseVal = ops
+                    ops = (trueVal, cond, falseVal)
+
+                block, var = self._translateExprOperator(block, op, op.operator, var._dtype, ops, var._name)
+
+            # we know for sure that this in in this block that is why we do not need to use readVariable
+            return self._variableInBlock_insertNoRedef(block, sig, var)
+
+        elif isinstance(var, HConst):
+            if allowHConst:
+                return block, var
+            else:
+                return block, self._translateExprHConst(block, var)
+
+        elif isinstance(var, HwIOStruct):
+                var = HwIO_pack(var)
+                return self._translateExprToLlvm(block, var)
+        elif isinstance(var, HlsRead):
+            return self.visit_Read(block, var)
+
+        raise NotImplementedError(var)
+
+    def _translateExprSubscriptGEP(self, block: BasicBlock, arr: Union[Value, HArrayRtlSignal, HArrayConst],
+                                    index0: Union[Value, HConst],):
+        block, index0 = self._translateExprToLlvm(block, index0)
+        index_t = index0.getType()
+        indexes = [self._translateExprIntLlvmTy(0, index_t), ]
+        indexes.append(index0)
+        # if isinstance(arr, Value):
+        alloca: AllocaInst = ValueToAllocaInst(arr)
+        if alloca is not None:
+            arrTy = alloca.getAllocatedType()
+        else:
+            globalValue = ValueToGlobalValue(arr)
+            assert globalValue is not None, arr
+            assert globalValue.getType().isPointerTy(), globalValue
+            data = globalValue.getOperand(0)
+            arrTy = data.getType()
+
+        arrTy = TypeToArrayType(arrTy)
+        assert arrTy is not None, ("index operator only on array arrays", alloca)
+
+        # else:
+        #    arrTy: ArrayType = self._translateArrayType(arr._dtype)
+        #    assert arrTy is not None, ("index operator only on array arrays", arr._dtype)
+        #    block, arr = self._translateExprToLlvm(block, arr)
+
+        # elmT = arrTy.getElementType()
+        ptr = self.b.CreateGEP(arrTy, arr, indexes)
+        return block, ptr  # , elmT
+
+    def _translateExprSubscript(self, block: BasicBlock, op0: Value, op1: Union[Value, HConst],
+                                instrName: str, resTy: HdlType):
+        b: IRBuilder = self.b
+        block, op0 = self._translateExprToLlvm(block, op0)
+        op0t = op0.getType()
+        if op0t.isIntegerTy():
+            # bitvector slice
+            assert isinstance(op1, HConst), op1
+            if isinstance(op1._dtype, HSlice):
+                op1 = int(op1.val.stop)
+            else:
+                op1 = int(op1)
+
+            return block, b.CreateBitRangeGetConst(op0, op1, resTy.bit_length())
+
+        elif op0t.isPointerTy():
+            # load from array
+            elmT = resTy
+            if isinstance(elmT, HdlType):
                 assert isinstance(elmT, HBits)
                 elmT = self._translateType(elmT)
 
-                index_t = Type.getIntNTy(self.ctx, op1._dtype.bit_length())
-                indexes = [self._translateExprInt(0, index_t),
-                           self._translateExpr(op1), ]
-                arrTy: ArrayType = self._translateArrayType(op0._dtype)
-                assert arrTy is not None, ("It is expected that this object access data of array type", op0._dtype)
-                elmT = arrTy.getElementType()
-                ptr = b.CreateGEP(arrTy, op0Llvm, indexes)
-                name = self.strCtx.addTwine(self._formatVarName(instrName))
-                return b.CreateLoad(elmT, ptr, True, name)
-
-            else:
-                raise NotImplementedError(operator, operands)
+            volatile = not isinstance(op0, (GlobalVariable, GlobalValue))
+            block, ptr = self._translateExprSubscriptGEP(block, op0, op1)
+            name = self.strCtx.addTwine(instrName)
+            return block, b.CreateLoad(elmT, ptr, volatile, name)
 
         else:
-            args = (self._translateExpr(a) for a in operands)
+            raise NotImplementedError("operator[]", op0, op1)
+
+    def _translateExprOperator(self, block: BasicBlock, instr: HlsNetNodeOperator, operator: HOperatorDef, resTy: HdlType,
+                              operands: Tuple[Union[Value, HConst]],
+                              instrName: str) -> Tuple[BasicBlock, Value]:
+        b = self.b
+        if operator == HwtOps.CONCAT and isinstance(resTy, HBits):
+            block, ops = self._translateExprsToLlvm(block, operands)
+            return block, b.CreateBitConcat(ops)
+
+        elif operator == HwtOps.INDEX:
+            op0, op1 = operands
+            return self._translateExprSubscript(block, op0, op1, instrName, resTy)
+
+        else:
+            block, args = self._translateExprsToLlvm(block, operands)
             if operator in (HwtOps.BitsAsSigned, HwtOps.BitsAsUnsigned, HwtOps.BitsAsVec):
                 op0, = args
                 # LLVM uses sign/unsigned variants of instructions and does not have signed/unsigned as a part of type or variable
-                return op0
+                return block, op0
 
-            name = self.strCtx.addTwine(self._formatVarName(instrName) if instrName else "")
+            name = self.strCtx.addTwine(instrName if instrName else "")
             if operator == HwtOps.NOT:
                 op0, = args
                 # op0 xor -1
                 mask = APInt.getAllOnes(resTy.bit_length())
-                return b.CreateXor(op0, ConstantInt.get(TypeToIntegerType(op0.getType()), mask), name)
+                return block, b.CreateXor(op0, ConstantInt.get(TypeToIntegerType(op0.getType()), mask), name)
 
             elif operator == HwtOps.MINUS_UNARY:
                 op0, = args
-                return b.CreateNeg(op0, name, False, False)
-            elif operator == OP_ZEXT:
-                op0, = args
-                return b.CreateZExt(op0, self._translateType(resTy), name)
-            elif operator == OP_SEXT:
-                op0, = args
-                return b.CreateSExt(op0, self._translateType(resTy), name)
+                return block, b.CreateNeg(op0, name, False, False)
             elif operator == HwtOps.TERNARY:
                 if len(operands) == 1:
-                    return self._translateExpr(args[0])
+                    return self._translateExprToLlvm(block, args[0])
                 else:
                     # :see: :meth:`HlsNetlistToAbcAig._translate`
-                    assert operands[1]._dtype.bit_length() == 1, operands
                     if len(operands) == 3:
                         opTrue, opC, opFalse = args
-                        return b.CreateSelect(opC, opTrue, opFalse, name, None)
+                        assert opC.getType().getIntegerBitWidth() == 1, opC
+                        assert opTrue.getType() == opFalse.getType(), (opTrue, opFalse)
+                        return block, b.CreateSelect(opC, opTrue, opFalse, name, None)
                     else:
                         assert len(operands) % 2 == 1, operands
                         prevVal = None
@@ -385,9 +735,10 @@ class ToLlvmIrTranslator():
                                 assert c is None
                                 prevVal = v
                             else:
+                                assert c.getType().getIntegerBitWidth() == 1, c
                                 prevVal = b.CreateSelect(c, v, prevVal, name, None)
 
-                        return prevVal
+                        return block, prevVal
 
             elif operator == HwtOps.CALL:
                 args = tuple(args)
@@ -401,284 +752,15 @@ class ToLlvmIrTranslator():
                     _args = list(args[1:])
                 res = fn.translateToLlvm(b, _args)
 
-                return res
+                return block, res
 
-            intrinsic = self._opIntrinsic.get(operator)
-            if intrinsic is not None:
-                sliceOut = None
-                if operator in (OP_CTLZ, OP_CTTZ, OP_CTPOP):
-                    op0, _ = operands
-                    sliceOut = resTy.bit_length()
-                    resTy = op0._dtype
-                elif operator == OP_BITREVERSE:
-                    op0, = operands
-                    resTy = op0._dtype
-                elif operator in (OP_UMIN, OP_UMAX, OP_SMIN, OP_SMAX,):
-                    assert len(operands) == 2
-                    resTy = operands[0]._dtype
-                elif operator in (OP_FSHL, OP_FSHR):
-                    assert len(operands) == 3
-                    resTy = operands[0]._dtype
-                else:
-                    raise NotImplementedError(operator)
-
-                resTy = self._translateType(resTy)
-                res = b.CreateIntrinsic(resTy, intrinsic.value, list(args), Name=name)
-                if sliceOut is None:
-                    return res
-                else:
-                    return b.CreateBitRangeGetConst(res, 0, sliceOut)
-
-            if isinstance(operator, HOperatorDefLlvm):
-                return operator.llvmOperatorConstructor(b, *args, name)
+            elif isinstance(operator, HOperatorDefLlvm):
+                return block, operator.llvmOperatorConstructor(b, instr, *args, name)
             else:
                 constructor_fn = self._opConstructorMap.get(operator, None)
                 if constructor_fn is not None:
-                    return constructor_fn(*args, name)
+                    return block, constructor_fn(*args, name)
                 else:
-                    assert len(operands) == 2, instrForDebug
+                    assert len(operands) == 2, instr
                     _opConstructorMap2 = self._opConstructorMapCmp
-                    return _opConstructorMap2[operator](*args, name)
-
-    def _translateInstr(self, instr: SsaInstr):
-        if instr.codeLocation is not None:
-            self.b.SetCurrentDebugLocation(instr.codeLocation)
-
-        if isinstance(instr, (HlsRead, HlsWrite)):
-            res = instr._translateToLlvm(self)
-        else:
-            ops = instr.operands
-            if instr.operator == HwtOps.TERNARY:
-                assert len(ops) == 3, instr
-                # (vTrue, c, vFalse) =  (c, vTrue, vFalse)
-                ops = (ops[1], ops[0], ops[2])
-
-            res = self._translateExprOperand(
-                instr.operator, instr._dtype, ops, instr._name, instr)
-
-        if instr.metadata:
-            for m in instr.metadata:
-                m.toLlvm(self, instr, res)
-
-        return res
-
-    def _translate(self, bb: SsaBasicBlock):
-        llvmBb = self.varMap[bb]
-        b = self.b
-        b.SetInsertPoint(llvmBb)
-
-        for phi in bb.phis:
-            phi: SsaPhi
-            if phi.codeLocation is not None:
-                b.SetCurrentDebugLocation(phi.codeLocation)
-
-            llvmPhi: PHINode = b.CreatePHI(self._translateType(phi._dtype), len(phi.operands), self.strCtx.addTwine(self._formatVarName(phi._name)))
-            self.varMap[phi] = llvmPhi
-            meta = phi.metadata
-            if meta is not None:
-                for m in meta:
-                    m.toLlvm(self, phi, llvmPhi)
-
-        for instr in bb.body:
-            assert instr not in self.varMap
-            i = self._translateInstr(instr)
-            self.varMap[instr] = i
-
-        # :note: potentially we need to add an extra blocks because LLVM branch instructions
-        # do not support multiple non conditional inputs and we need to generate additional blocks
-        preLastTargetsI = len(bb.successors.targets) - 2
-        lastTargetsI = preLastTargetsI + 1
-        llvmBb = self.varMap[bb]
-        branchTmpBlocks = self._branchTmpBlocks[bb] = []
-
-        if bb.successors.codeLocation is not None:
-            b.SetCurrentDebugLocation(bb.successors.codeLocation)
-
-        for i, (c, sucBb, meta) in enumerate(bb.successors.targets):
-            doBreak = False
-            if i == preLastTargetsI:
-                nextC, nextB, nextMeta = bb.successors.targets[i + 1]
-                assert nextC is None, ("last jump from block must be unconditional", bb, bb.successors)
-                assert c is not None, ("only last jump from block should be unconditional", bb.successors)
-                br = b.CreateCondBr(self._translateExpr(c), self.varMap[sucBb], self.varMap[nextB], None)
-                if nextMeta is not None:
-                    raise NotImplementedError(nextMeta)
-
-                branchTmpBlocks.append((llvmBb, [sucBb, nextB]))
-                doBreak = True
-
-            elif i == lastTargetsI:
-                assert c is None, ("last jump from block must be unconditional", bb, bb.successors)
-                br = b.CreateBr(self.varMap[sucBb])
-                branchTmpBlocks.append((llvmBb, [sucBb, ]))
-                doBreak = True  # would break on its own, added just to improve code readability
-
-            else:
-                # need to generate a new block
-                branchTmpBlocks.append((llvmBb, [sucBb, ]))
-                newLlvmBb = BasicBlock.Create(self.ctx, self.strCtx.addTwine(bb.label), self.llvm.main, None)
-                b.SetInsertPoint(llvmBb)
-                br = b.CreateCondBr(self._translateExpr(c), self.varMap[sucBb], newLlvmBb, None)
-                llvmBb = newLlvmBb
-                b.SetInsertPoint(llvmBb)
-
-            if meta is not None:
-                for m in meta:
-                    m.toLlvm(self, br)
-
-            if doBreak:
-                break
-
-        if not bb.successors.targets:
-            b.CreateRetVoid()
-
-    @staticmethod
-    def splitStrToStrsAndInts(name):
-        key = []
-        for part in RE_ID_WITH_NUMBER.findall(name):
-            try:
-                key.append(int(part))
-            except ValueError:
-                key.append(part)
-        return key
-
-    def _getInterfaceTypeForFnArg(self, i: Union[HwIO, MultiPortGroup, BankedPortGroup, RtlSignalBase], ioIndex: int,
-                                  reads: List[HlsRead], writes: List[HlsWrite]) -> Tuple[Type, Type]:
-        wordType = None
-        if reads:
-            wordType = reads[0]._getNativeInterfaceWordType()
-            if not reads[0]._isBlocking:
-                wordType = HBits(wordType.bit_length() + 1)
-            elif HdlType_isVoid(wordType):
-                wordType = BIT  # can not construct load of void in llvm because isSized() returns false
-            elif not isinstance(wordType, HBits):
-                wordType = HBits(wordType.bit_length())
-
-        if writes:
-            _wordType = writes[0]._getNativeInterfaceWordType()
-            if wordType is None or wordType is _wordType:
-                wordType = _wordType
-            else:
-                w0 = wordType.bit_length()
-                w1 = _wordType.bit_length()
-                # the type may be different between read and write
-                # this is for example if the write word has write mask and read has not
-                # for LLVM we need just a single pointer, in this case we
-                # we extend the type of pointer to larger type
-                if w0 < w1:
-                    wordType = _wordType
-
-        ptrT = PointerType.get(self.ctx, ioIndex + 1)
-        i = getFirstInterfaceInstance(i)
-        if isinstance(i, (HwIOBramPort_noClk, Axi4Lite)):
-            addrWidth = i.ADDR_WIDTH
-            arrTy = wordType[int(2 ** i.ADDR_WIDTH)]
-            elmT = self._translateArrayType(arrTy)
-        else:
-            elmT = self._translateType(wordType)
-            addrWidth = 0
-
-        return ptrT, elmT, addrWidth
-
-    def translate(self, start_bb: SsaBasicBlock, fnPragma: List["_PyBytecodePragma"]):
-        # create a function where we place the code and the arguments for a io interfaces
-        ioTuplesWithName = [
-            (HwIO_getName(self.parentHwModule, io[0] if isinstance(io, (MultiPortGroup, BankedPortGroup)) else io), io, ioOps)
-            for io, ioOps in self.topIo.items()
-        ]
-        ioSorted = self.ioSorted = sorted(ioTuplesWithName, key=lambda x: self.splitStrToStrsAndInts(x[0]))
-        # name, pointer type, element type, address width
-        params: List[Tuple[str, Type, Type, int]] = [
-            (name,
-             *self._getInterfaceTypeForFnArg(hwIO[0]
-                                           if isinstance(hwIO, tuple)
-                                           else hwIO,
-                                            ioIndex, reads, writes))
-            for ioIndex, (name, hwIO, (reads, writes)) in enumerate(ioSorted)]
-        main = self.createFunctionPrototype(self.label, params, Type.getVoidTy(self.ctx))
-        self.llvm.main = main
-
-        ioToVar = self.ioToVar
-        for a, (_, i, (_, _)), (_, ptrT, t, _) in zip(main.args(), ioSorted, params):
-            ioToVar[i] = (a, ptrT, t)
-
-        allBlocksSet = set()
-        allBlocks = list(collect_all_blocks(start_bb, allBlocksSet))
-        for bb in allBlocks:
-            llvmBb = BasicBlock.Create(self.ctx, self.strCtx.addTwine(bb.label), main, None)
-            self.varMap[bb] = llvmBb
-
-        for b in allBlocks:
-            self._translate(b)
-
-        for b in allBlocks:
-            for phi in b.phis:
-                llvmPhi = self.varMap[phi]
-                for (v, predBlock) in phi.operands:
-                    # because the predecessor may be split on multiple blocks due to branch instruction
-                    # expansion we need to get all potential predecessors
-                    predFound = False
-                    for llvmPredBlock, sucBlocks in self._branchTmpBlocks[predBlock]:
-                        if b in sucBlocks:
-                            llvmPhi.addIncoming(self._translateExpr(v), llvmPredBlock)
-                            predFound = True
-                    assert predFound, phi
-
-        for meta in fnPragma:
-            meta:"_PyBytecodePragma"
-            meta.toLlvm(self, main)
-
-        for cb in self._afterTranslation:
-            cb(self)
-
-        assert verifyFunction(main) is False
-        assert verifyModule(self.module) is False
-
-        return self
-
-
-class SsaPassToLlvm(SsaPass):
-    """
-    Convert hwtHls.ssa to LLVM SSA IR
-    
-    :ivar llvmCliArgs: tuples (optionName, position, argName, argValue), argValue is also string 
-    """
-
-    def __init__(self, hls: "HlsScope", llvmCliArgs: List[Tuple[str, int, str, str]]=[]):
-        self.hls = hls
-        self.llvmCliArgs = llvmCliArgs
-
-    @override
-    def runOnSsaModuleImpl(self, toSsa: HlsAstToSsa):
-        ioDict = toSsa.collectIo()
-        for i, (reads, writes) in ioDict.items():
-            if not reads and not writes:
-                raise AssertionError("Unused IO ", i)
-
-            # for instr in reads:
-            #    instr: HlsRead
-            #    assert i == instr._src, (i, instr)
-            #    nativeWordT = instr._getNativeInterfaceWordType()
-            #    if instr._isBlocking:
-            #        resTy._dtype.bit_length() == nativeWordT.bit_length(), (
-            #            "In this stages the read operations must read only native type of interface",
-            #            instr, nativeWordT)
-            #    else:
-            #        assert instr._dtype.bit_length() == nativeWordT.bit_length() + 1, (
-            #            "In this stages the read operations must read only native type of interface",
-            #            instr, nativeWordT)
-            #
-            # for instr in writes:
-            #    instr: HlsWrite
-            #    assert i == instr.dst, (i, instr)
-            #    nativeWordT = instr._getNativeInterfaceWordType()
-            #    assert instr.operands[0]._dtype.bit_length() == nativeWordT.bit_length(), (
-            #        "In this stages the read operations must read only native type of interface",
-            #        instr, instr.operands[0]._dtype, nativeWordT)
-
-        toLlvm = ToLlvmIrTranslator(toSsa.label, toSsa.namePrefix, ioDict, self.hls.parentHwModule)
-        for (optionName, position, argName, argValue) in self.llvmCliArgs:
-            toLlvm.llvm.addLlvmCliArgOccurence(optionName, position, argName, argValue)
-        toLlvm.translate(toSsa.start, toSsa.pragma)
-        toSsa.resolveIoNetlistConstructors(ioDict)
-        toSsa.start = toLlvm
+                    return block, _opConstructorMap2[operator](*args, name)

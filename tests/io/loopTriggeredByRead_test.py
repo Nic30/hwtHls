@@ -1,3 +1,4 @@
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.struct import HStruct
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
@@ -8,13 +9,12 @@ from hwt.hwParam import HwParam
 from hwt.math import log2ceil
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragmaLoop import PyBytecodeLoopFlattenUsingIf
 from hwtHls.frontend.pyBytecode.pragmaInstruction import PyBytecodeIntrinsicAssume, PyBytecodeNoSplitSlices
+from hwtHls.frontend.pyBytecode.pragmaLoop import PyBytecodeLoopFlattenUsingIf
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
-from tests.frontend.pyBytecode.stmWhile import TRUE
-from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from pyMathBitPrecise.bit_utils import mask
+from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 
 
 class ShiftSequential1Loop(HwModule):
@@ -45,7 +45,7 @@ class ShiftSequential1Loop(HwModule):
     @hlsBytecode
     def mainThread(self, hls: HlsScope, dataIn: HwIOStructRdVld, dataOut: HwIOStructRdVld):
         d = dataIn.T.from_py({'sh':0})
-        while TRUE:
+        while b1:
             if d.sh._eq(0):
                 d = hls.read(dataIn).data
                 PyBytecodeIntrinsicAssume()(d.sh > 0)
@@ -67,7 +67,7 @@ class ShiftSequential2Loops(ShiftSequential1Loop):
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope, dataIn: HwIOStructRdVld, dataOut: HwIOStructRdVld):
-        while TRUE:
+        while b1:
             d = hls.read(dataIn).data
             # disable check in first iteration to simplify circuit
             # :note: however this adds false liveness to d.sh in last iteration

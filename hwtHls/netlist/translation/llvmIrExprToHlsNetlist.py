@@ -1,6 +1,7 @@
 
 from typing import Dict
 
+from hwt.hdl.const import HConst
 from hwt.hdl.operatorDefs import HOperatorDef, HwtOps
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
@@ -17,7 +18,6 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.translation.hlsNetlistExprToLlvmIr import HlsNetlistExprToLlvmIr
 from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
 from pyMathBitPrecise.bit_utils import to_unsigned
-from hwt.hdl.const import HConst
 
 
 class LlvmIrExprToHlsNetlist():
@@ -39,15 +39,16 @@ class LlvmIrExprToHlsNetlist():
     def fillInConstantNodesFromToLlvmIrExpr(self, toLlvmIr: HlsNetlistExprToLlvmIr):
         # fill in constants so we do not have to create extra nodes for them
         varMap = self.varMap
-        for out in toLlvmIr.varMap.keys():
-            oObj = out.obj
-            if isinstance(oObj, HlsNetNodeConst):
-                cur = varMap.get(oObj.val, None)
-                if cur is not None and cur.obj._id <= oObj._id:
-                    # skip because we use only node of constant with smallest ID to guarantee determinism
-                    # as we are now iterating dictionary
-                    continue
-                varMap[oObj.val] = out
+        for _, varDict in toLlvmIr._variableInBlock.items():
+            for out in varDict.keys():
+                oObj = out.obj
+                if isinstance(oObj, HlsNetNodeConst):
+                    cur = varMap.get(oObj.val, None)
+                    if cur is not None and cur.obj._id <= oObj._id:
+                        # skip because we use only node of constant with smallest ID to guarantee determinism
+                        # as we are now iterating dictionary
+                        continue
+                    varMap[oObj.val] = out
 
     def _translateType(self, t: Type):
         it = TypeToIntegerType(t)
@@ -235,7 +236,9 @@ class LlvmIrExprToHlsNetlist():
                 if opc in (Instruction.SExt, Instruction.ZExt):
                     opV0, = (self._translateExpr(op) for op in i.iterOperandValues())
                     w = opV0._dtype.bit_length()
-                    resTwidth = i.getType().getIntegerBitWidth()
+                    t = i.getType()
+                    assert t.isIntegerTy(), i
+                    resTwidth = t.getIntegerBitWidth()
                     if opc == Instruction.SExt:
                         if opV0._dtype.bit_length() == 1:
                             msb = opV0

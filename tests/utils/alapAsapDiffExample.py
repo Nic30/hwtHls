@@ -6,12 +6,13 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.pyUtils.typingFuture import override
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.frontend.ast.builder import HlsAstBuilder
-from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
+from hwtHls.frontend.pyBytecode import hlsBytecode
+from hwt.hdl.commonConstants import b1
+from tests.frontend.ast.trivial import WriteOnce
 
 
 class AlapAsapDiffExample(HwModule):
@@ -28,27 +29,24 @@ class AlapAsapDiffExample(HwModule):
         self.b = HwIOVectSignal(8)
         self.c = HwIOVectSignal(8)
         self.d = HwIOVectSignal(8)._m()
+    
+    @hlsBytecode
+    def mainThread(self, hls:HlsScope):
+        while b1:
+            # inputs has to be read to enter hls scope
+            # (without read() operation will not be scheduled by HLS
+            #  but they will be directly synthesized)
+            a, b, c = [hls.read(hwIO).data for hwIO in [self.a, self.b, self.c]]
+            # depending on target platform this expression
+            # can be mapped to DPS, LUT, etc...
+            # no constrains are specified => default strategy is
+            # to achieve zero delay and minimum latency, for this CLK_FREQ
+            d = ~(~a & ~b) & ~c
+            hls.write(d, self.d)
 
     @override
     def hwImpl(self):
-        hls = HlsScope(self)
-        # inputs has to be readed to enter hls scope
-        # (without read() operation will not be schedueled by HLS
-        #  but they will be directly synthesized)
-        a, b, c = [hls.read(hwIO).data for hwIO in [self.a, self.b, self.c]]
-        # depending on target platform this expresion
-        # can be mapped to DPS, LUT, etc...
-        # no constrains are specified => default strategy is
-        # to achieve zero delay and minimum latency, for this CLK_FREQ
-        d = ~(~a & ~b) & ~c
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
-            ast.While(True,
-                hls.write(d, self.d)
-            ),
-            self._name)
-        )
-        hls.compile()
+        WriteOnce.hwImpl(self)
 
 
 def neg_8b(a):

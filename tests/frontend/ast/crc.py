@@ -5,13 +5,15 @@ from typing import List
 
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.vectorUtils import iterBits
-from hwtHls.frontend.ast.builder import HlsAstBuilder
-from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.scope import HlsScope
 from hwtLib.logic.crcComb import CrcComb
 from hwtLib.logic.crcPoly import CRC_32
 from pyMathBitPrecise.bit_utils import get_bit, bit_list_reversed_bits_in_bytes, \
     bit_list_reversed_endianity
+from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwt.hdl.commonConstants import b1
+from hwt.code import Concat
+from hwt.hdl.types.bitsRtlSignal import HBitsRtlSignal
 
 
 class CrcCombHls(CrcComb):
@@ -31,45 +33,41 @@ class CrcCombHls(CrcComb):
     @override
     def hwImpl(self):
         hls = HlsScope(self)
-        DW = int(self.DATA_WIDTH)
-        # assert PW == DW
-        polyBits, PW = self.parsePoly(self.POLY, self.POLY_WIDTH)
-        # xorMatrix = buildCrcMatrix_dataMatrix(polyCoefs, PW, DW)
-        # initXorMatrix = buildCrcMatrix_reg0Matrix(polyCoefs, PW, DW)
-        XOROUT = int(self.XOROUT)
-        _INIT = int(self.INIT)
-        initBits: List[int] = [get_bit(_INIT, i) for i in range(PW)]
-        finBits: List[int] = [get_bit(XOROUT, i) for i in range(PW)]
 
-        inBits = list(iterBits(hls.read(self.dataIn).data))
+        def constructCrc(inVec: HBitsRtlSignal):
+            DW = int(self.DATA_WIDTH)
+            # assert PW == DW
+            polyBits, PW = self.parsePoly(self.POLY, self.POLY_WIDTH)
+            # xorMatrix = buildCrcMatrix_dataMatrix(polyCoefs, PW, DW)
+            # initXorMatrix = buildCrcMatrix_reg0Matrix(polyCoefs, PW, DW)
+            XOROUT = int(self.XOROUT)
+            _INIT = int(self.INIT)
+            initBits: List[int] = [get_bit(_INIT, i) for i in range(PW)]
+            finBits: List[int] = [get_bit(XOROUT, i) for i in range(PW)]
 
-        if not self.IN_IS_BIGENDIAN:
-            # we need to process lower byte first
-            inBits = bit_list_reversed_endianity(inBits, extend=False)
+            inBits = list(iterBits(inVec))
+            if not self.IN_IS_BIGENDIAN:
+                # we need to process lower byte first
+                inBits = bit_list_reversed_endianity(inBits, extend=False)
 
-        crcMatrix = self.buildCrcXorMatrix(DW, polyBits)
-        res = self.applyCrcXorMatrix(
-            crcMatrix, inBits,
-            initBits, bool(self.REFIN))
+            crcMatrix = self.buildCrcXorMatrix(DW, polyBits)
+            res = self.applyCrcXorMatrix(
+                crcMatrix, inBits,
+                initBits, bool(self.REFIN))
 
-        if self.REFOUT:
-            res = list(reversed(res))
-            finBits = bit_list_reversed_bits_in_bytes(finBits)
+            if self.REFOUT:
+                res = list(reversed(res))
+                finBits = bit_list_reversed_bits_in_bytes(finBits)
+            return res, finBits
 
-        result = hls.var("result", self.dataOut._dtype)
-        outBits = iterBits(result)
-
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
-            ast.While(True,
-                *(
-                    ob(b ^ fb)
-                    for ob, b, fb in zip(outBits, res, finBits)
-                ),
+        def mainThread():
+            while b1:
+                dataIn = hls.read(self.dataIn).data
+                res, finBits = constructCrc(dataIn)
+                result = Concat(*(b ^ fb for  b, fb in reversed(tuple(zip(res, finBits))))) # reversed because Concat args in MSB first format
                 hls.write(result, self.dataOut)
-            ),
-            self._name)
-        )
+
+        hls.addThread(HlsThreadFromPy(hls, mainThread))
         hls.compile()
 
 

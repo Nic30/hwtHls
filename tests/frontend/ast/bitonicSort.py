@@ -2,17 +2,19 @@
 # -*- coding: utf-8 -*-
 
 from hwt.constants import Time
+from hwt.doc_markers import hwt_expr_producer
+from hwt.hdl.commonConstants import b1
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
-from hwtHls.frontend.ast.builder import HlsAstBuilder
-from hwtHls.frontend.ast.thread import HlsThreadFromAst
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtLib.logic.bitonicSorter import BitonicSorter, BitonicSorterTC
+from tests.frontend.ast.exprTree3 import HlsAstExprTree3_example
 
 
-class BitonicSorterHLS(BitonicSorter):
+class BitonicSorterHLS0(BitonicSorter):
 
     @override
     def hwConfig(self):
@@ -26,50 +28,64 @@ class BitonicSorterHLS(BitonicSorter):
         BitonicSorter.hwDeclr(self)
         self.clk.FREQ = self.CLK_FREQ
 
+    @hwt_expr_producer
     def bitonic_compare(self, cmpFn, x, layer, offset):
         dist = len(x) // 2
-        _x = [self.hls.var(f"sort_tmp_{layer:d}_{offset:d}_{i:d}", x[0]._dtype) for i, _ in enumerate(x)]
+        _x = [None for _ in range(len(x))]
         for i in range(dist):
-            self.hls_code.append(
-                 self.astBuilder.If(cmpFn(x[i], x[i + dist]),
-                    # keep
-                    _x[i](x[i]),
-                    _x[i + dist](x[i + dist])
-                ).Else(
-                    # swap
-                    _x[i](x[i + dist]),
-                    _x[i + dist](x[i]),
-                )
-            )
+            cmpRes = cmpFn(x[i], x[i + dist])
+            # cmpRes ? keep : swap
+            _x[i] = cmpRes._ternary(x[i], x[i + dist])
+            _x[i + dist] = cmpRes._ternary(x[i + dist], x[i])
+
+        for i, _x_i in enumerate(_x):
+            _x_i._name = f"sort_tmp_{layer:d}_{offset:d}_{i:d}"
         return _x
 
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        while b1:
+            reads = [hls.read(i).data for i in self.inputs]
+            outs = self.bitonic_sort(self.cmpFn, reads)
+            for otmp, o in zip(outs, self.outputs):
+                hls.write(otmp, o)
+
     @override
-    def hwImpl(self):
-        hls = HlsScope(self)
-        self.hls = hls
-        self.astBuilder = HlsAstBuilder(self.hls)
-        self.hls_code = []
-        outs = self.bitonic_sort(self.cmpFn,
-                                 [hls.read(i).data for i in self.inputs])
-        hls.addThread(HlsThreadFromAst(hls,
-            self.astBuilder.While(True,
-                *self.hls_code,
-                *(
-                    hls.write(otmp, o)
-                    for otmp, o in zip(outs, self.outputs)
-                )
-            ),
-            self._name)
-        )
-        hls.compile()
+    def hwImpl(self) -> None:
+        HlsAstExprTree3_example.hwImpl(self)
 
 
-class BitonicSorterHLS_TC(BitonicSorterTC):
+class BitonicSorterHLS1(BitonicSorterHLS0):
+
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        while b1:
+            reads = []
+            for i in self.inputs:
+                d = hls.read(i).data
+                reads.append(d)
+                del d
+
+            outs = self.bitonic_sort(self.cmpFn, reads)
+            for otmp, o in zip(outs, self.outputs):
+                hls.write(otmp, o)
+
+
+class BitonicSorterHLS0_TC(BitonicSorterTC):
 
     @classmethod
     @override
     def setUpClass(cls):
-        cls.dut = BitonicSorterHLS()
+        cls.dut = BitonicSorterHLS0()
+        cls.compileSim(cls.dut, target_platform=VirtualHlsPlatform())
+
+
+class BitonicSorterHLS1_TC(BitonicSorterTC):
+
+    @classmethod
+    @override
+    def setUpClass(cls):
+        cls.dut = BitonicSorterHLS1()
         cls.compileSim(cls.dut, target_platform=VirtualHlsPlatform())
 
 
@@ -79,13 +95,14 @@ class BitonicSorterHLS_large_TC(BitonicSorterTC):
     @classmethod
     @override
     def setUpClass(cls):
-        cls.dut = BitonicSorterHLS()
+        cls.dut = BitonicSorterHLS0()
         cls.dut.ITEMS = 16
         cls.compileSim(cls.dut, target_platform=VirtualHlsPlatform())
 
 
 BitonicSorterHLS_TCs = [
-    BitonicSorterHLS_TC,
+    BitonicSorterHLS0_TC,
+    BitonicSorterHLS1_TC,
     BitonicSorterHLS_large_TC
 ]
 
@@ -94,10 +111,9 @@ if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
 
-    m = BitonicSorterHLS()
+    m = BitonicSorterHLS0()
     m.ITEMS = 4
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
-
     testLoader = unittest.TestLoader()
     # suite = unittest.TestSuite([BitonicSorterHLS_large_TC('test_reversed')])
     suite = unittest.TestSuite(testLoader.loadTestsFromTestCase(tc)

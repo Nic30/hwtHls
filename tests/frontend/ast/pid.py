@@ -2,12 +2,14 @@
 # -*- coding: utf-8 -*-
 
 from hwt.code import Add
+from hwt.hdl.commonConstants import b1
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
-from hwtHls.frontend.ast.builder import HlsAstBuilder
-from hwtHls.frontend.ast.thread import HlsThreadFromAst
+from hwtHls.frontend.pyBytecode import hlsBytecode
+from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.logic.pid import PidController
+from tests.frontend.ast.exprTree3 import HlsAstExprTree3_example
 
 
 class PidControllerHalfHls(PidController):
@@ -29,6 +31,8 @@ class PidControllerHalfHls(PidController):
     def hwImpl(self):
         # register of current output value
         u = self._reg("u", dtype=self.output._dtype, def_val=0)
+        # propagate output value register to output
+        self.output(u)
 
         # create y-pipeline registers (y -> y_reg[0]-> y_reg[1])
         y = [self.input, ]
@@ -42,26 +46,26 @@ class PidControllerHalfHls(PidController):
         def trim(signal):
             return signal._reinterpret_cast(self.output._dtype)
 
-        hls = HlsScope(self)
-        # in HLS create only arith. expressions between inputs and regs
-        y = [hls.read(_y).data for _y in y]
-        err = y[0] - hls.read(self.target).data
-        a = [hls.read(c).data for c in self.coefs]
+        @hlsBytecode
+        def mainThread(hls: HlsScope):
+            # in HLS create only arith. expressions between inputs and regs
+            while b1:
+                _y = [hls.read(_y).data for _y in y]
+                err = _y[0] - hls.read(self.target).data
+                a = [hls.read(c).data for c in self.coefs]
 
-        _u = Add(hls.read(m).data, a[0] * err, a[1] * y[0],
-                 a[2] * y[1], a[3] * y[2], key=trim)
+                _u = Add(hls.read(u).data,
+                         a[0] * err,
+                         a[1] * _y[0],
+                         a[2] * _y[1],
+                         a[3] * _y[2],
+                         key=trim)
 
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
-            ast.While(True,
                 hls.write(_u, u.next)
-            ),
-            self._name)
-        )
-        hls.compile()
 
-        # propagate output value register to output
-        self.output(u)
+        hls = HlsScope(self)
+        hls.addThread(HlsThreadFromPy(hls, mainThread, hls))
+        hls.compile()
 
 
 class PidControllerHls(PidControllerHalfHls):
@@ -70,47 +74,41 @@ class PidControllerHls(PidControllerHalfHls):
     (Including main loop and reset.)
     """
 
-    @override
-    def hwImpl(self):
-        # register of current output value
-        hls = HlsScope(self)
-
-        # create y-pipeline registers (y -> y_reg[0]-> y_reg[1])
-        y = [hls.read(self.input).data, ]
-        for i in range(2):
-            y.append(hls.var(f"y_reg{i:d}", dtype=self.input._dtype))
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
 
         # trim signal to width of output
         def trim(signal):
             return signal._reinterpret_cast(self.output._dtype)
 
-        err = y[0] - hls.read(self.target).data
-        coefs = [hls.read(c).data for c in self.coefs]
-        u = hls.var("u", self.output._dtype)
+        # create y-pipeline registers (y -> y_reg[0]-> y_reg[1])
+        y = [None, ]
+        for i in range(2):
+            y.append(hls.var(f"y_reg{i:d}", dtype=self.input._dtype))
 
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls, [
-            # initial reset
-            u(0),
-            y[1](0),
-            y[2](0),
-            ast.While(True,
-                # next value computation
-                u(Add(u,
-                      coefs[0] * err,
-                      coefs[1] * y[0],
-                      coefs[2] * y[1],
-                      coefs[3] * y[2], key=trim)),
-                # propagate output value register to output
-                hls.write(u, self.output),
-                # shift y registers
-                y[2](y[1]),
-                y[1](y[0]),
-            )
-            ],
-            self._name)
-        )
-        hls.compile()
+        # initial reset
+        u = self.output._dtype.from_py(0)
+        y[1](0)  # operator() is used because assignment to subscript would replace variable reference with 0
+        y[2](0)
+        while b1:
+            y[0] = hls.read(self.input).data
+            err = y[0] - hls.read(self.target).data
+            coefs = [hls.read(c).data for c in self.coefs]
+            # next value computation
+            u = Add(u,
+                    coefs[0] * err,
+                    coefs[1] * y[0],
+                    coefs[2] * y[1],
+                    coefs[3] * y[2], key=trim)
+            # propagate output value register to output
+            hls.write(u, self.output)
+            # shift y registers
+            y[2](y[1])
+            y[1](y[0])
+
+    @override
+    def hwImpl(self) -> None:
+        HlsAstExprTree3_example.hwImpl(self)
 
 
 if __name__ == "__main__":

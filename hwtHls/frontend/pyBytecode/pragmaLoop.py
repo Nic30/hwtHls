@@ -124,8 +124,7 @@ class PyBytecodeStreamLoopUnroll(_PyBytecodeLoopPragma):
         io_ = self.io
         if isinstance(io_, IoProxyStream):
             io_ = io_.interface
-        ioArg: Argument = irTranslator.ioToVar[io_][0]
-        ioArgIndex = ioArg.getArgNo();
+        ioArgIndex =irTranslator.ioToArgIndex[io_]
         items = [
             getTuple([
                     getStr("hwthls.loop.streamunroll.io"),

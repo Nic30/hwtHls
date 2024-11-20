@@ -1,7 +1,7 @@
 from typing import Optional, Set, Dict
 
 from hwt.hwIO import HwIO
-from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register
+from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineRegisterInfo
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge
@@ -15,6 +15,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, HlsNetNodeOutLazy, \
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdge, MachineEdgeMeta
+from hwtHls.ssa.translation.llvmMirToNetlist.utils import _regIsValidLiveIn
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 
 
@@ -29,12 +30,14 @@ class ResetValueExtractor():
                  blockMeta: Dict[MachineBasicBlock, MachineBasicBlockMeta],
                  edgeMeta: Dict[MachineEdge, MachineEdgeMeta],
                  regToIo: Dict[Register, HwIO],
+                 MRI: MachineRegisterInfo,
                  dbgTracer: DebugTracer):
         self.valCache = valCache
         self.liveness = liveness
         self.blockMeta = blockMeta
         self.edgeMeta = edgeMeta
         self.regToIo = regToIo
+        self.MRI = MRI
         self.dbgTracer = dbgTracer
 
     @staticmethod
@@ -120,7 +123,7 @@ class ResetValueExtractor():
             for pred in mb.predecessors():
                 for r in self.liveness[pred][mb]:
                     r: Register
-                    assert r in self.regToIo, (
+                    assert not _regIsValidLiveIn(self.regToIo, self.MRI, r), (
                         r, r.virtRegIndex(), "Block is supposed to have no live in registers because any en from predecessor was not used in input mux")
             assert newResetEdgeMeta.reuseDataAsControl is None
             if mbMeta.needsControl and not mbMeta.isLoopHeaderOfFreeRunning:

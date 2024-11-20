@@ -4,6 +4,7 @@
 from functools import reduce
 
 from hwt.hObjList import HObjList
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.std import HwIOVectSignal
@@ -13,14 +14,17 @@ from hwt.hwParam import HwParam
 from hwt.pyUtils.arrayQuery import grouper, balanced_reduce
 from hwt.pyUtils.typingFuture import override
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.frontend.ast.builder import HlsAstBuilder
-from hwtHls.frontend.ast.thread import HlsThreadFromAst
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
+from tests.frontend.ast.exprTree3 import HlsAstExprTree3_example
 
 
 class HlsMAC_example(HwModule):
+    """
+    Multiply accumulate example
+    """
 
     @override
     def hwConfig(self):
@@ -34,32 +38,31 @@ class HlsMAC_example(HwModule):
         self.clk.FREQ = self.CLK_FREQ
         assert int(self.INPUT_CNT) % 2 == 0
 
-        self.dataIn = HObjList(HwIOVectSignal(self.DATA_WIDTH, signed=False)
-                       for _ in range(int(self.INPUT_CNT)))
+        self.dataIn = HObjList(
+            HwIOVectSignal(self.DATA_WIDTH, signed=False)
+            for _ in range(int(self.INPUT_CNT))
+        )
 
         self.dataOut = HwIOVectSignal(self.DATA_WIDTH, signed=False)._m()
 
     @override
-    def hwImpl(self):
-        hls = HlsScope(self)
-        # inputs has to be readed to enter hls scope
-        # (without read() operation will not be schedueled by HLS
-        #  instead they will be directly synthesized)
-        # [NOTE] number of input is hardcoded by this
-        a, b, c, d = [hls.read(hwIO).data for hwIO in self.dataIn]
-        # depending on target platform this expresion
-        # can be mapped to DPS, LUT, etc...
-        # no constrains are specified => default strategy is
-        # to achieve zero delay and minimum latency, for this CLK_FREQ
-        e = a * b + c * d
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
-            ast.While(True,
-                hls.write(e, self.dataOut),
-            ),
-            self._name)
-        )
-        hls.compile()
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        while b1:
+            # :note: hls.read/write function must be used for external IO
+            #    to separate HLS/non-HLS code and for simulation purposes
+            # :note: number of input is hardcoded by this statement
+            a, b, c, d = [hls.read(hwIO).data for hwIO in self.dataIn]
+            # depending on target platform this expression
+            # can be mapped to DPS, LUT, etc...
+            # no constrains are specified => default strategy is
+            # to achieve zero delay and minimum latency, for this CLK_FREQ
+            e = a * b + c * d
+            hls.write(e, self.dataOut)
+
+    @override
+    def hwImpl(self) -> None:
+        HlsAstExprTree3_example.hwImpl(self)
 
 
 class HlsMAC_example2(HlsMAC_example):
@@ -70,29 +73,15 @@ class HlsMAC_example2(HlsMAC_example):
         self.INPUT_CNT = 16
 
     @override
-    def hwImpl(self):
-        hls = HlsScope(self)
-        # inputs has to be read to enter hls scope
-        # (without read() operation will not be scheduled by HLS
-        #  instead they will be directly synthesized)
-        # [NOTE] number of input is hard-coded by this
-        dataIn = [hls.read(hwIO) for hwIO in self.dataIn]
-        # depending on target platform this expression
-        # can be mapped to DPS, LUT, etc...
-        # no constrains are specified => default strategy is
-        # to achieve zero delay and minimum latency, for this CLK_FREQ
-        muls = [a.data * b.data for a, b in grouper(2, dataIn)]
-
-        adds = balanced_reduce(muls, lambda a, b: a + b)
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
-            ast.While(True,
-                      *dataIn,
-                      hls.write(adds, self.dataOut),
-            ),
-            self._name)
-        )
-        hls.compile()
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        while b1:
+            dataIn = [hls.read(hwIO) for hwIO in self.dataIn]
+            muls = [a.data * b.data for a, b in grouper(2, dataIn)]
+            # :note: a python function may be used to build expressions,
+            # as long as the result is RtlSignal expression it will be recognized by HlsScope
+            adds = balanced_reduce(muls, lambda a, b: a + b)
+            hls.write(adds, self.dataOut)
 
 
 class HlsMAC_example_handshake(HlsMAC_example2):

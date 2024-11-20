@@ -126,7 +126,7 @@ class CountLeadingZeros(HwModule):
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
-            d = hls.read(self.data_in)
+            d = hls.read(self.data_in).data
             if isPow2(self.DATA_WIDTH):
                 _d =  d
             else:
@@ -148,7 +148,7 @@ class CountTailingZeros(CountLeadingZeros):
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
-            i = hls.read(self.data_in)
+            i = hls.read(self.data_in).data
             hls.write(PyBytecodeInline(countBits)(i, 0, False), self.data_out)
 
 
@@ -158,7 +158,7 @@ class CountLeadingOnes(CountLeadingZeros):
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
-            i = hls.read(self.data_in)
+            i = hls.read(self.data_in).data
             hls.write(PyBytecodeInline(countBits)(i, 1, True), self.data_out)
 
 
@@ -168,7 +168,7 @@ class CountTailingOnes(CountLeadingZeros):
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while BIT.from_py(1):
-            i = hls.read(self.data_in)
+            i = hls.read(self.data_in).data
             hls.write(PyBytecodeInline(countBits)(i, 1, False), self.data_out)
 
 

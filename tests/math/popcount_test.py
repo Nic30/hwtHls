@@ -1,10 +1,10 @@
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.utils import freq_to_period
-from tests.bitOpt.popcount import Popcount
+from tests.math.popcount import Popcount
 
 
-class PopcountTC(SimTestCase):
+class Popcount_TC(SimTestCase):
 
     def tearDown(self):
         self.rmSim()
@@ -51,7 +51,7 @@ if __name__ == '__main__':
 
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([PopcountTC("test_CountOnes_pyListRom")])
-    suite = testLoader.loadTestsFromTestCase(PopcountTC)
+    # suite = unittest.TestSuite([Popcount_TC("test_CountOnes_pyListRom")])
+    suite = testLoader.loadTestsFromTestCase(Popcount_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     sys.exit(not runner.run(suite).wasSuccessful())

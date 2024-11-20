@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from hwt.hdl.commonConstants import b1
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
-from hwtHls.frontend.ast.builder import HlsAstBuilder
-from hwtHls.frontend.ast.thread import HlsThreadFromAst
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtLib.examples.statements.ifStm import SimpleIfStatement
 from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import get_bit
 from tests.baseSsaTest import BaseSsaTC
+from tests.frontend.ast.exprTree3 import HlsAstExprTree3_example
 
 
 class HlsSimpleIfStatement(SimpleIfStatement):
@@ -25,31 +25,27 @@ class HlsSimpleIfStatement(SimpleIfStatement):
         addClkRstn(self)
         self.clk.FREQ = self.CLK_FREQ
         super(HlsSimpleIfStatement, self).hwDeclr()
+    
+    def mainThread(self, hls: HlsScope):
+        while b1:
+            r = hls.read
+            a = r(self.a)
+            b = r(self.b)
+            c = r(self.c)
+            tmp = self.d._dtype.from_py(None)
+            if a.data:
+                tmp = b.data
+            elif b.data:  # this elif is redundant
+                tmp = c.data
+            else:
+                tmp = c.data
 
+            hls.write(tmp, self.d)
+    
     @override
-    def hwImpl(self):
-        hls = HlsScope(self)
-        r = hls.read
-        a = r(self.a)
-        b = r(self.b)
-        c = r(self.c)
-        tmp = hls.var("tmp", self.d._dtype)
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
-            ast.While(True,
-                a, b, c,
-                ast.If(a.data,
-                    tmp(b.data),
-                ).Elif(b.data,  # this elif is redundant
-                    tmp(c.data),
-                ).Else(
-                    tmp(c.data)
-                ),
-                hls.write(tmp, self.d)
-            ),
-            self._name)
-        )
-        hls.compile()
+    def hwImpl(self) -> None:
+        HlsAstExprTree3_example.hwImpl(self)
+
 
 
 class HlsSimpleIfStatement_TC(BaseSsaTC):

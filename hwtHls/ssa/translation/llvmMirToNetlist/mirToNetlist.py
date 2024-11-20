@@ -127,7 +127,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
     def extractRstValues(self, mf: MachineFunction):
         with self.dbgTracer.scoped(ResetValueExtractor, None):
             return ResetValueExtractor(self.valCache, self.liveness,
-                self.blockMeta, self.edgeMeta, self.regToIo,
+                self.blockMeta, self.edgeMeta, self.regToIo, self.mf.getRegInfo(),
                 self.dbgTracer
             ).apply(mf)
 
@@ -158,7 +158,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
     #    # for non backedge edges the sync is not required as the data is received from previous stage in pipeline or state in FSM
     #    for liveIn in self.liveness[pred][mb]:
     #        liveIn: Register
-    #        if not self._regIsValidLiveIn(MRI, liveIn) or (dataAsControl is not None and liveIn == dataAsControl):
+    #        if not _regIsValidLiveInself.regToIo, (MRI, liveIn) or (dataAsControl is not None and liveIn == dataAsControl):
     #            continue
     #
     #        liveInSync: HlsNetNodeExplicitSync = blockLiveInMuxInputSync[(pred, mb, liveIn)]

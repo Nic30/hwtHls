@@ -11,15 +11,14 @@ from hwtHls.frontend.pyBytecode.blockLabel import BlockLabel, \
 from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo
 from hwtHls.frontend.pyBytecode.loopsDetect import PreprocLoopScope, \
     PyBytecodeLoop
-from hwtHls.ssa.basicBlock import SsaBasicBlock
-
+from hwtHls.llvm.llvmIr import BasicBlock
 
 class SsaBlockGroup():
     """
     Represents a set of block for a specific block label.
     """
 
-    def __init__(self, begin: SsaBasicBlock):
+    def __init__(self, begin: BasicBlock):
         self.begin = begin
         self.end = begin
 
@@ -425,7 +424,7 @@ class BlockPredecessorTracker():
             else:
                 bbG: SsaBlockGroup
                 blockNameTableRows.append(
-                    f"<tr><td>{nIdStr}</td><td>{html.escape(repr(n))}</td><td>{bbG.begin.label:s}</td><td>{bbG.end.label}</td></tr>"
+                    f"<tr><td>{nIdStr}</td><td>{html.escape(repr(n))}</td><td>{bbG.begin.getName().str():s}</td><td>{bbG.end.getName().str()}</td></tr>"
                 )
 
         blockNameTableRows.append("</table>>")

@@ -9,7 +9,7 @@ from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.amba.axi4s import axi4s_send_bytes
 from hwtLib.types.net.ethernet import Eth2Header_t, ETHER_TYPE
-from hwtSimApi.constants import CLK_PERIOD
+from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import  int_to_int_list
 from tests.io.amba.axi4Stream.axi4sParseEth import Axi4SParseEth
 
@@ -31,7 +31,8 @@ class Axi4SParseEthTC(SimTestCase):
             v = int(v._reinterpret_cast(HBits(v._dtype.bit_length())))
             data = int_to_int_list(v, 8, ceil(Eth2Header_t.bit_length() / 8))
             axi4s_send_bytes(dut.i, data)
-
+        
+        CLK_PERIOD = int(freq_to_period(dut.CLK_FREQ))
         t = CLK_PERIOD * (len(dut.i._ag.data) + 5) 
         self.runSim(t)
 

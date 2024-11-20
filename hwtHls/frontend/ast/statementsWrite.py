@@ -10,25 +10,26 @@ from hwtHls.frontend.ast.statements import HlsStm
 from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.frontend.ast.utils import _getNativeInterfaceWordType, \
     ANY_HLS_STREAM_INTF_TYPE, ANY_SCALAR_INT_VALUE
-from hwtHls.llvm.llvmIr import MachineInstr, Argument, Type, ArrayType, TypeToArrayType
+from hwtHls.llvm.llvmIr import MachineInstr, Argument, Type, ArrayType, TypeToArrayType, \
+    Value, BasicBlock
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.nodes.writeIndexed import HlsNetNodeWriteIndexed
-from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
-from hwtHls.ssa.value import SsaValue
+from hwtHls.ssa.translation.toLlvmArgumentUtils import getArgumentForHwIO
 
 
-class HlsWrite(HlsStm, SsaInstr):
+class HlsWrite(HlsStm):
     """
     Container of informations about write in some stream
     """
 
     def __init__(self,
                  parent: "HlsScope",
-                 src:Union[SsaValue, HConst],
+                 src:Union[RtlSignal, HConst],
                  dst: ANY_HLS_STREAM_INTF_TYPE,
                  dtype: HdlType,
                  mayBecomeFlushable=True,
@@ -40,13 +41,10 @@ class HlsWrite(HlsStm, SsaInstr):
                 raise AssertionError("Use :class:`~.HlsWriteAddressed` if you require addressing", hwIO, indexes, sign_cast_seen)
         else:
             assert not isinstance(dst, (int, HConst)), dst
-        SsaInstr.__init__(self, parent.ssaCtx, dtype, OP_ASSIGN, ())
+        self._dtype = dtype
         # [todo] this put this object in temporary inconsistent state,
         #  because src can be more than just SsaValue/HConst instance
         self.operands = (src,)
-        if isinstance(src, SsaValue):
-            # assert src.block is not None, (src, "Must not construct instruction with operands which are not in SSA")
-            src.users.append(self)
         self._parent = parent
 
         # store original source for debugging
@@ -64,13 +62,15 @@ class HlsWrite(HlsStm, SsaInstr):
     def _getInterfaceName(self, io: Union[HwIO, Tuple[HwIO]]) -> str:
         return HlsRead._getInterfaceName(self, io)
 
-    def _translateToLlvm(self, toLlvm: 'ToLlvmIrTranslator'):
+    def _translateToLlvm(self, toLlvm: 'ToLlvmIrTranslator', bb: BasicBlock):
         b = toLlvm.b
-        dst, _, t = toLlvm.ioToVar[self.dst]
+        bb, src = toLlvm._translateExprToLlvm(bb, self.getSrc())
+        # :attention: it is important that dst is evaluated after src expression was translated because Argument
+        #  instanced may have been changed by mutateFunctionAddArg
+        dst, wordT = getArgumentForHwIO(toLlvm, self.dst, self, False)
         dst: Argument
-        t: Type
-        src = toLlvm._translateExpr(self.getSrc())
-        return b.CreateStore(src, dst, True)
+        wordT: Type
+        return bb, b.CreateStore(src, dst, True)
 
     @classmethod
     def _translateMirToNetlist(cls,
@@ -109,16 +109,13 @@ class HlsWriteAddressed(HlsWrite):
 
     def __init__(self,
             parent:"HlsScope",
-            src:Union[SsaValue, HConst],
+            src:Union[Value, HConst],
             dst:HwIO,
             index: ANY_SCALAR_INT_VALUE,
             element_t: HdlType,
             mayBecomeFlushable=True):
         HlsWrite.__init__(self, parent, src, dst, element_t, mayBecomeFlushable=mayBecomeFlushable)
         self.operands = (src, index)
-        if isinstance(index, SsaValue):
-            # assert index.block is not None, (index, "Must not construct instruction with operands which are not in SSA")
-            index.users.append(self)
         # store original index for debugging
         self._origIndex = index
 
@@ -130,21 +127,23 @@ class HlsWriteAddressed(HlsWrite):
         assert len(self.operands) == 2, self
         return self.operands[1]
 
-    def _translateToLlvm(self, toLlvm: 'ToLlvmIrTranslator'):
+    def _translateToLlvm(self, toLlvm: 'ToLlvmIrTranslator', bb: BasicBlock):
         b = toLlvm.b
-        dst, _, t = toLlvm.ioToVar[self.dst]
+        dst, t = getArgumentForHwIO(toLlvm, self.dst, self, False)
         dst: Argument
         t: Type
-        src = toLlvm._translateExpr(self.getSrc())
+        bb, src = toLlvm._translateExprToLlvm(bb, self.getSrc())
         # :note: the index type does not matter much as llvm::InstCombine extends it to i64
         index_t = Type.getIntNTy(toLlvm.ctx, self.getIndex()._dtype.bit_length())
-        indexes = [toLlvm._translateExprInt(0, index_t),
-                                             toLlvm._translateExpr(self.getIndex()), ]
+        indexes = [toLlvm._translateExprInt(0, index_t), ]
+        bb, index0 = toLlvm._translateExprToLlvm(bb, self.getIndex())
+        indexes.append(index0)
+
         arrTy: ArrayType = TypeToArrayType(t)
         # elmT = arrTy.getElementType()
         dst = b.CreateGEP(arrTy, dst, indexes)
 
-        return b.CreateStore(src, dst, True)
+        return bb, b.CreateStore(src, dst, True)
 
     @classmethod
     def _translateMirToNetlist(cls,
@@ -192,12 +191,12 @@ class HlsStmWriteStartOfFrame(HlsWrite):
     """
 
     def __init__(self, parent:"HlsScope", hwIO:HwIO):
-        super(HlsStmWriteStartOfFrame, self).__init__(parent, BIT.from_py(1), hwIO, BIT)
+        super(HlsStmWriteStartOfFrame, self).__init__(parent, HVoidOrdering.from_py(None), hwIO, HVoidOrdering)
 
-    def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator"):
-        dst, _, _ = toLlvm.ioToVar[self.dst]
+    def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
+        dst, _ = getArgumentForHwIO(toLlvm, self.dst, self, False)
         dst: Argument
-        return toLlvm.b.CreateStreamWriteStartOfFrame(dst)
+        return bb, toLlvm.b.CreateStreamWriteStartOfFrame(dst)
 
 
 class HlsStmWriteEndOfFrame(HlsWrite):
@@ -206,9 +205,9 @@ class HlsStmWriteEndOfFrame(HlsWrite):
     """
 
     def __init__(self, parent:"HlsScope", hwIO:HwIO):
-        super(HlsStmWriteEndOfFrame, self).__init__(parent, BIT.from_py(1), hwIO, BIT)
+        super(HlsStmWriteEndOfFrame, self).__init__(parent, HVoidOrdering.from_py(None), hwIO, HVoidOrdering)
 
-    def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator"):
-        dst, _, _ = toLlvm.ioToVar[self.dst]
+    def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
+        dst, _ = getArgumentForHwIO(toLlvm, self.dst, self, False)
         dst: Argument
-        return toLlvm.b.CreateStreamWriteEndOfFrame(dst)
+        return bb, toLlvm.b.CreateStreamWriteEndOfFrame(dst)

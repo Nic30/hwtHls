@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
-from hwtHls.frontend.ast.builder import HlsAstBuilder
-from hwtHls.frontend.ast.thread import HlsThreadFromAst
+from hwtHls.frontend.pyBytecode import hlsBytecode
+from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 
 
@@ -26,13 +27,14 @@ class WriteOnce(HwModule):
         o = self.dataOut = HwIOStructRdVld()._m()
         o.T = HBits(self.DATA_WIDTH, signed=False)
 
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        hls.write(1, self.dataOut)
+
     @override
     def hwImpl(self) -> None:
         hls = HlsScope(self, namePrefix="")
-        hls.addThread(HlsThreadFromAst(hls,
-            hls.write(1, self.dataOut),
-            self._name)
-        )
+        hls.addThread(HlsThreadFromPy(hls, self.mainThread, hls))
         hls.compile()
 
 
@@ -45,43 +47,27 @@ class ReadWriteOnce0(WriteOnce):
         i.T = HBits(self.DATA_WIDTH, signed=False)
 
     @override
-    def hwImpl(self) -> None:
-        hls = HlsScope(self, namePrefix="")
-        hls.addThread(HlsThreadFromAst(hls,
-            hls.write(hls.read(self.dataIn).data, self.dataOut),
-            self._name)
-        )
-        hls.compile()
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        hls.write(hls.read(self.dataIn).data, self.dataOut)
 
 
 class ReadWriteOnce1(ReadWriteOnce0):
 
     @override
-    def hwImpl(self) -> None:
-        hls = HlsScope(self)
-        tmp = hls.var("tmp", self.dataIn.T)
-        hls.addThread(HlsThreadFromAst(hls, [
-                tmp(hls.read(self.dataIn).data),
-                hls.write(tmp, self.dataOut),
-            ],
-            self._name)
-        )
-        hls.compile()
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        tmp = hls.read(self.dataIn).data
+        hls.write(tmp, self.dataOut)
 
 
 class ReadWriteOnce2(ReadWriteOnce0):
 
     @override
-    def hwImpl(self) -> None:
-        hls = HlsScope(self)
-        tmp = hls.var("tmp", self.dataIn.T)
-        hls.addThread(HlsThreadFromAst(hls, [
-                tmp(hls.read(self.dataIn).data),
-                hls.write(tmp + 1, self.dataOut),
-            ],
-            self._name)
-        )
-        hls.compile()
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        tmp = hls.read(self.dataIn).data
+        hls.write(tmp + 1, self.dataOut)
 
 
 class WhileTrueWrite(HwModule):
@@ -98,18 +84,14 @@ class WhileTrueWrite(HwModule):
         self.dataOut: HwIOStructRdVld = HwIOStructRdVld()._m()
         self.dataOut.T = HBits(self.DATA_WIDTH, signed=False)
 
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        while b1:
+            hls.write(10, self.dataOut)
+
     @override
     def hwImpl(self) -> None:
-        dout = self.dataOut
-        hls = HlsScope(self, namePrefix="")
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
-            ast.While(True,
-                hls.write(10, dout)
-            ),
-            self._name)
-        )
-        hls.compile()
+        WriteOnce.hwImpl(self)
 
 
 class WhileTrueReadWrite(WhileTrueWrite):
@@ -121,31 +103,19 @@ class WhileTrueReadWrite(WhileTrueWrite):
         i.T = HBits(self.DATA_WIDTH, signed=False)
 
     @override
-    def hwImpl(self) -> None:
-        hls = HlsScope(self, namePrefix="")
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
-            ast.While(True,
-                hls.write(hls.read(self.dataIn).data, self.dataOut)
-            ),
-            self._name)
-        )
-        hls.compile()
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        while b1:
+            hls.write(hls.read(self.dataIn).data, self.dataOut)
 
 
 class WhileTrueReadWriteExpr(WhileTrueReadWrite):
 
     @override
-    def hwImpl(self) -> None:
-        hls = HlsScope(self, namePrefix="")
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
-            ast.While(True,
-                hls.write((hls.read(self.dataIn).data * 8 + 2) * 3, self.dataOut)
-            ),
-            self._name)
-        )
-        hls.compile()
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        while b1:
+            hls.write((hls.read(self.dataIn).data * 8 + 2) * 3, self.dataOut)
 
 
 if __name__ == "__main__":

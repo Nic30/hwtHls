@@ -3,21 +3,20 @@ import os
 from typing import Set, Tuple, Dict, List
 
 from hwt.hwModule import HwModule
-from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineLoopInfo
+from hwtHls.netlist.analysis.blockSyncType import HlsNetlistAnalysisPassBlockSyncType
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.scheduler.resourceList import initSchedulingResourceConstraintsFromIO
 from hwtHls.netlist.translation.dumpBlockSync import HlsNetlistAnalysisPassDumpBlockSync
 from hwtHls.platform.platform import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtHls.netlist.analysis.blockSyncType import HlsNetlistAnalysisPassBlockSyncType
-from hwtHls.ssa.analysis.consistencyCheck import SsaPassConsistencyCheck
+from hwtHls.ssa.translation.dumpIR import SsaPassDumpIR
 from hwtHls.ssa.translation.dumpMIR import SsaPassDumpMIR
 from hwtHls.ssa.translation.llvmMirToNetlist.datapath import BlockLiveInMuxSyncDict
 from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
-from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
-from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm, ToLlvmIrTranslator
+from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
+from hwtHls.ssa.translation.toLlvmUtils import getIoNodeConstructors
 from hwtLib.examples.base_serialization_TC import BaseSerializationTC
-from hwtHls.netlist.scheduler.resourceList import initSchedulingResourceConstraintsFromIO
 
 
 class TestFinishedSuccessfuly(BaseException):
@@ -35,28 +34,24 @@ class BaseTestPlatform(VirtualHlsPlatform):
         self.mir = StringIO()
         self.blockSync = StringIO()
 
-    def runSsaPasses(self, hls:"HlsScope", toSsa:HlsAstToSsa):
-        SsaPassConsistencyCheck().runOnSsaModule(toSsa)
-        SsaPassDumpToLl(lambda name: (self.postPyOpt, False)).runOnSsaModule(toSsa)
-        SsaPassToLlvm(hls, self._llvmCliArgs).runOnSsaModule(toSsa)
+    def runSsaPasses(self, hls:"HlsScope", toLlvm: ToLlvmIrTranslator):
+        SsaPassDumpIR(lambda name: (self.postPyOpt, False)).runOnSsaModule(toLlvm)
 
     def runMirToHlsNetlist(self,
-                              hls: "HlsScope", toSsa: HlsAstToSsa, netlist: HlsNetlistCtx,
+                              hls: "HlsScope", toLlvm: ToLlvmIrTranslator, netlist: HlsNetlistCtx,
                               mf: MachineFunction,
                               backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]],
                               liveness: Dict[MachineBasicBlock, Dict[MachineBasicBlock, Set[Register]]],
                               ioRegs: List[Register],
                               registerTypes: Dict[Register, int],
                               loops: MachineLoopInfo):
-        tr: ToLlvmIrTranslator = toSsa.start
-        assert isinstance(tr, ToLlvmIrTranslator), tr
         dbgTracer, doCloseTrace = self._getDebugTracer(netlist.label, HlsDebugBundle.DBG_2_1_netlistConstructionTrace)
         toNetlist = HlsNetlistAnalysisPassMirToNetlist(
-            hls, tr, mf, backedges, liveness, ioRegs, registerTypes, loops, netlist, toSsa.ioNodeConstructors, dbgTracer)
+            hls, toLlvm, mf, backedges, liveness, ioRegs, registerTypes, loops, netlist, getIoNodeConstructors(toLlvm), dbgTracer)
 
-        initSchedulingResourceConstraintsFromIO(netlist.scheduler.resourceUsage.resourceConstraints, tr.topIo.keys())
+        initSchedulingResourceConstraintsFromIO(netlist.scheduler.resourceUsage.resourceConstraints, (io[0] for io in toLlvm.ioSorted))
 
-        SsaPassDumpMIR(lambda name: (self.mir, False)).runOnSsaModule(toSsa)
+        SsaPassDumpMIR(lambda name: (self.mir, False)).runOnSsaModule(toLlvm)
 
         try:
             toNetlist.translateDatapathInBlocks(mf)

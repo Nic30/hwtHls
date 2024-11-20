@@ -1,24 +1,23 @@
 from networkx.classes.digraph import DiGraph
 
 from hwtHls.frontend.pyBytecode.loopsDetect import PyBytecodeLoop
-from hwtHls.ssa.basicBlock import SsaBasicBlock
+from hwtHls.llvm.llvmIr import BasicBlock
 
-
-class SsaLoop(PyBytecodeLoop[SsaBasicBlock]):
+class SsaLoop(PyBytecodeLoop[BasicBlock]):
 
     @classmethod
-    def _getLoopLabel(cls, entry: SsaBasicBlock, loopIndex:int):
+    def _getLoopLabel(cls, entry: BasicBlock, loopIndex:int):
         if loopIndex == 0:
             return f"L<{entry.label:s}>"
         else:
             return f"L<{entry.label:s}>subL{loopIndex:d}"
 
-def ssaToDiGraph(ssaStart: SsaBasicBlock) -> DiGraph:
+def ssaToDiGraph(ssaStart: BasicBlock) -> DiGraph:
     g = DiGraph()
     worklist = [ssaStart]
     seen = set()
     while worklist:
-        n: SsaBasicBlock = worklist.pop()
+        n: BasicBlock = worklist.pop()
         if n in seen:
             continue
         seen.add(n)

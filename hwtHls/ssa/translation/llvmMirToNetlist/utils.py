@@ -1,6 +1,8 @@
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict
 
-from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineLoop
+from hwt.hwIO import HwIO
+from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineLoop, Register, \
+    TargetOpcode, MachineRegisterInfo
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
 
 
@@ -20,6 +22,21 @@ def getTopLoopForBlock(mb: MachineBasicBlock, loop: MachineLoop) -> MachineLoop:
         else:
             break
     return topLoop
+
+
+# [todo] rm because it is handled when liveness dict is generated (except for IMPLICIT_DEF)
+def _regIsValidLiveIn(regToIo: Dict[Register, HwIO] , MRI: MachineRegisterInfo, liveIn: Register) -> bool:
+    if liveIn in regToIo:
+        return False  # we will use interface not the value of address where it is mapped
+
+    oneDef = MRI.getOneDef(liveIn)
+    if oneDef is not None:
+        defInstr = oneDef.getParent()
+        if defInstr.getOpcode() in (TargetOpcode.HWTFPGA_GLOBAL_VALUE,
+                                    TargetOpcode.HWTFPGA_ARG_GET,
+                                    TargetOpcode.HWTFPGA_IMPLICIT_DEF):
+            return False  # this is a pointer to a local memory which exists globally
+    return True
 
 # tuples (controlEn, controlObj, allInputDataChannels)
 # LoopPortGroup = List[Tuple[HlsNetNodeOutAny,

@@ -10,6 +10,7 @@
 from typing import Optional
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
@@ -42,7 +43,7 @@ class ShifterLeft0(HwModule):
         """
         Shift implemented as a loop unrolled in the frontend
         """
-        while BIT.from_py(1):
+        while b1:
             v = hls.read(self.i).data
             sh = hls.read(self.sh).data
             for i in range(self.DATA_WIDTH):
@@ -65,7 +66,7 @@ class ShifterLeft1(ShifterLeft0):
         """
         Loop unrolled in frontend which implements shift left
         """
-        while BIT.from_py(1):
+        while b1:
             v = hls.read(self.i).data
             sh = hls.read(self.sh).data
             for i in range(v._dtype.bit_length()):
@@ -103,7 +104,7 @@ class ShifterLeftUsingHwLoopWithWhileNot0(ShifterLeft0):
         Sequential loop which implements shift left
         """
         self.FN_META
-        while BIT.from_py(1):
+        while b1:
             v = hls.read(self.i).data
             sh = hls.read(self.sh).data
             while sh != 0:
@@ -122,10 +123,10 @@ class ShifterLeftUsingHwLoopWithBreakIf0(ShifterLeftUsingHwLoopWithWhileNot0):
         Sequential loop which implements shift left
         """
         self.FN_META
-        while BIT.from_py(1):
+        while b1:
             v = hls.read(self.i).data
             sh = hls.read(self.sh).data
-            while BIT.from_py(1):
+            while b1:
                 if sh._eq(0):
                     break
                 v <<= 1
@@ -142,7 +143,7 @@ class ShifterLeftBarrelUsingLoop0(ShifterLeft0):
         """
         Barrel shifter described using loop.
         """
-        while BIT.from_py(1):
+        while b1:
             v = hls.read(self.i).data
             sh = hls.read(self.sh).data
             shWidth = sh._dtype.bit_length()
@@ -162,7 +163,7 @@ class ShifterLeftBarrelUsingLoop1(ShifterLeft0):
         """
         Same as ShifterLeftBarrelUsingLoop0 just with "if" instead of _ternary.
         """
-        while BIT.from_py(1):
+        while b1:
             v = hls.read(self.i).data
             sh = hls.read(self.sh).data
             shWidth = sh._dtype.bit_length()
@@ -184,7 +185,7 @@ class ShifterLeftBarrelUsingLoop2(ShifterLeft0):
         """
         Same as ShifterLeftBarrelUsingLoop2 just with write outside of the loop.
         """
-        while BIT.from_py(1):
+        while b1:
             v = hls.read(self.i).data
             sh = hls.read(self.sh).data
             shWidth = sh._dtype.bit_length()
@@ -223,7 +224,7 @@ class ShifterLeftBarrelUsingPyExprConstructor(ShifterLeft0):
         
         level 0 of multiplexers is shifting by 0 or 1b, level 1 by 0 or 2b, ...
         """
-        while BIT.from_py(1):
+        while b1:
             v = hls.read(self.i).data
             sh = hls.read(self.sh).data
             shiftedV = self.buildBarrelShiftLeft(sh, v)

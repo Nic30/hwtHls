@@ -6,22 +6,20 @@ from a translated code.
 The translation process involves several things.
 
 1. The bytecode CFG is analyzed and loops are detect.
-   This is required in advance because we need to know then we resolved every predecessor for a block in SSA construction algorithm.
+   This is required in advance because we need to know boundaries of hardware loops.
 
 2. A preprocessor immediately evaluates everything which is not required to convert to circuit.
    This mainly involves operations and variables of non hardware type.
-   Instances of SsaValue, HConst, Interface, RtlSignal are hardware objects
-   for which operations are not evaluatable during compilation instead they are staged into output SSA.
+   Instances of llvm::Value, HConst, HwIO, RtlSignal are hardware objects
+   for which operations are not evaluatable during compilation, instead they are staged into output SSA.
 
-   * There is a specific case where predecessor block may disappear or are dynamically added because jumps in code are evaluated in preprocessor
-     or some code feature (e.g. loop) is expanded.
+   * :note: There is a specific case where predecessor block may disappear or are dynamically added because
+     jumps in code are evaluated in preprocessor or some code feature (e.g. loop) is expanded.
 
-   * We also must rename labels in preprocessor expanded loops.
+   * We also must rename labels in preprocessor expanded loops and inlined functions.
 
 3. Every operation which can not be evaluated in preprocessor needs to be translated to output SSA
    with applied label renaming due to preprocessor caused code expansions.
-
-   * The low level translations are shared with :mod:`hwtHls.frontend.ast` to avoid code duplication.
 
 """
 
@@ -35,7 +33,7 @@ def hlsBytecode(fn):
 
 def hlsLowLevel(fn):
     """
-    Wrapper which marks function as integrated in HLS framework of this library. Functions marked with this will recieve
+    Wrapper which marks function as integrated in HLS framework of this library. Functions marked with this will receive
     all arguments as they are without any expansion.
     """
     fn.__hlsIsLowLevelFn = True

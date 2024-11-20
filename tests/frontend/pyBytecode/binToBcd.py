@@ -4,18 +4,18 @@
 from math import ceil, log10
 
 from hwt.code import Concat
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
 from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
-from hwt.math import log2ceil
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
+from hwtHls.frontend.pyBytecode.hwrange import hwrange
 from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
-from tests.frontend.pyBytecode.stmWhile import TRUE
 
 
 class BinToBcd(HwModule):
@@ -55,39 +55,26 @@ class BinToBcd(HwModule):
     def mainThread(self, hls: HlsScope):
         DATA_WIDTH, BCD_DIGITS = \
         self.DATA_WIDTH, self.BCD_DIGITS
+        bcdDigit_t = HBits(4, signed=False)
 
-        while TRUE:
-            bcdp = [
-                hls.var(f"bcdp_{i:d}", HBits(4, signed=False))
-                for i in range(BCD_DIGITS)]
+        while b1:
             bcd_digits = [
                 hls.var(f"bcd_digit_{i:d}", HBits(4, signed=False))
-                for i in range(BCD_DIGITS)]
+                for i in range(BCD_DIGITS)
+            ]
             # reset before first iteration
             for bcd in bcd_digits:
                 bcd(0)
-
-            bin_r = hls.read(self.din)
-            bitcount = HBits(log2ceil(DATA_WIDTH + 1), signed=False).from_py(0)
-            while bitcount != DATA_WIDTH:
+            bin_r = hls.read(self.din).data
+            for _ in hwrange(DATA_WIDTH):
+                prevBcd = bin_r[DATA_WIDTH - 1]._concat(HBits(3).from_py(0))
                 for bcdDigitI in range(BCD_DIGITS):
-                    bcd = PyBytecodeInPreproc(bcd_digits[bcdDigitI])
-                    bcdp_ = PyBytecodeInPreproc(bcdp[bcdDigitI])
-                    if bcd >= 5:
-                        bcdp_(bcd + 3)
-                    else:
-                        bcdp_(bcd)
-
-                    prev = hls.var(f"prev_{bcdDigitI:d}", HBits(4))
-                    if bcdDigitI == 0:
-                        prev(bin_r[DATA_WIDTH - 1]._concat(HBits(3).from_py(0)))
-                    else:
-                        prev(bcdp[bcdDigitI - 1])
-
-                    bcd((bcdp_ << 1) | (prev >> 3))
+                    bcd = PyBytecodeInPreproc(bcd_digits[bcdDigitI]) # taking reference to tmp var in array
+                    prevBcd_ = (bcd >= 5)._ternary(bcd + 3, bcd)
+                    bcd((prevBcd_ << 1) | (prevBcd >> 3)) # assign to reference
+                    prevBcd = prevBcd_
 
                 bin_r <<= 1
-                bitcount += 1
 
             hls.write(Concat(*reversed(bcd_digits)), self.dout)
 

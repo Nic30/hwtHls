@@ -19,6 +19,10 @@ from hwtLib.types.ctypes import uint8_t
 class PragmaInline_singleBlock(HwModule):
 
     @override
+    def hwConfig(self) -> None:
+        self.CLK_FREQ = HwParam(int(100e6))
+
+    @override
     def hwDeclr(self):
         self.o = HwIOVectSignal(8, signed=False)._m()
 
@@ -34,7 +38,7 @@ class PragmaInline_singleBlock(HwModule):
 
     @override
     def hwImpl(self):
-        hls = HlsScope(self, freq=int(100e6))
+        hls = HlsScope(self, freq=self.CLK_FREQ)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
         hls.addThread(mainThread)
         hls.compile()
@@ -181,16 +185,16 @@ class PragmaInline_writeCntrForInIf1(PragmaInline_writeCntr0):
 
             hls.write(cntrArg, self.o)
             cntrArg += 1
-                    
+
         while BIT.from_py(1):
-            #if self.IF_COND:
+            # if self.IF_COND:
             #    for _ in range(1, 3):
             #        hls.write(cntr, self.o)
             #        if cntr._eq(2):
             #            break
             #
-            #hls.write(cntr, self.o)
-            #cntr += 1
+            # hls.write(cntr, self.o)
+            # cntr += 1
             fn(cntr)
 
 

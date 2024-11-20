@@ -2,7 +2,7 @@ from hwt.hdl.types.bits import HBits
 from hwt.hdl.const import HConst
 from hwt.mainBases import RtlSignalBase
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from tests.floatingpoint.fptypes import IEEE754Fp
+from tests.math.fp.fptypes import IEEE754Fp
 
 
 bit2_t = HBits(2)

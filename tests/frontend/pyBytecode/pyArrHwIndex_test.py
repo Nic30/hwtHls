@@ -4,17 +4,18 @@
 from io import StringIO
 import os
 
-from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
+from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from tests.baseSsaTest import BaseSsaTC, TestFinishedSuccessfuly, BaseTestPlatform
-from tests.frontend.pyBytecode.pyArrHwIndex import Rom, CntrArray
+from tests.frontend.pyBytecode.pyArrHwIndex import ExampleRomPyList, ExampleCntrArray, \
+    ExampleRomHwArray, ExampleCntrArrayHwArray, ExampleCam
 
 
-class CntrArrayWithCfgDotDump(CntrArray):
+class ExampleCntrArrayWithCfgDotDump(ExampleCntrArray):
 
     def hwConfig(self) -> None:
-        CntrArray.hwConfig(self)
+        ExampleCntrArray.hwConfig(self)
         self.CFG_FILE = None
 
     def hwImpl(self):
@@ -23,30 +24,38 @@ class CntrArrayWithCfgDotDump(CntrArray):
         try:
             hls.compile()
         finally:
-            sealedBlocks = set(t.bytecodeToSsa.blockToLabel[b] for b in t.bytecodeToSsa.toSsa.m_ssa_u.sealedBlocks)
-            t.bytecodeToSsa.callStack[-1].blockTracker.dumpCfgToDot(self.CFG_FILE, sealedBlocks, t.bytecodeToSsa.labelToBlock)
-            
+            t.bytecodeToSsa.callStack[-1].blockTracker.dumpCfgToDot(self.CFG_FILE, {}, t.bytecodeToSsa.labelToBlock)
+
 
 class PyArrHwIndex_TC(BaseSsaTC):
     __FILE__ = __file__
     TEST_BLOCK_SYNC = False
 
-    def test_Rom_ll(self):
-        self._test_ll(Rom)
-        
-    def test_CntrArray_ll(self):
-        # :note: MUXes at end are mirrored (does not affect functionality) because InstCombinePass ordered i_read icmp in this way
-        self._test_ll(CntrArray)
+    def test_ExampleRomPyList_ll(self):
+        self._test_ll(ExampleRomPyList)
 
-    def test_CntrArray_cfgDot(self):
+    def test_ExampleRomHwArray_ll(self):
+        self._test_ll(ExampleRomHwArray)
+
+    def test_ExampleCntrArray_ll(self):
+        # :note: MUXes at end are mirrored (does not affect functionality) because InstCombinePass ordered i_read icmp in this way
+        self._test_ll(ExampleCntrArray)
+
+    def test_ExampleCntrArrayHwArray_ll(self):
+        self._test_ll(ExampleCntrArrayHwArray)
+
+    def test_ExampleCam_ll(self):
+        self._test_ll(ExampleCam)
+
+    def test_ExampleCntrArray_cfgDot(self):
         buff = StringIO()
 
         class FrontendTestPlatform(BaseTestPlatform):
 
-            def runSsaPasses(self, hls:"HlsScope", toSsa:HlsAstToSsa):
+            def runSsaPasses(self, hls:"HlsScope", tpLllvm:ToLlvmIrTranslator):
                 raise TestFinishedSuccessfuly()
 
-        m = CntrArrayWithCfgDotDump()
+        m = ExampleCntrArrayWithCfgDotDump()
         m.CFG_FILE = buff
         self._runTranslation(m, FrontendTestPlatform())
         self.assert_same_as_file(buff.getvalue(), os.path.join("data", "CntrArray_cfg.dot"))
@@ -56,7 +65,7 @@ if __name__ == "__main__":
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([PyArrHwIndex_TC("test_CntrArray_ll")])
+    # suite = unittest.TestSuite([PyArrHwIndex_TC("test_ExampleCntrArray_ll")])
     suite = testLoader.loadTestsFromTestCase(PyArrHwIndex_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

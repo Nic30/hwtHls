@@ -1,21 +1,24 @@
 from io import StringIO
 from pathlib import Path
 import sys
-from typing import Optional, Union, Set, Tuple, Dict, List
+from typing import Optional, Union, Set, Tuple, Dict, List, Type
 
+from hwt.hdl.operatorDefs import HOperatorDef
+from hwt.serializer.resourceAnalyzer.resourceTypes import RtlResourceType
 from hwt.synthesizer.dummyPlatform import DummyPlatform
 from hwtHls.architecture.transformation.addImplicitSyncChannels import HlsArchPassAddImplicitSyncChannels
 from hwtHls.architecture.transformation.addRtlSigNames import HlsAndRtlNetlistPassAddSignalForDeepExpr
 from hwtHls.architecture.transformation.archStructureSimplify import HlsArchPassArchStructureSimplify
 from hwtHls.architecture.transformation.channelMerge import RtlArchPassChannelMerge
 from hwtHls.architecture.transformation.channelReduceSyncStrength import HlsArchPassChannelReduceSyncStrength
+from hwtHls.architecture.transformation.channelReduceUselessValid import HlsArchPassChannelReduceUselessValid
 from hwtHls.architecture.transformation.controlLogicMinimize import HlsAndRtlNetlistPassControlLogicMinimize
+from hwtHls.architecture.transformation.fsmStateNextWriteConstruction import HlsAndRtlNetlistPassFsmStateNextWriteConstruction
 from hwtHls.architecture.transformation.ioPortPrivatization import HlsArchPassIoPortPrivatization
 from hwtHls.architecture.transformation.loopControlLowering import HlsAndRtlNetlistPassLoopControlLowering
 from hwtHls.architecture.transformation.moveArchElementPortsToMinimizeSync import HlsArchPassMoveArchElementPortsToMinimizeSync
 from hwtHls.architecture.transformation.operatorToHwtLowering import HlsAndRtlNetlistPassOperatorToHwtLowering
 from hwtHls.architecture.transformation.syncLowering import HlsArchPassSyncLowering
-from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineLoopInfo
 from hwtHls.netlist.analysis.blockSyncType import HlsNetlistAnalysisPassBlockSyncType
 from hwtHls.netlist.analysis.consistencyCheck import HlsNetlistPassConsistencyCheck
@@ -35,26 +38,31 @@ from hwtHls.netlist.transformation.readSyncToAckOfIoNodes import HlsNetlistPassR
 from hwtHls.netlist.transformation.romDeduplication import HlsNetlistPassRomDeduplication
 from hwtHls.netlist.transformation.simplify import HlsNetlistPassSimplify
 from hwtHls.netlist.transformation.simplifyExpr.trivialSimplifyExplicitSync import HlsNetlistPassTrivialSimplifyExplicitSync
-from hwtHls.platform.debugBundle import HlsDebugBundle, DebugId
+from hwtHls.platform.componentGenerator import ComponentGenerator
+from hwtHls.platform.debugBundle import HlsDebugBundle, DebugId, LlvmCliArgTuple
 from hwtHls.platform.fileUtils import outputFileGetter
 from hwtHls.ssa.analysis.consistencyCheck import SsaPassConsistencyCheck
 from hwtHls.ssa.translation.llvmMirToNetlist.datapath import BlockLiveInMuxSyncDict
 from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
-from hwtHls.ssa.translation.toLlvm import SsaPassToLlvm, ToLlvmIrTranslator
-from hwtHls.architecture.transformation.fsmStateNextWriteConstruction import HlsAndRtlNetlistPassFsmStateNextWriteConstruction
-from hwtHls.architecture.transformation.channelReduceUselessValid import HlsArchPassChannelReduceUselessValid
+from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
+from hwtHls.ssa.translation.toLlvmUtils import getIoNodeConstructors
 
 
 def _runOnSsaMouduleGetter(p):
     return p.runOnSsaModule
 
 
-LlvmCliArgTuple = Tuple[str, int, str, str]
-
-
 class DefaultHlsPlatform(DummyPlatform):
     """
     A base platform which is a container of target config and compilation pipeline configuration.
+    
+    :ivar _componentGenerators: dictionary of generators which are used to resolve properties
+        (scheduling, resources) of intrinsic-like nodes and to translate them into RLT in final phase.
+    :ivar schedulerCls: type of scheduler to use
+    :ivar _debug: an object holding debug configuration values
+    :ivar _debugExpandCompositeNodes: debug option which expands all composite nodes
+        during dumps of HlsNetlist
+    :ivar _llvmCliArgs: llvm CLI arguments which are passed to compilation of main functions
     """
 
     def __init__(self, debugDir:Optional[Union[str, Path]]=HlsDebugBundle.DEFAULT_DEBUG_DIR,
@@ -62,34 +70,11 @@ class DefaultHlsPlatform(DummyPlatform):
                  llvmCliArgs:List[LlvmCliArgTuple]=[]):
         DummyPlatform.__init__(self)
         self.schedulerCls = HlsScheduler
+        self._componentGenerators: Dict[Union[Type[RtlResourceType], RtlResourceType, Type["HlsNetNode"], HOperatorDef],
+                                        ComponentGenerator] = {}
         self._debug = HlsDebugBundle(debugDir, debugFilter)
         self._debugExpandCompositeNodes = False
-        self._llvmCliArgs:List[LlvmCliArgTuple] = [
-            # ("debug-pass-manager", 0, "", ""),  # print used passes until machinemoduleinfo
-            # ("debug-pass", 0, "", "Arguments"), # print used passes starting from machinemoduleinfo
-            # ("debug-pass", 0, "", "Structure"), # same as Arguments but pretty formated
-            # ("print-after-all", 0, "", "true"),
-            # ("print-before-all", 0, "", "true"),
-            # ("print-before", 0, "", "hwtfpga-pretonetlist-combiner"),
-            # ("verify-each", 0, "", ""), # run verification after each pass
-            # ("pass-remarks-output", 0, "", "opt.yaml"),
-            # ("time-passes", 0, "", "true"), # profile times of passes and analysis
-            # ("time-phases", 0, "", ""), [todo] rm
-            # ("view-dag-combine1-dags", 0, "", "true"),
-            # ("view-legalize-types-dags", 0, "", "true"),
-            # ("view-dag-combine-lt-dags", 0, "", "true"),
-            # ("view-legalize-dags", 0, "", "true"),
-            # ("view-dag-combine2-dags", 0, "", "true"),
-            # ("view-isel-dags", 0, "", "true"),
-            # ("view-sched-dags", 0, "", "true"),
-            # ("view-sunit-dags", 0, "", "true"),
-            # ("vregifcvt-trace", 0, "", "true"),
-            # ("print-after-isel", 0, "", "true"),
-            # ("print-lsr-output", 0, "", "true"),
-            # ("debug-only", 0, "", "vreg-if-converter"), # :note: available only in llvm debug build
-            # ("debug-only", 0, "", "loop-simplify"), # :note: available only in llvm debug build
-            # ("debug", 0, "", "1"),
-        ] + llvmCliArgs
+        self._llvmCliArgs:List[LlvmCliArgTuple] = llvmCliArgs
 
     def getPassManagerDebugLogFile(self) -> Optional[StringIO]:
         for llvmArg in self._llvmCliArgs:
@@ -110,31 +95,27 @@ class DefaultHlsPlatform(DummyPlatform):
     def beforeThreadToSsa(self, thread: "HlsThread"):
         thread.debugCopyConfig(self)
 
-    def runSsaPasses(self, hls: "HlsScope", toSsa: HlsAstToSsa):
+    def runSsaPasses(self, hls: "HlsScope", toLlvm: ToLlvmIrTranslator):
         DBG = self._debug.runDebugIfEnabled
-        DBG(HlsDebugBundle.DBG_1_0_preSsaOpt, (toSsa,), applyFnGetter=_runOnSsaMouduleGetter,
-            constructorKwargs=dict(extractPipeline=False))
-        DBG(SsaPassConsistencyCheck, (toSsa,), applyFnGetter=_runOnSsaMouduleGetter)
-        DBG(HlsDebugBundle.DBG_1_1_frontend, (toSsa,), applyFnGetter=_runOnSsaMouduleGetter,
-            constructorKwargs=dict(extractPipeline=False))
+        DBG(HlsDebugBundle.DBG_1_0_preLlvm, (toLlvm,), applyFnGetter=_runOnSsaMouduleGetter)
+        DBG(SsaPassConsistencyCheck, (toLlvm,), applyFnGetter=_runOnSsaMouduleGetter)
 
-        # convert frontend SSA to LLVM SSA for more advanced optimizations
-        SsaPassToLlvm(hls, self._llvmCliArgs).runOnSsaModule(toSsa)
-
-        DBG(HlsDebugBundle.DBG_1_2_preLlvm, (toSsa,), applyFnGetter=_runOnSsaMouduleGetter)
-
-    def runSsaToNetlist(self, hls: "HlsScope", toSsa: HlsAstToSsa, netlist: HlsNetlistCtx) -> HlsNetlistCtx:
+    def runSsaToNetlist(self, hls: "HlsScope", toLlvm: ToLlvmIrTranslator, netlist: HlsNetlistCtx) -> HlsNetlistCtx:
         """
         :param hls: compilation scope
-        :param toSsa: object which providing ssa for to netlist translation
+        :param toLlvm: object which providing LLVM IR for to netlist translation
         :param netlist: netlist object where translated netlist nodes should be placed
         """
-        tr: ToLlvmIrTranslator = toSsa.start
-        assert isinstance(tr, ToLlvmIrTranslator), tr
-        tr.llvm.runOpt(self.runMirToHlsNetlist, hls, toSsa, netlist)
+        assert isinstance(toLlvm, ToLlvmIrTranslator), toLlvm
+        for (optionName, position, argName, argValue) in hls.parentHwModule._target_platform._llvmCliArgs:
+            toLlvm.llvm.addLlvmCliArgOccurence(optionName, position, argName, argValue)
+
+        toLlvm.llvm.runOpt(self.runMirToHlsNetlist, hls, toLlvm, netlist)
 
     def runMirToHlsNetlist(self,
-                           hls: "HlsScope", toSsa: HlsAstToSsa, netlist: HlsNetlistCtx,
+                           hls: "HlsScope",
+                           toLlvm: ToLlvmIrTranslator,
+                           netlist: HlsNetlistCtx,
                            mf: MachineFunction,
                            backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]],
                            liveness: Dict[MachineBasicBlock, Dict[MachineBasicBlock, Set[Register]]],
@@ -145,19 +126,19 @@ class DefaultHlsPlatform(DummyPlatform):
         :attention: This function is called from c++ at the end of llvm pipeline.
           It is implemented in this way to allow access to analysis in llvm pass manager. 
         """
-        tr: ToLlvmIrTranslator = toSsa.start
-        assert isinstance(tr, ToLlvmIrTranslator), tr
+        assert isinstance(toLlvm, ToLlvmIrTranslator), toLlvm
         DBG = self._debug.runDebugIfEnabled
         D = HlsDebugBundle
-        DBG(D.DBG_2_0_mir, (toSsa,), applyFnGetter=_runOnSsaMouduleGetter)
-        DBG(D.DBG_2_0_mirCfg, (toSsa,), applyFnGetter=_runOnSsaMouduleGetter)
+        DBG(D.DBG_2_0_mir, (toLlvm,), applyFnGetter=_runOnSsaMouduleGetter)
+        DBG(D.DBG_2_0_mirCfg, (toLlvm,), applyFnGetter=_runOnSsaMouduleGetter)
 
         dbgTracer, doCloseTrace = self._getDebugTracer(netlist.label, D.DBG_2_1_netlistConstructionTrace)
         toNetlist = HlsNetlistAnalysisPassMirToNetlist(
-            hls, tr, mf, backedges, liveness, ioRegs, registerTypes,
-            loops, netlist, toSsa.ioNodeConstructors, dbgTracer)
+            hls, toLlvm, mf, backedges, liveness, ioRegs, registerTypes,
+            loops, netlist, getIoNodeConstructors(toLlvm), dbgTracer)
 
-        initSchedulingResourceConstraintsFromIO(netlist.scheduler.resourceUsage.resourceConstraints, tr.topIo.keys())
+        initSchedulingResourceConstraintsFromIO(netlist.scheduler.resourceUsage.resourceConstraints,
+                                                (io[0] for io in toLlvm.ioSorted))
         try:
             toNetlist.translateDatapathInBlocks(mf)
             DBG(D.DBG_2_1_blockSync, (netlist,))

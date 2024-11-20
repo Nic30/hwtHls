@@ -3,18 +3,20 @@
 
 from hwt.code import Concat
 from hwt.constants import Time
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwModule import HwModule
 from hwt.pyUtils.typingFuture import override
-from hwtHls.frontend.ast.builder import HlsAstBuilder
-from hwtHls.frontend.ast.thread import HlsThreadFromAst
+from hwtHls.frontend.pyBytecode import hlsBytecode
+from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from pyMathBitPrecise.bit_utils import mask
 from tests.baseSsaTest import BaseSsaTC
 
 
+# [todo] duplication with WhileTrueReadWrite
 class HlsConnection(HwModule):
 
     @override
@@ -22,18 +24,16 @@ class HlsConnection(HwModule):
         self.a = HwIOVectSignal(32, signed=False)
         self.b = HwIOVectSignal(32, signed=False)._m()
 
-    @override
-    def hwImpl(self):
-        hls = HlsScope(self, freq=int(100e6))
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
-            ast.While(True,
-                hls.write(hls.read(self.a).data, self.b)
-            ),
-            self._name)
-        )
-        hls.compile()
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        while b1:
+            hls.write(hls.read(self.a).data, self.b)
 
+    @override
+    def hwImpl(self) -> None:
+        hls = HlsScope(self, freq=int(100e6), namePrefix="")
+        hls.addThread(HlsThreadFromPy(hls, self.mainThread, hls))
+        hls.compile()
 
 
 class HlsSlice(HwModule):
@@ -43,18 +43,14 @@ class HlsSlice(HwModule):
         self.a = HwIOVectSignal(32, signed=False)
         self.b = HwIOVectSignal(16, signed=False)._m()
 
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        while b1:
+            hls.write(hls.read(self.a).data[16:], self.b)
+
     @override
     def hwImpl(self):
-        hls = HlsScope(self, freq=int(100e6))
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
-            ast.While(True,
-                hls.write(hls.read(self.a).data[16:], self.b)
-            ),
-            self._name)
-        )
-        hls.compile()
-
+        HlsConnection.hwImpl(self)
 
 
 class HlsSlice2TmpHlsVarConcat(HwModule):
@@ -64,53 +60,35 @@ class HlsSlice2TmpHlsVarConcat(HwModule):
         self.a = HwIOVectSignal(16, signed=False)
         self.b = HwIOVectSignal(32, signed=False)._m()
 
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        while b1:
+            tmp = Concat(HBits(16).from_py(16), hls.read(self.a).data)
+            hls.write(tmp, self.b)
+
     @override
     def hwImpl(self):
-        hls = HlsScope(self, freq=int(100e6))
-        tmp = hls.var("tmp", self.b._dtype)
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
-            ast.While(True,
-                tmp(Concat(HBits(16).from_py(16), hls.read(self.a).data)),
-                hls.write(tmp, self.b)
-            ),
-            self._name)
-        )
-        hls.compile()
+        HlsConnection.hwImpl(self)
 
 
-# class HlsSlice2(HlsSlice2TmpHlsVarConcat):
-#
-#    @override
-#    def hwImpl(self):
-#        hls = HlsScope(self, freq=int(100e6))
-#        ast = HlsAstBuilder(hls)
-#        hls.addThread(HlsThreadFromAst(hls,
-#            ast.While(True,
-#                hls.write(hls.read(self.a).data, self.b[16:]),
-#                hls.write(16, self.b[:16]),
-#            ),
-#            self._name)
-#        )
+class HlsSlice2(HlsSlice2TmpHlsVarConcat):
+
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        while b1:
+            hls.write(hls.read(self.a).data, self.b[16:])
+            hls.write(16, self.b[:16])
 
 
 class HlsSlice2TmpHlsVarSlice(HlsSlice2TmpHlsVarConcat):
 
-    @override
-    def hwImpl(self):
-        hls = HlsScope(self, freq=int(100e6))
-        tmp = hls.var("tmp", self.b._dtype)
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
-            ast.While(True,
-                tmp[:16](HBits(16).from_py(16)),
-                tmp[16:](hls.read(self.a).data),
-                hls.write(tmp, self.b)
-            ),
-            self._name)
-        )
-        hls.compile()
-
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        while b1:
+            tmp = self.b._dtype.from_py(None)
+            tmp[:16] = HBits(16).from_py(16)
+            tmp[16:] = hls.read(self.a).data
+            hls.write(tmp, self.b)
 
 
 class HlsSlicingTC(BaseSsaTC):
@@ -162,7 +140,7 @@ if __name__ == "__main__":
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
 
-    # from hwt.synth import to_rtl_str
-    # from hwtHls.platform.platform import HlsDebugBundle
-    # m = HlsSlice()
-    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    #from hwt.synth import to_rtl_str
+    #from hwtHls.platform.platform import HlsDebugBundle
+    #m = HlsSlice2TmpHlsVarSlice()
+    #print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

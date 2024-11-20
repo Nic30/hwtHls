@@ -7,11 +7,11 @@ from typing import Dict, Set, Tuple, List, Optional
 from hwtHls.frontend.pyBytecode.blockLabel import BlockLabel
 from hwtHls.frontend.pyBytecode.blockPredecessorTracker import BlockPredecessorTracker
 from hwtHls.frontend.pyBytecode.bytecodeBlockAnalysis import extractBytecodeBlocks
+from hwtHls.frontend.pyBytecode.instructions import NULL
 from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo, \
     LoopExitJumpInfo
 from hwtHls.frontend.pyBytecode.loopsDetect import PyBytecodeLoop
-from hwtHls.ssa.basicBlock import SsaBasicBlock
-from hwtHls.frontend.pyBytecode.instructions import NULL
+from hwtHls.llvm.llvmIr import BasicBlock
 
 
 class PyBytecodeFrame():
@@ -49,8 +49,8 @@ class PyBytecodeFrame():
         self.loops = loops
         self.localsplus = localsplus
         self.stack = stack
-        self.returnPoints: List[Tuple[PyBytecodeFrame, SsaBasicBlock, tuple]] = []
-        self.pragma: List["_PyBytecodePragma"] = []
+        self.returnPoints: List[Tuple[PyBytecodeFrame, BasicBlock, tuple]] = []
+        # function pragma is added immediately on construction
 
     def isJumpFromCurrentLoopBody(self, dstBlockOffset: int) -> bool:
         return self.loopStack and self.loopStack[-1].isJumpFromLoopBody(dstBlockOffset)
@@ -146,6 +146,5 @@ class PyBytecodeFrame():
         o.bytecodeBlocks = self.bytecodeBlocks
         o.blockTracker = self.blockTracker
         o.returnPoints = self.returnPoints
-        o.pragma = self.pragma
         return o
 

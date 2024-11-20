@@ -20,9 +20,7 @@ from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline, \
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
-
-
-TRUE = BIT.from_py(1)
+from hwt.hdl.commonConstants import b1
 
 
 class HlsPythonHwWhile0a(HwModule):
@@ -50,7 +48,7 @@ class HlsPythonHwWhile0a(HwModule):
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
         i = uint8_t.from_py(0)
-        while TRUE:  # recognized as HW loop because of type
+        while b1:  # recognized as HW loop because of type
             i += 1
             hls.write(i, self.o)
             if hls.read(self.i).data:
@@ -84,8 +82,8 @@ class HlsPythonHwWhile0b(HlsPythonHwWhile0a):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        while TRUE:  # recognized as HW loop because of type
-            while TRUE:  # recognized as HW loop because of type
+        while b1:  # recognized as HW loop because of type
+            while b1:  # recognized as HW loop because of type
                 i = uint8_t.from_py(10)
                 hls.write(i, self.o)
 
@@ -106,9 +104,9 @@ class HlsPythonHwWhile0c(HlsPythonHwWhile0a):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        while TRUE:  # recognized as HW loop because of type
+        while b1:  # recognized as HW loop because of type
             i = uint8_t.from_py(10)
-            while TRUE:  # recognized as HW loop because of type
+            while b1:  # recognized as HW loop because of type
                 i += 1
                 hls.write(i, self.o)
                 if hls.read(self.i).data:
@@ -135,7 +133,7 @@ class HlsPythonHwWhile1(HlsPythonHwWhile0a):
     @override
     def mainThread(self, hls: HlsScope):
         i = uint8_t.from_py(10)
-        while TRUE:  # recognized as HW loop because of type
+        while b1:  # recognized as HW loop because of type
             while True:  # recognized as HW loop because of break condition
                 hls.write(i, self.o)
                 i += 1
@@ -179,7 +177,7 @@ class HlsPythonHwWhile2(HlsPythonHwWhile0a):
     @override
     def mainThread(self, hls: HlsScope):
         i = uint8_t.from_py(0)
-        while TRUE:  # recognized as HW loop because of type
+        while b1:  # recognized as HW loop because of type
             PyBytecodeBlockLabel("wh0")
             if i <= 4:
                 hls.write(i, self.o)
@@ -187,7 +185,7 @@ class HlsPythonHwWhile2(HlsPythonHwWhile0a):
                 break
             i += 1
 
-        while TRUE:
+        while b1:
             PyBytecodeBlockLabel("wh1")
             hls.write(0, self.o)
 
@@ -221,12 +219,12 @@ class HlsPythonHwWhile3(HlsPythonHwWhile2):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        while TRUE:
-            while TRUE:
-                r1 = hls.read(self.i)
+        while b1:
+            while b1:
+                r1 = hls.read(self.i).data
                 # dCroped = [d.data._reinterpret_cast(HBits(i * 8)) for i in range(1, self.DATA_WIDTH // 8)]
                 if r1 != 1:
-                    r2 = hls.read(self.i)
+                    r2 = hls.read(self.i).data
                     hls.write(r2, self.o)
                     if r2 != 2:
                         break
@@ -263,7 +261,7 @@ class HlsPythonHwWhile4(HlsPythonHwWhile2):
     def mainThread(self, hls: HlsScope):
         # serial to parallel
         PyBytecodeBlockLabel("mainThread")
-        while TRUE:
+        while b1:
             PyBytecodeBlockLabel("LCntrParent")
             data = HBits(8).from_py(None)
             cntr = HBits(4, signed=True).from_py(8 - 1)
@@ -286,9 +284,9 @@ class HlsPythonHwWhile5(HlsPythonHwWhile4):
     def mainThread(self, hls: HlsScope):
         PyBytecodeBlockLabel("mainThread")
         # serial to parallel
-        while TRUE:
+        while b1:
             PyBytecodeBlockLabel("LCntrParentParent")
-            while TRUE:
+            while b1:
                 PyBytecodeBlockLabel("LCntrParent")
                 data = HBits(8).from_py(None)
                 cntr = HBits(4, signed=True).from_py(8 - 1)
@@ -309,12 +307,12 @@ class HlsPythonHwWhile5b(HlsPythonHwWhile5):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        while TRUE:
+        while b1:
             PyBytecodeBlockLabel("mainThread")
             # serial to parallel
-            while TRUE:
+            while b1:
                 PyBytecodeBlockLabel("LCntrParentParent")
-                while TRUE:
+                while b1:
                     PyBytecodeBlockLabel("LCntrParent")
                     data = HBits(8).from_py(None)
                     cntr = HBits(4, signed=True).from_py(8 - 1)
@@ -341,14 +339,15 @@ class HlsPythonHwWhile5c(HlsPythonHwWhile4):
     @override
     def mainThread(self, hls: HlsScope):
         PyBytecodeBlockLabel("mainThread")
-        # serial to parallel
-        while TRUE:
+        
+        while b1: # :note: 2x while-true will reduce to 1x while-true
             PyBytecodeBlockLabel("LCntrParentParent")
-            while TRUE:
+            while b1:
                 PyBytecodeBlockLabel("LCntrParent")
                 cntr = HBits(4, signed=True).from_py(8 - 1)
                 while cntr >= 0:
-                    PyBytecodeBlockLabel("LCntr")
+                    # :note: loop and counter will be entirely removed because it has no effect on IO
+                    PyBytecodeBlockLabel("LDelayCntr")
                     cntr -= 1
 
                 PyBytecodeBlockLabel("LFinalWrite")
@@ -366,9 +365,9 @@ class HlsPythonHwWhile6(HlsPythonHwWhile4):
     @override
     def mainThread(self, hls: HlsScope):
         # serial to parallel
-        while TRUE:
-            while TRUE:
-                while TRUE:
+        while b1:
+            while b1:
+                while b1:
                     data = HBits(8).from_py(None)
                     cntr = HBits(4, signed=True).from_py(8 - 1)
                     while cntr >= 0:
@@ -475,7 +474,7 @@ class LoopZeroPadCompareShift(MovingOneGen):
         divisorTmp = Concat(divisor, zeroPad)
         i = 0
         while True:
-            # :attantion: LoopZeroPadCompareShift.mainThread produces endless sequence of 0 at the end instead of break
+            # :attention: LoopZeroPadCompareShift.mainThread produces endless sequence of 0 at the end instead of break
             if divisorTmp <= Concat(zeroPad, dividend):
                 dividend -= divisorTmp[width:]
 
@@ -497,7 +496,7 @@ class LoopZeroPadCompareShift(MovingOneGen):
         zeroPad = HBits(width - 1).from_py(0)
         divisorTmp = Concat(divisor, zeroPad)
 
-        while BIT.from_py(1):
+        while b1:
             if divisorTmp <= Concat(zeroPad, dividend):
                 dividend -= divisorTmp[width:]
             hls.write(dividend, self.o)
@@ -509,7 +508,7 @@ class PragmaInline_HlsPythonHwWhile4(HlsPythonHwWhile4):
     @hlsBytecode
     @override
     def mainThread(self, hls:HlsScope):
-        while TRUE:
+        while b1:
             PyBytecodeBlockLabel("LBeforeInline")
             PyBytecodeInline(HlsPythonHwWhile4.mainThread)(self, hls)
 
@@ -519,7 +518,7 @@ class PragmaInline_HlsPythonHwWhile5(HlsPythonHwWhile5):
     @hlsBytecode
     @override
     def mainThread(self, hls:HlsScope):
-        while TRUE:
+        while b1:
             PyBytecodeBlockLabel("LBeforeInline")
             PyBytecodeInline(HlsPythonHwWhile5.mainThread)(self, hls)
 
@@ -530,7 +529,7 @@ class PragmaInline_HlsPythonHwWhile5c(HlsPythonHwWhile5c):
     @override
     def mainThread(self, hls:HlsScope):
         PyBytecodeBlockLabel("mainThread")
-        while TRUE:
+        while b1:
             PyBytecodeBlockLabel("LBeforeInline")
             PyBytecodeInline(HlsPythonHwWhile5c.mainThread)(self, hls)
             PyBytecodeBlockLabel("LAfterInline")

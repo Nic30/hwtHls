@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional, Union, Callable, Set, List
 
 from hwt.hdl.const import HConst
-from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
+from hwt.pyUtils.typingFuture import override
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, MachineFunction, IntentionalCompilationInterupt, \
     StringRef, Any, AnyToFunction, AnyToModule, AnyToLoop, AnyToMachineFunction, Module, Function
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -43,13 +43,17 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
                  debugDir:Optional[Union[str, Path]]="tmp",
                  debugFilter:Optional[Set[DebugId]]=HlsDebugBundle.DEFAULT,
                  debugLogTime: Optional[Callable[[TIME_LOG_STAGE, timedelta], None]]=None,
-                 runTestAfterEachPass:bool=False):
+                 runTestAfterEachPass:bool=False,
+                 runTestAfterEachIrPass:bool=False,
+                 runTestAfterEachMirPass:bool=False,
+                 ):
         VirtualHlsPlatform.__init__(self, debugDir=debugDir, debugFilter=debugFilter)
         self._debugLogTime = debugLogTime
         self._noOptIrTest = noOptIrTest
         self._optIrTest = optIrTest
         self._optMirTest = optMirTest
-        self._runTestAfterEachPass = runTestAfterEachPass
+        self._runTestAfterEachIrPass = runTestAfterEachIrPass or runTestAfterEachPass
+        self._runTestAfterEachMirPass = runTestAfterEachMirPass or runTestAfterEachPass
         self._lastWorkingIr: Optional[str] = None
         self._llvm: Optional[LlvmCompilationBundle] = None
 
@@ -62,6 +66,9 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
             self._debugLogTime(stage, time1 - time0)
 
     def runTestAfterPass(self, passName: StringRef, ir: Any):
+        """
+        This method is used as a after-pass callback from LLVM/C++ to executes test functions.
+        """
         F = AnyToFunction(ir)
         if F is None:
             M = AnyToModule(ir)
@@ -70,16 +77,16 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
                 if L is None:
                     MF = AnyToMachineFunction(ir)
                     if MF is not None:
-                        try:
-                            self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_MIR, self._optMirTest, self.llvm)
-                        except:
-                            raise AssertionError(f"Broken after {passName.str():s}, lastWorking:\n{self._lastWorkingIr}\n broken:\n{str(MF):s}")
+                        if self._runTestAfterEachMirPass:
+                            try:
+                                self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_MIR, self._optMirTest, self.llvm)
+                            except:
+                                raise AssertionError(f"Broken after {passName.str():s}, lastWorking:\n{self._lastWorkingIr}\n broken:\n{str(MF):s}")
                         self._lastWorkingIr = str(MF)
                         return
                     else:
                         raise TypeError("unknown type of ir", ir)
-                        
-                        
+
                 F = L.getHeader().getParent()
                 assert F
             else:
@@ -89,57 +96,61 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
                         F = obj
                         break
                 assert F is not None
-        try:
-            self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_IR, self._optIrTest, self.llvm)
-        except:
-            raise AssertionError(f"Broken after {passName.str():s} lastWorking:\n{self._lastWorkingIr}\n broken:\n{str(F):s}")
+        if self._runTestAfterEachIrPass:
+            try:
+                self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_IR, self._optIrTest, self.llvm)
+            except:
+                raise AssertionError(f"Broken after {passName.str():s} lastWorking:\n{self._lastWorkingIr}\n broken:\n{str(F):s}")
         self._lastWorkingIr = str(F)
 
-    def runSsaPasses(self, hls: "HlsScope", toSsa: HlsAstToSsa):
-        res = super(TestLlvmIrAndMirPlatform, self).runSsaPasses(hls, toSsa)
-        toLlvm: ToLlvmIrTranslator = toSsa.start
+    @override
+    def runSsaPasses(self, hls: "HlsScope", toLlvm: ToLlvmIrTranslator):
+        res = super(TestLlvmIrAndMirPlatform, self).runSsaPasses(hls, toLlvm)
         self.llvm = toLlvm.llvm
         isTop = hls.parentHwModule._parent is None
         if isTop:
             if self._noOptIrTest:
                 self._runWithTimeLog(self.TIME_LOG_STAGE.NO_OPT_IR, self._noOptIrTest, toLlvm.llvm)
-            if self._runTestAfterEachPass:
-                llvm: LlvmCompilationBundle = toLlvm.llvm
-                llvm.registerAfterPassCallback(self.runTestAfterPass)
+            llvm: LlvmCompilationBundle = toLlvm.llvm
+            if self._runTestAfterEachIrPass:
+                llvm.registerAfterPassCallbackForIr(self.runTestAfterPass)
+                llvm.registerAfterPassCallbackForMir(self.runTestAfterPass)  # legacy PassManager may also execute IR passes added by TargetPassConfig
+            elif self._runTestAfterEachMirPass:
+                llvm.registerAfterPassCallbackForMir(self.runTestAfterPass)
 
         return res
 
-    def runSsaToNetlist(self, hls:"HlsScope", toSsa:HlsAstToSsa, netlist: HlsNetlistCtx) -> HlsNetlistCtx:
+    @override
+    def runSsaToNetlist(self, hls:"HlsScope", toLlvm: ToLlvmIrTranslator, netlist: HlsNetlistCtx) -> HlsNetlistCtx:
         try:
-            return VirtualHlsPlatform.runSsaToNetlist(self, hls, toSsa, netlist)
+            return VirtualHlsPlatform.runSsaToNetlist(self, hls, toLlvm, netlist)
         except IntentionalCompilationInterupt:
-            tr: ToLlvmIrTranslator = toSsa.start
             isTop = hls.parentHwModule._parent is None
             if isTop and self._optIrTest:
                 # if the compilation was interrupted prematurely (by this debug exception)
                 # execute IR tests for debugging purposes
-                self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_IR, self._optIrTest, tr.llvm)
+                self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_IR, self._optIrTest, toLlvm.llvm)
             raise
 
+    @override
     def runMirToHlsNetlist(self,
-                      hls: "HlsScope", toSsa: HlsAstToSsa,
+                      hls: "HlsScope", toLlvm: ToLlvmIrTranslator,
                       *args):
-        tr: ToLlvmIrTranslator = toSsa.start
         isTop = hls.parentHwModule._parent is None
         if isTop:
             try:
                 if self._optIrTest:
-                    self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_IR, self._optIrTest, tr.llvm)
+                    self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_IR, self._optIrTest, toLlvm.llvm)
                 if self._optMirTest:
-                    self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_MIR, self._optMirTest, tr.llvm)
+                    self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_MIR, self._optMirTest, toLlvm.llvm)
             except:
                 dbg = self._debug.runDebugIfEnabled
                 D = HlsDebugBundle
-                dbg(D.DBG_2_0_mir, (toSsa,), applyFnGetter=_runOnSsaMouduleGetter)
-                dbg(D.DBG_2_0_mirCfg, (toSsa,), applyFnGetter=_runOnSsaMouduleGetter)
+                dbg(D.DBG_2_0_mir, (toLlvm,), applyFnGetter=_runOnSsaMouduleGetter)
+                dbg(D.DBG_2_0_mirCfg, (toLlvm,), applyFnGetter=_runOnSsaMouduleGetter)
                 raise
 
-        netlist = super(TestLlvmIrAndMirPlatform, self).runMirToHlsNetlist(hls, toSsa, *args)
+        netlist = super(TestLlvmIrAndMirPlatform, self).runMirToHlsNetlist(hls, toLlvm, *args)
         return netlist
 
     @classmethod
@@ -157,7 +168,8 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
         :param prepareDataInFn: function called before each test to generate new test data
         :param checkDataOutFn: function called after function is executed to test if output is correct
         :param inputCnt: number of inputs of tested function (inputs must be at the beginning of parameters)
-        :param outputCnt: number of outputs of tested function (outputs must be at the end of parameters) 
+        :param outputCnt: number of outputs of tested function (outputs must be at the end of parameters)
+        :note: for args/kwargs see constructor of this :class:`~.TestLlvmIrAndMirPlatform`
         """
 
         def createDataInDataOut():
@@ -179,6 +191,9 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
             return dataIn, dataOut, args
 
         def testLlvmOptIr(llvm: LlvmCompilationBundle):
+            """
+            Execute interpret on optimized IR with product of createDataInDataOut function and then call checkDataOutFn  
+            """
             _, dataOut, args = createDataInDataOut()
             interpret = LlvmIrInterpret(llvm.main)
             try:
@@ -194,6 +209,9 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
             checkDataOutFn(dataOut)
 
         def testLlvmOptMir(llvm: LlvmCompilationBundle):
+            """
+            same as :func:`~.testLlvmOptIr` just for MIR
+            """
             _, dataOut, args = createDataInDataOut()
             interpret = LlvmMirInterpret(llvm.getMachineFunction(llvm.main))
             try:
@@ -208,11 +226,11 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
                 pass
             checkDataOutFn(dataOut)
 
+        if kwargs.get("noOptIrTest", None) is cls.TEST_NO_OPT_IR:
+            kwargs["noOptIrTest"] = testLlvmOptIr
         if "optIrTest" not in kwargs:
             kwargs["optIrTest"] = testLlvmOptIr
         if "optMirTest" not in kwargs:
             kwargs["optMirTest"] = testLlvmOptMir
-        if kwargs.get("noOptIrTest", None) is cls.TEST_NO_OPT_IR:
-            kwargs["noOptIrTest"] = testLlvmOptIr
 
         return cls(*args, **kwargs)

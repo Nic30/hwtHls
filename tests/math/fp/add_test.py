@@ -8,6 +8,7 @@ import struct
 import sys
 from typing import Callable, List, Tuple
 
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.utils import addClkRstn
@@ -18,12 +19,11 @@ from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
-from tests.floatingpoint.add import IEEE754FpAdd
-from tests.floatingpoint.cmp_test import IEEE754FpComparator
-from tests.floatingpoint.fptypes import IEEE754Fp64, IEEE754Fp, IEEE754Fp16
-from tests.floatingpoint.fptypes_test import int64reinterpretToFloat, \
+from tests.math.fp.add import IEEE754FpAdd
+from tests.math.fp.cmp_test import IEEE754FpComparator
+from tests.math.fp.fptypes import IEEE754Fp64, IEEE754Fp, IEEE754Fp16
+from tests.math.fp.fptypes_test import int64reinterpretToFloat, \
     fpPyDictToFpTuple, fpConstToFpTuple
-from tests.frontend.pyBytecode.stmWhile import TRUE
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 
@@ -45,7 +45,7 @@ class _Test_IEEE754FpAlu(HwModule):
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
-        while TRUE:
+        while b1:
             a = hls.read(self.a).data
             b = hls.read(self.b).data
             res = PyBytecodeInline(self.FP_FUNCTION)(a, b)
@@ -183,14 +183,16 @@ class IEEE754FpAdder_TC(SimTestCase):
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
     # from hwtHls.platform.xilinx.artix7 import Artix7Fast
 
     m = _Test_IEEE754FpAlu()
     m.FREQ = int(100e3)
     m.T = IEEE754Fp16
 
-    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE,
+                                                           #llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL, ]
+                                                           )))
 
     import unittest
 

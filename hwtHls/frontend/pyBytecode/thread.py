@@ -3,11 +3,11 @@ from typing import Optional, List, Tuple, Union
 
 from hwt.hwIO import HwIO
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.frontend.pyBytecode.fromPython import PyBytecodeToSsa
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.platform.platform import DefaultHlsPlatform, HlsDebugBundle
 from hwtHls.scope import HlsThread, HlsScope
+from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from ipCorePackager.constants import DIRECTION
 
 
@@ -17,13 +17,14 @@ class HlsThreadFromPy(HlsThread):
         super(HlsThreadFromPy, self).__init__(hls, None)
         self.fn = fn
         self.fnName = getattr(fn, "__qualname__", fn.__name__)
-        self.bytecodeToSsa = PyBytecodeToSsa(self.hls, DebugTracer(None), self.fnName, hls.namePrefix)
+        self.toLlvm = ToLlvmIrTranslator(self.getLabel(), self.getNamePrefix(), hls.parentHwModule, None)
+        self.dbgTracer: Optional[DebugTracer] = DebugTracer(None)
+        self.bytecodeToSsa = PyBytecodeToSsa(self.hls, self.toLlvm, self.dbgTracer, self.fnName, hls.namePrefix,)
         self.fnArgs = fnArgs
         self.fnKwargs = fnKwargs
         self._imports: List[Tuple[Union[RtlSignal, HwIO], DIRECTION]] = []
         self._exports: List[Tuple[Union[RtlSignal, HwIO], DIRECTION]] = []
         self._doCloseTrace = False
-        self.dbgTracer: Optional[DebugTracer] = None
 
     def debugCopyConfig(self, p: DefaultHlsPlatform):
         d = p._debug
@@ -57,12 +58,11 @@ class HlsThreadFromPy(HlsThread):
         return f"{namePrefix:s}{self.fnName:s}"
 
     def compileToSsa(self):
+        self.toLlvm: Optional[ToLlvmIrTranslator] = self.bytecodeToSsa.toLlvm
+        self.toLlvm.namePrefix = self.getNamePrefix()
         try:
             self.bytecodeToSsa.translateFunction(self.fn, *self.fnArgs, **self.fnKwargs)
         finally:
             if self.dbgTracer is not None and self._doCloseTrace:
                 self.dbgTracer._out.close()
-
-        self.toSsa: Optional[HlsAstToSsa] = self.bytecodeToSsa.toSsa
-        self.toSsa.namePrefix = self.getNamePrefix()
 

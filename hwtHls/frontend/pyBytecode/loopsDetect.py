@@ -1,8 +1,9 @@
-from networkx.algorithms.components.strongly_connected import strongly_connected_components
 from networkx.classes.digraph import DiGraph
 from typing import Set, NamedTuple, Dict, List, Tuple, TypeVar, Generic
 
 from hwtHls.frontend.pyBytecode.blockPredecessorTracker import BlockLabel
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, BasicBlock, IRBuilder, FunctionType, Type, \
+    Function, UndefValue, VectorOfTypePtr, LoopInfo, Loop
 
 
 BlockT = TypeVar("T")
@@ -18,17 +19,7 @@ class PyBytecodeLoop(Generic[BlockT]):
         self.entryPoint = entryPoint
         self.allBlocks = allBlocks
         self.allEdges = allEdges
-        # self.backedges = backedges
 
-    # @staticmethod
-    # def detectBackedges(cfg: DiGraph, loop: Set[int], entryPoint: int) -> Set[int]:
-    #    "Detect edges which are jumping to loop entrypoint from the loop body"
-    #    res: Set[int] = set()
-    #    for pred in cfg.predecessors(entryPoint):
-    #        if pred in loop:
-    #            res.add(pred)
-    #
-    #    return res
     @classmethod
     def _getLoopLabel(cls, entry: BlockT, loopIndex:int):
         if loopIndex == 0:
@@ -37,53 +28,69 @@ class PyBytecodeLoop(Generic[BlockT]):
             return f"L{entry:d}subL{loopIndex:d}"
 
     @classmethod
-    def detectLoops(cls, cfg: DiGraph, loopCntPerBlock: Dict[BlockT, 'PyBytecodeLoop']):
-        """
-        :attention: cfg is destroyed in process 
-        """
-        for loop in strongly_connected_components(cfg):
-            loop: Set[BlockLabel]
-            isLoop = len(loop) > 1
-            if not isLoop:
-                b = tuple(loop)[0]
-                if cfg.has_predecessor(b, b):
-                    # 1 node loop
-                    isLoop = True
+    def detectLoops(cls, cfg: DiGraph):
+        llvm = LlvmCompilationBundle("PyBytecodeLoop.detectLoops.module")
+        FT = FunctionType.get(Type.getVoidTy(llvm.ctx), VectorOfTypePtr(), False)
+        F = llvm.main = Function.Create(FT, Function.ExternalLinkage, llvm.strCtx.addTwine("PyBytecodeLoop.detectLoops.main"), llvm.module)
 
-            if isLoop:
-                entry = None
-                for b in loop:
-                    for pred in cfg.predecessors(b):
-                        if pred not in loop:
-                            assert entry is None, ("Loop is supposed to have just a single entry point", entry, pred, loop)
-                            entry = b
+        blockToNode: Dict[BasicBlock, BlockLabel] = {}
+        nodeToBlock: Dict[BlockLabel, BasicBlock] = {}
+        dummyName = llvm.strCtx.addTwine("")
+        for n in cfg.nodes():
+            bb = BasicBlock.Create(llvm.ctx, dummyName, F, None)
+            blockToNode[bb] = n
+            nodeToBlock[n] = bb
 
-                if entry is None and 0 in loop:
-                    entry = 0
-                else:
-                    assert entry is not None, loop
+        undef1b = UndefValue.get(Type.getIntNTy(llvm.ctx, 1))
+        builder: IRBuilder = llvm.builder
+        for n in cfg.nodes():
+            srcBb = nodeToBlock[n]
+            successors = tuple(cfg.successors(n))
+            sucLen = len(successors)
+            if sucLen == 0:
+                pass
+            elif sucLen == 1:
+                builder.SetInsertPoint(srcBb)
+                sucT, = successors
+                builder.CreateBr(nodeToBlock[sucT])
+            elif sucLen == 2:
+                builder.SetInsertPoint(srcBb)
+                sucT, sucF = successors
+                builder.CreateCondBr(undef1b, nodeToBlock[sucT], nodeToBlock[sucF], None)
+            else:
+                raise NotImplementedError(n, successors)
 
-                loopIndex = loopCntPerBlock.get(entry, 0)
-                loopCntPerBlock[entry] = loopIndex + 1
-                label = cls._getLoopLabel(entry, loopIndex)
-                # PyBytecodeLoop.detectBackedges(cfg, loop, entry)
-                yield cls(label, entry, loop, tuple(cfg.subgraph(loop).edges()))
-                # search nested loops
-                loopCfg: DiGraph = cfg.subgraph(loop).copy(as_view=False)
-                for pred in tuple(loopCfg.predecessors(entry)):
-                    loopCfg.remove_edge(pred, entry)
+        loops = []
 
-                yield from cls.detectLoops(loopCfg, loopCntPerBlock)
+        def _addLoop(L: Loop):
+            loopNodes: Set[BlockLabel] = set()
+            for BB in L.blocks():
+                BB: BasicBlock
+                loopNodes.add(blockToNode[BB])
+
+            header = blockToNode[L.getHeader()]
+            label = cls._getLoopLabel(header, 0)
+            loopEdges = tuple(cfg.subgraph(loopNodes).edges())
+            loops.append(cls(label, header, loopNodes, loopEdges))
+            for subLoop in L:
+                _addLoop(subLoop)
+
+        def collectLoops(LI: LoopInfo):
+            for L in LI:
+                _addLoop(L)
+
+        llvm.runLoopAnalysisGet(collectLoops)
+
+        return loops
 
     @classmethod
     def collectLoopsPerBlock(cls, cfg: DiGraph) -> Dict[BlockT, List["PyBytecodeLoop"]]:
         loops: Dict[BlockT, List[PyBytecodeLoop]] = {}
-        for loop in cls.detectLoops(DiGraph(cfg), {}):
+        for loop in cls.detectLoops(DiGraph(cfg)):
             entryOffset: BlockT = loop.entryPoint
             loopsPerBlock = loops.get(entryOffset, None)
-            if loopsPerBlock is None:
-                loopsPerBlock = loops[entryOffset] = []
-            loopsPerBlock.append(loop)
+            assert loopsPerBlock is None
+            loops[entryOffset] = [loop, ]  # bottom most loop containing block
         return loops
 
     def __repr__(self):

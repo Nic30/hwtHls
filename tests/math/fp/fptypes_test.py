@@ -5,8 +5,8 @@ import unittest
 
 from hwt.code import Concat
 from pyMathBitPrecise.bits3t import Bits3val
-from tests.floatingpoint.cmp_test import IEEE754FpCmp_TC
-from tests.floatingpoint.fptypes import IEEE754Fp32, IEEE754Fp64, IEEE754Fp
+from tests.math.fp.cmp_test import IEEE754FpCmp_TC
+from tests.math.fp.fptypes import IEEE754Fp32, IEEE754Fp64, IEEE754Fp
 from hwt.hdl.types.structValBase import HStructConstBase
 
 

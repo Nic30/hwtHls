@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from typing import Tuple
+
 from hwt.code import Concat
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
@@ -19,8 +22,7 @@ from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import mask
-from tests.bitOpt.divNonRestoring import divNonRestoring
-from tests.frontend.pyBytecode.stmWhile import TRUE
+from tests.math.divRestoring import divRestoring
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 
@@ -30,7 +32,7 @@ class _TestDiv(HwModule):
         self.DATA_WIDTH = HwParam(4)
         self.FREQ = HwParam(int(20e6))
         self.UNROLL_FACTOR = HwParam(1)
-        self.DIV_FN = HwParam(divNonRestoring)
+        self.DIV_FN = HwParam(divRestoring)
         self.MAIN_FN_META = HwParam(None)
 
     def hwDeclr(self) -> None:
@@ -63,8 +65,8 @@ class _TestDiv(HwModule):
         PyBytecodeSkipPass(["hwtHls::SlicesToIndependentVariablesPass", "hwtHls::SelectPruningPass"])
 
         self.MAIN_FN_META
-        while TRUE:
-            inp = hls.read(self.data_in)
+        while b1:
+            inp = hls.read(self.data_in).data
             DIV_FN = self.DIV_FN
             res = PyBytecodeInline(DIV_FN)(inp.dividend, inp.divisor, inp.signed,
                 loopPragmaGetter=self._getLoopMeta)
@@ -80,35 +82,51 @@ class _TestDiv(HwModule):
         hls.compile()
 
 
-class DivNonRestoring_TC(SimTestCase):
-    GOLDEN_DATA = [
-        [(1, 1, 0), (2, 2, 0), (4, 2, 0), ],  # (13, 3, 0), (3, 15, 0), (9, 3, 0)],  # dividend, divisor, isSigned
-        [(1, 0), (1, 0), (2, 0), ],  # (4, 1), (0, 3), (3, 0)],  # quotient, remainder
+class DivRestoring_TC(SimTestCase):
+    DATA_WIDTH = 4
+    INPUT_DATA = [
+        # dividend, divisor, isSigned
+        (1, 1, 0), (2, 2, 0),
+         (4, 2, 0),
+         (13, 3, 0), (3, 15, 0), (9, 3, 0)
     ]
-    HLS_DIV_FN = staticmethod(divNonRestoring)
+
+    HLS_DIV_FN = staticmethod(divRestoring)
+
+    def _getRefData(self, input_data):
+        return [self._model(*d) for d in input_data]
+
+    def _model(self, dividend: int, divisor: int, isSigned:bool) -> Tuple[int, int]:
+        if isSigned:
+            raise NotImplementedError()
+
+        quotient = dividend // divisor
+        remainder = dividend % divisor
+        return quotient, remainder
 
     def test_div_py(self):
-        T = HBits(4)
+        T = HBits(self.DATA_WIDTH)
         divFn = self.HLS_DIV_FN
-        for (dividend, divisor, isSigned), (quotient, remainder) in zip(self.GOLDEN_DATA[0], self.GOLDEN_DATA[1]):
+        for (dividend, divisor, isSigned) in self.INPUT_DATA:
             _dividend = T.from_py(dividend)
             _divisor = T.from_py(divisor)
             _isSigned = BIT.from_py(isSigned)
+            (quotient, remainder) = self._model(dividend, divisor, isSigned)
             _quotient, _remainder = divFn(_dividend, _divisor, _isSigned)
             self.assertValSequenceEqual([_quotient, _remainder], (quotient, remainder),
                                         msg=((dividend, "//", divisor, "signed?:", isSigned), (quotient, "rem:", remainder)))
 
     def test_div(self, MAIN_FN_META=None, runTestAfterEachPass=False):
         dut = _TestDiv()
-        dut.DATA_WIDTH = 3
+        dut.DATA_WIDTH = DW = self.DATA_WIDTH
         dut.DIV_FN = self.HLS_DIV_FN
         dut.MAIN_FN_META = MAIN_FN_META
+        REF_DATA = self._getRefData(self.INPUT_DATA)
 
         def prepareDataInFn():
-            DW = dut.DATA_WIDTH
             T = HBits(DW)
             dataIn = []
-            for (dividend, divisor, isSigned) in self.GOLDEN_DATA[0]:
+            for (dividend, divisor, isSigned) in self.INPUT_DATA:
                 _dividend = T.from_py(dividend)
                 _divisor = T.from_py(divisor)
                 _isSigned = BIT.from_py(isSigned)
@@ -116,14 +134,13 @@ class DivNonRestoring_TC(SimTestCase):
             return dataIn
 
         def checkDataOutFn(dataOut):
-            DW = dut.DATA_WIDTH
             dataOutRef = []
-            for (quotient, remainder) in self.GOLDEN_DATA[1]:
+            for (quotient, remainder) in REF_DATA:
                 dataOutRef.append((remainder << DW) | quotient)
 
             self.assertValSequenceEqual(dataOut, dataOutRef, "[%s] != [%s]" % (
                 ", ".join("(q:%d, r:%d)" % (int(i) & mask(DW), int(i) >> DW) if i._is_full_valid() else repr(i) for i in dataOut),
-                ", ".join("(q:%d, r:%d)" % (q, r) for q, r in self.GOLDEN_DATA[1])
+                ", ".join("(q:%d, r:%d)" % (q, r) for q, r in REF_DATA)
             ))
 
         self.compileSimAndStart(dut,
@@ -133,11 +150,10 @@ class DivNonRestoring_TC(SimTestCase):
                                     runTestAfterEachPass=runTestAfterEachPass
                                     ))
         CLK_PERIOD = freq_to_period(dut.clk.FREQ)
-        dut.data_in._ag.data.extend(self.GOLDEN_DATA[0])
+        dut.data_in._ag.data.extend(self.INPUT_DATA)
         self.runSim((len(dut.data_in._ag.data) * dut.DATA_WIDTH + 10) * int(CLK_PERIOD))
 
-        self.assertValSequenceEqual(dut.data_out._ag.data,
-                                    self.GOLDEN_DATA[1])
+        self.assertValSequenceEqual(dut.data_out._ag.data, REF_DATA)
         self.rtl_simulator_cls = None
 
     def test_div_no_SlicesToIndependentVariablesPass(self):
@@ -158,7 +174,7 @@ if __name__ == "__main__":
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([DivNonRestoring_TC('test_div_py')])
-    suite = testLoader.loadTestsFromTestCase(DivNonRestoring_TC)
+    # suite = unittest.TestSuite([DivRestoring_TC('test_div_py')])
+    suite = testLoader.loadTestsFromTestCase(DivRestoring_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

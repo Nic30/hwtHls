@@ -63,7 +63,7 @@ class Popcount(HwModule):
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while b1:
-            i = hls.read(self.data_in)
+            i = hls.read(self.data_in).data
             hls.write(PyBytecodeInline(popcount)(i, bitsToLookupInROM=self.BITS_TO_LOOKUP_IN_ROM, dbgRomInPyList=self.DBG_ROM_IN_PYLIST), self.data_out)
 
     @override

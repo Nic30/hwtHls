@@ -1,21 +1,20 @@
-from hwtHls.platform.fileUtils import OutputStreamGetter
-from hwtHls.ssa.transformation.ssaPass import SsaPass
-from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwt.pyUtils.typingFuture import override
+from hwtHls.platform.fileUtils import OutputStreamGetter
+from hwtHls.ssa.analysis.ssaAnalysisPass import SsaAnalysisPass
+from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 
 
-class SsaPassDumpMIR(SsaPass):
+class SsaPassDumpMIR(SsaAnalysisPass):
 
     def __init__(self, outStreamGetter:OutputStreamGetter):
         self.outStreamGetter = outStreamGetter
 
     @override
-    def runOnSsaModuleImpl(self, toSsa:"HlsAstToSsa"):
-        tr: ToLlvmIrTranslator = toSsa.start
-        assert isinstance(tr, ToLlvmIrTranslator), tr
-        mf = tr.llvm.getMachineFunction(tr.llvm.main)
+    def runOnSsaModuleImpl(self, toLlvm:"ToLlvmIrTranslator"):
+        llvm = toLlvm.llvm
+        mf = llvm.getMachineFunction(llvm.main)
         assert mf
-        out, doClose = self.outStreamGetter(tr.llvm.main.getGlobalIdentifier())
+        out, doClose = self.outStreamGetter(llvm.main.getGlobalIdentifier())
         try:
             out.write(mf.serialize())
         finally:

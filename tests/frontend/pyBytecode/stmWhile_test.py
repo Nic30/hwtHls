@@ -54,14 +54,14 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
         OUT_CNT = 16
         dataIn = [BIT.from_py(self._rand.getrandbits(1)) for _ in range(OUT_CNT)]
         self._test_OneInOneOut(HlsPythonHwWhile1(), HlsPythonHwWhile1.model, dataIn,
-                         OUT_CNT * 10, OUT_CNT * 10,
+                         OUT_CNT * 20, OUT_CNT * 10,
                          OUT_CNT * 10, OUT_CNT + 1 + 1,
                          freq=int(50e6))
 
     def test_HlsPythonHwWhile2(self):
         OUT_CNT = 16
         self._testOneOut(HlsPythonHwWhile2(), HlsPythonHwWhile2.model, OUT_CNT,
-                         OUT_CNT * 20, OUT_CNT * 20,
+                         OUT_CNT * 25, OUT_CNT * 20,
                          OUT_CNT * 20, OUT_CNT + 6 + 1,
                          freq=int(100e6))
 
@@ -106,7 +106,7 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
         t = HBits(dut.DATA_WIDTH)
         dataIn = [t.from_py(13), t.from_py(3)]
         self._test_OneInOneOut(dut, dut.model, dataIn,
-                                wallTimeIr=60,
+                                wallTimeIr=90,
                                 wallTimeOptIr=60,
                                 wallTimeOptMir=6,
                                 wallTimeRtlClks=6 + 1,
@@ -130,21 +130,23 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
 
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
-    m = HlsPythonHwWhile2()
+    m = LoopZeroPadCompareShift()
     m.FREQ = int(1e6)
     # m.DATA_WIDTH = 4
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={
         *HlsDebugBundle.ALL_RELIABLE,
         HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
         HlsDebugBundle.DBG_4_0_addSignalNamesToData,
-    })))
+    },
+    #    llvmCliArgs=[("print-after-all", 0, "", "true")]
+    )))
 
     import unittest
 
     testLoader = unittest.TestLoader()
-    #suite1 = unittest.TestSuite([StmWhile_sim_TC("test_LoopZeroPadCompareShift")])
+    # suite1 = unittest.TestSuite([StmWhile_sim_TC("test_HlsPythonHwWhile1")])
     suite1 = testLoader.loadTestsFromTestCase(StmWhile_ll_TC)
     suite2 = testLoader.loadTestsFromTestCase(StmWhile_sim_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(unittest.TestSuite([suite1, suite2]))
-    # runner.run(suite1)
+    #runner.run(suite1)

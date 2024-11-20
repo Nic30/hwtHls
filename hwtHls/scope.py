@@ -8,16 +8,17 @@ from hwt.constants import NOT_SPECIFIED
 from hwt.hdl.const import HConst
 from hwt.hdl.types.defs import  BIT
 from hwt.hdl.types.hdlType import HdlType
+from hwt.hwIO import HwIO
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.hwIOStruct import HwIO_to_HdlType, HwIOStruct
 from hwt.hwIOs.std import HwIODataRdVld, HwIOSignal, HwIORdVldSync, HwIODataVld, \
     HwIODataRd
 from hwt.hwModule import HwModule
+from hwt.synthesizer.interfaceLevel.utils import HwIO_walkSignals
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.frontend.ast.statementsWrite import HlsWrite
-from hwtHls.frontend.ast.thread import HlsThreadForSharedVar
 from hwtHls.frontend.pyBytecode import hlsLowLevel
 from hwtHls.frontend.pyBytecode.indexExpansion import PyObjectHwSubscriptRef
 from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
@@ -27,11 +28,12 @@ from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
 from hwtHls.netlist.context import HlsNetlistChannels
 from hwtHls.netlist.hdlTypeVoid import HVoidExternData
 from hwtHls.platform.platform import DefaultHlsPlatform
-from hwtHls.ssa.context import SsaContext
 from hwtHls.thread import HlsThread, HlsThreadDoesNotUseSsa
 from hwtLib.amba.axi_common import Axi_hs
 from ipCorePackager.constants import INTF_DIRECTION
 
+
+# type representing HwIO and alike classes which are natively supported by HlsScope read/write
 ANY_HLS_COMPATIBLE_IO = Union[HwIODataRdVld, HwIOStructRdVld,
                               HwIORdVldSync, Axi_hs,
                               HwIODataVld, HwIODataRd, HwIOSignal,
@@ -43,7 +45,7 @@ class HlsScope():
     """
     A HLS synthetizer with support for loops and packet level operations
 
-    * code -> SSA -> LLVM SSA -> LLVM MIR -> HLS netlist -> RTL architecture -> RTL netlist
+    * code -> LLVM IR SSA -> LLVM MIR non-SSA -> HLS netlist -> RTL netlist
 
     :ivar parentHwModule: A RTL object where this HLS thread are being synthetized in.
     :ivar freq: Default target frequency for circuit synthesis
@@ -51,6 +53,8 @@ class HlsScope():
     :ivar ssaCtx: context for building of SSA
     :ivar passConfig: An object which holds info about all transformations which should be performed.
     :ivar _threads: a list of threads which are being synthetized by this HLS synthetizer
+    :ivar _currentThread: a thread which is being currently translated
+    :ivar hwIOMeta: a dictionary of meta information about hardware IO interfaces
     """
 
     def __init__(self, parentHwModule: HwModule,
@@ -66,36 +70,35 @@ class HlsScope():
             freq = parentHwModule.clk.FREQ
         self.freq = freq
         self._ctx = RtlNetlist()
-        self.ssaCtx = SsaContext()
         self._threads: List[HlsThread] = []
+        self._currentThread: Optional[HlsThread] = None
         self.hwIOMeta: Dict[ANY_HLS_COMPATIBLE_IO, HwIOMeta] = {}
 
     @hlsLowLevel
     def _sig(self, name: str,
              dtype: HdlType=BIT,
              def_val: Union[int, None, dict, list]=None,
-             nop_val: Union[int, None, dict, list, Literal[NOT_SPECIFIED]]=NOT_SPECIFIED) -> RtlSignal:
+             nop_val: Union[int, None, dict, list, Literal[NOT_SPECIFIED]]=NOT_SPECIFIED) -> Union[RtlSignal, HwIO]:
         """
         :note: only for forwarding purpose, use :meth:`~.HlsScope.var` instead.
         """
         return HwModule._sig(self, name, dtype, def_val, nop_val)
 
     @hlsLowLevel
-    def var(self, name:str, dtype:HdlType):
+    def var(self, name:str, dtype:HdlType) -> Union[RtlSignal, HwIO]:
         """
         Create a thread local variable.
         """
-        return HwModule._sig(self, name, dtype)
-
-    @hlsLowLevel
-    def varShared(self, name:str, dtype:HdlType) -> HlsThreadForSharedVar:
-        """
-        Create a variable with own access management thread.
-        """
-        v = self.var(name, dtype)
-        t = HlsThreadForSharedVar(self, v)
-        self._threads.append(t)
-        return t
+        toLlvm = self._currentThread.toLlvm
+        var = HwModule._sig(self, name, dtype)
+        # generate allocas for new variable
+        if isinstance(var, RtlSignal):
+            toLlvm._getOrCreateAllocaForTmpVariable(var, allocaKnownToBeMissing=True)
+        else:
+            assert isinstance(var, HwIO)
+            for _var in HwIO_walkSignals(var):
+                toLlvm._getOrCreateAllocaForTmpVariable(_var._sig, allocaKnownToBeMissing=True)
+        return var
 
     @hlsLowLevel
     def read(self, src: ANY_HLS_COMPATIBLE_IO, blocking:bool=True) -> HlsRead:
@@ -147,7 +150,9 @@ class HlsScope():
             # if there is no data, the dtype will be empty struct
             dtype = HVoidExternData
 
-        assert _src._direction != INTF_DIRECTION.SLAVE, (_src, "Can not read from output")
+        if isinstance(_src, HwIO):
+            assert _src._direction != INTF_DIRECTION.SLAVE, (_src, "Can not read from output")
+
         return HlsRead(self, _src, dtype, blocking)
 
     @hlsLowLevel
@@ -179,7 +184,8 @@ class HlsScope():
             assert isinstance(mem, IoProxyAddressed), (dst, mem)
             return mem.WRITE_CLS(mem, self, src, mem.interface, dst.index, mem.wWordT, mayBecomeFlushable=mayBecomeFlushable)
         else:
-            assert dst._direction != INTF_DIRECTION.MASTER, (dst, "Can not write to input")
+            if isinstance(dst, HwIO):
+                assert dst._direction != INTF_DIRECTION.MASTER, (dst, "Can not write to input")
             return HlsWrite(self, src, dst, dtype, mayBecomeFlushable=mayBecomeFlushable)
 
     def addThread(self, t: HlsThread) -> HlsThread:
@@ -205,6 +211,7 @@ class HlsScope():
             t: HlsThread
             # we have to wait with compilation until here
             # because we need all IO and sharing constraints specified
+            self._currentThread = t
             useSsa = True
             p.beforeThreadToSsa(t)
             try:
@@ -213,7 +220,7 @@ class HlsScope():
                 useSsa = False
 
             if useSsa:
-                p.runSsaPasses(self, t.toSsa)
+                p.runSsaPasses(self, t.toLlvm)
 
             t.compileToNetlist(p)
             assert t.netlist.subNodes, ("Thread produced empty netlist", t)
@@ -232,10 +239,12 @@ class HlsScope():
                     channels.propagateChannelTimingConstraints(t.netlist)
 
         for t in self._threads:
+            self._currentThread = t
             p.runHlsNetlistToArchNetlist(self, t.netlist)
             for callback in t.archNetlistCallbacks:
                 callback(self, t)
 
+        self._currentThread = None  # things after this point are no longer directly associated with a specific thread
         netlist: "HlsNetlistCtx" = self._mergeNetlists(self._threads)
         if len(self._threads) > 1:
             channels.assertAllResolved()

@@ -6,8 +6,7 @@ from hwt.hdl.const import HConst
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
 from hwtHls.frontend.pyBytecode.pragma import _PyBytecodePragma
-from hwtHls.ssa.basicBlock import SsaBasicBlock
-from hwtHls.ssa.value import SsaValue
+from hwtHls.llvm.llvmIr import Value, BasicBlock
 
 
 class PyBytecodeInPreproc(_PyBytecodePragma):
@@ -24,7 +23,7 @@ class PyBytecodeInPreproc(_PyBytecodePragma):
         # :note: it is sufficient to mark variable only once in first initialization
     """
 
-    def __init__(self, ref: Union[SsaValue, HConst, RtlSignal]):
+    def __init__(self, ref: Union[Value, HConst, RtlSignal]):
         _PyBytecodePragma.__init__(self)
         self.ref = ref
 
@@ -35,7 +34,7 @@ class PyBytecodeInPreproc(_PyBytecodePragma):
         for i in self.ref:
             yield PyBytecodeInPreproc(i)
 
-    def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction):
+    def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction):
         pass
 
 
@@ -65,7 +64,7 @@ class PyBytecodeInline(_PyBytecodePragma):
         _PyBytecodePragma.__init__(self)
         self.ref = ref
 
-    def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction):
+    def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction):
         pass
 
     def __call__(self, *args, **kwargs):
@@ -88,9 +87,9 @@ class PyBytecodeBlockLabel(_PyBytecodePragma):
         _PyBytecodePragma.__init__(self)
         self.name = name
 
-    def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction):
-        pyToSsa.dbgTracer.log(("renaming block", curBlock.label, self.name))
-        curBlock.label = self.name
+    def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction):
+        pyToSsa.dbgTracer.log(("renaming block", curBlock.getName().str(), self.name))
+        curBlock.setName(pyToSsa.toLlvm.strCtx.addTwine(self.name))
 
 
 class PyBytecodePreprocDivergence(_PyBytecodePragma):
@@ -117,9 +116,9 @@ class PyBytecodePreprocDivergence(_PyBytecodePragma):
 
     """
 
-    def __init__(self, cond: Union[SsaValue, HConst, RtlSignal]):
+    def __init__(self, cond: Union[Value, HConst, RtlSignal]):
         _PyBytecodePragma.__init__(self)
-        assert isinstance(cond, (SsaValue, HConst, RtlSignal)), (cond, "Must be hardware evaluated expression otherwise this marker is useless")
+        assert isinstance(cond, (Value, HConst, RtlSignal)), (cond, "Must be hardware evaluated expression otherwise this marker is useless")
         self.cond = cond
 
 
@@ -128,8 +127,8 @@ class PyBytecodePreprocHwCopy(_PyBytecodePragma):
     Explicitly copy HW-evaluated value.
     """
 
-    def __init__(self, v: Union[SsaValue, HConst, RtlSignal]):
+    def __init__(self, v: Union[Value, HConst, RtlSignal]):
         _PyBytecodePragma.__init__(self)
-        assert isinstance(v, (SsaValue, HConst, RtlSignal)), (v, "Must be hardware evaluated expression otherwise this marker is useless")
+        assert isinstance(v, (Value, HConst, RtlSignal)), (v, "Must be hardware evaluated expression otherwise this marker is useless")
         self.v = v
 

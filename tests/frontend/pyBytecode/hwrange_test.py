@@ -40,6 +40,26 @@ class HlsPythonHwrange_fromInt0(HwModule):
         hls.compile()
 
 
+class HlsPythonHwrange_fromInt0_breakBefore(HlsPythonHwrange_fromInt0):
+
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        for i in hwrange(8):
+            if i._eq(4):
+                break
+            hls.write(fitTo_t(i, self.o._dtype), self.o)
+
+
+class HlsPythonHwrange_fromInt0_breakAfter(HlsPythonHwrange_fromInt0):
+
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        for i in hwrange(8):
+            hls.write(fitTo_t(i, self.o._dtype), self.o)
+            if i._eq(4):
+                break
+
+
 class HlsPythonHwrange_fromInt1(HlsPythonHwrange_fromInt0):
 
     @hlsBytecode
@@ -47,6 +67,28 @@ class HlsPythonHwrange_fromInt1(HlsPythonHwrange_fromInt0):
         while b1:
             for i in hwrange(8):
                 hls.write(fitTo_t(i, self.o._dtype), self.o)
+
+
+class HlsPythonHwrange_fromInt1_breakBefore(HlsPythonHwrange_fromInt1):
+
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        while b1:
+            for i in hwrange(8):
+                if i._eq(4):
+                    break
+                hls.write(fitTo_t(i, self.o._dtype), self.o)
+
+
+class HlsPythonHwrange_fromInt1_breakAfter(HlsPythonHwrange_fromInt1):
+
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        while b1:
+            for i in hwrange(8):
+                hls.write(fitTo_t(i, self.o._dtype), self.o)
+                if i._eq(4):
+                    break
 
 
 class HlsPythonHwrange_fromInt2(HlsPythonHwrange_fromInt0):
@@ -57,7 +99,7 @@ class HlsPythonHwrange_fromInt2(HlsPythonHwrange_fromInt0):
             for y in hwrange(4):
                 for x in hwrange(4):
                     hls.write(fitTo_t(Concat(y[2:], x[2:]), self.o._dtype), self.o)
-                    #PyBytecodeLoopFlattenUsingIf()
+                    # PyBytecodeLoopFlattenUsingIf()
 
 
 class HlsPythonHwrange_fromSsaVal(HlsPythonHwrange_fromInt0):
@@ -86,9 +128,26 @@ class HlsPythonHwrange_TC(SimTestCase):
 
         self.assertValSequenceEqual(dut.o._ag.data, refRes)
 
+    def test_HlsPythonHwrange_fromInt0_breakBefore(self):
+        self.test_HlsPythonHwrange_fromInt0(cls=HlsPythonHwrange_fromInt0_breakBefore,
+                                            refRes=list(range(4)) + [4 for _ in range(15 - 4)])
+
+    def test_HlsPythonHwrange_fromInt0_breakAfter(self):
+        self.test_HlsPythonHwrange_fromInt0(cls=HlsPythonHwrange_fromInt0_breakAfter,
+                                            refRes=list(range(5)) + [4 for _ in range(15 - 5)])
+
     def test_HlsPythonHwrange_fromInt1(self):
         self.test_HlsPythonHwrange_fromInt0(cls=HlsPythonHwrange_fromInt1,
                                             refRes=[i % 8 for i in range(15)])
+
+    def test_HlsPythonHwrange_fromInt1_breakBefore(self):
+        # LoopRotation does not rotate loops thus % 5 and 5 is actually a stall
+        self.test_HlsPythonHwrange_fromInt0(cls=HlsPythonHwrange_fromInt1_breakBefore,
+                                            refRes=[i % 5 for i in range(15)])
+
+    def test_HlsPythonHwrange_fromInt1_breakAfter(self):
+        self.test_HlsPythonHwrange_fromInt0(cls=HlsPythonHwrange_fromInt1_breakAfter,
+                                            refRes=[i % 5 for i in range(15)])
 
     def test_HlsPythonHwrange_fromInt2(self):
         self.test_HlsPythonHwrange_fromInt0(cls=HlsPythonHwrange_fromInt2,
@@ -99,14 +158,16 @@ if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Medium
     from hwtHls.platform.platform import HlsDebugBundle
-
-    m = HlsPythonHwrange_fromInt2()
-    print(to_rtl_str(m, target_platform=Artix7Medium(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    
+    m = HlsPythonHwrange_fromInt1_breakBefore()
+    print(to_rtl_str(m, target_platform=Artix7Medium(debugFilter=HlsDebugBundle.ALL_RELIABLE, 
+                                                     #llvmCliArgs=[("print-after-all", 0, "", "true"),]
+                                                     )))
 
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([HlsPythonHwrange_TC('test_HlsPythonHwrange_fromInt2')])
+    # suite = unittest.TestSuite([HlsPythonHwrange_TC('test_HlsPythonHwrange_fromInt1_breakBefore')])
     suite = testLoader.loadTestsFromTestCase(HlsPythonHwrange_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

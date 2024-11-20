@@ -7,20 +7,17 @@ from hwt.hdl.const import HConst
 from hwt.hwModule import HwModule
 from hwt.serializer.combLoopAnalyzer import CombLoopAnalyzer
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
-from hwtHls.llvm.llvmIr import Function, LLVMStringContext, MachineFunction
+from hwtHls.llvm.llvmIr import Function, LLVMStringContext, MachineFunction, \
+    LlvmCompilationBundle
 from hwtHls.platform.platform import DebugId, HlsDebugBundle
-from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtHls.scope import HlsScope
 from hwtHls.ssa.analysis.llvmIrInterpret import LlvmIrInterpret, \
     SimIoUnderflowErr
 from hwtHls.ssa.analysis.llvmMirInterpret import LlvmMirInterpret
-from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtLib.examples.errors.combLoops import freeze_set_of_sets
 from hwtSimApi.triggers import StopSimumulation
 from hwtSimApi.utils import freq_to_period
 from pyDigitalWaveTools.vcd.writer import VcdWriter
-
+from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 LlvmSimFunctionArgT = Tuple[Union[list, deque]]
 
@@ -102,7 +99,8 @@ class BaseIrMirRtl_TC(SimTestCase):
               wallTimeOptMir: Optional[int]=None,
               wallTimeRtlClks: Optional[int]=None,  # :attention: specified in clocks
               freq=int(1e6),
-              debugFilter: Optional[Set[DebugId]]=HlsDebugBundle.DEFAULT):
+              debugFilter: Optional[Set[DebugId]]=HlsDebugBundle.DEFAULT,
+              *args, **kwargs):
         """
         * Test non optimized LLVM IR
         * Test optimized LLVM IR
@@ -127,24 +125,20 @@ class BaseIrMirRtl_TC(SimTestCase):
 
         tc = self
 
-        class TestVirtualHlsPlatform(VirtualHlsPlatform):
+        def testLlvmIrNoOpt(llvm: LlvmCompilationBundle):
+            tc._testLlvmIr(llvm.strCtx, llvm.main, "", prepareIrAndMirArgs, checkIrAndMirArgs, wallTimeIr)
 
-            def runSsaPasses(self, hls: HlsScope, toSsa: HlsAstToSsa):
-                res = super(TestVirtualHlsPlatform, self).runSsaPasses(hls, toSsa)
-                tr: ToLlvmIrTranslator = toSsa.start
-                tc._testLlvmIr(tr.llvm.strCtx, tr.llvm.main, "", prepareIrAndMirArgs, checkIrAndMirArgs, wallTimeIr)
-                return res
+        def testLlvmIr(llvm: LlvmCompilationBundle):
+            tc._testLlvmIr(llvm.strCtx, llvm.main, ".opt", prepareIrAndMirArgs, checkIrAndMirArgs, wallTimeOptIr)
 
-            def runNetlistTranslation(self,
-                              hls: HlsScope, toSsa: HlsAstToSsa,
-                              mf: MachineFunction, *args):
-                tr: ToLlvmIrTranslator = toSsa.start
-                tc._testLlvmIr(tr.llvm.strCtx, tr.llvm.main, ".opt", prepareIrAndMirArgs, checkIrAndMirArgs, wallTimeOptIr)
-                tc._testLlvmMir(tr.llvm.strCtx, tr.llvm.getMachineFunction(tr.llvm.main), prepareIrAndMirArgs, checkIrAndMirArgs, wallTimeOptMir)
-                netlist = super(TestVirtualHlsPlatform, self).runNetlistTranslation(hls, toSsa, mf, *args)
-                return netlist
-
-        self.compileSimAndStart(dut, target_platform=TestVirtualHlsPlatform(debugFilter=debugFilter))
+        def testLlvmMir(llvm: LlvmCompilationBundle):
+            tc._testLlvmMir(llvm.strCtx, llvm.getMachineFunction(llvm.main), prepareIrAndMirArgs, checkIrAndMirArgs, wallTimeOptMir)
+        #        
+        self.compileSimAndStart(dut, target_platform=TestLlvmIrAndMirPlatform(
+            noOptIrTest=testLlvmIrNoOpt,
+            optIrTest=testLlvmIr,
+            optMirTest=testLlvmMir,
+            debugFilter=debugFilter, *args, **kwargs))
         self._test_no_comb_loops()
         ref = prepareRtlSimArgs(dut)
         t = int(wallTimeRtlClks * freq_to_period(freq))
@@ -207,7 +201,8 @@ class BaseIrMirRtl_TC(SimTestCase):
                           wallTimeRtlClks: Optional[int]=None,
                           debugFilter: Optional[Set[DebugId]]=HlsDebugBundle.DEFAULT,
                           freq=int(1e6),
-                          prepareIrAndMirArgs:Callable[[], Tuple[Generator[HConst, None, None], List[HConst]]]=None):
+                          prepareIrAndMirArgs:Callable[[], Tuple[Generator[HConst, None, None], List[HConst]]]=None,
+                          *args, **kwargs):
         """
         :param model: a function which process all inputs and generate all outputs
         For meaning of params check :meth:`~._testOneOut`
@@ -218,7 +213,7 @@ class BaseIrMirRtl_TC(SimTestCase):
         except StopIteration:
             pass
         dataOutRef = [int(d) for d in dataOutRef]
-        
+
         if prepareIrAndMirArgs is None:
 
             def prepareIrAndMirArgs():
@@ -249,4 +244,5 @@ class BaseIrMirRtl_TC(SimTestCase):
             wallTimeRtlClks=wallTimeRtlClks,
             freq=freq,
             debugFilter=debugFilter,
+            *args, **kwargs
         )

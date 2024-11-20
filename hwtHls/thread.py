@@ -1,9 +1,9 @@
 from typing import Optional, Callable, List
 
-from hwtHls.frontend.ast.astToSsa import HlsAstToSsa
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.platform.platform import DefaultHlsPlatform
 from hwtHls.netlist.scheduler.resourceList import SchedulingResourceConstraints
+from hwtHls.platform.platform import DefaultHlsPlatform
+from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 
 
 class HlsThreadDoesNotUseSsa(Exception):
@@ -17,7 +17,7 @@ class HlsThread():
 
     def __init__(self, hls: "HlsScope", resourceConstraints: Optional[SchedulingResourceConstraints]):
         self.hls = hls
-        self.toSsa: Optional[HlsAstToSsa] = None
+        self.toLlvm: Optional[ToLlvmIrTranslator] = None
         if resourceConstraints is None:
             resourceConstraints = {}
         self.resourceConstraints = resourceConstraints
@@ -29,8 +29,8 @@ class HlsThread():
         """
         Copy debugging config from HlsPlatform object before any other work is performed.
         """
-        if self.toSsa is not None:
-            self.toSsa.namePrefix = self.getNamePrefix()
+        if self.toLlvm is not None:
+            self.toLlvm.namePrefix = self.getNamePrefix()
 
     def getLabel(self) -> str:
         i = self.hls._threads.index(self)
@@ -53,5 +53,5 @@ class HlsThread():
             self.resourceConstraints,
             namePrefix=self.getNamePrefix(),
             platform=hls.parentHwModule._target_platform)
-        platform.runSsaToNetlist(self.hls, self.toSsa, self.netlist)
+        platform.runSsaToNetlist(self.hls, self.toLlvm, self.netlist)
         return self.netlist

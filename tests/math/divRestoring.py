@@ -10,6 +10,7 @@ from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeBlockLabel, \
     PyBytecodeInline
 
 
+@hlsBytecode
 def _divCastToUnsigned(dividend: RtlSignal, divisor: RtlSignal, isSigned: RtlSignal):
     """
     An utility function which cast signed operands to unsigned before division
@@ -32,14 +33,12 @@ def _divCastToUnsigned(dividend: RtlSignal, divisor: RtlSignal, isSigned: RtlSig
     return dividend, divisor, invertQuotient, invertRemainder
 
 
-# version with ctlz https://github.com/ShaheerSajid/RISCV-Compliant-Divider/blob/main/src/divider.sv
-# 1/4 LUT, 1/2 FF https://github.com/yasinxyz/muldiv/blob/main/src/MULDIV/divider_32.v
 @hlsBytecode
-def divNonRestoring(dividend: RtlSignal, divisor: RtlSignal, isSigned: RtlSignal,
+def divRestoring(dividend: RtlSignal, divisor: RtlSignal, isSigned: RtlSignal,
                     loopPragmaGetter: Callable[[], _PyBytecodeLoopPragma]=lambda: None,
                     dbgNoSplitSlices:bool=True):
     """
-    Non-restoring integer division, dividend/divisor = quotient + remainder
+    Restoring integer division, quotient = dividend // divisor, remainder = dividend%divisor 
 
     :param dbgSplitSlices: debug option which controls SplitSlices pass
         (which does not improve anything but triggers many other optimizations)
@@ -61,7 +60,7 @@ def divNonRestoring(dividend: RtlSignal, divisor: RtlSignal, isSigned: RtlSignal
         PyBytecodeNoSplitSlices(divisorTmp)
 
     while qMask != 0:
-        PyBytecodeBlockLabel("divNonRestoring.divLoop")
+        PyBytecodeBlockLabel("divRestoring.divLoop")
         if divisorTmp <= Concat(zeroPad, dividend):
             dividend -= divisorTmp[width:]
             quotient |= qMask
@@ -75,7 +74,7 @@ def divNonRestoring(dividend: RtlSignal, divisor: RtlSignal, isSigned: RtlSignal
         qMask >>= 1
         loopPragmaGetter()
 
-    PyBytecodeBlockLabel("divNonRestoring.signFinalize")
+    PyBytecodeBlockLabel("divRestoring.signFinalize")
     if invertQuotient:
         quotient = -quotient
 
@@ -83,5 +82,5 @@ def divNonRestoring(dividend: RtlSignal, divisor: RtlSignal, isSigned: RtlSignal
     if invertRemainder:
         remainder = -remainder
 
-    PyBytecodeBlockLabel("divNonRestoring.return")
+    PyBytecodeBlockLabel("divRestoring.return")
     return (quotient, remainder)

@@ -14,12 +14,59 @@ from hwtHls.netlist.translation.dumpNodesTxt import HlsNetlistAnalysisPassDumpNo
 from hwtHls.netlist.translation.dumpSchedulingJson import HlsNetlistAnalysisPassDumpSchedulingJson
 from hwtHls.netlist.translation.dumpSyncDomainsDot import HlsNetlistAnalysisPassDumpSyncDomainsDot
 from hwtHls.platform.fileUtils import outputFileGetter
+from hwtHls.ssa.translation.dumpIR import SsaPassDumpIR
 from hwtHls.ssa.translation.dumpMIR import SsaPassDumpMIR
 from hwtHls.ssa.translation.dumpMirCfg import SsaPassDumpMirCfg
-from hwtHls.ssa.translation.toGraphviz import SsaPassDumpToDot
-from hwtHls.ssa.translation.toLl import SsaPassDumpToLl
 
 DebugId = Tuple[Type, Optional[str]]
+
+LlvmCliArgTuple = Tuple[str, int, str, str]
+
+
+class LLVM_CLI_COMMON_OPTS:
+    # common pass names
+    #     "hwtfpga-pretonetlist-combiner"
+    #     "vreg-if-converter"
+    #     "loop-simplify"
+    DEBUG_PASS_MANAGER = ("debug-pass-manager", 0, "", "")  # print used passes until machinemoduleinfo
+    DEBUG_PASS_ARGUMENTS = ("debug-pass", 0, "", "Arguments")  # print used passes starting from machinemoduleinfo
+    DEBUG_PASS_STRUCTURE = ("debug-pass", 0, "", "Structure")  # same as Arguments but pretty formated
+    PRINT_AFTER_ALL = ("print-after-all", 0, "", "true")
+    PRINT_BEFORE_ALL = ("print-before-all", 0, "", "true")
+
+    @classmethod
+    def printBefore(cls, passName:str):
+        return ("print-before", 0, "", passName)
+
+    VERIFY_EACH = ("verify-each", 0, "", "")  # run verification after each pass
+
+    @classmethod
+    def passRemarksOutput(cls, filename:str="opt.yaml"):
+        return ("pass-remarks-output", 0, "", filename)
+
+    TIME_PASSES = ("time-passes", 0, "", "true")  # profile times of passes and analysis
+    TIME_PHASES = ("time-phases", 0, "", "")  # [todo] rm
+
+    @classmethod
+    def debugOnly(cls, passName: str):
+        """
+        :note: available only in llvm debug build
+        """
+        return ("debug-only", 0, "", passName)
+    # ("view-dag-combine1-dags", 0, "", "true"),
+    # ("view-legalize-types-dags", 0, "", "true"),
+    # ("view-dag-combine-lt-dags", 0, "", "true"),
+    # ("view-legalize-dags", 0, "", "true"),
+    # ("view-dag-combine2-dags", 0, "", "true"),
+    # ("view-isel-dags", 0, "", "true"),
+    # ("view-sched-dags", 0, "", "true"),
+    # ("view-sunit-dags", 0, "", "true"),
+    # ("vregifcvt-trace", 0, "", "true"),
+    # ("print-after-isel", 0, "", "true"),
+    # ("print-lsr-output", 0, "", "true"),
+    # ("debug-only", 0, "", "vreg-if-converter"), # :note: available only in llvm debug build
+    # ("debug-only", 0, "", "loop-simplify"), # :note: available only in llvm debug build
+    # ("debug", 0, "", "1"),
 
 
 class HlsDebugBundle():
@@ -35,9 +82,8 @@ class HlsDebugBundle():
     DBG_0_1_pyFrontedFinalCfg = (None, "00.01.cfg.final.{0}.dot")  # final CFG after preprocessor execution
 
     # ssa
-    DBG_1_0_preSsaOpt = (SsaPassDumpToDot, "01.00.preSsaOpt.dot")  # raw input code
-    DBG_1_1_frontend = (SsaPassDumpToDot, "01.01.frontend.dot")  # after frontend transformations
-    DBG_1_2_preLlvm = (SsaPassDumpToLl, "01.02.preLlvm.ll")  # translated to LLVM IR
+    DBG_1_0_preLlvm = (SsaPassDumpIR, "01.02.preLlvm.ll")  # translated to LLVM IR
+    # :note: you can use platform._llvmCliArgs to add LLVM debug options
     # mir
     DBG_2_0_mir = (SsaPassDumpMIR, "02.00.mir.ll")  # translated and optimized to LLVM MIR by LLVM
     DBG_2_0_mirCfg = (SsaPassDumpMirCfg, "02.00.mirCfg.dot")  # Control Flow Graph of MIR
@@ -89,11 +135,10 @@ class HlsDebugBundle():
     #        which are used for deeper circuit analysis or circuit rewrites for improving of readability
     ALL_RELIABLE = {
         DBG_0_0_pyFrontedBytecode,
+        DBG_0_0_pyFrontedBytecodeTrace,
         DBG_0_0_pyFrontedBeginCfg,
         DBG_0_1_pyFrontedFinalCfg,
-        DBG_1_0_preSsaOpt,
-        DBG_1_1_frontend,
-        DBG_1_2_preLlvm,
+        DBG_1_0_preLlvm,
         DBG_2_0_mir,
         DBG_2_0_mirCfg,
         DBG_2_1_netlistConstructionTrace,
@@ -133,8 +178,7 @@ class HlsDebugBundle():
         DBG_0_0_pyFrontedBeginCfg,
         DBG_0_0_pyFrontedPreprocCfg,
         DBG_0_1_pyFrontedFinalCfg,
-        DBG_1_0_preSsaOpt,
-        DBG_1_1_frontend
+        DBG_1_0_preLlvm,
     }
     # bundle for debugging of translation of LLVM to HlsNetlist
     DBG_NETLIST_GEN = {

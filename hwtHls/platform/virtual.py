@@ -7,13 +7,13 @@ from hwt.hdl.operator import HOperatorNode
 from hwt.hdl.operatorDefs import HwtOps, HOperatorDef
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
 from hwtHls.code import OP_ASHR, OP_SHL, OP_LSHR, OP_CTLZ, OP_CTPOP, OP_CTTZ, \
-    OP_BITREVERSE, OP_FSHR, OP_FSHL
+    OP_BITREVERSE, OP_FSHR, OP_FSHL, OP_ROL, OP_ROR
 from hwtHls.llvm.llvmIr import HFloatTmpConfig
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.platform.platform import DefaultHlsPlatform, DebugId, HlsDebugBundle, \
     LlvmCliArgTuple
-from hwtHls.ssa.instr import OP_ASSIGN
-
+from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
+from hwtHls.platform.componentGeneratorMemory import ComponentGeneratorMemory
 
 _OPS_T_GROWING_EXP = {
     HwtOps.UDIV,
@@ -42,18 +42,19 @@ _OPS_T_GROWING_LOG = {
     OP_ASHR,
     OP_LSHR,
     OP_SHL,
+    OP_ROL,
+    OP_ROR,
+    OP_FSHL,
+    OP_FSHR,
     OP_CTLZ,
     OP_CTTZ,
     OP_CTPOP,
-    OP_FSHL,
-    OP_FSHR,
 }
 
 _OPS_T_ZERO_LATENCY = {
     HwtOps.INDEX,
     HwtOps.CONCAT,
     OP_BITREVERSE,
-    OP_ASSIGN,
 }
 _OPS_T_GROWING_CONST = {
     HwtOps.NOT,
@@ -97,6 +98,10 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
             OP_ASHR: 1.2e-9,
             OP_LSHR: 1.2e-9,
             OP_SHL: 1.2e-9,
+            OP_FSHL: 1.2e-9,
+            OP_FSHR: 1.2e-9,
+            OP_ROL: 1.2e-9,
+            OP_ROR: 1.2e-9,
             OP_CTLZ: 1.2e-9,
             OP_CTTZ: 1.2e-9,
             OP_CTPOP: 1.2e-9,
@@ -124,16 +129,43 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
             HwtOps.INDEX: 0,
             HwtOps.CONCAT: 0,
             ResourceFF: 1.2e-9,
-            OP_ASSIGN: 0,
         }
+        # AMD/Xilinx 7-series https://0x04.net/~mwk/xidocs/ug/xc7-ram.pdf
+        # :note: data width X depth
+        # :attention: must be sorted, the smallest depth first
+        self._BRAM_GEOMETRIES = [
+            (512, 36),
+            (1024, 18),
+            (2048, 9),
+            (4096, 4),
+            (8192, 2),
+            (16384, 1),
+        ]
+        self._componentGenerators[MemoryAllocationMeta] = ComponentGeneratorMemory(self)
+        # # Intel stratix-v https://cdrdv2-public.intel.com/670815/stx5_51001-683258-670815.pdf
+        # [
+        #    # MLAB
+        #    (32, 20),
+        #    (64, 10),
+        #     # M20K
+        #    (512, 40), # emulated using dual port https://www.intel.com/content/www/us/en/programmable/quartushelp/current/index.htm#reference/glossary/def_m20k.htm
+        #    (1024, 20), # emulated using dual port
+        #    (2048, 10),
+        #    (4096, 5),
+        #    (8192, 2),
+        #    (16384, 1),
+        # ]
 
     @lru_cache()
     def get_op_realization(self, op: HOperatorDef, opSpecialization: Optional[HFloatTmpConfig], bit_width: int,
                            input_cnt: int, clkPeriod: float) -> OpRealizationMeta:
         if opSpecialization is not None:
             raise NotImplementedError(op, opSpecialization)
+        try:
+            base_delay = self._OP_DELAYS[op]
+        except KeyError:
+            raise NotImplementedError(op)
 
-        base_delay = self._OP_DELAYS[op]
         if op in _OPS_T_GROWING_CONST:
             inputWireDelay = base_delay
 
@@ -157,3 +189,10 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
     @lru_cache()
     def get_ff_store_time(self, realTimeClkPeriod: float, schedulerResolution: float):
         return int(self.get_op_realization(ResourceFF, None, 1, 1, realTimeClkPeriod).inputWireDelay // schedulerResolution)
+
+    def get_lut_inputs_max(self):
+        """
+        get maximum number of lut inputs
+        """
+        return 7
+

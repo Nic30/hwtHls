@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
 from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
@@ -15,7 +16,6 @@ from hwtHls.scope import HlsScope
 from hwtSimApi.constants import CLK_PERIOD
 from hwtSimApi.triggers import Timer
 from tests.frontend.ast.trivial_test import HlsAstTrivial_TC
-from tests.frontend.pyBytecode.stmWhile import TRUE
 
 
 class ExampleFlushing0(HwModule):
@@ -37,8 +37,8 @@ class ExampleFlushing0(HwModule):
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
-        while TRUE:
-            i0 = hls.read(self.i0)
+        while b1:
+            i0 = hls.read(self.i0).data
             hls.write(i0, self.o0)  # o0 should be able to write before o1 if o1 stalls
             hls.write(i0, self.o1)
 
@@ -54,7 +54,7 @@ class ExampleFlushing1OptionalLoop(ExampleFlushing0):
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
-        while TRUE:
+        while b1:
             i0 = hls.read(self.i0).data
             tmp = HBits(self.DATA_WIDTH).from_py(0)
             while tmp != i0:

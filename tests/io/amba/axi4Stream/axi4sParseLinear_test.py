@@ -10,7 +10,7 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.amba.axi4s import axi4s_send_bytes
 from hwtLib.amba.axis_comp.frame_parser.test_types import structManyInts
 from hwtSimApi.constants import CLK_PERIOD
-from pyMathBitPrecise.bit_utils import  int_to_int_list, mask
+from pyMathBitPrecise.bit_utils import int_to_int_list, mask
 from tests.io.amba.axi4Stream.axi4sParseLinear import Axi4SParseStructManyInts0, \
     Axi4SParseStructManyInts1, Axi4SParse2fields, struct_i16_i32
 
@@ -20,7 +20,9 @@ class Axi4SParseLinearTC(SimTestCase):
     def _test_parse(self, DATA_WIDTH:int, cls=Axi4SParseStructManyInts0, N=3, T=structManyInts):
         dut = cls()
         dut.DATA_WIDTH = DATA_WIDTH
-        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform(
+            #llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL]
+            ))
 
         ref = []
         first = True
@@ -101,13 +103,16 @@ class Axi4SParseLinearTC(SimTestCase):
     def test_Axi4SParse2fields_48b(self):
         self._test_parse(48, cls=Axi4SParse2fields, T=struct_i16_i32)
 
+    def test_Axi4SParse2fields_64b(self):
+        self._test_parse(64, cls=Axi4SParse2fields, T=struct_i16_i32)
+
     def test_Axi4SParse2fields_512b(self):
         self._test_parse(512, cls=Axi4SParse2fields, T=struct_i16_i32)
 
 
 if __name__ == '__main__':
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([Axi4SParseLinearTC("test_Axi4SParse2fields_24b")])
+    # suite = unittest.TestSuite([Axi4SParseLinearTC("test_Axi4SParseStructManyInts1_512b")])
     suite = testLoader.loadTestsFromTestCase(Axi4SParseLinearTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

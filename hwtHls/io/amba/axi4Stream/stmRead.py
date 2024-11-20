@@ -1,20 +1,18 @@
 from math import ceil
-from typing import Optional, Union
 
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.struct import HStruct
-from hwt.hdl.const import HConst
-from hwt.hwIOs.hwIOStruct import HwIO_to_HdlType
 from hwt.hwIO import HwIO
+from hwt.hwIOs.hwIOStruct import HwIO_to_HdlType
+from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_getName
-from hwtHls.frontend.ast.statementsRead import HlsRead
+from hwtHls.frontend.ast.statementsRead import HlsRead, \
+    _copySliceNamesToFlattenedSignal
 from hwtHls.io.amba.axi4Stream.metadata import addAxi4StreamLllvmMetadata
-from hwtHls.llvm.llvmIr import Argument, Type
-from hwtHls.ssa.basicBlock import SsaBasicBlock
-from hwtHls.ssa.instr import SsaInstr, OP_ASSIGN
-from hwtHls.ssa.value import SsaValue
+from hwtHls.llvm.llvmIr import Argument, Type, BasicBlock
+from hwtHls.ssa.translation.toLlvmArgumentUtils import getArgumentForHwIO
 from hwtLib.amba.axi4s import Axi4Stream
 
 
@@ -22,8 +20,8 @@ class HlsStmReadAxi4Stream(HlsRead):
     """
     A statement used for reading of chunk of data from Axi4Stream interface.
     
-    :ivar _reliable: If true the input stream is guaranteed to have the data otherwise the presence of data must be checked
-        during read FSM generation.
+    :ivar _reliable: If true the input stream is guaranteed to have the data
+        otherwise the presence of data must be checked during read FSM generation.
     """
 
     def __init__(self,
@@ -36,7 +34,6 @@ class HlsStmReadAxi4Stream(HlsRead):
         self._parent = parent
         self._src = src
         self._reliable = reliable
-        self.block: Optional[SsaBasicBlock] = None
         assert isinstance(dtype, HdlType), dtype
 
         hwIOName = HwIO_getName(self._parent.parentHwModule, src)
@@ -64,15 +61,15 @@ class HlsStmReadAxi4Stream(HlsRead):
         sig_flat = var(name, HBits(trueDtype.bit_length()))
         sig_flat.drivers.append(self)
         sig_flat.origin = self
+        _copySliceNamesToFlattenedSignal(sig_flat, trueDtype, name, 0)
         self._sig = sig_flat
         self._last = None
         self._GEN_NAME_PREFIX = hwIOName
-        SsaInstr.__init__(self, parent.ssaCtx, sig_flat._dtype, OP_ASSIGN, (),
-                          origin=sig_flat)
+        self._dtype = sig_flat._dtype
         self._dtypeOrig = dtype
 
         sig: HwIO = sig_flat._reinterpret_cast(trueDtype)
-        sig._name = name
+        self._name = sig._name = name
         sig._parent = parent.parentHwModule
         self._hwIOs = sig._hwIOs
         # copy all members on this object
@@ -81,11 +78,6 @@ class HlsStmReadAxi4Stream(HlsRead):
                 n = field_path[0]
                 assert not hasattr(self, n), (self, n)
                 setattr(self, n, fieldHwIO)
-
-    def replaceBy(self, replacement: Union[SsaValue, HConst]):
-        super(HlsStmReadAxi4Stream, self).replaceBy(replacement)
-        self._sig.drivers.remove(self)
-        self._sig.drivers.append(replacement)
 
     @staticmethod
     def _getWordType(hwIO: Axi4Stream):
@@ -101,13 +93,14 @@ class HlsStmReadAxi4Stream(HlsRead):
 
         return self._last
 
-    def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator"):
+    @override
+    def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
         toLlvm.addAfterTranslationUnique(addAxi4StreamLllvmMetadata)
-        src, _, t = toLlvm.ioToVar[self._src]
+        src, elmT = getArgumentForHwIO(toLlvm, self._src, self, True)
         src: Argument
         t: Type
-        name = toLlvm.strCtx.addTwine(toLlvm._formatVarName(self._name))
-        return toLlvm.b.CreateStreamRead(src, self._dtypeOrig.bit_length(), self._sig._dtype.bit_length(), name)
+        name = toLlvm.strCtx.addTwine(self._name)
+        return bb, toLlvm.b.CreateStreamRead(src, self._dtypeOrig.bit_length(), self._sig._dtype.bit_length(), name)
 
     def __repr__(self):
         t = self._dtype

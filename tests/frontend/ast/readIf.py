@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from hwt.hdl.commonConstants import b1
 from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
-from hwtHls.frontend.ast.builder import HlsAstBuilder
-from hwtHls.frontend.ast.thread import HlsThreadFromAst
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
 from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.baseSsaTest import BaseSsaTC
+from tests.frontend.ast.exprTree3 import HlsAstExprTree3_example
 
 
 class ReadIfOtherEqual(HwModule):
@@ -30,34 +31,23 @@ class ReadIfOtherEqual(HwModule):
             self.a = HwIODataRdVld()
             self.b = HwIODataRdVld()
 
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        while b1:
+            if hls.read(self.a).data._eq(3):
+                hls.read(self.b)
+
     @override
     def hwImpl(self) -> None:
-        hls = HlsScope(self, freq=self.FREQ)
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
-            ast.While(True,
-                ast.If(hls.read(self.a).data._eq(3),
-                   hls.read(self.b),
-                )
-            ),
-            self._name)
-        )
-        hls.compile()
+        HlsAstExprTree3_example.hwImpl(self)
 
 
 class ReadIfOtherEqualOnce(ReadIfOtherEqual):
 
-    @override
-    def hwImpl(self) -> None:
-        hls = HlsScope(self, freq=self.FREQ)
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls,
-            ast.If(hls.read(self.a).data._eq(3),
-               hls.read(self.b),
-            ),
-            self._name)
-        )
-        hls.compile()
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        if hls.read(self.a).data._eq(3):
+            hls.read(self.b)
 
 
 class HlsAstReadIfTc(BaseSsaTC):

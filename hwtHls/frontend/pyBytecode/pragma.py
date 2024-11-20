@@ -2,6 +2,7 @@ from dis import Instruction
 from typing import Union, Optional, Tuple
 
 from hwt.constants import NOT_SPECIFIED
+from hwt.hdl.const import HConst
 from hwt.hdl.operator import HOperatorNode
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.array import HArray
@@ -12,15 +13,13 @@ from hwt.hwIO import HwIO
 from hwt.mainBases import RtlSignalBase
 from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
 from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo
-from hwtHls.llvm.llvmIr import BranchInst, Value, IRBuilder
+from hwtHls.llvm.llvmIr import BranchInst, Value, IRBuilder, BasicBlock
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwtHls.ssa.basicBlock import SsaBasicBlock
-from hwtHls.ssa.instr import SsaInstr
 
 
 class _PyBytecodePragma():
 
-    def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction):
+    def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction):
         raise NotImplementedError()
 
 
@@ -88,16 +87,19 @@ class _PyBytecodeInstructionPragma(_PyBytecodePragma):
                 raise AssertionError(self.__class__, "expected flat HwIO, RtlSignal or SsaInstr", variable)
         self.varTmp = variable
 
-    def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction):
+    def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction):
         # add self to metadata of reference variable
-        v = pyToSsa.toSsa.m_ssa_u.readVariable(self.varTmp, curBlock)
-        assert isinstance(v, SsaInstr), v
-        if v.metadata is None:
-            v.metadata = [self, ]
-        else:
-            v.metadata.append(self)
+        v = pyToSsa.toLlvm._allocaForVariable.get(self.varTmp, None)
+        if v is None:
+            _curBlock, v = pyToSsa.toLlvm._translateExprToLlvm(curBlock, allowHConst=True)
+            assert _curBlock == curBlock, self
+            if isinstance(v, HConst):
+                return
 
-    def toLlvm(self, irTranslator: "ToLlvmIrTranslator", origInstr: SsaInstr, v: Value):
+        assert isinstance(v, Value), v
+        self.toLlvm(pyToSsa.toLlvm, v)
+
+    def toLlvm(self, irTranslator: "ToLlvmIrTranslator", v: Value):
         raise NotImplementedError("This is abstract class override this method")
 
 
@@ -106,7 +108,7 @@ class _PyBytecodeLoopPragma(_PyBytecodePragma):
     A type of pragma which is applied to a loop.
     """
 
-    def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction):
+    def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction):
         assert frame.loopStack, "This pragma needs to be placed in the loop"
         loop: PyBytecodeLoopInfo = frame.loopStack[-1]
         loop.pragma.append(self)
@@ -130,6 +132,7 @@ class _PyBytecodeLoopPragma(_PyBytecodePragma):
 
 class _PyBytecodeFunctionPragma(_PyBytecodePragma):
 
-    def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: SsaBasicBlock, instr: Instruction):
-        frame.pragma.append(self)
+    def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction):
+        toLlvm: "ToLlvmIrTranslator" = pyToSsa.toLlvm
+        self.toLlvm(toLlvm, toLlvm.llvm.main)
 

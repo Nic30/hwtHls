@@ -11,9 +11,9 @@ from hwt.math import log2ceil
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.statementsRead import HlsReadAddressed
 from hwtHls.frontend.ast.statementsWrite import HlsWriteAddressed
+from hwtHls.frontend.ast.utils import ANY_SCALAR_INT_VALUE
 from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
-from hwtHls.llvm.llvmIr import LoadInst, Register
-from hwtHls.llvm.llvmIr import MachineInstr
+from hwtHls.llvm.llvmIr import LoadInst, Register, MachineInstr, Value
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidExternData
 from hwtHls.netlist.nodes.archElement import ArchElement
@@ -24,7 +24,6 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
-from hwtHls.ssa.value import SsaValue
 from hwtLib.amba.axi4Lite import Axi4Lite, Axi4Lite_addr
 from hwtLib.amba.constants import PROT_DEFAULT
 
@@ -121,7 +120,7 @@ class HlsReadAxi4Lite(HlsReadAddressed):
         rDataO = rNode._portDataOut
 
         rWordWidth = representativeReadStm._getNativeInterfaceWordType().bit_length()
-        nativeWordWidth = proxy.nativeType.element_t.bit_length()
+        nativeWordWidth = proxy.rWordT.bit_length()
         if rWordWidth < nativeWordWidth:
             # the read data is larger because pointer representing IO is pointing to a larger word
             # because write is using larger word and this must be the same pointer for reads and writes
@@ -142,9 +141,9 @@ class HlsWriteAxi4Lite(HlsWriteAddressed):
     def __init__(self,
             parentProxy: "Axi4LiteArrayProxy",
             parent:"HlsScope",
-            src:Union[SsaValue, HConst],
+            src:Union[Value, HConst],
             dst:Union[HwIOBramPort_noClk, Tuple[HwIOBramPort_noClk]],
-            index:Union[SsaValue, RtlSignal, HConst],
+            index:ANY_SCALAR_INT_VALUE,
             element_t:HdlType,
             mayBecomeFlushable=False):
         HlsWriteAddressed.__init__(self, parent, src, dst, index, element_t, mayBecomeFlushable)

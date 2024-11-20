@@ -108,7 +108,7 @@ class HlsAstWhileIf_TC(BaseSsaTC):
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    m = WhileAndIf4()
+    m = WhileAndIf0()
     m.DATA_WIDTH = 4
     m.FREQ = int(40e6)
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
@@ -116,7 +116,7 @@ if __name__ == "__main__":
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([HlsAstWhileIf_TC('test_WhileAndIf0')])
+    # suite = unittest.TestSuite([HlsAstWhileIf_TC('test_WhileAndIf0_ll')])
     suite = testLoader.loadTestsFromTestCase(HlsAstWhileIf_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

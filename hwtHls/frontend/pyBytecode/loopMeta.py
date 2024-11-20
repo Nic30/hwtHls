@@ -3,9 +3,8 @@ from typing import  Tuple, Union, List, Optional, Literal, Callable
 from hwt.hdl.const import HConst
 from hwt.mainBases import RtlSignalBase
 from hwtHls.frontend.pyBytecode.loopsDetect import PyBytecodeLoop
-from hwtHls.ssa.basicBlock import SsaBasicBlock
-from hwtHls.ssa.instr import ConditionBlockTuple
-from hwtHls.ssa.value import SsaValue
+from hwtHls.llvm.llvmIr import Value, BasicBlock, Constant, ValueToConstantInt, \
+    InstructionToBranchInst, ConstantInt, APInt
 
 
 class BranchTargetPlaceholder():
@@ -13,43 +12,54 @@ class BranchTargetPlaceholder():
     An object which is put into :class:`SsaInstrBranch` as a jump target placeholder until the jump target block is constructed.
     """
 
-    def __init__(self, block: SsaBasicBlock, index: int):
+    def __init__(self, block: BasicBlock, jumpPlaceholderBlock: BasicBlock):
         self.block = block
-        self.index = index
+        self.jumpPlaceholderBlock = jumpPlaceholderBlock
         self._isReplaced = False
 
-    def replace(self, cond: Optional[SsaValue], dstBlock: SsaBasicBlock):
+    def replace(self, dstBlock: BasicBlock):
         assert not self._isReplaced, self
-        assert cond is None or isinstance(cond, SsaValue), cond
-        targets = self.block.successors.targets
-        cur = targets[self.index]
-        assert cur is self
-        targets[self.index] = ConditionBlockTuple(cond, dstBlock, None)
-        src = self.block
-        assert src not in dstBlock.predecessors, (src, dstBlock, dstBlock.predecessors)
-        dstBlock.predecessors.append(src)
-        if cond is None:
-            assert len(targets) == self.index + 1, (cond, targets)
-        else:
-            cond.users.append(self.block.successors)
-
+        self.jumpPlaceholderBlock.replaceAllUsesWith(dstBlock)
+        self.jumpPlaceholderBlock.eraseFromParent()
         self._isReplaced = True
 
-    def replaceInput(self, orig_expr: SsaValue, new_expr: Union[SsaValue, HConst]):
-        assert isinstance(new_expr, (SsaValue, HConst)), (self, orig_expr, new_expr)
-        assert self in orig_expr.users
-        self.targets = [
-            ConditionBlockTuple(new_expr if o is orig_expr else o, t, m)
-            for o, t, m in self.targets
-        ]
-        orig_expr.users.remove(self)
-        if isinstance(new_expr, SsaValue):
-            new_expr.users.append(self)
+    @staticmethod
+    def appendSuccessor(toLlvm: "ToLlvmIrTranslator", curBlock: BasicBlock, cond: Optional[Value], sucBlock: BasicBlock) -> Optional[Value]:
+        # if this is a jump out of current loop
+        if isinstance(cond, HConst):
+            assert cond, (cond, "If this was not True the jump should not be evaluated at the first place")
+            cond = None  # always jump, but we need this value to know that this will be unconditional jump only in HW
+        elif isinstance(cond, Constant):
+            cond = ValueToConstantInt(cond)
+            assert int(cond.getValue())
+            cond = None
+
+        ter = curBlock.getTerminator()
+        if ter is None:
+            b = toLlvm.b
+            b.SetInsertPoint(curBlock)
+            if cond is None:
+                b.CreateBr(sucBlock)
+            else:
+                w = cond.getType().getIntegerBitWidth()
+                if w != 1:
+                    cond = b.CreateICmpNE(cond, ConstantInt.get(cond.getType(), APInt.getZero(w)), toLlvm.strCtx.addTwine(""))
+                b.CreateCondBr(cond, sucBlock, sucBlock, None)
+        else:
+            br = InstructionToBranchInst(ter)
+            assert br, ter
+            assert br.isConditional()
+            assert cond is None, cond
+            assert br.getSuccessor(0) == br.getSuccessor(1), br
+            br.setSuccessor(1, sucBlock)
+
+        return cond
 
     @classmethod
-    def create(cls, block: SsaBasicBlock) -> "BranchTargetPlaceholder":
-        ph = cls(block, len(block.successors.targets))
-        block.successors.targets.append(ph)
+    def create(cls, toLlvm: "ToLlvmIrTranslator", block: BasicBlock, cond: Optional[Value]) -> "BranchTargetPlaceholder":
+        placeholderBlock = BasicBlock.Create(toLlvm.ctx, toLlvm.strCtx.addTwine("placeholder"), toLlvm.llvm.main, None)
+        ph = cls(block, placeholderBlock)
+        cls.appendSuccessor(toLlvm, block, cond, placeholderBlock)
         return ph
 
     def __repr__(self):
@@ -73,9 +83,9 @@ class PyBytecodeLoopInfo():
         self.iteraionI = 0
         self.mustBeEvaluatedInPreproc = False
         self.jumpsFromLoopBody: List[LoopExitJumpInfo] = []
-        self.pragma: List["_PyBytecodePragma"] = []
-        self.additionalLatchBlock: Optional[SsaBasicBlock] = None
-        self.onAdditionalLatchBlockPredecessorsAdded: Optional[Callable[["PyBytecodeFrame", SsaBasicBlock]]] = None
+        self.pragma: List["_PyBytecodeLoopPragma"] = []
+        self.additionalLatchBlock: Optional[BasicBlock] = None
+        self.onAdditionalLatchBlockPredecessorsAdded: Optional[Callable[["PyBytecodeFrame", BasicBlock]]] = None
 
     def isJumpFromLoopBody(self, dstBlockOffset: int) -> bool:
         return dstBlockOffset not in self.loop.allBlocks or dstBlockOffset == self.loop.entryPoint
@@ -83,7 +93,7 @@ class PyBytecodeLoopInfo():
     def markJumpFromBodyOfLoop(self, exitInfo: "LoopExitJumpInfo"):
         self.jumpsFromLoopBody.append(exitInfo)
 
-    def markNewIteration(self) -> List[Tuple[Union[None, SsaValue, HConst], SsaBasicBlock, int]]:
+    def markNewIteration(self) -> List[Tuple[Union[None, Value, HConst], BasicBlock, int]]:
         self.iteraionI += 1
         jumpsFromLoopBody = self.jumpsFromLoopBody
         self.jumpsFromLoopBody = []
@@ -97,7 +107,7 @@ class PyBytecodeLoopInfo():
             return False
         if len(set((j.srcBlock, j.dstBlockOffset) for j in self.jumpsFromLoopBody)) > 1:
             return True
-        if any(isinstance(j.cond, HConst) or isinstance(j.cond, SsaValue) for j in self.jumpsFromLoopBody):
+        if any(isinstance(j.cond, HConst) or isinstance(j.cond, Value) for j in self.jumpsFromLoopBody):
             # condition is of hardware type
             return True
         return False
@@ -111,13 +121,13 @@ class LoopExitJumpInfo():
     Temporary container for a jump from the loop where preprocessor should continue once all jumps from loop are resolved.
     
     :ivar cond: A condition value which is triggering this CFG transition. None means always triggered. False means never triggered.
-        Otherwise SsaValue can be used to specify any other condition.
+        Otherwise Value can be used to specify any other condition.
     """
 
     def __init__(self, dstBlockIsNew: Optional[bool],
-                 srcBlock: SsaBasicBlock,
-                 cond: Union[SsaValue, None, Literal[False]],
-                 dstBlock: Optional[SsaBasicBlock],
+                 srcBlock: BasicBlock,
+                 cond: Union[Value, None, Literal[False]],
+                 dstBlock: Optional[BasicBlock],
                  dstBlockOffset:int,
                  dstBlockLoops: Optional[List[PyBytecodeLoopInfo]],
                  isExplicitLoopReenter: Optional[bool],
@@ -139,7 +149,7 @@ class LoopExitJumpInfo():
         else:
             dst = self.dstBlockOffset
 
-        return f"<{self.__class__.__name__} {self.srcBlock.label:s} -> {dst}, c={self.cond}>"
+        return f"<{self.__class__.__name__} {self.srcBlock.getName().str():s} -> {dst}, c={self.cond}>"
 
 
 class LoopExitRegistry():
@@ -153,7 +163,7 @@ class LoopExitRegistry():
     """
 
     def __init__(self):
-        self.exitPoints: List[Tuple[Union[SsaValue, HConst, RtlSignalBase, None], SsaBasicBlock, int]] = []
+        self.exitPoints: List[Tuple[Union[Value, HConst, RtlSignalBase, None], BasicBlock, int]] = []
 
     def isHwLoop(self):
         return len(set(dstOffset for _, _, dstOffset in self.exitPoints))

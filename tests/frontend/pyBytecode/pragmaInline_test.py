@@ -133,6 +133,7 @@ class PyBytecodeInline_TC(SimTestCase):
 
     def test_PragmaInline_TwoInLoopLiveVars(self):
         dut = PragmaInline_TwoInLoopLiveVars()
+        dut.CLK_FREQ = int(1e6)
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
         CLK_PERIOD = freq_to_period(dut.clk.FREQ)
         dut.i._ag.data.extend([0, 0, 1, 0, 1, 129, 1, 1, 0, 12, 0])
@@ -163,10 +164,13 @@ if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
     m = PragmaInline_TwoInLoopLiveVars()
-    m.IF_COND = True
+    m.CLK_FREQ = int(1e3)
+    #m.IF_COND = True
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
         debugFilter=HlsDebugBundle.ALL_RELIABLE.union({HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
-                                                       HlsDebugBundle.DBG_4_0_addSignalNamesToData}))))
+                                                       HlsDebugBundle.DBG_4_0_addSignalNamesToData}),
+        #llvmCliArgs=[("print-after-all", 0, "", "true"), ]
+        )))
     testLoader = unittest.TestLoader()
     # suite = unittest.TestSuite([PyBytecodeInline_TC("test_PragmaInline_TwoInLoopLiveVars")])
     suite = testLoader.loadTestsFromTestCase(PyBytecodeInline_TC)

@@ -1,26 +1,30 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
-from hwtHls.frontend.ast.builder import HlsAstBuilder
-from hwtHls.frontend.ast.thread import HlsThreadFromAst
+from hwt.pyUtils.typingFuture import override
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
 from hwtSimApi.utils import freq_to_period
 from tests.baseSsaTest import BaseSsaTC
+from tests.frontend.ast.exprTree3 import HlsAstExprTree3_example
 
 
 class TwoTimesFiniteWhileInWhileTrue(HwModule):
 
+    @override
     def hwConfig(self) -> None:
         self.DATA_WIDTH = HwParam(8)
         self.FREQ = HwParam(int(50e6))
 
+    @override
     def hwDeclr(self) -> None:
         addClkRstn(self)
         self.clk.FREQ = self.FREQ
@@ -29,90 +33,66 @@ class TwoTimesFiniteWhileInWhileTrue(HwModule):
         self.dataOut1: HwIOStructRdVld = HwIOStructRdVld()._m()
         self.dataOut1.T = HBits(self.DATA_WIDTH, signed=False)
 
-    def hwImpl(self) -> None:
-        hls = HlsScope(self)
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
         i0, i1 = (hls.var(f"i{i}", uint8_t) for i in range(2))
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls, [
-                ast.While(True,
-                    i0(0),
-                    ast.While(i0 != 4,
-                        hls.write(4, self.dataOut0),
-                        i0(i0 + 1)
-                    ),
-                    i1(0),
-                    ast.While(i1 != 5,
-                        hls.write(5, self.dataOut1),
-                        i1(i1 + 1)
-                    ),
-                )
-            ],
-            self._name)
-        )
-        hls.compile()
+        while b1:
+            i0 = 0
+            while i0 != 4:
+                hls.write(4, self.dataOut0)
+                i0 = i0 + 1
+
+            i1 = 0
+            while i1 != 5:
+                hls.write(5, self.dataOut1)
+                i1 = i1 + 1
+
+    @override
+    def hwImpl(self) -> None:
+        HlsAstExprTree3_example.hwImpl(self)
 
 
 class WriteAfterFiniteWhileInWhileTrue(TwoTimesFiniteWhileInWhileTrue):
 
-    def hwImpl(self) -> None:
-        hls = HlsScope(self)
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
         i0 = hls.var("i0", uint8_t)
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls, [
-                ast.While(True,
-                    i0(0),
-                    ast.While(i0 != 4,
-                        hls.write(4, self.dataOut0),
-                        i0(i0 + 1)
-                    ),
-                    hls.write(5, self.dataOut1),
-                )
-            ],
-            self._name)
-        )
-        hls.compile()
+        while b1:
+            i0 = 0
+            while i0 != 4:
+                hls.write(4, self.dataOut0)
+                i0 = i0 + 1
+            hls.write(5, self.dataOut1)
+
 
 class WriteBeforeFiniteWhileInWhileTrue(TwoTimesFiniteWhileInWhileTrue):
 
-    def hwImpl(self) -> None:
-        hls = HlsScope(self)
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
         i0 = hls.var("i0", uint8_t)
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls, [
-                ast.While(True,
-                    hls.write(5, self.dataOut1),
-                    i0(0),
-                    ast.While(i0 != 4,
-                        hls.write(4, self.dataOut0),
-                        i0(i0 + 1)
-                    ),
-                )
-            ],
-            self._name)
-        )
-        hls.compile()
+        while b1:
+            hls.write(5, self.dataOut1)
+            i0 = 0
+            while i0 != 4:
+                hls.write(4, self.dataOut0)
+                i0 = i0 + 1
+
 
 class TwoTimesFiniteWhile(TwoTimesFiniteWhileInWhileTrue):
 
-    def hwImpl(self) -> None:
-        hls = HlsScope(self)
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
         i0, i1 = (hls.var(f"i{i}", uint8_t) for i in range(2))
-        ast = HlsAstBuilder(hls)
-        hls.addThread(HlsThreadFromAst(hls, [
-                i0(0),
-                ast.While(i0 != 4,
-                    hls.write(4, self.dataOut0),
-                    i0(i0 + 1)
-                ),
-                i1(0),
-                ast.While(i1 != 5,
-                    hls.write(5, self.dataOut1),
-                    i1(i1 + 1)
-                ),
-            ],
-            self._name)
-        )
-        hls.compile()
+
+        i0 = 0
+        while i0 != 4:
+            hls.write(4, self.dataOut0)
+            i0 = i0 + 1
+
+        i1 = 0
+        while i1 != 5:
+            hls.write(5, self.dataOut1)
+            i1 = i1 + 1
 
 
 class LoopAfterLoop_TC(BaseSsaTC):
@@ -166,9 +146,9 @@ class LoopAfterLoop_TC(BaseSsaTC):
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    
-    m = TwoTimesFiniteWhile()
-    #m.FREQ = int(150e6)
+
+    m = WriteBeforeFiniteWhileInWhileTrue()
+    # m.FREQ = int(150e6)
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={
         *HlsDebugBundle.ALL_RELIABLE,
         HlsDebugBundle.DBG_4_0_addSignalNamesToData,

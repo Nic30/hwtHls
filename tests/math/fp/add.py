@@ -4,12 +4,12 @@ from hwt.hdl.types.bitsCastUtils import fitTo
 from hwt.hdl.types.defs import BIT
 from hwt.mainBases import RtlSignalBase
 from hwt.math import log2ceil
-from hwtHls.code import getMsb, lshr, ctlz, hwUMin, shl
+from hwtHls.code import lshr, ctlz, hwUMin, shl
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.pragmaInstruction import PyBytecodeNoSplitSlices
 from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodePreprocHwCopy, \
     PyBytecodeInline, PyBytecodeBlockLabel
-from tests.floatingpoint.fptypes import IEEE754Fp
+from tests.math.fp.fptypes import IEEE754Fp
 from tests.math.fp.normalizeDenormalize import _denormalize, fpRoundup, \
     fpPack
 
@@ -140,7 +140,10 @@ def IEEE754FpAdd(a: RtlSignalBase[IEEE754Fp], b: RtlSignalBase[IEEE754Fp], isSim
             # (original add_1)
             mantissaTmp = HBits(t.MANTISSA_WIDTH + 1).from_py(None)
             exponetTmp = aExponent
-            if getMsb(sumTmp):
+            guard_bit = BIT.from_py(None)
+            round_bit = BIT.from_py(None)
+            sticky_bit = BIT.from_py(None)
+            if sumTmp.getMsb():
                 mantissaTmp = sumTmp[:4]
                 guard_bit = sumTmp[3]
                 round_bit = sumTmp[2]
@@ -166,7 +169,7 @@ def IEEE754FpAdd(a: RtlSignalBase[IEEE754Fp], b: RtlSignalBase[IEEE754Fp], isSim
             PyBytecodeNoSplitSlices(mantissaTmp)
             exponetTmp -= shAmount
             round_bit &= shAmount._eq(0)
-            # while ~getMsb(mantissaTmp) & (exponetTmp > 1):
+            # while ~mantissaTmp.getMsb() & (exponetTmp > 1):
             #    exponetTmp -= 1
             #    mantissaTmp = Concat(mantissaTmp[:1], guard_bit)
             #    round_bit = round_bit._dtype.from_py(0)

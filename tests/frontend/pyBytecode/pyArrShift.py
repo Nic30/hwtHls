@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from hwt.code import Concat
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
-from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwIOs.utils import addClkRstn
@@ -31,7 +31,7 @@ class PyArrShift(HwModule):
         for item in arr:
             item(0)
 
-        while BIT.from_py(1):
+        while b1:
             for i in range(len(arr) - 1, 0, -1):
                 arr[i](arr[i - 1])
 
@@ -60,7 +60,7 @@ class PyArrShiftFn(PyArrShift):
         for item in arr:
             item(0)
 
-        while BIT.from_py(1):
+        while b1:
             PyBytecodeInline(self.shiftArray)(arr)
             arr[0](hls.read(self.i).data)
             hls.write(arr[-1], self.o)
@@ -78,17 +78,20 @@ class PyArrShiftFnStruct(PyArrShift):
     def mainThread(self, hls: HlsScope):
         HALF_WIDTH = self.o._dtype.bit_length() // 2
         halfT = HBits(HALF_WIDTH)
-        arr = [hls.var(f"arr{i:d}", HStruct((halfT, "low"),
-                                          (halfT, "high"))) for i in range(3)]
+        Ty = HStruct((halfT, "low"),
+                     (halfT, "high"))
+        arr = [hls.var(f"arr{i:d}", Ty) for i in range(3)]
         # :note: using () instead of just = because we want to set value not just rewrite reference in preprocessor
         for item in arr:
-            item(item._dtype.from_py({"high": 0, "low": 0}))
+            item(Ty.from_py({"high": 0, "low": 0}))
 
-        while BIT.from_py(1):
+        while b1:
             PyBytecodeInline(self.shiftArray)(arr)
+
             d = hls.read(self.i).data
             arr[0].low(d[HALF_WIDTH:])
             arr[0].high(d[:HALF_WIDTH])
+
             last = PyBytecodeInPreproc(arr[-1])
             hls.write(Concat(last.high, last.low), self.o)
 
@@ -96,6 +99,6 @@ class PyArrShiftFnStruct(PyArrShift):
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.platform import HlsDebugBundle
-    
+
     m = PyArrShiftFnStruct()
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
