@@ -3,13 +3,14 @@ from typing import Optional
 from hwt.code import Concat
 from hwt.code_utils import rename_signal
 from hwt.hdl.const import HConst
+from hwt.hdl.operator import HOperatorNode
 from hwt.hdl.operatorDefs import HOperatorDef, HwtOps
 from hwt.hdl.types.bits import HBits
 from hwt.pyUtils.typingFuture import override
 from hwt.serializer.generic.ops import HWT_TO_HDLCONVERTOR_OPS
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem, INVARIANT_TIME
-from hwtHls.code import OP_LSHR, OP_ASHR, OP_SHL
+from hwtHls.code import OP_LSHR, OP_ASHR, OP_SHL, OP_ROL, OP_ROR
 from hwtHls.llvm.llvmIr import HFloatTmpConfig
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -32,6 +33,8 @@ class HlsNetNodeOperator(HlsNetNode):
         OP_LSHR,
         OP_ASHR,
         OP_SHL,
+        OP_ROL,
+        OP_ROR,
         HwtOps.INDEX,
     }
 
@@ -101,6 +104,9 @@ class HlsNetNodeOperator(HlsNetNode):
         if s is None:
             if self.operator in (OP_SHL, OP_ASHR, OP_LSHR):
                 s = evalFn(*(o.data for o in operands), zextShift=False)  # zextShift=True is only required for LLVM
+            elif self.operator in (OP_ROL, OP_ROR):
+                # because evalFn would create FSHL/FSHR
+                s = HOperatorNode.withRes(self.operator, tuple(o.data for o in operands), op_out._dtype)
             else:
                 s = evalFn(*(o.data for o in operands))
 
