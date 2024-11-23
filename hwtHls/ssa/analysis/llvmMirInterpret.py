@@ -149,7 +149,7 @@ class LlvmMirInterpret():
                         if not llt.isValid():
                             continue
 
-                        width = llt.getSizeInBits()
+                        width = llt.getScalarSizeInBits()
                         assert reg.isVirtual(), reg
                         regI = reg.virtRegIndex()
                         name = f"%{regI}"
@@ -183,7 +183,7 @@ class LlvmMirInterpret():
                             elif vOp.isUndef():
                                 llt = MRI.getType(vOp.getReg())
                                 assert llt.isValid()
-                                width = llt.getSizeInBits()
+                                width = llt.getScalarSizeInBits()
                                 res = HBits(width).from_py(None)
                             else:
                                 res = regs[r.virtRegIndex()]
@@ -344,7 +344,7 @@ class LlvmMirInterpret():
         dst, io = ops
         llt = MRI.getType(dst)
         assert llt.isValid()
-        width = llt.getSizeInBits()
+        width = llt.getScalarSizeInBits()
         if isinstance(io, (GlobalValue, PtrAddrTuple)):
             # load from local memory
             v = LlvmIrInterpret._getItemFromLocalPointer(regs, io, width, mi)
@@ -405,7 +405,7 @@ class LlvmMirInterpret():
 
     def _opcode_G_EXTRACT(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
         dst, src, index = ops
-        width = MRI.getType(dst).getSizeInBits()
+        width = MRI.getType(dst).getScalarSizeInBits()
         if isinstance(index, int):
             if width == 1:
                 # to prefer more simple notation
@@ -485,7 +485,7 @@ class LlvmMirInterpret():
         dst, = ops
         llt = MRI.getType(ops[0])
         assert llt.isValid(), mi
-        t = HBits(llt.getSizeInBits())
+        t = HBits(llt.getScalarSizeInBits())
         regs[dst.virtRegIndex()] = t.from_py(None)
 
     def _opcode_G_CONSTANT(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
@@ -500,14 +500,14 @@ class LlvmMirInterpret():
         dst, val = ops
         llt = MRI.getType(dst)
         assert llt.isValid(), mi
-        regs[dst.virtRegIndex()] = val[llt.getSizeInBits():]
+        regs[dst.virtRegIndex()] = val[llt.getScalarSizeInBits():]
 
     def _opcode_G_ZEXT(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
         dst, val = ops
         llt = MRI.getType(dst)
         assert llt.isValid(), mi
         width = val._dtype.bit_length()
-        newWidth = llt.getSizeInBits()
+        newWidth = llt.getScalarSizeInBits()
         regs[dst.virtRegIndex()] = HBits(newWidth - width).from_py(0)._concat(val)
 
     def _opcode_G_SEXT(self, MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
@@ -520,7 +520,7 @@ class LlvmMirInterpret():
         else:
             msb = val[width - 1]
 
-        newWidth = llt.getSizeInBits()
+        newWidth = llt.getScalarSizeInBits()
         padBits = newWidth - width
         if msb._is_full_valid():
             if msb:
@@ -634,14 +634,14 @@ class LlvmMirInterpret():
                         elif mo.isUndef():
                             llt = MRI.getType(mo.getReg())
                             assert llt.isValid()
-                            width = llt.getSizeInBits()
+                            width = llt.getScalarSizeInBits()
                             ops.append(HBits(width).from_py(None))
                         else:
                             v = regs[r.virtRegIndex()]
                             if v is None:
                                 llt = MRI.getType(r)
                                 assert llt.isValid(), (r, r.virtRegIndex(), "This may happen if use is not dominated by any def")
-                                width = llt.getSizeInBits()
+                                width = llt.getScalarSizeInBits()
                                 v = HBits(width).from_py(None)
                             ops.append(v)
 
