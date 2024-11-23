@@ -14,7 +14,6 @@ from hwtHls.frontend.pyBytecode.pragma import _PyBytecodeLoopPragma
 from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodePreprocHwCopy
 from hwtLib.types.ctypes import uint32_t
 
-
 # for i in range(64)
 #     SINES_OF_INTEGERS[i] = floor(23**2 * abs(sin(i + 1)))
 MD5_SINES_OF_INTEGERS = uint32_t[64].from_py([uint32_t.from_py(n) for n in [
@@ -111,6 +110,10 @@ def md5ProcessChunk(chunk: RtlSignal, acc: RtlSignalBase[md5_accumulator_t], loo
         if isinstance(g, HConst):
             # this is in simulation
             g = int(g)  # to int because of M[g]
+        # if isinstance(A, HConst):
+        #     print("\n", int(i), int(g), "{0:08x} {1:08x} {2:08x} {3:08x}".format(int(F), int(B), int(D), int(C)))
+        #     print("{0:08x} {1:08x} {2:08x} {3:08x}".format(int(A), int(B), int(C), int(D)))
+        #     print(">{0:08x} {1:08x} {2:08x} {3:08x}".format(int(A+acc.a0), int(B+acc.b0), int(C+acc.c0), int(D+acc.d0)))
 
         F = F + A + MD5_SINES_OF_INTEGERS[i] + M[g]
 
@@ -119,6 +122,7 @@ def md5ProcessChunk(chunk: RtlSignal, acc: RtlSignalBase[md5_accumulator_t], loo
         C = B
         B = B + rol(F, MD5_s[i])
         # del is just used to simplify analysis of loop body (compiler performance reasons)
+
         del g
         del F
         loopPragmaGetter()

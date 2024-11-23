@@ -21,6 +21,7 @@ from hwtSimApi.utils import freq_to_period
 from tests.crypto.md5 import md5_accumulator_t, md5ProcessChunk, \
     md5BuildDigist, MD5_INIT_DICT
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
+from typing import Callable
 
 
 class Md5(HwModule):
@@ -28,7 +29,7 @@ class Md5(HwModule):
     def hwConfig(self):
         self.DATA_WIDTH = HwParam(32 * 16)
         self.FREQ = HwParam(int(100e6))
-        self.LOOP_PRAGMA_GETTER = HwParam(lambda: None)
+        self.UNROLL = HwParam(0)
 
     def hwDeclr(self):
         addClkRstn(self)
@@ -42,23 +43,29 @@ class Md5(HwModule):
         self.dout.DATA_WIDTH = 4 * 32
 
     @hlsBytecode
-    def mainThread(self, hls: HlsScope):
+    def mainThread(self, hls: HlsScope, LOOP_PRAGMA_GETTER: Callable[[], object]):
         PyBytecodeSkipPass(["hwtHls::SlicesToIndependentVariablesPass", "hwtHls::BitwidthReductionPass",
                             "hwtHls::SelectPruningPass", "hwtHls::SlicesMergePass"])
         while b1:
             chunk = hls.read(self.din).data
             acc = md5_accumulator_t.from_py(MD5_INIT_DICT)
-            PyBytecodeInline(md5ProcessChunk)(chunk, acc, loopPragmaGetter=self.LOOP_PRAGMA_GETTER)
+            PyBytecodeInline(md5ProcessChunk)(chunk, acc, loopPragmaGetter=LOOP_PRAGMA_GETTER)
             hls.write(PyBytecodeInline(md5BuildDigist)(acc), self.dout)
 
     def hwImpl(self):
         hls = HlsScope(self)
-        mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
+        if self.UNROLL:
+            LOOP_PRAGMA_GETTER = lambda: PyBytecodeLLVMLoopUnroll(True, self.UNROLL)
+        else:
+            LOOP_PRAGMA_GETTER = lambda: PyBytecodeLLVMLoopUnroll(False, None)
+        mainThread = HlsThreadFromPy(hls, self.mainThread, hls, LOOP_PRAGMA_GETTER)
         hls.addThread(mainThread)
         hls.compile()
 
 
 class Md5_TC(SimTestCase):
+
+    # DEFAULT_BUILD_DIR = "tmp"
 
     def _prepareStr(self, inputString:str):
         # Step 1. Add Padding Bits: bit_sequence length mod 512 has to be equal to 448
@@ -131,6 +138,8 @@ class Md5_TC(SimTestCase):
         CLK_PERIOD = freq_to_period(dut.FREQ)
         self.runSim((64 + 1) * int(CLK_PERIOD))
 
+        # print(list("".join(x) for x in grouper(8, "{0:032x}".format(int(dut.dout._ag.data[-1])))))
+
         self.assertValSequenceEqual(dut.dout._ag.data, REF_DATA)
 
     def test_noUnroll(self):
@@ -151,29 +160,30 @@ if __name__ == "__main__":
     from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
     from hwtHls.llvm.llvmIr import LlvmCompilationBundle
     from hwtHls.platform.xilinx.artix7 import Artix7Medium
-    import cProfile
-    pr = cProfile.Profile()
-    pr.enable()
+    # import cProfile
+    # pr = cProfile.Profile()
+    # pr.enable()
     m = Md5()
-    m.FREQ = int(10e6)
-    #m.LOOP_PRAGMA_GETTER = lambda: PyBytecodeLLVMLoopUnroll(False, None)
-    m.LOOP_PRAGMA_GETTER = lambda: PyBytecodeLLVMLoopUnroll(True, 64)
+    m.FREQ = int(50e6)
+    m.UNROLL = 8
+    # m.LOOP_PRAGMA_GETTER = lambda: PyBytecodeLLVMLoopUnroll(False, None)
+    # m.LOOP_PRAGMA_GETTER = lambda: PyBytecodeLLVMLoopUnroll(True, 64)
     # try:
     #print(to_rtl_str(m, target_platform=Artix7Medium(
-    #    debugFilter={HlsDebugBundle.DBG_4_4_arch,},
-    #    #debugFilter=HlsDebugBundle.ALL_RELIABLE,
-    #                                                llvmCliArgs=[
-    #                                                    #LLVM_CLI_COMMON_OPTS.debugOnly("legalizer"),
-    #                                                    #LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
-    #                                                    #LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL,
-    #                                                    ]
-    #                                                )))  #
+    #   #debugFilter={HlsDebugBundle.DBG_4_4_arch,},
+    #   debugFilter=HlsDebugBundle.ALL_RELIABLE,
+    #   llvmCliArgs=[
+    #       #LLVM_CLI_COMMON_OPTS.debugOnly("legalizer"),
+    #       #LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
+    #       #LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL,
+    #       ]
+    #   )))  #
     # finally:
-    #    pr.disable()
-    #    pr.dump_stats('profile.prof')
+    #   pr.disable()
+    #   pr.dump_stats('profile.prof')
 
     testLoader = unittest.TestLoader()
-    suite = unittest.TestSuite([Md5_TC('test_unroll64')])
-    # suite = testLoader.loadTestsFromTestCase(Md5_TC)
+    # suite = unittest.TestSuite([Md5_TC('test_noUnroll'), Md5_TC('test_py')])
+    suite = testLoader.loadTestsFromTestCase(Md5_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
