@@ -116,47 +116,6 @@ void HwtFpgaCombinerHelper::rewriteConstCondMux(MachineInstr &MI) {
 	MI.eraseFromParent();
 }
 
-bool checkAnyOperandRedefined(MachineInstr &MI, MachineInstr &MIEnd) {
-	const MachineBasicBlock &MBB = *MI.getParent();
-	if (&MBB != MIEnd.getParent()) {
-		return true; // search in a different block not implemented
-	}
-	auto it = MachineBasicBlock::instr_iterator(&MI);
-	++it;
-	for (; it != MBB.instr_end(); ++it) {
-		if (&*it == &MIEnd) {
-			// found the otherMI as a successor
-			return false;
-		}
-		for (auto &O : MI.operands()) {
-			if (O.isReg()) {
-				if (it->definesRegister(O.getReg())) {
-					// the operand register was redefined and we do not have value for operand which we want to inline
-					return true;
-				}
-			}
-		}
-	}
-	// end was not found at all it means that end is actually a predecessor
-	return true;
-}
-
-MachineOperand *getNextUseOfRegInBlock(MachineRegisterInfo &MRI, MachineInstr &MI,
-		Register &DstRegNo) {
-	if (!MRI.hasOneUse(DstRegNo)) {
-		for (MachineInstr *NextInstr = MI.getNextNode(); NextInstr != nullptr;
-				NextInstr = NextInstr->getNextNode()) {
-			// :note: redefs checked later in checkAnyOperandRedefined
-			auto UseOpIndx = NextInstr->findRegisterUseOperandIdx(DstRegNo,
-					false);
-			if (UseOpIndx > 0) {
-				return &NextInstr->getOperand(UseOpIndx);
-			}
-		}
-	}
-	return nullptr;
-}
-
 /**
  * rules for merging MUX instructions:
  * * if conditions are proven to be exclusive the order of pairs condition-value does not matter
@@ -195,30 +154,12 @@ bool HwtFpgaCombinerHelper::matchNestedMux(MachineInstr &MI,
 	requiresAndWithParentCond.clear();
 	// check if is used only by a HWTFPGA_MUX and can merge operands into user
 	auto DstRegNo = MI.getOperand(0).getReg();
-
-	if (!MRI.hasOneDef(DstRegNo) && MI.findRegisterUseOperandIdx(DstRegNo) > 0) {
-		// Dst must have just this def or previous def must not be operand
+	MachineOperand *otherUse = getNextUseOfRegAfterInstructionExceptMI(DstRegNo, MI);
+	if (!otherUse) {
 		return false;
 	}
 
-	MachineOperand *otherUse = nullptr;
-	if (!MRI.hasOneUse(DstRegNo)) {
-		otherUse = getNextUseOfRegInBlock(MRI, MI, DstRegNo);
-		if (!otherUse) {
-			// nothing to merge
-			return false;
-		}
-	} else {
-		if (MRI.use_empty(DstRegNo))
-			return false;
-		otherUse = &*MRI.use_begin(DstRegNo);
-	}
-
 	MachineInstr *otherMI = otherUse->getParent();
-	if (otherMI == &MI) {
-		return false; // can not inline operands of self to self
-	}
-
 	if (otherMI->getOpcode() != HwtFpga::HWTFPGA_MUX) {
 		return false;
 	}
@@ -290,7 +231,7 @@ void HwtFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
 		parentUse = &*MRI.use_begin(DstRegNo);
 		assert(parentUse->getReg() == DstRegNo);
 	} else {
-		MachineInstr* NextInstr = getNextUseOfRegInBlock(MRI, MI, DstRegNo)->getParent();
+		MachineInstr* NextInstr = getNextUseOfRegInBlock(MI, DstRegNo)->getParent();
 		assert(NextInstr && "Should be already checked in matchNestedMux");
 		assert(NextInstr->getOpcode() == HwtFpga::HWTFPGA_MUX);
 		auto UseOpIndx = NextInstr->findRegisterUseOperandIdx(DstRegNo, false);
@@ -366,7 +307,7 @@ void HwtFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
 			MIB0.add(Op);
 		}
 	}
-
+	// [todo] handle kills for MI value operands and DstReg
 	Observer.changedInstr(newParentMI);
 
 	if (DstRegNo == newParentDst || MRI.use_empty(DstRegNo)

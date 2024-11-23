@@ -77,6 +77,7 @@ py3.extension_module(
      'targets/GISel/hwtFpgaCombinerHelper.cpp',
      'targets/GISel/hwtFpgaCombinerHelperCopy.cpp',
      'targets/GISel/hwtFpgaCombinerHelperExtract.cpp',
+     'targets/GISel/hwtFpgaCombinerHelperMergeValues.cpp',
      'targets/GISel/hwtFpgaCombinerHelperMux.cpp',
      'targets/GISel/hwtFpgaCombinerHelperMuxSinkDirectlyDrivenValBits.cpp',
      'targets/GISel/hwtFpgaCombinerHelperMuxValPropagation.cpp',

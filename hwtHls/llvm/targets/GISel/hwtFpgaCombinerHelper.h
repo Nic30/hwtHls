@@ -30,6 +30,10 @@ public:
 	bool matchAnyExplicitUseIsUndef(llvm::MachineInstr &MI);
 	//bool replaceInstWithUndefNonGeneric(MachineInstr &MI);
 
+	MachineOperand *getNextUseOfRegInBlock(MachineInstr &MI, Register &DstRegNo);
+	static bool checkAnyOperandRedefined(MachineInstr &MI, MachineInstr &MIEnd);
+	MachineOperand * getNextUseOfRegAfterInstructionExceptMI(Register DstRegNo, MachineInstr &MI);
+
 	bool hasG_CONSTANTasUse(MachineInstr &MI);
 	static bool hasG_CONSTANTasUse(llvm::MachineRegisterInfo & MRI, llvm::MachineInstr &MI);
 	static void rewriteG_CONSTANTasUseAsCImm(llvm::MachineIRBuilder &Builder,
@@ -50,6 +54,10 @@ public:
 	void rewriteExtractOnMergeValues(llvm::MachineInstr &MI);
 	bool matchIsExtractOnConstShift(llvm::MachineInstr &MI);
 	void rewriteExtractOnConstShift(llvm::MachineInstr &MI);
+
+	bool matchNestedMERGE_VALUES(MachineInstr &MI);
+	void rewriteNestedMERGE_VALUES(MachineInstr &MI);
+
 	/*
 	 * Recursively collect members of concatenations, looks through HWTFPGA_EXTRACT and HWTFPGA_MERGE_VALUES instructions
 	 *

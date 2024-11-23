@@ -584,4 +584,72 @@ void HwtFpgaCombinerHelper::rewriteAndOrSequenceReduce(llvm::MachineInstr &MI,
 	MI.eraseFromParent();
 }
 
+MachineOperand *HwtFpgaCombinerHelper::getNextUseOfRegInBlock(MachineInstr &MI,
+		Register &DstRegNo) {
+	if (!MRI.hasOneUse(DstRegNo)) {
+		for (MachineInstr *NextInstr = MI.getNextNode(); NextInstr != nullptr;
+				NextInstr = NextInstr->getNextNode()) {
+			// :note: redefs checked later in checkAnyOperandRedefined
+			auto UseOpIndx = NextInstr->findRegisterUseOperandIdx(DstRegNo,
+					false);
+			if (UseOpIndx > 0) {
+				return &NextInstr->getOperand(UseOpIndx);
+			}
+		}
+	}
+	return nullptr;
+}
+
+bool HwtFpgaCombinerHelper::checkAnyOperandRedefined(MachineInstr &MI, MachineInstr &MIEnd) {
+	const MachineBasicBlock &MBB = *MI.getParent();
+	if (&MBB != MIEnd.getParent()) {
+		return true; // search in a different block not implemented
+	}
+	auto it = MachineBasicBlock::instr_iterator(&MI);
+	++it;
+	for (; it != MBB.instr_end(); ++it) {
+		if (&*it == &MIEnd) {
+			// found the otherMI as a successor
+			return false;
+		}
+		for (auto &O : MI.operands()) {
+			if (O.isReg()) {
+				if (it->definesRegister(O.getReg())) {
+					// the operand register was redefined and we do not have value for operand which we want to inline
+					return true;
+				}
+			}
+		}
+	}
+	// end was not found at all it means that end is actually a predecessor
+	return true;
+}
+
+MachineOperand * HwtFpgaCombinerHelper::getNextUseOfRegAfterInstructionExceptMI(Register DstRegNo, MachineInstr &MI) {
+	if (!MRI.hasOneDef(DstRegNo)
+			&& MI.findRegisterUseOperandIdx(DstRegNo) > 0) {
+		// Dst must have just this def or previous def must not be operand
+		return nullptr;
+	}
+
+	MachineOperand *otherUse = nullptr;
+	if (!MRI.hasOneUse(DstRegNo)) {
+		otherUse = getNextUseOfRegInBlock(MI, DstRegNo);
+		if (!otherUse) {
+			// nothing to merge
+			return nullptr;
+		}
+	} else {
+		if (MRI.use_empty(DstRegNo))
+			return nullptr;
+		otherUse = &*MRI.use_begin(DstRegNo);
+	}
+
+	MachineInstr *otherMI = otherUse->getParent();
+	if (otherMI == &MI) {
+		return nullptr; // can not inline operands of self to self
+	}
+	return otherUse;
+}
+
 }

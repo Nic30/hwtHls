@@ -280,6 +280,14 @@ def and_or_sequence_reduce: GICombineRule<
   (apply [{ Helper.rewriteAndOrSequenceReduce(*${root}, ${matchinfo}); }])
 >;
 
+// Fold (MERGE_VALUES (... MERGE_VALUES ...)) -> MERGE_VALUES ...
+def merge_values_merge_nested: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode HWTFPGA_MERGE_VALUES):$root,
+    [{ return Helper.matchNestedMERGE_VALUES(*${root}); }]),
+  (apply [{ Helper.rewriteNestedMERGE_VALUES(*${root}); }])
+>;
+
 
 def const_eval_combines : GICombineGroup<[
 	extract_const_propagation,
@@ -301,6 +309,7 @@ def const_eval_combines : GICombineGroup<[
 	mux_duplicit_case_reduce,
 	mux_redundant_case_reduce,
 	and_or_sequence_reduce,
+	merge_values_merge_nested,
 ]>;
 
 
@@ -384,6 +393,7 @@ def extract_on_const_shift: GICombineRule<
     [{ return Helper.matchIsExtractOnConstShift(*${root}); }]),
   (apply [{ Helper.rewriteExtractOnConstShift(*${root}); }])
 >;
+
 
 //
 // Fold (HWTFPGA_MUX (... HWTFPGA_MUX ...)) -> HWTFPGA_MUX ...
