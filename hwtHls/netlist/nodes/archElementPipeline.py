@@ -26,6 +26,7 @@ from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
 
 
 class ArchElementPipeline(ArchElement):
@@ -265,10 +266,10 @@ class ArchElementPipeline(ArchElement):
                                 HdlType_isVoid(node._portDataOut._dtype)
                             ), node
                         continue
-
-                    currentStageForIo = rToCon.get(node.src, con)
-                    assert currentStageForIo is con, ("If the access to IO is from different stage, this should already have IO gate generated", node, con)
-                    rToCon[node.src] = con
+                    if not isinstance(node.src, MemoryAllocationMeta):
+                        currentStageForIo = rToCon.get(node.src, con)
+                        assert currentStageForIo is con, ("If the access to IO is from different stage, this should already have IO gate generated", node, con)
+                        rToCon[node.src] = con
 
                 elif isinstance(node, HlsNetNodeWrite):
                     if isinstance(node, HlsNetNodeWriteBackedge):
