@@ -3,17 +3,17 @@
 
 from typing import List
 
+from hwt.code import Concat
+from hwt.hdl.commonConstants import b1
+from hwt.hdl.types.bitsRtlSignal import HBitsRtlSignal
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.vectorUtils import iterBits
+from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.logic.crcComb import CrcComb
 from hwtLib.logic.crcPoly import CRC_32
 from pyMathBitPrecise.bit_utils import get_bit, bit_list_reversed_bits_in_bytes, \
     bit_list_reversed_endianity
-from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
-from hwt.hdl.commonConstants import b1
-from hwt.code import Concat
-from hwt.hdl.types.bitsRtlSignal import HBitsRtlSignal
 
 
 class CrcCombHls(CrcComb):
