@@ -6,12 +6,15 @@ import os
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, parseIR, SMDiagnostic, Function
 from tests.llvmIr.baseLlvmIrTC import generateAndAppendHwtHlsFunctionDeclarations
 from tests.llvmMir.baseLlvmMirTC import BaseLlvmMirTC
+# from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 
 
 class VRegIfConverter_TC(BaseLlvmMirTC):
     __FILE__ = __file__
 
     def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
+        #llvm.addLlvmCliArgOccurence(*LLVM_CLI_COMMON_OPTS.VREGIFCVT_TRACE)
+        #llvm.addLlvmCliArgOccurence("vregifcvt-limit", 0, "0", "1")
         llvm._testVRegIfConverter()
 
     def _test_ll(self, irStr: str, lowerSsaToNonSsa=False):
@@ -696,11 +699,50 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
 
         self._test_ll(ir, lowerSsaToNonSsa=True)
 
-
+    def test_TriangleFalseWithLoopLatch(self):
+        #  %5:anyregcls = HWTFPGA_MUX %2:anyregcls
+        #  %2:anyregcls = HWTFPGA_MUX killed %5:anyregcls, %4:anyregcls(s1), %2:anyregcls
+        # is rewritten to: 
+        #  %5:anyregcls = HWTFPGA_MUX %2:anyregcls ; use original 2 because it was not yet redefined in this block
+        #  %8:anyregcls = HWTFPGA_MUX killed %5:anyregcls, %4:anyregcls(s1), %2:anyregcls ; use new 8 as a tmp register for 2
+        #  %2:anyregcls = HWTFPGA_MUX %2:anyregcls, %3:anyregcls(s1), killed %8:anyregcls ; merge tmp 8 back to 2
+        
+        # %8 is new renamed register for %2
+    
+        self._test_mir(f"""\
+        bb.0.{self.getTestName()}:
+        
+          %0:anyregcls = HWTFPGA_ARG_GET 0
+          %1:anyregcls = HWTFPGA_ARG_GET 1
+        
+        bb.1.bb1:
+        
+          %2:anyregcls = HWTFPGA_IMPLICIT_DEF 16 ; %2 is register holding value between loop iterations
+        
+        bb.2.head:
+        
+          %3:anyregcls(s1) = HWTFPGA_CLOAD %0, 0, 1, 1 :: (volatile load (s1) from %ir.rx, addrspace 1)
+          HWTFPGA_BRCOND killed %3:anyregcls, %bb.2
+        
+        bb.3.body:
+        
+          %4:anyregcls = HWTFPGA_ICMP intpred(eq), %2, i16 99
+          %5:anyregcls = HWTFPGA_MUX %2:anyregcls
+          %2:anyregcls = HWTFPGA_MUX killed %5:anyregcls, %4:anyregcls, %2:anyregcls
+          HWTFPGA_BRCOND killed %4:anyregcls, %bb.2
+          HWTFPGA_BR %bb.4
+           
+        bb.4.latch:
+        
+          HWTFPGA_CSTORE %2:anyregcls, %1:anyregcls, 0, 16, 1:: (volatile store (s16) into %ir.txBody, addrspace 2)
+          HWTFPGA_BR %bb.1
+          
+        """)
+        
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([VRegIfConverter_TC('test_returnBlockMerge0')])
+    # suite = unittest.TestSuite([VRegIfConverter_TC('test_TriangleFalseWithLoopLatch')])
     suite = testLoader.loadTestsFromTestCase(VRegIfConverter_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
