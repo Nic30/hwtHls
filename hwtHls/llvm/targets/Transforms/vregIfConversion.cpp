@@ -62,11 +62,14 @@ using namespace hwtHls; // because of INITIALIZE_PASS
 #define DEBUG_TYPE "vreg-if-converter"
 //#undef LLVM_DEBUG
 //#define LLVM_DEBUG(x) x
+// #define VREG_IF_CONVERTER_CONSYSTENCY_CHECKS
 
 // Hidden options for help debugging.
 static cl::opt<bool> IfCvtTrace("vregifcvt-trace", cl::init(false), cl::Hidden);
 static cl::opt<int> IfCvtFnStart("vregifcvt-fn-start", cl::init(-1), cl::Hidden);
 static cl::opt<int> IfCvtFnStop("vregifcvt-fn-stop", cl::init(-1), cl::Hidden);
+// lit number of rewrites which is this pass allowed to perform for debug purposes
+// only (you should never use this to avoid some issue, because any change would break it again)
 static cl::opt<int> IfCvtLimit("vregifcvt-limit", cl::init(-1), cl::Hidden);
 static cl::opt<bool> DisableSimple("disable-vregifcvt-simple",
                                    cl::init(false), cl::Hidden);
@@ -1879,11 +1882,12 @@ bool VRegIfConverter::IfConvertTriangle(BBInfo &BBI, IfcvtKind Kind) {
     // Now merge the entry of the triangle with the true block.
     MergeBlocks(BBI, *CvtBBI, &regsForSpeculation, Cond, false);
   }
+
   if (PreRegAlloc) {
 	// create a mux EBB/TBB val with EBB.br.cond as cond at the end of just if converted block CvtBB(TBB)
 	PHIsToSelectAfterIfCvt(*VRegLiveins, *BBI.BB, Cond, CvtMBB, NextMBB);
   }
-
+  
   // Keep the CFG updated.
   BBI.BB->removeSuccessor(&CvtMBB, true);
 
