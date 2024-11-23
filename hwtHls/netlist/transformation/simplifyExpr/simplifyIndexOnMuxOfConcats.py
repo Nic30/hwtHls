@@ -155,7 +155,7 @@ def sliceOutValueFromConcatOrConst(v: HlsNetNodeOut,
 
 def sliceOrIndexToHighLowBitNo(index: Union[HSliceConst, HBitsConst]):
     if isinstance(index, HSliceConst):
-        assert int(index.val.step) == -1
+        assert int(index.val.step) == -1, index.val.step
         lowBitNo = int(index.val.stop)
         highBitNo = int(index.val.start)
     else:
