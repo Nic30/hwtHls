@@ -170,7 +170,7 @@ void register_MachineFunction(pybind11::module_ &m) {
 	 	 }, py::keep_alive<0, 1>())
 		.def("getOneDef", &llvm::MachineRegisterInfo::getOneDef, py::return_value_policy::reference_internal);
 	py::class_<llvm::LLT> LLT(m, "LLT");
-	LLT.def("getSizeInBits", &llvm::LLT::getScalarSizeInBits)
+	LLT.def("getScalarSizeInBits", &llvm::LLT::getScalarSizeInBits)
 	   .def("isValid", &llvm::LLT::isValid);
 
 	py::class_<llvm::MachineModuleInfo, std::unique_ptr<llvm::MachineModuleInfo, py::nodelete>> MachineModuleInfo(m, "MachineModuleInfo");
