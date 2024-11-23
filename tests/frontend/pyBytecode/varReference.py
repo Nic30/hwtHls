@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 
 from hwt.hdl.commonConstants import b1
+from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
-from tests.frontend.pyBytecode.pragmaInline import PragmaInline_writeCntr1
-from hwt.simulator.simTestCase import SimTestCase
 from tests.frontend.pyBytecode.hwrange_test import HlsPythonHwrange_TC
+from tests.frontend.pyBytecode.pragmaInline import PragmaInline_writeCntr1
 
 
 class CntrHolder():
