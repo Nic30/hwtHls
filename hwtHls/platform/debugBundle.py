@@ -53,6 +53,9 @@ class LLVM_CLI_COMMON_OPTS:
         :note: available only in llvm debug build
         """
         return ("debug-only", 0, "", passName)
+    
+    VREGIFCVT_TRACE = ("vregifcvt-trace", 0, "", "true")
+    
     # ("view-dag-combine1-dags", 0, "", "true"),
     # ("view-legalize-types-dags", 0, "", "true"),
     # ("view-dag-combine-lt-dags", 0, "", "true"),
@@ -61,7 +64,6 @@ class LLVM_CLI_COMMON_OPTS:
     # ("view-isel-dags", 0, "", "true"),
     # ("view-sched-dags", 0, "", "true"),
     # ("view-sunit-dags", 0, "", "true"),
-    # ("vregifcvt-trace", 0, "", "true"),
     # ("print-after-isel", 0, "", "true"),
     # ("print-lsr-output", 0, "", "true"),
     # ("debug-only", 0, "", "vreg-if-converter"), # :note: available only in llvm debug build
