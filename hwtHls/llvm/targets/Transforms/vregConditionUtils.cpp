@@ -246,7 +246,8 @@ void predicateInstructionUsingDefRegRename(llvm::MachineRegisterInfo &MRI,
 	}
 	auto &MBB = *MI.getParent();
 	// Create temporary registers for defines if the register is live out of this block
-	for (auto &MO : MI.operands()) {
+	for (MachineOperand &MO : reverse(MI.operands())) {
+		// reverse is important because uses needs to be seen before defs
 		if (!MO.isReg() || MO.isUndef())
 			continue;
 
