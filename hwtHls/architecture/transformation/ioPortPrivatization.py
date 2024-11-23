@@ -15,6 +15,7 @@ from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
@@ -104,7 +105,7 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
                         inArbiterR.setNonBlocking()
                     else:
                         # IO does not have control signals necessary for stalling of producer
-                        # ArchElements 
+                        # ArchElements
                         raise NotImplementedError(n)
 
                     nodesForArbitration.append(inArbiterR)
@@ -136,11 +137,11 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
                 wDataMuxCases.append(n._portDataOut)
                 if not isLast:
                     wDataMuxCases.append(req)
-            
+
             n.assignRealization(OpRealizationMeta(mayBeInFFStoreTime=True))
             n._setScheduleZeroTimeSingleClock(0)
             arbiterElm._addNodeIntoScheduled(0, n, allowNewClockWindow=True)
-                
+
             if anyPrevEnabled is None:
                 assert not isLast
                 anyPrevEnabled = req
@@ -168,7 +169,7 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
             rData = newIoNode._portDataOut
             for n in nodesForArbitration:
                 rData.connectHlsIn(n._portSrc)
-        
+
         for n in arbiterElm.subNodes:
             if n.scheduledZero is None:
                 n.assignRealization(OpRealizationMeta(mayBeInFFStoreTime=True))
@@ -177,8 +178,7 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
 
         portOwner[ioPort] = arbiterElm
         ioNodes.append(newIoNode)
-       
-        
+
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
         ioDiscovery: HlsNetlistAnalysisPassIoDiscover = netlist.getAnalysis(HlsNetlistAnalysisPassIoDiscover)
@@ -192,6 +192,8 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
         #   the arbiter must be generated
 
         for io in ioDiscovery.interfaceList:
+            if isinstance(io, MemoryAllocationMeta) and all(isinstance(u, HlsNetNodeRead) for u in io.users):
+                continue
             userSyncNodes: OrderedDict[Union[ArchElement, Tuple[ArchElement, int]], List[HlsNetNodeExplicitSync]] = OrderedDict()
             ioNodes = ioByInterface[io]
             if len(ioNodes) == 2:
@@ -201,7 +203,7 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
                     continue
                 if isinstance(n1, HlsNetNodeRead) and isinstance(n1, HlsNetNodeWrite):
                     continue
-                
+
             for n in ioNodes:
                 syncNode = n.getParentSyncNode()
                 if isinstance(syncNode[0], ArchElementFsm):
