@@ -1,40 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from typing import Tuple
 import unittest
 
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.defs import BIT
-from hwtHls.netlist.builder import HlsNetlistBuilder
-from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
-from hwtHls.netlist.nodes.read import HlsNetNodeRead
-from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.simplifyExpr.simplifyAbc import runAbcControlpathOpt
 from hwtHls.netlist.transformation.simplifyExpr.simplifyMux import netlistReduceMux
-from hwtHls.platform.virtual import VirtualHlsPlatform
+from tests.hlsNetlist.utils import BaseHlsNetlistReduceTC
 
 
-class HlsNetlistReduceMuxTC(unittest.TestCase):
-
-    @staticmethod
-    def _createNetlist() -> Tuple[HlsNetlistCtx, HlsNetlistBuilder]:
-        netlist = HlsNetlistCtx(None, int(100e6), "test", {}, platform=VirtualHlsPlatform())
-        return netlist, netlist.builder
-
-    def _r(self, netlist: HlsNetlistCtx, dtype=BIT):
-        r = HlsNetNodeRead(netlist, None, dtype=dtype)
-        netlist.addNode(r)
-        return r._outputs[0]
-
-    def _w(self, src: HlsNetNodeOut):
-        netlist = src.obj.netlist
-        w = HlsNetNodeWrite(netlist, None)
-        netlist.addNode(w)
-        src.connectHlsIn(w._portSrc)
-        return w
+class HlsNetlistReduceMuxTC(BaseHlsNetlistReduceTC):
 
     def assertIsNotOf(self, res: HlsNetNodeOut, notOf: HlsNetNodeOut):
         """
