@@ -102,7 +102,7 @@ class LlvmMirInterpret():
         }
 
         for opc, op in HlsNetlistAnalysisPassMirToNetlistLowLevel.OPC_TO_OP.items():
-            self._dispatchDict[opc.value] = self._makeOpcodeFunction(op)
+            self._dispatchDict[opc.value] = self._makeOpcodeFunction(opc, op)
         self.fnArgs: Optional[Tuple] = None
 
     def installWaveLog(self, waveLog: VcdWriter, strCtx: LLVMStringContext, codelineOffset: int=0):
@@ -208,9 +208,9 @@ class LlvmMirInterpret():
         for phiDst, v in newPhiVals:
             regs[phiDst.virtRegIndex()] = v
 
-    def _makeOpcodeFunction(self, op: HOperatorDef):
+    def _makeOpcodeFunction(self, opcode: TargetOpcode, op: HOperatorDef):
         """
-        Create opcode function for rest of the perands
+        Create opcode function for rest of the operands
         """
         if op in (HwtOps.NOT, OP_CTLZ, OP_CTTZ, OP_CTPOP):
 
@@ -225,31 +225,68 @@ class LlvmMirInterpret():
 
         elif op in (OP_SHL, OP_ASHR, OP_LSHR):
 
-            def _opcode_shift(MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
-                dst, src0, src1, width = ops
-                if src0._dtype.signed is not None:
-                    src0 = src0.cast_sign(None)
-                if src1._dtype.signed is not None:
-                    src1 = src1.cast_sign(None)
-                src1 = src1[log2ceil(width + 1):]  # truncate shiftAmount
-                res = op._evalFn(src0, src1)
-                regs[dst.virtRegIndex()] = res
+            if opcode in (TargetOpcode.G_SHL, TargetOpcode.G_ASHR, TargetOpcode.G_LSHR):
+
+                def _opcode_shift(MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+                    dst, src0, src1 = ops
+                    if src0._dtype.signed is not None:
+                        src0 = src0.cast_sign(None)
+                    if src1._dtype.signed is not None:
+                        src1 = src1.cast_sign(None)
+                    dstTy = MRI.getType(dst)
+                    assert dstTy.isValid(), mi
+                    width = dstTy.getScalarSizeInBits()
+                    src1 = src1[log2ceil(width + 1):]  # truncate shiftAmount
+                    res = op._evalFn(src0, src1)
+                    regs[dst.virtRegIndex()] = res
+
+            else:
+                assert opcode in (TargetOpcode.HWTFPGA_SHL, TargetOpcode.HWTFPGA_ASHR, TargetOpcode.HWTFPGA_LSHR), opcode
+
+                def _opcode_shift(MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+                    dst, src0, sh, width = ops
+                    if src0._dtype.signed is not None:
+                        src0 = src0.cast_sign(None)
+                    if sh._dtype.signed is not None:
+                        sh = sh.cast_sign(None)
+                    assert sh._dtype.bit_length() == log2ceil(width + 1), (mi, sh._dtype.bit_length(), log2ceil(width + 1))
+                    res = op._evalFn(src0, sh)
+                    regs[dst.virtRegIndex()] = res
 
             return _opcode_shift
 
         elif op in (OP_FSHL, OP_FSHR):
+            if opcode in (TargetOpcode.G_FSHL, TargetOpcode.G_FSHR):
 
-            def _opcode_funel_shift(MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
-                dst, src0, src1, sh, width = ops
-                if src0._dtype.signed is not None:
-                    src0 = src0.cast_sign(None)
-                if src1._dtype.signed is not None:
-                    src1 = src1.cast_sign(None)
-                if sh._dtype.signed is not None:
-                    sh = sh.cast_sign(None)
-                sh = sh[log2ceil(width + 1):]  # truncate shiftAmount
-                res = op._evalFn(src0, src1, sh)
-                regs[dst.virtRegIndex()] = res
+                def _opcode_funel_shift(MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+                    dst, src0, src1, sh = ops
+                    if src0._dtype.signed is not None:
+                        src0 = src0.cast_sign(None)
+                    if src1._dtype.signed is not None:
+                        src1 = src1.cast_sign(None)
+                    if sh._dtype.signed is not None:
+                        sh = sh.cast_sign(None)
+                    dstTy = MRI.getType(dst)
+                    assert dstTy.isValid(), mi
+                    width = dstTy.getScalarSizeInBits()
+                    sh = sh[log2ceil(width + 1):]  # truncate shiftAmount
+                    res = op._evalFn(src0, src1, sh)
+                    regs[dst.virtRegIndex()] = res
+
+            else:
+                assert opcode in (TargetOpcode.HWTFPGA_FSHL, TargetOpcode.HWTFPGA_FSHR), opcode
+
+                def _opcode_funel_shift(MRI: MachineRegisterInfo, regs: List[HConst], mi: MachineInstr, ops: list):
+                    dst, src0, src1, sh, width = ops
+                    if src0._dtype.signed is not None:
+                        src0 = src0.cast_sign(None)
+                    if src1._dtype.signed is not None:
+                        src1 = src1.cast_sign(None)
+                    if sh._dtype.signed is not None:
+                        sh = sh.cast_sign(None)
+                    assert sh._dtype.bit_length() == log2ceil(width + 1), (mi, sh._dtype.bit_length(), log2ceil(width + 1))
+                    res = op._evalFn(src0, src1, sh)
+                    regs[dst.virtRegIndex()] = res
 
             return _opcode_funel_shift
 
