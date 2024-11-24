@@ -37,7 +37,7 @@ class SsaPassDumpMirCfg(SsaAnalysisPass):
         llvm = toLlvm.llvm
         mf = llvm.getMachineFunction(llvm.main)
         assert mf
-        out, doClose = self.outStreamGetter(llvm.main.getGlobalIdentifier())
+        out, doClose = self.outStreamGetter(toLlvm._dbgSubDir)
         try:
             P = dumpMirCfgToDot(mf)
             out.write(P.to_string())

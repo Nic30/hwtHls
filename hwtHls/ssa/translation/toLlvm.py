@@ -1,4 +1,5 @@
 from _io import StringIO
+from pathlib import Path
 from typing import List, Tuple, Dict, Union, Sequence, Callable, Optional, Set
 
 from hwt.hdl.const import HConst
@@ -69,10 +70,8 @@ class ToLlvmIrTranslator():
     :note: Information about IO are stored in function attributes
     """
 
-    def __init__(self, label: str, namePrefix:str, parentHwModule: HwModule, dbgLogPassExec:Optional[StringIO]):
-        self.label = label
-        self.namePrefix = namePrefix
-        self.llvm = LlvmCompilationBundle(label)
+    def __init__(self, parentHwModule: HwModule, dbgLogPassExec:Optional[StringIO], llvmModuleName:str="hwtHlsModule"):
+        self.llvm = LlvmCompilationBundle(llvmModuleName)
         self.ctx: LLVMContext = self.llvm.ctx
         self.strCtx: LLVMStringContext = self.llvm.strCtx
         self.module: Module = self.llvm.module
@@ -99,6 +98,9 @@ class ToLlvmIrTranslator():
         self._loop_stack: List[Tuple[BasicBlock, List[BasicBlock]]] = []
         self._dbgLogPassExec:Optional[StringIO] = dbgLogPassExec
         self._opConstructorMap, self._opConstructorMapCmp = ToLlvmIrTranslator_createOperatorConstructorDictionaries(self.b)
+        self._dbgRootDir: Optional[Path] = None
+        self._dbgSubDir: Optional[Path] = None
+        
 
     def _getOrCreateAllocaForTmpVariable(self, var: RtlSignal,
                                          allocaKnownToBeMissing: bool):

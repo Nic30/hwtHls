@@ -540,7 +540,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
         fnName = getattr(fn, "__qualname__", fn.__name__)
         with self.dbgTracer.scoped("inlining", fnName):
             if self.debugBytecode:
-                d = Path(self.debugDirectory) / self.toLlvm.label
+                d = self.toLlvm.debugDirectory / self.toLlvm.label
                 d.mkdir(exist_ok=True)
                 with open(d / f"00.bytecode.{fnName}.txt", "w") as f:
                     dis(fn, file=f)

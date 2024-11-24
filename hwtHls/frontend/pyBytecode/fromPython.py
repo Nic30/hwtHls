@@ -82,8 +82,8 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
         """
         fnName = getattr(fn, "__qualname__", fn.__name__)
         if self.debugBytecode:
-            d = Path(self.debugDirectory) / fnName
-            d.mkdir(exist_ok=True)
+            d = self.toLlvm._dbgRootDir / self.toLlvm._dbgSubDir
+            d.mkdir(parents=True, exist_ok=True)
             with open(d / f"00.bytecode.{fnName}.txt", "w") as f:
                 dis(fn, file=f)
 

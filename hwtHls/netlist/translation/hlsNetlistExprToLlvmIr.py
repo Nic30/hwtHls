@@ -13,9 +13,9 @@ from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 
 class HlsNetlistExprToLlvmIr(ToLlvmIrTranslator):
 
-    def __init__(self, label: str):
+    def __init__(self, llvmModuleName: str):
         parentHwModule = None
-        super(HlsNetlistExprToLlvmIr, self).__init__(label, label, parentHwModule, None)
+        super(HlsNetlistExprToLlvmIr, self).__init__(parentHwModule, None, llvmModuleName=llvmModuleName)
 
     @override
     def _translateExprToLlvm(self, block: BasicBlock, var: Union[HlsNetNodeOut, Value], allowHConst:bool=False) -> Tuple[BasicBlock, Value]:
@@ -53,7 +53,7 @@ class HlsNetlistExprToLlvmIr(ToLlvmIrTranslator):
             params.append((name, ptrT, elmT, 0))
 
         strCtx = self.strCtx
-        self.llvm.main = main = self.createFunctionPrototype(self.label, params, Type.getVoidTy(self.ctx))
+        self.llvm.main = main = self.createFunctionPrototype("main", params, Type.getVoidTy(self.ctx))
         b = self.b
         mainBB = BasicBlock.Create(self.ctx, strCtx.addTwine("entry"), main, None)
         b.SetInsertPoint(mainBB)

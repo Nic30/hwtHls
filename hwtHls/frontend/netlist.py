@@ -28,6 +28,9 @@ class HlsThreadFromNetlist(HlsThread):
     def compileToSsa(self):
         raise HlsThreadDoesNotUseSsa()
 
+    def prepareLlvmTranslator(self):
+        pass
+
     def compileToNetlist(self, platform:DefaultHlsPlatform):
         hls = self.hls
         namePrefix = self.hls.namePrefix

@@ -13,7 +13,7 @@ class SsaPassDumpIR(SsaAnalysisPass):
     def runOnSsaModuleImpl(self, toLlvm:"ToLlvmIrTranslator"):
         main = toLlvm.llvm.main
         assert main
-        out, doClose = self.outStreamGetter(main.getGlobalIdentifier())
+        out, doClose = self.outStreamGetter(toLlvm._dbgSubDir)
         try:
             out.write(str(main))
         finally:

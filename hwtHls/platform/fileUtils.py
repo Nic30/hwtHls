@@ -14,7 +14,7 @@ def outputFileGetter(rootDir: Union[Path, str], fileName: str) -> OutputStreamGe
         
     def getter(folderName:str):
         d = rootDir / folderName
-        d.mkdir(exist_ok=True)
+        d.mkdir(parents=True, exist_ok=True)
         return open(d / fileName, "w"), True
 
     return getter

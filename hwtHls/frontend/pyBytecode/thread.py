@@ -1,3 +1,4 @@
+from pathlib import Path
 from types import FunctionType
 from typing import Optional, List, Tuple, Union
 
@@ -17,14 +18,18 @@ class HlsThreadFromPy(HlsThread):
         super(HlsThreadFromPy, self).__init__(hls, None)
         self.fn = fn
         self.fnName = getattr(fn, "__qualname__", fn.__name__)
-        self.toLlvm = ToLlvmIrTranslator(self.getLabel(), self.getNamePrefix(), hls.parentHwModule, None)
+        self.toLlvm: Optional[ToLlvmIrTranslator] = None
+        self.bytecodeToSsa: Optional[PyBytecodeToSsa] = None
         self.dbgTracer: Optional[DebugTracer] = DebugTracer(None)
-        self.bytecodeToSsa = PyBytecodeToSsa(self.hls, self.toLlvm, self.dbgTracer, self.fnName, hls.namePrefix,)
         self.fnArgs = fnArgs
         self.fnKwargs = fnKwargs
         self._imports: List[Tuple[Union[RtlSignal, HwIO], DIRECTION]] = []
         self._exports: List[Tuple[Union[RtlSignal, HwIO], DIRECTION]] = []
         self._doCloseTrace = False
+
+    def prepareLlvmTranslator(self):
+        self.toLlvm = ToLlvmIrTranslator(self.hls.parentHwModule, None)
+        self.bytecodeToSsa = PyBytecodeToSsa(self.hls, self.toLlvm, self.dbgTracer, self.getLabel(), self.getNamePrefix())
 
     def debugCopyConfig(self, p: DefaultHlsPlatform):
         d = p._debug
@@ -40,10 +45,11 @@ class HlsThreadFromPy(HlsThread):
                 d.firstRun = False
 
             toSsa = self.bytecodeToSsa
+            toSsa.toLlvm._dbgRootDir = Path(debugDir)
+            toSsa.toLlvm._dbgSubDir = self.getLabel()
             self.dbgTracer, self._doCloseTrace = p._getDebugTracer(
-                self.fnName, HlsDebugBundle.DBG_0_0_pyFrontedBytecodeTrace)
+                toSsa.toLlvm._dbgSubDir, HlsDebugBundle.DBG_0_0_pyFrontedBytecodeTrace)
             toSsa.dbgTracer = self.dbgTracer
-            toSsa.debugDirectory = debugDir
             toSsa.debugBytecode = debugBytecode
             toSsa.debugCfgBegin = debugCfgBeing
             toSsa.debugCfgGen = debugCfgGen
@@ -59,7 +65,6 @@ class HlsThreadFromPy(HlsThread):
 
     def compileToSsa(self):
         self.toLlvm: Optional[ToLlvmIrTranslator] = self.bytecodeToSsa.toLlvm
-        self.toLlvm.namePrefix = self.getNamePrefix()
         try:
             self.bytecodeToSsa.translateFunction(self.fn, *self.fnArgs, **self.fnKwargs)
         finally:

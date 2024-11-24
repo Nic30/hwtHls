@@ -14,7 +14,7 @@ class SsaPassDumpMIR(SsaAnalysisPass):
         llvm = toLlvm.llvm
         mf = llvm.getMachineFunction(llvm.main)
         assert mf
-        out, doClose = self.outStreamGetter(llvm.main.getGlobalIdentifier())
+        out, doClose = self.outStreamGetter(toLlvm._dbgSubDir)
         try:
             out.write(mf.serialize())
         finally:

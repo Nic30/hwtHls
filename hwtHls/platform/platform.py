@@ -93,6 +93,7 @@ class DefaultHlsPlatform(DummyPlatform):
         return dbgTracer, doCloseTrace
 
     def beforeThreadToSsa(self, thread: "HlsThread"):
+        thread.prepareLlvmTranslator()
         thread.debugCopyConfig(self)
 
     def runSsaPasses(self, hls: "HlsScope", toLlvm: ToLlvmIrTranslator):

@@ -24,6 +24,7 @@ from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.scope import HlsScope
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 
+
 JumpCondition = Union[None, HConst, RtlSignal, Value, Literal[False]]
 
 
@@ -31,7 +32,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
 
     def __init__(self, hls: HlsScope, toLlvm: ToLlvmIrTranslator, dbgTracer: DebugTracer, label: str, namePrefix:str):
         super(PyBytecodeToSsaLowLevel, self).__init__()
-        assert sys.version_info >= (3, 11, 0), ("Python3.11 is minimum requirement", sys.version_info)
+        assert sys.version_info >= (3, 12, 0), ("Python3.12 is minimum requirement", sys.version_info)
         self.hls = hls
         self.label = label
         self.namePrefix = namePrefix
@@ -40,7 +41,6 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
         self.labelToBlock: Dict[BlockLabel, SsaBlockGroup] = {}
         self.callStack: List[PyBytecodeFrame] = []
         self.dbgTracer = dbgTracer
-        self.debugDirectory = None
         self.debugBytecode = False
         self.debugCfgBegin = False
         self.debugCfgGen = False
@@ -48,8 +48,9 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
         self.debugGraphCntr = 0
 
     def _debugDump(self, frame: PyBytecodeFrame, label=None):
-        assert self.debugDirectory is not None, self
-        d = Path(self.debugDirectory) / self.toLlvm.label
+        assert self.toLlvm._dbgRootDir is not None, self
+        assert self.toLlvm._dbgSubDir is not None, self
+        d = self.toLlvm._dbgRootDir / self.toLlvm._dbgSubDir
         d.mkdir(exist_ok=True)
         with open(d / f"00.cfg.{self.debugGraphCntr:d}{'.' if label else ''}{label if label else ''}.dot", "w") as f:
             frame.blockTracker.dumpCfgToDot(f, set(), self.labelToBlock)
