@@ -8,6 +8,7 @@
 #include <llvm/Analysis/DependenceAnalysis.h>
 #include <llvm/Analysis/PostDominators.h>
 #include <llvm/Analysis/DomTreeUpdater.h>
+#include <llvm/Analysis/LoopInfo.h>
 #include <llvm/IR/Dominators.h>
 #include <llvm/Support/Casting.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
@@ -44,8 +45,7 @@ public:
 	}
 
 	BasicBlock* _optionallyConsumePendingWord(llvm::IRBuilder<> &builder,
-			llvm::Value *condition, StreamIoDetector::HlsReadOrWrite *write,
-			llvm::Twine BlockLabel) {
+			llvm::Value *condition, llvm::Twine BlockLabel) {
 		// write word from previous write because we just resolved it will not be last
 		// the word itself is produced from previous write
 		assert(
@@ -69,6 +69,61 @@ public:
 
 		return sequelBlock;
 	}
+	BasicBlock* _flushIfPending(llvm::IRBuilder<> &builder, llvm::Twine BlockLabel) {
+		auto *_predWordPendingVar = streamProps.getVarValue(
+				builder, streamProps.wDataPendingVar);
+		auto BB = _optionallyConsumePendingWord(builder,
+				_predWordPendingVar,
+				streamProps.ioArg->getName()
+						+ BlockLabel);
+		streamProps.setVarU64(builder, 0, streamProps.wDataPendingVar);
+		return BB;
+	}
+
+	void _rewriteAdtAccessToWordAccessInstructionSofAndEof(
+			const std::vector<size_t> &possibleOffsets,
+			StreamIoDetector::HlsReadOrWrite *inst) {
+		if (inst == nullptr) {
+		} else if (IsStreamWriteStartOfFrame(inst)) {
+			IRBuilder<> builder(inst);
+			// This is a beginning of the frame, we may have to set leading zeros in masks
+			for (auto startOffset : possibleOffsets) {
+				if (startOffset % 8 != 0) {
+					throw std::runtime_error(
+							"must be aligned to octet because Axi4Stream strb/keep works this way"); // (write, startOffset,
+				}
+			}
+			if (possibleOffsets.size() != 1) {
+				throw std::runtime_error("Multiple positions of frame start"); // possibleOffsets
+			} else {
+				// reset or wipe variables with previous data
+				streamProps.setVarU64(builder, 0, streamProps.wDataPendingVar);
+				streamProps.setVarU64(builder, 0, streamProps.dataLastVar);
+				streamProps.setDataMaskConst(builder, possibleOffsets[0], 0);
+				streamProps.setVarU64(builder, { }, streamProps.dataVar);
+				streamProps.setVarU64(builder, possibleOffsets[0],
+						streamProps.dataOffsetVar);
+			}
+		} else if (IsStreamWriteEndOfFrame(inst)) {
+			IRBuilder<> builder(inst);
+			// all writes which may be the last must be postponed until we reach this or other write
+			// because we need to the value of signal "last" and value of masks if end is not aligned
+			if (!dynamic_cast<StreamEoFMeta*>(cfg.ioInstrMeta[inst].get())->inlinedToPredecessors) {
+				builder.SetInsertPoint(inst);
+				for (auto endOffset : possibleOffsets) {
+					if (endOffset % 8 != 0) {
+						throw std::runtime_error(
+								"must be aligned to octet because Axi4Stream strb/keep works this way"); // write, endOffset,
+					}
+				}
+				// :note: remaining bits in mask should be set to 0 from the start
+				streamProps.setVarU64(builder, 1, streamProps.dataLastVar);
+				_flushIfPending(builder, ".eofFlush");
+			}
+		} else {
+			throw std::runtime_error("stream marker of unknown type");
+		}
+	}
 
 	void _rewriteAdtAccessToWordAccessInstruction(
 			StreamIoDetector::HlsReadOrWrite *writeInst) override {
@@ -81,56 +136,13 @@ public:
 					"This is an accessible read, it should be already removed"); // , write
 		auto &C = streamProps.ioArg->getContext();
 		if (writeIsMarker) {
-			if (writeInst == nullptr) {
-			} else if (IsStreamWriteStartOfFrame(writeInst)) {
-				IRBuilder<> builder(writeInst);
-				// This is a beginning of the frame, we may have to set leading zeros in masks
-				for (auto startOffset : possibleOffsets) {
-					if (startOffset % 8 != 0) {
-						throw std::runtime_error(
-								"must be aligned to octet because Axi4Stream strb/keep works this way"); // (write, startOffset,
-					}
-				}
-				if (possibleOffsets.size() != 1) {
-					throw std::runtime_error(
-							"Multiple positions of frame start"); // possibleOffsets
-				} else {
-					// reset or wipe variables with previous data
-					streamProps.setVarU64(builder, 0,
-							streamProps.wDataPendingVar);
-					streamProps.setVarU64(builder, 0, streamProps.dataLastVar);
-					streamProps.setDataMaskConst(builder, possibleOffsets[0],
-							0);
-					streamProps.setVarU64(builder, { }, streamProps.dataVar);
-					streamProps.setVarU64(builder, possibleOffsets[0],
-							streamProps.dataOffsetVar);
-				}
-
-			} else if (IsStreamWriteEndOfFrame(writeInst)) {
-				IRBuilder<> builder(writeInst);
-				// all writes which may be the last must be postponed until we reach this or other write
-				// because we need to the value of signal "last" and value of masks if end is not aligned
-				if (!dynamic_cast<StreamEoFMeta*>(cfg.ioInstrMeta[writeInst].get())->inlinedToPredecessors) {
-					builder.SetInsertPoint(writeInst);
-					for (auto endOffset : possibleOffsets) {
-						if (endOffset % 8 != 0) {
-							throw std::runtime_error(
-									"must be aligned to octet because Axi4Stream strb/keep works this way"); // write, endOffset,
-						}
-					}
-					// :note: remaining bits in mask should be set to 0 from the start
-					streamProps.setVarU64(builder, 1, streamProps.dataLastVar);
-					_insertIntfWrite(builder);
-					streamProps.setVarU64(builder, 0,
-							streamProps.wDataPendingVar);
-				}
-			} else {
-				throw std::runtime_error("stream marker of unknown type");
-			}
+			_rewriteAdtAccessToWordAccessInstructionSofAndEof(possibleOffsets,
+					writeInst);
 
 		} else {
 			IRBuilder<> builder(writeInst);
 			auto *src = writeInst->getArgOperand(1);
+			Value* writeMask = streamWriteGetWriteMask(writeInst);
 			auto width = src->getType()->getIntegerBitWidth();
 
 			// if number of words differs in offset variants we need to insert a new block which is entered conditionally for specific offset values
@@ -155,7 +167,7 @@ public:
 				size_t wordCnt = div_ceil(end == 0 ? 0 : end - 1, DATA_WIDTH);
 				// slice input part form original write input and write it to wordTmp variable
 				for (size_t wordI = 0; wordI < wordCnt; wordI++) {
-					bool last = wordI == wordCnt - 1;
+					bool isLastWordOfChunk = wordI == wordCnt - 1;
 					size_t availableBits = width - srcOffset;
 					assert(DATA_WIDTH - inWordOffset);
 					size_t bitsToTake = std::min(availableBits,
@@ -174,46 +186,36 @@ public:
 					if (wordI == 0 && *off == 0
 							&& dynamic_cast<StreamChunkLastMeta*>(cfg.ioInstrMeta[writeInst].get())->prevWordMayBePending) {
 						// if there is complete word pending, flush it because we just resolved the last flag (0)
-						auto *_predWordPendingVar = streamProps.getVarValue(
-								builder, streamProps.wDataPendingVar);
-						_optionallyConsumePendingWord(builder,
-								_predWordPendingVar, writeInst,
-								writeInst->getName()
-										+ "ConsumePendingRemainder");
+						_flushIfPending(builder, "ConsumePendingRemainder");
 					}
 					// else it is guaranteed that there is "bitsToTake" bits in last word which we can fill
 
 					// fill current chunk to current word
-					streamProps.setDataMaskConst(builder,
-							wordI == 0 ? *off : 0ul, bitsToTake);
+					auto inChunkOffset = wordI == 0 ? *off : 0ul;
+					streamProps.setDataMask(builder, inChunkOffset, bitsToTake, writeMask);
 					if (inWordOffset != 0 || dataHi != DATA_WIDTH) {
+						// handle the first word where the beginning does not need to be aligned
 						streamProps.setData(builder, _src, inWordOffset);
 						inWordOffset = 0;
 					} else {
 						builder.CreateStore(_src, streamProps.dataVar);
 					}
 
-					if (!last) {
-						// write word somewhere in the middle of packet and in the middle of this chunk
-						streamProps.setVarU64(builder, 0,
-								streamProps.dataLastVar);
-						_insertIntfWrite(builder);
-						streamProps.setVarU64(builder, 0,
-								streamProps.wDataPendingVar);
-					} else {
+					if (isLastWordOfChunk) {
+						// handle flushing/staging of the last word
 						auto *meta =
 								dynamic_cast<StreamChunkLastMeta*>(cfg.ioInstrMeta[writeInst].get());
 						if (!meta->isLast.has_value()
 								&& meta->isLastExpr == nullptr) {
 							// this word must be written once we resolve next successor because it is not
-							// possible to resolve last yet
+							// possible to resolve "last" yet
 							if (end % DATA_WIDTH == 0) {
 								streamProps.setVarU64(builder, 1,
 										streamProps.wDataPendingVar);
 							}
 
 						} else if (meta->isLast.has_value()) {
-							// it is possible to resolve last, so we can output word immediately
+							// "last" has some constant value, so we can output word immediately
 							streamProps.setVarU64(builder, meta->isLast.value(),
 									streamProps.dataLastVar);
 							if (meta->isLast.value() || end % DATA_WIDTH == 0) {
@@ -240,11 +242,18 @@ public:
 										end % DATA_WIDTH);
 								endsWithConsumePendingOnLast = true;
 								_optionallyConsumePendingWord(builder,
-										meta->isLastExpr, writeInst,
+										meta->isLastExpr,
 										writeInst->getName()
 												+ "ConsumePendingOnLast");
 							}
 						}
+					} else {
+						// write word somewhere in the middle of packet and in the middle of this chunk
+						streamProps.setVarU64(builder, 0,
+								streamProps.dataLastVar);
+						_insertIntfWrite(builder);
+						streamProps.setVarU64(builder, 0,
+								streamProps.wDataPendingVar);
 					}
 					srcOffset += bitsToTake;
 				}
@@ -267,10 +276,11 @@ llvm::PreservedAnalyses StreamWriteLoweringPass::run(llvm::Function &F,
 	auto streamProps = getStreamIoProps(F, GeneratedAllocas);
 
 	auto &DT = FAM.getResult<DominatorTreeAnalysis>(F);
+	auto &LI = FAM.getResult<LoopAnalysis>(F);
 	auto &DI = FAM.getResult<DependenceAnalysis>(F);
 	auto &PDT = FAM.getResult<PostDominatorTreeAnalysis>(F);
 	DomTreeUpdater DTU(DT, DomTreeUpdater::UpdateStrategy::Lazy);
-	//writeCFGToDotFile(F, "StreamWriteLoweringPass.before.dot", nullptr, nullptr);
+	// writeCFGToDotFile(F, "tmp/StreamWriteLoweringPass.before.dot", FAM);
 
 	for (StreamChannelProps &s : streamProps) {
 		if (!s.isOutput)
@@ -285,16 +295,19 @@ llvm::PreservedAnalyses StreamWriteLoweringPass::run(llvm::Function &F,
 		IRBuilder<> builder(F.getEntryBlock().getFirstNonPHI());
 		s.createCommonVars(builder);
 		s.createWDataPendingVar(builder);
+		// writeCFGToDotFile(F, "tmp/StreamWriteLoweringPass.before.writeEoFHoist.dot", FAM);
 
-		StreamWriteEoFHoister sweh(s, cfg, DT, PDT, DI);
+		StreamWriteEoFHoister sweh(s, cfg, DT, PDT, LI, DI);
 		sweh.prepareLastExpressionForWrites();
+
+		// writeCFGToDotFile(F, "tmp/StreamWriteLoweringPass.after.writeEoFHoist.dot", FAM);
 
 		StreamWriteRewriter swr(cfg, s, &DTU, nullptr);
 		swr.rewriteAdtAccessToWordAccess(F.getEntryBlock());
 		DTU.flush();
 	}
 	if (changed) {
-//		writeCFGToDotFile(F, "tmp/after.StreamWriteLoweringPass.dot", nullptr, nullptr);
+		// writeCFGToDotFile(F, "tmp/StreamWriteLoweringPass.after.dot", FAM);
 		finalizeStreamIoLowerig(F, FAM, DT, streamProps, true,
 				GeneratedAllocas);
 		//throw std::runtime_error("[debug]");

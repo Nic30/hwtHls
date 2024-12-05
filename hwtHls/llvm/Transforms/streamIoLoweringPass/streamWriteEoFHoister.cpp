@@ -1,5 +1,9 @@
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamWriteEoFHoister.h>
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
+
+#include <llvm/IR/Dominators.h>
+#include <llvm/Analysis/ValueTracking.h>
+#include <llvm/Analysis/LoopInfo.h>
 #include <llvm/Transforms/Utils/CodeMoverUtils.h>
 
 using namespace llvm;
@@ -9,8 +13,8 @@ namespace hwtHls {
 StreamWriteEoFHoister::StreamWriteEoFHoister(
 		const StreamChannelProps &streamProps, StreamIoDetector &cfg,
 		llvm::DominatorTree &DT, const llvm::PostDominatorTree &PDT,
-		llvm::DependenceInfo &DI) :
-		streamProps(streamProps), cfg(cfg), DT(DT), PDT(PDT), DI(DI) {
+		llvm::LoopInfo &LI, llvm::DependenceInfo &DI) :
+		streamProps(streamProps), cfg(cfg), DT(DT), PDT(PDT), LI(LI), DI(DI) {
 }
 
 //std::optional<bool> StreamWriteEoFHoister::_isLastWrite(
@@ -110,7 +114,8 @@ StreamWriteEoFHoister::StreamEoFReachInfo* StreamWriteEoFHoister::_tryToGetCondi
 							+ Term->getOpcodeName(Term->getOpcode()));
 		}
 	}
-
+	errs() << "_tryToGetConditionToEnableEoFProbe: " << curBlock.getName()
+			<< "  " << info->mayBeEof << " " << info->mayBeNotEof << "\n";
 	return info;
 }
 
@@ -129,19 +134,87 @@ std::pair<llvm::Value*, std::optional<bool>> StreamWriteEoFHoister::prepareEoFCo
 	return {res.first, isLast};
 
 }
-std::pair<llvm::Value*, bool> StreamWriteEoFHoister::_prepareEoFCondition(
+// Try to hoist V in a position which dominates MovePos so the V is always available on MovePos
+bool StreamWriteEoFHoister::_hoistRecursivelyIfPossible(Instruction *V,
+		Instruction *MovePos) {
+	if (DT.dominates(V, MovePos))
+		return true; // no hoisting required because V already dominates MovePos
+
+	if (!DT.dominates(MovePos, V)) {
+		// in the case that this is not just a simple hoist in linear sequence of blocks pick common dominator
+		MovePos = DT.findNearestCommonDominator(V, MovePos);
+		assert(
+				MovePos->isTerminator()
+						&& "Expected terminator of dominator block");
+	}
+
+	if (llvm::isSafeToMoveBefore(*V, *MovePos, DT, &PDT, &DI, /*CheckForEntireBlock*/
+	true)) {
+		V->moveBefore(MovePos);
+		return true;
+	} else {
+		for (auto dep : V->operand_values()) {
+			if (auto DepI = dyn_cast<Instruction>(dep)) {
+				if (!_hoistRecursivelyIfPossible(DepI, MovePos)) {
+					return false;
+				}
+			}
+		}
+		if (llvm::isSafeToSpeculativelyExecute(V, nullptr, nullptr, &DT)) {
+			V->moveBefore(MovePos);
+			return true;
+		}
+	}
+	if (llvm::isSafeToMoveBefore(*V, *MovePos, DT, &PDT, &DI, /*CheckForEntireBlock*/
+	true)) {
+		V->moveBefore(MovePos);
+		return true;
+	}
+	return false;
+}
+
+bool eofIsKnown(const std::pair<llvm::Value*, std::optional<bool>> &EofTuple) {
+	if (!EofTuple.first && !EofTuple.second.has_value()) {
+		return false;
+	}
+	return true;
+}
+
+// :attention: this works only if other write/eof is not outside of current loop
+//   because we do not know yet:
+//    * if this is a last iteration
+//    * other iteration are going to execute this write again
+std::pair<llvm::Value*, std::optional<bool>> StreamWriteEoFHoister::_prepareEoFCondition(
 		llvm::IRBuilder<> &Builder, Instruction *MovePos,
 		llvm::BasicBlock *curBlock, bool fromBlockBeginning) {
 	StreamEoFReachInfo *Info =
 			AllInfos[ { curBlock, fromBlockBeginning }].get();
+	errs() << "_prepareEoFCondition: " << curBlock->getName()
+			<< " fromBlockBeginning " << Info->mayBeEof << " "
+			<< Info->mayBeNotEof << "\n";
 	assert(Info != nullptr);
+
 	if (Info->mayBeEof && Info->mayBeNotEof) {
-		auto ToVal = [&Builder](std::pair<llvm::Value*, bool> &v) {
+		bool isLoopLatch = false;
+		for (auto *Suc : successors(curBlock)) {
+			auto LSuc = LI.getLoopFor(Suc);
+			if (LSuc->contains(curBlock)) {
+				isLoopLatch = true;
+				break;
+			}
+		}
+		if (isLoopLatch) {
+			// if this is a loop latch the EoF condition can not be hoisted
+			// because for next iteration we do not know which path in CFG will be taken
+			return {nullptr, {}};
+		}
+
+		auto ToVal = [&Builder](std::pair<llvm::Value*, std::optional<bool>> &v) {
 			if (v.first != nullptr) {
 				return v.first;
 			} else {
 				return (llvm::Value*) ConstantInt::getBool(Builder.getContext(),
-						v.second);
+						v.second.value());
 			}
 		};
 		auto *Term = curBlock->getTerminator();
@@ -154,12 +227,15 @@ std::pair<llvm::Value*, bool> StreamWriteEoFHoister::_prepareEoFCondition(
 				auto *TBB = BR->getSuccessor(0);
 				auto *FBB = BR->getSuccessor(1);
 
-				if (llvm::isSafeToMoveBefore(*BrCond, *MovePos, DT, &PDT, &DI, /*CheckForEntireBlock*/
-				true)) {
-					BrCond->moveBefore(MovePos);
-				} else {
-					throw std::runtime_error(
-							"NotImplemented: can not move condition for EOF before potentially last write");
+				if (!_hoistRecursivelyIfPossible(BrCond, MovePos)) {
+					std::string tmp;
+					llvm::raw_string_ostream ss(tmp);
+					ss
+							<< "NotImplemented: can not move condition for EOF before potentially last write (BranchInst condition) ";
+					BrCond->print(ss);
+					ss << " before ";
+					MovePos->print(ss);
+					throw std::runtime_error(ss.str());
 				}
 				auto TLastExpr = _prepareEoFCondition(Builder, MovePos, TBB,
 						true);
@@ -167,15 +243,23 @@ std::pair<llvm::Value*, bool> StreamWriteEoFHoister::_prepareEoFCondition(
 						true);
 				if (TLastExpr.first == nullptr && FLastExpr.first == nullptr) {
 					// simplified case where each successor have only one possibility of EoF/non-EoF
-					if (TLastExpr.second && !FLastExpr.second) {
+					if (!TLastExpr.second.has_value()
+							|| FLastExpr.second.has_value()) {
+						return {nullptr, {}};
+					} else if (TLastExpr.second.value()
+							&& !FLastExpr.second.value()) {
 						return {BrCond, false};
 					} else {
 						assert(
-								!TLastExpr.second && FLastExpr.second
+								!TLastExpr.second.value()
+										&& FLastExpr.second.value()
 										&& "Because this block may end up in EoF or non-EoF booth variants must be in successors");
 						return {Builder.CreateNot(BrCond), false};
 					}
 				} else {
+					if (!eofIsKnown(TLastExpr) || !eofIsKnown(FLastExpr)) {
+						return {nullptr, {}};
+					}
 					// create a SelectInst to select between EoF condition variants
 					Value *TCaseVal = ToVal(TLastExpr);
 					Value *FCaseVal = ToVal(FLastExpr);
@@ -190,23 +274,26 @@ std::pair<llvm::Value*, bool> StreamWriteEoFHoister::_prepareEoFCondition(
 			assert(
 					Cond
 							&& "If it is not instruction this branch should be already optimized-out");
-			if (llvm::isSafeToMoveBefore(*Cond, *MovePos, DT, &PDT, &DI, /*CheckForEntireBlock*/
-			true)) {
-				Cond->moveBefore(MovePos);
-			} else {
+			if (!_hoistRecursivelyIfPossible(Cond, MovePos)) {
 				throw std::runtime_error(
-						"NotImplemented: can not move condition for EOF before potentially last write");
+						"NotImplemented: can not move condition for EOF before potentially last write (SwitchInst condition)");
 			}
 			auto *DefBB = Sw->getDefaultDest();
 			assert(DefBB);
 			auto CondIsEofTuple = _prepareEoFCondition(Builder, MovePos, DefBB,
 					true);
+			if (!eofIsKnown(CondIsEofTuple) || !eofIsKnown(CondIsEofTuple)) {
+				return {nullptr, {}};
+			}
 			Value *IsEoF = ToVal(CondIsEofTuple);
 			for (auto &Case : Sw->cases()) {
 				auto *SucBB = Case.getCaseSuccessor();
 				auto *CV = Case.getCaseValue();
 				auto SucLastExpr = _prepareEoFCondition(Builder, MovePos, SucBB,
 						true);
+				if (!eofIsKnown(SucLastExpr) || !eofIsKnown(SucLastExpr)) {
+					return {nullptr, {}};
+				}
 				auto *IsEoFFromSuc = ToVal(SucLastExpr);
 				IsEoF = Builder.CreateSelect(Builder.CreateICmpEQ(Cond, CV),
 						IsEoFFromSuc, IsEoF);
@@ -301,7 +388,7 @@ void StreamWriteEoFHoister::prepareLastExpressionForWrites() {
 			std::tie(isLastExpr, isLast) = prepareEoFCondition(Builder, write,
 					write->getParent());
 			if (isLastExpr && !isLastExpr->hasName()) {
-				isLastExpr->setName(write->getName() + ".eof");
+				isLastExpr->setName(streamProps.ioArg->getName() + ".eof");
 			}
 			auto meta = std::make_unique<StreamChunkLastMeta>(isLast,
 					isLastExpr);

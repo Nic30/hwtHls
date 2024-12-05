@@ -6,6 +6,7 @@ namespace llvm {
 class DominatorTree;
 class PostDominatorTree;
 class DependenceInfo;
+class LoopInfo;
 }
 
 namespace hwtHls {
@@ -34,11 +35,12 @@ public:
 
 	llvm::DominatorTree &DT;
 	const llvm::PostDominatorTree &PDT;
+	llvm::LoopInfo &LI;
 	llvm::DependenceInfo &DI;
 
 	StreamWriteEoFHoister(const StreamChannelProps &streamProps,
 			StreamIoDetector &cfg, llvm::DominatorTree &DT,
-			const llvm::PostDominatorTree &PDT, llvm::DependenceInfo &DI);
+			const llvm::PostDominatorTree &PDT, llvm::LoopInfo &LI, llvm::DependenceInfo &DI);
 	void prepareLastExpressionForWrites();
 protected:
 	/*
@@ -51,11 +53,11 @@ protected:
 	std::pair<llvm::Value*, std::optional<bool>> prepareEoFCondition(
 			llvm::IRBuilder<> &Builder, llvm::Instruction *MovePos,
 			llvm::BasicBlock *curBlock);
-
+	bool _hoistRecursivelyIfPossible(llvm::Instruction *V, llvm::Instruction *MovePos);
 	/*
 	 * :return: tuple isEoFCond, isEoFValue (value is valid only if isEoFCond==nullptr)
 	 * */
-	std::pair<llvm::Value*, bool> _prepareEoFCondition(
+	std::pair<llvm::Value*, std::optional<bool>> _prepareEoFCondition(
 			llvm::IRBuilder<> &Builder, llvm::Instruction *MovePos,
 			llvm::BasicBlock *curBlock, bool fromBlockBeginning);
 	/**
