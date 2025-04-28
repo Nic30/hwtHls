@@ -9,7 +9,7 @@
 namespace hwtHls {
 
 inline size_t log2ceil(size_t x) {
-	if (x == 0)
+	if (x == 0 || x == 1)
 		return 1;
 	size_t result = 0;
 	--x;
