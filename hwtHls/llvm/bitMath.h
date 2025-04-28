@@ -48,4 +48,13 @@ size_t getOneSequenceEnd(size_t off, const llvm::APInt &val);
  * */
 void iterUsedBitRangeSlices(const llvm::APInt &useMask,
 		std::function<void(size_t, size_t)> consumer);
+
+template<typename INT_T>
+INT_T mask(size_t numberOfBits) {
+	static_assert(!std::is_signed<INT_T>::value);
+	INT_T v = -1;
+	v >>= (sizeof v) * 8 - numberOfBits;
+	return v;
+}
+
 }
