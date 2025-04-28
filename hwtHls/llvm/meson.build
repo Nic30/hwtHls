@@ -34,6 +34,7 @@ py3.extension_module(
     'llvmIr',
     [
      'bitMath.cpp',
+     'llmIrStripInstrucionUnrelatedToCrash.cpp',
      'llvmCompilationBundle.cpp',
      'llvmCompilationBundleORE.cpp',
      'llvmPyCompilationBundle.cpp',
