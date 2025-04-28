@@ -130,7 +130,7 @@ source venv/bin/activate # modifies current shell to use previously generate pyt
 * :skull: [exprc](https://github.com/n-nez/exprc) - 2018-2018, C++, a toy HLS compiler
 * :skull: [hg_lvl_syn](https://github.com/funningboy/hg_lvl_syn) - 2010, ILP, Force Directed scheduler
 * :skull: [hls_recurse](https://github.com/m8pple/hls_recurse) - 2015-2016 - conversion of recursive fn. for stackless architectures
-* :skull: [kiwi](https://www.cl.cam.ac.uk/~djg11/kiwi/) 2003-2017
+* :skull: [kiwi](https://www.cl.cam.ac.uk/~djg11/kiwi/) [git](https://github.com/BabarZKhan/Kiwi-compiler-HLS) 2003-2017, F#, C#->Verilog, FP, channel communication, parallel programs
 * :skull: [LegUp](http://legup.eecg.utoronto.ca/) (reborn as Microchip SmarthHLS in 2020) - 2011-2015, LLVM based c->verilog
 * :skull: [microcoder](https://github.com/ben-marshall/microcoder) - ?-2019, Python, ASM like lang. -> verilog
 * :skull: [polyphony](https://github.com/ktok07b6/polyphony) - 2015-2017, simple python to hdl
