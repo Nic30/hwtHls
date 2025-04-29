@@ -3,6 +3,8 @@
 #include <pybind11/stl.h>
 #include <hwtHls/llvm/llvmIrCommon.h>
 
+#include <hwtHls/llvm/targets/intrinsic/StreamChannelFormatInfo.h>
+
 namespace py = pybind11;
 
 namespace hwtHls {
@@ -23,6 +25,7 @@ void register_MDNode(pybind11::module_ & m) {
 		.def("asMetadata", &asMetadata<llvm::Metadata>, py::return_value_policy::reference_internal)
 		.def("__repr__", &printToStr<llvm::Metadata>);
 
+	// :attention: all pybind11 bindings for functions using llvm::MDNode must be overriden to use this class instead
 	py::class_<MDNodeWithDeletedDelete, std::unique_ptr<MDNodeWithDeletedDelete, py::nodelete>> MDNode(m, "MDNode");
 	MDNode
 		.def_static("get", [](llvm::LLVMContext &Context, std::vector<llvm::Metadata *> &MDs, bool insertTmpAsFirts) {
@@ -116,6 +119,51 @@ void register_MDNode(pybind11::module_ & m) {
 	//py::implicitly_convertible<llvm::ConstantAsMetadata, llvm::Metadata>();
 	//py::implicitly_convertible<llvm::ValueAsMetadata, llvm::Metadata>();
 	//py::implicitly_convertible<llvm::MDString, llvm::Metadata>();
+
+	py::enum_<hwtHls::ByteEnableEncoding> (m, "ByteEnableEncoding")
+		.value("BEE_NONE", hwtHls::ByteEnableEncoding::BEE_NONE)
+		.value("BEE_MASK", hwtHls::ByteEnableEncoding::BEE_MASK)
+		.value("BEE_ENABLE_PLUS_EMPTY", hwtHls::ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY)
+		.export_values();
+
+	py::enum_<hwtHls::FramingSignalizationEconding>(m, "FramingSignalizationEconding")
+		.value("FRAMING_NONE", hwtHls::FramingSignalizationEconding::FRAMING_NONE)
+		.value("FRAMING_EOF", hwtHls::FramingSignalizationEconding::FRAMING_EOF)
+		.value("FRAMING_SOF_EOF", hwtHls::FramingSignalizationEconding::FRAMING_SOF_EOF)
+		.export_values();
+
+	py::class_<hwtHls::StreamChannelFormatInfo> _StreamChannelFormatInfo(m, "StreamChannelFormatInfo");
+	_StreamChannelFormatInfo
+	.def_readonly("segmentCnt", &hwtHls::StreamChannelFormatInfo::segmentCnt)
+	.def_readonly("dataWidth", &hwtHls::StreamChannelFormatInfo::dataWidth)
+	.def_readonly("byteWidth", &hwtHls::StreamChannelFormatInfo::byteWidth)
+	.def_readonly("supportZLP", &hwtHls::StreamChannelFormatInfo::supportZLP)
+	.def_readonly("errorWidth", &hwtHls::StreamChannelFormatInfo::errorWidth)
+	.def_readonly("byteEnableEncoding", &hwtHls::StreamChannelFormatInfo::byteEnableEncoding)
+	.def_readonly("framingEncoding", &hwtHls::StreamChannelFormatInfo::framingEncoding)
+	.def("hasSoF", &hwtHls::StreamChannelFormatInfo::hasSoF)
+	.def("hasEoF", &hwtHls::StreamChannelFormatInfo::hasEoF)
+	.def("hasMask", &hwtHls::StreamChannelFormatInfo::hasMask)
+	.def("hasEnable", &hwtHls::StreamChannelFormatInfo::hasEnable)
+	.def("hasEmpty", &hwtHls::StreamChannelFormatInfo::hasEmpty)
+	.def("hasError", &hwtHls::StreamChannelFormatInfo::hasError)
+	.def("getOffsetOfError", &hwtHls::StreamChannelFormatInfo::getOffsetOfError)//
+	.def("getOffsetOfSoF", &hwtHls::StreamChannelFormatInfo::getOffsetOfSoF)//
+	.def("getOffsetOfEoF", &hwtHls::StreamChannelFormatInfo::getOffsetOfEoF)//
+	.def("getOffsetOfEmpty", &hwtHls::StreamChannelFormatInfo::getOffsetOfEmpty)//
+	.def("getOffsetOfMask", &hwtHls::StreamChannelFormatInfo::getOffsetOfMask)//
+	.def("getOffsetOfEnable", &hwtHls::StreamChannelFormatInfo::getOffsetOfEnable)	//
+	.def("getWidthOfEmpty", &hwtHls::StreamChannelFormatInfo::getWidthOfEmpty)//
+	.def_static("getWidthOfEmptyForData", &hwtHls::StreamChannelFormatInfo::getWidthOfEmptyForData)
+	.def("getWidthOfMask", &hwtHls::StreamChannelFormatInfo::getWidthOfMask)//
+	.def("getWidthOfMaskForData", &hwtHls::StreamChannelFormatInfo::getWidthOfMaskForData)//
+	.def("getWidthOfFramingEncoding", &hwtHls::StreamChannelFormatInfo::getWidthOfFramingEncoding)//
+	.def("getWidthOfBusWord", &hwtHls::StreamChannelFormatInfo::getWidthOfBusWord)//
+	.def_static("findInMetadata", &hwtHls::StreamChannelFormatInfo::findInMetadata)
+	.def_static("findOptionalInMetadata",  [](MDNodeWithDeletedDelete & hwtHls_streamIo_MD, llvm::Argument &ioArg) {
+		return hwtHls::StreamChannelFormatInfo::findOptionalInMetadata(hwtHls_streamIo_MD, ioArg);
+	})
+	;
 }
 
 }
