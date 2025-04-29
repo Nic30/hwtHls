@@ -185,13 +185,14 @@ SmallVector<AllocaInst*> makeSectionOfLoopConditionalyReexecuted(
 	for (auto BB : ExitBlocks) {
 		ExitBlockAfterPhi.push_back(BB->getFirstNonPHI());
 	}
-
 	for (auto &p : inSectionDefProps) {
 		if (p.usedOutsideOfSection) {
 			// create tmp alloca in preheaderTerm
 			Builder.SetInsertPoint(preheaderTerm);
 			auto Ty = p.def->getType();
 			auto Name = p.def->getName();
+			assert(!Ty->isPointerTy() && "For pointers we need to check if it is some IO or alloca and optionally move it outside of loop, to minimize use of pointers without bound memory");
+
 			auto Alloca = Builder.CreateAlloca(Ty, 0, Name);
 			Allocas.push_back(Alloca);
 			if (!p.usedOutsideOfParentLoop) {
