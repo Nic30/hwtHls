@@ -1,16 +1,17 @@
 #include <hwtHls/llvm/Transforms/PromoteAllocaToGlobalPass.h>
+
+#include <set>
+
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/IR/IntrinsicInst.h>
-#include <set>
 
 using namespace llvm;
 
 namespace hwtHls {
 
-bool discoverStoresToAddr(Instruction &AllocaI, bool &anyStoreSeen,
-		TypeSize allocSize, Instruction &I, SmallVector<Instruction*> &defs,
-		std::set<Instruction*> &seen) {
+bool discoverStoresToAddr(Instruction &AllocaI, bool &anyStoreSeen, TypeSize allocSize, Instruction &I,
+		SmallVector<Instruction*> &defs, SmallVector<Instruction*>& partialDefs, std::set<Instruction*> &seen) {
 	for (auto *U : I.users()) {
 		if (auto UI = dyn_cast<Instruction>(U)) {
 			if (seen.contains(UI))
@@ -20,23 +21,31 @@ bool discoverStoresToAddr(Instruction &AllocaI, bool &anyStoreSeen,
 
 		if (isa<LoadInst>(U)) {
 		} else if (auto *ST = dyn_cast<StoreInst>(U)) {
-			if (ST->getAccessType()->getScalarSizeInBits() == allocSize * 8) {
+			auto StTy = ST->getAccessType();
+			if (StTy->isAggregateType() || //
+				StTy->isVectorTy() || //
+				StTy->getScalarSizeInBits() == allocSize.getFixedValue() * 8) {
+				// if whole alloca value is initialized
 				defs.push_back(ST);
+			} else {
+				partialDefs.push_back(ST);
 			}
 			anyStoreSeen = true;
 		} else if (auto *II = dyn_cast<IntrinsicInst>(U)) {
 			switch (II->getIntrinsicID()) {
-			case Intrinsic::memcpy:
-				//case Intrinsic::memmove:
-				//case Intrinsic::memset:
-			{
-
+			// case Intrinsic::memmove:
+			// case Intrinsic::memset:
+			case Intrinsic::memcpy: {
 				auto dst = II->getArgOperand(0);
 				auto size = II->getArgOperand(2);
-				if (dst == &AllocaI && dyn_cast<ConstantInt>(size)
-						&& dyn_cast<ConstantInt>(size)->getZExtValue()
-								== allocSize) {
-					defs.push_back(II);
+				if (dst == &AllocaI) {
+					if (dyn_cast<ConstantInt>(size)
+									&& dyn_cast<ConstantInt>(size)->getZExtValue()
+											== allocSize.getFixedValue()) {
+						defs.push_back(II);
+					} else {
+						partialDefs.push_back(II);
+					}
 				}
 				anyStoreSeen = true;
 				break;
@@ -47,7 +56,7 @@ bool discoverStoresToAddr(Instruction &AllocaI, bool &anyStoreSeen,
 			}
 		} else if (auto *GEP = dyn_cast<GetElementPtrInst>(U)) {
 			if (discoverStoresToAddr(AllocaI, anyStoreSeen, allocSize, *GEP,
-					defs, seen))
+					defs, partialDefs, seen))
 				break;
 		} else if (isa<ICmpInst>(U)) {
 			//} else if (isa<BinaryOperator>(U) || isa<CastInst>(U)) {
@@ -60,34 +69,51 @@ bool discoverStoresToAddr(Instruction &AllocaI, bool &anyStoreSeen,
 }
 
 void rewriteAllocaInitToGlobalValue(BasicBlock::iterator &Iit, AllocaInst &AI,
-		TypeSize allocSize, Instruction *def) {
+		TypeSize allocSize, Instruction *def, bool isConstant) {
 	GlobalValue *SrcAsGlobalVal = nullptr;
 	if (auto *ST = dyn_cast<StoreInst>(def)) {
 		// based on CreateGlobalDataWithGEP
 		auto AllocTy = dyn_cast<ArrayType>(AI.getAllocatedType());
 		assert(AllocTy);
 		auto elmTy = AllocTy->getArrayElementType();
-		assert(elmTy->isIntegerTy());
+		assert(
+				(elmTy->isIntegerTy() || elmTy->isDoubleTy())
+						&& "Only scalar types used in hwtHls");
 		auto elmWidth = elmTy->getScalarSizeInBits();
 		auto V = ST->getValueOperand();
-		assert(V->getType()->isIntegerTy());
-		assert(V->getType()->getIntegerBitWidth() == allocSize * 8);
-		auto VasC = dyn_cast<ConstantInt>(V);
-		assert(VasC);
-
-		APInt VasAPInt = VasC->getValue();
+		auto VTy = V->getType();
+		Constant *newInitializer = nullptr;
 		Module &M = *AI.getParent()->getParent()->getParent();
-		std::vector<Constant*> initData;
-		initData.reserve(AllocTy->getNumElements());
-		auto &C = AI.getContext();
-		for (size_t i = 0; i < AllocTy->getNumElements(); ++i) {
-			auto item = VasAPInt.extractBits(elmWidth, i*elmWidth);
-			initData.push_back(ConstantInt::get(C, item));
+		if (VTy->isIntegerTy()) {
+			// initialization from integer, typically used for small arrays
+			assert(VTy->getScalarSizeInBits() == allocSize * 8);
+			auto VasC = dyn_cast<ConstantInt>(V);
+			assert(VasC);
+
+			APInt VasAPInt = VasC->getValue();
+			std::vector<Constant*> initData;
+			initData.reserve(AllocTy->getNumElements());
+			auto &C = AI.getContext();
+			for (size_t i = 0; i < AllocTy->getNumElements(); ++i) {
+				auto item = VasAPInt.extractBits(elmWidth, i * elmWidth);
+				initData.push_back(ConstantInt::get(C, item));
+			}
+			newInitializer = ConstantDataArray::get(AI.getContext(), initData);
+		} else {
+			assert(AllocTy == VTy);
+			// initialization from array constant, typically instruction like:
+			// store [16 x i16] undef, ptr %ram_memory, align 2
+			if (auto VC = dyn_cast<Constant>(V)) {
+				newInitializer = VC;
+			} else {
+				llvm_unreachable(
+						"rewriteAllocaInitToGlobalValue: initialization of alloca memory from non constant data");
+			}
 		}
 
-		auto *newCArray = ConstantArray::get(AllocTy, initData);
 		SrcAsGlobalVal = new GlobalVariable(M, AllocTy, /*isConstant=*/
-		true, GlobalVariable::PrivateLinkage, newCArray, AI.getName());
+		isConstant, GlobalVariable::PrivateLinkage, newInitializer,
+				AI.getName());
 		SrcAsGlobalVal->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
 		// Set the alignment to that of an array items. We will be only loading one
 		// value out of it.
@@ -121,7 +147,9 @@ void rewriteAllocaInitToGlobalValue(BasicBlock::iterator &Iit, AllocaInst &AI,
 	if (!SrcAsGlobalVal->hasName()) {
 		SrcAsGlobalVal->setName(AI.getName());
 	}
-	++Iit;
+	if (AI.getIterator() == Iit)
+		++Iit;
+	assert(AI.getAddressSpace() == SrcAsGlobalVal->getAddressSpace());
 	AI.replaceAllUsesWith(SrcAsGlobalVal);
 	AI.eraseFromParent();
 	if (Iit == def->getIterator()) {
@@ -132,47 +160,78 @@ void rewriteAllocaInitToGlobalValue(BasicBlock::iterator &Iit, AllocaInst &AI,
 
 void rewriteAllocaToGlobalValue(const DataLayout &DL, BasicBlock::iterator &Iit,
 		AllocaInst &AI) {
-	SmallVector<Instruction*> defs;
-	std::set<Instruction*> seen;
+	SmallVector<Instruction*> completeDefs;
+	SmallVector<Instruction*> partialDefs;
+	std::set<Instruction*> seenCompleteRewrites;
 
+	// :note:
+	//    allocSize is number of bytes of data + alignment + padding
+	//    allocTypeSize is number of bytes required by data allone
 	TypeSize allocSize = DL.getTypeAllocSize(AI.getAllocatedType());
 	bool anyStoreSeen = false;
-	discoverStoresToAddr(AI, anyStoreSeen, allocSize, AI, defs, seen);
+	discoverStoresToAddr(AI, anyStoreSeen, allocSize, AI, completeDefs, partialDefs, seenCompleteRewrites);
 
-	if (defs.empty()) {
+	if (completeDefs.empty()) {
 		if (!anyStoreSeen)
 			throw std::runtime_error(
 					"memory of alloca is missing any initialization"
 							+ AI.getName().str());
-	} else if (defs.size() == 1) {
-		Instruction *def = defs[0];
-		rewriteAllocaInitToGlobalValue(Iit, AI, allocSize, def);
+	} else if (completeDefs.size() == 1) {
+		Instruction *def = completeDefs[0];
+		bool isConstant = partialDefs.empty();
+		rewriteAllocaInitToGlobalValue(Iit, AI, allocSize, def, isConstant);
 	} else {
 		// there are multiple initializations
-		BasicBlock &entryBB = AI.getParent()->getParent()->getEntryBlock();
+		BasicBlock &defBB = *AI.getParent();
 		// check for case that the AllocaInst and its initialization is executed only once
-		if (AI.getParent() == &entryBB) {
-			Instruction *defInEntryBB = nullptr;
-			for (auto def : defs) {
-				if (def->getParent() == &entryBB) {
-					assert(
-							!defInEntryBB
-									&& "There should be at most a single store like instruction for alloca in entry block");
-					defInEntryBB = def;
+		Instruction *defInDefBB = nullptr;
+		SmallVector<Instruction*> dominatedDefs;
+		for (auto def : completeDefs) {
+			if (def->getParent() == &defBB) {
+				if (defInDefBB) {
+					if (defInDefBB->comesBefore(def)) {
+						dominatedDefs.push_back(defInDefBB);
+						defInDefBB = def; // get last instruction in this block which initializes alloca memory
+					} else {
+						dominatedDefs.push_back(def);
+					}
+				} else {
+					defInDefBB = def;
 				}
 			}
-			if (defInEntryBB) {
-				rewriteAllocaInitToGlobalValue(Iit, AI, allocSize, defInEntryBB);
-			} else {
-				errs() << AI << "\n";
-				llvm_unreachable(
-						"NotImplemented multiple stores but none of them in entry block");
-
-			}
 		}
-		errs() << AI << "\n";
-		llvm_unreachable(
-				"NotImplemented multiple stores - resolve which one is initialization");
+		if (defInDefBB) {
+			// check that the data of alloca is not read until last initialization instruction
+			for (auto I = AI.getIterator(); I != defInDefBB->getIterator();
+					++I) {
+				if (auto GEP = dyn_cast<GetElementPtrInst>(I)) {
+					if (GEP->getPointerOperand() == &AI) {
+						llvm_unreachable(
+								"Address of AllocaInst taken before initialization");
+					}
+				} else if (auto St = dyn_cast<LoadInst>(I)) {
+					if (St->getPointerOperand() == &AI) {
+						llvm_unreachable(
+								"Load from AllocaInst before initialization");
+					}
+				}
+			}
+
+			for (auto I : dominatedDefs) {
+				if (Iit == I->getIterator()) {
+					++Iit;
+				}
+				I->eraseFromParent();
+			}
+			bool isConstant = partialDefs.empty() && completeDefs.size() == dominatedDefs.size() + 1;
+			rewriteAllocaInitToGlobalValue(Iit, AI, allocSize, defInDefBB,
+					isConstant);
+		} else {
+			errs() << AI << "\n";
+			llvm_unreachable(
+					"NotImplemented multiple stores but none of them in entry block");
+
+		}
 	}
 }
 
@@ -191,7 +250,7 @@ llvm::PreservedAnalyses PromoteAllocaToGlobalPass::run(llvm::Function &F,
 		}
 
 	}
-	return PreservedAnalyses();
+	return PreservedAnalyses::none();
 }
 
 }
