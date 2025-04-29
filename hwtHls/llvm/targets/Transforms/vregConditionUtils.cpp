@@ -27,7 +27,7 @@ MachineOperand* getRegisterNegationIfExits(MachineRegisterInfo &MRI,
 			if (Op1.isReg()) {
 				if (MRI.isSSA()
 						|| (I.getParent() == &TargetMBB
-								&& !RegisterIsDefinedWithinRange(Op1.isReg(),
+								&& !RegisterIsDefinedWithinRange(Op1.getReg(),
 										++I.getIterator(), TargetIp))) {
 					Op1CanBeUsed = true;
 				}
