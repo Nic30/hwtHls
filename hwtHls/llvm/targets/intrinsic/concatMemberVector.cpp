@@ -13,7 +13,10 @@ bool OffsetWidthValue::operator==(const OffsetWidthValue &rhs) const {
 bool OffsetWidthValue::operator<(OffsetWidthValue &other) const {
 	return offset < other.offset;
 }
-
+bool OffsetWidthValue::contains(const OffsetWidthValue &other) const {
+	return offset <= other.offset
+			&& offset + width >= other.offset + other.width;
+}
 void OffsetWidthValue::print(llvm::raw_ostream &OS) const {
 	OS << *this->value << " [off=" << offset << ", w=" << width << "]";
 }
@@ -31,17 +34,38 @@ OffsetWidthValue OffsetWidthValue::fromValue(Value *V) {
 	return {0, Ty->isIntegerTy() ? Ty->getIntegerBitWidth() : 1, V};
 }
 
-bool OffsetWidthValue::isMsbOf(const llvm::Value* v) const {
-	return width == 1 && value == v && offset == v->getType()->getIntegerBitWidth() - 1;
+bool OffsetWidthValue::isMsbOf(const llvm::Value *v) const {
+	return width == 1 && value == v
+			&& offset == v->getType()->getIntegerBitWidth() - 1;
 }
 
 bool OffsetWidthValue::isIdentity() const {
 	auto Ty = value->getType();
-	return offset == 0  && width == Ty->isIntegerTy() ? Ty->getIntegerBitWidth() : 1;
+	return offset == 0
+			&& width == (Ty->isIntegerTy() ? Ty->getIntegerBitWidth() : 1);
 }
 
+void OffsetWidthValue::normalize() {
+	if (isa<ConstantData>(value) && value->getType()->isIntegerTy()
+			&& value->getType()->getIntegerBitWidth() != width) {
+		auto newTy = IntegerType::get(value->getContext(), width);
+		if (isa<PoisonValue>(value)) {
+			value = PoisonValue::get(newTy);
+			offset = 0;
+		} else if (isa<UndefValue>(value)) {
+			value = UndefValue::get(newTy);
+			offset = 0;
+		} else if (auto CI = dyn_cast<ConstantInt>(value)) {
+			auto v = CI->getValue().extractBits(width, offset);
+			value = ConstantInt::get(newTy, v);
+			offset = 0;
+		}
+	}
+}
 
-Value* ConcatMemberVector::_memberToValue(OffsetWidthValue &item) {
+Value* ConcatMemberVector::_memberToValue(IRBuilderBase &builder,
+		std::unordered_map<OffsetWidthValue, llvm::Value*> *commonSubexpressionCache,
+		OffsetWidthValue &item) {
 	bool fitsExactly = item.width == item.value->getType()->getIntegerBitWidth()
 			&& item.offset == 0;
 	if (fitsExactly) {
@@ -76,9 +100,8 @@ Value* ConcatMemberVector::_memberToValue(OffsetWidthValue &item) {
 	}
 }
 
-ConcatMemberVector::ConcatMemberVector(IRBuilder<> &_builder,
-		std::unordered_map<OffsetWidthValue, Value*> *_commonSubexpressionCache) :
-		builder(_builder), commonSubexpressionCache(_commonSubexpressionCache) {
+void ConcatMemberVector::push_back_Value(llvm::Value *item) {
+	push_back(OffsetWidthValue::fromValue(item));
 }
 
 void ConcatMemberVector::push_back(OffsetWidthValue item) {
@@ -99,7 +122,7 @@ void ConcatMemberVector::push_back(OffsetWidthValue item) {
 		if (C0 && C1) {
 			// merge constants
 			auto w = last.width + item.width;
-			last.value = builder.getInt(
+			last.value = ConstantInt::get(C0->getContext(),
 					C0->getValue().zext(w)
 							| C1->getValue().zext(w).shl(last.width));
 			last.width += item.width;
@@ -109,9 +132,47 @@ void ConcatMemberVector::push_back(OffsetWidthValue item) {
 	members.push_back(item);
 }
 
-Value* ConcatMemberVector::resolveValue(Instruction *builderPosition) {
+void ConcatMemberVector::push_back_flattened(Value *operand) {
+	if (auto CI = dyn_cast<CallInst>(operand)) {
+		if (IsBitConcat(CI)) {
+			for (auto &A : CI->args()) {
+				push_back_flattened(A.get());
+			}
+			return;
+		}
+	}
+	push_back(OffsetWidthValue::fromValue(operand));
+}
+
+bool ConcatMemberVector::isLsbBitsOf(const ConcatMemberVector &other) const {
+	auto thisIt = members.begin();
+	for (auto m : other.members) {
+		if (thisIt == members.end())
+			return false;
+		if (*thisIt != m)
+			return false;
+		++thisIt;
+	}
+	return true;
+}
+
+bool ConcatMemberVector::isMsbBitsOf(const ConcatMemberVector &other) const {
+	auto thisIt = members.rbegin();
+	for (auto m : llvm::reverse(other.members)) {
+		if (thisIt == members.rend())
+			return false;
+		if (*thisIt != m)
+			return false;
+		++thisIt;
+	}
+	return true;
+}
+
+Value* ConcatMemberVector::resolveValue(IRBuilderBase &builder,
+		std::unordered_map<OffsetWidthValue, llvm::Value*> *commonSubexpressionCache,
+		Instruction *builderPosition) {
 	if (members.size() == 1) {
-		return _memberToValue(members[0]);
+		return _memberToValue(builder, commonSubexpressionCache, members[0]);
 	} else {
 		assert(
 				builderPosition != nullptr
@@ -119,7 +180,8 @@ Value* ConcatMemberVector::resolveValue(Instruction *builderPosition) {
 		SmallVector<Value*> concatMembers;
 		concatMembers.reserve(members.size());
 		for (auto &m : members) {
-			concatMembers.push_back(_memberToValue(m));
+			concatMembers.push_back(
+					_memberToValue(builder, commonSubexpressionCache, m));
 		}
 		IRBuilder_setInsertPointBehindPhi(builder, builderPosition);
 		auto res = CreateBitConcat(&builder, concatMembers);
@@ -142,6 +204,7 @@ OffsetWidthValue BitRangeGetOffsetWidthValue(CallInst *C) {
 	assert(_offset && "Offset must be a constant");
 	res.offset = _offset->getZExtValue();
 	res.width = C->getType()->getIntegerBitWidth();
+	res.normalize();
 	return res;
 }
 
@@ -150,6 +213,7 @@ OffsetWidthValue BitRangeGetOffsetWidthValue(TruncInst *T) {
 	res.value = T->getOperand(0);
 	res.offset = 0;
 	res.width = T->getType()->getIntegerBitWidth();
+	res.normalize();
 	return res;
 }
 
