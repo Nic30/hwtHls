@@ -64,14 +64,14 @@ MachineOperand* getRegisterNegationIfExits(MachineRegisterInfo &MRI,
 	llvm::SmallPtrSet<MachineBasicBlock*, 32> seenBlocks;
 	while (!seenBlocks.contains(_TargetMBB)) {
 		while (_TargetIp != _TargetMBB->begin()) {
-			MachineInstr &prevInstr = *--_TargetIp;
+			MachineInstr &predInstr = *--_TargetIp;
 
 			bool TargetRegIsDefinedByNegation = false;
 			bool FoundExistingNegationOfTargetReg = false;
-			switch (prevInstr.getOpcode()) {
+			switch (predInstr.getOpcode()) {
 			case HwtFpga::HWTFPGA_NOT: {
-				auto &Op0 = prevInstr.getOperand(0);
-				auto &Op1 = prevInstr.getOperand(1);
+				auto &Op0 = predInstr.getOperand(0);
+				auto &Op1 = predInstr.getOperand(1);
 				FoundExistingNegationOfTargetReg = Op1.isReg()
 						&& Op1.getReg() == reg;
 				if (!isSSA && !FoundExistingNegationOfTargetReg)
@@ -79,9 +79,9 @@ MachineOperand* getRegisterNegationIfExits(MachineRegisterInfo &MRI,
 				break;
 			}
 			case TargetOpcode::G_XOR: {
-				auto &Op0 = prevInstr.getOperand(0);
-				auto &Op1 = prevInstr.getOperand(1);
-				auto &Op2 = prevInstr.getOperand(2);
+				auto &Op0 = predInstr.getOperand(0);
+				auto &Op1 = predInstr.getOperand(1);
+				auto &Op2 = predInstr.getOperand(2);
 				FoundExistingNegationOfTargetReg = Op1.isReg()
 						&& Op1.getReg() == reg;
 				if (!isSSA && !FoundExistingNegationOfTargetReg) {
@@ -92,9 +92,9 @@ MachineOperand* getRegisterNegationIfExits(MachineRegisterInfo &MRI,
 			}
 			}
 			if (FoundExistingNegationOfTargetReg) {
-				auto &Op0 = prevInstr.getOperand(0);
+				auto &Op0 = predInstr.getOperand(0);
 				if (Register_isRedefinedInLinearBlockSequenceEndToBegin(
-						Op0.getReg(), prevInstr.getIterator(), TargetMBB,
+						Op0.getReg(), predInstr.getIterator(), TargetMBB,
 						TargetIp)) {
 					return nullptr;
 				}
@@ -103,10 +103,10 @@ MachineOperand* getRegisterNegationIfExits(MachineRegisterInfo &MRI,
 				return &Op0;
 			}
 			if (TargetRegIsDefinedByNegation
-					&& prevInstr.getOperand(1).isReg()) {
-				auto &Op1 = prevInstr.getOperand(1);
+					&& predInstr.getOperand(1).isReg()) {
+				auto &Op1 = predInstr.getOperand(1);
 				if (Register_isRedefinedInLinearBlockSequenceEndToBegin(
-						Op1.getReg(), prevInstr.getIterator(), TargetMBB,
+						Op1.getReg(), predInstr.getIterator(), TargetMBB,
 						TargetIp)) {
 					return nullptr;
 				}
@@ -114,7 +114,7 @@ MachineOperand* getRegisterNegationIfExits(MachineRegisterInfo &MRI,
 				Op1.setIsKill(false);
 				return &Op1;
 			}
-			if (prevInstr.definesRegister(reg))
+			if (predInstr.definesRegister(reg))
 				return nullptr;
 		}
 		if (_TargetMBB->pred_size() != 1) {
