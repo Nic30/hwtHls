@@ -5,9 +5,11 @@
 #include <pybind11/stl_bind.h>
 
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/Transforms/Utils/BuildLibCalls.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
-#include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 #include <hwtHls/llvm/targets/intrinsic/hfloattmp.h>
+#include <hwtHls/llvm/targets/intrinsic/streamIo.h>
+#include <hwtHls/llvm/targets/intrinsic/threadSplit.h>
 
 
 namespace py = pybind11;
@@ -17,20 +19,40 @@ PYBIND11_MAKE_OPAQUE(std::vector<llvm::Value*>);
 
 namespace hwtHls {
 
-#define COMMON_BIN_OP_ARGS py::arg("LHS"), py::arg("RHS"), py::arg("Name")= llvm::Twine(""), py::arg("HasNUW")=false, py::arg("HasNSW")=false
+#define COMMON_BIN_OP_ARGS_SHORT        py::arg("LHS"), py::arg("RHS"), py::arg("Name")= llvm::Twine("")
+#define COMMON_BIN_OP_ARGS              py::arg("LHS"), py::arg("RHS"), py::arg("Name")= llvm::Twine(""), py::arg("HasNUW")=false, py::arg("HasNSW")=false
 #define COMMON_BIN_OP_ARGS_WITH_ISEXACT py::arg("LHS"), py::arg("RHS"), py::arg("Name")= llvm::Twine(""), py::arg("isExact")=false
+
+#define F_UN_OP(opName) \
+.def(#opName, [](llvm::IRBuilder<> * self, llvm::Value *V, const llvm::Twine &Name) {\
+	return self->opName(V, Name);\
+}, py::return_value_policy::reference)
 
 #define F_OP(opName) \
 .def(#opName, [](llvm::IRBuilder<> * self, llvm::Value *L, llvm::Value *R, const llvm::Twine &Name) {\
 	return self->opName(L, R, Name);\
 }, py::return_value_policy::reference)
 
-#define HFloatTmpConfig_PY_ARGS \
-	py::arg("isInQFromat"), py::arg("supportSubnormal"), \
-	py::arg("exponentOrIntWidth"), py::arg("mantissaOrFracWidth"), \
-	py::arg("hasSign"), py::arg("hasIsNaN"), py::arg("hasIsInf"), py::arg("hasIs1"), py::arg("hasIs0")
+// Value *CreateTrunc(Value *V, Type *DestTy, const Twine &Name = "")
+#define CAST_OP(opName) \
+.def(#opName, [](llvm::IRBuilder<> * self, llvm::Value *V, llvm::Type *DestTy, const llvm::Twine &Name) {\
+		if (V->getType()->isIntegerTy() && \
+			DestTy->isIntegerTy() && \
+			V->getType()->getIntegerBitWidth() > DestTy->getIntegerBitWidth()) {\
+			 /*some form of trunc, use CreateBitRangeGetConst to put truncat close to src*/ \
+			 return CreateBitRangeGetConst(self, V, 0, DestTy->getIntegerBitWidth(), Name);       \
+		}                                                                                   \
+		return self->opName(V, DestTy, Name);                                               \
+    },                                                                                       \
+	py::arg("V"), py::arg("DestTy"), py::arg("Name")=llvm::Twine(""),\
+	py::return_value_policy::reference)
+
 
 void register_IRBuilder(pybind11::module_ & m) {
+	/*
+	 * :attention: pybind11 does does not know that llvm::IRBuilderBase and other llvm::IRBuilder<> variants
+	 *             are compatible with IRBuilder, the builder must be manually casted
+	 * */
 	py::class_<llvm::IRBuilder<>>(m, "IRBuilder")
 		.def(py::init<llvm::LLVMContext&>())
 		.def("SetInsertPoint", [](llvm::IRBuilder<> * self, llvm::BasicBlock *TheBB) {
@@ -125,9 +147,25 @@ void register_IRBuilder(pybind11::module_ & m) {
 		.def("CreateZExt", &llvm::IRBuilder<>::CreateZExt,
 				py::arg("V"), py::arg("DestTy"), py::arg("Name")=llvm::Twine(""), py::arg("IsNonNeg")=false,
 				py::return_value_policy::reference)
-		.def("CreateSExt", &llvm::IRBuilder<>::CreateSExt, py::return_value_policy::reference)
+		CAST_OP(CreateSExt)
+		CAST_OP(CreateZExtOrTrunc)
+		CAST_OP(CreateSExtOrTrunc)
+		CAST_OP(CreateFPToUI)
+		CAST_OP(CreateFPToSI)
+		CAST_OP(CreateUIToFP)
+		CAST_OP(CreateSIToFP)
+		CAST_OP(CreateFPTrunc)
+		CAST_OP(CreateFPExt)
+		CAST_OP(CreatePtrToInt)
+		CAST_OP(CreateIntToPtr)
+		CAST_OP(CreateBitCast)
+		CAST_OP(CreateAddrSpaceCast)
+		CAST_OP(CreateZExtOrBitCast)
+		CAST_OP(CreateSExtOrBitCast)
+		CAST_OP(CreateTruncOrBitCast)
+		CAST_OP(CreatePointerCast)
+		CAST_OP(CreateTrunc)
 		.def("CreateSelect", &llvm::IRBuilder<>::CreateSelect, py::return_value_policy::reference)
-		.def("CreateTrunc", &llvm::IRBuilder<>::CreateTrunc, py::return_value_policy::reference)
 		.def("CreatePHI", &llvm::IRBuilder<>::CreatePHI, py::return_value_policy::reference)
 		.def("CreateICmpEQ", &llvm::IRBuilder<>::CreateICmpEQ, py::return_value_policy::reference)
 		.def("CreateICmpNE", &llvm::IRBuilder<>::CreateICmpNE, py::return_value_policy::reference)
@@ -170,13 +208,54 @@ void register_IRBuilder(pybind11::module_ & m) {
 		.def("CreateAssumption", [](llvm::IRBuilder<> * self, llvm::Value *Cond) {
 			return self->CreateAssumption(Cond);
 		})
-		.def("CreateBitCast", &llvm::IRBuilder<>::CreateBitCast, py::arg("V"), py::arg("DestTy"), py::arg("Name")=llvm::Twine(""), py::return_value_policy::reference)
-		.def("CreateCastToHFloatTmp", &CreateCastToHFloatTmp,
-				py::arg("srcArg"), HFloatTmpConfig_PY_ARGS,
+		.def("CreateCastToHFloatTmp", [](llvm::IRBuilder<>& Builder,
+				llvm::Value *srcArg, const HFloatTmpConfig &cfg,  const llvm::Twine &Name) {
+					auto t = srcArg->getType();
+					if (!t->isIntegerTy()) {
+						throw std::runtime_error("IRBuilder::CreateCastToHFloatTmp accepts only values of int type (which represents raw bits of a value)");
+					} else if (t->getIntegerBitWidth() != cfg.getBitWidth()) {
+						throw std::runtime_error("IRBuilder::CreateCastToHFloatTmp srcArg width is different than expected by srcCfg");
+					}
+					return CreateCastToHFloatTmp(Builder, srcArg, cfg, Name);
+				},
+				py::arg("srcArg"), py::arg("cfg"),
 				py::arg("Name")=llvm::Twine(""), py::return_value_policy::reference)
-		.def("CreateCastFromHFloatTmp", &CreateCastFromHFloatTmp,
-				py::arg("srcArg"), HFloatTmpConfig_PY_ARGS,
+		.def("CreateCastFromHFloatTmp", [](llvm::IRBuilder<>& Builder,
+				llvm::Value *srcArg, const HFloatTmpConfig &cfg, const llvm::Twine &Name) {
+					auto t = srcArg->getType();
+					if (!t->isDoubleTy()) {
+						throw std::runtime_error("IRBuilder::CreateCastFromHFloatTmp accepts only values of double type (which represent HFloatTmp type)");
+					}
+
+					return CreateCastFromHFloatTmp(Builder, srcArg, cfg, Name);
+				},
+				py::arg("srcArg"), py::arg("cfg"),
 				py::arg("Name")=llvm::Twine(""), py::return_value_policy::reference)
+		// CreateCastHFloatTmpToHFloatTmp and CreateCastHFloatTmpToHFloatTmpRaw both implement FPToUI, FPToSI, UIToFP, SIToFP like conversions
+		// first variant works with double which represents HFloatTmp and raw with IntegerType which represents raw bits of value
+		.def("CreateCastHFloatTmpToHFloatTmp", [](llvm::IRBuilder<>& Builder,
+				llvm::Value *srcArg, const HFloatTmpConfig &cfg, const llvm::Twine &Name) {
+					auto t = srcArg->getType();
+					if (!t->isDoubleTy()) {
+						throw std::runtime_error("IRBuilder::CreateCastHFloatTmpToHFloatTmp accepts only values of double type");
+					}
+					return CreateCastHFloatTmpToHFloatTmp(Builder, srcArg, cfg, Name);
+				},
+				py::arg("srcArg"), py::arg("cfg"),
+				py::arg("Name")=llvm::Twine(""), py::return_value_policy::reference)
+    	.def("CreateCastHFloatTmpToHFloatTmpRaw", [](llvm::IRBuilder<>& Builder,
+    			llvm::Value *srcArg, const HFloatTmpConfig &srcCfg, const HFloatTmpConfig &dstCfg, const llvm::Twine &Name) {
+					auto t = srcArg->getType();
+					if (!t->isIntegerTy()) {
+						throw std::runtime_error("IRBuilder::CreateCastHFloatTmpToHFloatTmpRaw accepts only values of int type (which represents raw bits of a value)");
+					} else if (t->getIntegerBitWidth() != srcCfg.getBitWidth()) {
+						throw std::runtime_error("IRBuilder::CreateCastHFloatTmpToHFloatTmpRaw srcArg width is different than expected by srcCfg");
+					}
+					return CreateCastHFloatTmpToHFloatTmpRaw(Builder, srcArg, srcCfg, dstCfg, Name);
+    			},
+    			py::arg("srcArg"), py::arg("srcCfg"), py::arg("dstCfg"),
+    			py::arg("Name")=llvm::Twine(""), py::return_value_policy::reference)
+		F_UN_OP(CreateFNeg)
 		F_OP(CreateFAdd)
 		F_OP(CreateFSub)
 		F_OP(CreateFMul)
@@ -221,6 +300,22 @@ void register_IRBuilder(pybind11::module_ & m) {
 		py::class_<llvm::IRBuilder<>::InsertPoint>(m, "InsertPoint")
 		.def("getBlock", &llvm::IRBuilder<>::InsertPoint::getBlock, py::return_value_policy::reference);
 
+	// https://stackoverflow.com/questions/73486177/llvm-how-to-add-libc-library-function-to-ir-module
+	// llvm::FunctionType *fun_type = llvm::FunctionType::get(doubleTy, {doubleTy}, false);
+	// llvm::getOrInsertLibFunc(module.get(), TLI, llvm::LibFunc_tan, fun_type);
+	m.def("getOrInsertLibFunc_1", [](llvm::Module *M, const llvm::TargetLibraryInfo &TLI,
+			llvm::LibFunc TheLibFunc, llvm::Type *RetTy, llvm::Type*Arg0Ty) {
+		if (!TLI.has(TheLibFunc))
+		  throw std::runtime_error("Creating call to non-existing library function.");
+
+		return llvm::getOrInsertLibFunc(M, TLI, TheLibFunc, RetTy, Arg0Ty);
+	}, py::return_value_policy::reference);
+	m.def("getOrInsertLibFunc_2", [](llvm::Module *M, const llvm::TargetLibraryInfo &TLI,
+			llvm::LibFunc TheLibFunc, llvm::Type *RetTy, llvm::Type*Arg0Ty, llvm::Type*Arg1Ty) {
+		if (!TLI.has(TheLibFunc))
+		  throw std::runtime_error("Creating call to non-existing library function.");
+		return llvm::getOrInsertLibFunc(M, TLI, TheLibFunc, RetTy, Arg0Ty,  Arg1Ty);
+	}, py::return_value_policy::reference);
 
 }
 

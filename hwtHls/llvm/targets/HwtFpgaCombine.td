@@ -27,7 +27,15 @@ def trivial_copy_propagate: GICombineRule<
   (apply [{ Helper.rewriteTrivialRemovableCopy(*${root}, ${matchinfo}); }])
 >;
 
+
 // convert the G_CONSTANT instructions to CImm operands on all users
+// :note: The constant operands are converted to CImm to simplify liveness analysis
+//        this is obscure as G_* opcodes do not nativelly support CImm as operands
+//        and each operand must be checked for type everytime it is accessed, changing of
+//        operand type is also more complicated, but this removes problems of false dependencies,
+//        which appears if constant regs are sinked or reused for some other value in non-SSA MIR
+// :note: currently described with this long opcode list because I do not know
+//        how to match any opcode or how to use lists for wip_match_opcode
 def g_constant_to_imm: GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode
@@ -68,16 +76,78 @@ def g_constant_to_imm: GICombineRule<
             HWTFPGA_CLOAD,
             HWTFPGA_CSTORE,
             HWTFPGA_RET,
-            HWTFPGA_FP_FADD,
-            HWTFPGA_FP_FSUB,
-            HWTFPGA_FP_FMUL,
-            HWTFPGA_FP_FDIV
+            HWTFPGA_ADD,
+			HWTFPGA_AND,
+			HWTFPGA_ICMP,
+			HWTFPGA_MUL,
+			HWTFPGA_MUL_HL,
+			HWTFPGA_UDIV,
+			HWTFPGA_SDIV,
+			HWTFPGA_UREM,
+			HWTFPGA_SREM,
+			HWTFPGA_UDIVREM,
+			HWTFPGA_SDIVREM,
+			HWTFPGA_OR,
+			HWTFPGA_SUB,
+			HWTFPGA_XOR,
+			HWTFPGA_SHL,
+			HWTFPGA_LSHR,
+			HWTFPGA_ASHR,
+			HWTFPGA_FSHL,
+			HWTFPGA_FSHR,
+			HWTFPGA_CTLZ_ZERO_UNDEF, HWTFPGA_CTTZ_ZERO_UNDEF,
+			HWTFPGA_CTLZ, HWTFPGA_CTTZ, HWTFPGA_CTPOP,
+            // :note: order of opcodes is the same of functions in hfloattmp.h
+			HWTFPGA_FP_FNEG,
+			HWTFPGA_FP_FADD,
+			HWTFPGA_FP_FSUB,
+			HWTFPGA_FP_FMUL,
+			HWTFPGA_FP_FMUL_S_HL,
+			HWTFPGA_FP_FMUL_U_HL,
+			HWTFPGA_FP_FDIV,
+			HWTFPGA_FP_FREM,
+			HWTFPGA_FP_FDIVREM,
+			HWTFPGA_FP_SHL,
+			HWTFPGA_FP_SHR,
+			HWTFPGA_FP_FCMP,
+			HWTFPGA_FP_CEIL,
+			HWTFPGA_FP_COS,
+			HWTFPGA_FP_EXP,
+			HWTFPGA_FP_EXP10,
+			HWTFPGA_FP_EXP2,
+			HWTFPGA_FP_FABS,
+			HWTFPGA_FP_FLOOR,
+			HWTFPGA_FP_LOG,
+			HWTFPGA_FP_LOG10,
+			HWTFPGA_FP_LOG2,
+			HWTFPGA_FP_FPOW,
+			HWTFPGA_FP_FPOWI,
+			HWTFPGA_FP_ROUND,
+			HWTFPGA_FP_ROUNDEVEN,
+			HWTFPGA_FP_SIN,
+			HWTFPGA_FP_SQRT,
+
+			HWTFPGA_FP_SINPI,
+			HWTFPGA_FP_COSPI,
+			HWTFPGA_FP_ASIN,
+			HWTFPGA_FP_SINH,
+			HWTFPGA_FP_ACOS,
+			HWTFPGA_FP_COSH,
+			HWTFPGA_FP_TAN,
+			HWTFPGA_FP_TANPI,
+			HWTFPGA_FP_ATAN,
+			HWTFPGA_FP_TANH,
+			HWTFPGA_FP_SINCOS,
+			HWTFPGA_FP_ASINCOS,
+			HWTFPGA_FP_SINCOSH
             ):$root, [{ return Helper.hasG_CONSTANTasUse(*${root}); }]),
   (apply [{ Helper.rewriteG_CONSTANTasUseAsCImm(*${root}); }])
 >;
 
 // merge 2 instruction with successor if they have same use operands and
 // the def operands have both only a single user
+// :note: currently described with this long opcode list because I do not know
+//        how to match any opcode or how to use lists for wip_match_opcode
 def trivial_instr_deduplication: GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode 
@@ -122,10 +192,48 @@ def trivial_instr_deduplication: GICombineRule<
 			HWTFPGA_FSHR,
 			HWTFPGA_CTLZ_ZERO_UNDEF, HWTFPGA_CTTZ_ZERO_UNDEF,
 			HWTFPGA_CTLZ, HWTFPGA_CTTZ, HWTFPGA_CTPOP,
-            HWTFPGA_FP_FADD,
-            HWTFPGA_FP_FSUB,
-            HWTFPGA_FP_FMUL,
-            HWTFPGA_FP_FDIV
+			HWTFPGA_FP_FNEG,
+			HWTFPGA_FP_FADD,
+			HWTFPGA_FP_FSUB,
+			HWTFPGA_FP_FMUL,
+			HWTFPGA_FP_FMUL_S_HL,
+			HWTFPGA_FP_FMUL_U_HL,
+			HWTFPGA_FP_FDIV,
+			HWTFPGA_FP_FREM,
+			HWTFPGA_FP_FDIVREM,
+			HWTFPGA_FP_SHL,
+			HWTFPGA_FP_SHR,
+			HWTFPGA_FP_FCMP,
+			HWTFPGA_FP_CEIL,
+			HWTFPGA_FP_COS,
+			HWTFPGA_FP_EXP,
+			HWTFPGA_FP_EXP10,
+			HWTFPGA_FP_EXP2,
+			HWTFPGA_FP_FABS,
+			HWTFPGA_FP_FLOOR,
+			HWTFPGA_FP_LOG,
+			HWTFPGA_FP_LOG10,
+			HWTFPGA_FP_LOG2,
+			HWTFPGA_FP_FPOW,
+			HWTFPGA_FP_FPOWI,
+			HWTFPGA_FP_ROUND,
+			HWTFPGA_FP_ROUNDEVEN,
+			HWTFPGA_FP_SIN,
+			HWTFPGA_FP_SQRT,
+
+			HWTFPGA_FP_SINPI,
+			HWTFPGA_FP_COSPI,
+			HWTFPGA_FP_ASIN,
+			HWTFPGA_FP_SINH,
+			HWTFPGA_FP_ACOS,
+			HWTFPGA_FP_COSH,
+			HWTFPGA_FP_TAN,
+			HWTFPGA_FP_TANPI,
+			HWTFPGA_FP_ATAN,
+			HWTFPGA_FP_TANH,
+			HWTFPGA_FP_SINCOS,
+			HWTFPGA_FP_ASINCOS,
+			HWTFPGA_FP_SINCOSH
 		):$root,
     [{ return Helper.matchTrivialInstrDuplication(*${root}); }]),
   (apply [{ Helper.rewriteTrivialInstrDuplication(*${root}); }])
@@ -213,6 +321,36 @@ def const_funnel_shift_eval : GICombineRule<
     [{ return !${root}->getOperand(3).isReg(); }]),
   (apply [{ Helper.rewriteConstFunnelShift(*${root}); }])
 >;
+
+// Transform s = sin[pi](x) and c = cos[pi](x) - > s, c = sincos[pi](x)
+def sin_cos_to_sincos_matchdata : GIDefMatchData<"MachineInstr *">;
+def sin_cos_to_sincos : GICombineRule<
+  (defs root:$root, sin_cos_to_sincos_matchdata:$matchinfo),
+  (match (wip_match_opcode HWTFPGA_FP_SIN, HWTFPGA_FP_SINPI, HWTFPGA_FP_ASIN, HWTFPGA_FP_SINH, 
+                           HWTFPGA_FP_COS, HWTFPGA_FP_COSPI, HWTFPGA_FP_ACOS, HWTFPGA_FP_COSH
+                           ):$root,
+    [{ return Helper.matchCombineSinCos(*${root}, ${matchinfo}); }]),
+  (apply [{ Helper.applyCombineSinCos(*${root}, ${matchinfo}); }])
+>;
+
+def const_fmul_to_fsh_matchdata : GIDefMatchData<"MatchFMulByPow2MatchInfo">;
+def const_fmul_to_fsh : GICombineRule<
+  (defs root:$root, const_fmul_to_fsh_matchdata:$matchinfo),
+  (match (wip_match_opcode HWTFPGA_FP_FMUL):$root,
+    [{ return Helper.matchFMulByPow2(*${root}, ${matchinfo}); }]),
+  (apply [{ Helper.rewriteFMulByPow2(*${root}, ${matchinfo}); }])
+>;
+
+// Fold (HWTFPGA_FP_FDIV x (HWTFPGA_FP_IPOW 2.0 sh)) -> HWTFPGA_FP_SHR x sh
+// Fold (HWTFPGA_FP_FDIV x (HWTFPGA_FP_IPOW 1.0 sh)) -> HWTFPGA_MUX x
+def fdiv_powi_to_fsh_matchdata : GIDefMatchData<"MatchFDivByPowiMatchInfo">;
+def fdiv_powi_to_fsh : GICombineRule<
+  (defs root:$root, fdiv_powi_to_fsh_matchdata:$matchinfo),
+  (match (wip_match_opcode HWTFPGA_FP_FDIV):$root,
+    [{ return Helper.matchFDivByPowi(*${root}, ${matchinfo}); }]),
+  (apply [{ Helper.rewriteFDivByPowi(*${root}, ${matchinfo}); }])
+>;
+
 
 // // generalized const_val_mux_eval which probes every bit for every condition operand separately
 // def mux_sink_directly_cond_driven_val_bits_matchdata : GIDefMatchData<"hwtHls::MuxDirectlyCondDrivenBits">;
@@ -310,6 +448,8 @@ def const_eval_combines : GICombineGroup<[
 	mux_redundant_case_reduce,
 	and_or_sequence_reduce,
 	merge_values_merge_nested,
+	const_fmul_to_fsh,
+	fdiv_powi_to_fsh,
 ]>;
 
 
@@ -337,7 +477,8 @@ def HwtFpgaPreLegalizerGICombiner: GICombiner<
     and_or_disjoint_mask, fma_combines, fold_binop_into_select,
     sub_add_reg, select_to_minmax, redundant_binop_in_equality,
     // fsub_to_fneg,
-    commute_constant_to_rhs
+    commute_constant_to_rhs,
+    sin_cos_to_sincos
   ]> {
 }
 

@@ -122,7 +122,7 @@ bool HwtFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 			Register offset = Info.OrigArgs[1].Regs[0];
 			if (!addIntImmByRegiter(MRI, MIB, offset)) {
 				std::string errStr =
-						"hwtHls.bitRangeGet offset operand must be constant: ";
+						"HwtFpgaCallLowering: hwtHls.bitRangeGet offset operand must be constant: ";
 				llvm::raw_string_ostream ss(errStr);
 				Info.CB->print(ss);
 				throw std::runtime_error(ss.str());
@@ -132,7 +132,7 @@ bool HwtFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 		} else if (hwtHls::IsPyObjectPlacehoder(F)) {
 			bool noDuplicate = Info.CB->hasFnAttr(
 					Attribute::AttrKind::NoDuplicate);
-			bool hasSideEffect = !Info.CB->hasFnAttr(
+			bool hasSideEffect = !Info.CB->getCalledFunction()->hasFnAttribute(
 					Attribute::AttrKind::Speculatable);
 			int opc = HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER;
 			if (noDuplicate && hasSideEffect) {
@@ -151,7 +151,7 @@ bool HwtFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 
 			if (!addIntImmByRegiter(MRI, MIB, Info.OrigArgs[0].Regs[0])) {
 				std::string errStr =
-						"hwtHls.pyOjbectPlaceholder object id operand must be constant: ";
+						"HwtFpgaCallLowering: hwtHls.pyOjbectPlaceholder object id operand must be constant: ";
 				llvm::raw_string_ostream ss(errStr);
 				Info.CB->print(ss);
 				throw std::runtime_error(ss.str());
@@ -181,23 +181,97 @@ bool HwtFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 			return true;
 		} else if (hwtHls::IsHwtHlsFp(F)) {
 			int opc;
-			size_t opArgCnt = 2;
-			if (hwtHls::IsHwtHlsFpFAdd(F)) {
+			size_t opArgCnt = 1;
+			size_t opTypeArgCnt = 1;
+			if (hwtHls::IsHwtHlsFpFNeg(F)) {
+				opc = HwtFpga::HWTFPGA_FP_FNEG;
+			} else if (hwtHls::IsHwtHlsFpFAdd(F)) {
 				opc = HwtFpga::HWTFPGA_FP_FADD;
+				opArgCnt = 2;
 			} else if (hwtHls::IsHwtHlsFpFSub(F)) {
 				opc = HwtFpga::HWTFPGA_FP_FSUB;
+				opArgCnt = 2;
 			} else if (hwtHls::IsHwtHlsFpFMul(F)) {
 				opc = HwtFpga::HWTFPGA_FP_FMUL;
+				opArgCnt = 2;
 			} else if (hwtHls::IsHwtHlsFpFDiv(F)) {
 				opc = HwtFpga::HWTFPGA_FP_FDIV;
-			} else if (hwtHls::IsHwtHlsFpFNeg(F)) {
-				opc = HwtFpga::HWTFPGA_FP_FNEG;
-				opArgCnt = 1;
+				opArgCnt = 2;
+			} else if (hwtHls::IsHwtHlsFpFRem(F)) {
+				opc = HwtFpga::HWTFPGA_FP_FREM;
+				opArgCnt = 2;
+			} else if (hwtHls::IsHwtHlsFpFMod(F)) {
+				opc = HwtFpga::HWTFPGA_FP_FMOD;
+				opArgCnt = 2;
 			} else if (hwtHls::IsHwtHlsFpFCmp(F)) {
-				opArgCnt = 3; // predicate, op0, op1
 				opc = HwtFpga::HWTFPGA_FP_FCMP;
+				opArgCnt = 3; // predicate, op0, op1
+			} else if (hwtHls::IsHwtHlsFpCeil(F)) {
+				opc = HwtFpga::HWTFPGA_FP_CEIL;
+			} else if (hwtHls::IsHwtHlsFpCos(F)) {
+				opc = HwtFpga::HWTFPGA_FP_COS;
+			} else if (hwtHls::IsHwtHlsFpExp(F)) {
+				opc = HwtFpga::HWTFPGA_FP_EXP;
+			} else if (hwtHls::IsHwtHlsFpExp10(F)) {
+				opc = HwtFpga::HWTFPGA_FP_EXP10;
+			} else if (hwtHls::IsHwtHlsFpExp2(F)) {
+				opc = HwtFpga::HWTFPGA_FP_EXP2;
+			} else if (hwtHls::IsHwtHlsFpFAbs(F)) {
+				opc = HwtFpga::HWTFPGA_FP_FABS;
+			} else if (hwtHls::IsHwtHlsFpFloor(F)) {
+				opc = HwtFpga::HWTFPGA_FP_FLOOR;
+			} else if (hwtHls::IsHwtHlsFpLog(F)) {
+				opc = HwtFpga::HWTFPGA_FP_LOG;
+			} else if (hwtHls::IsHwtHlsFpLog10(F)) {
+				opc = HwtFpga::HWTFPGA_FP_LOG10;
+			} else if (hwtHls::IsHwtHlsFpLog2(F)) {
+				opc = HwtFpga::HWTFPGA_FP_LOG2;
+			} else if (hwtHls::IsHwtHlsFpFPow(F)) {
+				opc = HwtFpga::HWTFPGA_FP_FPOW;
+				opArgCnt = 2;
+			} else if (hwtHls::IsHwtHlsFpFPowi(F)) {
+				opc = HwtFpga::HWTFPGA_FP_FPOWI;
+				opArgCnt = 2;
+			} else if (hwtHls::IsHwtHlsFpRound(F)) {
+				opc = HwtFpga::HWTFPGA_FP_ROUND;
+			} else if (hwtHls::IsHwtHlsFpRoundeven(F)) {
+				opc = HwtFpga::HWTFPGA_FP_ROUNDEVEN;
+			} else if (hwtHls::IsHwtHlsFpSin(F)) {
+				opc = HwtFpga::HWTFPGA_FP_SIN;
+			} else if (hwtHls::IsHwtHlsFpSqrt(F)) {
+				opc = HwtFpga::HWTFPGA_FP_SQRT;
+			} else if (hwtHls::IsHwtHlsFpShl(F)) {
+				opc = HwtFpga::HWTFPGA_FP_SHL;
+				opArgCnt = 2;
+			} else if (hwtHls::IsHwtHlsFpShr(F)) {
+				opc = HwtFpga::HWTFPGA_FP_SHR;
+				opArgCnt = 2;
+			} else if (hwtHls::IsCastHFloatTmpToHFloatTmpRaw(F)) {
+				opc = HwtFpga::HWTFPGA_FP_CAST;
+				opTypeArgCnt = 2;
+			} else if (hwtHls::IsHwtHlsFpSinpi(F)) {
+				opc = HwtFpga::HWTFPGA_FP_SINPI;
+			} else if (hwtHls::IsHwtHlsFpCospi(F)) {
+				opc = HwtFpga::HWTFPGA_FP_COSPI;
+			} else if (hwtHls::IsHwtHlsFpAsin(F)) {
+				opc = HwtFpga::HWTFPGA_FP_ASIN;
+			} else if (hwtHls::IsHwtHlsFpSinh(F)) {
+				opc = HwtFpga::HWTFPGA_FP_SINH;
+			} else if (hwtHls::IsHwtHlsFpAcos(F)) {
+				opc = HwtFpga::HWTFPGA_FP_ACOS;
+			} else if (hwtHls::IsHwtHlsFpCosh(F)) {
+				opc = HwtFpga::HWTFPGA_FP_COSH;
+			} else if (hwtHls::IsHwtHlsFpTan(F)) {
+				opc = HwtFpga::HWTFPGA_FP_TAN;
+			} else if (hwtHls::IsHwtHlsFpAtan(F)) {
+				opc = HwtFpga::HWTFPGA_FP_ATAN;
+			} else if (hwtHls::IsHwtHlsFpTanh(F)) {
+				opc = HwtFpga::HWTFPGA_FP_TANH;
+			} else if (hwtHls::IsHwtHlsFpAtan2(F)) {
+				opc = HwtFpga::HWTFPGA_FP_ATAN2;
+				opTypeArgCnt = 2;
 			} else {
-				std::string errStr = " : ";
+				std::string errStr = "HwtFpgaCallLowering: unknown HwtHlsFp function: ";
 				llvm::raw_string_ostream ss(errStr);
 				Info.CB->print(ss);
 				throw std::runtime_error(ss.str());
@@ -209,13 +283,13 @@ bool HwtFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 			.addReg(DstReg, RegState::Define);
 			MRI.setRegClass(DstReg, &HwtFpga::anyregclsRegClass);
 
-			assert(Info.OrigArgs.size() == opArgCnt + hwtHls::HFloatTmpConfig::MEMBER_CNT);
+			assert(Info.OrigArgs.size() == opArgCnt + opTypeArgCnt * hwtHls::HFloatTmpConfig::MEMBER_CNT);
 			for (size_t i = 0; i < opArgCnt; ++i) {
 				if (opc == HwtFpga::HWTFPGA_FP_FCMP && i == 0) {
 					if (!addIntImmByRegiter(MRI, MIB,
 							Info.OrigArgs[i].Regs[0])) {
 						std::string errStr =
-								"hwtHls.fp.fcmp predicate operand must be constant: ";
+								"HwtFpgaCallLowering: hwtHls.fp.fcmp predicate operand must be constant: ";
 						llvm::raw_string_ostream ss(errStr);
 						Info.CB->print(ss);
 						throw std::runtime_error(ss.str());
@@ -224,27 +298,29 @@ bool HwtFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 					MIB.addUse(Info.OrigArgs[i].Regs[0]);
 				}
 			}
-
-	    	for (size_t i = opArgCnt; i < opArgCnt + hwtHls::HFloatTmpConfig::MEMBER_CNT; ++i) {
-				Register cfgRegV = Info.OrigArgs[i].Regs[0];
-				if (!addIntImmByRegiter(MRI, MIB, cfgRegV)) {
-					std::string errStr =
-							"hwtHls.fp.* specialization values must be constants: ";
-					llvm::raw_string_ostream ss(errStr);
-					Info.CB->print(ss);
-					throw std::runtime_error(ss.str());
+			for (size_t tyArgI = 0; tyArgI < opTypeArgCnt; ++tyArgI) {
+				for (size_t i = opArgCnt; i < opArgCnt + hwtHls::HFloatTmpConfig::MEMBER_CNT; ++i) {
+					Register cfgRegV = Info.OrigArgs[i].Regs[0];
+					if (!addIntImmByRegiter(MRI, MIB, cfgRegV)) {
+						std::string errStr =
+								"hwtHls.fp.* specialization values must be constants: ";
+						llvm::raw_string_ostream ss(errStr);
+						Info.CB->print(ss);
+						throw std::runtime_error(ss.str());
+					}
 				}
+				opArgCnt +=  hwtHls::HFloatTmpConfig::MEMBER_CNT;
 			}
 			return true;
 		} else {
 			std::string errStr =
-					"Not implemented, call of generic function in HW function: ";
+					"HwtFpgaCallLowering: Not implemented, call of generic function in HW function: ";
 			llvm::raw_string_ostream ss(errStr);
 			Info.CB->print(ss);
 			throw std::runtime_error(ss.str());
 		}
 	}
-	std::string errStr = "Not implemented, lowerCall: ";
+	std::string errStr = "HwtFpgaCallLowering: Not implemented, lowerCall: ";
 	llvm::raw_string_ostream ss(errStr);
 	Info.CB->print(ss);
 	throw std::runtime_error(ss.str());

@@ -2,9 +2,43 @@
 
 #include <llvm/CodeGen/GlobalISel/CombinerHelper.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtils.h>
+#include <hwtHls/llvm/targets/intrinsic/hfloattmp.h>
 
 namespace llvm {
 
+class MatchFMulByPow2MatchInfo {
+public:
+	hwtHls::HFloatTmpConfig fpCfg;
+	bool isZero;
+	int sh;
+
+	MatchFMulByPow2MatchInfo() :
+			isZero(false), sh(0) {
+	}
+	void clear() {
+		isZero = false;
+		sh = 0;
+	}
+};
+
+class MatchFDivByPowiMatchInfo {
+public:
+	hwtHls::HFloatTmpConfig fpCfg;
+	bool isDiv0; // is in format x / (0.0 ** sh)
+	bool isDiv1; // is in format x / (1.0 ** sh)
+	std::optional<bool> knownValueOfShMsb;
+	std::optional<size_t> shWidth;
+	MatchFDivByPowiMatchInfo() {
+		clear();
+	}
+	void clear() {
+		fpCfg = hwtHls::HFloatTmpConfig();
+		isDiv0 = false;
+		isDiv1 = false;
+		knownValueOfShMsb = { };
+		shWidth = { };
+	}
+};
 
 /* Helper class for GISel framework to implement hwtHls combination rules.
  * It contains c++ implementation of matching and rewrite functions which are used in HwtFpgaCombine.td.
@@ -15,8 +49,10 @@ public:
 	struct ConcatMember {
 		MachineOperand &op;
 		uint64_t offsetOfUse, width, widthOfUse;
-		ConcatMember(MachineOperand &op, uint64_t offsetOfUse, uint64_t width, uint64_t widthOfUse):
-			op(op), offsetOfUse(offsetOfUse), width(width), widthOfUse(widthOfUse)  {
+		ConcatMember(MachineOperand &op, uint64_t offsetOfUse, uint64_t width,
+				uint64_t widthOfUse) :
+				op(op), offsetOfUse(offsetOfUse), width(width), widthOfUse(
+						widthOfUse) {
 			assert(width >= offsetOfUse + widthOfUse);
 		}
 	};
@@ -30,12 +66,15 @@ public:
 	bool matchAnyExplicitUseIsUndef(llvm::MachineInstr &MI);
 	//bool replaceInstWithUndefNonGeneric(MachineInstr &MI);
 
-	MachineOperand *getNextUseOfRegInBlock(MachineInstr &MI, Register &DstRegNo);
+	MachineOperand* getNextUseOfRegInBlock(MachineInstr &MI,
+			Register &DstRegNo);
 	static bool checkAnyOperandRedefined(MachineInstr &MI, MachineInstr &MIEnd);
-	MachineOperand * getNextUseOfRegAfterInstructionExceptMI(Register DstRegNo, MachineInstr &MI);
+	MachineOperand* getNextUseOfRegAfterInstructionExceptMI(Register DstRegNo,
+			MachineInstr &MI);
 
 	bool hasG_CONSTANTasUse(MachineInstr &MI);
-	static bool hasG_CONSTANTasUse(llvm::MachineRegisterInfo & MRI, llvm::MachineInstr &MI);
+	static bool hasG_CONSTANTasUse(llvm::MachineRegisterInfo &MRI,
+			llvm::MachineInstr &MI);
 	static void rewriteG_CONSTANTasUseAsCImm(llvm::MachineIRBuilder &Builder,
 			llvm::GISelChangeObserver *Observer, llvm::MachineInstr &MI);
 	void rewriteG_CONSTANTasUseAsCImm(llvm::MachineInstr &MI);
@@ -84,8 +123,8 @@ public:
 	/*
 	 * Build a value which represents the original value before some bits were reduced
 	 * */
-	[[nodiscard]] Register _rewriteMuxConstPropagationExpandReducedBits(llvm::MachineInstr &MI,
-			hwtHls::MuxReducibleValuesInfo &matchInfo,
+	[[nodiscard]] Register _rewriteMuxConstPropagationExpandReducedBits(
+			llvm::MachineInstr &MI, hwtHls::MuxReducibleValuesInfo &matchInfo,
 			const std::vector<std::pair<bool, unsigned>> &usedBitsVec);
 	bool rewriteMuxConstPropagation(llvm::MachineInstr &MI,
 			hwtHls::MuxReducibleValuesInfo &matchInfo);
@@ -138,6 +177,19 @@ public:
 
 	void rewriteConstShift(llvm::MachineInstr &MI);
 	void rewriteConstFunnelShift(llvm::MachineInstr &MI);
+
+	// hwtFpgaCombinerHelperFP.cpp
+	bool matchFMulByPow2(llvm::MachineInstr &MI,
+			MatchFMulByPow2MatchInfo &shValue);
+	void rewriteFMulByPow2(llvm::MachineInstr &MI,
+			MatchFMulByPow2MatchInfo shValue);
+	bool matchFDivByPowi(llvm::MachineInstr &MI,
+			MatchFDivByPowiMatchInfo &shValue);
+	void rewriteFDivByPowi(llvm::MachineInstr &MI,
+			MatchFDivByPowiMatchInfo shValue);
+
+	bool matchCombineSinCos(MachineInstr &MI, MachineInstr *&OtherMI);
+	void applyCombineSinCos(MachineInstr &MI, MachineInstr *&OtherMI);
 
 };
 
