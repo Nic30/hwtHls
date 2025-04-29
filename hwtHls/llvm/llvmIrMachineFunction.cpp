@@ -77,6 +77,12 @@ void register_MachineFunction(pybind11::module_ &m) {
 	    .def("__iter__", [](llvm::MachineBasicBlock &MB) {
 	    		return py::make_iterator(MB.begin(), MB.end());
 	    	}, py::keep_alive<0, 1>())
+		.def("back", [](llvm::MachineBasicBlock &MB) {
+			return &MB.back();
+		}, py::keep_alive<0, 1>())
+		.def("front", [](llvm::MachineBasicBlock &MB) {
+			return &MB.front();
+		}, py::keep_alive<0, 1>())
 		.def("__eq__", [](llvm::MachineBasicBlock & LHS, llvm::MachineBasicBlock & RHS) {
 		    return &LHS == &RHS;
 	     })

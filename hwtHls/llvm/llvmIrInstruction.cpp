@@ -6,7 +6,7 @@
 #include <llvm/IR/IntrinsicInst.h>
 
 #include <hwtHls/llvm/llvmIrMetadata.h>
-
+#include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 
 namespace py = pybind11;
 
@@ -42,7 +42,7 @@ void register_Instruction(pybind11::module_ & m) {
 			return &self == &other;
 		})
 		.def("__eq__", [](const llvm::Instruction & self, const llvm::Value & other) {
-					return &self == &other;
+			return &self == &other;
 		})
 		.def("__hash__", [](const llvm::Instruction * self) {
 			return reinterpret_cast<intptr_t>(self);
@@ -53,6 +53,14 @@ void register_Instruction(pybind11::module_ & m) {
 		.def("setMetadata", [](llvm::Instruction * I, llvm::StringRef Kind, MDNodeWithDeletedDelete *Node) {
 			I->setMetadata(Kind, Node);
 		})
+		.def("setHasNoUnsignedWrap", &llvm::Instruction::setHasNoUnsignedWrap)
+		.def("setHasNoSignedWrap", &llvm::Instruction::setHasNoSignedWrap)
+		.def("hasNoUnsignedWrap", &llvm::Instruction::hasNoUnsignedWrap)
+		.def("hasNoSignedWrap", &llvm::Instruction::hasNoSignedWrap)
+		.def("operands", [](llvm::Instruction*I) {
+				return py::make_iterator(I->op_begin(), I->op_end());
+		}, py::keep_alive<0, 1>())
+		.def("setOperand", &llvm::Instruction::setOperand)
 		.def("getNextNode", [](llvm::Instruction * I) {
 			return I->getNextNode();
 		}, py::return_value_policy::reference_internal)
@@ -128,9 +136,18 @@ void register_Instruction(pybind11::module_ & m) {
 	m.def("ValueToAllocaInst", &llvmValueCaster<llvm::AllocaInst>, py::return_value_policy::reference_internal);
 	m.def("InstructionToAllocaInst", &llvmInstructionCaster<llvm::AllocaInst>, py::return_value_policy::reference_internal);
 
+	py::class_<llvm::UnaryOperator, std::unique_ptr<llvm::UnaryOperator, py::nodelete>, llvm::Instruction>(m, "UnaryOperator");
+	py::implicitly_convertible<llvm::UnaryOperator, llvm::Instruction>();
+	m.def("InstructionToUnaryOperator", &llvmInstructionCaster<llvm::UnaryOperator>, py::return_value_policy::reference_internal);
+
 	py::class_<llvm::BinaryOperator, std::unique_ptr<llvm::BinaryOperator, py::nodelete>, llvm::Instruction>(m, "BinaryOperator");
 	py::implicitly_convertible<llvm::BinaryOperator, llvm::Instruction>();
 	m.def("InstructionToBinaryOperator", &llvmInstructionCaster<llvm::BinaryOperator>, py::return_value_policy::reference_internal);
+
+	py::class_<llvm::OverflowingBinaryOperator, std::unique_ptr<llvm::OverflowingBinaryOperator, py::nodelete>> OverflowingBinaryOperator(m, "OverflowingBinaryOperator");
+	OverflowingBinaryOperator.def_static("classof", [](llvm::Instruction&I) {
+		return llvm::OverflowingBinaryOperator::classof(&I);
+	});
 
 	py::enum_<llvm::Instruction::MemoryOps>(Instruction, "MemoryOps")
 		.value("Alloca", llvm::Instruction::MemoryOps::Alloca)
@@ -224,7 +241,16 @@ void register_Instruction(pybind11::module_ & m) {
 	py::implicitly_convertible<llvm::ICmpInst, llvm::Instruction>();
 	m.def("InstructionToICmpInst", &llvmInstructionCaster<llvm::ICmpInst>, py::return_value_policy::reference_internal);
 
-	py::class_<llvm::CallBase, std::unique_ptr<llvm::CallBase, py::nodelete>, llvm::Instruction>(m, "CallBase");
+	py::class_<llvm::FCmpInst, std::unique_ptr<llvm::FCmpInst, py::nodelete>, llvm::CmpInst>(m, "FCmpInst");
+	py::implicitly_convertible<llvm::FCmpInst, llvm::Instruction>();
+	m.def("InstructionToFCmpInst", &llvmInstructionCaster<llvm::FCmpInst>, py::return_value_policy::reference_internal);
+
+	py::class_<llvm::CallBase, std::unique_ptr<llvm::CallBase, py::nodelete>, llvm::Instruction> CallBase(m, "CallBase");
+	CallBase
+	  .def("addFnAttr", [](llvm::CallBase &self, llvm::Attribute::AttrKind Kind) {
+			self.addFnAttr(Kind);
+		})
+	;
 	py::implicitly_convertible<llvm::CallBase, llvm::Instruction>();
 	py::class_<llvm::CallInst, std::unique_ptr<llvm::CallInst, py::nodelete>, llvm::CallBase>(m, "CallInst")
 			.def("getCalledFunction", &llvm::CallInst::getCalledFunction)
@@ -308,6 +334,26 @@ void register_Instruction(pybind11::module_ & m) {
 	py::class_<llvm::FreezeInst, std::unique_ptr<llvm::FreezeInst, py::nodelete>, llvm::Instruction>(m, "FreezeInst");
 	m.def("InstructionToFreezeInst", &llvmInstructionCaster<llvm::FreezeInst>, py::return_value_policy::reference_internal);
 
+	py::class_<llvm::UnreachableInst, std::unique_ptr<llvm::UnreachableInst, py::nodelete>, llvm::Instruction>(m, "UnreachableInst");
+	m.def("InstructionToUnreachableInst", &llvmInstructionCaster<llvm::UnreachableInst>, py::return_value_policy::reference_internal);
 
+	m.def("IsStreamIo", &IsStreamIo);
+
+	m.def("IsStreamRead", [](llvm::CallInst * CI) { return IsStreamRead(CI); });
+	m.def("IsStreamReadStartOfFrame", [](llvm::CallInst * CI) { return IsStreamReadStartOfFrame(CI); });
+	m.def("IsStreamReadEndOfFrame", [](llvm::CallInst * CI) { return IsStreamReadEndOfFrame(CI); });
+	m.def("IsStreamWrite", [](llvm::CallInst * CI) { return IsStreamWrite(CI); });
+	m.def("IsStreamWriteMasked", [](llvm::CallInst * CI) { return IsStreamWriteMasked(CI); });
+	m.def("IsStreamWriteStartOfFrame", [](llvm::CallInst * CI) { return IsStreamWriteStartOfFrame(CI); });
+	m.def("IsStreamWriteEndOfFrame", [](llvm::CallInst * CI) { return IsStreamWriteEndOfFrame(CI); });
+
+	m.def("streamReadGetOrigChunkBitWidth", &streamReadGetOrigChunkBitWidth);
+	m.def("streamReadGetIsReliable", &streamReadGetIsReliable);
+	m.def("streamWriteGetOrigChunkBitWidth", &streamWriteGetOrigChunkBitWidth);
+
+	m.def("streamWriteGetIoArg", &streamWriteGetIoArg, py::return_value_policy::reference_internal);
+	m.def("streamWriteGetWriteData", &streamWriteGetWriteData, py::return_value_policy::reference_internal);
+	m.def("streamWriteGetWriteMask", &streamWriteGetWriteMaskOrEmpty, py::return_value_policy::reference_internal);
+	m.def("streamWriteGetWriteEoF", &streamWriteGetWriteEoF, py::return_value_policy::reference_internal);
 }
 }
