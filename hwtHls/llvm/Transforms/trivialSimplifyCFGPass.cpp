@@ -10,6 +10,12 @@
 
 #include <algorithm>
 
+// #define DBG_VERIFY_AFTER_EVERY_MODIFICATION
+
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+#include <llvm/IR/Verifier.h>
+#endif
+
 using namespace llvm;
 
 namespace hwtHls {
@@ -18,7 +24,9 @@ void scavengeTerminatorMetadata(Instruction *br, Instruction *newBr) {
 	SmallVector<std::pair<unsigned, MDNode*>> MDs;
 	br->getAllMetadata(MDs);
 	for (const auto &md : MDs) {
-		assert(!newBr->hasMetadata(md.first));
+		if (newBr->getMetadata(md.first) == md.second)
+			continue;
+		assert(!newBr->hasMetadata(md.first) && "merge of metadata not implemented");
 		newBr->setMetadata(md.first, md.second);
 	}
 }
@@ -26,20 +34,22 @@ void scavengeTerminatorMetadata(Instruction *br, Instruction *newBr) {
 bool tryRemoveSingleSuccessorSinglePredecessorBlock(BasicBlock *BB,
 		BasicBlock *PredBB, BasicBlock *SucBB,
 		llvm::SmallSetVector<BasicBlock*, 16> &WorkList) {
-	// Remove empty basic block if has single successor and predecessor and may be replaced by predecessor in successor PHIs
+	// Remove empty basic block if has single successor and predecessor and
+	// may be replaced by predecessor in successor PHIs
+
 	// detect if PHIs are compatible
 	SmallVector<PHINode*, 4> alreadyHasTheValueInPhis;
 	for (PHINode &SucPhi : SucBB->phis()) {
-		for (auto *SucPredBB : SucPhi.blocks()) {
-			auto SucPredVal = SucPhi.getIncomingValueForBlock(&*SucPredBB);
-			if (SucPredBB == PredBB) {
-				Value *CurVal = SucPhi.getIncomingValueForBlock(BB);
-				if (CurVal != SucPredVal) {
-					// can not replace because the block is required to select other value in successor PHI
-					return false;
-				} else {
-					alreadyHasTheValueInPhis.push_back(&SucPhi);
-				}
+		auto BBVal = SucPhi.getIncomingValueForBlock(BB);
+		int Idx = SucPhi.getBasicBlockIndex(PredBB);
+		if (Idx >= 0) {
+			// PredBB is already a predecessor of SucBB
+			auto PredBBVal = SucPhi.getIncomingValue(Idx);
+			if (BBVal != PredBBVal) {
+				// can not replace because the block is required to select other value in successor PHI
+				return false;
+			} else {
+				alreadyHasTheValueInPhis.push_back(&SucPhi);
 			}
 		}
 	}
@@ -48,22 +58,43 @@ bool tryRemoveSingleSuccessorSinglePredecessorBlock(BasicBlock *BB,
 	for (PHINode &SucPhi : SucBB->phis()) {
 		if (std::find(alreadyHasTheValueInPhis.begin(),
 				alreadyHasTheValueInPhis.end(), &SucPhi)
-				!= alreadyHasTheValueInPhis.end())
+				!= alreadyHasTheValueInPhis.end()) {
+			// SucBB already has predBB as predecessors and the values are the same,
+			// remove value for BB and keep only for SucBB
 			SucPhi.removeIncomingValue(BB, false);
+		}
 	}
 
+	scavengeTerminatorMetadata(BB->getTerminator(), PredBB->getTerminator());
 	// guaranteed that there is only one branch with this block as a target
-	PredBB->getTerminator()->replaceSuccessorWith(BB, SucBB);
+
+	// if PredBB terminator become non-conditional it must be rewritten otherwise
+	// PredBB would appear twice in SuccBB predecessors
+	auto PredTerm = PredBB->getTerminator();
+	PredTerm->replaceSuccessorWith(BB, SucBB);
+	if (auto PredTermBr = dyn_cast<BranchInst>(PredTerm)) {
+		if (PredTermBr->isConditional()
+				&& PredTermBr->getSuccessor(0) == PredTermBr->getSuccessor(1)) {
+			auto newTerm = BranchInst::Create(PredTermBr->getSuccessor(0), PredBB);
+			scavengeTerminatorMetadata(PredTerm, newTerm);
+			PredTerm->eraseFromParent();
+		}
+	}
 	// because there is a single predecessor
 	BB->replaceAllUsesWith(PredBB); // replace in other PHIs, which effectively disconnect this from predecessor
-	assert(BB->hasNPredecessors(0));
-	scavengeTerminatorMetadata(BB->getTerminator(), PredBB->getTerminator());
-	BB->eraseFromParent();
-	//DeleteDeadBlock(BB); // this causes segfault as it expect for PHIs to have this block in operands
+	BB->getTerminator()->replaceSuccessorWith(SucBB, BB);
+	assert(BB->hasNPredecessors(1));
+	// BB->eraseFromParent();
+	DeleteDeadBlock(BB);
 	WorkList.insert(PredBB);
 	WorkList.insert(SucBB);
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+	auto& F = *PredBB->getParent();
+	assert(!verifyFunction(F, &errs()));
+#endif
 	return true;
 }
+
 bool tryRemoveSingleSuccessorManyPredecessorBlock(BasicBlock *BB,
 		BasicBlock *SucBB, llvm::SmallSetVector<BasicBlock*, 16> &WorkList) {
 
@@ -122,6 +153,10 @@ bool tryRemoveSingleSuccessorManyPredecessorBlock(BasicBlock *BB,
 	assert(BB->hasNPredecessors(0));
 	BB->eraseFromParent();
 	WorkList.insert(SucBB);
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+	auto& F = *SucBB->getParent();
+	assert(!verifyFunction(F, &errs()));
+#endif
 	return true;
 
 }
@@ -194,6 +229,10 @@ bool trySimplifyTerminator(BasicBlock &BB,
 				for (PHINode& PHI: make_early_inc_range(sucToRm->phis())) {
 					PHI.removeIncomingValue(&BB, true);
 				}
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+				auto& F = *BB.getParent();
+				assert(!verifyFunction(F, &errs()));
+#endif
 				return true;
 			}
 		}
