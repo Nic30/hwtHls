@@ -133,7 +133,7 @@ py3.extension_module(
      'Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.cpp',
      'Transforms/extractBitConcatAndSliceOpsPass.cpp',
      'Transforms/HFloatTmpLoweringPass.cpp',
-     'Transforms/IcmpToOnlyEqLtLe.cpp',
+     'Transforms/ICmpToOnlyEqLtLePass.cpp',
      'Transforms/LoopAddLatchPass.cpp',
      'Transforms/LoopFlattenUsingIfPass.cpp',
      'Transforms/LoopRotationNormalizationPass.cpp',

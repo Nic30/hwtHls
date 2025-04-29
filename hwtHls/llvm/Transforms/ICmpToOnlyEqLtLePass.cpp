@@ -1,4 +1,4 @@
-#include <hwtHls/llvm/Transforms/IcmpToOnlyEqLtLe.h>
+#include <hwtHls/llvm/Transforms/ICmpToOnlyEqLtLePass.h>
 
 #include <llvm/Analysis/AliasAnalysis.h>
 #include <llvm/Analysis/BasicAliasAnalysis.h>
@@ -11,7 +11,7 @@ using namespace llvm;
 
 namespace hwtHls {
 
-PreservedAnalyses IcmpToOnlyEqLtLePass::run(llvm::Function &F,
+PreservedAnalyses ICmpToOnlyEqLtLePass::run(llvm::Function &F,
 		llvm::FunctionAnalysisManager &AM) {
 	std::vector<Instruction*> toRemove;
 	for (BasicBlock &BB : F) {
