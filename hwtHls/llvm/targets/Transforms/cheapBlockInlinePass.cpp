@@ -145,6 +145,9 @@ void copyMachineBlockContentToPredecessor(MachineRegisterInfo &MRI,
 			assert(Dst.isMBB());
 			bool isMbb = Dst.getMBB() == &MBB;
 			Register BrC;
+			if (!MRI.getType(C.getReg()).isValid())
+				MRI.setType(C.getReg(), LLT::scalar(1));
+
 			if (isMbb) {
 				BrC = C.getReg();
 			} else {
