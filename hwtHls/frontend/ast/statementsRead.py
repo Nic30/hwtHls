@@ -48,13 +48,13 @@ def _copySliceNamesToFlattenedSignal(flatSig: HBitsRtlSignal, t: HdlType, name: 
     else:
         w = t.bit_length()
         cur = flatSig[offset + w: offset]
-        if cur.hasGenericName:
-            cur.hasGenericName = False
+        if cur._hasGenericName:
+            cur._hasGenericName = False
             cur._name = name
         if w == 1:
             cur = flatSig[offset]
-            if cur.hasGenericName:
-                cur.hasGenericName = False
+            if cur._hasGenericName:
+                cur._hasGenericName = False
                 cur._name = name
         offset += w
 
@@ -74,19 +74,21 @@ class HlsRead(HdlStatement):
                  src: ANY_HLS_STREAM_INTF_TYPE,
                  dtype: HdlType,
                  isBlocking: bool,
+                 isVolatile: bool,
                  hwIOName: Optional[str]=None):
         super(HlsRead, self).__init__()
         self._isAccessible = True
         self._parent = parent
         self._src = src
         self._isBlocking = isBlocking
+        self._isVolatile = isVolatile
         self.block: Optional[BasicBlock] = None
 
         if hwIOName is None:
             hwIOName = self._getInterfaceName(src)
 
         # create an interface and signals which will hold value of this object
-        var = parent._sig # can not use .var() because it would prematurely create tmp alloca for result
+        var = parent._sig  # can not use .var() because it would prematurely create tmp alloca for result
         name = f"{hwIOName:s}_read"
         self._name = name
         isVoid = HdlType_isVoid(dtype)
@@ -101,8 +103,8 @@ class HlsRead(HdlStatement):
                 sig_flat = None
             else:
                 sig_flat = var(name, HBits(1, force_vector=True))
-                sig_flat.drivers.append(self)
-                sig_flat.origin = self
+                sig_flat._rtlDrivers.append(self)
+                sig_flat._rtlObjectOrigin = self
 
         elif isinstance(sig, HwIO) or not isBlocking:
             w = dtype.bit_length()
@@ -118,13 +120,13 @@ class HlsRead(HdlStatement):
             else:
                 sig = sig_flat[w:]._reinterpret_cast(dtype)
             sig._name = name
-            sig_flat.drivers.append(self)
-            sig_flat.origin = self
+            sig_flat._rtlDrivers.append(self)
+            sig_flat._rtlObjectOrigin = self
             _copySliceNamesToFlattenedSignal(sig_flat, dtype, name, 0)
         else:
             sig_flat = sig
-            sig.drivers.append(self)
-            sig.origin = self
+            sig._rtlDrivers.append(self)
+            sig._rtlObjectOrigin = self
 
         self._sig = sig_flat
         self._GEN_NAME_PREFIX = hwIOName
@@ -181,6 +183,7 @@ class HlsRead(HdlStatement):
         dtype = _getNativeInterfaceWordType(getFirstInterfaceInstance(srcIo))
         if isinstance(dtype, HBits) and dtype.signed is not None:
             dtype = HBits(dtype.bit_length())
+
         n = HlsNetNodeRead(netlist,
                            srcIo,
                            dtype=dtype,

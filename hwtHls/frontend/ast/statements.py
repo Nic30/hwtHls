@@ -13,7 +13,7 @@ class HlsStm(HdlStatement):
 
     @internal
     def _get_rtl_context(self) -> 'RtlNetlist':
-        return self.parent.parent._ctx
+        return self.parent.parent._rtlCtx
 
     def __repr__(self):
         from hwtHls.frontend.ast.debugCodeSerializer import HlsScopeDebugCodeSerializer

@@ -65,9 +65,9 @@ class ToHdlAstHlsAstDebugCode(ToHdlAstDebugHwt):
     def as_hdl_HlsWrite(self, o: HlsWrite):
         return hdl_call(
             hdl_getattr(HdlValueId(HwIO_getName(o.parent.parentHwModule, o.dst)), "write"),
-            [self.as_hdl(o._origSrc), self.as_hdl(o._origIndex)]
+            [self.as_hdl(o.src), self.as_hdl(o._origIndex)]
                 if isinstance(o, HlsWriteAddressed) else
-            [self.as_hdl(o._origSrc), ]
+            [self.as_hdl(o.src), ]
         )
 
     def as_hdl_HdlAssignmentContainer(self, o:HdlAssignmentContainer):

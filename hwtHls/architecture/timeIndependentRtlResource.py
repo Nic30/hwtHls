@@ -26,7 +26,7 @@ class TimeIndependentRtlResourceItem():
         if self.isExplicitRegister:
             return True
         v0 = self.parent.valuesInTime[0]
-        return v0 is not self or (isinstance(v0.data, RtlSignal) and v0.data.next is not None)
+        return v0 is not self or (isinstance(v0.data, RtlSignal) and v0.data._rtlNextSig is not None)
 
     def __repr__(self):
         return f"<{self.__class__.__name__:s} {self.data}>"
@@ -148,7 +148,7 @@ class TimeIndependentRtlResource():
             _sig = sig.data
             name = _sig._name
             # attempt to skip unnamed casts
-            while _sig.hasGenericName:
+            while _sig._hasGenericName:
                 try:
                     driver = _sig.singleDriver()
                 except SignalDriverErr:
@@ -184,9 +184,9 @@ class TimeIndependentRtlResource():
                 # create next register in register pipeline
                 reg = self.allocator._reg(f"{name:s}_delayTo{clkI:d}",
                                           dtype=sig.data._dtype)
-                # can not use prev.data directly as a reg.next because this assignment (reg.next = prev.data)
+                # can not use prev.data directly as a reg._rtlNextSig because this assignment (reg._rtlNextSig = prev.data)
                 # will be used to control if next stage register should be loaded or not
-                reg.next(prev.data)
+                reg._rtlNextSig(prev.data)
                 cur = TimeIndependentRtlResourceItem(self, reg, True)
 
             con = connections.getForClkIndex(clkI, allowNone=True)

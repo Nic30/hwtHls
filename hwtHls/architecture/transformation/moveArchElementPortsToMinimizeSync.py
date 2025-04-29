@@ -286,7 +286,7 @@ class HlsArchPassMoveArchElementPortsToMinimizeSync(HlsArchPass):
     #                i: HlsNetNodeIn
     #                dstElm = i.obj
     #                dstTir: TimeIndependentRtlResource = dstElm.netNodeToRtl[o]
-    #                if dstTir.valuesInTime[0].data.drivers:
+    #                if dstTir.valuesInTime[0].data._rtlDrivers:
     #                    # the value is already propagated to dstElm
     #                    continue
     #
@@ -335,8 +335,8 @@ class HlsArchPassMoveArchElementPortsToMinimizeSync(HlsArchPass):
     #            raise NotImplementedError("Need to add extra buffer between FSMs", srcStartClkI, dstUseClkI, o, srcElm, dstElm)
     #
     #    srcTiri = srcTir.get(dstUseClkI * clkPeriod)
-    #    assert not dstTir.valuesInTime[0].data.drivers, ("Forward declaration signal must not have a driver yet.",
-    #                                                     dstTir, dstTir.valuesInTime[0].data.drivers)
+    #    assert not dstTir.valuesInTime[0].data._rtlDrivers, ("Forward declaration signal must not have a driver yet.",
+    #                                                     dstTir, dstTir.valuesInTime[0].data._rtlDrivers)
     #    dstTir.valuesInTime[0].data(srcTiri.data)
     #    self._registerSyncForInterElementConnection(srcTiri, dstTir.valuesInTime[0], syncAdded,
     #                                                elementIndex[srcElm], elementIndex[dstElm],

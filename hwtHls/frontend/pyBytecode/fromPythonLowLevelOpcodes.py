@@ -156,7 +156,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
                 if isinstance(dst.sequence, IoProxyAddressed):
                     raise AssertionError(dst, "This should already been expanded when HlsWrite was generated")
                 return dst.expandSetitemAsSwitchCase(self, instr.offset, frame, curBlock,
-                                                     lambda i, _dst: hls.write(res._origSrc, _dst))
+                                                     lambda i, _dst: hls.write(res.src, _dst))
 
         curBlock = self._visit_HlsRead_HlsWrite_PyBytecodePragma(frame, curBlock, instr, res)
 
@@ -499,16 +499,16 @@ class PyBytecodeToSsaLowLevelOpcodes():
                         # add name also to right side of assignment because this is likely a variable definition and we want
                         # to name the defined value
                         vVal._name = instr.argval
-                        vVal.hasGenericName = False
+                        vVal._hasGenericName = False
     
                     v = self.hls.var(instr.argval, t)
                     localsplus[varIndex] = v
     
             if isinstance(v, (RtlSignal, HwIO)):
                 # only if it is a hw variable, create assignment to HW variable
-                if isinstance(v, RtlSignal) and v.hasGenericName:
+                if isinstance(v, RtlSignal) and v._hasGenericName:
                     v._name = instr.argval
-                    v.hasGenericName = False
+                    v._hasGenericName = False
                 return self._storeToHwSignal(curBlock, v, vVal)
 
         if isinstance(vVal, PyBytecodeInPreproc):

@@ -1,7 +1,6 @@
 from typing import Union, Tuple, Sequence, Optional
 
 from hwt.hdl.const import HConst
-from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
 from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_getName
@@ -47,14 +46,8 @@ class HlsWrite(HlsStm):
         self.operands = (src,)
         self._parent = parent
 
-        # store original source for debugging
-        self._origSrc = src
         self.dst = dst
         self.mayBecomeFlushable = mayBecomeFlushable
-
-    def getSrc(self):
-        assert len(self.operands) == 1, self
-        return self.operands[0]
 
     def _getNativeInterfaceWordType(self) -> HdlType:
         return _getNativeInterfaceWordType(self.dst)
@@ -64,7 +57,7 @@ class HlsWrite(HlsStm):
 
     def _translateToLlvm(self, toLlvm: 'ToLlvmIrTranslator', bb: BasicBlock):
         b = toLlvm.b
-        bb, src = toLlvm._translateExprToLlvm(bb, self.getSrc())
+        bb, src = toLlvm._translateExprToLlvm(bb, self.src)
         # :attention: it is important that dst is evaluated after src expression was translated because Argument
         #  instanced may have been changed by mutateFunctionAddArg
         dst, wordT = getArgumentForHwIO(toLlvm, self.dst, self, False)
@@ -101,7 +94,7 @@ class HlsWrite(HlsStm):
         return [n, ]
 
     def __repr__(self):
-        src = self.operands[0]
+        src = self.src
         return f"<{self.__class__.__name__} {src if isinstance(src, HConst) else src._name}->{HwIO_getName(self._parent.parentHwModule, self.dst)}>"
 
 
@@ -114,29 +107,19 @@ class HlsWriteAddressed(HlsWrite):
             index: ANY_SCALAR_INT_VALUE,
             element_t: HdlType,
             mayBecomeFlushable=True):
-        HlsWrite.__init__(self, parent, src, dst, element_t, mayBecomeFlushable=mayBecomeFlushable)
-        self.operands = (src, index)
-        # store original index for debugging
-        self._origIndex = index
-
-    def getSrc(self):
-        assert len(self.operands) == 2, self
-        return self.operands[0]
-
-    def getIndex(self):
-        assert len(self.operands) == 2, self
-        return self.operands[1]
+        HlsWrite.__init__(self, parent, src, dst, element_t, isVolatile, mayBecomeFlushable=mayBecomeFlushable)
+        self.index = index
 
     def _translateToLlvm(self, toLlvm: 'ToLlvmIrTranslator', bb: BasicBlock):
         b = toLlvm.b
         dst, t = getArgumentForHwIO(toLlvm, self.dst, self, False)
         dst: Argument
         t: Type
-        bb, src = toLlvm._translateExprToLlvm(bb, self.getSrc())
+        bb, src = toLlvm._translateExprToLlvm(bb, self.src)
         # :note: the index type does not matter much as llvm::InstCombine extends it to i64
-        index_t = Type.getIntNTy(toLlvm.ctx, self.getIndex()._dtype.bit_length())
+        index_t = Type.getIntNTy(toLlvm.ctx, self.index._dtype.bit_length())
         indexes = [toLlvm._translateExprInt(0, index_t), ]
-        bb, index0 = toLlvm._translateExprToLlvm(bb, self.getIndex())
+        bb, index0 = toLlvm._translateExprToLlvm(bb, self.index)
         indexes.append(index0)
 
         arrTy: ArrayType = TypeToArrayType(t)
@@ -176,7 +159,8 @@ class HlsWriteAddressed(HlsWrite):
         return [n, ]
 
     def __repr__(self):
-        src, index = self.operands
+        src = self.src
+        index = self.index
         if isinstance(src, (HwIO, RtlSignal)):
             src = HwIO_getName(self._parent.parentHwModule, src)
         if isinstance(index, (HwIO, RtlSignal)):
