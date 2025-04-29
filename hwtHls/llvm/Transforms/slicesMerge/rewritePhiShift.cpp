@@ -1,4 +1,5 @@
 #include <hwtHls/llvm/Transforms/slicesMerge/rewritePhiShift.h>
+#include <hwtHls/llvm/Transforms/slicesMerge/slicesMergeCombiner.h>
 
 #include <map>
 #include <sstream>
@@ -9,13 +10,14 @@
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/targets/intrinsic/concatMemberVector.h>
 #include <hwtHls/llvm/Transforms/slicesMerge/utils.h>
+#include <hwtHls/llvm/targets/intrinsic/utils.h>
 
 using namespace llvm;
 using namespace std;
 
 namespace hwtHls {
 
-void collectAllChanedPhisInBlock(PHINode &I, map<PHINode*, shared_ptr<set<PHINode*>>> &phiGroups) {
+void collectAllChainedPhisInBlock(PHINode &I, map<PHINode*, shared_ptr<set<PHINode*>>> &phiGroups) {
 	shared_ptr<set<PHINode*>> iPhiGroup = nullptr;
 	auto _iGroup = phiGroups.find(&I);
 	if (_iGroup != phiGroups.end())
@@ -52,6 +54,7 @@ void collectAllChanedPhisInBlock(PHINode &I, map<PHINode*, shared_ptr<set<PHINod
 	}
 	phiGroups[&I] = move(iPhiGroup);
 }
+
 vector<PHINode*> sortPhiGroup(BasicBlock &BB, set<PHINode*> &group) {
 	vector<PHINode*> res;
 	for (auto &phi : BB.phis()) {
@@ -64,7 +67,7 @@ vector<PHINode*> sortPhiGroup(BasicBlock &BB, set<PHINode*> &group) {
 	return res;
 }
 
-PHINode* mergePhisToWiderPhi(LLVMContext & C, const Twine& nameStem, const std::vector<PHINode*> & phis) {
+PHINode* mergePhisToWiderPhi(IRBuilderBase& builder, const Twine& nameStem, const std::vector<PHINode*> & phis) {
 	size_t resWidth = 0;
 	//stringstream _name;
 	//_name << nameStem << "<";
@@ -85,18 +88,18 @@ PHINode* mergePhisToWiderPhi(LLVMContext & C, const Twine& nameStem, const std::
 		}
 	}
 	//_name << ">";
-	IRBuilder<> builder(phis.back());
+	builder.SetInsertPoint(phis.back());
 	auto lastPhiIt = builder.GetInsertPoint();
 	builder.SetInsertPoint(&*++lastPhiIt);
 
-	auto name = nameStem;  //_name.str();
-	auto *resTy = Type::getIntNTy(C, resWidth);
+	auto name = resolveNameForMergedInstructions<InstructionPtrNameGetter>(phis) + nameStem;  //_name.str();
+	auto *resTy = Type::getIntNTy(builder.getContext(), resWidth);
 	PHINode *widerPhi = builder.CreatePHI(resTy, phis[0]->getNumIncomingValues(), name);
 
 	// for each predecessor block construct a concatenation of incomming values
 	for (size_t i = 0; i < (unsigned) valCnt; ++i) {
 		BasicBlock *srcBB = nullptr;
-		ConcatMemberVector values(builder, nullptr);
+		ConcatMemberVector values;
 		for (auto _phi : phis) {
 			Value *v;
 			if (srcBB == nullptr) {
@@ -116,16 +119,16 @@ PHINode* mergePhisToWiderPhi(LLVMContext & C, const Twine& nameStem, const std::
 		// insert before terminator
 		auto srcBBEndIt = srcBB->end();
 		--srcBBEndIt;
-		auto srcVal = values.resolveValue(&*srcBBEndIt);
+		auto srcVal = values.resolveValue(builder, nullptr, &*srcBBEndIt);
 		widerPhi->addIncoming(srcVal, srcBB);
 	}
 	return widerPhi;
 }
 
-bool phiShiftPatternRewrite(BasicBlock &BB, const CreateBitRangeGetFn & createSlice, DceWorklist & dce) {
+bool SlicesMergeCombiner::phiShiftPatternRewrite(BasicBlock &BB) {
 	map<PHINode*, shared_ptr<set<PHINode*>>> phiGroups;
 	for (auto &phi : BB.phis()) {
-		collectAllChanedPhisInBlock(phi, phiGroups);
+		collectAllChainedPhisInBlock(phi, phiGroups);
 	}
 	SetVector<PHINode*> toRm;
 	for (auto &phi : BB.phis()) {
@@ -140,23 +143,23 @@ bool phiShiftPatternRewrite(BasicBlock &BB, const CreateBitRangeGetFn & createSl
 
 		auto phigroup = sortPhiGroup(BB, *group->second);
 		toRm.insert(phigroup.begin(), phigroup.end());
-		auto widerPhi = mergePhisToWiderPhi(BB.getContext(), "shiftPhi", phigroup);
-		IRBuilder<> builder(&*BB.begin());
-		IRBuilder_setInsertPointBehindPhi(builder, &*BB.begin());
+		auto widerPhi = mergePhisToWiderPhi(Builder, ".shiftPhi", phigroup);
+
+		Builder.SetInsertPoint(&*BB.begin());
+		IRBuilder_setInsertPointBehindPhi(Builder, &*BB.begin());
 		size_t lowBitNo = 0;
 		for (auto _phi : phigroup) {
 			size_t bitWidth = _phi->getType()->getIntegerBitWidth();
-			auto phiSlice = createSlice(&builder, widerPhi, lowBitNo, bitWidth);
-			dce.updateSlicesBeforeReplace(*_phi, *phiSlice);
-			_phi->replaceAllUsesWith(phiSlice);
+			auto phiSlice = createSlice(widerPhi, lowBitNo, bitWidth);
+			replaceInstUsesWith(*_phi, phiSlice);
 			lowBitNo += bitWidth;
 		}
 	}
+
 	for (auto phi : toRm) {
 		for (Use& v: phi->incoming_values())
 			if (auto ii = dyn_cast<Instruction>(v.get()))
-				dce.insert(*ii);
-		phi->eraseFromParent();
+				Worklist.add(ii);
 	}
 	return toRm.size() != 0;
 }

@@ -1,25 +1,24 @@
-#include <hwtHls/llvm/Transforms/slicesMerge/mergeConsequentSlicesSelect.h>
+#include <hwtHls/llvm/Transforms/slicesMerge/slicesMergeCombiner.h>
 
-#include <llvm/IR/IRBuilder.h>
 #include <hwtHls/llvm/Transforms/slicesMerge/mergeConsequentSlices.h>
-#include <hwtHls/llvm/Transforms/slicesMerge/rewriteConcat.h>
 #include <hwtHls/llvm/targets/intrinsic/concatMemberVector.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 
+
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 #include <hwtHls/llvm/Transforms/utils/irConsistencyChecks.h>
+#endif
 
 using namespace llvm;
 
 namespace hwtHls {
 
-bool mergeConsequentSlicesSelect(SelectInst &I,
-		const CreateBitRangeGetFn &createSlice, DceWorklist &dce) {
+llvm::Instruction* SlicesMergeCombiner::mergeConsequentSlicesSelect(SelectInst &I) {
 	// translate operands then build a new operand with new operands if required
 	Value *opCond = I.getCondition();
-	bool modified;
 	Value *widerOp0;
 	Value *widerOp1;
-	IRBuilder<> builder(&I);
+	Builder.SetInsertPoint(&I);
 	ParallelInstVec parallelInstrOnSameVec;
 	const auto predicateCondEq = [opCond](Instruction &I) {
 		if (auto *_I = dyn_cast<SelectInst>(&I)) {
@@ -30,28 +29,29 @@ bool mergeConsequentSlicesSelect(SelectInst &I,
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 	auto &F = *I.getParent()->getParent();
 #endif
+	bool modified;
 	std::tie(modified, widerOp0, widerOp1) =
-			mergeConsequentSlicesExtractWiderOperads(createSlice, dce, builder,
-					parallelInstrOnSameVec, I, predicateCondEq, false, 1, 2);
+			mergeConsequentSlicesExtractWiderOperads(parallelInstrOnSameVec, I,
+					predicateCondEq, false, 1, 2);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 	verifyUsesList(F);
 #endif
 	if (widerOp0 && widerOp1) {
-		modified = true;
 		assert(widerOp0->getType() == widerOp1->getType());
-		auto res = builder.CreateSelect(opCond, widerOp0, widerOp1);
+		auto res = Builder.CreateSelect(opCond, widerOp0, widerOp1);
 		assert(
 				parallelInstrOnSameVec.size()
 						&& parallelInstrOnSameVec[0].I == &I);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 		verifyUsesList(F);
 #endif
-		replaceMergedInstructions(parallelInstrOnSameVec, createSlice, builder,
-				res, dce);
+		replaceMergedInstructions(parallelInstrOnSameVec, res);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 		verifyUsesList(F);
 #endif
+
+		return &I; // return I to mark that it was replaced
 	}
-	return modified;
+	return nullptr;
 }
 }

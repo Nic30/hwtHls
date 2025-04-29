@@ -37,6 +37,7 @@ std::pair<std::vector<std::size_t>::iterator, ParallelInstVec::iterator> Paralle
 
 ParallelInstVec::iterator ParallelInstVec::insertSorted(Instruction *I,
 		bool hasSwappedOperands) {
+	assert(!I->use_empty() && "Only instructions with users need to be rewritten");
 	if (size() == 0) {
 		thisOrderedAsInParentBlock.push_back(0);
 	} else if ((*this)[thisOrderedAsInParentBlock.back()].I->comesBefore(I)) {

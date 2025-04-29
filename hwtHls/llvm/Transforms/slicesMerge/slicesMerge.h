@@ -17,9 +17,15 @@ namespace hwtHls {
 class SlicesMergePass: public llvm::PassInfoMixin<SlicesMergePass> {
 
 public:
+	size_t MaxIterations;
+	SlicesMergePass(size_t MaxIterations = 1024) :
+			MaxIterations(MaxIterations) {
+	}
 	llvm::PreservedAnalyses run(llvm::Function &F,
 			llvm::FunctionAnalysisManager &AM);
-	static bool isRequired() { return false; }
+	static bool isRequired() {
+		return false;
+	}
 };
 
 }
