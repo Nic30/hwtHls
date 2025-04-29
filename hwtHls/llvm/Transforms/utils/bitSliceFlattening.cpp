@@ -240,7 +240,7 @@ llvm::Value* rewriteExtractOnMergeValues(llvm::IRBuilder<> &Builder,
 		if (newVal != I) {
 			I->replaceAllUsesWith(newVal);
 			if (I->hasName() && !newVal->hasName())
-				newVal->setName(I->getName());
+				newVal->takeName(I);
 		}
 	}
 	return newVal;
