@@ -1,64 +1,149 @@
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <llvm/ADT/StringExtras.h>
+#include <llvm/IR/PatternMatch.h>
 
 #include <hwtHls/llvm/targets/intrinsic/utils.h>
 #include <hwtHls/llvm/targets/intrinsic/concatMemberVector.h>
 #include <hwtHls/llvm/bitMath.h>
+#include <hwtHls/llvm/targets/intrinsic/PatternMatch.h>
 
 using namespace llvm;
+using namespace llvm::PatternMatch;
 
 namespace hwtHls {
 
 const std::string BitRangeGetName = "hwtHls.bitRangeGet";
 
-llvm::Value* CreateBitRangeGetConst(llvm::IRBuilder<> *Builder,
-		llvm::Value *bitVec, size_t lowBitNo, size_t bitWidth) {
+llvm::Value* CreateBitRangeGetConst(llvm::IRBuilderBase *Builder,
+		llvm::Value *bitVec, size_t lowBitNo, size_t bitWidth,
+		const llvm::Twine &Name) {
 	if (lowBitNo == 0 && bitWidth == bitVec->getType()->getIntegerBitWidth())
 		return bitVec;
+	assert(bitWidth > 0);
 	size_t indexWidth = log2ceil(bitVec->getType()->getIntegerBitWidth()) + 1;
 	auto _lowBitNo = ConstantInt::get(
 			IntegerType::get(Builder->getContext(), indexWidth), lowBitNo);
-	return CreateBitRangeGet(Builder, bitVec, _lowBitNo, bitWidth);
+	return CreateBitRangeGet(Builder, bitVec, _lowBitNo, bitWidth, Name);
+}
+
+llvm::Value* SearchBitRangeGetConst(Instruction *bitVec, size_t lowBitNo,
+		size_t bitWidth) {
+	size_t indexWidth = log2ceil(bitVec->getType()->getIntegerBitWidth()) + 1;
+	auto _lowBitNo = ConstantInt::get(
+			IntegerType::get(bitVec->getContext(), indexWidth), lowBitNo);
+	return SearchBitRangeGet(bitVec, _lowBitNo, bitWidth);
 }
 
 llvm::Value* SearchBitRangeGet(Instruction *bitVec, Value *lowBitNo,
 		size_t bitWidth) {
+	assert(bitWidth > 0);
 	bool isTrunc = false;
-	if (auto *lowBitNoC = dyn_cast<ConstantInt>(lowBitNo)) {
+	auto *lowBitNoC = dyn_cast<ConstantInt>(lowBitNo);
+	if (lowBitNoC) {
 		if (lowBitNoC->isZero()) {
+			if (bitWidth == bitVec->getType()->getIntegerBitWidth())
+				return bitVec; // bitVec[MSB:0] == bitVec
 			isTrunc = true;
 		}
 	}
+	assert(bitWidth < bitVec->getType()->getIntegerBitWidth());
 
-	for (auto suc = BasicBlock::iterator(bitVec);
-			suc != bitVec->getParent()->end(); ++suc) {
-		if (&*suc == bitVec)
-			continue;
-		if (isa<PHINode>(suc))
-			continue;
-		if (auto *Trunc = dyn_cast<TruncInst>(suc)) {
-			if (isTrunc && Trunc->getType()->getIntegerBitWidth() == bitWidth) {
-				return Trunc;
-			}
-		}
-		if (auto *sucI = dyn_cast<CallInst>(suc)) {
-			if (IsBitRangeGet(sucI) && sucI->getArgOperand(0) == bitVec) {
-				if (sucI->getType()->getIntegerBitWidth() == bitWidth
-						&& sucI->getArgOperand(1) == lowBitNo) {
-					return sucI;
+	auto BBEnd = bitVec->getParent()->end();
+	if (bitVec->getNextNode()) {
+		// search possible slices after this instruction
+		bool srcIsPhi = isa<PHINode>(bitVec);
+		for (auto suc = bitVec->getNextNode()->getIterator(); suc != BBEnd;
+				++suc) {
+			assert(&*suc);
+			if (isa<PHINode>(suc))
+				continue;
+			if (auto *Trunc = dyn_cast<TruncInst>(suc)) {
+				if (Trunc->getOperand(0) != bitVec) {
+					if (srcIsPhi && isa<PHINode>(Trunc->getOperand(0)))
+						continue; // slices of PHI may be mixed together,  we need to iterate all of them
+					else
+						break; // this is the last slice and we did not see any compatible
+				}
+				if (isTrunc
+						&& Trunc->getType()->getIntegerBitWidth() == bitWidth) {
+					return Trunc;
+				}
+			} else if (auto *sucI = dyn_cast<CallInst>(suc)) {
+				if (IsBitRangeGet(sucI)) {
+					auto sucISrcArg = sucI->getArgOperand(0);
+					if (sucISrcArg == bitVec) {
+						if (sucI->getType()->getIntegerBitWidth() == bitWidth
+								&& sucI->getArgOperand(1) == lowBitNo) {
+							return sucI;
+						}
+					} else if (srcIsPhi && isa<PHINode>(sucISrcArg)) {
+						continue;  // slices of PHI may be mixed together, we need to iterate all of them
+					} else {
+						break;
+					}
+				} else {
+					break;
 				}
 			} else {
 				break;
 			}
-		} else {
-			break;
+		}
+	}
+	if (lowBitNoC) {
+		// if bitVec is slice or concat try search slice on src operand(s)
+		if (auto bitVecCI = dyn_cast<CallInst>(bitVec)) {
+			if (IsBitConcat(bitVecCI)) {
+				// if this is a slice on concat try extract members of concat
+				auto selectOff = lowBitNoC->getZExtValue();
+				size_t memberOff = 0;
+				for (auto &concMember : bitVecCI->args()) {
+					auto memberWidth =
+							concMember->getType()->getIntegerBitWidth();
+					size_t memberEnd = memberOff + memberWidth;
+					size_t selectEnd = selectOff + bitWidth;
+					if (memberOff == selectOff && memberWidth == bitWidth) { // exactly selects the member
+						auto *existing = concMember.get();
+						return existing;
+					} else if (selectOff >= memberOff
+							&& selectOff < memberEnd) {
+						// select starts in this item
+						if (selectEnd <= memberEnd) {
+							// select also ending in this item
+							if (auto srcI = dyn_cast<Instruction>(
+									concMember.get())) {
+								return SearchBitRangeGetConst(srcI,
+										selectOff - memberOff, bitWidth); // selecting only from this member bits
+							} else {
+								return nullptr; // selected bits are not from instruction
+							}
+						} else {
+							break; // this is selecting multiple members
+						}
+					}
+					memberOff += memberWidth;
+					if (memberOff > selectOff) {
+						break; // do not search members which starting after selected start
+					}
+				}
+			} else if (IsBitRangeGet(bitVecCI)) {
+				if (auto opLowIndex = dyn_cast<ConstantInt>(
+						bitVecCI->getArgOperand(1))) {
+					if (auto srcI = dyn_cast<Instruction>(
+							bitVecCI->getArgOperand(0))) {
+						auto newOffset = opLowIndex->getZExtValue()
+								+ lowBitNoC->getZExtValue();
+						// src operand is also a slice, search slice on src of src
+						return SearchBitRangeGetConst(srcI, newOffset, bitWidth);
+					}
+				}
+			}
 		}
 	}
 	return nullptr;
 }
 
-llvm::Value* CreateBitRangeGet(IRBuilder<> *Builder, Value *bitVec,
-		Value *lowBitNo, size_t bitWidth) {
+llvm::Value* CreateBitRangeGet(llvm::IRBuilderBase *Builder, Value *bitVec,
+		Value *lowBitNo, size_t bitWidth, const llvm::Twine &Name) {
 	auto *lowBitNoC = dyn_cast<ConstantInt>(lowBitNo);
 	assert(lowBitNoC && "CreateBitRangeGet lowBitNo must be a constant");
 	//assert(!lowBitNoC->isNegative());
@@ -67,41 +152,88 @@ llvm::Value* CreateBitRangeGet(IRBuilder<> *Builder, Value *bitVec,
 					<= bitVec->getType()->getIntegerBitWidth()
 					&& "Selected range must be in exiting bits");
 	if (isa<UndefValue>(bitVec)) {
-		return UndefValue::get(Builder->getIntNTy(bitWidth));
+		auto resTy = Builder->getIntNTy(bitWidth);
+		if (isa<PoisonValue>(bitVec))
+			return PoisonValue::get(resTy);
+		else
+			return UndefValue::get(resTy);
+	} else if (auto CI = dyn_cast<ConstantInt>(bitVec)) {
+		auto resTy = Builder->getIntNTy(bitWidth);
+		return ConstantInt::get(resTy, CI->getValue().extractBits(bitWidth, lowBitNoC->getZExtValue()));
 	} else if (auto bitVecCI = dyn_cast<CallInst>(bitVec)) {
-		// if this is a slice on slice use slice on original vector instead
-		if (IsBitRangeGet(bitVecCI) && lowBitNoC) {
-			auto opLowIndex = dyn_cast<ConstantInt>(bitVecCI->getArgOperand(1));
-			if (opLowIndex) {
-				return CreateBitRangeGetConst(Builder,
-						bitVecCI->getArgOperand(0),
-						opLowIndex->getZExtValue() + lowBitNoC->getZExtValue(),
-						bitWidth);
+		if (lowBitNoC) {
+			if (IsBitRangeGet(bitVecCI)) {
+				// if this is a slice on slice use slice on original vector instead
+				if (auto opLowIndex = dyn_cast<ConstantInt>(
+						bitVecCI->getArgOperand(1))) {
+					return CreateBitRangeGetConst(Builder,
+							bitVecCI->getArgOperand(0),
+							opLowIndex->getZExtValue()
+									+ lowBitNoC->getZExtValue(), bitWidth, Name);
+				}
+			} else if (IsBitConcat(bitVecCI)) {
+				// if this is a slice on concat try extract members of concat
+				auto selectOff = lowBitNoC->getZExtValue();
+				size_t memberOff = 0;
+				for (auto &concMember : bitVecCI->args()) {
+					auto memberWidth =
+							concMember->getType()->getIntegerBitWidth();
+					size_t memberEnd = memberOff + memberWidth;
+					size_t selectEnd = selectOff + bitWidth;
+					if (memberOff == selectOff && memberWidth == bitWidth) { // exactly selects the member
+						auto *existing = concMember.get();
+						if (!existing->hasName()) {
+							existing->setName(Name);
+						}
+						return existing;
+					} else if (selectOff >= memberOff
+							&& selectOff < memberEnd) {
+						// select starts in this item
+						if (selectEnd <= memberEnd) {
+							// select also ending in this item
+							return CreateBitRangeGetConst(Builder,
+									concMember.get(), selectOff - memberOff,
+									bitWidth, Name); // selecting only from this member bits
+						} else {
+							break; // this is selecting multiple members
+						}
+					}
+					memberOff += memberWidth;
+					if (memberOff > selectOff) {
+						break; // do not search members which starting after selected start
+					}
+				}
 			}
 		}
 	} else if (auto Trunc = dyn_cast<TruncInst>(bitVec)) {
 		return CreateBitRangeGet(Builder, Trunc->getOperand(0), lowBitNo,
-				bitWidth);
+				bitWidth, Name);
 	} else if (auto *Cast = dyn_cast<CastInst>(bitVec)) {
 		// bitcast, zext, sext
 		auto src = Cast->getOperand(0);
 		if (src->getType()->getIntegerBitWidth()
 				>= lowBitNoC->getZExtValue() + bitWidth) {
 			// if selecting bits only in src operand
-			return CreateBitRangeGet(Builder, src, lowBitNo, bitWidth);
+			return CreateBitRangeGet(Builder, src, lowBitNo, bitWidth, Name);
 		}
 	}
 	if (auto *bitVecInst = dyn_cast<Instruction>(bitVec)) {
 		auto *existing = SearchBitRangeGet(bitVecInst, lowBitNo, bitWidth);
-		if (existing)
+		if (existing) {
+			if (!existing->hasName()) {
+				existing->setName(Name);
+			}
 			return existing;
+		}
 	}
 
 	Value *Ops[] = { bitVec, lowBitNo };
 	for (auto O : Ops) {
 		if (auto OAsI = dyn_cast<Instruction>(O)) {
 			assert(OAsI->getParent() && "Check that the value is not erased");
-			assert(OAsI->getParent()->getParent() && "Check that the value is not erased");
+			assert(
+					OAsI->getParent()->getParent()
+							&& "Check that the value is not erased");
 		}
 	}
 	Type *ResT = Builder->getIntNTy(bitWidth);
@@ -150,7 +282,7 @@ llvm::Value* CreateBitRangeGet(IRBuilder<> *Builder, Value *bitVec,
 		updateIP = true;
 	}
 
-	CI = Builder->CreateCall(TheFn, Ops);
+	CI = Builder->CreateCall(TheFn, Ops, Name);
 	CI->setDoesNotAccessMemory();
 
 	if (!updateIP) {
@@ -174,13 +306,19 @@ bool IsBitRangeGet(const llvm::CallInst *C) {
 bool IsBitRangeGet(const llvm::Function *F) {
 	assert(
 			F != nullptr
-					&& "Function must have definition if input code was valid");
+					&& "Function must have definition in parent Module if input code was valid");
 	return F->getName().str().rfind(BitRangeGetName, 0) == 0;
 }
-
+llvm::Value* BitRangeGetSrc(const llvm::CallInst *C) {
+	return C->getArgOperand(0);
+}
+size_t BitRangeGetOffset(const llvm::CallInst *C) {
+	return dyn_cast<ConstantInt>(C->getArgOperand(1))->getZExtValue();
+}
 const std::string BitConcatName = "hwtHls.bitConcat";
-llvm::Value* CreateBitConcat(llvm::IRBuilder<> *Builder,
-		llvm::ArrayRef<llvm::Value*> _OpsLowFirst) {
+
+llvm::Value* CreateBitConcat(llvm::IRBuilderBase *Builder,
+		llvm::ArrayRef<llvm::Value*> _OpsLowFirst, const llvm::Twine &Name) {
 	if (_OpsLowFirst.size() == 1) {
 		return _OpsLowFirst[0];
 	} else {
@@ -239,8 +377,12 @@ llvm::Value* CreateBitConcat(llvm::IRBuilder<> *Builder,
 					ArgTys.push_back(Ty);
 					continue;
 				} else if (auto OAsI = dyn_cast<Instruction>(o)) {
-					assert(OAsI->getParent() && "Check that the value is not erased");
-					assert(OAsI->getParent()->getParent() && "Check that the value is not erased");
+					assert(
+							OAsI->getParent()
+									&& "Check that the value is not erased");
+					assert(
+							OAsI->getParent()->getParent()
+									&& "Check that the value is not erased");
 				}
 				lastWasUndef = true;
 			} else {
@@ -256,7 +398,7 @@ llvm::Value* CreateBitConcat(llvm::IRBuilder<> *Builder,
 		if (auto *o1asC = dyn_cast<ConstantInt>(OpsLowFirst[1])) {
 			if (o1asC->isZero()) {
 				Type *RetTy = Builder->getIntNTy(bitWidth);
-				return Builder->CreateZExt(OpsLowFirst[0], RetTy);
+				return Builder->CreateZExt(OpsLowFirst[0], RetTy, Name);
 			}
 		}
 	}
@@ -273,7 +415,7 @@ llvm::Value* CreateBitConcat(llvm::IRBuilder<> *Builder,
 			}
 		}
 		if (isSExt)
-			return Builder->CreateSExt(OpsLowFirst.front(), RetTy);
+			return Builder->CreateSExt(OpsLowFirst.front(), RetTy, Name);
 	}
 	Module *M = Builder->GetInsertBlock()->getParent()->getParent();
 
@@ -283,7 +425,7 @@ llvm::Value* CreateBitConcat(llvm::IRBuilder<> *Builder,
 	AddDefaultFunctionAttributes(*TheFn);
 	TheFn->addFnAttr(Attribute::Speculatable);
 
-	CallInst *CI = Builder->CreateCall(TheFn, OpsLowFirst);
+	CallInst *CI = Builder->CreateCall(TheFn, OpsLowFirst, Name);
 	CI->setDoesNotAccessMemory();
 
 	return CI;
@@ -300,8 +442,48 @@ bool IsBitConcatInst(const llvm::Instruction *I) {
 }
 
 bool IsBitConcat(const llvm::Function *F) {
-	assert(F != nullptr);
+	assert(
+			F != nullptr
+					&& "Function must have definition in parent Module if input code was valid");
 	return F->getName().str().rfind(BitConcatName, 0) == 0;
+}
+
+
+bool isAnyFormOfBitRangeGet(llvm::Instruction *I) {
+	size_t width, offset;
+	Value *V;
+	return match(I, m_Trunc(m_Value(V)))
+			|| match(I, hwtHls::PatternMatch::m_BitrangeGet(m_Value(V), offset, width));
+}
+
+bool isAnyFormOfBitRangeGet(llvm::Instruction *I, llvm::Value *&src) {
+	size_t width, offset;
+	Value *V;
+	if (match(I, m_Trunc(m_Value(V)))
+			|| match(I, hwtHls::PatternMatch::m_BitrangeGet(m_Value(V), offset, width))) {
+		if (src == nullptr) {
+			src = V;
+			return true;
+		} else {
+			return src == V;
+		}
+	}
+	return false;
+}
+
+bool isAnyFormOfBitRangeGet(llvm::Instruction *I, llvm::Value *&src, size_t& offset) {
+	size_t width;
+	Value *V;
+	if (match(I, m_Trunc(m_Value(V)))
+			|| match(I, hwtHls::PatternMatch::m_BitrangeGet(m_Value(V), offset, width))) {
+		if (src == nullptr) {
+			src = V;
+			return true;
+		} else {
+			return src == V;
+		}
+	}
+	return false;
 }
 
 }
