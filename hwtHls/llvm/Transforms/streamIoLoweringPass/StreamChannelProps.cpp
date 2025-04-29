@@ -1,101 +1,28 @@
-#include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamIoInstrCollector.h>
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/bitMath.h>
 #include <algorithm>
+#include <hwtHls/llvm/Transforms/streamIoLoweringPass/StreamChannelProps.h>
 
 using namespace llvm;
+
 namespace hwtHls {
 
-StreamChannelProps::StreamChannelProps(
-		llvm::SmallVector<llvm::AllocaInst*> &GeneratedAllocas,
-		llvm::Argument *ioArg) :
-		GeneratedAllocas(GeneratedAllocas), ioArg(ioArg), nativeWordTy(nullptr), dataWidth(
-				0), hasMask(false), isOutput(false) {
+StreamChannelProps::StreamChannelProps(const StreamChannelFormatInfo &scfi,
+		llvm::SmallVector<llvm::AllocaInst*> &GeneratedAllocas) :
+		StreamChannelFormatInfo(scfi), GeneratedAllocas(GeneratedAllocas) {
 	dataVar = nullptr;
 	dataMaskVar = nullptr;
-	dataLastVar = nullptr;
+	dataEnableVar = nullptr;
+	dataEmptyVar = nullptr;
+	dataSoFVar = nullptr;
+	dataEoFVar = nullptr;
+	dataErrorVar = nullptr;
 	dataOffsetVar = nullptr;
 	wDataPendingVar = nullptr;
 }
 
-StreamChannelWordValue StreamChannelWordValue::concat(
-		llvm::IRBuilder<> &builder,
-		llvm::ArrayRef<StreamChannelWordValue> lowerFirstMembers) {
-	llvm::SmallVector<llvm::Value*> data;
-	llvm::SmallVector<llvm::Value*> mask;
-	llvm::SmallVector<llvm::Value*> last;
-
-	bool allMasksNull = false;
-	for (auto &d : lowerFirstMembers) {
-		data.push_back(d.data);
-		if (d.mask == nullptr) {
-			assert(allMasksNull || mask.size() == 0);
-			allMasksNull = true;
-		} else {
-			assert(!allMasksNull);
-		}
-		mask.push_back(d.mask);
-		last.push_back(d.last);
-	}
-	Value *_data = CreateBitConcat(&builder, data);
-	Value *_mask = nullptr;
-	if (!allMasksNull) {
-		_mask = CreateBitConcat(&builder, mask);
-		assert(_mask);
-	}
-
-	return {
-		_data,
-		_mask,
-		builder.CreateOr(last)
-	};
-}
-
-StreamChannelWordValue StreamChannelWordValue::slice(llvm::IRBuilder<> &builder,
-		size_t dataLowBitIndex, size_t bitsToTake) const {
-	assert(bitsToTake > 0);
-	llvm::Instruction *_data = dyn_cast<Instruction>(
-			CreateBitRangeGetConst(&builder, data, dataLowBitIndex,
-					bitsToTake));
-	assert(_data);
-	llvm::Instruction *_dataMask = nullptr;
-	Value *_last = last;
-	size_t DATA_WIDTH = data->getType()->getIntegerBitWidth();
-	if (mask) {
-		assert(dataLowBitIndex % 8 == 0);
-		assert(bitsToTake % 8 == 0);
-		_dataMask = dyn_cast<Instruction>(
-				CreateBitRangeGetConst(&builder, mask, dataLowBitIndex / 8,
-						bitsToTake / 8));
-		assert(_dataMask);
-		if (dataLowBitIndex + bitsToTake != DATA_WIDTH) {
-			size_t nextMaskBitIndex = (dataLowBitIndex + bitsToTake) / 8;
-			auto *nextMaskBit = CreateBitRangeGetConst(&builder, mask,
-					nextMaskBitIndex, 1);
-			_last = builder.CreateAnd(last, builder.CreateNot(nextMaskBit));
-		}
-	} else {
-		if ((dataLowBitIndex + bitsToTake) != DATA_WIDTH) {
-			// never last
-			_last = ConstantInt::getFalse(builder.getContext());
-		}
-	}
-	return {_data, _dataMask, _last};
-}
-
-llvm::Instruction* StreamChannelWordValue::flatten(
-		llvm::IRBuilder<> &builder) const {
-	if (mask) {
-		return dyn_cast<llvm::Instruction>(CreateBitConcat(&builder, { data,
-				mask, last }));
-	} else {
-		return dyn_cast<llvm::Instruction>(CreateBitConcat(&builder, { data,
-				last }));
-	}
-}
-
-void StreamChannelProps::setOffsetVar(llvm::IRBuilder<> &builder,
+void StreamChannelProps::setOffsetVar(llvm::IRBuilderBase &builder,
 		size_t val) const {
 	builder.CreateStore(
 			ConstantInt::get(
@@ -103,30 +30,28 @@ void StreamChannelProps::setOffsetVar(llvm::IRBuilder<> &builder,
 					val), dataOffsetVar);
 }
 
-StreamChannelWordValue StreamChannelProps::parseNativeWord(
-		llvm::IRBuilder<> &builder, llvm::Instruction *nativeWord) const {
-	builder.SetInsertPoint(nativeWord->getParent(),
-			BasicBlock::iterator(nativeWord->getNextNode()));
-	Instruction *data = dyn_cast<Instruction>(
-			CreateBitRangeGetConst(&builder, nativeWord, 0, dataWidth));
-	assert(data);
-	size_t off = dataWidth;
-	Instruction *dataMask = nullptr;
-	if (hasMask) {
-		dataMask = dyn_cast<Instruction>(
-				CreateBitRangeGetConst(&builder, nativeWord, off,
-						dataWidth / 8));
-		assert(dataMask);
-		off += dataWidth / 8;
-	}
-	Value *dataLast = CreateBitRangeGetConst(&builder, nativeWord, off, 1);
-	return {data, dataMask, dataLast};
-}
-
 llvm::Value* StreamChannelProps::deparseNativeWord(
-		llvm::IRBuilder<> &builder) const {
-	llvm::SmallVector<Value*, 3> parts;
-	for (auto *v : { dataVar, dataMaskVar, dataLastVar }) {
+		llvm::IRBuilderBase &builder) const {
+	llvm::SmallVector<AllocaInst*, 6> partVars;
+	switch (byteEnableEncoding) {
+	case ByteEnableEncoding::BEE_NONE:
+	case ByteEnableEncoding::BEE_MASK: {
+		// Axi4Stream (data, strb?, err?, sof?, eof?)
+		partVars =
+				{ dataVar, dataMaskVar, dataErrorVar, dataSoFVar, dataEoFVar };
+		break;
+	}
+	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY: {
+		// Axi4StreamSegmented (data[n], (enable, sof?, eof?, err?, empty)[n])
+		partVars = { dataVar, dataEnableVar, dataSoFVar, dataEoFVar,
+				dataErrorVar, dataEmptyVar };
+		break;
+	}
+	default:
+		break;
+	}
+	llvm::SmallVector<Value*, 6> parts;
+	for (auto *v : partVars) {
 		if (v != nullptr) { // dataMaskVar can be nullptr
 			auto *_v = getVarValue(builder, v);
 			parts.push_back(_v);
@@ -135,7 +60,7 @@ llvm::Value* StreamChannelProps::deparseNativeWord(
 	return CreateBitConcat(&builder, parts);
 }
 
-void StreamChannelProps::setVarU64(llvm::IRBuilder<> &builder,
+void StreamChannelProps::setVarU64(llvm::IRBuilderBase &builder,
 		std::optional<uint64_t> val, llvm::AllocaInst *var) {
 	auto *Ty = dyn_cast<IntegerType>(var->getAllocatedType());
 	Value *V;
@@ -147,23 +72,108 @@ void StreamChannelProps::setVarU64(llvm::IRBuilder<> &builder,
 	builder.CreateStore(V, var, /*isVolatile*/false);
 }
 
-void StreamChannelProps::setDataMaskConst(llvm::IRBuilder<> &builder,
+void StreamChannelProps::setDataMaskOrEmptyConst(llvm::IRBuilderBase &builder,
 		size_t dataBitOffset, size_t dataBitsToTake) const {
-	if (hasMask) {
+	switch (byteEnableEncoding) {
+	case ByteEnableEncoding::BEE_NONE:
+		break;
+	case ByteEnableEncoding::BEE_MASK: {
 		auto *T = dataMaskVar->getAllocatedType();
-		auto val = APInt::getBitsSet(T->getIntegerBitWidth(), dataBitOffset / 8,
-				(dataBitOffset + dataBitsToTake) / 8);
+		auto val = APInt::getBitsSet(T->getIntegerBitWidth(),
+				dataBitOffset / byteWidth,
+				(dataBitOffset + dataBitsToTake) / byteWidth);
 		auto *CI = ConstantInt::get(T, val);
-		Value *V = CI;
-		if (dataBitOffset != 0) {
-			auto prev = builder.CreateLoad(T, dataMaskVar, /*isVolatile*/false);
-			V = builder.CreateOr(prev, CI);
+		_setDataMask(builder, dataBitOffset != 0, CI);
+		break;
+	}
+	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY: {
+		if (dataEmptyVar) {
+			auto newEmptyVal = (dataWidth - (dataBitOffset + dataBitsToTake))
+					/ byteWidth;
+			auto *emptyTy = dataEmptyVar->getAllocatedType();
+			assert(
+					newEmptyVal <= (1ul << emptyTy->getIntegerBitWidth()) - 1ul
+							&& "newEmptyVal fits in number of bits for dataEmptyVar");
+			builder.CreateStore(ConstantInt::get(emptyTy, newEmptyVal),
+					dataEmptyVar, /*isVolatile*/false);
 		}
-		builder.CreateStore(V, dataMaskVar, /*isVolatile*/false);
+		bool isInitialSet = dataBitOffset == 0 && dataBitsToTake == 0;
+		setVarU64(builder, !isInitialSet, dataEnableVar);
+		break;
+	}
+	default:
+		llvm_unreachable("Invalid value for ByteEnableEncoding");
 	}
 }
 
-void StreamChannelProps::setData(llvm::IRBuilder<> &builder, llvm::Value *val,
+Value* zeroPad(llvm::IRBuilderBase &builder, size_t bitsOnMsbSide, Value *V,
+		size_t bitsOnLsbSide) {
+	SmallVector<Value*, 3> concatMembers;
+	if (bitsOnLsbSide)
+		concatMembers.push_back(builder.getIntN(bitsOnLsbSide, 0));
+	concatMembers.push_back(V);
+	if (bitsOnMsbSide)
+		concatMembers.push_back(builder.getIntN(bitsOnMsbSide, 0));
+	return CreateBitConcat(&builder, concatMembers);
+}
+
+void StreamChannelProps::setDataMaskOrEmpty(llvm::IRBuilderBase &builder,
+		size_t widthOfWrite, size_t srcDataBitOffset, size_t dstDataBitOffset,
+		size_t dataBitsToTake, llvm::Value *maskOrEmptyForWholeChunk) const {
+	if (maskOrEmptyForWholeChunk == nullptr) {
+		setDataMaskOrEmptyConst(builder, dstDataBitOffset, dataBitsToTake);
+	} else {
+		switch (byteEnableEncoding) {
+		case ByteEnableEncoding::BEE_NONE:
+			break;
+		case ByteEnableEncoding::BEE_MASK: {
+			Value *newMask = CreateBitRangeGetConst(&builder,
+					maskOrEmptyForWholeChunk, srcDataBitOffset / byteWidth,
+					dataBitsToTake / byteWidth);
+			size_t lsbPadWidth = dstDataBitOffset / byteWidth;
+			size_t msbPadWidth =
+					(dataVar->getAllocatedType()->getIntegerBitWidth()
+							/ byteWidth
+							- newMask->getType()->getIntegerBitWidth()
+							- lsbPadWidth);
+			newMask = zeroPad(builder, msbPadWidth, newMask, lsbPadWidth);
+			_setDataMask(builder, lsbPadWidth != 0 || msbPadWidth != 0,
+					newMask);
+			break;
+		}
+		case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY: {
+			builder.CreateStore(builder.getTrue(), dataEnableVar, /*isVolatile*/
+			false);
+			if (dataEmptyVar) {
+				Value *empty =
+						StreamChannelWordValue::computeEmptyForDataInsert(
+								builder, byteWidth,
+								*dataEmptyVar->getAllocatedType(),
+								*maskOrEmptyForWholeChunk, widthOfWrite,
+								srcDataBitOffset, dataBitsToTake,
+								dstDataBitOffset, dataWidth);
+				builder.CreateStore(empty, dataEmptyVar, /*isVolatile*/false);
+			}
+			break;
+		}
+		default:
+			llvm_unreachable("Invalid value for ByteEnableEncoding");
+		}
+	}
+}
+
+void StreamChannelProps::_setDataMask(llvm::IRBuilderBase &builder,
+		bool orWithCurrent, Value *newMaskValue) const {
+	assert(hasMask());
+	Value *V = newMaskValue;
+	if (orWithCurrent) {
+		auto prev = builder.CreateLoad(dataMaskVar->getAllocatedType(),
+				dataMaskVar, /*isVolatile*/false);
+		V = builder.CreateOr(prev, newMaskValue);
+	}
+	builder.CreateStore(V, dataMaskVar, /*isVolatile*/false);
+}
+void StreamChannelProps::setData(llvm::IRBuilderBase &builder, llvm::Value *val,
 		size_t offset) const {
 	size_t w = val->getType()->getIntegerBitWidth();
 	assert(w > 0);
@@ -186,101 +196,167 @@ void StreamChannelProps::setData(llvm::IRBuilder<> &builder, llvm::Value *val,
 	}
 }
 
-void StreamChannelProps::setAllData(llvm::IRBuilder<> &builder,
+void StreamChannelProps::setAllData(llvm::IRBuilderBase &builder,
 		llvm::Instruction *nativeWord) const {
-	auto data = parseNativeWord(builder, nativeWord);
+	builder.SetInsertPoint(nativeWord->getParent(),
+			nativeWord->getNextNode()->getIterator());
+	auto data = StreamChannelWordValue::parseNativeWord(*this, builder, nativeWord);
 	setAllData(builder, data);
 }
-void StreamChannelProps::setAllData(llvm::IRBuilder<> &builder,
+
+void _setAllData_setVarConditionally(IRBuilderBase &Builder, bool mustSet,
+		Value *inValue, AllocaInst *tmpVar) {
+	if (mustSet) {
+		assert(inValue);
+		assert(tmpVar);
+		assert(
+				inValue->getType()->getIntegerBitWidth()
+						== tmpVar->getAllocatedType()->getIntegerBitWidth());
+		Builder.CreateStore(inValue, tmpVar, /*isVolatile*/false);
+	} else {
+		assert(!inValue);
+		assert(!tmpVar);
+	}
+}
+void StreamChannelProps::setAllData(llvm::IRBuilderBase &builder,
 		StreamChannelWordValue data) const {
 	assert(
 			data.data->getType()->getIntegerBitWidth()
 					== dataVar->getAllocatedType()->getIntegerBitWidth());
 	builder.CreateStore(data.data, dataVar, /*isVolatile*/false);
-	if (hasMask) {
-		assert(
-				data.mask->getType()->getIntegerBitWidth()
-						== dataMaskVar->getAllocatedType()->getIntegerBitWidth());
-		builder.CreateStore(data.mask, dataMaskVar, /*isVolatile*/false);
+	switch (byteEnableEncoding) {
+	case ByteEnableEncoding::BEE_NONE:
+		assert(!data.mask);
+		assert(!data.enable);
+		assert(!data.empty);
+		break;
+	case ByteEnableEncoding::BEE_MASK:
+		assert(!data.enable);
+		assert(!data.empty);
+		_setAllData_setVarConditionally(builder, hasMask(), data.mask,
+				dataMaskVar);
+		break;
+	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY:
+		_setAllData_setVarConditionally(builder, true, data.enable,
+				dataEnableVar);
+		_setAllData_setVarConditionally(builder, hasEmpty(), data.empty,
+				dataEmptyVar);
+		break;
+	default:
+		llvm_unreachable("NotImplemented");
 	}
-
-	assert(
-			data.last->getType()->getIntegerBitWidth()
-					== dataLastVar->getAllocatedType()->getIntegerBitWidth());
-	builder.CreateStore(data.last, dataLastVar, /*isVolatile*/false);
+	_setAllData_setVarConditionally(builder, hasSoF(), data.sof, dataSoFVar);
+	_setAllData_setVarConditionally(builder, hasEoF(), data.eof, dataEoFVar);
+	_setAllData_setVarConditionally(builder, hasError(), data.error,
+			dataErrorVar);
 }
 
-llvm::LoadInst* StreamChannelProps::getVarValue(llvm::IRBuilder<> &builder,
+llvm::LoadInst* StreamChannelProps::getVarValue(llvm::IRBuilderBase &builder,
 		llvm::AllocaInst *var) const {
-	const char * Name = nullptr;;
+	const char *Name = nullptr;
 	if (var == dataVar) {
 		Name = ".data";
 	} else if (var == dataMaskVar) {
 		Name = ".dataMask";
-	} else if (var == dataLastVar) {
-		Name = ".last";
+	} else if (var == dataSoFVar) {
+		Name = ".sof";
+	} else if (var == dataEoFVar) {
+		Name = ".eof";
 	} else if (var == dataOffsetVar) {
 		Name = ".offset";
 	} else if (var == wDataPendingVar) {
 		Name = ".wDataPending";
 	}
+	Twine _Name = Name ? ioArg->getName() + Name : "";
 	return builder.CreateLoad(var->getAllocatedType(), var, /*isVolatile*/false,
-			Name ?  ioArg->getName() + Name : "");
+			_Name);
 }
 
 StreamChannelWordValue StreamChannelProps::getAllData(
-		llvm::IRBuilder<> &builder) const {
-	return {getVarValue(builder, dataVar),
-		hasMask ? getVarValue(builder, dataMaskVar) : nullptr,
-		getVarValue(builder, dataLastVar)};
-}
+		llvm::IRBuilderBase &builder) const {
 
-size_t StreamChannelProps::_getBusWordCntForChunk(size_t offset,
-		size_t width) const {
-	return div_ceil(width + offset, dataWidth);
-}
+	auto _data = getVarValue(builder, dataVar);
+	Value *_mask = nullptr;
+	if (hasMask())
+		_mask = getVarValue(builder, dataMaskVar);
 
-std::pair<size_t, size_t> StreamChannelProps::_resolveMinMaxWordCount(
-		std::vector<size_t> possibleOffsets, size_t chunkWidth) const {
-	std::optional<size_t> minWordCnt;
-	std::optional<size_t> maxWordCnt;
-	// add read for every word which will be used in this read of frame fragment
-	for (auto off : possibleOffsets) {
-		size_t wCnt = _getBusWordCntForChunk(off, chunkWidth);
+	Value *_sof = nullptr;
+	if (hasSoF())
+		llvm_unreachable("NotImplemented");
 
-		if (minWordCnt.has_value()) {
-			minWordCnt = std::min(wCnt, minWordCnt.value());
-		} else {
-			minWordCnt = wCnt;
-		}
-		if (maxWordCnt.has_value()) {
-			maxWordCnt = std::max(wCnt, maxWordCnt.value());
-		} else {
-			maxWordCnt = wCnt;
-		}
+	auto _eof = getVarValue(builder, dataEoFVar);
+	Value *_error = nullptr;
+	if (errorWidth)
+		llvm_unreachable("NotImplemented");
+
+	Value *_empty = nullptr;
+	Value *_enable = nullptr;
+	if (byteEnableEncoding == ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY) {
+		_enable = builder.getTrue();
+		if (hasEmpty())
+			_empty = getVarValue(builder, dataEmptyVar);
 	}
-	return {minWordCnt.value(), maxWordCnt.value()};
-}
-void StreamChannelProps::createCommonVars(llvm::IRBuilder<> &builder) {
-	auto &C = builder.getContext();
 
+	return {*this, _data, _mask, _enable, _empty, _sof, _eof, _error};
+}
+
+void StreamChannelProps::createCommonVars(llvm::IRBuilderBase &builder) {
+	auto &C = builder.getContext();
 	assert(dataVar == nullptr);
 	IntegerType *dataT = IntegerType::getIntNTy(C, dataWidth);
 	dataVar = builder.CreateAlloca(dataT, nullptr, ioArg->getName() + "Data");
 	GeneratedAllocas.push_back(dataVar);
-
-	if (hasMask) {
-		assert(dataWidth % 8 == 0);
-		assert(dataMaskVar == nullptr);
-		IntegerType *maskT = IntegerType::getIntNTy(C, dataWidth / 8);
-		dataMaskVar = builder.CreateAlloca(maskT, nullptr,
-				ioArg->getName() + "DataMask");
-		GeneratedAllocas.push_back(dataMaskVar);
+	switch (byteEnableEncoding) {
+	case ByteEnableEncoding::BEE_NONE:
+		break;
+	case ByteEnableEncoding::BEE_MASK: {
+		if (hasMask()) {
+			assert(dataWidth % byteWidth == 0);
+			assert(dataMaskVar == nullptr);
+			IntegerType *maskT = IntegerType::getIntNTy(C,
+					dataWidth / byteWidth);
+			dataMaskVar = builder.CreateAlloca(maskT, nullptr,
+					ioArg->getName() + "DataMask");
+			GeneratedAllocas.push_back(dataMaskVar);
+		}
+		break;
 	}
-	assert(dataLastVar == nullptr);
-	dataLastVar = builder.CreateAlloca(IntegerType::getInt1Ty(C), nullptr,
-			ioArg->getName() + "DataLast");
-	GeneratedAllocas.push_back(dataLastVar);
+	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY: {
+		dataEnableVar = builder.CreateAlloca(IntegerType::getInt1Ty(C), nullptr,
+				ioArg->getName() + "DataEmpty");
+		GeneratedAllocas.push_back(dataEnableVar);
+
+		if (hasEmpty()) {
+			assert(dataMaskVar == nullptr);
+			// force supportZLP because it is necessary to store size value to empty during initialization of writes
+			IntegerType *emptyT = IntegerType::getIntNTy(C,
+					getWidthOfEmptyForData(dataWidth, byteWidth,
+							isOutput ? true : supportZLP));
+			dataEmptyVar = builder.CreateAlloca(emptyT, nullptr,
+					ioArg->getName() + "DataEmpty");
+			GeneratedAllocas.push_back(dataEmptyVar);
+		}
+		break;
+	}
+	}
+	assert(dataSoFVar == nullptr);
+	if (hasSoF()) {
+		dataSoFVar = builder.CreateAlloca(IntegerType::getInt1Ty(C), nullptr,
+				ioArg->getName() + "DataSoF");
+		GeneratedAllocas.push_back(dataSoFVar);
+	}
+	assert(dataEoFVar == nullptr);
+	if (hasEoF()) {
+		dataEoFVar = builder.CreateAlloca(IntegerType::getInt1Ty(C), nullptr,
+				ioArg->getName() + "DataEoF");
+		GeneratedAllocas.push_back(dataEoFVar);
+	}
+	assert(dataErrorVar == nullptr);
+	if (hasError()) {
+		dataErrorVar = builder.CreateAlloca(IntegerType::get(C, errorWidth),
+				nullptr, ioArg->getName() + "DataError");
+		GeneratedAllocas.push_back(dataErrorVar);
+	}
 
 	assert(dataOffsetVar == nullptr);
 	IntegerType *offT = IntegerType::getIntNTy(C, log2ceil(dataWidth));
@@ -289,22 +365,44 @@ void StreamChannelProps::createCommonVars(llvm::IRBuilder<> &builder) {
 	GeneratedAllocas.push_back(dataOffsetVar);
 }
 
-void StreamChannelProps::createWDataPendingVar(llvm::IRBuilder<> &builder) {
+void StreamChannelProps::createWDataPendingVar(llvm::IRBuilderBase &builder) {
 	auto &C = builder.getContext();
 
 	assert(wDataPendingVar == nullptr);
 	wDataPendingVar = builder.CreateAlloca(IntegerType::getInt1Ty(C), nullptr,
 			ioArg->getName() + "DataPending");
 	GeneratedAllocas.push_back(wDataPendingVar);
-
 }
 
-size_t MDTuple_getOperandAsU64(const MDTuple *metaTuple, size_t opI) {
+static size_t MDTuple_getOperandAsU64(const MDTuple *metaTuple, size_t opI) {
 	auto CM = dyn_cast<ConstantAsMetadata>(metaTuple->getOperand(opI));
 	assert(CM);
 	auto C = dyn_cast<ConstantInt>(CM->getValue());
 	assert(C);
 	return C->getZExtValue();
+}
+
+StreamChannelProps findStreamIoPropsInMetadata(const Function &F, Value *ioArg,
+		llvm::SmallVector<llvm::AllocaInst*> &GeneratedAllocas) {
+	auto *md = F.getMetadata("hwtHls.streamIo");
+	if (!md) {
+		throw std::runtime_error(
+				"Can not find hwtHls.streamIo metadata on function");
+	}
+	auto srcArg = dyn_cast<Argument>(ioArg);
+	assert(srcArg);
+	size_t argI = srcArg->getArgNo();
+	for (auto &_metaTuple : md->operands()) {
+		auto metaTuple = dyn_cast<MDTuple>(_metaTuple.get());
+		assert(metaTuple);
+		if (argI == MDTuple_getOperandAsU64(metaTuple, 0)) {
+			auto props = StreamChannelFormatInfo::parseMetadata(*srcArg,
+					metaTuple);
+			return StreamChannelProps(props, GeneratedAllocas);
+		}
+	}
+	throw std::runtime_error(
+			"Metadata is missing for " + srcArg->getName().str());
 }
 
 std::vector<StreamChannelProps> getStreamIoProps(llvm::Function &F,
@@ -314,55 +412,26 @@ std::vector<StreamChannelProps> getStreamIoProps(llvm::Function &F,
 	for (auto &BB : F) {
 		for (auto &I : BB) {
 			if (auto *CI = dyn_cast<llvm::CallInst>(&I)) {
-
 				bool isWrite = IsStreamWrite(CI)
 						|| IsStreamWriteStartOfFrame(CI)
 						|| IsStreamWriteEndOfFrame(CI);
 				if (isWrite || IsStreamRead(CI) || IsStreamReadStartOfFrame(CI)
 						|| IsStreamReadEndOfFrame(CI)) {
-					auto src = CI->getArgOperand(0);
-					if (ioFilter && src != ioFilter)
+					auto ioArg = CI->getArgOperand(0);
+					if (ioFilter && ioArg != ioFilter)
 						continue;
 					auto cur = std::find_if(streamProps.begin(),
 							streamProps.end(),
-							[src](const StreamChannelProps &p) {
-								return p.ioArg == src;
+							[ioArg](const StreamChannelProps &p) {
+								return p.ioArg == ioArg;
 							});
 					if (cur == streamProps.end()) {
 						// if there was not record for this argument yet, construct it from function metadata
-						auto *md = F.getMetadata("hwtHls.streamIo");
-						if (!md) {
-							throw std::runtime_error("Can not find hwtHls.streamIo metadata on function");
-						}
-						auto srcArg = dyn_cast<Argument>(src);
-						assert(srcArg);
-						size_t argI = srcArg->getArgNo();
-						bool metaForThisIoFound = false;
-						for (auto &_metaTuple : md->operands()) {
-							auto metaTuple = dyn_cast<MDTuple>(
-									_metaTuple.get());
-							assert(metaTuple);
-							if (argI == MDTuple_getOperandAsU64(metaTuple, 0)) {
-								StreamChannelProps props(GeneratedAllocas,
-										srcArg);
-								props.dataWidth = MDTuple_getOperandAsU64(
-										metaTuple, 1);
-								props.isOutput = isWrite;
-								props.hasMask = MDTuple_getOperandAsU64(
-										metaTuple, 2);
-								props.nativeWordTy = IntegerType::getIntNTy(
-										F.getContext(),
-										props.dataWidth
-												+ (props.hasMask ?
-														props.dataWidth / 8 : 0)
-												+ 1);
-								props.ios.insert(CI);
-								streamProps.push_back(props);
-								metaForThisIoFound = true;
-								break;
-							}
-						}
-						assert(metaForThisIoFound);
+						auto props = findStreamIoPropsInMetadata(F, ioArg,
+								GeneratedAllocas);
+						assert(props.isOutput == isWrite);
+						props.ios.insert(CI);
+						streamProps.push_back(props);
 					} else {
 						assert(cur->isOutput == isWrite);
 						cur->ios.insert(CI);

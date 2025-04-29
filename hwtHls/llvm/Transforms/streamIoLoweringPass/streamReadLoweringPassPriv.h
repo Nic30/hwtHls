@@ -1,5 +1,5 @@
 #pragma once
-#include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamIoInstrCollector.h>
+#include <hwtHls/llvm/Transforms/streamIoLoweringPass/StreamChannelProps.h>
 namespace llvm {
 class DominatorTree;
 }

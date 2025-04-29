@@ -7,47 +7,47 @@
 
 namespace hwtHls {
 
-class StreamChunkMeta {
-public:
-	virtual llvm::raw_ostream& print(llvm::raw_ostream &OS) const = 0;
-	virtual ~StreamChunkMeta() {
-	}
-};
-
-// Container which holds information about if the chunk write is las in packet or not.
-class StreamChunkLastMeta: public StreamChunkMeta {
-public:
-	std::optional<bool> isLast;
-	llvm::Value *isLastExpr;
-	bool prevWordMayBePending;
-
-	StreamChunkLastMeta(std::optional<bool> isLast, llvm::Value *isLastExpr) :
-			isLast(isLast), isLastExpr(isLastExpr) {
-		prevWordMayBePending = true;
-	}
-	virtual llvm::raw_ostream& print(llvm::raw_ostream &OS) const override;
-};
-
-class StreamEoFMeta: public StreamChunkMeta {
-public:
-	bool inlinedToPredecessors;
-	StreamEoFMeta(bool inlinedToPredecessors) :
-			inlinedToPredecessors(inlinedToPredecessors) {
-	}
-	virtual llvm::raw_ostream& print(llvm::raw_ostream &OS) const override;
-};
-
-inline llvm::raw_ostream& operator<<(llvm::raw_ostream &OS,
-		const hwtHls::StreamChunkMeta &V) {
-	V.print(OS);
-	return OS;
-}
+//class StreamChunkMeta {
+//public:
+//	virtual llvm::raw_ostream& print(llvm::raw_ostream &OS) const = 0;
+//	virtual ~StreamChunkMeta() {
+//	}
+//};
+//
+//// Container which holds information about if the chunk write is las in packet or not.
+//class StreamChunkLastMeta: public StreamChunkMeta {
+//public:
+//	std::optional<bool> isLast;
+//	llvm::Value *isLastExpr;
+//	bool prevWordMayBePending;
+//
+//	StreamChunkLastMeta(std::optional<bool> isLast, llvm::Value *isLastExpr) :
+//			isLast(isLast), isLastExpr(isLastExpr) {
+//		prevWordMayBePending = true;
+//	}
+//	virtual llvm::raw_ostream& print(llvm::raw_ostream &OS) const override;
+//};
+//
+//class StreamEoFMeta: public StreamChunkMeta {
+//public:
+//	bool inlinedToPredecessors;
+//	StreamEoFMeta(bool inlinedToPredecessors) :
+//			inlinedToPredecessors(inlinedToPredecessors) {
+//	}
+//	virtual llvm::raw_ostream& print(llvm::raw_ostream &OS) const override;
+//};
+//
+//inline llvm::raw_ostream& operator<<(llvm::raw_ostream &OS,
+//		const hwtHls::StreamChunkMeta &V) {
+//	V.print(OS);
+//	return OS;
+//}
 
 /**
  * Detector of informations about stream read/write operations for control flow graph
  *
  * :ivar cfg: the dependencies of reads/writes as they appear in code
- * :note: None represents the starting node
+ * :note: nullptr represents the starting node
  * :ivar DATA_WIDTH: number of bits of data in a single stream word
  * :ivar allStms: list of all reads/writes to keep all structures ordered in deterministic order
  */
@@ -62,7 +62,7 @@ public:
 			llvm::SetVector<std::pair<size_t, const HlsReadOrWrite*>>> cfg;
 	std::map<const HlsReadOrWrite*, std::vector<size_t>> inWordOffset;
 	std::map<const HlsReadOrWrite*, llvm::SetVector<const HlsReadOrWrite*>> predecessors;
-	std::map<const HlsReadOrWrite*, std::unique_ptr<StreamChunkMeta>> ioInstrMeta;
+	//std::map<const HlsReadOrWrite*, std::unique_ptr<StreamChunkMeta>> ioInstrMeta;
 
     // temporary containers for other algs to use
 	std::map<const llvm::BasicBlock*, std::set<const llvm::BasicBlock*>> seenPredecessors;

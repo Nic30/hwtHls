@@ -12,13 +12,12 @@ using namespace llvm;
 namespace hwtHls {
 
 StreamIoRewriter::StreamIoRewriter(StreamIoDetector &cfg,
-		const StreamChannelProps &streamProps, llvm::DomTreeUpdater *DTU,
+		const StreamChannelProps &streamProps, llvm::IRBuilderBase &builder, llvm::DomTreeUpdater *DTU,
 		llvm::LoopInfo *LI) :
-		cfg(cfg), streamProps(streamProps), DTU(DTU), LI(LI) {
+		cfg(cfg), streamProps(streamProps), Builder(builder), DTU(DTU), LI(LI) {
 }
 
 std::vector<llvm::BasicBlock*> StreamIoRewriter::_createBranchForEachOffsetVariant(
-		llvm::IRBuilder<> &builder,
 		const std::vector<size_t> &possibleOffsets) {
 	std::vector<llvm::BasicBlock*> offsetBranches;
 
@@ -26,14 +25,14 @@ std::vector<llvm::BasicBlock*> StreamIoRewriter::_createBranchForEachOffsetVaria
 		BasicBlock *elseBlock = nullptr;
 		// create branch for each offset variant
 		llvm::SmallVector<llvm::Value*> offsetCaseCond;
-		auto *_curOffsetVar = streamProps.getVarValue(builder,
+		auto *_curOffsetVar = streamProps.getVarValue(Builder,
 				streamProps.dataOffsetVar);
 		size_t offI = 0;
 		for (size_t off : possibleOffsets) {
 			bool last = offI == possibleOffsets.size() - 1;
 			BasicBlock *offsetVariantBlock;
 
-			Value *offEn = builder.CreateICmpEQ(_curOffsetVar,
+			Value *offEn = Builder.CreateICmpEQ(_curOffsetVar,
 					ConstantInt::get(_curOffsetVar->getType(),
 							off % streamProps.dataWidth));
 
@@ -41,7 +40,7 @@ std::vector<llvm::BasicBlock*> StreamIoRewriter::_createBranchForEachOffsetVaria
 			if (elseBlock) {
 				SplitBefore = elseBlock->getTerminator();
 			} else {
-				SplitBefore = &*builder.GetInsertPoint();
+				SplitBefore = &*Builder.GetInsertPoint();
 			}
 			llvm::Instruction *ThenTerm = nullptr;
 			llvm::Instruction *ElseTerm = nullptr;
@@ -52,10 +51,10 @@ std::vector<llvm::BasicBlock*> StreamIoRewriter::_createBranchForEachOffsetVaria
 
 			elseBlock = ElseTerm->getParent();
 			assert(elseBlock != nullptr);
-			builder.SetInsertPoint(elseBlock->getTerminator());
-			if (last) {
+			Builder.SetInsertPoint(elseBlock->getTerminator());
 
-				builder.CreateUnreachable();
+			if (last) {
+				Builder.CreateUnreachable();
 				ElseTerm->eraseFromParent();
 			}
 
@@ -67,7 +66,7 @@ std::vector<llvm::BasicBlock*> StreamIoRewriter::_createBranchForEachOffsetVaria
 
 
 	} else {
-		auto *curBlock = builder.GetInsertBlock();
+		auto *curBlock = Builder.GetInsertBlock();
 		offsetBranches = { curBlock };
 	}
 

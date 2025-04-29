@@ -8,31 +8,28 @@
 namespace hwtHls {
 
 
-// [todo] FindNearestCommonDominator
-
-
-llvm::raw_ostream& StreamChunkLastMeta::print(llvm::raw_ostream &OS) const {
-	OS << "<StreamChunkLastMeta isLast:" << isLast << " isLastExpr:";
-	if (isLastExpr) {
-		OS << *isLastExpr;
-	} else {
-		OS << "nullptr";
-	}
-	if (prevWordMayBePending) {
-		OS << " prevWordMayBePending";
-	}
-	OS << ">";
-	return OS;
-}
-
-llvm::raw_ostream& StreamEoFMeta::print(llvm::raw_ostream &OS) const {
-	OS << "<StreamEoFMeta ";
-	if (inlinedToPredecessors) {
-		OS << " inlinedToPredecessors";
-	}
-	OS << ">";
-	return OS;
-}
+//llvm::raw_ostream& StreamChunkLastMeta::print(llvm::raw_ostream &OS) const {
+//	OS << "<StreamChunkLastMeta isLast:" << isLast << " isLastExpr:";
+//	if (isLastExpr) {
+//		OS << *isLastExpr;
+//	} else {
+//		OS << "nullptr";
+//	}
+//	if (prevWordMayBePending) {
+//		OS << " prevWordMayBePending";
+//	}
+//	OS << ">";
+//	return OS;
+//}
+//
+//llvm::raw_ostream& StreamEoFMeta::print(llvm::raw_ostream &OS) const {
+//	OS << "<StreamEoFMeta ";
+//	if (inlinedToPredecessors) {
+//		OS << " inlinedToPredecessors";
+//	}
+//	OS << ">";
+//	return OS;
+//}
 
 StreamIoDetector::StreamIoDetector(size_t DATA_WIDTH,
 		const llvm::SetVector<const HlsReadOrWrite*> &allStms) :
@@ -162,13 +159,14 @@ llvm::raw_ostream& StreamIoDetector::print(llvm::raw_ostream &OS) const {
 			}
 			OS << o;
 		}
-		OS << "] meta:";
-		const auto meta = ioInstrMeta.find(io);
-		if (meta == ioInstrMeta.end()) {
-			OS << "none";
-		} else {
-			OS << *meta->second;
-		}
+		OS << "]:";
+		//OS << "] meta:";
+		//const auto meta = ioInstrMeta.find(io);
+		//if (meta == ioInstrMeta.end()) {
+		//	OS << "none";
+		//} else {
+		//	OS << *meta->second;
+		//}
 		OS << "\n        predecs:";
 		for (const auto pred : predecessors.find(io)->second) {
 			OS << "        ";

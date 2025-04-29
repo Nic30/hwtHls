@@ -1,7 +1,7 @@
 #pragma once
 #include <llvm/IR/PassManager.h>
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamIoCfgDetector.h>
-#include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamIoInstrCollector.h>
+#include <hwtHls/llvm/Transforms/streamIoLoweringPass/StreamChannelProps.h>
 
 namespace llvm {
 class DomTreeUpdater;
@@ -14,16 +14,16 @@ namespace hwtHls {
 class StreamIoRewriter {
 protected:
 	std::vector<llvm::BasicBlock*> _createBranchForEachOffsetVariant(
-			llvm::IRBuilder<> &builder,
 			const std::vector<size_t> &possibleOffsets);
 public:
 	StreamIoDetector &cfg;
 	const StreamChannelProps &streamProps;
+	llvm::IRBuilderBase &Builder;
 	llvm::DomTreeUpdater *DTU;
 	llvm::LoopInfo *LI;
 
 	StreamIoRewriter(StreamIoDetector &cfg,
-			const StreamChannelProps &streamProps, llvm::DomTreeUpdater *DTU,
+			const StreamChannelProps &streamProps, llvm::IRBuilderBase &builder, llvm::DomTreeUpdater *DTU,
 			llvm::LoopInfo *LI);
 	void rewriteAdtAccessToWordAccess(llvm::BasicBlock &_curBlock);
 	virtual void _rewriteAdtAccessToWordAccessInstruction(
