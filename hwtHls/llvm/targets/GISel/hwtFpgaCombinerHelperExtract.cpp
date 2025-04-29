@@ -60,6 +60,13 @@ void HwtFpgaCombinerHelper::rewriteExtractOnMergeValues(
 				Builder.setInstrAndDebugLoc(MI);
 				Register srcReg = MRI.createVirtualRegister(
 						&HwtFpga::anyregclsRegClass);
+				auto SrcTy = MRI.getType(srcReg);
+				auto width = src.op.getCImm()->getBitWidth();
+				if (SrcTy.isValid()) {
+					assert(SrcTy.getSizeInBits() == width);
+				} else {
+					MRI.setType(srcReg, LLT::scalar(width));
+				}
 				Builder.buildConstant(srcReg, *src.op.getCImm());
 				replaceRegWith(MRI, DstMO.getReg(), srcReg);
 			} else {
