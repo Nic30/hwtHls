@@ -5,6 +5,7 @@
 #include <hwtHls/llvm/llvmIrBuilder.h>
 #include <hwtHls/llvm/llvmIrFunction.h>
 #include <hwtHls/llvm/llvmIrGlobalVariable.h>
+#include <hwtHls/llvm/llvmIrHFloatTmpConfig.h>
 #include <hwtHls/llvm/llvmIrInstruction.h>
 #include <hwtHls/llvm/llvmIrStrings.h>
 #include <hwtHls/llvm/llvmIrTargetLibrary.h>
@@ -13,7 +14,6 @@
 #include <hwtHls/llvm/llvmIrMachineLoop.h>
 #include <hwtHls/llvm/llvmIrMetadata.h>
 #include <hwtHls/llvm/targets/hwtFpga.h>
-#include <hwtHls/llvm/targets/intrinsic/hfloattmp.h>
 
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
@@ -126,51 +126,6 @@ void register_Types(pybind11::module_ & m) {
  		else
  			return (llvm::IntegerType*) nullptr;
  	}, py::return_value_policy::reference);
-
-	py::class_<hwtHls::HFloatTmpConfig>(m, "HFloatTmpConfig")
-		.def(py::init<unsigned, unsigned, bool, bool, bool, bool, bool, bool, bool>())
-		.def_readonly_static("MEMBER_CNT", &hwtHls::HFloatTmpConfig::MEMBER_CNT)
-		.def("__hash__", &hwtHls::HFloatTmpConfig::__hash__)
-		.def("__eq__", [](hwtHls::HFloatTmpConfig * self, hwtHls::HFloatTmpConfig * other) {
-			return *self == *other;
-		})
-		.def_readwrite("exponentOrIntWidth", &HFloatTmpConfig::exponentOrIntWidth)
-		.def_readwrite("mantissaOrFracWidth", &HFloatTmpConfig::mantissaOrFracWidth)
-		.def_readwrite("isInQFromat", &HFloatTmpConfig::isInQFromat)
-		.def_readwrite("supportSubnormal", &HFloatTmpConfig::supportSubnormal)
-		.def_readwrite("hasSign", &HFloatTmpConfig::hasSign)
-		.def_readwrite("hasIsNaN", &HFloatTmpConfig::hasIsNaN)
-		.def_readwrite("hasIsInf", &HFloatTmpConfig::hasIsInf)
-		.def_readwrite("hasIs1", &HFloatTmpConfig::hasIs1)
-		.def_readwrite("hasIs0", &HFloatTmpConfig::hasIs0)
-		.def("getBitWidth", &hwtHls::HFloatTmpConfig::getBitWidth)
-		.def("bitCastAPFloatToHFloatTmpAPInt", &HFloatTmpConfig::bitCastAPFloatToHFloatTmpAPInt)
-		.def("__repr__", [](hwtHls::HFloatTmpConfig & self) {
-			std::stringstream ss;
-			ss << "<HFloatTmpConfig";
-			if (self.isInQFromat) {
-				ss << " format=Q" << (unsigned) self.exponentOrIntWidth
-				   << "." << (unsigned) self.mantissaOrFracWidth;
-			} else {
-				ss << " format=FP" << (unsigned) self.exponentOrIntWidth
-				   << "_" << (unsigned) self.mantissaOrFracWidth;
-			}
-			if (self.supportSubnormal)
-				ss << ", supportSubnormal";
-			if (self.hasSign)
-				ss << ", hasSign";
-			if (self.hasIsNaN)
-				ss << ", hasIsNaN";
-			if (self.hasIsInf)
-				ss << ", hasIsInf";
-			if (self.hasIs1)
-				ss << ", hasIs1";
-			if (self.hasIs0)
-				ss << ", hasIs0";
-			ss << ">";
-			return ss.str();
-		});
-
 }
 
 void register_BasicBlock(pybind11::module_ & m) {
@@ -263,6 +218,7 @@ PYBIND11_MODULE(llvmIr, m) {
 	py::class_<llvm::LLVMContext, std::unique_ptr<llvm::LLVMContext, py::nodelete>>(m, "LLVMContext");
 	register_DataLayout(m);
 	register_TargetLibrary(m);
+	register_HFloatTmpConfig(m);
 	register_Module(m);
 	register_VectorOfTypePtr(m);
 	register_strings(m);
