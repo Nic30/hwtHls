@@ -30,7 +30,7 @@
 #include <hwtHls/llvm/Transforms/utils/loopMerging.h>
 #include <hwtHls/llvm/Transforms/utils/loopHwtHlsMetadata.h>
 
-//#define LoopFlattenUsingIfPass_TRACE
+// #define LoopFlattenUsingIfPass_TRACE
 
 #ifdef LoopFlattenUsingIfPass_TRACE
 #include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
@@ -38,7 +38,7 @@
 
 using namespace llvm;
 
-#define DEBUG_TYPE "loop-fusion-usingif"
+#define DEBUG_TYPE "loop-flatten-usingif"
 
 namespace hwtHls {
 
@@ -141,6 +141,7 @@ void createNewLatchPhis(llvm::BasicBlock *childLatch, BasicBlock *childHeader,
 			auto latchValDefBB = latchValI->getParent();
 			if (!DT.dominates(latchValDefBB, newLatchBlock)) {
 				auto Ty = latchValI->getType();
+				assert(!Ty->isPointerTy());
 				auto newLatchPhi = Builder.CreatePHI(Ty,
 						pred_size(newLatchBlock), latchValI->getName());
 				if (newLatchBlock == oldLatchBlock)
@@ -180,7 +181,9 @@ std::pair<PHINode*, bool> createPhiInHeaderForChild(PHINode &childPhi,
 	PHINode *headerPhi;
 	if (reusingParentPhi) {
 		headerPhi = existingParentPhi->second;
+		assert(childPhi.getType() == headerPhi->getType());
 	} else {
+		assert(!Ty->isPointerTy());
 		headerPhi = PHINode::Create(Ty, headerPredCnt,
 				childPhi.getName() + ".inChildHeader", firstNonPhiOfHeader);
 	}
@@ -203,6 +206,7 @@ std::pair<PHINode*, bool> createPhiInNewLatch(llvm::Type *Ty,
 		}
 	}
 	if (latchPhiIsNew) {
+		assert(!Ty->isPointerTy());
 		latchPhi = PHINode::Create(Ty, 2, childHeaderPhi.getName() + ".inLatch",
 				firstNonPhiOfNewLatch);
 		latchPhi->addIncoming(childBackedgeVal, childLatch);
@@ -512,14 +516,13 @@ struct ScoreAndRank {
 	size_t rank; // order of original item to make winner selection deterministic
 };
 
-void countHowManytimesValueIsDrivenFromPhi(llvm::Loop &L, llvm::Instruction &I,
+void countHowManytimesValueIsDrivenFromPhi(llvm::Loop &L,  llvm::Instruction &I,
 		size_t exprDepth, std::set<Instruction*> &seen,
 		std::map<Instruction*, ScoreAndRank> &score) {
 	if (!L.contains(I.getParent()))
 		return; // driver outside of parent loop, this can not lead to parent phi
 
 	auto _score = score.find(&I);
-
 	if (_score != score.end()) {
 		size_t curScore = _score->second.score;
 		size_t thisScore = std::numeric_limits<size_t>::max() - exprDepth;
@@ -528,6 +531,7 @@ void countHowManytimesValueIsDrivenFromPhi(llvm::Loop &L, llvm::Instruction &I,
 	}
 
 	if (seen.find(&I) != seen.end()) {
+		// prevent looping on loop header phis
 		return;
 	} else {
 		seen.insert(&I);
@@ -598,7 +602,7 @@ std::map<PHINode*, PHINode*> findAssociatedPhis(llvm::Loop &LParent,
 	size_t rank = 0;
 	for (PHINode &parentPhi : LParent.getHeader()->phis()) {
 		if (!isUsedAfterChildLoop(parentPhi))
-			availablePhiScore[&parentPhi] = { rank++, 0 };
+			availablePhiScore[&parentPhi] = { 0, rank++ };
 	}
 	if (availablePhiScore.size()) {
 		for (PHINode &childPhi : childHeader->phis()) {
@@ -618,11 +622,13 @@ std::map<PHINode*, PHINode*> findAssociatedPhis(llvm::Loop &LParent,
 			if (bestCandidate->second.score) {
 				childToParentPhi[&childPhi] = dyn_cast<PHINode>(
 						bestCandidate->first);
+				assert(childPhi.getType() == bestCandidate->first->getType() && "If type is different score should be 0 and we should never get there");
 				availablePhiScore.erase(bestCandidate);
 			}
 
 			if (availablePhiScore.empty())
 				break;
+			// reset score for next phi search
 			for (auto &score : availablePhiScore) {
 				score.second.score = 0;
 			}
