@@ -10,38 +10,59 @@ namespace hwtHls::HwtFpgaInstructionSelector {
 ConstantInt* machineOperandTryGetConst(LLVMContext &Context,
 		MachineRegisterInfo &MRI, MachineOperand &MO) {
 	if (MO.isReg()) {
-		auto& MF = MO.getParent()->getParent()->getParent()->getProperties();
-		bool isSSA = MF.hasProperty(
-				MachineFunctionProperties::Property::IsSSA);
+		auto &MF = MO.getParent()->getParent()->getParent()->getProperties();
+		bool isSSA = MF.hasProperty(MachineFunctionProperties::Property::IsSSA);
 		if (isSSA || MRI.hasOneDef(MO.getReg())) {
 			if (auto VRegVal = getAnyConstantVRegValWithLookThrough(MO.getReg(),
 					MRI, /*LookThroughInstrs*/isSSA)) {
 				assert(VRegVal.has_value());
 				auto *CI = ConstantInt::get(Context, VRegVal->Value);
 				return CI;
+			} else {
+				auto def = MRI.getOneDef(MO.getReg());
+				auto &defMI = *def->getParent();
+				if (defMI.getOpcode() == HwtFpga::HWTFPGA_MUX
+						&& defMI.getNumOperands() == 1 + 1) {
+					auto &muxSrc = defMI.getOperand(1);
+					if (muxSrc.isCImm()) {
+						return ConstantInt::get(Context,
+								muxSrc.getCImm()->getValue());
+					} else {
+						return machineOperandTryGetConst(Context, MRI, muxSrc);
+					}
+				}
 			}
 		}
 	}
 	return nullptr;
 }
 
-void selectInstrArg(MachineFunction &MF,
-		MachineInstrBuilder &MIB, MachineRegisterInfo &MRI,
-		MachineOperand &MO) {
+void selectInstrArg(MachineFunction &MF, MachineInstrBuilder &MIB,
+		MachineRegisterInfo &MRI, MachineOperand &MO) {
 	if (MO.isReg() && MO.getReg()) {
 		if (MO.isDef()) {
 			MIB.add(MO);
 			return;
 		}
-		bool isSSA = MF.getProperties().hasProperty(MachineFunctionProperties::Property::IsSSA);
+		bool isSSA = MF.getProperties().hasProperty(
+				MachineFunctionProperties::Property::IsSSA);
 		if (isSSA || MRI.hasOneDef(MO.getReg())) {
 			if (auto VRegVal = getAnyConstantVRegValWithLookThrough(MO.getReg(),
-					MRI, /*LookThroughInstrs*/ isSSA )) {
+					MRI, /*LookThroughInstrs*/isSSA)) {
 				assert(VRegVal.has_value());
 				auto &C = MF.getFunction().getContext();
 				auto *CI = ConstantInt::get(C, VRegVal->Value);
 				MIB.addCImm(CI);
 				return;
+			} else {
+				auto def = MRI.getOneDef(MO.getReg());
+				if (def) {
+					auto &defMI = *def->getParent();
+					if (defMI.getOpcode() == HwtFpga::HWTFPGA_MUX
+							&& defMI.getNumOperands() == 1 + 1) {
+						return selectInstrArg(MF, MIB, MRI, defMI.getOperand(1));
+					}
+				}
 			}
 		}
 		assert(MO.isUse());
