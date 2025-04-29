@@ -18,6 +18,9 @@ namespace hwtHls {
 const std::string TmpAllocaLoweringPass::HwtHlsTmpAllocaName =
 		"hwtHls.tmp.alloca";
 
+
+const std::string TmpAllocaLoweringPass::HwtHlsTmpPropagateNoSplitName = "hwtHls.tmp.propagateNoSplit";
+
 void propagateNoSplitOnUserPhis(Instruction &I, MDNode *NoSplitMD) {
 	// if this is some form of bit manipulation propagate use->def
 	if (auto CI = dyn_cast<CallInst>(&I)) {
@@ -26,10 +29,10 @@ void propagateNoSplitOnUserPhis(Instruction &I, MDNode *NoSplitMD) {
 				auto Op = _Op.get();
 				if (auto OpI = dyn_cast<Instruction>(Op)) {
 					if (OpI->getMetadata(
-							SlicesToIndependentVariablesPass::metadataNameNoSplit))
+							SlicesToIndependentVariablesPass::metadataName_NoSplit))
 						continue;
 					OpI->setMetadata(
-							SlicesToIndependentVariablesPass::metadataNameNoSplit,
+							SlicesToIndependentVariablesPass::metadataName_NoSplit,
 							NoSplitMD);
 					propagateNoSplitOnUserPhis(*OpI, NoSplitMD);
 				}
@@ -44,10 +47,10 @@ void propagateNoSplitOnUserPhis(Instruction &I, MDNode *NoSplitMD) {
 	for (User *U : I.users()) {
 		if (auto UI = dyn_cast<Instruction>(U)) {
 			if (UI->getMetadata(
-					SlicesToIndependentVariablesPass::metadataNameNoSplit))
+					SlicesToIndependentVariablesPass::metadataName_NoSplit))
 				continue;
 			UI->setMetadata(
-					SlicesToIndependentVariablesPass::metadataNameNoSplit,
+					SlicesToIndependentVariablesPass::metadataName_NoSplit,
 					NoSplitMD);
 		} else {
 			continue;
@@ -67,10 +70,9 @@ void propagateNoSplitOnUserPhis(Instruction &I, MDNode *NoSplitMD) {
 	}
 }
 
-MDNode* collectInstructionsForNoSplitPropagation(AllocaInst &Alloca,
-		std::vector<Instruction*> &instructionsForNoSplitPropagation) {
+MDNode* collectInstructionsForNoSplitPropagation(AllocaInst &Alloca) {
 	auto _noSplit = Alloca.getMetadata(
-			SlicesToIndependentVariablesPass::metadataNameNoSplit);
+			SlicesToIndependentVariablesPass::metadataName_NoSplit);
 	if (!_noSplit)
 		return nullptr;
 	// copy noSplit metadata to all stored values
@@ -81,10 +83,9 @@ MDNode* collectInstructionsForNoSplitPropagation(AllocaInst &Alloca,
 				if (auto StoredValueInstr = dyn_cast<Instruction>(
 						ST->getValueOperand())) {
 					StoredValueInstr->setMetadata(
-							SlicesToIndependentVariablesPass::metadataNameNoSplit,
+							SlicesToIndependentVariablesPass::metadataName_NoSplit,
 							_noSplit);
-					instructionsForNoSplitPropagation.push_back(
-							StoredValueInstr);
+					StoredValueInstr->setMetadata(TmpAllocaLoweringPass::HwtHlsTmpPropagateNoSplitName, _noSplit);
 				}
 			} else {
 				U->dump();
@@ -109,8 +110,6 @@ llvm::PreservedAnalyses TmpAllocaLoweringPass::run(llvm::Function &F,
 	IRBuilder<> Builder(F.getContext());
 	SmallVector<Instruction*> toRm;
 	MDNode *NoSplitMD = nullptr;
-	std::vector<Instruction*> instructionsForNoSplitPropagation;
-	instructionsForNoSplitPropagation.reserve(2 * 1024);
 	for (auto &BB : F) {
 		for (auto &I : make_early_inc_range(BB)) {
 			if (auto AI = dyn_cast<AllocaInst>(&I)) {
@@ -122,8 +121,7 @@ llvm::PreservedAnalyses TmpAllocaLoweringPass::run(llvm::Function &F,
 				if (AllocTy->isArrayTy())
 					continue; // keep as it is
 
-				auto _noSplit = collectInstructionsForNoSplitPropagation(*AI,
-						instructionsForNoSplitPropagation);
+				auto _noSplit = collectInstructionsForNoSplitPropagation(*AI);
 				if (_noSplit && !NoSplitMD)
 					NoSplitMD = _noSplit;
 				if (AllocTy->isDoubleTy()) {
@@ -214,8 +212,13 @@ llvm::PreservedAnalyses TmpAllocaLoweringPass::run(llvm::Function &F,
 	}
 	if (TmpAllocas.size()) {
 		llvm::PromoteMemToReg(TmpAllocas, DT, AC);
-		for (auto *I : instructionsForNoSplitPropagation) {
-			propagateNoSplitOnUserPhis(*I, NoSplitMD);
+		for (auto &BB : F) {
+			for (auto &I: BB) {
+				if (I.hasMetadata(HwtHlsTmpPropagateNoSplitName)) {
+					propagateNoSplitOnUserPhis(I, NoSplitMD);
+					I.setMetadata(HwtHlsTmpPropagateNoSplitName, nullptr);
+				}
+			}
 		}
 		// Mark all the analyses that instcombine updates as preserved.
 		PreservedAnalyses PA;

@@ -11,6 +11,7 @@ namespace hwtHls {
 class TmpAllocaLoweringPass: public llvm::PassInfoMixin<TmpAllocaLoweringPass> {
 public:
 	static const std::string HwtHlsTmpAllocaName;
+	static const std::string HwtHlsTmpPropagateNoSplitName;
 	llvm::PreservedAnalyses run(llvm::Function &F,
 			llvm::FunctionAnalysisManager &AM);
 };
