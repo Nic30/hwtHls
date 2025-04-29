@@ -459,8 +459,14 @@ bool HwtFpgaInstrInfo::PredicateInstruction(MachineInstr &MI,
 			if (Cond == curPred) {
 				CondAndPred = Cond;
 			} else {
+				if (!MRI.getType(Cond).isValid())
+					MRI.setType(Cond, LLT::scalar(1));
+
 				CondAndPred = MRI.cloneVirtualRegister(Cond);
 				MRI.setType(CondAndPred, LLT::scalar(1));
+				if (!MRI.getType(curPred).isValid())
+					MRI.setType(curPred, LLT::scalar(1));
+
 				Builder.buildInstr(TargetOpcode::G_AND, { CondAndPred }, { Cond,
 						curPred });
 				Cond = CondAndPred;
