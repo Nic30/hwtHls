@@ -64,7 +64,6 @@ py3.extension_module(
      'targets/intrinsic/concatMemberVector.cpp',
      'targets/intrinsic/hfloattmp.cpp',
      'targets/intrinsic/pyObjectPlaceholder.cpp',
-     'targets/intrinsic/utils.cpp',
      'targets/intrinsic/streamIo.cpp',
 
 	 'targets/GISel/hwtFpgaCallLoweringInfo.cpp',
@@ -126,6 +125,7 @@ py3.extension_module(
      'Transforms/bitwidthReducePass/constBitPartsAnalysis.cpp',
      'Transforms/bitwidthReducePass/phiValueProover.cpp',
      'Transforms/bitwidthReducePass/utils.cpp',
+     'Transforms/BitcountMergePass.cpp',
      'Transforms/SelectPruningPass.cpp',
      'Transforms/StripProfMetadataPass.cpp',
      'Transforms/TmpAllocaLoweringPass.cpp',
