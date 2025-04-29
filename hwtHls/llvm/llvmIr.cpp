@@ -7,6 +7,7 @@
 #include <hwtHls/llvm/llvmIrGlobalVariable.h>
 #include <hwtHls/llvm/llvmIrInstruction.h>
 #include <hwtHls/llvm/llvmIrStrings.h>
+#include <hwtHls/llvm/llvmIrTargetLibrary.h>
 #include <hwtHls/llvm/llvmIrValues.h>
 #include <hwtHls/llvm/llvmIrMachineFunction.h>
 #include <hwtHls/llvm/llvmIrMachineLoop.h>
@@ -211,6 +212,14 @@ void register_BasicBlock(pybind11::module_ & m) {
 			return (llvm::BasicBlock*) nullptr;
 		}
 	});
+}
+
+void register_DataLayout(pybind11::module_ & m) {
+	py::class_<llvm::TypeSize>(m, "TypeSize")
+			.def("getFixedValue", &llvm::TypeSize::getFixedValue);
+
+	py::class_<llvm::DataLayout, std::unique_ptr<llvm::DataLayout, py::nodelete>>(m, "DataLayout")
+			.def("getTypeAllocSize", &llvm::DataLayout::getTypeAllocSize);
 
 }
 
@@ -227,6 +236,7 @@ void register_Module(pybind11::module_ & m) {
 			.def("__repr__", &Module__repr__)
 			.def("getName", &llvm::Module::getName)
 			.def("getFunction", &llvm::Module::getFunction)
+			.def("getDataLayout", &llvm::Module::getDataLayout)
 			.def("__eq__", [](llvm::Module* self, llvm::Module* other) {
 				return self == other;
 			})
@@ -235,6 +245,9 @@ void register_Module(pybind11::module_ & m) {
 			})
 			.def("__iter__", [](llvm::Module &M) {
 					return py::make_iterator(M.begin(), M.end());
+				}, py::keep_alive<0, 1>())
+     		.def("globals", [](llvm::Module &M) {
+					return py::make_iterator(M.global_begin(), M.global_end());
 				}, py::keep_alive<0, 1>());
 
 }
@@ -248,6 +261,8 @@ PYBIND11_MODULE(llvmIr, m) {
 	// :note: Some llvm classes have to be modified e.g. MDNodeWithDeletedDelete any python API should use this new class instead original
 	// :note: it is recommended to construct LLVMContext using LlvmCompilationBundle
 	py::class_<llvm::LLVMContext, std::unique_ptr<llvm::LLVMContext, py::nodelete>>(m, "LLVMContext");
+	register_DataLayout(m);
+	register_TargetLibrary(m);
 	register_Module(m);
 	register_VectorOfTypePtr(m);
 	register_strings(m);
