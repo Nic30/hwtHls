@@ -1,11 +1,15 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitRewriter.h>
 
 #include <iostream>
+#include <llvm/IR/PatternMatch.h>
 
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <hwtHls/llvm/targets/intrinsic/PatternMatch.h>
 #include <hwtHls/llvm/Transforms/utils/bitWidthInfo.h>
 
 using namespace llvm;
+using namespace llvm::PatternMatch;
+using namespace hwtHls::PatternMatch;
 
 namespace hwtHls {
 
@@ -274,36 +278,40 @@ llvm::Value* BitPartsRewriter::rewriteCmpInst(llvm::CmpInst &I,
 llvm::Value* BitPartsRewriter::expandConstBits(IRBuilder<> *b,
 		llvm::Value *origVal, llvm::Value *reducedVal,
 		const VarBitConstraint &vbc) {
-	unsigned reducedValWidth = 0;
 	if (reducedVal && origVal->getType()->isIntegerTy()) {
-		assert(
-				reducedVal->getType()->getIntegerBitWidth()
-						<= origVal->getType()->getIntegerBitWidth());
-		reducedValWidth = reducedVal->getType()->getIntegerBitWidth();
+		auto reducedValWidth = reducedVal->getType()->getIntegerBitWidth();
+		assert(reducedValWidth <= origVal->getType()->getIntegerBitWidth());
+		if (origVal->getType()->isIntegerTy(reducedValWidth)) {
+			assert(reducedVal);
+			return reducedVal; // nothing to pad
+		}
 	}
-	if (origVal->getType()->getIntegerBitWidth() == reducedValWidth) {
-		assert(reducedVal);
-		return reducedVal; // nothing to pad
-	}
-	size_t reducedBitCnt = 0; // iterate through the bit ranges, push known bit ranges and reducedVal bit ranges to a concatenation
+	// iterate through the bit ranges, push known bit ranges and reducedVal bit ranges to a concatenation
 	// low first
-	size_t actualWidth = 0;
+	size_t reducedBitCnt = 0;
 	// this is used because we potentially cut off bits from the origVal vector
 	// and we want to update information for reducedVal vector
+	size_t actualWidth = 0;
 	std::vector<llvm::Value*> concatMembers;
 	// reduced bits are those for which useMask is 0
 	// those and constants are removed from value and must be put back as constant or undef when expanding value
 
 	for (const KnownBitRangeInfo &kbri : vbc.replacements) {
+		// cut bits before and after this chunk
+		auto useMask = vbc.useMask.lshr(actualWidth).trunc(kbri.width);
+
 		if (kbri.src == origVal) {
-			// cut bits before and after this chunk
-			auto useMask = vbc.useMask.lshr(actualWidth).trunc(kbri.width);
+			// This chunk is taken from a replacement instruction
+			// Which is reduced version of original instruction,
+			// but some bits may be removed or replaced.
+
 			// value uses itself as a replacement = this was not replaced but may have some bits cut off
 			// :note: this is common for PHIs
 			assert(kbri.srcBeginBitI >= reducedBitCnt);
 			size_t chunkOffset = actualWidth;
 			size_t lastUsedIndex = 0;
 			// translate bit positions to reducedVal and select only those bits which really do exists, fill rest with undef
+			// [todo] rewrite to iter1and0sequences
 			iterUsedBitRangeSlices(useMask,
 					[&lastUsedIndex, &kbri, &actualWidth, &reducedBitCnt,
 							&concatMembers, chunkOffset, b, reducedVal](
@@ -341,6 +349,27 @@ llvm::Value* BitPartsRewriter::expandConstBits(IRBuilder<> *b,
 			}
 
 		} else {
+			// This chunk is some entirely different value which is not a replacement instruction.
+			// :note: 0 in vbc.useMask bit means that the value from kbri should be used instead of reducedVal
+			assert(kbri.dstBeginBitI == actualWidth);
+			//size_t offset = 0;
+			//for (const auto & [bitVal, chunkWidth]: iter1and0sequences(vbc.useMask, actualWidth, kbri.width)) {
+			//	if (bitVal) {
+			//		auto _kbri = kbri.slice(offset, chunkWidth);
+			//		auto *v = rewriteKnownBitRangeInfo(b, _kbri);
+			//		concatMembers.push_back(v);
+			//		assert(v->getType()->getIntegerBitWidth() == chunkWidth);
+			//	} else {
+			//		// add padding segment as value is known to be unused
+			//		auto *Ty = IntegerType::getIntNTy(b->getContext(), chunkWidth);
+			//		auto *v = UndefValue::get(Ty);
+			//		concatMembers.push_back(v);
+			//	}
+			//	actualWidth += chunkWidth;
+			//	// if it is of some known value other than itself it is not computed by this instruction and thus reduced
+			//	reducedBitCnt += chunkWidth;
+			//	offset += chunkWidth;
+			//}
 			auto *v = rewriteKnownBitRangeInfo(b, kbri);
 			concatMembers.push_back(v);
 			size_t w = v->getType()->getIntegerBitWidth();
@@ -355,42 +384,27 @@ llvm::Value* BitPartsRewriter::expandConstBits(IRBuilder<> *b,
 llvm::Instruction* BitPartsRewriter::rewriteInstructionOperands(
 		llvm::Instruction *I) {
 	llvm::Instruction *IToUpdate = I;
+	IRBuilder<> b(I);
 	for (unsigned opI = 0; opI < I->getNumOperands(); ++opI) {
 		Value *CurO = I->getOperand(opI);
-		auto v = constraints.findInConstraints(CurO);
-		if (v) {
-			// if (v->valuesHaveSameMeaning(CurO)) {
-			// 	continue; // to prevent unnecessary construction of equivalent concats
-			// }
-			// if operand is a subject for replacement
-			// [fixme] phi instructions must always remain at the top of the block
-			// :note: rewriteIfRequired is always required because it is potentially necessary update CurO operands
-			auto NewO = rewriteIfRequired(CurO);
-			if (CurO != NewO) {
-				IRBuilder<> b(I);
-				if (NewO
-						&& VarBitConstraint::valuesHaveSameMeaning(CurO,
-								NewO)) {
-					continue; // to prevent unnecessary construction of equivalent concats
-				}
-				auto newValExpanded = expandConstBits(&b, CurO, NewO, *v);
-				assert(newValExpanded);
-				if (VarBitConstraint::valuesHaveSameMeaning(CurO,
-						newValExpanded)) {
-					if (DCE)
-						if (auto newValExpandedI = dyn_cast<Instruction>(newValExpanded))
-							DCE->insert(*newValExpandedI);
-					continue; // to prevent unnecessary construction of equivalent concats
-				}
-				if (!mayModifyExistingInstr(*I) && IToUpdate == I) {
-					// lazy construction of copy of instruction
-					IToUpdate = I->clone();
-					IToUpdate->setName(I->getName());
-					IToUpdate->insertAfter(I);
-					replacementCache[I] = IToUpdate;
-				}
-				IToUpdate->setOperand(opI, newValExpanded);
+		// if operand is a subject for replacement
+		if (auto IasPhi = dyn_cast<PHINode>(I)) {
+			// phi instructions must always remain at the top of the block
+			auto predBB = IasPhi->getIncomingBlock(opI);
+			assert(predBB);
+			b.SetInsertPoint(predBB->getTerminator());
+		}
+		// :note: rewriteIfRequired is always required because it is potentially necessary update CurO operands
+		auto NewO = rewriteIfRequiredAndExpandAsOperand(b, CurO);
+		if (CurO != NewO) {
+			if (!mayModifyExistingInstr(*I) && IToUpdate == I) {
+				// lazy construction of copy of instruction
+				IToUpdate = I->clone();
+				IToUpdate->takeName(I);
+				IToUpdate->insertAfter(I);
+				replacementCache[I] = IToUpdate;
 			}
+			IToUpdate->setOperand(opI, NewO);
 		}
 	}
 	return IToUpdate;
@@ -416,17 +430,37 @@ llvm::Value* BitPartsRewriter::rewriteIfRequired(llvm::Value *V) {
 			if (auto *CI = dyn_cast<llvm::CmpInst>(I)) {
 				return rewriteCmpInst(*CI, vbc);
 			} else if (vbc.useMask.isAllOnes()) {
-				// case where no bits are discarded and instruction is used as is, with potentially updated operands
-				replacementCache[I] = I;
+				Value *src = nullptr;
+				size_t offset;
+				if (isAnyFormOfBitRangeGet(I, src, offset)) {
+					// if vbc.useMask.isAllOnes() it means there are no constant bits cut of
+					// on bit range selected by this slice
+					IRBuilder<> b(I);
+					//auto newSrcV = rewriteIfRequired(src);
+					//size_t width = I->getType()->getIntegerBitWidth();
+					//assert(width >= I->getType()->getIntegerBitWidth());
+					//auto newV = CreateBitRangeGetConst(&b, newSrcV, offset,
+					//		width);
+					auto newV = expandConstBits(&b, I, nullptr, vbc);
+					if (newV != I && !newV->hasName()) {
+						newV->takeName(I);
+					}
+					replacementCache[I] = newV;
+					return newV;
 
-				if (auto *SW = dyn_cast<SwitchInst>(I)) {
-					return rewriteSwitchInst(*SW, vbc);
-				} else if (!isa<PHINode>(I)) {
-					// if it is PHINode it will be done later in rewritePHINodeArgsIfRequired
-					// because phi argument values must be constructed in predecessor block.
-					return rewriteInstructionOperands(I);
+				} else {
+					// case where no bits are discarded and instruction is used as is, with potentially updated operands
+					replacementCache[I] = I;
+
+					if (auto *SW = dyn_cast<SwitchInst>(I)) {
+						return rewriteSwitchInst(*SW, vbc);
+					} else if (!isa<PHINode>(I)) {
+						// if it is PHINode it will be done later in rewritePHINodeArgsIfRequired
+						// because phi argument values must be constructed in predecessor block.
+						return rewriteInstructionOperands(I);
+					}
+					return I;
 				}
-				return I;
 			} else if (auto *PHI = dyn_cast<PHINode>(I)) {
 				return rewritePHINode(*PHI, vbc);
 			} else if (auto *SI = dyn_cast<llvm::SelectInst>(I)) {
@@ -443,7 +477,7 @@ llvm::Value* BitPartsRewriter::rewriteIfRequired(llvm::Value *V) {
 					replacementCache[I] = nullptr;
 					return nullptr;
 				}
-			} else if (isa<CastInst>(I)) {
+			} else if (isa<CastInst>(I)) { // :note: TruncInst is subclass of CastInst
 				// original will be used instead
 				replacementCache[I] = nullptr;
 				return nullptr;
@@ -463,10 +497,10 @@ llvm::Value* BitPartsRewriter::rewriteIfRequired(llvm::Value *V) {
 llvm::Value* BitPartsRewriter::rewriteIfRequiredAndExpand(llvm::Value *V) {
 	llvm::Value *replacement = rewriteIfRequired(V);
 	if (auto *I = dyn_cast<Instruction>(V)) {
-		auto v = constraints.findInConstraints(I);
-		if (v) {
+		auto _vcb = constraints.findInConstraints(I);
+		if (_vcb) {
 			IRBuilder<> b(I);
-			const VarBitConstraint &vbc = *v;
+			const VarBitConstraint &vbc = *_vcb;
 			if (vbc.valuesHaveSameMeaning(V))
 				return V;
 			return expandConstBits(&b, V, replacement, vbc);
@@ -474,6 +508,36 @@ llvm::Value* BitPartsRewriter::rewriteIfRequiredAndExpand(llvm::Value *V) {
 	}
 	assert(replacement == V);
 	return replacement;
+}
+
+llvm::Value* BitPartsRewriter::rewriteIfRequiredAndExpandAsOperand(IRBuilder<> &b,
+		llvm::Value *V) {
+	auto vbc = constraints.findInConstraints(V);
+	if (vbc) {
+		// if (v->valuesHaveSameMeaning(CurO)) {
+		// 	continue; // to prevent unnecessary construction of equivalent concats
+		// }
+		// if operand is a subject for replacement
+		// [fixme] phi instructions must always remain at the top of the block
+		// :note: rewriteIfRequired is always required because it is potentially necessary update CurO operands
+		auto NewO = rewriteIfRequired(V);
+		if (V != NewO) {
+			if (NewO && VarBitConstraint::valuesHaveSameMeaning(V, NewO)) {
+				return V; // to prevent unnecessary construction of equivalent concats
+			}
+			auto newValExpanded = expandConstBits(&b, V, NewO, *vbc);
+			assert(newValExpanded);
+			if (VarBitConstraint::valuesHaveSameMeaning(V, newValExpanded)) {
+				if (DCE)
+					if (auto newValExpandedI = dyn_cast<Instruction>(
+							newValExpanded))
+						DCE->insert(*newValExpandedI);
+				return V; // to prevent unnecessary construction of equivalent concats
+			}
+			return newValExpanded;
+		}
+	}
+	return V;
 }
 
 llvm::Value* BitPartsRewriter::rewritePHINodeArgsIfRequired(
@@ -538,8 +602,8 @@ llvm::Value* BitPartsRewriter::rewritePHINodeArgsIfRequired(
 			// materialize phi operand
 			auto *_val = rewriteKnownBitRangeInfoVector(&b,
 					iterUsedBitRanges(phiUseMask, *constr));
-			if (!_val->hasName() && val->hasName() && isa<Instruction>(_val)) {
-				_val->setName(val->getName());
+			if (_val != val && !_val->hasName() && val->hasName() && isa<Instruction>(_val)) {
+				_val->takeName(val);
 			}
 			val = _val;
 		}
@@ -553,6 +617,7 @@ llvm::Value* BitPartsRewriter::rewritePHINodeArgsIfRequired(
 	if (newPhi != phi && newPhi->isSameOperationAs(phi)) {
 		_newPhi->second = phi;
 		newPhi->replaceAllUsesWith(phi);
+		newPhi->takeName(phi);
 		newPhi->eraseFromParent();
 		newPhi = phi;
 	}

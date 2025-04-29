@@ -1,6 +1,6 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/utils.h>
-#include <llvm/IR/IRBuilder.h>
 #include <llvm/ADT/SmallString.h>
+#include <llvm/IR/IRBuilder.h>
 
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/targets/intrinsic/concatMemberVector.h>
@@ -8,6 +8,7 @@
 #include <hwtHls/llvm/Transforms/utils/bitWidthInfo.h>
 
 using namespace llvm;
+
 namespace hwtHls {
 
 KnownBitRangeInfo::KnownBitRangeInfo(unsigned bitwidth) :
@@ -643,6 +644,7 @@ void VarBitConstraint::print(raw_ostream &O, bool IsForDebug) const {
 	}
 	O << "]}";
 }
+
 void VarBitConstraint::dump() const {
 	print(dbgs(), true);
 }

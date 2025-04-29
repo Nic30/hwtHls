@@ -76,6 +76,7 @@ public:
 	// add for potential rewrite
 	llvm::Value* rewriteIfRequired(llvm::Value *V);
 	llvm::Value* rewriteIfRequiredAndExpand(llvm::Value *V);
+	llvm::Value* rewriteIfRequiredAndExpandAsOperand(llvm::IRBuilder<>& b, llvm::Value *V);
 	llvm::Value* rewritePHINodeArgsIfRequired(llvm::PHINode *PHI);
 	void addReplacement(llvm::Value *I, llvm::Value *replacement);
 	bool CFGChanged;

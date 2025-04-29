@@ -98,11 +98,17 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI, bool& CFGC
 	BitPartsUseAnalysisContext AU(A);
 	for (BasicBlock &BB : F) {
 		for (Instruction &I : BB) {
-			if (isa<StoreInst>(&I)
-					|| (isa<LoadInst>(&I)
-							&& dyn_cast<LoadInst>(&I)->isVolatile())
-					|| I.isTerminator() || I.isSpecialTerminator()) { // || dyn_cast<BranchInst>(&I) || dyn_cast<SwitchInst>(&I)
+			// if instruction is some sort of value sink with effect
+			if (isa<StoreInst>(&I) || I.isTerminator() || I.isSpecialTerminator()) {
 				AU.updateUseMaskEntirelyUsed(&I);
+			} else if (auto LI = dyn_cast<LoadInst>(&I)) {
+				if (LI->isVolatile()) {
+					AU.updateUseMaskEntirelyUsed(&I);
+				}
+			} else if (auto CI = dyn_cast<CallInst>(&I)) {
+				if (!CI->doesNotAccessMemory() || CI->doesNotReturn()) {
+					AU.updateUseMaskEntirelyUsed(&I);
+				}
 			}
 		}
 	}
@@ -113,7 +119,7 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI, bool& CFGC
 	// writeCFGToDotFile(F, "before.BitwidthReducePass.dot", nullptr, nullptr);
 	bool didModify = false;
 	// DCE
-	DceWorklist dce(TLI, nullptr);
+	DceWorklist dce(TLI);
 	BitPartsRewriter rew(A, &dce);
 	for (BasicBlock &BB : F) {
 		for (Instruction &I : BB) {
@@ -123,13 +129,9 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI, bool& CFGC
 	}
 
 	for (BasicBlock &BB : F) {
-		for (Instruction &I : BB) {
-			if (auto *PHI = dyn_cast<PHINode>(&I)) {
-				rew.rewritePHINodeArgsIfRequired(PHI);
-				didModify = true;
-			} else {
-				break; // no more PHIs in this block
-			}
+		for (PHINode &PHI : BB.phis()) {
+			rew.rewritePHINodeArgsIfRequired(&PHI);
+			didModify = true;
 		}
 	}
 	CFGChanged = rew.CFGChanged;

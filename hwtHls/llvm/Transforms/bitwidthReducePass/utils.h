@@ -63,12 +63,16 @@ public:
 
 class VarBitConstraint {
 public:
-	llvm::APInt useMask; // mask of which bits are used from this value which bits are set during discovery process
+	// mask of which bits are used from this value which bits are set during discovery process
 	//// :note: this marks use of directly this instruction based on if the the input bit has effect on output
+	////        E.g. even if concat has useMask=0 it does not mean that bits in concat are unused, it means that the concat
+	////        instruction itself does not compute any bits and src operands may still be important and used
+	////        on places where the original concat instruction were used and the info about it is stored in replacements vector
+	llvm::APInt useMask;
 
-	std::vector<KnownBitRangeInfo> replacements;
 	// non overlapping known values for bit ranges in this value, sorted lower bits first
-	// if value is not specified this vector it means that the original bits of this value should be used
+	// if value is not specified in this vector it means that the original bits of this value should be used
+	std::vector<KnownBitRangeInfo> replacements;
 
 	// mask for each operand which is used to prune some bits from operand value
 	// [todo] this is used only for compares, check if it is required
