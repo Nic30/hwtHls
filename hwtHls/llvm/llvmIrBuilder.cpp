@@ -206,19 +206,30 @@ void register_IRBuilder(pybind11::module_ & m) {
 				py::arg("BranchWeights")=(MDNodeWithDeletedDelete *)nullptr,
 				py::arg("Unpredictable")=(MDNodeWithDeletedDelete *)nullptr,
 				py::return_value_policy::reference)
-		.def("CreateBitRangeGet", &CreateBitRangeGet, py::return_value_policy::reference)
-		.def("CreateBitRangeGetConst", &CreateBitRangeGetConst, py::return_value_policy::reference)
-		.def("CreateBitConcat", [](llvm::IRBuilder<> * self, std::vector<llvm::Value*> & OpsLowFirst) {
-			return CreateBitConcat(self, OpsLowFirst);
+		.def("CreateBitRangeGet", [](llvm::IRBuilder<> & self, llvm::Value *bitVec,
+				llvm::Value *lowBitNo, size_t bitWidth, const llvm::Twine &Name = "") {
+			return CreateBitRangeGet(&self, bitVec, lowBitNo, bitWidth, Name);
+		}, py::arg("bitVec"), py::arg("lowBitNo"), py::arg("bitWidth"), py::arg("Name")=llvm::Twine(""),
+		   py::return_value_policy::reference)
+		.def("CreateBitRangeGetConst", [](llvm::IRBuilder<> &self,
+				llvm::Value *bitVec, size_t lowBitNo, size_t bitWidth, const llvm::Twine &Name = "") {
+			return CreateBitRangeGetConst(&self, bitVec, lowBitNo, bitWidth, Name);
+		}, py::arg("bitVec"), py::arg("lowBitNo"), py::arg("bitWidth"), py::arg("Name")=llvm::Twine(""),
+		   py::return_value_policy::reference)
+		.def("CreateBitConcat", [](llvm::IRBuilder<> & self, std::vector<llvm::Value*> & OpsLowFirst, const llvm::Twine &Name = "") {
+			return CreateBitConcat(&self, OpsLowFirst, Name);
+		}, py::arg("OpsLowFirst"), py::arg("Name")=llvm::Twine(""),  py::return_value_policy::reference)
+		.def("CreateGEP",  [](llvm::IRBuilder<> & self, llvm::Type *Ty, llvm::Value *Ptr, std::vector<llvm::Value *>& IdxList) {
+			return self.CreateGEP(Ty, Ptr, IdxList, "", true);
 		}, py::return_value_policy::reference)
-		.def("CreateGEP",  [](llvm::IRBuilder<> * self, llvm::Type *Ty, llvm::Value *Ptr, std::vector<llvm::Value *>& IdxList) {
-			return self->CreateGEP(Ty, Ptr, IdxList, "", true);
-		}, py::return_value_policy::reference)
-		.def("CreateCall", [](llvm::IRBuilder<> * self, llvm::FunctionCallee Callee,
+		.def("CreateCall", [](llvm::IRBuilder<> & self, llvm::FunctionCallee Callee,
                 std::vector<llvm::Value *> Args, const llvm::Twine &Name = "") {
-			return self->CreateCall(Callee, Args, Name);
+			return self.CreateCall(Callee, Args, Name);
 		}, py::arg("Callee"), py::arg("Args"), py::arg("Name")=llvm::Twine(""), py::return_value_policy::reference)
 		.def("CreateAssumption", [](llvm::IRBuilder<> * self, llvm::Value *Cond) {
+			if (!Cond->getType()->isIntegerTy(1)) {
+				throw std::runtime_error("IRBuilder::CreateAssumption condition must be of llvm bool type");
+			}
 			return self->CreateAssumption(Cond);
 		})
 		.def("CreateCastToHFloatTmp", [](llvm::IRBuilder<>& Builder,
@@ -305,7 +316,9 @@ void register_IRBuilder(pybind11::module_ & m) {
 			py::arg("FMFSource")=(llvm::Instruction *)nullptr,
 			py::arg("Name")=llvm::Twine(""),
 			py::return_value_policy::reference
-		);
+		)
+		.def("getIntNTy", &llvm::IRBuilder<>::getIntNTy, py::return_value_policy::reference_internal)
+		;
 
     	py::bind_vector<std::vector<llvm::Value*>>(m, "VectorValuePtr");
 		py::implicitly_convertible<py::list, std::vector<llvm::Value*>>();
