@@ -34,6 +34,8 @@ llvm::Twine LLVMStringContext::addTwine(const std::string &str) {
 }
 
 void register_strings(pybind11::module_ & m) {
+	// :attention: can not use StringRef constructors from const std::string& or const char* in pybind11 because
+	//   string would get immediately deallocated and StringRef would have become invalid
 	py::class_<llvm::StringRef>(m, "StringRef")
 		.def("__repr__", &StringRef__repr__)
 		.def("str", & llvm::StringRef::str);
