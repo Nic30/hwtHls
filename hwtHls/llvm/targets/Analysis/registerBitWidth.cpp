@@ -325,10 +325,9 @@ bool resolveTypes(MachineInstr &MI) {
 		std::tie(elemT, indexWidth, addrDef) = getLoadOrStoreElementType(MRI, MI);
 		assert(elemT && elemT->isIntegerTy() && "Instruction load/store type must be resolvable");
 		unsigned bitWidth = elemT->getIntegerBitWidth();
-		assert(bitWidth == MI.getOperand(3).getImm());
+		assert(bitWidth == MI.getOperand(3).getImm() && "access width must be exactly one item (array type should have been casted if different size is required)");
 
-		if (MI.getOperand(0).isReg())
-			MRI.setType(MI.getOperand(0).getReg(), LLT::scalar(bitWidth));
+		checkOrSetWidth(MRI, MI.getOperand(0), bitWidth);
 
 		auto &cond = MI.getOperand(3);
 		checkOrSetWidth(MRI, cond, 1);
