@@ -1,6 +1,5 @@
-#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <hwtHls/llvm/targets/intrinsic/utils.h>
 #include <llvm/ADT/StringExtras.h>
-
 using namespace llvm;
 
 namespace hwtHls {
@@ -114,7 +113,8 @@ void AddDefaultFunctionAttributes(Function &TheFn) {
 /*
  * [todo] duplicity with BasicBlock::SkipPHIsAndLabels, BasicBlock::getFirstInsertionPt
  * */
-void IRBuilder_setInsertPointBehindPhi(IRBuilder<> &builder, llvm::Instruction *I) {
+
+void IRBuilder_setInsertPointBehindPhi(IRBuilderBase &builder, llvm::Instruction *I) {
 	builder.SetInsertPoint(I);
 	auto insPoint = builder.GetInsertPoint();
 	auto end = I->getParent()->end();
@@ -126,6 +126,7 @@ void IRBuilder_setInsertPointBehindPhi(IRBuilder<> &builder, llvm::Instruction *
 	} else {
 		builder.SetInsertPoint(&*insPoint);
 	}
+	assert(builder.GetInsertBlock());
 }
 
 }
