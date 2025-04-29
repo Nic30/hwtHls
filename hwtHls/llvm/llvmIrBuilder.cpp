@@ -132,18 +132,31 @@ void register_IRBuilder(pybind11::module_ & m) {
 				if (!Ty->isSized())
 					throw std::runtime_error("LoadInst is implemented only for sized types");
 				return self->CreateLoad(Ty, Ptr, isVolatile, Name);
-			}, py::arg("Ty"), py::arg("Ptr"), py::arg("isVolatile") = false, py::arg("Name")=llvm::Twine(""), py::return_value_policy::reference)
+			}, py::arg("Ty"), py::arg("Ptr"), py::arg("isVolatile") = false, py::arg("Name")=llvm::Twine(""),
+			py::return_value_policy::reference)
 		.def("CreateStreamRead", [](llvm::IRBuilder<> * self, llvm::Value *ioArgPtr, size_t chunkBitWidth, size_t returnBitWidth,
-				const llvm::Twine &Name = "") {
-				auto I = CreateStreamRead(self, ioArgPtr, chunkBitWidth, returnBitWidth);
+				bool isReliable, const llvm::Twine &Name = "") {
+				auto I = CreateStreamRead(self, ioArgPtr, chunkBitWidth, returnBitWidth, isReliable);
 				I->setName(Name);
 				return I;
+			},py::arg("ioArgPtr"), py::arg("chunkBitWidth"), py::arg("returnBitWidth"),
+			  py::arg("isReliable"), py::arg("Name") = llvm::Twine(""), py::return_value_policy::reference)
+		.def("CreateStreamReadStartOfFrame", [](llvm::IRBuilder<> * self, llvm::Value *ioArgPtr) {
+				return CreateStreamReadStartOfFrame(self, ioArgPtr);
 			}, py::return_value_policy::reference)
-		.def("CreateStreamReadStartOfFrame", &CreateStreamReadStartOfFrame, py::return_value_policy::reference)
-		.def("CreateStreamReadEndOfFrame", &CreateStreamReadEndOfFrame, py::return_value_policy::reference)
-		.def("CreateStreamWrite", &CreateStreamWrite, py::return_value_policy::reference)
-		.def("CreateStreamWriteStartOfFrame", &CreateStreamWriteStartOfFrame, py::return_value_policy::reference)
-		.def("CreateStreamWriteEndOfFrame", &CreateStreamWriteEndOfFrame, py::return_value_policy::reference)
+		.def("CreateStreamReadEndOfFrame", [](llvm::IRBuilder<> * self, llvm::Value *ioArgPtr) {
+			return CreateStreamReadEndOfFrame(self, ioArgPtr);
+		}, py::return_value_policy::reference)
+		.def("CreateStreamWrite", [](llvm::IRBuilder<> *Builder, llvm::Value *ioArgPtr,
+				llvm::Value *valueToWrite, llvm::Value *writeMask, llvm::Value *isEoF) {
+			return CreateStreamWrite(Builder, ioArgPtr, valueToWrite, writeMask, isEoF);
+		}, py::return_value_policy::reference)
+		.def("CreateStreamWriteStartOfFrame", [](llvm::IRBuilder<> * self, llvm::Value *ioArgPtr) {
+			return CreateStreamWriteStartOfFrame(self, ioArgPtr);
+		}, py::return_value_policy::reference)
+		.def("CreateStreamWriteEndOfFrame", [](llvm::IRBuilder<> * self, llvm::Value *ioArgPtr) {
+			return CreateStreamWriteEndOfFrame(self, ioArgPtr);
+		}, py::return_value_policy::reference)
 		.def("CreateZExt", &llvm::IRBuilder<>::CreateZExt,
 				py::arg("V"), py::arg("DestTy"), py::arg("Name")=llvm::Twine(""), py::arg("IsNonNeg")=false,
 				py::return_value_policy::reference)
