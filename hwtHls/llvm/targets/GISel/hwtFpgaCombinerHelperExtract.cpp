@@ -205,4 +205,32 @@ void HwtFpgaCombinerHelper::rewriteExtractOnConstShift(
 	MI.eraseFromParent();
 }
 
+bool HwtFpgaCombinerHelper::matchExtractOfSameWidth(llvm::MachineInstr &MI) {
+	assert(MI.getOpcode() == HwtFpga::HWTFPGA_EXTRACT);
+	auto _src = MI.getOperand(1);
+	if (_src.isReg()) {
+		auto extractArgs = hwtHls::HWTFPGA_EXTRACTOptions::get(MI);
+		if (extractArgs.offset == 0
+				&& extractArgs.srcWidth == extractArgs.dstWidth) {
+			auto srcTy = MRI.getType(_src.getReg());
+			return srcTy.isValid(); // return true only if type is set so the width of original register is not lost
+		}
+
+	}
+	return false;
+}
+
+void HwtFpgaCombinerHelper::rewriteExtractOfSameWidthToCopy(
+		llvm::MachineInstr &MI) {
+	assert(MI.getOpcode() == HwtFpga::HWTFPGA_EXTRACT);
+	Observer.changingInstr(MI);
+	// HWTFPGA_EXTRACT $dst $src $srcWidth $offset $dstWidth
+	// to  HWTFPGA_MUX $dst $src
+	for (size_t i = 4; i > 1; --i)
+		MI.removeOperand(i);
+    MI.setDesc(Builder.getTII().get(HwtFpga::HWTFPGA_MUX));
+	Observer.changedInstr(MI);
+}
+
+
 }

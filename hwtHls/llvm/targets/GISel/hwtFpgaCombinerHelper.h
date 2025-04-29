@@ -91,8 +91,12 @@ public:
 	//             correct copy is used and we can no just take any register with output
 	bool matchIsExtractOnMergeValues(llvm::MachineInstr &MI);
 	void rewriteExtractOnMergeValues(llvm::MachineInstr &MI);
+
 	bool matchIsExtractOnConstShift(llvm::MachineInstr &MI);
 	void rewriteExtractOnConstShift(llvm::MachineInstr &MI);
+
+	bool matchExtractOfSameWidth(llvm::MachineInstr &MI);
+	void rewriteExtractOfSameWidthToCopy(llvm::MachineInstr &MI);
 
 	bool matchNestedMERGE_VALUES(MachineInstr &MI);
 	void rewriteNestedMERGE_VALUES(MachineInstr &MI);

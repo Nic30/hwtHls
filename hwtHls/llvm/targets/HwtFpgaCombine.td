@@ -5,6 +5,14 @@ include "llvm/Target/GlobalISel/Combine.td"
 // Definitions of combiner rules
 /*************************************************************************************/
 
+// rewrite HWTFPGA_EXTRACT which extracts exactly whole src to a HWTFPGA_MUX
+def extract_of_same_width_to_copy: GICombineRule<
+  (defs root:$root),
+  (match (wip_match_opcode HWTFPGA_EXTRACT):$root,
+    [{ return Helper.matchExtractOfSameWidth(*${root}); }]),
+  (apply [{ Helper.rewriteExtractOfSameWidthToCopy(*${root}); }])
+>;
+
 def extract_const_propagation: GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode HWTFPGA_EXTRACT):$root,
@@ -428,6 +436,7 @@ def merge_values_merge_nested: GICombineRule<
 
 
 def const_eval_combines : GICombineGroup<[
+	extract_of_same_width_to_copy,
 	extract_const_propagation,
 	merge_values_const_propagation,
 	g_constant_to_imm,
