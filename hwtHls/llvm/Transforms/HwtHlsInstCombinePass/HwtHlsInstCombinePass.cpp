@@ -1,134 +1,84 @@
-#include <hwtHls/llvm/Transforms/SimpleConstEvalPass.h>
+#include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinePass.h>
 
-#include <llvm/Analysis/AliasAnalysis.h>
-#include <llvm/Analysis/BasicAliasAnalysis.h>
-#include <llvm/Analysis/GlobalsModRef.h>
-#include <llvm/IR/IRBuilder.h>
-#include <algorithm>
-#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
-#include <hwtHls/llvm/Transforms/utils/dceWorklist.h>
+#include <llvm/Support/DebugCounter.h>
+
+#include <llvm/Analysis/InstructionSimplify.h>
+#include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombiner.h>
+#include <llvm/ADT/Statistic.h>
+
+//#undef LLVM_DEBUG
+//#define LLVM_DEBUG(x) x
 
 using namespace llvm;
 
+STATISTIC(NumWorklistIterations,
+		"Number of instruction combining iterations performed");
+
 namespace hwtHls {
 
-void addAllUsersToWorklist(Instruction &I, SetVector<Instruction*>& Worklist) {
-	for (User* U: I.users()) {
-		if (auto UI = dyn_cast<Instruction>(U)) {
-			Worklist.insert(UI);
-		}
-	}
+HwtHlsInstCombinePass::HwtHlsInstCombinePass(HwtHlsInstCombinePassOptions Options): Options(Options) {
 }
 
-bool tryReduceConstOpConcat(IRBuilder<>& Builder, DceWorklist& DCE, SetVector<Instruction*>& Worklist, CallInst & CI) {
-	SmallVector<Value*> newOps;
-	ConstantInt * lastInt = nullptr;
-	UndefValue * lastUndef = nullptr;
-	PoisonValue * lastPoison = nullptr;
-	auto& Ctx = CI.getContext();
-	for (Use &_A : CI.args()) {
-		auto & A = *_A.get();
-		if (auto* ACint = dyn_cast<ConstantInt>(&A)) {
-			if (lastInt) {
-				lastInt = ConstantInt::get(Ctx, ACint->getValue().concat(lastInt->getValue()));
-				newOps.back() = lastInt;
-			} else {
-				lastInt = ACint;
-				newOps.push_back(ACint);
-			}
-			lastUndef = nullptr;
-			lastPoison = nullptr;
-		} else if (auto* poison = dyn_cast<PoisonValue>(&A)) {
-			if (lastPoison) {
-				size_t newWidth  = lastPoison->getType()->getIntegerBitWidth() + poison->getType()->getIntegerBitWidth();
-				newOps.back() = lastPoison = PoisonValue::get(IntegerType::get(Ctx, newWidth));
-			} else {
-				lastPoison = poison;
-				newOps.push_back(poison);
-			}
-			lastInt = nullptr;
-			lastUndef = nullptr;
-		} else if (auto* undef = dyn_cast<UndefValue>(&A)) {
-			if (lastUndef) {
-				size_t newWidth  = lastUndef->getType()->getIntegerBitWidth() + undef->getType()->getIntegerBitWidth();
-				newOps.back() = lastUndef =UndefValue::get(IntegerType::get(Ctx, newWidth));
-			} else {
-				lastUndef = undef;
-				newOps.push_back(undef);
-			}
-			lastInt = nullptr;
-			lastPoison = nullptr;
-		} else {
-			newOps.push_back(&A);
-			lastInt = nullptr;
-			lastUndef = nullptr;
-			lastPoison = nullptr;
-		}
-	}
-	if (newOps.size() < CI.arg_size()) {
-		Builder.SetInsertPoint(&CI);
-		auto replacement = CreateBitConcat(&Builder, newOps);
-		assert(replacement != &CI);
-		addAllUsersToWorklist(CI, Worklist);
-		CI.replaceAllUsesWith(replacement);
-		DCE.insert(CI);
-		return true;
-	}
-	return false;
+const std::string HwtHlsInstCombinePass::metadataName_mergableFunction_statePlusMaskedData = "hwtHls.mergableFunction.statePlusMaskedData";
 
-}
-bool tryReduceConstOpBitRangeGet(IRBuilder<>& Builder, DceWorklist& DCE, SetVector<Instruction*>& Worklist, CallInst & CI) {
-	auto srcOp = CI.getArgOperand(0);
-	auto indexOp = dyn_cast<ConstantInt>(CI.getArgOperand(1));
-	assert(indexOp && "BitRangeGet offset should always be constant");
-	auto& Ctx = CI.getContext();
-	Value * replacement = nullptr;
-	if (auto srcC = dyn_cast<ConstantInt>(srcOp)) {
-		Builder.SetInsertPoint(&CI);
-		size_t resWidth = CI.getType()->getIntegerBitWidth();
-		replacement = ConstantInt::get(Ctx, srcC->getValue().extractBits(resWidth, indexOp->getZExtValue()));
-	} else if (isa<PoisonValue>(srcOp)) {
-		replacement = PoisonValue::get(CI.getType());
-	} else if (isa<UndefValue>(srcOp)) {
-		replacement = UndefValue::get(CI.getType());
-	}
-	if (replacement) {
-		assert(replacement != &CI);
-		addAllUsersToWorklist(CI, Worklist);
-		CI.replaceAllUsesWith(replacement);
-		DCE.insert(CI);
-		return true;
-	}
-	return false;
-}
-
-
-PreservedAnalyses SimpleConstEvalPass::run(llvm::Function &F,
+PreservedAnalyses HwtHlsInstCombinePass::run(llvm::Function &F,
 		llvm::FunctionAnalysisManager &AM) {
-	TargetLibraryInfo *TLI = &AM.getResult<TargetLibraryAnalysis>(F);
-	DceWorklist DCE(TLI, nullptr);
-	bool Changed = false;
-	SetVector<Instruction*> Worklist;
-	IRBuilder<> Builder(F.getContext());
-	for (BasicBlock &BB : F) {
-		for (auto Iit = BB.begin(); Iit != BB.end(); ++Iit) {
-			if (auto CI = dyn_cast<CallInst>(&*Iit)) {
-				if (IsBitConcat(CI)) {
-					Changed |= tryReduceConstOpConcat(Builder, DCE, Worklist, *CI);
-					Changed |= DCE.runToCompletition(Iit);
-				} else if (IsBitRangeGet(CI)) {
-					Changed |= tryReduceConstOpBitRangeGet(Builder, DCE, Worklist, *CI);
-					Changed |= DCE.runToCompletition(Iit);
-				}
-			}
+	auto &AC = AM.getResult<AssumptionAnalysis>(F);
+	// prepare DT, TLI for getBestSimplifyQuery
+	AM.getResult<DominatorTreeAnalysis>(F);
+	AM.getResult<TargetLibraryAnalysis>(F);
+	auto SQ = getBestSimplifyQuery(AM, F);
+	InstructionWorklist Worklist;
+	bool MadeIRChange = false;
+	auto &DL = F.getParent()->getDataLayout();
+	/// Builder - This is an IRBuilder that automatically inserts new
+	/// instructions into the worklist when they are created.
+	IRBuilder<TargetFolder, IRBuilderCallbackInserter> Builder(F.getContext(),
+			TargetFolder(DL),
+			IRBuilderCallbackInserter([&Worklist, &AC](Instruction *I) {
+				Worklist.add(I);
+				if (auto *Assume = dyn_cast<AssumeInst>(I))
+					AC.registerAssumption(Assume);
+			}));
+
+	ReversePostOrderTraversal<BasicBlock*> RPOT(&F.front());
+	// Iterate while there is work to do.
+	unsigned Iteration = 0;
+	for (;;) {
+		++Iteration;
+
+		if (Iteration > Options.MaxIterations) {
+			LLVM_DEBUG(
+					dbgs() << "\n\n[" DEBUG_TYPE_SHORT "] Iteration limit #" << Options.MaxIterations << " on "
+					<< F.getName() << " reached; stopping without verifying fixpoint\n");
+			break;
+		}
+
+		++NumWorklistIterations;
+		LLVM_DEBUG(
+				dbgs() << "\n\n" DEBUG_TYPE_SHORT " #" << Iteration << " on " << F.getName() << "\n");
+
+		HwtHlsInstCombiner IC(Builder, SQ, Worklist, Options, F);
+		bool MadeChangeInThisIteration = IC.prepareWorklist(RPOT);
+		MadeChangeInThisIteration |= IC.run();
+		if (!MadeChangeInThisIteration)
+			break;
+
+		MadeIRChange = true;
+		if (Iteration > Options.MaxIterations) {
+			report_fatal_error(
+					"Instruction Combining did not reach a fixpoint after "
+							+ Twine(Options.MaxIterations) + " iterations");
 		}
 	}
+
+	// Mark all the analyses that instcombine updates as preserved.
+	if (MadeIRChange)
+		return PreservedAnalyses::all();
+
 	// Mark all the analyses that instcombine updates as preserved.
 	PreservedAnalyses PA;
 	PA.preserveSet<CFGAnalyses>();
-	PA.preserve<AAManager>();
-	PA.preserve<BasicAA>();
-	PA.preserve<GlobalsAA>();
 	return PA;
 }
 
