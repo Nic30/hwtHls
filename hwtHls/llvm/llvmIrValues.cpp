@@ -82,6 +82,7 @@ void register_Values_and_Use(pybind11::module_ & m) {
 		})
 		.def("getType", &llvm::Value::getType, py::return_value_policy::reference)
 		.def("getName", &llvm::Value::getName)
+		.def("setName", &llvm::Value::setName)
 		.def("getNumUses", &llvm::Value::getNumUses)
 		.def("hasOneUse", &llvm::Value::hasOneUse)
 		.def("hasOneUser", &llvm::Value::hasOneUser)
@@ -103,20 +104,35 @@ void register_Values_and_Use(pybind11::module_ & m) {
 		 }, py::keep_alive<0, 1>()); /* Keep vector alive while iterator is used */
 
 	py::class_<llvm::Use, std::unique_ptr<llvm::Use, py::nodelete>>(m, "Use")
-		.def("get", &llvm::Use::get, py::return_value_policy::reference);
+		.def("get", &llvm::Use::get, py::return_value_policy::reference)
+		.def("getOperandNo", &llvm::Use::getOperandNo, py::return_value_policy::reference)
+		;
 
 	py::class_<llvm::APInt>(m, "APInt")
+		.def(py::init([](unsigned numBits, const char *str, unsigned radix) {
+			return new llvm::APInt(numBits, str, radix);
+		}), py::arg("numBits"), py::arg("str"), py::arg("radix"))
 		.def(py::init<unsigned, llvm::StringRef, uint8_t>(), py::arg("numBits"), py::arg("str"), py::arg("radix"))
 		.def(py::init<unsigned, uint64_t, bool>(), py::arg("numBits"), py::arg("val"), py::arg("isSigned")=false)
 		.def_static("getAllOnes", llvm::APInt::getAllOnes)
 		.def_static("getBitsSet", llvm::APInt::getBitsSet)
 		.def_static("getZero", llvm::APInt::getZero)
 		.def("getZExtValue", &llvm::APInt::getZExtValue)
-		.def("__int__", [](llvm::APInt* I) {
+		.def("__int__", [](llvm::APInt& I) {
 		 	llvm::SmallString<256> str;
-			I->toString(str, 16, I->isNegative());
+			I.toString(str, 16, I.isNegative());
 			return pybind11::int_fromStr(str.c_str());
-		});
+		})
+		.def("__bool__", [](llvm::APInt& I) {
+			return !I.isZero();
+		})
+		.def("__invert__", [](llvm::APInt& I) {
+			return -I;
+		})
+		.def("__neg__", [](llvm::APInt& I) {
+			return ~I;
+		})
+		;
 	py::class_<llvm::APFloat>(m, "APFloat")
 		.def(py::init<double>())
 		.def("__float__", [](llvm::APFloat* self) {
@@ -173,6 +189,9 @@ void register_Values_and_Use(pybind11::module_ & m) {
 		.def("getElementAsDouble", &llvm::ConstantDataSequential::getElementAsDouble);
 	py::class_<llvm::ConstantInt, std::unique_ptr<llvm::ConstantInt, py::nodelete>, llvm::ConstantData>(m, "ConstantInt")
 		.def_static("get", [](llvm::Type* Ty, llvm::APInt& V) {
+			return llvm::ConstantInt::get(Ty, V);
+		}, py::return_value_policy::reference)
+		.def_static("getInt", [](llvm::Type* Ty, uint64_t V) {
 			return llvm::ConstantInt::get(Ty, V);
 		}, py::return_value_policy::reference)
 		.def("getValue", &llvm::ConstantInt::getValue);
