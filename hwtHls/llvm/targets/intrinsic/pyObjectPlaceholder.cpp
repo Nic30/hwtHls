@@ -3,9 +3,11 @@
 namespace hwtHls {
 
 const std::string PyObjectPlaceholderName = "hwtHls.pyObjectPlaceholder";
+
 bool IsPyObjectPlacehoder(const llvm::CallInst *C) {
 	return IsPyObjectPlacehoder(C->getCalledFunction());
 }
+
 bool IsPyObjectPlacehoder(const llvm::Function *F) {
 	assert(
 			F != nullptr
