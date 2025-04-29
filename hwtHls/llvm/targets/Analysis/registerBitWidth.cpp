@@ -387,38 +387,110 @@ bool resolveTypes(MachineInstr &MI) {
 
 		return false;
 	}
-	case HwtFpga::HWTFPGA_FP_FCMP:
+	case HwtFpga::HWTFPGA_FP_FCMP: {
+		auto fpCfg = HFloatTmpConfig::fromMachineInstrOperands(MI, 1 + 1 + 2);
+		size_t w = fpCfg.getBitWidth();
+		checkOrSetWidth(MRI, MI.getOperand(0), w);
+		checkOrSetWidth(MRI, MI.getOperand(1), w);
 		MRI.setType(MI.getOperand(0).getReg(), LLT::scalar(1));
 		return true;
-
+	}
 	case HwtFpga::HWTFPGA_FP_FNEG:
 	case HwtFpga::HWTFPGA_FP_FADD:
 	case HwtFpga::HWTFPGA_FP_FSUB:
 	case HwtFpga::HWTFPGA_FP_FMUL:
-	case HwtFpga::HWTFPGA_FP_FDIV: {
-		HFloatTmpConfig fpCfg;
-		size_t opOff = 3;
-		if (Opc == HwtFpga::HWTFPGA_FP_FNEG) {
-			// unary operators
-			opOff = 2;
-		}
-		assert(HFloatTmpConfig::MEMBER_CNT == 9);
-		assert(MI.getNumExplicitOperands() == opOff + HFloatTmpConfig::MEMBER_CNT);
-		fpCfg.exponentOrIntWidth = MI.getOperand(opOff++).getImm();
-		fpCfg.mantissaOrFracWidth = MI.getOperand(opOff++).getImm();
-		fpCfg.isInQFromat = MI.getOperand(opOff++).getImm();
-		fpCfg.supportSubnormal = MI.getOperand(opOff++).getImm();
-		fpCfg.hasSign = MI.getOperand(opOff++).getImm();
-		fpCfg.hasIsNaN = MI.getOperand(opOff++).getImm();
-		fpCfg.hasIsInf = MI.getOperand(opOff++).getImm();
-		fpCfg.hasIs1 = MI.getOperand(opOff++).getImm();
-		fpCfg.hasIs0 = MI.getOperand(opOff++).getImm();
+	case HwtFpga::HWTFPGA_FP_FDIV:
+	case HwtFpga::HWTFPGA_FP_FREM:
+	case HwtFpga::HWTFPGA_FP_FMOD:
+	case HwtFpga::HWTFPGA_FP_FDIVREM:
+	case HwtFpga::HWTFPGA_FP_SHL:
+	case HwtFpga::HWTFPGA_FP_SHR:
+	case HwtFpga::HWTFPGA_FP_CEIL:
+	case HwtFpga::HWTFPGA_FP_COS:
+	case HwtFpga::HWTFPGA_FP_EXP:
+	case HwtFpga::HWTFPGA_FP_EXP10:
+	case HwtFpga::HWTFPGA_FP_EXP2:
+	case HwtFpga::HWTFPGA_FP_FABS:
+	case HwtFpga::HWTFPGA_FP_FLOOR:
+	case HwtFpga::HWTFPGA_FP_LOG:
+	case HwtFpga::HWTFPGA_FP_LOG10:
+	case HwtFpga::HWTFPGA_FP_LOG2:
+	case HwtFpga::HWTFPGA_FP_FPOW:
+	case HwtFpga::HWTFPGA_FP_FPOWI:
+	case HwtFpga::HWTFPGA_FP_ROUND:
+	case HwtFpga::HWTFPGA_FP_ROUNDEVEN:
+	case HwtFpga::HWTFPGA_FP_SIN:
+	case HwtFpga::HWTFPGA_FP_SQRT:
 
+	case HwtFpga::HWTFPGA_FP_SINPI:
+	case HwtFpga::HWTFPGA_FP_COSPI:
+	case HwtFpga::HWTFPGA_FP_ASIN:
+	case HwtFpga::HWTFPGA_FP_SINH:
+	case HwtFpga::HWTFPGA_FP_ACOS:
+	case HwtFpga::HWTFPGA_FP_COSH:
+	case HwtFpga::HWTFPGA_FP_TAN:
+	case HwtFpga::HWTFPGA_FP_ATAN:
+	case HwtFpga::HWTFPGA_FP_TANH:
+
+	case HwtFpga::HWTFPGA_FP_ATAN2:
+	case HwtFpga::HWTFPGA_FP_SINCOS:
+	case HwtFpga::HWTFPGA_FP_SINCOSPI:
+	{
+		size_t opCnt = 2; // dst0, dst1?, op0, op1?, HFloatTmpConfig ops...
+		switch (Opc) {
+		case HwtFpga::HWTFPGA_FP_FADD:
+		case HwtFpga::HWTFPGA_FP_FSUB:
+		case HwtFpga::HWTFPGA_FP_FMUL:
+		case HwtFpga::HWTFPGA_FP_FDIV:
+		case HwtFpga::HWTFPGA_FP_FREM:
+		case HwtFpga::HWTFPGA_FP_FMOD:
+		case HwtFpga::HWTFPGA_FP_SHL:
+		case HwtFpga::HWTFPGA_FP_SHR:
+		case HwtFpga::HWTFPGA_FP_FPOW:
+		case HwtFpga::HWTFPGA_FP_FPOWI:
+		case HwtFpga::HWTFPGA_FP_ATAN2:
+			// binary operators
+			opCnt = 3; // dst, op0, op1
+			break;
+
+		case HwtFpga::HWTFPGA_FP_SINCOS:
+		case HwtFpga::HWTFPGA_FP_SINCOSPI:
+			opCnt = 3; // dst0, dst1, op0
+			break;
+
+		case HwtFpga::HWTFPGA_FP_FDIVREM:
+			opCnt = 4;
+			break;
+		default:
+			break;
+		}
+		auto fpCfg = HFloatTmpConfig::fromMachineInstrOperands(MI, opCnt);
 		size_t w = fpCfg.getBitWidth();
 		checkOrSetWidth(MRI, MI.getOperand(0), w);
 		checkOrSetWidth(MRI, MI.getOperand(1), w);
-		checkOrSetWidth(MRI, MI.getOperand(2), w);
-
+		if (opCnt >= 3) {
+			switch (Opc) {
+			case HwtFpga::HWTFPGA_FP_FPOWI:
+			case HwtFpga::HWTFPGA_FP_SHL:
+			case HwtFpga::HWTFPGA_FP_SHR:
+				break;
+			default:
+				checkOrSetWidth(MRI, MI.getOperand(2), w);
+				if (opCnt >= 4) {
+					checkOrSetWidth(MRI, MI.getOperand(3), w);
+				}
+				break;
+			}
+		}
+		return true;
+	}
+	case HwtFpga::HWTFPGA_FP_CAST: {
+		auto srcFpCfg = HFloatTmpConfig::fromMachineInstrOperands(MI, 1+1);
+		auto dstFpCfg = HFloatTmpConfig::fromMachineInstrOperands(MI, 1+1+HFloatTmpConfig::MEMBER_CNT);
+		size_t srcW = srcFpCfg.getBitWidth();
+		size_t dstW = dstFpCfg.getBitWidth();
+		checkOrSetWidth(MRI, MI.getOperand(0), dstW);
+		checkOrSetWidth(MRI, MI.getOperand(1), srcW);
 		return true;
 	}
 	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER:
