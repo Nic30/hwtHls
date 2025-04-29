@@ -198,6 +198,17 @@ bool HwtFpgaCombinerHelper::rewriteMuxConstPropagation(llvm::MachineInstr &MI,
 		SmallVector<hwtHls::CImmOrRegOrUndefWithWidth> newMuxOperands;
 		auto OpIt = MI.operands_begin() + 1; // skip dst
 		while (OpIt != MI.operands_end()) {
+			if (wasCompletlyReplaced) { // the MUX itself was completely replaced
+				// use value resolved from first value operand as a replacement value
+				// [todo] use buildHwtFpgaCopy()
+				auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX,
+						{ MI.getOperand(0).getReg() }, { });
+				Observer.changingInstr(*MIB.getInstr());
+				MIB.add(MI.getOperand(1));
+				Observer.changedInstr(*MIB.getInstr());
+				MI.eraseFromParent();
+				return true;
+			}
 			const MachineOperand &ValOp = *OpIt;
 			// construct value operand use only bits which are different between values
 			SmallVector<hwtHls::CImmOrRegOrUndefWithWidth> OperandValConcatMembers;
@@ -215,17 +226,12 @@ bool HwtFpgaCombinerHelper::rewriteMuxConstPropagation(llvm::MachineInstr &MI,
 					off += usedBits.second;
 				}
 			}
-			auto newMuxValOperand = buildHWTFPGA_MERGE_VALUES(Builder,
+
+			hwtHls::CImmOrRegOrUndefWithWidth newMuxValOperand(
+					keepMask.getBitWidth());
+			assert(OperandValConcatMembers.size());
+			newMuxValOperand = buildHWTFPGA_MERGE_VALUES(Builder,
 					OperandValConcatMembers);
-			if (wasCompletlyReplaced) { // the MUX itself was completely replaced
-				// use value resolved from first value operand as a replacement value
-				auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX, {MI.getOperand(0).getReg()}, {});
-				Observer.changingInstr(*MIB.getInstr());
-				newMuxValOperand.addAsUse(MIB);
-				Observer.changedInstr(*MIB.getInstr());
-				MI.eraseFromParent();
-				return true;
-			}
 			newMuxOperands.push_back(newMuxValOperand);
 
 			++OpIt;
