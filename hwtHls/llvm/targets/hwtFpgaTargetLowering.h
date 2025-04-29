@@ -6,6 +6,9 @@
 namespace llvm {
 class HwtFpgaTargetSubtarget;
 
+/*
+ * This class defines things like instruction costs for HwtFpgaTarget :see: llvm::TargetLowering
+ * */
 class HwtFpgaTargetLowering: public llvm::TargetLowering {
 protected:
 	const llvm::HwtFpgaTargetSubtarget &Subtarget;
@@ -13,6 +16,7 @@ protected:
 public:
 	HwtFpgaTargetLowering(const HwtFpgaTargetLowering&) = delete;
 	HwtFpgaTargetLowering& operator=(const HwtFpgaTargetLowering&) = delete;
+
 	explicit HwtFpgaTargetLowering(const llvm::TargetMachine &TM,
 			const llvm::HwtFpgaTargetSubtarget &STI);
 
@@ -21,6 +25,19 @@ public:
 			BlockFrequencyInfo *BFI) const override {
 		return false;
 	}
+
+	virtual bool isCheapToSpeculateCttz(Type *Ty) const override {
+		return true;
+	}
+
+	virtual bool isCheapToSpeculateCtlz(Type *Ty) const override {
+		return true;
+	}
+
+	virtual bool isCtlzFast() const override {
+		return true;
+	}
+
 	//virtual MVT getPreferredSwitchConditionType(LLVMContext &Context,
 	//		EVT ConditionVT) const override;
 	virtual bool canCombineTruncStore(EVT ValVT, EVT MemVT,
