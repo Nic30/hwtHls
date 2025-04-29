@@ -39,15 +39,34 @@ HwtFpgaTargetLowering::HwtFpgaTargetLowering(const llvm::TargetMachine &TM,
 	setHasMultipleConditionRegisters(true);
 }
 
-void computeKnownBitsImpl(GISelKnownBits &Analysis, const MachineOperand &MO,
+void computeKnownBitsImpl(const MachineRegisterInfo &MRI, GISelKnownBits &Analysis, const MachineOperand &MO,
 		KnownBits &Known, const APInt &DemandedElts, unsigned Depth = 0) {
 	if (MO.isReg()) {
 		assert(MO.isUse());
-		Analysis.computeKnownBitsImpl(MO.getReg(), Known, DemandedElts, Depth);
+		if (MRI.hasOneDef(MO.getReg())) {
+			Analysis.computeKnownBitsImpl(MO.getReg(), Known, DemandedElts, Depth);
+		} else {
+			// GISelKnownBits is only for SSA because it uses getVRegDef
+			Known.resetAll();
+		}
 	} else {
 		assert(MO.isCImm());
 		Known = KnownBits::makeConstant(MO.getCImm()->getValue());
 	}
+}
+
+std::optional<size_t> getBitwidthOfOperand(const MachineRegisterInfo &MRI,
+		const MachineOperand &MO) {
+	if (MO.isReg()) {
+		LLT Ty = MRI.getType(MO.getReg());
+		if (Ty.isValid()) {
+			return Ty.getSizeInBits();
+		}
+	} else {
+		assert(MO.isCImm());
+		return MO.getCImm()->getValue().getBitWidth();
+	}
+	return {};
 }
 
 class GISelKnownBitsWithExposedMaxDepth: public GISelKnownBits {
@@ -56,10 +75,15 @@ public:
 };
 
 // based on GISelKnownBits::computeKnownBitsImpl
+// :attention: any KnownBits may be returned with a 1 bitwidth if type of some register was unknown
 void HwtFpgaTargetLowering::computeKnownBitsForTargetInstr(
 		GISelKnownBits &Analysis, Register R, KnownBits &Known,
 		const APInt &DemandedElts, const MachineRegisterInfo &MRI,
 		unsigned Depth) const {
+	if (!MRI.hasOneDef(R)) { // getVRegDef expects SSA
+		Known.resetAll();
+		return;
+	}
 	MachineInstr &MI = *MRI.getVRegDef(R);
 	unsigned Opcode = MI.getOpcode();
 	LLT DstTy = MRI.getType(R);
@@ -79,6 +103,21 @@ void HwtFpgaTargetLowering::computeKnownBitsForTargetInstr(
 		return;
 
 	auto Known2 = KnownBits(BitWidth);
+
+	auto prepareKnownForBinOp = [&]() {
+		computeKnownBitsImpl(MRI, Analysis, MI.getOperand(1), Known, DemandedElts,
+				Depth + 1);
+		computeKnownBitsImpl(MRI, Analysis, MI.getOperand(2), Known2, DemandedElts,
+				Depth + 1);
+	};
+	auto prepareKnownForShiftOp = [&](KnownBits& LHSKnown, KnownBits& RHSKnown) {
+		computeKnownBitsImpl(MRI, Analysis, MI.getOperand(1), LHSKnown, DemandedElts,
+				Depth + 1);
+		computeKnownBitsImpl(MRI, Analysis, MI.getOperand(2), RHSKnown, DemandedElts,
+				Depth + 1);
+		RHSKnown.zext(BitWidth); // because llvm G_SHL and others have shift amount of the same size
+	};
+
 	switch (Opcode) {
 	//case HwtFpga::HWTFPGA_FCMP:
 	case HwtFpga::HWTFPGA_ICMP: {
@@ -142,70 +181,61 @@ void HwtFpgaTargetLowering::computeKnownBitsForTargetInstr(
 		}
 		const auto& _LHS = MI.getOperand(2);
 		const auto& _RHS = MI.getOperand(3);
-		KnownBits LHS, RHS;
-		computeKnownBitsImpl(Analysis, _LHS, LHS, DemandedElts,
-						Depth + 1);
-		computeKnownBitsImpl(Analysis, _RHS, RHS, DemandedElts,
-						Depth + 1);
-		auto _Known =operatorFn(LHS, RHS);
-		if (_Known.has_value()) {
-			auto res = APInt(1, _Known.value());
-			Known = KnownBits::makeConstant(res);
+		auto operandBitwidth = getBitwidthOfOperand(MRI, _LHS);
+		if (!operandBitwidth.has_value()) {
+			operandBitwidth = getBitwidthOfOperand(MRI, _RHS);
+		}
+		if (operandBitwidth.has_value()) {
+			KnownBits LHS(operandBitwidth.value()), RHS(operandBitwidth.value());
+			std::optional<bool> _Known;
+			computeKnownBitsImpl(MRI, Analysis, _LHS, LHS, DemandedElts,
+							Depth + 1);
+			if (!LHS.isUnknown()) {
+				computeKnownBitsImpl(MRI, Analysis, _RHS, RHS, DemandedElts,
+								Depth + 1);
+				if (!RHS.isUnknown())
+					_Known = operatorFn(LHS, RHS);
+			}
+			if (_Known.has_value()) {
+				auto res = APInt(1, _Known.value());
+				Known = KnownBits::makeConstant(res);
+			}
+		} else {
+			Known.resetAll();
 		}
 		break;
 	}
 	case HwtFpga::HWTFPGA_SUB: {
-		computeKnownBitsImpl(Analysis, MI.getOperand(1), Known, DemandedElts,
-				Depth + 1);
-		computeKnownBitsImpl(Analysis, MI.getOperand(2), Known2, DemandedElts,
-				Depth + 1);
+		prepareKnownForBinOp();
 		Known = KnownBits::computeForAddSub(/*Add*/false, /*NSW*/false, Known,
 				Known2);
 		break;
 	}
 	case HwtFpga::HWTFPGA_XOR: {
-		computeKnownBitsImpl(Analysis, MI.getOperand(2), Known, DemandedElts,
-				Depth + 1);
-		computeKnownBitsImpl(Analysis, MI.getOperand(1), Known2, DemandedElts,
-				Depth + 1);
-
+		prepareKnownForBinOp();
 		Known ^= Known2;
 		break;
 	}
 	case HwtFpga::HWTFPGA_ADD: {
-		computeKnownBitsImpl(Analysis, MI.getOperand(1), Known, DemandedElts,
-				Depth + 1);
-		computeKnownBitsImpl(Analysis, MI.getOperand(2), Known2, DemandedElts,
-				Depth + 1);
+		prepareKnownForBinOp();
 		Known = KnownBits::computeForAddSub(/*Add*/true, /*NSW*/false, Known,
-				Known2);
+					Known2);
 		break;
 	}
 	case HwtFpga::HWTFPGA_AND: {
 		// If either the LHS or the RHS are Zero, the result is zero.
-		computeKnownBitsImpl(Analysis, MI.getOperand(2), Known, DemandedElts,
-				Depth + 1);
-		computeKnownBitsImpl(Analysis, MI.getOperand(1), Known2, DemandedElts,
-				Depth + 1);
-
+		prepareKnownForBinOp();
 		Known &= Known2;
 		break;
 	}
 	case HwtFpga::HWTFPGA_OR: {
 		// If either the LHS or the RHS are Zero, the result is zero.
-		computeKnownBitsImpl(Analysis, MI.getOperand(2), Known, DemandedElts,
-				Depth + 1);
-		computeKnownBitsImpl(Analysis, MI.getOperand(1), Known2, DemandedElts,
-				Depth + 1);
-
+		prepareKnownForBinOp();
 		Known |= Known2;
 		break;
 	}
 	case HwtFpga::HWTFPGA_MUL: {
-		computeKnownBitsImpl(Analysis, MI.getOperand(2), Known, DemandedElts,
-				Depth + 1);
-		computeKnownBitsImpl(Analysis, MI.getOperand(1), Known2, DemandedElts,
-				Depth + 1);
+		prepareKnownForBinOp();
 		Known = KnownBits::mul(Known, Known2);
 		break;
 	}
@@ -214,20 +244,21 @@ void HwtFpgaTargetLowering::computeKnownBitsForTargetInstr(
 			auto SrcMO = MI.getOperand(SrcValI);
 			if (SrcValI == 1) {
 				// Test src1 first, since we canonicalize simpler expressions to the RHS.
-				computeKnownBitsImpl(Analysis, SrcMO, Known, DemandedElts, Depth);
-				// If we don't know any bits, early out.
-				if (Known.isUnknown())
-					return;
+				computeKnownBitsImpl(MRI, Analysis, SrcMO, Known, DemandedElts, Depth);
 			} else {
-				KnownBits Known2;
-				computeKnownBitsImpl(Analysis, SrcMO, Known2, DemandedElts, Depth);
-
+				KnownBits Known2(BitWidth);
+				computeKnownBitsImpl(MRI, Analysis, SrcMO, Known2, DemandedElts, Depth);
+				if (Known2.isUnknown()) {
+					Known.resetAll();
+					return;
+				}
 				// Only known if known in both the LHS and RHS.
 				Known = Known.intersectWith(Known2);
-
-				if (Known.isUnknown())
-					return;
 			}
+
+			// If we don't know any bits, early out.
+			if (Known.isUnknown())
+				return;
 		}
 		break;
 	}
@@ -240,29 +271,20 @@ void HwtFpgaTargetLowering::computeKnownBitsForTargetInstr(
 		break;
 	}
 	case HwtFpga::HWTFPGA_ASHR: {
-		KnownBits LHSKnown, RHSKnown;
-		computeKnownBitsImpl(Analysis, MI.getOperand(1), LHSKnown, DemandedElts,
-				Depth + 1);
-		computeKnownBitsImpl(Analysis, MI.getOperand(2), RHSKnown, DemandedElts,
-				Depth + 1);
+		KnownBits LHSKnown(BitWidth), RHSKnown;
+		prepareKnownForShiftOp(LHSKnown, RHSKnown);
 		Known = KnownBits::ashr(LHSKnown, RHSKnown);
 		break;
 	}
 	case HwtFpga::HWTFPGA_LSHR: {
-		KnownBits LHSKnown, RHSKnown;
-		computeKnownBitsImpl(Analysis, MI.getOperand(1), LHSKnown, DemandedElts,
-				Depth + 1);
-		computeKnownBitsImpl(Analysis, MI.getOperand(2), RHSKnown, DemandedElts,
-				Depth + 1);
+		KnownBits LHSKnown(BitWidth), RHSKnown;
+		prepareKnownForShiftOp(LHSKnown, RHSKnown);
 		Known = KnownBits::lshr(LHSKnown, RHSKnown);
 		break;
 	}
 	case HwtFpga::HWTFPGA_SHL: {
-		KnownBits LHSKnown, RHSKnown;
-		computeKnownBitsImpl(Analysis, MI.getOperand(1), LHSKnown, DemandedElts,
-				Depth + 1);
-		computeKnownBitsImpl(Analysis, MI.getOperand(2), RHSKnown, DemandedElts,
-				Depth + 1);
+		KnownBits LHSKnown(BitWidth), RHSKnown;
+		prepareKnownForShiftOp(LHSKnown, RHSKnown);
 		Known = KnownBits::shl(LHSKnown, RHSKnown);
 		break;
 	}
@@ -270,8 +292,8 @@ void HwtFpgaTargetLowering::computeKnownBitsForTargetInstr(
 		size_t offset = 0;
 		for (const auto& [SrcMO, WidthMO] : hwtHls::MERGE_VALUES_iter_valuesWidthPairs(
 				MI)) {
-			KnownBits SrcOpKnown;
-			computeKnownBitsImpl(Analysis, SrcMO, SrcOpKnown, DemandedElts,
+			KnownBits SrcOpKnown(WidthMO.getImm());
+			computeKnownBitsImpl(MRI, Analysis, SrcMO, SrcOpKnown, DemandedElts,
 					Depth + 1);
 			Known.insertBits(SrcOpKnown, offset);
 			offset += WidthMO.getImm();
@@ -279,16 +301,17 @@ void HwtFpgaTargetLowering::computeKnownBitsForTargetInstr(
 		break;
 	}
 	case HwtFpga::HWTFPGA_EXTRACT: {
-		// $dst, $src, $srcWidth, $offset, $width
-		KnownBits SrcOpKnown;
-		computeKnownBitsImpl(Analysis, MI.getOperand(1), SrcOpKnown,
-				DemandedElts, Depth + 1);
+		// $dst, $src, $srcWidth, $offset, $dstWidth
 		assert(BitWidth == MI.getOperand(4).getImm());
-		Known = SrcOpKnown.extractBits(BitWidth, MI.getOperand(3).getImm());
+		KnownBits SrcOpKnown(MI.getOperand(2).getImm());
+		computeKnownBitsImpl(MRI, Analysis, MI.getOperand(1), SrcOpKnown,
+				DemandedElts, Depth + 1);
+		if (!SrcOpKnown.isUnknown())
+			Known = SrcOpKnown.extractBits(BitWidth, MI.getOperand(3).getImm());
 		break;
 	}
 	case HwtFpga::HWTFPGA_CTPOP: {
-		computeKnownBitsImpl(Analysis, MI.getOperand(1), Known2, DemandedElts,
+		computeKnownBitsImpl(MRI, Analysis, MI.getOperand(1), Known2, DemandedElts,
 				Depth + 1);
 		// We can bound the space the count needs.  Also, bits known to be zero can't
 		// contribute to the population.
