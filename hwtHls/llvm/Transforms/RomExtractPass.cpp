@@ -81,7 +81,7 @@ bool collectSelectTree(std::set<SelectInst*> &analyzed, Value &V,
 llvm::PreservedAnalyses RomExtractPass::run(llvm::Function &F,
 		llvm::FunctionAnalysisManager &AM) {
 	TargetLibraryInfo *TLI = &AM.getResult<TargetLibraryAnalysis>(F);
-	DceWorklist DCE(TLI, nullptr);
+	DceWorklist DCE(TLI);
 	bool Changed = false;
 	std::set<SelectInst*> analyzed;
 	for (auto &&BB : F) {

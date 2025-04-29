@@ -267,7 +267,7 @@ public:
 llvm::PreservedAnalyses SelectPruningPass::run(llvm::Function &F,
 		llvm::FunctionAnalysisManager &AM) {
 	TargetLibraryInfo *TLI = &AM.getResult<TargetLibraryAnalysis>(F);
-	DceWorklist DCE(TLI, nullptr);
+	DceWorklist DCE(TLI);
 	bool Changed = false;
 	for (auto &BB : F) {
 		for (auto Iit = BB.begin(); Iit != BB.end(); ++Iit) {

@@ -264,7 +264,7 @@ void runDCEOnLoopConditions(
 		SmallVector<std::pair<Value*, LoadInst*>, 4> &VolatileLoadsInCondExpr,
 		TargetLibraryInfo &TLI, Value *LoopHeaderExitCondition) {
 	// cleanup dead condition expression for LoopHeader
-	DceWorklist dce(&TLI, nullptr);
+	DceWorklist dce(&TLI);
 	BasicBlock::iterator curI; // dummy value
 	if (auto I = dyn_cast<Instruction>(LoopHeaderExitCondition)) {
 		dce.tryRemoveIfDead(*I, curI);
