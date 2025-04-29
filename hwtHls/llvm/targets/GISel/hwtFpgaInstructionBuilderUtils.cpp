@@ -342,6 +342,11 @@ HWTFPGA_EXTRACTOptions HWTFPGA_EXTRACTOptions::get(llvm::MachineInstr & MI) {
 	return res;
 }
 
+bool HWTFPGA_EXTRACTOptions::isMsbGet() {
+	return dstWidth == 1 && offset == srcWidth - 1;
+}
+
+
 CImmOrRegOrUndefWithWidth buildHWTFPGA_EXTRACT(MachineIRBuilder &Builder,
 		const MachineOperand &src, size_t srcWidth, size_t offset,
 		size_t resWidth) {
@@ -540,7 +545,7 @@ void ConcatMembersReduce(
 
 llvm::MachineInstrBuilder buildHWTFPGA_MERGE_VALUES(
 		llvm::MachineIRBuilder &Builder, llvm::GISelChangeObserver *Observer, llvm::Register DstReg,
-		llvm::SmallVector<hwtHls::CImmOrRegOrUndefWithWidth> &ConcatMembers, size_t* _width
+		const llvm::SmallVector<hwtHls::CImmOrRegOrUndefWithWidth> &ConcatMembers, size_t* _width
 		) {
 	auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MERGE_VALUES);
 	if (Observer)
