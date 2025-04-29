@@ -10,7 +10,6 @@
 
 namespace llvm {
 
-
 bool HwtFpgaCombinerHelper::matchMuxForConstPropagation(llvm::MachineInstr &MI,
 		hwtHls::MuxReducibleValuesInfo &matchInfo) {
 	if (MI.getNumExplicitOperands() < 1 + 3) {
@@ -49,9 +48,9 @@ bool HwtFpgaCombinerHelper::matchMuxForConstPropagation(llvm::MachineInstr &MI,
 		if (usedBits.first)
 			newMiResWidth += usedBits.second;
 	}
-	auto & NewMIResOp = NewMI.getOperand(0);
+	auto &NewMIResOp = NewMI.getOperand(0);
 	Register newMiRes = NewMIResOp.getReg();
-	auto & MRI = *Builder.getMRI();
+	auto &MRI = *Builder.getMRI();
 	auto _newMiResTy = MRI.getType(newMiRes);
 	if (_newMiResTy.isValid()) {
 		assert(_newMiResTy.getSizeInBits() == newMiResWidth);
@@ -79,7 +78,7 @@ bool HwtFpgaCombinerHelper::matchMuxForConstPropagation(llvm::MachineInstr &MI,
 				if (!matchInfo.valDefined[_off]) {
 					// known to be undef
 					size_t undefStartOff = _off;
-					while (_off <  off + len && !matchInfo.valDefined[_off])
+					while (_off < off + len && !matchInfo.valDefined[_off])
 						_off++;
 					ResConcatMembers.push_back(
 							hwtHls::CImmOrRegOrUndefWithWidth(
@@ -87,7 +86,7 @@ bool HwtFpgaCombinerHelper::matchMuxForConstPropagation(llvm::MachineInstr &MI,
 				} else if (matchInfo.constBitMask[_off]) {
 					// known to be constant
 					size_t constStartOff = _off;
-					while (_off <  off + len && matchInfo.constBitMask[_off])
+					while (_off < off + len && matchInfo.constBitMask[_off])
 						_off++;
 					size_t constWidth = _off - constStartOff;
 					auto *Ty = IntegerType::get(
@@ -125,7 +124,10 @@ bool HwtFpgaCombinerHelper::matchMuxForConstPropagation(llvm::MachineInstr &MI,
 						MRI.setType(dst, LLT::scalar(_regRecPos.bitCnt));
 						MIB.addDef(dst);
 						MIB.addUse(_regRecPos.reg);
-						assert(_regRecPos.regWidth >= _regRecPos.regOffset + _regRecPos.bitCnt);
+						assert(
+								_regRecPos.regWidth
+										>= _regRecPos.regOffset
+												+ _regRecPos.bitCnt);
 						MIB.addImm(_regRecPos.regWidth);
 						MIB.addImm(_regRecPos.regOffset);
 						MIB.addImm(_regRecPos.bitCnt);
@@ -143,7 +145,9 @@ bool HwtFpgaCombinerHelper::matchMuxForConstPropagation(llvm::MachineInstr &MI,
 		}
 		off += usedBits.second;
 	}
-	assert(off == matchInfo.constBitMask.getBitWidth() && "Produced value has same  number of bits as original MUX");
+	assert(
+			off == matchInfo.constBitMask.getBitWidth()
+					&& "Produced value has same  number of bits as original MUX");
 	Builder.setInstrAndDebugLoc(*afterNewMI);
 	auto res = hwtHls::buildHWTFPGA_MERGE_VALUES(Builder, ResConcatMembers);
 	assert(!res.isUndef && res.c == nullptr && res.reg != 0);
@@ -161,7 +165,8 @@ bool HwtFpgaCombinerHelper::rewriteMuxConstPropagation(llvm::MachineInstr &MI,
 		auto &Ctx = Builder.getMF().getFunction().getContext();
 		ConstantInt *CI = ConstantInt::get(Ctx, matchInfo.constVal);
 		Builder.setInstr(MI);
-		MachineInstrBuilder MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX, {MI.getOperand(0).getReg()}, {});
+		MachineInstrBuilder MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX,
+				{ MI.getOperand(0).getReg() }, { });
 		Observer.changingInstr(*MIB.getInstr());
 		MIB.addCImm(CI);
 		Observer.changedInstr(*MIB.getInstr());
@@ -171,17 +176,18 @@ bool HwtFpgaCombinerHelper::rewriteMuxConstPropagation(llvm::MachineInstr &MI,
 		// The src value will be concatenation of slices (potentially reduced to just 1 register)
 		// Create constant and 1 value MUX which will act as a copy to original dst register.
 		Builder.setInstr(MI);
-		MachineInstrBuilder MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX, {MI.getOperand(0).getReg()}, {});
+		MachineInstrBuilder MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX,
+				{ MI.getOperand(0).getReg() }, { });
 		Observer.changingInstr(*MIB.getInstr());
-		std::vector<std::pair<bool, unsigned>> usedBitsVec = {
-				{0, matchInfo.valDefined.getBitWidth()},
-		};
+		std::vector<std::pair<bool, unsigned>> usedBitsVec = { { 0,
+				matchInfo.valDefined.getBitWidth() }, };
 		auto res = _rewriteMuxConstPropagationExpandReducedBits(*MIB.getInstr(),
 				matchInfo, usedBitsVec);
 		MIB.addUse(res);
 		Observer.changedInstr(*MIB.getInstr());
 
 	} else {
+
 		// construct operands if required (build MERGE_VALUES from parts which do have matchInfo.valDefined set and constBitMask and regBitMask unset)
 		auto keepMask = matchInfo.valDefined & ~matchInfo.constBitMask
 				& ~matchInfo.regBitMask; // 1 in bit means that the value can not be reduced and must be kept in MUX instruction
@@ -201,8 +207,8 @@ bool HwtFpgaCombinerHelper::rewriteMuxConstPropagation(llvm::MachineInstr &MI,
 					if (usedBits.first) {
 						// extract non reduced bits from operand
 						hwtHls::CImmOrRegOrUndefWithWidth m =
-								hwtHls::buildHWTFPGA_EXTRACT(Builder, Observer, ValOp,
-										keepMask.getBitWidth(), off,
+								hwtHls::buildHWTFPGA_EXTRACT(Builder, Observer,
+										ValOp, keepMask.getBitWidth(), off,
 										usedBits.second);
 						OperandValConcatMembers.push_back(m);
 					}
