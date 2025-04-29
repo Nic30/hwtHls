@@ -41,8 +41,8 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 	py::register_local_exception<hwtHls::IntentionalCompilationInterupt>(m, "IntentionalCompilationInterupt", PyExc_RuntimeError);
 
 	py::class_<hwtHls::LlvmCompilationBundle>(m, "LlvmCompilationBundle")
-		.def(py::init<const std::string &>())
-		.def("addLlvmCliArgOccurence", &hwtHls::LlvmCompilationBundle::addLlvmCliArgOccurence)
+		.def(py::init<const std::string &, const std::vector<hwtHls::LlvmCompilationBundle::LlvmCliOptionTuple> &>())
+		.def("getTargetLibraryInfo", &hwtHls::LlvmCompilationBundle::getTargetLibraryInfo)
 		.def("runOpt", [](hwtHls::LlvmCompilationBundle * LCB, py::function & callbackFn, py::object & hls, py::object & toSsa, py::object & netlist) {
 			py::object returnObj;
 			LCB->runOpt([callbackFn, &hls, &toSsa, &netlist, &returnObj](llvm::MachineFunction &MF,
@@ -78,8 +78,12 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 		})
 		.def("registerAfterPassCallbackForIr", [](hwtHls::LlvmCompilationBundle * self, py::function & callbackFn) {
 			self->PIC.registerAfterPassCallback([callbackFn](llvm::StringRef PassName, llvm::Any IR, const llvm::PreservedAnalyses& PA) {
+				try {
 				 callbackFn.operator() <py::return_value_policy::reference, llvm::StringRef&, llvm::Any&>(PassName, IR);
-			 });
+				} catch (py::error_already_set & e) {
+					throw e; // this is usefull if you want to use debuger to break on exception raised in python callback
+				}
+			});
 		})
 		.def("registerAfterPassCallbackForMir", [](hwtHls::LlvmCompilationBundle * self, py::function & callbackFn) {
 			self->PICForLegacyPM.registerAfterPassCallback([callbackFn](llvm::StringRef PassName, llvm::Any IR, const llvm::PreservedAnalyses& PA) {
@@ -104,9 +108,11 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 		.def("_testSlicesToIndependentVariablesPass", &hwtHls::LlvmCompilationBundle::_testSlicesToIndependentVariablesPass, py::return_value_policy::reference_internal)
 		.def("_testSlicesMergePass", &hwtHls::LlvmCompilationBundle::_testSlicesMergePass, py::return_value_policy::reference_internal)
 		.def("_testSelectPruningPass", &hwtHls::LlvmCompilationBundle::_testSelectPruningPass, py::return_value_policy::reference_internal)
+		.def("_testHFloatTmpLoweringPass", &hwtHls::LlvmCompilationBundle::_testHFloatTmpLoweringPass, py::return_value_policy::reference_internal)
 		.def("_testLoopFlattenUsingIfPass", &hwtHls::LlvmCompilationBundle::_testLoopFlattenUsingIfPass, py::return_value_policy::reference_internal)
 		.def("_testLoopRotationNormalizationPass", &hwtHls::LlvmCompilationBundle::_testLoopUnrotatePass, py::return_value_policy::reference_internal)
 		.def("_testBitwidthReductionPass", &hwtHls::LlvmCompilationBundle::_testBitwidthReductionPass, py::return_value_policy::reference_internal)
+		.def("_testHwtHlsInstCombinePass", &hwtHls::LlvmCompilationBundle::_testHwtHlsInstCombinePass, py::return_value_policy::reference_internal)
 		.def("_testRewriteExtractOnMergeValuesPass", &hwtHls::LlvmCompilationBundle::_testRewriteExtractOnMergeValues, py::return_value_policy::reference_internal)
 		.def("_testEarlyIfConverter", &hwtHls::LlvmCompilationBundle::_testEarlyIfConverter, py::return_value_policy::reference_internal)
 		.def("_testVRegIfConverter", &hwtHls::LlvmCompilationBundle::_testVRegIfConverter, py::return_value_policy::reference_internal)
