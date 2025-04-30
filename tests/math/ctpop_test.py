@@ -1,10 +1,13 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from hwt.simulator.simTestCase import SimTestCase
+from hwtHls.architecture.componentGenerators.ctpop import Ctpop
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.utils import freq_to_period
-from tests.math.popcount import Popcount
 
 
-class Popcount_TC(SimTestCase):
+class Ctpop_TC(SimTestCase):
 
     def tearDown(self):
         self.rmSim()
@@ -14,7 +17,7 @@ class Popcount_TC(SimTestCase):
         self.test_CountOnes(FREQ=FREQ, DBG_ROM_IN_PYLIST=True)
 
     def test_CountOnes(self, FREQ=100e6, DATA_WIDTH=8, BITS_TO_LOOKUP_IN_ROM=4, DBG_ROM_IN_PYLIST=False):
-        dut = Popcount()
+        dut = Ctpop()
         dut.FREQ = int(FREQ)
         dut.DATA_WIDTH = DATA_WIDTH
         dut.BITS_TO_LOOKUP_IN_ROM = BITS_TO_LOOKUP_IN_ROM
@@ -34,11 +37,11 @@ class Popcount_TC(SimTestCase):
 if __name__ == '__main__':
     import sys
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle
 
     sys.setrecursionlimit(int(1e6))
 
-    m = Popcount()
+    m = Ctpop()
     m.FREQ = int(100e6)
     m.DATA_WIDTH = 8
     m.BITS_TO_LOOKUP_IN_ROM = 4
@@ -51,7 +54,7 @@ if __name__ == '__main__':
 
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([Popcount_TC("test_CountOnes_pyListRom")])
-    suite = testLoader.loadTestsFromTestCase(Popcount_TC)
+    # suite = unittest.TestSuite([Ctpop_TC("test_CountOnes_pyListRom")])
+    suite = testLoader.loadTestsFromTestCase(Ctpop_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     sys.exit(not runner.run(suite).wasSuccessful())

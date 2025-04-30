@@ -2,39 +2,38 @@ from enum import Enum
 import math
 from typing import Union, List, Optional
 
+from hwt.constants import WRITE, READ
+from hwt.hdl.const import HConst
 from hwt.hdl.operatorDefs import HwtOps
-from hwt.pyUtils.typingFuture import override
-from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
-from hwtHls.netlist.nodes.memoryAllocationMeta import HlsNetNodeReadMemoryAllocation, \
-    HlsNetNodeWriteMemoryAllocation, MemoryAllocationMeta
-from hwtHls.netlist.nodes.read import HlsNetNodeRead
-from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.scheduler.clk_math import epsilon
-from hwtHls.platform.componentGenerator import ComponentGenerator
-from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hwModule import HwModule
 from hwt.mainBases import RtlSignalBase
-from hwtLib.mem.ram import RamSingleClock
-from hwtHls.netlist.nodes.readIndexed import HlsNetNodeReadIndexed
-from hwtHls.netlist.nodes.writeIndexed import HlsNetNodeWriteIndexed
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut
-from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
-from hwtLib.mem.ramXor import RamXorSingleClock
-from hwt.constants import WRITE, READ
 from hwt.math import log2ceil
-from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
-from hwtHls.netlist.context import HlsNetlistCtx
+from hwt.pyUtils.typingFuture import override
+from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF,\
+    ResourceRAM
+from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.io.bram import HlsNetNodeWriteBramCmd
-from itertools import chain
+from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
+from hwtHls.netlist.nodes.memoryAllocationMeta import  MemoryAllocationMeta
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut
+from hwtHls.netlist.scheduler.clk_math import epsilon
+from hwtHls.architecture.componentGenerator import ComponentGenerator
+from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
+from hwtLib.mem.ram import RamSingleClock
+from hwtLib.mem.ramXor import RamXorSingleClock
+from hwtHls.netlist.nodes.memoryAllocationMetaNode import HlsNetNodeReadMemoryAllocationReadData, \
+    HlsNetNodeWriteMemoryAllocationCmd
 
 
 class ComponentGeneratorMemoryAllocationImplementationType(Enum):
+    DISTMEM_INLINED = "DISTMEM_INLINED" # inlined as an array in HDL
     DISTMEM = "DISTMEM"
-    DISTMEM_LVT = "DISTMEM_LVT"
+    DISTMEM_LVT = "DISTMEM_LVT" # distmem with Live Value Table (type of multi write port memory)
     BRAM = "BRAM"
-    BRAM_XOR = "BRAM_XOR"
+    BRAM_XOR = "BRAM_XOR" # Bram with XOR implementation of multi write port memory
 
 
 class ComponentGeneratorMemoryMeta():
@@ -51,6 +50,10 @@ class ComponentGeneratorMemoryMeta():
         self.rtlInstance: Optional[HwModule] = None
 
 
+MEM_ALOCATION_NODE = Union[HlsNetNodeReadMemoryAllocationReadData,
+                                                  HlsNetNodeWriteMemoryAllocationCmd]
+
+
 class ComponentGeneratorMemory(ComponentGenerator):
     """
     This provides scheduling info for memories which were requested from HLS side
@@ -60,23 +63,24 @@ class ComponentGeneratorMemory(ComponentGenerator):
     """
 
     @override
-    def resolveRealizationOfNode(self, node:Union[HlsNetNodeReadMemoryAllocation,
-                                                  HlsNetNodeWriteMemoryAllocation]):
+    def resolveRealizationOfNode(self, node:HlsNetNodeWriteMemoryAllocationCmd):
         platform:"VirtualHlsPlatform" = self.platform
         rPortCnt = 0
         wPortCnt = 0
-        isRead = isinstance(node, HlsNetNodeRead)
-        mem: MemoryAllocationMeta = node.src if isRead else node.dst
+        isRead = node.cmd is READ
+        mem: MemoryAllocationMeta = node.dst
         for ioNode in mem.users:
-            if isinstance(ioNode, HlsNetNodeRead):
+            assert isinstance(ioNode, HlsNetNodeWriteMemoryAllocationCmd), ioNode
+            ioNode: HlsNetNodeWriteMemoryAllocationCmd
+            if ioNode.cmd is READ:
                 rPortCnt += 1
             else:
-                assert isinstance(ioNode, HlsNetNodeWrite), ioNode
+                assert ioNode.cmd is WRITE, ioNode
                 wPortCnt += 1
 
         # https://docs.amd.com/v/u/en-US/ug474_7Series_CLB
         lutInputBits = platform.get_lut_inputs_max()
-        assert rPortCnt > 0, node
+        assert rPortCnt > 0, ("local memories which are never read should have already been removed", node)
         items = mem.dtype.size
         smallestBram = platform._BRAM_GEOMETRIES[0][0]
         largestBram = platform._BRAM_GEOMETRIES[-1][0]
@@ -94,9 +98,10 @@ class ComponentGeneratorMemory(ComponentGenerator):
         if not isinstance(lutDelay, (int, float)):
             lutDelay = lutDelay[0]
         assert lutDelay > 0
-        bramDelay = netlist.platform.get_op_realization(ResourceFF, None, 1, 1, realTimeClkPeriod).inputWireDelay * 2
+        bramDelay = netlist.platform.get_op_realization(ResourceRAM, None, 1, 1, realTimeClkPeriod)
+        ffDelay = netlist.platform.get_op_realization(ResourceFF, None, 1, 1, realTimeClkPeriod)
 
-        inputWireDelay = 0
+        inputWireDelay = ffDelay.inputWireDelay
         outputWireDelay = 0
         rLatency = 0
 
@@ -108,11 +113,12 @@ class ComponentGeneratorMemory(ComponentGenerator):
             if items < smallestBram // 2:
                 # use distmem (LUT)
                 depthOfLutTree = math.ceil(math.log(items, itemsPerLUT))
-                if wPortCnt <= 1:
+                if wPortCnt == 1:
                     impl = ComponentGeneratorMemoryAllocationImplementationType.DISTMEM
                     inputWireDelay = depthOfLutTree * lutDelay
 
                 else:
+                    assert wPortCnt > 1, wPortCnt
                     # use LVT (Live Value Table Multi-Port RAM), add delay of output mux and register array
                     impl = ComponentGeneratorMemoryAllocationImplementationType.DISTMEM_LVT
                     liveArrayDelay = platform.get_op_realization(HwtOps.TERNARY, None, 1, items, realTimeClkPeriod)
@@ -121,17 +127,17 @@ class ComponentGeneratorMemory(ComponentGenerator):
             else:
                 # implement using bram
                 # :see: :class:`hwtLib.mem.ramXor.RamXorSingleClock`
+                inputWireDelay = bramDelay.inputWireDelay
                 if wPortCnt <= 1:
                     # native true dualport ram
                     impl = ComponentGeneratorMemoryAllocationImplementationType.BRAM
                     rLatency = 1
-                    inputWireDelay = bramDelay
-                    outputWireDelay = epsilon
+                    outputWireDelay = bramDelay.outputWireDelay + epsilon
                 else:
                     # XOR memory
                     impl = ComponentGeneratorMemoryAllocationImplementationType.BRAM_XOR
                     rLatency = wPortCnt - 1
-                    outputWireDelay = lutDelay  # final XOR
+                    outputWireDelay = bramDelay.outputWireDelay + lutDelay  # final XOR
         else:
             # ROM
             assert isRead, node
@@ -140,27 +146,29 @@ class ComponentGeneratorMemory(ComponentGenerator):
             if items < smallestBram // 2:
                 # implement using distmem
                 depthOfLutTree = math.ceil(math.log(items, itemsPerLUT))
-                impl = ComponentGeneratorMemoryAllocationImplementationType.DISTMEM
+                impl = ComponentGeneratorMemoryAllocationImplementationType.DISTMEM_INLINED
 
             else:
                 # implement using bram
-                inputWireDelay = bramDelay,
+                inputWireDelay = bramDelay.inputWireDelay
                 rLatency = 1
-                outputWireDelay = epsilon
+                outputWireDelay = bramDelay.outputWireDelay + epsilon
                 impl = ComponentGeneratorMemoryAllocationImplementationType.BRAM
                 if items > largestBram:
                     bramGroups = math.ceil(items / largestBram)
-                    outputWireDelay += platform.get_op_realization(HwtOps.TERNARY, None, 1, bramGroups, realTimeClkPeriod)
+                    # [todo] there are column connections which can have lower delay
+                    outputWireDelay += platform.get_op_realization(HwtOps.TERNARY, None, 1, bramGroups, realTimeClkPeriod).inputWireDelay
+            
 
         mem.dataOfComponentGenerator = ComponentGeneratorMemoryMeta(impl, rPortCnt, wPortCnt)
 
         # assign realization to all users of this memory
         rRealization = None
         wRealization = None
+        meta:ComponentGeneratorMemoryMeta = mem.dataOfComponentGenerator  
         for memUser in mem.users:
-            memUser:Union[HlsNetNodeReadMemoryAllocation,
-                          HlsNetNodeWriteMemoryAllocation]
-            if isinstance(memUser, HlsNetNodeRead):
+            memUser:MEM_ALOCATION_NODE
+            if memUser.cmd == READ:
                 if rRealization is None:
                     rRealization = OpRealizationMeta(
                         inputWireDelay=inputWireDelay,
@@ -169,6 +177,8 @@ class ComponentGeneratorMemory(ComponentGenerator):
                         outputClkTickOffset=(rLatency, *(0 for _ in range(len(memUser._outputs) - 1)))
                     )
                 memUser.assignRealization(rRealization)
+                if impl == ComponentGeneratorMemoryAllocationImplementationType.DISTMEM_INLINED:
+                    memUser._rtlUseValid = False # do not use "bramport.en" for inlined ROMs
             else:
                 if wRealization is None:
                     wRealization = OpRealizationMeta(
@@ -178,21 +188,21 @@ class ComponentGeneratorMemory(ComponentGenerator):
                         outputClkTickOffset=0
                     )
                 memUser.assignRealization(wRealization)
-
+              
     @override
     def rtlAllocOfNode(self, allocator: "ArchElement",
-                       node: Union[HlsNetNodeReadMemoryAllocation,
-                                   HlsNetNodeWriteMemoryAllocation]) -> Union[TimeIndependentRtlResource, List[HdlStatement]]:
-        isRead = isinstance(node, HlsNetNodeRead)
-        mem = node.src if isRead else node.dst
-        mem: MemoryAllocationMeta
+                       node: MEM_ALOCATION_NODE) -> Union[TimeIndependentRtlResource, List[HdlStatement]]:
+        isRead = node.cmd is READ
+        mem: MemoryAllocationMeta = node.dst
         meta:ComponentGeneratorMemoryMeta = mem.dataOfComponentGenerator
         netlist: HlsNetlistCtx = node.netlist
         if meta.rtlInstance is None and meta.rtlMemSignal is None:
             # the memory is not allocated yet
-            if meta.writePortCnt == 0 and all(t == 0  for t in chain(node.inputClkTickOffset, node.outputClkTickOffset)):
+            if meta.implementation == ComponentGeneratorMemoryAllocationImplementationType.DISTMEM_INLINED:
                 # inline this memory as a constant signal
                 assert mem.initValue is not None, mem
+                assert not node._rtlUseValid, node
+                assert not node._rtlUseReady, node
                 s = allocator._sig(mem.name, mem.dtype, def_val=mem.initValue)
                 s._const = True
                 meta.rtlMemSignal = s
@@ -210,10 +220,13 @@ class ComponentGeneratorMemory(ComponentGenerator):
                     memInst = RamXorSingleClock()
                 else:
                     raise NotImplementedError(meta.implementation)
-                memInst.PORT_CNT = tuple(READ if isinstance(u, HlsNetNodeRead) else WRITE for u in mem.users)
+                memInst.PORT_CNT = tuple(u.cmd for u in mem.users)
                 memInst.ADDR_WIDTH = log2ceil(mem.dtype.size)
                 memInst.DATA_WIDTH = mem.dtype.element_t.bit_length()
-                memInst.INIT_DATA = tuple(mem.initValue)
+                init = mem.initValue
+                memInst.INIT_DATA = None if init is None else\
+                                    init if isinstance(init, HConst) else\
+                                    tuple(init)
                 compBuilder = AbstractComponentBuilder(netlist.parentHwModule, None, netlist.namePrefix)
                 name = compBuilder._findSuitableName(mem.name, firstWithoutCntrSuffix=True)
                 setattr(netlist.parentHwModule, name, memInst)
@@ -246,7 +259,13 @@ class ComponentGeneratorMemory(ComponentGenerator):
             _addr = allocator.rtlAllocHlsNetNodeOutInTime(addr, node.scheduledIn[addrInPort.in_i])
             # [todo] llvm MIR lefts bits which are sliced out
             ADDR_WIDTH = log2ceil(mem.dtype.size)
-            dataRtl = meta.rtlMemSignal[_addr.data[ADDR_WIDTH:]]
+            addSig = _addr.data
+            curentAddrWidth = addSig._dtype.bit_length()
+            if curentAddrWidth != ADDR_WIDTH:
+                assert curentAddrWidth > 1
+                addSig = _addr.data[ADDR_WIDTH:]
+                
+            dataRtl = meta.rtlMemSignal[addSig]
 
             _data = allocator.rtlRegisterOutputRtlSignal(r_out, dataRtl, False, False, False)
             return _data

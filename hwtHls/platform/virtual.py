@@ -5,22 +5,27 @@ from typing import Dict, Optional, Union, Set, List
 
 from hwt.hdl.operator import HOperatorNode
 from hwt.hdl.operatorDefs import HwtOps, HOperatorDef
-from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
+from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF, \
+    ResourceRAM
+from hwtHls.architecture.componentGenerators.countBits import ComponentGeneratorBitcount, \
+    CountTrailingZeros, CountLeadingZeros
+from hwtHls.architecture.componentGenerators.ctpop import Ctpop
+from hwtHls.architecture.componentGenerators.fsh import ComponentGeneratorFshl, \
+    ComponentGeneratorFshr
+from hwtHls.architecture.componentGenerators.ext import ComponentGeneratorZExt, ComponentGeneratorSExt
 from hwtHls.code import OP_ASHR, OP_SHL, OP_LSHR, OP_CTLZ, OP_CTPOP, OP_CTTZ, \
     OP_BITREVERSE, OP_FSHR, OP_FSHL, OP_ROL, OP_ROR
 from hwtHls.llvm.llvmIr import HFloatTmpConfig
-from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwtHls.platform.platform import DefaultHlsPlatform, DebugId, HlsDebugBundle, \
-    LlvmCliArgTuple
 from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
-from hwtHls.platform.componentGeneratorMemory import ComponentGeneratorMemory
+from hwtHls.architecture.componentGenerators.componentGeneratorMemory import ComponentGeneratorMemory
+from hwtHls.platform.debugBundleTypes import LlvmCliArgTuple
+from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+from hwtHls.platform.platform import DefaultHlsPlatform, DebugId, HlsDebugBundle
+
 
 _OPS_T_GROWING_EXP = {
-    HwtOps.UDIV,
-    HwtOps.SDIV,
     HwtOps.POW,
     HwtOps.MUL,
-    HwtOps.MOD,
 }
 
 _OPS_T_GROWING_LIN = {
@@ -46,9 +51,6 @@ _OPS_T_GROWING_LOG = {
     OP_ROR,
     OP_FSHL,
     OP_FSHR,
-    OP_CTLZ,
-    OP_CTTZ,
-    OP_CTPOP,
 }
 
 _OPS_T_ZERO_LATENCY = {
@@ -155,6 +157,20 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
         #    (8192, 2),
         #    (16384, 1),
         # ]
+
+        self._installComponentGenerators()
+
+    def _installComponentGenerators(self):
+        genNamePrefix = "gen_"
+        _componentGenerators = self._componentGenerators
+        _componentGenerators[MemoryAllocationMeta] = ComponentGeneratorMemory(self)
+        _componentGenerators[HwtOps.ZEXT] = ComponentGeneratorZExt(self)
+        _componentGenerators[HwtOps.SEXT] = ComponentGeneratorSExt(self)
+        _componentGenerators[OP_CTLZ] = ComponentGeneratorBitcount(self, CountLeadingZeros, genNamePrefix, "ctlz")
+        _componentGenerators[OP_CTTZ] = ComponentGeneratorBitcount(self, CountTrailingZeros, genNamePrefix, "cttz")
+        _componentGenerators[OP_CTPOP] = ComponentGeneratorBitcount(self, Ctpop, genNamePrefix, "ctpop")
+        _componentGenerators[OP_FSHL] = ComponentGeneratorFshl(self)
+        _componentGenerators[OP_FSHR] = ComponentGeneratorFshr(self)
 
     @lru_cache()
     def get_op_realization(self, op: HOperatorDef, opSpecialization: Optional[HFloatTmpConfig], bit_width: int,

@@ -17,7 +17,7 @@ from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.platform.componentGenerator import HlsErrorHighlyInefficientImplementation
+from hwtHls.architecture.componentGenerator import HlsErrorHighlyInefficientImplementation
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.scope import HlsScope
 
