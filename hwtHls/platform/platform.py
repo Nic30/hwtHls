@@ -109,9 +109,6 @@ class DefaultHlsPlatform(DummyPlatform):
         :param netlist: netlist object where translated netlist nodes should be placed
         """
         assert isinstance(toLlvm, ToLlvmIrTranslator), toLlvm
-        for (optionName, position, argName, argValue) in hls.parentHwModule._target_platform._llvmCliArgs:
-            toLlvm.llvm.addLlvmCliArgOccurence(optionName, position, argName, argValue)
-
         toLlvm.llvm.runOpt(self.runMirToHlsNetlist, hls, toLlvm, netlist)
 
     def runMirToHlsNetlist(self,
