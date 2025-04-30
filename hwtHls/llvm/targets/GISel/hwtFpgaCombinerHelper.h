@@ -114,9 +114,8 @@ public:
 	 * */
 	bool collectConcatMembers(llvm::MachineOperand &MIOp,
 			std::vector<ConcatMember> &members, uint64_t mainOffset,
-			uint64_t mainWidth, uint64_t &mainOffsetCurrent, uint64_t miResOffset,
-			uint64_t miResWidths);
-
+			uint64_t mainWidth, uint64_t &mainOffsetCurrent,
+			uint64_t miResOffset, uint64_t miResWidths);
 	void convertG_SELECT_to_HWTFPGA_MUX(llvm::MachineInstr &MI);
 	void convertPHI_to_HWTFPGA_MUX(llvm::MachineInstr &MI);
 	bool hasSomeConstConditions(llvm::MachineInstr &MI);
@@ -142,9 +141,12 @@ public:
 			llvm::SmallVector<bool> &requiresAndWithParentCond);
 	void rewriteNestedMuxToMux(llvm::MachineInstr &MI,
 			const llvm::SmallVector<bool> &requiresAndWithParentCond);
-	bool matchMuxDuplicitCaseReduce(llvm::MachineInstr &MI, llvm::SmallVector<unsigned> & duplicitCaseConditions);
-	bool matchMuxRedundantCase(llvm::MachineInstr &MI, llvm::SmallVector<unsigned> &caseConditionsToRm);
-	void rewriteMuxRmCases(llvm::MachineInstr &MI, const llvm::SmallVector<unsigned> & caseConditionsToRm);
+	bool matchMuxDuplicitCaseReduce(llvm::MachineInstr &MI,
+			llvm::SmallVector<unsigned> &duplicitCaseConditions);
+	bool matchMuxRedundantCase(llvm::MachineInstr &MI,
+			llvm::SmallVector<unsigned> &caseConditionsToRm);
+	void rewriteMuxRmCases(llvm::MachineInstr &MI,
+			const llvm::SmallVector<unsigned> &caseConditionsToRm);
 
 	bool hasAll1AndAll0Values(llvm::MachineInstr &MI,
 			hwtHls::CImmOrRegWithNegFlag &matchinfo);
@@ -176,7 +178,7 @@ public:
 	bool matchTrivialInstrDuplication(llvm::MachineInstr &MI);
 	void rewriteTrivialInstrDuplication(llvm::MachineInstr &MI);
 
-	bool matchAndOrSequenceReduce(llvm::MachineInstr &MI, bool& removeRightOp);
+	bool matchAndOrSequenceReduce(llvm::MachineInstr &MI, bool &removeRightOp);
 	void rewriteAndOrSequenceReduce(llvm::MachineInstr &MI, bool removeRightOp);
 
 	void rewriteConstShift(llvm::MachineInstr &MI);
