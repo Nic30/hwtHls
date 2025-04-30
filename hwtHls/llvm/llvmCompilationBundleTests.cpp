@@ -229,7 +229,7 @@ public:
 			llvm::FunctionAnalysisManager &AM) {
 		TargetLibraryInfo *TLI = &AM.getResult<TargetLibraryAnalysis>(F);
 		bool Changed = false;
-		DceWorklist dce(TLI, nullptr);
+		DceWorklist dce(TLI);
 		IRBuilder<> Builder(&*F.begin()->begin());
 		for (BasicBlock &BB : F) {
 			for (auto I = BB.begin(); I != BB.end();) {
