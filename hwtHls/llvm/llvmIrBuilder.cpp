@@ -87,6 +87,10 @@ void register_IRBuilder(pybind11::module_ & m) {
 				COMMON_BIN_OP_ARGS, py::return_value_policy::reference)
 		.def("CreateMul", &llvm::IRBuilder<>::CreateMul,
 				COMMON_BIN_OP_ARGS, py::return_value_policy::reference)
+		.def("CreateURem", &llvm::IRBuilder<>::CreateURem,
+				COMMON_BIN_OP_ARGS_SHORT, py::return_value_policy::reference)
+		.def("CreateSRem", &llvm::IRBuilder<>::CreateSRem,
+				COMMON_BIN_OP_ARGS_SHORT, py::return_value_policy::reference)
 		.def("CreateUDiv", &llvm::IRBuilder<>::CreateUDiv,
 				COMMON_BIN_OP_ARGS_WITH_ISEXACT, py::return_value_policy::reference)
 		.def("CreateSDiv", &llvm::IRBuilder<>::CreateSDiv,
