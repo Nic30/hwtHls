@@ -78,35 +78,40 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
             for n in ioNodesInUser:
                 if isRead:
                     assert isinstance(n, HlsNetNodeRead), (n, "Ports should be divided to reads/writes in advance")
-                    if n._rtlUseReady and n._rtlUseValid:
-                        n: HlsNetNodeRead
-                        n.src = None
-                        assert n.associatedWrite is None
-                        inArbiterW = HlsNetNodeWrite(netlist, None, mayBecomeFlushable=False)
-                        inArbiterW.associateRead(n)
-                        inArbiterW.allocationType = CHANNEL_ALLOCATION_TYPE.IMMEDIATE
-                        inArbiterW.setNonBlocking()
-                    else:
-                        raise NotImplementedError(n)
+                    #if n._rtlUseReady and n._rtlUseValid:
+                    n: HlsNetNodeRead
+                    n.src = None
+                    assert n.associatedWrite is None
+                    inArbiterW = HlsNetNodeWrite(netlist, None, mayBecomeFlushable=False)
+                    inArbiterW._rtlUseReady = n._rtlUseReady
+                    inArbiterW._rtlUseValid = n._rtlUseValid
+                    inArbiterW.associateRead(n)
+                    inArbiterW.allocationType = CHANNEL_ALLOCATION_TYPE.IMMEDIATE
+                    inArbiterW.setNonBlocking()
+                    #else:
+                    #    raise NotImplementedError(n)
 
                     nodesForArbitration.append(inArbiterW)
 
                 else:
                     assert isinstance(n, HlsNetNodeWrite)
                     t = n.dependsOn[n._portSrc.in_i]._dtype
-                    if n._rtlUseReady and n._rtlUseValid:
-                        n: HlsNetNodeRead
-                        n.dst = None
-                        assert n.associatedRead is None
-                        inArbiterR = HlsNetNodeRead(netlist, None, t)
-                        n.associateRead(inArbiterR)
-                        n.allocationType = CHANNEL_ALLOCATION_TYPE.IMMEDIATE
-                        n._mayBecomeFlushable = False
-                        inArbiterR.setNonBlocking()
-                    else:
-                        # IO does not have control signals necessary for stalling of producer
-                        # ArchElements
-                        raise NotImplementedError(n)
+                    #if n._rtlUseReady and n._rtlUseValid:
+                    n: HlsNetNodeRead
+                    n.dst = None
+                    assert n.associatedRead is None
+                    inArbiterR = HlsNetNodeRead(netlist, None, t)
+                    inArbiterR._rtlUseReady = n._rtlUseReady
+                    inArbiterR._rtlUseValid = n._rtlUseValid
+                    n.associateRead(inArbiterR)
+                    n.allocationType = CHANNEL_ALLOCATION_TYPE.IMMEDIATE
+                    n._mayBecomeFlushable = False
+                    
+                    inArbiterR.setNonBlocking()
+                    #else:
+                    #    # IO does not have control signals necessary for stalling of producer
+                    #    # ArchElements
+                    #    raise NotImplementedError(n)
 
                     nodesForArbitration.append(inArbiterR)
 
@@ -123,8 +128,19 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
         builder: HlsNetlistBuilder = arbiterElm.builder
         hasWData = wDataType is not None and not HdlType_isNonData(wDataType)
         hasRData = rDataType is not None and not HdlType_isNonData(rDataType)
+        isReadWithoutReady = False # receiver can not be resolved
+        if isRead:
+            assert not hasWData, (ioPort, ioNodes)
+            if not nodesForArbitration[0]._rtlUseReady:
+                # in this case there is no signal which marks which receiver
+                # will process the data, but we can pass it to all
+                isReadWithoutReady = True
+            
+        # add control to io nodes in arbiter which connect to arbitrated ports
         for isLast, n in iter_with_last(nodesForArbitration):
-            if isRead:
+            if isReadWithoutReady:
+                req = None
+            elif isRead:
                 # :note the original port was read
                 assert isinstance(n, HlsNetNodeWrite), n
                 req = n.getReadyNB()  # user signalizes the request for read
@@ -134,6 +150,7 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
                 req = n.getValidNB()  # user signalizes the request for write
 
             if hasWData:
+                assert not isReadWithoutReady
                 wDataMuxCases.append(n._portDataOut)
                 if not isLast:
                     wDataMuxCases.append(req)
@@ -141,8 +158,9 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
             n.assignRealization(OpRealizationMeta(mayBeInFFStoreTime=True))
             n._setScheduleZeroTimeSingleClock(0)
             arbiterElm._addNodeIntoScheduled(0, n, allowNewClockWindow=True)
-
-            if anyPrevEnabled is None:
+            if isReadWithoutReady:
+                pass
+            elif anyPrevEnabled is None:
                 assert not isLast
                 anyPrevEnabled = req
             else:
@@ -150,6 +168,7 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
                 n.addControlSerialSkipWhen(anyPrevEnabled, addDefaultScheduling=True)
                 anyPrevEnabled = builder.buildOr(anyPrevEnabled, req)
 
+        # construct an io node which connect to io port in arbiter
         if isRead:
             newIoNode = HlsNetNodeRead(netlist, ioPort)
         else:
@@ -158,7 +177,8 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
         newIoNode.assignRealization(OpRealizationMeta(mayBeInFFStoreTime=True))
         newIoNode._setScheduleZeroTimeSingleClock(0)
         arbiterElm._addNodeIntoScheduled(0, newIoNode)
-        newIoNode.addControlSerialExtraCond(anyPrevEnabled, addDefaultScheduling=True)
+        if not isReadWithoutReady:
+            newIoNode.addControlSerialExtraCond(anyPrevEnabled, addDefaultScheduling=True)
         if hasWData:
             wData: HlsNetNodeOut = builder.buildMux(wDataType, tuple(wDataMuxCases))
             wData.connectHlsIn(newIoNode._portSrc)
@@ -242,7 +262,7 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
                     self._privatizePortToIo(elm, ioNode, port, ioDiscovery, portOwner)
             else:
                 if len(userSyncNodes) != 1:
-                    arbiterElm = ArchElementPipeline(netlist, f"arbiter_{io._name}", netlist.namePrefix)
+                    arbiterElm = ArchElementPipeline(netlist, f"arbiter_{io._name:s}", netlist.namePrefix)
                     arbiterElm.resolveRealization()
                     arbiterElm._setScheduleZeroTimeSingleClock(0)
                     netlist.addNode(arbiterElm)
