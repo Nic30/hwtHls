@@ -47,7 +47,7 @@ def runCompilation(args):
     from hwt.hwModule import HwModule
     from hwt.synth import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Medium
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle
 
     moduleName = "test"
     spec = importlib.util.spec_from_file_location(moduleName, args.filename)
