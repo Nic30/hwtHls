@@ -1,94 +1,77 @@
-from typing import Union, Tuple
+from typing import Union, Optional
 
 from hwt.code import Concat
-from hwt.hdl.commonConstants import b1, b0
 from hwt.hdl.const import HConst
 from hwt.hdl.operator import HOperatorNode
 from hwt.hdl.types.bits import HBits
-from hwt.mainBases import RtlSignalBase
+from hwt.hdl.types.struct import HStruct
+from hwt.mainBases import RtlSignalBase, HwIOBase
 from hwt.synthesizer.rtlLevel.exceptions import SignalDriverErr
-from hwtHls.llvm.llvmIr import IRBuilder, Value, Twine, ValueToConstantInt
+from hwtHls.llvm.llvmIr import IRBuilder, Value, Twine, HFloatTmpConfig, LlvmCompilationBundle
 from hwtHls.ssa.translation.toLlvm import HOperatorDefLlvm
-from hwtLib.types.ctypes import uint8_t
-from tests.math.fixp.fixedpoint import HFixedPointQ
+from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.math.fp.fptypes import IEEE754Fp
-from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
+from tests.math.hFloatTmp.hFloatTmp import HFloatTmp, HFloatTmpConfigHdlType, \
+    _HFloatTmpConfigHdlTypeConst
 
 
 def _extractHFloatTmpParamsFromFriendType(t: Union[IEEE754Fp, HFixedPointQ, HBits]):
-
-    if isinstance(t, IEEE754Fp):
-        isInQFromat = b0
-        supportSubnormal = b1
-        hasSign = True
-        exponentWidth = uint8_t.from_py(t.EXPONENT_WIDTH)
-        mantissaWidth = uint8_t.from_py(t.MANTISSA_WIDTH)
-    elif isinstance(t, HFixedPointQ):
-        isInQFromat = b1
-        supportSubnormal = b0
-        hasSign = t.signed
-        exponentWidth = t.int_bit_length
-        mantissaWidth = t.frac_bit_length
+    if isinstance(t, (IEEE754Fp, HFixedPointQ)):
+        return t._cfg
     elif isinstance(t, HBits):
-        isInQFromat = b1
-        supportSubnormal = b0
-        hasSign = t.signed
+        isInQFormat = False
+        supportSubnormal = False
+        hasSign = bool(t.signed)
         exponentWidth = t.bit_length()
         mantissaWidth = 0
     else:
         raise TypeError(t)
-    hasSign = b1 if hasSign else b0
-    exponentWidth = uint8_t.from_py(exponentWidth)
-    mantissaWidth = uint8_t.from_py(mantissaWidth)
 
-    return hasSign, isInQFromat, supportSubnormal, exponentWidth, mantissaWidth
+    return HFloatTmpConfig(isInQFormat, exponentWidth, mantissaWidth, supportSubnormal, hasSign)
+
 
 # see "denormal-fp-math"
 def castToHFloatTmp(op: RtlSignalBase[Union[IEEE754Fp, HFixedPointQ, HBits]], *args):
     assert not args, "This is mean to be used as a separator in expressions and it is not meant to be evaluated."
     t = op._dtype
-    hasIsNaN = b0
-    hasIsInf = b0
-    hasIs1 = b0
-    hasIs0 = b0
-
-    hasSign, isInQFromat, supportSubnormal, exponentWidth, mantissaWidth = _extractHFloatTmpParamsFromFriendType(t)
+    cfg = _extractHFloatTmpParamsFromFriendType(t)
+    cfg = HFloatTmpConfigHdlType.from_py(cfg)
     if isinstance(op, RtlSignalBase):
+        if isinstance(op, HConst):
+            if isinstance(t, HFixedPointQ):
+                return HFloatTmp.from_py(float(op))
+            elif isinstance(t, HBits):
+                return HFloatTmp.from_py(float(int(op)))
+
         try:
             d = op.singleDriver()
         except SignalDriverErr:
             d = None
         if d is not None and isinstance(d, HOperatorNode) and\
             d.operator == OP_CAST_FROM_HFLOATTMP and \
-            d.operands[1:] == (exponentWidth, mantissaWidth,
-                               isInQFromat, supportSubnormal, hasSign,
-                               hasIsNaN, hasIsInf, hasIs1, hasIs0):
+            d.operands[1:] == (cfg,):
             # try reduce useless cast from, to HFloatTmp
             return d.operands[0]
 
     if isinstance(t, IEEE754Fp):
+        if isinstance(op, HConst):
+            return HFloatTmp.from_py(float(op))
+
         tmp = Concat(op.sign, op.exponent, op.mantissa)
+    elif isinstance(op, HwIOBase):
+        tmp = op._sig
     else:
         tmp = op
 
-    return HOperatorNode.withRes(OP_CAST_TO_HFLOATTMP, (
-        tmp, exponentWidth, mantissaWidth,
-        isInQFromat, supportSubnormal, hasSign, hasIsNaN, hasIsInf, hasIs1, hasIs0),
-        HFloatTmp)
+    assert isinstance(tmp, (RtlSignalBase, HConst)), tmp
+    return HOperatorNode.withRes(OP_CAST_TO_HFLOATTMP,
+                                 (tmp, cfg),
+                                 HFloatTmp)
 
 
-def _llvmCastToHFloatTmp(b:IRBuilder, instr: HOperatorNode, srcArg: Value, *ops:Tuple[Union[Value, Twine], ...]) -> Value:
+def _llvmCastToHFloatTmp(ctx: LlvmCompilationBundle, b:IRBuilder, instr: HOperatorNode, srcArg: Value, cfg:HFloatTmpConfig, name:Twine) -> Value:
     assert srcArg.getType().isIntegerTy(), (srcArg, srcArg.getType())
-    if isinstance(ops[-1], Twine):
-        name: Twine = ops[-1]
-        ops = ops[:-1]
-    else:
-        name = None
-    ops = (int(ValueToConstantInt(o).getValue().getZExtValue()) for o in ops)
-    if name:
-        return b.CreateCastToHFloatTmp(srcArg, *ops, name)
-    else:
-        return b.CreateCastToHFloatTmp(srcArg, *ops)
+    return b.CreateCastToHFloatTmp(srcArg, cfg, name)
 
 
 OP_CAST_TO_HFLOATTMP = HOperatorDefLlvm(castToHFloatTmp, _llvmCastToHFloatTmp, False, idStr="OP_CAST_TO_HFLOATTMP")
@@ -97,30 +80,47 @@ OP_CAST_TO_HFLOATTMP = HOperatorDefLlvm(castToHFloatTmp, _llvmCastToHFloatTmp, F
 def castFromHFloatTmp(op: RtlSignalBase[Union[IEEE754Fp, HFixedPointQ, HBits]], t: Union[IEEE754Fp, HFixedPointQ, HBits]) \
         ->Union[RtlSignalBase[HFloatTmp], HConst[HFloatTmp]]:
     assert op._dtype == HFloatTmp, (op, op._dtype)
-    hasSign, isInQFromat, supportSubnormal, exponentWidth, mantissaWidth = _extractHFloatTmpParamsFromFriendType(t)
+    cfg = _extractHFloatTmpParamsFromFriendType(t)
+    cfg = HFloatTmpConfigHdlType.from_py(cfg)
+    if isinstance(op, HConst):
+        return t.from_py(float(op) if op._is_full_valid() else None)
 
-    hasIsNaN = b0
-    hasIsInf = b0
-    hasIs1 = b0
-    hasIs0 = b0
+    elif isinstance(t, HStruct):
+        res = HOperatorNode.withRes(OP_CAST_FROM_HFLOATTMP, (
+            op, cfg), HBits(t.bit_length()))
+        return res._reinterpret_cast(t)
 
-    return HOperatorNode.withRes(OP_CAST_FROM_HFLOATTMP, (
-        op, exponentWidth, mantissaWidth, isInQFromat, supportSubnormal, hasSign, hasIsNaN, hasIsInf, hasIs1, hasIs0), t)
+    else:
+        return HOperatorNode.withRes(OP_CAST_FROM_HFLOATTMP, (
+            op, cfg), t)
 
 
-def _llvmCastFromHFloatTmp(b:IRBuilder, instr: HOperatorNode, srcArg: Value, *ops:Tuple[Union[Value, Twine]]) -> Value:
+def _llvmCastFromHFloatTmp(ctx: LlvmCompilationBundle, b:IRBuilder, instr: HOperatorNode, srcArg: Value, cfg: _HFloatTmpConfigHdlTypeConst, name: Twine) -> Value:
     assert srcArg.getType().isDoubleTy(), srcArg
-    if isinstance(ops[-1], Twine):
-        name: Twine = ops[-1]
-        ops = ops[:-1]
-    else:
-        name = None
-    ops = (int(ValueToConstantInt(o).getValue().getZExtValue()) for o in ops)
-    if name:
-        return b.CreateCastFromHFloatTmp(srcArg, *ops, name)
-    else:
-        return b.CreateCastFromHFloatTmp(srcArg, *ops)
+    return b.CreateCastFromHFloatTmp(srcArg, cfg, name)
 
 
 OP_CAST_FROM_HFLOATTMP = HOperatorDefLlvm(castFromHFloatTmp, _llvmCastFromHFloatTmp, False, idStr="OP_CAST_FROM_HFLOATTMP")
 
+
+def _llvmCastHFloatTmpToHFloatTmp(ctx: LlvmCompilationBundle, b:IRBuilder, instr: HOperatorNode, srcArg: Value, cfg: _HFloatTmpConfigHdlTypeConst, name: Twine) -> Value:
+    assert srcArg.getType().isDoubleTy(), srcArg
+    return b.CreateCastHFloatTmpToHFloatTmp(srcArg, cfg, name)
+
+
+def castHFloatTmpToHFloatTmp(op: RtlSignalBase[Union[IEEE754Fp, HFixedPointQ, HBits]],
+                              t: Union[IEEE754Fp, HFixedPointQ, HBits]) \
+        ->Union[RtlSignalBase[HFloatTmp], HConst[HFloatTmp]]:
+    assert op._dtype == HFloatTmp, (op, op._dtype)
+    srcCfg = _extractHFloatTmpParamsFromFriendType(op._dtype)
+    srcCfg = HFloatTmpConfigHdlType.from_py(srcCfg)
+
+    dstCfg = _extractHFloatTmpParamsFromFriendType(t)
+    dstCfg = HFloatTmpConfigHdlType.from_py(dstCfg)
+
+    return HOperatorNode.withRes(OP_CAST_HFLOATTMP_TO_HFLOATTMP, (
+        op, srcCfg, dstCfg), t)
+
+
+# cast HFloatTmp to HFloatTmp with possibly different configuration of precision and bitwidth
+OP_CAST_HFLOATTMP_TO_HFLOATTMP = HOperatorDefLlvm(castHFloatTmpToHFloatTmp, _llvmCastHFloatTmpToHFloatTmp, False, idStr="OP_CAST_HFLOATTMP_TO_HFLOATTMP")

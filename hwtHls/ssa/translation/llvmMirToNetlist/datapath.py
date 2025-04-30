@@ -3,17 +3,20 @@ from itertools import chain
 from typing import Tuple, Dict, List, Set, Optional, Union
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
+from hwt.constants import WRITE, READ
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT, SLICE, INT
 from hwt.hwIO import HwIO
+from hwt.mainBases import RtlSignalBase
 from hwt.math import log2ceil
 from hwt.pyUtils.setList import SetList
 from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.frontend.ast.statementsWrite import HlsWrite
 from hwtHls.frontend.hardBlock import HardBlockHwModule
+from hwtHls.io.portGroups import BankedPortGroup, MultiPortGroup
 from hwtHls.llvm.llvmIr import MachineRegisterInfo, MachineFunction, MachineBasicBlock, MachineLoop, Register, \
-    MachineInstr, MachineOperand, CmpInst, TargetOpcode, HFloatTmpConfig
+    MachineInstr, MachineOperand, CmpInst, TargetOpcode, HFloatTmpConfig, HFloatTmpRounding, HFloatTmpSaturation
 from hwtHls.netlist.analysis.blockSyncType import HlsNetlistAnalysisPassBlockSyncType
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -24,6 +27,8 @@ from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
+from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
+from hwtHls.netlist.nodes.memoryAllocationMetaNode import HlsNetNodeWriteMemoryAllocationCmd
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     HlsNetNodeOutAny
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
@@ -36,10 +41,8 @@ from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdgeM
 from hwtHls.ssa.translation.llvmMirToNetlist.utils import LiveInMuxMeta, \
     _regIsValidLiveIn
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
-from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta, \
-    HlsNetNodeReadMemoryAllocation, HlsNetNodeWriteMemoryAllocation
-from hwt.mainBases import RtlSignalBase
-from hwtHls.io.portGroups import BankedPortGroup, MultiPortGroup
+from tests.math.hFloatTmp.hFloatTmpCast import OP_CAST_HFLOATTMP_TO_HFLOATTMP
+
 
 BlockLiveInMuxSyncDict = Dict[Tuple[MachineBasicBlock, MachineBasicBlock, Register], HlsNetNodeExplicitSync]
 
@@ -94,8 +97,8 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
         """
         Extract HFloatTmpConfig options from end of the operands
         """
-        hFloatTmpConfigMembers = ops[-HFloatTmpConfig.MEMBER_CNT:]
-        opSpecialization = HFloatTmpConfig(*hFloatTmpConfigMembers)
+        hFloatTmpConfigMembers = ops[-HFloatTmpConfig.MEMBER_CNT:-2]
+        opSpecialization = HFloatTmpConfig(*hFloatTmpConfigMembers, HFloatTmpRounding(ops[-2]), HFloatTmpSaturation(ops[-1]))
         ops = ops[:-HFloatTmpConfig.MEMBER_CNT]
         return opSpecialization, ops
 
@@ -111,21 +114,33 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
             if opc == TargetOpcode.HWTFPGA_ARG_GET:
                 continue
 
-            dst = None
-            ops: List[Union[CmpInst.Predicate, MachineBasicBlock, Register, HlsNetNodeOutAny, HwIO, int]] = []
-            isLoadOrStore = opc in self._HWTFPGA_CLOAD_CSTORE
+            dst: Union[Register, list[Register], None] = None
+            name: Optional[str] = None
+            ops: List[Union[CmpInst.Predicate,
+                            MachineBasicBlock,
+                            Register,
+                            HlsNetNodeOutAny,
+                            HwIO,
+                            int]] = []
+            isLoadOrStore: bool = opc in self._HWTFPGA_CLOAD_CSTORE
             for i, mo in enumerate(instr.operands()):
                 mo: MachineOperand
                 if mo.isReg():
                     r = mo.getReg()
                     if mo.isDef():
-                        assert dst is None, (dst, instr)
-                        dst = r
+                        if dst is None:
+                            dst = r
+                            name = f"bb{mb.getNumber()}_r{dst.virtRegIndex():d}"
+                        elif isinstance(dst, Register):
+                            dst = [dst, r]
+                        else:
+                            dst.append(r)
                     elif isLoadOrStore and i == 1:
                         op = self._translateRegToIoOrGlobalValue(MRI, instr, valCache, mbMeta, builder, r)
                         ops.append(op)
+
                     else:
-                        isUndef = r not in self.regToIo and MRI.def_empty(r)
+                        isUndef: bool = r not in self.regToIo and MRI.def_empty(r)
                         if not isUndef:
                             rDef = MRI.getOneDef(r)
                             isUndef = rDef is not None and rDef.getParent().getOpcode() == TargetOpcode.HWTFPGA_IMPLICIT_DEF
@@ -150,11 +165,6 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 else:
                     raise NotImplementedError(instr, mo)
 
-            if dst is None:
-                name = None
-            else:
-                name = f"bb{mb.getNumber()}_r{dst.virtRegIndex():d}"
-
             res = None
             opDef = self.OPC_TO_OP.get(opc, None)
             if opDef is not None:
@@ -167,9 +177,20 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 elif opc in self._SHIFT_OPCODES:
                     # cut-off last argument which is the width
                     ops = ops[:-1]
+                elif opc == TargetOpcode.HWTFPGA_MUL_HL:
+                    opSpecialization = tuple(ops[2:])
+                    assert len(opSpecialization) == 2 + 2 + 1, ("expected format isSigned0, width0, isSigned1, width1, resultWidth")
+                    ops = ops[:2]
+                    resT = HBits(opSpecialization[-1])
 
-                res = builder.buildOp(opDef, opSpecialization, resT, *ops, name=name)
-                valCache.add(mb, dst, res, True)
+                if isinstance(dst, Register):
+                    res = builder.buildOp(opDef, opSpecialization, resT, *ops, name=name)
+                    valCache.add(mb, dst, res, True)
+                else:
+                    resT = tuple(HBits(MRI.getType(r).getScalarSizeInBits()) for r in dst)
+                    res = builder.buildOpManyDst(opDef, opSpecialization, resT, *ops, name=name)
+                    for dstReg, nodeOut in zip(dst, res._outputs):
+                        valCache.add(mb, dstReg, nodeOut, True)
 
             elif opc == TargetOpcode.HWTFPGA_MUX:
                 resT = ops[0]._dtype
@@ -194,9 +215,12 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     cond = None
 
                 if isinstance(srcIo, MemoryAllocationMeta):
-                    r = HlsNetNodeReadMemoryAllocation(builder.netlist, srcIo, HBits(width), name)
+                    # r = HlsNetNodeReadMemoryAllocation(builder.netlist, srcIo, HBits(width), name)
+                    r = HlsNetNodeWriteMemoryAllocationCmd(builder.netlist, srcIo, READ,
+                                                           HBits(width), mayBecomeFlushable=False, name=name)
                     builder.parentElm.addNode(r)
                     assert index is not None, instr
+                    assert isinstance(index, HlsNetNodeOutLazy) or not isinstance(index.obj, HlsNetNodeConst), ("If address is constant this load should have been already lowered to reg", instr)
                     index.connectHlsIn(r.indexes[0])
                     self._addExtraCond(r, cond, None)
                     self._addSkipWhen_n(r, cond, None)
@@ -237,9 +261,15 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     cond = None
 
                 if isinstance(dstIo, MemoryAllocationMeta):
-                    w = HlsNetNodeWriteMemoryAllocation(builder.netlist, dstIo, mayBecomeFlushable=False, name=name)
+                    w = HlsNetNodeWriteMemoryAllocationCmd(
+                        builder.netlist,
+                        srcIo, WRITE,
+                        HBits(width),
+                        mayBecomeFlushable=False, name=name)
+                    # w = HlsNetNodeWriteMemoryAllocation(builder.netlist, dstIo, mayBecomeFlushable=False, name=name)
                     builder.parentElm.addNode(w)
                     assert index is not None, instr
+                    assert isinstance(index, HlsNetNodeOutLazy) or not isinstance(index.obj, HlsNetNodeConst), ("If address is constant this store should have been already lowered to reg", instr)
                     index.connectHlsIn(w.indexes[0])
                     srcVal.connectHlsIn(w._portSrc)
                     self._addExtraCond(w, cond, None)
@@ -273,19 +303,33 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 res.obj.name = name
                 valCache.add(mb, dst, res, True)
 
+            elif opc == TargetOpcode.HWTFPGA_FP_CAST:
+                dstFpCfg, ops = self._extractHFloatTmpConfigFromOps(ops)
+                srcFpCfg, ops = self._extractHFloatTmpConfigFromOps(ops)
+                assert len(ops) == 1, (instr, ops)
+                opSpecialization = (srcFpCfg, dstFpCfg)
+                res = builder.buildOp(OP_CAST_HFLOATTMP_TO_HFLOATTMP, opSpecialization, HBits(dstFpCfg.getBitWidth()), ops[0])
+                res.obj.name = name
+                valCache.add(mb, dst, res, True)
+
             elif opc == TargetOpcode.HWTFPGA_EXTRACT:
                 src, srcWidth, offset, width = ops
-                if isinstance(offset, int):
+                assert isinstance(offset, int), instr
+                if srcWidth == 1:
+                    # :note: this case should have been already optimized out
+                    assert offset == 0, instr
+                    assert width == 1, instr
+                    res = src
+                else:
                     if width == 1:
                         # to prefer more simple notation
                         index = INT.from_py(offset)
                     else:
                         index = SLICE.from_py(slice(offset + width, offset, -1))
-                else:
-                    raise NotImplementedError()
 
-                res = builder.buildOp(HwtOps.INDEX, None, HBits(width), src, index)
-                res.obj.name = name
+                    res = builder.buildOp(HwtOps.INDEX, None, HBits(width), src, index)
+                    res.obj.name = name
+
                 valCache.add(mb, dst, res, True)
 
             elif opc == TargetOpcode.HWTFPGA_MERGE_VALUES:
@@ -308,8 +352,11 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
 
             elif opc == TargetOpcode.HWTFPGA_BRCOND:
                 c = instr.getOperand(0)
-                assert c.isReg(), instr
-                mbMeta.translatedBranchConditions[c.getReg()] = builder.buildAndOptional(allBlockingLoadAck, ops[0])  # mbMeta.syncTracker.resolveControlOutput(ops[0])
+                thisBrCond = ops[0]
+                assert c.isReg() and not (isinstance(thisBrCond, HlsNetNodeOut) and isinstance(thisBrCond.obj, HlsNetNodeConst)), (
+                    "HWTFPGA_BRCOND should not have constant as operand,"
+                    " this should have been already optimized out", instr, thisBrCond)
+                mbMeta.translatedBranchConditions[c.getReg()] = builder.buildAndOptional(allBlockingLoadAck, thisBrCond)  # mbMeta.syncTracker.resolveControlOutput(ops[0])
 
             elif opc == TargetOpcode.HWTFPGA_RET:
                 pass

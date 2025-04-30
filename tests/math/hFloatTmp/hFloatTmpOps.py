@@ -1,131 +1,112 @@
-from typing import Callable
+"""
+:note: order of operands is the same as in Instruction.def and IntrinsicEnums.inc
+    to have some consistent order  (same as in hfloattmp.h)
+:note: most of the functions are used only internally and user python code should use only
+    operators (e.g. '*' instead of fmul). However some functions have typechecks and can be used with any
+    type, e.g. sin/cos/sqrt
+"""
 
+import math
+from typing import Union, Optional
+
+from hwt.hdl.commonConstants import b0
 from hwt.hdl.operator import HOperatorNode
+from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.defs import BIT
-from hwt.mainBases import RtlSignalBase
-from hwtHls.llvm.llvmIr import IRBuilder, Value, Twine, Type, Intrinsic, ICmpInst
+from hwt.mainBases import RtlSignalBase, HwIOBase
+from hwt.pyUtils.setList import SetList
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, IRBuilder, Value, Twine, Type, \
+    Intrinsic, ICmpInst, LibFunc
+from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.netlist.transformation.simplifyUtils import addAllUsersToWorklist
 from hwtHls.ssa.translation.toLlvm import HOperatorDefLlvm
+from pyMathBitPrecise.bit_utils import ValidityError
+from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
+from tests.math.hFloatTmp.hFloatTmpOpsUtils import _evalFpFunction1, _getllvmFp1OpConstructor, \
+    _evalFpFunction2, _getllvmFp2OpConstructor, _getllvmFp1LibFuncConstructor, \
+    _F_CONST_CLS, _getllvmFCmpOpConstructor, _evalFpFunction1ValSpecific, \
+    _getllvmFp1IntrinsicConstructor, _getllvmFp2IntrinsicConstructor, \
+    _evalFpFunction2ValSpecific, _getllvmFp2LibFuncConstructor
 
-
-def _getllvmFpBinOpConstructor(constructFnGeter: Callable[[IRBuilder], Callable]):
-
-    def _llvmFpBinOpConstructor(b:IRBuilder, instr: HOperatorNode, op0:Value, op1:Value, name: Twine) -> Value:
-        doubleTy = Type.getDoubleTy(b.getContext())
-        assert op0.getType() == doubleTy, (op0, "double should be used to represent HFloatTmp in first phase of compilation")
-        assert op1.getType() == doubleTy, (op1, "double should be used to represent HFloatTmp in first phase of compilation")
-        return constructFnGeter(b)(op0, op1, name)
-
-    return _llvmFpBinOpConstructor
-
-
-def _getllvmFCmpOpConstructor(predicate: ICmpInst.Predicate):
-
-    def _llvmFCmpOpConstructor(b:IRBuilder, instr: HOperatorNode, op0:Value, op1:Value, name: Twine) -> Value:
-        doubleTy = Type.getDoubleTy(b.getContext())
-        assert op0.getType() == doubleTy, (op0, "double should be used to represent HFloatTmp in first phase of compilation")
-        assert op1.getType() == doubleTy, (op1, "double should be used to represent HFloatTmp in first phase of compilation")
-        return b.CreateFCmp(predicate, op0, op1, name)
-
-    return _llvmFCmpOpConstructor
-
-
-def _getllvmFpUnOpConstructor(constructFnGeter: Callable[[IRBuilder], Callable]):
-
-    def _llvmFpUnOpConstructor(b:IRBuilder, instr: HOperatorNode, op0:Value, name: Twine) -> Value:
-        doubleTy = Type.getDoubleTy(b.getContext())
-        assert op0.getType() == doubleTy, (op0, "double should be used to represent HFloatTmp in first phase of compilation")
-        return constructFnGeter(b)(op0, name)
-
-    return _llvmFpUnOpConstructor
-
-
-def _getllvmFpUnIntrinsicConstructor(intrinsic: Intrinsic):
-
-    def _llvmFpUnIntrinsicConstructor(b:IRBuilder, instr: HOperatorNode, op0:Value, name: Twine) -> Value:
-        doubleTy = Type.getDoubleTy(b.getContext())
-        assert op0.getType() == doubleTy, op0
-        return b.CreateIntrinsic(doubleTy, intrinsic.value, [op0, ], Name=name)
-
-    return _llvmFpUnIntrinsicConstructor
-
-
-def _getllvmFpBinIntrinsicConstructor(intrinsic: Intrinsic):
-
-    def _llvmFpBinIntrinsicConstructor(b:IRBuilder, instr: HOperatorNode, op0:Value, op1:Value, name: Twine) -> Value:
-        doubleTy = Type.getDoubleTy(b.getContext())
-        assert op0.getType() == doubleTy, (op0, "double should be used to represent HFloatTmp in first phase of compilation")
-        assert op1.getType() == doubleTy, (op1, "double should be used to represent HFloatTmp in first phase of compilation")
-        return b.CreateIntrinsic(doubleTy, intrinsic.value, [op0, op1], Name=name)
-
-    return _llvmFpBinIntrinsicConstructor
 
 # :see: https://llvm.org/docs/LangRef.html
 # Instruction.def
-
-
 def fneg(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
-    assert op0._dtype == HFloatTmp, op0
-    return HOperatorNode.withRes(OP_FNEG, (op0,), op0._dtype)
+    return _evalFpFunction1(lambda x:-x, OP_FNEG, op0)
 
 
-OP_FNEG = HOperatorDefLlvm(fneg, _getllvmFpBinOpConstructor(lambda b: b.CreateFNeg), False, idStr="OP_FNEG")
+OP_FNEG = HOperatorDefLlvm(fneg, _getllvmFp1OpConstructor(lambda b: b.CreateFNeg), False, idStr="OP_FNEG")
 
 
 def fadd(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
-    assert op0._dtype == op1._dtype, (op0._dtype, op1._dtype)
-    assert op1._dtype == HFloatTmp, op1
-    return HOperatorNode.withRes(OP_FADD, (op0, op1), op0._dtype)
+    return _evalFpFunction2(lambda a, b: a + b, OP_FADD, op0, op1)
 
 
-OP_FADD = HOperatorDefLlvm(fadd, _getllvmFpBinOpConstructor(lambda b: b.CreateFAdd), False, idStr="OP_FADD")
+OP_FADD = HOperatorDefLlvm(fadd, _getllvmFp2OpConstructor(lambda b: b.CreateFAdd), False, idStr="OP_FADD")
 
 
 def fsub(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
-    assert op0._dtype == HFloatTmp, op0
-    assert op1._dtype == HFloatTmp, op1
-    return HOperatorNode.withRes(OP_FSUB, (op0, op1), op0._dtype)
+    return _evalFpFunction2(lambda a, b: a - b, OP_FSUB, op0, op1)
 
 
-OP_FSUB = HOperatorDefLlvm(fsub, _getllvmFpBinOpConstructor(lambda b: b.CreateFSub), False, idStr="OP_FSUB")
+OP_FSUB = HOperatorDefLlvm(fsub, _getllvmFp2OpConstructor(lambda b: b.CreateFSub), False, idStr="OP_FSUB")
 
 
 def fmul(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
-    assert op0._dtype == op1._dtype, (op0, op1)
-    return HOperatorNode.withRes(OP_FMUL, (op0, op1), op0._dtype)
+    return _evalFpFunction2(lambda a, b: a * b, OP_FMUL, op0, op1)
 
 
-OP_FMUL = HOperatorDefLlvm(fadd, _getllvmFpBinOpConstructor(lambda b: b.CreateFMul), False, idStr="OP_FMUL")
+OP_FMUL = HOperatorDefLlvm(fmul, _getllvmFp2OpConstructor(lambda b: b.CreateFMul), False, idStr="OP_FMUL")
 
 
 def fdiv(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
-    assert op0._dtype == op1._dtype, (op0, op1)
-    return HOperatorNode.withRes(OP_FDIV, (op0, op1), op0._dtype)
+    return _evalFpFunction2(lambda a, b: a / b, OP_FDIV, op0, op1)
 
 
-OP_FDIV = HOperatorDefLlvm(fadd, _getllvmFpBinOpConstructor(lambda b: b.CreateFDiv), False, idStr="OP_FDIV")
+OP_FDIV = HOperatorDefLlvm(fdiv, _getllvmFp2OpConstructor(lambda b: b.CreateFDiv), False, idStr="OP_FDIV")
+
+# https://github.com/gpuweb/gpuweb/issues/1696
+# FRem "The floating-point remainder whose sign matches the sign of Operand 1."
+# FMod "The floating-point remainder whose sign matches the sign of Operand 2."
 
 
 def frem(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
-    assert op0._dtype == op1._dtype, (op0, op1)
-    return HOperatorNode.withRes(OP_FREM, (op0, op1), op0._dtype)
+    return _evalFpFunction2(math.remainder, OP_FREM, op0, op1)
 
 
-OP_FREM = HOperatorDefLlvm(fadd, _getllvmFpBinOpConstructor(lambda b: b.CreateFRem), False, idStr="OP_FREM")
+OP_FREM = HOperatorDefLlvm(frem, _getllvmFp2OpConstructor(lambda b: b.CreateFRem), False, idStr="OP_FREM")
 
+
+def fmod(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HFloatTmp]):
+    return _evalFpFunction2(lambda a, b: a % b, OP_FMOD, op0, op1)
+
+
+OP_FMOD = HOperatorDefLlvm(frem, _getllvmFp2LibFuncConstructor(LibFunc.LibFunc_fmod), False, idStr="OP_FMOD")
+
+# :note: those are implemented using cast instead of custom instruction
 # FPToUI # floating point -> UInt
 # FPToSI # floating point -> SInt
 # UIToFP  # UInt -> floating point
 # SIToFP  # SInt -> floating point
 # FPTrunc # Truncate floating point
 # FPExt   # Extend floating point
+
 # FCmp  #  Floating point comparison instr.
 
 
 # oeq: true if both operands are not a QNAN and op1 is equal to op2.
 def fcmp_oeq(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[BIT]:
+    if isinstance(op0, _F_CONST_CLS):
+        try:
+            return BIT.from_py(float(op0) == float(op1))
+        except ValidityError:
+            return BIT.from_py(None)
+
     assert op0._dtype == op1._dtype, (op0, op1)
-    return HOperatorNode.withRes(OP_FCMP_OEQ, (op0, op1), op0._dtype)
+    return HOperatorNode.withRes(OP_FCMP_OEQ, (op0, op1), BIT)
 
 
 OP_FCMP_OEQ = HOperatorDefLlvm(fcmp_oeq, _getllvmFCmpOpConstructor(ICmpInst.Predicate.FCMP_OEQ), False, idStr="OP_FCMP_OEQ")
@@ -133,8 +114,14 @@ OP_FCMP_OEQ = HOperatorDefLlvm(fcmp_oeq, _getllvmFCmpOpConstructor(ICmpInst.Pred
 
 # ogt: true if both operands are not a QNAN and op1 is greater than op2.
 def fcmp_ogt(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[BIT]:
+    if isinstance(op0, _F_CONST_CLS):
+        try:
+            return BIT.from_py(float(op0) > float(op1))
+        except ValidityError:
+            return BIT.from_py(None)
+
     assert op0._dtype == op1._dtype, (op0, op1)
-    return HOperatorNode.withRes(OP_FCMP_OGT, (op0, op1), op0._dtype)
+    return HOperatorNode.withRes(OP_FCMP_OGT, (op0, op1), BIT)
 
 
 OP_FCMP_OGT = HOperatorDefLlvm(fcmp_ogt, _getllvmFCmpOpConstructor(ICmpInst.Predicate.FCMP_OGT), False, idStr="OP_FCMP_OGT")
@@ -142,8 +129,14 @@ OP_FCMP_OGT = HOperatorDefLlvm(fcmp_ogt, _getllvmFCmpOpConstructor(ICmpInst.Pred
 
 # oge: true if both operands are not a QNAN and op1 is greater than or equal to op2.
 def fcmp_oge(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[BIT]:
+    if isinstance(op0, _F_CONST_CLS):
+        try:
+            return BIT.from_py(float(op0) >= float(op1))
+        except ValidityError:
+            return BIT.from_py(None)
+
     assert op0._dtype == op1._dtype, (op0, op1)
-    return HOperatorNode.withRes(OP_FCMP_OGE, (op0, op1), op0._dtype)
+    return HOperatorNode.withRes(OP_FCMP_OGE, (op0, op1), BIT)
 
 
 OP_FCMP_OGE = HOperatorDefLlvm(fcmp_oge, _getllvmFCmpOpConstructor(ICmpInst.Predicate.FCMP_OGE), False, idStr="OP_FCMP_OGE")
@@ -151,8 +144,14 @@ OP_FCMP_OGE = HOperatorDefLlvm(fcmp_oge, _getllvmFCmpOpConstructor(ICmpInst.Pred
 
 # olt: true if both operands are not a QNAN and op1 is less than op2.
 def fcmp_olt(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[BIT]:
+    if isinstance(op0, _F_CONST_CLS) and isinstance(op1, _F_CONST_CLS):
+        try:
+            return BIT.from_py(float(op0) < float(op1))
+        except ValidityError:
+            return BIT.from_py(None)
+
     assert op0._dtype == op1._dtype, (op0, op1)
-    return HOperatorNode.withRes(OP_FCMP_OLT, (op0, op1), op0._dtype)
+    return HOperatorNode.withRes(OP_FCMP_OLT, (op0, op1), BIT)
 
 
 OP_FCMP_OLT = HOperatorDefLlvm(fcmp_olt, _getllvmFCmpOpConstructor(ICmpInst.Predicate.FCMP_OLT), False, idStr="OP_FCMP_OLT")
@@ -160,8 +159,13 @@ OP_FCMP_OLT = HOperatorDefLlvm(fcmp_olt, _getllvmFCmpOpConstructor(ICmpInst.Pred
 
 # ole: true if both operands are not a QNAN and op1 is less than or equal to op2.
 def fcmp_ole(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[BIT]:
+    if isinstance(op0, _F_CONST_CLS):
+        try:
+            return BIT.from_py(float(op0) <= float(op1))
+        except ValidityError:
+            return BIT.from_py(None)
     assert op0._dtype == op1._dtype, (op0, op1)
-    return HOperatorNode.withRes(OP_FCMP_OLE, (op0, op1), op0._dtype)
+    return HOperatorNode.withRes(OP_FCMP_OLE, (op0, op1), BIT)
 
 
 OP_FCMP_OLE = HOperatorDefLlvm(fcmp_ole, _getllvmFCmpOpConstructor(ICmpInst.Predicate.FCMP_OLE), False, idStr="OP_FCMP_OLE")
@@ -169,8 +173,13 @@ OP_FCMP_OLE = HOperatorDefLlvm(fcmp_ole, _getllvmFCmpOpConstructor(ICmpInst.Pred
 
 # one: true if both operands are not a QNAN and op1 is not equal to op2.
 def fcmp_one(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[BIT]:
+    if isinstance(op0, _F_CONST_CLS):
+        try:
+            return BIT.from_py(float(op0) != float(op1))
+        except ValidityError:
+            return BIT.from_py(None)
     assert op0._dtype == op1._dtype, (op0, op1)
-    return HOperatorNode.withRes(OP_FCMP_ONE, (op0, op1), op0._dtype)
+    return HOperatorNode.withRes(OP_FCMP_ONE, (op0, op1), BIT)
 
 
 OP_FCMP_ONE = HOperatorDefLlvm(fcmp_one, _getllvmFCmpOpConstructor(ICmpInst.Predicate.FCMP_ONE), False, idStr="OP_FCMP_ONE")
@@ -179,59 +188,87 @@ OP_FCMP_ONE = HOperatorDefLlvm(fcmp_one, _getllvmFCmpOpConstructor(ICmpInst.Pred
 
 
 def ceil(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
-    assert op0._dtype == HFloatTmp, (op0)
-    return HOperatorNode.withRes(OP_CEIL, (op0,), op0._dtype)
+    return _evalFpFunction1ValSpecific(math.ceil, OP_CEIL, "ceil", op0)
 
 
-OP_CEIL = HOperatorDefLlvm(ceil, _getllvmFpUnIntrinsicConstructor(Intrinsic.ceil), False, idStr="OP_CEIL")
+OP_CEIL = HOperatorDefLlvm(ceil, _getllvmFp1IntrinsicConstructor(Intrinsic.ceil), False, idStr="OP_CEIL")
 
 
 def cos(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
-    assert op0._dtype == HFloatTmp, (op0)
-    return HOperatorNode.withRes(OP_FCOS, (op0,), op0._dtype)
+    return _evalFpFunction1ValSpecific(math.cos, OP_FCOS, "cos", op0)
 
 
-OP_FCOS = HOperatorDefLlvm(cos, _getllvmFpUnIntrinsicConstructor(Intrinsic.cos), False, idStr="OP_FCOS")
+def _cos_runSimplifyRules(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
+    op = n.dependsOn[0]
+    b = n.getHlsNetlistBuilder()
+    for user in op.obj.usedBy[op.out_i]:
+        uObj = user.obj
+        if isinstance(uObj, HlsNetNodeOperator) and uObj.operator == OP_FSINCOS:
+            cos, _ = uObj._outputs
+            worklist.append(n)
+            b.replaceOutput(n._outputs[0], cos, True)
+            return True
+
+    return False
+
+
+OP_FCOS = HOperatorDefLlvm(cos, _getllvmFp1IntrinsicConstructor(Intrinsic.cos), False, idStr="OP_FCOS", runSimplifyRules=_cos_runSimplifyRules)
+
+
+def cospi(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
+    return _evalFpFunction1ValSpecific(lambda a: math.cos(a * math.pi), OP_FCOSPI, "cospi", op0)
+
+
+def _cospi_runSimplifyRules(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
+    op = n.dependsOn[0]
+    b = n.getHlsNetlistBuilder()
+    for user in op.obj.usedBy[op.out_i]:
+        uObj = user.obj
+        if isinstance(uObj, HlsNetNodeOperator) and uObj.operator == OP_FSINCOSPI:
+            cos, _ = uObj._outputs
+            worklist.append(n)
+            b.replaceOutput(n._outputs[0], cos, True)
+            return True
+
+    return False
+
+
+OP_FCOSPI = HOperatorDefLlvm(cospi, _getllvmFp1LibFuncConstructor(LibFunc.LibFunc_cospi), False, idStr="OP_FCOSPI", runSimplifyRules=_cospi_runSimplifyRules)
 
 
 def exp(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
-    assert op0._dtype == HFloatTmp, (op0)
-    return HOperatorNode.withRes(OP_FEXP, (op0,), op0._dtype)
+    return _evalFpFunction1ValSpecific(math.exp, OP_FEXP, "exp", op0)
 
 
-OP_FEXP = HOperatorDefLlvm(exp, _getllvmFpUnIntrinsicConstructor(Intrinsic.exp), False, idStr="OP_FEXP")
+OP_FEXP = HOperatorDefLlvm(exp, _getllvmFp1IntrinsicConstructor(Intrinsic.exp), False, idStr="OP_FEXP")
 
 
 def exp10(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
-    assert op0._dtype == HFloatTmp, (op0)
-    return HOperatorNode.withRes(OP_FEXP10, (op0,), op0._dtype)
+    return _evalFpFunction1ValSpecific(lambda a: math.pow(10., a), OP_FEXP10, "exp10", op0)
 
 
-OP_FEXP10 = HOperatorDefLlvm(exp10, _getllvmFpUnIntrinsicConstructor(Intrinsic.exp10), False, idStr="OP_FEXP10")
+OP_FEXP10 = HOperatorDefLlvm(exp10, _getllvmFp1IntrinsicConstructor(Intrinsic.exp10), False, idStr="OP_FEXP10")
 
 
 def exp2(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
-    assert op0._dtype == HFloatTmp, (op0)
-    return HOperatorNode.withRes(OP_FEXP2, (op0,), op0._dtype)
+    return _evalFpFunction1ValSpecific(lambda a: math.pow(2., a), OP_FEXP2, "exp2", op0)
 
 
-OP_FEXP2 = HOperatorDefLlvm(exp2, _getllvmFpUnIntrinsicConstructor(Intrinsic.exp2), False, idStr="OP_FEXP2")
+OP_FEXP2 = HOperatorDefLlvm(exp2, _getllvmFp1IntrinsicConstructor(Intrinsic.exp2), False, idStr="OP_FEXP2")
 
 
 def fabs(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
-    assert op0._dtype == HFloatTmp, (op0)
-    return HOperatorNode.withRes(OP_FABS, (op0,), op0._dtype)
+    return _evalFpFunction1ValSpecific(math.fabs, OP_FEXP2, "fabs", op0)
 
 
-OP_FABS = HOperatorDefLlvm(fabs, _getllvmFpUnIntrinsicConstructor(Intrinsic.fabs), False, idStr="OP_FABS")
+OP_FABS = HOperatorDefLlvm(fabs, _getllvmFp1IntrinsicConstructor(Intrinsic.fabs), False, idStr="OP_FABS")
 
 
 def floor(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
-    assert op0._dtype == HFloatTmp, (op0)
-    return HOperatorNode.withRes(OP_FLOOR, (op0,), op0._dtype)
+    return _evalFpFunction1ValSpecific(math.floor, OP_FLOOR, "floor", op0)
 
 
-OP_FLOOR = HOperatorDefLlvm(floor, _getllvmFpUnIntrinsicConstructor(Intrinsic.floor), False, idStr="OP_FLOOR")
+OP_FLOOR = HOperatorDefLlvm(floor, _getllvmFp1IntrinsicConstructor(Intrinsic.floor), False, idStr="OP_FLOOR")
 
 
 # fma,                                       # llvm.fma
@@ -240,79 +277,307 @@ OP_FLOOR = HOperatorDefLlvm(floor, _getllvmFpUnIntrinsicConstructor(Intrinsic.fl
 # fptoui_sat,                                # llvm.fptoui.sat
 # fptrunc_round,                             # llvm.fptrunc.round
 # frexp,                                     # llvm.frexp  # splits a floating point value into a normalized fractional component and integral exponent
-# fshl,                                      # llvm.fshl
-# fshr,                                      # llvm.fshr
 # ldexp,                                     # llvm.ldexp # reverse of frexp, joins mantissa and exponent into floating point number
 def log(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
-    assert op0._dtype == HFloatTmp, (op0)
-    return HOperatorNode.withRes(OP_FLOG, (op0,), op0._dtype)
+    return _evalFpFunction1ValSpecific(math.log, OP_FLOG, "log", op0)
 
 
-OP_FLOG = HOperatorDefLlvm(log, _getllvmFpUnIntrinsicConstructor(Intrinsic.log), False, idStr="OP_FLOG")
+OP_FLOG = HOperatorDefLlvm(log, _getllvmFp1IntrinsicConstructor(Intrinsic.log), False, idStr="OP_FLOG")
 
 
 def log10(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
-    assert op0._dtype == HFloatTmp, (op0)
-    return HOperatorNode.withRes(OP_FLOG10, (op0,), op0._dtype)
+    return _evalFpFunction1ValSpecific(math.log10, OP_FLOG10, "log10", op0)
 
 
-OP_FLOG10 = HOperatorDefLlvm(log10, _getllvmFpUnIntrinsicConstructor(Intrinsic.log10), False, idStr="OP_FLOG10")
+OP_FLOG10 = HOperatorDefLlvm(log10, _getllvmFp1IntrinsicConstructor(Intrinsic.log10), False, idStr="OP_FLOG10")
 
 
 def log2(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
-    assert op0._dtype == HFloatTmp, (op0)
-    return HOperatorNode.withRes(OP_FLOG2, (op0,), op0._dtype)
+    return _evalFpFunction1ValSpecific(math.log2, OP_FLOG2, "log2", op0)
 
 
-OP_FLOG2 = HOperatorDefLlvm(log2, _getllvmFpUnIntrinsicConstructor(Intrinsic.log2), False, idStr="OP_FLOG2")
+OP_FLOG2 = HOperatorDefLlvm(log2, _getllvmFp1IntrinsicConstructor(Intrinsic.log2), False, idStr="OP_FLOG2")
 
 # nearbyint,                                 # llvm.nearbyint - round to nearest
 
 
 def fpow(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
+    if isinstance(op0, _F_CONST_CLS) and isinstance(op1, _F_CONST_CLS):
+        try:
+            return HFloatTmp.from_py(math.pow(float(op0), float(op1)))
+        except ValidityError:
+            return HFloatTmp.from_py(None)
+
+    valSpecificFn = getattr(op0, "fpow", None)
+    if valSpecificFn is not None:
+        return valSpecificFn(op1)
+
     assert op0._dtype == op1._dtype, (op0, op1)
+
     return HOperatorNode.withRes(OP_FPOW, (op0, op1), op0._dtype)
 
 
-OP_FPOW = HOperatorDefLlvm(fadd, _getllvmFpBinIntrinsicConstructor(Intrinsic.pow), False, idStr="OP_FPOW")
+OP_FPOW = HOperatorDefLlvm(fpow, _getllvmFp2IntrinsicConstructor(Intrinsic.pow), False, idStr="OP_FPOW")
 
 
-# powi,                                      # llvm.powi
-# rint,                                      # llvm.rint
-def round(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
-    assert op0._dtype == HFloatTmp, (op0)
-    return HOperatorNode.withRes(OP_ROUND, (op0,), op0._dtype)
+def fpowi(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HBits]) -> RtlSignalBase[HFloatTmp]:
+    """
+    equivalent of float @llvm.powi.f32.i32(float %Val, i32 %power), 
+    :returns: the first argument raised to the (positive or negative) power
+    """
+    valSpecificFn = getattr(op0, "fpowi", None)
+    if valSpecificFn is not None:
+        return valSpecificFn(op1)
+    assert op0._dtype == HFloatTmp, op0._dtype
+    assert isinstance(op1._dtype, HBits), op1._dtype
+    if not op1._dtype.signed:
+        # zext so sign is always 0
+        op1 = b0._concat(op1)
+
+    if isinstance(op0, _F_CONST_CLS) and isinstance(op1, _F_CONST_CLS):
+        try:
+            return HFloatTmp.from_py(math.pow(float(op0), int(op1)))
+        except ValidityError:
+            return HFloatTmp.from_py(None)
+
+    return HOperatorNode.withRes(OP_FPOWI, (op0, op1), op0._dtype)
 
 
-OP_ROUND = HOperatorDefLlvm(round, _getllvmFpUnIntrinsicConstructor(Intrinsic.round), False, idStr="OP_ROUND")
+def _llvmFpPowi(ctx: LlvmCompilationBundle, b:IRBuilder, instr: HOperatorNode, op0:Value, op1:Value, name: Twine) -> Value:
+    doubleTy = Type.getDoubleTy(b.getContext())
+    assert op0.getType() == doubleTy, (op0, "double should be used to represent HFloatTmp in first phase of compilation")
+    assert op1.getType().isIntegerTy(), (op1, "rhs of powi should be int")
+    return b.CreateIntrinsic(doubleTy, Intrinsic.powi.value, [op0, op1], Name=name)
+
+
+OP_FPOWI = HOperatorDefLlvm(fpowi, _llvmFpPowi, False, idStr="OP_FPOWI")
+
+# shift left and right operands which do not have llvm equivalent (use mul by pow 2) and are used only by backed
+# as specialized type of multiplication/division (for FP it is exponent add/sub, for Q it is shl/ashr)
+OP_FP_SHL = HOperatorDefLlvm(None, None, False, idStr="OP_FP_SHL")
+OP_FP_SHR = HOperatorDefLlvm(None, None, False, idStr="OP_FP_SHR")
+
+
+# rint,                                      # llvm.rint round to nearest integer
+def fround(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
+    return _evalFpFunction1ValSpecific(round, OP_ROUND, "fround", op0)
+
+
+OP_ROUND = HOperatorDefLlvm(fround, _getllvmFp1IntrinsicConstructor(Intrinsic.round), False, idStr="OP_ROUND")
 
 
 def roundeven(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
+    valSpecificFn = getattr(op0, "roundeven", None)
+    if valSpecificFn is not None:
+        return valSpecificFn()
     assert op0._dtype == HFloatTmp, (op0)
     return HOperatorNode.withRes(OP_ROUNDEVEN, (op0,), op0._dtype)
 
 
-OP_ROUNDEVEN = HOperatorDefLlvm(round, _getllvmFpUnIntrinsicConstructor(Intrinsic.roundeven), False, idStr="OP_ROUNDEVEN")
+OP_ROUNDEVEN = HOperatorDefLlvm(roundeven, _getllvmFp1IntrinsicConstructor(Intrinsic.roundeven), False, idStr="OP_ROUNDEVEN")
+
+
+def _sincos(*args):
+    raise NotImplementedError("use cos and sin separately this operator is intended only for backend")
+
+
+OP_FSINCOS = HOperatorDefLlvm(_sincos, _sincos, False, idStr="OP_FSINCOS")
+
+
+def _sincospi(*args):
+    raise NotImplementedError("use cospi and sinpi separately this operator is intended only for backend")
+
+
+OP_FSINCOSPI = HOperatorDefLlvm(_sincospi, _sincospi, False, idStr="OP_FSINCOSPI")
+
+
+def _get_sin_runSimplifyRules(cosOp: HOperatorDefLlvm, sincosOp:HOperatorDefLlvm):
+
+    def _sin_runSimplifyRules(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
+        op = n.dependsOn[0]
+        fcoss: list[HlsNetNodeOperator] = []
+        sincos: Optional[HlsNetNodeOperator] = None
+        b = n.getHlsNetlistBuilder()
+        for user in op.obj.usedBy[op.out_i]:
+            uObj = user.obj
+            if isinstance(uObj, HlsNetNodeOperator):
+                if uObj.operator == cosOp:
+                    fcoss.append(uObj)
+                elif uObj.operator == sincosOp:
+                    sincos = uObj
+
+        if fcoss or sincos is not None:
+            addAllUsersToWorklist(worklist, n)
+            if sincos is None:
+                t = n._outputs[0]._dtype
+                sincos = b.buildOpManyDst(sincosOp, n.operatorSpecialization, (t, t), op)
+
+            cos, sin = sincos._outputs
+            b.replaceOutput(n._outputs[0], sin, True)
+            for fcos in fcoss:
+                b.replaceOutput(fcos._outputs[0], cos, True)
+            return True
+
+        return False
+
+    return _sin_runSimplifyRules
 
 
 def sin(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
-    assert op0._dtype == HFloatTmp, (op0)
-    return HOperatorNode.withRes(OP_FSIN, (op0,), op0._dtype)
+    return _evalFpFunction1ValSpecific(math.sin, OP_FSIN, "sin", op0)
 
 
-OP_FSIN = HOperatorDefLlvm(sin, _getllvmFpUnIntrinsicConstructor(Intrinsic.sin), False, idStr="OP_FSIN")
+OP_FSIN = HOperatorDefLlvm(sin, _getllvmFp1IntrinsicConstructor(Intrinsic.sin), False, idStr="OP_FSIN", runSimplifyRules=_get_sin_runSimplifyRules(OP_FCOS, OP_FSINCOS))
 
 
-def sqrt(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
+def sinpi(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
+    return _evalFpFunction1ValSpecific(lambda a: math.sin(a * math.pi), OP_FSINPI, "sinpi", op0)
+
+
+OP_FSINPI = HOperatorDefLlvm(sin, _getllvmFp1LibFuncConstructor(LibFunc.LibFunc_sinpi), False, idStr="OP_FSINPI", runSimplifyRules=_get_sin_runSimplifyRules(OP_FCOSPI, OP_FSINCOSPI))
+
+
+def sqrt(op0: RtlSignalBase[Union[HFloatTmp, HBits]]) -> RtlSignalBase[Union[HFloatTmp, HBits]]:
+    """
+    Integer, floatingpoint or fixedpoint square root.
+
+    If the input is of integer type, return integer square root on half width bits.
+    If the input is of HFloatTmp type return floating/fixed point (depending on what HFloatTmp specification)
+    of the same type.
+    :note: there is no sqrt for int in llvm-21 ir.
+        This code uses floatingpoint sqrt with casts which should let backend know that this is integer sqrt.
+    """
+    if isinstance(op0, _F_CONST_CLS):
+        try:
+            return HFloatTmp.from_py(math.sqrt(float(op0)))
+        except ValidityError:
+            return HFloatTmp.from_py(None)
+    elif isinstance(op0._dtype, HBits):
+        t = op0._dtype
+        assert not t.signed
+        w = t.bit_length()
+        if w % 2 != 0:
+            w += 1  # width must be %2 == 0
+        resTy = HBits(w // 2, signed=False)
+
+        if isinstance(op0, HBitsConst):
+            if op0._is_full_valid():
+                val = int(math.isqrt(op0.val))
+            else:
+                val = None
+            return resTy.from_py(val)
+        else:
+            if isinstance(op0, HwIOBase):
+                op0 = op0._sig
+            fixPTy = HFixedPointQ(w, 0, False)
+            op0 = op0._reinterpret_cast(fixPTy)._reinterpret_cast(HFloatTmp)
+            res = HOperatorNode.withRes(OP_FSQRT, (op0,), HFloatTmp)
+            return res._reinterpret_cast(fixPTy)._reinterpret_cast(resTy)
+
+    valSpecificFn = getattr(op0, "sqrt", None)
+    if valSpecificFn is not None:
+        return valSpecificFn()
+
     assert op0._dtype == HFloatTmp, (op0)
     return HOperatorNode.withRes(OP_FSQRT, (op0,), op0._dtype)
 
 
-OP_FSQRT = HOperatorDefLlvm(sqrt, _getllvmFpUnIntrinsicConstructor(Intrinsic.sqrt), False, idStr="OP_FSQRT")
+OP_FSQRT = HOperatorDefLlvm(sqrt, _getllvmFp1IntrinsicConstructor(Intrinsic.sqrt), False, idStr="OP_FSQRT")
+
+
+def fract(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
+    if isinstance(op0, _F_CONST_CLS):
+        try:
+            _op0 = float(op0)
+            return HFloatTmp.from_py(_op0 - math.floor(_op0))
+        except ValidityError:
+            return HFloatTmp.from_py(None)
+
+    assert op0._dtype == HFloatTmp, (op0)
+    # LLVM does not have native fract operator
+    return _op0 - floor(_op0)
 
 # [todo] fract llvm.frexp AMDGPUCodeGenPrepareImpl::matchFractPat
-#             asin, csin
-#             acos, cosh
-#        tan, atan, tanh
+# [todo] in llvm-18 tan and other are target library functions defined in TargetLibraryInfo.def, (used as LibFunc_tan etc)
+#        later they become intrinsics
 #        llvm.minnum
 #        llvm.maxnum
+
+# template = """
+# def {fn}(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
+#     return _evalFpFunction1ValSpecific(math.{fn}, OP_FASIN, "{fn}", op0)
+#
+#
+# OP_F{FN} = HOperatorDefLlvm({fn}, _getllvmFp1LibFuncConstructor(LibFunc.LibFunc_{fn}), False, idStr="OP_F{FN}")
+# """
+# for f in ["asin", "sinh", "acos", "cosh", "tan", "atan", "tanh"]:
+#     f:str
+#     print(template.format(fn=f, FN=f.upper()))
+
+
+def asin(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
+    return _evalFpFunction1ValSpecific(math.asin, OP_FASIN, "asin", op0)
+
+
+OP_FASIN = HOperatorDefLlvm(asin, _getllvmFp1LibFuncConstructor(LibFunc.LibFunc_asin), False, idStr="OP_FASIN")
+
+
+def sinh(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
+    return _evalFpFunction1ValSpecific(math.sinh, OP_FSINH, "sinh", op0)
+
+
+OP_FSINH = HOperatorDefLlvm(sinh, _getllvmFp1LibFuncConstructor(LibFunc.LibFunc_sinh), False, idStr="OP_FSINH")
+
+
+def acos(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
+    return _evalFpFunction1ValSpecific(math.acos, OP_FACOS, "acos", op0)
+
+
+OP_FACOS = HOperatorDefLlvm(acos, _getllvmFp1LibFuncConstructor(LibFunc.LibFunc_acos), False, idStr="OP_FACOS")
+
+
+def cosh(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
+    return _evalFpFunction1ValSpecific(math.cosh, OP_FCOSH, "cosh", op0)
+
+
+OP_FCOSH = HOperatorDefLlvm(cosh, _getllvmFp1LibFuncConstructor(LibFunc.LibFunc_cosh), False, idStr="OP_FCOSH")
+
+
+def tan(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
+    return _evalFpFunction1ValSpecific(math.tan, OP_FTAN, "tan", op0)
+
+
+OP_FTAN = HOperatorDefLlvm(tan, _getllvmFp1LibFuncConstructor(LibFunc.LibFunc_tan), False, idStr="OP_FTAN")
+
+
+def tanpi(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
+    op0 = op0 * math.pi
+    return tan(op0)
+
+
+def _tanpiLLVM(*args):
+    raise AssertionError("This operator should be used only by backend, llvm-18 does not have tanpi function and tan(x*pi) should be used instead")
+
+
+OP_FTANPI = HOperatorDefLlvm(tanpi, _tanpiLLVM, False, idStr="OP_FTAN")
+
+
+def atan(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
+    return _evalFpFunction1ValSpecific(math.atan, OP_FATAN, "atan", op0)
+
+
+OP_FATAN = HOperatorDefLlvm(atan, _getllvmFp1LibFuncConstructor(LibFunc.LibFunc_atan), False, idStr="OP_FATAN")
+
+
+def tanh(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
+    return _evalFpFunction1ValSpecific(math.tanh, OP_FTANH, "tanh", op0)
+
+
+OP_FTANH = HOperatorDefLlvm(tanh, _getllvmFp1LibFuncConstructor(LibFunc.LibFunc_tanh), False, idStr="OP_FTANH")
+
+
+def atan2(y: RtlSignalBase[HFloatTmp], x: RtlSignalBase[HFloatTmp]):
+    return _evalFpFunction2ValSpecific(math.atan2, OP_FATAN2, "atan2", y, x)
+
+
+OP_FATAN2 = HOperatorDefLlvm(atan2, _getllvmFp2LibFuncConstructor(LibFunc.LibFunc_atan2), False, idStr="OP_FATAN2")

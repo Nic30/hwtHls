@@ -1,12 +1,16 @@
 import re
 from typing import Dict, Tuple, Optional, Union, List
 
+from hwt.hdl.operator import HOperatorNode
 from hwt.hdl.operatorDefs import HwtOps
+from hwt.hdl.types.struct import HStructField, HStruct, offsetof
 from hwt.hwIO import HwIO
+from hwtHls._llvmOpDefUtils import _getllvmIntExtConstructor
 from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.frontend.ast.statementsWrite import HlsWrite
 from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
-from hwtHls.llvm.llvmIr import IRBuilder, Function, Type, LoopInfo
+from hwtHls.llvm.llvmIr import IRBuilder, Function, Type, LoopInfo, Twine, Value
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle
 
 NetlistIoConstructorDictT = Dict[HwIO, Tuple[Optional[HlsRead], Optional[HlsWrite]]]
 
@@ -93,6 +97,18 @@ def applyLateLoopPragma(toLlvm: "ToLlvmIrTranslator"):
 
 
 def ToLlvmIrTranslator_createOperatorConstructorDictionaries(b: IRBuilder):
+
+    def _truncConstructor(ctx: LlvmCompilationBundle, b:IRBuilder, instr: HOperatorNode, op0:Value, op1:Value, name: Twine) -> Value:
+        resTy = b.getIntNTy(int(instr.operands[1]))
+        return b.CreateTrunc(op0, resTy, name)
+
+    def _dotToBitRangeGetConstructor(ctx: LlvmCompilationBundle, b:IRBuilder, instr: HOperatorNode, op0:Value, op1:Value, name: Twine) -> Value:
+        a0 = instr.operands[0]
+        structTy: HStruct = a0._dtype
+        structTyField: HStructField = a0._dtype.field_by_name[op1]
+        offset = offsetof(structTy, structTyField)
+        return b.CreateBitRangeGetConst(op0, offset, structTyField.dtype.bit_length(), name)
+
     opConstructorMap = {
         HwtOps.AND: b.CreateAnd,
         HwtOps.OR: b.CreateOr,
@@ -101,8 +117,17 @@ def ToLlvmIrTranslator_createOperatorConstructorDictionaries(b: IRBuilder):
         HwtOps.ADD: b.CreateAdd,
         HwtOps.SUB: b.CreateSub,
         HwtOps.MUL: b.CreateMul,
+        HwtOps.UREM: b.CreateURem,
+        HwtOps.SREM: b.CreateSRem,
         HwtOps.UDIV: b.CreateUDiv,
         HwtOps.SDIV: b.CreateSDiv,
+
+    }
+    opConstructorMap2 = {
+        HwtOps.SEXT: _getllvmIntExtConstructor(True),
+        HwtOps.ZEXT: _getllvmIntExtConstructor(False),
+        HwtOps.TRUNC: _truncConstructor,
+        HwtOps.DOT: _dotToBitRangeGetConstructor,
     }
 
     opConstructorMapCmp = {
@@ -119,5 +144,5 @@ def ToLlvmIrTranslator_createOperatorConstructorDictionaries(b: IRBuilder):
         HwtOps.UGT: b.CreateICmpUGT,
         HwtOps.UGE: b.CreateICmpUGE,
     }
-    return opConstructorMap, opConstructorMapCmp
+    return opConstructorMap, opConstructorMap2, opConstructorMapCmp,
 

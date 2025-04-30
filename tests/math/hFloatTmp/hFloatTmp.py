@@ -1,8 +1,11 @@
 
+from typing import Self
+
 from hwt.doc_markers import internal
+from hwt.hdl.const import HConst
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.typingFuture import override
-from hwtHls.llvm.llvmIr import Type
+from hwtHls.llvm.llvmIr import Type, HFloatTmpConfig
 
 
 class _HFloatTmp(HdlType):
@@ -81,3 +84,38 @@ class _HFloatTmp(HdlType):
 
 
 HFloatTmp = _HFloatTmp()
+
+
+class _HFloatTmpConfigHdlTypeConst(HConst):
+
+    @override
+    @classmethod
+    def from_py(cls, typeObj, val, vld_mask=None) -> Self:
+        assert isinstance(val, HFloatTmpConfig), val
+        return cls(typeObj, val, vld_mask)
+
+    def toLlvm(self, toLlvm: "ToLlvmIrTranslator"):
+        return self.val
+
+    def __repr__(self) -> str:
+        return "<{0:s} {1}>".format(self.__class__.__name__, self.val)
+
+
+class _HFloatTmpConfigHdlType(HdlType):
+    """
+    Type of of HConst class for  :class:`hwtHls.llvm.llvmIr.HFloatTmpConfig`
+    """
+
+    @override
+    def all_mask(self):
+        return 1
+
+    @override
+    @internal
+    @classmethod
+    def getConstCls(cls):
+        return _HFloatTmpConfigHdlTypeConst
+
+
+HFloatTmpConfigHdlType = _HFloatTmpConfigHdlType()
+

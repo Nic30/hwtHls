@@ -37,13 +37,15 @@ from hwtHls.llvm.llvmIr import Value, Type, FunctionType, Function, VectorOfType
     ConstantAsMetadata, MDNode, Module, IRBuilder, UndefValue, PoisonValue, \
     GlobalVariable, GlobalValue, Align, AllocaInst, ValueToInstruction, ValueToAllocaInst, \
     TypeToArrayType, MaybeAlign, ValueToGlobalValue
-from hwtHls.netlist.hdlTypeVoid import _HVoidOrdering, HdlType_isVoid
+from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.platform.debugBundleTypes import LlvmCliArgTuple
 from hwtHls.ssa.translation.toLlvmUtils import addHwtHlsFunctionMetadata, \
     ToLlvmIrTranslator_createOperatorConstructorDictionaries, \
     llvmFunctionSortArgsByName, ToLlvmIoRecordTuple, applyLateLoopPragma
 from hwtLib.types.ctypes import uint32_t
 from pyMathBitPrecise.bit_utils import iter_bits_sequences, get_bit_range
+from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 
 
 class ToLlvmIrTranslator():
@@ -94,7 +96,7 @@ class ToLlvmIrTranslator():
             applyLateLoopPragma,
         ]
         self.placeholderObjectSlots = []
-        self._lateLoopPragmaToApply: List[Tuple[BasicBlock, List["_PyBytecodeLoopPragma", ]]] = []
+        self._lateLoopPragmaToApply: List[Tuple[BasicBlock, List["_PyBytecodeLoopPragma"]]] = []
 
         self._allocaForVariable: Dict[RtlSignal, AllocaInst] = {}
         self._initializedAllocaVariables: Set[RtlSignal] = set()
@@ -102,7 +104,8 @@ class ToLlvmIrTranslator():
 
         self._loop_stack: List[Tuple[BasicBlock, List[BasicBlock]]] = []
         self._dbgLogPassExec:Optional[StringIO] = dbgLogPassExec
-        self._opConstructorMap, self._opConstructorMapCmp = ToLlvmIrTranslator_createOperatorConstructorDictionaries(self.b)
+        self._opConstructorMap, self._opConstructorMap2, self._opConstructorMapCmp =\
+            ToLlvmIrTranslator_createOperatorConstructorDictionaries(self.b)
         self._dbgRootDir: Optional[Path] = None
         self._dbgSubDir: Optional[Path] = None
 
@@ -120,17 +123,13 @@ class ToLlvmIrTranslator():
             # else:
             #    builder.SetInsertPoint(entryBB, entryBB.getTerminator())
 
-            typeToLlvm = getattr(var._dtype, "toLlvm", None)
-            if typeToLlvm is not None:
-                Ty = typeToLlvm(self)
-            else:
-                # :attentino: variables on stack (alloca) must have minimum aligment of 1B otherwise
-                #     load/store to different allocas would interfere with each other
-                #     this allocates type as is and then it relies on TmpAllocaLoweringPass to
-                #     widen it to handle problems with alignment
-                Ty = self._translateType(var._dtype)
+            # :attentino: variables on stack (alloca) must have minimum aligment of 1B otherwise
+            #     load/store to different allocas would interfere with each other
+            #     this allocates type as is and then it relies on TmpAllocaLoweringPass to
+            #     widen it to handle problems with alignment
+            Ty = self._translateType(var._dtype)
 
-            alloca = builder.CreateAlloca(Ty, None, self.strCtx.addTwine(var._name))
+            alloca = builder.CreateAlloca(Ty, None, self.strCtx.addTwine("" if var._hasGenericName else var._name))
             allocaInst = ValueToInstruction(alloca)
             allocaInst.setMetadata(
                 self.strCtx.addStringRef("hwtHls.tmp.alloca"),
@@ -243,7 +242,8 @@ class ToLlvmIrTranslator():
                 new_bb, new_var = self._translateExprToLlvm(block, var[width:high])
                 parts.append(new_var)
 
-            value = self.b.CreateBitConcat(parts)
+            name = self.strCtx.addTwine("" if var._hasGenericName else var._name)
+            value = self.b.CreateBitConcat(parts, name)
         return new_bb, value
 
     def _handleVariableStore(self,
@@ -282,11 +282,9 @@ class ToLlvmIrTranslator():
                 # copy content of value to alloca memory
                 arrTy = TypeToArrayType(alloca.getAllocatedType())
                 assert arrTy is not None, alloca
-                elementWidth = arrTy.getElementType().getIntegerBitWidth()
-                elementSize = elementWidth // 8
-                if elementSize * 8 < elementWidth:
-                    elementSize += 1
-                size = arrTy.getNumElements() * elementSize  # :note: if size is not correct the DSEPass will remove memcopy
+                DL = self.llvm.module.getDataLayout()
+                size = DL.getTypeAllocSize(arrTy).getFixedValue()
+                # :note: if size is not correct the DSEPass will remove memcopy
                 builder.CreateMemCpy(alloca, MaybeAlign(1), value, MaybeAlign(1), size)
                 storeCreated = True
             else:
@@ -328,14 +326,16 @@ class ToLlvmIrTranslator():
             # already existing HlsRead was found, reuse existing value
             return self._translateExprToLlvm(block, r._sig)
 
-        block, newVar = r._translateToLlvm(self, block)
+        return r._translateToLlvm(self, block)
+
+    def _translateToLlvm_HlsRead_registerVar(self, bb: BasicBlock, r: HlsRead, newVar: Value):
         # HlsRead is a SsaValue and thus represents "variable"
         if r._sig is not None:
             # :note: it is None for reads of void
-            return self._variableInBlock_insertNoRedef(block, r._sig, newVar, True)
+            return self._variableInBlock_insertNoRedef(bb, r._sig, newVar, True)
         else:
             assert r._isBlocking and HdlType_isVoid(r._dtype), r
-            return block, newVar
+            return bb, newVar
 
     def addAfterTranslationUnique(self, fn: Callable[['ToLlvmIrTranslator'], None]):
         if fn not in self._afterTranslation:
@@ -405,39 +405,33 @@ class ToLlvmIrTranslator():
         if v < 0:
             raise NotImplementedError()
 
-        _v = APInt(t.getBitWidth(), self.strCtx.addStringRef(f"{v:x}"), 16)
-        return ConstantInt.get(t, _v)
-
-    def _translateExprIntLlvmTy(self, v: int, t: Type):
-        if v < 0:
-            raise NotImplementedError()
-
-        _v = APInt(t.getIntegerBitWidth(), self.strCtx.addStringRef(f"{v:x}"), 16)
+        _v = APInt(t.getIntegerBitWidth(), f"{v:x}", 16)
         return ConstantInt.get(t, _v)
 
     def _translateExprHConst(self, block: BasicBlock, v: HConst) -> Value:
         toLlvm = getattr(v, "toLlvm", None)
+        vTy = v._dtype
         if toLlvm is not None:
             return toLlvm(self)
 
         elif isinstance(v, HBitsConst):
             if v._is_full_valid():
-                t = self._translateType(v._dtype)
-                _v = APInt(v._dtype.bit_length(), self.strCtx.addStringRef(f"{v.val:x}"), 16)
+                t = self._translateType(vTy)
+                _v = APInt(vTy.bit_length(), f"{v.val:x}", 16)
                 return ConstantInt.get(t, _v)
             elif v.vld_mask == 0:
-                t = self._translateType(v._dtype)
+                t = self._translateType(vTy)
                 return UndefValue.get(t)
             else:
                 concatMembers = []
                 offset = 0
-                for (bVal, width) in iter_bits_sequences(v.vld_mask, v._dtype.bit_length()):
+                for (bVal, width) in iter_bits_sequences(v.vld_mask, vTy.bit_length()):
                     t = Type.getIntNTy(self.ctx, width)
                     if bVal == 0:
                         m = UndefValue.get(t)
                     elif bVal == 1:
                         _v = get_bit_range(v.val, offset, offset + width)
-                        _v = APInt(width, self.strCtx.addStringRef(f"{_v:x}"), 16)
+                        _v = APInt(width, f"{_v:x}", 16)
                         m = ConstantInt.get(t, _v)
                     else:
                         raise ValueError(bVal)
@@ -454,39 +448,33 @@ class ToLlvmIrTranslator():
                     assert cur is v, (cur, v)
                     return curV
 
-                params = [("id", Type.getIntNTy(self.ctx, 32), None, 0)]
-                if v.hasManyInputs:
-                    if isinstance(v.hwInputT, HStruct):
-                        params.extend((f.name, self._translateType(f._dtype), None, 0) for f in v.hwInputT._fields)
-                    else:
-                        raise NotImplementedError(v.hwInputT)
-                else:
-                    params.append(("arg0", self._translateType(v.hwInputT), None, 0))
-
-                if v.hasManyOutputs:
-                    raise NotImplementedError()
-                else:
-                    if isinstance(v.hwOutputT, _HVoidOrdering):
-                        resTy = Type.getVoidTy(self.ctx)
-                    else:
-                        resTy = self._translateType(v.hwOutputT)
-
                 v.placeholderObjectId = len(self.placeholderObjectSlots)
-                fn = self.createFunctionPrototype(f"hwtHls.pyObjectPlaceholder.{v.placeholderObjectId:d}.{v.val:s}",
-                                                  params, resTy, addHwtHlsMeta=False)
+                fn = v._translateExprHConstHardBlockFunctionDef(self)
                 self.placeholderObjectSlots.append((v, fn))
+
             else:
                 fn = v
+
             return fn
 
-        elif HdlType_isVoid(v._dtype):
-            return ConstantInt.get(Type.getIntNTy(self.ctx, 1), APInt(1, self.strCtx.addStringRef(f"1"), 16))
+        elif HdlType_isVoid(vTy):
+            return ConstantInt.get(Type.getIntNTy(self.ctx, 1), APInt(1, 1, 16))
 
-        elif isinstance(v._dtype, HArray):
+        elif isinstance(vTy, HArray):
             # :see: CreateGlobalDataWithGEP
-            arrayTy = self._translateArrayType(v._dtype)
+            vTy: HArray
+
+            if not isinstance(vTy.element_t, HBits) and vTy.element_t != HFloatTmp:
+                # the type is some non scalar value, reinterpret it to raw bits
+                flatElementT = HBits(vTy.element_t.bit_length())
+                vTyFlat = flatElementT[vTy.size]
+                v = v._reinterpret_cast(vTyFlat)
+                vTy = vTyFlat
+
+            arrayTy = self._translateArrayType(vTy)
             _block, items = self._translateExprsToLlvm(block, v)
-            assert _block is block, ("During translation of constants there was no reason to new block to appear", _block, block)
+            assert _block is block, ("During translation of constants there was no reason to new block to appear",
+                                     _block, block)
             newCRom = ConstantArray.get(arrayTy, items)
             isConstant = True
             newArray = GlobalVariable(self.module, arrayTy,
@@ -495,9 +483,10 @@ class ToLlvmIrTranslator():
             newArray.setUnnamedAddr(GlobalValue.UnnamedAddr.Global)
             newArray.setAlignment(Align(1))
             return newArray
-
+        elif isinstance(vTy, HString):
+            return v.to_py()
         else:
-            raise NotImplementedError(v)
+            raise NotImplementedError("unknown type of constant", v)
 
     def _translateExprsToLlvm(self, block: BasicBlock, variables: Sequence[Union[RtlSignal, Value, HConst]]):
         results = []
@@ -521,7 +510,7 @@ class ToLlvmIrTranslator():
                     self._initializedAllocaVariables.add(var)
 
             # this is known variable, create load from it
-            name = self.strCtx.addTwine(var._name)
+            name = self.strCtx.addTwine("" if var._hasGenericName else var._name)
             if isinstance(var._dtype, HArray):
                 llvmValue = alloca
             else:
@@ -539,15 +528,29 @@ class ToLlvmIrTranslator():
         else:
             builder.SetInsertPoint(block)
 
-    def _translateExprToLlvm(self, block: BasicBlock, var: Union[RtlSignal, Value, HConst], allowHConst:bool=False) -> Tuple[BasicBlock, Union[Value, HConst]]:
+    def _translateExprToLlvm(self, block: BasicBlock, var: Union[RtlSignal, Value, HConst, HObjList], allowHConst:bool=False) -> Tuple[BasicBlock, Union[Value, HConst]]:
         """
         Translate RtlSignal expression to SSA with constant propagation and expression cache
         """
+        if isinstance(var, HObjList):
+            members = []
+            for item in var:
+                block, item = self._translateExprToLlvm(block, item, allowHConst)
+                members.append(item)
+            llvmVar = self.b.CreateBitConcat(members)
+            return block, llvmVar
+
         if isinstance(var, Value):
             return block, var
 
         if isinstance(var, HwIOSignal):
             var = var._sig  # normalize to use RtlSignal only
+
+        if isinstance(var, HConst):
+            if allowHConst:
+                return block, var
+            else:
+                return block, self._translateExprHConst(block, var)
 
         varDict = self._variableInBlock.get(block, None)
         if varDict is not None:
@@ -556,9 +559,7 @@ class ToLlvmIrTranslator():
             if cur is not None:
                 return block, cur
 
-        builder = self.b
-
-        allocaLoad = self._createLoadFromTmpAllocaIfExists(builder, block, var)
+        allocaLoad = self._createLoadFromTmpAllocaIfExists(self.b, block, var)
         if allocaLoad is not None:
             return allocaLoad
 
@@ -616,20 +617,14 @@ class ToLlvmIrTranslator():
                     cond, trueVal, falseVal = ops
                     ops = (trueVal, cond, falseVal)
 
-                block, var = self._translateExprOperator(block, op, op.operator, var._dtype, ops, var._name)
+                block, var = self._translateExprOperator(block, op, op.operator, var._dtype, ops, "" if var._hasGenericName else var._name)
 
             # we know for sure that this in in this block that is why we do not need to use readVariable
             return self._variableInBlock_insertNoRedef(block, sig, var)
 
-        elif isinstance(var, HConst):
-            if allowHConst:
-                return block, var
-            else:
-                return block, self._translateExprHConst(block, var)
-
         elif isinstance(var, HwIOStruct):
-                var = HwIO_pack(var)
-                return self._translateExprToLlvm(block, var)
+            var = HwIO_pack(var)
+            return self._translateExprToLlvm(block, var)
         elif isinstance(var, HlsRead):
             return self.visit_Read(block, var)
 
@@ -639,8 +634,7 @@ class ToLlvmIrTranslator():
                                     index0: Union[Value, HConst],):
         block, index0 = self._translateExprToLlvm(block, index0)
         index_t = index0.getType()
-        indexes = [self._translateExprIntLlvmTy(0, index_t), ]
-        indexes.append(index0)
+        indexes = [self._translateExprInt(0, index_t), ]
         # if isinstance(arr, Value):
         alloca: AllocaInst = ValueToAllocaInst(arr)
         if alloca is not None:
@@ -652,8 +646,14 @@ class ToLlvmIrTranslator():
             data = globalValue.getOperand(0)
             arrTy = data.getType()
 
-        arrTy = TypeToArrayType(arrTy)
+        arrTy: ArrayType = TypeToArrayType(arrTy)
         assert arrTy is not None, ("index operator only on array arrays", alloca)
+        index0Width = index0.getType().getIntegerBitWidth()
+        b: IRBuilder = self.b
+        # :attention: GEP indexes are signed, we must extend if there is a possibility of signed overflow
+        if arrTy.getNumElements() > 2 ** (index0Width - 1):
+            index0 = b.CreateZExt(index0, b.getIntNTy(index0Width + 1))
+        indexes.append(index0)
 
         # else:
         #    arrTy: ArrayType = self._translateArrayType(arr._dtype)
@@ -661,7 +661,7 @@ class ToLlvmIrTranslator():
         #    block, arr = self._translateExprToLlvm(block, arr)
 
         # elmT = arrTy.getElementType()
-        ptr = self.b.CreateGEP(arrTy, arr, indexes)
+        ptr = b.CreateGEP(arrTy, arr, indexes)
         return block, ptr  # , elmT
 
     def _translateExprSubscript(self, block: BasicBlock, op0: Value, op1: Union[Value, HConst],
@@ -676,17 +676,18 @@ class ToLlvmIrTranslator():
                 op1 = int(op1.val.stop)
             else:
                 op1 = int(op1)
-
-            return block, b.CreateBitRangeGetConst(op0, op1, resTy.bit_length())
+            name = self.strCtx.addTwine(instrName)
+            return block, b.CreateBitRangeGetConst(op0, op1, resTy.bit_length(), name)
 
         elif op0t.isPointerTy():
             # load from array
             elmT = resTy
             if isinstance(elmT, HdlType):
-                assert isinstance(elmT, HBits)
+                assert not isinstance(elmT, HArray), elmT
                 elmT = self._translateType(elmT)
 
-            volatile = not isinstance(op0, (GlobalVariable, GlobalValue))
+            # volatile only if this is IO communication (not a local memory)
+            volatile = not isinstance(op0, (GlobalVariable, GlobalValue, AllocaInst))
             block, ptr = self._translateExprSubscriptGEP(block, op0, op1)
             name = self.strCtx.addTwine(instrName)
             return block, b.CreateLoad(elmT, ptr, volatile, name)
@@ -700,7 +701,8 @@ class ToLlvmIrTranslator():
         b = self.b
         if operator == HwtOps.CONCAT and isinstance(resTy, HBits):
             block, ops = self._translateExprsToLlvm(block, operands)
-            return block, b.CreateBitConcat(ops)
+            name = self.strCtx.addTwine(instrName)
+            return block, b.CreateBitConcat(ops, name)
 
         elif operator == HwtOps.INDEX:
             op0, op1 = operands
@@ -751,23 +753,27 @@ class ToLlvmIrTranslator():
                 args = tuple(args)
                 fn = operands[0]
 
-                isHardblock = isinstance(fn, HardBlockHwModule)
-                if isHardblock:
-                    _args = [self._translateExprInt(fn.placeholderObjectId, Type.getIntNTy(self.ctx, 32))]
-                    _args.extend(args[1:])
-                else:
-                    _args = list(args[1:])
-                res = fn.translateToLlvm(b, _args)
+                # isHardblock = isinstance(fn, HardBlockHwModule)
+                # if isHardblock:
+                #    _args = [self._translateExprInt(fn.placeholderObjectId, Type.getIntNTy(self.ctx, 32))]
+                #    _args.extend(args[1:])
+                # else:
+                #    _args = list(args[1:])
+                res = fn.translateToLlvm(self, b, args[1:])
 
                 return block, res
 
             elif isinstance(operator, HOperatorDefLlvm):
-                return block, operator.llvmOperatorConstructor(b, instr, *args, name)
+                return block, operator.llvmOperatorConstructor(self.llvm, b, instr, *args, name)
             else:
                 constructor_fn = self._opConstructorMap.get(operator, None)
                 if constructor_fn is not None:
                     return block, constructor_fn(*args, name)
-                else:
-                    assert len(operands) == 2, instr
-                    _opConstructorMap2 = self._opConstructorMapCmp
-                    return block, _opConstructorMap2[operator](*args, name)
+
+                constructor_fn = self._opConstructorMap2.get(operator, None)
+                if constructor_fn is not None:
+                    return block, constructor_fn(self.llvm, b, instr, *args, name)
+                
+                assert len(operands) == 2, instr
+                _opConstructorMapCmp = self._opConstructorMapCmp
+                return block, _opConstructorMapCmp[operator](*args, name)
