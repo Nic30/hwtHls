@@ -201,6 +201,8 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
 
         rtlObj = [
             # [todo] llvm MIR lefts bits which are sliced out
+            ram.addr(_addr.data)
+            if ram.addr._dtype.bit_length() == _addr.data._dtype.bit_length() else
             ram.addr(_addr.data[ram.ADDR_WIDTH:])
         ]
         if ram.HAS_W:
