@@ -3,10 +3,11 @@ from typing import Union, Optional, List, Tuple
 from hwt.constants import NOT_SPECIFIED
 from hwt.hdl.types.function import HFunction
 from hwt.hdl.types.hdlType import HdlType
+from hwt.hdl.types.struct import HStructField
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode.pragma import _PyBytecodeIntrinsic
 from hwtHls.llvm.llvmIr import MachineInstr, CallInst, AddDefaultFunctionAttributes, Register, Value, \
-    IRBuilder, FunctionCallee
+    IRBuilder, FunctionCallee, VectorOfTypePtr, FunctionType, Function, Type
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
@@ -41,22 +42,58 @@ class HardBlockHwModule(_PyBytecodeIntrinsic):
                  operationRealizationMeta: Optional[OpRealizationMeta]=None):
         super().__init__(hwInputT, hwOutputT=hwOutputT, name=name, operationRealizationMeta=operationRealizationMeta)
         self.placeholderObjectId: Optional[int] = None
+        self._llvmFunction:Optional[Function] = None
+
+    def getFnName(self):
+        return f"hwtHls.pyObjectPlaceholder.{self.placeholderObjectId:d}.{self.__class__.__name__:s}.i{self.hwInputT.bit_length():d}"
+
+    def _translateExprHConstHardBlockFunctionDef(self, toLlvm: "ToLlvmIrTranslator"):
+        strCtx = toLlvm.strCtx
+        _argTypes = VectorOfTypePtr()
+        _argTypes.push_back(Type.getIntNTy(toLlvm.ctx, 32))
+        if self.hasManyInputs:
+            for field in self.hwInputT.fields:
+                field: HStructField
+                t = toLlvm._translateType(field.dtype)
+                _argTypes.push_back(t)
+        else:
+            t = toLlvm._translateType(self.hwInputT)
+            _argTypes.push_back(t)
+
+        returnType = toLlvm._translateType(self.hwOutputT)
+        FT = FunctionType.get(returnType, _argTypes, False)
+        name = strCtx.addTwine(self.getFnName())
+        F = Function.Create(FT, Function.ExternalLinkage, name, toLlvm.module)
+        if self.hasManyInputs:
+            for field, a in zip(self.hwInputT.fields, F.args()):
+                field: HStructField
+                assert field.name, self.hwInputT
+                a.setName(strCtx.addTwine(field.name))
+
+        return F
 
     @override
-    def translateToLlvm(self, b: IRBuilder, args: Tuple[Value]):
-        res: CallInst = b.CreateCall(FunctionCallee(self), args)
+    def translateToLlvm(self, toLlvm: "ToLlvmIrTranslator", b: IRBuilder, args: Tuple[Value]) -> CallInst:
+        #F = self._llvmFunction
+        #if F is None:
+        #    F = self.F = self._createLlvmFunctionDef(toLlvm)
+        _, F = toLlvm.placeholderObjectSlots[self.placeholderObjectId]
+        _args = [toLlvm._translateExprInt(self.placeholderObjectId, Type.getIntNTy(toLlvm.ctx, 32))]
+        _args.extend(args)
+        calle = FunctionCallee(F)
+        res: CallInst = b.CreateCall(calle, _args)
         fn = res.getCalledFunction()
         AddDefaultFunctionAttributes(fn)
-        res.setOnlyAccessesArgMemory()
+        # res.setOnlyAccessesArgMemory()
+        res.setDoesNotAccessMemory()
         return res
-
+      
     def translateMirToNetlist(self,
                               mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
-                              mbSync: MachineBasicBlockMeta,
+                              mbMeta: MachineBasicBlockMeta,
                               instr: MachineInstr,
                               builder: HlsNetlistBuilder,
                               inputs: List[HlsNetNodeOut],
-                              instrDstReg: Register,
                               dstName: str
                               ):
         """
@@ -89,13 +126,13 @@ class HardBlockHwModule(_PyBytecodeIntrinsic):
         # res.obj.name = name
         # valCache.add(mb, dst, res, True)
 
-    def translateNetlistToArch(self, n: HlsNetNodeAggregate):
-        """
-        Produces scheduled ArchElement(s).
-        * Product will be subject of synchronization resolution algorithm.
-        * internal IO will be realized using channels. 
-
-        :note: If this method succeeds the node is replaced with ArchElement
-            and this object is no longer part of any input code.
-        """
-        raise NotImplementedError()
+    #def translateNetlistToArch(self, n: HlsNetNodeAggregate):
+    #    """
+    #    Produces scheduled ArchElement(s).
+    #    * Product will be subject of synchronization resolution algorithm.
+    #    * internal IO will be realized using channels. 
+    #
+    #    :note: If this method succeeds the node is replaced with ArchElement
+    #        and this object is no longer part of any input code.
+    #    """
+    #    raise NotImplementedError()
