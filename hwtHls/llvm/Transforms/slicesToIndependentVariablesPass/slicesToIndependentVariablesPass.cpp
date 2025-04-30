@@ -7,6 +7,7 @@
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/detectSplitPoints.h>
 #include <hwtHls/llvm/targets/intrinsic/concatMemberVector.h>
+#include <hwtHls/llvm/targets/intrinsic/utils.h>
 
 #include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
 #define DEBUG_TYPE "slices-to-independent-variables"
@@ -595,7 +596,7 @@ bool splitOnSplitPoints(const InstrSet &noSplitInstrs,
 //}
 
 
-const std::string SlicesToIndependentVariablesPass::metadataNameNoSplit = "hwtHls.slicesToIndependentVariables.noSplit";
+const std::string SlicesToIndependentVariablesPass::metadataName_NoSplit = "hwtHls.slicesToIndependentVariables.noSplit";
 
 /*
  * There are several things to resolve:

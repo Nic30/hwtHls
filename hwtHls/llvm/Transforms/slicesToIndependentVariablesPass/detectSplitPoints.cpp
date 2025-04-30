@@ -339,7 +339,7 @@ SplitPoints collectSplitPoints(Function &F, InstrSet &noSplitInstrs) {
 	// collect indexes from slices
 	for (auto &B : F) {
 		for (Instruction &I : B) {
-			bool hasNoSplit = I.getMetadata(SlicesToIndependentVariablesPass::metadataNameNoSplit);
+			bool hasNoSplit = I.getMetadata(SlicesToIndependentVariablesPass::metadataName_NoSplit);
 			if (hasNoSplit) {
 				noSplitInstrs.insert(&I);
 				//continue;
