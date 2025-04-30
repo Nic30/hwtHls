@@ -65,6 +65,7 @@ _OPS_T_GROWING_CONST = {
     HwtOps.OR,
     *_OPS_T_ZERO_LATENCY,
     ResourceFF,
+    ResourceRAM,
 }
 
 
@@ -84,11 +85,8 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
         # operator: seconds to perform
         self._OP_DELAYS: Dict[HOperatorNode, float] = {
             # exponentially growing with bit width
-            HwtOps.UDIV: 0.9e-9,
-            HwtOps.SDIV: 0.9e-9,
             HwtOps.POW: 0.6e-9,
             HwtOps.MUL: 0.6e-9,
-            HwtOps.MOD: 0.9e-9,
 
             # nearly constant with bit width
             HwtOps.NOT: 0.0,  # set to 0 because in FPGA invertor is inlined to successor/predecessor node
@@ -100,13 +98,8 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
             OP_ASHR: 1.2e-9,
             OP_LSHR: 1.2e-9,
             OP_SHL: 1.2e-9,
-            OP_FSHL: 1.2e-9,
-            OP_FSHR: 1.2e-9,
             OP_ROL: 1.2e-9,
             OP_ROR: 1.2e-9,
-            OP_CTLZ: 1.2e-9,
-            OP_CTTZ: 1.2e-9,
-            OP_CTPOP: 1.2e-9,
 
             # nearly linear with bit width
             HwtOps.ADD: 1.5e-9,
@@ -130,10 +123,11 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
             # constant
             HwtOps.INDEX: 0,
             HwtOps.CONCAT: 0,
+            ResourceRAM: 1.2e-9,
             ResourceFF: 1.2e-9,
         }
         # AMD/Xilinx 7-series https://0x04.net/~mwk/xidocs/ug/xc7-ram.pdf
-        # :note: data width X depth
+        # :note: depth X data width
         # :attention: must be sorted, the smallest depth first
         self._BRAM_GEOMETRIES = [
             (512, 36),
@@ -143,8 +137,7 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
             (8192, 2),
             (16384, 1),
         ]
-        self._componentGenerators[MemoryAllocationMeta] = ComponentGeneratorMemory(self)
-        # # Intel stratix-v https://cdrdv2-public.intel.com/670815/stx5_51001-683258-670815.pdf
+        # # Altera/Intel stratix-v https://cdrdv2-public.intel.com/670815/stx5_51001-683258-670815.pdf
         # [
         #    # MLAB
         #    (32, 20),
@@ -158,6 +151,17 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
         #    (16384, 1),
         # ]
 
+        # https://0x04.net/~mwk/xidocs/ug/ug479_7Series_DSP48E1.pdf
+        # https://projectf.io/posts/multiplication-fpga-dsps/
+        # Altera Cyclone V: 27 x 27 bit
+        # Lattice iCE40UP (SB_MAC16): 16 x 16 bit
+        # Lattice ECP5 (sysDSP): 18 x 18 bit
+        # Xilinx 7 Series (DSP48E1): 25 × 18 bit
+        # Xilinx Ultrascale+ (DSP48E2): 27 x 18 bit
+
+        self._DSP_MUL_GEOMETRIES = [
+            (25, 18),
+        ]
         self._installComponentGenerators()
 
     def _installComponentGenerators(self):
@@ -177,6 +181,7 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
                            input_cnt: int, clkPeriod: float) -> OpRealizationMeta:
         if opSpecialization is not None:
             raise NotImplementedError(op, opSpecialization)
+
         try:
             base_delay = self._OP_DELAYS[op]
         except KeyError:
@@ -186,16 +191,16 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
             inputWireDelay = base_delay
 
         elif op in _OPS_T_GROWING_LOG:
-            inputWireDelay = base_delay * log2(log2(bit_width))
+            inputWireDelay = base_delay * max(1, log2(log2(bit_width)))
 
         elif op in _OPS_T_GROWING_LIN:
-            inputWireDelay = base_delay * log2(bit_width)
+            inputWireDelay = base_delay * max(1, log2(bit_width))
 
         elif op in _OPS_T_GROWING_EXP:
             inputWireDelay = base_delay * bit_width
 
         elif op == HwtOps.TERNARY:
-            inputWireDelay = base_delay * log2(bit_width * input_cnt)
+            inputWireDelay = base_delay * max(1, log2(bit_width * input_cnt))
 
         else:
             raise NotImplementedError(op)
