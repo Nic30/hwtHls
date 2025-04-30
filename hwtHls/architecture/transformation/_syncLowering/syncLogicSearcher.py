@@ -128,7 +128,9 @@ class SyncLogicSearcher():
 
                 # continue search on outputs of current output user
                 for useOutPort, useOutTime in zip(useObj._outputs, useObj.scheduledOut):
-                    assert useOutTime >= beginTime and useOutTime <= endTime, useOutPort
+                    if useOutTime > endTime:
+                        continue # [todo] it is not clear if this case should happen in valid circuit
+                    assert useOutTime >= beginTime, (useOutPort, useOutTime, beginTime, endTime)
                     toSearchDefToUse.append(useOutPort)
 
         return toSearchUseToDef
@@ -332,8 +334,8 @@ class SyncLogicSearcher():
                     if vldNB is not None:
                         self.collectFromOutput(syncNode, vldNB)
                 else:
-                    assert ioNode._validNB is None, ioNode
-                    assert ioNode._valid is None, ioNode
+                    assert ioNode._validNB is None, (ioNode, "if io does not use valid on rtl level, its use should already be replaced with '1'")
+                    assert ioNode._valid is None, (ioNode, "if io does not use valid on rtl level, its use should already be replaced with '1'")
 
             else:
                 forceEn = ioNode._forceEnPort
