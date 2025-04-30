@@ -152,14 +152,6 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
 
                 yield dNode
 
-    @override
-    def getAllocatedRTL(self, allocator:"ArchElement"):
-        assert self._isRtlAllocated, self
-        wData = self.dependsOn[self._portSrc.in_i]
-        addr = self.dependsOn[self.indexes[0].in_i]
-        ram: HwIOBramPort_noClk = self.dst
-        key = (ram, addr, wData)
-        return allocator.netNodeToRtl[key]
 
     def _rtlAlloc(self, allocator: "ArchElement", cmd: Literal[READ, WRITE], ram: HwIOBramPort_noClk) -> List[HdlStatement]:
         """
