@@ -195,6 +195,7 @@ py3.extension_module(
      'Transforms/streamIoLoweringPass/streamReadLoweringPass.cpp',
      'Transforms/streamIoLoweringPass/streamWriteLoweringPass.cpp',
      'Transforms/streamIoLoweringPass/streamIoRewriter.cpp',
+     'Transforms/streamLoopUnrollPass/sinkStreamWritesInLoop.cpp',
      'Transforms/streamLoopUnrollPass/streamLoopUnrollPass.cpp',
      ] + all_llvm_backend_gen_files,
     dependencies : [py3_dep, llvm_dep, pybind11_dep],

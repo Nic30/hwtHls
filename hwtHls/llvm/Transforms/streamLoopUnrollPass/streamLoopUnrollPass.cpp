@@ -12,11 +12,13 @@
 #include <llvm/Transforms/Utils/UnrollLoop.h>
 #include <llvm/Transforms/Utils/LoopSimplify.h>
 #include <llvm/Transforms/Scalar/LoopUnrollPass.h>
+
 #include <hwtHls/llvm/bitMath.h>
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
-#include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamIoInstrCollector.h>
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamIoCfgDetector.h>
+#include <hwtHls/llvm/Transforms/streamLoopUnrollPass/sinkStreamWritesInLoop.h>
 #include <hwtHls/llvm/Transforms/utils/loopHwtHlsMetadata.h>
+#include <hwtHls/llvm/Transforms/streamIoLoweringPass/StreamChannelProps.h>
 
 #define DEBUG_TYPE "StreamLoopUnroll"
 // #undef LLVM_DEBUG
@@ -99,13 +101,10 @@ static LoopUnrollResult tryToUnrollStreamLoop(llvm::Function &F, Loop *L,
 	}
 
 	Argument &IoArg = *F.getArg(streamArgI.value());
-
 	llvm::SmallVector<llvm::AllocaInst*> GeneratedAllocas;
+	// get stream props for specified IoArg
 	StreamChannelProps streamProps = getStreamIoProps(F, GeneratedAllocas,
 			&IoArg).at(0);
-	assert(
-			GeneratedAllocas.size() == 0
-					&& "This should not be used because we should only use positions in stream in this alg.");
 
 	llvm::SetVector<size_t> _minNumberOfBitsProcessedPerIteration;
 	llvm::SetVector<llvm::CallInst*> entryStreamIos;
@@ -130,7 +129,7 @@ static LoopUnrollResult tryToUnrollStreamLoop(llvm::Function &F, Loop *L,
 	if (entryStreamIos.size() != 1)
 		throw std::runtime_error(
 				"NotImplemented: StreamLoopUnrollPass multiple independent entry points to stream processing in loop body.");
-
+	assert(GeneratedAllocas.empty());
 	size_t minEntryOffset = streamProps.dataWidth;
 	for (auto *entryStreamI : entryStreamIos) {
 		// we are looking at predecessors because we want to use offsets possible on entry of the loop
@@ -152,45 +151,45 @@ static LoopUnrollResult tryToUnrollStreamLoop(llvm::Function &F, Loop *L,
 	if (minEntryOffset == streamProps.dataWidth)
 		minEntryOffset = 0;
 
-	// [todo] resolve amount of bits taken/added from/to stream per iteration and from possible offsets of loop header resolve
-	// how many times to peel and how many times to unroll to achieve desired throughput
-	if (minEntryOffset == 0) {
-		// no peeling required
-	} else {
-		throw std::runtime_error("NotImplemented");
-		TargetTransformInfo::PeelingPreferences PP;
-		if (PP.PeelCount) {
-			//assert(
-			//		UP.Count == 1
-			//				&& "Cannot perform peel and unroll in the same step");
-			LLVM_DEBUG(
-					dbgs() << "PEELING loop %" << L->getHeader()->getName()
-							<< " with iteration count " << PP.PeelCount
-							<< "!\n");
-			ORE.emit(
-					[&]() {
-						return OptimizationRemark(DEBUG_TYPE, "Peeled",
-								L->getStartLoc(), L->getHeader())
-								<< " peeled loop by "
-								<< ore::NV("PeelCount", PP.PeelCount)
-								<< " iterations";
-					});
-
-			ValueToValueMapTy VMap;
-			if (peelLoop(L, PP.PeelCount, LI, &SE, DT, &AC, PreserveLCSSA,
-					VMap)) {
-				simplifyLoopAfterUnroll(L, true, LI, &SE, &DT, &AC, &TTI);
-				// If the loop was peeled, we already "used up" the profile information
-				// we had, so we don't want to unroll or peel again.
-				if (PP.PeelProfiledIterations)
-					L->setLoopAlreadyUnrolled();
-				return LoopUnrollResult::PartiallyUnrolled;
-			}
-			return LoopUnrollResult::Unmodified;
-		}
-	}
+	//// [todo] resolve amount of bits taken/added from/to stream per iteration and from possible offsets of loop header resolve
+	//// how many times to peel and how many times to unroll to achieve desired throughput
+	//if (minEntryOffset == 0) {
+	//	// no peeling required
+	//} else {
+	//	throw std::runtime_error("NotImplemented tryToUnrollStreamLoop minEntryOffset != 0");
+	//	TargetTransformInfo::PeelingPreferences PP;
+	//	if (PP.PeelCount) {
+	//		//assert(
+	//		//		UP.Count == 1
+	//		//				&& "Cannot perform peel and unroll in the same step");
+	//		LLVM_DEBUG(
+	//				dbgs() << "PEELING loop %" << L->getHeader()->getName()
+	//						<< " with iteration count " << PP.PeelCount
+	//						<< "!\n");
+	//		ORE.emit(
+	//				[&]() {
+	//					return OptimizationRemark(DEBUG_TYPE, "Peeled",
+	//							L->getStartLoc(), L->getHeader())
+	//							<< " peeled loop by "
+	//							<< ore::NV("PeelCount", PP.PeelCount)
+	//							<< " iterations";
+	//				});
+	//
+	//		ValueToValueMapTy VMap;
+	//		if (peelLoop(L, PP.PeelCount, LI, &SE, DT, &AC, PreserveLCSSA,
+	//				VMap)) {
+	//			simplifyLoopAfterUnroll(L, true, LI, &SE, &DT, &AC, &TTI);
+	//			// If the loop was peeled, we already "used up" the profile information
+	//			// we had, so we don't want to unroll or peel again.
+	//			if (PP.PeelProfiledIterations)
+	//				L->setLoopAlreadyUnrolled();
+	//			return LoopUnrollResult::PartiallyUnrolled;
+	//		}
+	//		return LoopUnrollResult::Unmodified;
+	//	}
+	//}
 	UnrollLoopOptions UP;
-	UP.Count = div_ceil(streamProps.dataWidth - minEntryOffset,
+	UP.Count = div_ceil(streamProps.dataWidth, //- minEntryOffset,
 			minNumberOfBitsProcessedPerIteration);
 	UP.Force = true;
 	UP.Runtime = true;
@@ -220,6 +219,8 @@ static LoopUnrollResult tryToUnrollStreamLoop(llvm::Function &F, Loop *L,
 	if (UnrollResult != LoopUnrollResult::FullyUnrolled) {
 		std::optional<MDNode*> NewLoopID = makeFollowupLoopID(OrigLoopID, {
 				LLVMLoopUnrollFollowupAll, LLVMLoopUnrollFollowupUnrolled });
+		sinkStreamWritesInLoop(*L, SE, DT, *LI, AC, TTI, PreserveLCSSA);
+
 		if (NewLoopID) {
 			L->setLoopID(*NewLoopID);
 
