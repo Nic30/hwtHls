@@ -36,8 +36,10 @@ class HlsReadAxi4Lite(HlsReadAddressed):
             src:Axi4Lite,
             index:RtlSignal,
             element_t:HdlType,
-            isBlocking: bool):
-        HlsReadAddressed.__init__(self, parent, src, index, element_t, isBlocking)
+            isBlocking: bool,
+            isVolatile:bool,
+            hwIOName: Optional[str]=None):
+        HlsReadAddressed.__init__(self, parent, src, index, element_t, isBlocking, isVolatile, hwIOName=hwIOName)
         self.parentProxy = parentProxy
 
     @lru_cache(maxsize=None, typed=True)
@@ -145,8 +147,9 @@ class HlsWriteAxi4Lite(HlsWriteAddressed):
             dst:Union[HwIOBramPort_noClk, Tuple[HwIOBramPort_noClk]],
             index:ANY_SCALAR_INT_VALUE,
             element_t:HdlType,
+            isVolatile:bool,
             mayBecomeFlushable=False):
-        HlsWriteAddressed.__init__(self, parent, src, dst, index, element_t, mayBecomeFlushable)
+        HlsWriteAddressed.__init__(self, parent, src, dst, index, element_t, isVolatile, mayBecomeFlushable)
         self.parentProxy = parentProxy
 
     @lru_cache(maxsize=None, typed=True)
@@ -169,7 +172,7 @@ class HlsWriteAxi4Lite(HlsWriteAddressed):
         if isinstance(index, int):
             raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", dstIo, instr)
         _cond = cond
-        #_cond = mbMeta.syncTracker.resolveControlOutput(cond)
+        # _cond = mbMeta.syncTracker.resolveControlOutput(cond)
         proxy:Axi4LiteArrayProxy = representativeWriteStm.parentProxy
         aNode = HlsReadAxi4Lite._constructAddrWrite(
             netlist, mirToNetlist, mbMeta.parentElement, mbMeta, dstIo.aw, index,

@@ -5,6 +5,7 @@ from hwt.constants import NOT_SPECIFIED
 from hwt.constants import WRITE, READ
 from hwt.hdl.const import HConst
 from hwt.hdl.statements.statement import HdlStatement
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIOs.std import HwIOBramPort_noClk
 from hwt.pyUtils.typingFuture import override
@@ -32,8 +33,8 @@ from hwtHls.netlist.scheduler.clk_math import epsilon, indexOfClkPeriod, \
     beginOfNextClk
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
-from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
+from ipCorePackager.constants import INTF_DIRECTION
 
 AnyBramPort = Union[HwIOBramPort_noClk, BankedPortGroup[HwIOBramPort_noClk], MultiPortGroup[HwIOBramPort_noClk]]
 
@@ -45,26 +46,44 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
     _PORT_ATTR_NAMES = HlsNetNodeWriteIndexed._PORT_ATTR_NAMES + ["_portDataOut"]
 
     def __init__(self, netlist:"HlsNetlistCtx",
-                 dst:AnyBramPort,
-                 cmd: Literal[READ, WRITE]):
+                 dst: Optional[AnyBramPort],
+                 cmd: Literal[READ, WRITE],
+                 dtype:Optional[HBits]=None,
+                 hasR: Optional[bool]=None,
+                 hasW: Optional[bool]=None,
+                 mayBecomeFlushable=False,
+                 name=None):
         self.dst = dst
-        _dst = self._getNominaInterface()
+        if dst is None:
+            assert dtype is not None
+            assert hasR is not None
+            assert hasW is not None
+        else:
+            _dst = self._getNominaInterface()
+            if hasR is None:
+                hasR = _dst.HAS_R
+            if hasW is None:
+                hasW = _dst.HAS_W
 
-        HlsNetNodeWriteIndexed.__init__(self, netlist, dst, addSrcPort=_dst.HAS_W)
+        HlsNetNodeWriteIndexed.__init__(self, netlist, dst, mayBecomeFlushable=mayBecomeFlushable,
+                                        addSrcPort=hasW, name=name)
         self._rtlUseValid = True  # en is form of valid
         assert cmd is READ or cmd is WRITE, cmd
         self.cmd = cmd
 
         self._portDataOut: Optional[HlsNetNodeOut] = None
-        if _dst.HAS_R:
-            self._portDataOut = self._addOutput(_dst.dout._dtype, "dout")
+        if hasR:
+            if dtype is None:
+                _dst = self._getNominaInterface()
+                dtype = _dst.dout._dtype
+            self._portDataOut = self._addOutput(dtype, "dout")
 
         if cmd == READ:
-            assert _dst.HAS_R, dst
+            assert hasR, dst
             # set write data to None
         else:
             assert cmd == WRITE, cmd
-            assert _dst.HAS_W, dst
+            assert hasW, dst
 
     @override
     def _removeOutput(self, index:int):
@@ -213,11 +232,11 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
 
     def __repr__(self, minify=False):
         src = self.dependsOn[0]
-        dstName = self._getInterfaceName(self.dst)
+        dstName = "None" if self.dst is None else self._getInterfaceName(self.dst)
         if minify:
-            return f"<{self.__class__.__name__:s} {self._id:d} {self.cmd} {dstName}>"
+            return f"<{self.__class__.__name__:s} {self._id:d} {self.cmd} {dstName:s}>"
         else:
-            return f"<{self.__class__.__name__:s} {self._id:d} {self.cmd} {dstName}{HlsNetNodeReadIndexed._strFormatIndexes(self.indexes)} <- {src}>"
+            return f"<{self.__class__.__name__:s} {self._id:d} {self.cmd} {dstName:s}{HlsNetNodeReadIndexed._strFormatIndexes(self.indexes)} <- {src}>"
 
 
 class HlsNetNodeReadBramData(HlsNetNodeRead):
@@ -233,6 +252,7 @@ class HlsReadBram(HlsReadAddressed):
             index:ANY_SCALAR_INT_VALUE,
             element_t:HdlType,
             isBlocking:bool,
+            isVolatile:bool,
             hwIOName: Optional[str]=None):
 
         if isinstance(src, MultiPortGroup):
@@ -246,7 +266,7 @@ class HlsReadBram(HlsReadAddressed):
         else:
             assert src.HAS_R
 
-        HlsReadAddressed.__init__(self, parent, src, index, element_t, isBlocking, hwIOName=hwIOName)
+        HlsReadAddressed.__init__(self, parent, src, index, element_t, isBlocking, isVolatile, hwIOName=hwIOName)
         self.parentProxy = parentProxy
 
     def _getNativeInterfaceWordType(self) -> HdlType:
@@ -257,7 +277,7 @@ class HlsReadBram(HlsReadAddressed):
     @classmethod
     def _translateMirToNetlist(cls,
             representativeReadStm: "HlsReadBram",
-            mirToNetlist:HlsNetlistAnalysisPassMirToNetlist,
+            mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
             mbMeta:MachineBasicBlockMeta,
             instr:LoadInst,
             srcIo:AnyBramPort,
@@ -308,6 +328,7 @@ class HlsWriteBram(HlsWriteAddressed):
             dst:AnyBramPort,
             index:Union[Value, RtlSignal, HConst],
             element_t:HdlType,
+            isVolatile:bool,
             mayBecomeFlushable=True):
 
         if isinstance(dst, MultiPortGroup):
@@ -322,7 +343,7 @@ class HlsWriteBram(HlsWriteAddressed):
             assert isinstance(dst, HwIOBramPort_noClk), dst
             assert dst.HAS_W, dst
 
-        HlsWriteAddressed.__init__(self, parent, src, dst, index, element_t, mayBecomeFlushable=mayBecomeFlushable)
+        HlsWriteAddressed.__init__(self, parent, src, dst, index, element_t, isVolatile, mayBecomeFlushable=mayBecomeFlushable)
         self.parentProxy = parentProxy
 
     def _getNativeInterfaceWordType(self) -> HdlType:
@@ -368,6 +389,11 @@ class BramArrayProxy(IoProxyAddressed):
             i = interface[0]
         else:
             i = interface
+
+        assert i._direction != INTF_DIRECTION.MASTER, (
+            self.__class__, "this supports only slave interfaces,"
+            " because this is intended for mapping of IO to HLS as an array", interface)
+
         assert isInstanceOfInterfacePort(i, HwIOBramPort_noClk), i
         if i.HAS_W:
             if i.HAS_BE:

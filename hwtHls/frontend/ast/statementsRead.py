@@ -150,7 +150,8 @@ class HlsRead(HdlStatement):
         src: Argument
         elmT: Type
         # [todo] see mustSuppressSpeculation
-        return bb, toLlvm.b.CreateLoad(elmT, src, True, toLlvm.strCtx.addTwine(self._name))
+        v = toLlvm.b.CreateLoad(elmT, src, self._isVolatile, toLlvm.strCtx.addTwine(self._name))
+        return toLlvm._translateToLlvm_HlsRead_registerVar(bb, self, v)
 
     @classmethod
     def _translateMirToNetlist(cls,
@@ -180,7 +181,15 @@ class HlsRead(HdlStatement):
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         assert isinstance(srcIo, (HwIO, RtlSignalBase, MultiPortGroup, BankedPortGroup)), srcIo
         assert isinstance(index, int) and index == 0, (srcIo, index, "Because this read is not addressed there should not be any index")
-        dtype = _getNativeInterfaceWordType(getFirstInterfaceInstance(srcIo))
+        assert representativeReadStm._src is srcIo, (representativeReadStm, srcIo)
+
+        dtype = representativeReadStm._getNativeInterfaceWordType()
+        expectedWidth = mirToNetlist.mf.getRegInfo().getType(instrDstReg).getScalarSizeInBits()
+        if not representativeReadStm._isBlocking:
+            assert expectedWidth == dtype.bit_length() + 1, ("Width of physical signals of IO must be what is expected from LLVM MIR", instrDstReg, expectedWidth, dtype)
+        else:
+            assert expectedWidth == dtype.bit_length(), ("Width of physical signals of IO must be what is expected from LLVM MIR", instrDstReg, expectedWidth, dtype)
+
         if isinstance(dtype, HBits) and dtype.signed is not None:
             dtype = HBits(dtype.bit_length())
 
@@ -227,9 +236,10 @@ class HlsReadAddressed(HlsRead):
                  index: ANY_SCALAR_INT_VALUE,
                  element_t: HdlType,
                  isBlocking:bool,
+                 isVolatile:bool,
                  hwIOName: Optional[str]=None):
-        super(HlsReadAddressed, self).__init__(parent, src, element_t, isBlocking, hwIOName=hwIOName)
-        self.operands = (index,)
+        super(HlsReadAddressed, self).__init__(parent, src, element_t, isBlocking, isVolatile, hwIOName=hwIOName)
+        self.index = index
 
     @override
     def _translateToLlvm(self, toLlvm: "ToLlvmIrTranslator", bb: BasicBlock):
@@ -237,16 +247,17 @@ class HlsReadAddressed(HlsRead):
         src: Argument
         t: Type
         # :note: the index type does not matter much as llvm::InstCombine extends it to i64
-        index_t = Type.getIntNTy(toLlvm.ctx, self.operands[0]._dtype.bit_length())
+        index_t = Type.getIntNTy(toLlvm.ctx, self.index._dtype.bit_length())
         indexes = [toLlvm._translateExprInt(0, index_t)]
-        bb, index0 = toLlvm._translateExprToLlvm(bb, self.operands[0])
+        bb, index0 = toLlvm._translateExprToLlvm(bb, self.index)
         indexes.append(index0)
         arrTy: ArrayType = TypeToArrayType(t)
         assert arrTy is not None, ("It is expected that this object access data of array type", self, t)
         elmT = arrTy.getElementType()
         ptr = toLlvm.b.CreateGEP(arrTy, src, indexes)
         name = toLlvm.strCtx.addTwine(self._name)
-        return bb, toLlvm.b.CreateLoad(elmT, ptr, True, name)
+        v = toLlvm.b.CreateLoad(elmT, ptr, self._isVolatile, name)
+        return toLlvm._translateToLlvm_HlsRead_registerVar(bb, self, v)
 
     @classmethod
     def _translateMirToNetlist(cls,
@@ -294,7 +305,7 @@ class HlsReadAddressed(HlsRead):
         if tName is not None:
             t = tName
 
-        return f"<{self.__class__.__name__} {self._name:s} {self._getInterfaceName(self._src):s}[{self.operands[0]}], {t}>"
+        return f"<{self.__class__.__name__} {self._name:s} {self._getInterfaceName(self._src):s}[{self.index}], {t}>"
 
 
 class HlsStmReadStartOfFrame(HlsRead):
@@ -305,13 +316,14 @@ class HlsStmReadStartOfFrame(HlsRead):
     """
 
     def __init__(self, parent:"HlsScope", src:ANY_HLS_STREAM_INTF_TYPE):
-        HlsRead.__init__(self, parent, src, HVoidOrdering, True)
+        HlsRead.__init__(self, parent, src, HVoidOrdering, True, isVolatile=True)
 
     @override
     def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
         src, _ = getArgumentForHwIO(toLlvm, self._src, self, True)
         src: Argument
-        return bb, toLlvm.b.CreateStreamReadStartOfFrame(src)
+        v = toLlvm.b.CreateStreamReadStartOfFrame(src)
+        return toLlvm._translateToLlvm_HlsRead_registerVar(bb, self, v)
 
 
 class HlsStmReadEndOfFrame(HlsRead):
@@ -322,10 +334,11 @@ class HlsStmReadEndOfFrame(HlsRead):
     """
 
     def __init__(self, parent:"HlsScope", src:ANY_HLS_STREAM_INTF_TYPE):
-        HlsRead.__init__(self, parent, src, HVoidOrdering, True)
+        HlsRead.__init__(self, parent, src, HVoidOrdering, True, isVolatile=True)
 
     @override
     def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
         src, _ = getArgumentForHwIO(toLlvm, self._src, self, True)
         src: Argument
-        return bb, toLlvm.b.CreateStreamReadEndOfFrame(src)
+        v = toLlvm.b.CreateStreamReadEndOfFrame(src)
+        return toLlvm._translateToLlvm_HlsRead_registerVar(bb, self, v)

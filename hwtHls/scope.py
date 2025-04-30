@@ -32,7 +32,6 @@ from hwtHls.thread import HlsThread, HlsThreadDoesNotUseSsa
 from hwtLib.amba.axi_common import Axi_hs
 from ipCorePackager.constants import INTF_DIRECTION
 
-
 # type representing HwIO and alike classes which are natively supported by HlsScope read/write
 ANY_HLS_COMPATIBLE_IO = Union[HwIODataRdVld, HwIOStructRdVld,
                               HwIORdVldSync, Axi_hs,
@@ -101,9 +100,10 @@ class HlsScope():
         return var
 
     @hlsLowLevel
-    def read(self, src: ANY_HLS_COMPATIBLE_IO, blocking:bool=True) -> HlsRead:
+    def read(self, src: ANY_HLS_COMPATIBLE_IO, blocking:bool=True, isVolatile:bool=True) -> HlsRead:
         """
         Create a read statement for simple interfaces.
+        :param volatile: if true the read has side-effect and must be performed in original code order
         """
         _src = src
         src = getFirstInterfaceInstance(src)
@@ -141,7 +141,7 @@ class HlsScope():
             src: PyObjectHwSubscriptRef
             assert isinstance(src.sequence, IoProxyAddressed), src.sequence
             mem: IoProxyAddressed = src.sequence
-            return mem.READ_CLS(mem, self, mem.interface, src.index, mem.rWordT, blocking)
+            return mem.READ_CLS(mem, self, mem.interface, src.index, mem.rWordT, blocking, isVolatile=isVolatile)
 
         else:
             raise NotImplementedError(src)
@@ -153,10 +153,10 @@ class HlsScope():
         if isinstance(_src, HwIO):
             assert _src._direction != INTF_DIRECTION.SLAVE, (_src, "Can not read from output")
 
-        return HlsRead(self, _src, dtype, blocking)
+        return HlsRead(self, _src, dtype, blocking, isVolatile=isVolatile)
 
     @hlsLowLevel
-    def write(self, src: Union[HlsRead, bytes, int, HConst], dst: ANY_HLS_COMPATIBLE_IO, mayBecomeFlushable=True) -> HlsWrite:
+    def write(self, src: Union[HlsRead, bytes, int, HConst], dst: ANY_HLS_COMPATIBLE_IO, isVolatile:bool=True, mayBecomeFlushable=True) -> HlsWrite:
         """
         Create a write statement for simple interfaces.
         """
@@ -182,11 +182,12 @@ class HlsScope():
             dst: PyObjectHwSubscriptRef
             mem: IoProxyAddressed = dst.sequence
             assert isinstance(mem, IoProxyAddressed), (dst, mem)
-            return mem.WRITE_CLS(mem, self, src, mem.interface, dst.index, mem.wWordT, mayBecomeFlushable=mayBecomeFlushable)
+            return mem.WRITE_CLS(mem, self, src, mem.interface, dst.index, mem.wWordT, isVolatile=isVolatile, mayBecomeFlushable=mayBecomeFlushable)
         else:
             if isinstance(dst, HwIO):
                 assert dst._direction != INTF_DIRECTION.MASTER, (dst, "Can not write to input")
-            return HlsWrite(self, src, dst, dtype, mayBecomeFlushable=mayBecomeFlushable)
+
+            return HlsWrite(self, src, dst, dtype, isVolatile=isVolatile, mayBecomeFlushable=mayBecomeFlushable)
 
     def addThread(self, t: HlsThread) -> HlsThread:
         """
