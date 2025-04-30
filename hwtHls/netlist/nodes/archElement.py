@@ -288,6 +288,9 @@ class ArchElement(HlsNetNodeAggregate):
 
         tir = TimeIndependentRtlResource(data, timeOffset, self, isExplicitRegister, isForwardDeclr, mayChangeOutOfCfg)
         if not notAddToNetNodeToRtl:
+            outTy = outOrTime._dtype
+            tirTy = tir.valuesInTime[0].data._dtype
+            assert outTy == tirTy or outTy.bit_length() == tirTy.bit_length(), (outOrTime, outTy, tirTy)
             self.netNodeToRtl[outOrTime] = tir
 
         return tir
