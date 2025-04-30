@@ -2,6 +2,7 @@ from itertools import islice
 
 from hwt.hdl.types.bits import HBits
 from hwt.pyUtils.setList import SetList
+from hwtHls.architecture.transformation.utils.dummyScheduling import scheduleUncheduledDummyAlap
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregatePortIn, \
     HlsNetNodeAggregate
@@ -9,7 +10,6 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.transformation.simplifyUtils import addAllUsersToWorklist
-from hwtHls.architecture.transformation.utils.dummyScheduling import scheduleUncheduledDummyAlap
 
 
 def replaceOperatorNodeWith(n: HlsNetNodeOperator,
