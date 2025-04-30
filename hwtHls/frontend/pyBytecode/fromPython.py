@@ -562,13 +562,13 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                 condJumpCond = JUMP_OPS.get(opcode, None)
                 if condJumpCond is not None:
                     cond = frame.stack.pop()
-                    cond, curBlock = expandBeforeUse(self, instr.offset, frame, cond, curBlock)
+                    curBlock, cond = expandBeforeUse(self, instr.offset, frame, cond, curBlock)
                     if isinstance(cond, PyBytecodePreprocDivergence):
                         duplicateCodeUntilConvergencePoint = True
                         cond = cond.cond
                     else:
                         duplicateCodeUntilConvergencePoint = False
-                    cond, curBlock = expandBeforeUse(self, instr.offset, frame, cond, curBlock)
+                    curBlock, cond = expandBeforeUse(self, instr.offset, frame, cond, curBlock)
                     if isinstance(cond, HwIO):
                         cond = cond._sig
 
@@ -582,10 +582,10 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                         # swap targets because condition is negated
                         ifTrueOffset, ifFalseOffset = ifFalseOffset, ifTrueOffset
                     elif opcode == POP_JUMP_IF_NOT_NONE:
-                        assert compileTimeResolved, ("Can not check if HW value is not None, supports only non HW object", cond)
+                        #assert compileTimeResolved, ("Can not check if HW value is not None, supports only non HW object", cond)
                         cond = cond is not None
                     elif opcode == POP_JUMP_IF_NONE:
-                        assert compileTimeResolved, ("Can not check if HW value is None, supports only non HW object", cond)
+                        #assert compileTimeResolved, ("Can not check if HW value is None, supports only non HW object", cond)
                         cond = cond is None
 
                     if compileTimeResolved:
@@ -602,18 +602,18 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                             assert condAsConst, cond
                             assert not duplicateCodeUntilConvergencePoint
                             if bool(condAsConst.getValue()):
-                                self._getOrCreateBasicBlockAndJumpRecursively(frame, curBlock, ifTrueOffset, cond, None)
+                                self._getOrCreateBasicBlockAndJumpRecursively(frame, curBlock, ifTrueOffset, b1, None)
                                 self._onBlockNotGeneratedPotentiallyOutOfLoop(frame, curBlock, ifFalseOffset)
 
                             else:
-                                self._getOrCreateBasicBlockAndJumpRecursively(frame, curBlock, ifFalseOffset, ~cond, None)
+                                self._getOrCreateBasicBlockAndJumpRecursively(frame, curBlock, ifFalseOffset, b1, None)
                                 self._onBlockNotGeneratedPotentiallyOutOfLoop(frame, curBlock, ifTrueOffset)
 
                         else:
                             assert not isinstance(cond, HConst), cond
                             if duplicateCodeUntilConvergencePoint:
                                 raise NotImplementedError()
-                            
+
                             # copy stack for branch which is jump from linear code flow
                             copyStackForTrue = opcode != POP_JUMP_IF_FALSE
                             if copyStackForTrue:
@@ -628,15 +628,15 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                             self._getOrCreateBasicBlockAndJumpRecursively(firstBranchFrame, curBlock, ifTrueOffset, cond, None)
                             # cond = 1 because we did check in ifTrue branch and this is "else branch"
                             firstBranchFrame = self.callStack[-1]
-                            
+
                             # execute false branch until return or loop exit jump
                             self.callStack[-1] = secondBranchFrame
                             self._getOrCreateBasicBlockAndJumpRecursively(secondBranchFrame, curBlock, ifFalseOffset, b1, None)
-                            
+
                             # put back the stack as if jump did not happen
                             if not copyStackForTrue:
                                 self.callStack[-1] = firstBranchFrame
-    
+
                 else:
                     raise NotImplementedError(instr)
 

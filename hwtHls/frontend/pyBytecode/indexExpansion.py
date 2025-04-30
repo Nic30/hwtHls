@@ -14,24 +14,44 @@ from hwtHls.llvm.llvmIr import Value, BasicBlock, IRBuilder, \
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 
 
-class PyObjectHwSubscriptRef():
+class PyObjectRequiresExpandBeforeUse():
+
+    def expandOnUse(self, toSsa: "PyBytecodeToSsa",
+                    offsetForLabels: int,
+                    frame: PyBytecodeFrame, curBlock: BasicBlock) -> Tuple[BasicBlock, Value]:
+        raise NotImplementedError("Implement this method in child class")
+
+
+class PyObjectHwSubscriptRef(PyObjectRequiresExpandBeforeUse):
     """
     An object which is a reference to an object in python array which is indexed in HW.
     This object must be expanded before used in expression or before it is written to.
     This object is not expanded immediately because when we construct the slice we do not know where it is used and if it only read or write access.
     """
 
-    def __init__(self, instructionOffsetForLabels: Optional[int], sequence: Sequence,
-                       index: Union[RtlSignal, Value],
-                       ):
+    def __init__(self,
+                 instructionOffsetForLabels: Optional[int],
+                 sequence: Sequence,
+                 index: Union[RtlSignal, Value],
+                ):
         self.instructionOffsetForLabels = instructionOffsetForLabels
         self.sequence = sequence
         self.index = index
 
     def expandOnUse(self, toSsa: "PyBytecodeToSsa",
                         offsetForLabels: int,
-                        frame: PyBytecodeFrame, curBlock: BasicBlock):
-        return self.expandIndexOnPyObjAsSwitchCase(toSsa, offsetForLabels, frame, curBlock)
+                        frame: PyBytecodeFrame, curBlock: BasicBlock) -> Tuple[BasicBlock, Value]:
+        res = self.tryExpandIndexOnPyObjAsTernary()
+        if res is not None:
+            return curBlock, res
+
+        res = toSsa.hls.var(f"tmp_seq{offsetForLabels}", self.sequence[0]._dtype)
+        sucBlock = self._createSwitchCaseBlocks(
+            toSsa, offsetForLabels, curBlock,
+            lambda toLlvm, i, v, caseBlock: toLlvm.visit_Assignments(caseBlock, res(v))
+        )
+
+        return sucBlock, res
 
     def tryExpandIndexOnPyObjAsTernary(self) -> Optional[AnyHValue]:
         # try find any type on items
@@ -63,7 +83,7 @@ class PyObjectHwSubscriptRef():
             return res
 
         return None
-    
+
     def _createSwitchCaseBlocks(self, toSsa: "PyBytecodeToSsa",
                        offsetForLabels: int,
                        curBlock: BasicBlock,
@@ -79,13 +99,13 @@ class PyObjectHwSubscriptRef():
         curLabel = toSsa.blockToLabel[curBlock]
         toSsa.labelToBlock[curLabel].end = sucBlock
         toSsa.blockToLabel[sucBlock] = curLabel
-        
+
         # create a SwitchInst at the end of curBLock
         builder: IRBuilder = toLlvm.b
         curBlock, swCond = toLlvm._translateExprToLlvm(curBlock, self.index)
         builder.SetInsertPoint(curBlock)
         swInst:SwitchInst = builder.CreateSwitch(swCond, sucBlock, NumCases=len(self.sequence))
-        #swInst: SwitchInst = ValueToInstruction(InstructionToSwitchInst(swInst))
+        # swInst: SwitchInst = ValueToInstruction(InstructionToSwitchInst(swInst))
 
         swCondTy = swCond.getType()
         swCondTyWidth = swCondTy.getIntegerBitWidth()
@@ -94,7 +114,7 @@ class PyObjectHwSubscriptRef():
             caseName = toLlvm.strCtx.addTwine(f"{curBlock.getName().str():s}_{offsetForLabels:d}_c{i:d}")
             caseBlock = BasicBlock.Create(toLlvm.ctx, caseName, toLlvm.llvm.main, None)
             toSsa.blockToLabel[caseBlock] = curLabel
-            
+
             # add case to SwitchInst
             caseI = ValueToConstantInt(ConstantInt.get(swCondTy, APInt(swCondTyWidth, i)))
             swInst.addCase(caseI, caseBlock)
@@ -102,7 +122,7 @@ class PyObjectHwSubscriptRef():
             # process case block body
             builder.SetInsertPoint(caseBlock)
             populateCaseBlockFn(toLlvm, i, v, caseBlock)
-            
+
             # jump from case block to sucBlock
             builder.SetInsertPoint(caseBlock)
             assert caseBlock.getTerminator() is None, caseBlock
@@ -111,24 +131,6 @@ class PyObjectHwSubscriptRef():
         builder.SetInsertPoint(sucBlock)
         # put variable with result of the indexing on top of stack
         return sucBlock
-    
-    def expandIndexOnPyObjAsSwitchCase(self,
-                       toSsa: "PyBytecodeToSsa",
-                       offsetForLabels: int,
-                       frame: PyBytecodeFrame,
-                       curBlock: BasicBlock) -> Tuple[Value, BasicBlock]:
-
-        res = self.tryExpandIndexOnPyObjAsTernary()
-        if res is not None:
-            return res, curBlock
-        
-        res = toSsa.hls.var(f"tmp_seq{offsetForLabels}", self.sequence[0]._dtype)
-        sucBlock = self._createSwitchCaseBlocks(
-            toSsa, offsetForLabels, curBlock,
-            lambda toLlvm, i, v, caseBlock: toLlvm.visit_Assignments(caseBlock, res(v))
-        )
-    
-        return res, sucBlock
 
     def expandSetitemAsSwitchCase(self,
                                   toSsa: "PyBytecodeToSsa",
@@ -137,7 +139,6 @@ class PyObjectHwSubscriptRef():
                                   curBlock: BasicBlock,
                                   assignFn: Callable[[int, Union[RtlSignal, HwIO, HConst, Value]],
                                                      List[Union[Value, HdlAssignmentContainer]]]) -> BasicBlock:
-
         """
         :param assignFn: function with index and dst as argument
         """
@@ -146,25 +147,27 @@ class PyObjectHwSubscriptRef():
             lambda toLlvm, i, v, caseBlock: toLlvm.visit_Assignments(caseBlock, assignFn(i, v))
         )
 
+
 def expandBeforeUse(toSsa: "PyBytecodeToSsa",
                     offsetForLabels: int,
-                    frame: PyBytecodeFrame, o, curBlock: BasicBlock):
-    if isinstance(o, PyObjectHwSubscriptRef):
-        o: PyObjectHwSubscriptRef
+                    frame: PyBytecodeFrame, o, curBlock: BasicBlock) -> Tuple[BasicBlock, Value]:
+    if isinstance(o, PyObjectRequiresExpandBeforeUse):
+        o: PyObjectRequiresExpandBeforeUse
         return o.expandOnUse(toSsa, offsetForLabels, frame, curBlock)
 
-    return o, curBlock
+    return curBlock, o
 
 
 def expandBeforeUseSequence(toSsa: "PyBytecodeToSsa",
                     offsetForLabels: int,
-                    frame: PyBytecodeFrame, oSeq: Sequence, curBlock: BasicBlock):
+                    frame: PyBytecodeFrame, oSeq: Sequence, curBlock: BasicBlock) -> Tuple[BasicBlock, Value]:
     if isinstance(oSeq, (RtlSignalBase, HwIOBase, HConst)):
-        return oSeq, curBlock
+        return curBlock, oSeq
     else:
         oSeqExpanded = []
         for o in oSeq:
-            o, curBlock = expandBeforeUse(toSsa, offsetForLabels, frame, o, curBlock)
+            curBlock, o = expandBeforeUse(toSsa, offsetForLabels, frame, o, curBlock)
             oSeqExpanded.append(o)
-        return oSeqExpanded, curBlock
+
+        return curBlock, oSeqExpanded
 

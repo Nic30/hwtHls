@@ -2,7 +2,6 @@ import builtins
 from dis import Instruction, dis
 from inspect import ismethod
 import operator
-from pathlib import Path
 from types import FunctionType, CellType, MethodType
 from typing import Callable, Dict, Union, Optional
 
@@ -10,6 +9,10 @@ from hwt.hdl.const import HConst
 from hwt.hdl.operator import HOperatorNode
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
+from hwt.hdl.types.array import HArray
+from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.sliceUtils import slice_to_HSlice
+from hwt.hdl.types.typeCast import toHVal
 from hwt.hwIO import HwIO
 from hwt.hwIOs.std import HwIOSignal
 from hwt.mainBases import HwIOBase
@@ -31,10 +34,10 @@ from hwtHls.frontend.pyBytecode.instructions import CMP_OPS, BINARY_OPS, UN_OPS,
 from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
 from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInPreproc, \
     PyBytecodeInline, _PyBytecodePragma, PyBytecodePreprocHwCopy
+from hwtHls.frontend.pyBytecode.utils import ObjectWithHlsStoreOverride
 from hwtHls.llvm.llvmIr import Value, BasicBlock, IRBuilder
-from hwt.hdl.types.bits import HBits
-from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
+from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 
 
 class PyBytecodeToSsaLowLevelOpcodes():
@@ -42,7 +45,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
     https://docs.python.org/3/library/dis.html
     https://github.com/zrax/pycdc
     """
-    ANY_HWVALUE_CLASS = (HConst, RtlSignal, HwIO, Value, HwIO)
+    ANY_HWVALUE_CLASS = (HConst, RtlSignal, HwIO, Value, ObjectWithHlsStoreOverride)
     ANY_HWSTATEMENT_CLASS = (HlsWrite, HlsRead, HdlAssignmentContainer, _PyBytecodePragma)
 
     def __init__(self):
@@ -147,7 +150,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
 
     def opcode_POP_TOP(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
         res = frame.stack.pop()
-        res, curBlock = expandBeforeUse(self, instr.offset, frame, res, curBlock)
+        curBlock, res = expandBeforeUse(self, instr.offset, frame, res, curBlock)
         if isinstance(res, HlsWrite):
             res: HlsWrite
             dst = res.dst
@@ -208,8 +211,8 @@ class PyBytecodeToSsaLowLevelOpcodes():
         if key is NULL:
             key = stack.pop()
         container = stack.pop()
-        container, curBlock = expandBeforeUse(self, instr.offset, frame, container, curBlock)
-        key, curBlock = expandBeforeUse(self, instr.offset, frame, key, curBlock)
+        curBlock, container = expandBeforeUse(self, instr.offset, frame, container, curBlock)
+        curBlock, key = expandBeforeUse(self, instr.offset, frame, key, curBlock)
         if (isinstance(key, (RtlSignal, HwIO, Value)) and
             not isinstance(container, (RtlSignal, Value, HConst))):
             # if this is indexing using hw value on non hw object we need to expand it to a switch-case on individual cases
@@ -218,7 +221,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
             o = PyObjectHwSubscriptRef(instr.offset, container, key)
             stack.append(o)
             return curBlock
-        
+
         stack.append(container[key])
 
         return curBlock
@@ -228,8 +231,8 @@ class PyBytecodeToSsaLowLevelOpcodes():
         end = stack.pop()
         start = stack.pop()
 
-        end, curBlock = expandBeforeUse(self, instr.offset, frame, end, curBlock)
-        start, curBlock = expandBeforeUse(self, instr.offset, frame, start, curBlock)
+        curBlock, end = expandBeforeUse(self, instr.offset, frame, end, curBlock)
+        curBlock, start = expandBeforeUse(self, instr.offset, frame, start, curBlock)
         key = slice(start, end)
         return key, curBlock
 
@@ -256,8 +259,8 @@ class PyBytecodeToSsaLowLevelOpcodes():
         stack = frame.stack
         b = stack.pop()
         a = stack.pop()
-        a, curBlock = expandBeforeUse(self, instr.offset, frame, a, curBlock)
-        b, curBlock = expandBeforeUse(self, instr.offset, frame, b, curBlock)
+        curBlock, a = expandBeforeUse(self, instr.offset, frame, a, curBlock)
+        curBlock, b = expandBeforeUse(self, instr.offset, frame, b, curBlock)
         invert = instr.argval
         if invert:
             res = a not in b
@@ -272,19 +275,16 @@ class PyBytecodeToSsaLowLevelOpcodes():
 
         b = stack.pop()
         if isInplace:
-            b, curBlock = expandBeforeUse(self, instr.offset, frame, b, curBlock)
+            curBlock, b = expandBeforeUse(self, instr.offset, frame, b, curBlock)
             a = stack.pop()
-            if isinstance(a, PyObjectHwSubscriptRef):
-                a: PyObjectHwSubscriptRef
-                # we expand as a regular bin op, and store later in store_subscript
-                a, curBlock = a.expandIndexOnPyObjAsSwitchCase(self, instr.offset, frame, curBlock)
-                # .expandSetitemAsSwitchCase(frame, curBlock, lambda _, dst: dst(inplaceOp(dst, b)))
-            stack.append(binOp(a, b))
+            # we expand as a regular bin op, and store later in store_subscript
+            curBlock, a = expandBeforeUse(self, instr.offset, frame, a, curBlock)
         else:
             a = stack.pop()
-            a, curBlock = expandBeforeUse(self, instr.offset, frame, a, curBlock)
-            b, curBlock = expandBeforeUse(self, instr.offset, frame, b, curBlock)
-            stack.append(binOp(a, b))
+            curBlock, a = expandBeforeUse(self, instr.offset, frame, a, curBlock)
+            curBlock, b = expandBeforeUse(self, instr.offset, frame, b, curBlock)
+
+        stack.append(binOp(a, b))
         return curBlock
 
     def opcode_DELETE_FAST(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
@@ -322,18 +322,17 @@ class PyBytecodeToSsaLowLevelOpcodes():
     def opcode_STORE_DEREF(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
         # nested scopes: access a variable through its cell object
         vVal = frame.stack.pop()
-        vVal, curBlock = expandBeforeUse(self, instr.offset, frame, vVal, curBlock)
+        curBlock, vVal = expandBeforeUse(self, instr.offset, frame, vVal, curBlock)
         v: CellType = frame.localsplus[instr.arg]
         assert isinstance(v, CellType), v
         _v = v.cell_contents
         preprocVarKey = instr.arg
         if preprocVarKey not in frame.preprocVars:
-            if _v is NULL and isinstance(vVal, (HConst, RtlSignal, Value)):
+            if _v is NULL and isinstance(vVal, self.ANY_HWVALUE_CLASS):
                 # only if it is a value which generates HW variable
-                t = getattr(vVal, "_dtypeOrig", vVal._dtype)
-                _v = self.hls.var(instr.argval, t)
+                _v = self._initializeStorageCellForHwSignal(instr.argval, vVal)
 
-            if isinstance(_v, (RtlSignal, HwIO)):
+            if isinstance(_v, (RtlSignal, HwIO, ObjectWithHlsStoreOverride)):
                 # only if it is a hw variable, create assignment to HW variable
                 v.cell_contents = _v
                 return self._storeToHwSignal(curBlock, _v, vVal)
@@ -443,68 +442,96 @@ class PyBytecodeToSsaLowLevelOpcodes():
 
         return curBlock
 
-    def _storeToHwSignal(self, curBlock, dst: Union[RtlSignal, HwIOBase], src):
+    def _initializeStorageCellForHwSignal(self, name: Optional[str], vVal: Union[RtlSignal, HwIOBase, HConst, Value, ObjectWithHlsStoreOverride]):
+        """
+        :returns: hls variable (RtlSignal which will be used to represent this variable)
+        
+        :param vVal: value to be stored
+        """
+        # only if it is a value which generates HW variable
+        if isinstance(vVal, Value):
+            _t = vVal.getType()
+            if _t.isDoubleTy():
+                t = HFloatTmp
+            else:
+                t = HBits(_t.getScalarSizeInBits())
+        elif isinstance(vVal, ObjectWithHlsStoreOverride):
+            return vVal.hlsOverrideInitializeStorageCell(self, name)
+        else:
+            t = getattr(vVal, "_dtypeOrig", vVal._dtype)
+
+        if isinstance(vVal, RtlSignal) and vVal._hasGenericName:
+            # add name also to right side of assignment because this is likely a variable definition and we want
+            # to name the defined value
+            vVal._name = name
+            vVal._hasGenericName = False
+
+        v = self.hls.var(name, t)
+        return v
+
+    def _storeToHwSignal(self, curBlock: BasicBlock, dst: Union[RtlSignal, HwIOBase, ObjectWithHlsStoreOverride], src):
+        if isinstance(dst, ObjectWithHlsStoreOverride):
+            return dst.hlsStoreOverride(self, curBlock, src)
+        toLlvm = self.toLlvm
         srcIsRead = isinstance(src, HlsRead)
         if isinstance(src, Value) and not srcIsRead:
             if isinstance(dst, HwIOBase):
                 dst = dst._sig
-            
+
             self.toLlvm._variableInBlock_insertRedef(curBlock, dst, (), src)
             return curBlock
         else:
             _src = src.data if srcIsRead else src
-            stm = dst(_src)
-            return self.toLlvm.visit_Assignments(curBlock, stm)
+            if isinstance(dst._dtype, HArray):
+                # inlined part of visit_Assignment
+                block, src = toLlvm._translateExprToLlvm(curBlock, src)
+                # this may result in:
+                # * store instruction
+                # * just the registration of the variable for the symbol
+                #   * only a segment in bit vector can be assigned, this result in the assignment of the concatenation of previous and new value
+                toLlvm._variableInBlock_insertRedef(block, dst, [], src)
+                return block
+            else:
+                stm = dst(_src)
+                return toLlvm.visit_Assignments(curBlock, stm)
 
     def opcode_STORE_ATTR(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
         stack = frame.stack
         dstParent = stack.pop()
         dst = getattr(dstParent, instr.argval, None)
         src = stack.pop()
-        src, curBlock = expandBeforeUse(self, instr.offset, frame, src, curBlock)
+        curBlock, src = expandBeforeUse(self, instr.offset, frame, src, curBlock)
         if isinstance(src, HlsRead):
             self.toLlvm.visit_Read(curBlock, src)
 
-        if isinstance(dst, (RtlSignal, HwIO)):
+        if isinstance(dst, (RtlSignal, HwIO, ObjectWithHlsStoreOverride)):
             # stm = self.hls.write(src, dst)
-            self._storeToHwSignal(curBlock, dst, src)
+            return self._storeToHwSignal(curBlock, dst, src)
         else:
             setattr(dstParent, instr.argval, src)
-
-        return curBlock
+            return curBlock
 
     def opcode_STORE_FAST(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
         stack = frame.stack
         localsplus = frame.localsplus
         vVal = stack.pop()
-        vVal, curBlock = expandBeforeUse(self, instr.offset, frame, vVal, curBlock)
+        curBlock, vVal = expandBeforeUse(self, instr.offset, frame, vVal, curBlock)
         v = localsplus[instr.arg]
         varIndex = instr.arg
         if varIndex not in frame.preprocVars:
             # if it is new definition of HW variable
-            if v is NULL and isinstance(vVal, self.ANY_HWVALUE_CLASS):
-                # check for initial store of HW variable to a python localsplus
-                isInitialStore = isinstance(vVal, RtlSignal) and vVal.ctx is self.hls._ctx and not vVal.drivers
-                if not isInitialStore:
-                    # only if it is a value which generates HW variable
-                    if isinstance(vVal, Value):
-                        _t = vVal.getType()
-                        if _t.isDoubleTy():
-                            t = HFloatTmp
-                        else:
-                            t = HBits(_t.getScalarSizeInBits())
-                    else:
-                        t = getattr(vVal, "_dtypeOrig", vVal._dtype)
-                    if isinstance(vVal, RtlSignal) and vVal.hasGenericName:
-                        # add name also to right side of assignment because this is likely a variable definition and we want
-                        # to name the defined value
-                        vVal._name = instr.argval
-                        vVal._hasGenericName = False
-    
-                    v = self.hls.var(instr.argval, t)
-                    localsplus[varIndex] = v
-    
-            if isinstance(v, (RtlSignal, HwIO)):
+            if v is NULL:
+                if isinstance(vVal, self.ANY_HWVALUE_CLASS):
+                    # check for initial store of HW variable to a python localsplus
+                    isInitialStore = isinstance(vVal, RtlSignal) and vVal._rtlCtx is self.hls._rtlCtx and not vVal._rtlDrivers
+                    # :note: for initial stores of already generated variables we ommit create of new variable and use original
+                    #     variable directly to represent this variable
+                    if not isInitialStore:
+                        # only if it is a value which generates HW variable
+                        v = self._initializeStorageCellForHwSignal(instr.argval, vVal)
+                        localsplus[varIndex] = v
+
+            if isinstance(v, (RtlSignal, HwIO, ObjectWithHlsStoreOverride)):
                 # only if it is a hw variable, create assignment to HW variable
                 if isinstance(v, RtlSignal) and v._hasGenericName:
                     v._name = instr.argval
@@ -538,9 +565,10 @@ class PyBytecodeToSsaLowLevelOpcodes():
         # create function entry point block, assign to all function parameters and prepare frame where we initialize preproc/hw variable meta
         # for variables from arguments
         fnName = getattr(fn, "__qualname__", fn.__name__)
+        toLlvm = self.toLlvm
         with self.dbgTracer.scoped("inlining", fnName):
             if self.debugBytecode:
-                d = self.toLlvm.debugDirectory / self.toLlvm.label
+                d = toLlvm._dbgRootDir / toLlvm._dbgSubDir
                 d.mkdir(exist_ok=True)
                 with open(d / f"00.bytecode.{fnName}.txt", "w") as f:
                     dis(fn, file=f)
@@ -552,12 +580,12 @@ class PyBytecodeToSsaLowLevelOpcodes():
             # _fnEntryBlockLabel = fnEntryBlockLabel
             fnEntryBlock, fnEntryBlockIsNew = self._getOrCreateBasicBlock(fnEntryBlockLabel)
             assert fnEntryBlockIsNew, "Must not reuse other existing block because every inline should generate new blocks only"
-            builder: IRBuilder = self.toLlvm.b
+            builder: IRBuilder = toLlvm.b
             assert curBlock.getTerminator() is None, curBlock
             builder.SetInsertPoint(curBlock)
             builder.CreateBr(fnEntryBlock)
             builder.SetInsertPoint(fnEntryBlock)
-            
+
             if self.debugCfgGen:
                 self._debugDump(callFrame, label=callFrame.fn.__name__)
             try:
@@ -565,7 +593,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
             finally:
                 if self.debugCfgGen:
                     self._debugDump(callFrame, label=callFrame.fn.__name__)
-            toLlvm = self.toLlvm
+
             curBlockAfterCall = BasicBlock.Create(toLlvm.ctx, toLlvm.strCtx.addTwine(f"{curBlock.getName().str():s}_afterCall"), toLlvm.llvm.main, None)
             self.labelToBlock[curBlockLabel].end = curBlockAfterCall
             self.blockToLabel[curBlockAfterCall] = curBlockLabel
@@ -672,7 +700,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
             kwArgCnt = len(kwNamesVal)  # kwargs are stored behind args
             for kwName, a in zip(kwNamesVal, args[-kwArgCnt:]):
                 if expandArgs:
-                    a, curBlock = expandBeforeUse(self, instr.offset, frame, a, curBlock)
+                    curBlock, a = expandBeforeUse(self, instr.offset, frame, a, curBlock)
                 kwargs[kwName] = a
             del args[-kwArgCnt:]
 
@@ -685,17 +713,28 @@ class PyBytecodeToSsaLowLevelOpcodes():
             assert not kwargs, (m, kwargs)
             curBlock, res = self.toLlvm._translateExprToLlvm(curBlock, args[0])
         else:
+            hlsCallOverride = getattr(m, "hlsCallOverride", None)
             if getattr(m, "__hlsIsLowLevelFn", False):
-                if _self is NULL:
-                    res = m(*args, **kwargs)
+                if hlsCallOverride is not None:
+                    # call override function instead original method
+                    res = hlsCallOverride(self, frame, curBlock, instr, _self, m, args, kwargs)
                 else:
-                    res = m(_self, *args, **kwargs)
+                    # low level function will get raw arguments with any expansion
+                    if _self is NULL:
+                        res = m(*args, **kwargs)
+                    else:
+                        res = m(_self, *args, **kwargs)
             else:
-                expandedArgs, curBlock = expandBeforeUseSequence(self, instr.offset, frame, args, curBlock)
-                if _self is NULL:
-                    res = m(*expandedArgs, **kwargs)
+                curBlock, expandedArgs = expandBeforeUseSequence(self, instr.offset, frame, args, curBlock)
+                if hlsCallOverride is not None:
+                    # call override function instead original method
+                    res = hlsCallOverride(self, frame, curBlock, instr, _self, m, expandedArgs, kwargs)
                 else:
-                    res = m(_self, *expandedArgs, **kwargs)
+                    # call function with args expanded
+                    if _self is NULL:
+                        res = m(*expandedArgs, **kwargs)
+                    else:
+                        res = m(_self, *expandedArgs, **kwargs)
 
         stack.append(res)
         return curBlock
@@ -727,10 +766,10 @@ class PyBytecodeToSsaLowLevelOpcodes():
             _self = NULL
         expandArgs = self._shouldExpandArgsOfFn(m)
         if expandArgs:
-            args, curBlock = expandBeforeUseSequence(self, instr.offset, frame, args, curBlock)
+            curBlock, args = expandBeforeUseSequence(self, instr.offset, frame, args, curBlock)
             kwargs = {}
             for kwName, a in kwargs.items():
-                a, curBlock = expandBeforeUse(self, instr.offset, frame, a, curBlock)
+                curBlock, a = expandBeforeUse(self, instr.offset, frame, a, curBlock)
                 kwargs[kwName] = a
 
         if isinstance(m, PyBytecodeInline):
@@ -771,15 +810,15 @@ class PyBytecodeToSsaLowLevelOpcodes():
         binOp = CMP_OPS[instr.arg >> 4]
         b = stack.pop()
         a = stack.pop()
-        a, curBlock = expandBeforeUse(self, instr.offset, frame, a, curBlock)
-        b, curBlock = expandBeforeUse(self, instr.offset, frame, b, curBlock)
+        curBlock, a = expandBeforeUse(self, instr.offset, frame, a, curBlock)
+        curBlock, b = expandBeforeUse(self, instr.offset, frame, b, curBlock)
         stack.append(binOp(a, b))
         return curBlock
 
     def opcode_GET_ITER(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
         stack = frame.stack
         a = stack.pop()
-        a, curBlock = expandBeforeUse(self, instr.offset, frame, a, curBlock)
+        curBlock, a = expandBeforeUse(self, instr.offset, frame, a, curBlock)
         it = iter(a)
         stack.append(it)
         if isinstance(it, HwIterator):
@@ -793,6 +832,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
     def opcode_UNPACK_SEQUENCE(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
         stack = frame.stack
         seq = stack.pop()
+        curBlock, seq = expandBeforeUse(self, instr.offset, frame, seq, curBlock)
         stack.extend(reversed(tuple(seq)))
         return curBlock
 
@@ -861,8 +901,8 @@ class PyBytecodeToSsaLowLevelOpcodes():
             key = stack.pop()
         container = stack.pop()
         value = stack.pop()
-        key, curBlock = expandBeforeUse(self, instr.offset, frame, key, curBlock)
-        value, curBlock = expandBeforeUse(self, instr.offset, frame, value, curBlock)
+        curBlock, key = expandBeforeUse(self, instr.offset, frame, key, curBlock)
+        curBlock, value = expandBeforeUse(self, instr.offset, frame, value, curBlock)
 
         if isinstance(key, (RtlSignal, Value, HwIOSignal)) and not isinstance(container, (RtlSignal, Value, HwIOSignal)):
             if not isinstance(container, PyObjectHwSubscriptRef):
@@ -870,16 +910,22 @@ class PyBytecodeToSsaLowLevelOpcodes():
             return container.expandSetitemAsSwitchCase(self, instr.offset, frame, curBlock, lambda i, dst: dst(value))
 
         if isinstance(container, (RtlSignal, HwIOSignal)):
-            if isinstance(key, (RtlSignal, Value, HwIOSignal)):
-                toLlvm: ToLlvmIrTranslator = self.toLlvm
-                curBlock, src = toLlvm._translateExprToLlvm(curBlock, value)
-                toLlvm._variableInBlock_insertRedef(curBlock, container, (key, ), src)
-            else:
-                stm = container[key](value)
-                curBlock = self.toLlvm.visit_Assignments(curBlock, stm)
+            toLlvm: ToLlvmIrTranslator = self.toLlvm
+            if not isinstance(key, (RtlSignal, Value, HwIOSignal, HConst)):
+                if isinstance(key, slice):
+                    key = slice_to_HSlice(key, value._dtype.bit_length())
+                else:
+                    key = toHVal(key)
+
+            if not isinstance(value, (RtlSignal, Value, HwIOSignal, HConst)):
+                value = toHVal(value, suggestedType=container[0]._dtype)
+
+            curBlock, src = toLlvm._translateExprToLlvm(curBlock, value)
+            toLlvm._variableInBlock_insertRedef(curBlock, container, (key,), src)
+
             return curBlock
 
-        if isinstance(value, HlsRead):
+        elif isinstance(value, HlsRead):
             self.toLlvm.visit_Read(curBlock, value)
 
         operator.setitem(container, key, value)
@@ -920,7 +966,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
         def opcode_UN_OP(frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
             stack = frame.stack
             a = stack.pop()
-            a, curBlock = expandBeforeUse(self, instr.offset, frame, a, curBlock)
+            curBlock, a = expandBeforeUse(self, instr.offset, frame, a, curBlock)
             stack.append(unOp(a))
             return curBlock
 
