@@ -2,6 +2,7 @@ from _io import StringIO
 from pathlib import Path
 from typing import List, Tuple, Dict, Union, Sequence, Callable, Optional, Set
 
+from hwt.hObjList import HObjList
 from hwt.hdl.const import HConst
 from hwt.hdl.operator import HOperatorNode
 from hwt.hdl.operatorDefs import HwtOps, HOperatorDef
@@ -15,6 +16,7 @@ from hwt.hdl.types.function import HFunctionConst
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.slice import HSlice
 from hwt.hdl.types.sliceConst import HSliceConst
+from hwt.hdl.types.string import HString
 from hwt.hdl.types.struct import HStruct
 from hwt.hwIO import HwIO
 from hwt.hwIOs.hwIOStruct import HwIOStruct
@@ -103,7 +105,6 @@ class ToLlvmIrTranslator():
         self._opConstructorMap, self._opConstructorMapCmp = ToLlvmIrTranslator_createOperatorConstructorDictionaries(self.b)
         self._dbgRootDir: Optional[Path] = None
         self._dbgSubDir: Optional[Path] = None
-        
 
     def _getOrCreateAllocaForTmpVariable(self, var: RtlSignal,
                                          allocaKnownToBeMissing: bool):
@@ -177,13 +178,13 @@ class ToLlvmIrTranslator():
 
         # transitively remove all users which were already defined because value of this variable was just changed
         if wasDefined:
-            toRm = [*var.endpoints]
+            toRm = [*var._rtlEndpoints]
             while toRm:
                 op = toRm.pop()
                 if isinstance(op, HOperatorNode):
                     _wasDefined = varDict.pop(op.result, None) is not None
                     if _wasDefined:
-                        toRm.extend(op.result.endpoints)
+                        toRm.extend(op.result._rtlEndpoints)
 
         if indexes:
             pass
@@ -229,8 +230,8 @@ class ToLlvmIrTranslator():
 
             # el
             if isinstance(value, Value):
-                # assert value.origin is not None, value
-                # assert isinstance(value.origin, RtlSignal), (value, value.origin)
+                # assert value._rtlObjectOrigin is not None, value
+                # assert isinstance(value._rtlObjectOrigin, RtlSignal), (value, value._rtlObjectOrigin)
                 parts.append(value)
 
             else:
@@ -268,7 +269,7 @@ class ToLlvmIrTranslator():
         storeCreated = False
         if indexes:
             if isinstance(var._dtype, HArray):
-                assert len(indexes) == 1
+                assert len(indexes) == 1, (var, indexes)
                 new_bb, alloca = self._translateExprSubscriptGEP(block, alloca, indexes[0])
 
             else:
@@ -294,7 +295,7 @@ class ToLlvmIrTranslator():
         if not storeCreated:
             builder.CreateStore(value, alloca, False)
 
-        if not var.hasGenericName and isinstance(value, RtlSignal) and value.hasGenericName:
+        if not var._hasGenericName and isinstance(value, RtlSignal) and value._hasGenericName:
             # inherit name
             value.setName(self.strCtx.addTwine(var.name))
         self._initializedAllocaVariables.add(var)
@@ -505,11 +506,12 @@ class ToLlvmIrTranslator():
             results.append(_v)
         return block, results
 
-    def _createLoadFromTmpAllocaIfExists(self, builder: IRBuilder, block: BasicBlock, var: RtlSignal):
+    def _createLoadFromTmpAllocaIfExists(self, builder: IRBuilder, block: BasicBlock, var: Union[RtlSignal, HwIO]):
+        assert isinstance(var, (RtlSignal, HwIO)), var
         alloca = self._allocaForVariable.get(var)
         if alloca is not None:
             if var not in self._initializedAllocaVariables:
-                if var.drivers:
+                if var._rtlDrivers:
                     d = var.singleDriver()
                     if isinstance(d, HlsRead):
                         self.visit_Read(block, d)
