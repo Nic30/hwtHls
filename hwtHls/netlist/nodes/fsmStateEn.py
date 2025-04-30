@@ -43,6 +43,11 @@ class HlsNetNodeStageAck(HlsNetNode):
     def __init__(self, netlist: "HlsNetlistCtx"):
         HlsNetNode.__init__(self, netlist, name=None)
         self._addInput("ackIn")
+    
+    @override
+    def hasSideeffect(self):
+        # because it may be used to implement "en" for implicit registers after this stage
+        return True
 
     @override
     def rtlAlloc(self, allocator: "ArchElementFsm") -> TimeIndependentRtlResource:

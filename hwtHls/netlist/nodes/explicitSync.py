@@ -86,7 +86,11 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
         self._dataVoidOut: Optional[HlsNetNodeOut] = None
         self._rtlUseReady = io is None or isinstance(io, (HwIORdVldSync, HwIODataRd))
         self._rtlUseValid = io is None or isinstance(io, (HwIORdVldSync, HwIODataVld))
-
+    
+    @override
+    def hasSideeffect(self):
+        return True
+    
     def setRtlUseValid(self, rtlUseValid: bool):
         if not rtlUseValid:
             for valid in (self._valid, self._validNB):

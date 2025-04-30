@@ -26,6 +26,10 @@ class HlsNetNodeFsmStateWrite(HlsNetNode):
         self.portToNextStateId: Dict[HlsNetNodeIn, int] = {}
 
     @override
+    def hasSideeffect(self):
+        return True
+
+    @override
     def clone(self, memo:dict, keepTopPortsConnected:bool) -> Tuple["HlsNetNode", bool]:
         y, isNew = HlsNetNode.clone(self, memo, keepTopPortsConnected)
         if isNew:
@@ -55,7 +59,7 @@ class HlsNetNodeFsmStateWrite(HlsNetNode):
                 assert isinstance(c, TimeIndependentRtlResourceItem), (_c, c)
                 cSig = c.data
                 assert cSig._dtype.bit_length() == 1, c
-                    
+
                 nextStateCases.append((cSig, stateReg(dstStVal)))
 
             con: "ConnectionsOfStage" = allocator.connections.getForTime(self.scheduledIn[0])

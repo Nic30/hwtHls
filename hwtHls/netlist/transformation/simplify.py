@@ -59,12 +59,10 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
     HlsNetlist simplification pass
 
     :var REST_OF_EVALUABLE_OPS: set of operators which can evaluated and are not a specific case
-    :var NON_REMOVABLE_CLS: tuple of node classes which can not be removed by dead code removal
     """
     REST_OF_EVALUABLE_OPS = {HwtOps.CONCAT, HwtOps.ADD, HwtOps.SUB, HwtOps.UDIV, HwtOps.SDIV,
                              HwtOps.MUL, HwtOps.INDEX, *COMPARE_OPS, *CAST_OPS}
     OPS_AND_OR_XOR = (HwtOps.AND, HwtOps.OR, HwtOps.XOR)
-    NON_REMOVABLE_CLS = (HlsNetNodeLoopStatus, HlsNetNodeExplicitSync, HlsNetNodeStageAck, HlsNetNodeFsmStateWrite)
     OPT_ITERATION_LIMIT = 20
 
     def __init__(self, dbgTracer: DebugTracer):
@@ -106,7 +104,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
 
     @classmethod
     def _isTriviallyDead(cls, n: HlsNetNode):
-        if isinstance(n, cls.NON_REMOVABLE_CLS):
+        if n.hasSideeffect():
             return False
         elif isinstance(n, HlsNetNodeAggregate):
             return not n.subNodes and not n._outputs

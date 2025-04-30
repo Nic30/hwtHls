@@ -86,6 +86,10 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
 
         self._bbNumberToPorts: Dict[tuple(int, int), Tuple[LoopChanelGroup, Optional[HlsNetNodeIn]]] = {}
         self._isEnteredOnExit: bool = False
+    
+    @override
+    def hasSideeffect(self):
+        return True
 
     @override
     def clone(self, memo:dict) -> Tuple["HlsNetNode", bool]:

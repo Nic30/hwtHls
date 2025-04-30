@@ -84,6 +84,9 @@ class HlsNetNode(SchedulableNode):
         self._isMarkedRemoved = False
         self._isRtlAllocated = False
 
+    def hasSideeffect(self):
+        return False
+
     def clone(self, memo: dict, keepTopPortsConnected: bool) -> Tuple["HlsNetNode", bool]:
         """
         :returns: new object and flag which is True if object was newly constructed 
