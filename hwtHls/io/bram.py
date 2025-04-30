@@ -124,34 +124,36 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
     @override
     def splitOnClkWindows(self):
         """
-        Keep write part in this node and extract out data write port 
+        Keep command/write part in this node and extract out data read port if it is in later clock window
         """
         if self.isMulticlock:
             _dst = self._getNominaInterface()
             if _dst.HAS_R:
                 readDataIo = self._extractDout(self.dst)
 
-                dOut = self._portDataOut
                 dNode = HlsNetNodeReadBramData(self.netlist, readDataIo, _dst.dout._dtype, name=self.name)
-                dNode.assignRealization(OpRealizationMeta(0, 0, 0, 0, True))
-                dTime = self.scheduledOut[dOut.out_i]
-                dNode._setScheduleZeroTimeSingleClock(dTime)
-                self.parent.addNode(dNode)
-                clkIndex = indexOfClkPeriod(dTime, self.netlist.normalizedClkPeriod)
-                self.parent._addNodeIntoScheduled(clkIndex, dNode, allowNewClockWindow=True)
-
-                builder: HlsNetlistBuilder = self.getHlsNetlistBuilder()
-                builder.replaceOutput(dOut, dNode._portDataOut, True)
-                self._removeOutput(dOut.out_i)
-                nextClkBegin = beginOfNextClk(self.scheduledZero, self.netlist.normalizedClkPeriod)
-                for i, t in zip(self._inputs, self.scheduledIn):
-                    assert t < nextClkBegin, i
-                for o, t in zip(self._outputs, self.scheduledOut):
-                    assert t < nextClkBegin, o
-                self.isMulticlock = False
-
+                self._extractReadPortsToSeparateNode(dNode)
                 yield dNode
 
+    def _extractReadPortsToSeparateNode(self, dNode: "HlsNetNodeReadBramData"):
+        dNode.assignRealization(OpRealizationMeta(0, 0, 0, 0, True))
+        dOut = self._portDataOut
+        dTime = self.scheduledOut[dOut.out_i]
+        dNode._setScheduleZeroTimeSingleClock(dTime)
+        self.parent.addNode(dNode)
+        clkIndex = indexOfClkPeriod(dTime, self.netlist.normalizedClkPeriod)
+        self.parent._addNodeIntoScheduled(clkIndex, dNode, allowNewClockWindow=True)
+
+        builder: HlsNetlistBuilder = self.getHlsNetlistBuilder()
+        builder.replaceOutput(dOut, dNode._portDataOut, True)
+        self._removeOutput(dOut.out_i)
+        nextClkBegin = beginOfNextClk(self.scheduledZero, self.netlist.normalizedClkPeriod)
+        for i, t in zip(self._inputs, self.scheduledIn):
+            assert t < nextClkBegin, i
+        for o, t in zip(self._outputs, self.scheduledOut):
+            assert t < nextClkBegin, (o, t, nextClkBegin)
+
+        self.isMulticlock = False
 
     def _rtlAlloc(self, allocator: "ArchElement", cmd: Literal[READ, WRITE], ram: HwIOBramPort_noClk) -> List[HdlStatement]:
         """
