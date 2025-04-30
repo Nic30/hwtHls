@@ -5,15 +5,17 @@ from itertools import islice
 from typing import Union, List, Optional, Literal, Dict
 
 from hwt.constants import NOT_SPECIFIED
+from hwt.hObjList import HObjList
 from hwt.hdl.const import HConst
 from hwt.hdl.types.defs import  BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
-from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
+from hwt.hwIOs.hwIOStruct import HwIOStructRdVld, HdlType_to_HwIO
 from hwt.hwIOs.hwIOStruct import HwIO_to_HdlType, HwIOStruct
 from hwt.hwIOs.std import HwIODataRdVld, HwIOSignal, HwIORdVldSync, HwIODataVld, \
     HwIODataRd
 from hwt.hwModule import HwModule
+from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_without_registration
 from hwt.synthesizer.interfaceLevel.utils import HwIO_walkSignals
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
@@ -68,7 +70,7 @@ class HlsScope():
         if freq is None:
             freq = parentHwModule.clk.FREQ
         self.freq = freq
-        self._ctx = RtlNetlist()
+        self._rtlCtx = RtlNetlist()
         self._threads: List[HlsThread] = []
         self._currentThread: Optional[HlsThread] = None
         self.hwIOMeta: Dict[ANY_HLS_COMPATIBLE_IO, HwIOMeta] = {}
@@ -131,7 +133,7 @@ class HlsScope():
                 dtype = HwIO_to_HdlType().apply(src, exclude=(src.rd,))
 
         elif isinstance(src, RtlSignal):
-            assert src.ctx is not self._ctx, ("Read should be used only for IO, it is not required for HLS variables")
+            assert src._rtlCtx is not self._rtlCtx, ("Read should be used only for IO, it is not required for HLS variables")
             dtype = src._dtype
 
         elif isinstance(src, (HwIOSignal, HwIOStruct)):
