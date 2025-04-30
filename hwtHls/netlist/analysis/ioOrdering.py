@@ -1,14 +1,16 @@
-from typing import List, Set, Callable
+from typing import Callable
 
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
+from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.hdlTypeVoid import HVoidData, HdlType_isNonData
+from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.transformation.simplifyExpr.concat import _collectConcatOfVoidTreeOutputs, \
     _collectConcatOfVoidTreeInputs
@@ -96,8 +98,13 @@ class HlsNetlistAnalysisPassIoOrdering(HlsNetlistAnalysisPass):
     #        for uses in n.usedBy:
     #            toSearch.extend(u.obj for u in uses)
     #
+    @staticmethod
+    def _isExtraCondOrSkipWhen(i: HlsNetNodeIn):
+        n = i.obj
+        return isinstance(n, HlsNetNodeExplicitSync) and (i is n.extraCond or i is n.skipWhen)
+
     @classmethod
-    def _getDirectDataSuccessorsRaw(cls, toSearch: SetList[HlsNetNode], seen: Set[HlsNetNode]) -> SetList[HlsNetNodeExplicitSync]:
+    def _getDirectDataSuccessorsRaw(cls, toSearch: SetList[HlsNetNode], seen: set[HlsNetNode]) -> SetList[HlsNetNodeExplicitSync]:
         """
         BFS search for HlsNetNodeExplicitSync successor nodes, but do not cross these instances while searching
         """
@@ -120,7 +127,7 @@ class HlsNetlistAnalysisPassIoOrdering(HlsNetlistAnalysisPass):
                 for u in uses:
                     if cls._isExtraCondOrSkipWhen(u):
                         continue
-                    u = cls._flattenNodeOrPort(u)
+                    u = HlsNetlistAnalysisPassReachability._flattenNodeOrPort(u)
                     uObj = u.obj
                     yield uObj
                     if not isinstance(uObj, HlsNetNodeExplicitSync):
@@ -129,7 +136,7 @@ class HlsNetlistAnalysisPassIoOrdering(HlsNetlistAnalysisPass):
     @classmethod
     def _getDirectDataSuccessorsRawAnyData(cls,
                                            toSearch: SetList[HlsNetNode],
-                                           seen: Set[HlsNetNode],
+                                           seen: set[HlsNetNode],
                                            searchEndPredicateFn: Callable[[HlsNetNode], bool]) -> SetList[HlsNetNodeExplicitSync]:
         """
         Simplified version of :meth:`~._getDirectDataSuccessorsRaw` which uses node searchEndPredicateFn instead of check for specific ports.
@@ -148,7 +155,7 @@ class HlsNetlistAnalysisPassIoOrdering(HlsNetlistAnalysisPass):
                     continue
 
                 for u in uses:
-                    u = cls._flattenNodeOrPort(u)
+                    u = HlsNetlistAnalysisPassReachability._flattenNodeOrPort(u)
                     uObj = u.obj
                     if searchEndPredicateFn(uObj):
                         continue
@@ -183,8 +190,12 @@ class HlsNetlistAnalysisPassIoOrdering(HlsNetlistAnalysisPass):
     #
     #            toSearch.append(n.obj)
 
+    @staticmethod
+    def _isValidNB(o: HlsNetNodeOut):
+        return isinstance(o.obj, HlsNetNodeRead) and o is o.obj._validNB
+
     @classmethod
-    def _getDirectDataPredecessorsRaw(cls, toSearch: SetList[HlsNetNode], seen: Set[HlsNetNode]) -> SetList[HlsNetNodeExplicitSync]:
+    def _getDirectDataPredecessorsRaw(cls, toSearch: SetList[HlsNetNode], seen: set[HlsNetNode]) -> SetList[HlsNetNodeExplicitSync]:
         """
         BFS search for HlsNetNodeExplicitSync predecessor nodes, but do not cross these instances while searching
         """
@@ -195,26 +206,31 @@ class HlsNetlistAnalysisPassIoOrdering(HlsNetlistAnalysisPass):
             seen.add(n)
             assert not isinstance(n, HlsNetNodeAggregate), n
 
-            nIsSync = isinstance(n, HlsNetNodeExplicitSync)
-            if nIsSync:
+            if isinstance(n, HlsNetNodeExplicitSync):
                 ec = n.extraCond
                 sw = n.skipWhen
             else:
                 ec = None
                 sw = None
             for i, dep in zip(n._inputs, n.dependsOn):
-                if i is ec or i is sw or dep is None or HdlType_isNonData(dep._dtype) or cls._isValidNB(dep):
+                if i is ec or\
+                   i is sw or\
+                   dep is None or\
+                   HdlType_isNonData(dep._dtype) or\
+                   cls._isValidNB(dep):
                     continue
-                dep = cls._flattenNodeOrPort(dep)
+                dep = HlsNetlistAnalysisPassReachability._flattenNodeOrPort(dep)
                 depObj = dep.obj
                 yield depObj
                 if not isinstance(depObj, HlsNetNodeExplicitSync):
                     toSearch.append(dep.obj)
 
     @classmethod
-    def _getDirectDataPredecessorsRawAnyData(cls, toSearch: SetList[HlsNetNode],
-                                             seen: Set[HlsNetNode],
-                                             searchEndPredicateFn: Callable[[HlsNetNode], bool]) -> SetList[HlsNetNodeExplicitSync]:
+    def _getDirectDataPredecessorsRawAnyData(cls,
+                                             toSearch: SetList[HlsNetNode],
+                                             seen: set[HlsNetNode],
+                                             searchEndPredicateFn: Callable[[HlsNetNode], bool]
+                                             ) -> SetList[HlsNetNodeExplicitSync]:
         """
         Simplified version of :meth:`~._getDirectDataPredecessorsRaw` which uses searchEndPredicateFn instead of check for specific ports.
         """
@@ -228,7 +244,7 @@ class HlsNetlistAnalysisPassIoOrdering(HlsNetlistAnalysisPass):
             for dep in n.dependsOn:
                 if dep is None or HdlType_isNonData(dep._dtype):
                     continue
-                dep = cls._flattenNodeOrPort(dep)
+                dep = HlsNetlistAnalysisPassReachability._flattenNodeOrPort(dep)
                 depObj = dep.obj
                 if searchEndPredicateFn(depObj):
                     continue

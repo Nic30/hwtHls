@@ -370,14 +370,6 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
                 for i in nodeOrPort._inputs:
                     toSearch.append(i)
 
-    @staticmethod
-    def _isValidNB(o: HlsNetNodeOut):
-        return isinstance(o.obj, HlsNetNodeRead) and o is o.obj._validNB
-
-    @staticmethod
-    def _isExtraCondOrSkipWhen(i: HlsNetNodeIn):
-        n = i.obj
-        return isinstance(n, HlsNetNodeExplicitSync) and (i is n.extraCond or i is n.skipWhen)
 
     def _installNetlistListeners(self, netlist: "HlsNetlistCtx"):
         netlist.setupNetlistListeners(
