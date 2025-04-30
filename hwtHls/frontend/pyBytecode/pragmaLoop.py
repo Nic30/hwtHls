@@ -4,7 +4,6 @@ from typing import Union, Literal, Optional
 from hwt.hwIO import HwIO
 from hwtHls.frontend.pyBytecode.ioProxyStream import IoProxyStream
 from hwtHls.frontend.pyBytecode.pragma import _PyBytecodeLoopPragma
-from hwtHls.llvm.llvmIr import Argument
 
 
 class PyBytecodeLLVMLoopUnroll(_PyBytecodeLoopPragma):
