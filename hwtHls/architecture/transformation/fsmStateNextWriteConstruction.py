@@ -247,9 +247,9 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
                 else:
                     scheduledUnscheduedDummyAsap(andOfAllSkipWhens, 0)
                     thisStSkipKnownWhen = andOfAllSkipWhens.obj.scheduledOut[andOfAllSkipWhens.out_i] // clkPeriod
-                
+
                 # propagate all exiting transitions to all predecessor if transition conditions allow it
-                for predClkI in sorted(predecessors[clkI], key= lambda clkI: -1 if clkI is None else clkI):
+                for predClkI in sorted(predecessors[clkI], key=lambda clkI:-1 if clkI is None else clkI):
                     if predClkI is None:
                         continue
                     predClkI: int
@@ -318,9 +318,11 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
                 stJumpEnInPort = stNextWrite._addInput(f"clk{nextClkI:d}", addDefaultScheduling=True)
                 stNextWrite.portToNextStateId[stJumpEnInPort] = nextClkI
                 if stJumpEn is None:
-                    assert not defaultJumpSeen
+                    assert not defaultJumpSeen, ("FSM may contain only a single unconditional jump from each state",
+                                                 fsmElm, clkI, stateTransitionTable)
                     defaultJumpSeen = True
                     stJumpEn = builder.buildConstBit(1)
+
                 scheduleUnscheduledControlLogic(syncNode, stJumpEn)
                 stJumpEn.connectHlsIn(stJumpEnInPort)
 
