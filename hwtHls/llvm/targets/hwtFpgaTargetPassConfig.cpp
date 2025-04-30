@@ -267,6 +267,7 @@ public:
 		if (CSEConfigFull::shouldCSEOpc(Opc))
 			return true;
 		switch (Opc) {
+
 		case HwtFpga::HWTFPGA_EXTRACT:
 		case HwtFpga::HWTFPGA_MERGE_VALUES:
 		case HwtFpga::HWTFPGA_NOT:
@@ -282,11 +283,57 @@ public:
 		case HwtFpga::HWTFPGA_OR:
 		case HwtFpga::HWTFPGA_SUB:
 		case HwtFpga::HWTFPGA_XOR:
+		case HwtFpga::HWTFPGA_SHL:
+		case HwtFpga::HWTFPGA_LSHR:
+		case HwtFpga::HWTFPGA_ASHR:
+		case HwtFpga::HWTFPGA_FSHL:
+		case HwtFpga::HWTFPGA_FSHR:
 		case HwtFpga::HWTFPGA_CTLZ_ZERO_UNDEF:
 		case HwtFpga::HWTFPGA_CTTZ_ZERO_UNDEF:
 		case HwtFpga::HWTFPGA_CTLZ:
 		case HwtFpga::HWTFPGA_CTTZ:
 		case HwtFpga::HWTFPGA_CTPOP:
+		case HwtFpga::HWTFPGA_FP_FNEG:
+		case HwtFpga::HWTFPGA_FP_FADD:
+		case HwtFpga::HWTFPGA_FP_FSUB:
+		case HwtFpga::HWTFPGA_FP_FMUL:
+		case HwtFpga::HWTFPGA_FP_FMUL_S_HL:
+		case HwtFpga::HWTFPGA_FP_FMUL_U_HL:
+		case HwtFpga::HWTFPGA_FP_FDIV:
+		case HwtFpga::HWTFPGA_FP_FREM:
+		case HwtFpga::HWTFPGA_FP_FDIVREM:
+		case HwtFpga::HWTFPGA_FP_SHL:
+		case HwtFpga::HWTFPGA_FP_SHR:
+		case HwtFpga::HWTFPGA_FP_FCMP:
+		case HwtFpga::HWTFPGA_FP_CEIL:
+		case HwtFpga::HWTFPGA_FP_COS:
+		case HwtFpga::HWTFPGA_FP_EXP:
+		case HwtFpga::HWTFPGA_FP_EXP10:
+		case HwtFpga::HWTFPGA_FP_EXP2:
+		case HwtFpga::HWTFPGA_FP_FABS:
+		case HwtFpga::HWTFPGA_FP_FLOOR:
+		case HwtFpga::HWTFPGA_FP_LOG:
+		case HwtFpga::HWTFPGA_FP_LOG10:
+		case HwtFpga::HWTFPGA_FP_LOG2:
+		case HwtFpga::HWTFPGA_FP_FPOW:
+		case HwtFpga::HWTFPGA_FP_FPOWI:
+		case HwtFpga::HWTFPGA_FP_ROUND:
+		case HwtFpga::HWTFPGA_FP_ROUNDEVEN:
+		case HwtFpga::HWTFPGA_FP_SIN:
+		case HwtFpga::HWTFPGA_FP_SQRT:
+		case HwtFpga::HWTFPGA_FP_SINPI:
+		case HwtFpga::HWTFPGA_FP_COSPI:
+		case HwtFpga::HWTFPGA_FP_ASIN:
+		case HwtFpga::HWTFPGA_FP_SINH:
+		case HwtFpga::HWTFPGA_FP_ACOS:
+		case HwtFpga::HWTFPGA_FP_COSH:
+		case HwtFpga::HWTFPGA_FP_TAN:
+		case HwtFpga::HWTFPGA_FP_TANPI:
+		case HwtFpga::HWTFPGA_FP_ATAN:
+		case HwtFpga::HWTFPGA_FP_TANH:
+		case HwtFpga::HWTFPGA_FP_SINCOS:
+		case HwtFpga::HWTFPGA_FP_ASINCOS:
+		case HwtFpga::HWTFPGA_FP_SINCOSH:
 			return true;
 		default:
 			return false;
