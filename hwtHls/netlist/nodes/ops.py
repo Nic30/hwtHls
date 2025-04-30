@@ -16,6 +16,8 @@ from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
+from hwtHls.platform.componentGenerator import ComponentGenerator
+from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
 
 class HlsNetNodeOperator(HlsNetNode):
@@ -62,17 +64,29 @@ class HlsNetNodeOperator(HlsNetNode):
         input_cnt = len(self.dependsOn)
 
         bit_length = self.getInputDtype(0).bit_length()
-        assert self.operator is not HwtOps.TERNARY
-
-        r = netlist.platform.get_op_realization(
-            self.operator, self.operatorSpecialization, bit_length,
-            input_cnt, netlist.realTimeClkPeriod)
+        assert self.operator is not (HwtOps.TERNARY, "Mux has own class HlsNetNodeMux")
+        gen = netlist.platform._componentGenerators.get(self.operator)
+        if gen is not None:
+            gen: ComponentGenerator
+            r = gen.resolveRealizationOfNode(self)
+            assert isinstance(r, OpRealizationMeta), ("ComponentGenerator.resolveRealizationOfNode must return OpRealizationMeta", self, r, gen)
+        else:
+            r = netlist.platform.get_op_realization(
+                self.operator, self.operatorSpecialization, bit_length,
+                input_cnt, netlist.realTimeClkPeriod)
         self.assignRealization(r)
 
     @override
     def rtlAlloc(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
         assert not self._isMarkedRemoved, self
         assert not self._isRtlAllocated, self
+        netlist = self.netlist
+        platform = netlist.parentHwModule._target_platform
+        gen = platform._componentGenerators.get(self.operator)
+        if gen:
+            gen: ComponentGenerator
+            return gen.toRtlForNode(self, allocator)
+        
         op_out = self._outputs[0]
         if HdlType_isVoid(op_out._dtype):
             assert self.operator == HwtOps.CONCAT, self
