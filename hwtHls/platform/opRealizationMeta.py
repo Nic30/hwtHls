@@ -1,3 +1,4 @@
+from typing import Self
 
 
 class OpRealizationMeta():
@@ -23,6 +24,72 @@ class OpRealizationMeta():
         self.outputWireDelay = outputWireDelay
         self.outputClkTickOffset = outputClkTickOffset
         self.mayBeInFFStoreTime = mayBeInFFStoreTime
+
+    def hasOnlyInputWireDelay(self) -> bool:
+        return self.inputClkTickOffset == 0 and \
+             self.outputWireDelay == 0.0 and \
+             self.outputClkTickOffset == 0
+
+    def fitsIntoSingleClockWindow(self):
+        return self.inputClkTickOffset == 0 and self.outputClkTickOffset == 0
+
+    def __mul__(self, other:int):
+        return self.__class__(
+            inputClkTickOffset=self.inputClkTickOffset * other,
+            inputWireDelay=self.inputWireDelay * other,
+            outputWireDelay=self.outputWireDelay * other,
+            outputClkTickOffset=self.outputClkTickOffset * other,
+            mayBeInFFStoreTime=self.mayBeInFFStoreTime,
+        )
+
+    def __add__(self, other:Self):
+        """
+        :attention: order does matter if OpRealizationMeta spawns over multiple clock windows
+        """
+        assert isinstance(self.inputClkTickOffset, int), self
+        assert isinstance(self.inputWireDelay, (int, float)), self
+        assert isinstance(self.outputClkTickOffset, int), self
+        assert isinstance(self.outputWireDelay, (int, float)), self
+        # [todo] assert that result delay does not exceed the clkPeriod
+        if self.fitsIntoSingleClockWindow():
+            if other.fitsIntoSingleClockWindow():
+                # just sum
+                return self.__class__(
+                    inputClkTickOffset=self.inputClkTickOffset + other.inputClkTickOffset,
+                    inputWireDelay=self.inputWireDelay + other.inputWireDelay,
+                    outputWireDelay=self.outputWireDelay + other.outputWireDelay,
+                    outputClkTickOffset=self.outputClkTickOffset + other.outputClkTickOffset,
+                    mayBeInFFStoreTime=other.mayBeInFFStoreTime,
+                )
+            else:
+                # self fits into first clock before other
+                # inputWireDelay = self total delay
+                return self.__class__(
+                    inputClkTickOffset=other.inputClkTickOffset,
+                    inputWireDelay=self.inputWireDelay + self.outputWireDelay + other.inputWireDelay,
+                    outputWireDelay=other.outputWireDelay,
+                    outputClkTickOffset=other.outputClkTickOffset,
+                    mayBeInFFStoreTime=other.mayBeInFFStoreTime,
+                )
+        else:
+            if other.fitsIntoSingleClockWindow():
+                # other fits into last clkPeriod of self
+                return self.__class__(
+                    inputClkTickOffset=self.inputClkTickOffset,
+                    inputWireDelay=self.inputWireDelay,
+                    outputWireDelay=self.outputWireDelay + other.inputWireDelay + other.outputWireDelay,
+                    outputClkTickOffset=self.outputClkTickOffset,
+                    mayBeInFFStoreTime=other.mayBeInFFStoreTime,
+                )
+            else:
+                # 1 clk overlap of last clk of self with first clk of other
+                return self.__class__(
+                    inputClkTickOffset=self.inputClkTickOffset,
+                    inputWireDelay=self.inputWireDelay,
+                    outputWireDelay=other.outputWireDelay,
+                    outputClkTickOffset=self.outputClkTickOffset + other.inputClkTickOffset + other.outputClkTickOffset,
+                    mayBeInFFStoreTime=other.mayBeInFFStoreTime,
+                )
 
 
 EMPTY_OP_REALIZATION = OpRealizationMeta(mayBeInFFStoreTime=True)
