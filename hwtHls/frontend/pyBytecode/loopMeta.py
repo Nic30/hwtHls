@@ -27,11 +27,15 @@ class BranchTargetPlaceholder():
     def appendSuccessor(toLlvm: "ToLlvmIrTranslator", curBlock: BasicBlock, cond: Optional[Value], sucBlock: BasicBlock) -> Optional[Value]:
         # if this is a jump out of current loop
         if isinstance(cond, HConst):
-            assert cond, (cond, "If this was not True the jump should not be evaluated at the first place")
+            assert cond, (
+                "If this was not True the jump should not be evaluated at the first place",
+                curBlock, "->", sucBlock)
             cond = None  # always jump, but we need this value to know that this will be unconditional jump only in HW
         elif isinstance(cond, Constant):
             cond = ValueToConstantInt(cond)
-            assert int(cond.getValue())
+            assert int(cond.getValue().getZExtValue()), (
+                "If this was not True the jump should not be evaluated at the first place",
+                curBlock, "->", sucBlock)
             cond = None
 
         ter = curBlock.getTerminator()

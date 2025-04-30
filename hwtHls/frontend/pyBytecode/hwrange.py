@@ -90,6 +90,7 @@ class hwrange():
     """
 
     def __init__(self, start, stop=None, step=1, name=None):
+        # [todo] useSigned parameter to switch if iteration variable should be of signed type
         if stop is None:
             # normalize hwrange(8) to hwrange(0, 8)
             stop = start
