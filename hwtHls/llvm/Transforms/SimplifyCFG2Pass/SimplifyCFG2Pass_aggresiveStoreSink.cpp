@@ -145,129 +145,152 @@ void overwriteBBEndSuccessor(DomTreeUpdater &DTU, llvm::BranchInst *BBEndBr,
 	auto BBEnd = BBEndBr->getParent();
 	if (BBStartT == BBEnd)
 		return; // no update because there is no block between start and end
-	DTU.applyUpdates(
-			{ { DominatorTree::Delete, BBEnd, BBEndBr->getSuccessor(sucIndex) } });
 	BBEndBr->setSuccessor(sucIndex, BBStartT);
-	DTU.applyUpdates( { { DominatorTree::Insert, BBEnd, BBStartT } });
+	DTU.applyUpdates(
+			{ { DominatorTree::Delete, BBEnd, BBEndBr->getSuccessor(sucIndex) },
+					{ DominatorTree::Insert, BBEnd, BBStartT } });
 	// update phis in moved blocks
 	for (PHINode &phi : BBStartT->phis()) {
 		phi.replaceIncomingBlockWith(&BBStart, BBEnd);
 	}
 }
 
+// update blocks to jump to newSuc instead of curSuc
 void replaceSuccessorWith(const SetVector<BasicBlock*> &blocks,
 		DomTreeUpdater &DTU, llvm::BasicBlock *curSuc,
 		llvm::BasicBlock *newSuc) {
 	for (BasicBlock *BB : blocks) {
-		DTU.applyUpdates( { { DominatorTree::Delete, BB, curSuc } });
+		if (curSuc == newSuc)
+			continue;
 		BB->getTerminator()->replaceSuccessorWith(curSuc, newSuc);
-		DTU.applyUpdates( { { DominatorTree::Delete, BB, newSuc } });
+		DTU.applyUpdates( { { DominatorTree::Delete, BB, curSuc }, {
+				DominatorTree::Insert, BB, newSuc } });
+		for (auto &PHI: newSuc->phis()) {
+			PHI.replaceIncomingBlockWith(curSuc, BB);
+		}
 	}
 }
 
-bool tryToMoveBlocksBehindBBEnd(SmallVector<BasicBlock*> &foundBlocks,
-		llvm::BasicBlock &BBStart, llvm::BasicBlock *BBEnd, DomTreeUpdater &DTU,
-		DominatorTree &DT, llvm::BranchInst *BR0) {
-	// check if every def in candidate blocks is not used in BBEnd or after
-	bool canMoveAsAWhole = checkIfDefsUsedOnlyLocally(foundBlocks, BBStart,
-			BBEnd);
-	if (!canMoveAsAWhole)
-		return false;
-	if (BBEnd->phis().begin() != BBEnd->phis().end()) {
-		// find direct predecessors of BBEnd on each branch from BBStart separately
-		SetVector<BasicBlock*> BBStartTBBEndPredecs;
-		SetVector<BasicBlock*> BBStartFBBEndPredecs;
-		if (checkBBEndPHIsDrivenByBBStartCond(DT, BBStart, BBEnd,
-				BBStartTBBEndPredecs, BBStartFBBEndPredecs)) {
-			// check if it is possible to update PHIs in BBEnd
-			SmallVector<std::pair<Value*, Value*> > phiUpdates;
-			for (PHINode &phi : BBEnd->phis()) {
-				Value *TVal = nullptr;
-				Value *FVal = nullptr;
-				for (auto *pred : phi.blocks()) {
-					if (pred == BBEnd) {
-						// [todo] mark that phi should be kept, but replace all other predecessor blocks with BBStart with newly generated value by select
-						throw std::runtime_error("NotImplemented");
-					}
-					auto V = phi.getIncomingValueForBlock(pred);
-					if (BR0->getSuccessor(0) == BBEnd
-							|| BBStartTBBEndPredecs.count(pred)) {
-						if (TVal == nullptr) {
-							TVal = V;
-						} else if (TVal != V) {
-							return false;
-						}
-					} else {
-						assert(BBStartFBBEndPredecs.count(pred));
-						if (FVal == nullptr) {
-							FVal = V;
-						} else if (TVal != V) {
-							return false;
-						}
-					}
+bool tryRewritePhisToSelects(IRBuilder<> &Builder, llvm::BasicBlock &BBStart,
+		llvm::BasicBlock *BBEnd, SetVector<BasicBlock*> &BBStartTBBEndPredecs,
+		SetVector<BasicBlock*> &BBStartFBBEndPredecs, llvm::BranchInst *BR0) {
+	// check if it is possible to update PHIs in BBEnd
+	SmallVector<std::pair<Value*, Value*> > phiUpdates;
+	for (PHINode &phi : BBEnd->phis()) {
+		Value *TVal = nullptr;
+		Value *FVal = nullptr;
+		for (auto *pred : phi.blocks()) {
+			if (pred == BBEnd) {
+				// [todo] mark that phi should be kept, but replace all other predecessor blocks with BBStart with newly generated value by select
+				throw std::runtime_error(
+						"NotImplemented moveBlocksBehindBBEnd");
+			}
+			auto V = phi.getIncomingValueForBlock(pred);
+			if (BR0->getSuccessor(0) == BBEnd
+					|| BBStartTBBEndPredecs.count(pred)) {
+				if (TVal == nullptr) {
+					TVal = V;
+				} else if (TVal != V) {
+					return false;
 				}
-				phiUpdates.push_back( { TVal, FVal });
+			} else {
+				assert(BBStartFBBEndPredecs.count(pred));
+				if (FVal == nullptr) {
+					FVal = V;
+				} else if (TVal != V) {
+					return false;
+				}
 			}
-			// all PHIs can be rewritten as a select
-
-			// replace BBEnd PHIs with select in BBStart
-			IRBuilder<> Builder(BBStart.getTerminator());
-			auto *BBStartBr = dyn_cast<BranchInst>(BBStart.getTerminator());
-			Value *C = BBStartBr->getCondition();
-			auto phiUpdtIt = phiUpdates.begin();
-			for (PHINode &phi : make_early_inc_range(BBEnd->phis())) {
-				auto *phiReplacement = Builder.CreateSelect(C, phiUpdtIt->first,
-						phiUpdtIt->second, phi.getName());
-				assert(phi.getType() == phiReplacement->getType());
-				phi.replaceAllUsesWith(phiReplacement);
-				phi.eraseFromParent();
-				++phiUpdtIt;
-			}
-
-			// set BBStartT as BBEndT (and same for F branch) (we must insert between, not replace, because BBEndT may have other predecessors)
-			auto *BBEndBr = dyn_cast<BranchInst>(BBEnd->getTerminator());
-			auto *BBStartT = BBStartBr->getSuccessor(0);
-			auto *BBStartF = BBStartBr->getSuccessor(1);
-			auto *BBEndT = BBEndBr->getSuccessor(0);
-			auto *BBEndF = BBEndBr->getSuccessor(1);
-
-			// move BBStart successors as BBEnd successors
-			overwriteBBEndSuccessor(DTU, BBEndBr, 0, BBStart, BBStartT);
-			overwriteBBEndSuccessor(DTU, BBEndBr, 1, BBStart, BBStartF);
-			// update terminators in moved blocks to continue to BBEnd successors
-			// for bb in BBStartTBBEndPredecs replace BBEnd with BBEndT (and same for F branch)
-			replaceSuccessorWith(BBStartTBBEndPredecs, DTU, BBEnd, BBEndT);
-			replaceSuccessorWith(BBStartFBBEndPredecs, DTU, BBEnd, BBEndF);
-
-			// replace branch from BBStart to an unconditional branch to BBEnd
-			for (BasicBlock *suc : BBStartBr->successors()) {
-				DTU.applyUpdates( { { DominatorTree::Delete, &BBStart, suc } });
-			}
-			BBStartBr->eraseFromParent();
-			Builder.SetInsertPoint(&BBStart);
-			Builder.CreateBr(BBEnd);
-			DTU.applyUpdates( { { DominatorTree::Insert, &BBStart, BBEnd }, });
-
-			// merge trivial branches
-			MergeBlockIntoPredecessor(BBEnd, &DTU);
-			//DTU.flush();
-
-			// std::string errTmp =
-			// 		"hwtHls::tryToMoveBlocksBehindBBEnd corrupted function ";
-			// llvm::raw_string_ostream errSS(errTmp);
-			// auto &F =* BBStart.getParent();
-			// errSS << F.getName().str();
-			// errSS << "\n";
-			// if (verifyModule(*F.getParent(), &errSS)) {
-			// 	throw std::runtime_error(errSS.str());
-			// }
-			// if (!DT.verify()) {
-			// 	throw std::runtime_error("hwtHls::tryToMoveBlocksBehindBBEnd corrupted DominatorTree");
-			// }
-			return true;
 		}
+		phiUpdates.push_back( { TVal, FVal });
 	}
-	return false;
+	// all PHIs can be rewritten as a select
+
+	// replace BBEnd PHIs with select in BBStart
+	Builder.SetInsertPoint(BBStart.getTerminator());
+	auto *BBStartBr = dyn_cast<BranchInst>(BBStart.getTerminator());
+	Value *C = BBStartBr->getCondition();
+	auto phiUpdtIt = phiUpdates.begin();
+	for (PHINode &phi : make_early_inc_range(BBEnd->phis())) {
+		auto *phiReplacement = Builder.CreateSelect(C, phiUpdtIt->first,
+				phiUpdtIt->second, phi.getName());
+		assert(phi.getType() == phiReplacement->getType());
+		phi.replaceAllUsesWith(phiReplacement);
+		phi.eraseFromParent();
+		++phiUpdtIt;
+	}
+	return true;
+}
+
+/*
+ * :param BBStart: a block which has successor which should be sinked behind BBEnd
+ * :param BBEnd: a block behind which the successor of BBStart should be sinked
+ * */
+bool moveBlocksBehindBBEnd(llvm::BasicBlock &BBStart, llvm::BasicBlock *BBEnd,
+		SetVector<BasicBlock*> &BBStartTBBEndPredecs,
+		SetVector<BasicBlock*> &BBStartFBBEndPredecs, DomTreeUpdater &DTU,
+		DominatorTree &DT, llvm::BranchInst *BR0) {
+	IRBuilder<> Builder(&BBStart);
+	if (!tryRewritePhisToSelects(Builder, BBStart, BBEnd, BBStartTBBEndPredecs,
+			BBStartFBBEndPredecs, BR0))
+		return false;
+	auto *BBStartBr = dyn_cast<BranchInst>(BBStart.getTerminator());
+
+	// set BBStartT as BBEndT (and same for F branch) (we must insert between, not replace, because BBEndT may have other predecessors)
+	auto *BBEndBr = dyn_cast<BranchInst>(BBEnd->getTerminator());
+	auto *BBStartT = BBStartBr->getSuccessor(0);
+	auto *BBStartF = BBStartBr->getSuccessor(1);
+	auto *BBEndT = BBEndBr->getSuccessor(0);
+	auto *BBEndF = BBEndBr->getSuccessor(1);
+
+	//errs() << "BBStart: ";
+	//BBStart.printAsOperand(errs());
+	//errs() << " BBStartT: ";
+	//BBStartT->printAsOperand(errs());
+	//errs() << " BBStartF: ";
+	//BBStartF->printAsOperand(errs());
+	//errs() << " \nBBEndT: ";
+	//BBEnd->printAsOperand(errs());
+	//errs() << " BBEndT: ";
+	//BBEndT->printAsOperand(errs());
+	//errs() << " BBEndF: ";
+	//BBEndF->printAsOperand(errs());
+	//errs() << "\n";
+	// move BBStart successors as BBEnd successors
+	overwriteBBEndSuccessor(DTU, BBEndBr, 0, BBStart, BBStartT);
+	overwriteBBEndSuccessor(DTU, BBEndBr, 1, BBStart, BBStartF);
+	// update terminators in moved blocks to continue to BBEnd successors
+	// for bb in BBStartTBBEndPredecs replace BBEnd with BBEndT (and same for F branch)
+	replaceSuccessorWith(BBStartTBBEndPredecs, DTU, BBEnd, BBEndT);
+	replaceSuccessorWith(BBStartFBBEndPredecs, DTU, BBEnd, BBEndF);
+
+	// replace branch from BBStart to an unconditional branch to BBEnd
+	for (BasicBlock *suc : BBStartBr->successors()) {
+		DTU.applyUpdates( { { DominatorTree::Delete, &BBStart, suc } });
+	}
+	BBStartBr->eraseFromParent();
+	assert(BBStartBr->hasNUses(0));
+	Builder.SetInsertPoint(&BBStart);
+	Builder.CreateBr(BBEnd);
+	DTU.applyUpdates( { { DominatorTree::Insert, &BBStart, BBEnd }, });
+
+	// merge trivial branches
+	MergeBlockIntoPredecessor(BBEnd, &DTU);
+	// DTU.flush(); // can not be applied there because it would break parent iterator if block removed
+
+	// std::string errTmp =
+	// 		"hwtHls::tryToMoveBlocksBehindBBEnd corrupted function ";
+	// llvm::raw_string_ostream errSS(errTmp);
+	// auto &F =* BBStart.getParent();
+	// errSS << F.getName().str();
+	// errSS << "\n";
+	// if (verifyModule(*F.getParent(), &errSS)) {
+	// 	throw std::runtime_error(errSS.str());
+	// }
+	// if (!DT.verify()) {
+	// 	throw std::runtime_error("hwtHls::tryToMoveBlocksBehindBBEnd corrupted DominatorTree");
+	// }
+	return true;
 }
 
 bool BasicBlock_containsMem(llvm::BasicBlock *BB) {
@@ -319,10 +342,24 @@ bool SimplifyCFG2Pass_aggresiveStoreSink(DomTreeUpdater &DTU,
 					// we can not reorder mem accesses
 					continue;
 				}
+				// check if every def in candidate blocks is not used in BBEnd or after
+				bool canMoveAsAWhole = checkIfDefsUsedOnlyLocally(foundBlocks,
+						BBStart, BBEnd);
+				if (!canMoveAsAWhole)
+					continue;
+				//if (BBEnd->phis().empty())
+				//	continue;
+
+				// find direct predecessors of BBEnd on each branch from BBStart separately
+				SetVector<BasicBlock*> BBStartTBBEndPredecs;
+				SetVector<BasicBlock*> BBStartFBBEndPredecs;
+				if (!checkBBEndPHIsDrivenByBBStartCond(DT, BBStart, BBEnd,
+						BBStartTBBEndPredecs, BBStartFBBEndPredecs))
+					continue;
 
 				// check if every def in candidate blocks is not used in BBEnd or after
-				if (tryToMoveBlocksBehindBBEnd(foundBlocks, BBStart, BBEnd, DTU,
-						DT, BR0)) {
+				if (moveBlocksBehindBBEnd(BBStart, BBEnd, BBStartTBBEndPredecs,
+						BBStartFBBEndPredecs, DTU, DT, BR0)) {
 					// if we sink whole blocks we do not have to construct any new PHIs
 					return true;
 				}

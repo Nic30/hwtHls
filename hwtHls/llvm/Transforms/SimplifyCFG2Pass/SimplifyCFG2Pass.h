@@ -60,6 +60,7 @@ struct SimplifyCFG2Options: public llvm::SimplifyCFGOptions {
 	//	SinkCheapInsts = B;
 	//	return *this;
 	//}
+
 };
 
 /// same as original LLVM SimplifyCFGPass but with:
@@ -77,7 +78,7 @@ public:
 	/// Construct a pass with optional optimizations.
 	SimplifyCFG2Pass(const SimplifyCFG2Options &PassOptions);
 	static llvm::StringRef name() {
-		return "SimplifyCFG2Pass";
+		return "hwtHls::SimplifyCFG2Pass";
 	}
 	llvm::PreservedAnalyses run(llvm::Function &F,
 			llvm::FunctionAnalysisManager &AM);
