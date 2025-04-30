@@ -62,7 +62,9 @@ class _PyBytecodeIntrinsic(HFunctionConst):
         Construct the HWT call expression for later translation to LLVM
         """
         if self.hasManyInputs:
-            raise NotImplementedError()
+            if kwargs:
+                raise NotImplementedError()
+            assert len(args) == len(self.hwInputT.fields), (self.hwInputT, args)
         else:
             assert not kwargs, kwargs
             assert len(args) <= 1, args
@@ -70,9 +72,10 @@ class _PyBytecodeIntrinsic(HFunctionConst):
         if self.hasManyOutputs:
             raise NotImplementedError()
         else:
+            args = [a._sig if isinstance(a, HwIO) else a for a in args]
             return HOperatorNode.withRes(HwtOps.CALL, [self, *args], self.hwOutputT)
 
-    def translateToLlvm(self, b: IRBuilder, args: Tuple[Value]):
+    def translateToLlvm(self, toLlvm: "ToLlvmIrTranslator", b: IRBuilder, args: Tuple[Value]):
         raise NotImplementedError("Implement this method in child class")
 
 
