@@ -156,7 +156,6 @@ class HlsArchPassArchStructureSimplify(HlsArchPass):
                     if isinstance(suc, ArchElementPipeline):
                         if self.shouldMergePipelineToFsm(suc, archElm):
                             ArchElement_merge(suc, archElm, archElmPredecessors, archElmSuccessors)
-                            suc.markAsRemoved()
                             continue
 
             if isinstance(archElm, ArchElementPipeline):
@@ -166,13 +165,12 @@ class HlsArchPassArchStructureSimplify(HlsArchPass):
                     if suc._isMarkedRemoved:
                         # If suc is removed it should not be in archElmSuccessors dict
                         # but we modifying it during the iteration so we used a copy of values
-                        # which may not be up to date
+                        # which may not be up to date, that is why there may be removed items
                         continue
 
                     if isinstance(suc, ArchElementPipeline):
                         if self.shouldMergePipelineToPipeline(suc, archElm):
                             ArchElement_merge(suc, archElm, archElmPredecessors, archElmSuccessors)
-                            suc.markAsRemoved()
                             continue
 
         if netlist.filterNodesUsingRemovedSet():

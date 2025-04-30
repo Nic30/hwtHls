@@ -125,12 +125,13 @@ def ArchElement_mergePipeline(src: ArchElementPipeline,
     for c in src.connections:
         assert c is None or not c.signals, ("RTL for this element should not yet be instantiated", src)
 
-    raise NotImplementedError()
     for srcNodes, dstNodes in zip_longest(src.stages, dst.stages):
         if srcNodes:
             dstNodes.extend(srcNodes)
 
     dst.subNodes.extend(src.subNodes)
+    for n in src.subNodes:
+        n.parent = dst
     ArchElement_mergePorts(src, dst)
     src.markAsRemoved()
     src.destroy()
