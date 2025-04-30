@@ -31,7 +31,8 @@ class HlsWrite(HlsStm):
                  src:Union[RtlSignal, HConst],
                  dst: ANY_HLS_STREAM_INTF_TYPE,
                  dtype: HdlType,
-                 mayBecomeFlushable=True,
+                 isVolatile:bool,
+                 mayBecomeFlushable:bool=True,
                  ):
         HlsStm.__init__(self, parent)
         if isinstance(dst, RtlSignal):
@@ -43,8 +44,9 @@ class HlsWrite(HlsStm):
         self._dtype = dtype
         # [todo] this put this object in temporary inconsistent state,
         #  because src can be more than just SsaValue/HConst instance
-        self.operands = (src,)
+        self.src = src
         self._parent = parent
+        self._isVolatile = isVolatile
 
         self.dst = dst
         self.mayBecomeFlushable = mayBecomeFlushable
@@ -63,7 +65,7 @@ class HlsWrite(HlsStm):
         dst, wordT = getArgumentForHwIO(toLlvm, self.dst, self, False)
         dst: Argument
         wordT: Type
-        return bb, b.CreateStore(src, dst, True)
+        return bb, b.CreateStore(src, dst, self._isVolatile)
 
     @classmethod
     def _translateMirToNetlist(cls,
@@ -106,6 +108,7 @@ class HlsWriteAddressed(HlsWrite):
             dst:HwIO,
             index: ANY_SCALAR_INT_VALUE,
             element_t: HdlType,
+            isVolatile:bool,
             mayBecomeFlushable=True):
         HlsWrite.__init__(self, parent, src, dst, element_t, isVolatile, mayBecomeFlushable=mayBecomeFlushable)
         self.index = index
@@ -126,7 +129,7 @@ class HlsWriteAddressed(HlsWrite):
         # elmT = arrTy.getElementType()
         dst = b.CreateGEP(arrTy, dst, indexes)
 
-        return bb, b.CreateStore(src, dst, True)
+        return bb, b.CreateStore(src, dst, self._isVolatile)
 
     @classmethod
     def _translateMirToNetlist(cls,
@@ -174,8 +177,11 @@ class HlsStmWriteStartOfFrame(HlsWrite):
     Statement which marks a start of frame on specified interface.
     """
 
-    def __init__(self, parent:"HlsScope", hwIO:HwIO):
-        super(HlsStmWriteStartOfFrame, self).__init__(parent, HVoidOrdering.from_py(None), hwIO, HVoidOrdering)
+    def __init__(self, parent:"HlsScope", hwIO:HwIO, mayBecomeFlushable:bool=True):
+        super(HlsStmWriteStartOfFrame, self).__init__(parent, HVoidOrdering.from_py(None), 
+                                                      hwIO, HVoidOrdering,
+                                                      True, # isVolatile
+                                                      mayBecomeFlushable=mayBecomeFlushable)
 
     def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
         dst, _ = getArgumentForHwIO(toLlvm, self.dst, self, False)
@@ -189,7 +195,9 @@ class HlsStmWriteEndOfFrame(HlsWrite):
     """
 
     def __init__(self, parent:"HlsScope", hwIO:HwIO):
-        super(HlsStmWriteEndOfFrame, self).__init__(parent, HVoidOrdering.from_py(None), hwIO, HVoidOrdering)
+        super(HlsStmWriteEndOfFrame, self).__init__(parent, HVoidOrdering.from_py(None), hwIO, HVoidOrdering,
+                                                    True, # isVolatile
+                                                    )
 
     def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
         dst, _ = getArgumentForHwIO(toLlvm, self.dst, self, False)
