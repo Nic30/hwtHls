@@ -28,6 +28,12 @@ class HwtFpgaBinOp : HwtFpgaInst<
     (ins unknown:$src0, unknown:$src1),
     []>;
 
+// binary operator with 2 results like udivrem
+class HwtFpgaBinOpBinRes : HwtFpgaInst<
+    (outs anyregcls:$dst0, anyregcls:$dst1),
+    (ins unknown:$src0, unknown:$src1),
+    []>;
+
 // shift operatos
 class HwtFpgaShOp : HwtFpgaInst<
     (outs anyregcls:$dst),
@@ -84,6 +90,8 @@ let hasSideEffects = 0 in {
 	def HWTFPGA_SDIV : HwtFpgaBinOp;
 	def HWTFPGA_UREM : HwtFpgaBinOp;
 	def HWTFPGA_SREM : HwtFpgaBinOp;
+	def HWTFPGA_UDIVREM : HwtFpgaBinOpBinRes;
+	def HWTFPGA_SDIVREM : HwtFpgaBinOpBinRes;
 
 	def HWTFPGA_SHL : HwtFpgaShOp;
 	def HWTFPGA_LSHR : HwtFpgaShOp;

@@ -276,10 +276,13 @@ public:
 		case HwtFpga::HWTFPGA_AND:
 		case HwtFpga::HWTFPGA_ICMP:
 		case HwtFpga::HWTFPGA_MUL:
+		case HwtFpga::HWTFPGA_MUL_HL:
 		case HwtFpga::HWTFPGA_UDIV:
 		case HwtFpga::HWTFPGA_SDIV:
 		case HwtFpga::HWTFPGA_UREM:
 		case HwtFpga::HWTFPGA_SREM:
+		case HwtFpga::HWTFPGA_UDIVREM:
+		case HwtFpga::HWTFPGA_SDIVREM:
 		case HwtFpga::HWTFPGA_OR:
 		case HwtFpga::HWTFPGA_SUB:
 		case HwtFpga::HWTFPGA_XOR:
@@ -334,6 +337,7 @@ public:
 		case HwtFpga::HWTFPGA_FP_SINCOS:
 		case HwtFpga::HWTFPGA_FP_ASINCOS:
 		case HwtFpga::HWTFPGA_FP_SINCOSH:
+
 			return true;
 		default:
 			return false;

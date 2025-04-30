@@ -222,6 +222,8 @@ bool resolveTypes(MachineInstr &MI) {
 	case HwtFpga::HWTFPGA_UDIV:
 	case HwtFpga::HWTFPGA_SREM:
 	case HwtFpga::HWTFPGA_UREM:
+	case HwtFpga::HWTFPGA_SDIVREM:
+	case HwtFpga::HWTFPGA_UDIVREM:
 	case HwtFpga::HWTFPGA_AND:
 	case HwtFpga::HWTFPGA_OR:
 	case HwtFpga::HWTFPGA_XOR:

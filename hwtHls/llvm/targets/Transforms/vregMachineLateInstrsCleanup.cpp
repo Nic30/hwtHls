@@ -223,6 +223,8 @@ bool VRegMachineLateInstrsCleanup::normalizeConstOperands(
 	case HwtFpga::HWTFPGA_SDIV:
 	case HwtFpga::HWTFPGA_UREM:
 	case HwtFpga::HWTFPGA_SREM:
+	case HwtFpga::HWTFPGA_UDIVREM:
+	case HwtFpga::HWTFPGA_SDIVREM:
 	case HwtFpga::HWTFPGA_OR:
 	case HwtFpga::HWTFPGA_SUB:
 	case HwtFpga::HWTFPGA_XOR:

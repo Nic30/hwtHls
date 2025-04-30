@@ -237,8 +237,10 @@ bool HwtFpgaTargetInstructionSelector::select(MachineInstr &I) {
 	case G_MUL:
 	case G_UREM:
 	case G_UDIV:
+	case G_UDIVREM:
 	case G_SREM:
 	case G_SDIV:
+	case G_SDIVREM:
 	case G_OR:
 	case G_SELECT:
 	case G_SUB:

@@ -416,6 +416,12 @@ void HwtFpgaCombinerHelper::rewriteGenericOpcodeToHwtFpga(llvm::MachineInstr &MI
 	case TargetOpcode::G_SREM:
 		newOpc = HwtFpga::HWTFPGA_SREM;
 		break;
+	case TargetOpcode::G_UDIVREM:
+		newOpc = HwtFpga::HWTFPGA_UDIVREM;
+		break;
+	case TargetOpcode::G_SDIVREM:
+		newOpc = HwtFpga::HWTFPGA_SDIVREM;
+		break;
 	case TargetOpcode::G_OR:
 		newOpc = HwtFpga::HWTFPGA_OR;
 		break;

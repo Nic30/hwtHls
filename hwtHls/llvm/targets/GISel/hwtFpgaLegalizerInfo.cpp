@@ -20,8 +20,9 @@ HwtFpgaLegalizerInfo::HwtFpgaLegalizerInfo(const HwtFpgaTargetSubtarget &ST) :
 	// add natively supported ops as legal
 	for (unsigned op : {
 		G_IMPLICIT_DEF, G_CONSTANT, G_GLOBAL_VALUE, G_SELECT,
-		G_BRCOND, G_ICMP, G_ADD, G_SUB, G_MUL, G_UREM, G_UDIV, G_SREM,
-		G_SDIV, G_LOAD, G_STORE, G_INDEXED_LOAD, G_INDEXED_STORE, G_PHI,
+		G_BRCOND, G_ICMP, G_ADD, G_SUB, G_MUL, //G_SMULH, G_UMULH,
+		G_UDIV, G_SDIV, G_UREM, G_SREM, G_UDIVREM, G_SDIVREM,
+		G_LOAD, G_STORE, G_INDEXED_LOAD, G_INDEXED_STORE, G_PHI,
 		G_AND, G_OR, G_XOR, G_EXTRACT, G_MERGE_VALUES,
 		G_ZEXT, G_SEXT, G_ANYEXT,
 		G_PTR_ADD,
