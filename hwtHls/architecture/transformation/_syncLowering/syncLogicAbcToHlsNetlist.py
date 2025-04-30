@@ -252,7 +252,7 @@ class SyncLogicAbcToHlsNetlist():
 
         driver = termPropagationCtx.propagateFromDstElm(
             dstNode, driver, f"n{ioObj._id:d}_en", resetTimeToClkWindowBegin=True)
-
+        
         if ioObj.extraCond is None:
             ioObj.addControlSerialExtraCond(driver, addDefaultScheduling=True, checkCycleFree=False)
         else:
