@@ -337,3 +337,8 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
                     f"extraCond={HlsNetNodeOut._reprMinified(ec)}, "
                     f"skipWhen={HlsNetNodeOut._reprMinified(sw)}>")
 
+
+
+def createOrderingLink(predNode: HlsNetNodeExplicitSync, sucNode: HlsNetNodeExplicitSync):
+    predNode.getOrderingOutPort().connectHlsIn(
+                   sucNode._addInput("orderingIn", addDefaultScheduling=True))

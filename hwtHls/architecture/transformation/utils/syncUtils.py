@@ -7,6 +7,7 @@ from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
     HlsNetNodeReadBackedge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
+from hwtHls.netlist.nodes.explicitSync import createOrderingLink
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadOrWriteToAnyChannel
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
@@ -36,7 +37,7 @@ def insertDummyWriteToImplementSync(parentElm: ArchElement,
 
 
 def createBackedgeInClkWindow(parent: ArchElement, clkIndex: int, name: str, dtype: HdlType, channelInitValue=NOT_SPECIFIED)\
-        -> Tuple[HlsNetNodeReadBackedge, HlsNetNodeWriteBackedge]:
+        ->Tuple[HlsNetNodeReadBackedge, HlsNetNodeWriteBackedge]:
     netlist = parent.netlist
     # busy if is executed at 0 time
     if channelInitValue is NOT_SPECIFIED:
@@ -58,8 +59,7 @@ def createBackedgeInClkWindow(parent: ArchElement, clkIndex: int, name: str, dty
         parent._addNodeIntoScheduled(clkIndex, c, allowNewClockWindow=True)
 
     regW.associateRead(regR)
-    regR.getOrderingOutPort().connectHlsIn(
-                   regW._addInput("orderingIn", addDefaultScheduling=True))
+    createOrderingLink(regR, regW)
 
     if HdlType_isVoid(dtype):
         # create a dummy constant for void data
@@ -67,3 +67,5 @@ def createBackedgeInClkWindow(parent: ArchElement, clkIndex: int, name: str, dty
         c1.connectHlsIn(regW._portSrc)
 
     return regR, regW
+
+

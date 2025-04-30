@@ -12,6 +12,7 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from hwtHls.netlist.nodes.explicitSync import createOrderingLink
 
 
 class HlsNetNodeReadForwardedge(HlsNetNodeRead):
@@ -90,7 +91,7 @@ class HlsNetNodeWriteForwardedge(HlsNetNodeWrite):
         parentForWrite.addNode(w)
         srcV.connectHlsIn(w._portSrc)
         w.associateRead(r)
-        w.getOrderingOutPort().connectHlsIn(r._addInput("orderingIn"))
+        createOrderingLink(w, r)
 
         return w, r, r._portDataOut
 
