@@ -126,6 +126,11 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
     @classmethod
     def _simplifyHlsNetNodeOperator(cls, n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
         o = n.operator
+        runSimplifyRules = getattr(o, "runSimplifyRules", None)
+        if runSimplifyRules is not None:
+            if runSimplifyRules(n, worklist):
+                return True
+
         if isinstance(n, HlsNetNodeMux):
             if netlistReduceMux(n, worklist):
                 return True
