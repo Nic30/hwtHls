@@ -190,6 +190,7 @@ def trivial_instr_deduplication: GICombineRule<
 			HWTFPGA_AND,
 			HWTFPGA_ICMP,
 			HWTFPGA_MUL,
+			HWTFPGA_MUL_HL,
 			HWTFPGA_UDIV,
 			HWTFPGA_SDIV,
 			HWTFPGA_UREM,
@@ -621,6 +622,14 @@ def generic_opcode_to_hwtfpga : GICombineRule<
   (apply [{ Helper.rewriteGenericOpcodeToHwtFpga(*${root}); }])
  >;
 
+def mul_to_mul_hl_matchdata : GIDefMatchData<"MatchMulHL">;
+def mul_to_mul_hl: GICombineRule<
+  (defs root:$root, mul_to_mul_hl_matchdata:$info),
+  (match (wip_match_opcode G_MUL, HWTFPGA_MUL):$root,
+    [{ return Helper.matchMulHL(*${root}, ${info}); }]),
+  (apply [{ Helper.rewriteMulToMulHL(*${root}, ${info}); }])
+ >;
+
 // at this point all optimizations should be done and we only format the instructions form more simple conversion to netlist
 // * extract muxes to simplify thread detection
 // * extract HWTFPGA_NOT
@@ -641,6 +650,7 @@ def HwtFpgaPreToNetlistGICombiner: GICombiner<
     G_SELECT_to_HWTFPGA_MUX,
     G_CONSTANT_to_HWTFPGA_MUX,
     PHI_to_HWTFPGA_MUX,
+    mul_to_mul_hl,
     ]> {
 }
 

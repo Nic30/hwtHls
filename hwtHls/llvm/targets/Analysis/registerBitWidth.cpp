@@ -237,6 +237,17 @@ bool resolveTypes(MachineInstr &MI) {
 		}
 		return true;
 	}
+	case HwtFpga::HWTFPGA_MUL_HL: {
+		// $dst, $src0, $src1, $isSigned0, $width0, $isSigned1, $width1, $resultWidth
+		int64_t width0 = MI.getOperand(4).getImm();
+		int64_t width1 = MI.getOperand(6).getImm();
+		int64_t dstWidth = MI.getOperand(7).getImm();
+
+		checkOrSetWidth(MRI, MI.getOperand(0), dstWidth);
+		checkOrSetWidth(MRI, MI.getOperand(1), width0);
+		checkOrSetWidth(MRI, MI.getOperand(2), width1);
+		return true;
+	}
 	// shift, src, dst same, shiftAmount log2ceil(src.width()+1) bits
 	case HwtFpga::HWTFPGA_LSHR:
 	case HwtFpga::HWTFPGA_ASHR:

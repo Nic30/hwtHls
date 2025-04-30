@@ -40,6 +40,35 @@ public:
 	}
 };
 
+class MatchMulHLOperand {
+public:
+	SmallVector<hwtHls::CImmOrRegOrUndefWithWidth> opParts;
+	size_t width;
+	bool isSigned;
+	MachineInstr *def; // insert point for potential operand value construction
+	MatchMulHLOperand() {
+		clear();
+	}
+	void clear() {
+		opParts.clear();
+		width = 0;
+		isSigned = false;
+		def = nullptr;
+
+	}
+};
+class MatchMulHL {
+public:
+	std::array<MatchMulHLOperand, 2> ops;
+	MatchMulHL() {
+		clear();
+	}
+	void clear() {
+		ops[0].clear();
+		ops[1].clear();
+	}
+};
+
 /* Helper class for GISel framework to implement hwtHls combination rules.
  * It contains c++ implementation of matching and rewrite functions which are used in HwtFpgaCombine.td.
  * .td file also contains doc for functions defined there;
@@ -183,6 +212,9 @@ public:
 
 	void rewriteConstShift(llvm::MachineInstr &MI);
 	void rewriteConstFunnelShift(llvm::MachineInstr &MI);
+
+	bool matchMulHL(llvm::MachineInstr &MI, MatchMulHL &matchinfo);
+	void rewriteMulToMulHL(llvm::MachineInstr &MI, const MatchMulHL &matchinfo);
 
 	// hwtFpgaCombinerHelperFP.cpp
 	bool matchFMulByPow2(llvm::MachineInstr &MI,
