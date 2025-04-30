@@ -4,7 +4,6 @@ from hwtHls.llvm.llvmIr import MachineBasicBlock, Register
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
 from hwtHls.netlist.nodes.aggregatedLoop import HlsNetNodeAggregateLoop
-from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
@@ -69,13 +68,13 @@ class MachineBasicBlockMeta():
         self.isLoopHeaderOfFreeRunning: bool = False
         self.isLoopAsyncPrequel: bool = False
         self.loopStatusNode: Optional[HlsNetNodeLoopStatus] = None
-        self.parentElement: Union[ArchElement, HlsNetNodeAggregateLoop, None] = None
+        self.parentElement: Union["ArchElement", HlsNetNodeAggregateLoop, None] = None
         # self.uselessOrderingFrom: Set[MachineBasicBlock] = set()
         # self.uselessControlBackedgesFrom: Set[MachineBasicBlock] = set()
         #self.syncTracker = InsideOfBlockSyncTracker(blockEn, None)
         self.translatedBranchConditions: Dict[Register, HlsNetNodeOutAny] = {}
 
-    def assignParentElement(self, elm: Union[ArchElement, HlsNetNodeAggregateLoop]):
+    def assignParentElement(self, elm: Union["ArchElement", HlsNetNodeAggregateLoop]):
         self.parentElement = elm
         #self.syncTracker.builder = elm.builder
 
