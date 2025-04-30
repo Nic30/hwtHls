@@ -1,6 +1,5 @@
 from copy import copy
 from dis import Instruction, dis
-from pathlib import Path
 from types import FunctionType
 from typing import Optional, List, Tuple, Callable
 
@@ -81,6 +80,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
         :ivar fnKwargs: keyword arguments for function fn
         """
         fnName = getattr(fn, "__qualname__", fn.__name__)
+            
         if self.debugBytecode:
             d = self.toLlvm._dbgRootDir / self.toLlvm._dbgSubDir
             d.mkdir(parents=True, exist_ok=True)
@@ -131,7 +131,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                 if self.debugCfgFinal:
                     self._debugDump(frame, "_final")
 
-            assert len(self.callStack) == 1, self.callStack #  and self.callStack[0] is frame
+            assert len(self.callStack) == 1, self.callStack  #  and self.callStack[0] is frame
             for cb in toLlvm._afterTranslation:
                 cb(toLlvm)
 
@@ -645,5 +645,5 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
 
         except Exception as e:
             # create decorated exception
-            raise createInstructionException(e, frame, instr) from e.__cause__
+            raise createInstructionException(e, self.callStack, frame, instr) from e.__cause__
 

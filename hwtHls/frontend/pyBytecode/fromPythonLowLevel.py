@@ -1,6 +1,5 @@
 from copy import copy
 from dis import Instruction
-from pathlib import Path
 import sys
 from typing import Optional, Dict, List, Union, Literal
 
@@ -102,7 +101,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
 
         except Exception as e:
             # a new exception generated directly from user code
-            raise createInstructionException(e, frame, instr) from e.__cause__
+            raise createInstructionException(e, self.callStack, frame, instr) from e.__cause__
 
     def _getOrCreateBasicBlockAndJumpRecursively(self,
             frame: PyBytecodeFrame,

@@ -12,6 +12,7 @@ from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo, \
     LoopExitJumpInfo
 from hwtHls.frontend.pyBytecode.loopsDetect import PyBytecodeLoop
 from hwtHls.llvm.llvmIr import BasicBlock
+from hwtHls.platform.debugBundleTypes import LlvmCliArgTuple
 
 
 class PyBytecodeFrame():
@@ -19,6 +20,7 @@ class PyBytecodeFrame():
     This object is a container of data for currently evaluated Python function.
 
     :ivar fn: function which is this frame for
+    :ivar callSiteAddress: the address in bytecode of parent from where this function is called
     :ivar loopStack: stack of currently executed loops which are currently executed in preprocessor,
         used when generating unique labels for blocks in preprocessor loop
     :ivar preprocVars: set of indexes of variables which are marked as a preprocessor variable
