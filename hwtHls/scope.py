@@ -83,23 +83,32 @@ class HlsScope():
         """
         :note: only for forwarding purpose, use :meth:`~.HlsScope.var` instead.
         """
-        return HwModule._sig(self, name, dtype, def_val, nop_val)
+        toLlvm = self._currentThread.toLlvm
+        sig = HwModule._sig(self, name, dtype, def_val, nop_val)
+        # generate allocas for new variable
+        if isinstance(sig, RtlSignal):
+            toLlvm._getOrCreateAllocaForTmpVariable(sig, allocaKnownToBeMissing=True)
+        elif isinstance(sig, HObjList):
+            for _var in sig:
+                toLlvm._getOrCreateAllocaForTmpVariable(_var._sig, allocaKnownToBeMissing=True)
+        else:
+            assert isinstance(sig, HwIO)
+            for _var in HwIO_walkSignals(sig):
+                toLlvm._getOrCreateAllocaForTmpVariable(_var._sig, allocaKnownToBeMissing=True)
+
+        return sig
 
     @hlsLowLevel
-    def var(self, name:str, dtype:HdlType) -> Union[RtlSignal, HwIO]:
+    def var(self, name:str, dtype:HdlType, arrayPartitionComplete=False) -> Union[RtlSignal, HwIO]:
         """
         Create a thread local variable.
+        :ivar arrayPartitionComplete: if true an items of the array will be treated as separate variable.
         """
-        toLlvm = self._currentThread.toLlvm
-        var = HwModule._sig(self, name, dtype)
-        # generate allocas for new variable
-        if isinstance(var, RtlSignal):
-            toLlvm._getOrCreateAllocaForTmpVariable(var, allocaKnownToBeMissing=True)
+        if arrayPartitionComplete:
+            intf = HdlType_to_HwIO().apply(dtype)
+            return HwIO_without_registration(self, intf, name)
         else:
-            assert isinstance(var, HwIO)
-            for _var in HwIO_walkSignals(var):
-                toLlvm._getOrCreateAllocaForTmpVariable(_var._sig, allocaKnownToBeMissing=True)
-        return var
+            return self._sig(name, dtype)
 
     @hlsLowLevel
     def read(self, src: ANY_HLS_COMPATIBLE_IO, blocking:bool=True, isVolatile:bool=True) -> HlsRead:
@@ -112,7 +121,10 @@ class HlsScope():
 
         if isinstance(src, (HwIODataRdVld, HwIOStructRdVld, HwIORdVldSync, Axi_hs)):
             if len(src._hwIOs) == 3 and hasattr(src, "data"):
-                dtype = src.data._dtype
+                dtype = getattr(src.data, "_dtype", None)
+                if dtype is None:
+                    dtype = HwIO_to_HdlType().apply(src.data, exclude=(src.vld,))
+
             else:
                 if isinstance(src, Axi_hs):
                     exclude = (src.ready, src.valid)
@@ -122,13 +134,19 @@ class HlsScope():
 
         elif isinstance(src, HwIODataVld):
             if len(src._hwIOs) == 2 and hasattr(src, "data"):
-                dtype = src.data._dtype
+                dtype = getattr(src.data, "_dtype", None)
+                if dtype is None:
+                    dtype = HwIO_to_HdlType().apply(src.data, exclude=(src.vld,))
+
             else:
                 dtype = HwIO_to_HdlType().apply(src, exclude=(src.vld,))
 
         elif isinstance(src, HwIODataRd):
             if len(src._hwIOs) == 2 and hasattr(src, "data"):
-                dtype = src.data._dtype
+                dtype = getattr(src.data, "_dtype", None)
+                if dtype is None:
+                    dtype = HwIO_to_HdlType().apply(src.data, exclude=(src.vld,))
+
             else:
                 dtype = HwIO_to_HdlType().apply(src, exclude=(src.rd,))
 
@@ -177,6 +195,8 @@ class HlsScope():
                     else:
                         dtype = data._dtype
             src = dtype.from_py(src)
+        elif isinstance(src, HObjList):
+            dtype = src[0]._dtype[len(src)]
         else:
             dtype = src._dtype
 
@@ -188,7 +208,11 @@ class HlsScope():
         else:
             if isinstance(dst, HwIO):
                 assert dst._direction != INTF_DIRECTION.MASTER, (dst, "Can not write to input")
-
+            dstTy = getattr(dst, "_dtype", None)
+            if dstTy is None:
+                dstTy = getattr(dst, "T", None)
+            if dstTy is not None:
+                assert dtype.bit_length() == dstTy.bit_length(), ("For normal write the width of src and dst must match", dtype, "->", dstTy, src, dst)
             return HlsWrite(self, src, dst, dtype, isVolatile=isVolatile, mayBecomeFlushable=mayBecomeFlushable)
 
     def addThread(self, t: HlsThread) -> HlsThread:
