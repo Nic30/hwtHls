@@ -475,7 +475,7 @@ def hwUMax(v0: AnyHValue, v1: AnyHValue,
     if isinstance(v0, HConst) and isinstance(v1, HConst):
         m = mask(t.bit_length())
         if v0.vld_mask != m or v1.vld_mask != m:
-            return BIT.from_py(None)
+            return t.from_py(None)
         else:
             if v0.val < v1.val:
                 return v1
@@ -504,7 +504,7 @@ def hwSMax(v0: AnyHValue, v1: AnyHValue,
         t = v0._dtype
         m = mask(t.bit_length())
         if v0.vld_mask != m or v1.vld_mask != m:
-            return BIT.from_py(None)
+            return t.from_py(None)
         else:
             w = t.bit_length()
             if to_signed(v0.val, w) < to_signed(v1.val, w):
@@ -552,7 +552,7 @@ def hwUMin(v0: AnyHValue, v1: AnyHValue, autoExtend=False) -> AnyHValue:
         t = v0._dtype
         m = mask(t.bit_length())
         if v0.vld_mask != m or v1.vld_mask != m:
-            return BIT.from_py(None)
+            return t.from_py(None)
         else:
             if v1.val < v0.val:
                 return v1
@@ -583,7 +583,7 @@ def hwSMin(v0: AnyHValue, v1: AnyHValue, autoExtend:bool=False) -> AnyHValue:
     if isinstance(v0, HConst) and isinstance(v1, HConst):
         m = mask(t.bit_length())
         if v0.vld_mask != m or v1.vld_mask != m:
-            return BIT.from_py(None)
+            return t.from_py(None)
         else:
             w = t.bit_length()
             if to_signed(v1.val, w) < to_signed(v0.val, w):
