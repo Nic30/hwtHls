@@ -21,6 +21,15 @@ class PyBytecodeSkipPass(_PyBytecodeFunctionPragma):
         assert isinstance(skipedPassNames, (list, tuple)), skipedPassNames
         self.skipedPassNames = skipedPassNames
 
+    def __hash__(self) -> int:
+        return hash(self.asTuple())
+
+    def asTuple(self):
+        return (self.__class__, tuple(self.skipedPassNames))
+
+    def __eq__(self, other):
+        return type(self) == type(other) and self.asTuple() == other.asTuple()
+
     def toLlvm(self, irTranslator: "ToLlvmIrTranslator", mainFn: Function):
         getStr = irTranslator.mdGetStr
         getTuple = irTranslator.mdGetTuple
