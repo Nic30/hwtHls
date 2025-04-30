@@ -135,7 +135,10 @@ class SyncLogicResolver(HlsNetlistToAbcAig):
             syncNode = ioNode.getParentSyncNode()
             isNotFlushed = self.syncLogicFlushing.getIsNotFlushedFlag(self, syncNode, ioNode)
             isFlushed = aig.Not(isNotFlushed)
-            ack = aig.Or(ack, isFlushed)
+            if ack is None:
+                ack = isFlushed
+            else:
+                ack = aig.Or(ack, isFlushed)
 
         if ack is not None:
             forceEn = ioNode._forceEnPort
