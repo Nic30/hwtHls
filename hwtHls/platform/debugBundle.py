@@ -77,6 +77,7 @@ class HlsDebugBundle():
     """
     DEFAULT_DEBUG_DIR = "tmp"
 
+    DBG_0_0_hierachyPath = (None, "00.00.hierarchyPath.txt")  # dump path in hierarchy and HwParams of parents
     DBG_0_0_pyFrontedBytecodeTrace = (None, "00.00.bytecode.trace.txt")  # trace file for operations in during pybytecode translation
     DBG_0_0_pyFrontedBytecode = (None, "00.00.bytecode.{0}.txt")  # bytecode for every translated function
     DBG_0_0_pyFrontedBeginCfg = (None, "00.00.cfg.begin.{0}.dot")  # initial CFG after parsing of bytecode
@@ -136,6 +137,7 @@ class HlsDebugBundle():
     #        that said reliable debug options are meant for detection of the bugs and does not contain expensive debug options
     #        which are used for deeper circuit analysis or circuit rewrites for improving of readability
     ALL_RELIABLE = {
+        DBG_0_0_hierachyPath,
         DBG_0_0_pyFrontedBytecode,
         DBG_0_0_pyFrontedBytecodeTrace,
         DBG_0_0_pyFrontedBeginCfg,
@@ -215,6 +217,7 @@ class HlsDebugBundle():
     }
     # bundle for debugging on architectural level
     DBG_ARCH_SYNC = {
+        DBG_0_0_hierachyPath,
         DBG_2_0_mir,
         DBG_3_2_netlistSyncDomains,
         DBG_4_0_addSignalNamesToSync,
@@ -237,6 +240,7 @@ class HlsDebugBundle():
         self.filter = filter_
         self.firstRun = True
         self.runConsistencyChecks = True
+        self.nameScope = NameScopeForDebugFiles(None, "", False)
 
     def isActivated(self, item: DebugId):
         return self.filter is None or item in self.filter
