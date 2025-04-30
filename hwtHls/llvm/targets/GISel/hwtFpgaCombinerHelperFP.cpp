@@ -257,21 +257,26 @@ bool HwtFpgaCombinerHelper::matchCombineSinCos(MachineInstr &MI,
 	//  %sin:_, %cos:_ = HWTFPGA_FP_SINCOS[PI] %src1:_, %src2:_
 
 	for (auto &UseMI : MRI.use_nodbg_instructions(Src1)) {
-		if (MI.getParent() == UseMI.getParent()
-				&& UseMI.getOpcode() == complementOpc
-				&& matchEqualDefs(MI.getOperand(1), UseMI.getOperand(1))) {
-			bool HFloatTmpConfigMatch = true;
-			for (size_t i = 2; i < hwtHls::HFloatTmpConfig::MEMBER_CNT + 2; i++) {
-				if (MI.getOperand(i).getImm() != UseMI.getOperand(i).getImm()) {
-					HFloatTmpConfigMatch = false;
-					break;
-				}
-			}
-			if (!HFloatTmpConfigMatch)
+		if (&UseMI == &MI)
+			continue;
+		if (MI.getParent() != UseMI.getParent()
+				|| UseMI.getOpcode() != complementOpc)
+			continue;
+		if (!matchEqualDefs(MI.getOperand(1), UseMI.getOperand(1)))
+			continue;
+
+		bool HFloatTmpConfigMatch = true;
+		for (size_t i = 2; i < hwtHls::HFloatTmpConfig::MEMBER_CNT + 2; i++) {
+			if (MI.getOperand(i).getImm() != UseMI.getOperand(i).getImm()) {
+				HFloatTmpConfigMatch = false;
 				break;
-			OtherMI = &UseMI;
-			return true;
+			}
 		}
+		if (!HFloatTmpConfigMatch)
+			continue;
+		assert(&MI != &UseMI);
+		OtherMI = &UseMI;
+		return true;
 	}
 
 	return false;
@@ -284,6 +289,7 @@ void HwtFpgaCombinerHelper::applyCombineSinCos(MachineInstr &MI,
 		MachineInstr *&OtherMI) {
 	unsigned Opcode = MI.getOpcode();
 	assert(OtherMI && "OtherMI shouldn't be empty.");
+	assert(&MI != OtherMI);
 
 	Register DestSinReg, DestCosReg;
 	if (TrigonometricFnType_isAnyFormOfSin(Opcode)) {
