@@ -145,6 +145,10 @@ public:
 			std::vector<ConcatMember> &members, uint64_t mainOffset,
 			uint64_t mainWidth, uint64_t &mainOffsetCurrent,
 			uint64_t miResOffset, uint64_t miResWidths);
+	MachineInstrBuilder buildHwtFpgaCopy(MachineOperand opDst,
+			MachineOperand op1);
+	void copyOperand(MachineInstrBuilder &MIB, MachineRegisterInfo &MRI,
+			MachineFunction &MF, MachineOperand &MO);
 	void convertG_SELECT_to_HWTFPGA_MUX(llvm::MachineInstr &MI);
 	void convertPHI_to_HWTFPGA_MUX(llvm::MachineInstr &MI);
 	bool hasSomeConstConditions(llvm::MachineInstr &MI);

@@ -12,7 +12,17 @@
 
 namespace llvm {
 
-void copyOperand(MachineInstrBuilder &MIB, MachineRegisterInfo &MRI,
+
+MachineInstrBuilder HwtFpgaCombinerHelper::buildHwtFpgaCopy(MachineOperand opDst, MachineOperand op1) {
+	auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX, {opDst},{});
+	Observer.changingInstr(*MIB.getInstr());
+	MIB.add(op1);
+	Observer.changedInstr(*MIB.getInstr());
+	return MIB;
+}
+
+
+void HwtFpgaCombinerHelper::copyOperand(MachineInstrBuilder &MIB, MachineRegisterInfo &MRI,
 		MachineFunction &MF, MachineOperand &MO) {
 	if (MO.isReg() && MO.isDef()) {
 		MIB.addDef(MO.getReg(), MO.getTargetFlags());
