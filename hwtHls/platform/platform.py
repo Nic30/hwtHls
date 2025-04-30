@@ -17,7 +17,6 @@ from hwtHls.architecture.transformation.fsmStateNextWriteConstruction import Hls
 from hwtHls.architecture.transformation.ioPortPrivatization import HlsArchPassIoPortPrivatization
 from hwtHls.architecture.transformation.loopControlLowering import HlsAndRtlNetlistPassLoopControlLowering
 from hwtHls.architecture.transformation.moveArchElementPortsToMinimizeSync import HlsArchPassMoveArchElementPortsToMinimizeSync
-from hwtHls.architecture.transformation.operatorToHwtLowering import HlsAndRtlNetlistPassOperatorToHwtLowering
 from hwtHls.architecture.transformation.syncLowering import HlsArchPassSyncLowering
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineLoopInfo
 from hwtHls.netlist.analysis.blockSyncType import HlsNetlistAnalysisPassBlockSyncType
@@ -34,12 +33,14 @@ from hwtHls.netlist.transformation.archElementStageInit import HlsNetlistPassArc
 from hwtHls.netlist.transformation.constNodeDuplication import HlsNetlistPassConstNodeDuplication
 from hwtHls.netlist.transformation.disaggregateAggregates import HlsNetlistPassDisaggregateAggregates
 from hwtHls.netlist.transformation.multiClockNodeSplit import HlsNetlistPassMultiClockNodeSplit
+from hwtHls.netlist.transformation.operatorToHwtLowering import HlsNetlistPassOperatorToHwtLowering
 from hwtHls.netlist.transformation.readSyncToAckOfIoNodes import HlsNetlistPassReadSyncToAckOfIoNodes
 from hwtHls.netlist.transformation.romDeduplication import HlsNetlistPassRomDeduplication
 from hwtHls.netlist.transformation.simplify import HlsNetlistPassSimplify
 from hwtHls.netlist.transformation.simplifyExpr.trivialSimplifyExplicitSync import HlsNetlistPassTrivialSimplifyExplicitSync
-from hwtHls.platform.componentGenerator import ComponentGenerator
-from hwtHls.platform.debugBundle import HlsDebugBundle, DebugId, LlvmCliArgTuple
+from hwtHls.architecture.componentGenerator import ComponentGenerator
+from hwtHls.platform.debugBundle import HlsDebugBundle, DebugId
+from hwtHls.platform.debugBundleTypes import LlvmCliArgTuple
 from hwtHls.platform.fileUtils import outputFileGetter
 from hwtHls.ssa.analysis.consistencyCheck import SsaPassConsistencyCheck
 from hwtHls.ssa.translation.llvmMirToNetlist.datapath import BlockLiveInMuxSyncDict
@@ -171,6 +172,7 @@ class DefaultHlsPlatform(DummyPlatform):
         """
         D = HlsDebugBundle
         DBG = self._debug.runDebugIfEnabled
+        
         DBG(D.DBG_3_0_netlist, (netlist,))
         DBG(D.DBG_3_0_netlistTxt, (netlist,))
         DBG(HlsNetlistPassConsistencyCheck, (netlist,))
@@ -186,7 +188,6 @@ class DefaultHlsPlatform(DummyPlatform):
                 HlsNetlistPassTrivialSimplifyExplicitSync(dbgTracer).runOnHlsNetlist(netlist)
 
             DBG(HlsNetlistPassConsistencyCheck, (netlist,))
-
             DBG(D.DBG_3_0_netlistIoClusters, (netlist,))
 
             while True:
@@ -345,7 +346,9 @@ class DefaultHlsPlatform(DummyPlatform):
             DBG(D.DBG_4_3_netlistBeforSyncLoweingDot, (netlist,), constructorKwargs=dict(showVoid=True))
             DBG(D.DBG_4_3_netlistBeforSyncLoweingTxt, (netlist,))
             # DBG(D.DBG_23_finalNetlist, (netlist,), constructorKwargs=dict(showVoid=True))
-            HlsArchPassSyncLowering(dbgDumpNodes=False, dbgDumpAbc=False).runOnHlsNetlist(netlist)
+            HlsArchPassSyncLowering(dbgDumpNodes=self._debug.isActivated((HlsArchPassSyncLowering, "nodes")),
+                                    dbgDumpAbc=self._debug.isActivated((HlsArchPassSyncLowering, "abc"))
+                                    ).runOnHlsNetlist(netlist)
             DBG(lambda: HlsNetlistPassConsistencyCheck(checkCycleFree=False,
                                                        checkAllArchElementPortsInSameClockCycle=False),
                 (netlist,))

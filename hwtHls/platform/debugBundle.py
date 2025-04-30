@@ -1,9 +1,11 @@
 from pathlib import Path
 from typing import Tuple, Type, Optional, Union, Set
 
+from hdlConvertorAst.translate.common.name_scope import NameScope
 from hwtHls.architecture.transformation.addRtlSigNames import HlsAndRtlNetlistPassAddSignalNamesToSync, \
     HlsAndRtlNetlistPassAddSignalNamesToData
 from hwtHls.architecture.transformation.archElementsToSubunits import RtlArchPassTransplantArchElementsToSubunits
+from hwtHls.architecture.transformation.syncLowering import HlsArchPassSyncLowering
 from hwtHls.architecture.translation.dumpArchDot import RtlArchAnalysisPassDumpArchDot
 from hwtHls.architecture.translation.dumpHsSCCsDot import RtlArchAnalysisPassDumpHsSCCsDot
 from hwtHls.architecture.translation.dumpStreamNodes import HlsAndRtlNetlistPassDumpStreamNodes
@@ -20,11 +22,11 @@ from hwtHls.ssa.translation.dumpMirCfg import SsaPassDumpMirCfg
 
 DebugId = Tuple[Type, Optional[str]]
 
-LlvmCliArgTuple = Tuple[str, int, str, str]
-
 
 class LLVM_CLI_COMMON_OPTS:
-    # common pass names
+    # :note: for common options see StandardInstrumentations.cpp in LLVM
+    # common pass names :note: you can use DEBUG_PASS_MANAGER to print names
+    #  the name is what Pass.name() returns, :see: PassInfoMixin::name
     #     "hwtfpga-pretonetlist-combiner"
     #     "vreg-if-converter"
     #     "loop-simplify"
@@ -33,15 +35,38 @@ class LLVM_CLI_COMMON_OPTS:
     DEBUG_PASS_STRUCTURE = ("debug-pass", 0, "", "Structure")  # same as Arguments but pretty formated
     PRINT_AFTER_ALL = ("print-after-all", 0, "", "true")
     PRINT_BEFORE_ALL = ("print-before-all", 0, "", "true")
+    PRINT_CHANGED = ("print-changed", 0, "", "")
 
     @classmethod
-    def printBefore(cls, passName:str):
+    def filterPrintFuncs(cls, functionNames: list[str]):
+        """
+        filter dumps to a specific functions
+        :note: this work for print-* options, it does not example for debug-pass-manager
+        """
+        assert not isinstance(functionNames, str), functionNames
+        return ("filter-print-funcs", 1, "", ",".join(functionNames))
+
+    @classmethod
+    def printBefore(cls, passName: str):
+        """
+        dump before each pass
+        """
         return ("print-before", 0, "", passName)
+
+    @classmethod
+    def printAfter(cls, passName:str):
+        """
+        dump after each pass
+        """
+        return ("print-after", 0, "", passName)
 
     VERIFY_EACH = ("verify-each", 0, "", "")  # run verification after each pass
 
     @classmethod
     def passRemarksOutput(cls, filename:str="opt.yaml"):
+        """
+        Specifies remark file which contains info about optimization decisions
+        """
         return ("pass-remarks-output", 0, "", filename)
 
     TIME_PASSES = ("time-passes", 0, "", "true")  # profile times of passes and analysis
@@ -53,9 +78,9 @@ class LLVM_CLI_COMMON_OPTS:
         :note: available only in llvm debug build
         """
         return ("debug-only", 0, "", passName)
-    
+                        
     VREGIFCVT_TRACE = ("vregifcvt-trace", 0, "", "true")
-    
+
     # ("view-dag-combine1-dags", 0, "", "true"),
     # ("view-legalize-types-dags", 0, "", "true"),
     # ("view-dag-combine-lt-dags", 0, "", "true"),
@@ -71,9 +96,19 @@ class LLVM_CLI_COMMON_OPTS:
     # ("debug", 0, "", "1"),
 
 
+class NameScopeForDebugFiles(NameScope):
+
+    @classmethod
+    def _sanitize_name(self, suggested_name: str) -> str:
+        return suggested_name
+
+
 class HlsDebugBundle():
     """
     :note: if the number N in DBG_N_* is the same it means that these debug options are working with the same input
+    
+    :ivar nameScope: name scope for debug files to prevent name collisions if the module/thread of the same name
+        is build multiple times in a single translation unit
     """
     DEFAULT_DEBUG_DIR = "tmp"
 
@@ -106,9 +141,9 @@ class HlsDebugBundle():
     DBG_3_2_netlistSimplifiedTxt = (HlsNetlistAnalysisPassDumpNodesTxt, "03.02.netlistSimplified.txt")  # same as DBG_13_netlistSimplified just in txt
     DBG_3_2_netlistSimplifiedIoClusters = (HlsNetlistAnalysisPassDumpIoClustersDot, "03.02.netlistSimplifiedIoClusters.dot")
     DBG_3_2_netlistSyncDomains = (HlsNetlistAnalysisPassDumpSyncDomainsDot, "03.02.netlistSyncDomains.dot")  # dump association of IO to individual logic node clouds
-    DBG_3_3_netlistAggregated = (HlsNetlistAnalysisPassDumpNodesDot, "03.03.netlistAggregated.dot")  # dump netlist after selected nodes were agregated to scheduling primitives
+    DBG_3_3_netlistAggregated = (HlsNetlistAnalysisPassDumpNodesDot, "03.03.netlistAggregated.dot")  # dump netlist after selected nodes were aggregated to scheduling primitives
     DBG_4_0_hwscheduleErr = (HlsNetlistAnalysisPassDumpSchedulingJson, "04.00.hwschedule.err.json")  # try dump scheduling if scheduler failed
-    DBG_4_0_hwschedule = (HlsNetlistAnalysisPassDumpSchedulingJson, "04.00.hwschedule.json")  # node scheduling after first scheduling atempt
+    DBG_4_0_hwschedule = (HlsNetlistAnalysisPassDumpSchedulingJson, "04.00.hwschedule.json")  # node scheduling after first scheduling attempt
     # arch gen
     DBG_4_0_addSignalNamesToSync = (HlsAndRtlNetlistPassAddSignalNamesToSync, None)  # signal names are directly in output RTL
     DBG_4_0_addSignalNamesToData = (HlsAndRtlNetlistPassAddSignalNamesToData, None)  # signal names are directly in output RTL
@@ -118,10 +153,12 @@ class HlsDebugBundle():
     DBG_4_3_handshakeSCCs = (RtlArchAnalysisPassDumpHsSCCsDot, "04.03.hanshakeSCCs.dot")  # handshake SCCs for sync debugging
     DBG_4_3_netlistBeforSyncLoweingDot = (HlsNetlistAnalysisPassDumpNodesDot, "04.03.netlist.beforeSyncLowering.dot")  # scheduled simplified netlist
     DBG_4_3_netlistBeforSyncLoweingTxt = (HlsNetlistAnalysisPassDumpNodesTxt, "04.03.netlist.beforeSyncLowering.txt")  # same as DBG_4_3_netlistBeforSyncLoweingDot just in txt
+    DBG_4_4_syncLoweringAbc = ((HlsArchPassSyncLowering, "abc"), None)
+    DBG_4_4_syncLoweringNodes = ((HlsArchPassSyncLowering, "nodes"), None)
 
     DBG_4_4_finalNetlist = (HlsNetlistAnalysisPassDumpNodesDot, "04.04.final.netlist.dot")  # basic blocks dissolved to netlist
     DBG_4_4_finalNetlistTxt = (HlsNetlistAnalysisPassDumpNodesTxt, "04.04.final.netlist.txt")  # same as DBG_4_4_finalNetlist just in txt
-    DBG_4_4_arch = (RtlArchAnalysisPassDumpArchDot, "04.04.arch.dot")  # relations between arch elements in whole generated architecutre
+    DBG_4_4_arch = (RtlArchAnalysisPassDumpArchDot, "04.04.arch.dot")  # relations between arch elements in whole generated architecture
     DBG_4_5_sync = (HlsAndRtlNetlistPassDumpStreamNodes, "04.05.sync.txt")  # control expressions of IO, FSMs and pipelines
     DBG_4_5_regFileHierarchy = (RtlArchPassTransplantArchElementsToSubunits, None)  # extract registers in pipeline stage or fsm to separate component
 
@@ -129,8 +166,10 @@ class HlsDebugBundle():
     NONE = {}
     # all without DBG_4_0_addSignalNamesToSync, DBG_24_regFileHierarchy because it changes optimization behavior
 
-    # :note: ALL_RELIABLE refers to passes which do not require intense circuit analysis. This often fails on a broken circuit.
-    #        Reliable debug options do not contain expensive debug options and are meant for detection of the bugs. The expensive debug options
+    # :note: ALL_RELIABLE refers to passes which do not require intense circuit analysis.
+    #        Passes which do require intense circuit analysis often fails on a broken circuit.
+    #        Reliable debug options do not contain expensive debug options and
+    #        are meant for detection of the bugs. While the expensive debug options
     #        are used for deeper circuit analysis or circuit rewrites for improving readability.
 
     # :note: reliable refers to a passes which do not require intense circuit analysis which often fails on broken circuit
@@ -226,6 +265,8 @@ class HlsDebugBundle():
         DBG_4_3_handshakeSCCs,
         DBG_4_3_netlistBeforSyncLoweingDot,
         DBG_4_3_netlistBeforSyncLoweingTxt,
+        DBG_4_4_syncLoweringNodes,
+        DBG_4_4_syncLoweringAbc,
         DBG_4_4_finalNetlist,
         DBG_4_4_finalNetlistTxt,
         DBG_4_4_arch,
