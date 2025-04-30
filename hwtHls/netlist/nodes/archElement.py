@@ -278,7 +278,7 @@ class ArchElement(HlsNetNodeAggregate):
                 curTir: TimeIndependentRtlResource
                 assert curTir.isForwardDeclr, ("Only forward declarations may be redefined", curTir, outOrTime, data)
                 dataSig = curTir.valuesInTime[0].data
-                assert not dataSig.drivers, ("The signal should be forward declaration and this should be its only driver", dataSig)
+                assert not dataSig._rtlDrivers, ("The signal should be forward declaration and this should be its only driver", dataSig)
                 assert curTir.timeOffset == timeOffset or timeOffset == INVARIANT_TIME, (curTir, curTir.timeOffset, timeOffset)
                 assert curTir.allocator is self, (curTir, curTir.allocator, self)
                 assert dataSig is not data, data
@@ -336,7 +336,6 @@ class ArchElement(HlsNetNodeAggregate):
                  )), (
                      o, _o, o._dtype,
                      _o.valuesInTime[0].data._dtype if isinstance(_o, TimeIndependentRtlResource) else None)
-
         return _o
 
     def rtlAllocHlsNetNodeOutInTime(self, o: HlsNetNodeOut, time:int,

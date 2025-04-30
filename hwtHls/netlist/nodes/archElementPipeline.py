@@ -340,7 +340,7 @@ class ArchElementPipeline(ArchElement):
             # if the value has a register at the end of this stage
             nextStVal = s.checkIfExistsInClockCycle(pipeline_st_i + 1)
             if nextStVal is not None and nextStVal.isRltRegister():
-                nextStRegDrivers.append(nextStVal.data.next.drivers[0])
+                nextStRegDrivers.append(nextStVal.data._rtlNextSig._rtlDrivers[0])
 
         nextStRegDrivers.extend(con.stateChangeDependentDrives)
 

@@ -118,7 +118,7 @@ class ArchElementFsm(ArchElement):
         if isinstance(outOrTime, HlsNetNodeOut) and isinstance(outOrTime.obj, HlsProgramStarter):
             # because we want to consume token from the starter only on transition in this FSM
             con: ConnectionsOfStage = self.connections[0]
-            con.stateChangeDependentDrives.append(tir.valuesInTime[0].data.next.drivers[0])
+            con.stateChangeDependentDrives.append(tir.valuesInTime[0].data._rtlNextSig._rtlDrivers[0])
 
         if tir.timeOffset == INVARIANT_TIME:
             # this is stable value and does not need any register storage
@@ -283,7 +283,7 @@ class ArchElementFsm(ArchElement):
                     # if the value has a register at the end of this stage
                     nextStVal = curV.parent.checkIfExistsInClockCycle(nextClkI)
                     if nextStVal is not None and nextStVal.isRltRegister() and not nextStVal in seenRegs:
-                        con.stateChangeDependentDrives.append(nextStVal.data.next.drivers[0])
+                        con.stateChangeDependentDrives.append(nextStVal.data._rtlNextSig._rtlDrivers[0])
                         seenRegs.add(nextStVal)
 
             # unconditionalTransSeen = False
