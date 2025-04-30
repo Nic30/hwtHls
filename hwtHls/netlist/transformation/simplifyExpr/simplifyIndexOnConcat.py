@@ -4,7 +4,8 @@ from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.sliceConst import HSliceConst
 from hwt.pyUtils.setList import SetList
-from hwtHls.netlist.builder import HlsNetlistBuilder
+from hwtHls.netlist.builder import HlsNetlistBuilder,\
+    HlsNetlistBuilderWithWorklist
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
@@ -26,8 +27,9 @@ def netlistReduceIndexOnConcat(n: HlsNetNodeOperator, worklist: SetList[HlsNetNo
     highBitNo, lowBitNo = sliceOrIndexToHighLowBitNo(i)
     _extracted, _ = sliceOutValueFromConcatOrConst(v, lowBitNo, highBitNo, False)
     builder: HlsNetlistBuilder = n.getHlsNetlistBuilder()
+    builder = HlsNetlistBuilderWithWorklist(builder, worklist)
     if _extracted is not None:
-        newO = _buildConcatFromSliceTuples(builder, worklist, _extracted)
+        newO = _buildConcatFromSliceTuples(builder, _extracted)
         replaceOperatorNodeWith(n, newO, worklist)
         return True
     return False

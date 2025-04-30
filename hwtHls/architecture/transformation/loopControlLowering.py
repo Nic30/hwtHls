@@ -8,7 +8,8 @@ from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.transformation.hlsAndRtlNetlistPass import HlsAndRtlNetlistPass
 from hwtHls.architecture.transformation.utils.dummyScheduling import scheduleUnscheduledControlLogic
 from hwtHls.architecture.transformation.utils.syncUtils import createBackedgeInClkWindow
-from hwtHls.netlist.builder import _replaceOutPortWith
+from hwtHls.netlist.builder import _replaceOutPortWith,\
+    HlsNetlistBuilderWithWorklist
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.hdlTypeVoid import HVoidData
@@ -61,7 +62,7 @@ class HlsAndRtlNetlistPassLoopControlLowering(HlsAndRtlNetlistPass):
         assert lastFromReenter.associatedRead._isBlocking, (
             "last channel from reenter must not be non-blocking so this does not execute if any reenter is not valid",
             loopStatus, lastFromReenter.associatedRead)
-        builder = parent.builder
+        builder = HlsNetlistBuilderWithWorklist(parent.builder, worklist)
         netlist = loopStatus.netlist
         clkPeriod = netlist.normalizedClkPeriod
         scheduledZero = loopStatus.scheduledZero

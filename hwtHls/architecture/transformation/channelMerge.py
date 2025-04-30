@@ -1,7 +1,7 @@
 from collections import OrderedDict
 from itertools import islice
 import re
-from typing import List, Union, Dict, Tuple, Optional
+from typing import List, Union, Dict, Tuple, Optional, Set
 
 from hwt.code import Concat
 from hwt.hdl.operatorDefs import HwtOps
@@ -14,7 +14,8 @@ from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.transformation.hlsArchPass import HlsArchPass
 from hwtHls.architecture.transformation.simplify import ArchElementValuePropagation
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilityDataOnlySingleClock
-from hwtHls.netlist.builder import HlsNetlistBuilder
+from hwtHls.netlist.builder import HlsNetlistBuilder,\
+    HlsNetlistBuilderWithWorklist
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
@@ -246,7 +247,7 @@ class RtlArchPassChannelMerge(HlsArchPass):
             if rUsers:
                 worklist.extend((u.obj for u in rUsers))
                 # slice out data value from merged replacement value
-                newV = builder.buildIndexConstSlice(rO0T, r0O0, offset + rO0T.bit_length(), offset, [])
+                newV = builder.buildIndexConstSlice(rO0T, r0O0, offset + rO0T.bit_length(), offset)
                 self._optionallyScheduleSliceNodes(newV, elmWhereR0Is)
                 if r is r0:
                     # :note: uses were previously disconnected because port type changed
@@ -331,6 +332,7 @@ class RtlArchPassChannelMerge(HlsArchPass):
         dbgTracer.log(("merging ", selectedForRewrite), lambda x: f"{x[0]}, {[(io._id, io.associatedRead._id) for io in x[1]]}")
         wValues = [n.dependsOn[0] for n in selectedForRewrite if not HdlType_isVoid(n.dependsOn[0]._dtype)]
         builder: HlsNetlistBuilder = srcElm.builder
+        builder = HlsNetlistBuilderWithWorklist(builder, worklist)
         firstDep: HlsNetNodeOut = selectedForRewrite[0].dependsOn[0]
 
         if wValues:
@@ -344,8 +346,6 @@ class RtlArchPassChannelMerge(HlsArchPass):
             newWVal.obj.scheduledZero = t
             newWVal.obj.scheduledOut = (t,)
             newlyScheduledNodes = [newWVal.obj, ]
-
-        worklist.append(newWVal.obj)
 
         clkPeriod = w0.netlist.normalizedClkPeriod
         for n in newlyScheduledNodes:
@@ -375,11 +375,15 @@ class RtlArchPassChannelMerge(HlsArchPass):
         r0Users = tuple(r0.usedBy[0])
         r0O0 = r0._portDataOut
         r0O0OrigT = r0O0._dtype
+        seenR0Users: Set[HlsNetNode] = set()
         for u in r0Users:
             uObj: HlsNetNode = u.obj
-            uObj.getHlsNetlistBuilder().unregisterNode(uObj)
+            if uObj not in seenR0Users:
+                # if user was already in seenR0Users it means that it was already unregistered  
+                uObj.getHlsNetlistBuilder().unregisterNode(uObj)
+                worklist.append(uObj)
+                seenR0Users.add(uObj)
             u.disconnectFromHlsOut(r0O0)
-            worklist.append(uObj)
 
         self._changeDataTypeOfChannel(r0, w0, newT, newBuffName)
 

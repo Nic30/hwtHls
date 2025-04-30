@@ -5,6 +5,7 @@ from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOperatorNodeWith
+from hwtHls.netlist.builder import HlsNetlistBuilderWithWorklist
 
 
 def netlistReduceIndexOnIndex(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
@@ -30,11 +31,11 @@ def netlistReduceIndexOnIndex(n: HlsNetNodeOperator, worklist: SetList[HlsNetNod
                 offset = i0.stop + i1.stop
                 w = i1.start - i1.stop
                 assert w > 0, i1
-                newOut = n.getHlsNetlistBuilder().buildIndexConstSlice(
+                builder = HlsNetlistBuilderWithWorklist(n.getHlsNetlistBuilder(), worklist)
+                newOut = builder.buildIndexConstSlice(
                     curOut._dtype, newSrc,
                     offset + w,
-                    offset,
-                    worklist)
+                    offset)
                 replaceOperatorNodeWith(n, newOut, worklist)
 
                 return True

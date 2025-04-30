@@ -1,6 +1,7 @@
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.pyUtils.setList import SetList
 from hwtHls.code import ctpop
+from hwtHls.netlist.builder import HlsNetlistBuilderWithWorklist
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.transformation.simplifyUtils import getConstDriverOf
@@ -17,17 +18,26 @@ def netlistReduceMulConst(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode], 
     op1 = getConstDriverOf(n._inputs[1])
     if op1 is not None and op1._is_full_valid():
         op0 = n.dependsOn[0]
-        builder = n.getHlsNetlistBuilder()
+        builder = HlsNetlistBuilderWithWorklist(n.getHlsNetlistBuilder(), worklist)
         t = op1._dtype
         assert op1.val >= 0, n
+
         if op1.val == mask(t.bit_length()):
             # op0 * -1 -> 0 - op0
             newO = builder.buildOp(HwtOps.SUB, None, t, builder.buildConstPy(t, 0), op0, name=n.name)
         elif op1.val == 0:
             # op0 * 0 -> 0
-            newO = builder.buildConstPy(t, 0, name=n.name)
+            newO = op1
         elif int(ctpop(op1)) <= maxOnesForRewriteToAddSh:
+            # sum shifted op0 for each bit which is 1 in op1
             # op0 * 0b011 -> op0 + (op0 << 1)
+            
+            # [todo]
+            # https://courses.csail.mit.edu/6.111/f2008/handouts/L09.pdf
+            # long sequence of 1 may be rewriten to 
+            # ...011110... = ...100000... - ...000010... = ...01000 sub(1) 0...
+            # op0 * 0b011110 -> (op0 << 5) - (op0 << 1)
+            
             op1v = op1.val
             newO = None
             w = t.bit_length()
@@ -35,7 +45,7 @@ def netlistReduceMulConst(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode], 
                 op1vLsb = get_bit(op1v, i)
                 if op1vLsb:
                     # += op0 << i
-                    newOPart = builder.buildShlConst(op0, i, worklist)
+                    newOPart = builder.buildShlConst(op0, i)
 
                     if newO is None:
                         newO = newOPart

@@ -1,7 +1,8 @@
 
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.pyUtils.setList import SetList
-from hwtHls.netlist.builder import HlsNetlistBuilder
+from hwtHls.netlist.builder import HlsNetlistBuilder, \
+    HlsNetlistBuilderWithWorklist
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
@@ -9,7 +10,7 @@ from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOpe
 
 
 def netlistReduceValidAndOrXorEqValidNb(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
-    builder: HlsNetlistBuilder = n.getHlsNetlistBuilder()
+    builder: HlsNetlistBuilder = HlsNetlistBuilderWithWorklist(n.getHlsNetlistBuilder(), worklist)
     # search for const in for commutative operator
     o0, o1 = n.dependsOn
     r = o0.obj

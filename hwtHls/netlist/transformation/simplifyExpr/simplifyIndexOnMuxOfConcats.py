@@ -7,7 +7,8 @@ from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.sliceConst import HSliceConst
 from hwt.pyUtils.setList import SetList
-from hwtHls.netlist.builder import HlsNetlistBuilder
+from hwtHls.netlist.builder import HlsNetlistBuilder,\
+    HlsNetlistBuilderWithWorklist
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -22,7 +23,7 @@ BitChunkTuple = Union[HConst, Tuple[HlsNetNodeOut, int, int]]
 CaseTuple = Tuple[List[BitChunkTuple], Optional[HlsNetNodeOut]]
 
 
-def _buildConcatFromSliceTuples(builder: HlsNetlistBuilder, worklist: SetList[HlsNetNode], vals: Sequence[BitChunkTuple]):
+def _buildConcatFromSliceTuples(builder: HlsNetlistBuilder, vals: Sequence[BitChunkTuple]):
     assert vals
     valuesSliced = []
     for _v in vals:
@@ -30,14 +31,13 @@ def _buildConcatFromSliceTuples(builder: HlsNetlistBuilder, worklist: SetList[Hl
             valuesSliced.append(_v)
         else:
             (v, l, h) = _v
-            vSliced = builder.buildIndexConst(HBits(h - l), v, h, l, worklist)
+            vSliced = builder.buildIndexConst(HBits(h - l), v, h, l)
             valuesSliced.append(vSliced)
-            worklist.append(vSliced.obj)
 
     return builder.buildConcat(*valuesSliced)
 
 
-def _constructMuxOps(builder: HlsNetlistBuilder, caseTuples: Sequence[CaseTuple], worklist: SetList[HlsNetNode])\
+def _constructMuxOps(builder: HlsNetlistBuilder, caseTuples: Sequence[CaseTuple])\
         ->List[Tuple[HlsNetNodeOut, Optional[HlsNetNodeOut]]]:
     muxOps = []
     for vals, c in caseTuples:
@@ -48,15 +48,12 @@ def _constructMuxOps(builder: HlsNetlistBuilder, caseTuples: Sequence[CaseTuple]
                 valuesSliced.append(_v)
             else:
                 (v, l, h) = _v
-                vSliced = builder.buildIndexConst(HBits(h - l), v, h, l, worklist)
+                vSliced = builder.buildIndexConst(HBits(h - l), v, h, l)
                 valuesSliced.append(vSliced)
-                worklist.append(vSliced.obj)
 
         caseConcat = builder.buildConcat(*valuesSliced)
-
         muxOps.append(caseConcat)
-        if not isinstance(caseConcat, HConst):
-            worklist.append(caseConcat.obj)
+
         if c is not None:
             muxOps.append(c)
 
@@ -202,9 +199,10 @@ def netlistReduceIndexOnMuxOfConcats(n: HlsNetNodeOperator, worklist: SetList[Hl
         worklist.append(vObj)
 
     builder: HlsNetlistBuilder = n.getHlsNetlistBuilder()
+    builder = HlsNetlistBuilderWithWorklist(builder, worklist)
 
     selfResT = n._outputs[0]._dtype
-    extractedMuxOps = _constructMuxOps(builder, extracted, worklist)
+    extractedMuxOps = _constructMuxOps(builder, extracted)
 
     extractedO = builder.buildMux(selfResT, extractedMuxOps, name=n.name)
     replaceOperatorNodeWith(n, extractedO, worklist)  # slice -> value extracted from mux
@@ -212,16 +210,15 @@ def netlistReduceIndexOnMuxOfConcats(n: HlsNetNodeOperator, worklist: SetList[Hl
 
     # for rest of the users create a concatenation which will merge extracted and leftover value back
     if inp.obj.usedBy[inp.out_i]:
-        leftoverMuxOps = _constructMuxOps(builder, leftover, worklist)
+        leftoverMuxOps = _constructMuxOps(builder, leftover)
         leftoverO = builder.buildMux(HBits(inp._dtype.bit_length() - selfResT.bit_length()),
                                      leftoverMuxOps, name=inp.obj.name)
-        worklist.append(leftoverO.obj)
 
         origConcatVals = []
         if lowBitNo != 0:
             leftoverSliced = builder.buildIndexConst(HBits(lowBitNo),
                                                           leftoverO,
-                                                          lowBitNo, 0, worklist)
+                                                          lowBitNo, 0)
             origConcatVals.append(leftoverSliced)
 
         origConcatVals.append(extractedO)
@@ -230,13 +227,10 @@ def netlistReduceIndexOnMuxOfConcats(n: HlsNetNodeOperator, worklist: SetList[Hl
             leftoverWidth = width - extractedWidth
             leftoverSliced = builder.buildIndexConst(HBits(leftoverWidth - lowBitNo),
                                                      leftoverO,
-                                                     leftoverWidth, lowBitNo,
-                                                     worklist)
+                                                     leftoverWidth, lowBitNo)
             origConcatVals.append(leftoverSliced)
 
-        worklist.extend(o.obj for o in origConcatVals)
         inpReplacement = builder.buildConcat(*origConcatVals)
-        worklist.append(inpReplacement.obj)
         replaceOperatorNodeWith(inp.obj, inpReplacement, worklist)
 
     return True

@@ -4,7 +4,8 @@ from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.pyUtils.setList import SetList
-from hwtHls.netlist.builder import HlsNetlistBuilder
+from hwtHls.netlist.builder import HlsNetlistBuilder,\
+    HlsNetlistBuilderWithWorklist
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
@@ -73,7 +74,7 @@ def netlistReduceNot(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
 
 
 def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
-    builder: HlsNetlistBuilder = n.getHlsNetlistBuilder()
+    builder: HlsNetlistBuilder = HlsNetlistBuilderWithWorklist(n.getHlsNetlistBuilder(), worklist)
     # search for const in for commutative operator
     o0, o1 = n.dependsOn
     o0Const = isinstance(o0.obj, HlsNetNodeConst)
@@ -107,7 +108,7 @@ def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
                 for bitVal, width in iter1and0sequences(o1.obj.val):
                     if bitVal:
                         # x & 1 = x
-                        v0 = builder.buildIndexConstSlice(HBits(width), o0, offset + width, offset, worklist)
+                        v0 = builder.buildIndexConstSlice(HBits(width), o0, offset + width, offset)
                     else:
                         # x & 0 = 0
                         v0 = builder.buildConstPy(HBits(width), 0)
@@ -143,7 +144,7 @@ def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
                         v0 = builder.buildConst(HBits(width).from_py(mask(width)))
                     else:
                         # x | 0 = x
-                        v0 = builder.buildIndexConstSlice(HBits(width), o0, offset + width, offset, worklist)
+                        v0 = builder.buildIndexConstSlice(HBits(width), o0, offset + width, offset)
 
                     concatMembers.append(v0)
 
@@ -171,7 +172,7 @@ def netlistReduceAndOrXor(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
                 concatMembers = []
                 offset = 0
                 for bitVal, width in iter1and0sequences(o1.obj.val):
-                    v0 = builder.buildIndexConstSlice(HBits(width), o0, offset + width, offset, worklist)
+                    v0 = builder.buildIndexConstSlice(HBits(width), o0, offset + width, offset)
                     if bitVal:
                         v0 = builder.buildNot(v0)
                     concatMembers.append(v0)

@@ -6,7 +6,8 @@ from hwt.hdl.operatorDefs import HwtOps, HOperatorDef, ALWAYS_COMMUTATIVE_OPS
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.slice import HSlice
 from hwt.pyUtils.setList import SetList
-from hwtHls.netlist.builder import HlsNetlistBuilder
+from hwtHls.netlist.builder import HlsNetlistBuilder,\
+    HlsNetlistBuilderWithWorklist
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -329,7 +330,7 @@ def netlistReduceMuxToOr(n: HlsNetNodeMux, worklist: SetList[HlsNetNode]):
     """
     assert len(n.dependsOn) == 3, (n, "It should be checked in advance that this is 3 operand mux")
     v0, c, v1 = n.dependsOn
-    builder = n.getHlsNetlistBuilder()
+    builder = HlsNetlistBuilderWithWorklist(n.getHlsNetlistBuilder(), worklist)
     if v0 is c:
         newO = builder.buildOr(c, v1)
         replaceOperatorNodeWith(n, newO, worklist)
@@ -388,7 +389,7 @@ def netlistReduceMuxToAndOrNot(n: HlsNetNodeMux, worklist: SetList[HlsNetNode]):
             newO = v0
             break
 
-        builder: HlsNetlistBuilder = n.getHlsNetlistBuilder()
+        builder: HlsNetlistBuilder = HlsNetlistBuilderWithWorklist(n.getHlsNetlistBuilder(), worklist)
         cc = getConstOfOutput(c)
         if cc is not None:
             if not cc._is_full_valid():
@@ -523,6 +524,7 @@ def _netlistReduceMuxSinkIncommingValueArithOperators_buildNewMux(n: HlsNetNodeM
     # sink extracted operators behind this MUX
     # if there are any
     builder = n.getHlsNetlistBuilder()
+    builder = HlsNetlistBuilderWithWorklist(builder, worklist)
     neutralValueIsUsed = any(v is commonOperand for v, _ in n._iterValueConditionDriverPairs())
     resT = n._outputs[0]._dtype
     if neutralValueIsUsed:
@@ -537,7 +539,6 @@ def _netlistReduceMuxSinkIncommingValueArithOperators_buildNewMux(n: HlsNetNodeM
         # update condition for this item if required
         if valueToAndConditionWith is not None and c is not None:
             c = builder.buildAnd(valueToAndConditionWith, c)
-            worklist.append(c.obj)
 
         if v is commonOperand:
             v = neutralValue
@@ -545,7 +546,6 @@ def _netlistReduceMuxSinkIncommingValueArithOperators_buildNewMux(n: HlsNetNodeM
             # skip constant operand and add it only in second mux
             if c is not None:
                 valueToAndConditionWith = builder.buildAndOptional(valueToAndConditionWith, builder.buildNot(_c))
-                worklist.append(valueToAndConditionWith.obj)
 
             continue
         else:
@@ -561,23 +561,19 @@ def _netlistReduceMuxSinkIncommingValueArithOperators_buildNewMux(n: HlsNetNodeM
         valueToAndConditionWith = None
 
         newMuxArgs.append(v)
-        worklist.append(v.obj)
         if c is not None:
             newMuxArgs.append(c)
-            worklist.append(c.obj)
 
     newMux = builder.buildMux(resT, tuple(newMuxArgs), name=n.name)
-    worklist.append(newMux.obj)
     if commonOperandIndex is None or commonOperandIndex == 0:
         newResOps = (commonOperand, newMux)
     else:
         assert commonOperandIndex == 1, (n, commonOperandIndex)
         newResOps = (newMux, commonOperand)
 
-    newOp = builder.buildOp(commonOperator, None, resT, *newResOps, name=n.name, worklist=worklist)
+    newOp = builder.buildOp(commonOperator, None, resT, *newResOps, name=n.name)
 
     if constantValues:
-        worklist.append(newOp.obj)
         newConstMuxOps = []
         valueToAndConditionWith = None
         seenConstantOpCnt = 0
@@ -586,7 +582,6 @@ def _netlistReduceMuxSinkIncommingValueArithOperators_buildNewMux(n: HlsNetNodeM
             if valueToAndConditionWith is not None and c is not None:
                 # update condition for this item if required
                 c = builder.buildAnd(valueToAndConditionWith, c)
-                worklist.append(c.obj)
 
             if v in constantValues:
                 valueToAndConditionWith = None
@@ -594,11 +589,9 @@ def _netlistReduceMuxSinkIncommingValueArithOperators_buildNewMux(n: HlsNetNodeM
                 #  and term is not required for later conditions
 
                 newConstMuxOps.append(v)
-                worklist.append(v.obj)
                 seenConstantOpCnt += 1
                 if c is not None:
                     newConstMuxOps.append(c)
-                    worklist.append(c.obj)
                     if seenConstantOpCnt == len(constantValues):
                         # there will be no other constant operand for this mux
                         # add default value
@@ -608,13 +601,11 @@ def _netlistReduceMuxSinkIncommingValueArithOperators_buildNewMux(n: HlsNetNodeM
             else:
                 if c is not None:
                     valueToAndConditionWith = builder.buildAndOptional(valueToAndConditionWith, builder.buildNot(_c))
-                    worklist.append(valueToAndConditionWith.obj)
 
         newRes = builder.buildMux(resT, tuple(newConstMuxOps), name=n.name)
     else:
         newRes = newOp
 
-    worklist.append(newRes.obj)
     replaceOperatorNodeWith(n, newRes, worklist)
 
 
