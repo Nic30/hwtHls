@@ -46,7 +46,7 @@ def netlistEdgeWritePropagation(
         if init:
             if len(init) == 1:
                 # if write value is same as init allow propagation
-                if isinstance(d, HBitsConst) and len(init[0]) == 1 and int(d) == int(init[0][0]):
+                if isinstance(d, HBitsConst) and d._is_full_valid() and len(init[0]) == 1 and int(d) == int(init[0][0]):
                     dbgTracer.log("reduce init values")
                     r.channelInitValues = ((),)
                 elif isinstance(d, _HVoidConst) and len(init[0]) == 1  and len(init[0]) == 0:
@@ -95,11 +95,11 @@ def netlistEdgeWritePropagation(
         dbgTracer.log(("convert ", r._id, "to void and propagate const"))
         origRSrc = r.src
         if r.src is not None:
-            assert r.src._ctx is None, ("Interface must not be instantiated yet", r)
+            assert r.src._rtlCtx is None, ("Interface must not be instantiated yet", r)
             r.src = HwIORdVldSync()
 
         if writeNode.dst is not None:
-            assert writeNode.dst._ctx is None, (
+            assert writeNode.dst._rtlCtx is None, (
                 "Interface must not be instantiated yet", r)
             if writeNode.dst is origRSrc:
                 writeNode.dst = r.src
