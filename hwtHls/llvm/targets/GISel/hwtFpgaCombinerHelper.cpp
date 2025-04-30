@@ -60,6 +60,14 @@ void HwtFpgaCombinerHelper::rewriteConstExtract(llvm::MachineInstr &MI) {
 	auto _v = MI.getOperand(1).getCImm();
 	const APInt &v = _v->getValue();
 	auto extractOpt = hwtHls::HWTFPGA_EXTRACTOptions::get(MI);
+	auto Dst = MI.getOperand(0).getReg();
+	auto DstTy = MRI.getType(Dst);
+	if (DstTy.isValid()) {
+		assert(DstTy.getScalarSizeInBits() == extractOpt.dstWidth);
+	} else {
+		MRI.setType(Dst, LLT::scalar(extractOpt.dstWidth));
+	}
+
 	replaceInstWithConstant(MI, v.extractBits(extractOpt.dstWidth, extractOpt.offset));
 }
 
@@ -479,30 +487,47 @@ bool HwtFpgaCombinerHelper::matchConstMergeValues(llvm::MachineInstr &MI,
 
 void HwtFpgaCombinerHelper::rewriteConstMergeValues(llvm::MachineInstr &MI,
 		const llvm::APInt &replacement) {
+	auto Dst = MI.getOperand(0).getReg();
+	auto CurTy = MRI.getType(Dst);
+	if (CurTy.isValid()) {
+		assert(CurTy.getSizeInBits() == replacement.getBitWidth());
+	} else {
+		MRI.setType(Dst, LLT::scalar(replacement.getBitWidth()));
+	}
 	replaceInstWithConstant(MI, replacement);
 }
 
 bool HwtFpgaCombinerHelper::matchTrivialInstrDuplication(
 		llvm::MachineInstr &MI) {
-	assert(MI.getNumDefs() == 1);
+	assert(!MI.hasUnmodeledSideEffects());
 	auto NextInst = MI.getNextNode();
 	if (!NextInst || NextInst->getOpcode() != MI.getOpcode()
 			|| NextInst->getNumOperands() != MI.getNumOperands()) {
 		return false;
 	}
+	for (auto def: MI.defs()) {
+		auto r = def.getReg();
+		if (NextInst->findRegisterUseOperand(r))
+			return false; // next instr uses result of this
+	}
 	// check def operands
+	bool allDefsDead = true;
 	for (auto I0 : { &MI, NextInst }) {
 		auto I1 = I0 == &MI ? NextInst : &MI;
 		for (auto def : I0->defs()) {
 			if (!MRI.hasOneDef(def.getReg())) {
 				return false; // result register used on multiple places, the check for liveness would be required
 			} else if (def.isDead()) {
-				return false; // this is subject to DCE, skip this
+				continue; // this is subject to DCE, skip this
 			} else if (I1->readsRegister(def.getReg())) {
 				return false; // The instruction is using the result of other
 			}
+			allDefsDead = false;
 		}
 	}
+	if (allDefsDead)
+		return false; // this is subject to DCE, skip this
+
 	// check if use operands are the same
 	for (const auto [U0, U1] : zip(MI.uses(), NextInst->uses())) {
 		if (U0.isReg() && U1.isReg() && U0.getReg() == U1.getReg()) {
@@ -517,13 +542,11 @@ bool HwtFpgaCombinerHelper::matchTrivialInstrDuplication(
 void HwtFpgaCombinerHelper::rewriteTrivialInstrDuplication(
 		llvm::MachineInstr &MI) {
 	assert(MI.getNumDefs() == 1);
-	auto def0 = MI.getOperand(0);
-	assert(def0.isDef());
 	auto *OtherMI = MI.getNextNode();
-	auto def1 = OtherMI->getOperand(0);
-	assert(def1.isDef());
-	if (def0.getReg() != def1.getReg())
-		replaceRegWith(MRI, def0.getReg(), def1.getReg());
+	for (const auto [def0, def1] : zip(MI.defs(), OtherMI->defs())) {
+		if (def0.getReg() != def1.getReg())
+			replaceRegWith(MRI, def0.getReg(), def1.getReg());
+	}
 
 	MI.eraseFromParent();
 }

@@ -419,7 +419,10 @@ bool HwtFpgaCombinerHelper::hasAll1AndAll0Values(MachineInstr &MI,
 
 void HwtFpgaCombinerHelper::rewriteConstValMux(MachineInstr &MI,
 		const hwtHls::CImmOrRegWithNegFlag &matchinfo) {
+	auto Dst = MI.getOperand(0).getReg();
 	if (matchinfo.CImm) {
+		if (!MRI.getType(Dst).isValid())
+			MRI.setType(Dst, LLT::scalar(matchinfo.CImm->getValue().getBitWidth()));
 		if (matchinfo.Negate) {
 			replaceInstWithConstant(MI, ~matchinfo.CImm->getValue());
 		} else {
@@ -434,8 +437,10 @@ void HwtFpgaCombinerHelper::rewriteConstValMux(MachineInstr &MI,
 					if (v_n.isReg()) {
 						replacement = v_n.getReg();
 					} else {
-						replaceInstWithConstant(MI, v_n.getCImm()->getValue());
+						if (!MRI.getType(Dst).isValid())
+							MRI.setType(Dst, LLT::scalar(v_n.getCImm()->getValue().getBitWidth()));
 
+						replaceInstWithConstant(MI, v_n.getCImm()->getValue());
 						MI.eraseFromParent();
 						return;
 					}
