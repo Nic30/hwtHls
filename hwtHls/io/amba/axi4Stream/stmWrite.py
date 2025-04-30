@@ -7,6 +7,7 @@ from hwtHls.io.amba.axi4Stream.metadata import addAxi4StreamLllvmMetadata
 from hwtHls.llvm.llvmIr import Argument, BasicBlock, Type
 from hwtHls.ssa.translation.toLlvmArgumentUtils import getArgumentForHwIO
 from hwtLib.amba.axi4s import Axi4Stream
+from hwtLib.amba.axi4SSegmented import Axi4StreamSegmented
 
 
 class HlsStmWriteAxi4Stream(HlsWrite):
@@ -45,3 +46,44 @@ class HlsStmWriteAxi4Stream(HlsWrite):
                 bb, eof = toLlvm._translateExprToLlvm(bb, eof)
 
         return bb, toLlvm.b.CreateStreamWrite(dst, src, mask, eof)
+
+
+class HlsStmWriteAxi4StreamSegmented(HlsWrite):
+
+    def __init__(self,
+        parent:"HlsScope",
+        src:Union[RtlSignal, HConst],
+        empty:Optional[Union[RtlSignal, HConst]],
+        eof:Optional[Union[RtlSignal, HConst]],
+        dst:Axi4Stream,
+        mayBecomeFlushable:bool=True):
+        HlsWrite.__init__(self, parent, src, dst, src._dtype,
+                          # True,  # isBlocking
+                          True,  # isVolatile
+                          mayBecomeFlushable=mayBecomeFlushable)
+        self.empty = empty
+        self.eof = eof
+
+    def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
+        toLlvm.addAfterTranslationUnique(addAxi4StreamLllvmMetadata)
+        dst, _ = getArgumentForHwIO(toLlvm, self.dst, self, True)
+        dst: Argument
+        bb, src = toLlvm._translateExprToLlvm(bb, self.src)
+        empty = self.empty
+        if empty is not None:
+            if isinstance(empty, int):
+                _dst: Axi4StreamSegmented = self.dst
+                widthOfEmpty = _dst._getWidthOfEmpty(
+                    src.getType().getIntegerBitWidth(), _dst.BYTE_WIDTH, _dst.SUPPORT_ZLP)
+                empty = toLlvm._translateExprInt(empty, Type.getIntNTy(toLlvm.ctx, widthOfEmpty))
+            else:
+                bb, empty = toLlvm._translateExprToLlvm(bb, empty)
+
+        eof = self.eof
+        if eof is not None:
+            if isinstance(eof, int):
+                eof = toLlvm._translateExprInt(eof, Type.getIntNTy(toLlvm.ctx, 1))
+            else:
+                bb, eof = toLlvm._translateExprToLlvm(bb, eof)
+
+        return bb, toLlvm.b.CreateStreamWrite(dst, src, empty, eof)

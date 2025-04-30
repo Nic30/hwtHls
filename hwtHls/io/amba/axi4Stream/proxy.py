@@ -5,13 +5,18 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.pyBytecode.ioProxyStream import IoProxyStream
-from hwtHls.io.amba.axi4Stream.stmRead import HlsStmReadAxi4Stream
-from hwtHls.io.amba.axi4Stream.stmWrite import HlsStmWriteAxi4Stream
+from hwtHls.io.amba.axi4Stream.stmRead import HlsStmReadAxi4Stream, \
+    HlsStmReadAxi4StreamSegmented
+from hwtHls.io.amba.axi4Stream.stmWrite import HlsStmWriteAxi4Stream, \
+    HlsStmWriteAxi4StreamSegmented
 from hwtHls.llvm.llvmIr import Value
 from hwtLib.amba.axi4s import Axi4Stream
 
 
 class IoProxyAxi4Stream(IoProxyStream):
+    """
+    :see: :class:`~.IoProxyStream`
+    """
 
     def __init__(self, hls:"HlsScope", interface:Axi4Stream):
         IoProxyStream.__init__(self, hls, interface)
@@ -19,5 +24,25 @@ class IoProxyAxi4Stream(IoProxyStream):
     def read(self, dtype:HdlType, reliable=True):
         return HlsStmReadAxi4Stream(self.hls, self.interface, dtype, reliable)
 
-    def write(self, v:Union[HConst, RtlSignal, Value, HwIO]):
-        return HlsStmWriteAxi4Stream(self.hls, v, self.interface)
+    def write(self, v:Union[HConst, RtlSignal, Value, HwIO],
+              mask:Union[None, HConst, RtlSignal, Value, HwIO]=None,
+              eof:Union[None, HConst, RtlSignal, Value, HwIO]=None):
+        return HlsStmWriteAxi4Stream(self.hls, v, mask, eof, self.interface)
+
+
+class IoProxyAxi4StreamSegmented(IoProxyStream):
+    """
+    :see: :class:`~.IoProxyStream`
+    """
+
+    def __init__(self, hls:"HlsScope", interface:Axi4Stream):
+        IoProxyStream.__init__(self, hls, interface)
+
+    def read(self, dtype:HdlType, reliable=True):
+        return HlsStmReadAxi4StreamSegmented(self.hls, self.interface, dtype, reliable)
+
+    def write(self, v:Union[HConst, RtlSignal, Value, HwIO],
+              empty:Union[None, HConst, RtlSignal, Value, HwIO]=None,
+              eof:Union[None, HConst, RtlSignal, Value, HwIO]=None):
+        return HlsStmWriteAxi4StreamSegmented(self.hls, v, empty, eof, self.interface)
+
