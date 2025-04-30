@@ -199,6 +199,7 @@ class DefaultHlsPlatform(DummyPlatform):
                         raise AssertionError("HlsNetlistPassSimplify failed and DBG_12_netlistSimplifiedErr also failed") from e
                     raise
 
+                HlsNetlistPassOperatorToHwtLowering(isScheduled=False).runOnHlsNetlist(netlist)
                 # if all predecessor IO have some skipWhen condition the extraCond may be incomplete due to hoisting
                 # this may result in successors working without any data
                 HlsNetlistPassConstNodeDuplication().runOnHlsNetlist(netlist)
@@ -282,6 +283,7 @@ class DefaultHlsPlatform(DummyPlatform):
 
         try:
             HlsNetlistPassArchElementStageInit().runOnHlsNetlist(netlist)
+            HlsNetlistPassOperatorToHwtLowering(isScheduled=True).runOnHlsNetlist(netlist)
             HlsNetlistPassMultiClockNodeSplit().runOnHlsNetlist(netlist)
             DBG(lambda: HlsNetlistPassConsistencyCheck(
                 checkCycleFree=False, checkAllArchElementPortsInSameClockCycle=True), (netlist,))
@@ -350,7 +352,6 @@ class DefaultHlsPlatform(DummyPlatform):
                                                        checkAllArchElementPortsInSameClockCycle=False),
                 (netlist,))
 
-            HlsAndRtlNetlistPassOperatorToHwtLowering().runOnHlsNetlist(netlist)
             HlsAndRtlNetlistPassAddSignalForDeepExpr().runOnHlsNetlist(netlist)
 
         finally:

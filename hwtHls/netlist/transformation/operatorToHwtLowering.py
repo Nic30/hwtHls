@@ -5,7 +5,7 @@ from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE, HlsNetNode  # , HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
-from hwtHls.platform.componentGenerator import ComponentGenerator
+from hwtHls.architecture.componentGenerator import ComponentGenerator
 from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 from hwtHls.architecture.transformation.simplify import ArchElementValuePropagation
 from hwtHls.netlist.debugTracer import DebugTracer
