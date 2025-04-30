@@ -523,6 +523,30 @@ OP_SMAX = HOperatorDefLlvm(hwSMax, _getllvmIntBinaryIntrinsicConstructor(Intrins
 
 
 @hwt_expr_producer
+def hwFMaxinum(v0, v1):
+    """
+    "max" for fp types https://llvm.org/docs/LangRef.html#llvm-maximum-intrinsic
+    """
+    if v0 is v1:
+        return v0
+
+    if isinstance(v0, HConst) and isinstance(v1, HConst):
+        t = v0._dtype
+        if v0._is_full_valid() and v1._is_full_valid():
+            if v0.val < v1.val:
+                return v1
+            else:
+                return v0
+        else:
+            return t.from_py(None)
+
+    elif isinstance(v0, RtlSignalBase) and isinstance(v0, RtlSignalBase):
+        return HOperatorNode.withRes(OP_MAXIMUM, (v0, v1), t)
+    else:
+        return max(v0, v1)
+
+
+@hwt_expr_producer
 def hwMax(v0: AnyHValue, v1: AnyHValue, autoExtend=False) -> AnyHValue:
     if isinstance(v0._dtype, HBits):
         if v0._dtype.signed:
@@ -595,6 +619,27 @@ def hwSMin(v0: AnyHValue, v1: AnyHValue, autoExtend:bool=False) -> AnyHValue:
 
 
 OP_SMIN = HOperatorDefLlvm(hwSMin, _getllvmIntBinaryIntrinsicConstructor(Intrinsic.smin), False, idStr="OP_SMIN")
+
+
+@hwt_expr_producer
+def hwFMininum(v0, v1) -> AnyHValue:
+    """
+    "min" for fp types https://llvm.org/docs/LangRef.html#llvm-minimumnum-intrinsic
+    """
+    if v0 is v1:
+        return v0
+
+    t = v0._dtype
+    if isinstance(v0, HConst) and isinstance(v1, HConst):
+        if v0._is_full_valid() and v1._is_full_valid():
+            if v1.val < v0.val:
+                return v1
+            else:
+                return v0
+        else:
+            return t.from_py(None)
+    else:
+        return HOperatorNode.withRes(OP_SMIN, (v0, v1), t)
 
 
 @hwt_expr_producer
