@@ -28,7 +28,7 @@ class HlsThreadFromPy(HlsThread):
         self._doCloseTrace = False
 
     def prepareLlvmTranslator(self):
-        self.toLlvm = ToLlvmIrTranslator(self.hls.parentHwModule, None)
+        self.toLlvm = ToLlvmIrTranslator(self.hls.parentHwModule, None, self.hls.parentHwModule._target_platform._llvmCliArgs)
         self.bytecodeToSsa = PyBytecodeToSsa(self.hls, self.toLlvm, self.dbgTracer, self.getLabel(), self.getNamePrefix())
 
     def debugCopyConfig(self, p: DefaultHlsPlatform):

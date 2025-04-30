@@ -11,16 +11,17 @@ from tests.llvmMir.baseLlvmMirTC import BaseLlvmMirTC
 
 class VRegIfConverter_TC(BaseLlvmMirTC):
     __FILE__ = __file__
+    DEFAULT_LLVM_CLI_OPTIONS = [
+            # LLVM_CLI_COMMON_OPTS.VREGIFCVT_TRACE,
+            # ("vregifcvt-limit", 0, "0", "1")
+    ]
 
     def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
-        #llvm.addLlvmCliArgOccurence(*LLVM_CLI_COMMON_OPTS.VREGIFCVT_TRACE)
-        #llvm.addLlvmCliArgOccurence("vregifcvt-limit", 0, "0", "1")
         llvm._testVRegIfConverter()
 
     def _test_ll(self, irStr: str, lowerSsaToNonSsa=False):
         irStr = generateAndAppendHwtHlsFunctionDeclarations(irStr)
-        llvm = LlvmCompilationBundle("test")
-        # llvm.addLlvmCliArgOccurence("print-after-all", 0, "", "true")
+        llvm = LlvmCompilationBundle("test", self.DEFAULT_LLVM_CLI_OPTIONS)
         Err = SMDiagnostic()
         M = parseIR(irStr, "test", Err, llvm.ctx)
         if M is None:
@@ -34,7 +35,9 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
         llvm._testVRegIfConverterForIr(lowerSsaToNonSsa)
         MF = llvm.getMachineFunction(llvm.main)
         assert MF
-        self.assert_same_as_file(str(MF), os.path.join("data", self.__class__.__name__ + "." + name + ".out.mir.ll"))
+        self.assert_same_as_file(str(MF), os.path.join(
+            "data",
+            self.__class__.__name__ + "." + name + ".out.mir.ll"))
 
     def test_noOptSingleBlock(self):
         ir = """\
@@ -702,13 +705,13 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
     def test_TriangleFalseWithLoopLatch(self):
         #  %5:anyregcls = HWTFPGA_MUX %2:anyregcls
         #  %2:anyregcls = HWTFPGA_MUX killed %5:anyregcls, %4:anyregcls(s1), %2:anyregcls
-        # is rewritten to: 
+        # is rewritten to:
         #  %5:anyregcls = HWTFPGA_MUX %2:anyregcls ; use original 2 because it was not yet redefined in this block
         #  %8:anyregcls = HWTFPGA_MUX killed %5:anyregcls, %4:anyregcls(s1), %2:anyregcls ; use new 8 as a tmp register for 2
         #  %2:anyregcls = HWTFPGA_MUX %2:anyregcls, %3:anyregcls(s1), killed %8:anyregcls ; merge tmp 8 back to 2
-        
+
         # %8 is new renamed register for %2
-    
+
         self._test_mir(f"""\
         bb.0.{self.getTestName()}:
         
@@ -738,11 +741,17 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
           HWTFPGA_BR %bb.1
           
         """)
-        
+
+    def test_for2add(self):
+        # this tests that the negated condition is handled correctly
+        # it original register (%5) is overrwriten before use of negated value (%6)
+        self._test_mir_file()
+
+
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([VRegIfConverter_TC('test_TriangleFalseWithLoopLatch')])
+    # suite = unittest.TestSuite([VRegIfConverter_TC('test_for2add')])
     suite = testLoader.loadTestsFromTestCase(VRegIfConverter_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

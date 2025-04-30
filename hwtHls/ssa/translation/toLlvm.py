@@ -70,8 +70,11 @@ class ToLlvmIrTranslator():
     :note: Information about IO are stored in function attributes
     """
 
-    def __init__(self, parentHwModule: HwModule, dbgLogPassExec:Optional[StringIO], llvmModuleName:str="hwtHlsModule"):
-        self.llvm = LlvmCompilationBundle(llvmModuleName)
+    def __init__(self, parentHwModule: HwModule,
+                 dbgLogPassExec:Optional[StringIO],
+                 llvmCliOptions:list[LlvmCliArgTuple],
+                 llvmModuleName:str="hwtHlsModule"):
+        self.llvm = LlvmCompilationBundle(llvmModuleName, llvmCliOptions)
         self.ctx: LLVMContext = self.llvm.ctx
         self.strCtx: LLVMStringContext = self.llvm.strCtx
         self.module: Module = self.llvm.module

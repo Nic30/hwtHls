@@ -90,61 +90,38 @@
 #include <hwtHls/llvm/llvmHwtHlsInstrumentation.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetInfo.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetMachine.h>
-#include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
-#include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
-#include <hwtHls/llvm/Transforms/extractBitConcatAndSliceOpsPass.h>
-#include <hwtHls/llvm/Transforms/HFloatTmpLoweringPass.h>
-#include <hwtHls/llvm/Transforms/SelectPruningPass.h>
-#include <hwtHls/llvm/Transforms/StripProfMetadataPass.h>
-#include <hwtHls/llvm/Transforms/TmpAllocaLoweringPass.h>
-#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
-#include <hwtHls/llvm/Transforms/slicesMerge/slicesMerge.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass.h>
-#include <hwtHls/llvm/Transforms/trivialSimplifyCFGPass.h>
-#include <hwtHls/llvm/Transforms/LoopAddLatchPass.h>
-#include <hwtHls/llvm/Transforms/LoopFlattenUsingIfPass.h>
-#include <hwtHls/llvm/Transforms/LoopRotationNormalizationPass.h>
-#include <hwtHls/llvm/Transforms/overwriteBlockNamesPass.h>
-#include <hwtHls/llvm/Transforms/PromoteAllocaToGlobalPass.h>
-#include <hwtHls/llvm/Transforms/ReconfigureHwtFpgaTTIPass.h>
-#include <hwtHls/llvm/Transforms/RomExtractPass.h>
-#include <hwtHls/llvm/Transforms/SimpleConstEvalPass.h>
-#include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamReadLoweringPass.h>
-#include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamWriteLoweringPass.h>
-#include <hwtHls/llvm/Transforms/streamLoopUnrollPass/streamLoopUnrollPass.h>
-#include <hwtHls/llvm/Transforms/IcmpToOnlyEqLtLe.h>
-#include <hwtHls/llvm/Transforms/PruneLoopPhiDeadIncomingValuesPass/PruneLoopPhiDeadIncomingValuesPass.h>
-#include <hwtHls/llvm/Transforms/HFloatTmpLoweringPass.h>
 
 namespace hwtHls {
 
-const std::string LlvmCompilationBundle::TargetTriple = "hwtFpga-unknown-linux-gnu";
+const std::string LlvmCompilationBundle::TargetTriple =
+		"hwtFpga-unknown-linux-gnu";
 const std::string LlvmCompilationBundle::CPU = "model0";
 const std::string LlvmCompilationBundle::Features = "model0";
 
 // :note: copied from llvm-opt
 using DebugLogging = LlvmCompilationBundle::DebugLogging;
-static llvm::cl::opt<DebugLogging> DebugPMCliOpt(
-    "debug-pass-manager", llvm::cl::Hidden, llvm::cl::ValueOptional,
-    llvm::cl::desc("Print pass management debugging information"),
-    llvm::cl::init(DebugLogging::None),
-    llvm::cl::values(
-        clEnumValN(DebugLogging::Normal, "", ""),
-        clEnumValN(DebugLogging::Quiet, "quiet",
-                   "Skip printing info about analyses"),
-        clEnumValN(
-            DebugLogging::Verbose, "verbose",
-            "Print extra information about adaptors and pass managers")));
+static llvm::cl::opt<DebugLogging> DebugPMCliOpt("debug-pass-manager",
+		llvm::cl::Hidden, llvm::cl::ValueOptional,
+		llvm::cl::desc("Print pass management debugging information"),
+		llvm::cl::init(DebugLogging::None),
+		llvm::cl::values(clEnumValN(DebugLogging::Normal, "", ""),
+				clEnumValN(DebugLogging::Quiet, "quiet",
+						"Skip printing info about analyses"),
+				clEnumValN(DebugLogging::Verbose, "verbose",
+						"Print extra information about adaptors and pass managers")));
 static llvm::cl::opt<bool> VerifyEach("verify-each",
 		llvm::cl::desc("Verify after each transform"));
 
-
 // https://discourse.llvm.org/t/how-to-implement-a-disable-pass-option/71149/12
-LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
-		ctx(), strCtx(), module(new llvm::Module(strCtx.addStringRef(moduleName), ctx)),
-		builder(ctx), main(nullptr), MMIWP(nullptr), VerifyEachPass(VerifyEach), DebugPM(DebugPMCliOpt.getValue()) {
+LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName,
+		const std::vector<LlvmCliOptionTuple> &llvmCliOpts) :
+		ctx(), strCtx(), module(
+				new llvm::Module(strCtx.addStringRef(moduleName), ctx)), builder(
+				ctx), main(nullptr), MMIWP(nullptr), VerifyEachPass(VerifyEach), DebugPM(
+				DebugPMCliOpt.getValue()), llvmCliOpts(
+				llvmCliOpts) {
 	// clear all current CLI options
-	clearCliOpts();
+	_llvmCliOpts_clear();
 	Target = &getTheHwtFpgaTarget(); //llvm::TargetRegistry::targets()[0];
 	Level = llvm::OptimizationLevel::O3;
 	EnableO3NonTrivialUnswitching = true;
@@ -165,14 +142,9 @@ LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName) :
 	llvm::LLVMTargetMachine &LLVMTM = static_cast<llvm::LLVMTargetMachine&>(*TM);
 	MMIWP = new llvm::MachineModuleInfoWrapperPass(&LLVMTM);
 	_updateDebugPM();
+	module->setDataLayout(TM->createDataLayout());
 }
 
-void LlvmCompilationBundle::clearCliOpts() {
-	llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
-	for (auto &Opt: Map) {
-		Opt.second->reset();
-	}
-}
 
 void LlvmCompilationBundle::_updateDebugPM() {
 	DebugPM = DebugPMCliOpt.getValue();
@@ -181,30 +153,102 @@ void LlvmCompilationBundle::_updateDebugPM() {
 }
 
 void LlvmCompilationBundle::_initPassBuilder() {
+	assert(
+			PB.get() == nullptr
+					&& "LlvmCompilationBundle::_initPassBuilder() should be called only once after all options are set");
+	// this assert is required in order to prevent unintentional delete of previous PB and specially AMs while compilation is still running
+	_llvmCliOpts_apply();
+	RemarksFile = LlvmCompilationBundle_registerORE(ctx);
+	if (RemarksFile)
+		RemarksFile->keep();
+	// :note: this is not done in constructor because options set from python are require to be initialized
+	LAM = std::make_unique<llvm::LoopAnalysisManager>();
+	CGAM = std::make_unique<llvm::CGSCCAnalysisManager>();
+	MAM = std::make_unique<llvm::ModuleAnalysisManager>();
+	FAM = std::make_unique<llvm::FunctionAnalysisManager>();
+
+	// pre-populate TLI to customize set of library functions
+	// :note: this can not be moved behind PB->crossRegisterProxies()
+	llvm::TargetLibraryInfoImpl TLII(llvm::Triple(TM->getTargetTriple()));
+	TLII.setAvailable(llvm::LibFunc::LibFunc_sinpi);
+	TLII.setAvailable(llvm::LibFunc::LibFunc_cospi);
+	TLII.setAvailable(llvm::LibFunc::LibFunc_sincospi_stret);
+	FAM->registerPass([&] { return llvm::TargetLibraryAnalysis(TLII); });
+
+	// PIC same as in llvm/toools/opt/NewPMDriver.cpp llvm::runPassPipeline()
+	SI = std::make_unique<llvm::StandardInstrumentations>(ctx,
+			DebugPM != DebugLogging::None, VerifyEachPass, PrintPassOpts);
+	SI->registerCallbacks(PIC, &*MAM);
+	hwtHls::registerInstrumenationHwtHlsSkipPass(PIC);
+
 	PB = std::make_unique<llvm::PassBuilder>(
-		/*TargetMachine *TM = */TM,
-		/* PipelineTuningOptions PTO = */PTO,
-		/*Optional<PGOOptions> PGOOpt =*/std::nullopt,
-		/*PassInstrumentationCallbacks *PIC =*/&PIC);
+	/*TargetMachine *TM = */TM,
+	/* PipelineTuningOptions PTO = */PTO,
+	/*Optional<PGOOptions> PGOOpt =*/std::nullopt,
+	/*PassInstrumentationCallbacks *PIC =*/&PIC);
+
+	PB->registerModuleAnalyses(*MAM);
+	PB->registerCGSCCAnalyses(*CGAM);
+	PB->registerFunctionAnalyses(*FAM);
+	PB->registerLoopAnalyses(*LAM);
+	PB->crossRegisterProxies(*LAM, *FAM, *CGAM, *MAM);
+	{
+		auto  &TLI = FAM->getResult<llvm::TargetLibraryAnalysis>(*main);
+		assert(TLI.has(llvm::LibFunc::LibFunc_sinpi) && "Sanity check that the custom TargetLibraryAnalysis was registered correctly");
+	}
 }
 
-void LlvmCompilationBundle::addLlvmCliArgOccurence(const std::string & OptionName, unsigned pos, const std::string & ArgName, const std::string & ArgValue) {
+
+llvm::TargetLibraryInfo& LlvmCompilationBundle::getTargetLibraryInfo() {
+	if (!main) {
+		throw std::runtime_error(
+				"getTargetLibraryInfo requires main function to be specified");
+	}
+	if (!PB) {
+		_initPassBuilder();
+	}
+	auto  &res = FAM->getResult<llvm::TargetLibraryAnalysis>(*main);
+	assert(res.has(llvm::LibFunc::LibFunc_sinpi));
+	return res;
+}
+
+void LlvmCompilationBundle::_llvmCliOpts_apply() {
+	_llvmCliOpts_clear();
+	for (const auto& opt: llvmCliOpts) {
+		_llvmCliOption_add(std::get<0>(opt), std::get<1>(opt), std::get<2>(opt), std::get<3>(opt));
+	}
+}
+
+void LlvmCompilationBundle::_llvmCliOpts_clear() {
+	llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
+	for (auto &Opt : Map) {
+		Opt.second->reset();
+	}
+}
+
+void LlvmCompilationBundle::_llvmCliOption_add(
+		const std::string &OptionName, unsigned pos, const std::string &ArgName,
+		const std::string &ArgValue) {
 	llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
 	auto o = Map.find(OptionName);
 	if (o == Map.end()) {
 		if (OptionName == "debug-only") {
-			throw std::runtime_error("debug-only LLVM cli option is available only in LLVM debug build");
+			throw std::runtime_error(
+					"debug-only LLVM cli option is available only in LLVM debug build");
 		} else {
-			throw std::runtime_error(std::string("Can not find LLVM cli option ") + OptionName);
+			throw std::runtime_error(
+					std::string("Can not find LLVM cli option ") + OptionName);
 		}
 	}
-	o->second->addOccurrence(pos, strCtx.addStringRef(ArgName), strCtx.addStringRef(ArgValue));
+	o->second->addOccurrence(pos, strCtx.addStringRef(ArgName),
+			strCtx.addStringRef(ArgValue));
 	if (OptionName == "debug-pass-manager") {
 		_updateDebugPM();
 	} else if (OptionName == "verify-each") {
 		VerifyEachPass = VerifyEach;
 	}
 }
+
 
 struct HwtFpgaAllowVolatileMemOpDuplication {
 	llvm::TargetMachine * TM;
@@ -869,12 +913,13 @@ void LlvmCompilationBundle::_addMachineCodegenPasses(
 	//PM.add(llvm::createFreeMachineFunctionPass());
 }
 
-llvm::MachineFunction* LlvmCompilationBundle::getMachineFunction(llvm::Function &fn) {
+llvm::MachineFunction* LlvmCompilationBundle::getMachineFunction(
+		llvm::Function &fn) {
 	auto &MMI = MMIWP->getMMI();
 	return MMI.getMachineFunction(fn);
 }
 
-llvm::MachineModuleInfo * LlvmCompilationBundle::getMachineModuleInfo() {
+llvm::MachineModuleInfo* LlvmCompilationBundle::getMachineModuleInfo() {
 	return &MMIWP->getMMI();
 }
 

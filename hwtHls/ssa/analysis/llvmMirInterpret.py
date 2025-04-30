@@ -692,7 +692,7 @@ class LlvmMirInterpret():
 
     @classmethod
     def runMirStr(cls, mirStr: str, nameOfMain: str, args: list):
-        ctx = LlvmCompilationBundle(nameOfMain)
+        ctx = LlvmCompilationBundle(nameOfMain, [])
         m = parseMIR(mirStr, nameOfMain, ctx)
         MMI = ctx.getMachineModuleInfo()
         assert m is not None

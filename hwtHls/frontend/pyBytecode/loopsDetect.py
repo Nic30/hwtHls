@@ -29,7 +29,7 @@ class PyBytecodeLoop(Generic[BlockT]):
 
     @classmethod
     def detectLoops(cls, cfg: DiGraph):
-        llvm = LlvmCompilationBundle("PyBytecodeLoop.detectLoops.module")
+        llvm = LlvmCompilationBundle("PyBytecodeLoop.detectLoops.module", [])
         FT = FunctionType.get(Type.getVoidTy(llvm.ctx), VectorOfTypePtr(), False)
         F = llvm.main = Function.Create(FT, Function.ExternalLinkage, llvm.strCtx.addTwine("PyBytecodeLoop.detectLoops.main"), llvm.module)
 

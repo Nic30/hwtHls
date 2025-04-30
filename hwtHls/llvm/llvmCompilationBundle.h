@@ -7,10 +7,12 @@
 #include <llvm/Passes/StandardInstrumentations.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/MC/TargetRegistry.h>
+#include <llvm/Support/ToolOutputFile.h>
 
 #include <hwtHls/llvm/llvmIrStrings.h>
 #include <hwtHls/llvm/targets/Transforms/hwtFpgaToNetlist.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetPassConfig.h>
+
 
 namespace hwtHls {
 
@@ -19,9 +21,15 @@ namespace hwtHls {
  * */
 class LlvmCompilationBundle {
 public:
+	std::unique_ptr<llvm::LoopAnalysisManager> LAM;
+	std::unique_ptr<llvm::CGSCCAnalysisManager> CGAM;
+	std::unique_ptr<llvm::ModuleAnalysisManager> MAM;
+	std::unique_ptr<llvm::FunctionAnalysisManager> FAM;
+	std::unique_ptr<llvm::StandardInstrumentations> SI;
+	std::unique_ptr<llvm::ToolOutputFile> RemarksFile;
 	llvm::LLVMContext ctx;
 	LLVMStringContext strCtx;
-	llvm::Module* module;
+	llvm::Module *module;
 	llvm::IRBuilder<> builder;
 	llvm::Function *main;
 	std::unique_ptr<llvm::PassBuilder> PB; // for IR passes
@@ -47,11 +55,24 @@ public:
 	static const std::string CPU;
 	static const std::string Features;
 
-	LlvmCompilationBundle(const std::string &moduleName);
-	void clearCliOpts();
-	void _initPassBuilder();
+	// std::optional<std::function<void(std::function &)>> _dbgOnChangeCallbackForBitcountMergePass;
+	// OptionName, position, ArgName, ArgValue
+	using LlvmCliOptionTuple = std::tuple<std::string, unsigned, std::string, std::string>;
 
-	void addLlvmCliArgOccurence(const std::string &OptionName, unsigned pos,
+	// llvm cli options are stored there because they are global to whole program and when this object is currently
+	// using llvm it must set its own llvm cli options first
+	std::vector<LlvmCliOptionTuple> llvmCliOpts;
+
+	LlvmCompilationBundle(const std::string &moduleName, const std::vector<LlvmCliOptionTuple> & llvmCliOpts);
+
+	void _initPassBuilder();
+	llvm::TargetLibraryInfo& getTargetLibraryInfo();
+	// clear global llvm cli options and apply llvm cli options from this object
+	void _llvmCliOpts_apply();
+	// clear global llvm cli options
+	void _llvmCliOpts_clear();
+	// set a single global llvm cli option
+	void _llvmCliOption_add(const std::string &OptionName, unsigned pos,
 			const std::string &ArgName, const std::string &ArgValue);
 	void _updateDebugPM();
 	// for arg description see HwtFpgaTargetPassConfig

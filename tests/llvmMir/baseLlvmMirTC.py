@@ -10,7 +10,7 @@ from tests.baseSsaTest import BaseSsaTC
 
 
 class BaseLlvmMirTC(BaseSsaTC):
-
+    DEFAULT_LLVM_CLI_OPTIONS = []
     def _runTestOpt(self, llvm:LlvmCompilationBundle, *args, **kwargs) -> Function:
         raise NotImplementedError("Override this in your implementation of this abstract class")
 
@@ -22,7 +22,7 @@ class BaseLlvmMirTC(BaseSsaTC):
 
     def _test_mir(self, mirStr: str, inputFileNameForDebug: Optional[str]=None, generateDummyYaml=True):
         nameOfMain = self.getTestName()
-        ctx = LlvmCompilationBundle(nameOfMain)
+        ctx = LlvmCompilationBundle(nameOfMain, self.DEFAULT_LLVM_CLI_OPTIONS)
         if generateDummyYaml:
             buff = StringIO()
             generateFullMirYamlFromMirFunctionStr(mirStr, buff)

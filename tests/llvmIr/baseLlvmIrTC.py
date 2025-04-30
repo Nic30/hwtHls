@@ -41,7 +41,7 @@ class BaseLlvmIrTC(BaseSsaTC):
 
     def _test_ll(self, irStr: str, passArgs=(), passKwArgs={}):
         irStr = generateAndAppendHwtHlsFunctionDeclarations(irStr)
-        llvm = LlvmCompilationBundle("test")
+        llvm = LlvmCompilationBundle("test", [])
         Err = SMDiagnostic()
         M = parseIR(irStr, "test", Err, llvm.ctx)
         if M is None:
