@@ -71,10 +71,10 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
             hadInit = bool(self.channelInitValues)
             if hasVld:
                 dataVldReg = allocator._reg(f"{dataRegName:s}_vld", BIT, def_val=int(hadInit))
-                dataVldReg.hidden = False
+                dataVldReg._isUnnamedExpr = False
             if hasFull:
                 fullReg = allocator._reg(f"{dataRegName:s}_full", BIT, def_val=int(hadInit))
-                fullReg.hidden = False
+                fullReg._isUnnamedExpr = False
         elif srcWrite.allocationType == CHANNEL_ALLOCATION_TYPE.IMMEDIATE or capacity == 0:
             dataVldReg = allocator._sig(f"{dataRegName:s}_vld", BIT)
             assert not hasFull, self
@@ -142,7 +142,7 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
                 else:
                     _init = init[0][0]
                     dataReg = allocator._reg(dataRegName, dtype, def_val=_init)
-                    dataReg.hidden = False
+                    dataReg._isUnnamedExpr = False
             else:
                 assert srcWrite.allocationType in (CHANNEL_ALLOCATION_TYPE.IMMEDIATE,
                                                    CHANNEL_ALLOCATION_TYPE.REG), srcWrite.allocationType
@@ -176,7 +176,7 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
 
             if  dataVldReg is not None:
                 if self._rtlUseValid:
-                    assert not self.src.vld._sig.drivers, (self, self.src.vld._sig.drivers)
+                    assert not self.src.vld._sig._rtlDrivers, (self, self.src.vld._sig._rtlDrivers)
                     self.src.vld(dataVldReg)
 
             # create RTL signal expression base on operator type
@@ -289,7 +289,7 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
             parentHwModule = allocator.netlist.parentHwModule
 
             for hwIO in dstRead.src._hwIOs:
-                hwIO._sig.hidden = False
+                hwIO._sig._isUnnamedExpr = False
 
             channelInitValues = self.associatedRead.channelInitValues
             if hasValid and hasReady:
@@ -301,7 +301,7 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
                 dstRead.src(buffs)
 
                 for hwIO in buffs._hwIOs:
-                    hwIO._sig.hidden = False
+                    hwIO._sig._isUnnamedExpr = False
                 vld = buffs.vld
             else:
                 if regCnt > 2:
@@ -384,7 +384,10 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
         wEn = allocator.rtlAllocHlsNetNodeInDriverIfExists(self.extraCond)
         if wEn is not None:
             wEn = wEn.data
-
+            if isinstance(wEn, HConst):
+                raise AssertionError("The enable condition for a channel should never be constant,"
+                                     " if 1 the condition should be removed, if 0 the channel should be removed", wEn, self)
+            
         isReg = self.allocationType == CHANNEL_ALLOCATION_TYPE.REG
         rwMayHappenAtOnce = rClkI == wClkI or allocator.rtlStatesMayHappenConcurrently(rClkI, wClkI)
         wStageCon: ConnectionsOfStage = allocator.connections[wClkI]

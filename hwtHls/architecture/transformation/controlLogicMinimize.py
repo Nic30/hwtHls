@@ -151,7 +151,7 @@ class HlsAndRtlNetlistPassControlLogicMinimize(HlsAndRtlNetlistPass):
                 con: ConnectionsOfStage
 
                 if con.stageAck is not None:
-                    if con.stageAck.hidden:
+                    if con.stageAck._isUnnamedExpr:
                         src = con.stageAck
                     else:
                         src = con.stageAck.singleDriver().src
@@ -180,7 +180,7 @@ class HlsAndRtlNetlistPassControlLogicMinimize(HlsAndRtlNetlistPass):
                             break
 
         # [todo] restrict to only statements generated from this HlsScope/thread
-        for stm in netlist.parentHwModule._ctx.statements:
+        for stm in netlist.parentHwModule._rtlCtx.statements:
             for c in cls.iterConditions(stm):
                 assert c._dtype.bit_length() == 1, stm
                 collect(c, allControlIoOutputs, inputs, inTreeOutputs)
@@ -232,7 +232,7 @@ class HlsAndRtlNetlistPassControlLogicMinimize(HlsAndRtlNetlistPass):
                 if o is newO:
                     continue
 
-                for ep in tuple(o.endpoints):
+                for ep in tuple(o._rtlEndpoints):
                     if isinstance(ep, HOperatorNode):
                         # was already replaced when it was replaced in statement
                         pass

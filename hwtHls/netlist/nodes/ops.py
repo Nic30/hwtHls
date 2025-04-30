@@ -116,14 +116,14 @@ class HlsNetNodeOperator(HlsNetNode):
         else:
             # create RTL signal expression base on operator type
             t = self.scheduledOut[0] + self.netlist.scheduler.epsilon
-            if s.hasGenericName:
+            if s._hasGenericName:
                 if self.name is not None:
                     s._name = f"{allocator.namePrefix:s}{self.name:s}"
                 else:
                     s._name = f"{allocator.name:s}n{self._id:d}"
-                s.hasGenericName = False
+                s._hasGenericName = False
 
-                if s.hidden and (self._rtlAddName or self.netlist._dbgAddSignalNamesToData):
+                if s._isUnnamedExpr and (self._rtlAddName or self.netlist._dbgAddSignalNamesToData):
                     # create an explicit rename of this potentially hidden signal
                     s = rename_signal(allocator.netlist.parentHwModule, s, s._name)
 
@@ -131,7 +131,7 @@ class HlsNetNodeOperator(HlsNetNode):
             if HdlType_isVoid(s._dtype):
                 assert HdlType_isVoid(op_out._dtype)
             elif s._dtype.signed != op_out._dtype.signed:
-                s = s._convSign(op_out._dtype.signed)
+                s = s._cast_sign(op_out._dtype.signed)
         else:
             raise AssertionError("The ", self.__class__.__name__,
                                  " signals of wrong type", s, op_out, s._dtype, op_out._dtype)

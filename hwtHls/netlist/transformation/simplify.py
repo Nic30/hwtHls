@@ -214,7 +214,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
             if v._dtype != resT:
                 assert resT.signed is None, (n, resT)
                 assert v._dtype.bit_length() == resT.bit_length(), (v, v._dtype, resT)
-                v = v.cast_sign(None)
+                v = v._cast_sign(None)
 
             replaceOperatorNodeWith(n, n.getHlsNetlistBuilder().buildConst(v), worklist)
             return True
