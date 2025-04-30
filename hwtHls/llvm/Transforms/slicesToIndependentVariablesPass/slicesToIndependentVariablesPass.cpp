@@ -191,7 +191,7 @@ public:
 			return existing->second;
 		}
 
-		ConcatMemberVector concatMembers(builder, &commonSubexpressionCache);
+		ConcatMemberVector concatMembers;
 		bool hasNoSplit = false;
 		if (auto *I = dyn_cast<Instruction>(v)) {
 			hasNoSplit = noSplitInstrs.find(I) != noSplitInstrs.end();
@@ -205,7 +205,7 @@ public:
 		if (existing != commonSubexpressionCache.end()) {
 			return existing->second;
 		}
-		Value *res = concatMembers.resolveValue(dyn_cast<Instruction>(v));
+		Value *res = concatMembers.resolveValue(builder, &commonSubexpressionCache, dyn_cast<Instruction>(v));
 		cancelRemoveOfBitConcatAndBitRangeGetExpr(res);
 		commonSubexpressionCache[cacheKey] = res;
 		return res;
