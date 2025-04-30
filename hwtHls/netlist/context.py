@@ -19,6 +19,8 @@ from hwtHls.netlist.scheduler.scheduler import HlsScheduler
 from hwtHls.ssa.analysisCache import AnalysisCache
 from hwtHls.netlist.scheduler.resourceList import SchedulingResourceConstraints
 
+DEFAULT_SCHEDULER_RESOLUTION = 0.01e-9
+
 
 class HlsNetlistCtx(AnalysisCache):
     """
@@ -44,7 +46,7 @@ class HlsNetlistCtx(AnalysisCache):
                  label: str,
                  resourceConstraints:SchedulingResourceConstraints,
                  namePrefix:str="",
-                 schedulerResolution:float=0.01e-9,
+                 schedulerResolution:float=DEFAULT_SCHEDULER_RESOLUTION,
                  platform: Optional["VirtualHlsPlatform"]=None):
         """
         :see: For parameter meaning see doc of this class.
