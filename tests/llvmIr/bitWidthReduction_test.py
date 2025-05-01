@@ -4,6 +4,7 @@
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
 from tests.llvmIr.rewriteExtractOnMergeValues_test import RewriteExtractOnMergeValuesPass_TC
+# from tests.stripInstructionsUnrelatedToCrash import llmIrStripInstrucionsUnrelatedToCrash
 
 
 class BitwidthReductionPass_TC(BaseLlvmIrTC):
@@ -95,7 +96,7 @@ class BitwidthReductionPass_TC(BaseLlvmIrTC):
         self._test_ll(llvmIr)
 
     def test_selectOfShiftedSameRegSlices(self):
-        # tailing 0 should be reduced from %res
+        # trailing 0 should be reduced from %res
         llvmIr = """\
         define void @selectOfShiftedSameRegSlices(ptr addrspace(1) %i0, ptr addrspace(1) %i1, ptr addrspace(2) %o0) {
             bb0:
@@ -164,11 +165,51 @@ class BitwidthReductionPass_TC(BaseLlvmIrTC):
         """
         self._test_ll(llvmIr)
 
+    def test_doubleTrunc0(self):
+        llvmIr = """\
+        define void @test_doubleTrunc0(ptr addrspace(1) %data_in, ptr addrspace(2) %data_out) {
+        bb0:
+          br label %bb3
+        
+        bb3:
+          %r0 = load volatile i3, ptr addrspace(1) %data_in, align 4
+          %it.1 = trunc i3 %r0 to i2
+          %it.2 = trunc i2 %it.1 to i1
+          store volatile i1 %it.2, ptr addrspace(2) %data_out, align 2
+          br label %bb3
+        }
+        """
+        # llvm = llmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: llvm._testBitwidthReductionPass())
+        # print(str(llvm.main))
+
+        self._test_ll(llvmIr)
+
+    def test_doubleTrunc1(self):
+        llvmIr = """\
+        define void @test_doubleTrunc1(ptr addrspace(1) %data_in, ptr addrspace(2) %data_out) {
+        bb0:
+          br label %bb3
+        
+        bb3:
+          %r0 = load volatile i3, ptr addrspace(1) %data_in, align 4
+          %c = load volatile i1, ptr addrspace(1) %data_in, align 4
+          %it.0 = select i1 %c, i3 %r0, i3 0
+          %it.1 = trunc i3 %it.0 to i2
+          %it.2 = trunc i2 %it.1 to i1
+          store volatile i1 %it.2, ptr addrspace(2) %data_out, align 2
+          br label %bb3
+        }
+        """
+        #llvm = llmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: llvm._testBitwidthReductionPass())
+        #print(str(llvm.main))
+
+        self._test_ll(llvmIr)
+
 
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([BitwidthReductionPass_TC('test_orConst1')])
+    # suite = unittest.TestSuite([BitwidthReductionPass_TC('test_constInConcat0')])
     suite = testLoader.loadTestsFromTestCase(BitwidthReductionPass_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

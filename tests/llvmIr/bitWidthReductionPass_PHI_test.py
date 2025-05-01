@@ -4,6 +4,7 @@
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
 from tests.llvmIr.bitWidthReduction_test import BitwidthReductionPass_TC
+# from tests.stripInstructionsUnrelatedToCrash import llmIrStripInstrucionsUnrelatedToCrash
 
 
 class BitwidthReductionPass_PHI_TC(BaseLlvmIrTC):
@@ -251,11 +252,86 @@ class BitwidthReductionPass_PHI_TC(BaseLlvmIrTC):
         """
         self._test_ll(llvmIr)
 
+    def test_phiRmLeftRight0(self):
+        # based on Axi4SSParse2If SEGMENT_DATA_WIDTH=24 SEGMENT_CNT=1
+        llvmIr = """\
+        define void @phiRmLeftRight0(ptr addrspace(1) %i, ptr addrspace(2) %o) {
+        bb0:
+          br label %bb1
+        
+        bb1:   ; preds = %bb.latch, %bb1, %bb0
+          %r0 = load volatile i28, ptr addrspace(1) %i, align 4
+          %0 = call i16 @hwtHls.bitRangeGet.i28.i6.i16.0(i28 %r0, i6 0) #2
+          %1 = call i8 @hwtHls.bitRangeGet.i28.i6.i8.16(i28 %r0, i6 16) #2
+          switch i16 %0, label %bb1 [
+            i16 2, label %bb.off2
+            i16 4, label %bb.off4
+          ]
+        
+        bb.off2:  ; preds = %bb1
+          %r.off2 = load volatile i28, ptr addrspace(1) %i, align 4
+          br label %bb.latch
+        
+        bb.off4:  ; preds = %bb1
+          %r.off4 = load volatile i28, ptr addrspace(1) %i, align 4
+          br label %bb.latch
+        
+        bb.latch: ; preds = %bb.off2, %bb.off4
+          %r.off.phi = phi i28 [ %r.off2, %bb.off2 ], [ %r.off4, %bb.off4 ]
+          %6 = call i2 @hwtHls.bitRangeGet.i28.i6.i2.26(i28 %r.off.phi, i6 26) #2
+          %7 = icmp sgt i2 %6, -1 ; :note: combination of PHI and icmp is important in this test
+          call void @llvm.assume(i1 %7) ; :note: this is test of that llvm.assume is recognized as value sink 
+          store volatile i32 3, ptr addrspace(2) %o, align 4
+          br label %bb1
+        }
+        """
+        self._test_ll(llvmIr)
+
+
+    def test_phiDoubleTrunc0(self):
+        llvmIr = """\
+        define void @test_phiDoubleTrunc0(ptr addrspace(1) %data_in, ptr addrspace(2) %data_out) {
+        bb0:
+          %r0 = load volatile i3, ptr addrspace(1) %data_in, align 4
+          br label %bb3
+        
+        bb3:
+          %it.0 = phi i3 [ %r0, %bb0 ], [ 0, %bb3 ]
+          %it.1 = trunc i3 %it.0 to i2
+          %it.2 = trunc i2 %it.1 to i1
+          store volatile i1 %it.2, ptr addrspace(2) %data_out, align 2
+          br label %bb3
+        }
+        """
+        # llvm = llmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: llvm._testBitwidthReductionPass())
+        # print(str(llvm.main))
+
+        self._test_ll(llvmIr)
+
+    def test_phiDoubleTrunc1(self):
+        llvmIr = """\
+        define void @test_phiDoubleTrunc1(ptr addrspace(1) %data_in, ptr addrspace(2) %data_out) {
+        bb0:
+          br label %bb3
+        
+        bb3:
+          %it.0 = phi i3 [ poison, %bb0 ], [ 0, %bb3 ]
+          %it.1 = trunc i3 %it.0 to i2
+          %it.2 = trunc i2 %it.1 to i1
+          store volatile i1 %it.2, ptr addrspace(2) %data_out, align 2
+          br label %bb3
+        }
+        """
+        # llvm = llmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: llvm._testBitwidthReductionPass())
+        # print(str(llvm.main))
+
+        self._test_ll(llvmIr)
+
 
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([BitwidthReductionPass_PHI_TC('test_constInConcat0')])
+    # suite = unittest.TestSuite([BitwidthReductionPass_PHI_TC('test_rmInTheMiddle2')])
     suite = testLoader.loadTestsFromTestCase(BitwidthReductionPass_PHI_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
