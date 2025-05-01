@@ -277,7 +277,11 @@ class SchedulableNode():
 
         :return: a generator of dependencies which are now possible subject to compaction.
         """
-        assert not self.isMulticlock, (self, "this node should use scheduleAlapCompactionMultiClock instead")
+        if self.isMulticlock:
+            yield from self.scheduleAlapCompactionMultiClock(endOfLastClk, outputMinUseTimeGetter, excludeNode)
+            return
+       
+        # assert not self.isMulticlock, (self, "this node should use scheduleAlapCompactionMultiClock instead")
         # assert self.usedBy, ("Compaction should be called only for nodes with dependencies, others should be moved only manually", self)
         netlist = self.netlist
         ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
@@ -326,7 +330,7 @@ class SchedulableNode():
                 if in_delay + ffdelay >= clkPeriod:
                     raise TimeConstraintError(
                         "Impossible scheduling, clkPeriod too low for ",
-                        self.inputWireDelay, self)
+                        self.inputWireDelay, clkPeriod, self)
                 inTime = nodeZeroTime - in_delay
                 nodeZeroTime = self._schedulerJumpToPrevCycleIfRequired(
                     nodeZeroTime, inTime, clkPeriod, ffdelay + maxOutputLatency)
@@ -360,7 +364,8 @@ class SchedulableNode():
 
     def scheduleAlapCompactionMultiClock(self, endOfLastClk: SchedTime,
                                          outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter],
-                                         excludeNode: Optional[Callable[[Self], bool]]) -> Generator["HlsNetNode", None, None]:
+                                         excludeNode: Optional[Callable[[Self], bool]])\
+                                          -> Generator["HlsNetNode", None, None]:
         """
         Move node to a later time if possible. Netlist is expected to be scheduled.
         This allows to move trees of nodes to later times and allow for possibly better fit of nodes
