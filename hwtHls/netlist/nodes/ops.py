@@ -16,7 +16,7 @@ from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
-from hwtHls.platform.componentGenerator import ComponentGenerator
+from hwtHls.architecture.componentGenerator import ComponentGenerator
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
 
