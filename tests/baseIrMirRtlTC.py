@@ -60,8 +60,8 @@ class BaseIrMirRtl_TC(SimTestCase):
         try:
             with open(Path(self.DEFAULT_LOG_DIR, f"{self.getTestName()}{variantName:s}.llvmIrWave.vcd"), "w") as vcdFile:
                 waveLog = VcdWriter(vcdFile)
-                interpret = LlvmIrInterpret(F)
-                interpret.installWaveLog(waveLog, strCtx)
+                interpret = LlvmIrInterpret(F, strCtx)
+                interpret.installWaveLog(waveLog)
                 if wallTime is not None:
                     wallTime *= interpret.timeStep
                 interpret.run(args, wallTime=wallTime)
@@ -77,8 +77,8 @@ class BaseIrMirRtl_TC(SimTestCase):
         try:
             with open(Path(self.DEFAULT_LOG_DIR, f"{self.getTestName()}.llvmMirWave.vcd"), "w") as vcdFile:
                 waveLog = VcdWriter(vcdFile)
-                interpret = LlvmMirInterpret(MF)
-                interpret.installWaveLog(waveLog, strCtx)
+                interpret = LlvmMirInterpret(MF, strCtx)
+                interpret.installWaveLog(waveLog)
                 if wallTime is not None:
                     wallTime *= interpret.timeStep
                 interpret.run(args, wallTime=wallTime)
