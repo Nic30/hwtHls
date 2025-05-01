@@ -222,9 +222,15 @@ class LlvmIrExprToHlsNetlist():
                         v = b.buildMux(opV0._dtype, (opV1, lt, opV0), name)
                     elif fnName.startswith("hwtHls.bitConcat."):
                         ops = tuple(self._translateExpr(op.get()) for op in ci.args())
-                        v = b.buildConcat(ops)
+                        v = b.buildConcat(*ops)
+                        assert isinstance(v, HlsNetNodeOut), v
                     elif fnName.startswith("hwtHls.bitRangeGet."):
-                        src, lowBitNo, bitwidth = (self._translateExpr(op.get()) for op in ci.args())
+                        src, lowBitNo = (self._translateExpr(op.get()) for op in ci.args())
+                        if isinstance(lowBitNo, HlsNetNodeOut):
+                            assert isinstance(lowBitNo.obj, HlsNetNodeConst), lowBitNo
+                            lowBitNo = int(lowBitNo.obj.val)
+
+                        bitwidth = ci.getType().getIntegerBitWidth()
                         v = b.buildIndexConstSlice(HBits(bitwidth), src, bitwidth + lowBitNo, lowBitNo)
                     else:
                         raise NotImplementedError(ci)
