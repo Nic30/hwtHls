@@ -15,6 +15,10 @@ class HlsProgramStarter(HlsNetNodeRead):
         HlsNetNodeRead.__init__(self, netlist, None, BIT, name=name, addPortDataOut=False)
         self._portDataOut = None
 
+    @override
+    def hasSideeffect(self):
+        return any(uses for uses in self.usedBy) or any(self.dependsOn)
+
     def getStartEnPort(self):
         return self.getValidNB()
 
