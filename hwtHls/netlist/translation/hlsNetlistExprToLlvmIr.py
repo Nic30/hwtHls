@@ -15,7 +15,7 @@ class HlsNetlistExprToLlvmIr(ToLlvmIrTranslator):
 
     def __init__(self, llvmModuleName: str):
         parentHwModule = None
-        super(HlsNetlistExprToLlvmIr, self).__init__(parentHwModule, None, llvmModuleName=llvmModuleName)
+        super(HlsNetlistExprToLlvmIr, self).__init__(parentHwModule, None, [], llvmModuleName=llvmModuleName)
 
     @override
     def _translateExprToLlvm(self, block: BasicBlock, var: Union[HlsNetNodeOut, Value], allowHConst:bool=False) -> Tuple[BasicBlock, Value]:
