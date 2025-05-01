@@ -29,7 +29,6 @@ from pyMathBitPrecise.bit_utils import mask
 from tests.adt.collections.hashTableIo import HashTableCmd, HashTableCmdResult, \
     HASH_TABLE_CMD
 
-
 # other HLS implementations:
 # https://github.com/Xilinx/HLS_packet_processing/blob/master/apps/common/cam.h
 class HashTableCuckoo(HwModule):
@@ -210,12 +209,13 @@ class HashTableCuckoo(HwModule):
 
 if __name__ == "__main__":
     # from hwtHls.platform.virtual import VirtualHlsPlatform
+    import sys
     from hwt.synth import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Medium
-    from hwtHls.platform.platform import HlsDebugBundle
-    import sys
+    from hwtHls.platform.debugBundle import HlsDebugBundle
+    from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
     sys.setrecursionlimit(int(10e6))
-    for tableCnt in [4]:  # 1,2,3,4
+    for tableCnt in [3]:  # 1,2,3,4
         m = HashTableCuckoo()
         m.KEY_T = HBits(16)
         m.CLK_FREQ = int(100e6)
@@ -223,6 +223,10 @@ if __name__ == "__main__":
         m.STASH_CAM_SIZE = 1
         m.ITEMS_PER_TABLE = 1024
         print(to_rtl_str(m, target_platform=Artix7Medium(
+            llvmCliArgs=[
+            #    LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+            #    LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+            ],
             debugFilter=HlsDebugBundle.ALL_RELIABLE,
             )))
         # 

@@ -133,7 +133,7 @@ if __name__ == "__main__":
     # from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synth import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Slow
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle
     m = HashTable()
     print(to_rtl_str(m, target_platform=Artix7Slow(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
