@@ -59,11 +59,14 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
 
         self._initCommonPortProps(src)
         if dtype is None:
-            d = self.getRtlDataSig()
-            if d is None:
-                dtype = HVoidData
-            else:
-                dtype = d._dtype
+            dtype = getattr(src, "_dtype", None)
+            if dtype is None:
+                self._portDataOut = None  # to satisfy the assert
+                d = self.getRtlDataSig()
+                if d is None:
+                    dtype = HVoidData
+                else:
+                    dtype = d._dtype
 
             # if isinstance(dtype, HBits) and dtype.force_vector and dtype.bit_length() == 1:
             #    raise NotImplementedError("Reading of 1b vector would cause issues"
@@ -234,13 +237,14 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
 
         # because there are multiple outputs
         clkI = indexOfClkPeriod(self.scheduledOut[0], allocator.netlist.normalizedClkPeriod)
-        if self.src is None:
-            rtlReadySignal = None
-        else:
-            _, rtlReadySignal = HwIO_getSyncTuple(self.src)
-            if rtlReadySignal == 1:
+        if self._rtlUseReady:
+            if self.src is None:
                 rtlReadySignal = None
-        allocator.rtlAllocDatapathRead(self, rtlReadySignal, allocator.connections[clkI], [])
+            else:
+                _, rtlReadySignal = HwIO_getSyncTuple(self.src)
+                if rtlReadySignal == 1:
+                    rtlReadySignal = None
+            allocator.rtlAllocDatapathRead(self, rtlReadySignal, allocator.connections[clkI], [])
 
         for sync, time in zip(self.dependsOn, self.scheduledIn):
             if HdlType_isVoid(sync._dtype):
@@ -401,18 +405,23 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             assert isinstance(res._dtype, HBits), (res, res._dtype)
             if res._dtype.signed is not None:
                 res = res._reinterpret_cast(HBits(res._dtype.bit_length()))
-            if isinstance(res, RtlSignalBase) and res.hasGenericName:
+            if isinstance(res, RtlSignalBase) and res._hasGenericName:
                 name = self.name
                 if name is None:
                     name = f"r{self._id}_data"
                 res._name = name
 
+        if self._portDataOut is not None:
+            outTy = self._portDataOut._dtype
+            resTy = res._dtype
+            assert outTy == resTy or outTy.bit_length() == resTy.bit_length(), (self._portDataOut, outTy, resTy)
         return res
 
     def _getInterfaceName(self, io: Union[HwIO, Tuple[HwIO]]) -> str:
         return HwIO_getName(self.netlist.parentHwModule, io)
 
     def __repr__(self):
+        srcName = "<None>" if self.src is None else self._getInterfaceName(self.src)
         return (f"<{self.__class__.__name__:s}{'' if self._isBlocking else ' NB'} {self._id:d}"
-               f"{' ' + self.name if self.name else ''} {self._stringFormatRtlUseReadyAndValid():s} {self.src}>")
+               f"{' ' + self.name if self.name else ''} {self._stringFormatRtlUseReadyAndValid():s} {srcName:s}>")
 
