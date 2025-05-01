@@ -1,4 +1,4 @@
-from typing import Dict, Union, List
+from typing import Union, List
 import unittest
 
 from hwt.hdl.const import HConst
@@ -7,7 +7,7 @@ from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.transformation.controlLogicMinimize import HlsAndRtlNetlistPassControlLogicMinimize
 from hwtHls.netlist.abc.abcAigToRtlNetlist import AbcAigToRtlNetlist
-from hwtHls.netlist.abc.abcCpp import Io_FileType_t
+# from hwtHls.netlist.abc.abcCpp import Io_FileType_t
 from hwtHls.netlist.abc.optScripts import abcCmd_resyn2, abcCmd_compress2
 from hwtHls.netlist.abc.rtlNetlistToAbcAig import RtlNetlistToAbcAig
 

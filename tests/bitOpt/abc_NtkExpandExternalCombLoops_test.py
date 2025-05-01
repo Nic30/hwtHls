@@ -25,6 +25,7 @@ class Abc_NtkExpandExternalCombLoops_TC(unittest.TestCase):
             name = pi.Name()
             assert name not in inputs, ("port name must be unique", name, inputs[name], pi)
             inputs[ioMap[name]] = pi
+
         outputSeq = tuple(net.IterPo())
         # for po in outputSeq:
         #    name = po.Name()
