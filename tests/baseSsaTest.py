@@ -8,7 +8,8 @@ from hwtHls.netlist.analysis.blockSyncType import HlsNetlistAnalysisPassBlockSyn
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.scheduler.resourceList import initSchedulingResourceConstraintsFromIO
 from hwtHls.netlist.translation.dumpBlockSync import HlsNetlistAnalysisPassDumpBlockSync
-from hwtHls.platform.platform import HlsDebugBundle
+from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
+from hwtHls.platform.debugBundle import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.ssa.translation.dumpIR import SsaPassDumpIR
 from hwtHls.ssa.translation.dumpMIR import SsaPassDumpMIR
@@ -17,6 +18,7 @@ from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnaly
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtHls.ssa.translation.toLlvmUtils import getIoNodeConstructors
 from hwtLib.examples.base_serialization_TC import BaseSerializationTC
+from hwtHls.platform.debugBundleTypes import LlvmCliArgTuple
 
 
 class TestFinishedSuccessfuly(BaseException):
@@ -28,8 +30,8 @@ class TestFinishedSuccessfuly(BaseException):
 
 class BaseTestPlatform(VirtualHlsPlatform):
 
-    def __init__(self):
-        VirtualHlsPlatform.__init__(self, debugDir=None, debugFilter=HlsDebugBundle.NONE)
+    def __init__(self, llvmCliArgs:List[LlvmCliArgTuple]=[]):
+        VirtualHlsPlatform.__init__(self, debugDir=None, debugFilter=HlsDebugBundle.NONE, llvmCliArgs=llvmCliArgs)
         self.postPyOpt = StringIO()
         self.mir = StringIO()
         self.blockSync = StringIO()
@@ -94,8 +96,10 @@ class BaseSsaTC(BaseSerializationTC):
         self.rmSim()
 
     def _test_ll(self, hwModuleConstructor: HwModule, name=None):
-        p = BaseTestPlatform()
-        # p._llvmCliArgs += [("print-after-all", 0, "", "true"),]
+        p = BaseTestPlatform(llvmCliArgs=[
+            #LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL,
+            #LLVM_CLI_COMMON_OPTS.VREGIFCVT_TRACE,
+        ])
         if isinstance(hwModuleConstructor, HwModule):
             unit = hwModuleConstructor
         else:
