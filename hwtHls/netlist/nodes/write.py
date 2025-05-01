@@ -1,4 +1,4 @@
-from typing import Union, Optional, List, Generator, Tuple, Callable
+from typing import Union, Optional, Generator, Callable
 
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.defs import BIT
@@ -83,7 +83,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
 
 
     @override
-    def clone(self, memo:dict, keepTopPortsConnected:bool) -> Tuple["HlsNetNode", bool]:
+    def clone(self, memo:dict, keepTopPortsConnected:bool) -> list["HlsNetNode", bool]:
         y, isNew = HlsNetNodeExplicitSync.clone(self, memo, keepTopPortsConnected)
         if isNew:
             r = self.associatedRead
@@ -149,7 +149,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
 
     @override
     def scheduleAsap(self, pathForDebug: Optional[SetList["HlsNetNode"]], beginOfFirstClk: int,
-                     outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
+                     outputTimeGetter: Optional[OutputTimeGetter]) -> list[int]:
         assert self.dependsOn, self
         return HlsNetNodeRead.scheduleAsap(self, pathForDebug, beginOfFirstClk, outputTimeGetter)
 
@@ -252,7 +252,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
 
 
     @override
-    def rtlAlloc(self, allocator: "ArchElement") -> List[HdlStatement]:
+    def rtlAlloc(self, allocator: "ArchElement") -> list[HdlStatement]:
         """
         Instantiate write operation on RTL level
         """
@@ -321,7 +321,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         self._isRtlAllocated = True
         return rtlObj
 
-    def _getInterfaceName(self, io: Union[HwIO, Tuple[HwIO]]) -> str:
+    def _getInterfaceName(self, io: Union[HwIO, list[HwIO]]) -> str:
         return HlsNetNodeRead._getInterfaceName(self, io)
 
     def __repr__(self, minify=False):
@@ -349,6 +349,6 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
             )
 
     @override
-    def debugIterShadowConnectionDst(self) -> Generator[Tuple[HlsNetNode, bool], None, None]:
+    def debugIterShadowConnectionDst(self) -> Generator[tuple[HlsNetNode, bool], None, None]:
         if self.associatedRead is not None:
             yield self.associatedRead, False
