@@ -231,13 +231,6 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         assert self._getBufferCapacity() > 0, (
             "If this edge is not buffer this port should not be used, because it would do nothing", self)
         return HlsNetNodeExplicitSync.getForceEnPort(self)
- 
-    @override
-    def getAllocatedRTL(self, allocator: "ArchElement"):
-        assert self._isRtlAllocated, self
-        dst = self.dst
-        dep = self.dependsOn[0]
-        return allocator.netNodeToRtl[(dep, dst)]
 
     def _rtlAllocReadyPorts(self, allocator: "ArchElement"):
         readyRtl = HwIO_getSyncTuple(self.dst)[1]
