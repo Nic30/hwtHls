@@ -8,6 +8,7 @@
 #include <llvm/CodeGen/MIRPrinter.h>
 #include <llvm/CodeGen/MachineModuleInfo.h>
 #include <llvm/CodeGen/MIRParser/MIRParser.h>
+#include <llvm/Transforms/Scalar/EarlyCSE.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/GlobalValue.h>
 #include <llvm/IR/Function.h>
@@ -21,15 +22,18 @@
 // #include <llvm/Transforms/InstCombine/InstCombine.h>
 // #include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
 
+#include <hwtHls/llvm/Transforms/BitcountMergePass.h>
 #include <hwtHls/llvm/Transforms/slicesMerge/slicesMerge.h>
 #include <hwtHls/llvm/Transforms/LoopFlattenUsingIfPass.h>
 #include <hwtHls/llvm/Transforms/LoopRotationNormalizationPass.h>
 #include <hwtHls/llvm/Transforms/PruneLoopPhiDeadIncomingValuesPass/PruneLoopPhiDeadIncomingValuesPass.h>
 #include <hwtHls/llvm/Transforms/SelectPruningPass.h>
+#include <hwtHls/llvm/Transforms/HFloatTmpLoweringPass.h>
 #include <hwtHls/llvm/Transforms/StripProfMetadataPass.h>
 #include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass.h>
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
+#include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinePass.h>
 #include <hwtHls/llvm/Transforms/utils/dceWorklist.h>
 #include <hwtHls/llvm/Transforms/utils/bitSliceFlattening.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
@@ -148,6 +152,21 @@ llvm::Function& LlvmCompilationBundle::_testBitwidthReductionPass() {
 		FPM.addPass(hwtHls::BitwidthReductionPass());
 	});
 }
+llvm::Function& LlvmCompilationBundle::_testHwtHlsInstCombinePass(bool runBitcountMergePass, bool runStreamReadEoFThreading) {
+	return _runCustomFunctionPass([runBitcountMergePass, runStreamReadEoFThreading](llvm::FunctionPassManager &FPM) {
+		hwtHls::HwtHlsInstCombinePassOptions opts;
+		opts.extractBitcounts = runBitcountMergePass;
+		opts.setStreamReadEoFThreading(runStreamReadEoFThreading);
+		FPM.addPass(hwtHls::HwtHlsInstCombinePass(opts));
+		if (runBitcountMergePass) {
+			FPM.addPass(llvm::EarlyCSEPass());
+			FPM.addPass(hwtHls::BitcountMergePass());
+			FPM.addPass(hwtHls::HwtHlsInstCombinePass());
+			FPM.addPass(llvm::EarlyCSEPass());
+		}
+	});
+}
+
 
 llvm::Function& LlvmCompilationBundle::_testSlicesMergePass() {
 	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
@@ -245,6 +264,11 @@ llvm::Function& LlvmCompilationBundle::_testSelectPruningPass() {
 	});
 }
 
+llvm::Function& LlvmCompilationBundle::_testHFloatTmpLoweringPass() {
+	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
+		FPM.addPass(hwtHls::HFloatTmpLoweringPass());
+	});
+}
 
 /////////////////////////////////////////////////////////////// MIR tests ///////////////////////////////////////////////////////////////
 void LlvmCompilationBundle::_testEarlyIfConverter() {
