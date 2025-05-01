@@ -58,8 +58,6 @@ class BlockEdgeChannelGroup():
     """
     Group of channels used to implement channels for block liveins/livouts on edge between MachineBasicBlocks
     
-    :ivar ~.origin: the number of src and dst MachineBasicBlock for which this group is build
-    :ivar members: a list of writes in this group
     """
 
     def __init__(self, srcBB: int, dstBB: int):
