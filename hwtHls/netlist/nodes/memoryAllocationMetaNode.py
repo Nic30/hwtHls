@@ -1,48 +1,35 @@
-from typing import Optional, Tuple, List, Union
+from typing import Optional, Tuple, List, Union, Literal
 
+from hwt.constants import READ, WRITE
 from hwt.hdl.statements.statement import HdlStatement
-from hwt.hdl.types.array import HArray
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.typingFuture import override
-from hwt.serializer.resourceAnalyzer.resourceTypes import RtlResourceType
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
+from hwtHls.io.bram import HlsNetNodeWriteBramCmd, HlsNetNodeReadBramData
+from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
 from hwtHls.netlist.nodes.readIndexed import HlsNetNodeReadIndexed
-from hwtHls.netlist.nodes.writeIndexed import HlsNetNodeWriteIndexed
 
 
-class MemoryAllocationMeta(RtlResourceType):
+class HlsNetNodeWriteMemoryAllocationCmd(HlsNetNodeWriteBramCmd):
     """
-    This class represents record about memory which should be constructed later in compilation.
-    This is a symbolic reference and it is yet to be chosen how many port, which latency
-    and which physical resource will be used to realize this memory.  
-    
-    :note: it is not a HlsNetNode because it would create complex cycles during scheduling.
-        Significantly limiting compilation speed.
-    
-    :ivar dataOfComponentGenerator: property where ComponentGenerator may store temporary data
+    Read or write from/to memory which is now represented just by MemoryAllocationMeta.
+    :note: This node writes request to memory and may contain port with returned data if the read
+        latency is 0.
     """
 
-    def __init__(self, name:str, dtype: HArray, initValue: Optional[List[Optional[int]]]):
-        self.name = name
-        self._name = name  # for getSignalName
-        self.dtype = dtype
-        self.initValue = initValue
-        self.users: List[HlsNetNodeReadMemoryAllocation, HlsNetNodeWriteMemoryAllocation] = []
-        self.dataOfComponentGenerator = None
-
-    def __repr__(self):
-        return f"<{self.__class__.__name__:s} {self.name}>"
-
-
-class HlsNetNodeReadMemoryAllocation(HlsNetNodeReadIndexed):
-    """
-    Read from memory which is now represented just by MemoryAllocationMeta
-    """
-
-    def __init__(self, netlist:"HlsNetlistCtx", src:MemoryAllocationMeta, dtype: HdlType, name:Optional[str]=None):
-        HlsNetNodeReadIndexed.__init__(self, netlist, src, dtype=dtype, name=name)
+    def __init__(self, netlist:"HlsNetlistCtx",
+                 src:MemoryAllocationMeta,
+                 cmd: Literal[READ, WRITE],
+                 dtype: HdlType,
+                 mayBecomeFlushable=True,
+                 name:Optional[str]=None):
+        HlsNetNodeWriteBramCmd.__init__(self, netlist, src, cmd,
+                                        dtype=dtype,
+                                        hasR=cmd is READ,
+                                        hasW=cmd is WRITE,
+                                        mayBecomeFlushable=mayBecomeFlushable, name=name)
         src.users.append(self)
-        self._portSrc = None  # for compatibility with HlsNetNodeWriteBramCmd
+        # self._portSrc = None  # for compatibility with HlsNetNodeWriteBramCmd
 
     @override
     def clone(self, memo:dict, keepTopPortsConnected:bool) -> Tuple["HlsNetNode", bool]:
@@ -62,41 +49,80 @@ class HlsNetNodeReadMemoryAllocation(HlsNetNodeReadIndexed):
         self.src.users.remove(self)
 
     @override
-    def rtlAlloc(self, allocator: "ArchElement") -> Union[TimeIndependentRtlResource, List[HdlStatement]]:
-        return  self.netlist.platform._componentGenerators[MemoryAllocationMeta].rtlAllocOfNode(allocator, self)
-
-
-class HlsNetNodeWriteMemoryAllocation(HlsNetNodeWriteIndexed):
-    """
-    Write to memory which is now represented just by MemoryAllocationMeta
-    """
-
-    def __init__(self, netlist:"HlsNetlistCtx", dst:MemoryAllocationMeta,
-                 mayBecomeFlushable=False,
-                 name:Optional[str]=None,
-                 addSrcPort=True):
-        HlsNetNodeWriteIndexed.__init__(self, netlist, dst,
-                                 mayBecomeFlushable=mayBecomeFlushable,
-                                 name=name,
-                                 addSrcPort=addSrcPort)
-        dst.users.append(self)
-        self._portDataOut = None  # for compatibility with HlsNetNodeWriteBramCmd
-        self._rtlUseValid = True
-
-    @override
-    def clone(self, memo:dict, keepTopPortsConnected:bool) -> Tuple["HlsNetNode", bool]:
-        y, isNew = HlsNetNodeWriteIndexed.clone(self, memo, keepTopPortsConnected)
-        if isNew:
-            self.dst.users.append(y)
-
-        return y, isNew
-
-    @override
-    def markAsRemoved(self):
-        HlsNetNodeWriteIndexed.markAsRemoved(self)
-        self.dst.users.remove(self)
+    def splitOnClkWindows(self):
+        """
+        Keep command/write part in this node and extract out data read port if it is in later clock window
+        """
+        if self.isMulticlock:
+            if self.cmd is READ:
+                dtype = self._portDataOut._dtype
+                dNode = HlsNetNodeReadMemoryAllocationReadData(
+                    self.netlist,
+                    self.dst,
+                    self,
+                    dtype,
+                    name=self.name)
+                dNode._rtlUseReady = False
+                dNode._rtlUseValid = False
+                self._extractReadPortsToSeparateNode(dNode)
+                yield dNode
+            else:
+                assert self.cmd is WRITE, self
 
     @override
     def rtlAlloc(self, allocator: "ArchElement") -> Union[TimeIndependentRtlResource, List[HdlStatement]]:
         return self.netlist.platform._componentGenerators[MemoryAllocationMeta].rtlAllocOfNode(allocator, self)
+
+# class HlsNetNodeWriteMemoryAllocationCmd(HlsNetNodeWriteBramCmd):
+#    pass
+
+
+class HlsNetNodeReadMemoryAllocationReadData(HlsNetNodeReadBramData):
+
+    def __init__(self, netlist: "HlsNetlistCtx",
+                 src: MemoryAllocationMeta,
+                 cmdNode: HlsNetNodeWriteMemoryAllocationCmd,
+                 dtype: Optional[HdlType]=None,
+                 name:Optional[str]=None):
+        super().__init__(netlist, None, dtype, name=name, addPortDataOut=True)
+        self.src = src
+        self.cmdNode = cmdNode
+    
+    def getRtlDataSig(self):
+        meta: "ComponentGeneratorMemoryMeta" = self.src.dataOfComponentGenerator
+        return meta.rtlInstance.port[self.src.users.index(self.cmdNode)].dout
+
+# class HlsNetNodeWriteMemoryAllocation(HlsNetNodeWriteIndexed):
+#    """
+#    Write to memory which is now represented just by MemoryAllocationMeta
+#    """
+#
+#    def __init__(self, netlist:"HlsNetlistCtx", dst:MemoryAllocationMeta,
+#                 mayBecomeFlushable=False,
+#                 name:Optional[str]=None,
+#                 addSrcPort=True):
+#        HlsNetNodeWriteIndexed.__init__(self, netlist, dst,
+#                                 mayBecomeFlushable=mayBecomeFlushable,
+#                                 name=name,
+#                                 addSrcPort=addSrcPort)
+#        dst.users.append(self)
+#        self._portDataOut = None  # for compatibility with HlsNetNodeWriteBramCmd
+#        self._rtlUseValid = True
+#
+#    @override
+#    def clone(self, memo:dict, keepTopPortsConnected:bool) -> Tuple["HlsNetNode", bool]:
+#        y, isNew = HlsNetNodeWriteIndexed.clone(self, memo, keepTopPortsConnected)
+#        if isNew:
+#            self.dst.users.append(y)
+#
+#        return y, isNew
+#
+#    @override
+#    def markAsRemoved(self):
+#        HlsNetNodeWriteIndexed.markAsRemoved(self)
+#        self.dst.users.remove(self)
+#
+#    @override
+#    def rtlAlloc(self, allocator: "ArchElement") -> Union[TimeIndependentRtlResource, List[HdlStatement]]:
+#        return self.netlist.platform._componentGenerators[MemoryAllocationMeta].rtlAllocOfNode(allocator, self)
 
