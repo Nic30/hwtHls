@@ -291,10 +291,6 @@ class HlsNetNode(SchedulableNode):
         tir = allocator.rtlRegisterOutputRtlSignal(o, s, False, True, False)
         return tir
 
-    def getAllocatedRTL(self, allocator: "ArchElement"):
-        assert self._isRtlAllocated, self
-        return []
-
     def rtlAlloc(self, allocator: "ArchElement"):
         assert not self._isRtlAllocated, self
         raise NotImplementedError(
@@ -348,7 +344,7 @@ def HlsNetNode_numberForEachInputNormalized(node: HlsNetNode, val: Union[float, 
         return tuple(int(val // scale) for _ in node._inputs)
     else:
         val = tuple(val)
-        assert len(val) == len(node._inputs), (node, val, node._inputs)
+        assert len(val) == len(node._inputs), (node, len(val), len(node._inputs), val, node._inputs)
         return tuple(int(v // scale) for v in val)
 
 
