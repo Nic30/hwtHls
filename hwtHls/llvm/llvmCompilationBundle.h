@@ -65,6 +65,26 @@ public:
 
 	LlvmCompilationBundle(const std::string &moduleName, const std::vector<LlvmCliOptionTuple> & llvmCliOpts);
 
+
+	// ellipsis (...) operator used to iterate over all template arguments using recursion
+	// template parameter list must end with void which is used as handle
+	template<typename FirstPassCls, typename ... OtherPassClases,
+	// enable only if FirstPassCls is void
+			std::enable_if_t<std::is_void<FirstPassCls>::value, bool> = true>
+	inline void __registerHwtHlsPasses() {
+		// void is dummy type used as handle
+	}
+	template<typename FirstPassCls, typename ... OtherPassClases,
+	// enable only if FirstPassCls is a class type
+			std::enable_if_t<std::is_class<FirstPassCls>::value, bool> = true>
+	inline void __registerHwtHlsPasses() {
+		PIC.addClassToPassName(FirstPassCls::name(), FirstPassCls::name());
+		PICForLegacyPM.addClassToPassName(FirstPassCls::name(),
+				FirstPassCls::name());
+		__registerHwtHlsPasses<OtherPassClases...>(); // process rest of template arguments
+	}
+
+	void _registerHwtHlsPasses();
 	void _initPassBuilder();
 	llvm::TargetLibraryInfo& getTargetLibraryInfo();
 	// clear global llvm cli options and apply llvm cli options from this object
@@ -91,7 +111,10 @@ public:
 
 	// light version of _addInstrCombinePasses
 	void _addInstrCombinePassesLight(llvm::FunctionPassManager &FPM);
-	void _addInstrCombinePasses(llvm::FunctionPassManager &FPM);
+	void _addInstrCombinePasses(llvm::FunctionPassManager &FPM,
+			bool bitwidthReduction = true, bool selectPruning = true,
+			bool llvmInstrCombine = true, bool streamReadEoFThreading = false,
+			bool hwtHlsFpInstrCombine=false);
 	void _addAfterUnrollFollowupPasses(llvm::FunctionPassManager &FPM);
 
 	// for arg description see HwtFpgaTargetPassConfig
@@ -102,8 +125,7 @@ public:
 	void runExprOpt();
 
 	// for param doc :see: SimplifyCFG2Options
-	llvm::Function& _testSimplifyCFG2Pass(
-			int BonusInstThreshold,           //
+	llvm::Function& _testSimplifyCFG2Pass(int BonusInstThreshold,           //
 			bool ForwardSwitchCondToPhi,      //
 			bool ConvertSwitchRangeToICmp,    //
 			bool ConvertSwitchToLookupTable,  //
@@ -112,15 +134,17 @@ public:
 			bool SinkCommonInsts,             //
 			bool SimplifyCondBranch,          //
 			bool HoistCheapInsts              //
-	);
+			);
 	llvm::Function& _testSlicesToIndependentVariablesPass();
 	llvm::Function& _testBitwidthReductionPass();
+	llvm::Function& _testHwtHlsInstCombinePass(bool runBitcountMergePass, bool runStreamReadEoFThreading);
 	llvm::Function& _testSlicesMergePass();
 	llvm::Function& _testLoopUnrotatePass();
 	llvm::Function& _testLoopFlattenUsingIfPass();
 	llvm::Function& _testRewriteExtractOnMergeValues();
 	llvm::Function& _testPruneLoopPhiDeadIncomingValuesPass();
 	llvm::Function& _testSelectPruningPass();
+	llvm::Function& _testHFloatTmpLoweringPass();
 	llvm::Function& _runCustomFunctionPass(
 			std::function<void(llvm::FunctionPassManager&)> addPasses);
 	void _testMachineFunctionPass(
