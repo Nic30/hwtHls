@@ -185,6 +185,7 @@ py3.extension_module(
      'Transforms/slicesMerge/rewritePhiShift.cpp',
      'Transforms/slicesMerge/rewriteConcat.cpp',
      'Transforms/slicesMerge/slicesMerge.cpp',
+     'Transforms/slicesMerge/slicesMergeCombiner.cpp',
      'Transforms/slicesMerge/mergeConsequentSlices.cpp',
      'Transforms/slicesMerge/mergeConsequentSlicesBinOp.cpp',
      'Transforms/slicesMerge/mergeConsequentSlicesSelect.cpp',
