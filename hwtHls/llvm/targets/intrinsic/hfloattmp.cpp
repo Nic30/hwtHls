@@ -635,7 +635,7 @@ llvm::CallInst* CreateCastHFloatTmpToHFloatTmpRaw(llvm::IRBuilderBase &Builder,
 			};
 
 	Type *ResT = Builder.getIntNTy(dstCfg.getBitWidth());
-	Type *TysForName[] = { ResT };
+	Type *TysForName[] = { srcArg->getType(), ResT };
 	Module *M = Builder.GetInsertBlock()->getParent()->getParent();
 	Function *TheFn = cast<Function>(
 			M->getOrInsertFunction(

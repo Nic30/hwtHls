@@ -12,6 +12,8 @@ RE_HWTHLS_FN_CALL = re.compile(r'call (i[0-9]+|void|double) '  # return type
                                    r'streamWrite|streamWriteStartOfFrame|streamWriteEndOfFrame|streamWrite\.masked|'
                                    r'streamRead|streamReadStartOfFrame|streamReadEndOfFrame|'
                                    r'fp\.castToHFloatTmp|'
+                                   r'fp\.castHFloatTmpToHFloatTmp|'
+                                   r'fp\.castHFloatTmpToHFloatTmpRaw|'
                                    r'fp\.castFromHFloatTmp'
                                r')'  # fn name stem
                                r'((\.(i?[0-9]+|p[0-9]+|isVoid|double))+)'  # '.' separated arg types in function names
@@ -74,11 +76,22 @@ def generateAndAppendHwtHlsFunctionDeclarations(llvmIrStr:str):
             # declare double @hwtHls.fp.castToHFloatTmp.i5(i5, i1, i8, i8, i1, i1, i1, i1, i1, i1, i8, i8) #5
             # declare i5 @hwtHls.fp.castFromHFloatTmp.i5(double, i1, i8, i8, i1, i1, i1, i1, i1, i1, i8, i8) #5
             hasFpFns = True
+            
             if fnName == "fp.castToHFloatTmp":
                 assert retTy == "double", (retTy, fn)
             elif fnName == "fp.castFromHFloatTmp":
                 assert argTy[0] == retTy, (argTy[0], fn)
                 argTy[0] = "double"
+            elif fnName == "fp.castHFloatTmpToHFloatTmp":
+                assert retTy == "double", (retTy, fn)
+                assert argTy[0] == "double", (argTy[0], fn)
+            elif fnName == "fp.castHFloatTmpToHFloatTmpRaw":
+                assert len(argTy) == 2, argTy
+                assert retTy == argTy[1], (retTy, fn)
+                assert argTy[0] != "double", (argTy[0], fn)
+                assert argTy[1] != "double", (argTy[1], fn)
+                argTy = [argTy[0], *hfloatTmpConfigArgTypes]
+                
             params = ", ".join(f"{t:s} %{i}" for i, t in enumerate(chain(argTy, hfloatTmpConfigArgTypes)))
             declarations.add(f"{indent:s}declare {retTy:s} @hwtHls.{fnName:s}{_argTy:s}({params:s}) #5")
 
