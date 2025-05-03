@@ -163,11 +163,139 @@ class SimplifyCFG2Pass_TC(BaseLlvmIrTC):
         """
         self._test_ll(llvmIr)
 
+    def test_PhiToSelect0(self):
+        # :note: %curLen.015 is not converted beause it is in loop header
+        #        %curLen.116 is not converted because bb0.enabled is not empty
+        llvmIr = """\
+        define void @PhiToSelect0(ptr addrspace(1) %rx, ptr addrspace(2) %tx) {
+        bb0:
+          br label %loop.pkt
+        
+        loop.pkt:
+          br label %loop.pkt.read
+        
+        loop.pkt.read:
+          %curLen.015 = phi i5 [ 0, %loop.pkt ], [ %curLen.116, %loop.pkt.end ]
+          %rx_read1.w0 = load volatile i10, ptr addrspace(1) %rx, align 2
+          %0 = call i1 @hwtHls.bitRangeGet.i10.i5.i1.9(i10 %rx_read1.w0, i5 9) #2
+          %sig_.not = icmp eq i5 %curLen.015, 10
+          br i1 %sig_.not, label %loop.pkt.end, label %bb0.enabled
+        
+        bb0.enabled:
+          %sig_8 = add i5 %curLen.015, 1
+          %sig_6 = icmp eq i5 %curLen.015, 9
+          %sig_7 = or i1 %0, %sig_6
+          %1 = call i8 @hwtHls.bitRangeGet.i10.i5.i8.0(i10 %rx_read1.w0, i5 0) #2
+          %2 = call i10 @hwtHls.bitConcat.i8.i1.i1(i8 %1, i1 true, i1 %sig_7) #2
+          store volatile i10 %2, ptr addrspace(2) %tx, align 2
+          br label %loop.pkt.end
+        
+        loop.pkt.end:
+          %curLen.116 = phi i5 [ %sig_8, %bb0.enabled ], [ %curLen.015, %loop.pkt.read ]
+          br i1 %0, label %loop.pkt, label %loop.pkt.read
+        }
+        """
+        self._test_ll(llvmIr)
+
+    def test_PhiToSelect1(self):
+        # :note: originally Axi4SPacketByteCntr2 @16b
+        llvmIr = """\
+        define void @test_PhiToSelect1(ptr addrspace(1) %byte_cnt, ptr addrspace(2) %i) {
+        bb0:
+          br label %bb1
+        
+        bb1:
+          %byte_cnt1.0 = phi i16 [ 0, %bb0 ], [ %5, %bb4 ]
+          %i_read1 = call i19 @hwtHls.streamRead.p2.i64.i19(ptr addrspace(2) %i, i64 16) #4
+          %0 = call i1 @hwtHls.bitRangeGet.i19.i6.i1.16(i19 %i_read1, i6 16) #2
+          %1 = xor i1 %0, true
+          %2 = call i1 @hwtHls.bitRangeGet.i19.i6.i1.17(i19 %i_read1, i6 17) #2
+          %3 = xor i1 %2, true
+          br i1 %1, label %bb3, label %bb2
+        
+        bb2:
+          br i1 %3, label %bb3, label %bb4
+        
+        bb3:
+          %iHw.0 = phi i8 [ 0, %bb1 ], [ 1, %bb2 ]
+          %iHw64 = trunc i8 %iHw.0 to i2
+          %iHw.zext = zext i2 %iHw64 to i8
+          br label %bb4
+        
+        bb4:
+          %wordByteCnt.0 = phi i8 [ %iHw.zext, %bb3 ], [ 2, %bb2 ]
+          %wordByteCnt81 = trunc i8 %wordByteCnt.0 to i2
+          %4 = zext i2 %wordByteCnt81 to i16
+          %5 = add i16 %byte_cnt1.0, %4
+          store volatile i16 %5, ptr addrspace(1) %byte_cnt, align 2
+          br label %bb1
+        }
+        """
+        self._test_ll(llvmIr)
+
+    def test_phiToLogicalExp0(self):
+        llvmIr = """\
+        define void @test_phiToLogicalExp0(ptr addrspace(1) %cIn, ptr addrspace(2) %out) {
+        bb.entry:
+          br label %bb0.guard
+
+        bb0.guard:
+          %bb0.g.c = load volatile i1, ptr addrspace(1) %cIn, align 1
+          %bb0.e.c = load volatile i1, ptr addrspace(1) %cIn, align 1
+          %bb1.g.c = load volatile i1, ptr addrspace(1) %cIn, align 1
+          %bb1.e.c = load volatile i1, ptr addrspace(1) %cIn, align 1
+          %bb2.g.c = load volatile i1, ptr addrspace(1) %cIn, align 1
+          %bb2.e.c = load volatile i1, ptr addrspace(1) %cIn, align 1
+          br i1 %bb0.g.c, label %bb0.enabled, label %bb0.exit
+        
+        bb0.enabled:
+          br label %bb0.exit
+        
+        bb0.exit:
+          %bb0.en.0 = phi i1 [ true, %bb0.enabled ], [ false, %bb0.guard ]
+          br i1 %bb0.e.c, label %bb.preexit, label %bb1.guard
+        
+        bb1.guard:
+          br i1 %bb1.g.c, label %bb1.enabled, label %bb1.exit
+        
+        bb1.enabled:
+          br label %bb1.exit
+        
+        bb1.exit:
+          %bb1.en.0 = phi i1 [ true, %bb1.enabled ], [ false, %bb1.guard ]
+          br i1 %bb1.e.c, label %bb.preexit, label %bb2.guard
+        
+        bb2.guard:
+          br i1 %bb2.g.c, label %bb2.enabled, label %bb2.exit
+        
+        bb2.enabled:
+          br label %bb2.exit
+        
+        bb2.exit:
+          %bb2.en.0 = phi i1 [ true, %bb2.enabled ], [ false, %bb2.guard ]
+          br i1 %bb2.e.c, label %bb.preexit, label %bb.exit
+        
+        bb.preexit:
+          %bb1.en.1 = phi i1 [ false, %bb0.exit ], [ %bb1.en.0, %bb1.exit ], [ %bb1.en.0, %bb2.exit ]
+          %bb2.en.1 = phi i1 [ false, %bb0.exit ], [ false, %bb1.exit ], [ %bb2.en.0, %bb2.exit ]
+          br label %bb.exit
+        
+        bb.exit:
+          %bb1.en.2 = phi i1 [ %bb1.en.1, %bb.preexit ], [ %bb1.en.0, %bb2.exit ]
+          %bb2.en.2 = phi i1 [ %bb2.en.1, %bb.preexit ], [ %bb2.en.0, %bb2.exit ]
+          store volatile i1 %bb0.en.0, ptr addrspace(2) %out, align 1
+          store volatile i1 %bb1.en.2, ptr addrspace(2) %out, align 1
+          store volatile i1 %bb2.en.2, ptr addrspace(2) %out, align 1
+          ret void
+        }
+        """
+        self._test_ll(llvmIr)
+
 
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    suite = unittest.TestSuite([SimplifyCFG2Pass_TC('test_loopHeaderPhisNotExtended')])
-    # suite = testLoader.loadTestsFromTestCase(SimplifyCFG2Pass_TC)
+    # suite = unittest.TestSuite([SimplifyCFG2Pass_TC('test_loadMerge')])
+    suite = testLoader.loadTestsFromTestCase(SimplifyCFG2Pass_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
