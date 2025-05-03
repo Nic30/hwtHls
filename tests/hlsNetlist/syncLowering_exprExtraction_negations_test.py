@@ -162,10 +162,39 @@ class RtlArchPassSyncLowering_exprExtraction_negations_TC(BaseSerializationTC):
 
         self._assertNetlistMatchesRefFile(netlist, runPredicatePruning=True)
 
+    def test_optWriteInSecondClk(self):
+        netlist, elm = self._createNetlistWithPipe()
+        netlist: HlsNetlistCtx
+        elm: ArchElementPipeline
+
+        b: HlsNetlistBuilder = elm.builder
+        t = HBits(8)
+        r0 = HlsNetNodeRead(netlist, None, dtype=t)
+        elm.addNode(r0)
+        r0vld = r0.getValidNB()
+        r0vld_n = b.buildNot(r0vld)
+
+        w0 = HlsNetNodeWrite(netlist, None)
+        elm.addNode(w0)
+
+        r0._portDataOut.connectHlsIn(w0._portSrc)
+        w0.addControlSerialExtraCond(r0vld)
+        w0.addControlSerialSkipWhen(r0vld_n)
+
+        clkPeriod = netlist.normalizedClkPeriod
+        r0.resolveRealization()
+        r0._setScheduleZeroTimeSingleClock(0)
+        for dep in w0.dependsOn:
+            scheduleUncheduledDummyAlap(dep, 10, allowNewClockWindow=True)
+        w0.resolveRealization()
+        w0._setScheduleZeroTimeSingleClock(1 * clkPeriod + 15)
+
+        self._assertNetlistMatchesRefFile(netlist, runPredicatePruning=False)
+
 
 if __name__ == '__main__':
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([RtlArchPassSyncLowering_exprExtraction_1Pipeline_TC("test_linear2Clk")])
+    # suite = unittest.TestSuite([RtlArchPassSyncLowering_exprExtraction_negations_TC("test_optWriteInSecondClk")])
     suite = testLoader.loadTestsFromTestCase(RtlArchPassSyncLowering_exprExtraction_negations_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
