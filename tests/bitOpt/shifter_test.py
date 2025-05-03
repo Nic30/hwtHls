@@ -26,7 +26,7 @@ from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 class ShifterTC(SimTestCase):
 
-    def _testLlvmMir(self, dut: ShifterLeft0, MF: MachineFunction, TEST_DATA: List[Tuple[int, int]], REF_DATA: List[int]):
+    def _testLlvmMir(self, dut: ShifterLeft0, strCtx: LLVMStringContext, MF: MachineFunction, TEST_DATA: List[Tuple[int, int]], REF_DATA: List[int]):
         dataTy = HBits(dut.DATA_WIDTH)
         shTy = HBits(log2ceil(dut.DATA_WIDTH))
         wallTime = len(REF_DATA) * 1000
@@ -35,7 +35,7 @@ class ShifterTC(SimTestCase):
         o = []
         args = (iter(i), o, iter(sh))
         try:
-            interpret = LlvmMirInterpret(MF)
+            interpret = LlvmMirInterpret(MF, strCtx)
             interpret.run(args, wallTime=wallTime * interpret.timeStep)
         except SimIoUnderflowErr:
             pass  # all inputs consumed
@@ -55,7 +55,7 @@ class ShifterTC(SimTestCase):
         o = []
         args = (iter(i), o, iter(sh))
         try:
-            interpret = LlvmIrInterpret(F)
+            interpret = LlvmIrInterpret(F, strCtx)
             interpret.run(args, wallTime=wallTime * interpret.timeStep)
         except SimIoUnderflowErr:
             pass  # all inputs consumed
@@ -82,7 +82,7 @@ class ShifterTC(SimTestCase):
             tc._testLlvmIr(dut, llvm.strCtx, llvm.main, TEST_DATA, REF_DATA)
 
         def testLlvmOptMir(llvm: LlvmCompilationBundle):
-            tc._testLlvmMir(dut, llvm.getMachineFunction(llvm.main), TEST_DATA, REF_DATA)
+            tc._testLlvmMir(dut, llvm.strCtx, llvm.getMachineFunction(llvm.main), TEST_DATA, REF_DATA)
 
         platform = TestLlvmIrAndMirPlatform(
             optIrTest=testLlvmOptIr,
@@ -111,12 +111,14 @@ class ShifterTC(SimTestCase):
 
     def test_ShifterLeft1(self):
         dut = ShifterLeft1()
-        self._test_shifter(dut)
+        self._test_shifter(dut,
+                           # runTestAfterEachPass=True
+                           )
 
     def test_ShifterLeftUsingHwLoopWithWhileNot0_noUnroll(self):
         dut = ShifterLeftUsingHwLoopWithWhileNot0()
         dut.DATA_WIDTH = 3
-        self._test_shifter(dut, timeMultiplier=8, #debugFilter=HlsDebugBundle.ALL_RELIABLE.union({HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+        self._test_shifter(dut, timeMultiplier=8,  # debugFilter=HlsDebugBundle.ALL_RELIABLE.union({HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
                                                   #   HlsDebugBundle.DBG_4_0_addSignalNamesToData})
         )
 
@@ -150,10 +152,10 @@ class ShifterTC(SimTestCase):
         dut = ShifterLeftUsingHwLoopWithBreakIf0()
         dut.UNROLL_META = PyBytecodeLLVMLoopUnroll(True, 2)
         self._test_shifter(dut, timeMultiplier=4,
-                           #debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
+                           # debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
                            #    HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
                            #    HlsDebugBundle.DBG_4_0_addSignalNamesToData}),
-                           #runTestAfterEachPass=True,
+                           # runTestAfterEachPass=True,
                            )
 
     def test_ShifterLeftUsingHwLoopWithBreakIf0_unrol4(self):
@@ -201,7 +203,7 @@ if __name__ == "__main__":
 
     import unittest
     testLoader = unittest.TestLoader()
-    #suite = unittest.TestSuite([ShifterTC("test_ShifterLeft0")])
+    # suite = unittest.TestSuite([ShifterTC("test_ShifterLeft1")])
     suite = testLoader.loadTestsFromTestCase(ShifterTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
