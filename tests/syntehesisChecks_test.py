@@ -5,7 +5,7 @@ import tempfile
 
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
-from hwtHls.platform.platform import HlsDebugBundle
+from hwtHls.platform.debugBundle import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.platform.xilinx.artix7 import Artix7Slow
 from hwtLib.logic.crcPoly import CRC_32

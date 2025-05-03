@@ -3,7 +3,7 @@
 
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
-from hwtHls.platform.platform import HlsDebugBundle
+from hwtHls.platform.debugBundle import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.baseSsaTest import BaseSsaTC

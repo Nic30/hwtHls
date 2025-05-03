@@ -231,10 +231,10 @@ class PyBytecodePyException_TC(SimTestCase):
 
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.platform import HlsDebugBundle
-    m = PyExceptionRaiseRaiseUsingAssertFromInlined2()
-    m.RAISE = False
-    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    from hwtHls.platform.debugBundle import HlsDebugBundle
+    # m = PyExceptionRaiseRaiseUsingAssertFromInlined2()
+    # m.RAISE = False
+    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     testLoader = unittest.TestLoader()
     # suite = unittest.TestSuite([PyBytecodePyException_TC("test_frameHeader")])

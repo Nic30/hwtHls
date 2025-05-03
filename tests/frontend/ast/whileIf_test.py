@@ -107,7 +107,7 @@ class HlsAstWhileIf_TC(BaseSsaTC):
 
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle
     m = WhileAndIf0()
     m.DATA_WIDTH = 4
     m.FREQ = int(40e6)

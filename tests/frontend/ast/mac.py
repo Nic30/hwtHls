@@ -154,7 +154,7 @@ class HlsMAC_example_TC(SimTestCase):
 if __name__ == "__main__":
     import unittest
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle
     m = HlsMAC_example_handshake()
     m.DATA_WIDTH = 32
     m.CLK_FREQ = int(40e6)

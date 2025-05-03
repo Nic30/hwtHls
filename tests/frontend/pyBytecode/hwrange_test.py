@@ -9,13 +9,13 @@ from hwt.pyUtils.typingFuture import override
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.hwrange import hwrange
-from hwtHls.frontend.pyBytecode.pragmaLoop import PyBytecodeLoopFlattenUsingIf
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
 
 
+# from hwtHls.frontend.pyBytecode.pragmaLoop import PyBytecodeLoopFlattenUsingIf
 class HlsPythonHwrange_fromInt0(HwModule):
 
     @override
@@ -157,7 +157,7 @@ class HlsPythonHwrange_TC(SimTestCase):
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Medium
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle
     
     m = HlsPythonHwrange_fromInt1_breakBefore()
     print(to_rtl_str(m, target_platform=Artix7Medium(debugFilter=HlsDebugBundle.ALL_RELIABLE, 

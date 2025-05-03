@@ -54,6 +54,6 @@ class UseOfNone(ErrorUseOfUnitialized0):
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle
     m = UseOfNone()
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

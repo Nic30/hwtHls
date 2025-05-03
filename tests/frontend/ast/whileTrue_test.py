@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.platform.platform import HlsDebugBundle
+from hwtHls.platform.debugBundle import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.constants import CLK_PERIOD
 from hwtSimApi.utils import freq_to_period

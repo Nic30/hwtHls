@@ -129,7 +129,7 @@ class ReadFsmWriteFsmSumAndCondWrite(WriteFsm1WhileTrue123hs):
 if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle
 
     dut = ReadFsmWriteFsmSumAndCondWrite()
     p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)

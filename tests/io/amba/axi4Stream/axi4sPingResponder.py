@@ -128,8 +128,9 @@ if __name__ == "__main__":
     # from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synth import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Slow
-    from hwtHls.platform.platform import HlsDebugBundle
-    
+    from hwtHls.platform.debugBundle import HlsDebugBundle
+    # from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
+
     m = Axi4SPingResponder()
     m.DATA_WIDTH = 256
     m.CLK_FREQ = int(100e6)

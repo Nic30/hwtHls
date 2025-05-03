@@ -109,7 +109,7 @@ BitonicSorterHLS_TCs = [
 if __name__ == "__main__":
     import unittest
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle
 
     m = BitonicSorterHLS0()
     m.ITEMS = 4

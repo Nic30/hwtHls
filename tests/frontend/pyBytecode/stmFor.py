@@ -119,7 +119,7 @@ class HlsPythonPreprocFor2x_1(HlsPythonPreprocFor):
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle
 
     m = HlsPythonPreprocForInIf2()
     m.IF_COND = False

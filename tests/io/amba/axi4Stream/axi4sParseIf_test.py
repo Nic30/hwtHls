@@ -11,8 +11,7 @@ from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
 from hwt.simulator.simTestCase import SimTestCase
 from hwt.hwModule import HwModule
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle, MachineFunction, Function
-from hwtHls.platform.platform import HlsDebugBundle
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, MachineFunction, Function, LLVMStringContext
 from hwtHls.ssa.analysis.llvmIrInterpret import LlvmIrInterpret, \
     SimIoUnderflowErr
 from hwtHls.ssa.analysis.llvmMirInterpret import LlvmMirInterpret
@@ -21,6 +20,8 @@ from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import  int_to_int_list, mask
 from tests.io.amba.axi4Stream.axi4sParseIf import Axi4SParse2If2B, Axi4SParse2IfLess, Axi4SParse2If, Axi4SParse2IfAndSequel
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
+from tests.io.amba.axi4Stream.axi4sCopyByteByByte_test import BaseAxi4SPktInPktOutTC
+from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 
 
 class Axi4SParseIfTC(SimTestCase):

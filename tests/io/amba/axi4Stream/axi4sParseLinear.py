@@ -118,7 +118,7 @@ class Axi4SParse2fields(Axi4SParseStructManyInts0):
 if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle
 
     m = Axi4SParse2fields()
     m.DATA_WIDTH = 48

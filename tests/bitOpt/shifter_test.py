@@ -9,7 +9,7 @@ from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.pyBytecode.pragmaLoop import PyBytecodeLLVMLoopUnroll
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function, MachineFunction, LLVMStringContext
 from hwtHls.platform.debugBundle import DebugId
-from hwtHls.platform.platform import HlsDebugBundle
+from hwtHls.platform.debugBundle import HlsDebugBundle
 from hwtHls.ssa.analysis.llvmIrInterpret import LlvmIrInterpret, \
     SimIoUnderflowErr
 from hwtHls.ssa.analysis.llvmMirInterpret import LlvmMirInterpret

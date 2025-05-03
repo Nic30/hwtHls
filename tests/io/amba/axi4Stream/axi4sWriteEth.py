@@ -52,7 +52,7 @@ class Axi4SWriteEth(HwModule):
 if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle
 
     m = Axi4SWriteEth()
     p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL)

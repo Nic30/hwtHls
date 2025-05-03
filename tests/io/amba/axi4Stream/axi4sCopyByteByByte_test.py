@@ -10,8 +10,6 @@ from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.pyBytecode.pragmaLoop import PyBytecodeLLVMLoopUnroll, \
     PyBytecodeStreamLoopUnroll
 from hwtHls.llvm.llvmIr import MachineFunction, LLVMStringContext, Function, LlvmCompilationBundle
-from hwtHls.platform.platform import HlsDebugBundle
-from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.ssa.analysis.llvmIrInterpret import LlvmIrInterpret, \
     SimIoUnderflowErr, LlvmIrInterpretArgs
 from hwtHls.ssa.analysis.llvmMirInterpret import LlvmMirInterpret
@@ -156,18 +154,27 @@ class Axi4SPacketCopyByteByByteTC(SimTestCase):
 
 
 if __name__ == "__main__":
-    #from hwt.synth import to_rtl_str
-    #m = Axi4SPacketCopyByteByByte()
-    ## m.UNROLL = PyBytecodeStreamLoopUnroll #PyBytecodeLLVMLoopUnroll(True, 2)
-    #m.UNROLL = None
-    #m.DATA_WIDTH = 4 * 8
-    #m.OUT_DATA_WIDTH = 4 * 8
-    #m.CLK_FREQ = int(1e6)
-    #p = VirtualHlsPlatform(debugFilter={
-    #   *HlsDebugBundle.ALL_RELIABLE,
-    #   # 0HlsDebugBundle.DBG_20_addSignalNamesToSync
-    #})
-    #print(to_rtl_str(m, target_platform=p))
+    from hwt.synth import to_rtl_str
+    from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
+    from hwtHls.platform.virtual import VirtualHlsPlatform
+    m = Axi4SPacketCopyByteByByte()
+    m.UNROLL = PyBytecodeStreamLoopUnroll  # PyBytecodeLLVMLoopUnroll(True, 2)
+    # m.UNROLL = PyBytecodeLLVMLoopUnroll(True, 2)
+    # m.UNROLL = None
+    m.DATA_WIDTH = 2 * 8
+    m.OUT_DATA_WIDTH = 2 * 8
+    m.CLK_FREQ = int(1e6)
+    p = VirtualHlsPlatform(debugFilter={
+      *HlsDebugBundle.ALL_RELIABLE,
+      # HlsDebugBundle.DBG_20_addSignalNamesToSync
+    },
+    llvmCliArgs=[
+        # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+        # LLVM_CLI_COMMON_OPTS.PRINT_BEFORE_ALL,
+        # LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL
+       ],
+    )
+    # print(to_rtl_str(m, target_platform=p))
 
     import unittest
     testLoader = unittest.TestLoader()

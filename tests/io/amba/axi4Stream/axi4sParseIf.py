@@ -161,7 +161,7 @@ class Axi4SParse2IfAndSequel(Axi4SParse2fields):
 if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle
 
     m = Axi4SParse2IfAndSequel()
     m.DATA_WIDTH = 48

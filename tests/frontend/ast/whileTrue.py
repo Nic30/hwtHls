@@ -176,7 +176,7 @@ class WhileSendSequence4(WhileSendSequence0):
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle
     m = WhileTrueWriteCntr1()
     # m.DATA_WIDTH = 32
     m.FREQ = int(200e6)

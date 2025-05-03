@@ -121,7 +121,7 @@ class WhileTrueReadWriteExpr(WhileTrueReadWrite):
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle
     m = WhileTrueReadWriteExpr()
     m.FREQ = int(150e6)
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

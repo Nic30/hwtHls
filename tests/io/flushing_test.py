@@ -143,7 +143,7 @@ class Flushing_TC(SimTestCase):
 
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle
 
     m = ExampleFlushing0()
     m.CLK_FREQ = int(1e6)

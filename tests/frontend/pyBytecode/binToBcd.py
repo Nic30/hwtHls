@@ -89,7 +89,7 @@ class BinToBcd(HwModule):
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.xilinx.artix7 import Artix7Medium
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle
 
     m = BinToBcd()
     m.DATA_WIDTH = 8

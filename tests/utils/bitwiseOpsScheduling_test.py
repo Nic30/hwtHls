@@ -15,7 +15,7 @@ from hwtHls.netlist.transformation.aggregateBitwiseOps import HlsNetlistPassAggr
 from hwtHls.netlist.translation.dumpNodesDot import HlsNetlistAnalysisPassDumpNodesDot
 from hwtHls.netlist.translation.dumpSchedulingJson import HlsNetlistAnalysisPassDumpSchedulingJson
 from hwtHls.platform.fileUtils import outputFileGetter
-from hwtHls.platform.platform import HlsDebugBundle
+from hwtHls.platform.debugBundle import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
 
 

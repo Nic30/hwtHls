@@ -104,7 +104,7 @@ class LoopFollowedByIf_TC(BaseSsaTC):
 
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle
     m = FiniteWhileIf1()
     m.FREQ = int(40e6)
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={

@@ -181,6 +181,6 @@ class HlsConnectionFromPyFnKwArgs(HwModule):
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
-    from hwtHls.platform.platform import HlsDebugBundle
-    m = HlsConnectionFromPyFnKwArgs()
+    from hwtHls.platform.debugBundle import HlsDebugBundle
+    m = HlsConnectionFromPyFn0()
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

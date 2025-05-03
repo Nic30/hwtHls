@@ -3,7 +3,7 @@
 
 from pathlib import Path
 
-from hwtHls.platform.platform import HlsDebugBundle
+from hwtHls.platform.debugBundle import HlsDebugBundle
 from hwtHls.platform.xilinx.artix7 import Artix7Medium
 from hwtHls.ssa.analysis.llvmMirInterpret import LlvmMirInterpret
 from hwtLib.logic.bcdToBin_test import bin_to_bcd

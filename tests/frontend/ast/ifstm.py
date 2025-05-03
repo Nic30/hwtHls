@@ -78,7 +78,7 @@ class HlsSimpleIfStatement_TC(BaseSsaTC):
 
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle
 
     m = HlsSimpleIfStatement()
     p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
