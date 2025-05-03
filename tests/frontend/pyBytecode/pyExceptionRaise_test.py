@@ -58,7 +58,7 @@ class PyExceptionRaisePyConditionaly(PyExceptionJustRaise):
             raise TestException0()
 
         while b1:
-            hls.write(hls.read(self.i), self.o)
+            hls.write(hls.read(self.i).data, self.o)
 
 
 class PyExceptionRaiseRaiseUsingAssert(PyExceptionRaisePyConditionaly):
@@ -69,7 +69,7 @@ class PyExceptionRaiseRaiseUsingAssert(PyExceptionRaisePyConditionaly):
         assert not self.RAISE
 
         while b1:
-            hls.write(hls.read(self.i), self.o)
+            hls.write(hls.read(self.i).data, self.o)
 
 
 class PyExceptionRaiseRaiseUsingAssertFromInlined0(PyExceptionRaisePyConditionaly):
@@ -79,7 +79,7 @@ class PyExceptionRaiseRaiseUsingAssertFromInlined0(PyExceptionRaisePyConditional
         assert not self.RAISE
 
         while b1:
-            hls.write(hls.read(self.i), self.o)
+            hls.write(hls.read(self.i).data, self.o)
 
     @hlsBytecode
     @override
@@ -99,7 +99,7 @@ class PyExceptionRaiseRaiseUsingAssertFromInlined1(PyExceptionRaisePyConditional
     def mainThread(self, hls: HlsScope):
         PyBytecodeInline(self.mainThreadMainPart)(hls)
         while b1:
-            hls.write(hls.read(self.i), self.o)
+            hls.write(hls.read(self.i).data, self.o)
 
 
 class PyExceptionRaiseRaiseUsingAssertFromInlinedWithLognerCond(PyExceptionRaisePyConditionaly):
@@ -114,7 +114,7 @@ class PyExceptionRaiseRaiseUsingAssertFromInlinedWithLognerCond(PyExceptionRaise
     def mainThread(self, hls: HlsScope):
         PyBytecodeInline(self.mainThreadMainPart)(hls)
         while b1:
-            hls.write(hls.read(self.i), self.o)
+            hls.write(hls.read(self.i).data, self.o)
 
 
 class PyExceptionRaiseRaiseUsingAssertFromInlined2(PyExceptionRaisePyConditionaly):
@@ -138,7 +138,7 @@ class PyExceptionRaiseRaiseUsingAssertFromInlined2(PyExceptionRaisePyConditional
     def mainThread(self, hls: HlsScope):
         PyBytecodeInline(self.mainThreadMainPart)(hls)
         while b1:
-            hls.write(hls.read(self.i), self.o)
+            hls.write(hls.read(self.i).data, self.o)
 
 
 class PyExceptionRaiseRaiseUsingAssertWithMsg(PyExceptionRaisePyConditionaly):
@@ -149,7 +149,7 @@ class PyExceptionRaiseRaiseUsingAssertWithMsg(PyExceptionRaisePyConditionaly):
         assert not self.RAISE, "Err msg"
 
         while b1:
-            hls.write(hls.read(self.i), self.o)
+            hls.write(hls.read(self.i).data, self.o)
 
 
 class PyExceptionRaiseRaiseUsingAssertWithLongerCond(PyExceptionRaisePyConditionaly):
@@ -160,7 +160,7 @@ class PyExceptionRaiseRaiseUsingAssertWithLongerCond(PyExceptionRaisePyCondition
         assert self.RAISE != True or self.RAISE != 1
 
         while b1:
-            hls.write(hls.read(self.i), self.o)
+            hls.write(hls.read(self.i).data, self.o)
 
 
 class PyExceptionRaiseRaiseCatch(PyExceptionJustRaise):
@@ -174,7 +174,7 @@ class PyExceptionRaiseRaiseCatch(PyExceptionJustRaise):
             pass
 
         while b1:
-            hls.write(hls.read(self.i), self.o)
+            hls.write(hls.read(self.i).data, self.o)
 
 
 class PyBytecodePyException_TC(SimTestCase):
