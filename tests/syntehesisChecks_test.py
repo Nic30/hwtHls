@@ -20,8 +20,9 @@ class HlsSynthesisChecksTC(SimTestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             # debug is enabled in order to test debug passes as well
             self.compileSimAndStart(PidControllerHls(),
-                                    target_platform=VirtualHlsPlatform(debugDir=tmp_dir,
-                                                                       debugFilter=HlsDebugBundle.ALL))
+                                    target_platform=VirtualHlsPlatform(
+                                        debugDir=tmp_dir,
+                                        debugFilter=HlsDebugBundle.ALL))
 
     def test_PidControllerHlsDebug(self):
         self._test(PidControllerHls())
@@ -50,7 +51,7 @@ class HlsSynthesisChecksTC(SimTestCase):
         m.DATA_WIDTH = 8
         self._test(m)
 
-    def test_CrcCombHls_crc32_128b_200MHz_XilinxAtrix7Slow(self):
+    def test_CrcCombHls_crc32_128b_200MHz_XilinxArtix7Slow(self):
         # takes 6s
         m = CrcCombHls()
         m.setConfig(CRC_32)
@@ -66,7 +67,7 @@ if __name__ == "__main__":
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([HlsSynthesisChecksTC("test_frameHeader")])
+    # suite = unittest.TestSuite([HlsSynthesisChecksTC("test_CrcCombHls_crc32_8b_100MHz")])
     suite = testLoader.loadTestsFromTestCase(HlsSynthesisChecksTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
