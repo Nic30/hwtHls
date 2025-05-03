@@ -3,6 +3,7 @@
 
 import hashlib
 import struct
+from typing import Callable
 
 from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
@@ -21,7 +22,6 @@ from hwtSimApi.utils import freq_to_period
 from tests.crypto.md5 import md5_accumulator_t, md5ProcessChunk, \
     md5BuildDigist, MD5_INIT_DICT
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
-from typing import Callable
 
 
 class Md5(HwModule):
@@ -165,19 +165,21 @@ if __name__ == "__main__":
     # pr.enable()
     m = Md5()
     m.FREQ = int(50e6)
-    m.UNROLL = 8
+    # m.UNROLL = 8
     # m.LOOP_PRAGMA_GETTER = lambda: PyBytecodeLLVMLoopUnroll(False, None)
     # m.LOOP_PRAGMA_GETTER = lambda: PyBytecodeLLVMLoopUnroll(True, 64)
     # try:
-    #print(to_rtl_str(m, target_platform=Artix7Medium(
-    #   #debugFilter={HlsDebugBundle.DBG_4_4_arch,},
-    #   debugFilter=HlsDebugBundle.ALL_RELIABLE,
-    #   llvmCliArgs=[
-    #       #LLVM_CLI_COMMON_OPTS.debugOnly("legalizer"),
-    #       #LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
-    #       #LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL,
-    #       ]
-    #   )))  #
+    print(to_rtl_str(m, target_platform=Artix7Medium(
+       #debugFilter={HlsDebugBundle.DBG_4_4_arch,},
+       debugFilter=HlsDebugBundle.ALL_RELIABLE,
+       llvmCliArgs=[
+           #LLVM_CLI_COMMON_OPTS.debugOnly("legalizer"),
+           #LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
+           #LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL,
+           #LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+           #LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL,
+           ]
+       )))  #
     # finally:
     #   pr.disable()
     #   pr.dump_stats('profile.prof')
