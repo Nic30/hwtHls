@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.hdl.types.defs import BIT
+from hwt.hdl.commonConstants import b1
 from hwt.hwIOs.std import HwIOVectSignal, HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
@@ -25,7 +25,7 @@ class HlsPythonReadNonBlocking(HwModule):
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
         cntr = int8_t.from_py(0)
-        while BIT.from_py(1):
+        while b1:
             if hls.read(self.i, blocking=False).valid:
                 cntr += 1
             else:
