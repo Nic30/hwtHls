@@ -15,6 +15,12 @@ from tests.frontend.ast.exprTree3 import HlsAstExprTree3_example
 
 
 class BitonicSorterHLS0(BitonicSorter):
+    """
+    :note: This is an example of bad codestyle, each input and output has
+        independent synchronization, which makes circuit synchronization
+        exponentially more complex and compilation slower.
+        This is implemented in exactly this way because it is a test of exactly that.
+    """
 
     @override
     def hwConfig(self):
@@ -24,9 +30,7 @@ class BitonicSorterHLS0(BitonicSorter):
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
         BitonicSorter.hwDeclr(self)
-        self.clk.FREQ = self.CLK_FREQ
 
     @hwt_expr_producer
     def bitonic_compare(self, cmpFn, x, layer, offset):
@@ -40,6 +44,7 @@ class BitonicSorterHLS0(BitonicSorter):
 
         for i, _x_i in enumerate(_x):
             _x_i._name = f"sort_tmp_{layer:d}_{offset:d}_{i:d}"
+
         return _x
 
     @hlsBytecode
@@ -56,7 +61,9 @@ class BitonicSorterHLS0(BitonicSorter):
 
 
 class BitonicSorterHLS1(BitonicSorterHLS0):
-
+    """
+    :see: note about codestyle in :class:`BitonicSorterHLS0`
+    """
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while b1:

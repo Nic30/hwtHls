@@ -23,7 +23,6 @@ class WriteOnce(HwModule):
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.FREQ
         o = self.dataOut = HwIOStructRdVld()._m()
         o.T = HBits(self.DATA_WIDTH, signed=False)
 
