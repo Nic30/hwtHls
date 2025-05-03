@@ -61,7 +61,7 @@ class PidControllerHalfHls(PidController):
                          a[3] * _y[2],
                          key=trim)
 
-                hls.write(_u, u.next)
+                hls.write(_u, u._rtlNextSig)
 
         hls = HlsScope(self)
         hls.addThread(HlsThreadFromPy(hls, mainThread, hls))
