@@ -107,8 +107,8 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
         dataIn = [t.from_py(13), t.from_py(3)]
         self._test_OneInOneOut(dut, dut.model, dataIn,
                                 wallTimeIr=90,
-                                wallTimeOptIr=60,
-                                wallTimeOptMir=6,
+                                wallTimeOptIr=50,
+                                wallTimeOptMir=60,
                                 wallTimeRtlClks=6 + 1,
                                 # debugFilter={
                                 #    *HlsDebugBundle.ALL_RELIABLE,
@@ -129,22 +129,22 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
 
 
 if __name__ == "__main__":
-    from hwt.synth import to_rtl_str
-    m = LoopZeroPadCompareShift()
-    m.FREQ = int(1e6)
-    # m.DATA_WIDTH = 4
-    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={
-        *HlsDebugBundle.ALL_RELIABLE,
-        HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
-        HlsDebugBundle.DBG_4_0_addSignalNamesToData,
-    },
-    #    llvmCliArgs=[("print-after-all", 0, "", "true")]
-    )))
+    # from hwt.synth import to_rtl_str
+    # m = HlsPythonHwWhile0a()
+    # m.FREQ = int(1e6)
+    # # m.DATA_WIDTH = 4
+    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={
+    #     *HlsDebugBundle.ALL_RELIABLE,
+    #     HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+    #     HlsDebugBundle.DBG_4_0_addSignalNamesToData,
+    # },
+    # #    llvmCliArgs=[("print-after-all", 0, "", "true")]
+    # )))
 
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite1 = unittest.TestSuite([StmWhile_sim_TC("test_HlsPythonHwWhile1")])
+    #suite1 = unittest.TestSuite([StmWhile_sim_TC("test_LoopZeroPadCompareShift")])
     suite1 = testLoader.loadTestsFromTestCase(StmWhile_ll_TC)
     suite2 = testLoader.loadTestsFromTestCase(StmWhile_sim_TC)
     runner = unittest.TextTestRunner(verbosity=3)
