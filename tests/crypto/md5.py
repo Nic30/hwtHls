@@ -66,6 +66,7 @@ def md5ProcessChunk(chunk: RtlSignal, acc: RtlSignalBase[md5_accumulator_t], loo
     """
     Based on https://github.com/jcastillo4/systemc-verilog-md5/blob/master/rtl/verilog/md5.v
      https://github.com/buenorafa/md5-python/blob/main/md5.py
+     RFC1321
 
     The message is padded so that its length is divisible by 512
      * First, a single bit, 1, is appended to the end of the message.
