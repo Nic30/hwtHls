@@ -9,6 +9,7 @@ from hwtHls.ssa.analysis.llvmMirInterpret import LlvmMirInterpret
 from hwtLib.logic.bcdToBin_test import bin_to_bcd
 from hwtLib.logic.binToBcd_test import BinToBcdTC as HwtLibBinToBcdTC
 from hwtSimApi.utils import freq_to_period
+from hwtHls.llvm.llvmIr import LLVMStringContext
 from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.frontend.pyBytecode.binToBcd import BinToBcd
 
@@ -20,7 +21,9 @@ class BinToBcd_TC(HwtLibBinToBcdTC):
         cls.dut = BinToBcd()
         cls.dut.DATA_WIDTH = 8
         cls.CLK_PERIOD = int(freq_to_period(cls.dut.FREQ))
-        cls.compileSim(cls.dut, target_platform=Artix7Medium(debugFilter={HlsDebugBundle.DBG_2_0_mir, HlsDebugBundle.DBG_4_0_addSignalNamesToSync, HlsDebugBundle.DBG_4_0_addSignalNamesToData}))
+        cls.compileSim(cls.dut, target_platform=Artix7Medium(debugFilter={HlsDebugBundle.DBG_2_0_mir,
+                                                                          HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+                                                                          HlsDebugBundle.DBG_4_0_addSignalNamesToData}))
 
     def test_0to127(self):
         BaseIrMirRtl_TC._test_no_comb_loops(self)
@@ -32,7 +35,8 @@ class BinToBcd_TC(HwtLibBinToBcdTC):
         with open(Path(self.DEFAULT_LOG_DIR) / "BinToBcd.mainThread" / "02.00.mir.ll") as f:
             refData = [0, 1, 2, 3, 4, 5, 6, 7, 99, 127, 255]
             args = [iter(refData), []]
-            LlvmMirInterpret.runMirStr(f.read(), "BinToBcd.mainThread", args)
+            strCtx = LLVMStringContext()
+            LlvmMirInterpret.runMirStr(strCtx, f.read(), "BinToBcd.mainThread", args)
             self.assertValSequenceEqual(args[1], tuple(bin_to_bcd(d, 3) for d in refData))
 
 
