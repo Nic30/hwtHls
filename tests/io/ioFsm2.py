@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from hwt.hdl.commonConstants import b1
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
-from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
+from hwtHls.code import zext
+from hwtHls.frontend.pyBytecode import hlsBytecode
+from hwtHls.frontend.pyBytecode.hwrange import hwrange
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
-from tests.frontend.ast.whileTrue import WhileTrueWriteCntr0
 from tests.io.ioFsm import WriteFsm1WhileTrue123hs
-from hwtHls.frontend.pyBytecode.hwrange import hwrange
-from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwt.hdl.commonConstants import b1
-from hwtHls.code import zext
 
 
 class WriteFsmFor(WriteFsm1WhileTrue123hs):
@@ -101,7 +99,6 @@ class WriteFsmControlledFromIn(WriteFsm1WhileTrue123hs):
 
 class ReadFsmWriteFsmSumAndCondWrite(WriteFsm1WhileTrue123hs):
 
-
     @override
     def hwDeclr(self):
         WriteFsm1WhileTrue123hs.hwDeclr(self)
@@ -131,6 +128,6 @@ if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.debugBundle import HlsDebugBundle
 
-    dut = ReadFsmWriteFsmSumAndCondWrite()
+    dut = WriteFsmPrequel()
     p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
     print(to_rtl_str(dut, target_platform=p))
