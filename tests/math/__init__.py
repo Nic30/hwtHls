@@ -1,6 +1,6 @@
 """
 How FP intrinsic functions/opcodes are defined:
-
+-----------------------------------------------
 Frontend:
 * tests.math.hFloatTmp.hFloatTmpOps contains the definition of python function
   this function construct an expression HOperatorDefLlvm associated with this function e.g. fadd construct expr with OP_FADD
@@ -26,5 +26,10 @@ HlsNetlist:
 * HOperatorDefLlvm is then used to lookup ComponentGenerator associated with the HOperatorDefLlvm in
   HlsPlatform._componentGenerators.
 * ComponentGenerator holds all scheduling info and it also resolves physical realization of function.
+
+
+Python math libraries with definitions of math functions:
+* [mpmath](https://github.com/mpmath/mpmath)
+
 
 """
