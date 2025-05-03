@@ -1,5 +1,9 @@
-from typing import Union, Sequence, Literal, List
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
+from typing import List
+
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwIOs.utils import addClkRstn
@@ -12,13 +16,11 @@ from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.llvm.llvmIr import Attribute, CallInst, Function, AddDefaultFunctionAttributes
 from hwtHls.llvm.llvmIr import MachineInstr
 from hwtHls.netlist.builder import HlsNetlistBuilder
-from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.scope import HlsScope
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
-from tests.frontend.pyBytecode.stmWhile import TRUE
 
 
 class ExampleHardBlockHwModule_netlist_add1(HardBlockHwModule):
@@ -71,8 +73,8 @@ class ExampleHardBlock_netlist(HwModule):
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
-        while TRUE:
-            i = hls.read(self.data_in)
+        while b1:
+            i = hls.read(self.data_in).data
             ip1 = ExampleHardBlockHwModule_netlist_add1(i._dtype)(i)
             hls.write(ip1, self.data_out)
 
