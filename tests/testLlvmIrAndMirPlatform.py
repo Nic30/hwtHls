@@ -4,10 +4,12 @@ from pathlib import Path
 from typing import Optional, Union, Callable, Set, List
 
 from hwt.hdl.const import HConst
+from hwt.hwModule import HwModule
 from hwt.pyUtils.typingFuture import override
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle, MachineFunction, IntentionalCompilationInterupt, \
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, IntentionalCompilationInterupt, \
     StringRef, Any, AnyToFunction, AnyToModule, AnyToLoop, AnyToMachineFunction, Module, Function
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.platform.debugBundleTypes import LlvmCliArgTuple
 from hwtHls.platform.platform import DebugId, HlsDebugBundle, \
     _runOnSsaMouduleGetter
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -37,17 +39,20 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
         print(stage.name, t)
 
     def __init__(self,
+                 topToRunTestsOn: Optional[HwModule]=None,
                  noOptIrTest:Optional[Callable[[LlvmCompilationBundle, ], None]]=None,
                  optIrTest:Optional[Callable[[LlvmCompilationBundle, ], None]]=None,
                  optMirTest:Optional[Callable[[LlvmCompilationBundle, ], None]]=None,
                  debugDir:Optional[Union[str, Path]]="tmp",
                  debugFilter:Optional[Set[DebugId]]=HlsDebugBundle.DEFAULT,
+                 llvmCliArgs:List[LlvmCliArgTuple]=[],
                  debugLogTime: Optional[Callable[[TIME_LOG_STAGE, timedelta], None]]=None,
                  runTestAfterEachPass:bool=False,
                  runTestAfterEachIrPass:bool=False,
                  runTestAfterEachMirPass:bool=False,
                  ):
-        VirtualHlsPlatform.__init__(self, debugDir=debugDir, debugFilter=debugFilter)
+        VirtualHlsPlatform.__init__(self, debugDir=debugDir, debugFilter=debugFilter, llvmCliArgs=llvmCliArgs)
+        self._topToRunTestsOn = topToRunTestsOn
         self._debugLogTime = debugLogTime
         self._noOptIrTest = noOptIrTest
         self._optIrTest = optIrTest
@@ -55,7 +60,7 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
         self._runTestAfterEachIrPass = runTestAfterEachIrPass or runTestAfterEachPass
         self._runTestAfterEachMirPass = runTestAfterEachMirPass or runTestAfterEachPass
         self._lastWorkingIr: Optional[str] = None
-        self._llvm: Optional[LlvmCompilationBundle] = None
+        self.llvm: Optional[LlvmCompilationBundle] = None
 
     def _runWithTimeLog(self, stage: TIME_LOG_STAGE, fn: Callable[[LlvmCompilationBundle, ], None], *args, **kwargs):
         if self._debugLogTime:
@@ -69,6 +74,7 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
         """
         This method is used as a after-pass callback from LLVM/C++ to executes test functions.
         """
+        # print("runTestAfterPass", passName.str())
         F = AnyToFunction(ir)
         if F is None:
             M = AnyToModule(ir)
@@ -107,8 +113,9 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
     def runSsaPasses(self, hls: "HlsScope", toLlvm: ToLlvmIrTranslator):
         res = super(TestLlvmIrAndMirPlatform, self).runSsaPasses(hls, toLlvm)
         self.llvm = toLlvm.llvm
-        isTop = hls.parentHwModule._parent is None
+        isTop = hls.parentHwModule._parent is None and (self._topToRunTestsOn is None or self._topToRunTestsOn is toLlvm.parentHwModule)
         if isTop:
+            # [todo] launch tests only on top function
             if self._noOptIrTest:
                 self._runWithTimeLog(self.TIME_LOG_STAGE.NO_OPT_IR, self._noOptIrTest, toLlvm.llvm)
             llvm: LlvmCompilationBundle = toLlvm.llvm
@@ -136,7 +143,7 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
     def runMirToHlsNetlist(self,
                       hls: "HlsScope", toLlvm: ToLlvmIrTranslator,
                       *args):
-        isTop = hls.parentHwModule._parent is None
+        isTop = hls.parentHwModule._parent is None and (self._topToRunTestsOn is None or self._topToRunTestsOn is toLlvm.parentHwModule)
         if isTop:
             try:
                 if self._optIrTest:
@@ -156,7 +163,7 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
     @classmethod
     def forSimpleDataInDataOutHwModule(cls,
                                    prepareDataInFn: Callable[[], None],
-                                   checkDataOutFn: Callable[[Union[List[HConst], List[List[HConst]]]], None],
+                                   checkDataOutFn: Optional[Callable[[Union[List[HConst], List[List[HConst]]]], None]],
                                    logFileNameStem: Optional[Union[Path, str]],
                                    inputCnt=1,
                                    outputCnt=1,
@@ -171,66 +178,67 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
         :param outputCnt: number of outputs of tested function (outputs must be at the end of parameters)
         :note: for args/kwargs see constructor of this :class:`~.TestLlvmIrAndMirPlatform`
         """
+        if checkDataOutFn is not None:
 
-        def createDataInDataOut():
-            dataIn = prepareDataInFn()
-            dataOut = []
-            args = []
+            def createDataInDataOut():
+                dataIn = prepareDataInFn()
+                dataOut = []
+                args = []
 
-            if inputCnt == 1:
-                args.append(iter(dataIn))
-            else:
-                assert len(dataIn) == inputCnt, len(inputCnt)
-                args.extend(iter(d) for d in dataIn)
-
-            if outputCnt == 1:
-                args.append(dataOut)
-            else:
-                args.extend([] for _ in range(outputCnt))
-
-            return dataIn, dataOut, args
-
-        def testLlvmOptIr(llvm: LlvmCompilationBundle):
-            """
-            Execute interpret on optimized IR with product of createDataInDataOut function and then call checkDataOutFn  
-            """
-            _, dataOut, args = createDataInDataOut()
-            interpret = LlvmIrInterpret(llvm.main)
-            try:
-                if logFileNameStem is not None:
-                    with open(str(logFileNameStem) + ".llvmIrWave.vcd", "w") as vcdFile:
-                        waveLog = VcdWriter(vcdFile)
-                        interpret.installWaveLog(waveLog, llvm.strCtx)
-                        interpret.run(args)
+                if inputCnt == 1:
+                    args.append(iter(dataIn))
                 else:
-                    interpret.run(args)
-            except SimIoUnderflowErr:
-                pass
-            checkDataOutFn(dataOut)
+                    assert len(dataIn) == inputCnt, len(inputCnt)
+                    args.extend(iter(d) for d in dataIn)
 
-        def testLlvmOptMir(llvm: LlvmCompilationBundle):
-            """
-            same as :func:`~.testLlvmOptIr` just for MIR
-            """
-            _, dataOut, args = createDataInDataOut()
-            interpret = LlvmMirInterpret(llvm.getMachineFunction(llvm.main))
-            try:
-                if logFileNameStem is not None:
-                    with open(str(logFileNameStem) + ".llvmMirWave.vcd", "w") as vcdFile:
-                        waveLog = VcdWriter(vcdFile)
-                        interpret.installWaveLog(waveLog, llvm.strCtx)
-                        interpret.run(args)
+                if outputCnt == 1:
+                    args.append(dataOut)
                 else:
-                    interpret.run(args)
-            except SimIoUnderflowErr:
-                pass
-            checkDataOutFn(dataOut)
+                    args.extend([] for _ in range(outputCnt))
 
-        if kwargs.get("noOptIrTest", None) is cls.TEST_NO_OPT_IR:
-            kwargs["noOptIrTest"] = testLlvmOptIr
-        if "optIrTest" not in kwargs:
-            kwargs["optIrTest"] = testLlvmOptIr
-        if "optMirTest" not in kwargs:
-            kwargs["optMirTest"] = testLlvmOptMir
+                return dataIn, dataOut, args
+
+            def testLlvmOptIr(llvm: LlvmCompilationBundle):
+                """
+                Execute interpret on optimized IR with product of createDataInDataOut function and then call checkDataOutFn  
+                """
+                _, dataOut, args = createDataInDataOut()
+                interpret = LlvmIrInterpret(llvm.main, llvm.strCtx)
+                try:
+                    if logFileNameStem is not None:
+                        with open(str(logFileNameStem) + ".llvmIrWave.vcd", "w") as vcdFile:
+                            waveLog = VcdWriter(vcdFile)
+                            interpret.installWaveLog(waveLog)
+                            interpret.run(args)
+                    else:
+                        interpret.run(args)
+                except SimIoUnderflowErr:
+                    pass
+                checkDataOutFn(dataOut)
+
+            def testLlvmOptMir(llvm: LlvmCompilationBundle):
+                """
+                same as :func:`~.testLlvmOptIr` just for MIR
+                """
+                _, dataOut, args = createDataInDataOut()
+                interpret = LlvmMirInterpret(llvm.getMachineFunction(llvm.main), llvm.strCtx)
+                try:
+                    if logFileNameStem is not None:
+                        with open(str(logFileNameStem) + ".llvmMirWave.vcd", "w") as vcdFile:
+                            waveLog = VcdWriter(vcdFile)
+                            interpret.installWaveLog(waveLog)
+                            interpret.run(args)
+                    else:
+                        interpret.run(args)
+                except SimIoUnderflowErr:
+                    pass
+                checkDataOutFn(dataOut)
+
+            if kwargs.get("noOptIrTest", None) is cls.TEST_NO_OPT_IR:
+                kwargs["noOptIrTest"] = testLlvmOptIr
+            if "optIrTest" not in kwargs:
+                kwargs["optIrTest"] = testLlvmOptIr
+            if "optMirTest" not in kwargs:
+                kwargs["optMirTest"] = testLlvmOptMir
 
         return cls(*args, **kwargs)
