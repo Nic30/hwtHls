@@ -1,0 +1,12 @@
+########### Thread 0 ###########
+blocks:
+    bb.1_blockL42i0_42
+nodes:
+    <HlsNetNodeOutLazy 2 bb1_en>
+    <HlsNetNodeRead 4 <Signal i0 <Bits, 8bits, unsigned>>>
+    <HlsNetNodeOperator 5 NOT [<HlsNetNodeOutLazy 2 bb1_en>]>
+    <HlsNetNodeOperator 6 BitsAsVec [4:0]>
+    <HlsNetNodeConst 7 <BitsVal 1>>
+    <HlsNetNodeOperator 8 GT [6:0, 7:0]>
+    <HlsNetNodeWrite 9 o <- 8:0>
+

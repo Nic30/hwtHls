@@ -1,0 +1,40 @@
+digraph "RedundantCmpGT.mainThread" {
+legend [label=<
+<table border="0" cellborder="1" cellspacing="0">
+  <tr><td>discarded</td><td bgcolor="red"> </td></tr>
+  <tr><td>reset</td><td bgcolor="orange"> </td></tr>
+  <tr><td>backedge</td><td bgcolor="blue"> </td></tr>
+  <tr><td>fowardedge</td><td bgcolor="green"> </td></tr>
+</table>>, shape=plain, style=filled];
+bb0 [fillcolor=white, label=<
+        <table border="0" cellborder="1" cellspacing="0">
+            <tr><td>bb0.RedundantCmpGT.mainThread</td></tr>
+            <tr><td></td></tr>
+            <tr><td>blockEn=&lt;HlsNetNodeOutLazy 0 bb0_en&gt;</td></tr>
+            <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 1 bb0_orderingIn&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOutLazy 1 bb0_orderingIn&gt;</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb1 [fillcolor=white, label=<
+        <table border="0" cellborder="1" cellspacing="0">
+            <tr><td>bb1.blockL42i0_42</td></tr>
+            <tr><td>rstPredeccessor=bb0, isLoopHeader</td></tr>
+            <tr><td>blockEn=&lt;HlsNetNodeOutLazy 2 bb1_en&gt;</td></tr>
+            <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 3 bb1_orderingIn&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeWrite 9 o&gt; [0-orderingOut]&gt;</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+e0to1 [color=orange, fillcolor=white, label=<
+        <table border="0" cellborder="1" cellspacing="0">
+            <tr><td>inlineRstDataToEdge=(1, 1)</td></tr>
+            <tr><td>enteringLoops=[bb1.l1]</td></tr>
+        </table>>, shape=plaintext, style=filled];
+bb0 -> e0to1  [color=orange];
+e0to1 -> bb1  [color=orange];
+e1to1 [color=blue, fillcolor=white, label=<
+        <table border="0" cellborder="1" cellspacing="0">
+            <tr><td>reenteringLoops=[bb1.l1]</td></tr>
+        </table>>, shape=plaintext, style=filled];
+bb1 -> e1to1  [color=blue];
+e1to1 -> bb1  [color=blue];
+}
