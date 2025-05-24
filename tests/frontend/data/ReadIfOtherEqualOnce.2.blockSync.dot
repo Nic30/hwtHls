@@ -1,0 +1,14 @@
+digraph "ReadIfOtherEqualOnce.mainThread" {
+bb0 [fillcolor=white, label=<
+        <table border="0" cellborder="1" cellspacing="0">
+            <tr><td>bb0.bb0</td></tr>
+            <tr><td>needsStarter, needsControl</td></tr>
+            <tr><td>IO in=[(1, 'a'), (2, 'b')]</td></tr>
+            <tr><td>IO out=[]</td></tr>
+            <tr><td>blockEn=&lt;HlsNetNodeOutLazy 0 bb0_en&gt;</td></tr>
+            <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 1 bb0_orderingIn&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeRead 11 ld_r5 &lt;r, v&gt; b&gt; [1-orderingOut]&gt;</td></tr>
+            <tr><td>constLiveOuts=[]</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+}
