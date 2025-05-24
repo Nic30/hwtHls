@@ -340,7 +340,7 @@ body:             |
     dead %6:anyregcls(s19) = HWTFPGA_CLOAD %1, 0, 19, 1 :: (volatile load (s19) from %ir.rx, align 4, addrspace 2)
     dead %7:anyregcls(s19) = HWTFPGA_CLOAD %1, 0, 19, 1 :: (volatile load (s19) from %ir.rx, align 4, addrspace 2)
     %8:anyregcls(s19) = HWTFPGA_CLOAD %1, 0, 1, 19 :: (volatile load (s19) from %ir.rx, align 4, addrspace 2)
-    %9:anyregcls(s16) = HWTFPGA_EXTRACT %8(s19), 0, 16
+    %9:anyregcls(s16) = HWTFPGA_EXTRACT %8(s19), 19, 0, 16
     %12:anyregcls(s1) = HWTFPGA_ICMP intpred(eq), %9(s16), i16 2048
     %56:anyregcls(s1) = HWTFPGA_NOT %12(s1)
     HWTFPGA_BRCOND %56(s1), %bb.6
@@ -367,7 +367,7 @@ body:             |
     %27:anyregcls(s1) = HWTFPGA_MUX %48(s1)
     %26:anyregcls(s8) = HWTFPGA_MUX %47(s8)
     %28:anyregcls(s19) = HWTFPGA_CLOAD %1, 0, 1, 19 :: (volatile load (s19) from %ir.rx, align 4, addrspace 2)
-    %29:anyregcls(s1) = HWTFPGA_EXTRACT %28(s19), 18, 1
+    %29:anyregcls(s1) = HWTFPGA_EXTRACT %28(s19), 19, 18, 1
     %30:anyregcls(s19) = HWTFPGA_MERGE_VALUES i8 0, %26(s8), i1 false, %27(s1), i1 false, 8, 8, 1, 1, 1
     HWTFPGA_CSTORE %30(s19), %0, 0, 19, 1 :: (volatile store (s19) into %ir.bodyTx, align 4, addrspace 1)
     %49:anyregcls(s19) = HWTFPGA_MUX %28(s19)
@@ -376,12 +376,12 @@ body:             |
   bb.4.blockL44i0_L376i0_376.1:
     successors: %bb.5(0x04000000), %bb.3(0x7c000000)
   
-    %33:anyregcls(s8) = HWTFPGA_EXTRACT %28(s19), 8, 8
+    %33:anyregcls(s8) = HWTFPGA_EXTRACT %28(s19), 19, 8, 8
     %35:anyregcls(s19) = HWTFPGA_CLOAD %1, 0, 1, 19 :: (volatile load (s19) from %ir.rx, align 4, addrspace 2)
-    %36:anyregcls(s1) = HWTFPGA_EXTRACT %35(s19), 18, 1
+    %36:anyregcls(s1) = HWTFPGA_EXTRACT %35(s19), 19, 18, 1
     %37:anyregcls(s19) = HWTFPGA_MERGE_VALUES i8 0, %33(s8), i3 2, 8, 8, 3
     HWTFPGA_CSTORE %37(s19), %0, 0, 19, 1 :: (volatile store (s19) into %ir.bodyTx, align 4, addrspace 1)
-    %47:anyregcls(s8) = HWTFPGA_EXTRACT %35(s19), 8, 8
+    %47:anyregcls(s8) = HWTFPGA_EXTRACT %35(s19), 19, 8, 8
     %48:anyregcls(s1) = HWTFPGA_MUX i1 true
     %49:anyregcls(s19) = HWTFPGA_MUX %35(s19)
     %52:anyregcls(s1) = HWTFPGA_NOT %36(s1)
@@ -390,7 +390,7 @@ body:             |
   bb.5.blockL44i0_656:
     successors: %bb.1(0x80000000)
   
-    %41:anyregcls(s8) = HWTFPGA_EXTRACT %49(s19), 0, 8
+    %41:anyregcls(s8) = HWTFPGA_EXTRACT %49(s19), 19, 0, 8
     %42:anyregcls(s19) = HWTFPGA_MERGE_VALUES i8 0, %41(s8), i3 -2, 8, 8, 3
     HWTFPGA_CSTORE %42(s19), %0, 0, 19, 1 :: (volatile store (s19) into %ir.bodyTx, align 4, addrspace 1)
     HWTFPGA_BR %bb.1
@@ -399,7 +399,7 @@ body:             |
     successors: %bb.1(0x04000000), %bb.6(0x7c000000)
   
     %13:anyregcls(s19) = HWTFPGA_CLOAD %1, 0, 1, 19 :: (volatile load (s19) from %ir.rx, align 4, addrspace 2)
-    %14:anyregcls(s1) = HWTFPGA_EXTRACT %13(s19), 18, 1
+    %14:anyregcls(s1) = HWTFPGA_EXTRACT %13(s19), 19, 18, 1
     %50:anyregcls(s1) = HWTFPGA_NOT %14(s1)
     HWTFPGA_BRCOND %50(s1), %bb.6
     HWTFPGA_BR %bb.1
