@@ -471,7 +471,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
 
         if  isinstance(a, HwIterator):
             curLoopInfo.mustBeEvaluatedInPreproc = False
-            c, curCondBlock = a.hwCondition(self, frame, curBlock)
+            c, curCondBlock = a.hwBreakCondition(self, frame, curBlock)
             assert isinstance(c, Value) and  c.getType().isIntegerTy() and c.getType().getIntegerBitWidth() == 1, (c, "Iterator continue condition must be 1b type")
             v = a.hwIterStepValue()
             frame.stack.append(PyBytecodeInPreproc(v))

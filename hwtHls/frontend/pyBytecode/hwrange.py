@@ -12,15 +12,18 @@ from hwtHls.llvm.llvmIr import Value, BasicBlock
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 
 
-class hwrange_iterator(HwIterator):
+class _hwrange_iterator(HwIterator):
     """
-    :class:`HwIterator` object returned by :class:`hwrange`
+    :class:`HwIterator` object returned by :class:`hwrange`, 
+        functionality equivalent to python "range" function but this is HwIterator
+    :ivar stepUsesAdd: a flag which specifies if add or sub should be used for step
+    :ivar inductionVar: output variable for index produced by this iterator
     """
 
     def __init__(self, name: Optional[str],
-                 start:Union[HBitsConst, Value],
-                 stop:Union[HBitsConst, Value],
-                 step:Union[HBitsConst, Value], stepUsesAdd: bool):
+                 start: Union[HBitsConst, Value],
+                 stop: Union[HBitsConst, Value],
+                 step: Union[HBitsConst, Value], stepUsesAdd: bool):
         self.name = name
         self.start = start
         self.stop = stop
@@ -30,7 +33,7 @@ class hwrange_iterator(HwIterator):
 
     def __next__(self):
         """
-        Used only if executed in python
+        :note: Used only if executed in python
         """
         start = self.start
         stop = self.stop
@@ -62,7 +65,7 @@ class hwrange_iterator(HwIterator):
         return self.inductionVar
 
     @override
-    def hwCondition(self, toSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, block: BasicBlock) -> Tuple[BasicBlock, Value]:
+    def hwBreakCondition(self, toSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, block: BasicBlock) -> Tuple[BasicBlock, Value]:
         assert self.inductionVar is not None, ("This HwIterator should have been initialized during GET_ITER")
         toLlvm: ToLlvmIrTranslator = toSsa.toLlvm
         block, v = toLlvm._translateExprToLlvm(block, self.inductionVar)
@@ -144,4 +147,4 @@ class hwrange():
         self.name = name
 
     def __iter__(self):
-        return hwrange_iterator(self.name, self.start, self.stop, self.step, self.stepUsesAdd)
+        return _hwrange_iterator(self.name, self.start, self.stop, self.step, self.stepUsesAdd)

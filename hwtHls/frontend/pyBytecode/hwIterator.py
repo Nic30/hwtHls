@@ -10,13 +10,15 @@ class HwIterator():
     The base class for iterators which can be translated to hw code.
     """
 
-    def hwInit(self, toSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: BasicBlock) -> BasicBlock:
+    def hwInit(self, toSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, block: BasicBlock) -> BasicBlock:
         """
-        Construct code for initialization of iterator.
+        Construct code for initialization of iterator. Called on place where GET_ITER bytecode instruction was.
+        It purpose is to prepare internals of this object.
+        And ititialize iteration variables to value for first iteration.
         """
         raise NotImplementedError("Override this method in implementation of this abstract class", self.__class__)
 
-    def hwCondition(self, toSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: BasicBlock) -> Tuple[BasicBlock, Value]:
+    def hwBreakCondition(self, toSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, block: BasicBlock) -> Tuple[BasicBlock, Value]:
         """
         Construct a "break" condition for an iterator
         """
@@ -33,7 +35,7 @@ class HwIterator():
         """
         raise NotImplementedError("Override this method in implementation of this abstract class", self.__class__)
 
-    def hwStep(self, toSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: BasicBlock) -> BasicBlock:
+    def hwStep(self, toSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, block: BasicBlock) -> BasicBlock:
         """
         Construct a code corresponding to sptep of an iterator
         """
