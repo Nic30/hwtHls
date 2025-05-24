@@ -34,8 +34,8 @@ class Axi4SPacketCopyByteByByteHs(HwModule):
         with self._hwParamsShared():
             self.rx = Axi4Stream()
             self.rx.USE_STRB = self.USE_STRB
-            self.txBody = HwIODataRdVld()._m()
-            self.txBody.DATA_WIDTH = self.OUT_DATA_WIDTH
+            self.tx = HwIODataRdVld()._m()
+            self.tx.DATA_WIDTH = self.OUT_DATA_WIDTH
 
     def doUnrolling(self):
         # if can not be placed directly in hls code loop because metadata would be added to a wrong branch instruction
@@ -47,13 +47,14 @@ class Axi4SPacketCopyByteByByteHs(HwModule):
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope, rx: IoProxyAxi4Stream):
-        while BIT.from_py(1):
+        assert self.OUT_DATA_WIDTH == 8
+        while b1:
             rx.readStartOfFrame()
-            # pass body to txBody output
+            # pass body to tx output
             while b1:
                 self.doUnrolling()
                 d = PyBytecodeInPreproc(rx.read(HBits(8), reliable=False))
-                hls.write(d.data, self.txBody)
+                hls.write(d.data, self.tx)
                 if d._isEoF():
                     del d
                     break
