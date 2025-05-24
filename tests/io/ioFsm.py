@@ -25,7 +25,6 @@ class WriteFsm0WhileTrue123(HwModule):
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
 
         self.o: HwIOVectSignal = HwIOVectSignal(self.DATA_WIDTH, signed=False)._m()
 
@@ -56,7 +55,6 @@ class WriteFsm1WhileTrue123hs(WriteFsm0WhileTrue123):
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
 
         self.o: HwIOStructRdVld = HwIOStructRdVld()._m()
         self.o.T = HBits(self.DATA_WIDTH)
@@ -79,7 +77,6 @@ class ReadFsm0WhileTrueRead3TimesWriteConcat(HwModule):
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
 
         self.i = HwIOVectSignal(self.DATA_WIDTH)
         self.o = HwIOVectSignal(3 * self.DATA_WIDTH)._m()
@@ -110,7 +107,6 @@ class ReadFsm1WhileTrueRead3TimesWriteConcatHs(ReadFsm0WhileTrueRead3TimesWriteC
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
 
         self.i: HwIOStructRdVld = HwIOStructRdVld()
         self.i.T = HBits(self.DATA_WIDTH)

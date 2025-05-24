@@ -381,13 +381,11 @@ class MovingOneGen(HwModule):
     @override
     def hwConfig(self) -> None:
         self.DATA_WIDTH = HwParam(4)
-        self.FREQ = HwParam(int(100e6))
+        self.CLK_FREQ = HwParam(int(100e6))
 
     @override
     def hwDeclr(self) -> None:
         addClkRstn(self)
-        self.clk.FREQ = self.FREQ
-
         self.o = HwIOStructRdVld()._m()
         self.o.T = HBits(self.DATA_WIDTH)
 

@@ -25,7 +25,6 @@ class CycleDelayHwModule(HwModule):
 
     def hwDeclr(self) -> None:
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
         with self._hwParamsShared():
             self.dataOut = HwIODataRdVld()._m()
 
@@ -62,7 +61,7 @@ class HlsCycleDelayHwModule(BaseSsaTC):
 
     def test_CycleDelayHwModule(self, f=100e6):
         dut = CycleDelayHwModule()
-        dut.FREQ = int(f)
+        dut.CLK_FREQ = int(f)
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
         nodes = list(dut.hls._threads[0].netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT))
         self.assertEqual(len(nodes), 2, nodes)  # const 9, write

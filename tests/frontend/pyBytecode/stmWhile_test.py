@@ -102,7 +102,7 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
     def test_LoopZeroPadCompareShift(self):
         dut = LoopZeroPadCompareShift()
         dut.DATA_WIDTH = 4
-        dut.FREQ = int(1e6)
+        dut.CLK_FREQ = int(1e6)
         t = HBits(dut.DATA_WIDTH)
         dataIn = [t.from_py(13), t.from_py(3)]
         self._test_OneInOneOut(dut, dut.model, dataIn,
@@ -131,7 +131,7 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
 if __name__ == "__main__":
     # from hwt.synth import to_rtl_str
     # m = HlsPythonHwWhile0a()
-    # m.FREQ = int(1e6)
+    # m.CLK_FREQ = int(1e6)
     # # m.DATA_WIDTH = 4
     # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={
     #     *HlsDebugBundle.ALL_RELIABLE,

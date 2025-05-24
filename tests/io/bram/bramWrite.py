@@ -28,7 +28,6 @@ class BramWrite(HwModule):
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
 
         with self._hwParamsShared():
             self.ram: HwIOBramPort_noClk = HwIOBramPort_noClk()._m()

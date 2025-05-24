@@ -21,7 +21,6 @@ class Axi4SPacketByteCntr0(Axi4SPacketCntr):
 
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
         with self._hwParamsShared():
             self.i = Axi4Stream()
             self.i.USE_STRB = True

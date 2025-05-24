@@ -20,9 +20,9 @@ class CountBitsTC(SimTestCase):
     def test_CountLeadingZeros(self):
         dut = CountLeadingZeros()
         dut.T = HBits(4)
-        dut.FREQ = int(1e6)
+        dut.CLK_FREQ = int(1e6)
         # dut.OUT_CHANNEL_TYPE = dut.IN_CHANNEL_TYPE = HwIOStructRdVld
-        CLK_PERIOD = int(freq_to_period(dut.FREQ))
+        CLK_PERIOD = int(freq_to_period(dut.CLK_FREQ))
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
         #dut.data_out._ag.presetBeforeClk = True
         #dut.data_in._ag.presetBeforeClk = True
@@ -46,8 +46,8 @@ class CountBitsTC(SimTestCase):
     def test_CountLeadingOnes(self):
         dut = CountLeadingOnes()
         dut.T = HBits(4)
-        dut.FREQ = int(1e6)
-        CLK_PERIOD = int(freq_to_period(dut.FREQ))
+        dut.CLK_FREQ = int(1e6)
+        CLK_PERIOD = int(freq_to_period(dut.CLK_FREQ))
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
         DATA_WIDTH = dut.T.bit_length()
         test_values = list(range(2 ** DATA_WIDTH))

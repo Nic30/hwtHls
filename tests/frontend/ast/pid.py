@@ -25,7 +25,6 @@ class PidControllerHalfHls(PidController):
     @override
     def hwDeclr(self):
         PidController.hwDeclr(self)
-        self.clk.FREQ = self.CLK_FREQ
 
     @override
     def hwImpl(self):

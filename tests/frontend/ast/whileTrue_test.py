@@ -36,7 +36,7 @@ class HlsAstWhileTrue_TC(SimTestCase):
                                 platform=None,
                                 timeMultiplier=1):
         dut = cls()
-        dut.FREQ = int(FREQ)
+        dut.CLK_FREQ = int(FREQ)
         if platform is None:
             # platform = VirtualHlsPlatform()
             platform = VirtualHlsPlatform(debugFilter={  # *HlsDebugBundle.ALL_RELIABLE,
@@ -59,7 +59,7 @@ class HlsAstWhileTrue_TC(SimTestCase):
         elif randomizeIn or randomizeOut:
             CLK *= 3
 
-        self.runSim(int(CLK * freq_to_period(dut.FREQ) * timeMultiplier))
+        self.runSim(int(CLK * freq_to_period(dut.CLK_FREQ) * timeMultiplier))
         self._test_no_comb_loops()
         # explainer = RtlSimExplainer(self.rtl_simulator, dut)
         # print("\n")
@@ -185,7 +185,7 @@ class HlsAstWhileTrue_TC(SimTestCase):
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     m = WhileSendSequence1()
-    m.FREQ = int(20e6)
+    m.CLK_FREQ = int(20e6)
     # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={
     #   *HlsDebugBundle.ALL_RELIABLE,
     #   HlsDebugBundle.DBG_20_addSignalNamesToSync,

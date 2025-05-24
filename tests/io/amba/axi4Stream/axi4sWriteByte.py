@@ -21,7 +21,6 @@ class Axi4SWriteByteOnce(HwModule):
 
     def hwDeclr(self) -> None:
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
         with self._hwParamsShared():
             self.dataOut = Axi4Stream()._m()
 

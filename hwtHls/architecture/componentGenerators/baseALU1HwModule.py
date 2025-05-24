@@ -9,6 +9,8 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.serializer.mode import serializeParamsUniq
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwtHls.architecture.componentGenerator import HlsErrorHighlyInefficientImplementation
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.pragmaLoop import PyBytecodeLLVMLoopUnroll
 from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
@@ -17,7 +19,6 @@ from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.architecture.componentGenerator import HlsErrorHighlyInefficientImplementation
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.scope import HlsScope
 
@@ -26,7 +27,7 @@ from hwtHls.scope import HlsScope
 class _BaseALU1HwModule(HwModule):
     """
     Universal HwModule wrapper around point unary operator function.
-    :ivar FREQ: target frequency
+    :ivar CLK_FREQ: target frequency
     :ivar MAIN_FN_META: additional HLS metadata for main function
     :ivar CHECK_FOR_INEFFICIENCY: if true and the module is configured
         in some highly sub-optimal the exception is raised
@@ -34,7 +35,7 @@ class _BaseALU1HwModule(HwModule):
 
     def hwConfig(self) -> None:
         self.T: HdlType = HwParam(None)
-        self.FREQ: int = HwParam(int(20e6))
+        self.CLK_FREQ: int = HwParam(int(20e6))
         self.UNROLL_FACTOR = HwParam(1)
         self.MAIN_FN_META = HwParam(None)
         self.CHECK_FOR_INEFFICIENCY: bool = HwParam(True)
@@ -159,7 +160,7 @@ class _BaseALU1HwModule(HwModule):
                                                           self.UNROLL_FACTOR, self)
 
     @hlsBytecode
-    def aluFn(self, inp):
+    def aluFn(self, inp) -> RtlSignal:
         raise NotImplementedError("Implement this in child class", self.__class__, self)
 
     @hlsBytecode

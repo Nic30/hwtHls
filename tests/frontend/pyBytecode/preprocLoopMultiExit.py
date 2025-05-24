@@ -28,7 +28,7 @@ class PreprocLoopMultiExit_singleExit0(HwModule):
 
     @override
     def hwConfig(self):
-        self.FREQ = HwParam(int(10e6))
+        self.CLK_FREQ = HwParam(int(10e6))
         self.DATA_WIDTH = HwParam(8)
 
     @override
@@ -175,7 +175,7 @@ class PreprocLoopMultiExit_countLeadingZeros_0(PreprocLoopMultiExit_singleExit0)
 
     @override
     def hwConfig(self):
-        self.FREQ = HwParam(int(10e6))
+        self.CLK_FREQ = HwParam(int(10e6))
         self.DATA_WIDTH = HwParam(3)
 
     @override

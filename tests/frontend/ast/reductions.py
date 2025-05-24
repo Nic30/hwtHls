@@ -17,12 +17,11 @@ class ForLoopWithIoSelectIn(HwModule):
     @override
     def hwConfig(self) -> None:
         self.DATA_WIDTH = HwParam(8)
-        self.FREQ = HwParam(int(100e6))
+        self.CLK_FREQ = HwParam(int(100e6))
 
     @override
     def hwDeclr(self) -> None:
         addClkRstn(self)
-        self.clk.FREQ = self.FREQ
         self.dataIn: HObjList[HwIOStructRdVld] = HObjList(HwIOStructRdVld() for _ in range(3))
         for i in self.dataIn:
             i.T = HBits(self.DATA_WIDTH, signed=False)
@@ -84,5 +83,5 @@ if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.debugBundle import HlsDebugBundle
     m = ForLoopAccumulateSumInputSelByIndex()
-    m.FREQ = int(150e6)
+    m.CLK_FREQ = int(150e6)
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

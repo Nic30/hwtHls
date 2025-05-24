@@ -20,13 +20,12 @@ class ReadIfOtherEqual(HwModule):
 
     @override
     def hwConfig(self):
-        self.FREQ = HwParam(int(100e6))
+        self.CLK_FREQ = HwParam(int(100e6))
         self.DATA_WIDTH = HwParam(8)
 
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.FREQ
         with self._hwParamsShared():
             self.a = HwIODataRdVld()
             self.b = HwIODataRdVld()
@@ -64,7 +63,7 @@ class HlsAstReadIfTc(BaseSsaTC):
 
     def testReadIfOtherEqual_100M(self, f=100e6):
         dut = ReadIfOtherEqual()
-        dut.FREQ = int(f)
+        dut.CLK_FREQ = int(f)
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
         dut.a._ag.data.extend([0, 3, 3, 0, 3, 0, 0, ])
         dut.b._ag.data.extend(range(10))
@@ -78,7 +77,7 @@ class HlsAstReadIfTc(BaseSsaTC):
 
     def _testReadIfOtherEqualOnce(self, a, res, f:float):
         dut = ReadIfOtherEqualOnce()
-        dut.FREQ = int(f)
+        dut.CLK_FREQ = int(f)
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
         dut.a._ag.data.append(a)
         dut.b._ag.data.extend(range(5))
@@ -111,7 +110,7 @@ if __name__ == '__main__':
     # from hwtHls.platform.debugBundle import HlsDebugBundle
     # m = ReadIfOtherEqual()
     # # m.DATA_WIDTH = 8
-    # m.FREQ = int(150e6)
+    # m.CLK_FREQ = int(150e6)
     # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest

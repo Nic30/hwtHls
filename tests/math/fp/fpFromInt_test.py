@@ -25,14 +25,12 @@ from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 class IEEE754FpFromIntConventor(HwModule):
 
     def hwConfig(self) -> None:
+        self.CLK_FREQ = HwParam(int(20e6))
         self.T_IN = HwParam(int64_t)
         self.T = HwParam(IEEE754Fp64)
 
-        self.FREQ = HwParam(int(20e6))
-
     def hwDeclr(self) -> None:
         addClkRstn(self)
-        self.clk.FREQ = self.FREQ
 
         self.a = HwIOStructRdVld()
         self.a.T = self.T_IN
@@ -106,7 +104,7 @@ class IEEE754FpFromInt_TC(SimTestCase):
                                                    "input", a, resFp, "expected", refVal))
 
         dut = IEEE754FpFromIntConventor()
-        dut.FREQ = int(1e6)
+        dut.CLK_FREQ = int(1e6)
         if self.LOG_TIME:
             time0 = datetime.now()
         self.compileSimAndStart(dut, target_platform=TestLlvmIrAndMirPlatform.forSimpleDataInDataOutHwModule(

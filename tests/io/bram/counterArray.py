@@ -33,7 +33,6 @@ class BramCounterArray0nocheck(HwModule):
 
     def hwDeclr(self) -> None:
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
 
         self.incr = HwIODataRdVld()
 

@@ -179,5 +179,5 @@ if __name__ == "__main__":
     from hwtHls.platform.debugBundle import HlsDebugBundle
     m = WhileTrueWriteCntr1()
     # m.DATA_WIDTH = 32
-    m.FREQ = int(200e6)
+    m.CLK_FREQ = int(200e6)
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

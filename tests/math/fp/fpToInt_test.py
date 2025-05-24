@@ -18,7 +18,7 @@ from hwtLib.types.ctypes import int64_t
 from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import mask, ValidityError, to_signed
 from tests.math.fp.fptypes import IEEE754Fp64
-from tests.math.fp.toInt import IEEE754FpToInt
+from tests.math.fp.fpToInt import IEEE754FpToInt
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 
@@ -28,11 +28,10 @@ class IEEE754FpToIntConventor(HwModule):
     def hwConfig(self) -> None:
         self.T = HwParam(IEEE754Fp64)
         self.RES_T = HwParam(int64_t)
-        self.FREQ = HwParam(int(20e6))
+        self.CLK_FREQ = HwParam(int(20e6))
 
     def hwDeclr(self) -> None:
         addClkRstn(self)
-        self.clk.FREQ = self.FREQ
 
         self.a = HwIOStructRdVld()
         self.a.T = self.T
@@ -127,7 +126,7 @@ class IEEE754FpToInt_TC(SimTestCase):
 
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle
     from tests.math.fp.fptypes import IEEE754Fp
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtLib.types.ctypes import int8_t
@@ -135,7 +134,7 @@ if __name__ == "__main__":
     m = IEEE754FpToIntConventor()
     m.T = IEEE754Fp(4, 4)
     m.RES_T = int8_t
-    m.FREQ = int(1e6)
+    m.CLK_FREQ = int(1e6)
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest

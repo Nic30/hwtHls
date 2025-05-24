@@ -28,7 +28,6 @@ class CrcCombHls(CrcComb):
     @override
     def hwDeclr(self):
         CrcComb.hwDeclr(self)
-        self.clk.FREQ = self.CLK_FREQ
 
     @override
     def hwImpl(self):

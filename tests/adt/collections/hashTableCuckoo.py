@@ -51,7 +51,6 @@ class HashTableCuckoo(HwModule):
         assert self.STASH_CAM_SIZE >= 1
 
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
         with self._hwParamsShared():
             self.cmd = HashTableCmd()
             self.cmdRes = HashTableCmdResult()._m()

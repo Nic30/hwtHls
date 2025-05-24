@@ -1,3 +1,4 @@
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOVectSignal, HwIOSignal
 from hwt.hwModule import HwModule
@@ -12,7 +13,7 @@ class RedundantCmpGT(HwModule):
 
     @override
     def hwConfig(self) -> None:
-        self.FREQ = HwParam(int(100e6))
+        self.CLK_FREQ = HwParam(int(100e6))
 
     @override
     def hwDeclr(self):
@@ -23,7 +24,7 @@ class RedundantCmpGT(HwModule):
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while b1:
             i0 = hls.read(self.i0).data
             # i1 = hls.read(self.i1)
 

@@ -20,7 +20,7 @@ class FiniteWhileIf0(TwoTimesFiniteWhileInWhileTrue):
     @override
     def hwConfig(self) -> None:
         self.DATA_WIDTH = HwParam(8)
-        self.FREQ = HwParam(int(100e6))
+        self.CLK_FREQ = HwParam(int(100e6))
 
     @override
     def hwDeclr(self) -> None:
@@ -48,7 +48,7 @@ class FiniteWhileIf1(TwoTimesFiniteWhileInWhileTrue):
     @override
     def hwConfig(self) -> None:
         self.DATA_WIDTH = HwParam(8)
-        self.FREQ = HwParam(int(100e6))
+        self.CLK_FREQ = HwParam(int(100e6))
 
     @override
     def hwDeclr(self) -> None:
@@ -75,7 +75,7 @@ class LoopFollowedByIf_TC(BaseSsaTC):
 
     def test_FiniteWhileIf0(self):
         dut = FiniteWhileIf0()
-        dut.FREQ = int(50e6)
+        dut.CLK_FREQ = int(50e6)
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform(
             # debugFilter={
             #    *HlsDebugBundle.ALL_RELIABLE,
@@ -85,18 +85,18 @@ class LoopFollowedByIf_TC(BaseSsaTC):
             ))
 
         dut.dataIn0._ag.data.append(8)
-        self.runSim(int(10 * freq_to_period(dut.FREQ)))
+        self.runSim(int(10 * freq_to_period(dut.CLK_FREQ)))
 
         self.assertValSequenceEqual(dut.dataOut0._ag.data, [4 for _ in range(4)])
         self.assertValSequenceEqual(dut.dataOut1._ag.data, [7, ])
 
     def test_FiniteWhileIf1(self):
         dut = FiniteWhileIf1()
-        dut.FREQ = int(40e6)
+        dut.CLK_FREQ = int(40e6)
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
 
         dut.dataIn0._ag.data.append(8)
-        self.runSim(int(10 * freq_to_period(dut.FREQ)))
+        self.runSim(int(10 * freq_to_period(dut.CLK_FREQ)))
 
         self.assertValSequenceEqual(dut.dataOut0._ag.data, [4 for _ in range(4)])
         self.assertValSequenceEqual(dut.dataOut1._ag.data, [7, ])
@@ -106,7 +106,7 @@ if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.debugBundle import HlsDebugBundle
     m = FiniteWhileIf1()
-    m.FREQ = int(40e6)
+    m.CLK_FREQ = int(40e6)
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={
         *HlsDebugBundle.ALL_RELIABLE,
         HlsDebugBundle.DBG_4_0_addSignalNamesToSync,

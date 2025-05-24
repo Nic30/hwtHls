@@ -17,7 +17,7 @@ class WriteOnce(HwModule):
 
     @override
     def hwConfig(self):
-        self.FREQ = HwParam(int(100e6))
+        self.CLK_FREQ = HwParam(int(100e6))
         self.DATA_WIDTH = HwParam(8)
 
     @override
@@ -74,12 +74,11 @@ class WhileTrueWrite(HwModule):
     @override
     def hwConfig(self) -> None:
         self.DATA_WIDTH = HwParam(8)
-        self.FREQ = HwParam(int(100e6))
+        self.CLK_FREQ = HwParam(int(100e6))
 
     @override
     def hwDeclr(self) -> None:
         addClkRstn(self)
-        self.clk.FREQ = self.FREQ
         self.dataOut: HwIOStructRdVld = HwIOStructRdVld()._m()
         self.dataOut.T = HBits(self.DATA_WIDTH, signed=False)
 
@@ -122,5 +121,5 @@ if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.debugBundle import HlsDebugBundle
     m = WhileTrueReadWriteExpr()
-    m.FREQ = int(150e6)
+    m.CLK_FREQ = int(150e6)
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

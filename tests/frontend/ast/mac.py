@@ -35,7 +35,6 @@ class HlsMAC_example(HwModule):
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
         assert int(self.INPUT_CNT) % 2 == 0
 
         self.dataIn = HObjList(
@@ -95,7 +94,6 @@ class HlsMAC_example_handshake(HlsMAC_example2):
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
         assert int(self.INPUT_CNT) % 2 == 0
 
         self.dataIn = HObjList(

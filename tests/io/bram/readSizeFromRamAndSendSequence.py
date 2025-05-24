@@ -24,7 +24,6 @@ class ReadSizeFromRamAndSendSequence(HwModule):
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
         self.index = HwIODataRdVld()
         self.index.DATA_WIDTH = self.ADDR_WIDTH
         with self._hwParamsShared():

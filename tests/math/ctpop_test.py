@@ -18,7 +18,7 @@ class Ctpop_TC(SimTestCase):
 
     def test_CountOnes(self, FREQ=100e6, DATA_WIDTH=8, BITS_TO_LOOKUP_IN_ROM=4, DBG_ROM_IN_PYLIST=False):
         dut = Ctpop()
-        dut.FREQ = int(FREQ)
+        dut.CLK_FREQ = int(FREQ)
         dut.DATA_WIDTH = DATA_WIDTH
         dut.BITS_TO_LOOKUP_IN_ROM = BITS_TO_LOOKUP_IN_ROM
         dut.DBG_ROM_IN_PYLIST = DBG_ROM_IN_PYLIST
@@ -29,7 +29,7 @@ class Ctpop_TC(SimTestCase):
         ref = []
         for v in test_values:
             ref.append(v.bit_count())
-        self.runSim((len(ref) + 1) * int(freq_to_period(dut.FREQ)))
+        self.runSim((len(ref) + 1) * int(freq_to_period(dut.CLK_FREQ)))
 
         self.assertValSequenceEqual(dut.data_out._ag.data, ref)
 
@@ -42,7 +42,7 @@ if __name__ == '__main__':
     sys.setrecursionlimit(int(1e6))
 
     m = Ctpop()
-    m.FREQ = int(100e6)
+    m.CLK_FREQ = int(100e6)
     m.DATA_WIDTH = 8
     m.BITS_TO_LOOKUP_IN_ROM = 4
     m.DBG_ROM_IN_PYLIST = True

@@ -31,12 +31,11 @@ class _Test_IEEE754FpAlu(HwModule):
 
     def hwConfig(self) -> None:
         self.T = HwParam(IEEE754Fp64)
-        self.FREQ = HwParam(int(20e6))
+        self.CLK_FREQ = HwParam(int(20e6))
         self.FP_FUNCTION = HwParam(IEEE754FpAdd)
 
     def hwDeclr(self) -> None:
         addClkRstn(self)
-        self.clk.FREQ = self.FREQ
 
         self.a = HwIOStructRdVld()
         self.b = HwIOStructRdVld()
@@ -133,7 +132,7 @@ class IEEE754FpAdder_TC(SimTestCase):
         assert sys.float_info.mant_dig == 53
         dut = _Test_IEEE754FpAlu()
         dut.FP_FUNCTION = self.FP_FUNCTION
-        dut.FREQ = int(100e3)
+        dut.CLK_FREQ = int(100e3)
 
         prepareDataInFn = self.getPrepareDataFnForIRSim(self.TEST_DATA, dut.T)
         aDataIn, bDataIn, resRef = self.prepareTestDataAndRef(self.TEST_DATA_FORMATED, self.model)
@@ -187,7 +186,7 @@ if __name__ == "__main__":
     # from hwtHls.platform.xilinx.artix7 import Artix7Fast
 
     m = _Test_IEEE754FpAlu()
-    m.FREQ = int(100e3)
+    m.CLK_FREQ = int(100e3)
     m.T = IEEE754Fp16
 
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE,

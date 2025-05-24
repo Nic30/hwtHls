@@ -23,12 +23,11 @@ class AndShiftInLoop2(HwModule):
 
     @override
     def hwConfig(self) -> None:
-        self.FREQ = HwParam(int(100e6))
+        self.CLK_FREQ = HwParam(int(100e6))
 
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.FREQ
         self.i = HwIOVectSignal(8, signed=False)
         self.o = HwIOVectSignal(8, signed=False)._m()
 
@@ -57,12 +56,11 @@ class AndShiftInLoop3(HwModule):
 
     @override
     def hwConfig(self) -> None:
-        self.FREQ = HwParam(int(100e6))
+        self.CLK_FREQ = HwParam(int(100e6))
 
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.FREQ
         self.i = HwIOVectSignal(8, signed=False)
         self.o = HwIOVectSignal(8, signed=False)._m()
 
@@ -105,7 +103,7 @@ class AndShiftInLoop_TC(SimTestCase):
     def test_AndShiftInLoop2(self):
         dut = AndShiftInLoop2()
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
-        CLK_PERIOD = int(freq_to_period(dut.FREQ))
+        CLK_PERIOD = int(freq_to_period(dut.CLK_FREQ))
         CLK = 7
 
         expected = []
@@ -136,7 +134,7 @@ class AndShiftInLoop_TC(SimTestCase):
     def test_AndShiftInLoop3(self):
         dut = AndShiftInLoop3()
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
-        CLK_PERIOD = int(freq_to_period(dut.FREQ))
+        CLK_PERIOD = int(freq_to_period(dut.CLK_FREQ))
         CLK = 7
 
         expected = []

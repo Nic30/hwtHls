@@ -28,7 +28,6 @@ class ReadNonBlockingHwModule(HwModule):
 
     def hwDeclr(self) -> None:
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
         with self._hwParamsShared():
             self.dataIn = HwIODataRdVld()
             self.dataOut = HwIODataRdVld()._m()

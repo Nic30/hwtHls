@@ -28,12 +28,11 @@ class Md5(HwModule):
 
     def hwConfig(self):
         self.DATA_WIDTH = HwParam(32 * 16)
-        self.FREQ = HwParam(int(100e6))
+        self.CLK_FREQ = HwParam(int(100e6))
         self.UNROLL = HwParam(0)
 
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.FREQ
         assert self.DATA_WIDTH > 0, self.DATA_WIDTH
 
         self.din = HwIODataRdVld()
@@ -115,7 +114,7 @@ class Md5_TC(SimTestCase):
     def _test(self, loopMeta):
         dut = Md5()
         dut.LOOP_PRAGMA_GETTER = loopMeta
-        dut.FREQ = int(1e3)
+        dut.CLK_FREQ = int(1e3)
         # https://github.com/timvandermeij/md5.py/blob/master/md5.py#L43
 
         _s = ''.join(f'{i%16:x}' for i in range(64 - 8 - 1))
@@ -135,7 +134,7 @@ class Md5_TC(SimTestCase):
 
         self.compileSimAndStart(dut, target_platform=platform)
         dut.din._ag.data.extend(TEST_DATA)
-        CLK_PERIOD = freq_to_period(dut.FREQ)
+        CLK_PERIOD = freq_to_period(dut.CLK_FREQ)
         self.runSim((64 + 1) * int(CLK_PERIOD))
 
         # print(list("".join(x) for x in grouper(8, "{0:032x}".format(int(dut.dout._ag.data[-1])))))
@@ -164,7 +163,7 @@ if __name__ == "__main__":
     # pr = cProfile.Profile()
     # pr.enable()
     m = Md5()
-    m.FREQ = int(50e6)
+    m.CLK_FREQ = int(50e6)
     # m.UNROLL = 8
     # m.LOOP_PRAGMA_GETTER = lambda: PyBytecodeLLVMLoopUnroll(False, None)
     # m.LOOP_PRAGMA_GETTER = lambda: PyBytecodeLLVMLoopUnroll(True, 64)

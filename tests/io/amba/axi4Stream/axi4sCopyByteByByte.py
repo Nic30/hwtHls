@@ -3,7 +3,6 @@
 
 from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
-from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
@@ -32,7 +31,6 @@ class Axi4SPacketCopyByteByByteHs(HwModule):
 
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
         with self._hwParamsShared():
             self.rx = Axi4Stream()
             self.rx.USE_STRB = self.USE_STRB
@@ -81,7 +79,6 @@ class Axi4SPacketCopyByteByByte(HwModule):
 
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
         with self._hwParamsShared():
             self.rx = Axi4Stream()
             self.rx.USE_STRB = True

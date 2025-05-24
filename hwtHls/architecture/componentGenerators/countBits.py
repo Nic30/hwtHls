@@ -220,7 +220,7 @@ class ComponentGeneratorBitcount(ComponentGenerator):
     def _getConfiguredFixpHwModule(self, realTimeClkPeriod:float, ty:HBits, realization:OpRealizationMeta):
         hwModule = self._operatorModuleCls()
         hwModule.T = ty
-        hwModule.FREQ = int(1 / realTimeClkPeriod)
+        hwModule.CLK_FREQ = int(1 / realTimeClkPeriod)
         if realization is not None:
             hwModule._setIoChannelTypes(realization)
 
@@ -294,7 +294,7 @@ class ComponentGeneratorBitcount(ComponentGenerator):
     #    cb = AbstractComponentBuilder(netlist.parentHwModule, None, self._genNamePrefix)
     #
     #    m = self._operatorModuleCls()
-    #    m.FREQ = int(period_to_freq(node.netlist.realTimeClkPeriod * Time.s))
+    #    m.CLK_FREQ = int(period_to_freq(node.netlist.realTimeClkPeriod * Time.s))
     #    m.DATA_WIDTH = node.dependsOn[0]._dtype.bit_length()
     #    name = self._moduleName
     #    if node.name:

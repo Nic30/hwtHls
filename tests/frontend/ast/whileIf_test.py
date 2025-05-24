@@ -16,10 +16,10 @@ class HlsAstWhileIf_TC(BaseSsaTC):
 
     def test_WhileAndIf0(self):
         dut = WhileAndIf0()
-        dut.FREQ = int(10e6)
+        dut.CLK_FREQ = int(10e6)
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
         CLK = 8
-        clk_period = int(freq_to_period(dut.FREQ))
+        clk_period = int(freq_to_period(dut.CLK_FREQ))
 
         self.runSim((CLK + 1) * clk_period)
         BaseIrMirRtl_TC._test_no_comb_loops(self)
@@ -44,10 +44,10 @@ class HlsAstWhileIf_TC(BaseSsaTC):
 
     def test_WhileAndIf2(self, cls=WhileAndIf2):
         dut = cls()
-        dut.FREQ = int(40e6)
+        dut.CLK_FREQ = int(40e6)
 
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
-        clk_period = freq_to_period(dut.FREQ)
+        clk_period = freq_to_period(dut.CLK_FREQ)
         inputs = [6, 4, 0, 3, 3, 3, 1]
         CLK = len(inputs)
         expected = []
@@ -76,10 +76,10 @@ class HlsAstWhileIf_TC(BaseSsaTC):
 
     def test_WhileAndIf4(self):
         dut = WhileAndIf4()
-        dut.FREQ = int(10e6)
+        dut.CLK_FREQ = int(10e6)
 
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
-        clk_period = freq_to_period(dut.FREQ)
+        clk_period = freq_to_period(dut.CLK_FREQ)
         inputs = [6, 4, 0, 3, 3, 3, 1]
         CLK = len(inputs)
         expected = []
@@ -110,7 +110,7 @@ if __name__ == "__main__":
     from hwtHls.platform.debugBundle import HlsDebugBundle
     m = WhileAndIf0()
     m.DATA_WIDTH = 4
-    m.FREQ = int(40e6)
+    m.CLK_FREQ = int(40e6)
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest

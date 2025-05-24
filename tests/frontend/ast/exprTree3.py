@@ -24,7 +24,6 @@ class HlsAstExprTree3_example(HwModule):
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
 
         self.a = HwIOVectSignal(32, signed=False)
         self.b = HwIOVectSignal(32, signed=False)

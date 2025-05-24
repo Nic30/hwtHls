@@ -89,7 +89,6 @@ class ReadOrDefaultHwModuleHs(ReadOrDefaultHwModule):
     def hwDeclr(self) -> None:
         # added because of sim agent
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
 
         with self._hwParamsShared():
             self.dataIn = HwIODataRdVld()
@@ -111,7 +110,6 @@ class ReadAnyHsHwModule(ReadOrDefaultHwModule):
     def hwDeclr(self) -> None:
         # added because of sim agent
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
 
         with self._hwParamsShared():
             self.dataIn = HObjList(HwIODataRdVld() for _ in range(self.INPUT_CNT))

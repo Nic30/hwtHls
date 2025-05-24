@@ -23,7 +23,6 @@ class HlsSimpleIfStatement(SimpleIfStatement):
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
         super(HlsSimpleIfStatement, self).hwDeclr()
     
     def mainThread(self, hls: HlsScope):

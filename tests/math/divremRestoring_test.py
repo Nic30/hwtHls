@@ -190,7 +190,7 @@ if __name__ == "__main__":
     # m.T = HBits(16, False)
     # m.FN = DivRemRestoringGen_TC.HLS_DIV_FN
     # # m.UNROLL_FACTOR = 1
-    # m.FREQ = int(1e6)
+    # m.CLK_FREQ = int(1e6)
     # m.IN_CHANNEL_TYPE = HwIOStructRdVld
     # print(to_rtl_str(m, target_platform=Artix7Fast(
     #   debugFilter=HlsDebugBundle.ALL_RELIABLE,

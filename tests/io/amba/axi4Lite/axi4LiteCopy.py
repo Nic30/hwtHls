@@ -31,7 +31,6 @@ class Axi4LiteCopy(BramRead):
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
 
         with self._hwParamsShared():
             self.ram: Axi4Lite = Axi4Lite()._m()

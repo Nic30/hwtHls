@@ -53,8 +53,6 @@ class Axi4SPingResponder(HwModule):
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
-
         self.myIp = HwIOSignal(dtype=ipv4_t)
 
         with self._hwParamsShared():

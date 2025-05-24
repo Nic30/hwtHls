@@ -35,7 +35,6 @@ class HlsNetlistBitwiseOpsPreorder0HwModule(HwModule):
     def hwDeclr(self) -> None:
         # added because of sim agent
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
         
         with self._hwParamsShared():
             self.i0 = HwIOSignal()

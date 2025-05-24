@@ -23,7 +23,7 @@ if __name__ == "__main__":
 
     m = _Test_IEEE754FpAlu()
     m.FP_FUNCTION = IEEE754FpMul
-    m.FREQ = int(100e3)
+    m.CLK_FREQ = int(100e3)
     m.T = IEEE754Fp16
 
     # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

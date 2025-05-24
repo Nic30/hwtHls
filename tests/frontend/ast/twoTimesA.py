@@ -23,7 +23,6 @@ class TwoTimesA0(HwModule):
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
         self.a = HwIOVectSignal(8)
         self.b = HwIOVectSignal(8)._m()
 

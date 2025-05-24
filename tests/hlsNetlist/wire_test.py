@@ -48,7 +48,6 @@ class HlsNetlistWireHwModuleHs(HlsNetlistWireHwModule):
     def hwDeclr(self) -> None:
         # added because of sim agent
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
 
         with self._hwParamsShared():
             self.dataIn = HwIODataRdVld()
@@ -60,7 +59,6 @@ class HlsNetlistWireHwModuleVldSynced(HlsNetlistWireHwModule):
     def hwDeclr(self) -> None:
         # added because of sim agent
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
 
         with self._hwParamsShared():
             self.dataIn = HwIODataVld()
@@ -72,7 +70,6 @@ class HlsNetlistWireHwModuleRdSynced(HlsNetlistWireHwModule):
     def hwDeclr(self) -> None:
         # added because of sim agent
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
 
         with self._hwParamsShared():
             self.dataIn = HwIODataRd()

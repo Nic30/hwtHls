@@ -20,7 +20,7 @@ class BinToBcd_TC(HwtLibBinToBcdTC):
     def setUpClass(cls):
         cls.dut = BinToBcd()
         cls.dut.DATA_WIDTH = 8
-        cls.CLK_PERIOD = int(freq_to_period(cls.dut.FREQ))
+        cls.CLK_PERIOD = int(freq_to_period(cls.dut.CLK_FREQ))
         cls.compileSim(cls.dut, target_platform=Artix7Medium(debugFilter={HlsDebugBundle.DBG_2_0_mir,
                                                                           HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
                                                                           HlsDebugBundle.DBG_4_0_addSignalNamesToData}))

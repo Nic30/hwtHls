@@ -31,12 +31,11 @@ class BinToBcd(HwModule):
     @override
     def hwConfig(self):
         self.DATA_WIDTH = HwParam(8)
-        self.FREQ = HwParam(int(100e6))
+        self.CLK_FREQ = HwParam(int(100e6))
 
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.FREQ
         assert self.DATA_WIDTH > 0, self.DATA_WIDTH
         self.BCD_DIGITS = self.decadic_deciamls_for_bin(self.DATA_WIDTH)
         assert self.BCD_DIGITS > 0

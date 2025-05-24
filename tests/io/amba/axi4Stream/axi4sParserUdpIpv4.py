@@ -30,7 +30,6 @@ class Axi4SParseUdpIpv4(HwModule):
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
         with self._hwParamsShared():
             self.i = Axi4Stream()
             self.src_ip: HwIOStructRdVld[ipv4_t] = HwIOStructRdVld()._m()

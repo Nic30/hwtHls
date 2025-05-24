@@ -60,13 +60,12 @@ class ExampleHardBlock_netlist(HwModule):
 
     @override
     def hwConfig(self) -> None:
-        self.FREQ = HwParam(int(100e6))
+        self.CLK_FREQ = HwParam(int(100e6))
         self.DATA_WIDTH = HwParam(8)
 
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk._FREQ = self.FREQ
         w = self.DATA_WIDTH
         self.data_in = HwIOVectSignal(w)
         self.data_out = HwIOVectSignal(w)._m()

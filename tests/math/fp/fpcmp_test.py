@@ -25,12 +25,11 @@ from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 class IEEE754FpComparator(HwModule):
 
     def hwConfig(self) -> None:
+        self.CLK_FREQ = HwParam(int(20e6))
         self.T = HwParam(IEEE754Fp32)
-        self.FREQ = HwParam(int(20e6))
 
     def hwDeclr(self) -> None:
         addClkRstn(self)
-        self.clk.FREQ = self.FREQ
 
         self.a = HwIOStructRdVld()
         self.b = HwIOStructRdVld()

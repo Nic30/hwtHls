@@ -21,7 +21,7 @@ class ShiftSequential1Loop(HwModule):
 
     @override
     def hwConfig(self) -> None:
-        self.FREQ = HwParam(int(100e6))
+        self.CLK_FREQ = HwParam(int(100e6))
         self.DATA_WIDTH = HwParam(8)
 
     @override
@@ -122,7 +122,7 @@ if __name__ == "__main__":
     from hwtHls.platform.debugBundle import HlsDebugBundle
     
     m = ShiftSequential1Loop()
-    m.FREQ = int(50e6)
+    m.CLK_FREQ = int(50e6)
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     testLoader = unittest.TestLoader()

@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from hwt.code import If
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
-from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOBramPort_noClk, HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn, propagateClkRstn
 from hwt.hwModule import HwModule
@@ -13,11 +13,11 @@ from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
 from hwtHls.netlist.debugTracer import DebugTracer
+from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import \
     netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.scope import HlsScope
-from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
 
 
 class BramRead(HwModule):
@@ -34,7 +34,6 @@ class BramRead(HwModule):
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
 
         with self._hwParamsShared():
             self.dataOut = HwIODataRdVld()._m()
@@ -43,7 +42,7 @@ class BramRead(HwModule):
     @hlsBytecode
     def mainThread(self, hls: HlsScope, ram: BramArrayProxy):
         i = HBits(self.ADDR_WIDTH).from_py(0)
-        while BIT.from_py(1):
+        while b1:
             d = hls.read(ram[i]).data
             hls.write(d, self.dataOut)
             i += 1
@@ -84,7 +83,6 @@ class BramReadWithRom(HwModule):
     @override
     def hwDeclr(self) -> None:
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
 
         with self._hwParamsShared():
             self.dataOut = HwIODataRdVld()._m()

@@ -23,7 +23,6 @@ class ReadAtleastOneOf2(HwModule):
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.clk.FREQ = self.CLK_FREQ
         with self._hwParamsShared():
             self.i0 = HwIODataRdVld()
             self.i1 = HwIODataRdVld()
