@@ -181,25 +181,40 @@ class IEEE754FpAdder_TC(SimTestCase):
                                   for a, b in self.TEST_DATA_FORMATED])
         self.rtl_simulator_cls = None
 
+    def test_ir_mir_rtl(self):
+        dut = _Test_IEEE754FpAlu()
+        dut.FP_FUNCTION = self.FP_FUNCTION
+        dut.CLK_FREQ = int(100e3)
+        self._test_ir_mir_rtl(dut)
+
+    def test_op_ir_mir_rtl(self):
+        # test that component generator instantiates fadd correctly
+        dut = _Test_IEEE754FpAlu()
+        dut.FP_FUNCTION = self.FP_OPERATOR_FN
+        dut.CLK_FREQ = int(100e3)
+        self._test_ir_mir_rtl(dut)
+
 
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
-    # from hwtHls.platform.xilinx.artix7 import Artix7Fast
+    from hwtHls.platform.xilinx.artix7 import Artix7Fast
 
     m = _Test_IEEE754FpAlu()
     m.CLK_FREQ = int(100e3)
     m.T = IEEE754Fp16
-
-    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE,
-                                                           #llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL, ]
-                                                           )))
+    m.FP_FUNCTION = lambda a, b: a + b
+    p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE,
+        # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL, ]
+    )
+    installFpComponentGenerators(p)
+    print(to_rtl_str(m, target_platform=p))
 
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([IEEE754FpAdder_TC('test_add_py')])
+    # suite = unittest.TestSuite([IEEE754FpAdder_TC('test_op_ir_mir_rtl')])
     suite = testLoader.loadTestsFromTestCase(IEEE754FpAdder_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
