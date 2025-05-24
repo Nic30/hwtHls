@@ -258,7 +258,8 @@ OP_FEXP2 = HOperatorDefLlvm(exp2, _getllvmFp1IntrinsicConstructor(Intrinsic.exp2
 
 
 def fabs(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
-    return _evalFpFunction1ValSpecific(math.fabs, OP_FEXP2, "fabs", op0)
+    # todo for fixed point use (x + (x >> (x.width-1))) ^ (x >> (x.width-1))
+    return _evalFpFunction1ValSpecific(math.fabs, OP_FABS, "fabs", op0)
 
 
 OP_FABS = HOperatorDefLlvm(fabs, _getllvmFp1IntrinsicConstructor(Intrinsic.fabs), False, idStr="OP_FABS")
@@ -559,7 +560,7 @@ def _tanpiLLVM(*args):
     raise AssertionError("This operator should be used only by backend, llvm-18 does not have tanpi function and tan(x*pi) should be used instead")
 
 
-OP_FTANPI = HOperatorDefLlvm(tanpi, _tanpiLLVM, False, idStr="OP_FTAN")
+OP_FTANPI = HOperatorDefLlvm(tanpi, _tanpiLLVM, False, idStr="OP_FTANPI")
 
 
 def atan(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
