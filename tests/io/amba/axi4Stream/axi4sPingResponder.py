@@ -10,7 +10,7 @@ from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInPreproc,\
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInPreproc, \
     PyBytecodePreprocHwCopy
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
@@ -22,7 +22,6 @@ from hwtLib.types.net.ethernet import Eth2Header_t, ETHER_TYPE
 from hwtLib.types.net.icmp import ICMP_echo_header_t, ICMP_TYPE
 from hwtLib.types.net.ip import IPv4Header_t, ipv4_t, IP_PROTOCOL
 from pyMathBitPrecise.bit_utils import reverse_byte_order
-
 
 echoFrame_t = HStruct(
     (Eth2Header_t, "eth"),
@@ -67,7 +66,7 @@ class Axi4SPingResponder(HwModule):
         # [todo] endianity
         # type, code, checksum = 0
         return reverse_byte_order(
-            ~(reverse_byte_order(header.identifier) + 
+            ~(reverse_byte_order(header.identifier) +
               reverse_byte_order(header.seqNo))
         )
 
@@ -106,8 +105,8 @@ class Axi4SPingResponder(HwModule):
         hls.compile()
 
 
-class Axi4SPingResponderTC(SimTestCase):
-    DATA_WIDTH = 32
+class Axi4SPingResponder_512_TC(SimTestCase):
+    DATA_WIDTH = 512
 
     @classmethod
     def setUpClass(cls):
@@ -117,26 +116,32 @@ class Axi4SPingResponderTC(SimTestCase):
 
     def create_ICMP_echo_frame(self, **kwargs):
         return HwtLibPingResponderTC.create_ICMP_echo_frame(self, **kwargs)
-        
+
     def test_reply1x(self):
         HwtLibPingResponderTC.test_reply1x(self)
+
+
+class Axi4SPingResponder_256_TC(Axi4SPingResponder_512_TC):
+    DATA_WIDTH = 256
 
 
 if __name__ == "__main__":
     # from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.xilinx.artix7 import Artix7Slow
+    from hwtHls.platform.xilinx.artix7 import Artix7Medium
     from hwtHls.platform.debugBundle import HlsDebugBundle
     # from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 
     m = Axi4SPingResponder()
-    m.DATA_WIDTH = 256
+    m.DATA_WIDTH = 512
     m.CLK_FREQ = int(100e6)
-    print(to_rtl_str(m, target_platform=Artix7Slow(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    print(to_rtl_str(m, target_platform=Artix7Medium(debugFilter=HlsDebugBundle.ALL_RELIABLE,
+                                                     # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED]
+                                                     )))
 
     import unittest
     testLoader = unittest.TestLoader()
     # suite = unittest.TestSuite([Axi4SPingResponderTC("test_reply1x")])
-    suite = testLoader.loadTestsFromTestCase(Axi4SPingResponderTC)
+    suite = testLoader.loadTestsFromTestCase(Axi4SPingResponder_256_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
