@@ -66,13 +66,15 @@ class Axi4SPacketByteCntr2(Axi4SPacketByteCntr0):
         byte_cnt = uint16_t.from_py(0)
         strbWidth = self.i.strb._dtype.bit_length()
         i.readStartOfFrame()
+        wordByteCntrTy = HBits(log2ceil(strbWidth + 1), signed=False)
         while b1:
-            wordByteCnt = HBits(log2ceil(strbWidth + 1), signed=False).from_py(strbWidth)
+            wordByteCnt = wordByteCntrTy.from_py(strbWidth) # initialized to all bytes valid
             # this for is just MUX
             for i, strbBit in enumerate(i.read(self.i.data._dtype).strb):
                 # this is required because value of i would not get captured once leaving the loop
-                iHw = wordByteCnt._dtype.from_py(i)
+                iHw = wordByteCntrTy.from_py(i)
                 if ~strbBit:
+                    # :note: exit on first invalid byte and store number of valid bytes into wordByteCnt 
                     # :attention: this code block is outside of the loop 
                     wordByteCnt = iHw
                     break
@@ -117,10 +119,10 @@ if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS 
 
-    m = Axi4SPacketByteCntr1()
+    m = Axi4SPacketByteCntr2()
     m.DATA_WIDTH = 16
     m.CLK_FREQ = int(100e6)
     p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE,
-                           #llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL]
+                           llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED]
                            )
     print(to_rtl_str(m, target_platform=p))
