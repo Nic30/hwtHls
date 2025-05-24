@@ -12,16 +12,16 @@ from hwt.math import isPow2, log2ceil
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
 from hwt.serializer.mode import serializeParamsUniq
+from hwtHls.architecture.componentGenerator import ComponentGenerator
+from hwtHls.architecture.componentGeneratorUtils import replaceHlsNetNodeOperatorWithHwModule
+from hwtHls.architecture.componentGenerators.baseALU1HwModule import _BaseALU1HwModule
 from hwtHls.architecture.componentGenerators.ctpop import Ctpop
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
+from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.architecture.componentGenerators.baseALU1HwModule import _BaseALU1HwModule
-from hwtHls.architecture.componentGenerator import ComponentGenerator
-from hwtHls.architecture.componentGeneratorUtils import replaceHlsNetNodeOperatorWithHwModule
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
 from pyMathBitPrecise.bit_utils import mask, next_power_of_2
 
 
@@ -211,10 +211,8 @@ class ComponentGeneratorBitcount(ComponentGenerator):
     """
 
     def __init__(self, platform: "VirtualHlsPlatform", _operatorModuleCls: Type[CountLeadingZeros], genNamePrefix:str, moduleName:str):
-        super().__init__(platform)
+        super().__init__(platform, genNamePrefix, moduleName)
         self._operatorModuleCls = _operatorModuleCls
-        self._genNamePrefix = genNamePrefix
-        self._moduleName = moduleName
         self.schedulingCache: dict[int, OpRealizationMeta] = {}
 
     def _getConfiguredFixpHwModule(self, realTimeClkPeriod:float, ty:HBits, realization:OpRealizationMeta):
@@ -232,16 +230,17 @@ class ComponentGeneratorBitcount(ComponentGenerator):
         return self.resolveRealizationForHlsNetlist(node.netlist, node.dependsOn[0]._dtype)
 
     def resolveRealizationForHlsNetlist(self, netlist: "HlsNetlistCtx", T: HBits) -> None:
+        cacheKey = T.bit_length()
         try:
-            return self.schedulingCache[T.bit_length()]
+            return self.schedulingCache[cacheKey]
         except KeyError:
             pass
 
         # run compilation of IntDiv HwModule to resolve scheduling properties
         hwModule = self._getConfiguredFixpHwModule(netlist.realTimeClkPeriod, T, None)
-        self.resolveRealizationOfNode_compileToResolveScheduling(netlist.parentHwModule, hwModule)
-        r = hwModule.hlsOpRealizationMeta
-        self.schedulingCache[T.bit_length()] = r
+        _, r = self.resolveRealizationOfNode_compileToResolveScheduling(
+            netlist.parentHwModule, hwModule,
+            netlist.dbgSubmoduleBuidTracer, cacheKey)
         return r
 
     @override
@@ -250,11 +249,10 @@ class ComponentGeneratorBitcount(ComponentGenerator):
         T = node.dependsOn[0]._dtype
         realization = self.schedulingCache[T.bit_length()]
         hwModule = self._getConfiguredFixpHwModule(freq, T, realization)
-        compBuilder = AbstractComponentBuilder(node.netlist.parentHwModule, None, self._genNamePrefix)
-
+        compBuilder = self.getComponentBuilder(node)
         replaceHlsNetNodeOperatorWithHwModule(
             compBuilder, node, hwModule,
-            worklist,
+            worklist
         )
         return True
 

@@ -169,7 +169,7 @@ class DefaultHlsPlatform(DummyPlatform):
         """
         D = HlsDebugBundle
         DBG = self._debug.runDebugIfEnabled
-        
+
         DBG(D.DBG_3_0_netlist, (netlist,))
         DBG(D.DBG_3_0_netlistTxt, (netlist,))
         DBG(HlsNetlistPassConsistencyCheck, (netlist,))
@@ -179,6 +179,8 @@ class DefaultHlsPlatform(DummyPlatform):
         dbgTracer, doCloseTrace = self._getDebugTracer(netlist.label, D.DBG_3_1_netlistSimplifyTrace)
         DBG(HlsNetlistPassConsistencyCheck, (netlist,))
 
+        assert netlist.dbgSubmoduleBuidTracer is None
+        netlist.dbgSubmoduleBuidTracer, submoduleBuildDbgTracerDoClose = self._getDebugTracer(netlist.label, D.DBG_3_4_submoduleBuildLogPreSchedule)
         try:  # try-except for closing of dbgTracer
 
             with dbgTracer.scoped(HlsNetlistPassTrivialSimplifyExplicitSync, None):
@@ -198,8 +200,9 @@ class DefaultHlsPlatform(DummyPlatform):
                     except:
                         raise AssertionError("HlsNetlistPassSimplify failed and DBG_12_netlistSimplifiedErr also failed") from e
                     raise
+                with netlist.dbgSubmoduleBuidTracer.scoped((HlsNetlistPassOperatorToHwtLowering, "preSchedule"), None):
+                    HlsNetlistPassOperatorToHwtLowering(isScheduled=False, debugTracer=netlist.dbgSubmoduleBuidTracer).runOnHlsNetlist(netlist)
 
-                HlsNetlistPassOperatorToHwtLowering(isScheduled=False).runOnHlsNetlist(netlist)
                 # if all predecessor IO have some skipWhen condition the extraCond may be incomplete due to hoisting
                 # this may result in successors working without any data
                 HlsNetlistPassConstNodeDuplication().runOnHlsNetlist(netlist)
@@ -224,16 +227,17 @@ class DefaultHlsPlatform(DummyPlatform):
 
                 DBG(D.DBG_3_3_netlistAggregated, (netlist,))
 
-                try:
-                    netlist.getAnalysis(HlsNetlistAnalysisPassRunScheduler)
-                except Exception as e:
-                    # try to debug scheduling if something went wrong
+                with netlist.dbgSubmoduleBuidTracer.scoped(HlsNetlistAnalysisPassRunScheduler, None):
                     try:
-                        DBG(D.DBG_4_0_hwscheduleErr, (netlist,), constructorKwargs=dict(
-                            expandCompositeNodes=self._debugExpandCompositeNodes))
-                    except:
-                        raise AssertionError("HlsNetlistAnalysisPassRunScheduler failed and DBG_18_hwscheduleErr also failed") from e
-                    raise
+                        netlist.getAnalysis(HlsNetlistAnalysisPassRunScheduler)
+                    except Exception as e:
+                        # try to debug scheduling if something went wrong
+                        try:
+                            DBG(D.DBG_4_0_hwscheduleErr, (netlist,), constructorKwargs=dict(
+                                expandCompositeNodes=self._debugExpandCompositeNodes))
+                        except:
+                            raise AssertionError("HlsNetlistAnalysisPassRunScheduler failed and DBG_18_hwscheduleErr also failed") from e
+                        raise
 
                 DBG(lambda: HlsNetlistPassConsistencyCheck(
                     checkCycleFree=False, checkAggregatePortsScheduling=True), (netlist,))
@@ -257,6 +261,9 @@ class DefaultHlsPlatform(DummyPlatform):
             raise
 
         finally:
+            if submoduleBuildDbgTracerDoClose:
+                netlist.dbgSubmoduleBuidTracer._out.close()
+            netlist.dbgSubmoduleBuidTracer = None
             if doCloseTrace:
                 dbgTracer._out.close()
 
@@ -283,7 +290,15 @@ class DefaultHlsPlatform(DummyPlatform):
 
         try:
             HlsNetlistPassArchElementStageInit().runOnHlsNetlist(netlist)
-            HlsNetlistPassOperatorToHwtLowering(isScheduled=True).runOnHlsNetlist(netlist)
+            assert netlist.dbgSubmoduleBuidTracer is None
+            netlist.dbgSubmoduleBuidTracer, doCloseTrace = self._getDebugTracer(netlist.label, D.DBG_4_0_submoduleBuildLogPostSchedule)
+            try:
+                HlsNetlistPassOperatorToHwtLowering(isScheduled=True, debugTracer=netlist.dbgSubmoduleBuidTracer).runOnHlsNetlist(netlist)
+            finally:
+                if doCloseTrace:
+                    netlist.dbgSubmoduleBuidTracer._out.close()
+                netlist.dbgSubmoduleBuidTracer = None
+
             HlsNetlistPassMultiClockNodeSplit().runOnHlsNetlist(netlist)
             DBG(lambda: HlsNetlistPassConsistencyCheck(
                 checkCycleFree=False, checkAllArchElementPortsInSameClockCycle=True), (netlist,))

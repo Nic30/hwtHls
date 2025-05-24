@@ -10,30 +10,31 @@ from hwt.hwModule import HwModule
 from hwt.mainBases import RtlSignalBase
 from hwt.math import log2ceil
 from hwt.pyUtils.typingFuture import override
-from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF,\
+from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF, \
     ResourceRAM
+from hwtHls.architecture.componentGenerator import ComponentGenerator
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.io.bram import HlsNetNodeWriteBramCmd
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.memoryAllocationMeta import  MemoryAllocationMeta
+from hwtHls.netlist.nodes.memoryAllocationMetaNode import HlsNetNodeReadMemoryAllocationReadData, \
+    HlsNetNodeWriteMemoryAllocationCmd
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.scheduler.clk_math import epsilon
-from hwtHls.architecture.componentGenerator import ComponentGenerator
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
 from hwtLib.mem.ram import RamSingleClock
 from hwtLib.mem.ramXor import RamXorSingleClock
-from hwtHls.netlist.nodes.memoryAllocationMetaNode import HlsNetNodeReadMemoryAllocationReadData, \
-    HlsNetNodeWriteMemoryAllocationCmd
 
 
 class ComponentGeneratorMemoryAllocationImplementationType(Enum):
-    DISTMEM_INLINED = "DISTMEM_INLINED" # inlined as an array in HDL
+    DISTMEM_INLINED = "DISTMEM_INLINED"  # inlined as an array in HDL
     DISTMEM = "DISTMEM"
-    DISTMEM_LVT = "DISTMEM_LVT" # distmem with Live Value Table (type of multi write port memory)
+    DISTMEM_LVT = "DISTMEM_LVT"  # distmem with Live Value Table (type of multi write port memory)
     BRAM = "BRAM"
-    BRAM_XOR = "BRAM_XOR" # Bram with XOR implementation of multi write port memory
+    BRAM_XOR = "BRAM_XOR"  # Bram with XOR implementation of multi write port memory
 
 
 class ComponentGeneratorMemoryMeta():
@@ -158,14 +159,18 @@ class ComponentGeneratorMemory(ComponentGenerator):
                     bramGroups = math.ceil(items / largestBram)
                     # [todo] there are column connections which can have lower delay
                     outputWireDelay += platform.get_op_realization(HwtOps.TERNARY, None, 1, bramGroups, realTimeClkPeriod).inputWireDelay
-            
+        
+        debugTracer = netlist.dbgSubmoduleBuidTracer
+        debugTracer.log(("all mem users:", mem.users))
+        debugTracer.log(("chosen impementation:", impl, "rPortCnt:", rPortCnt, "wPortCnt:", wPortCnt,
+                         "inputWireDelay:", inputWireDelay, "rLatency:", rLatency, "outputWireDelay:", outputWireDelay))
 
         mem.dataOfComponentGenerator = ComponentGeneratorMemoryMeta(impl, rPortCnt, wPortCnt)
 
         # assign realization to all users of this memory
         rRealization = None
         wRealization = None
-        meta:ComponentGeneratorMemoryMeta = mem.dataOfComponentGenerator  
+        meta:ComponentGeneratorMemoryMeta = mem.dataOfComponentGenerator
         for memUser in mem.users:
             memUser:MEM_ALOCATION_NODE
             if memUser.cmd == READ:
@@ -178,7 +183,7 @@ class ComponentGeneratorMemory(ComponentGenerator):
                     )
                 memUser.assignRealization(rRealization)
                 if impl == ComponentGeneratorMemoryAllocationImplementationType.DISTMEM_INLINED:
-                    memUser._rtlUseValid = False # do not use "bramport.en" for inlined ROMs
+                    memUser._rtlUseValid = False  # do not use "bramport.en" for inlined ROMs
             else:
                 if wRealization is None:
                     wRealization = OpRealizationMeta(
@@ -188,7 +193,7 @@ class ComponentGeneratorMemory(ComponentGenerator):
                         outputClkTickOffset=0
                     )
                 memUser.assignRealization(wRealization)
-              
+
     @override
     def rtlAllocOfNode(self, allocator: "ArchElement",
                        node: MEM_ALOCATION_NODE) -> Union[TimeIndependentRtlResource, List[HdlStatement]]:
@@ -264,7 +269,7 @@ class ComponentGeneratorMemory(ComponentGenerator):
             if curentAddrWidth != ADDR_WIDTH:
                 assert curentAddrWidth > 1
                 addSig = _addr.data[ADDR_WIDTH:]
-                
+
             dataRtl = meta.rtlMemSignal[addSig]
 
             _data = allocator.rtlRegisterOutputRtlSignal(r_out, dataRtl, False, False, False)

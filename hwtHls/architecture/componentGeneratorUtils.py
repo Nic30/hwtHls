@@ -1,31 +1,33 @@
 from typing import Callable, Optional, Sequence, Generator
 
 from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
+from hwt.hwIOs.hwIOStruct import HwIOStruct, HwIOStructRdVld, HwIOStructVld, \
+    HwIOStructRd
+from hwt.hwIOs.std import HwIOSignal
 from hwt.hwModule import HwModule
 from hwt.pyUtils.setList import SetList
+from hwtHls.architecture.componentGenerator import ComponentGenerator
 from hwtHls.architecture.syncUtils import HwIO_getSyncSignals
+from hwtHls.netlist.analysis.ioOrdering import HlsNetlistAnalysisPassIoOrdering
 from hwtHls.netlist.builder import HlsNetlistBuilder, \
     HlsNetlistBuilderWithWorklist
+from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement
+from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync, \
+    createOrderingLink
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.scheduler import asapSchedulePartlyScheduled
 from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import disconnectAllInputs
 from hwtHls.platform.opRealizationMeta import EMPTY_OP_REALIZATION
 from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
-from hwt.hwIOs.hwIOStruct import HwIOStruct, HwIOStructRdVld, HwIOStructVld, \
-    HwIOStructRd
-from hwt.hwIOs.std import HwIOSignal
-from hwtHls.netlist.analysis.ioOrdering import HlsNetlistAnalysisPassIoOrdering
-from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync, \
-    createOrderingLink
-from hwtHls.netlist.nodes.schedulableNode import SchedTime
-from hwtHls.netlist.context import HlsNetlistCtx
-from hwt.hdl.types.hdlType import HdlType
+
 
 HwModuleHwIoForNodePortGetter = Callable[[HlsNetNodeOperator, HwModule], Sequence[HwIO]]
 
@@ -34,7 +36,8 @@ def replaceHlsNetNodeWithExpression(n: HlsNetNodeOperator,
                                     newO: HlsNetNodeOut,
                                     newNodeCnt: Optional[int],
                                     newNodeTypeCheckFn: Callable[[HlsNetNode], bool],
-                                    worklist:SetList[HlsNetNode]=None):
+                                    worklist:SetList[HlsNetNode]):
+    assert len(n._outputs) == 1, n
     parent: ArchElement = n.parent
     netlist = n.netlist
     clkI = n.scheduledZero // netlist.normalizedClkPeriod
@@ -44,6 +47,7 @@ def replaceHlsNetNodeWithExpression(n: HlsNetNodeOperator,
         parent._addNodeIntoScheduled(clkI, newNode)
 
     builder: HlsNetlistBuilder = n.getHlsNetlistBuilder()
+    netlist.dbgSubmoduleBuidTracer.log("replacing with", newO)
     builder.replaceOutput(n._outputs[0], newO, True)
     disconnectAllInputs(n, [] if worklist is None else worklist)
     n.markAsRemoved()
@@ -131,7 +135,7 @@ def _replaceHlsNetNodOperatorOutputWithRead(netlist: HlsNetlistCtx,
         uObj: HlsNetNode = u.obj
         if uObj in seen:
             continue
- 
+
         if isinstance(uObj, HlsNetNodeExplicitSync):
             createOrderingLink(outRead, uObj)
             seen.add(uObj)
@@ -153,14 +157,15 @@ def replaceHlsNetNodeOperatorWithHwModule(compBuilder: AbstractComponentBuilder,
                                           n: HlsNetNodeOperator,
                                           m: HwModule,
                                           simplifyWorklist: SetList[HlsNetNode],
-                                          inGetter: HwModuleHwIoForNodePortGetter = lambda n, m: (m.data_in,),
-                                          outGetter: HwModuleHwIoForNodePortGetter = lambda n, m: (m.data_out,),
+                                          inGetter: HwModuleHwIoForNodePortGetter=lambda n, m: (m.data_in,),
+                                          outGetter: HwModuleHwIoForNodePortGetter=lambda n, m: (m.data_out,),
                                           inputUseReadyValid:Optional[tuple[bool, bool]]=None,  # (False, False),
                                           outputUseReadyValid:Optional[tuple[bool, bool]]=None,  # (False, False),
                                           inputsConcatenated=False,
                                           outputsConcatenated=False,
                                           inputsMayFlush=False,
-                                          outputsBitMap:Optional[Sequence[int]]=None):
+                                          outputsBitMap:Optional[Sequence[int]]=None,
+                                          ):
     """
     Register the component instance on parent HwModule, reroute ports, remove original node
     
@@ -172,6 +177,8 @@ def replaceHlsNetNodeOperatorWithHwModule(compBuilder: AbstractComponentBuilder,
     if name is None:
         name = f"n{n._id:d}_{n.operator.id:s}"
     name = compBuilder._findSuitableName(name)
+    debugTracer = n.netlist.dbgSubmoduleBuidTracer
+    debugTracer.log(("replacing with HwModule", name))
     setattr(compBuilder.parent, name, m)
 
     compBuilder._propagateClkRstn(m)
@@ -265,3 +272,20 @@ def replaceHlsNetNodeOperatorWithHwModule(compBuilder: AbstractComponentBuilder,
         inpWrite.debugIterShadowConnectionDst = debugIterShadowConnectionDst
 
     n.markAsRemoved()
+
+
+def ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule(
+        generator: ComponentGenerator,
+        node: HlsNetNodeOperator,
+        hwModule: HwModule,
+        simplifyWorklist: SetList[HlsNetNode],
+        outputsBitMap:Optional[Sequence[int]]=None,):
+    compBuilder = AbstractComponentBuilder(node.netlist.parentHwModule, None, f"{generator._genNamePrefix:s}_{generator._moduleName:s}")
+    replaceHlsNetNodeOperatorWithHwModule(
+        compBuilder, node, hwModule,
+        simplifyWorklist,
+        inputsConcatenated=True,
+        outputsConcatenated=True,
+        outputsBitMap=outputsBitMap,
+        inputsMayFlush=not hwModule._isFullyUnrolled(),
+    )

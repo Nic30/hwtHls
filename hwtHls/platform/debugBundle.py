@@ -142,8 +142,10 @@ class HlsDebugBundle():
     DBG_3_2_netlistSimplifiedIoClusters = (HlsNetlistAnalysisPassDumpIoClustersDot, "03.02.netlistSimplifiedIoClusters.dot")
     DBG_3_2_netlistSyncDomains = (HlsNetlistAnalysisPassDumpSyncDomainsDot, "03.02.netlistSyncDomains.dot")  # dump association of IO to individual logic node clouds
     DBG_3_3_netlistAggregated = (HlsNetlistAnalysisPassDumpNodesDot, "03.03.netlistAggregated.dot")  # dump netlist after selected nodes were aggregated to scheduling primitives
+    DBG_3_4_submoduleBuildLogPreSchedule = (None, "03.03.submoduleBuildLogPreSchedule.txt")  # log which direct children submodules are build to resolve scheduling
     DBG_4_0_hwscheduleErr = (HlsNetlistAnalysisPassDumpSchedulingJson, "04.00.hwschedule.err.json")  # try dump scheduling if scheduler failed
     DBG_4_0_hwschedule = (HlsNetlistAnalysisPassDumpSchedulingJson, "04.00.hwschedule.json")  # node scheduling after first scheduling attempt
+    DBG_4_0_submoduleBuildLogPostSchedule = (None, "04.00.submoduleBuildLogPostSchedule.txt")  # log which direct children submodules are build
     # arch gen
     DBG_4_0_addSignalNamesToSync = (HlsAndRtlNetlistPassAddSignalNamesToSync, None)  # signal names are directly in output RTL
     DBG_4_0_addSignalNamesToData = (HlsAndRtlNetlistPassAddSignalNamesToData, None)  # signal names are directly in output RTL
@@ -200,8 +202,10 @@ class HlsDebugBundle():
         DBG_3_2_netlistSimplifiedIoClusters,
         DBG_3_2_netlistSyncDomains,
         DBG_3_3_netlistAggregated,
+        DBG_3_4_submoduleBuildLogPreSchedule,
         DBG_4_0_hwscheduleErr,
         DBG_4_0_hwschedule,
+        DBG_4_0_submoduleBuildLogPostSchedule,
         DBG_4_1_finalHwschedule,
         DBG_4_2_netlistChannelMergeTrace,
         DBG_4_3_handshakeSCCs,
@@ -259,6 +263,8 @@ class HlsDebugBundle():
         DBG_0_0_hierachyPath,
         DBG_2_0_mir,
         DBG_3_2_netlistSyncDomains,
+        DBG_3_4_submoduleBuildLogPreSchedule,
+        DBG_4_0_submoduleBuildLogPostSchedule,
         DBG_4_0_addSignalNamesToSync,
         DBG_4_1_finalHwschedule,
         DBG_4_2_netlistChannelMergeTrace,

@@ -167,14 +167,14 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
     def _installComponentGenerators(self):
         genNamePrefix = "gen_"
         _componentGenerators = self._componentGenerators
-        _componentGenerators[MemoryAllocationMeta] = ComponentGeneratorMemory(self)
-        _componentGenerators[HwtOps.ZEXT] = ComponentGeneratorZExt(self)
-        _componentGenerators[HwtOps.SEXT] = ComponentGeneratorSExt(self)
+        _componentGenerators[MemoryAllocationMeta] = ComponentGeneratorMemory(self, genNamePrefix, "mem")
+        _componentGenerators[HwtOps.ZEXT] = ComponentGeneratorZExt(self, genNamePrefix, "zext")
+        _componentGenerators[HwtOps.SEXT] = ComponentGeneratorSExt(self, genNamePrefix, "sext")
         _componentGenerators[OP_CTLZ] = ComponentGeneratorBitcount(self, CountLeadingZeros, genNamePrefix, "ctlz")
         _componentGenerators[OP_CTTZ] = ComponentGeneratorBitcount(self, CountTrailingZeros, genNamePrefix, "cttz")
         _componentGenerators[OP_CTPOP] = ComponentGeneratorBitcount(self, Ctpop, genNamePrefix, "ctpop")
-        _componentGenerators[OP_FSHL] = ComponentGeneratorFshl(self)
-        _componentGenerators[OP_FSHR] = ComponentGeneratorFshr(self)
+        _componentGenerators[OP_FSHL] = ComponentGeneratorFshl(self, genNamePrefix, "fshl")
+        _componentGenerators[OP_FSHR] = ComponentGeneratorFshr(self, genNamePrefix, "fshr")
 
     @lru_cache()
     def get_op_realization(self, op: HOperatorDef, opSpecialization: Optional[HFloatTmpConfig], bit_width: int,

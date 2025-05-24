@@ -3,12 +3,13 @@ from typing import Optional
 from hwt.hdl.types.bits import HBits
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
+from hwtHls.architecture.componentGenerator import ComponentGenerator
+from hwtHls.architecture.componentGeneratorUtils import \
+    ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.platform.componentGenerator import ComponentGenerator
-from hwtHls.platform.componentGeneratorUtils import replaceHlsNetNodeOperatorWithHwModule
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
 from tests.math.componentGenerators._div.divRestoring import DivRemHwModule
 
 
@@ -19,11 +20,9 @@ class ComponentGeneratorDIVREM(ComponentGenerator):
 
     def __init__(self, platform:"DefaultHlsPlatform", isSigned:bool, hasDiv:bool, hasRem:bool,
                  genNamePrefix:str, moduleName:str, optThroughputVsArea=0.0, INT_DIV_HWMODULE_CLS=DivRemHwModule):
-        ComponentGenerator.__init__(self, platform)
+        ComponentGenerator.__init__(self, platform, genNamePrefix, moduleName)
         # dataWidth -> scheduling
         self.schedulingCache: dict[tuple[float, int], tuple[OpRealizationMeta, int]] = {}
-        self._genNamePrefix = genNamePrefix
-        self._moduleName = moduleName
         self._isSigned = isSigned
         self._hasDiv = hasDiv
         self._hasRem = hasRem
@@ -35,7 +34,7 @@ class ComponentGeneratorDIVREM(ComponentGenerator):
                                realization:Optional[OpRealizationMeta]):
         hwModule = self.INT_DIV_HWMODULE_CLS()
         hwModule.T = HBits(DATA_WIDTH, signed=self._isSigned)
-        hwModule.FREQ = int(1 / realTimeClkPeriod)
+        hwModule.CLK_FREQ = int(1 / realTimeClkPeriod)
         hwModule.UNROLL_FACTOR = UNROLL_FACTOR
         if realization:
             hwModule._setIoChannelTypes(realization)
@@ -44,11 +43,14 @@ class ComponentGeneratorDIVREM(ComponentGenerator):
     @override
     def resolveRealizationOfNode(self, node:HlsNetNodeOperator) -> None:
         DATA_WIDTH = node.dependsOn[0]._dtype.bit_length()
-        return self.resolveRealizationForHlsNetlist(node.netlist, node.operatorSpecialization, DATA_WIDTH)
+        return self.resolveRealizationForHlsNetlist(node.netlist,
+                                                    node.operatorSpecialization, DATA_WIDTH)
 
-    def resolveRealizationForHlsNetlist(self, netlist: "HlsNetlistCtx", operatorSpecialization, DATA_WIDTH: int) -> None:
+    def resolveRealizationForHlsNetlist(self, netlist: "HlsNetlistCtx",
+                                        operatorSpecialization, DATA_WIDTH: int) -> None:
+        cacheKey = (DATA_WIDTH, self.optThroughputVsArea)
         try:
-            return self.schedulingCache[(DATA_WIDTH, self.optThroughputVsArea)][1]
+            return self.schedulingCache[cacheKey][1]
         except KeyError:
             pass
 
@@ -58,9 +60,9 @@ class ComponentGeneratorDIVREM(ComponentGenerator):
 
         # run compilation of IntDiv HwModule to resolve scheduling properties
         intDivModule = self._getConfiguredHwModule(netlist.realTimeClkPeriod, DATA_WIDTH, UNROLL_FACTOR, None)
-        self.resolveRealizationOfNode_compileToResolveScheduling(netlist.parentHwModule, intDivModule)
-        r = intDivModule.hlsOpRealizationMeta
-        self.schedulingCache[(DATA_WIDTH, self.optThroughputVsArea)] = (r, UNROLL_FACTOR)
+        _, r = self.resolveRealizationOfNode_compileToResolveScheduling(
+            netlist.parentHwModule, intDivModule,
+            netlist.dbgSubmoduleBuidTracer, cacheKey, (UNROLL_FACTOR,))
         return r
 
     @override
@@ -72,14 +74,7 @@ class ComponentGeneratorDIVREM(ComponentGenerator):
         DATA_WIDTH = node.dependsOn[0]._dtype.bit_length()
         realization, UNROLL_FACTOR = self.schedulingCache[(DATA_WIDTH, self.optThroughputVsArea)]
         hwModule = self._getConfiguredHwModule(node.netlist.realTimeClkPeriod, DATA_WIDTH, UNROLL_FACTOR, realization)
-        compBuilder = AbstractComponentBuilder(node.netlist.parentHwModule, None, f"{self._genNamePrefix:s}_{self._moduleName:s}")
-        replaceHlsNetNodeOperatorWithHwModule(
-            compBuilder, node, hwModule,
-            worklist,
-            inputsConcatenated=True,
-            outputsConcatenated=True,
-            inputsMayFlush=not hwModule._isFullyUnrolled(),
-        )
+        ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule(self, node, hwModule, worklist)
         return True
 
     @override

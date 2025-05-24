@@ -1,9 +1,13 @@
 from io import StringIO
+from typing import Optional
 
 from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
 from hwt.pyUtils.setList import SetList
 from hwt.serializer.store_manager import SaveToStream
 from hwt.synth import to_rtl
+from hwtHls.netlist.debugTracer import DebugTracer
+from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
 
 
 class HlsErrorHighlyInefficientImplementation(Exception):
@@ -201,22 +205,45 @@ class ComponentGenerator():
      * the internal loop must not be pipelined, it must be FSM and the read and
        the write must be in different state to prevent combinational pat from ready of output
        to ready of input
-     
+    
+    :ivar schedulingCache: an implementation specific dictionary used to cache scheduling
+    :ivar _genNamePrefix: a name prefix which should be used for object generaed by any generator
+    :ivar _moduleName: a name prefix part specific to this generator
     """
 
-    def __init__(self, platform: "DefaultHlsPlatform"):
+    def __init__(self, platform: "DefaultHlsPlatform", genNamePrefix:str, moduleName:str,):
         self.platform = platform
+        self._genNamePrefix = genNamePrefix
+        self._moduleName = moduleName
+        self.schedulingCache = {}
 
-    def resolveRealizationOfNode_compileToResolveScheduling(self, parentHwModule: HwModule, hwModule: HwModule):
+    def resolveRealizationOfNode_compileToResolveScheduling(self, parentHwModule: HwModule,
+                                                            hwModule: HwModule,
+                                                            debugTracer: DebugTracer,
+                                                            cacheKey, extraCacheValueItems: Optional[tuple]=None):
         # :note: store_manager can not be netlist.parentHwModule._store_manager because
         #  the name_scope is currently in parent component body and thus name collisions
         #  will not be handled as they should
         #  and there is a second problem that the output products will not be placed where they should be
         buff = StringIO()
         store_manager = SaveToStream(parentHwModule._store_manager.serializer_cls, buff)
+        debugTracer.log(("building for scheduling ", cacheKey))
+        with debugTracer.scoped(hwModule.__class__.__name__, None):
+            for p in hwModule._hwParams:
+                p: HwParam
+                debugTracer.log((p._name, "=", p.get_value()))
+
         # store_manager = netlist.parentHwModule._store_manager
         to_rtl(hwModule, store_manager, target_platform=self.platform)
-        return store_manager
+        r = hwModule.hlsOpRealizationMeta
+        if cacheKey is not None:
+            if extraCacheValueItems:
+                cacheItem = (r, *extraCacheValueItems)
+            else:
+                cacheItem = r
+            self.schedulingCache[cacheKey] = cacheItem
+        debugTracer.log(("resolved realization", hwModule._hdl_module_name, r,))
+        return store_manager, r
 
     def resolveRealizationOfNode(self, node: "HlsNetNode") -> None:
         """
@@ -235,6 +262,9 @@ class ComponentGenerator():
         :returns: True if netlist was modified
         """
         return False
+
+    def getComponentBuilder(self, node: "HlsNetNode"):
+        return AbstractComponentBuilder(node.netlist.parentHwModule, None, f"{self._genNamePrefix}_{self._moduleName}")
 
     def toHwtCompatibleOperatorAfterScheduling(self, node: "HlsNetNode", worklist: SetList["HlsNetNode"]) -> bool:
         """

@@ -1,12 +1,13 @@
 from hwt.hdl.operatorDefs import HwtOps, HOperatorDef
 from hwt.pyUtils.setList import SetList
+from hwtHls.architecture.componentGenerator import ComponentGenerator
+from hwtHls.architecture.componentGeneratorUtils import replaceHlsNetNodeWithExpression
 from hwtHls.code import OP_ROL, OP_SHL, OP_ROR, OP_LSHR, OP_ASHR
 from hwtHls.netlist.builder import HlsNetlistBuilder, \
     HlsNetlistBuilderWithWorklist
+from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.architecture.componentGenerator import ComponentGenerator
-from hwtHls.architecture.componentGeneratorUtils import replaceHlsNetNodeWithExpression
 
 
 class ComponentGeneratorFshl(ComponentGenerator):
@@ -37,7 +38,7 @@ class ComponentGeneratorFshl(ComponentGenerator):
         assert isinstance(n, HlsNetNodeOperator) and n.operator in (HwtOps.CONCAT, HwtOps.INDEX, OP_LSHR, OP_ASHR, OP_SHL, OP_ROL, OP_ROR), n
         return True
 
-    def toHwtCompatibleOperatorAfterScheduling(self, node:"HlsNetNode", worklist:SetList["HlsNetNode"]):
+    def toHwtCompatibleOperatorAfterScheduling(self, node:"HlsNetNode", worklist:SetList["HlsNetNode"], debugTracer: DebugTracer):
         src0, src1, sh = node.dependsOn
         builder: HlsNetlistBuilder = node.getHlsNetlistBuilder()
         builder = HlsNetlistBuilderWithWorklist(builder, worklist)
@@ -57,7 +58,7 @@ class ComponentGeneratorFshl(ComponentGenerator):
             assert not _worklist
             newNodeCnt = 3
 
-        replaceHlsNetNodeWithExpression(node, newO, newNodeCnt, self._assertIsConcatAnyShiftOrIndex, worklist)
+        replaceHlsNetNodeWithExpression(node, newO, newNodeCnt, self._assertIsConcatAnyShiftOrIndex, worklist, debugTracer)
         return True
 
 

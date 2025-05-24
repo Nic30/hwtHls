@@ -1,15 +1,17 @@
+from typing import Optional
+
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.analysis.fsmStateEncoding import HlsAndRtlNetlistAnalysisPassFsmStateEncoding
+from hwtHls.architecture.componentGenerator import ComponentGenerator
+from hwtHls.architecture.transformation.simplify import ArchElementValuePropagation
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.debugTracer import DebugTracer
+from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE, HlsNetNode  # , HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
-from hwtHls.architecture.componentGenerator import ComponentGenerator
 from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
-from hwtHls.architecture.transformation.simplify import ArchElementValuePropagation
-from hwtHls.netlist.debugTracer import DebugTracer
-from hwtHls.netlist.nodes.archElement import ArchElement
 
 
 class HlsNetlistPassOperatorToHwtLowering(HlsNetlistPass):
@@ -18,9 +20,10 @@ class HlsNetlistPassOperatorToHwtLowering(HlsNetlistPass):
     :note: HwModule classes must be imported on demand because compilation of each may depend on this pass
     """
 
-    def __init__(self, isScheduled: bool) -> None:
+    def __init__(self, isScheduled: bool, debugTracer: Optional[DebugTracer]) -> None:
         HlsNetlistPass.__init__(self)
         self.isScheduled = isScheduled
+        self.debugTracer = debugTracer
 
     @override
     def runOnHlsNetlistImpl(self, netlist:HlsNetlistCtx) -> PreservedAnalysisSet:
@@ -31,6 +34,7 @@ class HlsNetlistPassOperatorToHwtLowering(HlsNetlistPass):
         isScheduled = self.isScheduled
         simplifyWorklist: SetList[HlsNetNode] = SetList()
         worklist: SetList[HlsNetNode] = SetList()
+        debugTracer = self.debugTracer
         for n in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT):
             if n._isMarkedRemoved:
                 continue
@@ -47,10 +51,11 @@ class HlsNetlistPassOperatorToHwtLowering(HlsNetlistPass):
                         raise NotImplementedError("Unknown operator is missing componentGenerator", n)
 
                 gen: ComponentGenerator
-                if isScheduled:
-                    changed |= gen.toHwtCompatibleOperatorAfterScheduling(n, worklist)
-                else:
-                    changed |= gen.toHwtCompatibleOperatorBeforeScheduling(n, worklist)
+                with debugTracer.scoped(gen, n):
+                    if isScheduled:
+                        changed |= gen.toHwtCompatibleOperatorAfterScheduling(n, worklist)
+                    else:
+                        changed |= gen.toHwtCompatibleOperatorBeforeScheduling(n, worklist)
 
         while worklist:
             n = worklist.pop()
@@ -66,10 +71,11 @@ class HlsNetlistPassOperatorToHwtLowering(HlsNetlistPass):
                         raise NotImplementedError("Unknown operator", n)
 
                 gen: ComponentGenerator
-                if isScheduled:
-                    changed |= gen.toHwtCompatibleOperatorAfterScheduling(n, worklist)
-                else:
-                    changed |= gen.toHwtCompatibleOperatorBeforeScheduling(n, worklist)
+                with debugTracer.scoped(gen, n):
+                    if isScheduled:
+                        changed |= gen.toHwtCompatibleOperatorAfterScheduling(n, worklist)
+                    else:
+                        changed |= gen.toHwtCompatibleOperatorBeforeScheduling(n, worklist)
 
                 if not n._isMarkedRemoved:
                     simplifyWorklist.append(n)

@@ -8,6 +8,7 @@ from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlRes
 from hwtHls.io.bram import HlsNetNodeWriteBramCmd, HlsNetNodeReadBramData
 from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
 from hwtHls.netlist.nodes.readIndexed import HlsNetNodeReadIndexed
+from hwtHls.netlist.debugTracer import DebugTracer
 
 
 class HlsNetNodeWriteMemoryAllocationCmd(HlsNetNodeWriteBramCmd):

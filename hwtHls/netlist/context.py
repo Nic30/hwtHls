@@ -10,14 +10,16 @@ from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwtHls.hwIOMeta import HwIOMeta
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
+from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.observableList import ObservableList, ObservableListRm
+from hwtHls.netlist.scheduler.resourceList import SchedulingResourceConstraints
 from hwtHls.netlist.scheduler.scheduler import HlsScheduler
 from hwtHls.ssa.analysisCache import AnalysisCache
-from hwtHls.netlist.scheduler.resourceList import SchedulingResourceConstraints
+
 
 DEFAULT_SCHEDULER_RESOLUTION = 0.01e-9
 
@@ -72,6 +74,7 @@ class HlsNetlistCtx(AnalysisCache):
         self._dbgAddSignalNamesToSync = False
         self._dbgAddSignalNamesToData = False
         self._dbgLogPassExec:Optional[StringIO] = None
+        self.dbgSubmoduleBuidTracer: Optional[DebugTracer] = None
         if platform is not None:
             self._dbgLogPassExec = platform.getPassManagerDebugLogFile()
 
