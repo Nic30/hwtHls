@@ -2,12 +2,12 @@ from hwt.code import Concat
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.mainBases import RtlSignalBase
+from hwt.math import log2ceil
 from hwtHls.code import lshr
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeBlockLabel
 from hwtHls.frontend.pyBytecode.pragmaInstruction import PyBytecodeNoSplitSlices
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeBlockLabel
 from pyMathBitPrecise.bit_utils import mask, to_unsigned, to_signed
 from tests.math.fp.fptypes import IEEE754Fp
-from hwt.math import log2ceil
 
 
 # based on https://github.com/dawsonjon/fpu/blob/master/float_to_int/float_to_int.v
