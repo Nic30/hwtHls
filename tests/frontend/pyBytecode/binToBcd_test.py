@@ -3,7 +3,6 @@
 
 from pathlib import Path
 
-from hwtHls.platform.debugBundle import HlsDebugBundle
 from hwtHls.platform.xilinx.artix7 import Artix7Medium
 from hwtHls.ssa.analysis.llvmMirInterpret import LlvmMirInterpret
 from hwtLib.logic.bcdToBin_test import bin_to_bcd
@@ -12,7 +11,7 @@ from hwtSimApi.utils import freq_to_period
 from hwtHls.llvm.llvmIr import LLVMStringContext
 from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.frontend.pyBytecode.binToBcd import BinToBcd
-
+from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
 
 class BinToBcd_TC(HwtLibBinToBcdTC):
 
@@ -32,7 +31,7 @@ class BinToBcd_TC(HwtLibBinToBcdTC):
     def test_MIR(self):
         # :attention: MIR is loaded to file to test MIR loading, in other tests mir object should be used directly
         # and dump to file is not required
-        with open(Path(self.DEFAULT_LOG_DIR) / "BinToBcd.mainThread" / "02.00.mir.ll") as f:
+        with open(Path(self.DEFAULT_LOG_DIR) / "BinToBcd_BinToBcd.mainThread" / "02.00.mir.ll") as f:
             refData = [0, 1, 2, 3, 4, 5, 6, 7, 99, 127, 255]
             args = [iter(refData), []]
             strCtx = LLVMStringContext()
@@ -42,13 +41,15 @@ class BinToBcd_TC(HwtLibBinToBcdTC):
 
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
+    # from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 
     m = BinToBcd()
     m.DATA_WIDTH = 10
     print(to_rtl_str(m, target_platform=Artix7Medium(debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
         HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
         HlsDebugBundle.DBG_4_0_addSignalNamesToData
-    }))))
+    }), #llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED],
+    )))
 
     import unittest
     testLoader = unittest.TestLoader()
