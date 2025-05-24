@@ -31,7 +31,7 @@ class HashTable(HwModule):
     """
     Hash table without any hash collision resolution scheme.
 
-    :see: :class:`tests.frontend.pyBytecode.hashTableIo.HashTableCmd`
+    :see: :class:`tests.frontend.hashTableIo.HashTableCmd`
     """
 
     def hwConfig(self) -> None:

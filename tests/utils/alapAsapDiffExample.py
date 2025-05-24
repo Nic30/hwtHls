@@ -12,7 +12,7 @@ from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwt.hdl.commonConstants import b1
-from tests.frontend.ast.trivial import WriteOnce
+from tests.frontend.trivial import WriteOnce
 
 
 class AlapAsapDiffExample(HwModule):

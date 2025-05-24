@@ -14,24 +14,24 @@ from tests.frontend.trivial_test import HlsAstTrivial_TC
 from tests.frontend.twoTimesA import TwoTimesA_TC
 from tests.frontend.whileIf_test import HlsAstWhileIf_TC
 from tests.frontend.whileTrue_test import HlsAstWhileTrue_TC
-from tests.frontend.pyBytecode.basics_test import FromPythonBasics_TC
-from tests.frontend.pyBytecode.binToBcd_test import BinToBcd_TC
-from tests.frontend.pyBytecode.errors_test import PyBytecodeErrors_TC
-from tests.frontend.pyBytecode.fnClosue_test import FnClosure_TC
-from tests.frontend.pyBytecode.hwenumerate_test import HlsPythonHwenumerate_TC
-from tests.frontend.pyBytecode.hwrange_test import HlsPythonHwrange_TC
-from tests.frontend.pyBytecode.pragmaInline_test import PyBytecodeInline_TC
-from tests.frontend.pyBytecode.preprocLoopMultiExit_test import PreprocLoopMultiExit_TCs
-from tests.frontend.pyBytecode.pyArrHwIndex_test import PyArrHwIndex_TC
-from tests.frontend.pyBytecode.pyArrShift_test import PyArrShift_TC
-from tests.frontend.pyBytecode.pyExceptionRaise_test import PyBytecodePyException_TC
-from tests.frontend.pyBytecode.readNonBlocking_test import ReadNonBlocking_TC
-from tests.frontend.pyBytecode.stmFor_test import StmFor_TC
-from tests.frontend.pyBytecode.stmIf_test import StmIf_TC
-from tests.frontend.pyBytecode.stmWhile_test import StmWhile_ll_TC, StmWhile_sim_TC
-from tests.frontend.pyBytecode.tupleAssign import HlsPythonTupleAssign_TC
-from tests.frontend.pyBytecode.varReference import VarReference_TC
-from tests.frontend.pyBytecode.variableChain_test import VariableChain_TC
+from tests.frontend.basics_test import FromPythonBasics_TC
+from tests.frontend.binToBcd_test import BinToBcd_TC
+from tests.frontend.errors_test import PyBytecodeErrors_TC
+from tests.frontend.fnClosue_test import FnClosure_TC
+from tests.frontend.hwenumerate_test import HlsPythonHwenumerate_TC
+from tests.frontend.hwrange_test import HlsPythonHwrange_TC
+from tests.frontend.pragmaInline_test import PyBytecodeInline_TC
+from tests.frontend.preprocLoopMultiExit_test import PreprocLoopMultiExit_TCs
+from tests.frontend.pyArrHwIndex_test import PyArrHwIndex_TC
+from tests.frontend.pyArrShift_test import PyArrShift_TC
+from tests.frontend.pyExceptionRaise_test import PyBytecodePyException_TC
+from tests.frontend.readNonBlocking_test import ReadNonBlocking_TC
+from tests.frontend.stmFor_test import StmFor_TC
+from tests.frontend.stmIf_test import StmIf_TC
+from tests.frontend.stmWhile_test import StmWhile_ll_TC, StmWhile_sim_TC
+from tests.frontend.tupleAssign import HlsPythonTupleAssign_TC
+from tests.frontend.varReference import VarReference_TC
+from tests.frontend.variableChain_test import VariableChain_TC
 from tests.testCaseUtils import testSuiteFromTCs
 
 frontend_TCs = [

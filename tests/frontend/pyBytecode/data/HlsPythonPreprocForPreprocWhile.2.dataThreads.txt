@@ -1,9 +1,0 @@
-########### Thread 0 ###########
-blocks:
-    blockL8i0_L20i0_20
-nodes:
-    <HlsNetNodeOutLazy 2>
-    <HlsNetNodeConst 4 <BitsVal 0>>
-    <HlsNetNodeWrite 5 <Signal o <Bits, 8bits, unsigned>> <- <HlsNetNodeOut <BitsVal 0> [0-val]>>
-    <HlsNetNodeOperator 6 NOT [<HlsNetNodeOutLazy 2>]>
-

@@ -35,7 +35,7 @@ class HashTableCuckoo(HwModule):
     """
     Hash table utilizing Cuckoo hashing scheme
     
-    :see: :class:`tests.frontend.pyBytecode.hashTableIo.HashTableCmd`
+    :see: :class:`tests.frontend.hashTableIo.HashTableCmd`
     :ivar STASH_CAM_SIZE: size of temporal memory for moving items between tables in cuckoo hash scheme
         also used to store items if the table is full
     """

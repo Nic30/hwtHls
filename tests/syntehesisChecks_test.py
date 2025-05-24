@@ -9,9 +9,9 @@ from hwtHls.platform.debugBundle import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.platform.xilinx.artix7 import Artix7Slow
 from hwtLib.logic.crcPoly import CRC_32
-from tests.frontend.ast.crc import CrcCombHls
-from tests.frontend.ast.ifstm import HlsSimpleIfStatement
-from tests.frontend.ast.pid import PidControllerHls
+from tests.frontend.crc import CrcCombHls
+from tests.frontend.ifstm import HlsSimpleIfStatement
+from tests.frontend.pid import PidControllerHls
 
 
 class HlsSynthesisChecksTC(SimTestCase):

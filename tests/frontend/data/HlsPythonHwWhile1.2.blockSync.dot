@@ -1,0 +1,70 @@
+digraph "HlsPythonHwWhile1.mainThread" {
+bb0 [fillcolor=white, label=<
+        <table border="0" cellborder="1" cellspacing="0">
+            <tr><td>bb0.bb0</td></tr>
+            <tr><td></td></tr>
+            <tr><td>IO in=[]</td></tr>
+            <tr><td>IO out=[]</td></tr>
+            <tr><td>blockEn=&lt;HlsNetNodeOutLazy 0 bb0_en&gt;</td></tr>
+            <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 1 bb0_orderingIn&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOutLazy 1 bb0_orderingIn&gt;</td></tr>
+            <tr><td>constLiveOuts=[15]</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb1 [fillcolor=white, label=<
+        <table border="0" cellborder="1" cellspacing="0">
+            <tr><td>bb1.blockL56i0_56</td></tr>
+            <tr><td>needsControl, rstPredeccessor=bb0, isLoopHeader</td></tr>
+            <tr><td>IO in=[]</td></tr>
+            <tr><td>IO out=[]</td></tr>
+            <tr><td>blockEn=&lt;HlsNetNodeOutLazy 2 bb1_en&gt;</td></tr>
+            <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 3 bb1_orderingIn&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOutLazy 3 bb1_orderingIn&gt;</td></tr>
+            <tr><td>constLiveOuts=[]</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+bb2 [fillcolor=white, label=<
+        <table border="0" cellborder="1" cellspacing="0">
+            <tr><td>bb2.blockL56i0_L58i0_58</td></tr>
+            <tr><td>needsControl, isLoopHeader</td></tr>
+            <tr><td>IO in=[(1, 'i')]</td></tr>
+            <tr><td>IO out=[(2, 'o')]</td></tr>
+            <tr><td>blockEn=&lt;HlsNetNodeOutLazy 4 bb2_en&gt;</td></tr>
+            <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 5 bb2_orderingIn&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeRead 23 ld_r11 &lt;&gt; i&gt; [1-orderingOut]&gt;</td></tr>
+            <tr><td>constLiveOuts=[15]</td></tr>
+        </table>
+>, shape=plaintext, style=filled];
+e0to1 [color=orange, fillcolor=white, label=<
+        <table border="0" cellborder="1" cellspacing="0">
+            <tr><td>liveRegs=[15]</td></tr>
+            <tr><td>inlineRstDataToEdge=(2, 1)</td></tr>
+            <tr><td>enteringLoops=[bb1.l1]</td></tr>
+        </table>>, shape=plaintext, style=filled];
+bb0 -> e0to1  [color=orange];
+e0to1 -> bb1  [color=orange];
+e1to2 [color=green, fillcolor=white, label=<
+        <table border="0" cellborder="1" cellspacing="0">
+            <tr><td>liveRegs=[16]</td></tr>
+            <tr><td>reuseDataAsControl=16</td></tr>
+            <tr><td>enteringLoops=[bb2.l2]</td></tr>
+        </table>>, shape=plaintext, style=filled];
+bb1 -> e1to2  [color=green];
+e1to2 -> bb2  [color=green];
+e2to1 [color=blue, fillcolor=white, label=<
+        <table border="0" cellborder="1" cellspacing="0">
+            <tr><td>liveRegs=[15]</td></tr>
+            <tr><td>reenteringLoops=[bb1.l1]</td></tr>
+            <tr><td>exitingLoops=[bb2.l2]</td></tr>
+        </table>>, shape=plaintext, style=filled];
+bb2 -> e2to1  [color=blue];
+e2to1 -> bb1  [color=blue];
+e2to2 [color=blue, fillcolor=white, label=<
+        <table border="0" cellborder="1" cellspacing="0">
+            <tr><td>liveRegs=[16]</td></tr>
+            <tr><td>reuseDataAsControl=16</td></tr>
+            <tr><td>reenteringLoops=[bb2.l2]</td></tr>
+        </table>>, shape=plaintext, style=filled];
+bb2 -> e2to2  [color=blue];
+e2to2 -> bb2  [color=blue];
+}
