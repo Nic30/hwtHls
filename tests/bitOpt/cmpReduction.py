@@ -1,5 +1,7 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from hwt.hdl.commonConstants import b1
-from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOVectSignal, HwIOSignal
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
