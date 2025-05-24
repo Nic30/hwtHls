@@ -269,7 +269,7 @@ bool HwtFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 				opc = HwtFpga::HWTFPGA_FP_TANH;
 			} else if (hwtHls::IsHwtHlsFpAtan2(F)) {
 				opc = HwtFpga::HWTFPGA_FP_ATAN2;
-				opTypeArgCnt = 2;
+				opArgCnt = 2;
 			} else {
 				std::string errStr = "HwtFpgaCallLowering: unknown HwtHlsFp function: ";
 				llvm::raw_string_ostream ss(errStr);
