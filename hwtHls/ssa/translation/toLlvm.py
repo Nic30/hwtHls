@@ -104,7 +104,10 @@ class ToLlvmIrTranslator():
 
         self._loop_stack: List[Tuple[BasicBlock, List[BasicBlock]]] = []
         self._dbgLogPassExec:Optional[StringIO] = dbgLogPassExec
-        self._opConstructorMap, self._opConstructorMap2, self._opConstructorMapCmp =\
+        
+        (self._opConstructorMap, 
+         self._opConstructorMap2,
+         self._opConstructorMapCmp) =\
             ToLlvmIrTranslator_createOperatorConstructorDictionaries(self.b)
         self._dbgRootDir: Optional[Path] = None
         self._dbgSubDir: Optional[Path] = None
@@ -162,7 +165,7 @@ class ToLlvmIrTranslator():
                                      block: BasicBlock,
                                      var: RtlSignal,
                                      indexes: Optional[List[Union[RtlSignal, HConst]]],
-                                     newVal: Union[Value, HConst]):
+                                     newVal: Value):
         """
         Handle store to variable and update current definitions
         """
