@@ -1,7 +1,7 @@
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsCastUtils import fitTo_t
 from hwt.mainBases import RtlSignalBase
-from hwtHls.architecture.transformation._operatorToHwtLowering.operatorHwImplementations import countBits
+from hwtHls.architecture.componentGenerators import countBits
 from hwtHls.code import ctlz, shl
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.pragmaInstruction import PyBytecodeNoSplitSlices
