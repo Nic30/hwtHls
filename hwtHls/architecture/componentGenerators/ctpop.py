@@ -79,6 +79,5 @@ if __name__ == "__main__":
 
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
         debugFilter=HlsDebugBundle.ALL_RELIABLE,
-        # llvmCliArgs=[("print-after-all", 0, "", "true"), ]
     )))
 
