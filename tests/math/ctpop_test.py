@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
+from hwt.hdl.types.bits import HBits
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.architecture.componentGenerators.ctpop import Ctpop
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -19,12 +19,12 @@ class Ctpop_TC(SimTestCase):
     def test_CountOnes(self, FREQ=100e6, DATA_WIDTH=8, BITS_TO_LOOKUP_IN_ROM=4, DBG_ROM_IN_PYLIST=False):
         dut = Ctpop()
         dut.CLK_FREQ = int(FREQ)
-        dut.DATA_WIDTH = DATA_WIDTH
+        dut.T = HBits(DATA_WIDTH)
         dut.BITS_TO_LOOKUP_IN_ROM = BITS_TO_LOOKUP_IN_ROM
         dut.DBG_ROM_IN_PYLIST = DBG_ROM_IN_PYLIST
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
 
-        test_values = list(range(2 ** dut.DATA_WIDTH))
+        test_values = list(range(2 ** dut.T.bit_length()))
         dut.data_in._ag.data.extend(test_values)
         ref = []
         for v in test_values:
@@ -43,10 +43,10 @@ if __name__ == '__main__':
 
     m = Ctpop()
     m.CLK_FREQ = int(100e6)
-    m.DATA_WIDTH = 8
+    m.T = HBits(8)
     m.BITS_TO_LOOKUP_IN_ROM = 4
     m.DBG_ROM_IN_PYLIST = True
-    
+
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
         debugFilter=HlsDebugBundle.ALL_RELIABLE,
         # llvmCliArgs=[("print-after-all", 0, "", "true"), ]
