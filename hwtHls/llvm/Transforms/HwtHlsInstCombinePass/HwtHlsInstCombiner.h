@@ -62,6 +62,9 @@ public:
 	// reduce casts which are no longer required after values have been specialized
 	llvm::Instruction* _tryReduceCastHFloatTmpRaw(llvm::CallInst &I);
 
+	// HwtHlsInstComibnerFpCmp.cpp
+	llvm::Instruction* _tryReduceHwtHlsFCmp(llvm::CallInst &I);
+
 	// HwtHlsInstCombinerCmp.cpp
 	llvm::Value* _rewriteCmpConstOnAddSubOpConst(llvm::BinaryOperator &BI,
 			llvm::CmpInst &ICMPI, const llvm::APInt &cmpRhsVal);

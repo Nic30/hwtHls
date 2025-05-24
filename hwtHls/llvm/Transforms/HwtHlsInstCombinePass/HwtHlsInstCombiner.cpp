@@ -71,7 +71,11 @@ Instruction* HwtHlsInstCombiner::runOnInstr(Instruction &I) {
 				return r;
 			}
 		} else if (IsHwtHlsFp(CI)) {
-			if (IsHwtHlsFpFRem(CI)) {
+			if (IsHwtHlsFpFCmp(CI)) {
+				if (auto r = _tryReduceHwtHlsFCmp(*CI)) {
+					return r;
+				}
+			} else if (IsHwtHlsFpFRem(CI)) {
 				if (auto r = _tryReduceFRemByPow2_to_HwtHlsFpCast(*CI)) {
 					return r;
 				}
