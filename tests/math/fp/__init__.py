@@ -9,4 +9,7 @@ Potentially useful:
 * https://github.com/kammoh/flopoco
 * https://github.com/ferrandi/PandA-bambu/blob/main/etc/libbambu/softfloat/softfloat.c
 * https://github.com/f32c/f32c/tree/master/rtl/soc/vector
+* Trigonometric
+  * https://doi.org/10.1109/ICCECT.2012.186
+
 """
