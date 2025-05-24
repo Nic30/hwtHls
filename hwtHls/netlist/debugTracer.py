@@ -73,7 +73,7 @@ class DebugTracer():
             _msg = formater(msg)
             if not isinstance(_msg, str):
                 _msg = repr(_msg)
-            if not self._labelPrinted[-1]:
+            if self._labelPrinted and not self._labelPrinted[-1]:
                 self._writeScopeLabel()
             out.write(self._curIndent)
             out.write(_msg)
