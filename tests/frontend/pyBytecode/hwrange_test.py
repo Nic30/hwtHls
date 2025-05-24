@@ -120,7 +120,7 @@ class HlsPythonHwrange_TC(SimTestCase):
         dut = cls()
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
 
-        CLK_PERIOD = freq_to_period(dut.clk.CLK_FREQ)
+        CLK_PERIOD = freq_to_period(dut.clk.FREQ)
         self.runSim((len(refRes) + 1) * int(CLK_PERIOD))
 
         self.assertValSequenceEqual(dut.o._ag.data, refRes)
