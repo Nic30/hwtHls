@@ -204,7 +204,8 @@ class HlsScope():
             dst: PyObjectHwSubscriptRef
             mem: IoProxyAddressed = dst.sequence
             assert isinstance(mem, IoProxyAddressed), (dst, mem)
-            return mem.WRITE_CLS(mem, self, src, mem.interface, dst.index, mem.wWordT, isVolatile=isVolatile, mayBecomeFlushable=mayBecomeFlushable)
+            return mem.WRITE_CLS(mem, self, src, mem.interface, dst.index, mem.wWordT,
+                                 isVolatile=isVolatile, mayBecomeFlushable=mayBecomeFlushable)
         else:
             if isinstance(dst, HwIO):
                 assert dst._direction != INTF_DIRECTION.MASTER, (dst, "Can not write to input")
@@ -212,7 +213,8 @@ class HlsScope():
             if dstTy is None:
                 dstTy = getattr(dst, "T", None)
             if dstTy is not None:
-                assert dtype.bit_length() == dstTy.bit_length(), ("For normal write the width of src and dst must match", dtype, "->", dstTy, src, dst)
+                assert dtype.bit_length() == dstTy.bit_length(), (
+                    "For a normal write the width of src and dst must match", dtype, "->", dstTy, src, dst)
             return HlsWrite(self, src, dst, dtype, isVolatile=isVolatile, mayBecomeFlushable=mayBecomeFlushable)
 
     def addThread(self, t: HlsThread) -> HlsThread:
