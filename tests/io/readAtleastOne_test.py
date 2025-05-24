@@ -3,12 +3,12 @@
 
 from typing import Type
 
+from hwt.hwModule import HwModule
 from hwt.simulator.simTestCase import SimTestCase
 from hwt.simulator.utils import Bits3valToInt
-from hwt.hwModule import HwModule
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.constants import CLK_PERIOD
-from tests.frontend.ast.trivial_test import HlsAstTrivial_TC
+from tests.frontend.trivial_test import HlsAstTrivial_TC
 from tests.io.readAtleastOne import ReadAtleastOneOf2, ReadAtleastOneOf3
 
 

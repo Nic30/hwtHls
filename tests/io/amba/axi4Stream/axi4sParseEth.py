@@ -14,7 +14,7 @@ from hwtHls.io.amba.axi4Stream.stmRead import HlsStmReadAxi4Stream
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4s import Axi4Stream
 from hwtLib.types.net.ethernet import Eth2Header_t, eth_mac_t
-from tests.frontend.ast.trivial import WriteOnce
+from tests.frontend.trivial import WriteOnce
 
 
 class Axi4SParseEth(HwModule):

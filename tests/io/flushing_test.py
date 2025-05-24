@@ -15,7 +15,7 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtSimApi.constants import CLK_PERIOD
 from hwtSimApi.triggers import Timer
-from tests.frontend.ast.trivial_test import HlsAstTrivial_TC
+from tests.frontend.trivial_test import HlsAstTrivial_TC
 
 
 class ExampleFlushing0(HwModule):

@@ -12,7 +12,7 @@ from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.scope import HlsScope
-from tests.frontend.ast.trivial import WriteOnce
+from tests.frontend.trivial import WriteOnce
 
 
 class WriteFsm0WhileTrue123(HwModule):
