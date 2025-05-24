@@ -28,8 +28,9 @@ HlsNetlist:
 * ComponentGenerator holds all scheduling info and it also resolves physical realization of function.
 
 
-Python math libraries with definitions of math functions:
+Math libraries with definitions of elementary math functions:
 * [mpmath](https://github.com/mpmath/mpmath)
-
+* [gmp](https://github.com/Halliburton-Landmark/gmp/tree/master/mpn/generic)
+* [libtom/tomsfastmath](https://github.com/libtom/tomsfastmath) [libtom/libtommath](https://github.com/libtom/libtommath)
 
 """
