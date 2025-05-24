@@ -5,6 +5,7 @@ from hwt.hdl.commonConstants import b1
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
@@ -15,21 +16,24 @@ from hwtLib.types.ctypes import uint8_t
 
 class Axi4SWriteByteOnce(HwModule):
 
-    def hwConfig(self):
+    @override
+    def hwConfig(self) -> None:
         self.CLK_FREQ = HwParam(int(100e6))
         Axi4Stream.hwConfig(self)
 
+    @override
     def hwDeclr(self) -> None:
         addClkRstn(self)
         with self._hwParamsShared():
             self.dataOut = Axi4Stream()._m()
 
     @hlsBytecode
-    def mainThread(self, dataOut: IoProxyAxi4Stream):
+    def mainThread(self, dataOut: IoProxyAxi4Stream) -> None:
         dataOut.writeStartOfFrame()
-        dataOut.write(uint8_t.from_py(1))
+        dataOut.write(uint8_t.from_py(1), eof=True)
         dataOut.writeEndOfFrame()
 
+    @override
     def hwImpl(self) -> None:
         hls = HlsScope(self)
         dataOut = IoProxyAxi4Stream(hls, self.dataOut)
@@ -39,11 +43,12 @@ class Axi4SWriteByteOnce(HwModule):
 
 class Axi4SWriteByte(Axi4SWriteByteOnce):
 
+    @override
     @hlsBytecode
-    def mainThread(self, dataOut: IoProxyAxi4Stream):
+    def mainThread(self, dataOut: IoProxyAxi4Stream) -> None:
         while b1:
             dataOut.writeStartOfFrame()
-            dataOut.write(uint8_t.from_py(1))
+            dataOut.write(uint8_t.from_py(1), eof=True)
             dataOut.writeEndOfFrame()
 
 
@@ -52,12 +57,11 @@ if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
 
-
     m = Axi4SWriteByte()
     m.USE_STRB = True
     m.DATA_WIDTH = 8
     p = VirtualHlsPlatform(
         debugFilter=HlsDebugBundle.ALL_RELIABLE,
-        #llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL]
+        # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL]
         )
     print(to_rtl_str(m, target_platform=p))

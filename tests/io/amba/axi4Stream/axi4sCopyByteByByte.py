@@ -54,7 +54,7 @@ class Axi4SPacketCopyByteByByteHs(HwModule):
                 self.doUnrolling()
                 d = PyBytecodeInPreproc(rx.read(HBits(8), reliable=False))
                 hls.write(d.data, self.txBody)
-                if d._isLast():
+                if d._isEoF():
                     del d
                     break
                 del d
@@ -82,39 +82,40 @@ class Axi4SPacketCopyByteByByte(HwModule):
         with self._hwParamsShared():
             self.rx = Axi4Stream()
             self.rx.USE_STRB = True
-        self.txBody: Axi4Stream = Axi4Stream()._m()
-        self.txBody.USE_STRB = True
+        self.tx: Axi4Stream = Axi4Stream()._m()
+        self.tx.USE_STRB = True
         if self.OUT_DATA_WIDTH is None:
-            self.txBody.DATA_WIDTH = self.OUT_DATA_WIDTH = self.DATA_WIDTH
+            self.tx.DATA_WIDTH = self.OUT_DATA_WIDTH = self.DATA_WIDTH
         else:
-            self.txBody.DATA_WIDTH = self.OUT_DATA_WIDTH
+            self.tx.DATA_WIDTH = self.OUT_DATA_WIDTH
 
     @hlsBytecode
-    def mainThread(self, rx: IoProxyAxi4Stream, txBody: IoProxyAxi4Stream):
+    def mainThread(self, rx: IoProxyAxi4Stream, tx: IoProxyAxi4Stream):
         while b1:
-            # pass body to txBody output
+            # pass body to tx output
             rx.readStartOfFrame()
-            txBody.writeStartOfFrame()
+            tx.writeStartOfFrame()
             while b1:
                 Axi4SPacketCopyByteByByteHs.doUnrolling(self)
-                d = PyBytecodeInPreproc(rx.read(HBits(8), reliable=False))  # PyBytecodeInPreproc is used because we want to access internal properties of data (_isLast)
-                txBody.write(d.data)
+                d = PyBytecodeInPreproc(rx.read(HBits(8), reliable=False))  # PyBytecodeInPreproc is used because we want to access internal properties of data (_isEoF)
+                if d._isValid():
+                    tx.write(d.data, eof=d._isEoF())
                 # del d is not necessary is there to limit live of d variable which is useful during debug
-                if d._isLast():
+                if d._isEoF():
                     # :note: avoid using masked write as it leads to less readable code and needs to be lowered anyway
                     del d
                     break
                 del d
             # in reverse order because frame processing behaves a a lock on IO
             # and this order is required to prevent deadlock
-            txBody.writeEndOfFrame()
+            tx.writeEndOfFrame()
             rx.readEndOfFrame()
 
     def hwImpl(self):
         hls = HlsScope(self)
         rx = IoProxyAxi4Stream(hls, self.rx)
-        txBody = IoProxyAxi4Stream(hls, self.txBody)
-        mainThread = HlsThreadFromPy(hls, self.mainThread, rx, txBody)
+        tx = IoProxyAxi4Stream(hls, self.tx)
+        mainThread = HlsThreadFromPy(hls, self.mainThread, rx, tx)
         hls.addThread(mainThread)
         hls.compile()
 
@@ -124,9 +125,10 @@ if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.debugBundle import HlsDebugBundle
     
-    m = Axi4SPacketCopyByteByByteHs()
-    m.DATA_WIDTH = 16
-    m.UNROLL = False
+    m = Axi4SPacketCopyByteByByte()
+    m.DATA_WIDTH = 64
+    # m.UNROLL = False
+    # m.OUT_DATA_WIDTH = 16
     # m.OUT_DATA_WIDTH = 8
     p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
     print(to_rtl_str(m, target_platform=p))

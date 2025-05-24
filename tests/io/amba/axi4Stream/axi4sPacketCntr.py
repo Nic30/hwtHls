@@ -40,7 +40,7 @@ class Axi4SPacketCntr(HwModule):
             # PyBytecodeInPreproc is used because otherwise
             # the read object is converted to a RtlSignal because word= is a store to a word variable
             word = PyBytecodeInPreproc(i.read(self.i.data._dtype))
-            if word._isLast():
+            if word._isEoF():
                 pkts += 1
             hls.write(pkts, self.pkt_cnt)
 

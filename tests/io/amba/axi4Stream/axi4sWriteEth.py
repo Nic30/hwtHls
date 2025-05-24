@@ -38,7 +38,7 @@ class Axi4SWriteEth(HwModule):
             v.src = hls.read(self.src).data
             v.dst = hls.read(self.dst).data
             dataOut.writeStartOfFrame()
-            dataOut.write(v)
+            dataOut.write(v, eof=True)
             dataOut.writeEndOfFrame()
 
     def hwImpl(self) -> None:

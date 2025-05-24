@@ -92,7 +92,7 @@ class Axi4SPingResponder(HwModule):
                 pd.eth.src, pd.eth.dst = copy(pd.eth.dst), copy(pd.eth.src)
 
                 tx.writeStartOfFrame()
-                tx.write(pd)
+                tx.write(pd, eof=True)
                 tx.writeEndOfFrame()
             # else drop packet if it is not echo request for myIp
 
