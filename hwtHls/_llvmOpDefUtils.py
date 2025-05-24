@@ -12,16 +12,14 @@ def _getllvmIntUnaryIntrinsicConstructor(intrinsic: Intrinsic):
     return _llvmIntUnaryIntrinsicConstructor
 
 
-def _getllvmIntExtConstructor(isSigned: bool):
+def _llvmIntSExtConstructor(ctx: LlvmCompilationBundle, b:IRBuilder, instr: HOperatorNode, op0:Value, op1:Value, name: Twine) -> Value:
+    resTy = Type.getIntNTy(b.getContext(), instr.result._dtype.bit_length())
+    return b.CreateSExt(op0, resTy, name)
 
-    def _llvmIntExtConstructor(ctx: LlvmCompilationBundle, b:IRBuilder, instr: HOperatorNode, op0:Value, op1:Value, name: Twine) -> Value:
-        resTy = Type.getIntNTy(b.getContext(), instr.result._dtype.bit_length())
-        if isSigned:
-            return b.CreateSExt(op0, resTy, name)
-        else:
-            return b.CreateZExt(op0, resTy, name)
 
-    return _llvmIntExtConstructor
+def _llvmIntZExtConstructor(ctx: LlvmCompilationBundle, b:IRBuilder, instr: HOperatorNode, op0:Value, op1:Value, name: Twine) -> Value:
+    resTy = Type.getIntNTy(b.getContext(), instr.result._dtype.bit_length())
+    return b.CreateZExt(op0, resTy, name)
 
 
 def _getllvmIntBinaryIntrinsicConstructor(intrinsic: Intrinsic):

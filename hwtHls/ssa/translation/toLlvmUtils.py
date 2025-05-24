@@ -5,7 +5,7 @@ from hwt.hdl.operator import HOperatorNode
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.struct import HStructField, HStruct, offsetof
 from hwt.hwIO import HwIO
-from hwtHls._llvmOpDefUtils import _getllvmIntExtConstructor
+from hwtHls._llvmOpDefUtils import _llvmIntZExtConstructor, _llvmIntSExtConstructor
 from hwtHls.frontend.ast.statementsRead import HlsRead
 from hwtHls.frontend.ast.statementsWrite import HlsWrite
 from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
@@ -124,8 +124,8 @@ def ToLlvmIrTranslator_createOperatorConstructorDictionaries(b: IRBuilder):
 
     }
     opConstructorMap2 = {
-        HwtOps.SEXT: _getllvmIntExtConstructor(True),
-        HwtOps.ZEXT: _getllvmIntExtConstructor(False),
+        HwtOps.SEXT: _llvmIntSExtConstructor,
+        HwtOps.ZEXT: _llvmIntZExtConstructor,
         HwtOps.TRUNC: _truncConstructor,
         HwtOps.DOT: _dotToBitRangeGetConstructor,
     }
