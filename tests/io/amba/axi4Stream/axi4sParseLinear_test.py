@@ -2,12 +2,13 @@
 # -*- coding: utf-8 -*-
 
 from math import ceil
+from typing import Type
 import unittest
 
 from hwt.hdl.types.bits import HBits
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtLib.amba.axi4s import axi4s_send_bytes
+from hwtLib.amba.axi4s import Axi4StreamFrameUtils
 from hwtLib.amba.axis_comp.frame_parser.test_types import structManyInts
 from hwtSimApi.constants import CLK_PERIOD
 from pyMathBitPrecise.bit_utils import int_to_int_list, mask
@@ -20,12 +21,16 @@ class Axi4SParseLinearTC(SimTestCase):
     def _test_parse(self, DATA_WIDTH:int, cls=Axi4SParseStructManyInts0, N=3, T=structManyInts):
         dut = cls()
         dut.DATA_WIDTH = DATA_WIDTH
+        self._run_test_parse(dut, Axi4StreamFrameUtils, N, T)
+
+    def _run_test_parse(self, dut: Axi4SParseStructManyInts0, frameUtilsCls: Type[Axi4StreamFrameUtils], N=3, T=structManyInts):
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform(
-            #llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL]
+            # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL]
             ))
 
         ref = []
         first = True
+        fu: Axi4StreamFrameUtils = frameUtilsCls.from_HwIO(dut.i)
         for _ in range(N):
             d = {}
             fi = 0
@@ -46,7 +51,7 @@ class Axi4SParseLinearTC(SimTestCase):
             v.vld_mask = mask(w)
             v = int(v)
             data = int_to_int_list(v, 8, ceil(T.bit_length() / 8))
-            axi4s_send_bytes(dut.i, data)
+            fu.send_bytes(data, dut.i._ag.data)
             first = False
 
         t = CLK_PERIOD * (len(dut.i._ag.data) + 5)
@@ -76,7 +81,7 @@ class Axi4SParseLinearTC(SimTestCase):
         self._test_parse(512)
 
     # dissabled because the exmple is too large
-    #def test_Axi4SParseStructManyInts1_8b(self):
+    # def test_Axi4SParseStructManyInts1_8b(self):
     #    self._test_parse(8, cls=Axi4SParseStructManyInts1)
 
     def test_Axi4SParseStructManyInts1_16b(self):

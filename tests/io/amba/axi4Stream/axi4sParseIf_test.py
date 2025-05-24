@@ -5,9 +5,7 @@ from math import ceil
 from typing import List
 import unittest
 
-from hwt.code import Concat
 from hwt.hdl.types.bits import HBits
-from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
 from hwt.simulator.simTestCase import SimTestCase
 from hwt.hwModule import HwModule
@@ -15,7 +13,7 @@ from hwtHls.llvm.llvmIr import LlvmCompilationBundle, MachineFunction, Function,
 from hwtHls.ssa.analysis.llvmIrInterpret import LlvmIrInterpret, \
     SimIoUnderflowErr
 from hwtHls.ssa.analysis.llvmMirInterpret import LlvmMirInterpret
-from hwtLib.amba.axi4s import axi4s_send_bytes, packAxi4SFrame
+from hwtLib.amba.axi4s import Axi4StreamFrameUtils
 from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import  int_to_int_list, mask
 from tests.io.amba.axi4Stream.axi4sParseIf import Axi4SParse2If2B, Axi4SParse2IfLess, Axi4SParse2If, Axi4SParse2IfAndSequel
@@ -25,11 +23,53 @@ from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 
 
 class Axi4SParseIfTC(SimTestCase):
+    _Axi4StreamFrameUtils = Axi4StreamFrameUtils
+
+    def _testLlvmIr(self, dut: HwModule, strCtx: LLVMStringContext, F: Function, inputFrames: List[List[int]], outputRef: List[int]):
+        fu = self._Axi4StreamFrameUtils.from_HwIO(dut.i)
+        dataIn = BaseAxi4SPktInPktOutTC._packFrames(fu, inputFrames)
+        # for f in inputFrames:
+        #     print(f)
+        # for x in dataIn:
+        #     print(x)
+        dataOut = []
+        args = [iter(dataIn), dataOut]
+        interpret = LlvmIrInterpret(F, strCtx)
+        try:
+            interpret.run(args)
+        except SimIoUnderflowErr:
+            pass
+
+        self.assertValSequenceEqual(dataOut, outputRef, "%r [%s] != [%s]" % (
+            dut.o,
+            ", ".join("0x%x" % int(i) if i._is_full_valid() else repr(i) for i in dataOut),
+            ", ".join("0x%x" % i for i in outputRef)
+        ))
+
+    def _testLlvmMir(self, dut: HwModule, strCtx: LLVMStringContext, MF: MachineFunction, inputFrames: List[List[int]], outputRef: List[int]):
+        fu = self._Axi4StreamFrameUtils.from_HwIO(dut.i)
+        dataIn = BaseAxi4SPktInPktOutTC._packFrames(fu, inputFrames)
+        dataOut = []
+        args = [iter(dataIn), dataOut]
+        interpret = LlvmMirInterpret(MF, strCtx)
+        try:
+            interpret.run(args)
+        except SimIoUnderflowErr:
+            pass
+
+        self.assertValSequenceEqual(dataOut, outputRef, "%r [%s] != [%s]" % (
+            dut.o,
+            ", ".join("0x%x" % int(i) if i._is_full_valid() else repr(i) for i in dataOut),
+            ", ".join("0x%x" % i for i in outputRef)
+        ))
 
     def _test_Axi4SParse2If2B(self, DATA_WIDTH:int, freq=int(1e6), N=16):
         dut = Axi4SParse2If2B()
         dut.DATA_WIDTH = DATA_WIDTH
         dut.CLK_FREQ = freq
+        self._run_test_Axi4SParse2If2B(dut, N)
+
+    def _run_test_Axi4SParse2If2B(self, dut: Axi4SParse2If2B, N:int):
         T1 = HStruct(
             (HBits(8), "v0"),
         )
@@ -65,69 +105,24 @@ class Axi4SParseIfTC(SimTestCase):
         tc = self
 
         def testLlvmOptIr(llvm: LlvmCompilationBundle):
-            tc._testLlvmIr(dut, llvm.main, inputFrames, outputRef)
+            tc._testLlvmIr(dut, llvm.strCtx, llvm.main, inputFrames, outputRef)
 
         def testLlvmOptMir(llvm: LlvmCompilationBundle):
-            tc._testLlvmMir(dut, llvm.getMachineFunction(llvm.main), inputFrames, outputRef)
+            tc._testLlvmMir(dut, llvm.strCtx, llvm.getMachineFunction(llvm.main), inputFrames, outputRef)
 
         self.compileSimAndStart(dut, target_platform=TestLlvmIrAndMirPlatform(
             optIrTest=testLlvmOptIr, optMirTest=testLlvmOptMir))
 
+        fu = self._Axi4StreamFrameUtils.from_HwIO(dut.i)
         for f in inputFrames:
-            axi4s_send_bytes(dut.i, f)
+            fu.send_bytes(f, dut.i._ag.data)
 
-        t = int(freq_to_period(freq)) * (len(dut.i._ag.data) + 10) * 2
+        t = int(freq_to_period(dut.CLK_FREQ)) * (len(dut.i._ag.data) + 10) * 2
         self.runSim(t)
 
         self.assertValSequenceEqual(dut.o._ag.data, outputRef, "%r [%s] != [%s]" % (
             dut.o,
             ", ".join("0x%x" % int(i) if i._is_full_valid() else repr(i) for i in dut.o._ag.data),
-            ", ".join("0x%x" % i for i in outputRef)
-        ))
-
-    def _testLlvmIr(self, dut: HwModule, F: Function, inputFrames: List[List[int]], outputRef: List[int]):
-        dataIn = []
-        for refFrame in inputFrames:
-            t = HBits(8)[len(refFrame)]
-            _data_B = t.from_py(refFrame)
-            axiWords = packAxi4SFrame(dut.DATA_WIDTH, _data_B, withStrb=False)
-            dataIn.extend(axiWords)
-
-        dataIn = [Concat(BIT.from_py(d[1]), d[0]) for d in dataIn]
-        dataOut = []
-        args = [iter(dataIn), dataOut]
-        interpret = LlvmIrInterpret(F)
-        try:
-            interpret.run(args)
-        except SimIoUnderflowErr:
-            pass
-
-        self.assertValSequenceEqual(dataOut, outputRef, "%r [%s] != [%s]" % (
-            dut.o,
-            ", ".join("0x%x" % int(i) if i._is_full_valid() else repr(i) for i in dataOut),
-            ", ".join("0x%x" % i for i in outputRef)
-        ))
-
-    def _testLlvmMir(self, dut: HwModule, MF: MachineFunction, inputFrames: List[List[int]], outputRef: List[int]):
-        dataIn = []
-        for refFrame in inputFrames:
-            t = HBits(8)[len(refFrame)]
-            _data_B = t.from_py(refFrame)
-            axiWords = packAxi4SFrame(dut.DATA_WIDTH, _data_B, withStrb=False)
-            dataIn.extend(axiWords)
-
-        dataIn = [Concat(BIT.from_py(d[1]), d[0]) for d in dataIn]
-        dataOut = []
-        args = [iter(dataIn), dataOut]
-        interpret = LlvmMirInterpret(MF)
-        try:
-            interpret.run(args)
-        except SimIoUnderflowErr:
-            pass
-
-        self.assertValSequenceEqual(dataOut, outputRef, "%r [%s] != [%s]" % (
-            dut.o,
-            ", ".join("0x%x" % int(i) if i._is_full_valid() else repr(i) for i in dataOut),
             ", ".join("0x%x" % i for i in outputRef)
         ))
 
@@ -137,7 +132,9 @@ class Axi4SParseIfTC(SimTestCase):
         dut = Axi4SParse2If()
         dut.DATA_WIDTH = DATA_WIDTH
         dut.CLK_FREQ = freq
+        self._run_test_Axi4SParse2If(dut, N)
 
+    def _run_test_Axi4SParse2If(self, dut: Axi4SParse2If, N:int):
         T1 = HStruct(
             (HBits(16), "v0"),
             (HBits(8), "v1"),
@@ -176,18 +173,23 @@ class Axi4SParseIfTC(SimTestCase):
         tc = self
 
         def testLlvmOptIr(llvm: LlvmCompilationBundle):
-            tc._testLlvmIr(dut, llvm.main, inputFrames, outputRef)
+            tc._testLlvmIr(dut, llvm.strCtx, llvm.main, inputFrames, outputRef)
 
         def testLlvmOptMir(llvm: LlvmCompilationBundle):
-            tc._testLlvmMir(dut, llvm.getMachineFunction(llvm.main), inputFrames, outputRef)
+            tc._testLlvmMir(dut, llvm.strCtx, llvm.getMachineFunction(llvm.main), inputFrames, outputRef)
 
         self.compileSimAndStart(dut, target_platform=TestLlvmIrAndMirPlatform(
-            optIrTest=testLlvmOptIr, optMirTest=testLlvmOptMir))
+            optIrTest=testLlvmOptIr, optMirTest=testLlvmOptMir,
+            # runTestAfterEachPass=True,
+            # runTestAfterEachIrPass=True,
+            # runTestAfterEachMirPass=True
+            ))
 
+        fu = self._Axi4StreamFrameUtils.from_HwIO(dut.i)
         for f in inputFrames:
-            axi4s_send_bytes(dut.i, f)
+            fu.send_bytes(f, dut.i._ag.data)
 
-        t = int(freq_to_period(freq)) * (len(dut.i._ag.data) + 10) * 2
+        t = int(freq_to_period(dut.CLK_FREQ)) * (len(dut.i._ag.data) + 10) * 2
         self.runSim(t)
 
         self.assertValSequenceEqual(dut.o._ag.data, outputRef, "%r [%s] != [%s]" % (
@@ -201,7 +203,10 @@ class Axi4SParseIfTC(SimTestCase):
         dut.WRITE_FOOTER = WRITE_FOOTER
         dut.DATA_WIDTH = DATA_WIDTH
         dut.CLK_FREQ = freq
+        self._run_test_Axi4SParse2IfAndSequel(dut, N, WRITE_FOOTER)
 
+    def _run_test_Axi4SParse2IfAndSequel(self, dut: Axi4SParse2IfAndSequel, N:int, WRITE_FOOTER:bool):
+        N = 2
         T0 = HStruct(
             (HBits(16), "v0"),
             (HBits(8), "v2"),
@@ -252,26 +257,30 @@ class Axi4SParseIfTC(SimTestCase):
 
         def testLlvmOptIr(llvm: LlvmCompilationBundle):
             # try:
-            tc._testLlvmIr(dut, llvm.main, inputFrames, outputRef)
+            tc._testLlvmIr(dut, llvm.strCtx, llvm.main, inputFrames, outputRef)
 
             # except NotImplementedError:
             #    pass
         def testLlvmOptMir(llvm: LlvmCompilationBundle):
-            tc._testLlvmMir(dut, llvm.getMachineFunction(llvm.main), inputFrames, outputRef)
+            tc._testLlvmMir(dut, llvm.strCtx, llvm.getMachineFunction(llvm.main), inputFrames, outputRef)
 
         self.compileSimAndStart(dut, target_platform=TestLlvmIrAndMirPlatform(
-                #debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
+                # debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
                 #    HlsDebugBundle.DBG_4_0_addSignalNamesToSync}),
                 optIrTest=testLlvmOptIr,
                 optMirTest=testLlvmOptMir,
-                # runTestAfterEachPass=True
+                #runTestAfterEachPass=True,
+                # runTestAfterEachIrPass=True,
+                # runTestAfterEachMirPass=True,
+                #llvmCliArgs=[LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER]
         ))
 
         dut.i._ag.presetBeforeClk = True
+        fu = self._Axi4StreamFrameUtils.from_HwIO(dut.i)
         for f in inputFrames:
-            axi4s_send_bytes(dut.i, f)
+            fu.send_bytes(f, dut.i._ag.data)
 
-        t = int(freq_to_period(freq)) * (len(dut.i._ag.data) + 10) * 2
+        t = int(freq_to_period(dut.CLK_FREQ)) * (len(dut.i._ag.data) + 10) * 2
         if WRITE_FOOTER:
             t *= 2
         self.runSim(t)
@@ -283,6 +292,7 @@ class Axi4SParseIfTC(SimTestCase):
         ))
 
     # Axi4SParse2If2B
+
     def test_Axi4SParse2If2B_8b_1MHz(self):
         self._test_Axi4SParse2If2B(8)
 
@@ -449,19 +459,19 @@ class Axi4SParseIfTC(SimTestCase):
 
 
 if __name__ == '__main__':
-    #from hwtHls.platform.virtual import VirtualHlsPlatform
-    #from hwt.synth import to_rtl_str
-    #m = Axi4SParse2IfAndSequel()
-    #m.WRITE_FOOTER = False
-    #m.DATA_WIDTH = 16
-    #m.CLK_FREQ = int(1e6)
-    #print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
+    # from hwtHls.platform.virtual import VirtualHlsPlatform
+    # from hwt.synth import to_rtl_str
+    # m = Axi4SParse2IfAndSequel()
+    # m.WRITE_FOOTER = False
+    # m.DATA_WIDTH = 16
+    # m.CLK_FREQ = int(1e6)
+    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
     #    debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
     #        HlsDebugBundle.DBG_4_0_addSignalNamesToSync
-    #}))))
-    
+    # }))))
+
     testLoader = unittest.TestLoader()
-    
+
     # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2IfAndSequel_16b_100MHz")])
     suite = testLoader.loadTestsFromTestCase(Axi4SParseIfTC)
     runner = unittest.TextTestRunner(verbosity=3)

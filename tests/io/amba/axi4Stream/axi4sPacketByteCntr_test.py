@@ -3,15 +3,14 @@
 
 from typing import List
 
-from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
+from hwt.pyUtils.typingFuture import override
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.llvm.llvmIr import LLVMStringContext, Function, LlvmCompilationBundle, \
     MachineFunction
 from hwtHls.ssa.analysis.llvmIrInterpret import SimIoUnderflowErr
 from hwtHls.ssa.analysis.llvmMirInterpret import LlvmMirInterpret
-from hwtLib.amba.axi4s import axi4s_send_bytes, packAxi4SFrame, \
-    concatDataStrbLastFlags
+from hwtLib.amba.axi4s import Axi4StreamFrameUtils
 from hwtSimApi.utils import freq_to_period
 from tests.io.amba.axi4Stream.axi4sCopyByteByByte_test import Axi4SPacketCopyByteByByteTC
 from tests.io.amba.axi4Stream.axi4sPacketByteCntr import Axi4SPacketByteCntr0, Axi4SPacketByteCntr1, \
@@ -19,15 +18,18 @@ from tests.io.amba.axi4Stream.axi4sPacketByteCntr import Axi4SPacketByteCntr0, A
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 
-class Axi4SPacketCntrTC(SimTestCase):
+class _Axi4SPacketByteCntrTC(SimTestCase):
+    _Axi4StreamFrameUtils = Axi4StreamFrameUtils
 
-    def _generateFramesFromLens(self, DATA_WIDTH: int, LENS: List[int]):
+    @override
+    def _generateFramesFromLens(self, dut: Axi4SPacketByteCntr0, LENS: List[int]):
         dataIn = []
-        strbT = HBits(DATA_WIDTH // 8)
+        fu = self._Axi4StreamFrameUtils.from_HwIO(dut.i)
         for LEN in LENS:
-            frameBeats = packAxi4SFrame(DATA_WIDTH, range(LEN), withStrb=True)
-            frameBeats = list(frameBeats)
-            dataIn.extend(concatDataStrbLastFlags(frameBeats, strbT))
+            frameBeats = []
+            fu.send_bytes(list(range(LEN)), frameBeats)
+            dataIn.extend(fu.concatWordBits(frameBeats))
+
         return dataIn
 
     def _checkResults(self, SUM_ONLY:bool, LENS: List[int], dataOut: List[HBitsConst]):
@@ -38,7 +40,7 @@ class Axi4SPacketCntrTC(SimTestCase):
 
     def _testLlvmIr(self, dut: Axi4SPacketByteCntr0,
                     strCtx: LLVMStringContext, f: Function, SUM_ONLY:bool, LENS: List[int]):
-        dataIn = self._generateFramesFromLens(dut.DATA_WIDTH, LENS)
+        dataIn = self._generateFramesFromLens(dut, LENS)
         dataOut = []
         args = [dataOut, iter(dataIn)]
         try:
@@ -48,11 +50,11 @@ class Axi4SPacketCntrTC(SimTestCase):
 
         self._checkResults(SUM_ONLY, LENS, dataOut)
 
-    def _testLlvmMir(self, dut: Axi4SPacketByteCntr0, mf: MachineFunction, SUM_ONLY:bool, LENS: List[int]):
-        dataIn = self._generateFramesFromLens(dut.DATA_WIDTH, LENS)
+    def _testLlvmMir(self, dut: Axi4SPacketByteCntr0, strCtx: LLVMStringContext, mf: MachineFunction, SUM_ONLY:bool, LENS: List[int]):
+        dataIn = self._generateFramesFromLens(dut, LENS)
         dataOut = []
         args = [dataOut, iter(dataIn)]
-        interpret = LlvmMirInterpret(mf)
+        interpret = LlvmMirInterpret(mf, strCtx)
         try:
             interpret.run(args)
         except SimIoUnderflowErr:
@@ -60,18 +62,15 @@ class Axi4SPacketCntrTC(SimTestCase):
 
         self._checkResults(SUM_ONLY, LENS, dataOut)
 
-    def _test_byte_cnt(self, DATA_WIDTH:int, cls=Axi4SPacketByteCntr0, LENS=[1, 2, 3, 4], T_MUL=1, CLK_FREQ=int(1e6),
+    def _run_test_byte_cnt(self, dut: Axi4SPacketByteCntr0, LENS=[1, 2, 3, 4], T_MUL=1, CLK_FREQ=int(1e6),
                        SUM_ONLY:bool=True, TEST_IR:bool=False, TEST_MIR:bool=False):
-        dut = cls()
-        dut.DATA_WIDTH = DATA_WIDTH
-        dut.CLK_FREQ = CLK_FREQ
         tc = self
 
         def testLlvmOptIr(llvm: LlvmCompilationBundle):
             tc._testLlvmIr(dut, llvm.strCtx, llvm.main, SUM_ONLY, LENS)
 
         def testLlvmOptMir(llvm: LlvmCompilationBundle):
-            tc._testLlvmMir(dut, llvm.getMachineFunction(llvm.main), SUM_ONLY, LENS)
+            tc._testLlvmMir(dut, llvm.strCtx, llvm.getMachineFunction(llvm.main), SUM_ONLY, LENS)
 
         platform = TestLlvmIrAndMirPlatform(optIrTest=testLlvmOptIr if TEST_IR else None, optMirTest=testLlvmOptMir if TEST_MIR else None,
                                             # debugFilter={ #*HlsDebugBundle.ALL_RELIABLE,
@@ -84,13 +83,25 @@ class Axi4SPacketCntrTC(SimTestCase):
         self.compileSimAndStart(dut, target_platform=platform)
         dut.i._ag.presetBeforeClk = True
         # dut.byte_cnt._ag.presetBeforeClk = True
-
+        fu = self._Axi4StreamFrameUtils.from_HwIO(dut.i)
         for LEN in LENS:
-            axi4s_send_bytes(dut.i, list(range(LEN)))
+            fu.send_bytes(list(range(LEN)), dut.i._ag.data)
 
         t = int(freq_to_period(dut.CLK_FREQ)) * (len(dut.i._ag.data) + 10) * T_MUL
         self.runSim(t)
+        self.assertEmpty(dut.i._ag.data)
         self._checkResults(SUM_ONLY, LENS, dut.byte_cnt._ag.data)
+
+
+class Axi4SPacketByteCntrTC(_Axi4SPacketByteCntrTC):
+
+    def _test_byte_cnt(self, DATA_WIDTH:int, SEGMENT_CNT:int=1, cls=Axi4SPacketByteCntr0, LENS=[1, 2, 3, 4], T_MUL=1, CLK_FREQ=int(1e6),
+                       SUM_ONLY:bool=True, TEST_IR:bool=False, TEST_MIR:bool=False):
+        dut = cls()
+        assert SEGMENT_CNT == 1, SEGMENT_CNT
+        dut.DATA_WIDTH = DATA_WIDTH
+        dut.CLK_FREQ = CLK_FREQ
+        self._run_test_byte_cnt(dut, LENS, T_MUL, CLK_FREQ, SUM_ONLY, TEST_IR, TEST_MIR)
 
     def test_Axi4SPacketByteCntr0_8b(self):
         self._test_byte_cnt(8)
