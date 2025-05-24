@@ -409,6 +409,7 @@ class BramArrayProxy(IoProxyAddressed):
         else:
             assert i.HAS_R, ("Must have at least one (read/write)", interface)
             rWordType = i.dout._dtype
+            wWordType = None
 
         nativeType = rWordType[int(2 ** i.ADDR_WIDTH)]
         IoProxyAddressed.__init__(self, hls, interface, nativeType)
