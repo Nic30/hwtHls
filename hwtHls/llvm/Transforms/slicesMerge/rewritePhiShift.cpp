@@ -92,7 +92,7 @@ PHINode* mergePhisToWiderPhi(IRBuilderBase& builder, const Twine& nameStem, cons
 	auto lastPhiIt = builder.GetInsertPoint();
 	builder.SetInsertPoint(&*++lastPhiIt);
 
-	auto name = resolveNameForMergedInstructions<InstructionPtrNameGetter>(phis) + nameStem;  //_name.str();
+	auto name = resolveNameForMergedInstructions<InstructionPtrNameGetter>(phis) + nameStem.str();  //_name.str();
 	auto *resTy = Type::getIntNTy(builder.getContext(), resWidth);
 	PHINode *widerPhi = builder.CreatePHI(resTy, phis[0]->getNumIncomingValues(), name);
 
