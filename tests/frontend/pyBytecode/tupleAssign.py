@@ -86,18 +86,18 @@ class HlsPythonTupleAssign_TC(BaseSsaTC):
 
 
 if __name__ == "__main__":
-    from hwt.synth import to_rtl_str
-    from hwtHls.platform.virtual import VirtualHlsPlatform
-    from hwtHls.platform.debugBundle import HlsDebugBundle
+    # from hwt.synth import to_rtl_str
+    # from hwtHls.platform.virtual import VirtualHlsPlatform
+    # from hwtHls.platform.debugBundle import HlsDebugBundle
 
-    m = HlsPythonTupleAssign()
-    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    # m = HlsPythonTupleAssign()
+    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
 
     testLoader = unittest.TestLoader()
-    suite = unittest.TestSuite([HlsPythonTupleAssign_TC("test_HlsPythonSwap_ll")])
-    # suite = testLoader.loadTestsFromTestCase(HlsPythonTupleAssign_TC)
+    # suite = unittest.TestSuite([HlsPythonTupleAssign_TC("test_HlsPythonTupleAssign_ll")])
+    suite = testLoader.loadTestsFromTestCase(HlsPythonTupleAssign_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
 
