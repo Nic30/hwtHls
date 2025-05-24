@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from tests.math.fp.add_test import IEEE754FpAdder_TC, _Test_IEEE754FpAlu
-from tests.math.fp.mul import IEEE754FpMul
+from tests.math.fp.fpadd_test import IEEE754FpAdder_TC, _Test_IEEE754FpAlu
+from tests.math.fp.fpmul import IEEE754FpMul
 
 
 class IEEE754FpMultipier_TC(IEEE754FpAdder_TC):
     FP_FUNCTION = staticmethod(IEEE754FpMul)
+    FP_OPERATOR_FN = staticmethod(lambda a, b: a * b)
     FP_FUNCTION_ADD_IS_SIM_ARG = False
 
     @staticmethod
@@ -17,7 +18,7 @@ class IEEE754FpMultipier_TC(IEEE754FpAdder_TC):
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle
     from tests.math.fp.fptypes import IEEE754Fp16
     # from hwtHls.platform.xilinx.artix7 import Artix7Fast
 
@@ -26,7 +27,7 @@ if __name__ == "__main__":
     m.CLK_FREQ = int(100e3)
     m.T = IEEE754Fp16
 
-    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
 
