@@ -3,8 +3,8 @@
 
 from typing import List, Tuple, Callable
 
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
-from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
@@ -17,7 +17,7 @@ from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
-from tests.math.fp.cmp import IEEE754FpCmp, IEEE754FpCmpResult
+from tests.math.fp.fpcmp import IEEE754FpCmp, IEEE754FpCmpResult
 from tests.math.fp.fptypes import IEEE754Fp32, IEEE754Fp
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
@@ -40,7 +40,7 @@ class IEEE754FpComparator(HwModule):
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while b1:
             a = hls.read(self.a).data
             b = hls.read(self.b).data
             res = PyBytecodeInline(IEEE754FpCmp)(a, b)
@@ -89,8 +89,8 @@ class IEEE754FpCmp_TC(SimTestCase):
         for (a, b) in TEST_DATA_FORMATED:
             aDataIn.append(a)
             bDataIn.append(b)
-            _a = IEEE754Fp32.to_py(a)
-            _b = IEEE754Fp32.to_py(b)
+            _a = a.to_py()
+            _b = b.to_py()
             _resRef = int(model(_a, _b))
             resRef.append(_resRef)
         return aDataIn, bDataIn, resRef
@@ -113,8 +113,8 @@ class IEEE754FpCmp_TC(SimTestCase):
     def test_cmp_py(self):
         for (a, b) in self.TEST_DATA_FORMATED:
             res = IEEE754FpCmp(a, b)
-            _a = IEEE754Fp32.to_py(a)
-            _b = IEEE754Fp32.to_py(b)
+            _a = a.to_py()
+            _b = b.to_py()
             # check if conversion from py int to hvalue and to float is correct
             resRef = self.model(_a, _b)
             self.assertValEqual(res, int(resRef),
@@ -143,14 +143,14 @@ class IEEE754FpCmp_TC(SimTestCase):
         self.runSim((len(self.TEST_DATA_FORMATED) + 1) * int(CLK_PERIOD))
 
         self.assertValSequenceEqual(dut.res._ag.data, resRes,
-                                    [(IEEE754Fp32.to_py(a), IEEE754Fp32.to_py(b), a, b)
+                                    [(a.to_py(), b.to_py(), a, b)
                                      for a, b in self.TEST_DATA_FORMATED])
         self.rtl_simulator_cls = None
 
 
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle
     m = IEEE754FpComparator()
 
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

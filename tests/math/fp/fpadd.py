@@ -9,7 +9,7 @@ from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.pragmaInstruction import PyBytecodeNoSplitSlices
 from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodePreprocHwCopy, \
     PyBytecodeInline, PyBytecodeBlockLabel
-from tests.math.fp.fptypes import IEEE754Fp
+from tests.math.fp.fptypes import IEEE754Fp, IEEE754FpValue
 from tests.math.fp.normalizeDenormalize import _denormalize, fpRoundup, \
     fpPack
 
@@ -30,7 +30,7 @@ def _swap(aSign, aExponent, aMantissa, bSign, bExponent, bMantissa):
 
 
 @hlsBytecode
-def IEEE754FpAdd(a: RtlSignalBase[IEEE754Fp], b: RtlSignalBase[IEEE754Fp], isSim=False):
+def IEEE754FpAdd(a: IEEE754FpValue, b: IEEE754FpValue, isSim=False):
     """
     based on https://github.com/dawsonjon/fpu/blob/master/adder/adder.v
     https://github.com/ucb-bar/berkeley-softfloat-3
@@ -41,40 +41,40 @@ def IEEE754FpAdd(a: RtlSignalBase[IEEE754Fp], b: RtlSignalBase[IEEE754Fp], isSim
     """
     t: IEEE754Fp = a._dtype
     res = t.from_py(None)
-    if t.isNaN(a) | t.isNaN(b):
+    if a.isNaN() | b.isNaN():
         PyBytecodeBlockLabel("IEEE754FpAdd.isNaN")
         # if a is NaN or b is NaN return NaN
         res.sign = a.sign & b.sign
         res.exponent = t.getSpecialExponent()
         res.mantissa = t.getNaNMantisa()
 
-    elif t.isInf(a):
+    elif a.isInf():
         # if a is inf return inf
         PyBytecodeBlockLabel("IEEE754FpAdd.aIsInf")
         res.sign = a.sign
         res.exponent = t.getSpecialExponent()
         res.mantissa = 0
-        if t.isInf(b) & (a.sign != b.sign):
+        if b.isInf() & (a.sign != b.sign):
             res.mantissa = t.getNaNMantisa()
 
-    elif t.isInf(b):
+    elif b.isInf():
         PyBytecodeBlockLabel("IEEE754FpAdd.bIsInf")
         # if b is inf return inf
         res.sign = b.sign
         res.exponent = t.getSpecialExponent()
         res.mantissa = 0
 
-    elif t.isZero(a) & t.isZero(b):
+    elif a.isZero() & b.isZero():
         PyBytecodeBlockLabel("IEEE754FpAdd.Is0")
         res.sign = a.sign & b.sign
         res.exponent = 0
         res.mantissa = 0
 
-    elif t.isZero(a):
+    elif a.isZero():
         PyBytecodeBlockLabel("IEEE754FpAdd.aIs0")
         res = b
 
-    elif t.isZero(b):
+    elif b.isZero():
         PyBytecodeBlockLabel("IEEE754FpAdd.bIs0")
         res = a
 

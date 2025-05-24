@@ -36,8 +36,7 @@ def IEEE754FpCmp(a: RtlSignalBase[IEEE754Fp], b: RtlSignalBase[IEEE754Fp]):
     :note: expects normalized numbers
     """
     res = bit2_t.from_py(None)
-    t:IEEE754Fp = a._dtype
-    if t.isNaN(a) | t.isNaN(b):
+    if a.isNaN() | b.isNaN():
         # if any operand is NaN the result is unknown
         res = IEEE754FpCmpResult.UNKNOWN
     elif ~a.sign & ~b.sign:

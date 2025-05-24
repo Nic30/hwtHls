@@ -17,18 +17,18 @@ def IEEE754FpMul(a: RtlSignalBase[IEEE754Fp], b: RtlSignalBase[IEEE754Fp]):
     """
     t: IEEE754Fp = a._dtype
     res = t.from_py(None)
-    if t.isNaN(a) | t.isNaN(b):
+    if a.isNaN() | b.isNaN():
         PyBytecodeBlockLabel("IEEE754FpMul.isNaN")
         # if a is NaN or b is NaN return NaN
         res.sign = a.sign ^ b.sign
         res.exponent = t.getSpecialExponent()
         res.mantissa = t.getNaNMantisa()
 
-    elif t.isInf(a):
+    elif a.isInf():
         PyBytecodeBlockLabel("IEEE754FpMul.aIsInf")
         # if b is zero return NaN
         res.exponent = t.getSpecialExponent()
-        if t.isZero(b):
+        if b.isZero():
             # if b is zero return NaN
             res.sign = 1
             res.mantissa = t.getNaNMantisa()
@@ -37,10 +37,10 @@ def IEEE754FpMul(a: RtlSignalBase[IEEE754Fp], b: RtlSignalBase[IEEE754Fp]):
             res.sign = a.sign ^ b.sign
             res.mantissa = 0
 
-    elif t.isInf(b):
+    elif b.isInf():
         PyBytecodeBlockLabel("IEEE754FpMul.bIsInf")
         res.exponent = t.getSpecialExponent()
-        if t.isZero(a):
+        if a.isZero():
             # if a is zero return NaN
             res.sign = 1
             res.mantissa = t.getNaNMantisa()
@@ -49,7 +49,7 @@ def IEEE754FpMul(a: RtlSignalBase[IEEE754Fp], b: RtlSignalBase[IEEE754Fp]):
             res.sign = a.sign ^ b.sign
             res.mantissa = 0
 
-    elif t.isZero(a) & t.isZero(b):
+    elif a.isZero() & b.isZero():
         # if a or b is zero return zero
         PyBytecodeBlockLabel("IEEE754FpMul.Is0")
         res.sign = a.sign & b.sign

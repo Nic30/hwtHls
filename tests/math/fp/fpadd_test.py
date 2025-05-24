@@ -10,6 +10,7 @@ from typing import Callable, List, Tuple
 
 from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.structValBase import HStructConstBase
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
@@ -19,11 +20,12 @@ from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
-from tests.math.fp.add import IEEE754FpAdd
-from tests.math.fp.cmp_test import IEEE754FpComparator
+from tests.math.fp.fpadd import IEEE754FpAdd
+from tests.math.fp.fpcmp_test import IEEE754FpComparator
 from tests.math.fp.fptypes import IEEE754Fp64, IEEE754Fp, IEEE754Fp16
 from tests.math.fp.fptypes_test import int64reinterpretToFloat, \
     fpPyDictToFpTuple, fpConstToFpTuple
+from tests.math.componentGenerators.install import installFpComponentGenerators
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 
@@ -48,7 +50,7 @@ class _Test_IEEE754FpAlu(HwModule):
             a = hls.read(self.a).data
             b = hls.read(self.b).data
             res = PyBytecodeInline(self.FP_FUNCTION)(a, b)
-            hls.write(res, self.res)
+            hls.write(res, self.res, mayBecomeFlushable=False)
 
     def hwImpl(self) -> None:
         IEEE754FpComparator.hwImpl(self)
@@ -75,6 +77,7 @@ class IEEE754FpAdder_TC(SimTestCase):
     # :note: staticmethod must be used otherwise function is bounded as instance method to this class
     #  and it add "self" parameter
     FP_FUNCTION = staticmethod(IEEE754FpAdd)
+    FP_OPERATOR_FN = staticmethod(lambda a, b: a + b)
     FP_FUNCTION_ADD_IS_SIM_ARG = True
 
     @staticmethod
@@ -89,8 +92,8 @@ class IEEE754FpAdder_TC(SimTestCase):
         for (a, b) in TEST_DATA_FORMATED:
             aDataIn.append(a)
             bDataIn.append(b)
-            _a = IEEE754Fp64.to_py(a)
-            _b = IEEE754Fp64.to_py(b)
+            _a = a.to_py()
+            _b = b.to_py()
             _resRef = float(model(_a, _b))
             resRef.append(_resRef)
         return aDataIn, bDataIn, resRef
@@ -122,38 +125,38 @@ class IEEE754FpAdder_TC(SimTestCase):
                 res = fpFn(a, b)
 
             # print(aRaw, "+", bRaw, "=", t.to_py(res), "(", resRef, ")")
-            msg = ('got', t.to_py(res), "expected", resRef,
+            msg = ('got', res.to_py(), "expected", resRef,
                    "a", aRaw, "b", bRaw, "a", a, "b", b,
                    )
             self.assertEqual(fpConstToFpTuple(res), fpConstToFpTuple(t.from_py(resRef)),
                              msg=msg)
 
-    def test_ir_mir_rtl(self):
+    def _test_ir_mir_rtl(self, dut: _Test_IEEE754FpAlu):
         assert sys.float_info.mant_dig == 53
-        dut = _Test_IEEE754FpAlu()
-        dut.FP_FUNCTION = self.FP_FUNCTION
-        dut.CLK_FREQ = int(100e3)
-
         prepareDataInFn = self.getPrepareDataFnForIRSim(self.TEST_DATA, dut.T)
         aDataIn, bDataIn, resRef = self.prepareTestDataAndRef(self.TEST_DATA_FORMATED, self.model)
 
         def checkDataOutFn(dataOut):
             assert dataOut
+            T = dut.T
             for i, (ref, d) in enumerate(zip_longest(resRef, dataOut)):
                 self.assertIsNotNone(ref, ("Output data contains more data then was expected", dataOut[len(resRef):]))
                 self.assertIsNotNone(d, ("Output data is missing data", resRef[len(dataOut):]))
                 v = int64reinterpretToFloat(int(d))
                 if isnan(ref):
-                    self.assertTrue(isnan(v), ref)
+                    self.assertTrue(isnan(v), (v, ref))
                 else:
-                    self.assertEqual(v, ref, i)
+                    self.assertEqual(v, ref, (i, T.from_py(v), T.from_py(ref)))
 
-        self.compileSimAndStart(dut, target_platform=TestLlvmIrAndMirPlatform.forSimpleDataInDataOutHwModule(
-                                    prepareDataInFn, checkDataOutFn, None,
-                                    inputCnt=2,
-                                    # noOptIrTest=TestLlvmIrAndMirPlatform.TEST_NO_OPT_IR,
-                                    # runTestAfterEachPass=True
-                                    ))
+        platform = TestLlvmIrAndMirPlatform.forSimpleDataInDataOutHwModule(
+            prepareDataInFn, checkDataOutFn, None,
+            topToRunTestsOn=dut,
+            inputCnt=2,
+            # noOptIrTest=TestLlvmIrAndMirPlatform.TEST_NO_OPT_IR,
+            # runTestAfterEachPass=True
+        )
+        installFpComponentGenerators(platform)
+        self.compileSimAndStart(dut, target_platform=platform)
 
         dut.a._ag.data.extend(aDataIn)
         dut.b._ag.data.extend(bDataIn)
@@ -168,13 +171,13 @@ class IEEE754FpAdder_TC(SimTestCase):
             return (int(sign), int(exponent), int(mantissa))
 
         def formatFloat(d: float):
-            return fpPyDictToFpTuple(IEEE754Fp64.from_py(d).to_py())
+            return fpPyDictToFpTuple(HStructConstBase.to_py(IEEE754Fp64.from_py(d)))
 
         res = [formatFp64(d) for d in dut.res._ag.data]
         resRefAsHwFp = [formatFloat(d) for d in resRef]
 
         self.assertSequenceEqual(res, resRefAsHwFp,
-                                 [(IEEE754Fp64.to_py(a), IEEE754Fp64.to_py(b), a, b)
+                                 [(a.to_py(), b.to_py(), a, b)
                                   for a, b in self.TEST_DATA_FORMATED])
         self.rtl_simulator_cls = None
 

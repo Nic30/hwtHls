@@ -25,7 +25,7 @@ def _denormalize(a: RtlSignalBase[IEEE754Fp], mantisaWidthIncrease=3, expWidthIn
     """
     # :note: contains expression only, no inlining required
     # mantissa now has +4 bits, exponent is 1 if number is subnormal
-    isSubnormal = a._dtype.isSubnormal(a)
+    isSubnormal = a.isSubnormal()
     # MSB is set to 1 for normal numbers and is 0
     if mantisaWidthIncrease:
         aMantissa = Concat(~isSubnormal, a.mantissa, HBits(mantisaWidthIncrease).from_py(0))

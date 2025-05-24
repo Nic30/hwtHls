@@ -4,7 +4,7 @@
 from datetime import datetime
 from pathlib import Path
 
-from hwt.hdl.types.defs import BIT
+from hwt.hdl.commonConstants import b1
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
@@ -17,8 +17,8 @@ from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import int64_t, uint64_t
 from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import mask, ValidityError, to_signed
+from tests.math.fp.fpFromInt import IEEE754FpFromInt
 from tests.math.fp.fptypes import IEEE754Fp64
-from tests.math.fp.fromInt import IEEE754FpFromInt
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 
@@ -39,9 +39,9 @@ class IEEE754FpFromIntConventor(HwModule):
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while b1:
             a = hls.read(self.a).data
-            res = PyBytecodeInline(IEEE754FpFromInt)(a, IEEE754Fp64)  # self.T
+            res = PyBytecodeInline(IEEE754FpFromInt)(a, self.T)
             hls.write(res, self.res)
 
     def hwImpl(self) -> None:
@@ -71,7 +71,7 @@ class IEEE754FpFromInt_TC(SimTestCase):
             # print("in:", a)
             _res = IEEE754FpFromInt(int64_t.from_py(a), IEEE754Fp64)
             try:
-                res = IEEE754Fp64.to_py(_res)
+                res = _res.to_py()
             except ValidityError:
                 res = None
             # check if conversion from py int to hvalue and to float is correct
@@ -93,7 +93,7 @@ class IEEE754FpFromInt_TC(SimTestCase):
             for _res, a in zip(dataOut, self.TEST_DATA):
                 try:
                     resFp = _res._reinterpret_cast(IEEE754Fp64)
-                    res = IEEE754Fp64.to_py(resFp)
+                    res = resFp.to_py()
                     _resInt = "%016X" % int(_res)
                 except ValidityError:
                     res = None
@@ -112,8 +112,8 @@ class IEEE754FpFromInt_TC(SimTestCase):
             checkDataOutFn,
             Path(self.DEFAULT_LOG_DIR, f"{self.getTestName()}"),
             debugLogTime=TestLlvmIrAndMirPlatform.logTimeToStdout if self.LOG_TIME else None,
-            #runTestAfterEachPass=True,
-            runTestAfterEachMirPass=True,
+            # runTestAfterEachPass=True,
+            # runTestAfterEachMirPass=True,
         ))
         if self.LOG_TIME:
             time1 = datetime.now()
@@ -147,7 +147,7 @@ class IEEE754FpFromInt_TC(SimTestCase):
 
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.platform import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtLib.types.ctypes import int16_t
     from tests.math.fp.fptypes import IEEE754Fp16
@@ -157,15 +157,15 @@ if __name__ == "__main__":
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
-    #import cProfile
-    #pr = cProfile.Profile()
-    #pr.enable()
-    
+    # import cProfile
+    # pr = cProfile.Profile()
+    # pr.enable()
+
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([IEEE754FpFromInt_TC('test_cmp_py')])
-    suite = testLoader.loadTestsFromTestCase(IEEE754FpFromInt_TC)
+    suite = unittest.TestSuite([IEEE754FpFromInt_TC('test_rlt')])
+    # suite = testLoader.loadTestsFromTestCase(IEEE754FpFromInt_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
-    
-    #pr.disable()
-    #pr.dump_stats('profile.prof')
+
+    # pr.disable()
+    # pr.dump_stats('profile.prof')

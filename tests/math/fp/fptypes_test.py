@@ -4,10 +4,10 @@ from typing import Tuple, Dict
 import unittest
 
 from hwt.code import Concat
-from pyMathBitPrecise.bits3t import Bits3val
-from tests.math.fp.cmp_test import IEEE754FpCmp_TC
-from tests.math.fp.fptypes import IEEE754Fp32, IEEE754Fp64, IEEE754Fp
 from hwt.hdl.types.structValBase import HStructConstBase
+from pyMathBitPrecise.bits3t import Bits3val
+from tests.math.fp.fpcmp_test import IEEE754FpCmp_TC
+from tests.math.fp.fptypes import IEEE754Fp32, IEEE754Fp64, IEEE754Fp
 
 
 def fp64reinterpretToInt(a: float):
@@ -42,13 +42,13 @@ class IEEE754Fp_TC(unittest.TestCase):
                 nFloatRef = struct.unpack("f", nInt.to_bytes(4, byteorder='little'))[0]
 
                 nHdl = IEEE754Fp32.fromPyInt(nInt)
-                nFloat = IEEE754Fp32.to_py(nHdl)
+                nFloat = nHdl.to_py()
                 self.assertEqual(nFloat, nFloatRef)
 
     def testFromPyAndBackFloat(self):
         for nFloatRef in [1.0, 2.0, 1.5, 1.125, 0.00001, 1e6, nan, inf, -inf, -10.0]:
             nHdl = IEEE754Fp64.from_py(nFloatRef)
-            nFloat = IEEE754Fp64.to_py(nHdl)
+            nFloat = nHdl.to_py()
             if isnan(nFloatRef):
                 self.assertTrue(isnan(nFloat))
             else:
