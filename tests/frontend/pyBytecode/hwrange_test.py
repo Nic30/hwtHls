@@ -13,9 +13,9 @@ from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
+from tests.frontend.ast.trivial import WriteOnce
 
 
-# from hwtHls.frontend.pyBytecode.pragmaLoop import PyBytecodeLoopFlattenUsingIf
 class HlsPythonHwrange_fromInt0(HwModule):
 
     @override
@@ -34,10 +34,7 @@ class HlsPythonHwrange_fromInt0(HwModule):
 
     @override
     def hwImpl(self):
-        hls = HlsScope(self)
-        mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
-        hls.addThread(mainThread)
-        hls.compile()
+        WriteOnce.hwImpl(self)
 
 
 class HlsPythonHwrange_fromInt0_breakBefore(HlsPythonHwrange_fromInt0):
@@ -123,7 +120,7 @@ class HlsPythonHwrange_TC(SimTestCase):
         dut = cls()
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
 
-        CLK_PERIOD = freq_to_period(dut.clk.FREQ)
+        CLK_PERIOD = freq_to_period(dut.clk.CLK_FREQ)
         self.runSim((len(refRes) + 1) * int(CLK_PERIOD))
 
         self.assertValSequenceEqual(dut.o._ag.data, refRes)
