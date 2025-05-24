@@ -47,7 +47,7 @@ def replaceHlsNetNodeWithExpression(n: HlsNetNodeOperator,
         parent._addNodeIntoScheduled(clkI, newNode)
 
     builder: HlsNetlistBuilder = n.getHlsNetlistBuilder()
-    netlist.dbgSubmoduleBuidTracer.log("replacing with", newO)
+    netlist.dbgSubmoduleBuidTracer.log(("replacing with", newO))
     builder.replaceOutput(n._outputs[0], newO, True)
     disconnectAllInputs(n, [] if worklist is None else worklist)
     n.markAsRemoved()

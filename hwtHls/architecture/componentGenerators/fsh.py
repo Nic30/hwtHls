@@ -38,7 +38,7 @@ class ComponentGeneratorFshl(ComponentGenerator):
         assert isinstance(n, HlsNetNodeOperator) and n.operator in (HwtOps.CONCAT, HwtOps.INDEX, OP_LSHR, OP_ASHR, OP_SHL, OP_ROL, OP_ROR), n
         return True
 
-    def toHwtCompatibleOperatorAfterScheduling(self, node:"HlsNetNode", worklist:SetList["HlsNetNode"], debugTracer: DebugTracer):
+    def toHwtCompatibleOperatorAfterScheduling(self, node:"HlsNetNode", worklist:SetList["HlsNetNode"]):
         src0, src1, sh = node.dependsOn
         builder: HlsNetlistBuilder = node.getHlsNetlistBuilder()
         builder = HlsNetlistBuilderWithWorklist(builder, worklist)
@@ -58,7 +58,7 @@ class ComponentGeneratorFshl(ComponentGenerator):
             assert not _worklist
             newNodeCnt = 3
 
-        replaceHlsNetNodeWithExpression(node, newO, newNodeCnt, self._assertIsConcatAnyShiftOrIndex, worklist, debugTracer)
+        replaceHlsNetNodeWithExpression(node, newO, newNodeCnt, self._assertIsConcatAnyShiftOrIndex, worklist)
         return True
 
 
