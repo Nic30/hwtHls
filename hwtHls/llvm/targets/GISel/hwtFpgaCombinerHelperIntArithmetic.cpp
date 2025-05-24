@@ -42,7 +42,6 @@ MachineInstr* tryGetDominatingDef(MachineRegisterInfo &MRI,
 // check if operandReg is defined by sext/zext in a form of HWTFPGA_MERGE_VALUES, HWTFPGA_EXTRACT
 bool MatchMulHLOperand_matchReg(MachineRegisterInfo &MRI, MachineInstr &MI,
 		Register operandReg, MatchMulHLOperand &opMatch) {
-return false;
 	auto *defMI = tryGetDominatingDef(MRI, MI, operandReg);
 	if (!defMI || defMI->getOpcode() != HwtFpga::HWTFPGA_MERGE_VALUES)
 		return false;
@@ -85,7 +84,7 @@ return false;
 					}
 				} else {
 					llvm_unreachable(
-							"HwtFpgaCombinerHelper::matchMulHL expects HWTFPGA_MUL HWTFPGA_MERGE_VALUES operands to be reg/cimm");
+							"HwtFpgaCombinerHelper::MatchMulHLOperand_matchReg expects HWTFPGA_MUL HWTFPGA_MERGE_VALUES operands to be reg/cimm");
 				}
 
 			} else {
