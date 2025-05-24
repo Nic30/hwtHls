@@ -1,37 +1,20 @@
 from typing import Self, Optional
 
 from hwt.hdl.const import HConst
-from hwtHls.llvm.llvmIr import HFloatTmpConfig, APFloat
-from hwtHls.llvm.llvmIr import Type
-from tests.math.fixp.fixedpoint import HFixedPointQ
+from hwtHls.llvm.llvmIr import APFloat, APInt, Type, HFloatTmpConfig
+from tests.math.fixp.fixpTypes import HFixedPointQ
 
 
 class HFixedPointQConst(HConst):
+    """
+    :ivar val: raw bits of float value (represented as non-negative int in Python)
+    :ivar vld_mask: raw bit mask for validity of val
+    """
 
     @classmethod
     def from_py(cls, typeObj: HFixedPointQ, val: Optional[float], vld_mask=None) -> Self:
         if val is not None:
-            exponentOrIntWidth = typeObj.int_bit_length
-            mantissaOrFracWidth = typeObj.frac_bit_length
-            isInQFromat = True
-            supportSubnormal = False
-            hasSign = bool(typeObj.signed)
-            hasIsNaN = False
-            hasIsInf = False
-            hasIs1 = False
-            hasIs0 = False
-
-            cfg = HFloatTmpConfig(
-                exponentOrIntWidth,
-                mantissaOrFracWidth,
-                isInQFromat,
-                supportSubnormal,
-                hasSign,
-                hasIsNaN,
-                hasIsInf,
-                hasIs1,
-                hasIs0,
-            )
+            cfg: HFloatTmpConfig = typeObj.getHFloatTmpConfig()
             v = cfg.bitCastAPFloatToHFloatTmpAPInt(APFloat(float(val)))
             v = int(v)
             v &= typeObj.all_mask()
@@ -44,7 +27,22 @@ class HFixedPointQConst(HConst):
             vld_mask &= typeObj.all_mask()
         return cls(typeObj, v, vld_mask=vld_mask)
 
+    def __float__(self):
+        if self._is_full_valid():
+            cfg:HFloatTmpConfig = self._dtype.getHFloatTmpConfig()
+            f = cfg.bitCastHFloatTmpAPIntToAPFloat(APInt(self._dtype.bit_length(), f"{self.val:x}", 16))
+            return float(f)
+        else:
+            return None
+
     def toLlvm(self, toLlvm: "ToLlvmIrTranslator"):
         t = Type.getIntNTy(toLlvm.ctx, self._dtype.bit_length())
         return toLlvm._translateExprInt(self.val, t)
 
+    def __repr__(self) -> str:
+        if self._is_full_valid():
+            vld_mask = ""
+        else:
+            vld_mask = ", mask {0:x}".format(self.vld_mask)
+        return "<{0:s} {1:s}({2:f}){3:s}>".format(
+            self.__class__.__name__, repr(self.val), float(self), vld_mask)

@@ -1,90 +1,26 @@
-from typing import Union
+# https://github.com/WangXuan95/FPGA-FixedPoint/blob/master/RTL/fixedpoint.v
+# https://www.allaboutcircuits.com/technical-articles/fixed-point-representation-the-q-format-and-addition-examples/
+from typing import Union, Self, Optional
 
+from hwt.constants import NOT_SPECIFIED
 from hwt.doc_markers import internal
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.typingFuture import override
 from hwt.serializer.generic.indent import getIndent
+from hwt.serializer.hwt.serializer import ToHdlAstHwt
+from hwtHls.llvm.llvmIr import HFloatTmpConfig, Type, HFloatTmpRounding, HFloatTmpSaturation
 from pyMathBitPrecise.bit_utils import mask
-from hwtHls.llvm.llvmIr import Type
 
-# https://github.com/WangXuan95/FPGA-FixedPoint/blob/master/RTL/fixedpoint.v
-# https://www.allaboutcircuits.com/technical-articles/fixed-point-representation-the-q-format-and-addition-examples/
-(
- ROUND_HALF_EVEN,  # nearest with ties going to nearest even integer. (c fp default)
-# ROUND_HALF_DOWN, # nearest with ties going towards 0.
- ROUND_HALF_UP,  #  nearest with ties going away from 0.
-
- ROUND_DOWN,  #  towards 0.
- ROUND_CEILING,  # towards inf.
- ROUND_FLOOR,  # towards -Inf.
-
- # ROUND_UP, # away from 0.
- # ROUND_05UP, # away from 0 if last digit after rounding towards zero would have been 0 or 5;
-              # otherwise towards 0.
- ) = range(5)
-
-SATURATE_NONE = 0  # no saturation, operations may overflow
-SATURATE_INF = 3  # saturate +/- inf
-
-"""
-    
-Example Q-number ranges:
-.. code-block::
-    Q4.4
-    Range:      -8 to 7.9375 (7 + 15/16)
-    Precision:  0.0625 (1/16)
-
-    Q16.16
-    Range:      -32768 to 32767.9999847...
-    Precision:  0.0000152... (1/65536)
-
-Example of Q numbers
-.. code-block::
-      10.01        - 1.75
-      10.11        - 1.25
-     110.11        - 1.25
-     011.010         3.25
-    0011.1010        3.625
-    0100.0001        4.0625
-    1110.1000      - 1.5
-
-Example of negative Q number
-.. code-block::
-    1.5 = 1 + 1/2 = 0001.1000
-
-    Start:  0001.1000 (1.5)
-    Invert: 1110.0111
-    Add 1:  0000.0001
-    Result: 1110.1000 (-1.5)
-
-
-.. table:: Example of rounding to integers using the IEEE 754 rules
-
-    =========================================== =========================
-    Mode                                         Example value
-    =========================================== =========================
-                                                 +11.5  +12.5 −11.5 −12.5
-     ========================================== ====== ====== ===== =====
-     to nearest, ties to even (half_even)        +12.0  +12.0 −12.0 −12.0
-     to nearest, ties away from zero (half_up)   +12.0  +13.0 −12.0 −13.0
-     toward 0  (down)                            +11.0  +12.0 −11.0 −12.0
-     toward +∞ (ceil)                            +12.0  +13.0 −11.0 −12.0
-     toward −∞ (floor)                           +11.0  +12.0 −12.0 −13.0 
-     ========================================== ====== ====== ===== =====
-
-.. table:: Example of rounding to integers using the IEEE 754 rules in binary
-    ========================================== ========================================== ===================  =================== ====================== ======================
-    Q8.1 (dec, hex, bin)                        rule                                       11.5, 17, 01011.1    12.5, 19, 01100.1   -11.5, e9, 1110100.1   -12.5, e7, 1110011.1
-    ========================================== ========================================== ===================  =================== ====================== ======================
-    to nearest, ties to even (half_even)        if round_bit && newLsb: x += 1; trunc(x)   12.0, 18, 01100.0    12.0, 18, 01100.0   −12.0, e8, 1110100.0   −12.0, e8, 1110100.0
-    to nearest, ties away from zero (half_up)   if round_bit && x >= 0: x += 1; trunc(x)   12.0, 18, 01100.0    13.0, 1a, 01101.0   −12.0, e8, 1110100.0   −13.0, e6, 1110011.0
-    toward 0  (down)                            if round_bit && x < 0: x += 1; trunc(x)    11.0, 16, 01011.0    12.0, 18, 01100.0   −11.0, ea, 1110101.0   −12.0, e8, 1110100.0
-    toward +∞ (ceil)                            if round_bit: x += 1; trunc(x)             12.0, 18, 01100.0    13.0, 1a, 01101.0   −11.0, ea, 1110101.0   −12.0, e8, 1110100.0
-    toward −∞ (floor)                           trunc(x)                                   11.0, 16, 01011.0    12.0, 18, 01100.0   −12.0, e8, 1110100.0   −13.0, e6, 1110011.0
-    ========================================== ========================================== ===================  =================== ====================== ======================
-"""
 
 HFixedPointQComaptibleValue = Union["HFixedPointQConst", "HFixedPointQRtlSignal", float, int, None]
+
+# Fixed point
+#   add/sub is same as for int
+#     * saturation https://forum.digikey.com/t/n-bit-saturated-math-carry-look-ahead-combinational-adder-design-in-vhdl/13366
+#   multiplication produces twice the bits, (on bout sides, Q4.4 * Q4.4 = Q8.8, truncatable by taking middle bits)
+#   https://projectf.io/posts/fixed-point-numbers-in-verilog/
+#  https://github.com/Schweitzer-Engineering-Laboratories/fixedpoint/blob/master/fixedpoint/fixedpoint.py
 
 
 class HFixedPointQ(HdlType):
@@ -103,78 +39,224 @@ class HFixedPointQ(HdlType):
         If both our operands are positive and the result is negative, then overflow must have occurred.
         Similarly, if both our operands are negative and the result is positive, then it has overflowed too.
     
+       
+    Example Q-number ranges:
+    .. code-block::
+        Q4.4
+        Range:      -8 to 7.9375 (7 + 15/16)
+        Precision:  0.0625 (1/16)
+    
+        Q16.16
+        Range:      -32768 to 32767.9999847...
+        Precision:  0.0000152... (1/65536)
+    
+    Example of Q numbers
+    .. code-block::
+          10.01        - 1.75
+          10.11        - 1.25
+         110.11        - 1.25
+         011.010         3.25
+        0011.1010        3.625
+        0100.0001        4.0625
+        1110.1000      - 1.5
+    
+    Example of negative Q number
+    .. code-block::
+        1.5 = 1 + 1/2 = 0001.1000
+    
+        Start:  0001.1000 (1.5)
+        Invert: 1110.0111
+        Add 1:  0000.0001
+        Result: 1110.1000 (-1.5)
+
     """
 
     _PRECOMPUTE_CONSTANT_SIGNALS = False
 
     def __init__(self,
-                 int_bit_length,
-                 frac_bit_length,
+                 int_bit_length: int,
+                 frac_bit_length: int,
                  signed=True,
-                 roundig=ROUND_HALF_EVEN,
-                 saturation=SATURATE_INF,
-                 name=None,
+                 rounding=HFloatTmpRounding.ROUND_C_DEFAULT,
+                 saturation=HFloatTmpSaturation.SATURATE_C_DEFAULT,
+                 name:Optional[str]=None,
                  const=False,):
         HdlType.__init__(self, const=const)
         self.name = name
         self.int_bit_length = int_bit_length
         self.frac_bit_length = frac_bit_length
         self.signed = signed
-        self.roundig = roundig
+        self.rounding = rounding
         self.saturation = saturation
         self._all_mask = mask(self.bit_length())
 
-    def all_mask(self):
+        exponentOrIntWidth = self.int_bit_length
+        mantissaOrFracWidth = self.frac_bit_length
+        isInQFormat = True
+        supportSubnormal = False
+        hasSign = bool(self.signed)
+        hasIsNaN = False
+        hasIsInf = False
+        hasIs1 = False
+        hasIs0 = False
+
+        self._cfg = HFloatTmpConfig(
+            isInQFormat,
+            exponentOrIntWidth,
+            mantissaOrFracWidth,
+            supportSubnormal,
+            hasSign,
+            hasIsNaN,
+            hasIsInf,
+            hasIs1,
+            hasIs0,
+            rounding,
+            saturation
+        )
+
+    def _createMutated(self,
+                      int_bit_length: int=NOT_SPECIFIED,
+                      frac_bit_length: int=NOT_SPECIFIED,
+                      signed:bool=NOT_SPECIFIED,
+                      rounding:HFloatTmpRounding=NOT_SPECIFIED,
+                      saturation:HFloatTmpSaturation=NOT_SPECIFIED,
+                      name:str=NOT_SPECIFIED,
+                      const:bool=NOT_SPECIFIED
+                      ):
+        if int_bit_length is NOT_SPECIFIED:
+            int_bit_length = self.int_bit_length
+        if frac_bit_length is NOT_SPECIFIED:
+            frac_bit_length = self.frac_bit_length
+        if signed is NOT_SPECIFIED:
+            signed = self.signed
+        if rounding is NOT_SPECIFIED:
+            rounding = self.rounding
+        if saturation is NOT_SPECIFIED:
+            saturation = self.saturation
+        if name is NOT_SPECIFIED:
+            name = self.name
+        if const is NOT_SPECIFIED:
+            const = self.const
+
+        return self.__class__(int_bit_length, frac_bit_length,
+                              signed=signed,
+                              rounding=rounding,
+                              saturation=saturation,
+                              name=name,
+                              const=const)
+
+    def getHFloatTmpConfig(self) -> HFloatTmpConfig:
+        return self._cfg
+
+    @classmethod
+    def fromHFloatTmpConfig(cls, cfg: HFloatTmpConfig) -> Self:
+        assert cfg.isInQFormat, cfg
+        res = cls(cfg.exponentOrIntWidth, cfg.mantissaOrFracWidth, cfg.hasSign, cfg.rounding, cfg.saturation)
+        res._cfg = cfg
+        return res
+
+    @override
+    def all_mask(self) -> int:
         return self._all_mask
 
+    @override
     def bit_length(self) -> int:
         return self.int_bit_length + self.frac_bit_length
 
-    def __eq__(self, value:object) -> bool:
+    def getMinValue(self):
+        if self._cfg.hasIsInf or self._cfg.hasIs0:
+            raise NotImplementedError()
+        scale = 2 ** self.frac_bit_length
+        if self.signed:
+            return self.from_py((-mask(self.int_bit_length + self.frac_bit_length - 1) - 1) / scale)
+        else:
+            return self.from_py(0)
+
+    def getMaxValue(self):
+        if self._cfg.hasIsInf or self._cfg.hasIs0:
+            raise NotImplementedError()
+        scale = 2 ** self.frac_bit_length
+        numWidth = self.int_bit_length + self.frac_bit_length
+        if self.signed:
+            return self.from_py(mask(numWidth - 1) / scale)
+        else:
+            return self.from_py(mask(numWidth) / scale)
+
+    def _as_hdl(self, to_Hdl: "ToHdlAst", declaration:bool):
+        if isinstance(to_Hdl, ToHdlAstHwt) and to_Hdl.debug:
+            raise NotImplementedError()
+        else:
+            return to_Hdl.as_hdl_HdlType(HBits(self.bit_length()), declaration)
+
+    @override
+    def __eq__(self, other:object) -> bool:
         return (
-            isinstance(value, self.__class__) and
-            self.int_bit_length == value.int_bit_length and
-            self.frac_bit_length == value.frac_bit_length and
-            self.signed == value.signed and
-            self.roundig == value.roundig and
-            self.saturation == value.saturation
+            isinstance(other, self.__class__) and
+            self._cfg == other._cfg
         )
 
+    @override
     def __hash__(self) -> int:
         return hash((
             self.__class__,
-            self.signed,
-            self.roundig,
-            self.saturation,
-            self.int_bit_length,
-            self.frac_bit_length
+            self._cfg.__hash__(),
         ))
-
-    @internal
-    @classmethod
-    def get_auto_cast_RtlSignal_fn(cls):
-        from tests.math.fixp.fixedpointCast import castHFixedPointQ
-        return castHFixedPointQ
 
     @internal
     @override
     @classmethod
     def get_auto_cast_HConst_fn(cls):
-        from tests.math.fixp.fixedpointCast import castHFixedPointQ
-        return castHFixedPointQ
+        from tests.math.fixp.fixpCast import HFixedPointQ_auto_cast
+        return HFixedPointQ_auto_cast
 
     @internal
+    @override
+    @classmethod
+    def get_auto_cast_RtlSignal_fn(cls):
+        from tests.math.fixp.fixpCast import HFixedPointQ_auto_cast
+        return HFixedPointQ_auto_cast
+
+    @internal
+    @override
+    @classmethod
+    def get_reverse_auto_cast_HConst_fn(cls):
+        from tests.math.fixp.fixpCast import HFixedPointQ_reverse_auto_cast_HConst
+        return HFixedPointQ_reverse_auto_cast_HConst
+
+    @internal
+    @override
+    @classmethod
+    def get_reverse_auto_cast_RtlSignal_fn(cls):
+        from tests.math.fixp.fixpCast import HFixedPointQ_reverse_auto_cast_RtlSignal
+        return HFixedPointQ_reverse_auto_cast_RtlSignal
+
+    @internal
+    @override
     @classmethod
     def get_reinterpret_cast_RtlSignal_fn(cls):
-        from tests.math.fixp.fixedpointCast import reinterpretCastHFixedPointQ
-        return reinterpretCastHFixedPointQ
+        from tests.math.fixp.fixpCast import HFixedPointQ_reinterpret_cast_RtlSignal
+        return HFixedPointQ_reinterpret_cast_RtlSignal
+
+    @internal
+    @override
+    @classmethod
+    def get_reverse_reinterpret_cast_RtlSignal_fn(cls):
+        from tests.math.fixp.fixpCast import HFixedPointQ_reverse_reinterpret_cast_RtlSignal
+        return HFixedPointQ_reverse_reinterpret_cast_RtlSignal
 
     @internal
     @override
     @classmethod
     def get_reinterpret_cast_HConst_fn(cls):
-        from tests.math.fixp.fixedpointCast import reinterpretCastHFixedPointQ
-        return reinterpretCastHFixedPointQ
+        from tests.math.fixp.fixpCast import HFixedPointQ_reinterpret_cast_HConst
+        return HFixedPointQ_reinterpret_cast_HConst
+
+    @internal
+    @override
+    @classmethod
+    def get_reverse_reinterpret_cast_HConst_fn(cls):
+        from tests.math.fixp.fixpCast import HFixedPointQ_reverse_reinterpret_cast_HConst
+        return HFixedPointQ_reverse_reinterpret_cast_HConst
 
     @internal
     @override
@@ -183,7 +265,7 @@ class HFixedPointQ(HdlType):
         try:
             return cls._constCls
         except AttributeError:
-            from tests.math.fixp.fixedpointConst import HFixedPointQConst
+            from tests.math.fixp.fixpConst import HFixedPointQConst
             cls._constCls = HFixedPointQConst
             return cls._constCls
 
@@ -194,7 +276,7 @@ class HFixedPointQ(HdlType):
         try:
             return cls._rtlSignalCls
         except AttributeError:
-            from tests.math.fixp.fixedpointRtlSignal import HFixedPointQRtlSignal
+            from tests.math.fixp.fixpRtlSignal import HFixedPointQRtlSignal
             cls._rtlSignalCls = HFixedPointQRtlSignal
             return cls._rtlSignalCls
 
