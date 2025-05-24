@@ -5,8 +5,10 @@ from hwt.constants import NOT_SPECIFIED
 from hwt.constants import WRITE, READ
 from hwt.hdl.const import HConst
 from hwt.hdl.statements.statement import HdlStatement
+from hwt.hdl.types.bitConstFunctions import AnyHBitsValue
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.hdlType import HdlType
+from hwt.hdl.types.struct import HStruct
 from hwt.hwIOs.std import HwIOBramPort_noClk
 from hwt.pyUtils.typingFuture import override
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
@@ -14,6 +16,7 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ast.statementsRead import HlsReadAddressed
 from hwtHls.frontend.ast.statementsWrite import HlsWriteAddressed
 from hwtHls.frontend.ast.utils import ANY_SCALAR_INT_VALUE
+from hwtHls.frontend.pyBytecode import hlsLowLevel
 from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
 from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup, \
     isInstanceOfInterfacePort, getFirstInterfaceInstance
@@ -35,6 +38,7 @@ from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from ipCorePackager.constants import INTF_DIRECTION
+
 
 AnyBramPort = Union[HwIOBramPort_noClk, BankedPortGroup[HwIOBramPort_noClk], MultiPortGroup[HwIOBramPort_noClk]]
 
@@ -200,13 +204,16 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
             ram.addr(_addr.data[ram.ADDR_WIDTH:])
         ]
         if ram.HAS_W:
-            if ram.HAS_BE:
-                raise NotImplementedError()
             if hasWData:
-                rtlObj.append(ram.din(_wData.data))
-            we = getattr(ram, "we", None)
-            if we is not None:
-                rtlObj.append(ram.we(0 if cmd is READ else 1))
+                if ram.HAS_BE:
+                    rtlObj.append(ram.din(_wData.data[ram.DATA_WIDTH:]))
+                    rtlObj.append(ram.we(_wData.data[:ram.DATA_WIDTH:]))
+                else:
+                    rtlObj.append(ram.din(_wData.data))
+            if not (hasWData and ram.HAS_BE):
+                we = getattr(ram, "we", None)
+                if we is not None:
+                    rtlObj.append(ram.we(0 if cmd is READ else 1))
 
         allocator.netNodeToRtl[key] = rtlObj
         if self._portDataOut is not None:
@@ -392,18 +399,39 @@ class BramArrayProxy(IoProxyAddressed):
 
         assert isInstanceOfInterfacePort(i, HwIOBramPort_noClk), i
         if i.HAS_W:
+            wWordType = rWordType = i.din._dtype
             if i.HAS_BE:
-                raise NotImplementedError()
-            wordType = i.din._dtype
+                wWordType = HStruct(
+                    (wWordType, "data"),
+                    (HBits(wWordType.bit_length() // 8), "mask")
+                )
 
         else:
             assert i.HAS_R, ("Must have at least one (read/write)", interface)
-            wordType = i.dout._dtype
+            rWordType = i.dout._dtype
 
-        nativeType = wordType[int(2 ** i.ADDR_WIDTH)]
+        nativeType = rWordType[int(2 ** i.ADDR_WIDTH)]
         IoProxyAddressed.__init__(self, hls, interface, nativeType)
-        self.rWordT = self.wWordT = wordType
+        self.rWordT = rWordType
+        self.wWordT = wWordType
         self.indexT = i.addr._dtype
 
     READ_CLS = HlsReadBram
     WRITE_CLS = HlsWriteBram
+
+    @hlsLowLevel
+    def write(self, index: Union[AnyHBitsValue], data: AnyHBitsValue, mask=NOT_SPECIFIED, isVolatile:bool=True, mayBecomeFlushable=True) -> HlsWriteBram:
+        if self.interface.HAS_BE:
+            assert mask is not None
+            data = data._concat(mask)
+
+        return self.WRITE_CLS(self,
+                              self.hls,
+                              data,
+                              self.interface,
+                              index,
+                              self.wWordT,
+                              isVolatile=isVolatile,
+                              mayBecomeFlushable=mayBecomeFlushable
+                              )
+
