@@ -30,7 +30,9 @@ class HwtFpgaBinOp : HwtFpgaInst<
 
 class HwtFpgaBinOpArbitrarySizedAndSignedOps : HwtFpgaInst<
     (outs anyregcls:$dst),
-    (ins unknown:$src0, unknown:$src1, i64imm:$isSigned0, i64imm:$width0, i64imm:$isSigned1, i64imm:$width1, i64imm:$resultWidth),
+    (ins unknown:$src0, unknown:$src1, i64imm:$isSigned0, i64imm:$width0,
+                                       i64imm:$isSigned1, i64imm:$width1,
+                                       i64imm:$resultWidth),
     []>;
 
 // binary operator with 2 results like udivrem
@@ -163,8 +165,9 @@ let isCommutable = 1, hasSideEffects = 0 in {
 	def HWTFPGA_OR : HwtFpgaBinOp;
 	def HWTFPGA_XOR : HwtFpgaBinOp;
 	def HWTFPGA_MUL : HwtFpgaBinOp; // multiplication where result has same width as operands (there is no difference between signed/unsigned)
-	def HWTFPGA_MUL_HL: HwtFpgaBinOpArbitrarySizedAndSignedOps; // multiplication (high, low) where result.width <= RHS.width + LHS.width
+	def HWTFPGA_MUL_HL: HwtFpgaBinOpArbitrarySizedAndSignedOps; // multiplication (high, low) where result.width <= RHS.width + LHS.width, result.signed=RHS.signed || RHS.signed
 	                                                            // :note: support for mul with different withs if important because it has significant hw resource implications
+	                                                            //    and patern match for operands is likely to be costly
 }
 
 def HWTFPGA_BR : HwtFpgaInst<
