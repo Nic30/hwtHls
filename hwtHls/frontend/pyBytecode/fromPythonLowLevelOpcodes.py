@@ -40,6 +40,17 @@ from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 
 
+def _isSameOrIsSameTuple(a, b):
+    if a is b:
+        return True
+    elif isinstance(a, tuple) and isinstance(b, tuple) and len(a) == len(b):
+        for ai, bi in zip(a, b):
+            if not _isSameOrIsSameTuple(ai, bi):
+                return False
+        return True
+    return  False
+
+
 class PyBytecodeToSsaLowLevelOpcodes():
     """
     https://docs.python.org/3/library/dis.html
@@ -603,7 +614,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
             for (_, retBlock, retVal) in callFrame.returnPoints:
                 if first:
                     first = False
-                elif finalRetVal is not retVal:
+                elif not _isSameOrIsSameTuple(finalRetVal, retVal):
                     raise NotImplementedError("Currently function can return only a single instance from any return.", callFrame.returnPoints)
 
                 if retVal is not None:
