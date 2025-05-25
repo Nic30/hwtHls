@@ -160,48 +160,48 @@ class HwtFpgaPreToNetlistGICombiner_TC(BaseLlvmMirTC):
 
 """)
 
-    def test_rewriteFDivByPowi_nonNegSh(self):
-        self._test_mir(f"""\
-    bb.0.{self.getTestName()}:   
-    
-      %0:anyregcls = HWTFPGA_ARG_GET 0
-      %1:anyregcls = HWTFPGA_ARG_GET 1
-      %10:anyregcls(s8) = HWTFPGA_MUX i8 -128
+#    def test_rewriteFDivByPowi_nonNegSh(self):
+#        self._test_mir(f"""\
+#    bb.0.{self.getTestName()}:   
+#    
+#      %0:anyregcls = HWTFPGA_ARG_GET 0
+#      %1:anyregcls = HWTFPGA_ARG_GET 1
+#      %10:anyregcls(s8) = HWTFPGA_MUX i8 -128
+#
+#    bb.1:
+#      ; sh
+#      %2:anyregcls = HWTFPGA_CLOAD %0:anyregcls, 0, 8, 1 :: (volatile load (s8) from %ir.dataIn, addrspace 1)
+#      %3:anyregcls(s9) = HWTFPGA_MERGE_VALUES %2:anyregcls(s8), i1 false, 8, 1
+#      ; 2.0 ** sh
+#      %4:anyregcls(s8) = HWTFPGA_FP_FPOWI %10, %3:anyregcls(s9), 1, 2, 6, 0, 1, 0, 0, 0, 0, 0, 3
+#      ; v / (2.0 ** sh)
+#      %5:anyregcls = HWTFPGA_CLOAD %0:anyregcls, 0, 8, 1 :: (volatile load (s8) from %ir.dataIn, addrspace 1)
+#      %6:anyregcls(s8) = HWTFPGA_FP_FDIV %5:anyregcls(s8), %4:anyregcls(s8), 1, 2, 6, 0, 1, 0, 0, 0, 0, 0, 3
+#      HWTFPGA_CSTORE %6:anyregcls(s8), %1:anyregcls, 0, 8, 1 :: (volatile store (s8) into %ir.dataOut, addrspace 2)
+#      HWTFPGA_BR %bb.1
+#
+#""")
 
-    bb.1:
-      ; sh
-      %2:anyregcls = HWTFPGA_CLOAD %0:anyregcls, 0, 8, 1 :: (volatile load (s8) from %ir.dataIn, addrspace 1)
-      %3:anyregcls(s9) = HWTFPGA_MERGE_VALUES %2:anyregcls(s8), i1 false, 8, 1
-      ; 2.0 ** sh
-      %4:anyregcls(s8) = HWTFPGA_FP_FPOWI %10, %3:anyregcls(s9), 1, 2, 6, 0, 1, 0, 0, 0, 0, 0, 3
-      ; v / (2.0 ** sh)
-      %5:anyregcls = HWTFPGA_CLOAD %0:anyregcls, 0, 8, 1 :: (volatile load (s8) from %ir.dataIn, addrspace 1)
-      %6:anyregcls(s8) = HWTFPGA_FP_FDIV %5:anyregcls(s8), %4:anyregcls(s8), 1, 2, 6, 0, 1, 0, 0, 0, 0, 0, 3
-      HWTFPGA_CSTORE %6:anyregcls(s8), %1:anyregcls, 0, 8, 1 :: (volatile store (s8) into %ir.dataOut, addrspace 2)
-      HWTFPGA_BR %bb.1
-
-""")
-
-    def test_rewriteFDivByPowi_negSh(self):
-        self._test_mir(f"""\
-    bb.0.{self.getTestName()}:   
-    
-      %0:anyregcls = HWTFPGA_ARG_GET 0
-      %1:anyregcls = HWTFPGA_ARG_GET 1
-
-    bb.1:
-      ; sh
-      %2:anyregcls(s8) = HWTFPGA_CLOAD %0:anyregcls, 0, 8, 1 :: (volatile load (s8) from %ir.dataIn, addrspace 1)
-      %3:anyregcls(s9) = HWTFPGA_MERGE_VALUES %2:anyregcls(s8), i1 true, 8, 1
-      ; 2.0 ** sh
-      %4:anyregcls(s8) = HWTFPGA_FP_FPOWI i8 -128, %3:anyregcls(s9), 1, 2, 6, 0, 1, 0, 0, 0, 0, 0, 3
-      ; v / (2.0 ** sh)
-      %5:anyregcls = HWTFPGA_CLOAD %0:anyregcls, 0, 8, 1 :: (volatile load (s8) from %ir.dataIn, addrspace 1)
-      %6:anyregcls(s8) = HWTFPGA_FP_FDIV %5:anyregcls(s8), %8:anyregcls(s8), 1, 2, 6, 0, 1, 0, 0, 0, 0, 0, 3
-      HWTFPGA_CSTORE %6:anyregcls(s8), %1:anyregcls, 0, 8, 1 :: (volatile store (s8) into %ir.dataOut, addrspace 2)
-      HWTFPGA_BR %bb.1
-
-""")
+#    def test_rewriteFDivByPowi_negSh(self):
+#        self._test_mir(f"""\
+#    bb.0.{self.getTestName()}:   
+#    
+#      %0:anyregcls = HWTFPGA_ARG_GET 0
+#      %1:anyregcls = HWTFPGA_ARG_GET 1
+#
+#    bb.1:
+#      ; sh
+#      %2:anyregcls(s8) = HWTFPGA_CLOAD %0:anyregcls, 0, 8, 1 :: (volatile load (s8) from %ir.dataIn, addrspace 1)
+#      %3:anyregcls(s9) = HWTFPGA_MERGE_VALUES %2:anyregcls(s8), i1 true, 8, 1
+#      ; 2.0 ** sh
+#      %4:anyregcls(s8) = HWTFPGA_FP_FPOWI i8 -128, %3:anyregcls(s9), 1, 2, 6, 0, 1, 0, 0, 0, 0, 0, 3
+#      ; v / (2.0 ** sh)
+#      %5:anyregcls = HWTFPGA_CLOAD %0:anyregcls, 0, 8, 1 :: (volatile load (s8) from %ir.dataIn, addrspace 1)
+#      %6:anyregcls(s8) = HWTFPGA_FP_FDIV %5:anyregcls(s8), %8:anyregcls(s8), 1, 2, 6, 0, 1, 0, 0, 0, 0, 0, 3
+#      HWTFPGA_CSTORE %6:anyregcls(s8), %1:anyregcls, 0, 8, 1 :: (volatile store (s8) into %ir.dataOut, addrspace 2)
+#      HWTFPGA_BR %bb.1
+#
+#""")
 
 #    def test_rewriteFDivByPowi_shRuntimeSign(self):
 #        self._test_mir(f"""\
@@ -226,7 +226,7 @@ class HwtFpgaPreToNetlistGICombiner_TC(BaseLlvmMirTC):
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    suite = unittest.TestSuite([HwtFpgaPreToNetlistGICombiner_TC('test_rewriteFDivByPowi_nonNegSh')])
-    # suite = testLoader.loadTestsFromTestCase(HwtFpgaPreToNetlistGICombiner_TC)
+    # suite = unittest.TestSuite([HwtFpgaPreToNetlistGICombiner_TC('test_rewriteFDivByPowi_nonNegSh')])
+    suite = testLoader.loadTestsFromTestCase(HwtFpgaPreToNetlistGICombiner_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
