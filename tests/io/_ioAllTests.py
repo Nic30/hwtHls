@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwtLib.amba.axi4ss_simAgent_test import Axi4StreamSegmentedAgent_TC
 from hwtLib.tests.all import unittestMain
 from tests.io.amba.axi4Lite.axi4LiteCopy_test import Axi4LiteCopy_TC
 from tests.io.amba.axi4Lite.axi4LiteRead_test import Axi4LiteRead_TC
@@ -42,7 +41,6 @@ io_TCs = [
     Axi4SParseIfTC,
     Axi4SWriteByteTC,
     Axi4SPacketCopyByteByByteTC,
-    Axi4StreamSegmentedAgent_TC,
     Axi4SSPacketCntrTC,
     Axi4SSParseLinearTC,
     Axi4SSParseIf_1Seg_TC,
