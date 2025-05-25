@@ -183,7 +183,7 @@ bool SlicesMergeCombiner::collectParallelInstructionOnSameVectorFindFollowingIns
 				continue;
 			if (op0SucUserI->use_empty())
 				continue;
-			if (extraCheck(*op0SucUserI))
+			if (!extraCheck(*op0SucUserI))
 				continue;
 
 			if (isa<Constant>(op1BitVec)) {
