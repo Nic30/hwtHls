@@ -1,0 +1,37 @@
+digraph "test" {
+subgraph cluster_n0 {
+label="ArchElementPipeline 0  0clk+0 p0";
+subgraph cluster_n0_0 {
+label="0";
+n1 [bgcolor=LightGreen, color=black, fontcolor=black, label=<
+        <table bgcolor="LightGreen" border="0" cellborder="1" cellspacing="0">
+            <tr><td colspan="2">&lt;HlsNetNodeRead NB 1 &lt;r, v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
+            <tr><td port='i0'>extraCond  0clk+0</td><td port='o0'>dataOut  0clk+0</td></tr>
+            <tr><td></td><td port='o1'>validNB  0clk+0</td></tr>
+        </table>>, shape=plaintext];
+n2 [bgcolor=LightGreen, color=black, fontcolor=black, label=<
+        <table bgcolor="LightGreen" border="0" cellborder="1" cellspacing="0">
+            <tr><td colspan="2">&lt;HlsNetNodeReadBackedge NB 10 n2_readyNB_dst &lt;r, v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
+            <tr><td></td><td port='o0'>dataOut  0clk+0</td></tr>
+        </table>>, shape=plaintext];
+n2:o0 -> n1:i0  [weight=1002];
+n3 [bgcolor=LightBlue, color=black, fontcolor=black, label=<
+        <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
+            <tr><td colspan="2">&lt;HlsNetNodeWrite NB 2 &lt;r, v&gt; &lt;None&gt;&gt; 0clk+15</td></tr>
+            <tr><td port='i0'>src  0clk+15</td><td port='o0'>readyNB  0clk+15</td></tr>
+            <tr><td port='i1'>extraCond  0clk+15</td><td></td></tr>
+        </table>>, shape=plaintext];
+n1:o0 -> n3:i0  [weight=987];
+n1:o1 -> n3:i1  [weight=987];
+n4 [bgcolor=LightBlue, color=black, fontcolor=black, label=<
+        <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
+            <tr><td colspan="2">&lt;HlsNetNodeWriteBackedge NB 11 n2_readyNB_src IMMEDIATE &lt;r, v&gt; &lt;None&gt;&gt; 0clk+15</td></tr>
+            <tr><td port='i0'>src  0clk+15</td><td></td></tr>
+        </table>>, shape=plaintext];
+n3:o0 -> n4:i0  [weight=1002];
+}
+
+}
+
+n2 -> n4  [color=gray, dir=back, style=dashed, weigh=987];
+}
