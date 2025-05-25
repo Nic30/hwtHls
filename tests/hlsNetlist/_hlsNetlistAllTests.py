@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from hwtLib.tests.all import unittestMain
 from tests.hlsNetlist.bitwiseOpsAggregation_test import HlsNetlistBitwiseOpsTC
 from tests.hlsNetlist.breakHandshakeCycles_test import BreakHandshakeCycles_TC
