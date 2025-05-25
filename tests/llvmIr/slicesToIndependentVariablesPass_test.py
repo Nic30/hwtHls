@@ -236,7 +236,7 @@ class SlicesToIndependentVariablesPass_TC(BaseLlvmIrTC):
 
     def test_CountLeadingZeros(self):
         m = CountLeadingZeros()
-        m.DATA_WIDTH = 4
+        m.T = HBits(4)
         self._test_ll(m)
 
     def test_sliceZext(self):
@@ -390,7 +390,7 @@ if __name__ == "__main__":
 
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([SlicesToIndependentVariablesPass_TC('test_SliceBreakSlicedVar0_ll')])
+    # suite = unittest.TestSuite([SlicesToIndependentVariablesPass_TC('test_CountLeadingZeros')])
     suite = testLoader.loadTestsFromTestCase(SlicesToIndependentVariablesPass_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
