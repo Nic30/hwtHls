@@ -1,11 +1,11 @@
-define void @test_dowhileDowhile(ptr addrspace(1) %c, ptr addrspace(2) %o) !prof !0 {
+define void @test_dowhileDowhile(ptr addrspace(1) %c, ptr addrspace(2) %o) {
 entry:
   br label %bb.wh
 
 bb.wh:                                            ; preds = %bb.fn1, %entry
   %isChildLoop.bb.wh.wh = phi i1 [ false, %entry ], [ %isChildLoopInLatch.bb.wh.wh, %bb.fn1 ]
-  %v0 = phi i8 [ 0, %entry ], [ %v22, %bb.fn1 ]
-  br i1 %isChildLoop.bb.wh.wh, label %bb.wh.split, label %bb.wh.wh
+  %v0 = phi i8 [ 0, %entry ], [ %v2.inLatch, %bb.fn1 ]
+  br i1 %isChildLoop.bb.wh.wh, label %bb.wh.wh, label %bb.wh.split
 
 bb.wh.split:                                      ; preds = %bb.wh
   br label %bb.fn0
@@ -31,7 +31,7 @@ bb.fn1.oldLatch:                                  ; preds = %bb.wh.wh.body
 
 bb.fn1:                                           ; preds = %bb.wh.wh.body, %bb.fn1.oldLatch
   %continue = phi i1 [ %c0, %bb.fn1.oldLatch ], [ true, %bb.wh.wh.body ]
-  %v22 = phi i8 [ %v3, %bb.wh.wh.body ], [ undef, %bb.fn1.oldLatch ]
+  %v2.inLatch = phi i8 [ %v3, %bb.wh.wh.body ], [ %v2.lcssa, %bb.fn1.oldLatch ]
   %isChildLoopInLatch.bb.wh.wh = phi i1 [ true, %bb.wh.wh.body ], [ false, %bb.fn1.oldLatch ]
   br i1 %continue, label %bb.wh, label %bb.wh.exit
 

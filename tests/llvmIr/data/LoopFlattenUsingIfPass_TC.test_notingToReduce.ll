@@ -1,3 +1,3 @@
-define void @test_notingToReduce() !prof !0 {
+define void @test_notingToReduce() {
   ret void
 }

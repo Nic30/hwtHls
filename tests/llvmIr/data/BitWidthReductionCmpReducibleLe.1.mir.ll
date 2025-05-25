@@ -1,25 +1,193 @@
-# Machine code for function mainThread: NoPHIs, TracksLiveness, Legalized, RegBankSelected, Selected
+--- |
+  ; ModuleID = 'hwtHlsModule'
+  source_filename = "hwtHlsModule"
+  target datalayout = "e-m:e-i8:8-i16:16-i32:32-i64:64-i128:128-i256:256-i512:512-i1024:1024-i2048:2048-i4096:4096-n8:16:32:64-S128-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
+  
+  ; Function Attrs: nofree nounwind speculatable willreturn
+  declare i16 @hwtHls.bitConcat.i8.i8(i8, i8) #0
+  
+  define void @"BitWidthReductionCmpReducibleEq.hwImpl.<locals>.mainThread"(ptr addrspace(1) %a, ptr addrspace(2) %b, ptr addrspace(3) %res, ptr addrspace(4) %res_prefix_0vs1, ptr addrspace(5) %res_prefix_0vsAll, ptr addrspace(6) %res_prefix_aVs0, ptr addrspace(7) %res_prefix_aVsAll, ptr addrspace(8) %res_prefix_bVs0, ptr addrspace(9) %res_prefix_bVsAll, ptr addrspace(10) %res_prefix_differentInMiddle, ptr addrspace(11) %res_prefix_same, ptr addrspace(12) %res_prefix_sameInMiddle, ptr addrspace(13) %res_prefix_same_1, ptr addrspace(14) %res_same, ptr addrspace(15) %res_suffix_0vsB, ptr addrspace(16) %res_suffix_AllVsB, ptr addrspace(17) %res_suffix_aVs0, ptr addrspace(18) %res_suffix_aVsAll) !hwtHls.param_addr_width !0 {
+  bb0:
+    br label %loopHeader
+  
+  loopHeader:                                       ; preds = %bb0, %loopHeader
+    %a_read2 = load volatile i8, ptr addrspace(1) %a, align 1
+    %b_read2 = load volatile i8, ptr addrspace(2) %b, align 1
+    %0 = icmp ule i8 %a_read2, %b_read2
+    store volatile i1 %0, ptr addrspace(3) %res, align 1
+    store volatile i1 true, ptr addrspace(14) %res_same, align 1
+    store volatile i1 %0, ptr addrspace(11) %res_prefix_same, align 1
+    store volatile i1 %0, ptr addrspace(13) %res_prefix_same_1, align 1
+    store volatile i1 %0, ptr addrspace(4) %res_prefix_0vs1, align 1
+    store volatile i1 %0, ptr addrspace(5) %res_prefix_0vsAll, align 1
+    %1 = call i16 @hwtHls.bitConcat.i8.i8(i8 %a_read2, i8 %a_read2) #1
+    %2 = zext i8 %b_read2 to i16
+    %3 = icmp ule i16 %1, %2
+    store volatile i1 %3, ptr addrspace(17) %res_suffix_aVs0, align 1
+    store volatile i1 %0, ptr addrspace(18) %res_suffix_aVsAll, align 1
+    store volatile i1 %0, ptr addrspace(15) %res_suffix_0vsB, align 1
+    %4 = call i16 @hwtHls.bitConcat.i8.i8(i8 %a_read2, i8 -1) #1
+    %5 = call i16 @hwtHls.bitConcat.i8.i8(i8 %b_read2, i8 %b_read2) #1
+    %6 = icmp ule i16 %4, %5
+    store volatile i1 %6, ptr addrspace(16) %res_suffix_AllVsB, align 1
+    %7 = call i16 @hwtHls.bitConcat.i8.i8(i8 0, i8 %b_read2) #1
+    %8 = icmp ule i16 %1, %7
+    store volatile i1 %8, ptr addrspace(6) %res_prefix_aVs0, align 1
+    store volatile i1 %0, ptr addrspace(7) %res_prefix_aVsAll, align 1
+    store volatile i1 %0, ptr addrspace(8) %res_prefix_bVs0, align 1
+    %9 = call i16 @hwtHls.bitConcat.i8.i8(i8 -1, i8 %a_read2) #1
+    %10 = icmp ule i16 %9, %5
+    store volatile i1 %10, ptr addrspace(9) %res_prefix_bVsAll, align 1
+    store volatile i1 %0, ptr addrspace(12) %res_prefix_sameInMiddle, align 1
+    store volatile i1 %0, ptr addrspace(10) %res_prefix_differentInMiddle, align 1
+    br label %loopHeader
+  }
+  
+  attributes #0 = { nofree nounwind speculatable willreturn }
+  attributes #1 = { memory(none) }
+  
+  !0 = distinct !{!0, !1}
+  !1 = !{i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0}
 
-bb.0.mainThread:
-  successors: %bb.1(0x80000000); %bb.1(100.00%)
+...
+---
+name:            'BitWidthReductionCmpReducibleEq.hwImpl.<locals>.mainThread'
+alignment:       1
+exposesReturnsTwice: false
+legalized:       true
+regBankSelected: true
+selected:        true
+failedISel:      false
+tracksRegLiveness: true
+hasWinCFI:       false
+callsEHReturn:   false
+callsUnwindInit: false
+hasEHCatchret:   false
+hasEHScopes:     false
+hasEHFunclets:   false
+isOutlined:      false
+debugInstrRef:   false
+failsVerification: false
+tracksDebugUserValues: false
+registers:
+  - { id: 0, class: anyregcls, preferred-register: '' }
+  - { id: 1, class: anyregcls, preferred-register: '' }
+  - { id: 2, class: anyregcls, preferred-register: '' }
+  - { id: 3, class: anyregcls, preferred-register: '' }
+  - { id: 4, class: anyregcls, preferred-register: '' }
+  - { id: 5, class: anyregcls, preferred-register: '' }
+  - { id: 6, class: anyregcls, preferred-register: '' }
+  - { id: 7, class: anyregcls, preferred-register: '' }
+  - { id: 8, class: anyregcls, preferred-register: '' }
+  - { id: 9, class: anyregcls, preferred-register: '' }
+  - { id: 10, class: anyregcls, preferred-register: '' }
+  - { id: 11, class: anyregcls, preferred-register: '' }
+  - { id: 12, class: anyregcls, preferred-register: '' }
+  - { id: 13, class: anyregcls, preferred-register: '' }
+  - { id: 14, class: anyregcls, preferred-register: '' }
+  - { id: 15, class: anyregcls, preferred-register: '' }
+  - { id: 16, class: anyregcls, preferred-register: '' }
+  - { id: 17, class: anyregcls, preferred-register: '' }
+  - { id: 18, class: anyregcls, preferred-register: '' }
+  - { id: 19, class: anyregcls, preferred-register: '' }
+  - { id: 20, class: anyregcls, preferred-register: '' }
+  - { id: 21, class: anyregbank, preferred-register: '' }
+  - { id: 22, class: anyregcls, preferred-register: '' }
+  - { id: 23, class: anyregcls, preferred-register: '' }
+  - { id: 24, class: anyregcls, preferred-register: '' }
+  - { id: 25, class: anyregcls, preferred-register: '' }
+  - { id: 26, class: anyregcls, preferred-register: '' }
+  - { id: 27, class: anyregcls, preferred-register: '' }
+  - { id: 28, class: anyregcls, preferred-register: '' }
+  - { id: 29, class: anyregcls, preferred-register: '' }
+  - { id: 30, class: anyregcls, preferred-register: '' }
+  - { id: 31, class: anyregcls, preferred-register: '' }
+  - { id: 32, class: anyregcls, preferred-register: '' }
+  - { id: 33, class: anyregcls, preferred-register: '' }
+liveins:         []
+frameInfo:
+  isFrameAddressTaken: false
+  isReturnAddressTaken: false
+  hasStackMap:     false
+  hasPatchPoint:   false
+  stackSize:       0
+  offsetAdjustment: 0
+  maxAlignment:    1
+  adjustsStack:    false
+  hasCalls:        false
+  stackProtector:  ''
+  functionContext: ''
+  maxCallFrameSize: 4294967295
+  cvBytesOfCalleeSavedRegisters: 0
+  hasOpaqueSPAdjustment: false
+  hasVAStart:      false
+  hasMustTailInVarArgFunc: false
+  hasTailCall:     false
+  localFrameSize:  0
+  savePoint:       ''
+  restorePoint:    ''
+fixedStack:      []
+stack:           []
+entry_values:    []
+callSites:       []
+debugValueSubstitutions: []
+constants:       []
+machineFunctionInfo: {}
+body:             |
+  bb.0.bb0:
+    successors: %bb.1(0x80000000)
+  
+    %0:anyregcls = HWTFPGA_ARG_GET 0
+    %1:anyregcls = HWTFPGA_ARG_GET 1
+    %2:anyregcls = HWTFPGA_ARG_GET 2
+    %3:anyregcls = HWTFPGA_ARG_GET 3
+    %4:anyregcls = HWTFPGA_ARG_GET 4
+    %5:anyregcls = HWTFPGA_ARG_GET 5
+    %6:anyregcls = HWTFPGA_ARG_GET 6
+    %7:anyregcls = HWTFPGA_ARG_GET 7
+    %8:anyregcls = HWTFPGA_ARG_GET 8
+    %9:anyregcls = HWTFPGA_ARG_GET 9
+    %10:anyregcls = HWTFPGA_ARG_GET 10
+    %11:anyregcls = HWTFPGA_ARG_GET 11
+    %12:anyregcls = HWTFPGA_ARG_GET 12
+    %13:anyregcls = HWTFPGA_ARG_GET 13
+    %14:anyregcls = HWTFPGA_ARG_GET 14
+    %15:anyregcls = HWTFPGA_ARG_GET 15
+    %16:anyregcls = HWTFPGA_ARG_GET 16
+    %17:anyregcls = HWTFPGA_ARG_GET 17
+  
+  bb.1.loopHeader:
+    successors: %bb.1(0x80000000)
+  
+    %18:anyregcls(s8) = HWTFPGA_CLOAD %0, 0, 8, 1 :: (volatile load (s8) from %ir.a, addrspace 1)
+    %19:anyregcls(s8) = HWTFPGA_CLOAD %1, 0, 8, 1 :: (volatile load (s8) from %ir.b, addrspace 2)
+    %20:anyregcls(s1) = HWTFPGA_ICMP intpred(ule), %18(s8), %19
+    HWTFPGA_CSTORE %20(s1), %2, 0, 1, 1 :: (volatile store (s1) into %ir.res, addrspace 3)
+    HWTFPGA_CSTORE i1 true, %13, 0, 1, 1 :: (volatile store (s1) into %ir.res_same, addrspace 14)
+    HWTFPGA_CSTORE %20(s1), %10, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_same, addrspace 11)
+    HWTFPGA_CSTORE %20(s1), %12, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_same_1, addrspace 13)
+    HWTFPGA_CSTORE %20(s1), %3, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_0vs1, addrspace 4)
+    HWTFPGA_CSTORE %20(s1), %4, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_0vsAll, addrspace 5)
+    %22:anyregcls(s16) = HWTFPGA_MERGE_VALUES %18(s8), %18(s8), 8, 8
+    %23:anyregcls(s16) = HWTFPGA_MERGE_VALUES %19(s8), i8 0, 8, 8
+    %24:anyregcls(s1) = HWTFPGA_ICMP intpred(ule), %22(s16), %23
+    HWTFPGA_CSTORE %24(s1), %16, 0, 1, 1 :: (volatile store (s1) into %ir.res_suffix_aVs0, addrspace 17)
+    HWTFPGA_CSTORE %20(s1), %17, 0, 1, 1 :: (volatile store (s1) into %ir.res_suffix_aVsAll, addrspace 18)
+    HWTFPGA_CSTORE %20(s1), %14, 0, 1, 1 :: (volatile store (s1) into %ir.res_suffix_0vsB, addrspace 15)
+    %25:anyregcls(s16) = HWTFPGA_MERGE_VALUES %18(s8), i8 -1, 8, 8
+    %27:anyregcls(s16) = HWTFPGA_MERGE_VALUES %19(s8), %19(s8), 8, 8
+    %28:anyregcls(s1) = HWTFPGA_ICMP intpred(ule), %25(s16), %27
+    HWTFPGA_CSTORE %28(s1), %15, 0, 1, 1 :: (volatile store (s1) into %ir.res_suffix_AllVsB, addrspace 16)
+    %29:anyregcls(s16) = HWTFPGA_MERGE_VALUES i8 0, %19(s8), 8, 8
+    %31:anyregcls(s1) = HWTFPGA_ICMP intpred(ule), %22(s16), %29
+    HWTFPGA_CSTORE %31(s1), %5, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_aVs0, addrspace 6)
+    HWTFPGA_CSTORE %20(s1), %6, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_aVsAll, addrspace 7)
+    HWTFPGA_CSTORE %20(s1), %7, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_bVs0, addrspace 8)
+    %32:anyregcls(s16) = HWTFPGA_MERGE_VALUES i8 -1, %18(s8), 8, 8
+    %33:anyregcls(s1) = HWTFPGA_ICMP intpred(ule), %32(s16), %27
+    HWTFPGA_CSTORE %33(s1), %8, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_bVsAll, addrspace 9)
+    HWTFPGA_CSTORE %20(s1), %11, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_sameInMiddle, addrspace 12)
+    HWTFPGA_CSTORE %20(s1), %9, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_differentInMiddle, addrspace 10)
+    HWTFPGA_BR %bb.1
 
-
-bb.1.blockL10i0_10:
-; predecessors: %bb.0, %bb.1
-  successors: %bb.1(0x80000000); %bb.1(100.00%)
-
-  %10:anyregcls(s8) = GENFPGA_CLOAD %0:anyregcls, 0, 1 :: (volatile load (s8) from %ir.a, addrspace 1)
-  %11:anyregcls(s8) = GENFPGA_CLOAD %1:anyregcls, 0, 1 :: (volatile load (s8) from %ir.b, addrspace 2)
-  %12:anyregcls(s1) = G_ICMP intpred(ule), %10:anyregcls(s8), %11:anyregcls
-  GENFPGA_CSTORE %12:anyregcls(s1), %2:anyregcls, 0, 1 :: (volatile store (s1) into %ir.res, addrspace 3)
-  GENFPGA_CSTORE i1 true, %9:anyregcls, 0, 1 :: (volatile store (s1) into %ir.res_same, addrspace 10)
-  GENFPGA_CSTORE %12:anyregcls(s1), %6:anyregcls, 0, 1 :: (volatile store (s1) into %ir.res_prefix_same, addrspace 7)
-  GENFPGA_CSTORE %12:anyregcls(s1), %8:anyregcls, 0, 1 :: (volatile store (s1) into %ir.res_prefix_same_1, addrspace 9)
-  GENFPGA_CSTORE %12:anyregcls(s1), %3:anyregcls, 0, 1 :: (volatile store (s1) into %ir.res_prefix_0vs1, addrspace 4)
-  GENFPGA_CSTORE %12:anyregcls(s1), %4:anyregcls, 0, 1 :: (volatile store (s1) into %ir.res_prefix_0vsAll, addrspace 5)
-  GENFPGA_CSTORE %12:anyregcls(s1), %7:anyregcls, 0, 1 :: (volatile store (s1) into %ir.res_prefix_sameInMiddle, addrspace 8)
-  GENFPGA_CSTORE %12:anyregcls(s1), %5:anyregcls, 0, 1 :: (volatile store (s1) into %ir.res_prefix_differentInMiddle, addrspace 6)
-  G_BR %bb.1
-
-# End machine code for function mainThread.
-
+...
