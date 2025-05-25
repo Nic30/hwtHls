@@ -7,8 +7,6 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
 from hwtHls.frontend.pyBytecode.pragma import _PyBytecodePragma
 from hwtHls.llvm.llvmIr import Value, BasicBlock
-from hwt.hwIOs.hwIOStruct import HwIOStruct
-from hwt.hdl.types.array import HArray
 
 
 class PyBytecodeInPreproc(_PyBytecodePragma):
