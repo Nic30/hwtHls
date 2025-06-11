@@ -100,6 +100,21 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI, bool& CFGC
 		for (Instruction &I : BB) {
 			// if instruction is some sort of value sink with effect
 			if (isa<StoreInst>(&I) || I.isTerminator() || I.isSpecialTerminator()) {
+				if (I.isTerminator()) {
+					if (auto SI = dyn_cast<SwitchInst>(&I)) {
+						if (isa<UndefValue>(SI->getCondition())) {
+							throw std::runtime_error(
+									"BitwidthReductionPass: SwitchInst condition must not be undef");
+						}
+					}
+					if (auto BR = dyn_cast<BranchInst>(&I)) {
+						if (BR->isConditional()
+								&& isa<UndefValue>(BR->getCondition())) {
+							throw std::runtime_error(
+									"BitwidthReductionPass: BranchInst condition must not be undef");
+						}
+					}
+				}
 				AU.updateUseMaskEntirelyUsed(&I);
 			} else if (auto LI = dyn_cast<LoadInst>(&I)) {
 				if (LI->isVolatile()) {
