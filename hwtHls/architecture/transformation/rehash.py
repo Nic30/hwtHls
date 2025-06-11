@@ -35,10 +35,10 @@ class _ExprRehasherClockWindowOnly(_ExprRehasher):
 
     @override
     def _rehashExpr(self, o:HlsNetNodeOut):
+        assert o.obj.scheduledOut is not None, ("Is expected to be scheduled", o.obj)
         if o.obj.scheduledOut[o.out_i] < self.beginTime:
             return o  # do not cross clock window boundary
         return _ExprRehasher._rehashExpr(self, o)
-
 
     @classmethod
     def rehashNodesInElements(cls, worklist: SetList[HlsNetNode], elements: Sequence[ArchElement]):
