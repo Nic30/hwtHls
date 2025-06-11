@@ -59,11 +59,15 @@ _OPS_T_ZERO_LATENCY = {
     HwtOps.CONCAT,
     OP_BITREVERSE,
 }
-_OPS_T_GROWING_CONST = {
-    HwtOps.NOT,
+
+_OPS_T_GROWING_LOG_INPUT_CNT = {
     HwtOps.XOR,
     HwtOps.AND,
     HwtOps.OR,
+}
+
+_OPS_T_GROWING_CONST = {
+    HwtOps.NOT,
     *_OPS_T_ZERO_LATENCY,
     ResourceFF,
     ResourceRAM,
@@ -192,6 +196,9 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
 
         if op in _OPS_T_GROWING_CONST:
             inputWireDelay = base_delay
+
+        elif op in _OPS_T_GROWING_LOG_INPUT_CNT:
+            inputWireDelay = base_delay * max(1, log2(log2(input_cnt)))
 
         elif op in _OPS_T_GROWING_LOG:
             inputWireDelay = base_delay * max(1, log2(log2(bit_width)))
