@@ -50,10 +50,11 @@ StreamChannelWordValue StreamChannelWordValue::concat(
 	llvm::SmallVector<llvm::Value*> eof; // eof is or-ed
 
 	assert(!lowerFirstMembers.empty());
-	const auto &props = lowerFirstMembers[0].props;
+	const auto & props =  lowerFirstMembers[lowerFirstMembers.size() > 2 ? 1 : 0].props;
 	for (auto &d : lowerFirstMembers) {
 		bool isLast = &d == &lowerFirstMembers.back();
-		assert(isLast || d.props == props);
+		bool isFirst = &d == &lowerFirstMembers.front();
+		assert(isFirst || isLast || d.props == props);
 		assert(d.data);
 		data.push_back(d.data);
 		assert(props.hasMask() == (d.mask != nullptr));
@@ -84,6 +85,7 @@ StreamChannelWordValue StreamChannelWordValue::concat(
 	}
 	auto &item0 = lowerFirstMembers[0];
 	// :note: this expect that all words, except last, have always all bytes valid
+	//        but the first and last word may be smaller than words in the middle
 	Value *_empty = lowerFirstMembers.back().empty;
 	auto newStreamProps = item0.props.resize(
 			_data->getType()->getIntegerBitWidth());
