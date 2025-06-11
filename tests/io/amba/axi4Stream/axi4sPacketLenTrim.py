@@ -246,7 +246,7 @@ class Axi4SPacketTrimByteByByte3(Axi4SPacketTrimByteByByte0):
 How is Axi4SPacketTrimByteByByte4 compiled:
 
 * code starts as a loop over bytes described in the :meth:`Axi4SPacketTrimByteByByte4.mainThread`
- * this lop ierates bytes, and checks if the size limit is not exceeded
+ * this lop iterates bytes, and checks if the size limit is not exceeded
  * :note: Single byte read implies 0 or 1 byte write
  * for human it is easy to stop that the write is performed until the limit is reached and then
    it data is just dropped and never written in this frame again
