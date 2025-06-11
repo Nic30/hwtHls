@@ -1,6 +1,6 @@
 For if/switch statement each branch is always performed but it may be swithed to perform no operation.
 This means that the body of the branch is not performed if it should not but the control always token passes trough that branch.
-This means that every node behind mentioned if-statement will recieve synchronization token from all predecessors.
+This means that every node behind mentioned if-statement will receive synchronization token from all predecessors.
 Thus synchronization must simply wait on every input to be present.
 However this does not work for loops where the loop end is predecessor of the loop entrance.
 This results in deadlock on first iteration.
