@@ -42,7 +42,7 @@ def ctpop_fn(num: RtlSignal, bitsToLookupInROM: int=4, dbgRomInPyList=False):
 
     return res
 
-
+# :note: intended to be used with ComponentGeneratorBitcount
 @serializeParamsUniq
 class Ctpop(_BaseALU1HwModule):
 
