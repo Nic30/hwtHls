@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.hdl.types.defs import BIT
+from hwt.hdl.commonConstants import b1
 from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
@@ -36,7 +36,7 @@ class Axi4SPacketCntr(HwModule):
     def mainThread(self, hls: HlsScope, i: IoProxyAxi4Stream):
         pkts = uint16_t.from_py(0)
         i.readStartOfFrame()
-        while BIT.from_py(1):
+        while b1:
             # PyBytecodeInPreproc is used because otherwise
             # the read object is converted to a RtlSignal because word= is a store to a word variable
             word = PyBytecodeInPreproc(i.read(self.i.data._dtype))

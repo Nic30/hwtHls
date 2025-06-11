@@ -11,12 +11,12 @@ from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInPreproc
+from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4s import Axi4Stream
 from hwtLib.amba.axis_comp.frame_parser.test_types import structManyInts
 from hwtLib.types.ctypes import uint16_t, uint32_t
-from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
-from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
 
 
 class Axi4SParseStructManyInts0(HwModule):
