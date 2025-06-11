@@ -42,9 +42,24 @@ def netlistReduceCmpConstAfterConstAddSub(n: HlsNetNodeOperator, worklist: SetLi
         if op1AddVal is not None:
             b: HlsNetlistBuilder = n.getHlsNetlistBuilder()
             if op is HwtOps.EQ or op is HwtOps.NE:
+                # convert to a compare with offset applied
                 newO1 = o1.obj.val - op1AddVal
-                replacemnt = b.buildOp(op, n.operatorSpecialization, n._outputs[0]._dtype, o0, newO1)
+                replacemnt = b.buildOpWithOpt(op, n.operatorSpecialization, n._outputs[0]._dtype, o0, newO1)
                 replaceOperatorNodeWith(n, replacemnt, worklist)
                 return True
-
+            else:
+                # convert to range compare
+                if op is HwtOps.ULT:
+                    # x + c0 < c1
+                    # to
+                    # (x < (c1 - c0)) & (x > c0)   is smaller after offset substract, and offset substract does not underflow
+                    newO1 = o1.obj.val - op1AddVal
+                    cmp = b.buildULt(o0, newO1)
+                    underflowCheck = b.buildUGt(o0, op1AddVal)
+                    replacemnt = b.buildAnd(cmp, underflowCheck)
+                    replaceOperatorNodeWith(n, replacemnt, worklist)
+                    # :attention: LLVM automatically normalizes range checks like this back to x + c0 < c1 form
+                    return True
+                
     return False
+
