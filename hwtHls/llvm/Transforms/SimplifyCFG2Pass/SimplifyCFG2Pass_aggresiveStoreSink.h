@@ -16,7 +16,7 @@ namespace hwtHls {
  * BB1:
  *   ...
  *   store ...
- *   br label %end
+ *   br label %BBend
  * BBend: ; BBStart dominates BBend
  *   ... ; (no load or store)
  *   br i1 %c, label %BBExit0, label %BBExit1
