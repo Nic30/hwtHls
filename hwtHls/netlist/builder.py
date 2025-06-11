@@ -693,14 +693,18 @@ class HlsNetlistBuilder():
                              operatorSpecialization:Optional[HFloatTmpConfig]=None,
                              name:Optional[str]=None):
         assert isinstance(a, HlsNetNodeOut), a
-        if a._dtype.bit_length() == 1:
+        w = a._dtype.bit_length()
+        if w == 1:
             assert high == 1 and low == 0, (a, high, low)
             return a
         if low is None:
             assert resT == BIT, resT
+            assert high <= w and high >= 0, (high, w)
             i = self.buildConst(INT.from_py(high), name=name)
         else:
             assert high > low, (high, low)
+            assert high <= w, (high, w)
+            assert low >= 0, low
             i = self.buildConst(SLICE.from_py(slice(high, low, -1)), name=name)
 
         return self.buildOp(HwtOps.INDEX, operatorSpecialization, resT, a, i, name=name)
