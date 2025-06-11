@@ -326,6 +326,7 @@ void LlvmCompilationBundle::runExprOpt() {
 		FPM.addPass(hwtHls::HwtHlsInstCombinePass());
 		// FPM.addPass(hwtHls::SlicesMergePass());
 		FPM.addPass(hwtHls::ICmpToOnlyEqLtLePass());
+		FPM.addPass(llvm::DCEPass());
 	});
 }
 
