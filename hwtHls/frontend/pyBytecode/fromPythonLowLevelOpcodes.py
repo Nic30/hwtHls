@@ -959,18 +959,38 @@ class PyBytecodeToSsaLowLevelOpcodes():
         return self.opcode_STORE_SUBSCR(frame, curBlock, instr, key=key)
 
     def opcodeMakeInplaceUpdate(self, updateOp: Callable):
+        if updateOp == dict.__setitem__:
 
-        def opcodeInplaceUpdate(frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
-            """
-            Calls updateOp(TOS1[-i], TOS)
-            """
-            stack = frame.stack
-            TOS = stack.pop()
-            TOS1_mI = stack[self._stackIndex(stack, instr.argval)]
-            updateOp(TOS1_mI, TOS)
-            return curBlock
+            # MAP_ADD
+            def opcodeInplaceUpdate_MAP_ADD(frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
+                """
+                Used to implement dict comprehensions.
+                
+                value = STACK.pop()
+                key = STACK.pop()
+                dict.__setitem__(STACK[-i], key, value)
+                """
+                stack = frame.stack
+                value = stack.pop()
+                key = stack.pop()
+                TOS1_mI = stack[self._stackIndex(stack, instr.argval)]
+                updateOp(TOS1_mI, key, value)
+                return curBlock
 
-        return opcodeInplaceUpdate
+            return opcodeInplaceUpdate_MAP_ADD
+        else:
+
+            def opcodeInplaceUpdate(frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
+                """
+                Calls updateOp(TOS1[-i], TOS)
+                """
+                stack = frame.stack
+                TOS = stack.pop()
+                TOS1_mI = stack[self._stackIndex(stack, instr.argval)]
+                updateOp(TOS1_mI, TOS)
+                return curBlock
+
+            return opcodeInplaceUpdate
 
     def opcodeMakeUnaryOp(self, unOp: Callable):
 

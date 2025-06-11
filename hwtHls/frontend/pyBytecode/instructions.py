@@ -215,7 +215,7 @@ def _dictMerge(dst: dict, src: dict):
 INPLACE_UPDATE_OPS = {
     SET_ADD: set.add,
     LIST_APPEND: list.append,
-    # MAP_ADD:
+    MAP_ADD: dict.__setitem__,
     LIST_EXTEND: list.extend,
     SET_UPDATE: set.update,
     DICT_MERGE: _dictMerge,
