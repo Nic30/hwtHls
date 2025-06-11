@@ -242,7 +242,7 @@ class SchedulableNode():
                         if inWireLatency >= clkPeriod:
                             raise TimeConstraintError(
                                 "Impossible scheduling, clkPeriod too low for ",
-                                self.inputWireDelay, self.outputWireDelay, self)
+                                self.inputWireDelay, self.outputWireDelay, "clkPeriod:", self)
                         normalizedTime = self._schedulerGetNormalizedTimeForInput(
                             availableInTime, inWireLatency, inputClkTickOffset, clkPeriod, ffdelay,
                             self.realization.mayBeInFFStoreTime)
