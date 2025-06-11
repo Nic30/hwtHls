@@ -174,10 +174,11 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
 
                 if o in _DENORMALIZED_CMP_OPS and netlistCmpNormalize(n, worklist):
                     return True
-
-                if o in (HwtOps.EQ, HwtOps.NE):
-                    if netlistReduceEqNe(n, worklist):
-                        return True
+                
+                if o in COMPARE_OPS:
+                    if o in (HwtOps.EQ, HwtOps.NE):
+                        if netlistReduceEqNe(n, worklist):
+                            return True
 
                     elif netlistReduceCmpConstAfterConstAddSub(n, worklist):
                         return True
@@ -267,8 +268,6 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
 
                 for parent in iterAllHierachies(netlist):
                     runAbcControlpathOpt(parent.builder, worklist, parent.subNodes)
-                    if dbgEn:
-                        HlsNetlistPassConsistencyCheck._checkCycleFree(n.netlist)
                     if dbgEn:
                         HlsNetlistPassConsistencyCheck._checkCycleFree(n.netlist)
 
