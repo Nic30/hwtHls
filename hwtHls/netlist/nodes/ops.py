@@ -1,23 +1,27 @@
-from typing import Optional
+from math import ceil
+from typing import Optional, Union
 
 from hwt.code import Concat
 from hwt.code_utils import rename_signal
 from hwt.hdl.const import HConst
 from hwt.hdl.operator import HOperatorNode
-from hwt.hdl.operatorDefs import HOperatorDef, HwtOps
+from hwt.hdl.operatorDefs import HOperatorDef, HwtOps, COMPARE_OPS
 from hwt.hdl.types.bits import HBits
 from hwt.pyUtils.typingFuture import override
 from hwt.serializer.generic.ops import HWT_TO_HDLCONVERTOR_OPS
+from hwtHls.architecture.componentGenerator import ComponentGenerator
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem, INVARIANT_TIME
 from hwtHls.code import OP_LSHR, OP_ASHR, OP_SHL, OP_ROL, OP_ROR
 from hwtHls.llvm.llvmIr import HFloatTmpConfig
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
+from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
+from hwtHls.netlist.scheduler.errors import TimeConstraintError
 from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
-from hwtHls.architecture.componentGenerator import ComponentGenerator
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 
 
 class HlsNetNodeOperator(HlsNetNode):
@@ -72,22 +76,16 @@ class HlsNetNodeOperator(HlsNetNode):
                 r = gen.resolveRealizationOfNode(self)
                 assert isinstance(r, OpRealizationMeta), ("ComponentGenerator.resolveRealizationOfNode must return OpRealizationMeta", self, r, gen)
         else:
-            r = netlist.platform.get_op_realization(
-                self.operator, self.operatorSpecialization, bit_length,
-                input_cnt, netlist.realTimeClkPeriod)
+            try:
+                r = netlist.platform.get_op_realization(
+                    self.operator, self.operatorSpecialization, bit_length,
+                    input_cnt, netlist.realTimeClkPeriod)
+            except TimeConstraintError as e:
+                raise TimeConstraintError(*e.args, self.operator, self._id)
+
         self.assignRealization(r)
 
-    @override
-    def rtlAlloc(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
-        assert not self._isMarkedRemoved, self
-        assert not self._isRtlAllocated, self
-        netlist = self.netlist
-        platform = netlist.parentHwModule._target_platform
-        gen = platform._componentGenerators.get(self.operator)
-        if gen:
-            gen: ComponentGenerator
-            return gen.toRtlForNode(self, allocator)
-        
+    def _rtlAlloc_default(self, allocator:"ArchElement") -> Union[TimeIndependentRtlResourceItem, list[TimeIndependentRtlResourceItem]]:
         op_out = self._outputs[0]
         if HdlType_isVoid(op_out._dtype):
             assert self.operator == HwtOps.CONCAT, self
@@ -95,7 +93,7 @@ class HlsNetNodeOperator(HlsNetNode):
             allocator.netNodeToRtl[op_out] = res
             return res
 
-        operands = []
+        operands: list[TimeIndependentRtlResourceItem] = []
         for (dep, t) in zip(self.dependsOn, self.scheduledIn):
             assert dep is not None, ("All inputs must be connected", self, self.dependsOn)
             _o = allocator.rtlAllocHlsNetNodeOutInTime(dep, t)
@@ -125,22 +123,22 @@ class HlsNetNodeOperator(HlsNetNode):
             else:
                 s = evalFn(*(o.data for o in operands))
 
-        if isinstance(s, HConst):
-            t = INVARIANT_TIME
+        res = self._rtlAlloc_registerOutput(allocator, op_out, s)
+        self._isRtlAllocated = True
+        return res
 
-        else:
-            # create RTL signal expression base on operator type
-            t = self.scheduledOut[0] + self.netlist.scheduler.epsilon
-            if s._hasGenericName:
-                if self.name is not None:
-                    s._name = f"{allocator.namePrefix:s}{self.name:s}"
-                else:
-                    s._name = f"{allocator.name:s}n{self._id:d}"
-                s._hasGenericName = False
+    def _rtlAlloc_registerOutput(self, allocator:"ArchElement", op_out: HlsNetNodeOut, s: Union[RtlSignal, HConst]) -> Union[TimeIndependentRtlResourceItem, list[TimeIndependentRtlResourceItem]]:
+        # create RTL signal expression base on operator type
+        if not isinstance(s, HConst) and s._hasGenericName:
+            if self.name is not None:
+                s._name = f"{allocator.namePrefix:s}{self.name:s}"
+            else:
+                s._name = f"{allocator.name:s}n{self._id:d}"
+            s._hasGenericName = False
 
-                if s._isUnnamedExpr and (self._rtlAddName or self.netlist._dbgAddSignalNamesToData):
-                    # create an explicit rename of this potentially hidden signal
-                    s = rename_signal(allocator.netlist.parentHwModule, s, s._name)
+            if s._isUnnamedExpr and (self._rtlAddName or self.netlist._dbgAddSignalNamesToData):
+                # create an explicit rename of this potentially hidden signal
+                s = rename_signal(allocator.netlist.parentHwModule, s, s._name)
 
         if dtypeEqualSignIgnore(s._dtype, op_out._dtype):
             if HdlType_isVoid(s._dtype):
@@ -151,9 +149,19 @@ class HlsNetNodeOperator(HlsNetNode):
             raise AssertionError("The ", self.__class__.__name__,
                                  " signals of wrong type", s, op_out, s._dtype, op_out._dtype)
 
-        res = allocator.rtlRegisterOutputRtlSignal(op_out, s, False, False, False)
-        self._isRtlAllocated = True
-        return res
+        return allocator.rtlRegisterOutputRtlSignal(op_out, s, False, False, False)
+
+    @override
+    def rtlAlloc(self, allocator: "ArchElement") -> Union[TimeIndependentRtlResourceItem, list[TimeIndependentRtlResourceItem]]:
+        assert not self._isMarkedRemoved, self
+        assert not self._isRtlAllocated, self
+        netlist = self.netlist
+        platform = netlist.parentHwModule._target_platform
+        gen = platform._componentGenerators.get(self.operator)
+        if gen:
+            gen: ComponentGenerator
+            return gen.toRtlForNode(self, allocator)
+        return self._rtlAlloc_default(allocator)
 
     def __repr__(self, minify=False):
         if minify:
