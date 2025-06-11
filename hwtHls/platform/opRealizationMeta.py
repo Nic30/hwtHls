@@ -1,4 +1,4 @@
-from typing import Self
+from typing import Self, Union
 
 
 class OpRealizationMeta():
@@ -32,6 +32,10 @@ class OpRealizationMeta():
 
     def fitsIntoSingleClockWindow(self):
         return self.inputClkTickOffset == 0 and self.outputClkTickOffset == 0
+
+    def fitsIntoSchedTime(self, clkWindowBudget: "SchedTime", schedResolution: float) -> bool:
+        return self.fitsIntoSingleClockWindow() and \
+                        (self.inputWireDelay + self.outputWireDelay) / schedResolution < clkWindowBudget
 
     def __mul__(self, other:int):
         return self.__class__(
@@ -90,6 +94,21 @@ class OpRealizationMeta():
                     outputClkTickOffset=self.outputClkTickOffset + other.inputClkTickOffset + other.outputClkTickOffset,
                     mayBeInFFStoreTime=other.mayBeInFFStoreTime,
                 )
+
+    @staticmethod
+    def __hasNonDefValue(v: Union[int, float, tuple[Union[int, float]]]):
+        return v and (isinstance(v, (float, int)) or sum(v))
+
+    def __repr__(self):
+        args = []
+        for propName in ("inputWireDelay", "inputClkTickOffset", "outputClkTickOffset", "outputWireDelay"):
+            v = getattr(self, propName)
+            if self.__hasNonDefValue(v):
+                args.append(f"{propName:s}={v}")
+        if self.mayBeInFFStoreTime:
+            args.append("mayBeInFFStoreTime")
+
+        return f"<{self.__class__.__name__} {', '.join(args):s}>"
 
 
 EMPTY_OP_REALIZATION = OpRealizationMeta(mayBeInFFStoreTime=True)
