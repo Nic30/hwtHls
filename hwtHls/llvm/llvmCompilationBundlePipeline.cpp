@@ -452,6 +452,8 @@ void LlvmCompilationBundle::_addCommonPasses(llvm::FunctionPassManager &FPM) {
 	//  if (EnableDFAJumpThreading && Level.getSizeLevel() == 0)
 	FPM.addPass(llvm::DFAJumpThreadingPass());
 	FPM.addPass(llvm::JumpThreadingPass()); // segfault on insert to internal set in non debug builds
+	// :note: DFAJumpThreadingPass will left unreachable blocks with branch condition set to undef, there we remove such blocks
+	FPM.addPass(hwtHls::SimplifyCFG2Pass());
 	FPM.addPass(llvm::CorrelatedValuePropagationPass());
 	// Finally, do an expensive DCE pass to catch all the dead code exposed by
 	// the simplifications and basic cleanup after all the simplifications.
