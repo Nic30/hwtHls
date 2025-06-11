@@ -2,7 +2,7 @@ from collections import deque
 from io import StringIO
 import json
 from math import inf, isinf, isfinite
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Optional
 
 from hwt.hdl.operatorDefs import HOperatorDef
 from hwt.hdl.types.bitsConst import HBitsConst
@@ -11,6 +11,7 @@ from hwt.hwIO import HwIO
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
 from hwtHls.io.bram import HlsNetNodeWriteBramCmd
+from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering, HVoidExternData
@@ -25,13 +26,11 @@ from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.platform.fileUtils import OutputStreamGetter
-from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 
 
 class TimelineItem():
     """
     A container of data for row in timeline graph.
-
     """
     BRIGHT_COLORS = {"white", "lime", "plum", "lightblue", "lightlime", "yellow"}
 
@@ -43,8 +42,8 @@ class TimelineItem():
         self.end = end
         self.color = color
         self.textColor = "black" if color in self.BRIGHT_COLORS else "white"
-        self.portsIn: List[Tuple[float, str, TimelineItem, int, str]] = []  # tuples (abs. time, name, dependency TimelineItem, dependency port index, link color)
-        self.portsOut: List[Tuple[float, str]] = []  # tuples (abs. time, name)
+        self.portsIn: list[tuple[float, str, TimelineItem, int, str]] = []  # tuples (abs. time, name, dependency TimelineItem, dependency port index, link color)
+        self.portsOut: list[tuple[float, str]] = []  # tuples (abs. time, name)
         self.genericDeps: SetList[TimelineItem] = SetList()
 
     def toJson(self):
@@ -56,7 +55,8 @@ class TimelineItem():
             "end": round(self.end, 2),
             "color": self.color,
             "textColor": self.textColor,
-            "portsIn": [(round(t, 2), name if name else name, dep.id, depOutI, linkColor) for t, name, dep, depOutI, linkColor in self.portsIn],
+            "portsIn": [(round(t, 2), name if name else name, dep.id, depOutI, linkColor)
+                        for t, name, dep, depOutI, linkColor in self.portsIn],
             "portsOut": [(round(t, 2), name) for (t, name) in self.portsOut],
             "genericDeps": [d.id for d in self.genericDeps],
         }
@@ -70,7 +70,7 @@ def _mkPortIn(arrivalTime: float, name:str, dep: TimelineItem, depOutI: int, col
     return (arrivalTime, name, dep, depOutI, color)
 
 
-def _toJson(data: List[TimelineItem], clkPeriod: float  # , minStartTime: float, maxEndTime: float
+def _toJson(data: list[TimelineItem], clkPeriod: float  # , minStartTime: float, maxEndTime: float
             ):
     return {
         "data": [d.toJson() for d in data],
@@ -88,16 +88,18 @@ class HwtHlsNetlistToTimelineJson():
     :ivar min_duration: minimum width of boxes representing operations
     """
 
-    def __init__(self, normalizedClkPeriod: SchedTime, resolution: float, expandCompositeNodes=False):
-        self.objToJsonObj: Dict[HlsNetNode, TimelineItem] = {}
-        self.jsonObjs: List[TimelineItem] = []
-        self.rowOccupiedRanges: List[List[Tuple[float, float]]] = [[], ]
+    def __init__(self, normalizedClkPeriod: SchedTime, resolution: float,
+                 expandCompositeNodes:bool=False, showConstants:bool=True):
+        self.objToJsonObj: dict[HlsNetNode, TimelineItem] = {}
+        self.jsonObjs: list[TimelineItem] = []
+        self.rowOccupiedRanges: list[list[tuple[float, float]]] = [[], ]
         self.time_scale = resolution / 1e-9  # to ns
         self.clkPeriod = self.time_scale * normalizedClkPeriod
         self.min_duration = 0.05 * normalizedClkPeriod * self.time_scale
         self.expandCompositeNodes = expandCompositeNodes
+        self.showConstants = showConstants
 
-    def _findClosestNonOccupiedRow(self, currentRowIndex, start, end) -> Tuple[int, int]:
+    def _findClosestNonOccupiedRow(self, currentRowIndex, start, end) -> tuple[int, int]:
         """
         :return: tuple index of row and index in rowOccupiedRanges[rowI] where to insert
         """
@@ -146,7 +148,7 @@ class HwtHlsNetlistToTimelineJson():
                     rowI = currentRowIndex + distance
 
     @staticmethod
-    def _iterateUsersTransitively(n: HlsNetNode, seen: Set[HlsNetNode]):
+    def _iterateUsersTransitively(n: HlsNetNode, seen: set[HlsNetNode]):
         if n in seen:
             return
         toSearch = deque((n,))
@@ -165,10 +167,10 @@ class HwtHlsNetlistToTimelineJson():
 
     def translateNodeToTimelineItemTransitively(self,
                                        obj: HlsNetNode,
-                                       ioGroupIds: Dict[HwIO, int],
-                                       nodesFlat: List[HlsNetNode],
-                                       compositeNodes: Set[HlsNetNodeAggregate],
-                                       seenNodes: Set[HlsNetNode]):
+                                       ioGroupIds: dict[HwIO, int],
+                                       nodesFlat: list[HlsNetNode],
+                                       compositeNodes: set[HlsNetNodeAggregate],
+                                       seenNodes: set[HlsNetNode]):
         if self.expandCompositeNodes and isinstance(obj, HlsNetNodeAggregate):
             compositeNodes.add(obj)
             for subNode in obj.subNodes:
@@ -178,7 +180,7 @@ class HwtHlsNetlistToTimelineJson():
                 self.translateNodeToTimelineItem(n, ioGroupIds)
                 nodesFlat.append(n)
 
-    def translateNodeToTimelineItem(self, obj: HlsNetNode, io_group_ids: Dict[HwIO, int]):
+    def translateNodeToTimelineItem(self, obj: HlsNetNode, io_group_ids: dict[HwIO, int]):
         assert obj.scheduledOut is not None, (obj, "node was not scheduled so it is not possible to add it into output graph")
         start = inf
         if obj.scheduledIn:
@@ -309,13 +311,13 @@ class HwtHlsNetlistToTimelineJson():
         else:
             yield n
 
-    def construct(self, nodes: List[HlsNetNode]):
+    def construct(self, nodes: list[HlsNetNode]):
         jsonObjs = self.jsonObjs
         objToJsonObj = self.objToJsonObj
-        ioGroupIds: Dict[HwIO, int] = {}
-        nodesFlat = []
-        compositeNodes: Set[HlsNetNodeAggregate] = set()
-        containerOfNode: Dict[HlsNetNode, HlsNetNodeAggregate] = {}
+        ioGroupIds: dict[HwIO, int] = {}
+        nodesFlat: list[HlsNetNode] = []
+        compositeNodes: set[HlsNetNodeAggregate] = set()
+        containerOfNode: dict[HlsNetNode, HlsNetNodeAggregate] = {}
         if not self.expandCompositeNodes:
             for n in nodes:
                 if isinstance(n, HlsNetNodeAggregate):
@@ -344,8 +346,10 @@ class HwtHlsNetlistToTimelineJson():
                 color = 'lime' if dep._dtype is HVoidOrdering else\
                         'yellow' if dep._dtype is HVoidExternData else\
                         'white'
-                depJsonObj = objToJsonObj[depObj]
-                jObj.portsIn.append(_mkPortIn(t * self.time_scale, i.name, depJsonObj, depOutI, color))
+                depJsonObj = objToJsonObj.get(depObj)
+                if depJsonObj is not None:
+                    # may be None if it is not in nodes selected for this graph
+                    jObj.portsIn.append(_mkPortIn(t * self.time_scale, i.name, depJsonObj, depOutI, color))
 
             # convert other logical connections which are not done trough ports
             for bdep_obj, _ in obj.debugIterShadowConnectionDst():
@@ -364,17 +368,23 @@ class HwtHlsNetlistToTimelineJson():
 
 class HlsNetlistAnalysisPassDumpSchedulingJson(HlsNetlistAnalysisPass):
 
-    def __init__(self, outStreamGetter:Optional[OutputStreamGetter]=None, expandCompositeNodes=False):
+    def __init__(self, outStreamGetter:Optional[OutputStreamGetter]=None, expandCompositeNodes=False, showConstants=False):
         self.outStreamGetter = outStreamGetter
         self.expandCompositeNodes = expandCompositeNodes
+        self.showConstants = showConstants
 
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
         netlist.getAnalysis(HlsNetlistAnalysisPassRunScheduler)
-        to_timeline = HwtHlsNetlistToTimelineJson(netlist.normalizedClkPeriod,
-                                              netlist.scheduler.resolution,
-                                              expandCompositeNodes=self.expandCompositeNodes)
-        to_timeline.construct(list(netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT)))
+        to_timeline = HwtHlsNetlistToTimelineJson(
+            netlist.normalizedClkPeriod,
+            netlist.scheduler.resolution,
+            expandCompositeNodes=self.expandCompositeNodes,
+            showConstants=self.showConstants)
+        nodes = netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT)
+        if not self.showConstants:
+            nodes = (n for n in nodes if not isinstance(n, HlsNetNodeConst))
+        to_timeline.construct(list(nodes))
         if self.outStreamGetter is not None:
             out, doClose = self.outStreamGetter(netlist.label)
             try:
