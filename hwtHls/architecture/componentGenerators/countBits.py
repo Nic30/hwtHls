@@ -18,7 +18,6 @@ from hwtHls.architecture.componentGenerators.baseALU1HwModule import _BaseALU1Hw
 from hwtHls.architecture.componentGenerators.ctpop import Ctpop
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
-from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
@@ -215,7 +214,7 @@ class ComponentGeneratorBitcount(ComponentGenerator):
         self._operatorModuleCls = _operatorModuleCls
         self.schedulingCache: dict[int, OpRealizationMeta] = {}
 
-    def _getConfiguredFixpHwModule(self, realTimeClkPeriod:float, ty:HBits, realization:OpRealizationMeta):
+    def _getConfiguredHwModule(self, realTimeClkPeriod:float, ty:HBits, realization:OpRealizationMeta):
         hwModule = self._operatorModuleCls()
         hwModule.T = ty
         hwModule.CLK_FREQ = int(1 / realTimeClkPeriod)
@@ -237,7 +236,7 @@ class ComponentGeneratorBitcount(ComponentGenerator):
             pass
 
         # run compilation of IntDiv HwModule to resolve scheduling properties
-        hwModule = self._getConfiguredFixpHwModule(netlist.realTimeClkPeriod, T, None)
+        hwModule = self._getConfiguredHwModule(netlist.realTimeClkPeriod, T, None)
         _, r = self.resolveRealizationOfNode_compileToResolveScheduling(
             netlist.parentHwModule, hwModule,
             netlist.dbgSubmoduleBuidTracer, cacheKey)
@@ -248,7 +247,7 @@ class ComponentGeneratorBitcount(ComponentGenerator):
         freq = node.netlist.realTimeClkPeriod
         T = node.dependsOn[0]._dtype
         realization = self.schedulingCache[T.bit_length()]
-        hwModule = self._getConfiguredFixpHwModule(freq, T, realization)
+        hwModule = self._getConfiguredHwModule(freq, T, realization)
         compBuilder = self.getComponentBuilder(node)
         replaceHlsNetNodeOperatorWithHwModule(
             compBuilder, node, hwModule,
