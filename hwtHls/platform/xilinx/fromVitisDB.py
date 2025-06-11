@@ -66,19 +66,28 @@ class HlsPlatformFromVitisDB(AbstractXilinxPlatform):
 
         super().__init__(debugDir=debugDir, debugFilter=debugFilter, llvmCliArgs=llvmCliArgs)
 
-    def _getFromDBArithmeticDelay(self, dbCursor:sqlite3.Cursor, coreName: str):
+    def _getFromDBArithmeticDelay(self, dbCursor:sqlite3.Cursor, coreName: str, splineTy=ResourceSplineBundleBitwidthDependent):
+        operandWidths = []
+        delays = []
+        # :note: OPERANDS sometimes means bitwidth depending on corename
         queryStr = \
         f'SELECT OPERANDS, DELAY0 FROM {self._targetName:s}_Arithmetic'\
         ' WHERE CORE_NAME == ? AND LATENCY == 0'\
         ' ORDER BY OPERANDS ASC;'
-        operandWidths = []
-        delays = []
         for (opWidth, delay) in dbCursor.execute(queryStr, (coreName,)):
             operandWidths.append(int(opWidth))
-            delays.append(float(delay) * 10 ** -9)
+            delays.append(float(delay) * 1e-9)
+        if not delays:
+            queryStr = \
+            f'SELECT OPERANDS0, DELAY0 FROM {self._targetName:s}_2D_Arithmetic'\
+            ' WHERE CORE_NAME == ? AND LATENCY == 0 AND OPERANDS0 == OPERANDS1'\
+            ' ORDER BY OPERANDS0 ASC;'
+            for (opWidth, delay) in dbCursor.execute(queryStr, (coreName,)):
+                operandWidths.append(int(opWidth))
+                delays.append(float(delay) * 1e-9)
 
         assert delays, queryStr
-        return ResourceSplineBundleBitwidthDependent(Spline(operandWidths, delays))
+        return splineTy(Spline(operandWidths, delays))
 
     # def _getFromDBRegsliceDelay(self, dbCursor:sqlite3.Cursor):
     #    operandWidths = []
@@ -88,41 +97,62 @@ class HlsPlatformFromVitisDB(AbstractXilinxPlatform):
     #        'WHERE LATENCY == 1'
     #        ' ORDER BY BITWIDTH ASC;'):
     #        operandWidths.append(int(opWidth))
-    #        delays.append(float(delay) * 10 ** -9)
+    #        delays.append(float(delay) * 1e-9)
     #    return ResourceSplineBundleBitwidthDependent(Spline(operandWidths, delays))
 
     def _getFromDBSparseMuxDelay(self, dbCursor:sqlite3.Cursor, splineTy=ResourceSplineBundleArgCntDependent):
-        operandWidths = []
+        inputCounts = []
         delays = []
         queryStr = \
         f'SELECT INPUT_NUMBER, DELAY0 FROM {self._targetName:s}_SparseMux'\
         ' WHERE core_name == "OneHotSparseMux_HasDef" AND LATENCY == 0'\
         ' ORDER BY INPUT_NUMBER ASC;'
-        for (opWidth, delay) in dbCursor.execute(queryStr):
-            operandWidths.append(int(opWidth))
-            delays.append(float(delay) * 10 ** -9)
+        for (inputNumber, delay) in dbCursor.execute(queryStr):
+            inputNumber = int(inputNumber)
+            if inputCounts and inputCounts[-1] == inputNumber:
+                # some tables also have DATAWIDTH comumn and thus there are mutiple values for same latency, input_number
+                continue
+            inputCounts.append(inputNumber)
+            delays.append(float(delay) * 1e-9)
         assert delays, queryStr
-        return splineTy(Spline(operandWidths, delays))
+        return splineTy(Spline(inputCounts, delays))
 
     def _getFromDBBramDelay(self, dbCursor:sqlite3.Cursor):
         # :attention: "BRAM" has some invisible char or something == operator does not work, DB Browser for SQLite Version 3.12.2 crashes
+        operandWidths = []
+        delays = []
+
         queryStr = \
         f'SELECT BITWIDTH, DELAY0 FROM {self._targetName:s}_Memory'\
         ' WHERE LATENCY == 1 AND CORE_NAME like "%BRAM%"'\
         ' ORDER BY BITWIDTH ASC;'
-        operandWidths = []
-        delays = []
-        for (opWidth, delay) in dbCursor.execute(queryStr):
-            operandWidths.append(int(opWidth))
-            delays.append(float(delay) * 10 ** -9)
-        assert delays, queryStr
+        try:
+            for (opWidth, delay) in dbCursor.execute(queryStr):
+                assert not operandWidths or operandWidths[-1] != int(opWidth), ("Must be unique", opWidth)
+                operandWidths.append(int(opWidth))
+                delays.append(float(delay) * 1e-9)
+        except sqlite3.OperationalError:
+            # some targets have only *_2D_Memory table
+            pass
+        if not delays:
+            queryStr = \
+            f'SELECT BITWIDTH, DELAY0 FROM {self._targetName:s}_2D_Memory'\
+            ' WHERE LATENCY == 1 AND DEPTH == 1024 AND CORE_NAME like "%RAMBlock%"'\
+            ' ORDER BY BITWIDTH ASC;'
+            for (opWidth, delay) in dbCursor.execute(queryStr):
+                assert not operandWidths or operandWidths[-1] != int(opWidth), ("Must be unique", opWidth)
+                operandWidths.append(int(opWidth))
+                delays.append(float(delay) * 1e-9)
+
+            assert delays, queryStr
+
         return ResourceSplineBundleBitwidthDependent(Spline(operandWidths, delays))
 
     def _getFromDBDspGeometries(self, dbCursor:sqlite3.Cursor, archName: str):
         mulGeometries = []
         queryStr = \
         'SELECT a, b FROM DSP_ports'\
-        f' WHERE core_name == {archName:s}'\
+        f' WHERE core_name == "{archName:s}"'\
         ' ORDER BY a ASC;'
         for (a, b) in dbCursor.execute(queryStr):
             mulGeometries.append((int(a), int(b)))
@@ -137,7 +167,7 @@ class HlsPlatformFromVitisDB(AbstractXilinxPlatform):
             Multiplier = self._getFromDBArithmeticDelay(c, "Multiplier")
             Adder = self._getFromDBArithmeticDelay(c, "Adder")
             Cmp = self._getFromDBArithmeticDelay(c, "Cmp")
-            LogicGate = self._getFromDBArithmeticDelay(c, "Cmp")
+            LogicGate = self._getFromDBArithmeticDelay(c, "LogicGate", splineTy=ResourceSplineBundleArgCntDependent)
             Mux = self._getFromDBSparseMuxDelay(c)
             Shift = self._getFromDBSparseMuxDelay(c, splineTy=ResourceSplineBundleBitwidthDependent)
             BRAM = self._getFromDBBramDelay(c)
