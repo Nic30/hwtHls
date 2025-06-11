@@ -54,16 +54,17 @@ class HlsStmReadAxi4Stream(HlsRead):
         sig_flat = var(name, HBits(trueDtype.bit_length()))
         sig_flat._rtlDrivers.append(self)
         sig_flat._rtlObjectOrigin = self
-        _copySliceNamesToFlattenedSignal(sig_flat, trueDtype, name, 0)
         self._sig = sig_flat
         self._GEN_NAME_PREFIX = hwIOName
         self._dtype = sig_flat._dtype
         self._dtypeOrig = dtype
 
+        self._name = name
         sig: HwIO = sig_flat._reinterpret_cast(trueDtype)
-        self._name = sig._name = name
+        sig._name = name
         sig._parent = parent.parentHwModule
         self._hwIOs = sig._hwIOs
+        _copySliceNamesToFlattenedSignal(sig_flat, trueDtype, name, 0)
 
         # copy all members on this object
         self._copyRtlSignalsToSelf(sig)
