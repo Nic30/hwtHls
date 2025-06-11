@@ -83,6 +83,7 @@ llvm::Value* BitPartsRewriter::rewriteKnownBitRangeInfo(IRBuilder<> *Builder,
 
 llvm::Value* BitPartsRewriter::rewriteKnownBitRangeInfoVector(
 		IRBuilder<> *Builder, const std::vector<KnownBitRangeInfo> &kbris) {
+	assert(kbris.size());
 	if (kbris.size() == 1) {
 		// can directly replace, may require slice if src has shift or truncat
 		return rewriteKnownBitRangeInfo(Builder, kbris[0]);
@@ -183,6 +184,7 @@ llvm::Value* BitPartsRewriter::rewriteSelect(llvm::SelectInst &I,
 llvm::Value* BitPartsRewriter::rewriteSwitchInst(llvm::SwitchInst &I,
 		const VarBitConstraint &vbc) {
 	Value *originalCondOp = I.getCondition();
+	assert(!isa<UndefValue>(originalCondOp));
 	const VarBitConstraint *_condOp = constraints.findInConstraints(
 			originalCondOp);
 	IRBuilder<> b(&I);
