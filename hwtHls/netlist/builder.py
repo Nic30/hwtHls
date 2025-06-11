@@ -28,7 +28,6 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.simplifyUtils import getConstOfOutput
 from pyMathBitPrecise.bit_utils import mask
 
-
 HlsNetlistBuilderOperatorCacheKey_t = Tuple[Union[HOperatorDef, Type[HlsNetNode]],
                                               Tuple[Union[HlsNetNodeOut, HConst], ...]]
 # :note: value in HlsNetlistBuilderOperatorCache_t is HlsNetNodeOperator only if node has multiple outputs
@@ -361,7 +360,7 @@ class HlsNetlistBuilder():
             willNotOverflow = self.buildNe(x, t.from_py(mask(w)))
         else:
             willNotOverflow = None
-        
+
         if willNotOverflow is None:
             return xPlus1
         else:
@@ -637,7 +636,7 @@ class HlsNetlistBuilder():
             return self.buildConcat(*resBits, operatorSpecialization=operatorSpecialization, name=name)
 
     def buildConcat(self, *lsbToMsbOps: Union[HlsNetNodeOut, HConst],
-                   
+
                     operatorSpecialization:Optional[HFloatTmpConfig]=None,
                     name:Optional[str]=None) -> HlsNetNodeOut:
         """
@@ -920,10 +919,12 @@ class HlsNetlistBuilder():
             # and the operator node becomes something which already exits
             self.operatorCache[k] = n._outputs[0]
 
+
 class HlsNetlistBuilderWithWorklist(HlsNetlistBuilder):
     """
     :class:`HlsNetlistBuilder` which automatically places new nodes into worklist
     """
+
     def __init__(self, builder: HlsNetlistBuilder, worklist: SetList[HlsNetNode]):
         # copy properties from original builder
         self.netlist = builder.netlist
@@ -933,10 +934,11 @@ class HlsNetlistBuilderWithWorklist(HlsNetlistBuilder):
         self._removedNodes = builder._removedNodes
 
         self.worklist = worklist
-    
+
     def _addNode(self, n: HlsNetNode):
         self.worklist.append(n)
         return self._addNodeOriginal(n)
+
 
 def _replaceOutPortWith1(o: HlsNetNodeOut, worklist: SetList[HlsNetNode]):
     n = o.obj
