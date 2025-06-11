@@ -1,4 +1,4 @@
-from hwt.hdl.operatorDefs import HwtOps
+from hwt.hdl.operatorDefs import HwtOps, COMPARE_OPS
 from hwtHls.architecture.analysis.nodeParentSyncNode import ArchSyncNodeTy
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -11,14 +11,24 @@ from hwtHls.netlist.scheduler.scheduler import asapSchedulePartlyScheduled, \
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
 
+_OPERATOS_POTENTIALLY_GENERATED_DURING_SYNC_OPT = {
+    HwtOps.AND,
+    HwtOps.OR,
+    HwtOps.XOR,
+    *COMPARE_OPS,
+    HwtOps.NOT,
+    HwtOps.TERNARY,
+    HwtOps.INDEX,
+    HwtOps.CONCAT}
+
+
 def setUnscheduledNodeRealizationToCombForSyncLogic(n: HlsNetNode):
     """
     This function is called for newly generated synchronization logic nodes.
     It performs an initialization required for scheduling.
     """
     assert isinstance(n, HlsNetNodeConst) or (
-    isinstance(n, HlsNetNodeOperator) and n.operator in (
-    HwtOps.AND, HwtOps.OR, HwtOps.XOR, HwtOps.EQ, HwtOps.NE, HwtOps.NOT, HwtOps.TERNARY, HwtOps.INDEX, HwtOps.CONCAT)), n
+    isinstance(n, HlsNetNodeOperator) and n.operator in _OPERATOS_POTENTIALLY_GENERATED_DURING_SYNC_OPT), n
     n.assignRealization(OpRealizationMeta(mayBeInFFStoreTime=True))
     return True
 
@@ -49,6 +59,7 @@ def scheduleUncheduledDummyAlap(out: HlsNetNodeOut, alapTime: SchedTime, allowNe
     schedOut = out.obj.scheduledOut
     if schedOut is None:
         alapSchedulePartlyScheduled(out, setUnscheduledNodeRealizationToCombForSyncLogic, alapTime, allowNewClockWindow)
+
 
 def scheduledUnscheduedDummyAsap(out: HlsNetNodeOut, beginOfFirstClk: SchedTime):
     schedOut = out.obj.scheduledOut
