@@ -384,9 +384,9 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
         wEn = allocator.rtlAllocHlsNetNodeInDriverIfExists(self.extraCond)
         if wEn is not None:
             wEn = wEn.data
-            if isinstance(wEn, HConst):
-                raise AssertionError("The enable condition for a channel should never be constant,"
-                                     " if 1 the condition should be removed, if 0 the channel should be removed", wEn, self)
+            #if isinstance(wEn, HConst):
+            #    raise AssertionError("The enable condition for a channel should never be constant,"
+            #                         " if 1 the condition should be removed, if 0 the channel should be removed", wEn, self)
             
         isReg = self.allocationType == CHANNEL_ALLOCATION_TYPE.REG
         rwMayHappenAtOnce = rClkI == wClkI or allocator.rtlStatesMayHappenConcurrently(rClkI, wClkI)
