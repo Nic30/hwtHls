@@ -7,17 +7,18 @@ from hwt.hdl.operator import HOperatorNode
 from hwt.hdl.operatorDefs import HwtOps, HOperatorDef
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF, \
     ResourceRAM
+from hwtHls.architecture.componentGenerators.componentGeneratorMemory import ComponentGeneratorMemory
 from hwtHls.architecture.componentGenerators.countBits import ComponentGeneratorBitcount, \
     CountTrailingZeros, CountLeadingZeros
 from hwtHls.architecture.componentGenerators.ctpop import Ctpop
+from hwtHls.architecture.componentGenerators.ext import ComponentGeneratorZExt, ComponentGeneratorSExt
 from hwtHls.architecture.componentGenerators.fsh import ComponentGeneratorFshl, \
     ComponentGeneratorFshr
-from hwtHls.architecture.componentGenerators.ext import ComponentGeneratorZExt, ComponentGeneratorSExt
+from hwtHls.architecture.componentGenerators.icmpNeEq import ComponentGeneratorICMP_EQ_NE
 from hwtHls.code import OP_ASHR, OP_SHL, OP_LSHR, OP_CTLZ, OP_CTPOP, OP_CTTZ, \
     OP_BITREVERSE, OP_FSHR, OP_FSHL, OP_ROL, OP_ROR
 from hwtHls.llvm.llvmIr import HFloatTmpConfig
 from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
-from hwtHls.architecture.componentGenerators.componentGeneratorMemory import ComponentGeneratorMemory
 from hwtHls.platform.debugBundleTypes import LlvmCliArgTuple
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.platform.platform import DefaultHlsPlatform, DebugId, HlsDebugBundle
@@ -170,6 +171,8 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
         _componentGenerators[MemoryAllocationMeta] = ComponentGeneratorMemory(self, genNamePrefix, "mem")
         _componentGenerators[HwtOps.ZEXT] = ComponentGeneratorZExt(self, genNamePrefix, "zext")
         _componentGenerators[HwtOps.SEXT] = ComponentGeneratorSExt(self, genNamePrefix, "sext")
+        _componentGenerators[HwtOps.EQ] = ComponentGeneratorICMP_EQ_NE(self, genNamePrefix, "eq", HwtOps.EQ)
+        _componentGenerators[HwtOps.NE] = ComponentGeneratorICMP_EQ_NE(self, genNamePrefix, "ne", HwtOps.NE)
         _componentGenerators[OP_CTLZ] = ComponentGeneratorBitcount(self, CountLeadingZeros, genNamePrefix, "ctlz")
         _componentGenerators[OP_CTTZ] = ComponentGeneratorBitcount(self, CountTrailingZeros, genNamePrefix, "cttz")
         _componentGenerators[OP_CTPOP] = ComponentGeneratorBitcount(self, Ctpop, genNamePrefix, "ctpop")
