@@ -1,7 +1,9 @@
 from typing import Sequence, Union, Callable, List, Tuple, Optional
 
+from hwt.hObjList import HObjList
 from hwt.hdl.const import HConst
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
 from hwt.mainBases import HwIOBase
@@ -38,6 +40,13 @@ class PyObjectHwSubscriptRef(PyObjectRequiresExpandBeforeUse):
         self.sequence = sequence
         self.index = index
 
+    @classmethod
+    def _getTypeOfHObj(cls, v: Union[HObjList, HConst, RtlSignal, HwIO]):
+        if isinstance(v, HObjList):
+            return cls._getTypeOfHObj(v[0])[len(v)]
+        else:
+            return v._dtype
+
     def expandOnUse(self, toSsa: "PyBytecodeToSsa",
                         offsetForLabels: int,
                         frame: PyBytecodeFrame, curBlock: BasicBlock) -> Tuple[BasicBlock, Value]:
@@ -45,7 +54,7 @@ class PyObjectHwSubscriptRef(PyObjectRequiresExpandBeforeUse):
         if res is not None:
             return curBlock, res
 
-        res = toSsa.hls.var(f"tmp_seq{offsetForLabels}", self.sequence[0]._dtype)
+        res = toSsa.hls.var(f"tmp_seq{offsetForLabels}", self._getTypeOfHObj(self.sequence[0]), arrayPartitionComplete=True)
         sucBlock = self._createSwitchCaseBlocks(
             toSsa, offsetForLabels, curBlock,
             lambda toLlvm, i, v, caseBlock: toLlvm.visit_Assignments(caseBlock, res(v))
@@ -65,14 +74,19 @@ class PyObjectHwSubscriptRef(PyObjectRequiresExpandBeforeUse):
                     inferedResultTy = None
 
         if inferedResultTy is not None:
+            muxTy = inferedResultTy if inferedResultTy.isScalar() else HBits(inferedResultTy.bit_length())
             # build a ternary expression and check types
             res = None
             for (i, v) in reversed(tuple(enumerate(self.sequence))):
                 t = getattr(v, "_dtype", None)
                 if t is None:
-                    v = inferedResultTy.from_py(v)
+                    v = muxTy.from_py(v)
                 else:
                     assert t == inferedResultTy, ("All items in sequence needs to have same type", t, inferedResultTy)
+
+                if muxTy is not inferedResultTy:
+                    # mux operates on flatened type only
+                    v = v._reinterpret_cast(muxTy)
 
                 if res is None:
                     res = v
@@ -80,6 +94,10 @@ class PyObjectHwSubscriptRef(PyObjectRequiresExpandBeforeUse):
                     res = self.index._eq(i)._ternary(v, res)
 
             assert res is not None
+            if muxTy is not inferedResultTy:
+                # undo flatening of values for mux
+                res = res._reinterpret_cast(inferedResultTy)
+
             return res
 
         return None
