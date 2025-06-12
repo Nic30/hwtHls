@@ -41,6 +41,13 @@ def _getllvmIntBitcountIntrinsicConstructor(intrinsic: Intrinsic):
     return _llvmIntBitcountIntrinsicConstructor
 
 
+def _llvmIntCtpopIntrinsicConstructor(ctx: LlvmCompilationBundle, b:IRBuilder, instr: HOperatorNode, op0:Value, name: Twine) -> Value:
+    sliceOut = instr.result._dtype.bit_length()
+    resTy = op0.getType()
+    res = b.CreateIntrinsic(resTy, Intrinsic.ctpop.value, [op0, ], Name=name)
+    return b.CreateBitRangeGetConst(res, 0, sliceOut)
+
+
 def _getllvmIntFShIntrinsicConstructor(intrinsic: Intrinsic):
 
     def _llvmIntFShIntrinsicConstructor(ctx: LlvmCompilationBundle, b:IRBuilder, instr: HOperatorNode, op0:Value, op1:Value, op2:Value, name: Twine) -> Value:

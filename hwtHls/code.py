@@ -22,8 +22,8 @@ from hwt.mainBases import RtlSignalBase
 from hwt.math import log2ceil, toPow2Ceil, AnyHValue
 from hwtHls._llvmOpDefUtils import _getllvmIntBitcountIntrinsicConstructor, \
     _getllvmIntUnaryIntrinsicConstructor, _getllvmIntBinOpConstructor, \
-    _getllvmIntFShIntrinsicConstructor, \
-    _getllvmIntBinaryIntrinsicConstructor
+    _getllvmIntFShIntrinsicConstructor, _getllvmIntBinaryIntrinsicConstructor, \
+    _llvmIntCtpopIntrinsicConstructor
 from hwtHls.frontend.hOperatorDefLlvm import HOperatorDefLlvm
 from hwtHls.llvm.llvmIr import Intrinsic
 from pyMathBitPrecise.bit_utils import mask, reverse_bits as reverse_bits_int, to_signed, \
@@ -111,7 +111,7 @@ def ctpop(v: AnyHBitsValue) -> AnyHBitsValue:
         return HOperatorNode.withRes(OP_CTPOP, (v,), resTy)
 
 
-OP_CTPOP = HOperatorDefLlvm(ctpop, _getllvmIntBitcountIntrinsicConstructor(Intrinsic.ctpop),
+OP_CTPOP = HOperatorDefLlvm(ctpop, _llvmIntCtpopIntrinsicConstructor,
                             False, idStr="OP_CTPOP")
 
 
