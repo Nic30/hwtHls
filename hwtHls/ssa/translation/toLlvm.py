@@ -193,7 +193,7 @@ class ToLlvmIrTranslator():
         else:
             varDict[var] = _newVal
 
-    def _handleVariableStoreBitVectorSlice(self, block: BasicBlock, var: RtlSignal, indexes: Union[HConst, Value], value: Value):
+    def _handleVariableStoreBitVectorSlice(self, block: BasicBlock, var: RtlSignal, indexes: tuple[Union[HConst, Value], ...], value: Value):
         assert isinstance(var._dtype, HBits), (var, var._dtype)
         _hwIO, _indexes, _sign_cast_seen = var._getIndexCascade()
         assert not _indexes, (var, "Must not be a slice of signal")
