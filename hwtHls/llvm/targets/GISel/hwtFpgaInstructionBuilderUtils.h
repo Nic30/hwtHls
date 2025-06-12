@@ -123,10 +123,11 @@ llvm::MachineInstrBuilder buildHWTFPGA_EXTRACT(llvm::MachineIRBuilder &Builder,
 CImmOrRegOrUndefWithWidth buildHWTFPGA_EXTRACT(llvm::MachineIRBuilder &Builder,
 		llvm::GISelChangeObserver &Observer, const llvm::MachineOperand &SrcValMO,
 		size_t srcWidth, size_t offset, size_t dstWidth);
+
+
 CImmOrRegOrUndefWithWidth buildHWTFPGA_MERGE_VALUES(
 		llvm::MachineIRBuilder &Builder,
-		llvm::SmallVector<hwtHls::CImmOrRegOrUndefWithWidth> &ConcatMembers);
-
+		llvm::SmallVector<hwtHls::CImmOrRegOrUndefWithWidth> &ConcatMembers, llvm::GISelChangeObserver * Observer=nullptr);
 llvm::MachineInstrBuilder buildHWTFPGA_MERGE_VALUES(
 		llvm::MachineIRBuilder &Builder, llvm::GISelChangeObserver *Observer,
 		llvm::Register DstReg,

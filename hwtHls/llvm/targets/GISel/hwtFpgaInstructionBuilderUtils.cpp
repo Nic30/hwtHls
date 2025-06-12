@@ -578,7 +578,7 @@ llvm::MachineInstrBuilder buildHWTFPGA_MERGE_VALUES(
 
 CImmOrRegOrUndefWithWidth buildHWTFPGA_MERGE_VALUES(
 		llvm::MachineIRBuilder &Builder,
-		llvm::SmallVector<hwtHls::CImmOrRegOrUndefWithWidth> &ConcatMembers//, GISelChangeObserver * Observer
+		llvm::SmallVector<hwtHls::CImmOrRegOrUndefWithWidth> &ConcatMembers, GISelChangeObserver * Observer
 		) {
 	assert(
 			ConcatMembers.size()
@@ -591,7 +591,7 @@ CImmOrRegOrUndefWithWidth buildHWTFPGA_MERGE_VALUES(
 		Register res = Builder.getMRI()->createVirtualRegister(
 				&HwtFpga::anyregclsRegClass);
 		size_t width = 0;
-		buildHWTFPGA_MERGE_VALUES(Builder, nullptr, res, ConcatMembers, &width);
+		buildHWTFPGA_MERGE_VALUES(Builder, Observer, res, ConcatMembers, &width);
 
 		return {width, res};
 	}

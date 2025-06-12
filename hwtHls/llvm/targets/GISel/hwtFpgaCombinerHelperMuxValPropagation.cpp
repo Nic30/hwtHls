@@ -149,7 +149,7 @@ bool HwtFpgaCombinerHelper::matchMuxForConstPropagation(llvm::MachineInstr &MI,
 			off == matchInfo.constBitMask.getBitWidth()
 					&& "Produced value has same  number of bits as original MUX");
 	Builder.setInstrAndDebugLoc(*afterNewMI);
-	auto res = hwtHls::buildHWTFPGA_MERGE_VALUES(Builder, ResConcatMembers);
+	auto res = hwtHls::buildHWTFPGA_MERGE_VALUES(Builder, ResConcatMembers, &Observer);
 	assert(!res.isUndef && res.c == nullptr && res.reg != 0);
 
 	return res.reg;
@@ -184,6 +184,9 @@ bool HwtFpgaCombinerHelper::rewriteMuxConstPropagation(llvm::MachineInstr &MI,
 		auto res = _rewriteMuxConstPropagationExpandReducedBits(*MIB.getInstr(),
 				matchInfo, usedBitsVec);
 		MIB.addUse(res);
+		// problem is that there may be MERGE_VALUES newly created after new HWTFPGA_MUX so we have to move it just before MI
+		// if the replacement value was not from a single register
+		MIB.getInstr()->moveBefore(&MI);
 		Observer.changedInstr(*MIB.getInstr());
 
 	} else {
@@ -231,7 +234,7 @@ bool HwtFpgaCombinerHelper::rewriteMuxConstPropagation(llvm::MachineInstr &MI,
 					keepMask.getBitWidth());
 			assert(OperandValConcatMembers.size());
 			newMuxValOperand = buildHWTFPGA_MERGE_VALUES(Builder,
-					OperandValConcatMembers);
+					OperandValConcatMembers, &Observer);
 			newMuxOperands.push_back(newMuxValOperand);
 
 			++OpIt;
