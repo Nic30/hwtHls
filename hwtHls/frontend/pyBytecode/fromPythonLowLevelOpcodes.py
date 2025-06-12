@@ -5,6 +5,7 @@ import operator
 from types import FunctionType, CellType, MethodType
 from typing import Callable, Dict, Union, Optional
 
+from hwt.hObjList import HObjList
 from hwt.hdl.const import HConst
 from hwt.hdl.operator import HOperatorNode
 from hwt.hdl.operatorDefs import HwtOps
@@ -14,6 +15,7 @@ from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.sliceUtils import slice_to_HSlice
 from hwt.hdl.types.typeCast import toHVal
 from hwt.hwIO import HwIO
+from hwt.hwIOs.hwIOStruct import HwIOStruct
 from hwt.hwIOs.std import HwIOSignal
 from hwt.mainBases import HwIOBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
@@ -487,9 +489,22 @@ class PyBytecodeToSsaLowLevelOpcodes():
         srcIsRead = isinstance(src, HlsRead)
         if isinstance(src, Value) and not srcIsRead:
             if isinstance(dst, HwIOBase):
+                if isinstance(dst, HwIOStruct):
+                    # HwIOStruct is special case because it may be stored as a flat vector and intrpreted as structured type only in frontend
+                    w = src.getType().getIntegerBitWidth()
+                    assert w == dst._dtype.bit_length(), (src, dst, w, dst._dtype.bit_length(), dst._dtype)
+                    off = 0
+                    b: IRBuilder = toLlvm.b
+                    for memberHwIo in dst._hwIOs:
+                        w = memberHwIo._dtype.bit_length()
+                        memberSrc = b.CreateBitRangeGetConst(src, off, w)
+                        curBlock = self._storeToHwSignal(curBlock, memberHwIo, memberSrc)
+                        off += w
+                    return curBlock
+
                 dst = dst._sig
 
-            self.toLlvm._variableInBlock_insertRedef(curBlock, dst, (), src)
+            toLlvm._variableInBlock_insertRedef(curBlock, dst, (), src)
             return curBlock
         else:
             _src = src.data if srcIsRead else src
@@ -882,19 +897,23 @@ class PyBytecodeToSsaLowLevelOpcodes():
             # a dictionary of keyword-only parameters’ default values
             raise NotImplementedError()
 
-        if instr.arg & (1 << 2):
-            # a tuple of strings containing parameters’ annotations
-            # Changed in version 3.10: Flag value 0x04 is a tuple of strings instead of dictionary
-            raise NotImplementedError()
-
         if instr.arg & (1 << 3):
             closure = stack.pop()
         else:
             closure = ()
 
+        if instr.arg & (1 << 2):
+            # a tuple of strings containing parameters’ annotations
+            # Changed in version 3.10: Flag value 0x04 is a tuple of strings instead of dictionary
+            annotations = stack.pop()
+        else:
+            annotations = None
+
         # PyCodeObject *code, PyObject *globals,
         # PyObject *name, PyObject *defaults, PyObject *closure
         newFn = FunctionType(code, frame.fn.__globals__, code.co_qualname, defaults, closure)
+        if annotations is not None:
+            newFn.__dict__["__annotations__"] = annotations
         stack.append(newFn)
         return curBlock
 
@@ -938,6 +957,10 @@ class PyBytecodeToSsaLowLevelOpcodes():
 
         elif isinstance(value, HlsRead):
             self.toLlvm.visit_Read(curBlock, value)
+
+        elif isinstance(container, HObjList):
+            curItem = container[key]
+            return self._storeToHwSignal(curBlock, curItem, value)
 
         operator.setitem(container, key, value)
         # stack.append()
