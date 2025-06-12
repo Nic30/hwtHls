@@ -8,7 +8,6 @@ from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlRes
 from hwtHls.io.bram import HlsNetNodeWriteBramCmd, HlsNetNodeReadBramData
 from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
 from hwtHls.netlist.nodes.readIndexed import HlsNetNodeReadIndexed
-from hwtHls.netlist.debugTracer import DebugTracer
 
 
 class HlsNetNodeWriteMemoryAllocationCmd(HlsNetNodeWriteBramCmd):
@@ -19,11 +18,12 @@ class HlsNetNodeWriteMemoryAllocationCmd(HlsNetNodeWriteBramCmd):
     """
 
     def __init__(self, netlist:"HlsNetlistCtx",
-                 src:MemoryAllocationMeta,
+                 src: MemoryAllocationMeta,
                  cmd: Literal[READ, WRITE],
                  dtype: HdlType,
                  mayBecomeFlushable=True,
                  name:Optional[str]=None):
+        assert isinstance(src, MemoryAllocationMeta), src
         HlsNetNodeWriteBramCmd.__init__(self, netlist, src, cmd,
                                         dtype=dtype,
                                         hasR=cmd is READ,
