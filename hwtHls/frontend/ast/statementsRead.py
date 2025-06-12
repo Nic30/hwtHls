@@ -42,9 +42,10 @@ def _copySliceNamesToFlattenedSignal(flatSig: HBitsRtlSignal, t: HdlType, name: 
                 offset = _copySliceNamesToFlattenedSignal(flatSig, fTy, newName, offset)
 
     elif isinstance(t, HArray):
+        elmTy = t.element_t
         for i in range(t.size):
             newName = f"{name:s}_{i:d}"
-            offset = _copySliceNamesToFlattenedSignal(flatSig, fTy, newName, offset)
+            offset = _copySliceNamesToFlattenedSignal(flatSig, elmTy, newName, offset)
     else:
         w = t.bit_length()
         cur = flatSig[offset + w: offset]
@@ -190,7 +191,7 @@ class HlsRead(HdlStatement):
         else:
             assert expectedWidth == dtype.bit_length(), ("Width of physical signals of IO must be what is expected from LLVM MIR", instrDstReg, expectedWidth, dtype)
 
-        if isinstance(dtype, HBits) and dtype.signed is not None:
+        if (isinstance(dtype, HBits) and dtype.signed is not None) or not dtype.isScalar():
             dtype = HBits(dtype.bit_length())
 
         n = HlsNetNodeRead(netlist,
