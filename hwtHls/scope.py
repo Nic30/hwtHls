@@ -111,7 +111,7 @@ class HlsScope():
             return self._sig(name, dtype)
 
     @hlsLowLevel
-    def read(self, src: ANY_HLS_COMPATIBLE_IO, blocking:bool=True, isVolatile:bool=True) -> HlsRead:
+    def read(self, src: ANY_HLS_COMPATIBLE_IO, blocking:bool=True, isVolatile:bool=True, dtype: Optional[HdlType]=None) -> HlsRead:
         """
         Create a read statement for simple interfaces.
         :param volatile: if true the read has side-effect and must be performed in original code order
@@ -119,56 +119,58 @@ class HlsScope():
         _src = src
         src = getFirstInterfaceInstance(src)
 
-        if isinstance(src, (HwIODataRdVld, HwIOStructRdVld, HwIORdVldSync, Axi_hs)):
-            if len(src._hwIOs) == 3 and hasattr(src, "data"):
-                dtype = getattr(src.data, "_dtype", None)
-                if dtype is None:
-                    dtype = HwIO_to_HdlType().apply(src.data, exclude=(src.vld,))
-
-            else:
-                if isinstance(src, Axi_hs):
-                    exclude = (src.ready, src.valid)
-                else:
-                    exclude = (src.rd, src.vld)
-                dtype = HwIO_to_HdlType().apply(src, exclude=exclude)
-
-        elif isinstance(src, HwIODataVld):
-            if len(src._hwIOs) == 2 and hasattr(src, "data"):
-                dtype = getattr(src.data, "_dtype", None)
-                if dtype is None:
-                    dtype = HwIO_to_HdlType().apply(src.data, exclude=(src.vld,))
-
-            else:
-                dtype = HwIO_to_HdlType().apply(src, exclude=(src.vld,))
-
-        elif isinstance(src, HwIODataRd):
-            if len(src._hwIOs) == 2 and hasattr(src, "data"):
-                dtype = getattr(src.data, "_dtype", None)
-                if dtype is None:
-                    dtype = HwIO_to_HdlType().apply(src.data, exclude=(src.vld,))
-
-            else:
-                dtype = HwIO_to_HdlType().apply(src, exclude=(src.rd,))
-
-        elif isinstance(src, RtlSignal):
-            assert src._rtlCtx is not self._rtlCtx, ("Read should be used only for IO, it is not required for HLS variables")
-            dtype = src._dtype
-
-        elif isinstance(src, (HwIOSignal, HwIOStruct)):
-            dtype = src._dtype
-
-        elif isinstance(src, PyObjectHwSubscriptRef):
+        if isinstance(src, PyObjectHwSubscriptRef):
             src: PyObjectHwSubscriptRef
             assert isinstance(src.sequence, IoProxyAddressed), src.sequence
             mem: IoProxyAddressed = src.sequence
+            if dtype is not None and dtype != mem.rWordT:
+                raise NotImplementedError()
             return mem.READ_CLS(mem, self, mem.interface, src.index, mem.rWordT, blocking, isVolatile=isVolatile)
+        if dtype is None:
+            if isinstance(src, (HwIODataRdVld, HwIOStructRdVld, HwIORdVldSync, Axi_hs)):
+                if len(src._hwIOs) == 3 and hasattr(src, "data"):
+                    dtype = getattr(src.data, "_dtype", None)
+                    if dtype is None:
+                        dtype = HwIO_to_HdlType().apply(src.data, exclude=(src.vld,))
 
-        else:
-            raise NotImplementedError(src)
+                else:
+                    if isinstance(src, Axi_hs):
+                        exclude = (src.ready, src.valid)
+                    else:
+                        exclude = (src.rd, src.vld)
+                    dtype = HwIO_to_HdlType().apply(src, exclude=exclude)
 
-        if dtype.bit_length() == 0:
-            # if there is no data, the dtype will be empty struct
-            dtype = HVoidExternData
+            elif isinstance(src, HwIODataVld):
+                if len(src._hwIOs) == 2 and hasattr(src, "data"):
+                    dtype = getattr(src.data, "_dtype", None)
+                    if dtype is None:
+                        dtype = HwIO_to_HdlType().apply(src.data, exclude=(src.vld,))
+
+                else:
+                    dtype = HwIO_to_HdlType().apply(src, exclude=(src.vld,))
+
+            elif isinstance(src, HwIODataRd):
+                if len(src._hwIOs) == 2 and hasattr(src, "data"):
+                    dtype = getattr(src.data, "_dtype", None)
+                    if dtype is None:
+                        dtype = HwIO_to_HdlType().apply(src.data, exclude=(src.vld,))
+
+                else:
+                    dtype = HwIO_to_HdlType().apply(src, exclude=(src.rd,))
+
+            elif isinstance(src, RtlSignal):
+                assert src._rtlCtx is not self._rtlCtx, ("Read should be used only for IO, it is not required for HLS variables")
+                dtype = src._dtype
+
+            elif isinstance(src, (HwIOSignal, HwIOStruct)):
+                dtype = src._dtype
+
+            else:
+                raise NotImplementedError(src)
+
+            if dtype.bit_length() == 0:
+                # if there is no data, the dtype will be empty struct
+                dtype = HVoidExternData
 
         if isinstance(_src, HwIO):
             assert _src._direction != INTF_DIRECTION.SLAVE, (_src, "Can not read from output")
