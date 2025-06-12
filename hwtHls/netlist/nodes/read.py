@@ -72,6 +72,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             #    raise NotImplementedError("Reading of 1b vector would cause issues"
             #                              " with missing auto casts when with other operands without force_vector", d, src)
         assert not isinstance(dtype, HBits) or dtype.signed is None, dtype
+        assert dtype.isScalar(), dtype
         if addPortDataOut:
             self._portDataOut = self._addOutput(dtype, "dataOut")
 
