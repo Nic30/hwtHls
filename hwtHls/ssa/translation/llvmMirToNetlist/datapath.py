@@ -43,7 +43,6 @@ from hwtHls.ssa.translation.llvmMirToNetlist.utils import LiveInMuxMeta, \
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from tests.math.hFloatTmp.hFloatTmpCast import OP_CAST_HFLOATTMP_TO_HFLOATTMP
 
-
 BlockLiveInMuxSyncDict = Dict[Tuple[MachineBasicBlock, MachineBasicBlock, Register], HlsNetNodeExplicitSync]
 
 
@@ -194,6 +193,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
 
             elif opc == TargetOpcode.HWTFPGA_MUX:
                 resT = ops[0]._dtype
+                assert isinstance(resT, HBits), instr
                 argCnt = len(ops)
                 if argCnt == 1:
                     valCache.add(mb, dst, ops[0], True)
@@ -263,7 +263,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 if isinstance(dstIo, MemoryAllocationMeta):
                     w = HlsNetNodeWriteMemoryAllocationCmd(
                         builder.netlist,
-                        srcIo, WRITE,
+                        dstIo, WRITE,
                         HBits(width),
                         mayBecomeFlushable=False, name=name)
                     # w = HlsNetNodeWriteMemoryAllocation(builder.netlist, dstIo, mayBecomeFlushable=False, name=name)
