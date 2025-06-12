@@ -2,6 +2,7 @@ from collections import OrderedDict
 from typing import Dict, Union, Tuple, List
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
+from hwt.constants import READ
 from hwt.hwIO import HwIO
 from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.transformation.hlsArchPass import HlsArchPass
@@ -16,6 +17,7 @@ from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
+from hwtHls.netlist.nodes.memoryAllocationMetaNode import HlsNetNodeWriteMemoryAllocationCmd
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
@@ -95,6 +97,8 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
 
                 else:
                     assert isinstance(n, HlsNetNodeWrite)
+                    assert not isinstance(n, HlsNetNodeWriteMemoryAllocationCmd) and n.cmd == READ, n
+                    assert n._portSrc is not None, n
                     t = n.dependsOn[n._portSrc.in_i]._dtype
                     #if n._rtlUseReady and n._rtlUseValid:
                     n: HlsNetNodeRead
