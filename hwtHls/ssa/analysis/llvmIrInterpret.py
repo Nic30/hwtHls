@@ -318,6 +318,7 @@ class LlvmIrInterpret():
             if not isinstance(v, HConst):
                 v = regs[v]
             ops.append(v)
+
         return ops
 
     def _decodeOpcode_Load(self, _, bb: BasicBlock, instr: Instruction) -> LlvmIrInstrFunction:
@@ -481,7 +482,7 @@ class LlvmIrInterpret():
                 if waveLog is not None:
                     waveLog.logChange(nowTime, simTimeLabel, nowTime, None)
                     waveLog.logChange(nowTime, simCodelineLabel, instr, None)
-                
+
                 nextBb = instrDecoded(waveLog, nowTime, regs)
                 if wallTime is not None and nowTime >= wallTime:
                     raise StopSimumulation()
@@ -489,7 +490,7 @@ class LlvmIrInterpret():
                     bb = nextBb
                     bbDecoded = decodedBlocks[nextBb]
                     break
-    
+
     @staticmethod
     def _initGlobalsFromIr(M: Module, regs: dict[Instruction, HConst]):
         for gv in M.globals():
