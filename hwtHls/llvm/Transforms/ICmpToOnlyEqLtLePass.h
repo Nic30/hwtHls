@@ -17,7 +17,7 @@ namespace hwtHls {
 class ICmpToOnlyEqLtLePass: public llvm::PassInfoMixin<ICmpToOnlyEqLtLePass> {
 	bool rangeCmpWithoutAdd;
 	llvm::Value* _tryRewriteRangeCheckTo2xCmp(
-			llvm::IRBuilder<llvm::TargetFolder> &Builder, llvm::ICmpInst &CMP);
+			llvm::IRBuilderBase &Builder, llvm::ICmpInst &CMP);
 public:
 	ICmpToOnlyEqLtLePass(bool rangeCmpWithoutAdd = true) :
 			rangeCmpWithoutAdd(rangeCmpWithoutAdd) {

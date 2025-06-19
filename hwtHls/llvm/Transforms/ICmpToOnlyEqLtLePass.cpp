@@ -3,7 +3,7 @@
 #include <llvm/Analysis/AliasAnalysis.h>
 #include <llvm/Analysis/BasicAliasAnalysis.h>
 #include <llvm/Analysis/GlobalsModRef.h>
-#include <llvm/Analysis/TargetFolder.h>
+#include <llvm/Analysis/InstSimplifyFolder.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/PatternMatch.h>
 #include <algorithm>
@@ -15,7 +15,7 @@ using namespace llvm::PatternMatch;
 namespace hwtHls {
 
 Value* ICmpToOnlyEqLtLePass::_tryRewriteRangeCheckTo2xCmp(
-		IRBuilder<TargetFolder> &Builder, ICmpInst &CMP) {
+		IRBuilderBase &Builder, ICmpInst &CMP) {
 	Value *LHS = CMP.getOperand(0);
 	Value *RHS = CMP.getOperand(1);
 	using Pred = ICmpInst::Predicate;
@@ -44,7 +44,8 @@ PreservedAnalyses ICmpToOnlyEqLtLePass::run(llvm::Function &F,
 		llvm::FunctionAnalysisManager &AM) {
 	std::vector<Instruction*> toRemove;
 	auto &DL = F.getParent()->getDataLayout();
-	IRBuilder<TargetFolder> Builder(F.getContext(), TargetFolder(DL));
+	IRBuilder<InstSimplifyFolder> Builder(F.getContext(),
+			InstSimplifyFolder(DL));
 	for (BasicBlock &BB : F) {
 		for (Instruction &I : BB) {
 			if (auto *CMP = dyn_cast<ICmpInst>(&I)) {
