@@ -29,7 +29,7 @@ from hwtHls.ssa.analysis.llvmIrInterpretInt import _decodeOpcode_ICmpInst, \
     _opcode_Intrinsic_uadd_sat, _opcode_Intrinsic_sadd_sat, \
     _opcode_Intrinsic_ssub_sat
 from hwtHls.ssa.analysis.llvmIrInterpretJump import _decodeOpcode_Br, \
-    _decodeOpcode_Switch
+    _decodeOpcode_Switch, _decodeOpcode_RetInst
 from hwtHls.ssa.analysis.llvmIrInterpretMem import _decodeOpcode_GetElementPtr, \
     _decodeOpcode_Freeze, _decodeOpcode_Alloca, _getItemFromLocalPointer
 from hwtHls.ssa.analysis.llvmIrInterpretStreamIo import LlvmIrInterpretStreamIo
@@ -92,6 +92,7 @@ class LlvmIrInterpret():
         Instruction.FNeg.value: _decodeOpcode_FNeg,
         Instruction.Br.value: _decodeOpcode_Br,
         Instruction.Switch.value: _decodeOpcode_Switch,
+        Instruction.Ret.value: _decodeOpcode_RetInst,
         **{opcode.value: _decodeOpcode_CastInst
            for opcode in (Instruction.CastOps.BitCast,
                           Instruction.CastOps.Trunc,

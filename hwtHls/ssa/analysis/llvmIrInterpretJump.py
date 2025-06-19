@@ -6,6 +6,7 @@ from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.pyUtils.arrayQuery import grouper
 from hwtHls.llvm.llvmIr import BasicBlock, Instruction, InstructionToBranchInst, ValueToBasicBlock, InstructionToSwitchInst
 from hwtHls.ssa.analysis.llvmIrInterpretUtils import LlvmIrInstrFunction
+from hwtSimApi.triggers import StopSimumulation
 from pyDigitalWaveTools.vcd.writer import VcdWriter
 
 
@@ -90,3 +91,11 @@ def _decodeOpcode_Switch(interpret: "LlvmIrInterpret", bb: BasicBlock, instr: In
         return nextBB
 
     return _opcode_SwitchInst
+
+
+def _decodeOpcode_RetInst(interpret: "LlvmIrInterpret", bb: BasicBlock, instr: Instruction) -> LlvmIrInstrFunction:
+
+    def _opcode_RetInst(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
+        raise StopSimumulation()
+
+    return _opcode_RetInst
