@@ -1,5 +1,6 @@
 from hwt.hdl.operatorDefs import COMPARE_OPS, BITWISE_OPS, \
-    ALWAYS_COMMUTATIVE_OPS, ALWAYS_ASSOCIATIVE_COMMUTATIVE_OPS, CMP_OP_SWAP
+    ALWAYS_COMMUTATIVE_OPS, ALWAYS_ASSOCIATIVE_COMMUTATIVE_OPS, CMP_OP_SWAP,\
+    HwtOps
 from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
@@ -7,7 +8,9 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOperatorNodeWith
 
-BINARY_OPS_WITH_SWAPABLE_OPERANDS = {*BITWISE_OPS, *COMPARE_OPS, *ALWAYS_COMMUTATIVE_OPS}
+BINARY_OPS_WITH_SWAPABLE_OPERANDS = {*[o for o in BITWISE_OPS if o is not HwtOps.NOT],
+                                     *COMPARE_OPS,
+                                     *ALWAYS_COMMUTATIVE_OPS}
 
 
 def netlistNormalizeConstToRhs(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]) -> bool:
