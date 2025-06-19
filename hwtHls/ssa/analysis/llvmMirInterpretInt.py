@@ -1,10 +1,12 @@
 from itertools import islice
+from typing import Callable
 
 from hwt.code import Concat
 from hwt.constants import NOT_SPECIFIED
 from hwt.hdl.const import HConst
 from hwt.hdl.operatorDefs import HOperatorDef
 from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.defs import INT, SLICE
 from hwt.math import log2ceil
 from hwt.pyUtils.arrayQuery import grouper
@@ -12,7 +14,6 @@ from hwtHls.code import zext
 from hwtHls.llvm.llvmIr import MachineRegisterInfo, MachineInstr
 from hwtHls.ssa.analysis.llvmMirInterpretUtils import LlvmMirInstrFunction
 from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
-from pyMathBitPrecise.bit_utils import mask
 
 
 def _decodeOpcode_HWTFPGA_EXTRACT(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
@@ -628,6 +629,41 @@ def makeDecode_arithmeticBin(opDef: HOperatorDef):
             if src1._dtype.signed is not None:
                 src1 = src1._cast_sign(None)
             res = evalFn(src0, src1)
+            regs[dst] = res
+
+        return _opcode_arithmetic
+
+    return _decodeOpcode_arithmetic
+
+
+def makeDecode_AddSubSatBin(evalFn: Callable[[HBitsConst, HBitsConst], HBitsConst]):
+
+    def _decodeOpcode_arithmetic(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
+        try:
+            dst, _src0, _src1 = interpret._decodeInstArguments(MRI, instr, instr.operands())
+        except:
+            raise AssertionError("Instruction operands in invalid format or this is not binary arithmetic instruction", instr)
+        src0IsConst = isinstance(_src0, HConst)
+        src1IsConst = isinstance(_src1, HConst)
+
+        def _opcode_arithmetic(nowTime: int, regs: list[HConst]):
+            if src0IsConst:
+                src0 = _src0
+            else:
+                src0 = regs[_src0]
+                assert isinstance(src0, HConst), (instr, _src0, src0)
+
+            if src1IsConst:
+                src1 = _src1
+            else:
+                src1 = regs[_src1]
+                assert isinstance(src1, HConst), (instr, _src1, src1)
+
+            if src0._dtype.signed is not None:
+                src0 = src0._cast_sign(None)
+            if src1._dtype.signed is not None:
+                src1 = src1._cast_sign(None)
+            res = evalFn((src0, src1))
             regs[dst] = res
 
         return _opcode_arithmetic

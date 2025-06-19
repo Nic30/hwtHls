@@ -17,7 +17,7 @@ from hwtHls.ssa.analysis.llvmMirInterpretInt import _decodeOpcode_HWTFPGA_EXTRAC
     _decodeOpcode_HWTFPGA_MUX, _decodeOpcode_G_SELECT, \
     _decodeOpcode_COPY, _decodeOpcode_G_ICMP, \
     _decodeOpcode_G_TRUNC, _decodeOpcode_G_ZEXT, _decodeOpcode_G_SEXT, \
-    _makeMinMaxDecoder
+    _makeMinMaxDecoder, makeDecode_AddSubSatBin
 from hwtHls.ssa.analysis.llvmMirInterpretJump import _decodeOpcode_BR, \
     _decodeOpcode_BRCOND, _decodeOpcode_HWTFPGA_RET
 from hwtHls.ssa.analysis.llvmMirInterpretMem import _decodeOpcode_HWTFPGA_ARG_GET, \
@@ -36,6 +36,9 @@ from hwtSimApi.triggers import StopSimumulation
 from pyDigitalWaveTools.vcd.common import VCD_SIG_TYPE
 from pyDigitalWaveTools.vcd.value_format import VcdBitsFormatter
 from pyDigitalWaveTools.vcd.writer import VcdWriter
+from hwtHls.ssa.analysis.llvmIrInterpretInt import _opcode_Intrinsic_usub_sat, \
+    _opcode_Intrinsic_uadd_sat, _opcode_Intrinsic_sadd_sat, \
+    _opcode_Intrinsic_ssub_sat
 
 
 class LlvmMirInterpret():
@@ -81,6 +84,10 @@ class LlvmMirInterpret():
         TargetOpcode.G_UMAX.value: _makeMinMaxDecoder(HwtOps.UGT),
         TargetOpcode.G_SMIN.value: _makeMinMaxDecoder(HwtOps.SLT),
         TargetOpcode.G_SMAX.value: _makeMinMaxDecoder(HwtOps.SGT),
+        TargetOpcode.G_UADDSAT.value: makeDecode_AddSubSatBin(_opcode_Intrinsic_uadd_sat),
+        TargetOpcode.G_USUBSAT.value: makeDecode_AddSubSatBin(_opcode_Intrinsic_usub_sat),
+        TargetOpcode.G_SADDSAT.value: makeDecode_AddSubSatBin(_opcode_Intrinsic_sadd_sat),
+        TargetOpcode.G_SSUBSAT.value: makeDecode_AddSubSatBin(_opcode_Intrinsic_ssub_sat),
         TargetOpcode.G_PTR_ADD.value: _decodeOpcode_G_PTR_ADD,
         **{
             opc.value: _makeDecodeOpcodeFunction(opc, op)
