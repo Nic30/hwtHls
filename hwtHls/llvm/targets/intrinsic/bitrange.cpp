@@ -26,6 +26,12 @@ llvm::Value* CreateBitRangeGetConst(llvm::IRBuilderBase *Builder,
 	return CreateBitRangeGet(Builder, bitVec, _lowBitNo, bitWidth, Name);
 }
 
+llvm::Value* CreateBitRangeGetMsb(llvm::IRBuilderBase *Builder,
+		llvm::Value *bitVec, const llvm::Twine &Name) {
+	return CreateBitRangeGetConst(Builder, bitVec,
+			bitVec->getType()->getIntegerBitWidth() - 1, 1, Name);
+}
+
 llvm::Value* SearchBitRangeGetConst(Instruction *bitVec, size_t lowBitNo,
 		size_t bitWidth) {
 	size_t indexWidth = log2ceil(bitVec->getType()->getIntegerBitWidth()) + 1;

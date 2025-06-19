@@ -15,6 +15,8 @@ llvm::Value* SearchBitRangeGetConst(llvm::Instruction *bitVec, size_t lowBitNo,
 		size_t bitWidth);
 llvm::Value* CreateBitRangeGetConst(llvm::IRBuilderBase *Builder,
 		llvm::Value *bitVec, size_t lowBitNo, size_t bitWidth, const llvm::Twine &Name = "");
+llvm::Value* CreateBitRangeGetMsb(llvm::IRBuilderBase *Builder,
+		llvm::Value *bitVec, const llvm::Twine &Name = "");
 
 // lowBitNo must be constant and must be added into the name of function so variants with different lowBitNo will not get merged to a single instruction
 llvm::Value* CreateBitRangeGet(llvm::IRBuilderBase *Builder, llvm::Value *bitVec,
