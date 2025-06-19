@@ -14,8 +14,6 @@ from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregatePortOut, \
     HlsNetNodeAggregate
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.fsmStateEn import HlsNetNodeStageAck
-from hwtHls.netlist.nodes.fsmStateWrite import HlsNetNodeFsmStateWrite
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
@@ -174,7 +172,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
 
                 if o in _DENORMALIZED_CMP_OPS and netlistCmpNormalize(n, worklist):
                     return True
-                
+
                 if o in COMPARE_OPS:
                     if o in (HwtOps.EQ, HwtOps.NE):
                         if netlistReduceEqNe(n, worklist):
