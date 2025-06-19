@@ -25,7 +25,9 @@ from hwtHls.ssa.analysis.llvmIrInterpretFP import _decodeIntrinsic_fp_castToHFlo
     _decodeIntrinsic_fp_binOp_floatInt
 from hwtHls.ssa.analysis.llvmIrInterpretInt import _decodeOpcode_ICmpInst, \
     _decodeOpcode_SelectInst, _makeDecodeOpcodeFunction_BinaryOperator, \
-    _decodeOpcode_CastInst
+    _decodeOpcode_CastInst, _opcode_Intrinsic_usub_sat, \
+    _opcode_Intrinsic_uadd_sat, _opcode_Intrinsic_sadd_sat, \
+    _opcode_Intrinsic_ssub_sat
 from hwtHls.ssa.analysis.llvmIrInterpretJump import _decodeOpcode_Br, \
     _decodeOpcode_Switch
 from hwtHls.ssa.analysis.llvmIrInterpretMem import _decodeOpcode_GetElementPtr, \
@@ -44,7 +46,6 @@ from pyMathBitPrecise.bit_utils import to_unsigned
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 from tests.math.hFloatTmp.hFloatTmpConst import HFloatTmpConst
 from tests.math.hFloatTmp.hFloatTmpOps import fpowi, fpow
-
 
 LlvmIrInterpretArgs = tuple[Generator[Union[int, HConst], None, None], list[HConst], ...]
 
@@ -73,6 +74,11 @@ class LlvmIrInterpret():
         Intrinsic.fshr: lambda ops: fshr(*ops),
         Intrinsic.powi: lambda ops: fpowi(*ops),
         Intrinsic.pow: lambda ops: fpow(*ops),
+        Intrinsic.usub_sat: _opcode_Intrinsic_usub_sat,
+        Intrinsic.uadd_sat: _opcode_Intrinsic_uadd_sat,
+        Intrinsic.sadd_sat: _opcode_Intrinsic_sadd_sat,
+        Intrinsic.ssub_sat: _opcode_Intrinsic_ssub_sat,
+
     }
     RE_FP_INTRINSIC_ID = re.compile(r"(hwtHls\.fp\.(unspecialized\.)?([a-zA-Z_]+)\.)")
     _dispatchDict1: dict[int, Callable] = {

@@ -3,6 +3,7 @@ from typing import Optional, Callable
 from hwt.code import Concat
 from hwt.hdl.const import HConst
 from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.bitsConst import HBitsConst
 from hwtHls.llvm.llvmIr import Instruction, BasicBlock, InstructionToICmpInst, \
     InstructionToCastInst, InstructionToSelectInst, InstructionToBinaryOperator, BinaryOperator, \
     CastInst
@@ -181,3 +182,54 @@ def _makeDecodeOpcodeFunction_BinaryOperator(fn: Callable[[HConst, HConst], HCon
         return _opcode_BinaryOperator
 
     return _decodeOpcode_BinaryOperator
+
+
+def _opcode_Intrinsic_uadd_sat(ops: tuple[HBitsConst, HBitsConst]):
+    a, b = ops
+    s = a + b
+    if s < a:
+        return a
+    else:
+        return s
+
+
+def _opcode_Intrinsic_usub_sat(ops: tuple[HBitsConst, HBitsConst]):
+    a, b = ops
+    if a < b:
+        return a._dtype.from_py(0)
+    else:
+        return a - b
+
+
+def _opcode_Intrinsic_sadd_sat(ops: tuple[HBitsConst, HBitsConst]):
+    a, b = ops
+    a = a._signed()
+    b = b._signed()
+    # https://stackoverflow.com/a/17582366
+    intMin, intMax = a._dtype.get_domain_range()
+    if a > 0:
+        _intMax = a._dtype.from_py(intMax)
+        if b > _intMax - a:  # if b > than distance of a to max
+            return _intMax._vec()
+    else:
+        _intMin = a._dtype.from_py(intMin)
+        if b < _intMin - a:  # if b < than distance of a to min
+            return _intMin._vec()
+
+    return (a + b)._vec()
+
+
+def _opcode_Intrinsic_ssub_sat(ops: tuple[HBitsConst, HBitsConst]):
+    a, b = ops
+    a = a._signed()
+    b = b._signed()
+    intMin, intMax = a._dtype.get_domain_range()
+    res = a - b
+    if a >= 0:
+        if b < 0 and res < 0:
+            return a._dtype.from_py(intMax)._vec()
+    else:
+        if b > 0 and res > 0:
+            return a._dtype.from_py(intMin)._vec()
+
+    return res._vec()
