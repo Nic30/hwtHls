@@ -40,6 +40,9 @@ struct UniqRangeSequence {
 	unsigned width;
 	const KnownBitRangeInfo *v0;
 	const KnownBitRangeInfo *v1;
+
+	void print(llvm::raw_ostream &O, bool IsForDebug = false) const;
+	void dump() const;
 };
 
 class RangeSequenceIterator {
@@ -75,7 +78,10 @@ public:
 	std::vector<KnownBitRangeInfo> replacements;
 
 	// mask for each operand which is used to prune some bits from operand value
-	// [todo] this is used only for compares, check if it is required
+	// :note: this is used only for compares, this is required because
+	//   each operand have a different use mask in each cmp and this property is only
+	//   way how to store this CmpInst private information
+	// [todo] there are 2 same items in operandUseMask for CmpInst
 	std::vector<llvm::APInt> operandUseMask;
 
 	VarBitConstraint(unsigned bitWidth);
@@ -143,6 +149,12 @@ inline llvm::raw_ostream& operator<<(llvm::raw_ostream &OS,
 
 inline llvm::raw_ostream& operator<<(llvm::raw_ostream &OS,
 		const hwtHls::VarBitConstraint &V) {
+	V.print(OS);
+	return OS;
+}
+
+inline llvm::raw_ostream& operator<<(llvm::raw_ostream &OS,
+		const hwtHls::UniqRangeSequence &V) {
 	V.print(OS);
 	return OS;
 }

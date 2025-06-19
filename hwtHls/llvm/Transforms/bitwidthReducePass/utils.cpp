@@ -18,8 +18,8 @@ KnownBitRangeInfo::KnownBitRangeInfo(const ConstantInt *CI) :
 		dstBeginBitI(0), srcBeginBitI(0), width(CI->getBitWidth()), src(CI) {
 }
 KnownBitRangeInfo::KnownBitRangeInfo(const Value *V) :
-		dstBeginBitI(0), srcBeginBitI(0), width(
-				getIntegerBitWidthOr1(V)), src(V) {
+		dstBeginBitI(0), srcBeginBitI(0), width(getIntegerBitWidthOr1(V)), src(
+				V) {
 }
 
 KnownBitRangeInfo::KnownBitRangeInfo(const OffsetWidthValue &owv,
@@ -44,8 +44,7 @@ KnownBitRangeInfo KnownBitRangeInfo::slice(unsigned offset,
 	assert(offset < 0xffffff && width < 0xffffff && "Sanity check");
 	assert(width > 0);
 	assert(
-			srcBeginBitI + offset + width
-					<= getIntegerBitWidthOr1(src)
+			srcBeginBitI + offset + width <= getIntegerBitWidthOr1(src)
 					&& "Bit range does not overflow");
 	KnownBitRangeInfo res(width);
 	if (auto *CI = dyn_cast<const ConstantInt>(src)) {
@@ -86,6 +85,24 @@ bool KnownBitRangeInfo::operator!=(const KnownBitRangeInfo &rhs) const {
 bool KnownBitRangeInfo::operator==(const KnownBitRangeInfo &rhs) const {
 	return (dstBeginBitI == rhs.dstBeginBitI && srcBeginBitI == rhs.srcBeginBitI
 			&& width == rhs.width && src == rhs.src);
+}
+
+void UniqRangeSequence::print(llvm::raw_ostream &O, bool IsForDebug) const {
+	O << "<UniqRangeSequence begin:" << begin << ", width:" << width << " [";
+	if (v0) {
+		O << *v0 << ", ";
+	} else {
+		O << "nullptr, ";
+	}
+	if (v1) {
+		O << *v1 << "]>";
+	} else {
+		O << "nullptr]>";
+	}
+}
+
+void UniqRangeSequence::dump() const {
+	print(dbgs());
 }
 
 void RangeSequenceIterator::appendNoCheck(
@@ -293,8 +310,7 @@ bool VarBitConstraint::_valuesHaveSameMeaning(const llvm::Value *V1) const {
 bool VarBitConstraint::valuesHaveSameMeaning(const llvm::Value *V1) const {
 	bool hasSameWidth;
 	if (V1->getType()->isIntegerTy())
-		hasSameWidth = useMask.getBitWidth()
-				== getIntegerBitWidthOr1(V1);
+		hasSameWidth = useMask.getBitWidth() == getIntegerBitWidthOr1(V1);
 	else
 		hasSameWidth = useMask.getBitWidth() == 1 && useMask.getZExtValue();
 	if (useMask.isAllOnes()) {
@@ -323,8 +339,8 @@ void VarBitConstraint::clearAllOperandMasks() {
 }
 void VarBitConstraint::clearAllOperandMasks(unsigned lowBitI,
 		unsigned highBitI) {
-	APInt m = ~APInt::getBitsSet(operandUseMask[0].getBitWidth(), lowBitI,
-			highBitI);
+	size_t w = operandUseMask[0].getBitWidth();
+	APInt m = ~APInt::getBitsSet(w, lowBitI, highBitI);
 	for (auto &om : operandUseMask) {
 		om &= m;
 	}
@@ -641,6 +657,16 @@ void VarBitConstraint::print(raw_ostream &O, bool IsForDebug) const {
 	O << "{u: 0x" << UM << ", v:[";
 	for (auto &src : replacements) {
 		O << "    " << src << ", ";
+	}
+	if (operandUseMask.size()) {
+		O << ", opUse:[";
+		for (auto &ou : operandUseMask) {
+			SmallString<40> UM;
+			ou.toString(UM, 16, /*isSigned*/false, /* formatAsCLiteral = */
+					false);
+			O << "0x" << UM << ",";
+		}
+		O << "]";
 	}
 	O << "]}";
 }
