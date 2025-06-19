@@ -15,7 +15,8 @@ from hwtLib.amba.axi4Lite import Axi4Lite
 
 
 def getArgumentForHwIO(toLlvm: 'ToLlvmIrTranslator', hwIo: Union[HwIO, RtlSignal],
-                       readOrWriteObj: Union["HlsRead", "HlsWrite"], isRead: bool) -> Tuple[Argument, Type]:
+                       readOrWriteObj: Union["HlsRead", "HlsWrite"],
+                       isRead: bool) -> Tuple[Argument, Type]:
     """
     :attention: do not store Argument object in non-llvm objects, because it may be replaced during compilation
         and taken reference in python would not be updated
