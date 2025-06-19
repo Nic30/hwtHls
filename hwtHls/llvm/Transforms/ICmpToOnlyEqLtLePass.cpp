@@ -1,18 +1,75 @@
 #include <hwtHls/llvm/Transforms/ICmpToOnlyEqLtLePass.h>
 
+#include <algorithm>
 #include <llvm/Analysis/AliasAnalysis.h>
 #include <llvm/Analysis/BasicAliasAnalysis.h>
 #include <llvm/Analysis/GlobalsModRef.h>
 #include <llvm/Analysis/InstSimplifyFolder.h>
+#include <llvm/IR/ConstantRange.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/PatternMatch.h>
-#include <algorithm>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 
 using namespace llvm;
 using namespace llvm::PatternMatch;
 
 namespace hwtHls {
+
+// :see:  LazyValueInfo.cpp, LazyValueInfoImpl::getValueFromSimpleICmpCondition
+
+SmallVector<ConstantRange, 2> offsetAndSizeToRanges(APInt offset, APInt size) {
+	// x + c0 < c1  ; c1 is range size; c0 is range offset
+	//  < c1 selects the range <0, c0)
+	//  + c0 shifts this range to <0-c0, -c0+c1) however the range may wrap around max or min val c0, c1
+	//  For the left side of the selected range:
+	SmallVector<ConstantRange, 2> ranges;
+	if (size.isZero()) {
+		// unsigned x + c0 < 0 selects an empty interval
+		return ranges;
+	}
+	unsigned w = size.getBitWidth();
+	APInt cMin(w, 0);
+	auto cMax = APInt::getAllOnes(w);
+
+	if (size == cMax) {
+		// The range covers the entire space
+		ranges.push_back(ConstantRange(cMin, cMax));
+	} else {
+		auto low = -offset;
+		auto high = -offset + size;
+		if (high.ugt(low)) {
+			// No wrap around
+			ranges.push_back(ConstantRange(low, high - 1));
+		} else {
+			// Wrap around case, from start to cMax and from cMin to high
+			ranges.push_back(ConstantRange(low, cMax));
+			ranges.push_back(ConstantRange(cMin, high - 1));
+		}
+	}
+	return ranges;
+}
+
+Value* CreateRangeCheck(IRBuilderBase &Builder, Value*x, const APInt& low, const APInt& high) {
+	Value * res = nullptr;
+	if (!low.isZero()) {
+		//res = Builder.CreateICmpUGE(x, low)
+		// a >= b -> ~(a < b)  (to keep normal form of ICmpToOnlyEqLtLePass)
+		auto lt = Builder.CreateICmpULT(x, Builder.getInt(low));
+		res = Builder.CreateNot(lt);
+	}
+	if (!high.isAllOnes()) {
+		auto highP1 = high + 1;
+		auto lt = Builder.CreateICmpULT(x, Builder.getInt(highP1));
+		if (res) {
+			res = Builder.CreateAnd(res, lt);
+		} else {
+			res = lt;
+		}
+	}
+	if (!res)
+		return Builder.getTrue();
+	return res;
+}
 
 Value* ICmpToOnlyEqLtLePass::_tryRewriteRangeCheckTo2xCmp(
 		IRBuilderBase &Builder, ICmpInst &CMP) {
@@ -25,14 +82,21 @@ Value* ICmpToOnlyEqLtLePass::_tryRewriteRangeCheckTo2xCmp(
 				Value *x;
 				ConstantInt *c0;
 				if (match(LHS_I, m_Add(m_Value(x), m_ConstantInt(c0)))) {
-					// x + c0 < c1
-					// to
-					// (x < (c1 - c0)) & (x > c0)   is smaller after offset substract, and offset substract does not underflow
-					auto newO1 = c1->getValue() - c0->getValue();
-					auto cmp = Builder.CreateICmpULT(x,
-							ConstantInt::get(c0->getType(), newO1));
-					auto overflowCheck = Builder.CreateICmpUGT(x, c0);
-					return Builder.CreateAnd(cmp, overflowCheck);
+					auto offset = c0->getValue();
+					auto size = c1->getValue();
+					SmallVector<ConstantRange, 2> ranges = offsetAndSizeToRanges(offset, size);
+					if (ranges.empty())
+						return Builder.getFalse();
+					Value * res = nullptr;
+					for (const auto &r: ranges) {
+						Value* rCmp = CreateRangeCheck(Builder, x, r.getLower(), r.getUpper());
+						if (res) {
+							res = Builder.CreateOr(res, rCmp);
+						} else {
+							res = rCmp;
+						}
+					}
+					return res;
 				}
 			}
 		}
