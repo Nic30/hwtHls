@@ -1,27 +1,24 @@
-from math import ceil
 from typing import Optional, Union
 
 from hwt.code import Concat
 from hwt.code_utils import rename_signal
 from hwt.hdl.const import HConst
 from hwt.hdl.operator import HOperatorNode
-from hwt.hdl.operatorDefs import HOperatorDef, HwtOps, COMPARE_OPS
+from hwt.hdl.operatorDefs import HOperatorDef, HwtOps
 from hwt.hdl.types.bits import HBits
 from hwt.pyUtils.typingFuture import override
 from hwt.serializer.generic.ops import HWT_TO_HDLCONVERTOR_OPS
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.componentGenerator import ComponentGenerator
-from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
-    TimeIndependentRtlResourceItem, INVARIANT_TIME
+from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResourceItem
 from hwtHls.code import OP_LSHR, OP_ASHR, OP_SHL, OP_ROL, OP_ROR
 from hwtHls.llvm.llvmIr import HFloatTmpConfig
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
-from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
 from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 
 
 class HlsNetNodeOperator(HlsNetNode):
