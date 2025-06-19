@@ -5,7 +5,7 @@ bb0:
 entry:                                            ; preds = %bb0
   br label %loopHeader
 
-loopHeader:                                       ; preds = %blockL70i0_2018, %entry
+loopHeader:                                       ; preds = %blockL40i0_1958, %entry
   %a_read = alloca i8, align 1, !hwtHls.tmp.alloca !2
   store i8 undef, ptr %a_read, align 1
   %a1 = alloca i8, align 1, !hwtHls.tmp.alloca !2
@@ -75,8 +75,8 @@ loopHeader:                                       ; preds = %blockL70i0_2018, %e
   %35 = call i16 @hwtHls.bitConcat.i4.i12(i4 %2, i12 %34) #1
   %36 = icmp eq i16 %30, %35
   store volatile i1 %36, ptr addrspace(10) %res_prefix_differentInMiddle, align 1
-  br label %blockL70i0_2018
+  br label %blockL40i0_1958
 
-blockL70i0_2018:                                  ; preds = %loopHeader
+blockL40i0_1958:                                  ; preds = %loopHeader
   br label %loopHeader
 }

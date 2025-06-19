@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 from hwtLib.tests.all import unittestMain
-from tests.testCaseUtils import testSuiteFromTCs
 from tests.llvmIr.HwtHlsInstCombinePass_bitcountExtract_test import HwtHlsInstCombinePass_bitcountExtract_TC
 from tests.llvmIr.HwtHlsInstCombinePass_streamEoFThreading_test import HwtHlsInstCombinePass_streamEoFThreading_TC
 from tests.llvmIr.HwtHlsInstCombinePass_test import HwtHlsInstCombinePass_TC
@@ -10,7 +9,7 @@ from tests.llvmIr.LoopRotationNormalizationPass_test import LoopRotationNormaliz
 from tests.llvmIr.PruneLoopPhiDeadIncomingValuesPass_test import PruneLoopPhiDeadIncomingValuesPass_TC
 from tests.llvmIr.SimplifyCFG2Pass_streamWrite_test import SimplifyCFG2Pass_streamWrite_TC
 from tests.llvmIr.SimplifyCFG2Pass_test import SimplifyCFG2Pass_TC
-from tests.llvmIr.bitWidthReductionPass_Cmp_test import BitWidthReductionPass_Cmp_example_TC
+from tests.llvmIr.bitWidthReductionPass_Cmp_test import BitWidthReductionPass_Cmp_TCs
 from tests.llvmIr.bitWidthReductionPass_PHI_inLoopHeader_test import BitwidthReductionPass_PHI_inLoopHeader_TC
 from tests.llvmIr.bitWidthReductionPass_PHI_test import BitwidthReductionPass_PHI_TC
 from tests.llvmIr.bitWidthReduction_test import BitwidthReductionPass_TC
@@ -21,6 +20,8 @@ from tests.llvmIr.selectPruningPass_test import SelectPruningPass_TC
 from tests.llvmIr.slicesMergePass_select_test import SlicesMergePass_select_TC
 from tests.llvmIr.slicesMergePass_test import SlicesMergePass_TC
 from tests.llvmIr.slicesToIndependentVariablesPass_test import SlicesToIndependentVariablesPass_TC
+from tests.testCaseUtils import testSuiteFromTCs
+
 
 llvmIr_TCs = [
     SlicesToIndependentVariablesPass_TC,
@@ -38,7 +39,7 @@ llvmIr_TCs = [
     BitwidthReductionPass_TC,
     BitwidthReductionPass_PHI_TC,
     BitwidthReductionPass_PHI_inLoopHeader_TC,
-    BitWidthReductionPass_Cmp_example_TC,
+    *BitWidthReductionPass_Cmp_TCs,
     SelectPruningPass_TC,
     LlvmLoopUnroll_TC,
 ]

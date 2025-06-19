@@ -261,19 +261,122 @@ llvm::Value* BitPartsRewriter::rewriteBinaryOperatorBitwise(
 	return res;
 }
 
+std::optional<bool> tryExtractConstBitFromValueReplacements(
+		ConstBitPartsAnalysisContext::BitPartsConstraints &constraints,
+		Value *Op, unsigned bitIndex) {
+	if (auto OpC = dyn_cast<ConstantInt>(Op)) {
+		return OpC->getValue()[bitIndex];
+	}
+	auto opVbc = constraints.findInConstraints(Op);
+	if (!opVbc)
+		return {};
+
+	auto opLsb = opVbc->slice(bitIndex, 1);
+	if (opLsb.replacements.size() == 1) {
+		if (auto opAsC = dyn_cast<ConstantInt>(opLsb.replacements[0].src)) {
+			assert(opAsC->getType()->isIntegerTy(1));
+			return opAsC->getValue().getZExtValue();
+		}
+	}
+	return {};
+}
+
 llvm::Value* BitPartsRewriter::rewriteCmpInst(llvm::CmpInst &I,
 		const VarBitConstraint &vbc) {
 	IRBuilder<> b(&I);
-	Value *res;
+	auto Pred = I.getPredicate();
+	using Predicate = CmpInst::Predicate;
+	switch (Pred) {
+	case Predicate::ICMP_ULT:
+	case Predicate::ICMP_ULE:
+	case Predicate::ICMP_UGT:
+	case Predicate::ICMP_UGE: {
+		// conversion of compare if lower bit is known
+		// if {x, 0} ult 1 -> x <= 1>>1
+		// if {x, 0} ule 1 -> x <= 1>>1
+		// if {x, 0} ugt 1 -> x > 1>>1
+		// if {x, 0} uge 1 -> x > 1>>1
+
+		assert(!vbc.operandUseMask[0].isZero());
+		assert(vbc.operandUseMask[0] == vbc.operandUseMask[1]);
+
+		unsigned firstOpUsedBit = vbc.operandUseMask[0].countTrailingZeros();
+		auto op0lsb = tryExtractConstBitFromValueReplacements(constraints, I.getOperand(0), firstOpUsedBit);
+		if (!op0lsb.has_value())
+			break;
+
+		auto op1lsb = tryExtractConstBitFromValueReplacements(constraints, I.getOperand(1), firstOpUsedBit);
+		if (!op1lsb.has_value())
+			break;
+
+		if (op0lsb.value() == 0 && op1lsb.value() == 1) {
+			// use != / == and discard lowest bit
+			VarBitConstraint vbcCopy = vbc;
+			vbcCopy.operandUseMask[0].clearBit(firstOpUsedBit);
+			vbcCopy.operandUseMask[1].clearBit(firstOpUsedBit);
+			if (Pred == Predicate::ICMP_ULT || Pred == Predicate::ICMP_ULE) {
+				I.setPredicate(Predicate::ICMP_ULE);
+			} else {
+				assert(Pred == Predicate::ICMP_UGT || Pred == Predicate::ICMP_UGE);
+				I.setPredicate(Predicate::ICMP_UGT);
+			}
+			return rewriteCmpInst(I, vbcCopy); // :note: max 1 level of recursion expected
+		}
+		break;
+	}
+	default:
+		break;
+	}
+
+	Value *res = nullptr;
 	std::array<Value*, 2> newOps;
 	if (tryResolveAndUpdateOperands<2>(b, I,
 			{ vbc.operandUseMask[0], vbc.operandUseMask[1] }, newOps)) {
+		// instruction remained the same, but the operands may have changed
 		res = &I;
-	} else if (I.getPredicate() == ICmpInst::ICMP_NE && newOps[0]->getType()->getIntegerBitWidth() == 1) {
+	} else if (I.getPredicate() == ICmpInst::ICMP_NE
+			&& newOps[0]->getType()->isIntegerTy(1)) {
+		// 1b != to xor
 		res = b.CreateXor(newOps[0], newOps[1], I.getName());
 	} else {
+		// new cmp instruction
 		res = b.CreateCmp(I.getPredicate(), newOps[0], newOps[1], I.getName());
 	}
+
+	if (auto cmpI = dyn_cast<CmpInst>(res)) {
+		Value *op0 = cmpI->getOperand(0);
+		auto op1c = dyn_cast<ConstantInt>(cmpI->getOperand(1));
+		switch (Pred) {
+		case CmpInst::Predicate::ICMP_SGT: {
+			// if sign_val sgt -1 -> ~sign_val[MSB]
+			if (op1c && op1c->isAllOnesValue()) {
+				auto msb = CreateBitRangeGetMsb(&b, op0);
+				res = b.CreateNot(msb, I.getName());
+			}
+			break;
+		}
+		case CmpInst::Predicate::ICMP_SGE: {
+			// if sign_val sge 0 -> ~sign_val[MSB]
+			if (op1c && op1c->isZero()) {
+				auto msb = CreateBitRangeGetMsb(&b, op0);
+				res = b.CreateNot(msb, I.getName());
+			}
+			break;
+		}
+		case CmpInst::Predicate::ICMP_SLT: {
+			// if sign_val slt 0 -> sign_val[MSB]
+			if (op1c && op1c->isZero()) {
+				auto msb = CreateBitRangeGetMsb(&b, op0);
+				res = msb;
+			}
+			break;
+		}
+
+		default:
+			break;
+		}
+	}
+
 	replacementCache[&I] = res;
 	return res;
 }

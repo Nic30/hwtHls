@@ -4,6 +4,7 @@
 from typing import Union
 
 from hwt.code import Concat
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.const import HConst
 from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOVectSignal, HwIOSignal
@@ -95,7 +96,7 @@ class BitWidthReductionCmpReducibleEq(HwModule):
         @hlsBytecode
         def mainThread():
             PyBytecodeBlockLabel("entry")
-            while BIT.from_py(1):
+            while b1:
                 PyBytecodeBlockLabel("loopHeader")
                 a = hls.read(self.a).data
                 b = hls.read(self.b).data
