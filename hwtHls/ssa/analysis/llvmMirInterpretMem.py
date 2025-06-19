@@ -8,6 +8,7 @@ from hwtHls.ssa.analysis.llvmIrInterpretMem import _getItemFromLocalPointer
 from hwtHls.ssa.analysis.llvmIrInterpretUtils import PtrAddrTuple, \
     SimIoUnderflowErr
 from hwtHls.ssa.analysis.llvmMirInterpretUtils import LlvmMirInstrFunction
+from hwtLib.abstract.sim_ram import SimRam
 
 
 def _decodeOpcode_HWTFPGA_ARG_GET(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
@@ -112,8 +113,7 @@ def _decodeOpcode_HWTFPGA_CSTORE(interpret: "LlvmMirInterpret", MRI: MachineRegi
         if not cond:
             raise AssertionError("Always disabled HWTFPGA_CLOAD, this instruction should not exits", instr)
     valIsConst = isinstance(val, HConst)
-    if not isinstance(index, int) or index != 0:
-        raise NotImplementedError(instr)
+    hasIndex = not isinstance(index, int) or index != 0
 
     def _opcode_HWTFPGA_CSTORE_toIO(timeNow: int, regs: list[HConst]):
         io = regs[_io]
@@ -122,12 +122,16 @@ def _decodeOpcode_HWTFPGA_CSTORE(interpret: "LlvmMirInterpret", MRI: MachineRegi
             assert _cond._is_full_valid(), instr
             if not _cond:
                 return
+
         if valIsConst:
             _val = val
         else:
             _val = regs[val]
-
-        io.append(_val)
+        if hasIndex:
+            _index = regs[index]
+            io.write(_index, _val)
+        else:
+            io.append(_val)
 
     return _opcode_HWTFPGA_CSTORE_toIO
 
@@ -144,7 +148,11 @@ def _decodeOpcode_G_STORE(interpret: "LlvmMirInterpret", MRI: MachineRegisterInf
         else:
             _val = regs[val]
 
-        io.append(_val)
+        if isinstance(io, PtrAddrTuple):
+            # SimRam
+            io[0].write(io[1], _val)
+        else:
+            io.append(_val)
 
     return _opcode_G_STORE
 
@@ -213,26 +221,33 @@ def _decodeOpcode_G_PTR_ADD(interpret: "LlvmMirInterpret", MRI: MachineRegisterI
             _base = op0
             index = 0
 
-        if isinstance(_base, GlobalValue):
+        if isinstance(_base, SimRam):
             base = _base
+            raise NotImplementedError("the elementWidth is aligned by LLVM at this point")
+            elementWidth = _base.getWriteWordWidth()
         else:
-            base = ValueToGlobalValue(_base)
-            assert base is not None, _base
+            if isinstance(_base, GlobalValue):
+                base = _base
+            else:
+                base = ValueToGlobalValue(_base)
+                assert base is not None, _base
 
-        baseMem = base.getOperand(0)  # extract data from GlobalValue
-        # scale op1 from uint8_t* to native type of array
-        arrVal = ValueToConstantArray(baseMem)
-        if arrVal is None:
-            arrVal = ValueToConstantDataArray(baseMem)
-            assert arrVal, (instr, baseMem)
-            arrVal: ConstantDataArray
-            arrTy: ArrayType = TypeToArrayType(arrVal.getType())
-            assert arrTy, baseMem
-            elementTy = arrTy.getElementType()
-        else:
-            elementTy = arrVal.getOperand(0).getType()
+            baseMem = base.getOperand(0)  # extract data from GlobalValue
+            # scale op1 from uint8_t* to native type of array
+            arrVal = ValueToConstantArray(baseMem)
+            if arrVal is None:
+                arrVal = ValueToConstantDataArray(baseMem)
+                assert arrVal, (instr, baseMem)
+                arrVal: ConstantDataArray
+                arrTy: ArrayType = TypeToArrayType(arrVal.getType())
+                assert arrTy, baseMem
+                elementTy = arrTy.getElementType()
+            else:
+                elementTy = arrVal.getOperand(0).getType()
 
-        elementWidth = elementTy.getScalarSizeInBits()
+            elementWidth = elementTy.getScalarSizeInBits()
+            assert isinstance(base, GlobalValue), base
+
         elementSize = elementWidth // 8
         if elementWidth > elementSize * 8:
             elementSize += 1
@@ -240,7 +255,6 @@ def _decodeOpcode_G_PTR_ADD(interpret: "LlvmMirInterpret", MRI: MachineRegisterI
 
         index = op1 + index
 
-        assert isinstance(base, GlobalValue), base
         regs[dst] = PtrAddrTuple((base, index))
 
     return _opcode_G_PTR_ADD
