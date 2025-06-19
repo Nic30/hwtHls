@@ -627,7 +627,15 @@ PreservedAnalyses SlicesToIndependentVariablesPass::run(Function &F,
 	IRBuilder<> builder(F.getContext());
 	bool Changed = splitOnSplitPoints(noSplitInstrs, splitPoints, F, builder,
 			AM);
-
+	for (auto& BB: F) {
+		for (auto &I: BB) {
+			if (I.getType()->isIntegerTy(1) && all_of(I.operand_values(), [](const Value* op) { return op->getType()->isIntegerTy(1);}) && I.hasMetadata(metadataName_NoSplit)) {
+				// discard useless metadata
+				I.setMetadata(metadataName_NoSplit, nullptr);
+				Changed = true;
+			}
+		}
+	}
 	// Move concatenations up in expression tree to reduce redundant slices
 	// c = Concat(i[1] OP x, i[0] OP y)
 	// to
