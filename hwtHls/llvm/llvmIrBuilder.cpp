@@ -223,8 +223,13 @@ void register_IRBuilder(pybind11::module_ & m) {
 		.def("CreateBitConcat", [](llvm::IRBuilder<> & self, std::vector<llvm::Value*> & OpsLowFirst, const llvm::Twine &Name = "") {
 			return CreateBitConcat(&self, OpsLowFirst, Name);
 		}, py::arg("OpsLowFirst"), py::arg("Name")=llvm::Twine(""),  py::return_value_policy::reference)
-		.def("CreateGEP",  [](llvm::IRBuilder<> & self, llvm::Type *Ty, llvm::Value *Ptr, std::vector<llvm::Value *>& IdxList) {
+		.def("CreateGEP",  [](llvm::IRBuilder<> & self, llvm::Type *Ty, llvm::Value *Ptr, std::vector<llvm::Value *>& IdxList, bool IsInBounds) {
 			return self.CreateGEP(Ty, Ptr, IdxList, "", true);
+		   },
+		   py::arg("Ty"), py::arg("Ptr"), py::arg("IdxList"), py::arg("IsInBounds")=false,
+		   py::return_value_policy::reference)
+		.def("CreateInBoundsGEP",  [](llvm::IRBuilder<> & self, llvm::Type *Ty, llvm::Value *Ptr, std::vector<llvm::Value *>& IdxList) {
+			return self.CreateInBoundsGEP(Ty, Ptr, IdxList, "");
 		}, py::return_value_policy::reference)
 		.def("CreateCall", [](llvm::IRBuilder<> & self, llvm::FunctionCallee Callee,
                 std::vector<llvm::Value *> Args, const llvm::Twine &Name = "") {
