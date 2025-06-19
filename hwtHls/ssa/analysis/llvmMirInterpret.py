@@ -270,6 +270,21 @@ class LlvmMirInterpret():
 
         return res
 
+    def _make_opcode_fn_fallThrough(self, bb: MachineBasicBlock, fallThroughNextBB: MachineBasicBlock):
+        """
+        :note: wraped in extra function so bb, fallThroughNextBB will get captured in function scope
+        """
+        def _opcode_default_fallthrough(nowTime: int, regs: List[HConst]):
+            assert fallThroughNextBB is not None
+            nextBb = fallThroughNextBB
+            waveLog = self.waveLog
+            if waveLog is not None:
+                waveLog.logChange(nowTime, self._simBlockLabel, nextBb, None)
+            self._runBlockPhis(bb, nextBb, waveLog, regs, nowTime)
+            return nextBb
+
+        return _opcode_default_fallthrough
+
     def _decodeBlocks(self):
         MRI: MachineRegisterInfo = self.MF.getRegInfo()
         decodedBlockPhis = self._decodedBlockPhis
@@ -298,6 +313,10 @@ class LlvmMirInterpret():
                 iDecoded = self._decodeLlvmMirInstr(MRI, bb, instr, opc)
                 assert iDecoded is not None, instr
                 bbDecoded.append((instr, iDecoded))
+
+            if not bbDecoded:
+                fallThroughNextBB = bb.getFallThrough(True)
+                bbDecoded.append((None, self._make_opcode_fn_fallThrough(bb, fallThroughNextBB)))
 
     def _decodeLlvmMirInstr(self, MRI: MachineRegisterInfo, bb: MachineBasicBlock, instr: MachineInstr, opc: TargetOpcode) -> LlvmMirInstrFunction:
         decodeOpcodeFn = self._dispatchDict.get(opc)
@@ -359,6 +378,7 @@ class LlvmMirInterpret():
         bbDecoded = decodedBlocks[bb]
         self.nowTime = nowTime = -timeStep
         while True:
+            assert bbDecoded, bb
             for instr, instrDecoded in bbDecoded:
                 nowTime += timeStep
                 self.nowTime = nowTime
