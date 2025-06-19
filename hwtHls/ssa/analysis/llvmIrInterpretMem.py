@@ -13,6 +13,7 @@ from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 from hwt.hdl.types.arrayConst import HArrayConst
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.array import HArray
+from hwtLib.abstract.sim_ram import SimRam
 
 
 def _decodeOpcode_Alloca(interpret: "LlvmIrInterpret", bb: BasicBlock, instr: Instruction) -> LlvmIrInstrFunction:
@@ -77,6 +78,9 @@ def _decodeOpcode_GetElementPtr(interpret: "LlvmIrInterpret", bb: BasicBlock, in
                 if isinstance(base, HConst):
                     baseArrayTy = base._dtype
                     baseArrayTyIsLlvm = False
+                elif isinstance(base, SimRam):
+                    baseArrayTy = HBits(base.getWriteWordWidth())[base.itemCnt]
+                    baseArrayTyIsLlvm =False
                 else:
                     assert isinstance(base, Value), base
                     baseArrayTy = base.getOperand(0).getType()

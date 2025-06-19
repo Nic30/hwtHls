@@ -12,11 +12,11 @@ from hwtHls.code import ctlz, zext, hwUMax, hwUMin, hwSMax, hwSMin, fshl, fshr, 
 from hwtHls.llvm.llvmIr import Function, BasicBlock, InstructionToCallInst, \
     InstructionToPHINode, ValueToBasicBlock, \
     ValueToConstantInt, ValueToFunction, ValueToInstruction, Instruction, \
-    InstructionToLoadInst, InstructionToStoreInst, InstructionToUnreachableInst, ValueToArgument, ValueToGlobalValue, \
+    InstructionToLoadInst, InstructionToStoreInst, ValueToArgument, ValueToGlobalValue, \
     ValueToConstantFP, TypeToPointerType, TypeToIntegerType, IntegerType, \
-    LLVMStringContext, ValueToUndefValue, TypeToArrayType, TypeToIntegerType, ArrayType, \
+    LLVMStringContext, ValueToUndefValue, TypeToArrayType, ArrayType, \
     Intrinsic, ValueToAllocaInst, ValueToConstantArray, ValueToConstantDataArray, IsStreamIo, Value, PHINode, \
-    Module
+    Module, Argument, InstructionToGetElementPtrInst
 from hwtHls.ssa.analysis.llvmIrInterpretCall import _decodeOpcode_CallInst
 from hwtHls.ssa.analysis.llvmIrInterpretFP import _decodeIntrinsic_fp_castToHFloatTmp, \
     _decodeIntrinsic_fp_castFromHFloatTmp, _decodeIntrinsic_fp_unspecialized_shr, \
@@ -37,6 +37,7 @@ from hwtHls.ssa.analysis.llvmIrInterpretUtils import BINARY_OPS_TO_FN, \
     _prepareWaveWriterTopIo, VcdLlvmIrCodelineFormatter, \
     VcdLlvmIrSimTimeFormatter, VcdLlvmIrBBFormatter, RE_NON_ID, PtrAddrTuple, \
     SimIoUnderflowErr, LlvmIrInstrFunction
+from hwtLib.abstract.sim_ram import SimRam
 from hwtSimApi.constants import CLK_PERIOD
 from hwtSimApi.triggers import StopSimumulation
 from pyDigitalWaveTools.vcd.common import VCD_SIG_TYPE
@@ -263,8 +264,7 @@ class LlvmIrInterpret():
             waveLog.logChange(nowTime, instr, res, None)
         regs[instr] = res
 
-    @staticmethod
-    def _decodeInstArguments(operandValues: Sequence[Value]):
+    def _decodeInstArguments(self, operandValues: Sequence[Value]):
         # prepare values for arguments
         ops: list[Union[HConst, BasicBlock, Function]] = []
         for v in operandValues:
@@ -307,6 +307,12 @@ class LlvmIrInterpret():
             vAsGlobalValue = ValueToGlobalValue(v)
             if vAsGlobalValue is not None:
                 ops.append(vAsGlobalValue)
+                continue
+            vAsArg = ValueToArgument(v)
+            if vAsArg is not None:
+                vAsArg:Argument
+                ops.append(vAsArg)
+                continue
             else:
                 raise NotImplementedError(v)
         return ops
@@ -378,6 +384,32 @@ class LlvmIrInterpret():
                 _v = HFloatTmp.from_py(float(vAsConstFP.getValue()))
             else:
                 vIsConst = False
+        dstPtrInstr = ValueToInstruction(dstPtr)
+        if dstPtrInstr is not None:
+            dstGep = InstructionToGetElementPtrInst(dstPtrInstr)
+            if dstGep is not None:
+
+                def _opcode_Store_gep(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
+                    if vIsConst:
+                        v = _v
+                    else:
+                        v = regs[_v]
+                    dstPtr, addr = regs[dstGep]
+
+                    if isinstance(dstPtr, SimRam):
+                        dstPtr.write(addr, v)
+                        return
+
+                    dstPtrAsArg = ValueToArgument(dstPtr)
+                    if dstPtrAsArg is not None:
+                        raise NotImplementedError()
+
+                    alloca = ValueToAllocaInst(dstPtr)
+                    if alloca is not None:
+                        raise NotImplementedError()
+                    raise NotImplementedError(dstGep)
+
+                return _opcode_Store_gep
 
         dstPtrAsArg = ValueToArgument(dstPtr)
         if dstPtrAsArg is not None:
@@ -527,6 +559,12 @@ class LlvmIrInterpret():
 
         regs: dict[Instruction, HConst] = {}
         self._initGlobalsFromIr(F.getParent(), regs)
+        for a in F.args():
+            a: Argument
+            t = TypeToPointerType(a.getType())
+            ioValues = self.fnArgs[t.getAddressSpace() - 1]
+            regs[a] = ioValues
+
         self._decodeBlocks()
         bb: BasicBlock = F.getEntryBlock()
         self._run(bb, regs, wallTime)
