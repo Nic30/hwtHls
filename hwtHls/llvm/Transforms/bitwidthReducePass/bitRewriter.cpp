@@ -39,7 +39,8 @@ std::vector<KnownBitRangeInfo> iterUsedBitRanges(const APInt &useMask,
 
 llvm::Value* BitPartsRewriter::rewriteKnownBitRangeInfo(IRBuilder<> *Builder,
 		const KnownBitRangeInfo &kbri) {
-	if (kbri.srcBeginBitI == 0 && kbri.width == getIntegerBitWidthOr1(kbri.src)) {
+	if (kbri.srcBeginBitI == 0
+			&& kbri.width == getIntegerBitWidthOr1(kbri.src)) {
 		llvm::Value *src = const_cast<Value*>(kbri.src);
 		// check for possible replace of src
 		if (auto *I = dyn_cast<llvm::Instruction>(src)) {
@@ -130,10 +131,10 @@ bool BitPartsRewriter::tryResolveAndUpdateOperands(IRBuilder<> &b,
 		if (OConstraint) {
 			auto usedBits = iterUsedBitRanges(useMask[i], *OConstraint);
 			newOVal = rewriteKnownBitRangeInfoVector(&b, usedBits);
-			assert(newOVal && "This can not be null because it has use (this one)");
 			assert(
-					getIntegerBitWidthOr1(newOVal)
-							== useMask[i].popcount());
+					newOVal
+							&& "This can not be null because it has use (this one)");
+			assert(getIntegerBitWidthOr1(newOVal) == useMask[i].popcount());
 		} else {
 			newOVal = O;
 		}
@@ -512,8 +513,8 @@ llvm::Value* BitPartsRewriter::rewriteIfRequiredAndExpand(llvm::Value *V) {
 	return replacement;
 }
 
-llvm::Value* BitPartsRewriter::rewriteIfRequiredAndExpandAsOperand(IRBuilder<> &b,
-		llvm::Value *V) {
+llvm::Value* BitPartsRewriter::rewriteIfRequiredAndExpandAsOperand(
+		IRBuilder<> &b, llvm::Value *V) {
 	auto vbc = constraints.findInConstraints(V);
 	if (vbc) {
 		// if (v->valuesHaveSameMeaning(CurO)) {
@@ -604,7 +605,8 @@ llvm::Value* BitPartsRewriter::rewritePHINodeArgsIfRequired(
 			// materialize phi operand
 			auto *_val = rewriteKnownBitRangeInfoVector(&b,
 					iterUsedBitRanges(phiUseMask, *constr));
-			if (_val != val && !_val->hasName() && val->hasName() && isa<Instruction>(_val)) {
+			if (_val != val && !_val->hasName() && val->hasName()
+					&& isa<Instruction>(_val)) {
 				_val->takeName(val);
 			}
 			val = _val;

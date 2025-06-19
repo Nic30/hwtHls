@@ -9,7 +9,8 @@ using namespace llvm;
 
 namespace hwtHls {
 
-VarBitConstraint* BitPartsConstraints::findInConstraints(const llvm::Value *V, bool copyFromParent) {
+VarBitConstraint* BitPartsConstraints::findInConstraints(const llvm::Value *V,
+		bool copyFromParent) {
 	auto ctx = this;
 	while (ctx) {
 		auto cur = ctx->constraints.find(V);
@@ -24,7 +25,8 @@ VarBitConstraint* BitPartsConstraints::findInConstraints(const llvm::Value *V, b
 	}
 	return nullptr;
 }
-const VarBitConstraint* BitPartsConstraints::findInConstraints(const llvm::Value *V) {
+const VarBitConstraint* BitPartsConstraints::findInConstraints(
+		const llvm::Value *V) {
 	return findInConstraints(V, false);
 }
 
@@ -67,7 +69,7 @@ std::unique_ptr<VarBitConstraint> BitPartsConstraints::setKnownBitBoolValue(
 }
 
 void BitPartsConstraints::dumpConstraints() const {
-	for (const auto& c: constraints) {
+	for (const auto &c : constraints) {
 		if (c.first->getType()->isIntegerTy() && !isa<ConstantInt>(c.first)) {
 			dbgs() << c.first << " " << *c.first << "\n";
 			dbgs() << "    " << *c.second << "\n";
@@ -158,7 +160,8 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitPHINode(const PHINode *I) {
 
 VarBitConstraint& ConstBitPartsAnalysisContext::visitAsAllInputBitsUsedAllOutputBitsKnown(
 		const Value *V) {
-	bool tryAnalize = tryAnalyzeOperandsOfUnsupportedInstructions && constraints.find(V) == constraints.end();
+	bool tryAnalize = tryAnalyzeOperandsOfUnsupportedInstructions
+			&& constraints.find(V) == constraints.end();
 	VarBitConstraint &cur = initConstraintMember(V);
 	if (tryAnalize) {
 		if (auto *I = dyn_cast<Instruction>(V)) {
@@ -347,7 +350,7 @@ void ConstBitPartsAnalysisContext::visitBinaryOperatorReduceAnd(
 		unsigned width, unsigned vSrcOffset, unsigned cSrcOffset,
 		unsigned dstOffset, const APInt &c, const KnownBitRangeInfo &v) {
 	auto &Context = parentI->getContext();
-	for (const auto& [bitVal, w]: iter1and0sequences(c, cSrcOffset, width)) {
+	for (const auto& [bitVal, w] : iter1and0sequences(c, cSrcOffset, width)) {
 		if (bitVal) {
 			// 1 sequence found
 			KnownBitRangeInfo i = v.slice(vSrcOffset, w);
@@ -845,10 +848,12 @@ bool ConstBitPartsAnalysisContext::updateInstruction(const Instruction *I) {
 }
 
 std::unique_ptr<ConstBitPartsAnalysisContext> ConstBitPartsAnalysisContext::createChild() {
-	auto res = std::make_unique<ConstBitPartsAnalysisContext>(this, this->analysisPredicate);
+	auto res = std::make_unique<ConstBitPartsAnalysisContext>(this,
+			this->analysisPredicate);
 	if (resolvePhiValues)
 		res->setShouldResolvePhiValues();
-	res->tryAnalyzeOperandsOfUnsupportedInstructions = tryAnalyzeOperandsOfUnsupportedInstructions;
+	res->tryAnalyzeOperandsOfUnsupportedInstructions =
+			tryAnalyzeOperandsOfUnsupportedInstructions;
 	return res;
 }
 
