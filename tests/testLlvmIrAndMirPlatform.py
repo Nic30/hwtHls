@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Union, Callable, Set, List
+from typing import Optional, Union, Callable, Set, List, Sequence
 
 from hwt.hdl.const import HConst
 from hwt.hwModule import HwModule
@@ -162,7 +162,7 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
 
     @classmethod
     def forSimpleDataInDataOutHwModule(cls,
-                                   prepareDataInFn: Callable[[], None],
+                                   prepareDataInFn: Callable[[], Sequence],
                                    checkDataOutFn: Optional[Callable[[Union[List[HConst], List[List[HConst]]]], None]],
                                    logFileNameStem: Optional[Union[Path, str]],
                                    inputCnt=1,
