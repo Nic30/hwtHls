@@ -42,6 +42,23 @@ ANY_HLS_COMPATIBLE_IO = Union[HwIODataRdVld, HwIOStructRdVld,
                               PyObjectHwSubscriptRef]
 
 
+class HlsScopeBoundIoScalar():
+
+    def __init__(self, hls: "HlsScope", io: HwIO, dtype:Optional[HdlType]=None):
+        self.io = io
+        if dtype is None:
+            self.T = getattr(io, "T")
+        else:
+            self.T = dtype
+        self.hls = hls
+
+    def write(self, data, isVolatile=True, mayBecomeFlushable=True):
+        return self.hls.write(data, self.io, isVolatile=isVolatile, mayBecomeFlushable=mayBecomeFlushable)
+
+    def read(self, blocking=True, isVolatile=True):
+        return self.hls.read(self.io, dtype=self.T, blocking=blocking, isVolatile=isVolatile)
+
+
 class HlsScope():
     """
     A HLS synthetizer with support for loops and packet level operations
@@ -126,7 +143,7 @@ class HlsScope():
             if dtype is not None and dtype != mem.rWordT:
                 raise NotImplementedError()
             return mem.READ_CLS(mem, self, mem.interface, src.index, mem.rWordT, blocking, isVolatile=isVolatile)
-        if dtype is None:
+        elif dtype is None:
             if isinstance(src, (HwIODataRdVld, HwIOStructRdVld, HwIORdVldSync, Axi_hs)):
                 if len(src._hwIOs) == 3 and hasattr(src, "data"):
                     dtype = getattr(src.data, "_dtype", None)
