@@ -272,8 +272,6 @@ def _decodeOpcode_G_ZEXT(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo
 
     width = srcLlt.getScalarSizeInBits()
     newWidth = llt.getScalarSizeInBits()
-    padding = HBits(newWidth - width).from_py(0)
-
     valIsConst = isinstance(val, HConst)
 
     def _opcode_G_ZEXT(nowTime: int, regs: list[HConst]):
@@ -281,7 +279,8 @@ def _decodeOpcode_G_ZEXT(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo
             _val = val
         else:
             _val = regs[val]
-        regs[dst] = padding._concat(_val)
+        assert _val._dtype.bit_length() == width
+        regs[dst] = _val._zext(newWidth)
 
     return _opcode_G_ZEXT
 
@@ -296,35 +295,17 @@ def _decodeOpcode_G_SEXT(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo
 
     width = srcLlt.getScalarSizeInBits()
     newWidth = llt.getScalarSizeInBits()
-    paddingWidth = newWidth - width
-
-    paddingUndef = HBits(paddingWidth).from_py(None)
-    padding0 = HBits(paddingWidth).from_py(0)
-    padding1 = HBits(paddingWidth).from_py(mask(paddingWidth))
-
     valIsConst = isinstance(val, HConst)
 
-    def _opcode_S_ZEXT(nowTime: int, regs: list[HConst]):
+    def _opcode_S_SEXT(nowTime: int, regs: list[HConst]):
         if valIsConst:
             _val = val
         else:
             _val = regs[val]
+        assert _val._dtype.bit_length() == width
+        regs[dst] = _val._sext(newWidth)
 
-        if width == 1:
-            padding = val
-        else:
-            msb = val[width - 1]
-            if msb._is_full_valid():
-                if msb:
-                    padding = padding1
-                else:
-                    padding = padding0
-            else:
-                padding = paddingUndef
-
-        regs[dst] = padding._concat(val)
-
-    return _opcode_S_ZEXT
+    return _opcode_S_SEXT
 
 
 def _makeMinMaxDecoder(predicate: HOperatorDef):
