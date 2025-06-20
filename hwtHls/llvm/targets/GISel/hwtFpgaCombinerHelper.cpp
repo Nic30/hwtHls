@@ -439,6 +439,8 @@ void HwtFpgaCombinerHelper::rewriteGenericOpcodeToHwtFpga(llvm::MachineInstr &MI
 	case TargetOpcode::G_XOR:
 		newOpc = HwtFpga::HWTFPGA_XOR;
 		break;
+
+	case TargetOpcode::COPY:
 	case TargetOpcode::G_FREEZE: // copy like
 		newOpc = HwtFpga::HWTFPGA_MUX;
 		break;

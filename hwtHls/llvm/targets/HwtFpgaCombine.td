@@ -611,6 +611,7 @@ def HwtFpgaPreRegAllocGICombiner: GICombiner<
 def generic_opcode_to_hwtfpga : GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode
+     COPY,
   	 G_ADD, G_AND, G_BR, G_BRCOND, G_ICMP, G_MUL, G_SDIV, G_UDIV, G_UREM, G_SREM, G_UDIVREM, G_SDIVREM,
   	 G_OR, G_SUB, G_XOR, G_GLOBAL_VALUE, G_IMPLICIT_DEF, IMPLICIT_DEF
   	 // :note: shifts and bit count operations needs special handling, because shift amout type is log2ceil(datawidth + 1),
