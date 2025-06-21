@@ -10,7 +10,8 @@ from hwt.hwParam import HwParam
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pyBytecode.pragmaLoop import PyBytecodeLLVMLoopUnroll, \
     PyBytecodeStreamLoopUnroll
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInPreproc
+from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInPreproc, \
+    PyBytecodeBlockLabel
 from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
 from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
 from hwtHls.scope import HlsScope
@@ -49,17 +50,21 @@ class Axi4SPacketCopyByteByByteHs(HwModule):
     def mainThread(self, hls: HlsScope, rx: IoProxyAxi4Stream):
         assert self.OUT_DATA_WIDTH == 8
         while b1:
+            PyBytecodeBlockLabel("bb.sof")
             rx.readStartOfFrame()
             # pass body to tx output
             while b1:
+                PyBytecodeBlockLabel("bb.dataLoop")
                 self.doUnrolling()
                 d = PyBytecodeInPreproc(rx.read(HBits(8), reliable=False))
                 hls.write(d.data, self.tx)
                 if d._isEoF():
+                    PyBytecodeBlockLabel("bb.rx.eof")
                     del d
                     break
                 del d
 
+            PyBytecodeBlockLabel("bb.eof")
             rx.readEndOfFrame()
 
     def hwImpl(self):
@@ -93,20 +98,26 @@ class Axi4SPacketCopyByteByByte(HwModule):
     @hlsBytecode
     def mainThread(self, rx: IoProxyAxi4Stream, tx: IoProxyAxi4Stream):
         while b1:
+            PyBytecodeBlockLabel("bb.sof")
             # pass body to tx output
             rx.readStartOfFrame()
             tx.writeStartOfFrame()
             while b1:
+                PyBytecodeBlockLabel("bb.dataLoop")
                 Axi4SPacketCopyByteByByteHs.doUnrolling(self)
                 d = PyBytecodeInPreproc(rx.read(HBits(8), reliable=False))  # PyBytecodeInPreproc is used because we want to access internal properties of data (_isEoF)
                 if d._isValid():
+                    PyBytecodeBlockLabel("bb.tx.write")
                     tx.write(d.data, eof=d._isEoF())
                 # del d is not necessary is there to limit live of d variable which is useful during debug
                 if d._isEoF():
+                    PyBytecodeBlockLabel("bb.rx.eof")
                     # :note: avoid using masked write as it leads to less readable code and needs to be lowered anyway
                     del d
                     break
                 del d
+
+            PyBytecodeBlockLabel("bb.eof")
             # in reverse order because frame processing behaves a a lock on IO
             # and this order is required to prevent deadlock
             tx.writeEndOfFrame()
@@ -125,7 +136,7 @@ if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synth import to_rtl_str
     from hwtHls.platform.debugBundle import HlsDebugBundle
-    
+
     m = Axi4SPacketCopyByteByByte()
     m.DATA_WIDTH = 64
     # m.UNROLL = False
