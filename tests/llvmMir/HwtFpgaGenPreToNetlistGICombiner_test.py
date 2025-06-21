@@ -159,7 +159,27 @@ class HwtFpgaPreToNetlistGICombiner_TC(BaseLlvmMirTC):
       HWTFPGA_BR %bb.1
 
 """)
-
+# [todo] %3 can be replaced for %4, isTrivialRemovableCopy does not match this because it checks if mux dst reg has one def
+#     def test_mux_trivial_const_propagation_at_end(self):
+#         # i = 0 # %4
+#         # while 1:
+#         #     %2 = ram[i]
+#         #     i %= 1
+#         self._test_mir(f"""\
+#     bb.0.{self.getTestName()}:     
+# 
+#       %0:anyregcls = HWTFPGA_ARG_GET 0
+#       %1:anyregcls = HWTFPGA_ARG_GET 1
+#       %4:anyregcls(s4) = HWTFPGA_MUX i4 0
+#     
+#     bb.1.blockL86i0_86:
+#     
+#       %2:anyregcls(s36) = HWTFPGA_CLOAD %1:anyregcls, %4:anyregcls(s4), 36, 1 :: (volatile load (s36) from %ir.ram, align 8, addrspace 2)
+#       HWTFPGA_CSTORE %2:anyregcls(s36), %0:anyregcls, 0, 36, 1 :: (volatile store (s36) into %ir.dataOut, align 8, addrspace 1)
+#       %3:anyregcls(s4) = HWTFPGA_ADD %4:anyregcls(s4), i4 1
+#       %4:anyregcls(s4) = HWTFPGA_MUX %3:anyregcls(s4)
+#       HWTFPGA_BR %bb.1
+# """)
 #    def test_rewriteFDivByPowi_nonNegSh(self):
 #        self._test_mir(f"""\
 #    bb.0.{self.getTestName()}:   
@@ -226,7 +246,7 @@ class HwtFpgaPreToNetlistGICombiner_TC(BaseLlvmMirTC):
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([HwtFpgaPreToNetlistGICombiner_TC('test_rewriteFDivByPowi_nonNegSh')])
-    suite = testLoader.loadTestsFromTestCase(HwtFpgaPreToNetlistGICombiner_TC)
+    suite = unittest.TestSuite([HwtFpgaPreToNetlistGICombiner_TC('test_mux_trivial_const_propagation_at_end')])
+    # suite = testLoader.loadTestsFromTestCase(HwtFpgaPreToNetlistGICombiner_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
