@@ -8,7 +8,7 @@ from hwt.math import log2ceil
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.pyBytecode.pragmaLoop import PyBytecodeLLVMLoopUnroll
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function, MachineFunction, LLVMStringContext
-from hwtHls.platform.debugBundle import DebugId
+from hwtHls.platform.debugBundle import DebugId #, LLVM_CLI_COMMON_OPTS
 from hwtHls.platform.debugBundle import HlsDebugBundle
 from hwtHls.ssa.analysis.llvmIrInterpret import LlvmIrInterpret, \
     SimIoUnderflowErr
@@ -88,6 +88,7 @@ class ShifterTC(SimTestCase):
             optIrTest=testLlvmOptIr,
             optMirTest=testLlvmOptMir,
             debugFilter=debugFilter,
+            #llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED],
             runTestAfterEachPass=runTestAfterEachPass,
             )
         self.compileSimAndStart(dut, target_platform=platform)  # debugFilter=HlsDebugBundle.ALL_RELIABLE
