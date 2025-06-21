@@ -143,6 +143,7 @@ class BaseAxi4SPktInPktOutTC(SimTestCase):
             tc._testLlvmMir(dut, llvm.strCtx, llvm.getMachineFunction(llvm.main), refFramesIn, refFramesOut)
 
         platform = TestLlvmIrAndMirPlatform(
+            topToRunTestsOn=dut,
             optIrTest=testLlvmOptIr,
             optMirTest=testLlvmOptMir,
             **platformKwargs)
