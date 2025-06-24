@@ -8,7 +8,7 @@ from unittest import expectedFailure
 
 from hwt.hwModule import HwModule
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.frontend.pyBytecode.pragmaLoop import PyBytecodeLLVMLoopUnroll, \
+from hwtHls.frontend.pragmaLoop import PyBytecodeLLVMLoopUnroll, \
     PyBytecodeStreamLoopUnroll
 from hwtHls.llvm.llvmIr import MachineFunction, LLVMStringContext, Function, LlvmCompilationBundle
 from hwtHls.ssa.analysis.llvmIrInterpret import LlvmIrInterpret, \

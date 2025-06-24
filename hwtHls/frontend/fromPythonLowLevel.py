@@ -7,17 +7,17 @@ from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.const import HConst
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.errors import HlsSyntaxError
-from hwtHls.frontend.pyBytecode.blockLabel import BlockLabel
-from hwtHls.frontend.pyBytecode.blockPredecessorTracker import SsaBlockGroup
-from hwtHls.frontend.pyBytecode.errorUtils import createInstructionException
-from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame, \
+from hwtHls.frontend.blockLabel import BlockLabel
+from hwtHls.frontend.blockPredecessorTracker import SsaBlockGroup
+from hwtHls.frontend.errorUtils import createInstructionException
+from hwtHls.frontend.frame import PyBytecodeFrame, \
     PyBytecodeLoopInfo
-from hwtHls.frontend.pyBytecode.fromPythonLowLevelOpcodes import PyBytecodeToSsaLowLevelOpcodes
-from hwtHls.frontend.pyBytecode.instructions import FOR_ITER, JUMP_OPS, \
+from hwtHls.frontend.fromPythonLowLevelOpcodes import PyBytecodeToSsaLowLevelOpcodes
+from hwtHls.frontend.instructions import FOR_ITER, JUMP_OPS, \
     RETURN_VALUE, RETURN_CONST
-from hwtHls.frontend.pyBytecode.loopMeta import BranchTargetPlaceholder, \
+from hwtHls.frontend.loopMeta import BranchTargetPlaceholder, \
     LoopExitJumpInfo
-from hwtHls.frontend.pyBytecode.loopsDetect import PreprocLoopScope
+from hwtHls.frontend.loopsDetect import PreprocLoopScope
 from hwtHls.llvm.llvmIr import Value, BasicBlock
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.scope import HlsScope

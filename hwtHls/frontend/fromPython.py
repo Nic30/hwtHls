@@ -8,22 +8,22 @@ from hwt.hdl.const import HConst
 from hwt.hwIO import HwIO
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.errors import HlsSyntaxError
-from hwtHls.frontend.pyBytecode.blockLabel import BlockLabelTmp
-from hwtHls.frontend.pyBytecode.blockPredecessorTracker import BlockLabel, \
+from hwtHls.frontend.blockLabel import BlockLabelTmp
+from hwtHls.frontend.blockPredecessorTracker import BlockLabel, \
     BlockPredecessorTracker
-from hwtHls.frontend.pyBytecode.errorUtils import createInstructionException
-from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
-from hwtHls.frontend.pyBytecode.fromPythonLowLevel import PyBytecodeToSsaLowLevel, \
+from hwtHls.frontend.errorUtils import createInstructionException
+from hwtHls.frontend.frame import PyBytecodeFrame
+from hwtHls.frontend.fromPythonLowLevel import PyBytecodeToSsaLowLevel, \
     SsaBlockGroup, JumpCondition
-from hwtHls.frontend.pyBytecode.hwIterator import HwIterator
-from hwtHls.frontend.pyBytecode.indexExpansion import expandBeforeUse
-from hwtHls.frontend.pyBytecode.instructions import JUMP_FORWARD, JUMP_BACKWARD, \
+from hwtHls.frontend.hwIterator import HwIterator
+from hwtHls.frontend.indexExpansion import expandBeforeUse
+from hwtHls.frontend.instructions import JUMP_FORWARD, JUMP_BACKWARD, \
     RETURN_VALUE, RAISE_VARARGS, RERAISE, \
     JUMP_BACKWARD_NO_INTERRUPT, JUMP_OPS, FOR_ITER, POP_JUMP_IF_FALSE, \
     POP_JUMP_IF_NOT_NONE, POP_JUMP_IF_NONE, RETURN_CONST, NULL
-from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo, \
+from hwtHls.frontend.loopMeta import PyBytecodeLoopInfo, \
     BranchTargetPlaceholder, LoopExitJumpInfo
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodePreprocDivergence, \
+from hwtHls.frontend.pragmaPreproc import PyBytecodePreprocDivergence, \
     PyBytecodeInPreproc
 from hwtHls.llvm.llvmIr import Value, BasicBlock, Type, Constant, ValueToConstantInt
 
@@ -51,7 +51,7 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
 
     :note: SSA construction algorithm requires detection of an event when basic block have all predecessors known.
       This is complicated in this case as blocks are dynamically generated during evaluation of bytecode.
-      :see: :class:`hwtHls.frontend.pyBytecode.blockPredecessorTracker.BlockPredecessorTracker`
+      :see: :class:`hwtHls.frontend.blockPredecessorTracker.BlockPredecessorTracker`
 
 
     :note: Python assigns each name in a scope to exactly one category:

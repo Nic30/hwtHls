@@ -9,8 +9,8 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInPreproc
-from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInPreproc
+from hwtHls.frontend.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint32_t, uint8_t
 

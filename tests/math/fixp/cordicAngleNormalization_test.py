@@ -8,7 +8,7 @@ from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwtHls.llvm.llvmIr import HFloatTmpRounding, HFloatTmpSaturation
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from hwtHls.architecture.componentGenerators.baseALU1HwModule import _BaseALU1HwModule
 from tests.math.fixp.cordicAngleNormalization import anglePiRadsTo0_to_2, \
     getOctantPiRads, normalizeOctantPiradsTo0_to_0_25, \

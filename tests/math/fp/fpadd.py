@@ -6,8 +6,8 @@ from hwt.mainBases import RtlSignalBase
 from hwt.math import log2ceil
 from hwtHls.code import lshr, ctlz, hwUMin, shl
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragmaInstruction import PyBytecodeNoSplitSlices
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodePreprocHwCopy, \
+from hwtHls.frontend.pragmaInstruction import PyBytecodeNoSplitSlices
+from hwtHls.frontend.pragmaPreproc import PyBytecodePreprocHwCopy, \
     PyBytecodeInline, PyBytecodeBlockLabel
 from tests.math.fp.fptypes import IEEE754Fp, IEEE754FpValue
 from tests.math.fp.normalizeDenormalize import _denormalize, fpRoundup, \

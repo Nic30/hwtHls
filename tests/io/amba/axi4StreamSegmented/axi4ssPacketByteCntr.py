@@ -9,7 +9,7 @@ from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwtHls.code import zextToTy
-from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.frontend.thread import HlsThreadFromPy
 from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4StreamSegmented
 from hwtHls.io.amba.axi4Stream.stmRead import HlsStmReadAxi4StreamSegmented
 from hwtHls.scope import HlsScope
@@ -87,6 +87,7 @@ if __name__ == "__main__":
 
     m = Axi4SSPacketByteCntr_readByte()
     m.SEGMENT_DATA_WIDTH = 24
+    m.SEGMENT_CNT = 2
     m.CLK_FREQ = int(100e6)
     print(to_rtl_str(m, target_platform=Artix7Medium(
         debugFilter=HlsDebugBundle.ALL_RELIABLE,

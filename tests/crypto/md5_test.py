@@ -13,10 +13,10 @@ from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragmaFunction import PyBytecodeSkipPass
-from hwtHls.frontend.pyBytecode.pragmaLoop import PyBytecodeLLVMLoopUnroll
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
-from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.frontend.pragmaFunction import PyBytecodeSkipPass
+from hwtHls.frontend.pragmaLoop import PyBytecodeLLVMLoopUnroll
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
 from tests.crypto.md5 import md5_accumulator_t, md5ProcessChunk, \

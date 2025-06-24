@@ -1,6 +1,6 @@
 from typing import List
 
-from hwtHls.frontend.pyBytecode.pragma import _PyBytecodeFunctionPragma
+from hwtHls.frontend.pragma import _PyBytecodeFunctionPragma
 from hwtHls.llvm.llvmIr import Function
 
 

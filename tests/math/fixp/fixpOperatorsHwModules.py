@@ -8,7 +8,7 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.frontend.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.math.hFloatTmp.hFloatTmpCast import castToHFloatTmp

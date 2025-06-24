@@ -11,8 +11,8 @@ from hwt.hwIO import HwIO
 from hwt.mainBases import RtlSignalBase
 from hwt.math import log2ceil
 from hwt.pyUtils.setList import SetList
-from hwtHls.frontend.ast.statementsRead import HlsRead
-from hwtHls.frontend.ast.statementsWrite import HlsWrite
+from hwtHls.frontend.statementsRead import HlsRead
+from hwtHls.frontend.statementsWrite import HlsWrite
 from hwtHls.frontend.hardBlock import HardBlockHwModule
 from hwtHls.io.portGroups import BankedPortGroup, MultiPortGroup
 from hwtHls.llvm.llvmIr import MachineRegisterInfo, MachineFunction, MachineBasicBlock, MachineLoop, Register, \

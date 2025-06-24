@@ -7,7 +7,7 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
-from hwtHls.frontend.ast.statementsRead import HlsStmReadStartOfFrame, \
+from hwtHls.frontend.statementsRead import HlsStmReadStartOfFrame, \
     HlsStmReadEndOfFrame
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.io.amba.axi4Stream.stmRead import HlsStmReadAxi4Stream

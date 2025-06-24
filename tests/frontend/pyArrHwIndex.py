@@ -15,8 +15,8 @@ from hwt.math import log2ceil
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_without_registration
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeBlockLabel
-from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.frontend.pragmaPreproc import PyBytecodeBlockLabel
+from hwtHls.frontend.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.commonHwIO.addr_data import HwIOAddrDataVldRdVld
 

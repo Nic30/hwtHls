@@ -45,8 +45,8 @@ from hwt.hwParam import HwParam
 from hwt.serializer.mode import serializeParamsUniq
 from hwtHls.code import ctlz, zext, shl
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragmaInstruction import PyBytecodeNoSplitSlices
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.pragmaInstruction import PyBytecodeNoSplitSlices
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from tests.math.fixp.fixpConst import HFixedPointQConst
 from tests.math.fixp.fixpRtlSignal import HFixedPointQRtlSignal
 from tests.math.fixp.fixpTypes import HFixedPointQ

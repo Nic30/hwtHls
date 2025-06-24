@@ -6,7 +6,7 @@ from hwt.hdl.types.bits import HBits
 from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.math import log2ceil
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInPreproc
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInPreproc
 from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4s import Axi4Stream

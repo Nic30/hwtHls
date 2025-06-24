@@ -10,8 +10,8 @@ from hwt.hwIOs.utils import propagateClkRstn
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragmaLoop import PyBytecodeLoopFlattenUsingIf
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeBlockLabel
+from hwtHls.frontend.pragmaLoop import PyBytecodeLoopFlattenUsingIf
+from hwtHls.frontend.pragmaPreproc import PyBytecodeBlockLabel
 from hwtHls.scope import HlsScope
 from hwtLib.handshaked.reg import HandshakedReg
 from tests.frontend.trivial import WhileTrueReadWrite, WhileTrueWrite

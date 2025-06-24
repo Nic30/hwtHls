@@ -11,8 +11,8 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.struct import HStruct
 from hwt.hwIO import HwIO
 from hwt.mainBases import RtlSignalBase
-from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
-from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo
+from hwtHls.frontend.frame import PyBytecodeFrame
+from hwtHls.frontend.loopMeta import PyBytecodeLoopInfo
 from hwtHls.llvm.llvmIr import BranchInst, Value, IRBuilder, BasicBlock
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 

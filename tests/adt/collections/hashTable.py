@@ -16,9 +16,9 @@ from hwt.hwParam import HwParam
 from hwt.math import log2ceil
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
-from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.frontend.ioProxyAddressed import IoProxyAddressed
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
 from hwtHls.io.portGroups import MultiPortGroup
 from hwtHls.scope import HlsScope

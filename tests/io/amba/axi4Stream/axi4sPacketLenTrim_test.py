@@ -1,7 +1,7 @@
 from typing import List, Tuple, Optional, Literal
 
 from hwt.pyUtils.typingFuture import override
-from hwtHls.frontend.pyBytecode.pragmaLoop import PyBytecodeStreamLoopUnroll
+from hwtHls.frontend.pragmaLoop import PyBytecodeStreamLoopUnroll
 from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 from tests.io.amba.axi4Stream.axi4sCopyByteByByte_test import BaseAxi4SPktInPktOutTC
 from tests.io.amba.axi4Stream.axi4sPacketLenTrim import Axi4SPacketTrimByteByByte4

@@ -1,8 +1,8 @@
 from hwt.mainBases import RtlSignalBase
 from hwtHls.code import zext
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragmaInstruction import PyBytecodeNoSplitSlices
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeBlockLabel, \
+from hwtHls.frontend.pragmaInstruction import PyBytecodeNoSplitSlices
+from hwtHls.frontend.pragmaPreproc import PyBytecodeBlockLabel, \
     PyBytecodeInline
 from tests.math.fp.fptypes import IEEE754Fp
 from tests.math.fp.normalizeDenormalize import _denormalize, fpNormalize, \

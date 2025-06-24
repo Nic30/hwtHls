@@ -2,7 +2,7 @@ from typing import Union, Optional
 
 from hwt.hdl.const import HConst
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.ast.statementsWrite import HlsWrite
+from hwtHls.frontend.statementsWrite import HlsWrite
 from hwtHls.io.amba.axi4Stream.metadata import addAxi4StreamLllvmMetadata
 from hwtHls.llvm.llvmIr import Argument, BasicBlock, Type
 from hwtHls.ssa.translation.toLlvmArgumentUtils import getArgumentForHwIO

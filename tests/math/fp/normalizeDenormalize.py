@@ -8,7 +8,7 @@ from hwt.hdl.types.defs import BIT
 from hwt.mainBases import RtlSignalBase
 from hwtHls.code import zext, ctlz, shl, hwUMin
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeBlockLabel
+from hwtHls.frontend.pragmaPreproc import PyBytecodeBlockLabel
 from pyMathBitPrecise.bit_utils import mask
 from tests.math.fp.fptypes import IEEE754Fp
 

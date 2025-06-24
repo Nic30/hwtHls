@@ -9,9 +9,9 @@ from hwt.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.code import rol
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.hwrange import hwrange
-from hwtHls.frontend.pyBytecode.pragma import _PyBytecodeLoopPragma
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodePreprocHwCopy
+from hwtHls.frontend import hwrange.hwrange
+from hwtHls.frontend.pragma import _PyBytecodeLoopPragma
+from hwtHls.frontend.pragmaPreproc import PyBytecodePreprocHwCopy
 from hwtLib.types.ctypes import uint32_t
 
 # for i in range(64)

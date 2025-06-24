@@ -2,9 +2,9 @@ from typing import Optional, Tuple, Sequence
 
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
-from hwtHls.frontend.pyBytecode.fromPython import PyBytecodeToSsa
-from hwtHls.frontend.pyBytecode.hwIterator import HwIterator
+from hwtHls.frontend.frame import PyBytecodeFrame
+from hwtHls.frontend.fromPython import PyBytecodeToSsa
+from hwtHls.frontend.hwIterator import HwIterator
 from hwtHls.llvm.llvmIr import IRBuilder
 from hwtHls.llvm.llvmIr import Value, BasicBlock
 

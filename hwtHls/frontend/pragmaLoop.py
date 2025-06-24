@@ -2,8 +2,8 @@ from math import inf
 from typing import Union, Literal, Optional
 
 from hwt.hwIO import HwIO
-from hwtHls.frontend.pyBytecode.ioProxyStream import IoProxyStream
-from hwtHls.frontend.pyBytecode.pragma import _PyBytecodeLoopPragma
+from hwtHls.frontend.ioProxyStream import IoProxyStream
+from hwtHls.frontend.pragma import _PyBytecodeLoopPragma
 
 
 class PyBytecodeLLVMLoopUnroll(_PyBytecodeLoopPragma):

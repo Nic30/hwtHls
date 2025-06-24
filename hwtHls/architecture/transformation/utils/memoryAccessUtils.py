@@ -2,7 +2,7 @@ from hwt.constants import READ, WRITE
 from hwtHls.architecture.transformation.utils.dummyScheduling import scheduleUnscheduledControlLogic
 from hwtHls.architecture.transformation.utils.syncUtils import insertDummyWriteToImplementSync
 from hwtHls.architecture.transformation.utils.termPropagationContext import ArchElementTermPropagationCtx
-from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
+from hwtHls.frontend.ioProxyAddressed import IoProxyAddressed
 from hwtHls.io.bram import HlsNetNodeWriteBramCmd
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx

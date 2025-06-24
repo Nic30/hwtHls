@@ -9,7 +9,7 @@ from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragmaFunction import PyBytecodeSkipPass
+from hwtHls.frontend.pragmaFunction import PyBytecodeSkipPass
 from hwtHls.netlist.extraOps import OP_UDIVREM
 from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import mask

@@ -4,10 +4,10 @@ from hwt.hdl.const import HConst
 from hwt.hdl.types.arrayConst import HArrayRtlSignal
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
-from hwtHls.frontend.pyBytecode.fromPython import PyBytecodeToSsa
-from hwtHls.frontend.pyBytecode.hwIterator import HwIterator
-from hwtHls.frontend.pyBytecode.hwrange import hwrange
+from hwtHls.frontend.frame import PyBytecodeFrame
+from hwtHls.frontend.fromPython import PyBytecodeToSsa
+from hwtHls.frontend.hwIterator import HwIterator
+from hwtHls.frontend import hwrange.hwrange
 from hwtHls.llvm.llvmIr import Value, BasicBlock
 
 

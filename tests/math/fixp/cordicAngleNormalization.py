@@ -6,7 +6,7 @@ from hwt.hdl.commonConstants import b0, b1
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsRtlSignal import HBitsRtlSignal
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeBlockLabel
+from hwtHls.frontend.pragmaPreproc import PyBytecodeBlockLabel
 from hwtHls.llvm.llvmIr import HFloatTmpSaturation, HFloatTmpRounding
 from tests.math.fixp.fixpRtlSignal import HFixedPointQRtlSignal
 from tests.math.fixp.fixpTypes import HFixedPointQ

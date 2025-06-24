@@ -10,7 +10,7 @@ from hwt.hdl.types.bits import HBits
 from hwt.hwParam import HwParam
 from hwt.serializer.mode import serializeParamsUniq
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from pyMathBitPrecise.bit_utils import mask
 from tests.math.componentGenerators.genericHwModules import _FpUnOpAluHwModule
 from tests.math.fixp.fixpConst import HFixedPointQConst

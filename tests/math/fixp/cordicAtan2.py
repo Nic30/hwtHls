@@ -8,7 +8,7 @@ from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.bitsRtlSignal import HBitsRtlSignal
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from tests.math.fixp.cordicHybridLut import ANY_FP_VALUE, Cordic, \
     CORDIC_COORDINATE_MODE, CORDIC_MODE
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp

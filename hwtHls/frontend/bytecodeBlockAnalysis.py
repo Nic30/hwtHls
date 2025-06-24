@@ -2,7 +2,7 @@ from dis import Instruction
 from networkx.classes.digraph import DiGraph
 from typing import Tuple, Dict
 
-from hwtHls.frontend.pyBytecode.instructions import \
+from hwtHls.frontend.instructions import \
     FOR_ITER, RAISE_VARARGS, RERAISE, \
     RETURN_VALUE, JUMPS_CONDITIONAL_ANY, EXTENDED_ARG,\
     RETURN_CONST, JUMP_FORWARD, JUMP_BACKWARD, JUMP_BACKWARD_NO_INTERRUPT

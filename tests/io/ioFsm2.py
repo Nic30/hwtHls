@@ -6,7 +6,7 @@ from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.pyUtils.typingFuture import override
 from hwtHls.code import zext
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.hwrange import hwrange
+from hwtHls.frontend import hwrange.hwrange
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
 from tests.io.ioFsm import WriteFsm1WhileTrue123hs

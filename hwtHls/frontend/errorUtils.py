@@ -4,7 +4,7 @@ from dis import Instruction
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.statements.statement import HwtSyntaxError
 from hwtHls.errors import HlsSyntaxError
-from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
+from hwtHls.frontend.frame import PyBytecodeFrame
 
 
 def _getInstAndLineByOffset(instructions: list[Instruction], offset: int):

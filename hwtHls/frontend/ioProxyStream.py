@@ -4,9 +4,9 @@ from hwt.hdl.const import HConst
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.ast.statementsRead import HlsStmReadStartOfFrame, \
+from hwtHls.frontend.statementsRead import HlsStmReadStartOfFrame, \
     HlsStmReadEndOfFrame
-from hwtHls.frontend.ast.statementsWrite import HlsStmWriteStartOfFrame, \
+from hwtHls.frontend.statementsWrite import HlsStmWriteStartOfFrame, \
     HlsStmWriteEndOfFrame
 from hwtHls.llvm.llvmIr import Value
 

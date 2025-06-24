@@ -9,9 +9,9 @@ from hwt.hwParam import HwParam
 from hwt.math import log2ceil
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragmaInstruction import PyBytecodeIntrinsicAssume, PyBytecodeNoSplitSlices
-from hwtHls.frontend.pyBytecode.pragmaLoop import PyBytecodeLoopFlattenUsingIf
-from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.frontend.pragmaInstruction import PyBytecodeIntrinsicAssume, PyBytecodeNoSplitSlices
+from hwtHls.frontend.pragmaLoop import PyBytecodeLoopFlattenUsingIf
+from hwtHls.frontend.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from pyMathBitPrecise.bit_utils import mask
 from tests.baseIrMirRtlTC import BaseIrMirRtl_TC

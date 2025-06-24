@@ -10,7 +10,7 @@ from hwt.mainBases import HwIOBase
 from hwt.mainBases import RtlSignalBase
 from hwt.math import AnyHValue
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
+from hwtHls.frontend.frame import PyBytecodeFrame
 from hwtHls.llvm.llvmIr import Value, BasicBlock, IRBuilder, \
     SwitchInst, ConstantInt, APInt, ValueToConstantInt
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator

@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
-from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOBramPort_noClk
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.frontend.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
 from hwtHls.scope import HlsScope
 
@@ -38,7 +38,7 @@ class BramWrite(HwModule):
     @hlsBytecode
     def mainThread(self, hls: HlsScope, ram: BramArrayProxy):
         i = HBits(self.ADDR_WIDTH).from_py(0)
-        while BIT.from_py(1):
+        while b1:
             hls.write(i._reinterpret_cast(self.ram.din._dtype), ram[i])
             i += 1
 
@@ -57,4 +57,5 @@ if __name__ == "__main__":
     from hwtHls.platform.debugBundle import HlsDebugBundle
     
     m = BramWrite()
+    # m.DATA_WIDTH = 1
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

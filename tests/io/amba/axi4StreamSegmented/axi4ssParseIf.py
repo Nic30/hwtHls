@@ -4,7 +4,7 @@
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
 from hwtHls.scope import HlsScope
 from tests.io.amba.axi4StreamSegmented.axi4ssParseLinear import Axi4SSParse2fields
@@ -84,6 +84,7 @@ if __name__ == "__main__":
 
     m = Axi4SSParse2If()
     m.SEGMENT_DATA_WIDTH = 24
+    m.SEGMENT_CNT = 2
     m.CLK_FREQ = int(1e6)
     p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE,
                            llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED])

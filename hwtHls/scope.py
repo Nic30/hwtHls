@@ -19,11 +19,11 @@ from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_without_regi
 from hwt.synthesizer.interfaceLevel.utils import HwIO_walkSignals
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.ast.statementsRead import HlsRead
-from hwtHls.frontend.ast.statementsWrite import HlsWrite
+from hwtHls.frontend.statementsRead import HlsRead
+from hwtHls.frontend.statementsWrite import HlsWrite
 from hwtHls.frontend.pyBytecode import hlsLowLevel
-from hwtHls.frontend.pyBytecode.indexExpansion import PyObjectHwSubscriptRef
-from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
+from hwtHls.frontend.indexExpansion import PyObjectHwSubscriptRef
+from hwtHls.frontend.ioProxyAddressed import IoProxyAddressed
 from hwtHls.hwIOMeta import HwIOMeta
 from hwtHls.io.portGroups import getFirstInterfaceInstance
 from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler

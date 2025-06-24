@@ -19,13 +19,12 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.struct import HStruct
 from hwt.mainBases import RtlSignalBase, HwIOBase
 from hwt.pyUtils.typingFuture import override
-from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
-from hwtHls.frontend.pyBytecode.fromPython import PyBytecodeToSsa
-from hwtHls.frontend.pyBytecode.instructions import NULL
-from hwtHls.frontend.pyBytecode.utils import ObjectWithHlsStoreOverride
+from hwtHls.frontend.frame import PyBytecodeFrame
+from hwtHls.frontend.fromPython import PyBytecodeToSsa
+from hwtHls.frontend.instructions import NULL
+from hwtHls.frontend.pyBytecodeUtils import ObjectWithHlsStoreOverride
 from hwtHls.llvm.llvmIr import BasicBlock
 from tests.math.hFloatTmp.hFloatTmpOps import sin, cos, log, log2, log10
-
 
 _VEC4_PROP_NAMES = ("x", "y", "z", "w")
 

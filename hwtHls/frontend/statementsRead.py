@@ -11,7 +11,7 @@ from hwt.hdl.types.struct import HStruct, HStructField
 from hwt.hwIO import HwIO
 from hwt.mainBases import RtlSignalBase
 from hwt.pyUtils.typingFuture import override
-from hwtHls.frontend.ast.utils import _getNativeInterfaceWordType, \
+from hwtHls.frontend.ioUtils import _getNativeInterfaceWordType, \
     ANY_HLS_STREAM_INTF_TYPE, ANY_SCALAR_INT_VALUE
 from hwtHls.frontend.utils import HwIO_getName
 from hwtHls.io.portGroups import getFirstInterfaceInstance, MultiPortGroup, \

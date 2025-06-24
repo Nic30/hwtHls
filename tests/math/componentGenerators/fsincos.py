@@ -16,8 +16,8 @@ from hwtHls.architecture.componentGeneratorUtils import \
     ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule
 from hwtHls.architecture.componentGenerators.baseALU1HwModule import _BaseALU1HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragmaFunction import PyBytecodeSkipPass
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.pragmaFunction import PyBytecodeSkipPass
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from hwtHls.llvm.llvmIr import HFloatTmpConfig, HFloatTmpRounding, HFloatTmpSaturation
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
@@ -176,9 +176,9 @@ class ComponentGeneratorFSINCOS(ComponentGenerator):
             if self._hasCos and self._hasSin:
                 outputsBitMap = None
             elif self._hasCos:
-                outputsBitMap = None  # cos starts at the bit 0
+                outputsBitMap = (cfg.getBitWidth(),)  # cos starts after sin
             elif self._hasSin:
-                outputsBitMap = (cfg.getBitWidth(),)  # remainder starts after quotient
+                outputsBitMap = None  # sin starts at the bit 0
             else:
                 raise AssertionError("sincos component must be configured as a cos or sin (or both)")
             ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule(self, node, hwModule, worklist, outputsBitMap=outputsBitMap)

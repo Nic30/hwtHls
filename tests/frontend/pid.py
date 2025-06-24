@@ -6,7 +6,7 @@ from hwt.hdl.commonConstants import b1
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.frontend.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.logic.pid import PidController
 from tests.frontend.exprTree3 import HlsAstExprTree3_example

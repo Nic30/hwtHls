@@ -10,11 +10,11 @@ from hwt.pyUtils.typingFuture import override
 from hwt.serializer.mode import serializeParamsUniq
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragma import _PyBytecodeLoopPragma
-from hwtHls.frontend.pyBytecode.pragmaFunction import PyBytecodeSkipPass
-from hwtHls.frontend.pyBytecode.pragmaInstruction import PyBytecodeNoSplitSlices
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeBlockLabel
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.pragma import _PyBytecodeLoopPragma
+from hwtHls.frontend.pragmaFunction import PyBytecodeSkipPass
+from hwtHls.frontend.pragmaInstruction import PyBytecodeNoSplitSlices
+from hwtHls.frontend.pragmaPreproc import PyBytecodeBlockLabel
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from hwtHls.architecture.componentGenerators.baseALU1HwModule import _BaseALU1HwModule
 
 

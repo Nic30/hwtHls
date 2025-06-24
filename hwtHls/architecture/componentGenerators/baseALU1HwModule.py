@@ -12,9 +12,9 @@ from hwt.serializer.mode import serializeParamsUniq
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.componentGenerator import HlsErrorHighlyInefficientImplementation
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragmaLoop import PyBytecodeLLVMLoopUnroll
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
-from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.frontend.pragmaLoop import PyBytecodeLLVMLoopUnroll
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.thread import HlsThreadFromPy
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.read import HlsNetNodeRead

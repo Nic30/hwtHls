@@ -9,10 +9,10 @@ from hwt.hwIOs.hwIOStruct import HwIO_to_HdlType
 from hwt.hwIOs.std import HwIOBramPort_noClk
 from hwt.math import log2ceil
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.ast.statementsRead import HlsReadAddressed
-from hwtHls.frontend.ast.statementsWrite import HlsWriteAddressed
-from hwtHls.frontend.ast.utils import ANY_SCALAR_INT_VALUE
-from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
+from hwtHls.frontend.statementsRead import HlsReadAddressed
+from hwtHls.frontend.statementsWrite import HlsWriteAddressed
+from hwtHls.frontend.ioUtils import ANY_SCALAR_INT_VALUE
+from hwtHls.frontend.ioProxyAddressed import IoProxyAddressed
 from hwtHls.llvm.llvmIr import LoadInst, Register, MachineInstr, Value
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidExternData

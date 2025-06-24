@@ -17,7 +17,7 @@ from hwtHls.architecture.componentGeneratorUtils import replaceHlsNetNodeOperato
 from hwtHls.architecture.componentGenerators.baseALU1HwModule import _BaseALU1HwModule
 from hwtHls.architecture.componentGenerators.ctpop import Ctpop
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta

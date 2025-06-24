@@ -13,11 +13,11 @@ from hwt.hwIOs.std import HwIOBramPort_noClk
 from hwt.pyUtils.typingFuture import override
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.ast.statementsRead import HlsReadAddressed
-from hwtHls.frontend.ast.statementsWrite import HlsWriteAddressed
-from hwtHls.frontend.ast.utils import ANY_SCALAR_INT_VALUE
+from hwtHls.frontend.statementsRead import HlsReadAddressed
+from hwtHls.frontend.statementsWrite import HlsWriteAddressed
+from hwtHls.frontend.ioUtils import ANY_SCALAR_INT_VALUE
 from hwtHls.frontend.pyBytecode import hlsLowLevel
-from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
+from hwtHls.frontend.ioProxyAddressed import IoProxyAddressed
 from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup, \
     isInstanceOfInterfacePort, getFirstInterfaceInstance
 from hwtHls.llvm.llvmIr import LoadInst, Register, MachineInstr, Value
@@ -288,7 +288,7 @@ class HlsReadBram(HlsReadAddressed):
             cond: Optional[HlsNetNodeOutAny],
             instrDstReg:Register) -> Sequence[HlsNetNode]:
         """
-        :see: :meth:`hwtHls.frontend.ast.statementsRead.HlsRead._translateMirToNetlist`
+        :see: :meth:`hwtHls.frontend.statementsRead.HlsRead._translateMirToNetlist`
         """
         valCache: MirToHwtHlsNetlistValueCache = mirToNetlist.valCache
         netlist: HlsNetlistCtx = mirToNetlist.netlist
@@ -365,7 +365,7 @@ class HlsWriteBram(HlsWriteAddressed):
             index: Union[int, HlsNetNodeOutAny],
             cond: Optional[HlsNetNodeOutAny],) -> Sequence[HlsNetNode]:
         """
-        :see: :meth:`hwtHls.frontend.ast.statementsRead.HlsRead._translateMirToNetlist`
+        :see: :meth:`hwtHls.frontend.statementsRead.HlsRead._translateMirToNetlist`
         """
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         isInstanceOfInterfacePort(dstIo, HwIOBramPort_noClk)

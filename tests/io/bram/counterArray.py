@@ -13,7 +13,7 @@ from hwt.math import log2ceil
 from hwtHls.architecture.transformation.utils.memoryAccessUtils import detectReadModifyWrite, \
     ArchImplementStaling, ArchImplementWriteForwarding
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.frontend.thread import HlsThreadFromPy
 from hwtHls.io.bram import BramArrayProxy
 from hwtHls.io.portGroups import MultiPortGroup
 from hwtHls.netlist.context import HlsNetlistCtx

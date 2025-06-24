@@ -1,7 +1,7 @@
 from networkx.classes.digraph import DiGraph
 from typing import Set, NamedTuple, Dict, List, Tuple, TypeVar, Generic
 
-from hwtHls.frontend.pyBytecode.blockPredecessorTracker import BlockLabel
+from hwtHls.frontend.blockPredecessorTracker import BlockLabel
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, BasicBlock, IRBuilder, FunctionType, Type, \
     Function, UndefValue, VectorOfTypePtr, LoopInfo, Loop
 

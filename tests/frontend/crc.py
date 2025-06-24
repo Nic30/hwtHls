@@ -8,7 +8,7 @@ from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bitsRtlSignal import HBitsRtlSignal
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.vectorUtils import iterBits
-from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.frontend.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.logic.crcComb import CrcComb
 from hwtLib.logic.crcPoly import CRC_32

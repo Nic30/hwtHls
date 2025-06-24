@@ -9,11 +9,11 @@ from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.math import log2ceil
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragmaInstruction import PyBytecodeIntrinsicAssume,\
+from hwtHls.frontend.pragmaInstruction import PyBytecodeIntrinsicAssume,\
     setHasNoUnsignedWrap
-from hwtHls.frontend.pyBytecode.pragmaLoop import PyBytecodeStreamLoopUnroll
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeBlockLabel
-from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.frontend.pragmaLoop import PyBytecodeStreamLoopUnroll
+from hwtHls.frontend.pragmaPreproc import PyBytecodeBlockLabel
+from hwtHls.frontend.thread import HlsThreadFromPy
 from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4s import Axi4Stream

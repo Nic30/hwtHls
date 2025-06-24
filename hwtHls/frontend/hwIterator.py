@@ -1,7 +1,7 @@
 from typing import Tuple
 
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
+from hwtHls.frontend.frame import PyBytecodeFrame
 from hwtHls.llvm.llvmIr import Value, BasicBlock
 
 

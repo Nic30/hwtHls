@@ -6,7 +6,7 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.thread import HlsThreadFromPy
+from hwtHls.frontend.thread import HlsThreadFromPy
 from hwtHls.io.amba.axi4Lite import Axi4LiteArrayProxy
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4Lite import Axi4Lite

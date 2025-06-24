@@ -5,7 +5,7 @@ from hwt.hdl.types.function import HFunction
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.struct import HStructField
 from hwt.pyUtils.typingFuture import override
-from hwtHls.frontend.pyBytecode.pragma import _PyBytecodeIntrinsic
+from hwtHls.frontend.pragma import _PyBytecodeIntrinsic
 from hwtHls.llvm.llvmIr import MachineInstr, CallInst, AddDefaultFunctionAttributes, Register, Value, \
     IRBuilder, FunctionCallee, VectorOfTypePtr, FunctionType, Function, Type
 from hwtHls.netlist.builder import HlsNetlistBuilder

@@ -4,13 +4,13 @@ import inspect
 from types import FunctionType
 from typing import Dict, Set, Tuple, List, Optional
 
-from hwtHls.frontend.pyBytecode.blockLabel import BlockLabel
-from hwtHls.frontend.pyBytecode.blockPredecessorTracker import BlockPredecessorTracker
-from hwtHls.frontend.pyBytecode.bytecodeBlockAnalysis import extractBytecodeBlocks
-from hwtHls.frontend.pyBytecode.instructions import NULL
-from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo, \
+from hwtHls.frontend.blockLabel import BlockLabel
+from hwtHls.frontend.blockPredecessorTracker import BlockPredecessorTracker
+from hwtHls.frontend.bytecodeBlockAnalysis import extractBytecodeBlocks
+from hwtHls.frontend.instructions import NULL
+from hwtHls.frontend.loopMeta import PyBytecodeLoopInfo, \
     LoopExitJumpInfo
-from hwtHls.frontend.pyBytecode.loopsDetect import PyBytecodeLoop
+from hwtHls.frontend.loopsDetect import PyBytecodeLoop
 from hwtHls.llvm.llvmIr import BasicBlock
 from hwtHls.platform.debugBundleTypes import LlvmCliArgTuple
 

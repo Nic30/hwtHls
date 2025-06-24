@@ -6,7 +6,7 @@ from typing import Optional, Set, List, Tuple
 from hwt.hdl.types.bits import HBits
 from hwt.math import log2ceil
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.frontend.pyBytecode.pragmaLoop import PyBytecodeLLVMLoopUnroll
+from hwtHls.frontend.pragmaLoop import PyBytecodeLLVMLoopUnroll
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function, MachineFunction, LLVMStringContext
 from hwtHls.platform.debugBundle import DebugId #, LLVM_CLI_COMMON_OPTS
 from hwtHls.platform.debugBundle import HlsDebugBundle

@@ -6,8 +6,8 @@ from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.struct import HStructField, HStruct, offsetof
 from hwt.hwIO import HwIO
 from hwtHls._llvmOpDefUtils import _llvmIntZExtConstructor, _llvmIntSExtConstructor
-from hwtHls.frontend.ast.statementsRead import HlsRead
-from hwtHls.frontend.ast.statementsWrite import HlsWrite
+from hwtHls.frontend.statementsRead import HlsRead
+from hwtHls.frontend.statementsWrite import HlsWrite
 from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
 from hwtHls.llvm.llvmIr import IRBuilder, Function, Type, LoopInfo, Twine, Value
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle

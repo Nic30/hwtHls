@@ -13,7 +13,7 @@ from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_getName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.code import  zextToTy
-from hwtHls.frontend.ast.statementsRead import HlsRead, \
+from hwtHls.frontend.statementsRead import HlsRead, \
     _copySliceNamesToFlattenedSignal
 from hwtHls.io.amba.axi4Stream.metadata import addAxi4StreamLllvmMetadata
 from hwtHls.llvm.llvmIr import Argument, Type, BasicBlock

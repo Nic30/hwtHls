@@ -3,7 +3,7 @@ from hwt.hdl.types.struct import HStruct
 from hwt.hwIOs.utils import addClkRstn
 from hwt.serializer.mode import serializeParamsUniq
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from hwtHls.architecture.componentGenerators.baseALU1HwModule import _BaseALU1HwModule
 from tests.math.fixp.fixpTypes import HFixedPointQ
 

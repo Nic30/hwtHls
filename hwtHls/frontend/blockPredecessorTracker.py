@@ -6,10 +6,10 @@ import pydot
 from typing import Set, List, Tuple, Generator, Dict, Optional
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
-from hwtHls.frontend.pyBytecode.blockLabel import BlockLabel, \
+from hwtHls.frontend.blockLabel import BlockLabel, \
     generateBlockLabel
-from hwtHls.frontend.pyBytecode.loopMeta import PyBytecodeLoopInfo
-from hwtHls.frontend.pyBytecode.loopsDetect import PreprocLoopScope, \
+from hwtHls.frontend.loopMeta import PyBytecodeLoopInfo
+from hwtHls.frontend.loopsDetect import PreprocLoopScope, \
     PyBytecodeLoop
 from hwtHls.llvm.llvmIr import BasicBlock
 

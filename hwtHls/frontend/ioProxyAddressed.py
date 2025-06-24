@@ -2,9 +2,9 @@ from typing import Union
 
 from hwt.hdl.types.array import HArray
 from hwt.hwIO import HwIO
-from hwtHls.frontend.ast.statementsRead import HlsReadAddressed
-from hwtHls.frontend.ast.statementsWrite import HlsWriteAddressed
-from hwtHls.frontend.pyBytecode.indexExpansion import PyObjectHwSubscriptRef
+from hwtHls.frontend.statementsRead import HlsReadAddressed
+from hwtHls.frontend.statementsWrite import HlsWriteAddressed
+from hwtHls.frontend.indexExpansion import PyObjectHwSubscriptRef
 from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
 
 

@@ -13,10 +13,10 @@ from hwt.pyUtils.typingFuture import override
 from hwt.serializer.mode import serializeParamsUniq
 from hwtHls.code import zext, shlIn
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.hwrange import hwrange
-from hwtHls.frontend.pyBytecode.pragma import _PyBytecodeLoopPragma
-from hwtHls.frontend.pyBytecode.pragmaInstruction import PyBytecodeNoSplitSlices
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline, \
+from hwtHls.frontend import hwrange.hwrange
+from hwtHls.frontend.pragma import _PyBytecodeLoopPragma
+from hwtHls.frontend.pragmaInstruction import PyBytecodeNoSplitSlices
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInline, \
     PyBytecodeBlockLabel
 from hwtHls.llvm.llvmIr import HFloatTmpConfig, HFloatTmpRounding
 from tests.math.componentGenerators._div.divRestoring import _divCastToUnsigned, \

@@ -17,7 +17,7 @@ from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
 from tests.math.fp.fpadd import IEEE754FpAdd

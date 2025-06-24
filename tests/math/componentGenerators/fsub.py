@@ -2,7 +2,7 @@ from hwt.hdl.operatorDefs import HwtOps
 from tests.math.componentGenerators.fadd import ComponentGeneratorFADD
 from tests.math.fp.fpadd import IEEE754FpAdd
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from tests.math.fp.fptypes import IEEE754FpValue
 
 

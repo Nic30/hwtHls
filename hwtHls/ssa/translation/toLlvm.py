@@ -26,11 +26,11 @@ from hwt.pyUtils.arrayQuery import grouper, flatten
 from hwt.synthesizer.interfaceLevel.utils import HwIO_pack
 from hwt.synthesizer.rtlLevel.exceptions import SignalDriverErr
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.ast.statementsRead import HlsRead
-from hwtHls.frontend.ast.statementsWrite import HlsWrite
+from hwtHls.frontend.statementsRead import HlsRead
+from hwtHls.frontend.statementsWrite import HlsWrite
 from hwtHls.frontend.hOperatorDefLlvm import HOperatorDefLlvm
 from hwtHls.frontend.hardBlock import HardBlockHwModule
-from hwtHls.frontend.pyBytecode.pragma import _PyBytecodeIntrinsic
+from hwtHls.frontend.pragma import _PyBytecodeIntrinsic
 from hwtHls.llvm.llvmIr import Value, Type, FunctionType, Function, VectorOfTypePtr, BasicBlock, \
     ConstantInt, ConstantArray, APInt, TypeToIntegerType, \
     LlvmCompilationBundle, LLVMContext, LLVMStringContext, ArrayType, MDString, \

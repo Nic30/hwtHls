@@ -19,13 +19,13 @@ from hwt.hwIOs.hwIOStruct import HwIOStruct
 from hwt.hwIOs.std import HwIOSignal
 from hwt.mainBases import HwIOBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.ast.statementsRead import HlsRead
-from hwtHls.frontend.ast.statementsWrite import HlsWrite
-from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
-from hwtHls.frontend.pyBytecode.hwIterator import HwIterator
-from hwtHls.frontend.pyBytecode.indexExpansion import expandBeforeUse, \
+from hwtHls.frontend.statementsRead import HlsRead
+from hwtHls.frontend.statementsWrite import HlsWrite
+from hwtHls.frontend.frame import PyBytecodeFrame
+from hwtHls.frontend.hwIterator import HwIterator
+from hwtHls.frontend.indexExpansion import expandBeforeUse, \
     PyObjectHwSubscriptRef, expandBeforeUseSequence
-from hwtHls.frontend.pyBytecode.instructions import CMP_OPS, BINARY_OPS, UN_OPS, BUILD_OPS, BINARY_OP, NOP, \
+from hwtHls.frontend.instructions import CMP_OPS, BINARY_OPS, UN_OPS, BUILD_OPS, BINARY_OP, NOP, \
     POP_TOP, COPY, SWAP, LOAD_DEREF, LOAD_ATTR, LOAD_FAST, LOAD_CONST, LOAD_GLOBAL, \
     LOAD_METHOD, LOAD_CLOSURE, STORE_ATTR, STORE_FAST, STORE_DEREF, CALL, CALL_FUNCTION_EX, CALL_INTRINSIC_1, \
     COMPARE_OP, GET_ITER, UNPACK_SEQUENCE, MAKE_FUNCTION, STORE_SUBSCR, EXTENDED_ARG, DELETE_DEREF, DELETE_FAST, \
@@ -33,10 +33,10 @@ from hwtHls.frontend.pyBytecode.instructions import CMP_OPS, BINARY_OPS, UN_OPS,
     RESUME, MAKE_CELL, KW_NAMES, NULL, PUSH_NULL, BINARY_SUBSCR, COPY_FREE_VARS, \
     CONTAINS_OP, INPLACE_UPDATE_OPS, LOAD_BUILD_CLASS, BINARY_SLICE, STORE_SLICE, \
     LOAD_FAST_CHECK, LOAD_FAST_AND_CLEAR, END_FOR, CALL_INTRINSIC_1_FUNCTIONS
-from hwtHls.frontend.pyBytecode.ioProxyAddressed import IoProxyAddressed
-from hwtHls.frontend.pyBytecode.pragmaPreproc import PyBytecodeInPreproc, \
+from hwtHls.frontend.ioProxyAddressed import IoProxyAddressed
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInPreproc, \
     PyBytecodeInline, _PyBytecodePragma, PyBytecodePreprocHwCopy
-from hwtHls.frontend.pyBytecode.utils import ObjectWithHlsStoreOverride
+from hwtHls.frontend.pyBytecodeUtils import ObjectWithHlsStoreOverride
 from hwtHls.llvm.llvmIr import Value, BasicBlock, IRBuilder
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp

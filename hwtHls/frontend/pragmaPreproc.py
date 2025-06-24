@@ -4,8 +4,8 @@ from typing import Union
 
 from hwt.hdl.const import HConst
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.pyBytecode.frame import PyBytecodeFrame
-from hwtHls.frontend.pyBytecode.pragma import _PyBytecodePragma
+from hwtHls.frontend.frame import PyBytecodeFrame
+from hwtHls.frontend.pragma import _PyBytecodePragma
 from hwtHls.llvm.llvmIr import Value, BasicBlock
 
 

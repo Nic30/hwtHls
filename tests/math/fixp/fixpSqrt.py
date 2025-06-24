@@ -22,7 +22,7 @@ from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.bitsRtlSignal import HBitsRtlSignal
 from hwtHls.code import zext
-from hwtHls.frontend.pyBytecode.hwrange import hwrange
+from hwtHls.frontend import hwrange.hwrange
 from tests.math.fixp.fixpConst import HFixedPointQConst
 from tests.math.fixp.fixpRtlSignal import HFixedPointQRtlSignal
 from tests.math.fixp.fixpTypes import HFixedPointQ

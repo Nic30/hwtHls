@@ -4,7 +4,7 @@ from hwt.hdl.const import HConst
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.pyBytecode.ioProxyStream import IoProxyStream
+from hwtHls.frontend.ioProxyStream import IoProxyStream
 from hwtHls.io.amba.axi4Stream.stmRead import HlsStmReadAxi4Stream, \
     HlsStmReadAxi4StreamSegmented
 from hwtHls.io.amba.axi4Stream.stmWrite import HlsStmWriteAxi4Stream, \

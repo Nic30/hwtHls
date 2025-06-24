@@ -2,7 +2,7 @@ from typing import  Tuple, Union, List, Optional, Literal, Callable
 
 from hwt.hdl.const import HConst
 from hwt.mainBases import RtlSignalBase
-from hwtHls.frontend.pyBytecode.loopsDetect import PyBytecodeLoop
+from hwtHls.frontend.loopsDetect import PyBytecodeLoop
 from hwtHls.llvm.llvmIr import Value, BasicBlock, Constant, ValueToConstantInt, \
     InstructionToBranchInst, ConstantInt, APInt
 

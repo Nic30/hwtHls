@@ -5,9 +5,9 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
 from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_getName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.ast.statements import HlsStm
-from hwtHls.frontend.ast.statementsRead import HlsRead
-from hwtHls.frontend.ast.utils import _getNativeInterfaceWordType, \
+from hwtHls.frontend.statements import HlsStm
+from hwtHls.frontend.statementsRead import HlsRead
+from hwtHls.frontend.ioUtils import _getNativeInterfaceWordType, \
     ANY_HLS_STREAM_INTF_TYPE, ANY_SCALAR_INT_VALUE
 from hwtHls.llvm.llvmIr import MachineInstr, Argument, Type, ArrayType, TypeToArrayType, \
     Value, BasicBlock
@@ -78,7 +78,7 @@ class HlsWrite(HlsStm):
             index: Union[int, HlsNetNodeOutAny],
             cond: Optional[HlsNetNodeOutAny],) -> Sequence[HlsNetNode]:
         """
-        :see: :meth:`hwtHls.frontend.ast.statementsRead.HlsRead._translateMirToNetlist`
+        :see: :meth:`hwtHls.frontend.statementsRead.HlsRead._translateMirToNetlist`
         """
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         # srcVal, dstIo, index, cond = ops
@@ -142,7 +142,7 @@ class HlsWriteAddressed(HlsWrite):
             index: Union[int, HlsNetNodeOutAny],
             cond: Optional[HlsNetNodeOutAny],) -> Sequence[HlsNetNode]:
         """
-        :see: :meth:`hwtHls.frontend.ast.statementsRead.HlsRead._translateMirToNetlist`
+        :see: :meth:`hwtHls.frontend.statementsRead.HlsRead._translateMirToNetlist`
         """
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         # srcVal, dstIo, index, cond = ops

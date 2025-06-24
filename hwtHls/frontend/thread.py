@@ -9,7 +9,7 @@ from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.mainBases import HwIOBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.pyBytecode.fromPython import PyBytecodeToSsa
+from hwtHls.frontend.fromPython import PyBytecodeToSsa
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.platform.platform import DefaultHlsPlatform, HlsDebugBundle
 from hwtHls.scope import HlsThread, HlsScope

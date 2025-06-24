@@ -1,6 +1,6 @@
 from networkx.classes.digraph import DiGraph
 
-from hwtHls.frontend.pyBytecode.loopsDetect import PyBytecodeLoop
+from hwtHls.frontend.loopsDetect import PyBytecodeLoop
 from hwtHls.llvm.llvmIr import BasicBlock
 
 class SsaLoop(PyBytecodeLoop[BasicBlock]):
