@@ -26,8 +26,7 @@ public:
 protected:
 	void _rewriteAdtAccessToWordAccessInstruction(
 			StreamIoDetector::HlsReadOrWrite *read) override;
-	void _preparePrevWordVars(
-			const std::vector<size_t> &possibleOffsets,
+	void _preparePrevWordVars(const std::vector<size_t> &possibleOffsets,
 			std::pair<size_t, size_t> wordCntRange, bool readIsReliable,
 			StreamIoDetector::HlsReadOrWrite *read,
 			std::optional<StreamChannelWordValue> preLastWord,
@@ -38,7 +37,8 @@ protected:
 			std::pair<size_t, size_t> wordCntRange, size_t chunkWidth,
 			StreamIoDetector::HlsReadOrWrite *read,
 			std::optional<StreamChannelWordValue> preLastWord,
-			std::optional<StreamChannelWordValue> lastWord);
+			std::optional<StreamChannelWordValue> lastWord,
+			bool mayResultInDiffentNoOfWords);
 	void _handleOptionalReadsDependingOnCurrentOffset(
 			const std::vector<size_t> &possibleOffsets,
 			std::pair<size_t, size_t> wordCntRange, size_t chunkWidth,
@@ -123,16 +123,15 @@ void StreamReadRewriter::_preparePrevWordVars(
 
 	// There are several cases how to accommodate 3B chunk on 3B bus
 	// |0|1|2|  // no prev word read (prevWordVars[1])
-    //
+	//
 	// | |0|1|  // prev word prevWordVars[0]
 	// |2| | |  // new read prevWordVars[1] (stored to output prev word)
-    //
+	//
 	// | | |0|  // prev word prevWordVars[0]
 	// |1|2| |  // new read prevWordVars[1] (stored to output prev word)
 
 	// prevWordVars[0] = preLastWord
 	// prevWordVars[1] = lastWord
-
 
 	// due to different values of offset number of words may differ,
 	// we obtain the max number of bus words for any offset, if some offset variant
@@ -197,11 +196,13 @@ void StreamReadRewriter::_consumeReadWordsAndCreateResultData(
 		std::pair<size_t, size_t> wordCntRange, size_t chunkWidth,
 		StreamIoDetector::HlsReadOrWrite *read,
 		std::optional<StreamChannelWordValue> preLastWord,
-		std::optional<StreamChannelWordValue> lastWord) {
+		std::optional<StreamChannelWordValue> lastWord,
+		bool mayResultInDiffentNoOfWords) {
 	Builder.SetInsertPoint(read);
 	bool readIsReliable = streamReadGetIsReliable(read);
 	llvm::SmallVector<StreamChannelWordValue> prevWordVars;
-	_preparePrevWordVars(possibleOffsets, wordCntRange, chunkWidth, read, lastWord, preLastWord, prevWordVars);
+	_preparePrevWordVars(possibleOffsets, wordCntRange, chunkWidth, read,
+			lastWord, preLastWord, prevWordVars);
 	auto *readResVar = Builder.CreateAlloca(read->getType(), nullptr,
 			read->getName());
 	streamProps.GeneratedAllocas.push_back(readResVar);
@@ -223,23 +224,31 @@ void StreamReadRewriter::_consumeReadWordsAndCreateResultData(
 		size_t wordCnt = div_ceil(end == 0 ? 0 : end - 1, DATA_WIDTH);
 
 		// resolve first word (chunkWords) used for this offset variant
-		auto chunkWords = prevWordVars.begin();
-		if ((wordCntRange.first != wordCntRange.second)
+		auto chunkWordIt = prevWordVars.begin();
+		auto chunkWordsEnd = prevWordVars.end();
+
+		if (mayResultInDiffentNoOfWords
 				&& streamProps._getBusWordCntForChunk(*off, chunkWidth)
 						== wordCntRange.first) {
-			// now not reading last word of predecessor but other offsets variant are using it
-			++chunkWords; // the first word is optionally loaded and not loaded for this offset variant
+			if (*off == 0) {
+				// now the leftover part of first word is not used by this offset
+				// and only words 1+ are used
+				--chunkWordsEnd;
+			} else {
+				// now not reading last word of predecessor but other offsets variant are using it
+				++chunkWordIt; // the first word is optionally loaded and not loaded for this offset variant
+			}
 			assert(prevWordVars.size() == wordCnt + 1);
 		} else {
 			assert(prevWordVars.size() == wordCnt);
 		}
 		// vector of parts to build replacement for value of this original ADT read
 		llvm::SmallVector<StreamChannelWordValue> parts;
-		for (; chunkWords != prevWordVars.end(); ++chunkWords) {
+		for (; chunkWordIt != chunkWordsEnd; ++chunkWordIt) {
 			assert(inWordOffset < DATA_WIDTH);
 			size_t bitsToTake = std::min(_w, DATA_WIDTH - inWordOffset);
-			auto partRead = *chunkWords;
-			bool isLast = chunkWords == &prevWordVars.back();
+			auto partRead = *chunkWordIt;
+			bool isLast = chunkWordIt == (chunkWordsEnd - 1);
 			bool isGuaranteedToBeNotEoF = readIsReliable && !isLast;
 			bool isGuarangeedToContainSomeData = readIsReliable;
 			if (inWordOffset != 0) {
@@ -267,13 +276,13 @@ void StreamReadRewriter::_consumeReadWordsAndCreateResultData(
 			case ByteEnableEncoding::BEE_NONE:
 				break;
 			case ByteEnableEncoding::BEE_MASK: {
-				auto maskOfLastWord = prevWordVars.back().mask;
+				auto maskOfLastWord = (chunkWordsEnd - 1)->mask;
 				isFollowedByMoreValidData = CreateBitRangeGetConst(&Builder,
 						maskOfLastWord, newOffset / 8, 1);
 				break;
 			}
 			case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY: {
-				auto emptyOfLastWord = prevWordVars.back().empty;
+				auto emptyOfLastWord = (chunkWordsEnd - 1)->empty;
 				// size is larger than end of this section (newOffset)
 				// = empty < bytesInWord - size
 				size_t bytesInWord = streamProps.dataWidth
@@ -322,12 +331,16 @@ void StreamReadRewriter::_consumeReadWordsAndCreateResultData(
 	//			BasicBlock::iterator(&sequelBlock->front()));
 	//}
 	// the insertion point should be the place behind all newly generated instructions which are implementing
-	// original stream read pseudoinstruction
+	// original stream read pseudo-instruction
 	auto *readRes = Builder.CreateLoad(read->getType(), readResVar,
 			read->getName());
 	read->replaceAllUsesWith(readRes);
 }
 
+//bool StreamReadRewriter::_canFitOnlytToFirstWord() {
+//
+//}
+//
 void StreamReadRewriter::_rewriteAdtAccessToWordAccessInstruction(
 		StreamIoDetector::HlsReadOrWrite *read) {
 	bool readIsMarker = read == nullptr || IsStreamReadStartOfFrame(read)
@@ -394,12 +407,16 @@ void StreamReadRewriter::_rewriteAdtAccessToWordAccessInstruction(
 		// * collect/construct all reads common for every successor branch
 		// * replace original read of ADT with a result composed of word reads
 		_consumeReadWordsAndCreateResultData(possibleOffsets, wordCntRange,
-				chunkWidth, read, lastWord, preLastWord);
+				chunkWidth, read, lastWord, preLastWord,
+				mayResultInDiffentNoOfWords);
 	}
 }
 
 llvm::PreservedAnalyses StreamReadLoweringPass::run(llvm::Function &F,
 		llvm::FunctionAnalysisManager &FAM) {
+	if (verifyModule(*F.getParent(), &errs())) {
+		assert(false && "corrupted at input");
+	}
 	auto *AC = FAM.getCachedResult<AssumptionAnalysis>(F);
 	auto &DT = FAM.getResult<DominatorTreeAnalysis>(F);
 	DomTreeUpdater DTU(DT, DomTreeUpdater::UpdateStrategy::Eager);
