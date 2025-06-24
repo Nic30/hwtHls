@@ -169,7 +169,7 @@ py3.extension_module(
      'Transforms/HwtHlsSimplifyCFGPass/cfgFragmentChainOfblocksWithSameSucc.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/cfgFragmentOptionaStreamWrite.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/cfgFragmentStreamReadUntilEoF.cpp',
-     'Transforms/HwtHlsSimplifyCFGPass/SimplifyCFG2.cpp',
+     'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFG.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_aggresiveStoreSink.cpp',
 	 'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_mergePredecessorsStore.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_normalizeLookupTableIndex.cpp',
