@@ -17,6 +17,7 @@ from tests.math.fp.fpadd import IEEE754FpAdd
 from tests.math.fp.fptypes import IEEE754Fp
 from tests.math.componentGenerators.genericHwModules import _FpBinOpAluHwModule
 from tests.math.hFloatTmp.hFloatTmpCast import OP_CAST_HFLOATTMP_TO_HFLOATTMP
+from hwtHls.netlist.builder import HlsNetlistBuilderWithWorklist
 
 
 class ComponentGeneratorFADD(ComponentGenerator):
@@ -50,7 +51,7 @@ class ComponentGeneratorFADD(ComponentGenerator):
         cfg: HFloatTmpConfig = node.operatorSpecialization
         if cfg.isInQFormat:
             # perform add on +1b and then round it back to result width
-            builder = node.getHlsNetlistBuilder()
+            builder = HlsNetlistBuilderWithWorklist(node.getHlsNetlistBuilder(), worklist)
             cfgIn, cfgOut = self.toHwtCompatibleOperatorBeforeScheduling_Q_getTmpCfg(cfg)
             t2 = HBits(cfgIn.getBitWidth())
             op0, op1 = node.dependsOn
