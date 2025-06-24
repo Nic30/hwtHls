@@ -19,6 +19,7 @@ from tests.io.amba.axi4StreamSegmented.axi4ssParseIf_test import Axi4SSParseIf_1
     Axi4SSParseIf_2Seg_TC, Axi4SSParseIf_3Seg_TC, Axi4SSParseIf_4Seg_TC
 from tests.io.amba.axi4StreamSegmented.axi4ssParseLinear_test import Axi4SSParseLinearTC
 from tests.io.bram.bramRead_test import BramRead_TC
+from tests.io.bram.bramWriteAligner_test import HwIOAddrDataUnalignedToBram_TCs
 from tests.io.bram.bramWrite_test import BramWrite_TC
 from tests.io.bram.counterArray_test import BramCounterArray_TC
 from tests.io.bram.readSizeFromRamAndSendSequence_test import ReadSizeFromRamAndSendSequence_TC
@@ -27,7 +28,6 @@ from tests.io.ioFsm2_test import IoFsm2_TC
 from tests.io.ioFsm_test import IoFsm_TC
 from tests.io.readAtleastOne_test import ReadAtleastOne_TC
 from tests.testCaseUtils import testSuiteFromTCs
-
 
 io_TCs = [
     Flushing_TC,
@@ -55,6 +55,7 @@ io_TCs = [
     Axi4LiteWrite_TC,
     Axi4LiteCopy_TC,
     BramCounterArray_TC,
+    *HwIOAddrDataUnalignedToBram_TCs,
     ReadSizeFromRamAndSendSequence_TC,
     ReadAtleastOne_TC,
 ]
