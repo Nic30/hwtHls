@@ -14,7 +14,7 @@ from tests.frontend.pragmaInline import PragmaInline_singleBlock, \
     PragmaInline_writeSaturatedCntr4, PragmaInline_SequenceCounter, \
     PragmaInline_FilterZeros, PragmaInline_TwoInLoopLiveVars, \
     PragmaInline_writeCntrForInIf0, PragmaInline_writeCntrForInIf1
-from tests.frontend.varReference import \
+from tests.frontend.varReference_test import \
     VarReference_writeCntr0, VarReference_writeCntr1
 
 

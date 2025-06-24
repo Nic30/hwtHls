@@ -13,6 +13,7 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
 from tests.baseSsaTest import BaseSsaTC
+from tests.frontend.trivial import WriteOnce
 
 
 class HlsAstExprTree3_example(HwModule):
@@ -59,9 +60,7 @@ class HlsAstExprTree3_example(HwModule):
 
     @override
     def hwImpl(self) -> None:
-        hls = HlsScope(self, namePrefix="")
-        hls.addThread(HlsThreadFromPy(hls, self.mainThread, hls))
-        hls.compile()
+        WriteOnce.hwImpl(self)
 
 
 class HlsAstExprTree3_example_TC(BaseSsaTC):

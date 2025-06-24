@@ -10,7 +10,7 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.platform.xilinx.artix7 import Artix7Slow
 from hwtLib.logic.crcPoly import CRC_32
 from tests.frontend.crc import CrcCombHls
-from tests.frontend.ifstm import HlsSimpleIfStatement
+from tests.frontend.ifstm_test import HlsSimpleIfStatement
 from tests.frontend.pid import PidControllerHls
 
 

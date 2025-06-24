@@ -9,7 +9,7 @@ from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.logic.pid import PidController
-from tests.frontend.exprTree3 import HlsAstExprTree3_example
+from tests.frontend.trivial import WriteOnce
 
 
 class PidControllerHalfHls(PidController):
@@ -107,7 +107,7 @@ class PidControllerHls(PidControllerHalfHls):
 
     @override
     def hwImpl(self) -> None:
-        HlsAstExprTree3_example.hwImpl(self)
+        WriteOnce.hwImpl(self)
 
 
 if __name__ == "__main__":

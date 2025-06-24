@@ -11,7 +11,7 @@ from hwtLib.examples.statements.ifStm import SimpleIfStatement
 from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import get_bit
 from tests.baseSsaTest import BaseSsaTC
-from tests.frontend.exprTree3 import HlsAstExprTree3_example
+from tests.frontend.trivial import WriteOnce
 
 
 class HlsSimpleIfStatement(SimpleIfStatement):
@@ -43,7 +43,7 @@ class HlsSimpleIfStatement(SimpleIfStatement):
     
     @override
     def hwImpl(self) -> None:
-        HlsAstExprTree3_example.hwImpl(self)
+        WriteOnce.hwImpl(self)
 
 
 

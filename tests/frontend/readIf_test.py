@@ -13,7 +13,7 @@ from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
 from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.baseSsaTest import BaseSsaTC
-from tests.frontend.exprTree3 import HlsAstExprTree3_example
+from tests.frontend.trivial import WriteOnce
 
 
 class ReadIfOtherEqual(HwModule):
@@ -38,7 +38,7 @@ class ReadIfOtherEqual(HwModule):
 
     @override
     def hwImpl(self) -> None:
-        HlsAstExprTree3_example.hwImpl(self)
+        WriteOnce.hwImpl(self)
 
 
 class ReadIfOtherEqualOnce(ReadIfOtherEqual):

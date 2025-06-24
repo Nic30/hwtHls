@@ -18,7 +18,7 @@ from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
-from tests.frontend.exprTree3 import HlsAstExprTree3_example
+from tests.frontend.trivial import WriteOnce
 
 
 class HlsMAC_example(HwModule):
@@ -61,7 +61,7 @@ class HlsMAC_example(HwModule):
 
     @override
     def hwImpl(self) -> None:
-        HlsAstExprTree3_example.hwImpl(self)
+        WriteOnce.hwImpl(self)
 
 
 class HlsMAC_example2(HlsMAC_example):

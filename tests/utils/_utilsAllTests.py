@@ -3,7 +3,7 @@
 
 from hwtLib.tests.all import unittestMain
 from tests.testCaseUtils import testSuiteFromTCs
-from tests.utils.alapAsapDiffExample import AlapAsapDiffExample_TC
+from tests.utils.alapAsapDiffExample_test import AlapAsapDiffExample_TC
 from tests.utils.bitwiseOpsScheduling_test import BitwiseOpsScheduling_TC
 from tests.utils.schedulingNodeFunctions_test import SchedulingNodeFunctions_TC
 

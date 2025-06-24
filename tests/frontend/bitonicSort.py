@@ -11,7 +11,7 @@ from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtLib.logic.bitonicSorter import BitonicSorter, BitonicSorterTC
-from tests.frontend.exprTree3 import HlsAstExprTree3_example
+from tests.frontend.trivial import WriteOnce
 
 
 class BitonicSorterHLS0(BitonicSorter):
@@ -57,7 +57,7 @@ class BitonicSorterHLS0(BitonicSorter):
 
     @override
     def hwImpl(self) -> None:
-        HlsAstExprTree3_example.hwImpl(self)
+       WriteOnce.hwImpl(self)
 
 
 class BitonicSorterHLS1(BitonicSorterHLS0):

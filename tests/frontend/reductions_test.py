@@ -9,7 +9,8 @@ from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
-from tests.frontend.exprTree3 import HlsAstExprTree3_example
+from tests.frontend.exprTree3_test import HlsAstExprTree3_example
+from tests.frontend.trivial import WriteOnce
 
 
 class ForLoopWithIoSelectIn(HwModule):
@@ -51,7 +52,7 @@ class ForLoopWithIoSelectIn(HwModule):
 
     @override
     def hwImpl(self) -> None:
-        HlsAstExprTree3_example.hwImpl(self)
+        WriteOnce.hwImpl(self)
 
 
 class ForLoopAccumulateSumInputSelByIndex(ForLoopWithIoSelectIn):

@@ -11,8 +11,8 @@ from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
 from hwtSimApi.utils import freq_to_period
 from tests.baseSsaTest import BaseSsaTC
-from tests.frontend.exprTree3 import HlsAstExprTree3_example
 from tests.frontend.loopAfterLoop import TwoTimesFiniteWhileInWhileTrue
+from tests.frontend.trivial import WriteOnce
 
 
 class FiniteWhileIf0(TwoTimesFiniteWhileInWhileTrue):
@@ -40,8 +40,7 @@ class FiniteWhileIf0(TwoTimesFiniteWhileInWhileTrue):
 
     @override
     def hwImpl(self) -> None:
-        HlsAstExprTree3_example.hwImpl(self)
-
+        WriteOnce.hwImpl(self)
 
 class FiniteWhileIf1(TwoTimesFiniteWhileInWhileTrue):
 
