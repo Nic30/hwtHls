@@ -6,7 +6,8 @@ SchedulingResourceType = Any
 SchedulingResourceConstraints = Dict[SchedulingResourceType, int]
 
 
-def initSchedulingResourceConstraintsFromIO(resourceConstraints: SchedulingResourceConstraints, ioResources: Sequence[SchedulingResourceType]):
+def initSchedulingResourceConstraintsFromIO(resourceConstraints: SchedulingResourceConstraints,
+                                            ioResources: Sequence[SchedulingResourceType]):
     for schedResT in ioResources:
         if schedResT is not None and schedResT not in resourceConstraints:
             if isinstance(schedResT, BankedPortGroup):
