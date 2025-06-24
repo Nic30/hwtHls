@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.hdl.types.defs import BIT
+from hwt.hdl.commonConstants import b1
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwModule import HwModule
 from hwt.pyUtils.typingFuture import override
@@ -24,7 +24,7 @@ class FnClosureSingleItem(HwModule):
         def read(a):
             return hls.read(a).data
 
-        while BIT.from_py(1):
+        while b1:
             hls.write(read(self.i), self.o)
 
     @override
@@ -46,7 +46,7 @@ class FnClosureNone0(HwModule):
         def genVal():
             return 10
 
-        while BIT.from_py(1):
+        while b1:
             hls.write(genVal(), self.o)
 
     @override
@@ -63,7 +63,7 @@ class FnClosureNone1(HwModule):
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
 
-        while BIT.from_py(1):
+        while b1:
 
             def genVal():
                 return 10

@@ -12,8 +12,8 @@ from tests.frontend.hStructAssign_test import HStructAssign_TC
 from tests.frontend.hwenumerate_test import HlsPythonHwenumerate_TC
 from tests.frontend.hwrange_test import HlsPythonHwrange_TC
 from tests.frontend.ifstm_test import HlsSimpleIfStatement_TC
-from tests.frontend.loopAfterLoop import LoopAfterLoop_TC
-from tests.frontend.loopFollowedByIf import LoopFollowedByIf_TC
+from tests.frontend.loopAfterLoop_test import LoopAfterLoop_TC
+from tests.frontend.loopFollowedByIf_test import LoopFollowedByIf_TC
 from tests.frontend.mac_test import HlsMAC_example_TC
 from tests.frontend.pragmaInline_test import PyBytecodeInline_TC
 from tests.frontend.preprocLoopMultiExit_test import PreprocLoopMultiExit_TCs
