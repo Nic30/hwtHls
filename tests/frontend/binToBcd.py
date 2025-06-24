@@ -12,7 +12,7 @@ from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend import hwrange.hwrange
+from hwtHls.frontend.hwrange import hwrange
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInPreproc
 from hwtHls.frontend.thread import HlsThreadFromPy
 from hwtHls.scope import HlsScope

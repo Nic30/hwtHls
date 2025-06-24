@@ -11,8 +11,8 @@ from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwt.simulator.simTestCase import SimTestCase
+from hwtHls.frontend.hwenumerate import hwenumerate
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend import hwenumerate.hwenumerate
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period

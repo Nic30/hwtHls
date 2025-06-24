@@ -11,7 +11,7 @@ from hwt.hdl.types.struct import HStruct
 from hwt.mainBases import RtlSignalBase
 from hwt.math import log2ceil
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend import hwenumerate.hwenumerate
+from hwtHls.frontend.hwenumerate import hwenumerate
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline, \
     PyBytecodeBlockLabel, PyBytecodePreprocHwCopy
 from hwtHls.llvm.llvmIr import HFloatTmpSaturation, HFloatTmpRounding

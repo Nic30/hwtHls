@@ -13,7 +13,7 @@ from hwt.pyUtils.typingFuture import override
 from hwt.serializer.mode import serializeParamsUniq
 from hwtHls.code import zext, shlIn
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend import hwrange.hwrange
+from hwtHls.frontend.hwrange import hwrange
 from hwtHls.frontend.pragma import _PyBytecodeLoopPragma
 from hwtHls.frontend.pragmaInstruction import PyBytecodeNoSplitSlices
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline, \
