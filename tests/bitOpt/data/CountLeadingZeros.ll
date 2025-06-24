@@ -1,4 +1,4 @@
-define void @CountLeadingZeros.mainThread(ptr addrspace(1) %data_in, ptr addrspace(2) %data_out) !hwtHls.param_addr_width !0 {
+define void @CountLeadingZeros.mainThread(ptr addrspace(1) %data_in, ptr addrspace(2) %data_out) !hwtHls.io !0 {
 CountLeadingZeros.mainThread:
   br label %block0
 

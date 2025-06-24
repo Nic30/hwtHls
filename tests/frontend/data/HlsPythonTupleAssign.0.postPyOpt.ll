@@ -1,12 +1,12 @@
-define void @HlsPythonTupleAssign.mainThread(ptr addrspace(1) %o0, ptr addrspace(2) %o1) !hwtHls.param_addr_width !0 {
+define void @HlsPythonTupleAssign.mainThread(ptr addrspace(1) %o0, ptr addrspace(2) %o1) !hwtHls.io !0 {
 bb0:
   br label %block0
 
 block0:                                           ; preds = %bb0
-  %i0 = alloca i8, align 1, !hwtHls.tmp.alloca !2
+  %i0 = alloca i8, align 1, !hwtHls.tmp.alloca !4
   store i8 undef, ptr %i0, align 1
   store i8 0, ptr %i0, align 1
-  %i1 = alloca i8, align 1, !hwtHls.tmp.alloca !2
+  %i1 = alloca i8, align 1, !hwtHls.tmp.alloca !4
   store i8 undef, ptr %i1, align 1
   store i8 1, ptr %i1, align 1
   br label %blockL98i0_98

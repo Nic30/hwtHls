@@ -1,8 +1,10 @@
 #include <hwtHls/llvm/llvmIrMetadata.h>
 
 #include <pybind11/stl.h>
-#include <hwtHls/llvm/llvmIrCommon.h>
+#include <pybind11/stl_bind.h>
 
+#include <hwtHls/llvm/llvmIrCommon.h>
+#include <hwtHls/llvm/Transforms/utils/metadataHwtHlsIO.h>
 #include <hwtHls/llvm/targets/intrinsic/StreamChannelFormatInfo.h>
 
 namespace py = pybind11;
@@ -119,6 +121,39 @@ void register_MDNode(pybind11::module_ & m) {
 	//py::implicitly_convertible<llvm::ConstantAsMetadata, llvm::Metadata>();
 	//py::implicitly_convertible<llvm::ValueAsMetadata, llvm::Metadata>();
 	//py::implicitly_convertible<llvm::MDString, llvm::Metadata>();
+
+	py::enum_<hwtHls::IODirection> (m, "IODirection")
+		.value("IO_DIR_IN", hwtHls::IODirection::IO_DIR_IN)
+		.value("IO_DIR_OUT", hwtHls::IODirection::IO_DIR_OUT)
+		.value("IO_DIR_UNRESOLVED", hwtHls::IODirection::IO_DIR_UNRESOLVED)
+		.export_values();
+	py::class_<hwtHls::HwtHlsIoMetadata>(m, "HwtHlsIoMetadata")
+		.def(py::init<hwtHls::IODirection, size_t, llvm::Function *, size_t>())
+		.def_readwrite("direction", &hwtHls::HwtHlsIoMetadata::direction)
+		.def_readwrite("addrWidth", &hwtHls::HwtHlsIoMetadata::addrWidth)
+		.def_readwrite("otherThreadFn", &hwtHls::HwtHlsIoMetadata::otherThreadFn)
+		.def_readwrite("otherArgIndex", &hwtHls::HwtHlsIoMetadata::otherArgIndex);
+	using HwtHlsIoMetadataSmallVector = llvm::SmallVector<hwtHls::HwtHlsIoMetadata>;
+	py::class_<HwtHlsIoMetadataSmallVector>(m, "HwtHlsIoMetadataSmallVector")
+		.def(py::init<>())
+		.def("push_back", &HwtHlsIoMetadataSmallVector::push_back)
+		.def("__getitem__", [](HwtHlsIoMetadataSmallVector &V, int index) {
+			if (index >= int(V.size()) || index < -int(V.size())) {
+				throw std::runtime_error("IndexError");
+			}
+			if (index < 0) {
+				return V[int(V.size()) + index];
+			} else {
+				return V[index];
+			}
+		})
+		.def("__len__", [](HwtHlsIoMetadataSmallVector &V) { return V.size(); })
+		.def("__iter__", [](HwtHlsIoMetadataSmallVector &V) {
+			return py::make_iterator(V.begin(), V.end());
+		}, py::keep_alive<0, 1>()); /* Keep vector alive while iterator is used */
+		;
+	m.def("HwtHlsIoMetadata_get", [](llvm::Function & F) { return HwtHlsIoMetadata_get(F); });
+    m.def("HwtHlsIoMetadata_set", &HwtHlsIoMetadata_set);
 
 	py::enum_<hwtHls::ByteEnableEncoding> (m, "ByteEnableEncoding")
 		.value("BEE_NONE", hwtHls::ByteEnableEncoding::BEE_NONE)

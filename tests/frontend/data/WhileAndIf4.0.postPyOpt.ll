@@ -1,4 +1,4 @@
-define void @WhileAndIf4.mainThread(ptr addrspace(1) %dataIn, ptr addrspace(2) %dataOut) !hwtHls.param_addr_width !0 {
+define void @WhileAndIf4.mainThread(ptr addrspace(1) %dataIn, ptr addrspace(2) %dataOut) !hwtHls.io !0 {
 bb0:
   br label %block0
 
@@ -6,13 +6,13 @@ block0:                                           ; preds = %bb0
   br label %blockL14i0_14
 
 blockL14i0_14:                                    ; preds = %block0
-  %x = alloca i8, align 1, !hwtHls.tmp.alloca !2
+  %x = alloca i8, align 1, !hwtHls.tmp.alloca !4
   store i8 undef, ptr %x, align 1
   store i8 10, ptr %x, align 1
   br label %blockL14i0_L102i0_102
 
 blockL14i0_L102i0_102:                            ; preds = %blockL14i0_L102i0_260, %blockL14i0_14
-  %dataIn_read = alloca i8, align 1, !hwtHls.tmp.alloca !2
+  %dataIn_read = alloca i8, align 1, !hwtHls.tmp.alloca !4
   store i8 undef, ptr %dataIn_read, align 1
   %x1 = load i8, ptr %x, align 1
   %dataIn_read1 = load volatile i8, ptr addrspace(1) %dataIn, align 1

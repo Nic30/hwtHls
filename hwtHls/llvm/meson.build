@@ -197,6 +197,7 @@ py3.extension_module(
      'Transforms/utils/inLoopConditionalExecution.cpp',
      'Transforms/utils/irConsistencyChecks.cpp',
      'Transforms/utils/loopMerging.cpp',
+     'Transforms/utils/metadataHwtHlsIO.cpp',
      'Transforms/utils/writeCFGToDotFile.cpp',
      'Transforms/utils/loopHwtHlsMetadata.cpp',
      'Transforms/streamIoLoweringPass/streamIoCfgDetector.cpp',

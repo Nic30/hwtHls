@@ -3,13 +3,14 @@
   source_filename = "hwtHlsModule"
   target datalayout = "e-m:e-i8:8-i16:16-i32:32-i64:64-i128:128-i256:256-i512:512-i1024:1024-i2048:2048-i4096:4096-n8:16:32:64-S128-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
   
-  define void @HlsPythonHwWhile2.mainThread(ptr addrspace(1) %o) !hwtHls.param_addr_width !0 {
+  define void @HlsPythonHwWhile2.mainThread(ptr addrspace(1) %o) !hwtHls.io !0 {
   bb0:
     br label %wh0
   
   wh0:                                              ; preds = %bb0, %blockL56i0_182
-    %i.0 = phi i8 [ 0, %bb0 ], [ %1, %blockL56i0_182 ]
+    %i.0 = phi i8 [ 0, %bb0 ], [ %2, %blockL56i0_182 ]
     %0 = icmp ult i8 %i.0, 5
+    %1 = icmp eq i8 %i.0, 10
     br i1 %0, label %blockL56i0_88, label %blockL56i0_146
   
   blockL56i0_88:                                    ; preds = %wh0
@@ -17,12 +18,11 @@
     br label %blockL56i0_182
   
   blockL56i0_182:                                   ; preds = %blockL56i0_146, %blockL56i0_88
-    %1 = add i8 %i.0, 1
+    %2 = add i8 %i.0, 1
     br label %wh0
   
   blockL56i0_146:                                   ; preds = %wh0
-    %2 = icmp eq i8 %i.0, 10
-    br i1 %2, label %wh1.preheader, label %blockL56i0_182
+    br i1 %1, label %wh1.preheader, label %blockL56i0_182
   
   wh1.preheader:                                    ; preds = %blockL56i0_146
     br label %wh1
@@ -33,7 +33,8 @@
   }
   
   !0 = distinct !{!0, !1}
-  !1 = !{i32 0}
+  !1 = !{!2}
+  !2 = !{!"OUT", i64 0, ptr null, i64 0}
 
 ...
 ---

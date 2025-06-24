@@ -6,7 +6,7 @@
   ; Function Attrs: nofree nounwind speculatable willreturn
   declare i32 @hwtHls.bitConcat.i16.i16(i16, i16) #0
   
-  define void @HlsSlice2TmpHlsVarConcat.mainThread(ptr addrspace(1) %a, ptr addrspace(2) %b) !hwtHls.param_addr_width !0 {
+  define void @HlsSlice2TmpHlsVarConcat.mainThread(ptr addrspace(1) %a, ptr addrspace(2) %b) !hwtHls.io !0 {
   bb0:
     br label %blockL14i0_14
   
@@ -21,7 +21,9 @@
   attributes #1 = { memory(none) }
   
   !0 = distinct !{!0, !1}
-  !1 = !{i32 0, i32 0}
+  !1 = !{!2, !3}
+  !2 = !{!"IN", i64 0, ptr null, i64 0}
+  !3 = !{!"OUT", i64 0, ptr null, i64 1}
 
 ...
 ---

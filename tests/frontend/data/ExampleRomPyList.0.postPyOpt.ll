@@ -1,4 +1,4 @@
-define void @ExampleRomPyList.mainThread(ptr addrspace(1) %i, ptr addrspace(2) %o) !hwtHls.param_addr_width !0 {
+define void @ExampleRomPyList.mainThread(ptr addrspace(1) %i, ptr addrspace(2) %o) !hwtHls.io !0 {
 bb0:
   br label %block0
 
@@ -36,9 +36,9 @@ block124:                                         ; preds = %blockL76i4_76
   br label %blockL142i0_142
 
 blockL142i0_142:                                  ; preds = %blockL142i0_294, %block124
-  %i_read = alloca i2, align 1, !hwtHls.tmp.alloca !2
+  %i_read = alloca i2, align 1, !hwtHls.tmp.alloca !4
   store i2 undef, ptr %i_read, align 1
-  %o1 = alloca i32, align 4, !hwtHls.tmp.alloca !2
+  %o1 = alloca i32, align 4, !hwtHls.tmp.alloca !4
   store i32 undef, ptr %o1, align 4
   %i_read1 = load volatile i2, ptr addrspace(1) %i, align 1
   store i2 %i_read1, ptr %i_read, align 1

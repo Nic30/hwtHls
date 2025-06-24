@@ -9,8 +9,9 @@ from hwtHls._llvmOpDefUtils import _llvmIntZExtConstructor, _llvmIntSExtConstruc
 from hwtHls.frontend.statementsRead import HlsRead
 from hwtHls.frontend.statementsWrite import HlsWrite
 from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
-from hwtHls.llvm.llvmIr import IRBuilder, Function, Type, LoopInfo, Twine, Value
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle
+from hwtHls.llvm.llvmIr import IRBuilder, Function, Type, LoopInfo, Twine, Value, \
+    HwtHlsIoMetadata, HwtHlsIoMetadataSmallVector, LlvmCompilationBundle, HwtHlsIoMetadata_set, \
+    IODirection
 
 NetlistIoConstructorDictT = Dict[HwIO, Tuple[Optional[HlsRead], Optional[HlsWrite]]]
 
@@ -62,12 +63,15 @@ def addHwtHlsFunctionMetadata(toLlvm: "ToLlvmIrTranslator"):
     """
     F: Function = toLlvm.llvm.main
     assert F.arg_size() == len(toLlvm.ioSorted), (F.arg_size(), len(toLlvm.ioSorted))
-    argAddrWidths = toLlvm.mdGetTuple(
-        [toLlvm.mdGetUInt32(addrWidth)
-         for (_, _, addrWidth, _, _) in toLlvm.ioSorted],
-        False)
-    F.setMetadata(toLlvm.strCtx.addStringRef("hwtHls.param_addr_width"),
-                               toLlvm.mdGetTuple([argAddrWidths, ], True))
+    hwtHlsIoMds = HwtHlsIoMetadataSmallVector()
+    for i, (_, _, addrWidth, reads, writes) in enumerate(toLlvm.ioSorted):
+        dir_ = IODirection.IO_DIR_OUT if writes else\
+               IODirection.IO_DIR_IN if reads else\
+               IODirection.IO_DIR_UNRESOLVED
+        md = HwtHlsIoMetadata(dir_, addrWidth, None, i)
+        hwtHlsIoMds.push_back(md)
+
+    HwtHlsIoMetadata_set(F, hwtHlsIoMds)
 
 
 def  getIoNodeConstructors(toLlvm: "ToLlvmIrTranslator") -> NetlistIoConstructorDictT:

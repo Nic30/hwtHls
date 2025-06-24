@@ -1,7 +1,6 @@
 #include <hwtHls/llvm/Transforms/utils/functionMutating.h>
 
 #include <algorithm>
-#include <map>
 
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Module.h>
@@ -10,9 +9,9 @@
 #include <llvm/IR/Intrinsics.h>
 #include <hwtHls/llvm/targets/intrinsic/utils.h>
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
+#include <hwtHls/llvm/Transforms/utils/metadataHwtHlsIO.h>
 
 namespace hwtHls {
-
 
 llvm::Function* mutateFunctionAddArg(llvm::Function &F, llvm::Type *ParamTy,
 		const llvm::Twine &ParamName) {
@@ -46,6 +45,7 @@ llvm::Function* mutateFunctionAddArg(llvm::Function &F, llvm::Type *ParamTy,
 	NewF->splice(NewF->begin(), &F);
 	llvm::SmallVector<std::pair<unsigned, llvm::MDNode*>> MDs;
 	F.getAllMetadata(MDs);
+	assert(!F.getMetadata("hwtHls.io") && "NotImplemented");
 	for (const auto &MD : MDs) {
 		NewF->setMetadata(MD.first, MD.second);
 	}
@@ -78,22 +78,23 @@ void reorder(llvm::SmallVector<T> &data, std::vector<std::size_t> order) {
 	}
 }
 // https://stackoverflow.com/a/3418285
-bool String_replaceAll(std::string& str, const std::string& from, const std::string& to) {
-    bool found =  false;
-    if(from.empty())
-        return found;
-    size_t start_pos = 0;
-    while((start_pos = str.find(from, start_pos)) != std::string::npos) {
-        str.replace(start_pos, from.length(), to);
-        start_pos += to.length(); // In case 'to' contains 'from', like replacing 'x' with 'yx'
-        found = true;
-    }
-    return found;
+bool String_replaceAll(std::string &str, const std::string &from,
+		const std::string &to) {
+	bool found = false;
+	if (from.empty())
+		return found;
+	size_t start_pos = 0;
+	while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
+		str.replace(start_pos, from.length(), to);
+		start_pos += to.length(); // In case 'to' contains 'from', like replacing 'x' with 'yx'
+		found = true;
+	}
+	return found;
 }
 
 void rewriteAddressSpace(llvm::IRBuilder<> &Builder,
 		std::map<llvm::Value*, llvm::Value*> replacements, llvm::Value &V,
-		llvm::Type *NewPtrTy, std::function<bool(llvm::User *)>* userFilter) {
+		llvm::Type *NewPtrTy, std::function<bool(llvm::User*)> *userFilter) {
 	using namespace llvm;
 	assert(V.getType()->isPointerTy());
 	auto replacement = replacements.find(&V);
@@ -118,7 +119,8 @@ void rewriteAddressSpace(llvm::IRBuilder<> &Builder,
 					replacement->second, indices, Name, GEP->isInBounds());
 			assert(!replacements.contains(GEP));
 			replacements[GEP] = NewGEP;
-			rewriteAddressSpace(Builder, replacements, *GEP, NewPtrTy, userFilter);
+			rewriteAddressSpace(Builder, replacements, *GEP, NewPtrTy,
+					userFilter);
 			assert(GEP->hasNUses(0));
 			GEP->eraseFromParent();
 			NewGEP->setName(Name); // set name after remove of original instr. to have name without number at end
@@ -144,8 +146,12 @@ void rewriteAddressSpace(llvm::IRBuilder<> &Builder,
 			Module &M = *Builder.GetInsertBlock()->getParent()->getParent();
 			auto &CalledFn = *CI->getCalledFunction();
 			auto FnName = CalledFn.getName().str();
-			auto prevPtrName = ".p" + std::to_string(V.getType()->getPointerAddressSpace());
-			auto newPtrName = ".p" + std::to_string(replacement->second->getType()->getPointerAddressSpace());
+			auto prevPtrName = ".p"
+					+ std::to_string(V.getType()->getPointerAddressSpace());
+			auto newPtrName =
+					".p"
+							+ std::to_string(
+									replacement->second->getType()->getPointerAddressSpace());
 			assert(String_replaceAll(FnName, prevPtrName, newPtrName));
 			Function *TheFn = cast<Function>(
 					M.getOrInsertFunction(FnName,
@@ -170,17 +176,18 @@ void rewriteAddressSpace(llvm::IRBuilder<> &Builder,
 }
 
 void replaceAlUsesOfArgumentWithPotentiallyChangedAddressSpace(
-		llvm::IRBuilder<> &Builder, llvm::Argument &Arg,
-		llvm::Argument &NewArg, std::function<bool(llvm::User *)>* userFilter) {
+		llvm::IRBuilder<> &Builder, llvm::Argument &Arg, llvm::Argument &NewArg,
+		std::function<bool(llvm::User*)> *userFilter) {
 	if (Arg.getType() != NewArg.getType()) {
 		assert(Arg.getType()->isPointerTy());
 		assert(NewArg.getType()->isPointerTy());
 		std::map<llvm::Value*, llvm::Value*> replacements =
 				{ { &Arg, &NewArg }, };
-		rewriteAddressSpace(Builder, replacements, Arg, NewArg.getType(), userFilter);
+		rewriteAddressSpace(Builder, replacements, Arg, NewArg.getType(),
+				userFilter);
 	} else {
 		if (userFilter) {
-			Arg.replaceUsesWithIf(&NewArg, [&userFilter](llvm::Use & U) {
+			Arg.replaceUsesWithIf(&NewArg, [&userFilter](llvm::Use &U) {
 				return (*userFilter)(U.getUser());
 			});
 		} else {
@@ -191,7 +198,8 @@ void replaceAlUsesOfArgumentWithPotentiallyChangedAddressSpace(
 }
 
 llvm::Function* mutateFunctionShuffleArgs(llvm::Function &F,
-		const std::vector<std::size_t> &newOrder) {
+		const std::vector<std::size_t> &newOrder,
+		std::optional<const std::set<size_t>*> toRmInNewOrder) {
 	// :see: doc in mutateFunctionAddArg explaining why new function must be created
 
 	llvm::FunctionType *Ty = F.getFunctionType();
@@ -200,13 +208,33 @@ llvm::Function* mutateFunctionShuffleArgs(llvm::Function &F,
 
 	llvm::SmallVector<llvm::Type*> ParamTys;
 	ParamTys.insert(ParamTys.begin(), Ty->param_begin(), Ty->param_end());
+	auto hwtHlsIoMD = HwtHlsIoMetadata_get(F);
+	reorder<HwtHlsIoMetadata>(hwtHlsIoMD, newOrder);
+
 	reorder<llvm::Type*>(ParamTys, newOrder);
-	for (size_t i = 0; i < ParamTys.size(); ++i) {
-		auto pTy = ParamTys[i];
-		if (auto pTyPtr = dyn_cast<llvm::PointerType>(pTy)) {
-			if (pTyPtr->getAddressSpace() != i + 1) {
-				// update address space to match argument index + 1
-				ParamTys[i] = llvm::PointerType::get(pTy->getContext(), i + 1);
+	{
+		// filter out removed items from ParamTys, ArgAddrWidthMetadata
+		size_t dstI = 0;
+		for (size_t srcI = 0; srcI < ParamTys.size(); ++srcI) {
+			if (toRmInNewOrder.has_value()
+					&& toRmInNewOrder.value()->contains(srcI)) {
+				continue;
+			}
+			hwtHlsIoMD[dstI] = hwtHlsIoMD[srcI];
+			ParamTys[dstI] = ParamTys[srcI];
+			dstI++;
+		}
+		hwtHlsIoMD.resize(dstI);
+		ParamTys.resize(dstI);
+		// update arg pointer type address space
+		for (size_t i = 0; i < ParamTys.size(); ++i) {
+			auto pTy = ParamTys[i];
+			if (auto pTyPtr = dyn_cast<llvm::PointerType>(pTy)) {
+				if (pTyPtr->getAddressSpace() != i + 1) {
+					// update address space to match new final argument index + 1
+					ParamTys[i] = llvm::PointerType::get(pTy->getContext(),
+							i + 1);
+				}
 			}
 		}
 	}
@@ -222,7 +250,8 @@ llvm::Function* mutateFunctionShuffleArgs(llvm::Function &F,
 			continue; // argument remained on the same index
 		auto ArgName = Arg.getName();
 		NewFArg.setName(ArgName);
-		replaceAlUsesOfArgumentWithPotentiallyChangedAddressSpace(Builder, Arg, NewFArg, nullptr);
+		replaceAlUsesOfArgumentWithPotentiallyChangedAddressSpace(Builder, Arg,
+				NewFArg, nullptr);
 	}
 
 	NewF->setAttributes(F.getAttributes());
@@ -233,6 +262,7 @@ llvm::Function* mutateFunctionShuffleArgs(llvm::Function &F,
 	for (const auto &MD : MDs) {
 		NewF->setMetadata(MD.first, MD.second);
 	}
+	HwtHlsIoMetadata_set(*NewF, hwtHlsIoMD);
 	F.replaceAllUsesWith(NewF);
 	F.eraseFromParent();
 	NewF->setName(Name); // set to original name because NewF name has numbers added to prevent name collisions

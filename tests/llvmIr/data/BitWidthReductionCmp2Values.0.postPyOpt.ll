@@ -1,4 +1,4 @@
-define void @"BitWidthReductionCmp2Values.hwImpl.<locals>.mainThread"(ptr addrspace(1) %i, ptr addrspace(2) %o) !hwtHls.param_addr_width !0 {
+define void @"BitWidthReductionCmp2Values.hwImpl.<locals>.mainThread"(ptr addrspace(1) %i, ptr addrspace(2) %o) !hwtHls.io !0 {
 bb0:
   br label %entry
 
@@ -6,9 +6,9 @@ entry:                                            ; preds = %bb0
   br label %loopHeader
 
 loopHeader:                                       ; preds = %blockL68i0_512, %entry
-  %i_read = alloca i16, align 2, !hwtHls.tmp.alloca !2
+  %i_read = alloca i16, align 2, !hwtHls.tmp.alloca !4
   store i16 undef, ptr %i_read, align 2
-  %i1 = alloca i16, align 2, !hwtHls.tmp.alloca !2
+  %i1 = alloca i16, align 2, !hwtHls.tmp.alloca !4
   store i16 undef, ptr %i1, align 2
   %i_read2 = load volatile i16, ptr addrspace(1) %i, align 2
   store i16 %i_read2, ptr %i_read, align 2

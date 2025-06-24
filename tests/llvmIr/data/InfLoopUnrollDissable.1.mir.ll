@@ -3,7 +3,7 @@
   source_filename = "hwtHlsModule"
   target datalayout = "e-m:e-i8:8-i16:16-i32:32-i64:64-i128:128-i256:256-i512:512-i1024:1024-i2048:2048-i4096:4096-n8:16:32:64-S128-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
   
-  define void @InfLoopUnrollDissable.mainThread(ptr addrspace(1) %o) !hwtHls.param_addr_width !0 {
+  define void @InfLoopUnrollDissable.mainThread(ptr addrspace(1) %o) !hwtHls.io !0 {
   bb0:
     br label %loopHeader
   
@@ -11,13 +11,14 @@
     %i.0 = phi i8 [ 0, %bb0 ], [ %0, %loopHeader ]
     store volatile i8 %i.0, ptr addrspace(1) %o, align 1
     %0 = add i8 %i.0, 1
-    br label %loopHeader, !llvm.loop !2
+    br label %loopHeader, !llvm.loop !3
   }
   
   !0 = distinct !{!0, !1}
-  !1 = !{i32 0}
-  !2 = distinct !{!2, !3}
-  !3 = !{!"llvm.loop.unroll.dissable"}
+  !1 = !{!2}
+  !2 = !{!"OUT", i64 0, ptr null, i64 0}
+  !3 = distinct !{!3, !4}
+  !4 = !{!"llvm.loop.unroll.dissable"}
 
 ...
 ---

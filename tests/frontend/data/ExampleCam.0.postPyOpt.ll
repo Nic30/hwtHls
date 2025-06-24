@@ -1,4 +1,4 @@
-define void @ExampleCam.updateThread(ptr addrspace(1) %keyForMatchThread_0, ptr addrspace(2) %keyForMatchThread_1, ptr addrspace(3) %keyForMatchThread_2, ptr addrspace(4) %keyForMatchThread_3, ptr addrspace(5) %write) !hwtHls.param_addr_width !0 {
+define void @ExampleCam.updateThread(ptr addrspace(1) %keyForMatchThread_0, ptr addrspace(2) %keyForMatchThread_1, ptr addrspace(3) %keyForMatchThread_2, ptr addrspace(4) %keyForMatchThread_3, ptr addrspace(5) %write) !hwtHls.io !0 {
 bb0:
   br label %block0
 
@@ -9,13 +9,13 @@ blockL52i0_52:                                    ; preds = %block0
   br label %blockL52i0_56
 
 blockL52i0_56:                                    ; preds = %blockL52i0_52
-  %k0_key = alloca i16, align 2, !hwtHls.tmp.alloca !2
+  %k0_key = alloca i16, align 2, !hwtHls.tmp.alloca !7
   store i16 undef, ptr %k0_key, align 2
-  %k0_vld = alloca i1, align 1, !hwtHls.tmp.alloca !2
+  %k0_vld = alloca i1, align 1, !hwtHls.tmp.alloca !7
   store i1 undef, ptr %k0_vld, align 1
-  %k0_key1 = alloca i16, align 2, !hwtHls.tmp.alloca !2
+  %k0_key1 = alloca i16, align 2, !hwtHls.tmp.alloca !7
   store i16 undef, ptr %k0_key1, align 2
-  %k0_vld2 = alloca i1, align 1, !hwtHls.tmp.alloca !2
+  %k0_vld2 = alloca i1, align 1, !hwtHls.tmp.alloca !7
   store i1 undef, ptr %k0_vld2, align 1
   br label %blockL52i1_52
 
@@ -23,13 +23,13 @@ blockL52i1_52:                                    ; preds = %blockL52i0_56
   br label %blockL52i1_56
 
 blockL52i1_56:                                    ; preds = %blockL52i1_52
-  %k1_key = alloca i16, align 2, !hwtHls.tmp.alloca !2
+  %k1_key = alloca i16, align 2, !hwtHls.tmp.alloca !7
   store i16 undef, ptr %k1_key, align 2
-  %k1_vld = alloca i1, align 1, !hwtHls.tmp.alloca !2
+  %k1_vld = alloca i1, align 1, !hwtHls.tmp.alloca !7
   store i1 undef, ptr %k1_vld, align 1
-  %k1_key3 = alloca i16, align 2, !hwtHls.tmp.alloca !2
+  %k1_key3 = alloca i16, align 2, !hwtHls.tmp.alloca !7
   store i16 undef, ptr %k1_key3, align 2
-  %k1_vld4 = alloca i1, align 1, !hwtHls.tmp.alloca !2
+  %k1_vld4 = alloca i1, align 1, !hwtHls.tmp.alloca !7
   store i1 undef, ptr %k1_vld4, align 1
   br label %blockL52i2_52
 
@@ -37,13 +37,13 @@ blockL52i2_52:                                    ; preds = %blockL52i1_56
   br label %blockL52i2_56
 
 blockL52i2_56:                                    ; preds = %blockL52i2_52
-  %k2_key = alloca i16, align 2, !hwtHls.tmp.alloca !2
+  %k2_key = alloca i16, align 2, !hwtHls.tmp.alloca !7
   store i16 undef, ptr %k2_key, align 2
-  %k2_vld = alloca i1, align 1, !hwtHls.tmp.alloca !2
+  %k2_vld = alloca i1, align 1, !hwtHls.tmp.alloca !7
   store i1 undef, ptr %k2_vld, align 1
-  %k2_key5 = alloca i16, align 2, !hwtHls.tmp.alloca !2
+  %k2_key5 = alloca i16, align 2, !hwtHls.tmp.alloca !7
   store i16 undef, ptr %k2_key5, align 2
-  %k2_vld6 = alloca i1, align 1, !hwtHls.tmp.alloca !2
+  %k2_vld6 = alloca i1, align 1, !hwtHls.tmp.alloca !7
   store i1 undef, ptr %k2_vld6, align 1
   br label %blockL52i3_52
 
@@ -51,13 +51,13 @@ blockL52i3_52:                                    ; preds = %blockL52i2_56
   br label %blockL52i3_56
 
 blockL52i3_56:                                    ; preds = %blockL52i3_52
-  %k3_key = alloca i16, align 2, !hwtHls.tmp.alloca !2
+  %k3_key = alloca i16, align 2, !hwtHls.tmp.alloca !7
   store i16 undef, ptr %k3_key, align 2
-  %k3_vld = alloca i1, align 1, !hwtHls.tmp.alloca !2
+  %k3_vld = alloca i1, align 1, !hwtHls.tmp.alloca !7
   store i1 undef, ptr %k3_vld, align 1
-  %k3_key7 = alloca i16, align 2, !hwtHls.tmp.alloca !2
+  %k3_key7 = alloca i16, align 2, !hwtHls.tmp.alloca !7
   store i16 undef, ptr %k3_key7, align 2
-  %k3_vld8 = alloca i1, align 1, !hwtHls.tmp.alloca !2
+  %k3_vld8 = alloca i1, align 1, !hwtHls.tmp.alloca !7
   store i1 undef, ptr %k3_vld8, align 1
   br label %blockL52i4_52
 
@@ -148,31 +148,31 @@ blockL192i0_L214i4_214:                           ; preds = %ExampleCam.updateTh
   br label %ExampleCam.updateThread.keyUpdate
 
 ExampleCam.updateThread.keyUpdate:                ; preds = %blockL192i0_L214i4_214
-  %write_read_addr = alloca i2, align 1, !hwtHls.tmp.alloca !2
+  %write_read_addr = alloca i2, align 1, !hwtHls.tmp.alloca !7
   store i2 undef, ptr %write_read_addr, align 1
-  %write_read_data = alloca i16, align 2, !hwtHls.tmp.alloca !2
+  %write_read_data = alloca i16, align 2, !hwtHls.tmp.alloca !7
   store i16 undef, ptr %write_read_data, align 2
-  %write_read_vld_flag = alloca i1, align 1, !hwtHls.tmp.alloca !2
+  %write_read_vld_flag = alloca i1, align 1, !hwtHls.tmp.alloca !7
   store i1 undef, ptr %write_read_vld_flag, align 1
-  %write_read_addr1 = alloca i2, align 1, !hwtHls.tmp.alloca !2
+  %write_read_addr1 = alloca i2, align 1, !hwtHls.tmp.alloca !7
   store i2 undef, ptr %write_read_addr1, align 1
-  %write_read_data2 = alloca i16, align 2, !hwtHls.tmp.alloca !2
+  %write_read_data2 = alloca i16, align 2, !hwtHls.tmp.alloca !7
   store i16 undef, ptr %write_read_data2, align 2
-  %write_read_vld_flag3 = alloca i1, align 1, !hwtHls.tmp.alloca !2
+  %write_read_vld_flag3 = alloca i1, align 1, !hwtHls.tmp.alloca !7
   store i1 undef, ptr %write_read_vld_flag3, align 1
-  %write_read = alloca i19, align 4, !hwtHls.tmp.alloca !2
+  %write_read = alloca i19, align 4, !hwtHls.tmp.alloca !7
   store i19 undef, ptr %write_read, align 4
-  %w_addr = alloca i2, align 1, !hwtHls.tmp.alloca !2
+  %w_addr = alloca i2, align 1, !hwtHls.tmp.alloca !7
   store i2 undef, ptr %w_addr, align 1
-  %w_data = alloca i16, align 2, !hwtHls.tmp.alloca !2
+  %w_data = alloca i16, align 2, !hwtHls.tmp.alloca !7
   store i16 undef, ptr %w_data, align 2
-  %w_vld_flag = alloca i1, align 1, !hwtHls.tmp.alloca !2
+  %w_vld_flag = alloca i1, align 1, !hwtHls.tmp.alloca !7
   store i1 undef, ptr %w_vld_flag, align 1
-  %w_addr4 = alloca i2, align 1, !hwtHls.tmp.alloca !2
+  %w_addr4 = alloca i2, align 1, !hwtHls.tmp.alloca !7
   store i2 undef, ptr %w_addr4, align 1
-  %w_data5 = alloca i16, align 2, !hwtHls.tmp.alloca !2
+  %w_data5 = alloca i16, align 2, !hwtHls.tmp.alloca !7
   store i16 undef, ptr %w_data5, align 2
-  %w_vld_flag6 = alloca i1, align 1, !hwtHls.tmp.alloca !2
+  %w_vld_flag6 = alloca i1, align 1, !hwtHls.tmp.alloca !7
   store i1 undef, ptr %w_vld_flag6, align 1
   %write_read1 = load volatile i19, ptr addrspace(5) %write, align 4
   store i19 %write_read1, ptr %write_read, align 4
@@ -183,13 +183,13 @@ ExampleCam.updateThread.keyUpdate:                ; preds = %blockL192i0_L214i4_
   store i2 %write_read_addr3, ptr %w_addr4, align 1
   store i16 %write_read_data4, ptr %w_data5, align 2
   store i1 %write_read_vld_flag5, ptr %w_vld_flag6, align 1
-  %newKey_key = alloca i16, align 2, !hwtHls.tmp.alloca !2
+  %newKey_key = alloca i16, align 2, !hwtHls.tmp.alloca !7
   store i16 undef, ptr %newKey_key, align 2
-  %newKey_vld = alloca i1, align 1, !hwtHls.tmp.alloca !2
+  %newKey_vld = alloca i1, align 1, !hwtHls.tmp.alloca !7
   store i1 undef, ptr %newKey_vld, align 1
-  %newKey_key6 = alloca i16, align 2, !hwtHls.tmp.alloca !2
+  %newKey_key6 = alloca i16, align 2, !hwtHls.tmp.alloca !7
   store i16 undef, ptr %newKey_key6, align 2
-  %newKey_vld7 = alloca i1, align 1, !hwtHls.tmp.alloca !2
+  %newKey_vld7 = alloca i1, align 1, !hwtHls.tmp.alloca !7
   store i1 undef, ptr %newKey_vld7, align 1
   store i16 undef, ptr %newKey_key6, align 2
   store i1 undef, ptr %newKey_vld7, align 1

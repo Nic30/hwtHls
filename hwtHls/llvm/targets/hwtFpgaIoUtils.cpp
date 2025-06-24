@@ -4,6 +4,7 @@
 
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Metadata.h>
+#include <hwtHls/llvm/Transforms/utils/metadataHwtHlsIO.h>
 
 using namespace llvm;
 
@@ -105,16 +106,13 @@ std::tuple<Type*, size_t, MachineInstr*> getLoadOrStoreElementType(
 			Function &F = MI.getParent()->getParent()->getFunction();
 			IntegerType *resT = nullptr;
 			size_t addressWidth = 0;
-			auto *_param_addr_width = F.getMetadata("hwtHls.param_addr_width");
-			if (addrSpace > F.arg_size() || !_param_addr_width) {
+			auto hwtHlsIO = HwtHlsIoMetadata_get(F, addrSpace - 1);
+			if (!hwtHlsIO.has_value()) {
 				if (expectedResWidth.has_value())
-					resT = IntegerType::get(F.getContext(), expectedResWidth.value());
+					resT = IntegerType::get(F.getContext(),
+							expectedResWidth.value());
 			} else {
-				MDTuple *argAddrWidths = dyn_cast_or_null<MDTuple>(
-						_param_addr_width->getOperand(1));
-				auto &awOp = argAddrWidths->getOperand(addrSpace - 1);
-				addressWidth =
-						mdconst::extract<ConstantInt>(awOp.get())->getSExtValue();
+				addressWidth = hwtHlsIO.value().addrWidth;
 				resT = IntegerType::getIntNTy(F.getContext(),
 						MO->getSizeInBits());
 				if (expectedResWidth.has_value())
@@ -124,7 +122,8 @@ std::tuple<Type*, size_t, MachineInstr*> getLoadOrStoreElementType(
 			for (MachineInstr &FirstBBMI : *MI.getMF()->begin()) {
 				switch (FirstBBMI.getOpcode()) {
 				case HwtFpga::HWTFPGA_ARG_GET: {
-					auto argType = F.getArg(FirstBBMI.getOperand(1).getImm())->getType();
+					auto argType =
+							F.getArg(FirstBBMI.getOperand(1).getImm())->getType();
 					assert(argType->isPointerTy());
 					if (argType->getPointerAddressSpace() == addrSpace) {
 						ioArgDefiningInstr = &FirstBBMI;
@@ -171,4 +170,5 @@ std::pair<Type*, size_t> getGlobalValueElementTypeAndAddressWidth(
 	size_t SizeInBits = log2ceil(vT->getArrayNumElements());
 	return {vT->getArrayElementType(), SizeInBits};
 }
+
 }

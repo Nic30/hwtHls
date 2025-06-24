@@ -5,7 +5,7 @@
 //
 // 
 // This backend have seaveral expectations from LLVM IR
-// * All function arguments represents IO of some component, each function must have hwtHls.param_addr_width metadata.
+// * All function arguments represents IO of some component, each function must have hwtHls.io metadata.
 // * Each parameter pointer has its own address space, where parameter 0 has address space 1,
 //   (address space 0 is llvm default and it is left for local memories)
 //===---------------------------------------------------------------------===//

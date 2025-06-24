@@ -13,7 +13,7 @@ from hwtHls.code import OP_ASHR, OP_LSHR, OP_SHL, OP_CTLZ, OP_CTTZ, OP_CTPOP, \
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, MachineInstr, MachineRegisterInfo, Register, \
     TargetOpcode, CmpInst, ConstantInt, TypeToIntegerType, TypeToArrayType, IntegerType, Type as LlvmType, ArrayType, \
     MachineLoopInfo, GlobalValue, ValueToConstantArray, ValueToConstantInt, ValueToConstantDataArray, ConstantArray, \
-    ValueToUndefValue, ValueToConstantAggregateZero, ConstantAggregateZero
+    ValueToUndefValue, ValueToConstantAggregateZero, ConstantAggregateZero, HwtHlsIoMetadata_get, HwtHlsIoMetadata
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -284,7 +284,19 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         self.backedges = backedges
         self.liveness = liveness
         self.registerTypes = registerTypes
-        self.regToIo: dict[Register, HwIO] = {ioRegs[ai]: io for (ai, io) in self._argIToIo.items()}
+
+        hwHlsIoMetadata = HwtHlsIoMetadata_get(mf.getFunction())
+        self.regToIo: dict[Register, HwIO] = {}
+        regToIo = self.regToIo
+        # ioRegs[ai]: io for (ai, io) in _argIToIo.items()
+        assert len(ioRegs) == len(hwHlsIoMetadata)
+        for ioReg, ioMd in zip(ioRegs, hwHlsIoMetadata):
+            if ioMd.otherThreadFn is None:
+                # global IO
+                regToIo[ioReg] = self._argIToIo[ioMd.otherArgIndex]
+            else:
+                raise NotImplementedError("Newly generated channel between threads")
+
         self.ioNodeConstructors: NetlistIoConstructorDictT = ioNodeConstructors
         self.globalMemories: dict[GlobalValue, MemoryAllocationMeta] = {}
         self.loops = loops

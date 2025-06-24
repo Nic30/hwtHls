@@ -1,9 +1,9 @@
-define void @HlsPythonHwWhile2.mainThread(ptr addrspace(1) %o) !hwtHls.param_addr_width !0 {
+define void @HlsPythonHwWhile2.mainThread(ptr addrspace(1) %o) !hwtHls.io !0 {
 bb0:
   br label %block0
 
 block0:                                           ; preds = %bb0
-  %i = alloca i8, align 1, !hwtHls.tmp.alloca !2
+  %i = alloca i8, align 1, !hwtHls.tmp.alloca !3
   store i8 undef, ptr %i, align 1
   store i8 0, ptr %i, align 1
   br label %wh0

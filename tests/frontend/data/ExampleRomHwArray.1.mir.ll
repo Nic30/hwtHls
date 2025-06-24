@@ -5,7 +5,7 @@
   
   @mem = private unnamed_addr constant [4 x i32] [i32 1, i32 2, i32 4, i32 8], align 1
   
-  define void @ExampleRomHwArray.mainThread(ptr addrspace(1) %i, ptr addrspace(2) %o) !hwtHls.param_addr_width !0 {
+  define void @ExampleRomHwArray.mainThread(ptr addrspace(1) %i, ptr addrspace(2) %o) !hwtHls.io !0 {
   bb0:
     br label %blockL146i0_146
   
@@ -19,7 +19,9 @@
   }
   
   !0 = distinct !{!0, !1}
-  !1 = !{i32 0, i32 0}
+  !1 = !{!2, !3}
+  !2 = !{!"IN", i64 0, ptr null, i64 0}
+  !3 = !{!"OUT", i64 0, ptr null, i64 1}
 
 ...
 ---

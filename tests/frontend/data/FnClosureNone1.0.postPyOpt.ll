@@ -1,14 +1,14 @@
-define void @FnClosureNone1.mainThread(ptr addrspace(1) %o) !hwtHls.param_addr_width !0 {
+define void @FnClosureNone1.mainThread(ptr addrspace(1) %o) !hwtHls.io !0 {
 bb0:
   br label %block0
 
 block0:                                           ; preds = %bb0
-  br label %blockL44i0_44
+  br label %blockL14i0_14
 
-blockL44i0_44:                                    ; preds = %blockL44i0_158, %block0
+blockL14i0_14:                                    ; preds = %blockL14i0_98, %block0
   store volatile i8 10, ptr addrspace(1) %o, align 1
-  br label %blockL44i0_158
+  br label %blockL14i0_98
 
-blockL44i0_158:                                   ; preds = %blockL44i0_44
-  br label %blockL44i0_44
+blockL14i0_98:                                    ; preds = %blockL14i0_14
+  br label %blockL14i0_14
 }

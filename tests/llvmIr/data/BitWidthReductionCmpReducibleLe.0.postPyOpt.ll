@@ -1,4 +1,4 @@
-define void @"BitWidthReductionCmpReducibleEq.hwImpl.<locals>.mainThread"(ptr addrspace(1) %a, ptr addrspace(2) %b, ptr addrspace(3) %res, ptr addrspace(4) %res_prefix_0vs1, ptr addrspace(5) %res_prefix_0vsAll, ptr addrspace(6) %res_prefix_aVs0, ptr addrspace(7) %res_prefix_aVsAll, ptr addrspace(8) %res_prefix_bVs0, ptr addrspace(9) %res_prefix_bVsAll, ptr addrspace(10) %res_prefix_differentInMiddle, ptr addrspace(11) %res_prefix_same, ptr addrspace(12) %res_prefix_sameInMiddle, ptr addrspace(13) %res_prefix_same_1, ptr addrspace(14) %res_same, ptr addrspace(15) %res_suffix_0vsB, ptr addrspace(16) %res_suffix_AllVsB, ptr addrspace(17) %res_suffix_aVs0, ptr addrspace(18) %res_suffix_aVsAll) !hwtHls.param_addr_width !0 {
+define void @"BitWidthReductionCmpReducibleEq.hwImpl.<locals>.mainThread"(ptr addrspace(1) %a, ptr addrspace(2) %b, ptr addrspace(3) %res, ptr addrspace(4) %res_prefix_0vs1, ptr addrspace(5) %res_prefix_0vsAll, ptr addrspace(6) %res_prefix_aVs0, ptr addrspace(7) %res_prefix_aVsAll, ptr addrspace(8) %res_prefix_bVs0, ptr addrspace(9) %res_prefix_bVsAll, ptr addrspace(10) %res_prefix_differentInMiddle, ptr addrspace(11) %res_prefix_same, ptr addrspace(12) %res_prefix_sameInMiddle, ptr addrspace(13) %res_prefix_same_1, ptr addrspace(14) %res_same, ptr addrspace(15) %res_suffix_0vsB, ptr addrspace(16) %res_suffix_AllVsB, ptr addrspace(17) %res_suffix_aVs0, ptr addrspace(18) %res_suffix_aVsAll) !hwtHls.io !0 {
 bb0:
   br label %entry
 
@@ -6,9 +6,9 @@ entry:                                            ; preds = %bb0
   br label %loopHeader
 
 loopHeader:                                       ; preds = %blockL40i0_1958, %entry
-  %a_read = alloca i8, align 1, !hwtHls.tmp.alloca !2
+  %a_read = alloca i8, align 1, !hwtHls.tmp.alloca !20
   store i8 undef, ptr %a_read, align 1
-  %a1 = alloca i8, align 1, !hwtHls.tmp.alloca !2
+  %a1 = alloca i8, align 1, !hwtHls.tmp.alloca !20
   store i8 undef, ptr %a1, align 1
   %a_read2 = load volatile i8, ptr addrspace(1) %a, align 1
   store i8 %a_read2, ptr %a_read, align 1
@@ -16,9 +16,9 @@ loopHeader:                                       ; preds = %blockL40i0_1958, %e
   %0 = call i4 @hwtHls.bitRangeGet.i8.i4.i4.0(i8 %a_read3, i4 0) #1
   %1 = call i4 @hwtHls.bitRangeGet.i8.i4.i4.4(i8 %a_read3, i4 4) #1
   store i8 %a_read3, ptr %a1, align 1
-  %b_read = alloca i8, align 1, !hwtHls.tmp.alloca !2
+  %b_read = alloca i8, align 1, !hwtHls.tmp.alloca !20
   store i8 undef, ptr %b_read, align 1
-  %b1 = alloca i8, align 1, !hwtHls.tmp.alloca !2
+  %b1 = alloca i8, align 1, !hwtHls.tmp.alloca !20
   store i8 undef, ptr %b1, align 1
   %b_read2 = load volatile i8, ptr addrspace(2) %b, align 1
   store i8 %b_read2, ptr %b_read, align 1

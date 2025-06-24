@@ -3,7 +3,7 @@
   source_filename = "hwtHlsModule"
   target datalayout = "e-m:e-i8:8-i16:16-i32:32-i64:64-i128:128-i256:256-i512:512-i1024:1024-i2048:2048-i4096:4096-n8:16:32:64-S128-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
   
-  define void @HlsAstExprTree3_example.mainThread(ptr addrspace(1) %a, ptr addrspace(2) %b, ptr addrspace(3) %c, ptr addrspace(4) %d, ptr addrspace(5) %f1, ptr addrspace(6) %f2, ptr addrspace(7) %f3, ptr addrspace(8) %w, ptr addrspace(9) %x, ptr addrspace(10) %y, ptr addrspace(11) %z) !hwtHls.param_addr_width !0 {
+  define void @HlsAstExprTree3_example.mainThread(ptr addrspace(1) %a, ptr addrspace(2) %b, ptr addrspace(3) %c, ptr addrspace(4) %d, ptr addrspace(5) %f1, ptr addrspace(6) %f2, ptr addrspace(7) %f3, ptr addrspace(8) %w, ptr addrspace(9) %x, ptr addrspace(10) %y, ptr addrspace(11) %z) !hwtHls.io !0 {
   bb0:
     br label %blockL64i0_64
   
@@ -29,7 +29,18 @@
   }
   
   !0 = distinct !{!0, !1}
-  !1 = !{i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0, i32 0}
+  !1 = !{!2, !3, !4, !5, !6, !7, !8, !9, !10, !11, !12}
+  !2 = !{!"IN", i64 0, ptr null, i64 0}
+  !3 = !{!"IN", i64 0, ptr null, i64 1}
+  !4 = !{!"IN", i64 0, ptr null, i64 2}
+  !5 = !{!"IN", i64 0, ptr null, i64 3}
+  !6 = !{!"OUT", i64 0, ptr null, i64 4}
+  !7 = !{!"OUT", i64 0, ptr null, i64 5}
+  !8 = !{!"OUT", i64 0, ptr null, i64 6}
+  !9 = !{!"IN", i64 0, ptr null, i64 7}
+  !10 = !{!"IN", i64 0, ptr null, i64 8}
+  !11 = !{!"IN", i64 0, ptr null, i64 9}
+  !12 = !{!"IN", i64 0, ptr null, i64 10}
 
 ...
 ---

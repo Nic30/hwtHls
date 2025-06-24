@@ -10,8 +10,9 @@ from typing import Union, Dict, Any, Callable, Optional
 from hwt.hdl.const import HConst
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwtHls.llvm.llvmIr import Function, BasicBlock, Instruction, MDOperand, ValueToConstantInt, \
-    MetadataToValueAsMetadata, LLVMStringContext, Argument, Value, MetadataAsMDNode, UserToInstruction, \
-    InstructionToLoadInst, User, InstructionToStoreInst, InstructionToGetElementPtrInst, StreamChannelFormatInfo
+    MetadataToValueAsMetadata, LLVMStringContext, Argument, Value, UserToInstruction, \
+    InstructionToLoadInst, User, InstructionToStoreInst, InstructionToGetElementPtrInst, StreamChannelFormatInfo,\
+    HwtHlsIoMetadata_get, HwtHlsIoMetadata
 from pyDigitalWaveTools.vcd.common import VCD_SIG_TYPE
 from pyDigitalWaveTools.vcd.value_format import VcdBitsFormatter, \
     LogValueFormatter
@@ -149,19 +150,13 @@ def _findLoadOrStoreWidthForValue(strCtx: LLVMStringContext, v: Value) -> int:
 
 def _prepareWaveWriterTopIo(waveLog: VcdWriter, strCtx: LLVMStringContext, fn: Function):
     with waveLog.varScope("args") as argScope:
-        argAddrWidths = fn.getMetadata(strCtx.addStringRef("hwtHls.param_addr_width"))
-        assert argAddrWidths.getNumOperands() == 2
-        assert argAddrWidths.getOperand(0).get() == argAddrWidths, argAddrWidths
-        argAddrWidths = MetadataAsMDNode(argAddrWidths.getOperand(1).get())
-        assert argAddrWidths.getNumOperands() == fn.arg_size()
-        for arg, argAddrWidth in zip(fn.args(), argAddrWidths.iterOperands()):
+        ioMetadatas = HwtHlsIoMetadata_get(fn)
+        assert fn.arg_size() == len(ioMetadatas)
+        for arg, ioMetadata in zip(fn.args(), ioMetadatas):
             arg: Argument
-            argAddrWidth: MDOperand
-            argAddrWidth = MetadataToValueAsMetadata(argAddrWidth.get())
-            argAddrWidth = ValueToConstantInt(argAddrWidth.getValue())
-            argAddrWidth = int(argAddrWidth.getValue())
-            if argAddrWidth != 0:
-                raise NotImplementedError(arg, argAddrWidth)
+            ioMetadata: HwtHlsIoMetadata
+            if ioMetadata.addrWidth != 0:
+                raise NotImplementedError(arg, ioMetadata.addrWidth)
             name = RE_NON_ID.sub("_", arg.getName().str())
             assert name, arg
             argWidth = _findLoadOrStoreWidthForValue(strCtx, arg)

@@ -1,4 +1,4 @@
-define void @RedundantCmpGT.mainThread(ptr addrspace(1) %i0, ptr addrspace(2) %o) !hwtHls.param_addr_width !0 {
+define void @RedundantCmpGT.mainThread(ptr addrspace(1) %i0, ptr addrspace(2) %o) !hwtHls.io !0 {
 bb0:
   br label %block0
 

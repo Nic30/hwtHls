@@ -52,8 +52,10 @@ void register_Function(pybind11::module_ & m) {
 				"create a new function with parameter added and move function body into it",
 				py::return_value_policy::reference_internal)
 		.def("mutateFunctionShuffleArgs", &mutateFunctionShuffleArgs, py::arg("newOrder"),
+				py::arg("toRmInNewOrder")=std::optional<const std::set<size_t>*>{},
 				"create a new function with parameters shuffled",
 				py::return_value_policy::reference_internal)
+		.def("isDeclaration", &llvm::Function::isDeclaration)
 		.def("__iter__", [](llvm::Function &F) {
 				return py::make_iterator(F.begin(), F.end());
 			 }, py::keep_alive<0, 1>()) /* Keep vector alive while iterator is used */

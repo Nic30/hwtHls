@@ -3,7 +3,7 @@
   source_filename = "hwtHlsModule"
   target datalayout = "e-m:e-i8:8-i16:16-i32:32-i64:64-i128:128-i256:256-i512:512-i1024:1024-i2048:2048-i4096:4096-n8:16:32:64-S128-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
   
-  define void @HlsPythonSwap.mainThread(ptr addrspace(1) %i0, ptr addrspace(2) %i1, ptr addrspace(3) %o0, ptr addrspace(4) %o1, ptr addrspace(5) %swap) !hwtHls.param_addr_width !0 {
+  define void @HlsPythonSwap.mainThread(ptr addrspace(1) %i0, ptr addrspace(2) %i1, ptr addrspace(3) %o0, ptr addrspace(4) %o1, ptr addrspace(5) %swap) !hwtHls.io !0 {
   bb0:
     br label %blockL14i0_14
   
@@ -19,7 +19,12 @@
   }
   
   !0 = distinct !{!0, !1}
-  !1 = !{i32 0, i32 0, i32 0, i32 0, i32 0}
+  !1 = !{!2, !3, !4, !5, !6}
+  !2 = !{!"IN", i64 0, ptr null, i64 0}
+  !3 = !{!"IN", i64 0, ptr null, i64 1}
+  !4 = !{!"OUT", i64 0, ptr null, i64 2}
+  !5 = !{!"OUT", i64 0, ptr null, i64 3}
+  !6 = !{!"IN", i64 0, ptr null, i64 4}
 
 ...
 ---

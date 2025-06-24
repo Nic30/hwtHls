@@ -1,4 +1,4 @@
-define void @ExampleCntrArray.mainThread(ptr addrspace(1) %i, ptr addrspace(2) %o, ptr addrspace(3) %o_addr) !hwtHls.param_addr_width !0 {
+define void @ExampleCntrArray.mainThread(ptr addrspace(1) %i, ptr addrspace(2) %o, ptr addrspace(3) %o_addr) !hwtHls.io !0 {
 bb0:
   br label %block0
 
@@ -9,7 +9,7 @@ blockL52i0_52:                                    ; preds = %block0
   br label %blockL52i0_56
 
 blockL52i0_56:                                    ; preds = %blockL52i0_52
-  %v0 = alloca i16, align 2, !hwtHls.tmp.alloca !2
+  %v0 = alloca i16, align 2, !hwtHls.tmp.alloca !5
   store i16 undef, ptr %v0, align 2
   br label %blockL52i1_52
 
@@ -17,7 +17,7 @@ blockL52i1_52:                                    ; preds = %blockL52i0_56
   br label %blockL52i1_56
 
 blockL52i1_56:                                    ; preds = %blockL52i1_52
-  %v1 = alloca i16, align 2, !hwtHls.tmp.alloca !2
+  %v1 = alloca i16, align 2, !hwtHls.tmp.alloca !5
   store i16 undef, ptr %v1, align 2
   br label %blockL52i2_52
 
@@ -25,7 +25,7 @@ blockL52i2_52:                                    ; preds = %blockL52i1_56
   br label %blockL52i2_56
 
 blockL52i2_56:                                    ; preds = %blockL52i2_52
-  %v2 = alloca i16, align 2, !hwtHls.tmp.alloca !2
+  %v2 = alloca i16, align 2, !hwtHls.tmp.alloca !5
   store i16 undef, ptr %v2, align 2
   br label %blockL52i3_52
 
@@ -33,7 +33,7 @@ blockL52i3_52:                                    ; preds = %blockL52i2_56
   br label %blockL52i3_56
 
 blockL52i3_56:                                    ; preds = %blockL52i3_52
-  %v3 = alloca i16, align 2, !hwtHls.tmp.alloca !2
+  %v3 = alloca i16, align 2, !hwtHls.tmp.alloca !5
   store i16 undef, ptr %v3, align 2
   br label %blockL52i4_52
 
@@ -78,9 +78,9 @@ block178:                                         ; preds = %blockL154i4_154
   br label %blockL192i0_192
 
 blockL192i0_192:                                  ; preds = %blockL192i0_440, %block178
-  %o_addr_read = alloca i2, align 1, !hwtHls.tmp.alloca !2
+  %o_addr_read = alloca i2, align 1, !hwtHls.tmp.alloca !5
   store i2 undef, ptr %o_addr_read, align 1
-  %o1 = alloca i16, align 2, !hwtHls.tmp.alloca !2
+  %o1 = alloca i16, align 2, !hwtHls.tmp.alloca !5
   store i16 undef, ptr %o1, align 2
   %o_addr_read1 = load volatile i2, ptr addrspace(3) %o_addr, align 1
   store i2 %o_addr_read1, ptr %o_addr_read, align 1
@@ -96,7 +96,7 @@ blockL192i0_192:                                  ; preds = %blockL192i0_440, %b
   %4 = select i1 %1, i16 %v14, i16 %3
   %o7 = select i1 %0, i16 %v03, i16 %4
   store i16 %o7, ptr %o1, align 2
-  %i_read = alloca i2, align 1, !hwtHls.tmp.alloca !2
+  %i_read = alloca i2, align 1, !hwtHls.tmp.alloca !5
   store i2 undef, ptr %i_read, align 1
   store volatile i16 %o7, ptr addrspace(2) %o, align 2
   %i_read1 = load volatile i2, ptr addrspace(1) %i, align 1
