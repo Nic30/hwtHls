@@ -61,7 +61,16 @@ std::tuple<Type*, size_t, MachineInstr*> getLoadOrStoreElementType(
 	case TargetOpcode::G_LOAD:
 	case TargetOpcode::G_STORE:
 	case HwtFpga::HWTFPGA_CLOAD:
-	case HwtFpga::HWTFPGA_CSTORE:
+	case HwtFpga::HWTFPGA_CSTORE: {
+		std::optional<size_t> expectedResWidth;
+		switch (MI.getOpcode()) {
+		case HwtFpga::HWTFPGA_CLOAD:
+		case HwtFpga::HWTFPGA_CSTORE:
+			expectedResWidth = MI.getOperand(3).getImm();
+			break;
+		default:
+			break;
+		}
 		//MachineOperand &addrMO = MI.getOperand(1);
 		for (auto MO : MI.memoperands()) {
 			auto t = MO->getValue()->getType();
@@ -98,6 +107,8 @@ std::tuple<Type*, size_t, MachineInstr*> getLoadOrStoreElementType(
 			size_t addressWidth = 0;
 			auto *_param_addr_width = F.getMetadata("hwtHls.param_addr_width");
 			if (addrSpace > F.arg_size() || !_param_addr_width) {
+				if (expectedResWidth.has_value())
+					resT = IntegerType::get(F.getContext(), expectedResWidth.value());
 			} else {
 				MDTuple *argAddrWidths = dyn_cast_or_null<MDTuple>(
 						_param_addr_width->getOperand(1));
@@ -106,6 +117,8 @@ std::tuple<Type*, size_t, MachineInstr*> getLoadOrStoreElementType(
 						mdconst::extract<ConstantInt>(awOp.get())->getSExtValue();
 				resT = IntegerType::getIntNTy(F.getContext(),
 						MO->getSizeInBits());
+				if (expectedResWidth.has_value())
+					assert(MO->getSizeInBits() == expectedResWidth);
 			}
 			MachineInstr *ioArgDefiningInstr = nullptr;
 			for (MachineInstr &FirstBBMI : *MI.getMF()->begin()) {
@@ -131,6 +144,10 @@ std::tuple<Type*, size_t, MachineInstr*> getLoadOrStoreElementType(
 			}
 			return {resT, addressWidth, ioArgDefiningInstr};
 		}
+		break;
+	}
+	default:
+		break;
 	}
 	llvm_unreachable(
 			"Only instructions with previous opcode should be store in MI and it should have memory operand");
