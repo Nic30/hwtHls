@@ -2,6 +2,7 @@
 
 #include <llvm/ADT/SetVector.h>
 #include <llvm/ADT/SmallSet.h>
+#include <llvm/IR/Function.h>
 #include <hwtHls/llvm/targets/Analysis/liveVariableForEdge.h>
 
 #define DEBUG_TYPE "vreg-liveins"
@@ -45,8 +46,8 @@ bool HwtHlsVRegLiveins::runOnMachineFunction(llvm::MachineFunction &MF) {
 		return false;
 	this->MF = &MF;
 	auto &MRI = MF.getRegInfo();
-
-	assert(_liveins.empty());
+	_liveins.clear(); // the same object is used for analysis of all MFs
+	// assert(_liveins.empty());
 
 	std::map<MachineBasicBlock*, SetVector<Register>> defines;
 	std::map<MachineBasicBlock*,
