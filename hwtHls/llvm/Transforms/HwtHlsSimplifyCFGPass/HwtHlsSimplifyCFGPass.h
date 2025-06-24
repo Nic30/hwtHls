@@ -56,7 +56,7 @@ struct HwtHlsSimplifyCFGOptions: public llvm::SimplifyCFGOptions {
 		return *this;
 	}
 
-	//SimplifyCFG2Options& setSinkCheapInsts(bool B) {
+	//HwtHlsSimplifyCFGOptions& setSinkCheapInsts(bool B) {
 	//	SinkCheapInsts = B;
 	//	return *this;
 	//}

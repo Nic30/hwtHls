@@ -34,7 +34,7 @@ class SimplifyCFGOpt2 {
 	llvm::DomTreeUpdater *DTU;
 	const llvm::DataLayout &DL;
 	const llvm::TargetTransformInfo &TTI;
-	const SimplifyCFG2Options &Options;
+	const HwtHlsSimplifyCFGOptions &Options;
 	unsigned LlvmHoistCommonSkipLimit;
 
 	bool Resimplify;
@@ -52,7 +52,7 @@ class SimplifyCFGOpt2 {
 
 public:
 	SimplifyCFGOpt2(llvm::DomTreeUpdater *DTU, const llvm::DataLayout &DL,
-			const llvm::TargetTransformInfo &TTI, const SimplifyCFG2Options &Opts,
+			const llvm::TargetTransformInfo &TTI, const HwtHlsSimplifyCFGOptions &Opts,
 			unsigned LlvmHoistCommonSkipLimit) :
 			DTU(DTU), DL(DL), TTI(TTI), Options(Opts), LlvmHoistCommonSkipLimit(
 					LlvmHoistCommonSkipLimit), Resimplify(false) {
