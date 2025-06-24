@@ -62,7 +62,10 @@ def addHwtHlsFunctionMetadata(toLlvm: "ToLlvmIrTranslator"):
     """
     F: Function = toLlvm.llvm.main
     assert F.arg_size() == len(toLlvm.ioSorted), (F.arg_size(), len(toLlvm.ioSorted))
-    argAddrWidths = toLlvm.mdGetTuple([toLlvm.mdGetUInt32(addrWidth) for (_, _, addrWidth, _, _) in toLlvm.ioSorted], False)
+    argAddrWidths = toLlvm.mdGetTuple(
+        [toLlvm.mdGetUInt32(addrWidth)
+         for (_, _, addrWidth, _, _) in toLlvm.ioSorted],
+        False)
     F.setMetadata(toLlvm.strCtx.addStringRef("hwtHls.param_addr_width"),
                                toLlvm.mdGetTuple([argAddrWidths, ], True))
 
