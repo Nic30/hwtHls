@@ -5,14 +5,14 @@ class SsaAnalysisPass():
     A base class for HLS SSA analysis classes
     """
 
-    def runOnSsaModule(self, toSsa: "HlsAstToSsa"):
+    def runOnSsaModule(self, toSsa: "HlsAstToSsa", *args, **kwargs):
         "Perform the analysis on the netlist"
         log = toSsa._dbgLogPassExec
         if log is not None:
             log.write(f"Running analysis: {self} on {toSsa}")
-        self.runOnSsaModuleImpl(toSsa)
+        self.runOnSsaModuleImpl(toSsa, *args, **kwargs)
 
-    def runOnSsaModuleImpl(self, toSsa: "HlsAstToSsa"):
+    def runOnSsaModuleImpl(self, toSsa: "HlsAstToSsa", *args, **kwargs):
         raise NotImplementedError("Implement this in implementation of this abstract class")
 
     def invalidate(self, toSsa: "HlsAstToSsa"):
