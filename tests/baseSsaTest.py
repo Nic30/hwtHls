@@ -53,7 +53,7 @@ class BaseTestPlatform(VirtualHlsPlatform):
 
         initSchedulingResourceConstraintsFromIO(netlist.scheduler.resourceUsage.resourceConstraints, (io[0] for io in toLlvm.ioSorted))
 
-        SsaPassDumpMIR(lambda name: (self.mir, False)).runOnSsaModule(toLlvm)
+        SsaPassDumpMIR(lambda name: (self.mir, False)).runOnSsaModule(toLlvm, mf)
 
         try:
             toNetlist.translateDatapathInBlocks(mf)

@@ -153,8 +153,14 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
             except:
                 dbg = self._debug.runDebugIfEnabled
                 D = HlsDebugBundle
-                dbg(D.DBG_2_0_mir, (toLlvm,), applyFnGetter=_runOnSsaMouduleGetter)
-                dbg(D.DBG_2_0_mirCfg, (toLlvm,), applyFnGetter=_runOnSsaMouduleGetter)
+                llvm = toLlvm.llvm
+                if llvm.main is None:
+                    raise NotImplementedError()
+                else:
+                    mf = llvm.getMachineFunction(llvm.main)
+
+                dbg(D.DBG_2_0_mir, (toLlvm, mf), applyFnGetter=_runOnSsaMouduleGetter)
+                dbg(D.DBG_2_0_mirCfg, (toLlvm, mf), applyFnGetter=_runOnSsaMouduleGetter)
                 raise
 
         netlist = super(TestLlvmIrAndMirPlatform, self).runMirToHlsNetlist(hls, toLlvm, *args)

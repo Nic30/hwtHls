@@ -14,7 +14,10 @@ class SsaPassDumpMIR(SsaAnalysisPass):
 
     @override
     def runOnSsaModuleImpl(self, toLlvm:"ToLlvmIrTranslator", mf: MachineFunction):
-        out, doClose = self.outStreamGetter(os.path.join(toLlvm._dbgSubDir, mf.getName().str()))
+        dumpFilename = mf.getName().str()
+        if toLlvm._dbgSubDir:
+            dumpFilename = os.path.join(toLlvm._dbgSubDir, dumpFilename)
+        out, doClose = self.outStreamGetter(dumpFilename)
         try:
             out.write(mf.serialize())
         finally:
