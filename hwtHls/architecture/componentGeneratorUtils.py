@@ -236,7 +236,10 @@ def replaceHlsNetNodeOperatorWithHwModule(compBuilder: AbstractComponentBuilder,
         for _users in n.usedBy:
             users.extend(_users)
 
-        outRead = _replaceHlsNetNodOperatorOutputWithRead(netlist, parent, outHwIo, outputUseReadyValid, outTy, outTime, firstInputWrite, users)
+        outRead = _replaceHlsNetNodOperatorOutputWithRead(
+            netlist, parent, outHwIo,
+            outputUseReadyValid, outTy,
+            outTime, firstInputWrite, users)
         outReadData = outRead._portDataOut
         off = 0
         if outputsBitMap is None:
