@@ -8,11 +8,12 @@ from hwt.hdl.types.struct import HStruct
 from hwt.mainBases import RtlSignalBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.code import rol
-from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend import hwrange.hwrange
+from hwtHls.frontend.hwrange import hwrange
 from hwtHls.frontend.pragma import _PyBytecodeLoopPragma
 from hwtHls.frontend.pragmaPreproc import PyBytecodePreprocHwCopy
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtLib.types.ctypes import uint32_t
+
 
 # for i in range(64)
 #     SINES_OF_INTEGERS[i] = floor(23**2 * abs(sin(i + 1)))
