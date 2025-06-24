@@ -113,7 +113,6 @@ void AddDefaultFunctionAttributes(Function &TheFn) {
 /*
  * [todo] duplicity with BasicBlock::SkipPHIsAndLabels, BasicBlock::getFirstInsertionPt
  * */
-
 void IRBuilder_setInsertPointBehindPhi(IRBuilderBase &builder, llvm::Instruction *I) {
 	builder.SetInsertPoint(I);
 	auto insPoint = builder.GetInsertPoint();
