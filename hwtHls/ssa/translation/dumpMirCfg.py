@@ -1,3 +1,4 @@
+import os
 import pydot
 
 from hwt.pyUtils.typingFuture import override
@@ -33,11 +34,8 @@ class SsaPassDumpMirCfg(SsaAnalysisPass):
         self.outStreamGetter = outStreamGetter
 
     @override
-    def runOnSsaModuleImpl(self, toLlvm:"ToLlvmIrTranslator"):
-        llvm = toLlvm.llvm
-        mf = llvm.getMachineFunction(llvm.main)
-        assert mf
-        out, doClose = self.outStreamGetter(toLlvm._dbgSubDir)
+    def runOnSsaModuleImpl(self, toLlvm:"ToLlvmIrTranslator", mf: MachineFunction):
+        out, doClose = self.outStreamGetter(os.path.join(toLlvm._dbgSubDir, mf.getName().str()))
         try:
             P = dumpMirCfgToDot(mf)
             out.write(P.to_string())

@@ -128,8 +128,8 @@ class DefaultHlsPlatform(DummyPlatform):
         assert isinstance(toLlvm, ToLlvmIrTranslator), toLlvm
         DBG = self._debug.runDebugIfEnabled
         D = HlsDebugBundle
-        DBG(D.DBG_2_0_mir, (toLlvm,), applyFnGetter=_runOnSsaMouduleGetter)
-        DBG(D.DBG_2_0_mirCfg, (toLlvm,), applyFnGetter=_runOnSsaMouduleGetter)
+        DBG(D.DBG_2_0_mir, (toLlvm, mf), applyFnGetter=_runOnSsaMouduleGetter)
+        DBG(D.DBG_2_0_mirCfg, (toLlvm, mf), applyFnGetter=_runOnSsaMouduleGetter)
 
         dbgTracer, doCloseTrace = self._getDebugTracer(netlist.label, D.DBG_2_1_netlistConstructionTrace)
         toNetlist = HlsNetlistAnalysisPassMirToNetlist(
