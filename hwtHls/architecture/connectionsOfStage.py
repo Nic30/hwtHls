@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Optional, List, Tuple, Union
+from typing import Optional, Union
 
 from hwt.code import Or, SwitchLogic
 from hwt.constants import NOT_SPECIFIED
@@ -25,7 +25,7 @@ class OrMemberList():
     Container of ORed flags.
     """
 
-    def __init__(self, data:List[RtlSignal]):
+    def __init__(self, data:list[RtlSignal]):
         self.data = data
 
     def resolve(self) -> RtlSignal:
@@ -67,8 +67,15 @@ InterfaceOrReadWriteNodeOrValidReadyTuple = Union[HwIO, HlsNetNodeRead, HlsNetNo
 #        self.readyHasCustomDriver = readyHasCustomDriver
 #
 #
-# EnableReadyTuple = Tuple[Optional[AnyHValue], Optional[RtlSignalBase]]
-# EnableValidTuple = Tuple[Optional[AnyHValue], Optional[RtlSignalBase]]
+# EnableReadyTuple = tuple[Optional[AnyHValue], Optional[RtlSignalBase]]
+# EnableValidTuple = tuple[Optional[AnyHValue], Optional[RtlSignalBase]]
+
+FsmIoMuxCasesValue_t = tuple[
+    Union[HlsNetNodeRead, HlsNetNodeWrite],  # node accessing IO
+    Optional[RtlSignal],  # rtl node enable signal
+    Optional[RtlSignal],  # rtl node ready for reads, valid for writes, should be asserted 1 if enable==1
+    list[HdlStatement]  # rtl statements produced by the node which are implementing the node
+]
 
 
 class ConnectionsOfStage():
@@ -101,13 +108,10 @@ class ConnectionsOfStage():
         self.signals: SetList[TimeIndependentRtlResourceItem] = SetList()
         # self.inputs_extraCond: Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, OrMemberList] = {}
         # self.outputs_extraCond: Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, OrMemberList] = {}
-        # self.ioMuxes: OrderedDict[HwIO, Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], List[HdlStatement]]] = OrderedDict()
+        # self.ioMuxes: OrderedDict[HwIO, tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], list[HdlStatement]]] = OrderedDict()
         self.fsmIoMuxCases: OrderedDict[Union[HlsNetNodeRead, HlsNetNodeWrite, HwIO],
-                                         List[Tuple[Union[HlsNetNodeRead, HlsNetNodeWrite],  # node accessing IO
-                                              Optional[RtlSignal],  # rtl node enable signal
-                                              Optional[RtlSignal],  # rtl node ready for reads, valid for writes, should be asserted 1 if enable==1
-                                              List[HdlStatement]],  # rtl statements produced by the node which are implementing the node
-                                              ]] = {}
+
+                                         ] = {}
         # :note: ready/valid is not assigned from enable immediately because if there will be mux of variants we want it to be assigned
         # 1 in each case and not enable as if it there was just a single mux case
         self.pipelineSyncIn: Optional["HlsNetNodeReadForwardedge"] = None
@@ -116,11 +120,11 @@ class ConnectionsOfStage():
         self.fsmStateWriteNode: Optional[HlsNetNodeFsmStateWrite] = None
         self.stageAck: Optional[RtlSignal] = None
         self.stageEnable: Optional[RtlSignal] = None
-        self.stateChangeDependentDrives: List[HdlStatement] = []
-        self.stateDependentDrives: List[HdlStatement] = []
+        self.stateChangeDependentDrives: list[HdlStatement] = []
+        self.stateDependentDrives: list[HdlStatement] = []
 
-        # self.finalInputs: List[EnableReadyTuple] = []
-        # self.finalOutputs: List[EnableValidTuple] = []
+        # self.finalInputs: list[EnableReadyTuple] = []
+        # self.finalOutputs: list[EnableValidTuple] = []
 
     def isUnused(self):
         return (
@@ -354,6 +358,7 @@ class ConnectionsOfStage():
         After all read/write nodes constructed all RTL create a HDL switch to select RTL which should be active.
         """
         for muxCases in self.fsmIoMuxCases.values():
+            muxCases: list[FsmIoMuxCasesValue_t]
             if len(muxCases) == 1:
                 node, cond, enableOut, caseStatements = muxCases[0]
                 assert isinstance(caseStatements, list), (caseStatements.__class__, caseStatements)
@@ -413,6 +418,7 @@ class ConnectionsOfStage():
                             break
                         else:
                             en = RtlSignalBuilder.buildOrOptional(en, cond)
+
                     if enableOut is not None:
                         yield [enableOut(1 if en is None else en), ]
 
@@ -422,7 +428,7 @@ class ConnectionsOfStage():
         return f"<{self.__class__.__name__:s} {self.parent} clk:{self.clkIndex}>"
 
 
-class ConnectionsOfStageList(List[Optional[SetList[ConnectionsOfStage]]]):
+class ConnectionsOfStageList(list[Optional[SetList[ConnectionsOfStage]]]):
     """
     Container of for :class:`~.ConnectionsOfStage` divided into clock cycles.
     """
@@ -471,7 +477,7 @@ class ConnectionsOfStageList(List[Optional[SetList[ConnectionsOfStage]]]):
         return res
 
 
-def setNopValIfNotSet(hwIO: Union[HwIO, RtlSignal], nopVal, exclude: List[HwIO]):
+def setNopValIfNotSet(hwIO: Union[HwIO, RtlSignal], nopVal, exclude: list[HwIO]):
     if hwIO in exclude:
         return
     elif isinstance(hwIO, RtlSignal):
