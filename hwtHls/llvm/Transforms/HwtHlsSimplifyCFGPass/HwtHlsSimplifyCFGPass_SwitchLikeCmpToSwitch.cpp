@@ -1,4 +1,4 @@
-#include "SimplifyCFG2Pass_SwitchLikeCmpToSwitch.h"
+#include "HwtHlsSimplifyCFGPass_SwitchLikeCmpToSwitch.h"
 
 #include <llvm/IR/PatternMatch.h>
 #include <llvm/IR/IRBuilder.h>
@@ -6,9 +6,8 @@
 #include <llvm/ADT/SetVector.h>
 
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFGUtils.h>
-
 #include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
 #define DEBUG_TYPE "simplifycfg2"
 
 using namespace llvm;

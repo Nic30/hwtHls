@@ -5,11 +5,11 @@ from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
 
 
-class SimplifyCFG2Pass_TC(BaseLlvmIrTC):
+class HwtHlsSimplifyCFGPass_TC(BaseLlvmIrTC):
     __FILE__ = __file__
 
     def _runTestOpt(self, llvm:LlvmCompilationBundle, *args, **kwargs) -> Function:
-        return llvm._testSimplifyCFG2Pass(*args, **kwargs)
+        return llvm._testHwtHlsSimplifyCFGPass(*args, **kwargs)
 
     def test_loadMerge(self):
         llvmIr = """\
@@ -295,7 +295,7 @@ class SimplifyCFG2Pass_TC(BaseLlvmIrTC):
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([SimplifyCFG2Pass_TC('test_loadMerge')])
-    suite = testLoader.loadTestsFromTestCase(SimplifyCFG2Pass_TC)
+    # suite = unittest.TestSuite([HwtHlsSimplifyCFGPass_TC('test_loadMerge')])
+    suite = testLoader.loadTestsFromTestCase(HwtHlsSimplifyCFGPass_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

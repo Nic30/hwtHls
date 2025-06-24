@@ -1,4 +1,4 @@
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_aggresiveStoreSink.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_aggresiveStoreSink.h>
 #include <algorithm>
 
 #include <llvm/ADT/SmallVector.h>
@@ -84,7 +84,7 @@ bool searchCFGDiamondBlocks(DominatorTree &DT, SetVector<BasicBlock*> &found,
 }
 
 
-bool SimplifyCFG2Pass_rewriteMaskPatternsFromCFGToData(
+bool HwtHlsSimplifyCFGPass_rewriteMaskPatternsFromCFGToData(
 		llvm::DomTreeUpdater &DTU, llvm::BasicBlock &BBBottom) {
 	/*
 	 * The search start from bottom block with PHIs then it divides blocks based on dominance to 2 groups
@@ -147,7 +147,7 @@ bool SimplifyCFG2Pass_rewriteMaskPatternsFromCFGToData(
 			}
 		}
 
-		writeCFGToDotFile(F, "SimplifyCFG2Pass_rewriteMaskPatternsFromCFGToData.dot", nullptr, nullptr);
+		writeCFGToDotFile(F, "HwtHlsSimplifyCFGPass_rewriteMaskPatternsFromCFGToData.dot", nullptr, nullptr);
 		std::map<BasicBlock*, KnownBitRangeInfo> knownBitsInEachBlock;
 		//auto getKnownBitRangeInfo = [&CBA, &knownBitsInEachBlock, &Phi, &BBBottom] (BasicBlock & Pred) {
 		//	if (&Pred == &BBBottom) {

@@ -1,4 +1,4 @@
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_streamWriteMerge.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_streamWriteMerge.h>
 
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/PatternMatch.h>
@@ -7,14 +7,14 @@
 #include <llvm/Analysis/ValueTracking.h>
 #include <llvm/Analysis/InstructionSimplify.h>
 
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFGUtils.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/cfgFragmentOptionaStreamWrite.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_phiToLogicalExpr.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/cfgFragmentOptionaStreamWrite.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_phiToLogicalExpr.h>
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinerUtilsImplication.h>
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinerUtilsHoisting.h>
 
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
 
 #define DEBUG_TYPE "simplifycfg2"
 
@@ -37,7 +37,7 @@ namespace hwtHls {
  * Detect the sequence of optional streamWrite instructions in if-then like cfg
  * :note: first may have guard==nullptr if it is not optional
  * */
-bool SimplifyCFG2Pass_streamWriteMergeDetect(
+bool HwtHlsSimplifyCFGPass_streamWriteMergeDetect(
 		llvm::BasicBlock &BBContainingStreamWrite,
 		SmallVector<OptionalStreamWriteCFGFragment> &writeSeqeunceDown) {
 	// detect linear sequences of optional writes
@@ -131,7 +131,7 @@ Value* attemptToSimplifyValue(Value *V, llvm::SimplifyQuery &SQ) {
 				}
 			}
 
-			//if (Value* replacement = SimplifyCFG2Pass_phiToLogicalExpr(*PHI)) {
+			//if (Value* replacement = HwtHlsSimplifyCFGPass_phiToLogicalExpr(*PHI)) {
 			//	PHI->replaceAllUsesWith(replacement);
 			//	PHI->eraseFromParent();
 			//	condition = replacement;
@@ -152,7 +152,7 @@ Value* attemptToSimplifyValue(Value *V, llvm::SimplifyQuery &SQ) {
 	return V;
 }
 
-bool SimplifyCFG2Pass_streamWriteMerge_rewrite(IRBuilderBase &Builder,
+bool HwtHlsSimplifyCFGPass_streamWriteMerge_rewrite(IRBuilderBase &Builder,
 		llvm::DomTreeUpdater &DTU, llvm::SimplifyQuery &SQ,
 		SmallVector<OptionalStreamWriteCFGFragment> &writeSeqenceDown) {
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
@@ -172,7 +172,7 @@ bool SimplifyCFG2Pass_streamWriteMerge_rewrite(IRBuilderBase &Builder,
 	SmallVector<Value*> EoFs;
 	SmallVector<Value*> WriteEns;
 	LLVM_DEBUG(
-			dbgs() << "SimplifyCFG2Pass_streamWriteMerge: attempting to merge "
+			dbgs() << "HwtHlsSimplifyCFGPass_streamWriteMerge: attempting to merge "
 					<< writeSeqenceDown.size()
 					<< " writes together starting from "
 					<< writeSeqenceDown[0].write->getParent()->getName() << "\n"
@@ -211,7 +211,7 @@ bool SimplifyCFG2Pass_streamWriteMerge_rewrite(IRBuilderBase &Builder,
 					SQ.DL, SQ.AC, SQ.DT, writeSeqenceDown.back().write)) {
 				LLVM_DEBUG(
 						dbgs()
-								<< "SimplifyCFG2Pass_streamWriteMerge: can not prove implication (condition ==> lastCondition)"
+								<< "HwtHlsSimplifyCFGPass_streamWriteMerge: can not prove implication (condition ==> lastCondition)"
 								<< *condition << " ==> " << *lastCondition
 								<< "\n"
 						; );
@@ -226,7 +226,7 @@ bool SimplifyCFG2Pass_streamWriteMerge_rewrite(IRBuilderBase &Builder,
 					}
 					if (writeSeqenceDownLeftover.size() > 1) {
 						// there is still enough fragments to try merge
-						return SimplifyCFG2Pass_streamWriteMerge_rewrite(
+						return HwtHlsSimplifyCFGPass_streamWriteMerge_rewrite(
 								Builder, DTU, SQ, writeSeqenceDownLeftover);
 					}
 					return false; // there may have been a change in expression but not in CFG
@@ -285,7 +285,7 @@ bool SimplifyCFG2Pass_streamWriteMerge_rewrite(IRBuilderBase &Builder,
 	}
 
 	LLVM_DEBUG(
-			dbgs() << "SimplifyCFG2Pass_streamWriteMerge: " << dataParts.size()
+			dbgs() << "HwtHlsSimplifyCFGPass_streamWriteMerge: " << dataParts.size()
 					<< " can be merged\n"
 			; );
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
@@ -360,21 +360,21 @@ bool SimplifyCFG2Pass_streamWriteMerge_rewrite(IRBuilderBase &Builder,
 	assert(!verifyFunction(*Builder.GetInsertBlock()->getParent(), &errs()));
 #endif
 	if (writeSeqenceDownLeftover.size() > 1) {
-		SimplifyCFG2Pass_streamWriteMerge_rewrite(Builder, DTU, SQ,
+		HwtHlsSimplifyCFGPass_streamWriteMerge_rewrite(Builder, DTU, SQ,
 				writeSeqenceDownLeftover);
 	}
 
 	return true;
 }
 
-bool SimplifyCFG2Pass_streamWriteMerge(IRBuilderBase &Builder,
+bool HwtHlsSimplifyCFGPass_streamWriteMerge(IRBuilderBase &Builder,
 		llvm::DomTreeUpdater &DTU, llvm::BasicBlock &BBContainingStreamWrite,
 		llvm::SimplifyQuery &SQ) {
 	SmallVector<OptionalStreamWriteCFGFragment> writeSeqenceDown;
-	if (!SimplifyCFG2Pass_streamWriteMergeDetect(BBContainingStreamWrite,
+	if (!HwtHlsSimplifyCFGPass_streamWriteMergeDetect(BBContainingStreamWrite,
 			writeSeqenceDown))
 		return false;
-	return SimplifyCFG2Pass_streamWriteMerge_rewrite(Builder, DTU, SQ,
+	return HwtHlsSimplifyCFGPass_streamWriteMerge_rewrite(Builder, DTU, SQ,
 			writeSeqenceDown);
 }
 

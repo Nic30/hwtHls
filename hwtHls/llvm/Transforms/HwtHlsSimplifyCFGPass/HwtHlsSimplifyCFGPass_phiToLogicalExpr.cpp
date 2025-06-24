@@ -1,4 +1,4 @@
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_phiToLogicalExpr.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_phiToLogicalExpr.h>
 
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/PatternMatch.h>
@@ -21,7 +21,7 @@ using namespace llvm::PatternMatch;
 namespace hwtHls {
 
 // attempt to hoist to first pred BB
-bool SimplifyCFG2Pass_phiToLogicalExpr_hoist(
+bool HwtHlsSimplifyCFGPass_phiToLogicalExpr_hoist(
 		CfgFragmentChainOfblocksWithSameSucc &predecChain,
 		SmallPtrSet<BasicBlock*, 16> &blocksToHoistFrom) {
 	bool Changed = false;
@@ -61,7 +61,7 @@ bool SimplifyCFG2Pass_phiToLogicalExpr_hoist(
 	return Changed;
 }
 
-bool SimplifyCFG2Pass_phiToLogicalExpr(IRBuilderBase &Builder,
+bool HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 		llvm::DomTreeUpdater &DTU, const llvm::DataLayout &DL,
 		llvm::AssumptionCache *AC, llvm::BasicBlock &exitBB) {
 	if (exitBB.phis().empty())
@@ -93,7 +93,7 @@ bool SimplifyCFG2Pass_phiToLogicalExpr(IRBuilderBase &Builder,
 	assert(DT.dominates(predecChain.blocks[0].BB, &exitBB));
 
 	SmallPtrSet<BasicBlock*, 16> blocksToHoistFrom;
-	bool Change = SimplifyCFG2Pass_phiToLogicalExpr_hoist(predecChain,
+	bool Change = HwtHlsSimplifyCFGPass_phiToLogicalExpr_hoist(predecChain,
 			blocksToHoistFrom);
 	for (auto &BBItem : predecChain.blocks) {
 		auto Term = dyn_cast<BranchInst>(BBItem.BB->getTerminator());
@@ -126,7 +126,7 @@ bool SimplifyCFG2Pass_phiToLogicalExpr(IRBuilderBase &Builder,
 		}
 		if (!allIncommingValuesDominatingBB)
 			continue;
-		if (auto V = SimplifyCFG2Pass_phiToLogicalExpr(Builder, DL, AC,
+		if (auto V = HwtHlsSimplifyCFGPass_phiToLogicalExpr(Builder, DL, AC,
 				predecChain, PHI)) {
 			// If V is a new unnamed instruction, take the name from the old one.
 			if (V->use_empty() && isa<Instruction>(V) && !V->hasName()
@@ -278,7 +278,7 @@ inline bool isFshlOf(llvm::Value *v, llvm::Value *a, llvm::Value *b,
 	}
 }
 
-llvm::Value* SimplifyCFG2Pass_phiToLogicalExpr(IRBuilderBase &Builder,
+llvm::Value* HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 		const llvm::DataLayout &DL, llvm::AssumptionCache *AC,
 		CfgFragmentChainOfblocksWithSameSucc &predecChain, llvm::PHINode &PHI) {
 	// :attention: this expects all branch condition defs to be hoisted before terminator of the first predecessor BB in chain

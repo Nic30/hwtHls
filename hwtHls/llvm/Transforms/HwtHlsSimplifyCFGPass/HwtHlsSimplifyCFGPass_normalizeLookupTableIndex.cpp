@@ -1,8 +1,8 @@
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_normalizeLookupTableIndex.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFGUtils.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_normalizeLookupTableIndex.h>
 #include <llvm/IR/PatternMatch.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/GlobalVariable.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
 
 #define DEBUG_TYPE "simplifycfg2"
 
@@ -10,7 +10,7 @@ using namespace llvm;
 
 namespace hwtHls {
 
-bool SimplifyCFG2Pass_normalizeLookupTableIndex(llvm::BasicBlock &BB) {
+bool HwtHlsSimplifyCFGPass_normalizeLookupTableIndex(llvm::BasicBlock &BB) {
 	// transform value stored in switch_ptr in order to use switch_tableidx_base as is
 	using namespace llvm::PatternMatch;
 	bool changed = false;

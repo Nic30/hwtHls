@@ -13,7 +13,7 @@ namespace hwtHls {
  * rather than using PHI to select between numerous possible values
  *
  **/
-bool SimplifyCFG2Pass_rewriteMaskPatternsFromCFGToData(
+bool HwtHlsSimplifyCFGPass_rewriteMaskPatternsFromCFGToData(
 		llvm::DomTreeUpdater &DTU, llvm::BasicBlock &BBBottom);
 }
 

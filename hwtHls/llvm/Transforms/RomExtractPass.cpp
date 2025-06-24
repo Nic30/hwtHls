@@ -11,7 +11,7 @@
 
 #include <hwtHls/llvm/Transforms/utils/dceWorklist.h>
 #include <hwtHls/llvm/targets/bitMathUtils.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFGUtils.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/SimplifyCFGUtils.h>
 
 using namespace llvm;
 

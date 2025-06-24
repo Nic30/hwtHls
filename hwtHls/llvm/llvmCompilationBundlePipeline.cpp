@@ -100,7 +100,7 @@
 #include <hwtHls/llvm/Transforms/TmpAllocaLoweringPass.h>
 #include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
 #include <hwtHls/llvm/Transforms/slicesMerge/slicesMerge.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass.h>
 #include <hwtHls/llvm/Transforms/trivialSimplifyCFGPass.h>
 #include <hwtHls/llvm/Transforms/LoopAddLatchPass.h>
 #include <hwtHls/llvm/Transforms/LoopFlattenUsingIfPass.h>
@@ -140,7 +140,7 @@ void LlvmCompilationBundle::_registerHwtHlsPasses() {
 	    hwtHls::PruneLoopPhiDeadIncomingValuesPass,
 	    hwtHls::ReconfigureHwtFpgaTTIPass,
 	    hwtHls::RomExtractPass,
-	    hwtHls::SimplifyCFG2Pass,
+	    hwtHls::HwtHlsSimplifyCFGPass,
 	    hwtHls::TrivialSimplifyCFGPass,
 	    hwtHls::HwtHlsInstCombinePass,
 	    hwtHls::SlicesMergePass,
@@ -182,7 +182,7 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	llvm::FunctionPassManager FPM;
 	_addInitialNormalizationPasses(FPM);
 	_addStreamOperationLoweringPasses(FPM);
-	FPM.addPass(hwtHls::SimplifyCFG2Pass());
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
 
 	// Hoisting of scalars and load expressions.
 	if (EnableGVNHoist)
@@ -191,7 +191,7 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	// Global value numbering based sinking.
 	if (EnableGVNSink) {
 		FPM.addPass(llvm::GVNSinkPass());
-		FPM.addPass(hwtHls::SimplifyCFG2Pass());
+		FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
 	}
 
 	// Speculative execution if the target has divergent branches; otherwise nop.
@@ -202,7 +202,7 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	FPM.addPass(llvm::JumpThreadingPass());
 	FPM.addPass(llvm::CorrelatedValuePropagationPass());
 
-	FPM.addPass(hwtHls::SimplifyCFG2Pass());
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
 	_addInstrCombinePasses(FPM, /*bitwidthReduction*/ false, /*selectPruning*/ false);
 
 	//if (EnableConstraintElimination)
@@ -220,7 +220,7 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	//  FPM.addPass(PGOMemOPSizeOpt());
     //
 	//FPM.addPass(TailCallElimPass());
-	FPM.addPass(hwtHls::SimplifyCFG2Pass());
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
 
 	// Form canonically associated expression trees, and simplify the trees using
 	// basic mathematical properties. For example, this will form (nearly)
@@ -247,7 +247,7 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	//	FPM.addPass(llvm::ControlHeightReductionPass());
 	_addVectorPasses(Level, FPM, true); // LTO like vector opt, after all IR opt, followed by final cleanup and machine passes
 	FPM.addPass(
-			hwtHls::SimplifyCFG2Pass(
+			hwtHls::HwtHlsSimplifyCFGPass(
 					hwtHls::SimplifyCFG2Options()//
 					.forwardSwitchCondToPhi(true)//
 					.convertSwitchRangeToICmp(true)//
@@ -369,7 +369,7 @@ void LlvmCompilationBundle::_addInitialNormalizationPasses(
 	FPM.addPass(llvm::UnifyFunctionExitNodesPass()); // llvm mergereturn
 	// Form SSA out of local memory accesses after breaking apart aggregates into
 	// scalars.
-	FPM.addPass(hwtHls::SimplifyCFG2Pass(hwtHls::SimplifyCFG2Options()\
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(hwtHls::SimplifyCFG2Options()\
 			.hoistCommonInsts(true)\
 			.setHoistCheapInsts(true)));
 	FPM.addPass(hwtHls::SlicesToIndependentVariablesPass()); // hwtHls specific
@@ -392,10 +392,10 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true, false));
 	//FPM.addPass(hwtHls::DumpAndExitPass(false, false, "tmp/StreamLoopUnrollPass.1.dot", true));
-	FPM.addPass(hwtHls::SimplifyCFG2Pass());
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
 	//FPM.addPass(hwtHls::DumpAndExitPass(false, true, "tmp/StreamLoopUnrollPass.2.dot", true));
 	_addInstrCombinePasses(FPM, false, false, false);
-	FPM.addPass(hwtHls::SimplifyCFG2Pass());
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
 	_addInstrCombinePasses(FPM, false, false, false);
 
 	//FPM.addPass(hwtHls::DumpAndExitPass(false, false, "tmp/StreamLoopUnrollPass.1.dot", true));
@@ -403,7 +403,7 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 	//FPM.addPass(hwtHls::DumpAndExitPass(false, false, "tmp/StreamReadLoweringPass.0.dot", true));
 	_addInstrCombinePasses(FPM, false, false, false);
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true, false));
-	FPM.addPass(hwtHls::SimplifyCFG2Pass());
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
 	_addInstrCombinePasses(FPM, false, false, false, true);
 	//FPM.addPass(hwtHls::DumpAndExitPass(false, false, "tmp/StreamReadLoweringPass.1.dot", true));
 	//FPM.addPass(hwtHls::DumpAndExitPass(true, true, "tmp/StreamLoopUnrollPass.3.dot", true));
@@ -411,7 +411,7 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 	FPM.addPass(hwtHls::StreamWriteLoweringPass());
 	_addInstrCombinePasses(FPM, false, false);
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true, false));
-	FPM.addPass(hwtHls::SimplifyCFG2Pass());
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
 	_addInstrCombinePasses(FPM, false, false);
 
 
@@ -454,7 +454,7 @@ void LlvmCompilationBundle::_addCommonPasses(llvm::FunctionPassManager &FPM) {
 	FPM.addPass(llvm::DFAJumpThreadingPass());
 	FPM.addPass(llvm::JumpThreadingPass()); // segfault on insert to internal set in non debug builds
 	// :note: DFAJumpThreadingPass will left unreachable blocks with branch condition set to undef, there we remove such blocks
-	FPM.addPass(hwtHls::SimplifyCFG2Pass());
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
 	FPM.addPass(llvm::CorrelatedValuePropagationPass());
 	// Finally, do an expensive DCE pass to catch all the dead code exposed by
 	// the simplifications and basic cleanup after all the simplifications.
@@ -474,7 +474,7 @@ void LlvmCompilationBundle::_addCommonPasses(llvm::FunctionPassManager &FPM) {
 	//	for (auto &C : ScalarOptimizerLateEPCallbacks)
 	//		C(FPM, Level);
 	FPM.addPass(
-			hwtHls::SimplifyCFG2Pass(
+			hwtHls::HwtHlsSimplifyCFGPass(
 					hwtHls::SimplifyCFG2Options()//
 					.convertSwitchRangeToICmp(true)//
 					.hoistCommonInsts(true)//
@@ -610,7 +610,7 @@ void LlvmCompilationBundle::_addLoopPasses(llvm::FunctionPassManager &FPM) {
 	true, /*UseBlockFrequencyInfo=*/
 	true));
 	FPM.addPass(
-			hwtHls::SimplifyCFG2Pass(
+			hwtHls::HwtHlsSimplifyCFGPass(
 					hwtHls::SimplifyCFG2Options().convertSwitchRangeToICmp(true)));
 	FPM.addPass(llvm::LoopSimplifyPass());
 	_addInstrCombinePassesLight(FPM);
@@ -701,7 +701,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 						true,
 						/*UseBlockFrequencyInfo=*/true));
 		ExtraPasses.addPass(
-				hwtHls::SimplifyCFG2Pass(
+				hwtHls::HwtHlsSimplifyCFGPass(
 						hwtHls::SimplifyCFG2Options()//
 						.convertSwitchRangeToICmp(true)));
 		ExtraPasses.addPass(llvm::LoopSimplifyPass());
@@ -719,7 +719,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 	// convert to more optimized IR using more aggressive simplify CFG options.
 	// The extra sinking transform can create larger basic blocks, so do this
 	// before SLP vectorization.
-	FPM.addPass(hwtHls::SimplifyCFG2Pass(
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(
 			hwtHls::SimplifyCFG2Options()\
 				.forwardSwitchCondToPhi(true)\
 				.convertSwitchRangeToICmp(true)\
@@ -793,7 +793,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 								PTO.LicmMssaNoAccForPromotionCap,
 								/*AllowSpeculation=*/true),
 						/*UseMemorySSA=*/true, /*UseBlockFrequencyInfo=*/true));
-		FPM.addPass(hwtHls::SimplifyCFG2Pass()); // hwtHls specific
+		FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass()); // hwtHls specific
 		FPM.addPass(llvm::LoopSimplifyPass());
 	}
 

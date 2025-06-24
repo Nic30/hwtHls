@@ -1,4 +1,4 @@
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_aggresiveStoreSink.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_aggresiveStoreSink.h>
 #include <algorithm>
 
 #include <llvm/ADT/SmallVector.h>
@@ -302,7 +302,7 @@ bool BasicBlock_containsMem(llvm::BasicBlock *BB) {
 	return false;
 }
 
-bool SimplifyCFG2Pass_aggresiveStoreSink(DomTreeUpdater &DTU,
+bool HwtHlsSimplifyCFGPass_aggresiveStoreSink(DomTreeUpdater &DTU,
 		llvm::BasicBlock &BBStart) {
 
 	if (!DTU.hasDomTree())

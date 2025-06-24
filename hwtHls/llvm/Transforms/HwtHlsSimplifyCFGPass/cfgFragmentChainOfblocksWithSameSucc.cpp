@@ -1,4 +1,4 @@
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/cfgFragmentChainOfblocksWithSameSucc.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/cfgFragmentChainOfblocksWithSameSucc.h>
 #include <llvm/ADT/SmallSet.h>
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/IR/Instructions.h>

@@ -7,8 +7,8 @@ from tests.llvmIr.HwtHlsInstCombinePass_streamEoFThreading_test import HwtHlsIns
 from tests.llvmIr.HwtHlsInstCombinePass_test import HwtHlsInstCombinePass_TC
 from tests.llvmIr.LoopRotationNormalizationPass_test import LoopRotationNormalizationPass_TC
 from tests.llvmIr.PruneLoopPhiDeadIncomingValuesPass_test import PruneLoopPhiDeadIncomingValuesPass_TC
-from tests.llvmIr.SimplifyCFG2Pass_streamWrite_test import SimplifyCFG2Pass_streamWrite_TC
-from tests.llvmIr.SimplifyCFG2Pass_test import SimplifyCFG2Pass_TC
+from tests.llvmIr.HwtHlsSimplifyCFGPass_streamWrite_test import HwtHlsSimplifyCFGPass_streamWrite_TC
+from tests.llvmIr.HwtHlsSimplifyCFGPass_test import HwtHlsSimplifyCFGPass_TC
 from tests.llvmIr.StreamReadLoweringPass_test import StreamReadLoweringPass_TC
 from tests.llvmIr.bitWidthReductionPass_Cmp_test import BitWidthReductionPass_Cmp_TCs
 from tests.llvmIr.bitWidthReductionPass_PHI_inLoopHeader_test import BitwidthReductionPass_PHI_inLoopHeader_TC
@@ -26,8 +26,8 @@ from tests.testCaseUtils import testSuiteFromTCs
 
 llvmIr_TCs = [
     SlicesToIndependentVariablesPass_TC,
-    SimplifyCFG2Pass_TC,
-    SimplifyCFG2Pass_streamWrite_TC,
+    HwtHlsSimplifyCFGPass_TC,
+    HwtHlsSimplifyCFGPass_streamWrite_TC,
     LoopRotationNormalizationPass_TC,
     LoopFlattenUsingIfPass_TC,
     PruneLoopPhiDeadIncomingValuesPass_TC,

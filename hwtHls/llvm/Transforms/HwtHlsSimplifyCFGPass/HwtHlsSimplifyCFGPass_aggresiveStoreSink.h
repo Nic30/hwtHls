@@ -23,7 +23,7 @@ namespace hwtHls {
  *
  * and move branches behind block BBEnd (before BBExit0/BBExit1) or at least trailing stores from each branch
  * */
-bool SimplifyCFG2Pass_aggresiveStoreSink(llvm::DomTreeUpdater & DTU, llvm::BasicBlock &BBStart);
+bool HwtHlsSimplifyCFGPass_aggresiveStoreSink(llvm::DomTreeUpdater & DTU, llvm::BasicBlock &BBStart);
 
 }
 

@@ -1,4 +1,4 @@
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_mergePredecessorsStore.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_mergePredecessorsStore.h>
 
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/Analysis/IteratedDominanceFrontier.h>
@@ -88,7 +88,7 @@ static void sinkStores(ArrayRef<StoreInst*> stores, BasicBlock &TargetBB) {
 	}
 }
 
-bool SimplifyCFG2Pass_mergePredecessorsStore(llvm::DomTreeUpdater &DTU,
+bool HwtHlsSimplifyCFGPass_mergePredecessorsStore(llvm::DomTreeUpdater &DTU,
 		llvm::BasicBlock &BB) {
 	for (auto Pred0 : predecessors(&BB)) {
 		for (auto PredSuc : successors(Pred0)) {

@@ -1,4 +1,4 @@
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/cfgFragmentStreamReadUntilEoF.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/cfgFragmentStreamReadUntilEoF.h>
 #include <llvm/ADT/SmallSet.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 

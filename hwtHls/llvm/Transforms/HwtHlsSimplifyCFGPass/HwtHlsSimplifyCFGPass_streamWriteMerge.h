@@ -10,7 +10,7 @@ class SimplifyQuery;
 
 namespace hwtHls {
 
-bool SimplifyCFG2Pass_streamWriteMerge(llvm::IRBuilderBase & Builder, llvm::DomTreeUpdater &DTU,
+bool HwtHlsSimplifyCFGPass_streamWriteMerge(llvm::IRBuilderBase & Builder, llvm::DomTreeUpdater &DTU,
 		llvm::BasicBlock &BBContainingStreamWrite, llvm::SimplifyQuery &SQ);
 
 }

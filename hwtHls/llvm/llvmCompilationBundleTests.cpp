@@ -31,7 +31,7 @@
 #include <hwtHls/llvm/Transforms/HFloatTmpLoweringPass.h>
 #include <hwtHls/llvm/Transforms/StripProfMetadataPass.h>
 #include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass.h>
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamReadLoweringPass.h>
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinePass.h>
@@ -113,7 +113,7 @@ void LlvmCompilationBundle::_testMachineFunctionPass(
 
 /////////////////////////////////////////////////////////////// IR tests ///////////////////////////////////////////////////////////////
 
-llvm::Function& LlvmCompilationBundle::_testSimplifyCFG2Pass(
+llvm::Function& LlvmCompilationBundle::_testHwtHlsSimplifyCFGPass(
 		int BonusInstThreshold,           //
 		bool ForwardSwitchCondToPhi,      //
 		bool ConvertSwitchRangeToICmp,    //
@@ -135,7 +135,7 @@ llvm::Function& LlvmCompilationBundle::_testSimplifyCFG2Pass(
 								    SimplifyCondBranch,          //
 								    HoistCheapInsts              //
 								   ](llvm::FunctionPassManager &FPM) {
-		FPM.addPass(hwtHls::SimplifyCFG2Pass(hwtHls::SimplifyCFG2Options()//
+		FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(hwtHls::SimplifyCFG2Options()//
 				.bonusInstThreshold(BonusInstThreshold)//
 				.forwardSwitchCondToPhi(ForwardSwitchCondToPhi)//
 				.convertSwitchRangeToICmp(ConvertSwitchRangeToICmp)//
@@ -196,11 +196,11 @@ llvm::Function& LlvmCompilationBundle::_testLoopFlattenUsingIfPass() {
 				/*UseMemorySSA=*/ false,
 				/*UseBlockFrequencyInfo=*/ true,
                 /*UseBranchProbabilityInfo*/ true));
-		// FPM.addPass(hwtHls::SimplifyCFG2Pass());
+		// FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
 		// FPM.addPass(llvm::GVNHoistPass());
 		// FPM.addPass(llvm::GVNSinkPass());
 		// FPM.addPass(llvm::InstCombinePass());
-		// FPM.addPass(hwtHls::SimplifyCFG2Pass());
+		// FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
 		// FPM.addPass(hwtHls::DumpAndExitPass(false, false, "LoopFlattenUsingIfPass.simplified.dot"));
 	});
 }

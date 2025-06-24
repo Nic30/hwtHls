@@ -5,11 +5,11 @@ from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
 
 
-class SimplifyCFG2Pass_streamWrite_TC(BaseLlvmIrTC):
+class HwtHlsSimplifyCFGPass_streamWrite_TC(BaseLlvmIrTC):
     __FILE__ = __file__
 
     def _runTestOpt(self, llvm:LlvmCompilationBundle, *args, **kwargs) -> Function:
-        return llvm._testSimplifyCFG2Pass(*args, **kwargs)
+        return llvm._testHwtHlsSimplifyCFGPass(*args, **kwargs)
 
     # def test_streamWriteMerge0(self):
     #    # writesExit has a linear sequence of predecessors containing only streamWrite
@@ -686,7 +686,7 @@ loop.pkt.eof:
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    #suite = unittest.TestSuite([SimplifyCFG2Pass_streamWrite_TC('test_streamWriteMerge_implicationAssumes0')])
-    suite = testLoader.loadTestsFromTestCase(SimplifyCFG2Pass_streamWrite_TC)
+    #suite = unittest.TestSuite([HwtHlsSimplifyCFGPass_streamWrite_TC('test_streamWriteMerge_implicationAssumes0')])
+    suite = testLoader.loadTestsFromTestCase(HwtHlsSimplifyCFGPass_streamWrite_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

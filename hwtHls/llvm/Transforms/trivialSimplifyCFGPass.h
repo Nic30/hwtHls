@@ -17,7 +17,7 @@ namespace hwtHls {
  *  * Simplifies conditional jumps jumping to the same target for every value of condition
  *
  *  :note: Primary purpose of this pass is to make code more readable for debugging. For real
- *  CFG simplification there is SimplifyCFG2Pass, SimplifyCFGPass.
+ *  CFG simplification there is HwtHlsSimplifyCFGPass, SimplifyCFGPass.
  */
 class TrivialSimplifyCFGPass: public llvm::PassInfoMixin<
 TrivialSimplifyCFGPass> {

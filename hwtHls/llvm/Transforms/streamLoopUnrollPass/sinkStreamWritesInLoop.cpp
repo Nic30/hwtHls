@@ -8,7 +8,7 @@
 #include <llvm/Analysis/DomTreeUpdater.h>
 
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/cfgFragmentOptionaStreamWrite.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/cfgFragmentOptionaStreamWrite.h>
 
 using namespace llvm;
 

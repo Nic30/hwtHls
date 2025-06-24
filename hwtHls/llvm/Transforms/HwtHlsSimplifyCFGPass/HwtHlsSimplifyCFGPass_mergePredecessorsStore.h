@@ -45,7 +45,7 @@ namespace hwtHls {
  *   %p = phi [%p.storeMergePhi, %BB.storeMerge], [2, %PBB2]
  *
  * */
-bool SimplifyCFG2Pass_mergePredecessorsStore(llvm::DomTreeUpdater & DTU, llvm::BasicBlock &BB);
+bool HwtHlsSimplifyCFGPass_mergePredecessorsStore(llvm::DomTreeUpdater & DTU, llvm::BasicBlock &BB);
 
 }
 

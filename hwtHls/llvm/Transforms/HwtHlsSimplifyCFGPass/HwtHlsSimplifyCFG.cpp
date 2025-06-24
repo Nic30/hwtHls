@@ -1,5 +1,3 @@
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2.h>
-
 #include <map>
 
 #include <llvm/Analysis/MemorySSAUpdater.h>
@@ -13,10 +11,11 @@
 #include <llvm/Transforms/Utils/Local.h>
 #include <llvm/Analysis/AssumptionCache.h>
 
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_SwitchSuccessorHoistCode.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_SwitchToSelect.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_SwitchLikeCmpToSwitch.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFGUtils.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_SwitchSuccessorHoistCode.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_SwitchToSelect.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_SwitchLikeCmpToSwitch.h>
+#include "HwtHlsSimplifyCFG.h"
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
 
 
 #define DEBUG_TYPE "simplifycfg2"

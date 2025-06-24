@@ -2,7 +2,7 @@
  * This whole file is mostly original SimplifyCFG with just patch for switch instr merge checks.
  * This is required in order to successfully translate large SwitchInst to load from constant array
  * */
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass.h>
 
 #include <llvm/ADT/SetVector.h>
 #include <llvm/Analysis/MemorySSAUpdater.h>
@@ -23,20 +23,20 @@
 #include <llvm/Transforms/InstCombine/InstCombine.h>
 
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinePass.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_normalizeLookupTableIndex.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_phiToLogicalExpr.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_rewriteMaskPatternsFromCFGToData.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_streamReadMerge.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_streamWriteMerge.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_aggresiveStoreSink.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_mergePredecessorsStore.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_normalizeLookupTableIndex.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_phiToLogicalExpr.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_rewriteMaskPatternsFromCFGToData.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_streamReadMerge.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_streamWriteMerge.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_aggresiveStoreSink.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_mergePredecessorsStore.h>
 #include <hwtHls/llvm/Transforms/BitcountMergePass.h>
 
 #include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
 
 
 #include <map>
+#include "HwtHlsSimplifyCFG.h"
 
 //#define DBG_VERIFY_AFTER_EVERY_MODIFICATION
 
@@ -62,7 +62,7 @@ cl::opt<T>& getLlvmOption(llvm::StringRef name) {
 
 // [copied] copied from llvm because of SimplifyCFG private Options which can not be accessed through inheritance
 // Command-line settings override compile-time settings.
-static void applyCommandLineOverridesToOptions(SimplifyCFG2Options &Options) {
+static void applyCommandLineOverridesToOptions(HwtHlsSimplifyCFGOptions &Options) {
 	auto &UserBonusInstThreshold = getLlvmOption<unsigned>(
 			"bonus-inst-threshold");
 	auto &UserForwardSwitchCond = getLlvmOption<bool>("forward-switch-cond");
@@ -93,12 +93,12 @@ static void applyCommandLineOverridesToOptions(SimplifyCFG2Options &Options) {
 	//	Options.SinkCheapInsts = UserSinkCheapInsts;
 }
 
-SimplifyCFG2Pass::SimplifyCFG2Pass() :
+HwtHlsSimplifyCFGPass::HwtHlsSimplifyCFGPass() :
 		SimplifyCFGPass() {
 	applyCommandLineOverridesToOptions(Options);
 }
 
-SimplifyCFG2Pass::SimplifyCFG2Pass(const SimplifyCFG2Options &Opts) :
+HwtHlsSimplifyCFGPass::HwtHlsSimplifyCFGPass(const HwtHlsSimplifyCFGOptions &Opts) :
 		SimplifyCFGPass(Opts), Options(Opts) {
 	applyCommandLineOverridesToOptions(Options);
 }
@@ -127,7 +127,7 @@ bool runSubpass(PassInstrumentation &PI, Function &F,
 }
 
 // run SimplifyCFGPass::run, SimplifyCFGOpt2 and SimplifyCFGPass2_normalizeLookupTableIndex
-llvm::PreservedAnalyses SimplifyCFG2Pass::run(llvm::Function &F,
+llvm::PreservedAnalyses HwtHlsSimplifyCFGPass::run(llvm::Function &F,
 		llvm::FunctionAnalysisManager &AM) {
 	size_t itCntr = 0;
 	Options.AC = &AM.getResult<AssumptionAnalysis>(F);
@@ -196,11 +196,11 @@ llvm::PreservedAnalyses SimplifyCFG2Pass::run(llvm::Function &F,
 			if (DTU.isBBPendingDeletion(&BB))
 				continue;
 
-			_changed0 |= SimplifyCFG2Pass_normalizeLookupTableIndex(BB);
+			_changed0 |= HwtHlsSimplifyCFGPass_normalizeLookupTableIndex(BB);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
 #endif
-			_changed0 |= SimplifyCFG2Pass_rewriteMaskPatternsFromCFGToData(DTU,
+			_changed0 |= HwtHlsSimplifyCFGPass_rewriteMaskPatternsFromCFGToData(DTU,
 					BB);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
@@ -225,34 +225,34 @@ llvm::PreservedAnalyses SimplifyCFG2Pass::run(llvm::Function &F,
 
 			// continue rewriting this block while it is updated
 			// writeCFGToDotFile(F, "tmp/SimplifyCFG2.before.dot", AM);
-			if (SimplifyCFG2Pass_aggresiveStoreSink(DTU, *BBIt)) {
+			if (HwtHlsSimplifyCFGPass_aggresiveStoreSink(DTU, *BBIt)) {
 				// writeCFGToDotFile(F, "tmp/SimplifyCFG2.after.dot", AM);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 				assert(!verifyFunction(F, &errs()));
 
 #endif
 				_changed1 = true;
-			} else if (SimplifyCFG2Pass_mergePredecessorsStore(DTU, *BBIt)) {
+			} else if (HwtHlsSimplifyCFGPass_mergePredecessorsStore(DTU, *BBIt)) {
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 				assert(!verifyFunction(F, &errs()));
 
 #endif
 				_changed1 = true;
-			} else if (SimplifyCFG2Pass_phiToLogicalExpr(Builder, DTU, DL, &AC,
+			} else if (HwtHlsSimplifyCFGPass_phiToLogicalExpr(Builder, DTU, DL, &AC,
 					*BBIt)) {
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 				assert(!verifyFunction(F, &errs()));
 
 #endif
 				_changed1 = true;
-			} else if (SimplifyCFG2Pass_streamWriteMerge(Builder, DTU, *BBIt,
+			} else if (HwtHlsSimplifyCFGPass_streamWriteMerge(Builder, DTU, *BBIt,
 					SQ)) {
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 				assert(!verifyFunction(F, &errs()));
 
 #endif
 				_changed1 = true;
-			} else if (SimplifyCFG2Pass_streamReadMerge(Builder, DTU, *BBIt,
+			} else if (HwtHlsSimplifyCFGPass_streamReadMerge(Builder, DTU, *BBIt,
 					SQ)) {
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 				assert(!verifyFunction(F, &errs()));

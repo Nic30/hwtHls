@@ -1,5 +1,4 @@
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass_streamWriteMerge.h>
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFGUtils.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_streamWriteMerge.h>
 #include <llvm/IR/IRBuilder.h>
 
 #include <llvm/Analysis/DomTreeUpdater.h>
@@ -7,10 +6,11 @@
 
 #include <llvm/Analysis/InstructionSimplify.h>
 
-#include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/cfgFragmentStreamReadUntilEoF.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/cfgFragmentStreamReadUntilEoF.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/StreamChannelProps.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
 
 #define DEBUG_TYPE "simplifycfg2"
 //#define DBG_VERIFY_AFTER_EVERY_MODIFICATION
@@ -23,7 +23,7 @@ using namespace llvm;
 
 namespace hwtHls {
 
-bool SimplifyCFG2Pass_streamReadMerge(IRBuilderBase & Builder, llvm::DomTreeUpdater &DTU,
+bool HwtHlsSimplifyCFGPass_streamReadMerge(IRBuilderBase & Builder, llvm::DomTreeUpdater &DTU,
 		llvm::BasicBlock &BBContainingStreamRead, llvm::SimplifyQuery &SQ) {
 	// :attention: detect may merge streamReads instructions
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
