@@ -34,9 +34,11 @@ from tests.frontend.variableChain_test import VariableChain_TC
 from tests.frontend.whileIf_test import HlsAstWhileIf_TC
 from tests.frontend.whileTrue_test import HlsAstWhileTrue_TC
 from tests.testCaseUtils import testSuiteFromTCs
+from tests.frontend.fnCall_test import FnCall_TC
 
 
 frontend_TCs = [
+    FnCall_TC,
     HlsSlicingTC,
     HlsPythonTupleAssign_TC,
     VarReference_TC,
