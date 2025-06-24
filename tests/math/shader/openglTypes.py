@@ -25,6 +25,7 @@ from hwtHls.frontend.instructions import NULL
 from hwtHls.frontend.pyBytecodeUtils import ObjectWithHlsStoreOverride
 from hwtHls.llvm.llvmIr import BasicBlock
 from tests.math.hFloatTmp.hFloatTmpOps import sin, cos, log, log2, log10
+from hwtHls.frontend.statementsRead import HlsRead
 
 _VEC4_PROP_NAMES = ("x", "y", "z", "w")
 
@@ -55,9 +56,20 @@ class vec2(ObjectWithHlsStoreOverride):
         self.hlsInheritName = None
 
     @override
-    def hlsStoreOverride(self, toSsa: "PyBytecodeToSsa", curBlock:BasicBlock, newValue) -> BasicBlock:
+    def hlsStoreOverride(self, toSsa: "PyBytecodeToSsa", curBlock:BasicBlock, newValue: Self) -> BasicBlock:
         assert type(self) == type(newValue), (self.__class__, newValue.__class__)
-        for v, vSrc in zip(self, newValue):
+        # :note: values must be prepared in advance,
+        #   because it may be the case that some member is contained
+        #   in update expression of other member which means that
+        #   the updated would be potentialy used instead of original value
+        valuesToStore = []
+        for src in newValue:
+            if isinstance(src, RtlSignalBase):
+                curBlock, src = toSsa.toLlvm._translateExprToLlvm(curBlock, src)
+            valuesToStore.append(src)
+
+        for v, vSrc in zip(self, valuesToStore):
+            # print("hlsStoreOverride", v, vSrc)
             curBlock = toSsa._storeToHwSignal(curBlock, v, vSrc)
 
         return curBlock
@@ -66,7 +78,9 @@ class vec2(ObjectWithHlsStoreOverride):
         if len(self) <= 4:
             makeVar = toSsa.hls.var
             return self.__class__(
-                *(makeVar(name, v._dtype) if isinstance(v, (RtlSignalBase, HwIOBase, HConst)) else v
+                *(makeVar(".".join((localVarName, name)), v._dtype)
+                  if isinstance(v, (RtlSignalBase, HwIOBase, HConst))
+                  else v
                  for v, name in zip(self, ("x", "y", "z", "w")))
             )
         else:
