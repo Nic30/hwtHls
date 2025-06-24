@@ -237,6 +237,8 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         TargetOpcode.HWTFPGA_FP_TAN,
         TargetOpcode.HWTFPGA_FP_ATAN,
         TargetOpcode.HWTFPGA_FP_TANH,
+        TargetOpcode.HWTFPGA_FP_SINCOS,
+        TargetOpcode.HWTFPGA_FP_SINCOSPI,
     }
     _FP_BIN_OPCODES = {
         TargetOpcode.HWTFPGA_FP_FADD,
@@ -250,8 +252,6 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         TargetOpcode.HWTFPGA_FP_FPOW,
         TargetOpcode.HWTFPGA_FP_FPOWI,
         TargetOpcode.HWTFPGA_FP_ATAN2,
-        TargetOpcode.HWTFPGA_FP_SINCOS,
-        TargetOpcode.HWTFPGA_FP_SINCOSPI,
     }
     # floating/fixed point opcodes which have second operand of integer type
     _FP_BIN_OPCODES_FLOAT_INT = {
