@@ -97,7 +97,7 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
 
                 else:
                     assert isinstance(n, HlsNetNodeWrite)
-                    assert not isinstance(n, HlsNetNodeWriteMemoryAllocationCmd) and n.cmd == READ, n
+                    assert not (isinstance(n, HlsNetNodeWriteMemoryAllocationCmd) and n.cmd == READ), n
                     assert n._portSrc is not None, n
                     t = n.dependsOn[n._portSrc.in_i]._dtype
                     #if n._rtlUseReady and n._rtlUseValid:
