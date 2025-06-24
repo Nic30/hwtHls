@@ -124,7 +124,7 @@ public:
 
 	void runExprOpt();
 
-	// for param doc :see: SimplifyCFG2Options
+	// for param doc :see: HwtHlsSimplifyCFGOptions
 	llvm::Function& _testHwtHlsSimplifyCFGPass(int BonusInstThreshold,           //
 			bool ForwardSwitchCondToPhi,      //
 			bool ConvertSwitchRangeToICmp,    //

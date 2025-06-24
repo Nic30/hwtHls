@@ -135,7 +135,7 @@ llvm::Function& LlvmCompilationBundle::_testHwtHlsSimplifyCFGPass(
 								    SimplifyCondBranch,          //
 								    HoistCheapInsts              //
 								   ](llvm::FunctionPassManager &FPM) {
-		FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(hwtHls::SimplifyCFG2Options()//
+		FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(hwtHls::HwtHlsSimplifyCFGOptions()//
 				.bonusInstThreshold(BonusInstThreshold)//
 				.forwardSwitchCondToPhi(ForwardSwitchCondToPhi)//
 				.convertSwitchRangeToICmp(ConvertSwitchRangeToICmp)//
