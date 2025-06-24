@@ -351,7 +351,10 @@ class HlsWriteBram(HlsWriteAddressed):
 
     def _getNativeInterfaceWordType(self) -> HdlType:
         dst = getFirstInterfaceInstance(self.dst)
-        return dst.din._dtype
+        if dst.HAS_BE:
+            return HBits(self._dtype.bit_length())
+        else:
+            return dst.din._dtype
 
     @override
     @classmethod
@@ -424,7 +427,7 @@ class BramArrayProxy(IoProxyAddressed):
     def write(self, index: Union[AnyHBitsValue], data: AnyHBitsValue, mask=NOT_SPECIFIED, isVolatile:bool=True, mayBecomeFlushable=True) -> HlsWriteBram:
         if self.interface.HAS_BE:
             assert mask is not None
-            data = data._concat(mask)
+            data = mask._concat(data)
 
         return self.WRITE_CLS(self,
                               self.hls,
