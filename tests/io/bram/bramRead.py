@@ -18,6 +18,7 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import \
     netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.scope import HlsScope
+from pyMathBitPrecise.bit_utils import mask
 
 
 class BramRead(HwModule):
@@ -91,7 +92,8 @@ class BramReadWithRom(HwModule):
     @override
     def hwImpl(self) -> None:
         ITEMS = int(2 ** self.ADDR_WIDTH)
-        rom = self._sig("rom", HBits(self.DATA_WIDTH)[ITEMS], [i + 1 for i in range(ITEMS)])
+        maxVal = mask(self.DATA_WIDTH) + 1
+        rom = self._sig("rom", HBits(self.DATA_WIDTH)[ITEMS], [(i + 1) % maxVal for i in range(ITEMS)])
         r = self.reader
         self.dataOut(r.dataOut)
 
@@ -107,6 +109,11 @@ if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synth import to_rtl_str
     from hwtHls.platform.debugBundle import HlsDebugBundle
+    from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 
     m = BramRead()
-    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m.DATA_WIDTH = 36
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
+        llvmCliArgs=[#LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+                    ],
+        debugFilter=HlsDebugBundle.ALL_RELIABLE)))
