@@ -121,8 +121,9 @@ class BaseLlvmIrTC(BaseSsaTC):
     def _runTestOpt(self, llvm:LlvmCompilationBundle, *args, **kwargs) -> Function:
         raise NotImplementedError("Override this in your implementation of this abstract class")
 
-    def _test_ll(self, irStr: str, passArgs=(), passKwArgs={}):
-        irStr = generateAndAppendHwtHlsFunctionDeclarations(irStr)
+    def _test_ll(self, irStr: str, passArgs=(), passKwArgs={}, use_generateAndAppendHwtHlsFunctionDeclarations=True):
+        if use_generateAndAppendHwtHlsFunctionDeclarations:
+            irStr = generateAndAppendHwtHlsFunctionDeclarations(irStr)
         llvm = LlvmCompilationBundle("test", [])
         Err = SMDiagnostic()
         M = parseIR(irStr, "test", Err, llvm.ctx)

@@ -32,6 +32,7 @@
 #include <hwtHls/llvm/Transforms/StripProfMetadataPass.h>
 #include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
 #include <hwtHls/llvm/Transforms/SimplifyCFG2Pass/SimplifyCFG2Pass.h>
+#include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamReadLoweringPass.h>
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinePass.h>
 #include <hwtHls/llvm/Transforms/utils/dceWorklist.h>
@@ -267,6 +268,13 @@ llvm::Function& LlvmCompilationBundle::_testSelectPruningPass() {
 llvm::Function& LlvmCompilationBundle::_testHFloatTmpLoweringPass() {
 	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
 		FPM.addPass(hwtHls::HFloatTmpLoweringPass());
+	});
+}
+
+
+llvm::Function& LlvmCompilationBundle::_testStreamReadLoweringPass() {
+	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
+		FPM.addPass(hwtHls::StreamReadLoweringPass());
 	});
 }
 

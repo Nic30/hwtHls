@@ -9,6 +9,7 @@ from tests.llvmIr.LoopRotationNormalizationPass_test import LoopRotationNormaliz
 from tests.llvmIr.PruneLoopPhiDeadIncomingValuesPass_test import PruneLoopPhiDeadIncomingValuesPass_TC
 from tests.llvmIr.SimplifyCFG2Pass_streamWrite_test import SimplifyCFG2Pass_streamWrite_TC
 from tests.llvmIr.SimplifyCFG2Pass_test import SimplifyCFG2Pass_TC
+from tests.llvmIr.StreamReadLoweringPass_test import StreamReadLoweringPass_TC
 from tests.llvmIr.bitWidthReductionPass_Cmp_test import BitWidthReductionPass_Cmp_TCs
 from tests.llvmIr.bitWidthReductionPass_PHI_inLoopHeader_test import BitwidthReductionPass_PHI_inLoopHeader_TC
 from tests.llvmIr.bitWidthReductionPass_PHI_test import BitwidthReductionPass_PHI_TC
@@ -42,6 +43,7 @@ llvmIr_TCs = [
     *BitWidthReductionPass_Cmp_TCs,
     SelectPruningPass_TC,
     LlvmLoopUnroll_TC,
+    StreamReadLoweringPass_TC,
 ]
 
 if __name__ == '__main__':

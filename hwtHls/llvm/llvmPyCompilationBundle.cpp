@@ -114,6 +114,7 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 		.def("_testBitwidthReductionPass", &hwtHls::LlvmCompilationBundle::_testBitwidthReductionPass, py::return_value_policy::reference_internal)
 		.def("_testHwtHlsInstCombinePass", &hwtHls::LlvmCompilationBundle::_testHwtHlsInstCombinePass, py::return_value_policy::reference_internal)
 		.def("_testRewriteExtractOnMergeValuesPass", &hwtHls::LlvmCompilationBundle::_testRewriteExtractOnMergeValues, py::return_value_policy::reference_internal)
+		.def("_testStreamReadLoweringPass", &hwtHls::LlvmCompilationBundle::_testStreamReadLoweringPass, py::return_value_policy::reference_internal)
 		.def("_testEarlyIfConverter", &hwtHls::LlvmCompilationBundle::_testEarlyIfConverter, py::return_value_policy::reference_internal)
 		.def("_testVRegIfConverter", &hwtHls::LlvmCompilationBundle::_testVRegIfConverter, py::return_value_policy::reference_internal)
 		.def("_testVRegIfConverterForIr", &hwtHls::LlvmCompilationBundle::_testVRegIfConverterForIr, py::return_value_policy::reference_internal)
