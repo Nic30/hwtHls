@@ -46,8 +46,8 @@ blockL180i0_180:                                  ; preds = %blockL180i0_428, %b
   %o_addr_read1 = load volatile i2, ptr addrspace(3) %o_addr, align 1
   store i2 %o_addr_read1, ptr %o_addr_read, align 1
   %o_addr_read2 = load i2, ptr %o_addr_read, align 1
-  %0 = zext i2 %o_addr_read2 to i3
-  %1 = getelementptr inbounds [4 x i16], ptr %mem, i2 0, i3 %0
+  %0 = zext i2 %o_addr_read2 to i64
+  %1 = getelementptr inbounds [4 x i16], ptr %mem, i64 0, i64 %0
   %o3 = load i16, ptr %1, align 2
   store i16 %o3, ptr %o1, align 2
   %i_read = alloca i2, align 1, !hwtHls.tmp.alloca !2
@@ -59,12 +59,12 @@ blockL180i0_180:                                  ; preds = %blockL180i0_428, %b
   %i_read3 = load i2, ptr %i_read, align 1
   store i2 %i_read3, ptr %i1, align 1
   store volatile i16 %o3, ptr addrspace(2) %o, align 2
-  %2 = zext i2 %i_read3 to i3
-  %3 = getelementptr inbounds [4 x i16], ptr %mem, i2 0, i3 %2
+  %2 = zext i2 %i_read3 to i64
+  %3 = getelementptr inbounds [4 x i16], ptr %mem, i64 0, i64 %2
   %4 = load i16, ptr %3, align 2
   %5 = add i16 %4, 1
-  %6 = zext i2 %i_read3 to i3
-  %7 = getelementptr inbounds [4 x i16], ptr %mem, i2 0, i3 %6
+  %6 = zext i2 %i_read3 to i64
+  %7 = getelementptr inbounds [4 x i16], ptr %mem, i64 0, i64 %6
   store i16 %5, ptr %7, align 2
   br label %blockL180i0_428
 

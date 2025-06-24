@@ -46,8 +46,8 @@ blockL146i0_146:                                  ; preds = %blockL146i0_298, %b
   %i_read1 = load volatile i2, ptr addrspace(1) %i, align 1
   store i2 %i_read1, ptr %i_read, align 1
   %i_read2 = load i2, ptr %i_read, align 1
-  %0 = zext i2 %i_read2 to i3
-  %1 = getelementptr inbounds [4 x i32], ptr %mem, i2 0, i3 %0
+  %0 = zext i2 %i_read2 to i64
+  %1 = getelementptr inbounds [4 x i32], ptr %mem, i64 0, i64 %0
   %o3 = load i32, ptr %1, align 4
   store i32 %o3, ptr %o1, align 4
   store volatile i32 %o3, ptr addrspace(2) %o, align 4
