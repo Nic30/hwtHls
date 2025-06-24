@@ -712,7 +712,7 @@ class HlsNetlistBuilder():
     def buildGetMsb(self, a: HlsNetNodeOut,
                     operatorSpecialization:Optional[HFloatTmpConfig]=None,
                     name:Optional[str]=None):
-        i = self.buildConst(INT.from_py(a._dtype.bit_length()), name=name)
+        i = self.buildConst(INT.from_py(a._dtype.bit_length() - 1), name=name)
         return self.buildOp(HwtOps.INDEX, operatorSpecialization, BIT, a, i, name=name)
 
     def buildShlConst(self, op0: HlsNetNodeOut, shAmount: int):
