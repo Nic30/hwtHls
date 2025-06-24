@@ -121,6 +121,7 @@ class LlvmIrInterpret():
         "hwtHls.fp.frem.": _decodeIntrinsic_fp_binOp(mod),
         "hwtHls.fp.ceil.": _decodeIntrinsic_fp_unOp(math.ceil),
         "hwtHls.fp.cos.": _decodeIntrinsic_fp_unOp(math.cos),
+        "hwtHls.fp.cospi.":_decodeIntrinsic_fp_unOp(lambda x: math.cos(x * math.pi)),
         "hwtHls.fp.exp.": _decodeIntrinsic_fp_unOp(math.exp),
         # "hwThls.fp.exp10.": _decodeIntrinsic_fp_unOp(math.exp10),
         # "hwThls.fp.exp2.":  _decodeIntrinsic_fp_unOp(math.exp2),
@@ -134,6 +135,7 @@ class LlvmIrInterpret():
         "hwtHls.fp.round.": _decodeIntrinsic_fp_unOp(round),
         # "hwthls.fp.roundeven.":  _decodeIntrinsic_fp_unOp(roundeven),
         "hwtHls.fp.sin.": _decodeIntrinsic_fp_unOp(math.sin),
+        "hwtHls.fp.sinpi.": _decodeIntrinsic_fp_unOp(lambda x: math.sin(x * math.pi)),
         "hwtHls.fp.sqrt.": _decodeIntrinsic_fp_unOp(math.sqrt),
     }
 
