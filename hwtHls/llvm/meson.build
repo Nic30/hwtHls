@@ -69,7 +69,6 @@ py3.extension_module(
      'targets/intrinsic/streamIo.cpp',
      'targets/intrinsic/StreamChannelFormatInfo.cpp',
      'targets/intrinsic/StreamChannelWordValue.cpp',
-     'targets/intrinsic/threadSplit.cpp',
      'targets/intrinsic/utils.cpp',
 
 	 'targets/GISel/hwtFpgaCallLoweringInfo.cpp',
