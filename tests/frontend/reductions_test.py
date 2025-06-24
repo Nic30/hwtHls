@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from hwt.hObjList import HObjList
 from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
@@ -9,7 +12,6 @@ from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
-from tests.frontend.exprTree3_test import HlsAstExprTree3_example
 from tests.frontend.trivial import WriteOnce
 
 
