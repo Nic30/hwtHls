@@ -31,6 +31,11 @@ from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
 
 HwModuleHwIoForNodePortGetter = Callable[[HlsNetNodeOperator, HwModule], Sequence[HwIO]]
 
+class HlsNetNodeReadOfFnUnitPort(HlsNetNodeRead):
+    pass
+
+class HlsNetNodeWriteOfFnUnitPort(HlsNetNodeWrite):
+    pass
 
 def replaceHlsNetNodeWithExpression(n: HlsNetNodeOperator,
                                     newO: HlsNetNodeOut,
@@ -72,13 +77,13 @@ def _replaceHlsNetNodeOperatorInputWithWrite(netlist: HlsNetlistCtx,
                                              inpHwIo: HwIO,
                                              inputUseReadyValid: Optional[tuple[bool, bool]],
                                              inpTime: SchedTime,
-                                             inpVal: HlsNetNodeOut) -> HlsNetNodeWrite:
+                                             inpVal: HlsNetNodeOut) -> HlsNetNodeWriteOfFnUnitPort:
 
     if inputUseReadyValid is None:
         inUseReady, inUseValid = _getUseReadyUseValid(inpHwIo)
     else:
         inUseReady, inUseValid = inputUseReadyValid
-    inpWrite = HlsNetNodeWrite(netlist, inpHwIo, mayBecomeFlushable=False)
+    inpWrite = HlsNetNodeWriteOfFnUnitPort(netlist, inpHwIo, mayBecomeFlushable=False)
     # inpWrite.setNonBlocking()
     inpWrite.setRtlUseReady(inUseReady)
     inpWrite.setRtlUseValid(inUseValid)
@@ -114,14 +119,14 @@ def _replaceHlsNetNodOperatorOutputWithRead(netlist: HlsNetlistCtx,
                                             outTime: SchedTime,
                                             firstInputWrite: Optional[HlsNetNodeWrite],
                                             users: list[HlsNetNodeIn],
-                                            ) -> HlsNetNodeRead:
+                                            ) -> HlsNetNodeReadOfFnUnitPort:
 
     if outputUseReadyValid is None:
         outUseReady, outUseValid = _getUseReadyUseValid(outHwIo)
     else:
         outUseReady, outUseValid = outputUseReadyValid
 
-    outRead = HlsNetNodeRead(netlist, outHwIo, dtype)
+    outRead = HlsNetNodeReadOfFnUnitPort(netlist, outHwIo, dtype)
     outRead.setRtlUseReady(outUseReady)
     outRead.setRtlUseValid(outUseValid)
     # outRead.setNonBlocking()

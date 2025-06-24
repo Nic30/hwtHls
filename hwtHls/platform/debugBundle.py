@@ -160,7 +160,9 @@ class HlsDebugBundle():
 
     DBG_4_4_finalNetlist = (HlsNetlistAnalysisPassDumpNodesDot, "04.04.final.netlist.dot")  # basic blocks dissolved to netlist
     DBG_4_4_finalNetlistTxt = (HlsNetlistAnalysisPassDumpNodesTxt, "04.04.final.netlist.txt")  # same as DBG_4_4_finalNetlist just in txt
-    DBG_4_4_arch = (RtlArchAnalysisPassDumpArchDot, "04.04.arch.dot")  # relations between arch elements in whole generated architecture
+    DBG_4_4_archBasic = (RtlArchAnalysisPassDumpArchDot, "04.04.archBasic.dot")  # graf of arch elements connections in generated architecture without supplementary logic and generated functional units
+    DBG_4_4_archCoarse = (RtlArchAnalysisPassDumpArchDot, "04.04.archCoarse.dot")  # graf of arch elements connections in generated architecture without supplementary logic
+    DBG_4_4_archDetail = (RtlArchAnalysisPassDumpArchDot, "04.04.archDetail.dot")  # graf of arch elements connections in generated architecture
     DBG_4_5_sync = (HlsAndRtlNetlistPassDumpStreamNodes, "04.05.sync.txt")  # control expressions of IO, FSMs and pipelines
     DBG_4_5_regFileHierarchy = (RtlArchPassTransplantArchElementsToSubunits, None)  # extract registers in pipeline stage or fsm to separate component
 
@@ -213,7 +215,9 @@ class HlsDebugBundle():
         DBG_4_3_netlistBeforSyncLoweingTxt,
         DBG_4_4_finalNetlist,
         DBG_4_4_finalNetlistTxt,
-        DBG_4_4_arch,
+        DBG_4_4_archBasic,
+        DBG_4_4_archCoarse,
+        DBG_4_4_archDetail,
         DBG_4_5_sync,
     }
     DEFAULT = NONE
@@ -275,7 +279,9 @@ class HlsDebugBundle():
         DBG_4_4_syncLoweringAbc,
         DBG_4_4_finalNetlist,
         DBG_4_4_finalNetlistTxt,
-        DBG_4_4_arch,
+        DBG_4_4_archBasic,
+        DBG_4_4_archCoarse,
+        DBG_4_4_archDetail,
         DBG_4_5_sync,
     }
 

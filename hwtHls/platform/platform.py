@@ -382,7 +382,9 @@ class DefaultHlsPlatform(DummyPlatform):
             e.rtlAllocDatapath()
 
         # :note: must be after finalizeInterElementsConnections because it needs inter element sync channels
-        DBG(D.DBG_4_4_arch, (netlist,))
+        DBG(D.DBG_4_4_archBasic, (netlist,), constructorKwargs=dict(hideSyncLogic=True, hideFunctionalUnits=True))
+        DBG(D.DBG_4_4_archCoarse, (netlist,), constructorKwargs=dict(hideSyncLogic=True))
+        DBG(D.DBG_4_4_archDetail, (netlist,))
 
         for e in netlist.iterAllNodes():
             e: ArchElement
