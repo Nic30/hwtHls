@@ -1,5 +1,5 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/constBitPartsAnalysis.h>
-#include <hwtHls/llvm/Transforms/bitwidthReducePass/phiValueProover.h>
+#include <hwtHls/llvm/Transforms/bitwidthReducePass/phiValueProver.h>
 #include <llvm/IR/IRBuilder.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/bitMath.h>
@@ -144,7 +144,7 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitPHINode(const PHINode *I) {
 	// we will know that it is this PHI.
 
 	if (resolvePhiValues) {
-		PHIValueProover valProover(I);
+		PHIValueProver valProover(I);
 		SetOnExitAction<bool> setBackResolvePhiValues(resolvePhiValues, false,
 				true);
 

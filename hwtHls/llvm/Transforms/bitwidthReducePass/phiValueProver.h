@@ -20,7 +20,7 @@ namespace hwtHls {
  * does not change or we know that every bit may have multiple values
  * (The PHI itself, no matter the slice, is not counted in this number) and thus it can not be extracted.
  */
-class PHIValueProover {
+class PHIValueProver {
 protected:
 	const llvm::PHINode *phi;
 	// A record used to hold info about bits in phi
@@ -71,7 +71,7 @@ protected:
 			size_t newWidthOfLeft);
 
 public:
-	PHIValueProover(const llvm::PHINode *phi);
+	PHIValueProver(const llvm::PHINode *phi);
 	void addOperandConstraint(const VarBitConstraint &opConstr);
 	VarBitConstraint resolve();
 
@@ -86,7 +86,7 @@ public:
 }
 namespace llvm {
 inline llvm::raw_ostream& operator<<(llvm::raw_ostream &OS,
-		const hwtHls::PHIValueProover &V) {
+		const hwtHls::PHIValueProver &V) {
 	V.print(OS);
 	return OS;
 }

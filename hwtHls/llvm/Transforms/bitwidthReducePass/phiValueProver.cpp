@@ -1,4 +1,4 @@
-#include <hwtHls/llvm/Transforms/bitwidthReducePass/phiValueProover.h>
+#include <hwtHls/llvm/Transforms/bitwidthReducePass/phiValueProver.h>
 #include <llvm/IR/IRBuilder.h>
 #include <hwtHls/llvm/bitMath.h>
 #include <hwtHls/llvm/Transforms/utils/bitWidthInfo.h>
@@ -8,22 +8,22 @@ using namespace llvm;
 
 namespace hwtHls {
 
-PHIValueProover::PHIValueProover(const llvm::PHINode *phi) :
+PHIValueProver::PHIValueProver(const llvm::PHINode *phi) :
 		phi(phi) {
 	auto w = getIntegerBitWidthOr1(phi);
 	knownBits.resize(w);
 	knownBits[0] = ValueInfo(w);
 }
 
-PHIValueProover::ValueInfo::ValueInfo() :
+PHIValueProver::ValueInfo::ValueInfo() :
 		hasMultipleValues(false), width(0) {
 }
 
-PHIValueProover::ValueInfo::ValueInfo(size_t width) :
+PHIValueProver::ValueInfo::ValueInfo(size_t width) :
 		hasMultipleValues(false), width(width) {
 }
 
-PHIValueProover::ValueInfo::ValueInfo(const llvm::PHINode *phi,
+PHIValueProver::ValueInfo::ValueInfo(const llvm::PHINode *phi,
 		const KnownBitRangeInfo &kbri) :
 		hasMultipleValues(false), width(getIntegerBitWidthOr1(phi)) {
 	if (kbri.src != phi) {
@@ -31,14 +31,14 @@ PHIValueProover::ValueInfo::ValueInfo(const llvm::PHINode *phi,
 	}
 }
 
-void PHIValueProover::addOperandConstraint(const VarBitConstraint &opConstr) {
+void PHIValueProver::addOperandConstraint(const VarBitConstraint &opConstr) {
 	for (const auto &r : opConstr.replacements) {
 		knownBits_insert(r);
 		assert(consistencyCheck());
 	}
 }
 
-void PHIValueProover::knownBits_insertSameSizeNonPhi(KnownBitsIteraor valInfoIt,
+void PHIValueProver::knownBits_insertSameSizeNonPhi(KnownBitsIteraor valInfoIt,
 		const KnownBitRangeInfo *kbri, bool hasMultipleValues) {
 
 	if (hasMultipleValues || valInfoIt->hasMultipleValues) {
@@ -120,7 +120,7 @@ void PHIValueProover::knownBits_insertSameSizeNonPhi(KnownBitsIteraor valInfoIt,
 	}
 }
 
-void PHIValueProover::knownBits_insertSameSizePhi(KnownBitsIteraor valInfoIt,
+void PHIValueProver::knownBits_insertSameSizePhi(KnownBitsIteraor valInfoIt,
 		const KnownBitRangeInfo &kbri, bool hasMultipleValues) {
 	if (kbri.dstBeginBitI == kbri.srcBeginBitI)
 		return; // no need to add reference on itself
@@ -224,13 +224,13 @@ void PHIValueProover::knownBits_insertSameSizePhi(KnownBitsIteraor valInfoIt,
 	//valInfoIt->phiDeps.insert(kbri.srcBeginBitI);
 }
 
-void PHIValueProover::knownBits_insertSameSize(KnownBitsIteraor valInfoIt,
+void PHIValueProver::knownBits_insertSameSize(KnownBitsIteraor valInfoIt,
 		const KnownBitRangeInfo &kbri, bool hasMultipleValues) {
 	assert(valInfoIt->width == kbri.width);
 	assert(valInfoIt - knownBits.begin() == kbri.dstBeginBitI);
 
 	if (valInfoIt->hasMultipleValues)
-		return; // :see: PHIValueProover::ValueInfo
+		return; // :see: PHIValueProver::ValueInfo
 	if (kbri.src == phi && !hasMultipleValues) {
 		knownBits_insertSameSizePhi(valInfoIt, kbri, hasMultipleValues);
 	} else {
@@ -239,7 +239,7 @@ void PHIValueProover::knownBits_insertSameSize(KnownBitsIteraor valInfoIt,
 	}
 }
 
-void PHIValueProover::knownBits_insert(const KnownBitRangeInfo &kbri) {
+void PHIValueProver::knownBits_insert(const KnownBitRangeInfo &kbri) {
 	auto firstOverlappingKbri = knownBits.begin() + kbri.dstBeginBitI;
 	// skip placeholder records, at least begin should have width != 0
 	while (firstOverlappingKbri->width == 0) {
@@ -280,7 +280,7 @@ void PHIValueProover::knownBits_insert(const KnownBitRangeInfo &kbri) {
 	}
 }
 
-void PHIValueProover::knownBits_splitItem(KnownBitsIteraor knownBitsItem,
+void PHIValueProver::knownBits_splitItem(KnownBitsIteraor knownBitsItem,
 		size_t newWidthOfLeft) {
 	assert(knownBitsItem != knownBits.end());
 	assert(newWidthOfLeft > 0);
@@ -324,7 +324,7 @@ void PHIValueProover::knownBits_splitItem(KnownBitsIteraor knownBitsItem,
 	}
 }
 
-VarBitConstraint PHIValueProover::resolve() {
+VarBitConstraint PHIValueProver::resolve() {
 	assert(!knownBits.empty());
 	VarBitConstraint res(getIntegerBitWidthOr1(phi));
 
@@ -353,7 +353,7 @@ VarBitConstraint PHIValueProover::resolve() {
 	return res;
 }
 
-bool PHIValueProover::consistencyCheck() const {
+bool PHIValueProver::consistencyCheck() const {
 	assert(phi != nullptr);
 	size_t offset = 0;
 	size_t offsetNext = 0;
@@ -393,8 +393,8 @@ bool PHIValueProover::consistencyCheck() const {
 	return true;
 }
 
-void PHIValueProover::print(llvm::raw_ostream &O, bool IsForDebug) const {
-	O << "PHIValueProover(" << phi << " " << *phi << "\n";
+void PHIValueProver::print(llvm::raw_ostream &O, bool IsForDebug) const {
+	O << "PHIValueProver(" << phi << " " << *phi << "\n";
 	for (auto _kb = knownBits.begin(); _kb != knownBits.end(); ++_kb) {
 		if (_kb->width == 0)
 			continue;
@@ -415,7 +415,7 @@ void PHIValueProover::print(llvm::raw_ostream &O, bool IsForDebug) const {
 	O << ")";
 }
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
-LLVM_DUMP_METHOD void PHIValueProover::dump() const {
+LLVM_DUMP_METHOD void PHIValueProver::dump() const {
   llvm::dbgs() << "  " << *this;
 }
 #endif

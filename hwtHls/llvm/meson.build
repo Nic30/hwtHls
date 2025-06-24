@@ -129,7 +129,7 @@ py3.extension_module(
      'Transforms/bitwidthReducePass/bitRewriter.cpp',
      'Transforms/bitwidthReducePass/bitwidthReducePass.cpp',
      'Transforms/bitwidthReducePass/constBitPartsAnalysis.cpp',
-     'Transforms/bitwidthReducePass/phiValueProover.cpp',
+     'Transforms/bitwidthReducePass/phiValueProver.cpp',
      'Transforms/bitwidthReducePass/utils.cpp',
      'Transforms/BitcountMergePass.cpp',
      'Transforms/HwtHlsInstCombinePass/AliasScopeTracker.cpp',
