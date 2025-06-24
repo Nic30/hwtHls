@@ -435,6 +435,7 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
                                 # read is always performed
                                 res = [regToSignalizeFull(0), ]
                             else:
+                                assert not isinstance(rEn, HConst), rEn
                                 res = [
                                     If(rEn,
                                         regToSignalizeFull(0),
