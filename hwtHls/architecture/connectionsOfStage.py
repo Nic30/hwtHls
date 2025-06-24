@@ -383,19 +383,21 @@ class ConnectionsOfStage():
                         assert w._forceEnPort is None, ("This port should be already lowered by RtlArchPassSyncLower", w)
                         # assert w._mayFlushPort is None, ("This port should be already lowered by RtlArchPassSyncLower", w)
 
-                        if cond is not None:
-                            cond = cond.data
+                        # if cond is not None:
+                        #    cond = cond.data
 
                         if isinstance(cond, HBitsConst):
                             assert int(cond) == 1, (w, "If ack=0 this means that channel is always stalling")
                             cond = None
+                        else:
+                            assert isinstance(cond, RtlSignal)
 
                         assert cond is not None, ("Because write object do not have any condition it is not possible to resolve which value should be MUXed to output interface", muxCases[0][0].dst)
                         if enableOut is not None:
                             stms = [enableOut(1), ] + stms
-                        rtlMuxCases.append((cond, [enableOut(1), ] + stms))
+                        rtlMuxCases.append((cond, enableOut, stms))
 
-                    _, _, enableOut, stms = rtlMuxCases[0]
+                    _, enableOut, stms = rtlMuxCases[0]
                     # create default case to prevent lath in HDL
                     defaultCase = []
                     if enableOut is not None:
@@ -404,13 +406,13 @@ class ConnectionsOfStage():
                         defaultCase.append(stms.dst(None))
                     else:
                         defaultCase.extend(asig.dst(None) for asig in stms)
-                    yield SwitchLogic(rtlMuxCases, default=defaultCase)
+                    yield SwitchLogic([(c, stms) for c, _, stms in rtlMuxCases], default=defaultCase)
                 else:
                     assert isinstance(muxCases[0][0], HlsNetNodeRead), muxCases
                     en = None
                     enableOut = None
-                    for r, cond, enableOut, caseStatements in muxCases:
-                        assert not caseStatements, r
+                    for _, cond, enableOut, caseStatements in muxCases:
+                        assert not caseStatements
                         if enableOut is None:
                             break
                         if cond is None:
