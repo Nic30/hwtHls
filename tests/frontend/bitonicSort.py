@@ -57,7 +57,7 @@ class BitonicSorterHLS0(BitonicSorter):
 
     @override
     def hwImpl(self) -> None:
-       WriteOnce.hwImpl(self)
+        WriteOnce.hwImpl(self)
 
 
 class BitonicSorterHLS1(BitonicSorterHLS0):
