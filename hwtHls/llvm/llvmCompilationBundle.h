@@ -145,6 +145,7 @@ public:
 	llvm::Function& _testPruneLoopPhiDeadIncomingValuesPass();
 	llvm::Function& _testSelectPruningPass();
 	llvm::Function& _testHFloatTmpLoweringPass();
+	llvm::Function& _testStreamReadLoweringPass();
 	llvm::Function& _runCustomFunctionPass(
 			std::function<void(llvm::FunctionPassManager&)> addPasses);
 	void _testMachineFunctionPass(
