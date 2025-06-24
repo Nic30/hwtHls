@@ -241,20 +241,22 @@ FixpOpTrigonometric_TCs = [
 ]
 
 if __name__ == "__main__":
-    # from hwt.synth import to_rtl_str
-    # from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
-    # from hwtHls.platform.xilinx.artix7 import Artix7Fast
+    #from hwt.synth import to_rtl_str
+    #from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
+    #from hwtHls.platform.xilinx.artix7 import Artix7Fast
+    #from tests.math.fixp.fixpOperatorsHwModules import _FixpUnOpTestModule
+    #from tests.math.componentGenerators.install import installFpComponentGenerators
     #
-    # m = _FixpUnOpTestModule()
-    # m.FN = cospi
-    # m.T = HFixedPointQ(4, 10, rounding=HFloatTmpRounding.ROUND_FLOOR, saturation=HFloatTmpSaturation.SATURATE_NONE)
-    # m.CLK_FREQ = int(1e6)
-    # platform = Artix7Fast(
-    #    debugFilter=HlsDebugBundle.ALL_RELIABLE,
-    #    llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED, ]
-    # )
-    # installFpComponentGenerators(platform, defaultOptThroughputVsArea=1.0, MAX_TABLE_ADDR_WIDTH=0)
-    # print(to_rtl_str(m, target_platform=platform))
+    #m = _FixpUnOpTestModule()
+    #m.FN = cospi
+    #m.T = HFixedPointQ(4, 10, rounding=HFloatTmpRounding.ROUND_FLOOR, saturation=HFloatTmpSaturation.SATURATE_NONE)
+    #m.CLK_FREQ = int(1e6)
+    #platform = Artix7Fast(
+    #   debugFilter=HlsDebugBundle.ALL_RELIABLE,
+    #   #llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED, ]
+    #)
+    #installFpComponentGenerators(platform, defaultOptThroughputVsArea=1.0, MAX_TABLE_ADDR_WIDTH=0)
+    #print(to_rtl_str(m, target_platform=platform))
 
     import unittest
 
