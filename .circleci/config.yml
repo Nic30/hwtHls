@@ -9,6 +9,9 @@ jobs:
     resource_class: large
     docker:
       - image: ubuntu:rolling
+    executor:
+       name: python/default
+       tag: “3.12”
     steps:
       - checkout
       - run:
