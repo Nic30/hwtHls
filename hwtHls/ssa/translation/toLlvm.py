@@ -636,7 +636,8 @@ class ToLlvmIrTranslator():
     def _translateExprSubscriptGEP(self, block: BasicBlock, arr: Union[Value, HArrayRtlSignal, HArrayConst],
                                     index0: Union[Value, HConst],):
         block, index0 = self._translateExprToLlvm(block, index0)
-        index_t = index0.getType()
+        # index_t = index0.getType()
+        index_t = Type.getIntNTy(self.ctx, 64)
         indexes = [self._translateExprInt(0, index_t), ]
         # if isinstance(arr, Value):
         alloca: AllocaInst = ValueToAllocaInst(arr)
@@ -651,11 +652,12 @@ class ToLlvmIrTranslator():
 
         arrTy: ArrayType = TypeToArrayType(arrTy)
         assert arrTy is not None, ("index operator only on array arrays", alloca)
-        index0Width = index0.getType().getIntegerBitWidth()
+        #index0Width = index0.getType().getIntegerBitWidth()
         b: IRBuilder = self.b
         # :attention: GEP indexes are signed, we must extend if there is a possibility of signed overflow
-        if arrTy.getNumElements() > 2 ** (index0Width - 1):
-            index0 = b.CreateZExt(index0, b.getIntNTy(index0Width + 1))
+        #if arrTy.getNumElements() > 2 ** (index0Width - 1):
+        #    index0 = b.CreateZExt(index0, b.getIntNTy(index0Width + 1))
+        index0 = b.CreateZExt(index0, index_t)
         indexes.append(index0)
 
         # else:
@@ -664,7 +666,7 @@ class ToLlvmIrTranslator():
         #    block, arr = self._translateExprToLlvm(block, arr)
 
         # elmT = arrTy.getElementType()
-        ptr = b.CreateGEP(arrTy, arr, indexes)
+        ptr = b.CreateInBoundsGEP(arrTy, arr, indexes)
         return block, ptr  # , elmT
 
     def _translateExprSubscript(self, block: BasicBlock, op0: Value, op1: Union[Value, HConst],

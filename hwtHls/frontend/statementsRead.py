@@ -248,14 +248,15 @@ class HlsReadAddressed(HlsRead):
         src: Argument
         t: Type
         # :note: the index type does not matter much as llvm::InstCombine extends it to i64
-        index_t = Type.getIntNTy(toLlvm.ctx, self.index._dtype.bit_length())
+        index_t = Type.getIntNTy(toLlvm.ctx, 64)
         indexes = [toLlvm._translateExprInt(0, index_t)]
         bb, index0 = toLlvm._translateExprToLlvm(bb, self.index)
+        index0 = toLlvm.b.CreateZExt(index0, index_t)
         indexes.append(index0)
         arrTy: ArrayType = TypeToArrayType(t)
         assert arrTy is not None, ("It is expected that this object access data of array type", self, t)
         elmT = arrTy.getElementType()
-        ptr = toLlvm.b.CreateGEP(arrTy, src, indexes)
+        ptr = toLlvm.b.CreateInBoundsGEP(arrTy, src, indexes)
         name = toLlvm.strCtx.addTwine(self._name)
         v = toLlvm.b.CreateLoad(elmT, ptr, self._isVolatile, name)
         return toLlvm._translateToLlvm_HlsRead_registerVar(bb, self, v)

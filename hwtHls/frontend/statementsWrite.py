@@ -120,14 +120,15 @@ class HlsWriteAddressed(HlsWrite):
         t: Type
         bb, src = toLlvm._translateExprToLlvm(bb, self.src)
         # :note: the index type does not matter much as llvm::InstCombine extends it to i64
-        index_t = Type.getIntNTy(toLlvm.ctx, self.index._dtype.bit_length())
+        index_t = Type.getIntNTy(toLlvm.ctx, 64) # self.index._dtype.bit_length()
         indexes = [toLlvm._translateExprInt(0, index_t), ]
         bb, index0 = toLlvm._translateExprToLlvm(bb, self.index)
+        index0 = toLlvm.b.CreateZExt(index0, index_t)
         indexes.append(index0)
 
         arrTy: ArrayType = TypeToArrayType(t)
         # elmT = arrTy.getElementType()
-        dst = b.CreateGEP(arrTy, dst, indexes)
+        dst = b.CreateInBoundsGEP(arrTy, dst, indexes)
 
         return bb, b.CreateStore(src, dst, self._isVolatile)
 
