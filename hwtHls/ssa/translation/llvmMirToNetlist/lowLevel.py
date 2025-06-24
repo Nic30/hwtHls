@@ -1,5 +1,5 @@
 from operator import gt, eq, ge, lt, le, ne
-from typing import Set, Tuple, Dict, List, Union, Optional
+from typing import Union, Optional
 
 from hwt.hdl.const import HConst
 from hwt.hdl.operatorDefs import HwtOps
@@ -144,19 +144,19 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         TargetOpcode.HWTFPGA_FP_ROUNDEVEN: OP_ROUNDEVEN,
         TargetOpcode.HWTFPGA_FP_SIN: OP_FSIN,
         TargetOpcode.HWTFPGA_FP_SQRT: OP_FSQRT,
-        
-        TargetOpcode.HWTFPGA_FP_SINPI:      OP_FSINPI,   
-        TargetOpcode.HWTFPGA_FP_COSPI:      OP_FCOSPI,   
-        TargetOpcode.HWTFPGA_FP_ASIN:       OP_FASIN,    
-        TargetOpcode.HWTFPGA_FP_SINH:       OP_FSINH,    
-        TargetOpcode.HWTFPGA_FP_ACOS:       OP_FACOS,    
-        TargetOpcode.HWTFPGA_FP_COSH:       OP_FCOSH,    
-        TargetOpcode.HWTFPGA_FP_TAN:        OP_FTAN,     
-        TargetOpcode.HWTFPGA_FP_ATAN:       OP_FATAN,    
-        TargetOpcode.HWTFPGA_FP_TANH:       OP_FTANH,    
-        TargetOpcode.HWTFPGA_FP_ATAN2:      OP_FATAN2,   
-        TargetOpcode.HWTFPGA_FP_SINCOS:     OP_FSINCOS,  
-        TargetOpcode.HWTFPGA_FP_SINCOSPI:   OP_FSINCOSPI,
+
+        TargetOpcode.HWTFPGA_FP_SINPI: OP_FSINPI,
+        TargetOpcode.HWTFPGA_FP_COSPI: OP_FCOSPI,
+        TargetOpcode.HWTFPGA_FP_ASIN: OP_FASIN,
+        TargetOpcode.HWTFPGA_FP_SINH: OP_FSINH,
+        TargetOpcode.HWTFPGA_FP_ACOS: OP_FACOS,
+        TargetOpcode.HWTFPGA_FP_COSH: OP_FCOSH,
+        TargetOpcode.HWTFPGA_FP_TAN: OP_FTAN,
+        TargetOpcode.HWTFPGA_FP_ATAN: OP_FATAN,
+        TargetOpcode.HWTFPGA_FP_TANH: OP_FTANH,
+        TargetOpcode.HWTFPGA_FP_ATAN2: OP_FATAN2,
+        TargetOpcode.HWTFPGA_FP_SINCOS: OP_FSINCOS,
+        TargetOpcode.HWTFPGA_FP_SINCOSPI: OP_FSINCOSPI,
     }
 
     # U - unsigned, S - signed, O - ordered
@@ -228,15 +228,15 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         TargetOpcode.HWTFPGA_FP_ROUNDEVEN,
         TargetOpcode.HWTFPGA_FP_SIN,
         TargetOpcode.HWTFPGA_FP_SQRT,
-        TargetOpcode.HWTFPGA_FP_SINPI,  
-        TargetOpcode.HWTFPGA_FP_COSPI,  
-        TargetOpcode.HWTFPGA_FP_ASIN,   
-        TargetOpcode.HWTFPGA_FP_SINH,   
-        TargetOpcode.HWTFPGA_FP_ACOS,   
-        TargetOpcode.HWTFPGA_FP_COSH,   
-        TargetOpcode.HWTFPGA_FP_TAN,    
-        TargetOpcode.HWTFPGA_FP_ATAN,   
-        TargetOpcode.HWTFPGA_FP_TANH, 
+        TargetOpcode.HWTFPGA_FP_SINPI,
+        TargetOpcode.HWTFPGA_FP_COSPI,
+        TargetOpcode.HWTFPGA_FP_ASIN,
+        TargetOpcode.HWTFPGA_FP_SINH,
+        TargetOpcode.HWTFPGA_FP_ACOS,
+        TargetOpcode.HWTFPGA_FP_COSH,
+        TargetOpcode.HWTFPGA_FP_TAN,
+        TargetOpcode.HWTFPGA_FP_ATAN,
+        TargetOpcode.HWTFPGA_FP_TANH,
     }
     _FP_BIN_OPCODES = {
         TargetOpcode.HWTFPGA_FP_FADD,
@@ -253,7 +253,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         TargetOpcode.HWTFPGA_FP_SINCOS,
         TargetOpcode.HWTFPGA_FP_SINCOSPI,
     }
-    # floating/fixed point opcodes which have second operand of integer type 
+    # floating/fixed point opcodes which have second operand of integer type
     _FP_BIN_OPCODES_FLOAT_INT = {
         TargetOpcode.HWTFPGA_FP_SHL,
         TargetOpcode.HWTFPGA_FP_SHR,
@@ -262,10 +262,10 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
 
     def __init__(self, hls: "HlsScope", toLlvm: ToLlvmIrTranslator,
                  mf: MachineFunction,
-                 backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]],
-                 liveness: Dict[MachineBasicBlock, Dict[MachineBasicBlock, Set[Register]]],
-                 ioRegs: List[Register],
-                 registerTypes: Dict[Register, int],
+                 backedges: set[tuple[MachineBasicBlock, MachineBasicBlock]],
+                 liveness: dict[MachineBasicBlock, dict[MachineBasicBlock, set[Register]]],
+                 ioRegs: list[Register],
+                 registerTypes: dict[Register, int],
                  loops: MachineLoopInfo,
                  netlist: HlsNetlistCtx,
                  ioNodeConstructors: NetlistIoConstructorDictT,
@@ -275,19 +275,18 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         self.netlist = netlist
         # :note: value of a block in block0 means that the control flow was passed to block0 from block
         self.valCache = MirToHwtHlsNetlistValueCache(netlist)
-        self._valueCopiedIntoElement: Dict[Tuple[HlsNetNodeAggregate, MachineBasicBlock, Register]] = {}
-
-        self._argIToIo = {i: io for io, i in toLlvm.ioToArgIndex.items()}
+        self._valueCopiedIntoElement: dict[tuple[HlsNetNodeAggregate, MachineBasicBlock, Register]] = {}
+        self._argIToIo: dict[int, HwIO] = {i: io for io, i in toLlvm.ioToArgIndex.items()}
         self.placeholderObjectSlots = [obj for (obj, _) in toLlvm.placeholderObjectSlots]
-        self.blockMeta: Dict[MachineBasicBlock, MachineBasicBlockMeta] = {}
-        self.edgeMeta: Dict[MachineEdge, MachineEdgeMeta] = {}
+        self.blockMeta: dict[MachineBasicBlock, MachineBasicBlockMeta] = {}
+        self.edgeMeta: dict[MachineEdge, MachineEdgeMeta] = {}
         self.mf = mf
         self.backedges = backedges
         self.liveness = liveness
         self.registerTypes = registerTypes
-        self.regToIo: Dict[Register, HwIO] = {ioRegs[ai]: io for (ai, io) in self._argIToIo.items()}
+        self.regToIo: dict[Register, HwIO] = {ioRegs[ai]: io for (ai, io) in self._argIToIo.items()}
         self.ioNodeConstructors: NetlistIoConstructorDictT = ioNodeConstructors
-        self.globalMemories: Dict[GlobalValue, MemoryAllocationMeta] = {}
+        self.globalMemories: dict[GlobalValue, MemoryAllocationMeta] = {}
         self.loops = loops
         # register self in netlist analysis cache
         netlist._analysis_cache[self.__class__] = self
