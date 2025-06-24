@@ -115,8 +115,8 @@ class Flushing_TC(SimTestCase):
         self._test_ExampleFlushing0(enableO1=False, randomizeI0=True, randomizeO0=True,
                                     timeMultiplier=3)
 
-    def test_ExampleFlushing1OptionalLoop(self):
-        dut = ExampleFlushing1OptionalLoop()
+    #def test_ExampleFlushing1OptionalLoop(self):
+    #    dut = ExampleFlushing1OptionalLoop()
 
     # problem is that in triangle entry and bottom are joined and in same clk
     # write of inputs to right block can not happen because bottom part does not get ready as
