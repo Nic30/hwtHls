@@ -110,6 +110,9 @@ void register_Values_and_Use(pybind11::module_ & m) {
 
 	py::class_<llvm::APInt>(m, "APInt")
 		.def(py::init([](unsigned numBits, const char *str, unsigned radix) {
+			if (numBits == 0) {
+				throw std::runtime_error("APInt(bitwidth=0)");
+			}
 			return new llvm::APInt(numBits, str, radix);
 		}), py::arg("numBits"), py::arg("str"), py::arg("radix"))
 		.def(py::init<unsigned, llvm::StringRef, uint8_t>(), py::arg("numBits"), py::arg("str"), py::arg("radix"))
@@ -119,6 +122,9 @@ void register_Values_and_Use(pybind11::module_ & m) {
 		.def_static("getZero", llvm::APInt::getZero)
 		.def("getZExtValue", &llvm::APInt::getZExtValue)
 		.def("__int__", [](llvm::APInt& I) {
+			if (I.getBitWidth() == 0) {
+				throw std::runtime_error("APInt bitwidth==0");
+			}
 		 	llvm::SmallString<256> str;
 			I.toString(str, 16, I.isNegative());
 			return pybind11::int_fromStr(str.c_str());
