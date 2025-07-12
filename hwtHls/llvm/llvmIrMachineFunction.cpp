@@ -40,6 +40,12 @@ void register_MachineFunction(pybind11::module_ &m) {
 			return "<llvm::MachineFunction " + MF->getName().str() + ">";
 		})
 		.def("__str__",  &printToStr<llvm::MachineFunction>)
+		.def("__eq__", [](llvm::MachineFunction & LHS, llvm::MachineFunction & RHS) {
+		    return &LHS == &RHS;
+	     })
+		.def("__hash__",[](llvm::MachineFunction * self) {
+			return reinterpret_cast<intptr_t>(self);
+		})
 		.def("serialize", [](llvm::MachineFunction &MF) {
 				std::string tmp;
 				llvm::raw_string_ostream ss(tmp);
