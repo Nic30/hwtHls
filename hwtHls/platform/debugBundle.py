@@ -36,6 +36,8 @@ class LLVM_CLI_COMMON_OPTS:
     PRINT_AFTER_ALL = ("print-after-all", 0, "", "true")
     PRINT_BEFORE_ALL = ("print-before-all", 0, "", "true")
     PRINT_CHANGED = ("print-changed", 0, "", "")
+    PRINT_MODULE_SCOPE = ("print-module-scope", 0, "", "") # instead of just function, print whole module
+    STATS = ("stats", 0, "", "") # print values of llvm statistics defined by STATISTIC(<id>, <string>) 
 
     @classmethod
     def filterPrintFuncs(cls, functionNames: list[str]):
@@ -78,7 +80,7 @@ class LLVM_CLI_COMMON_OPTS:
         :note: available only in llvm debug build
         """
         return ("debug-only", 0, "", passName)
-                        
+
     VREGIFCVT_TRACE = ("vregifcvt-trace", 0, "", "true")
 
     # ("view-dag-combine1-dags", 0, "", "true"),
