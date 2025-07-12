@@ -35,6 +35,7 @@ class HlsNetlistAnalysisPassDumpBlockSync(HlsNetlistAnalysisPass):
   <tr><td>reset</td><td bgcolor="orange"> </td></tr>
   <tr><td>backedge</td><td bgcolor="blue"> </td></tr>
   <tr><td>fowardedge</td><td bgcolor="green"> </td></tr>
+  <tr><td>inlined</td><td bgcolor="black"> </td></tr>
 </table>>"""
             legend = pydot.Node("legend", label=legendTable, style='filled', shape="plain")
             P.add_node(legend)
