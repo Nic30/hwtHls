@@ -77,6 +77,26 @@ std::optional<int> getOptionalIntHwtHlsLoopAttribute(const llvm::Loop *TheLoop,
 	return IntMD->getSExtValue();
 }
 
+std::optional<llvm::SmallVector<int>> getOptionalIntVecHwtHlsLoopAttribute(
+		const llvm::Loop *TheLoop, llvm::StringRef Name) {
+	const MDOperand *AttrMD =
+			findStringMetadataForHwtHlsLoop(TheLoop, Name).value_or(nullptr);
+	if (!AttrMD)
+		return std::nullopt;
+	auto TupleMD = dyn_cast<MDTuple>(AttrMD->get());
+	if (!TupleMD)
+		return std::nullopt;
+	llvm::SmallVector<int> res;
+	for (auto &Op : TupleMD->operands()) {
+		ConstantInt *IntMD = mdconst::extract_or_null<ConstantInt>(Op.get());
+		if (!IntMD)
+			return std::nullopt;
+		res.push_back(IntMD->getSExtValue());
+	}
+
+	return res;
+}
+
 //// extracted from llvm LoopUnrollPass.cpp tryToUnrollLoop()
 //void loopAnalyzeTripCounts( Loop *L,
 //		 ScalarEvolution &SE) {
