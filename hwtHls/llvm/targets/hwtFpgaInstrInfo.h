@@ -17,7 +17,7 @@ class HwtFpgaInstrInfo: public llvm::HwtFpgaTargetGenInstrInfo {
 public:
 	explicit HwtFpgaInstrInfo();
 
-   const HwtFpgaRegisterInfo& getRegisterInfo() const;
+    const HwtFpgaRegisterInfo& getRegisterInfo() const;
 	const TargetRegisterClass* getRegClass(const MCInstrDesc &MCID,
 			unsigned OpNum, const TargetRegisterInfo *TRI,
 			const MachineFunction &MF) const override;

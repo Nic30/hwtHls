@@ -56,6 +56,7 @@ llvm::MachineInstr* getReferencedGlobalValue(MachineRegisterInfo &MRI,
 		return AddrDefMI;
 	}
 }
+
 std::tuple<Type*, size_t, MachineInstr*> getLoadOrStoreElementType(
 		MachineRegisterInfo &MRI, MachineInstr &MI) {
 	switch (MI.getOpcode()) {
