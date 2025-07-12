@@ -47,7 +47,7 @@ void HwtFpgaCombinerHelper::rewriteConstShift(llvm::MachineInstr &MI) {
 		switch (Opc) {
 		case HwtFpga::HWTFPGA_ASHR: {
 			hwtHls::CImmOrRegOrUndefWithWidth extract =
-					hwtHls::buildHWTFPGA_EXTRACT(Builder, Observer, src,
+					hwtHls::buildHWTFPGA_EXTRACT(Builder, &Observer, src,
 							srcWidth, shAmount, extractedWidth);
 			ConcatMembers.push_back(extract);
 			hwtHls::CImmOrReg extracted(extract.reg);
@@ -65,7 +65,7 @@ void HwtFpgaCombinerHelper::rewriteConstShift(llvm::MachineInstr &MI) {
 		}
 		case HwtFpga::HWTFPGA_LSHR: {
 			hwtHls::CImmOrRegOrUndefWithWidth extract =
-					hwtHls::buildHWTFPGA_EXTRACT(Builder, Observer, src,
+					hwtHls::buildHWTFPGA_EXTRACT(Builder, &Observer, src,
 							srcWidth, shAmount, extractedWidth);
 			ConcatMembers.push_back(extract);
 			ConcatMembers.push_back(
@@ -78,7 +78,7 @@ void HwtFpgaCombinerHelper::rewriteConstShift(llvm::MachineInstr &MI) {
 					hwtHls::CImmOrRegOrUndefWithWidth(
 							ConstantInt::get(PaddingTy, 0)));
 			hwtHls::CImmOrRegOrUndefWithWidth extract =
-					hwtHls::buildHWTFPGA_EXTRACT(Builder, Observer, src,
+					hwtHls::buildHWTFPGA_EXTRACT(Builder, &Observer, src,
 							srcWidth, 0, extractedWidth);
 			ConcatMembers.push_back(extract);
 
@@ -134,12 +134,12 @@ void HwtFpgaCombinerHelper::rewriteConstFunnelShift(llvm::MachineInstr &MI) {
 		case HwtFpga::HWTFPGA_FSHL: {
 			// top shAmount bits of src1 as new low bits
 			hwtHls::CImmOrRegOrUndefWithWidth src1Top =
-					hwtHls::buildHWTFPGA_EXTRACT(Builder, Observer, src1,
+					hwtHls::buildHWTFPGA_EXTRACT(Builder, &Observer, src1,
 							srcWidth, srcWidth - shAmount - 1, shAmount);
 
 			// lower bits of src0 as new high bits
 			hwtHls::CImmOrRegOrUndefWithWidth src0Bottom =
-					hwtHls::buildHWTFPGA_EXTRACT(Builder, Observer, src0,
+					hwtHls::buildHWTFPGA_EXTRACT(Builder, &Observer, src0,
 							srcWidth, 0, srcWidth - shAmount);
 
 			assert(src1Top.width + src0Bottom.width == srcWidth);
@@ -150,11 +150,11 @@ void HwtFpgaCombinerHelper::rewriteConstFunnelShift(llvm::MachineInstr &MI) {
 		case HwtFpga::HWTFPGA_FSHR: {
 			// top width - shAmount bits of src0 as new low bits
 			hwtHls::CImmOrRegOrUndefWithWidth src0Top =
-					hwtHls::buildHWTFPGA_EXTRACT(Builder, Observer, src0,
+					hwtHls::buildHWTFPGA_EXTRACT(Builder, &Observer, src0,
 							srcWidth, shAmount, srcWidth - shAmount);
 			// lower bits of src1 as new high bits
 			hwtHls::CImmOrRegOrUndefWithWidth src1Bottom =
-					hwtHls::buildHWTFPGA_EXTRACT(Builder, Observer, src0,
+					hwtHls::buildHWTFPGA_EXTRACT(Builder, &Observer, src0,
 							srcWidth, 0, shAmount);
 			assert(src0Top.width + src1Bottom.width == srcWidth);
 			ConcatMembers.push_back(src0Top);

@@ -63,7 +63,7 @@ bool HwtFpgaCombinerHelper::matchMuxForConstPropagation(llvm::MachineInstr &MI,
 			// select from NewMI result
 			Builder.setInstrAndDebugLoc(*afterNewMI);
 			ResConcatMembers.push_back(
-					hwtHls::buildHWTFPGA_EXTRACT(Builder, Observer, NewMIResOp,
+					hwtHls::buildHWTFPGA_EXTRACT(Builder, &Observer, NewMIResOp,
 							newMiResWidth, inNewMIoff, usedBits.second));
 			inNewMIoff += usedBits.second;
 			afterNewMI = Builder.getInsertPt().getInstrIterator();
@@ -221,7 +221,7 @@ bool HwtFpgaCombinerHelper::rewriteMuxConstPropagation(llvm::MachineInstr &MI,
 					if (usedBits.first) {
 						// extract non reduced bits from operand
 						hwtHls::CImmOrRegOrUndefWithWidth m =
-								hwtHls::buildHWTFPGA_EXTRACT(Builder, Observer,
+								hwtHls::buildHWTFPGA_EXTRACT(Builder, &Observer,
 										ValOp, keepMask.getBitWidth(), off,
 										usedBits.second);
 						OperandValConcatMembers.push_back(m);

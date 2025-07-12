@@ -22,14 +22,16 @@ CImmOrReg::CImmOrReg(const MachineOperand &MOP) {
 }
 
 CImmOrReg::CImmOrReg(const ConstantInt *c) {
+	assert(c->getType()->getIntegerBitWidth() > 0);
 	this->c = c;
 	reg = 0;
 }
 
 void CImmOrReg::addAsUse(MachineInstrBuilder &MIB) const {
-	if (c)
+	if (c) {
+		assert(c->getType()->getIntegerBitWidth() > 0);
 		MIB.addCImm(c);
-	else {
+	} else {
 		MIB.addUse(reg);
 	}
 }
@@ -38,6 +40,7 @@ CImmOrRegOrUndefWithWidth::CImmOrRegOrUndefWithWidth(const ConstantInt *_c) :
 		width(_c->getType()->getIntegerBitWidth()), isUndef(false), c(_c), reg(
 				0) {
 	assert(c != nullptr);
+	assert(width > 0);
 }
 
 CImmOrRegOrUndefWithWidth::CImmOrRegOrUndefWithWidth(size_t _width) :
@@ -53,12 +56,14 @@ CImmOrRegOrUndefWithWidth::CImmOrRegOrUndefWithWidth(size_t _width,
 
 void CImmOrRegOrUndefWithWidth::addAsUse(MachineInstrBuilder &MIB) const {
 	MachineRegisterInfo &MRI = MIB.getInstr()->getMF()->getRegInfo();
+	assert(width > 0);
 	if (isUndef) {
 		Register res = MRI.createVirtualRegister(
 				&HwtFpga::anyregclsRegClass);
 		MRI.setType(res, LLT::scalar(width));
 		MIB.addUse(res, RegState::Undef);
 	} else if (c) {
+		assert(c->getType()->getIntegerBitWidth() == width);
 		MIB.addCImm(c);
 	} else {
 #ifndef NDEBUG
@@ -566,6 +571,7 @@ llvm::MachineInstrBuilder buildHWTFPGA_MERGE_VALUES(
 		width += v.width;
 	}
 	for (auto &v : ConcatMembers) {
+		assert(v.width > 0);
 		MIB.addImm(v.width);
 	}
 	// MRI.setType(DstReg, LLT::scalar(width)); // this would break CSEMap
@@ -578,8 +584,8 @@ llvm::MachineInstrBuilder buildHWTFPGA_MERGE_VALUES(
 
 CImmOrRegOrUndefWithWidth buildHWTFPGA_MERGE_VALUES(
 		llvm::MachineIRBuilder &Builder,
-		llvm::SmallVector<hwtHls::CImmOrRegOrUndefWithWidth> &ConcatMembers, GISelChangeObserver * Observer
-		) {
+		llvm::SmallVector<hwtHls::CImmOrRegOrUndefWithWidth> &ConcatMembers,
+		GISelChangeObserver *Observer) {
 	assert(
 			ConcatMembers.size()
 					&& "concatenation must always contain some bits");
@@ -591,18 +597,20 @@ CImmOrRegOrUndefWithWidth buildHWTFPGA_MERGE_VALUES(
 		Register res = Builder.getMRI()->createVirtualRegister(
 				&HwtFpga::anyregclsRegClass);
 		size_t width = 0;
-		buildHWTFPGA_MERGE_VALUES(Builder, Observer, res, ConcatMembers, &width);
+		buildHWTFPGA_MERGE_VALUES(Builder, Observer, res, ConcatMembers,
+				&width);
 
 		return {width, res};
 	}
 }
 
 llvm::MachineInstrBuilder buildHWTFPGA_EXTRACT(llvm::MachineIRBuilder &Builder,
-		llvm::GISelChangeObserver &Observer, llvm::Register DstReg,
+		llvm::GISelChangeObserver *Observer, llvm::Register DstReg,
 		const llvm::MachineOperand &SrcValMO, size_t srcWidth, size_t offset,
 		size_t dstWidth) {
 	auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_EXTRACT);
-	Observer.changingInstr(*MIB.getInstr());
+	if (Observer)
+		Observer->changingInstr(*MIB.getInstr());
 
 	MIB.addDef(DstReg);
 	if (SrcValMO.isReg() && SrcValMO.isDef()) {
@@ -615,12 +623,13 @@ llvm::MachineInstrBuilder buildHWTFPGA_EXTRACT(llvm::MachineIRBuilder &Builder,
 	MIB.addImm(offset);
 	MIB.addImm(dstWidth);
 	assert(MIB->getNumExplicitOperands() == 5);
-
-	Observer.changedInstr(*MIB.getInstr());
+	if (Observer)
+		Observer->changedInstr(*MIB.getInstr());
 	return MIB;
 }
+
 CImmOrRegOrUndefWithWidth buildHWTFPGA_EXTRACT(llvm::MachineIRBuilder &Builder,
-		llvm::GISelChangeObserver &Observer, const llvm::MachineOperand &SrcValMO,
+		llvm::GISelChangeObserver *Observer, const llvm::MachineOperand &SrcValMO,
 		size_t srcWidth, size_t offset, size_t dstWidth) {
 	Register res = Builder.getMRI()->createVirtualRegister(
 			&HwtFpga::anyregclsRegClass);

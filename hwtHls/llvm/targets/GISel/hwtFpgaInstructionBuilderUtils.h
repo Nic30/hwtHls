@@ -117,22 +117,23 @@ CImmOrRegOrUndefWithWidth buildHWTFPGA_EXTRACT(llvm::MachineIRBuilder &Builder,
 		const llvm::MachineOperand &src, size_t srcWidth, size_t offset,
 		size_t resWidth);
 llvm::MachineInstrBuilder buildHWTFPGA_EXTRACT(llvm::MachineIRBuilder &Builder,
-		llvm::GISelChangeObserver &Observer, llvm::Register DstReg,
+		llvm::GISelChangeObserver *Observer, llvm::Register DstReg,
 		const llvm::MachineOperand &SrcValMO, size_t srcWidth, size_t offset,
 		size_t dstWidth);
 CImmOrRegOrUndefWithWidth buildHWTFPGA_EXTRACT(llvm::MachineIRBuilder &Builder,
-		llvm::GISelChangeObserver &Observer, const llvm::MachineOperand &SrcValMO,
-		size_t srcWidth, size_t offset, size_t dstWidth);
-
+		llvm::GISelChangeObserver *Observer,
+		const llvm::MachineOperand &SrcValMO, size_t srcWidth, size_t offset,
+		size_t dstWidth);
 
 CImmOrRegOrUndefWithWidth buildHWTFPGA_MERGE_VALUES(
 		llvm::MachineIRBuilder &Builder,
-		llvm::SmallVector<hwtHls::CImmOrRegOrUndefWithWidth> &ConcatMembers, llvm::GISelChangeObserver * Observer=nullptr);
+		llvm::SmallVector<hwtHls::CImmOrRegOrUndefWithWidth> &ConcatMembers,
+		llvm::GISelChangeObserver *Observer = nullptr);
 llvm::MachineInstrBuilder buildHWTFPGA_MERGE_VALUES(
 		llvm::MachineIRBuilder &Builder, llvm::GISelChangeObserver *Observer,
 		llvm::Register DstReg,
 		const llvm::SmallVector<hwtHls::CImmOrRegOrUndefWithWidth> &ConcatMembers,
-		size_t *_width=nullptr);
+		size_t *_width = nullptr);
 
 llvm::Register buildMsbGet(llvm::MachineIRBuilder &Builder,
 		llvm::GISelChangeObserver &Observer, CImmOrReg x, unsigned bitWidth,
@@ -142,7 +143,7 @@ struct HWTFPGA_EXTRACTOptions {
 	size_t srcWidth;
 	size_t offset;
 	size_t dstWidth;
-	static HWTFPGA_EXTRACTOptions get(llvm::MachineInstr & MI);
+	static HWTFPGA_EXTRACTOptions get(llvm::MachineInstr &MI);
 	bool isMsbGet();
 };
 

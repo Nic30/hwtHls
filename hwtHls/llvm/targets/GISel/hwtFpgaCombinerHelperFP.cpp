@@ -158,7 +158,7 @@ void HwtFpgaCombinerHelper::rewriteFDivByPowi(llvm::MachineInstr &MI, MatchFDivB
 		} else {
 			// sh >= 0, slice of msb and convert
 			// x / (2.0 ** sh) = x >> trunc(sh, sh.width-1)
-			hwtHls::CImmOrRegOrUndefWithWidth shTrunc = hwtHls::buildHWTFPGA_EXTRACT(Builder, Observer, sh,
+			hwtHls::CImmOrRegOrUndefWithWidth shTrunc = hwtHls::buildHWTFPGA_EXTRACT(Builder, &Observer, sh,
 					shValue.shWidth.value(), 0, shValue.shWidth.value() - 1);
 			auto MIB0 = Builder.buildInstr(HwtFpga::HWTFPGA_FP_SHR);
 			Observer.changingInstr(*MIB0.getInstr());
