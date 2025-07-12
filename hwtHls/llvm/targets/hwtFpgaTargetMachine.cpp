@@ -19,6 +19,7 @@
 #include <hwtHls/llvm/targets/hwtFpgaTargetSubtarget.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaPreLegalizerCombiner.h>
 #include <hwtHls/llvm/targets/Transforms/hwtHlsCodeGenPrepare.h>
+#include <hwtHls/llvm/targets/Transforms/concatBlockLiveins.h>
 #include <hwtHls/llvm/targets/Transforms/EarlyMachineCopyPropagation.h>
 #include <hwtHls/llvm/targets/Transforms/hwtFpgaToNetlist.h>
 #include <hwtHls/llvm/targets/Transforms/vregIfConversion.h>
@@ -39,6 +40,7 @@ extern "C" void LLVMInitializeHwtFpgaTarget() {
 	llvm::initializeRegAllocFastPass(PR);
 	llvm::initializeHwtFpgaPreLegalizerCombinerPass(PR);
 	hwtHls::initializeHwtHlsCodeGenPrepareLegacyPassPass(PR);
+	hwtHls::initializeConcatBlockLiveins(PR);
 	hwtHls::initializeHwtFpgaToNetlist(PR);
 	llvm::initializeEarlyMachineCopyPropagationPass(PR);
 	llvm::initializeVRegIfConverterPass(PR);

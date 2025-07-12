@@ -19,6 +19,7 @@
 #include <hwtHls/llvm/targets/GISel/hwtFpgaPreToNetlistCombiner.h>
 #include <hwtHls/llvm/targets/Transforms/cheapBlockInlinePass.h>
 #include <hwtHls/llvm/targets/Transforms/completeLiveVRegs.h>
+#include <hwtHls/llvm/targets/Transforms/concatBlockLiveins.h>
 #include <hwtHls/llvm/targets/Transforms/EarlyMachineCopyPropagation.h>
 #include <hwtHls/llvm/targets/Transforms/hwtHlsCodeGenPrepare.h>
 #include <hwtHls/llvm/targets/Transforms/machineDumpAndExitPass.h>
@@ -251,6 +252,7 @@ void HwtFpgaTargetPassConfig::addMachinePasses() {
 	addPass(&MachineLoopInfoID);
 	addPass(&LiveIntervalsID); // add killed and other attributes
 
+	addPass(new hwtHls::ConcatBlockLiveins());
 	addPass(new hwtHls::HwtFpgaToNetlist());
 }
 

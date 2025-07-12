@@ -107,6 +107,7 @@ py3.extension_module(
      'targets/Transforms/utils/machineDceWorklist.cpp',
      'targets/Transforms/cheapBlockInlinePass.cpp',
      'targets/Transforms/completeLiveVRegs.cpp',
+     'targets/Transforms/concatBlockLiveins.cpp',
      'targets/Transforms/EarlyMachineCopyPropagation.cpp',
      'targets/Transforms/hwtFpgaToNetlist.cpp',
      'targets/Transforms/hwtHlsCodeGenPrepare.cpp',
