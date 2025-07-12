@@ -584,6 +584,7 @@ bool HwtFpgaTargetInstructionSelector::select_G_SHL(
 		MachineInstrBuilder MIB0 = MIRB.buildInstr(
 				HwtFpga::HWTFPGA_EXTRACT);
 		unsigned paddingWidth = rhsConst->getZExtValue();
+		assert(paddingWidth > 0);
 		APInt padding(paddingWidth, 0);
 		auto *paddingCI = ConstantInt::get(Context, padding);
 		unsigned dstWidth =
@@ -629,7 +630,7 @@ bool HwtFpgaTargetInstructionSelector::select_G_TRUNC(
 	unsigned srcWidth = MRI.getType(I.getOperand(1).getReg()).getSizeInBits();
 
 	if (vConst) {
-		// directly resolve to constant
+		// directly resolve to a new constant
 		APInt v = vConst->getValue().trunc(dstWidth);
 		MachineInstrBuilder MIB = MIRB.buildConstant(I.getOperand(0).getReg(), v);
 		return finalizeReplacementOfInstruction(MIB, I);
@@ -774,15 +775,23 @@ bool HwtFpgaTargetInstructionSelector::select_G_SEXT(
  * */
 bool HwtFpgaTargetInstructionSelector::select_G_ZEXT(
 		MachineRegisterInfo &MRI, MachineIRBuilder &MIRB, MachineInstr &I) {
+	auto &Op0 = I.getOperand(0);
+	auto &Op1 = I.getOperand(1);
+	unsigned dstWidth = MRI.getType(Op0.getReg()).getSizeInBits();
+	unsigned srcWidth = MRI.getType(Op1.getReg()).getSizeInBits();
+	unsigned PrefixWidth = dstWidth - srcWidth;
+	if (PrefixWidth == 0) {
+		MachineInstrBuilder MIB = MIRB.buildInstr(HwtFpga::HWTFPGA_MUX);
+		selectInstrArg(*MF, MIB, MRI, Op0); // val/dst - copy as it is
+		selectInstrArg(*MF, MIB, MRI, Op1); // src - copy as it is
+		return finalizeReplacementOfInstruction(MIB, I);
+	}
+
 	MachineInstrBuilder MIB = MIRB.buildInstr(
 			HwtFpga::HWTFPGA_MERGE_VALUES);
-	auto &Op0 = I.getOperand(0);
 	MIB.addDef(Op0.getReg(), Op0.getTargetFlags());
-	unsigned dstWidth = MRI.getType(Op0.getReg()).getSizeInBits();
-	unsigned srcWidth = MRI.getType(I.getOperand(1).getReg()).getSizeInBits();
 	// add leading 0s
 	auto &C = MF->getFunction().getContext();
-	unsigned PrefixWidth = dstWidth - srcWidth;
 	APInt _Prefix(PrefixWidth, 0);
 	auto *Prefix = ConstantInt::get(C, _Prefix);
 	selectInstrArg(*MF, MIB, MRI, I.getOperand(1));
