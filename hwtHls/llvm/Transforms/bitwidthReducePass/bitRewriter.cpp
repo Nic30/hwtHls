@@ -343,39 +343,39 @@ llvm::Value* BitPartsRewriter::rewriteCmpInst(llvm::CmpInst &I,
 		res = b.CreateCmp(I.getPredicate(), newOps[0], newOps[1], I.getName());
 	}
 
-	if (auto cmpI = dyn_cast<CmpInst>(res)) {
-		Value *op0 = cmpI->getOperand(0);
-		auto op1c = dyn_cast<ConstantInt>(cmpI->getOperand(1));
-		switch (Pred) {
-		case CmpInst::Predicate::ICMP_SGT: {
-			// if sign_val sgt -1 -> ~sign_val[MSB]
-			if (op1c && op1c->isAllOnesValue()) {
-				auto msb = CreateBitRangeGetMsb(&b, op0);
-				res = b.CreateNot(msb, I.getName());
-			}
-			break;
-		}
-		case CmpInst::Predicate::ICMP_SGE: {
-			// if sign_val sge 0 -> ~sign_val[MSB]
-			if (op1c && op1c->isZero()) {
-				auto msb = CreateBitRangeGetMsb(&b, op0);
-				res = b.CreateNot(msb, I.getName());
-			}
-			break;
-		}
-		case CmpInst::Predicate::ICMP_SLT: {
-			// if sign_val slt 0 -> sign_val[MSB]
-			if (op1c && op1c->isZero()) {
-				auto msb = CreateBitRangeGetMsb(&b, op0);
-				res = msb;
-			}
-			break;
-		}
-
-		default:
-			break;
-		}
-	}
+	//if (auto cmpI = dyn_cast<CmpInst>(res)) {
+	//	Value *op0 = cmpI->getOperand(0);
+	//	auto op1c = dyn_cast<ConstantInt>(cmpI->getOperand(1));
+	//	switch (Pred) {
+	//	case CmpInst::Predicate::ICMP_SGT: {
+	//		// if sign_val sgt -1 -> ~sign_val[MSB]
+	//		if (op1c && op1c->isAllOnesValue()) {
+	//			auto msb = CreateBitRangeGetMsb(&b, op0);
+	//			res = b.CreateNot(msb, I.getName());
+	//		}
+	//		break;
+	//	}
+	//	case CmpInst::Predicate::ICMP_SGE: {
+	//		// if sign_val sge 0 -> ~sign_val[MSB]
+	//		if (op1c && op1c->isZero()) {
+	//			auto msb = CreateBitRangeGetMsb(&b, op0);
+	//			res = b.CreateNot(msb, I.getName());
+	//		}
+	//		break;
+	//	}
+	//	case CmpInst::Predicate::ICMP_SLT: {
+	//		// if sign_val slt 0 -> sign_val[MSB]
+	//		if (op1c && op1c->isZero()) {
+	//			auto msb = CreateBitRangeGetMsb(&b, op0);
+	//			res = msb;
+	//		}
+	//		break;
+	//	}
+    //
+	//	default:
+	//		break;
+	//	}
+	//}
 
 	replacementCache[&I] = res;
 	return res;
