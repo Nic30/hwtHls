@@ -98,3 +98,6 @@ https://github.com/llvm/llvm-project/tree/main/mlir/examples
 https://github.com/vguerra/mlir-tutorial-cmake
 https://github.com/j2kun/mlir-tutorial
 
+
+
+https://llvm.org/devmtg/2020-09/slides/Schmeiser-Understanding_Changes_made_by_pass_in_the_opt_pipeline.pdf
