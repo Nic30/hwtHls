@@ -40,6 +40,7 @@ classifiers = [
 requires-python = '==3.12.*' # python frontend works directly with bytecode 3.11 or 3.13 will not work
 dependencies  = [
   'hwtLib>=2.9', # primitive hardware components
+  'hwtBuildsystem>=0.1', # info about target chips
   'scipy>=1.10.1', # interpolations and other complex math
   'networkx>=3.1', # graph algorithms
   'pydot>=1.4.2' # debug graphviz graphs

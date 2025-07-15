@@ -1,12 +1,13 @@
 import os
 from pathlib import Path
 import sqlite3
-from typing import Union, Callable, Optional
+from typing import Union, Callable, Optional, Self
 
 from hwt.hdl.operator import HOperatorNode
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.serializer.resourceAnalyzer.resourceTypes import RtlResourceType, \
     ResourceFF, ResourceRAM
+from hwtBuildsystem.vivado.part import XilinxPart
 from hwtHls.code import OP_ASHR, OP_LSHR, OP_SHL, OP_ROL, OP_ROR, OP_FSHL, \
     OP_FSHR
 from hwtHls.platform.debugBundle import HlsDebugBundle, DebugId
@@ -65,6 +66,37 @@ class HlsPlatformFromVitisDB(AbstractXilinxPlatform):
         self._DSP_MUL_GEOMETRIES = []  # :note: will be loaded in _init_coefs()
 
         super().__init__(debugDir=debugDir, debugFilter=debugFilter, llvmCliArgs=llvmCliArgs)
+
+    @classmethod
+    def getForPart(cls, part: XilinxPart, *args, **kwargs) -> Self:
+        speedgrade = part.speedgrade
+        if "-1" in speedgrade:
+            speed = "slow"
+        elif "-2" in speedgrade:
+            speed = "medium"
+        elif "-3" in speedgrade:
+            speed = "fast"
+        else:
+            raise NotImplementedError(part)
+    
+        F = XilinxPart.Family
+        family = {
+            F.artix7: "artix7",
+            F.kintex7: "kintex7",
+            F.virtex7: "virtex7",
+            F.zynq7000: "zynq",
+            F.kintexUltrascale: "kintexu",
+            F.virtexUltrascale: "virtexu",
+            F.rtKintexUltrascale: "kintexu",
+            F.virtexuplus: "virtexuplus",
+            F.versal: "versal",
+            F.versalHbm: "versal",
+    
+        }[part.family]
+    
+        target_name = f"{family:s}_{speed:s}"
+        return cls(target_name, *args, **kwargs)
+
 
     def _getFromDBArithmeticDelay(self, dbCursor:sqlite3.Cursor, coreName: str, splineTy=ResourceSplineBundleBitwidthDependent):
         operandWidths = []
