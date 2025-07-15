@@ -14,7 +14,6 @@ from hwtHls.llvm.llvmIr import Value
 from hwtHls.netlist.hdlTypeVoid import HVoidExternData
 from hwtLib.amba.axi_common import Axi_hs
 
-
 ANY_HLS_STREAM_INTF_TYPE = Union[HwIODataRdVld, Axi_hs, HwIODataVld,
                                  HwIOStructRdVld, RtlSignal, HwIOSignal,
                                  HwIOUnionSink, HwIOUnionSource]
@@ -22,7 +21,7 @@ ANY_HLS_STREAM_INTF_TYPE = Union[HwIODataRdVld, Axi_hs, HwIODataVld,
 ANY_SCALAR_INT_VALUE = Union[RtlSignal, HConst, HwIOSignal, Value]
 
 
-def _getNativeInterfaceWordType(i: HwIO) -> HdlType:
+def _getNativeInterfaceWordType(i: Union[HwIO, tuple]) -> HdlType:
     if isinstance(i, (HwIODataRdVld, Axi_hs, HwIOStructRdVld, HwIORdVldSync)):
         w = i._bit_length() - 2
 
@@ -32,7 +31,12 @@ def _getNativeInterfaceWordType(i: HwIO) -> HdlType:
     elif isinstance(i, (HwIOSignal, RtlSignal, HwIOStruct)):
         return i._dtype
     else:
-        raise NotImplementedError(i)
+        if isinstance(i, tuple):
+            w = 0
+            for item in i:
+                w += _getNativeInterfaceWordType(item).bit_length()
+        else:
+            raise NotImplementedError(i)
 
     if w == 0:
         return HVoidExternData

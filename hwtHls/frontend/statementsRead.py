@@ -1,6 +1,7 @@
-from typing import Optional, Union, Tuple, Sequence
+from typing import Optional, Union, Tuple, Sequence, Type as TypingType
 
 from hwt.doc_markers import internal
+from hwt.hObjList import HObjList
 from hwt.hdl.commonConstants import b1
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.array import HArray
@@ -87,16 +88,19 @@ class HlsRead(HdlStatement):
 
         if hwIOName is None:
             hwIOName = self._getInterfaceName(src)
+        if hwIOName is None:
+            name = "read"
+        else:
+            name = f"{hwIOName:s}_read"
 
         # create an interface and signals which will hold value of this object
-        var = parent._sig  # can not use .var() because it would prematurely create tmp alloca for result
-        name = f"{hwIOName:s}_read"
+        var = parent.var
         self._name = name
         isVoid = HdlType_isVoid(dtype)
         if isVoid:
             sig = None
         else:
-            sig = var(name, dtype)
+            sig = var(name, dtype, arrayPartitionComplete=isinstance(dtype, HArray))
 
         if isVoid:
             w = 0
@@ -107,7 +111,7 @@ class HlsRead(HdlStatement):
                 sig_flat._rtlDrivers.append(self)
                 sig_flat._rtlObjectOrigin = self
 
-        elif isinstance(sig, HwIO) or not isBlocking:
+        elif isinstance(sig, (HwIO, tuple, HObjList)) or not isBlocking:
             w = dtype.bit_length()
             force_vector = False
             totalWidth = w + (0 if isBlocking else 1)

@@ -19,8 +19,6 @@ from hwt.hwIOs.hwIOStruct import HwIOStruct
 from hwt.hwIOs.std import HwIOSignal
 from hwt.mainBases import HwIOBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.statementsRead import HlsRead
-from hwtHls.frontend.statementsWrite import HlsWrite
 from hwtHls.frontend.frame import PyBytecodeFrame
 from hwtHls.frontend.hwIterator import HwIterator
 from hwtHls.frontend.indexExpansion import expandBeforeUse, \
@@ -37,9 +35,24 @@ from hwtHls.frontend.ioProxyAddressed import IoProxyAddressed
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInPreproc, \
     PyBytecodeInline, _PyBytecodePragma, PyBytecodePreprocHwCopy
 from hwtHls.frontend.pyBytecodeUtils import ObjectWithHlsStoreOverride
+from hwtHls.frontend.statementsRead import HlsRead
+from hwtHls.frontend.statementsWrite import HlsWrite
 from hwtHls.llvm.llvmIr import Value, BasicBlock, IRBuilder
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
+
+
+def HObjList_getHdlType(vVal):
+    if isinstance(vVal, Value):
+        _t = vVal.getType()
+        if _t.isDoubleTy():
+            return HFloatTmp
+        else:
+            return HBits(_t.getScalarSizeInBits())
+    elif isinstance(vVal, HObjList):
+        return HObjList_getHdlType(vVal[0])[len(vVal)]
+    else:
+        return getattr(vVal, "_dtypeOrig", vVal._dtype)
 
 
 def _isSameOrIsSameTuple(a, b):
@@ -58,7 +71,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
     https://docs.python.org/3/library/dis.html
     https://github.com/zrax/pycdc
     """
-    ANY_HWVALUE_CLASS = (HConst, RtlSignal, HwIO, Value, ObjectWithHlsStoreOverride)
+    ANY_HWVALUE_CLASS = (HConst, RtlSignal, HwIO, Value, ObjectWithHlsStoreOverride, HObjList)
     ANY_HWSTATEMENT_CLASS = (HlsWrite, HlsRead, HdlAssignmentContainer, _PyBytecodePragma)
 
     def __init__(self):
@@ -455,7 +468,10 @@ class PyBytecodeToSsaLowLevelOpcodes():
 
         return curBlock
 
-    def _initializeStorageCellForHwSignal(self, name: Optional[str], vVal: Union[RtlSignal, HwIOBase, HConst, Value, ObjectWithHlsStoreOverride]):
+    def _initializeStorageCellForHwSignal(self, name: Optional[str],
+                                          vVal: Union[RtlSignal, HwIOBase,
+                                                      HConst, Value,
+                                                      ObjectWithHlsStoreOverride]):
         """
         :returns: hls variable (RtlSignal which will be used to represent this variable)
         
@@ -470,8 +486,11 @@ class PyBytecodeToSsaLowLevelOpcodes():
                 t = HBits(_t.getScalarSizeInBits())
         elif isinstance(vVal, ObjectWithHlsStoreOverride):
             return vVal.hlsOverrideInitializeStorageCell(self, name)
+        elif isinstance(vVal, HObjList):
+            v = self.hls.var(name, HObjList_getHdlType(vVal))
+            return v
         else:
-            t = getattr(vVal, "_dtypeOrig", vVal._dtype)
+            t = HObjList_getHdlType(vVal)
 
         if isinstance(vVal, RtlSignal) and vVal._hasGenericName:
             # add name also to right side of assignment because this is likely a variable definition and we want
@@ -562,6 +581,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
                 if isinstance(v, RtlSignal) and v._hasGenericName:
                     v._name = instr.argval
                     v._hasGenericName = False
+
                 return self._storeToHwSignal(curBlock, v, vVal)
 
         if isinstance(vVal, PyBytecodeInPreproc):
@@ -934,10 +954,12 @@ class PyBytecodeToSsaLowLevelOpcodes():
         curBlock, key = expandBeforeUse(self, instr.offset, frame, key, curBlock)
         curBlock, value = expandBeforeUse(self, instr.offset, frame, value, curBlock)
 
-        if isinstance(key, (RtlSignal, Value, HwIOSignal)) and not isinstance(container, (RtlSignal, Value, HwIOSignal)):
+        if isinstance(key, (RtlSignal, Value, HwIOSignal)) and \
+                not isinstance(container, (RtlSignal, Value, HwIOSignal)):
             if not isinstance(container, PyObjectHwSubscriptRef):
                 container = PyObjectHwSubscriptRef(instr.offset, container, key)
-            return container.expandSetitemAsSwitchCase(self, instr.offset, frame, curBlock, lambda i, dst: dst(value))
+            return container.expandSetitemAsSwitchCase(self, instr.offset, frame, curBlock,
+                                                       lambda i, dst: dst(value))
 
         if isinstance(container, (RtlSignal, HwIOSignal)):
             toLlvm: ToLlvmIrTranslator = self.toLlvm

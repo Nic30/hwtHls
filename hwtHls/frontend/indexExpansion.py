@@ -42,7 +42,7 @@ class PyObjectHwSubscriptRef(PyObjectRequiresExpandBeforeUse):
 
     @classmethod
     def _getTypeOfHObj(cls, v: Union[HObjList, HConst, RtlSignal, HwIO]):
-        if isinstance(v, HObjList):
+        if isinstance(v, (tuple, HObjList)):
             return cls._getTypeOfHObj(v[0])[len(v)]
         else:
             return v._dtype
