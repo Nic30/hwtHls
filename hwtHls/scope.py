@@ -42,6 +42,13 @@ ANY_HLS_COMPATIBLE_IO = Union[HwIODataRdVld, HwIOStructRdVld,
                               PyObjectHwSubscriptRef]
 
 
+def HObjList_toTupleRec(v):
+    if isinstance(v, HObjList):
+        return tuple(HObjList_toTupleRec(i) for i in v)
+    else:
+        return v
+
+
 class HlsScopeBoundIoScalar():
 
     def __init__(self, hls: "HlsScope", io: HwIO, dtype:Optional[HdlType]=None):
@@ -123,7 +130,7 @@ class HlsScope():
         """
         if arrayPartitionComplete:
             intf = HdlType_to_HwIO().apply(dtype)
-            return HwIO_without_registration(self, intf, name)
+            return HObjList_toTupleRec(HwIO_without_registration(self, intf, name))
         else:
             return self._sig(name, dtype)
 
