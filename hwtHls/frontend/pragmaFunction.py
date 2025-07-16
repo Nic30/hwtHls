@@ -39,3 +39,11 @@ class PyBytecodeSkipPass(_PyBytecodeFunctionPragma):
         if cur is not None:
             items.extend(op.get() for op in cur.iterOperands())
         mainFn.setMetadata(mdName, getTuple(items, False))
+    
+    def __repr__(self)->str:
+        # :attention: This object is likely to be used in HwParam.
+        #  This means that this methods also generates the string which is matched on HDL level
+        #  to check that parameter have expected value (so it should not contain runtime dependent things like object address)
+        return f"<{self.__class__.__name__:s} {self.skipedPassNames}>"
+    
+    
