@@ -2,13 +2,14 @@ from typing import Optional, Union, Tuple
 
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
+from hwt.hdl.types.hdlType import HdlType
 from hwt.math import log2ceil
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.frame import PyBytecodeFrame
 from hwtHls.frontend.fromPython import PyBytecodeToSsa
 from hwtHls.frontend.hwIterator import HwIterator
-from hwtHls.llvm.llvmIr import Value, BasicBlock
+from hwtHls.llvm.llvmIr import Value, BasicBlock, ValueToInstruction
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 
 
@@ -21,10 +22,12 @@ class _hwrange_iterator(HwIterator):
     """
 
     def __init__(self, name: Optional[str],
+                 dtype: HdlType,
                  start: Union[HBitsConst, Value],
                  stop: Union[HBitsConst, Value],
                  step: Union[HBitsConst, Value], stepUsesAdd: bool):
         self.name = name
+        self.dtype = dtype
         self.start = start
         self.stop = stop
         self.step = step
@@ -82,6 +85,12 @@ class _hwrange_iterator(HwIterator):
             nextVal = toLlvm.b.CreateAdd(curVal, step)
         else:
             nextVal = toLlvm.b.CreateSub(curVal, step)
+        nextValI = ValueToInstruction(nextVal)
+        if nextValI is not None and isinstance(self.dtype, HBits):
+            if self.dtype.signed:
+                nextValI.setHasNoSignedWrap(True)
+            else:
+                nextValI.setHasNoUnsignedWrap(True)
 
         toLlvm._variableInBlock_insertRedef(block, self.inductionVar, (), nextVal)
         return block
@@ -140,6 +149,7 @@ class hwrange():
         if isinstance(step, int):
             step = dtype.from_py(step)
 
+        self.dtype = dtype
         self.start = start
         self.stop = stop
         self.step = step
@@ -147,4 +157,4 @@ class hwrange():
         self.name = name
 
     def __iter__(self):
-        return _hwrange_iterator(self.name, self.start, self.stop, self.step, self.stepUsesAdd)
+        return _hwrange_iterator(self.name, self.dtype, self.start, self.stop, self.step, self.stepUsesAdd)
