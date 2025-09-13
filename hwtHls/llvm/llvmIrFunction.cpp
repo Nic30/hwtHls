@@ -16,6 +16,11 @@
 #include <hwtHls/llvm/Transforms/utils/functionMutating.h>
 
 #include <pybind11/stl.h>
+#include <pybind11/stl_bind.h>
+
+
+PYBIND11_MAKE_OPAQUE(std::vector<llvm::Type*>)
+PYBIND11_MAKE_OPAQUE(std::vector<llvm::StringRef>)
 
 namespace py = pybind11;
 
@@ -48,11 +53,21 @@ void register_Function(pybind11::module_ & m) {
 			 }, py::keep_alive<0, 1>()) /* Keep Function alive while iterator is used */
 		.def("arg_size", &llvm::Function::arg_size)
 		.def("getArg", &llvm::Function::getArg, py::return_value_policy::reference_internal)
-		.def("mutateFunctionAddArg", &mutateFunctionAddArg,  py::arg("ParamTy"), py::arg("ParamName"),
+		.def("mutateFunctionAddArg", &mutateFunctionAddArg, py::arg("ParamTy"), py::arg("ParamName"),
 				"create a new function with parameter added and move function body into it",
 				py::return_value_policy::reference_internal)
-		.def("mutateFunctionShuffleArgs", &mutateFunctionShuffleArgs, py::arg("newOrder"),
-				py::arg("toRmInNewOrder")=std::optional<const std::set<size_t>*>{},
+		.def("mutateFunctionAddArgs", [](llvm::Function * self,
+				std::vector<llvm::Type*> & types,
+				std::vector<llvm::StringRef>& paramNames) {
+			std::vector<llvm::Twine> _paramNames;
+			for (const auto& n: paramNames) {
+				_paramNames.push_back(n);
+			}
+			return mutateFunctionAddArgs(*self, types, _paramNames);
+	    })
+	    .def("mutateFunctionShuffleArgs", &mutateFunctionShuffleArgs, py::arg("newOrder"),
+				py::arg("argsToDiscardFromEndCnt")=0,
+				py::arg("shouldUpdateOfOtherFnMd")=(std::optional<std::function<bool(const llvm::Function&)>>){},
 				"create a new function with parameters shuffled",
 				py::return_value_policy::reference_internal)
 		.def("isDeclaration", &llvm::Function::isDeclaration)
@@ -111,7 +126,8 @@ void register_Function(pybind11::module_ & m) {
 		IndependentIntrinsics.value(name.c_str(), llvm::Intrinsic::IndependentIntrinsics(I));
 	}
 	IndependentIntrinsics.export_values();
-
+	//py::bind_vector<std::vector<llvm::Type*>>(m, "VectorType");
+	py::bind_vector<std::vector<llvm::StringRef>>(m, "VectorOfStringRef");
 }
 
 }
