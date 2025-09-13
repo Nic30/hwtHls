@@ -640,7 +640,6 @@ class HlsNetlistBuilder():
             return self.buildConcat(*resBits, operatorSpecialization=operatorSpecialization, name=name)
 
     def buildConcat(self, *lsbToMsbOps: Union[HlsNetNodeOut, HConst],
-
                     operatorSpecialization:Optional[HFloatTmpConfig]=None,
                     name:Optional[str]=None) -> HlsNetNodeOut:
         """
@@ -659,8 +658,20 @@ class HlsNetlistBuilder():
                                            t, other._dtype, other, lsbToMsbOps)
         else:
             w = 0
+            constantsOnly = True
+            constantValues = []
             for o in lsbToMsbOps:
+                if constantsOnly:
+                    c = getConstOfOutput(o)
+                    if c is None:
+                        constantsOnly = False
+                    else:
+                        constantValues.append(c)
                 w += o._dtype.bit_length()
+
+            if constantsOnly:
+                return self.buildConst(Concat(*reversed(constantValues)), name=name)
+
             t = HBits(w)
 
         return self.buildOp(HwtOps.CONCAT, operatorSpecialization, t, *lsbToMsbOps, name=name)
