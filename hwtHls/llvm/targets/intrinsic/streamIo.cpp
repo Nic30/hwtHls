@@ -17,6 +17,35 @@ inline static void setArgNames(Function &F, ArrayRef<const char*> argNames) {
 	}
 }
 
+const std::string StreamTmpAllocaTmpSetterPlaceholder = "hwtHls.streamTmpAllocaTmpSetterPlaceholder";
+// create a call of function which will acts a placeholder setter to prevent removal of the alloca
+// while its driving logic was not constructed yet
+llvm::CallInst* CreateStreamTmpAllocaTmpSetterPlaceholder(
+		llvm::IRBuilderBase *Builder, llvm::AllocaInst *tmpAlloca) {
+	Value *Ops[] = { tmpAlloca };
+	Type *ResT = Builder->getVoidTy();
+	Type *TysForName[] = { Ops[0]->getType() };
+	Module *M = Builder->GetInsertBlock()->getParent()->getParent();
+	auto name = Intrinsic_getName(StreamTmpAllocaTmpSetterPlaceholder,
+			TysForName);
+	Function *TheFn = cast<Function>(
+			M->getOrInsertFunction(name, ResT, Ops[0]->getType()).getCallee());
+	setArgNames(*TheFn, { "ioArgPtr", "chunkBitWidth", "isReliable" });
+	AddDefaultFunctionAttributes(*TheFn);
+	CallInst *CI = Builder->CreateCall(TheFn, Ops);
+	CI->onlyAccessesInaccessibleMemOrArgMem();
+	return CI;
+}
+
+bool IsStreamTmpAllocaTmpSetterPlaceholder(const llvm::CallInst *C) {
+	return IsStreamTmpAllocaTmpSetterPlaceholder(C->getCalledFunction());
+}
+bool IsStreamTmpAllocaTmpSetterPlaceholder(const llvm::Function *F) {
+	if (F->arg_size() != 1) // alloca
+		return false;
+	return F->getName().str().rfind(StreamTmpAllocaTmpSetterPlaceholder + ".", 0) == 0;
+}
+
 const std::string StreamReadName = "hwtHls.streamRead";
 CallInst* CreateStreamRead(IRBuilderBase *Builder, Value *ioArgPtr,
 		size_t chunkBitWidth, size_t returnBitWidth, bool isReliable) {
@@ -29,7 +58,7 @@ CallInst* CreateStreamRead(IRBuilderBase *Builder, Value *ioArgPtr,
 	Value *Ops[] = { ioArgPtr, Builder->getInt64(chunkBitWidth),
 			Builder->getInt1(isReliable) };
 	Type *ResT = Builder->getIntNTy(returnBitWidth);
-	Type *TysForName[] = { Ops[0]->getType(), Ops[1]->getType(), ResT };
+	Type *TysForName[] = { Ops[0]->getType(), Ops[1]->getType(), Ops[2]->getType(), ResT };
 	Module *M = Builder->GetInsertBlock()->getParent()->getParent();
 	Function *TheFn =
 			cast<Function>(

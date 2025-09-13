@@ -5,6 +5,15 @@
 
 namespace hwtHls {
 
+extern const std::string StreamTmpAllocaTmpSetterPlaceholder;
+// create a call of function which will acts a placeholder setter to prevent removal of the alloca
+// while its driving logic was not constructed yet
+llvm::CallInst* CreateStreamTmpAllocaTmpSetterPlaceholder(llvm::IRBuilderBase *Builder,
+		llvm::AllocaInst *tmpAlloca);
+bool IsStreamTmpAllocaTmpSetterPlaceholder(const llvm::CallInst *C);
+bool IsStreamTmpAllocaTmpSetterPlaceholder(const llvm::Function *F);
+
+
 extern const std::string StreamReadName;
 
 llvm::CallInst* CreateStreamRead(llvm::IRBuilderBase *Builder,
