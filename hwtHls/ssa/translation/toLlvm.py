@@ -1,6 +1,6 @@
-from _io import StringIO
+from io import StringIO
 from pathlib import Path
-from typing import List, Tuple, Dict, Union, Sequence, Callable, Optional, Set
+from typing import Union, Sequence, Callable, Optional
 
 from hwt.hObjList import HObjList
 from hwt.hdl.const import HConst
@@ -85,28 +85,28 @@ class ToLlvmIrTranslator():
         self.parentHwModule = parentHwModule
 
         # :note: can not store Argument itself because it may reallocate if function type is mutated
-        self.ioToArgIndex: Dict[HwIO, int] = {}
+        self.ioToArgIndex: dict[HwIO, int] = {}
         # order of items in ioSorted corresponds to arguments of main function
-        self.ioSorted: List[ToLlvmIoRecordTuple] = []
+        self.ioSorted: list[ToLlvmIoRecordTuple] = []
 
-        self._afterTranslation: List[Callable[[ToLlvmIrTranslator], None]] = [
+        self._afterTranslation: list[Callable[[ToLlvmIrTranslator], None]] = [
             llvmFunctionSortArgsByName,
             addHwtHlsFunctionIoMetadata,
             applyLateLoopPragma,
         ]
         self.placeholderObjectSlots = []
-        self._lateLoopPragmaToApply: List[Tuple[BasicBlock, List["_PyBytecodeLoopPragma"]]] = []
+        self._lateLoopPragmaToApply: list[tuple[BasicBlock, list["_PyBytecodeLoopPragma"]]] = []
 
-        self._allocaForVariable: Dict[RtlSignal, AllocaInst] = {}
-        self._initializedAllocaVariables: Set[RtlSignal] = set()
-        self._variableInBlock: Dict[BasicBlock, Dict[RtlSignal, Value]] = {}
+        self._allocaForVariable: dict[RtlSignal, AllocaInst] = {}
+        self._initializedAllocaVariables: set[RtlSignal] = set()
+        self._variableInBlock: dict[BasicBlock, dict[RtlSignal, Value]] = {}
 
-        self._loop_stack: List[Tuple[BasicBlock, List[BasicBlock]]] = []
+        self._loop_stack: list[tuple[BasicBlock, list[BasicBlock]]] = []
         self._dbgLogPassExec:Optional[StringIO] = dbgLogPassExec
-        
-        (self._opConstructorMap, 
+
+        (self._opConstructorMap,
          self._opConstructorMap2,
-         self._opConstructorMapCmp) =\
+         self._opConstructorMapCmp) = \
             ToLlvmIrTranslator_createOperatorConstructorDictionaries(self.b)
         self._dbgRootDir: Optional[Path] = None
         self._dbgSubDir: Optional[Path] = None
@@ -144,7 +144,7 @@ class ToLlvmIrTranslator():
         return alloca
 
     def _variableInBlock_insertNoRedef(self, block: BasicBlock, var: Union[RtlSignal, HConst], newVal: Union[Value, HConst], createAlloca: bool=False)\
-            ->Tuple[BasicBlock, Union[Value, HConst]]:
+            ->tuple[BasicBlock, Union[Value, HConst]]:
         if not isinstance(var, HConst):
             varDict = self._variableInBlock.get(block, None)
             if varDict is None:
@@ -163,7 +163,7 @@ class ToLlvmIrTranslator():
     def _variableInBlock_insertRedef(self,
                                      block: BasicBlock,
                                      var: RtlSignal,
-                                     indexes: Optional[List[Union[RtlSignal, HConst]]],
+                                     indexes: Optional[list[Union[RtlSignal, HConst]]],
                                      newVal: Value):
         """
         Handle store to variable and update current definitions
@@ -218,7 +218,7 @@ class ToLlvmIrTranslator():
 
             assert isinstance(var, RtlSignal), var
             width = var._dtype.bit_length()
-            parts: List[Value] = []  # high first
+            parts: list[Value] = []  # high first
 
             # append unmodified lower bits
             if low > 0:
@@ -250,7 +250,7 @@ class ToLlvmIrTranslator():
 
     def _handleVariableStore(self,
                       var: RtlSignal,
-                      indexes: Tuple[Union[Value, HBitsConst, HSliceConst], ...],
+                      indexes: tuple[Union[Value, HBitsConst, HSliceConst], ...],
                       block: BasicBlock,
                       value: Value) -> int:
         """
@@ -363,7 +363,7 @@ class ToLlvmIrTranslator():
         res = MDNode.get(self.ctx, itemsAsMetadata, insertTmpAsFirts=insertSelfAsFirts)
         return res
 
-    def createFunctionPrototype(self, name: str, args:List[Tuple[str, Type, Type, int]], returnType: Type):
+    def createFunctionPrototype(self, name: str, args:list[tuple[str, Type, Type, int]], returnType: Type):
         """
         :param args: tuples name, pointer type, element type, address width 
         """
@@ -485,8 +485,10 @@ class ToLlvmIrTranslator():
             newArray.setUnnamedAddr(GlobalValue.UnnamedAddr.Global)
             newArray.setAlignment(Align(1))
             return newArray
+
         elif isinstance(vTy, HString):
             return v.to_py()
+
         else:
             raise NotImplementedError("unknown type of constant", v)
 
@@ -507,7 +509,8 @@ class ToLlvmIrTranslator():
                     if isinstance(d, HlsRead):
                         self.visit_Read(block, d)
                     else:
-                        raise NotImplementedError("This was supposed to be the case only for tmp variables for HlsRead results", var, d)
+                        raise NotImplementedError(
+                            "This was supposed to be the case only for tmp variables for HlsRead results", var, d)
 
                     self._initializedAllocaVariables.add(var)
 
@@ -530,7 +533,9 @@ class ToLlvmIrTranslator():
         else:
             builder.SetInsertPoint(block)
 
-    def _translateExprToLlvm(self, block: BasicBlock, var: Union[RtlSignal, Value, HConst, HObjList], allowHConst:bool=False) -> Tuple[BasicBlock, Union[Value, HConst]]:
+    def _translateExprToLlvm(self, block: BasicBlock,
+                             var: Union[RtlSignal, Value, HConst, HObjList],
+                             allowHConst:bool=False) -> tuple[BasicBlock, Union[Value, HConst]]:
         """
         Translate RtlSignal expression to SSA with constant propagation and expression cache
         """
@@ -599,7 +604,7 @@ class ToLlvmIrTranslator():
                 # skip indexing on 1b vectors/ 1b bits
                 return self._translateExprToLlvm(block, op.operands[0])
 
-            ops: List[Union[Value, HConst]] = []
+            ops: list[Union[Value, HConst]] = []
 
             precompute = var._dtype._PRECOMPUTE_CONSTANT_SIGNALS
             for o in op.operands:
@@ -651,10 +656,10 @@ class ToLlvmIrTranslator():
 
         arrTy: ArrayType = TypeToArrayType(arrTy)
         assert arrTy is not None, ("index operator only on array arrays", alloca)
-        #index0Width = index0.getType().getIntegerBitWidth()
+        # index0Width = index0.getType().getIntegerBitWidth()
         b: IRBuilder = self.b
         # :attention: GEP indexes are signed, we must extend if there is a possibility of signed overflow
-        #if arrTy.getNumElements() > 2 ** (index0Width - 1):
+        # if arrTy.getNumElements() > 2 ** (index0Width - 1):
         #    index0 = b.CreateZExt(index0, b.getIntNTy(index0Width + 1))
         index0 = b.CreateZExt(index0, index_t)
         indexes.append(index0)
@@ -700,8 +705,8 @@ class ToLlvmIrTranslator():
             raise NotImplementedError("operator[]", op0, op1)
 
     def _translateExprOperator(self, block: BasicBlock, instr: HlsNetNodeOperator, operator: HOperatorDef, resTy: HdlType,
-                              operands: Tuple[Union[Value, HConst]],
-                              instrName: str) -> Tuple[BasicBlock, Value]:
+                              operands: tuple[Union[Value, HConst]],
+                              instrName: str) -> tuple[BasicBlock, Value]:
         b = self.b
         if operator == HwtOps.CONCAT and isinstance(resTy, HBits):
             block, ops = self._translateExprsToLlvm(block, operands)
@@ -777,7 +782,7 @@ class ToLlvmIrTranslator():
                 constructor_fn = self._opConstructorMap2.get(operator, None)
                 if constructor_fn is not None:
                     return block, constructor_fn(self.llvm, b, instr, *args, name)
-                
+
                 assert len(operands) == 2, instr
                 _opConstructorMapCmp = self._opConstructorMapCmp
                 return block, _opConstructorMapCmp[operator](*args, name)
