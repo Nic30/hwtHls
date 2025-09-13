@@ -77,6 +77,19 @@ std::optional<int> getOptionalIntHwtHlsLoopAttribute(const llvm::Loop *TheLoop,
 	return IntMD->getSExtValue();
 }
 
+std::optional<llvm::StringRef> getOptionalStringHwtHlsLoopAttribute(
+		const llvm::Loop *TheLoop, llvm::StringRef Name) {
+	const MDOperand *AttrMD =
+			findStringMetadataForHwtHlsLoop(TheLoop, Name).value_or(nullptr);
+	if (!AttrMD)
+		return std::nullopt;
+
+	auto str = dyn_cast<MDString>(AttrMD->get());
+	if (!str)
+		return std::nullopt;
+	return str->getString();
+}
+
 std::optional<llvm::SmallVector<int>> getOptionalIntVecHwtHlsLoopAttribute(
 		const llvm::Loop *TheLoop, llvm::StringRef Name) {
 	const MDOperand *AttrMD =

@@ -13,6 +13,8 @@ std::optional<const llvm::MDOperand*> findStringMetadataForHwtHlsLoop(
 		const llvm::Loop *TheLoop, llvm::StringRef Name);
 std::optional<int> getOptionalIntHwtHlsLoopAttribute(const llvm::Loop *TheLoop,
 		llvm::StringRef Name);
+std::optional<llvm::StringRef> getOptionalStringHwtHlsLoopAttribute(
+		const llvm::Loop *TheLoop, llvm::StringRef Name);
 std::optional<llvm::SmallVector<int>> getOptionalIntVecHwtHlsLoopAttribute(
 		const llvm::Loop *TheLoop, llvm::StringRef Name);
 
