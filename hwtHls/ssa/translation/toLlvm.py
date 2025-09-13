@@ -265,6 +265,7 @@ class ToLlvmIrTranslator():
         assert isinstance(block, BasicBlock), block
         assert isinstance(value, Value), value
         alloca = self._getOrCreateAllocaForTmpVariable(var, False)
+        _alloca = alloca
         new_bb = block
         builder: IRBuilder = self.b
 
@@ -293,6 +294,12 @@ class ToLlvmIrTranslator():
                 assert t.getScalarSizeInBits() == var._dtype.bit_length(), (var, t, var._dtype)
 
         if not storeCreated:
+            if alloca is not _alloca:
+                # GEP was created
+                arrTy = TypeToArrayType(_alloca.getAllocatedType())
+                assert arrTy.getElementType() == value.getType(), (arrTy, value)
+            else:
+                assert _alloca.getAllocatedType() == value.getType(), (value, alloca)
             builder.CreateStore(value, alloca, False)
 
         if not var._hasGenericName and isinstance(value, RtlSignal) and value._hasGenericName:
