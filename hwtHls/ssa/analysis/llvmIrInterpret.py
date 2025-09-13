@@ -258,7 +258,8 @@ class LlvmIrInterpret():
 
         for phi, v in newPhiVals:
             # print("_runBlockPhis", phi, v)
-            regs[phi] = v
+            self._storeInstrResult(waveLog, nowTime, regs, phi, v)
+            # regs[phi] = v
 
     def _storeInstrResult(self, waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst],
                      instr: Instruction, res: Union[HBitsConst, HFloatTmpConst]):
