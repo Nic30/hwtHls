@@ -177,8 +177,8 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                     if o in (HwtOps.EQ, HwtOps.NE):
                         if netlistReduceEqNe(n, worklist):
                             return True
-
-                    elif netlistReduceCmpConstAfterConstAddSub(n, worklist):
+                    # :note: this is also for EQ/NE
+                    if netlistReduceCmpConstAfterConstAddSub(n, worklist):
                         return True
                 elif o is HwtOps.INDEX:
                     if netlistReduceIndexOnIndex(n, worklist):
