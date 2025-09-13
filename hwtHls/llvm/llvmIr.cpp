@@ -13,6 +13,7 @@
 #include <hwtHls/llvm/llvmIrMachineFunction.h>
 #include <hwtHls/llvm/llvmIrMachineLoop.h>
 #include <hwtHls/llvm/llvmIrMetadata.h>
+#include <hwtHls/llvm/pybind/llvmIrPassManager.h>
 #include <hwtHls/llvm/targets/hwtFpga.h>
 
 #include <llvm/IR/BasicBlock.h>
@@ -210,6 +211,7 @@ PYBIND11_MODULE(llvmIr, m) {
 	register_TargetLibrary(m);
 	register_HFloatTmpConfig(m);
 	register_Module(m);
+	register_PassManager(m);
 	register_VectorOfTypePtr(m);
 	register_strings(m);
 	register_Values_and_Use(m);

@@ -55,6 +55,7 @@ py3.extension_module(
      'llvmIrStrings.cpp',
      'llvmIrTargetLibrary.cpp',
      'llvmIrValues.cpp',
+     'pybind/llvmIrPassManager.cpp',
 
      'llvmSrc/CodeGenPrepare.cpp',
      'llvmSrc/CodeExtractor.cpp',
