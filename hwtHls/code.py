@@ -5,10 +5,10 @@
 :note: :class:`hwt.hdl.operatorDefs.HwtOps` are compatible and its translation
     is handled directly in :class:`ToLlvmIrTranslator`
 """
-from typing import Union, Optional
+from typing import Union, Optional, Callable
 
 from hdlConvertorAst.hdlAst._expr import HdlOpType
-from hwt.code import Concat
+from hwt.code import Concat, split_to_segments
 from hwt.doc_markers import hwt_expr_producer
 from hwt.hdl.const import HConst
 from hwt.hdl.operator import HOperatorNode
@@ -19,7 +19,8 @@ from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.defs import BIT
 from hwt.mainBases import HwIOBase
 from hwt.mainBases import RtlSignalBase
-from hwt.math import log2ceil, toPow2Ceil, AnyHValue
+from hwt.math import log2ceil as hwt_log2ceil, toPow2Ceil as hwt_toPow2Ceil, AnyHValue, \
+    isPow2 as hwt_isPow2, toPow2Floor as hwt_toPow2Floor
 from hwtHls._llvmOpDefUtils import _getllvmIntBitcountIntrinsicConstructor, \
     _getllvmIntUnaryIntrinsicConstructor, _getllvmIntBinOpConstructor, \
     _getllvmIntFShIntrinsicConstructor, _getllvmIntBinaryIntrinsicConstructor, \
@@ -28,7 +29,7 @@ from hwtHls.frontend.hOperatorDefLlvm import HOperatorDefLlvm
 from hwtHls.llvm.llvmIr import Intrinsic
 from pyMathBitPrecise.bit_utils import mask, reverse_bits as reverse_bits_int, to_signed, \
     to_unsigned, bit_field, ValidityError, ctlz as ctlz_int, \
-    ctpop as ctpop_int, cttz as cttz_int
+    ctpop as ctpop_int, cttz as cttz_int, next_power_of_2 as next_power_of_2_int
 
 
 @hwt_expr_producer
@@ -47,7 +48,7 @@ def ctlz(v: AnyHBitsValue, is_zero_poison:bool=False) -> AnyHBitsValue:
     :note: translates to llvm.ctlz.*
     """
     w = v._dtype.bit_length()
-    resTy = HBits(log2ceil(w + 1))
+    resTy = HBits(hwt_log2ceil(w + 1))
     if isinstance(v, HConst):
         v: HConst
         if not v._is_full_valid():
@@ -72,7 +73,7 @@ def cttz(v: AnyHBitsValue, is_zero_poison:bool=False) -> AnyHBitsValue:
     :note: translates to llvm.cttz.*
     """
     w = v._dtype.bit_length()
-    resTy = HBits(log2ceil(w + 1))
+    resTy = HBits(hwt_log2ceil(w + 1))
     if isinstance(v, HConst):
         v: HConst
         if not v._is_full_valid():
@@ -97,7 +98,7 @@ def ctpop(v: AnyHBitsValue) -> AnyHBitsValue:
     :note: translates to llvm.ctpop.*
     """
     w = v._dtype.bit_length()
-    resTy = HBits(log2ceil(w + 1))
+    resTy = HBits(hwt_log2ceil(w + 1))
     if isinstance(v, HConst):
         v: HConst
         if not v._is_full_valid():
@@ -144,7 +145,7 @@ def ashr(v: AnyHBitsValue, shiftAmount: AnyHBitsValue,
     t = v._dtype
     w = t.bit_length()
     shW = shiftAmount._dtype.bit_length()
-    assert shW == log2ceil(w + 1), (shW, log2ceil(w + 1), w)
+    assert shW == hwt_log2ceil(w + 1), (shW, hwt_log2ceil(w + 1), w)
     if isinstance(v, HConst) and isinstance(shiftAmount, HConst):
         if not isinstance(t, HBits):
             raise NotImplementedError(t)
@@ -152,7 +153,7 @@ def ashr(v: AnyHBitsValue, shiftAmount: AnyHBitsValue,
         if not shiftAmount._is_full_valid():
             return t.from_py(None)
         shiftAmount = int(shiftAmount)
-        assert shiftAmount < toPow2Ceil(w + 1), (shiftAmount, w)
+        assert shiftAmount < hwt_toPow2Ceil(w + 1), (shiftAmount, w)
         assert shiftAmount >= 0, (shiftAmount, w)
         # :note: python >> is arithmetic shift, but the value is stored in unsigned format
         return t.from_py(
@@ -187,14 +188,14 @@ def lshr(v: AnyHBitsValue, shiftAmount: AnyHBitsValue,
     assert not shiftAmount._dtype.signed
     w = t.bit_length()
     shW = shiftAmount._dtype.bit_length()
-    assert shW == log2ceil(w + 1), (shW, log2ceil(w + 1), w)
+    assert shW == hwt_log2ceil(w + 1), (shW, hwt_log2ceil(w + 1), w)
     if isinstance(v, HConst) and isinstance(shiftAmount, HConst):
         if not isinstance(t, HBits):
             raise NotImplementedError(t)
         if not shiftAmount._is_full_valid():
             return t.from_py(None)
         shiftAmount = int(shiftAmount)
-        assert shiftAmount < toPow2Ceil(w + 1), (shiftAmount, w)
+        assert shiftAmount < hwt_toPow2Ceil(w + 1), (shiftAmount, w)
         assert shiftAmount >= 0, (shiftAmount, w)
 
         # :note: python >> is arithmetic shift, but the value is stored in unsigned format
@@ -234,7 +235,7 @@ def shl(v: AnyHBitsValue, shiftAmount: AnyHBitsValue,
     t = v._dtype
     w = t.bit_length()
     shW = shiftAmount._dtype.bit_length()
-    assert shW == log2ceil(w + 1), (shW, log2ceil(w + 1), w)
+    assert shW == hwt_log2ceil(w + 1), (shW, hwt_log2ceil(w + 1), w)
     if isinstance(v, HConst) and isinstance(shiftAmount, HConst):
         if not isinstance(t, HBits):
             raise NotImplementedError(t)
@@ -243,7 +244,7 @@ def shl(v: AnyHBitsValue, shiftAmount: AnyHBitsValue,
         if not shiftAmount._is_full_valid():
             return t.from_py(None)
         shiftAmount = int(shiftAmount)
-        assert shiftAmount < toPow2Ceil(w + 1), (shiftAmount, w)
+        assert shiftAmount < hwt_toPow2Ceil(w + 1), (shiftAmount, w)
         assert shiftAmount >= 0, (shiftAmount, w)
 
         # :note: python >> is arithmetic shift, but the value is stored in unsigned format
@@ -401,6 +402,109 @@ def shlIn(a: AnyHBitsValue, b: AnyHBitsValue)\
     Shift in b into value of a from lsb side
     """
     return Concat(a[a._dtype.bit_length() - b._dtype.bit_length():], b)
+
+
+@hwt_expr_producer
+def shArray(arr: list[AnyHValue], shiftAmount: AnyHBitsValue,
+            shFn: Callable[[AnyHBitsValue, AnyHBitsValue], AnyHBitsValue],
+            extendToPow2Width=True) -> list[AnyHBitsValue]:
+    """
+    Use shift operator to shif shift items in array.
+
+    :attention: left/right is reversed in this context (because array has item 0 on left while bit vector at right)
+        so arr << 1 will mean that arr[0] = arr[1], arr[1] = arr[2] ...
+    
+    :note: Using shift operator to shift an array may have the benefit of removing shift from CFG
+        which may significantly reduce compilation time.
+    
+    :param extendToPow2Width: if True the items of non-power of 2 width will be extended
+        and single shift will be used if False the items will be divided to chunks of power of 2 width
+        multiple shifts will be used to shift those chunks and then the result will be concatenated
+        back to form the result
+    """
+    # [todo] add a variant where the shift is build item wise and the number of output items can be trimmed
+    itemT = arr[0]._dtype
+    itemWidth = itemT.bit_length()
+    if not isinstance(itemT, HBits):
+        newItemT = HBits(itemWidth)
+        arr = [item._reinterpret_cast(newItemT) for item in arr]
+
+    if hwt_isPow2(itemWidth):
+        if itemWidth == 1:
+            shiftAmountPadded = shiftAmount
+        else:
+            assert itemWidth > 0
+            # padding because we will shift only with granularity of the item
+            shiftAmountPadded = Concat(shiftAmount, HBits(hwt_log2ceil(itemWidth)))
+
+        res = shFn(Concat(*reversed(arr)), shiftAmountPadded)
+        resArray = split_to_segments(res, itemWidth)
+
+    elif extendToPow2Width:
+        assert itemWidth > 1
+        newItemWidth = next_power_of_2_int(itemWidth)
+        arr = [item._zext(newItemWidth) for item in arr]
+        shiftAmountPadded = Concat(shiftAmount, HBits(hwt_log2ceil(newItemWidth)))
+        res = shFn(Concat(*reversed(arr)), shiftAmountPadded)
+        resArray = split_to_segments(res, newItemWidth)
+        resArray = [item._trunc(itemWidth) for item in resArray]
+    else:
+        # divide to 2**n widths, perform shift separately, then merge back together
+        assert itemWidth > 1
+
+        # :note: the outer list is for bits of result (lower first),
+        #        the inner list is for array items (lower item first)
+        resArrParts: list[list[AnyHBitsValue]] = []
+        offset = 0
+        w = hwt_toPow2Floor(itemWidth)
+        while offset < itemWidth:
+            if w <= itemWidth - offset:
+                # extract segment of size w (==2**n) from array
+                # starting from bit 0 and largest 2**n possible width
+                # gradually decreasing the with to consume rest of the bits
+                if w == 1:
+                    shiftAmountPadded = shiftAmount
+                else:
+                    assert w > 0
+                    # padding because we will shift only with granularity of the item
+                    shiftAmountPadded = Concat(shiftAmount, HBits(hwt_log2ceil(w)))
+
+                res = shFn(Concat(*reversed(arr)), shiftAmountPadded)
+                resArray = split_to_segments(res, newItemWidth)
+                resArrParts.append(resArrParts)
+
+                offset += w
+
+            w /= 2
+
+        # concatenate 2**n chunks shifted independently back to array of full width
+        resArray = [
+            Concat(*reversed(subBitsArr[itemI] for subBitsArr in resArrParts))
+            for itemI in range(len(arr))
+        ]
+
+    if not isinstance(itemT, HBits):
+        resArray = [item._reinterpret_cast(itemT) for item in arr]
+
+    return resArray
+
+
+@hwt_expr_producer
+def shlArray(arr: list[AnyHValue], shiftAmount: AnyHBitsValue, extendToPow2Width=True) -> list[AnyHBitsValue]:
+    """
+    :see: :func:`~.shArray`
+    :note: arr << 1 will mean that arr[0] = arr[1], arr[1] = arr[2] ...
+    """
+    return shArray(arr, shiftAmount, shl, extendToPow2Width)
+
+
+@hwt_expr_producer
+def lshrArray(arr: list[AnyHValue], shiftAmount: AnyHBitsValue, extendToPow2Width=True) -> list[AnyHBitsValue]:
+    """
+    :see: :func:`~.shArray`
+    :note: arr >> 1 will mean that  ..., arr[1] = arr[0], arr[0] = 0
+    """
+    return shArray(arr, shiftAmount, lshr, extendToPow2Width)
 
 
 @hwt_expr_producer
