@@ -41,7 +41,7 @@ class HlsThreadFromNetlist(HlsThread):
                                             self.hls.parentHwModule._getDefaultName() + "_" + self.getLabel(),
                                             self.resourceConstraints,
                                             namePrefix=namePrefix)
-        self.builder:HlsNetlistBuilder = netlist.builder
+        self.builder: HlsNetlistBuilder = netlist.builder
         self.netlistConstructor(netlist)
         ioResources = []
         for n in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT):
