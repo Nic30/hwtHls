@@ -152,8 +152,8 @@ void register_IRBuilder(pybind11::module_ & m) {
 			return CreateStreamReadEndOfFrame(self, ioArgPtr);
 		}, py::return_value_policy::reference)
 		.def("CreateStreamWrite", [](llvm::IRBuilder<> *Builder, llvm::Value *ioArgPtr,
-				llvm::Value *valueToWrite, llvm::Value *writeMask, llvm::Value *isEoF) {
-			return CreateStreamWrite(Builder, ioArgPtr, valueToWrite, writeMask, isEoF);
+				llvm::Value *valueToWrite, llvm::Value *writeMaskOrEmpty, llvm::Value *isSoF, llvm::Value *isEoF) {
+			return CreateStreamWrite(Builder, ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF);
 		}, py::return_value_policy::reference)
 		.def("CreateStreamWriteStartOfFrame", [](llvm::IRBuilder<> * self, llvm::Value *ioArgPtr) {
 			return CreateStreamWriteStartOfFrame(self, ioArgPtr);
