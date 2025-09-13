@@ -47,18 +47,17 @@ public:
 	bool runOptimizationsAfterWorklistEmpty();
 
 	// HwtHlsInstComibnerFp.cpp
-	llvm::Instruction* tryReduceFDivByPow2_to_HwtHlsFpSh(llvm::BinaryOperator &I);
-	llvm::Instruction* tryReduceFMulByPow2_to_HwtHlsFpSh(llvm::BinaryOperator &I);
+	llvm::Instruction* tryReduceFDivByPow2_to_HwtHlsFpSh(
+			llvm::BinaryOperator &I);
+	llvm::Instruction* tryReduceFMulByPow2_to_HwtHlsFpSh(
+			llvm::BinaryOperator &I);
 	llvm::Instruction* _tryReduceFMulDivByPow2_to_HwtHlsFpSh(
-			llvm::BinaryOperator &I, llvm::Value *x, llvm::Value *sh, bool isMul);
-	llvm::Instruction* _tryReduceFRemByPow2_to_HwtHlsFpCast(
-			llvm::CallInst &I);
-	llvm::Instruction* _tryReduceFModByPow2_to_HwtHlsFpCast(
-				llvm::CallInst &I);
-	llvm::Instruction* _tryReduceCastHFloatTmpToHFloatTmpRaw(
-			llvm::CallInst &I);
-	llvm::Instruction* _tryReduceHwtHlsFpFAdd(
-			llvm::CallInst &I);
+			llvm::BinaryOperator &I, llvm::Value *x, llvm::Value *sh,
+			bool isMul);
+	llvm::Instruction* _tryReduceFRemByPow2_to_HwtHlsFpCast(llvm::CallInst &I);
+	llvm::Instruction* _tryReduceFModByPow2_to_HwtHlsFpCast(llvm::CallInst &I);
+	llvm::Instruction* _tryReduceCastHFloatTmpToHFloatTmpRaw(llvm::CallInst &I);
+	llvm::Instruction* _tryReduceHwtHlsFpFAdd(llvm::CallInst &I);
 	// reduce casts which are no longer required after values have been specialized
 	llvm::Instruction* _tryReduceCastHFloatTmpRaw(llvm::CallInst &I);
 
