@@ -207,31 +207,77 @@ llvm::Instruction* HwtHlsInstCombiner::_tryReduceSelectInst_toAndOr_SelectOfComp
 
 Instruction* HwtHlsInstCombiner::tryReduceSelectInst_toAndOr(
 		llvm::SelectInst &SI) {
-	if (!SI.getType()->isIntegerTy(1))
+	if (!SI.getType()->isIntegerTy())
 		return nullptr;
+	size_t width = SI.getType()->getIntegerBitWidth();
 	auto VT = SI.getTrueValue();
 	auto VF = SI.getFalseValue();
 	auto VTC = dyn_cast<ConstantInt>(VT);
 	auto VFC = dyn_cast<ConstantInt>(VF);
 
 	Builder.SetInsertPoint(&SI);
-	// handle cases it zero or all ones value operands
+
 	auto C = SI.getCondition();
+	if (VTC && VFC) {
+		// bot value operands are constants -> concatenation of constants and condition or its negation
+		auto _VTC = VTC->getValue();
+		auto _VFC = VTC->getValue();
+
+		auto unequalBitMask = _VTC ^ VFC->getValue();
+		SmallVector<Value*> concatOps;
+		size_t off = 0;
+		for (const auto& [isUnequal, uneqSeqLen] : iter1and0sequences(unequalBitMask, 0,
+				width)) {
+			auto VTVal = _VTC.extractBits(uneqSeqLen, off);
+			if (!isUnequal) {
+				concatOps.push_back(Builder.getInt(VTVal));
+				off += uneqSeqLen;
+				continue;
+			}
+			auto VFVal = _VFC.extractBits(uneqSeqLen, off);
+			for (const auto& [tBit, seqLen] : iter1and0sequences(VTVal, 0,
+					uneqSeqLen)) {
+				// number of bits processed in one step,
+				// specifies the number of lsb bits which is same in _VTC/_VFC separately
+				// bits on this position may be 0 or 1 depending on C
+				Value *bitVal = C;
+				if (!tBit) {
+					// bit is 0 if C is 1, negation is required
+					bitVal = Builder.CreateNot(bitVal);
+				}
+				// extend to length of sequence which are driven by same value
+				concatOps.push_back(
+						Builder.CreateSExt(bitVal,
+								Builder.getIntNTy(seqLen)));
+				off += seqLen;
+			}
+		}
+		assert(off == width);
+		return replaceInstUsesWith(SI, CreateBitConcat(&Builder, concatOps));
+	}
+
+	// handle cases it zero or all ones value operands
 	if (VFC && VFC->isZero()) {
 		// select %c, v0, 0 -> and(c, v0)
+		if (width != 1)
+			C = Builder.CreateSExt(C, VT->getType());
 		return replaceInstUsesWith(SI, Builder.CreateAnd(C, VT));
 	} else if (VTC && VTC->isAllOnesValue()) {
 		// select %c, 1, v1 -> or(c, v1)
+		if (width != 1)
+			C = Builder.CreateSExt(C, VT->getType());
 		return replaceInstUsesWith(SI, Builder.CreateOr(C, VF));
 	} else if (VTC && VTC->isZero()) {
 		// select %c, 0, v1 -> and(!c, v1)
+		if (width != 1)
+			C = Builder.CreateSExt(C, VT->getType());
 		auto nC = Builder.CreateNot(C);
-		Worklist.pushValue(nC);
 		return replaceInstUsesWith(SI, Builder.CreateAnd(nC, VF));
 	} else if (VFC && VFC->isAllOnesValue()) {
 		// select %c, v0, 1 -> or(!c, v0)
+		if (width != 1)
+			C = Builder.CreateSExt(C, VT->getType());
 		auto nC = Builder.CreateNot(C);
-		Worklist.pushValue(nC);
 		return replaceInstUsesWith(SI, Builder.CreateOr(nC, VT));
 	}
 
@@ -249,16 +295,18 @@ Instruction* HwtHlsInstCombiner::tryReduceSelectInst_toAndOr(
 
 	// %res = select i1 %v0, i1 %v0, i1 %v1
 	// to: or v0, v1
-	if (match(C, m_Specific(VT))) {
+	if (match(VT, m_SExtOrSelf(m_Specific(C)))) {
 		auto newI = Builder.CreateOr(VT, VF);
 		return replaceInstUsesWith(SI, newI);
 	}
 	// %res = select i1 %v0, i1 %v1, i1 %v0
 	// to: and v0, v1
-	if (match(C, m_Specific(VF))) {
+	if (match(VF, m_SExtOrSelf(m_Specific(C)))) {
 		auto newI = Builder.CreateAnd(VT, VF);
 		return replaceInstUsesWith(SI, newI);
 	}
+	if (width != 1)
+		return nullptr;
 	//// case for operands swapped
 	//// %c = xor i1 %v1, true
 	//// %res = select i1 %c, i1 %v0, i1 %v1
