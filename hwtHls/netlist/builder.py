@@ -4,6 +4,8 @@ from typing import Tuple, Union, Dict, Optional, Type, Callable, Set, List, \
     Literal
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
+from hwt.code import Concat
+from hwt.hdl.commonConstants import b0, b1
 from hwt.hdl.const import HConst
 from hwt.hdl.operatorDefs import HOperatorDef, HwtOps, CAST_OPS
 from hwt.hdl.types.bits import HBits
@@ -27,6 +29,7 @@ from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.simplifyUtils import getConstOfOutput
 from pyMathBitPrecise.bit_utils import mask
+
 
 HlsNetlistBuilderOperatorCacheKey_t = Tuple[Union[HOperatorDef, Type[HlsNetNode]],
                                               Tuple[Union[HlsNetNodeOut, HConst], ...]]
@@ -89,8 +92,9 @@ class HlsNetlistBuilder():
         self._addNode(c)
         return c._outputs[0]
 
-    def buildConstBit(self, v: int, name:Optional[str]=None):
-        return self.buildConst(BIT.from_py(v), name=name)
+    def buildConstBit(self, v: Optional[int], name:Optional[str]=None):
+        assert v in (0, 1, None, False, True), v
+        return self.buildConst(BIT.from_py(v) if v is None else b1 if v else b0, name=name)
 
     @staticmethod
     def buildScheduledConst(parent: "ArchElement", clkIndex: int, v: HConst):
