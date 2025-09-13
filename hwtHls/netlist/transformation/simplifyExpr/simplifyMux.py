@@ -266,7 +266,7 @@ def netlistReduceMuxToShift(builder: HlsNetlistBuilder, n: HlsNetNodeMux, workli
 
 
 def netlistReduceMuxConstantConditionsAndChildMuxSink(n: HlsNetNodeMux, worklist: SetList[HlsNetNode]):
-    builder: HlsNetlistBuilder = n.getHlsNetlistBuilder()
+    builder: HlsNetlistBuilder = HlsNetlistBuilderWithWorklist(n.getHlsNetlistBuilder(), worklist)
     # resolve constant conditions
     newCondSet: Set[HlsNetNodeOut] = set()
     newOps: List[HlsNetNodeIn] = []
@@ -315,7 +315,6 @@ def netlistReduceMuxConstantConditionsAndChildMuxSink(n: HlsNetNodeMux, worklist
         else:
             i = builder.buildMux(n._outputs[0]._dtype, tuple(newOps))
             i.obj.tryToInheritName(n)
-            worklist.append(i.obj)  # may have become ROM
 
         replaceOperatorNodeWith(n, i, worklist)
         return True
