@@ -322,6 +322,28 @@ llvm::Value* BitRangeGetSrc(const llvm::CallInst *C) {
 size_t BitRangeGetOffset(const llvm::CallInst *C) {
 	return dyn_cast<ConstantInt>(C->getArgOperand(1))->getZExtValue();
 }
+
+llvm::BasicBlock::iterator GetAfterSlicesInsertPoint(llvm::Instruction &I) {
+	auto It = I.getIterator();
+	It++;
+	for (; It != I.getParent()->end(); ++It) {
+		if (isa<llvm::TruncInst>(&*It)) {
+			auto _src = It->getOperand(0);
+			if (_src != &I)
+				return It;
+		} else if (auto CI = llvm::dyn_cast<llvm::CallInst>(&*It)) {
+			if (IsBitRangeGet(CI)) {
+				auto _src = CI->getArgOperand(0);
+				if (_src != &I)
+					return It;
+			}
+		} else {
+			return It;
+		}
+	}
+	return I.getParent()->end();
+}
+
 const std::string BitConcatName = "hwtHls.bitConcat";
 
 llvm::Value* CreateBitConcat(llvm::IRBuilderBase *Builder,

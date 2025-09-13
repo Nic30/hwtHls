@@ -27,6 +27,11 @@ bool IsBitRangeGet(const llvm::Function *F);
 llvm::Value* BitRangeGetSrc(const llvm::CallInst *C);
 size_t BitRangeGetOffset(const llvm::CallInst *C);
 
+/* Get insert point which is after every BitRangeGet and TruncInst for specified I
+ * :note: this preserves order of instruction compatible with SearchBitRangeGet
+ * */
+llvm::BasicBlock::iterator GetAfterSlicesInsertPoint(llvm::Instruction &I);
+
 extern const std::string BitConcatName;
 /*
  * :note: operands does not have to be of same type
