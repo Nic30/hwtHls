@@ -147,8 +147,11 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitPHINode(const PHINode *I) {
 		PHIValueProver valProover(I);
 		SetOnExitAction<bool> setBackResolvePhiValues(resolvePhiValues, false,
 				true);
-
-		for (auto *op : I->operand_values()) {
+		SetVector<const Value*> uniqueOperandValues;
+		for (auto *op: I->operand_values()) {
+			uniqueOperandValues.insert(op);
+		}
+		for (auto *op : uniqueOperandValues) {
 			const auto &_c = visitValue(op);
 			valProover.addOperandConstraint(_c);
 		}
@@ -568,7 +571,8 @@ void VarBitConstraint_discardCommonPrefixAndUselessSuffix(VarBitConstraint &res,
 					&& "Case where both values were equal should have been handled before call of this fn.");
 	if (commonPrefixLen) {
 		// clear common bits from msb side
-		res.clearAllOperandMasks(bitOffset + width - commonPrefixLen, bitOffset + width);
+		res.clearAllOperandMasks(bitOffset + width - commonPrefixLen,
+				bitOffset + width);
 	}
 	if (commonPrefixLen + 1 < width) {
 		// clear bits after first different bit on lsb side

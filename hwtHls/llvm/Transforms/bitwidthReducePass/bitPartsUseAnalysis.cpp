@@ -109,9 +109,12 @@ void BitPartsUseAnalysisContext::updateUseMask(const llvm::Value *V,
 	APInt _newMask = newMask & vbc.getTrullyComputedBitMask(V);
 	bool someNewBitsSet = (~oldMask & _newMask) != 0;
 	if (someNewBitsSet) {
+		auto curUseMask = vbc.useMask;
 		vbc.useMask |= _newMask;
-		if (auto I = dyn_cast<Instruction>(V))
-			propagateUseMaskInstruction(I, vbc);
+		if (vbc.useMask != curUseMask) {
+			if (auto I = dyn_cast<Instruction>(V))
+				propagateUseMaskInstruction(I, vbc);
+		}
 	}
 	// propagate new use mask also for replacements
 	if (_newMask != newMask) {

@@ -106,8 +106,7 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI, bool& CFGC
 							throw std::runtime_error(
 									"BitwidthReductionPass: SwitchInst condition must not be undef");
 						}
-					}
-					if (auto BR = dyn_cast<BranchInst>(&I)) {
+					} else if (auto BR = dyn_cast<BranchInst>(&I)) {
 						if (BR->isConditional()
 								&& isa<UndefValue>(BR->getCondition())) {
 							throw std::runtime_error(
