@@ -272,10 +272,28 @@ llvm::Instruction* HwtHlsInstCombinerMixin<DerivedT>::replaceInstUsesWith(
 			&& I.hasName())
 		V->takeName(&I);
 	if (excludeAssumeUsers) {
-		I.replaceUsesWithIf(V, [](const llvm::Use &U) {
-			return !llvm::isa<llvm::AssumeInst>(U.getUser());
+		size_t replacedCnt = 0;
+		I.replaceUsesWithIf(V, [&replacedCnt](const llvm::Use &U) {
+			if (!llvm::isa<llvm::AssumeInst>(U.getUser())) {
+				replacedCnt++;
+				return true;
+			}
+			return false;
 		});
+		if (!replacedCnt) {
+			Worklist.addValue(V); // V is potentially unused
+			return nullptr;
+		}
 	} else {
+//#ifndef NDEBUG
+//		if (llvm::isa<llvm::ConstantInt>(V)) {
+//			for (auto *U : I.users()) {
+//				assert(
+//						!isa<llvm::AssumeInst>(U) &&
+//						"Likely the result of simplification of assume using assume itself");
+//			}
+//		}
+//#endif
 		I.replaceAllUsesWith(V);
 	}
 	return &I;
