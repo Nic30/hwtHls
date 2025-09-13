@@ -167,7 +167,7 @@ Instruction* HwtHlsInstCombiner::runOnInstr(Instruction &I) {
 		}
 	}
 	if (auto r = simplifyInstruction(&I, SQ)) {
-		return replaceInstUsesWith(I, r);
+		return replaceInstUsesWith(I, r, I.getName().starts_with(IMPLICATION_CACHE_INSTR_NAME_PREFIX));
 	}
 
 	return nullptr;
