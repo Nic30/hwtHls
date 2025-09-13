@@ -51,6 +51,8 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         * The flush flag is restarted if parent node stops stalling
         * mayFlush = src inputs valid & extraCond & ~skipWhen & dst.ready
           if this write writes channel dst.ready = dst.extraCond & ~dst.skipWhen & dst.parent.ack
+    :ivar _bufferCapacity: an optional specification of the size of the buffer for this channel
+        if None the size is infered from the scheduling
     """
     _PORT_ATTR_NAMES = HlsNetNodeExplicitSync._PORT_ATTR_NAMES + ["_portSrc"]
 
@@ -58,6 +60,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
                  dst: Union[RtlSignal, HwIO, None],
                  mayBecomeFlushable=False,
                  name:Optional[str]=None,
+                 bufferCapacity:Optional[int]=None,
                  addSrcPort=True):
         HlsNetNode.__init__(self, netlist, name=name)
         self._associatedReadSync: Optional["HlsNetNodeReadSync"] = None
@@ -78,9 +81,9 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         self._isFlushable = False
         self._fullPort: Optional[HlsNetNodeOut] = None
         self.allocationType = CHANNEL_ALLOCATION_TYPE.BUFFER
+        self._bufferCapacity = bufferCapacity
         self.buffName = None
         self._loopChannelGroup: Optional["LoopChanelGroup"] = None
-
 
     @override
     def clone(self, memo:dict, keepTopPortsConnected:bool) -> list["HlsNetNode", bool]:
@@ -192,7 +195,6 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
 
             self._isFlushable = False
 
-
     def getFullPort(self) -> HlsNetNodeOut:
         """
         The full port is HlsNetlistOut. Only usable for channels with capacity>0.
@@ -242,7 +244,6 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
 
         if self.hasReadyNB():
             allocator.rtlRegisterOutputRtlSignal(self._readyNB, readyRtl, False, False, True)
-
 
     @override
     def rtlAlloc(self, allocator: "ArchElement") -> list[HdlStatement]:

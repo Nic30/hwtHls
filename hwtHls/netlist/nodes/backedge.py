@@ -36,6 +36,15 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
         self._rtlDataVldReg:Optional[Union[RtlSignal, HwIO]] = None
         self._rtlFullReg:Optional[Union[RtlSignal, HwIO]] = None
 
+    @classmethod
+    def _constructorAsHlsNetNodeRead(cls, netlist: "HlsNetlistCtx", src: Union[RtlSignal, HwIO, None],
+                 dtype: Optional[HdlType]=None, name:Optional[str]=None, channelInitValues=(), addPortDataOut=True):
+        assert dtype is not None
+        assert addPortDataOut
+        n = cls(netlist, dtype, name=name, channelInitValues=channelInitValues)
+        # n.src = src
+        return n
+
     @override
     def getSchedulingResourceType(self):
         return self
@@ -195,14 +204,28 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
 class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
     """
     The read from HLS pipeline which is binded to a buffer for data/sync on backward edge in dataflow graph.
+    
+
     """
     _PORT_ATTR_NAMES = HlsNetNodeWrite._PORT_ATTR_NAMES + ["_fullPort"]
 
     def __init__(self, netlist:"HlsNetlistCtx",
                  name:Optional[str]=None,
-                 mayBecomeFlushable:bool=False):
-        HlsNetNodeWrite.__init__(self, netlist, None, name=name, mayBecomeFlushable=mayBecomeFlushable)
-        
+                 mayBecomeFlushable:bool=False,
+                 bufferCapacity:Optional[int]=None):
+        HlsNetNodeWrite.__init__(self, netlist, None, name=name, mayBecomeFlushable=mayBecomeFlushable, bufferCapacity=bufferCapacity)
+
+    @classmethod
+    def _constructorAsHlsNetNodeWrite(cls, netlist: "HlsNetlistCtx",
+                 dst: Union[RtlSignal, HwIO, None],
+                 mayBecomeFlushable=False,
+                 name:Optional[str]=None,
+                 addSrcPort=True):
+        assert addSrcPort
+        n = cls(netlist, mayBecomeFlushable=mayBecomeFlushable, name=name)
+        # n.dst = dst
+        return n
+
     @override
     def clone(self, memo:dict, keepTopPortsConnected: bool) -> Tuple["HlsNetNodeWriteBackedge", bool]:
         y, isNew = HlsNetNodeRead.clone(self, memo, keepTopPortsConnected)
@@ -231,12 +254,17 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
         return self
 
     @override
-    def _getBufferCapacity(self):
+    def _getBufferCapacity(self) -> int:
         # srcWrite = self
+        bufferCapacity = self._bufferCapacity
         dstRead = self.associatedRead
         if dstRead is None or self.allocationType == CHANNEL_ALLOCATION_TYPE.IMMEDIATE:
+            assert not bufferCapacity, self
             return 0
-        assert dstRead is not None
+
+        assert dstRead is not None, self
+        if bufferCapacity is not None:
+            return bufferCapacity
         # dst_t = dstRead.scheduledOut[0]
         # src_t = srcWrite.scheduledIn[0]
         # assert dst_t < src_t, (self, dst_t, src_t)
@@ -384,10 +412,10 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
         wEn = allocator.rtlAllocHlsNetNodeInDriverIfExists(self.extraCond)
         if wEn is not None:
             wEn = wEn.data
-            #if isinstance(wEn, HConst):
+            # if isinstance(wEn, HConst):
             #    raise AssertionError("The enable condition for a channel should never be constant,"
             #                         " if 1 the condition should be removed, if 0 the channel should be removed", wEn, self)
-            
+
         isReg = self.allocationType == CHANNEL_ALLOCATION_TYPE.REG
         rwMayHappenAtOnce = rClkI == wClkI or allocator.rtlStatesMayHappenConcurrently(rClkI, wClkI)
         wStageCon: ConnectionsOfStage = allocator.connections[wClkI]

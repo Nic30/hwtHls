@@ -2,7 +2,7 @@ from typing import Optional, List, Tuple, Dict
 
 from hwt.hwIO import HwIO
 from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineLoop, Register, \
-    TargetOpcode, MachineRegisterInfo
+    TargetOpcode, MachineRegisterInfo, MDNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
 
 
@@ -25,7 +25,7 @@ def getTopLoopForBlock(mb: MachineBasicBlock, loop: MachineLoop) -> MachineLoop:
 
 
 # [todo] rm because it is handled when liveness dict is generated (except for IMPLICIT_DEF)
-def _regIsValidLiveIn(regToIo: Dict[Register, HwIO] , MRI: MachineRegisterInfo, liveIn: Register) -> bool:
+def _regIsValidLiveIn(regToIo: Dict[Register, tuple[HwIO, MDNode]] , MRI: MachineRegisterInfo, liveIn: Register) -> bool:
     if liveIn in regToIo:
         return False  # we will use interface not the value of address where it is mapped
 

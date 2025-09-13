@@ -138,6 +138,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             assert self.src is None, (
                 "Src interface must not be yet instantiated on parent HwModule", self, self.src)
             w = self.associatedWrite
+            assert w is not None, ("if src is None this is a channel and associatedWrite must be set", self)
             assert w.dst is None, (w, w.dst)
             dtype = self._portDataOut._dtype
             if HdlType_isVoid(dtype):

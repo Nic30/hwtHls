@@ -1,23 +1,16 @@
-from typing import Union, Tuple, Sequence, Optional
+from typing import Union, Tuple, Optional
 
 from hwt.hdl.const import HConst
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
 from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_getName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwtHls.frontend.ioUtils import  ANY_HLS_STREAM_INTF_TYPE, ANY_SCALAR_INT_VALUE
 from hwtHls.frontend.statements import HlsStm
 from hwtHls.frontend.statementsRead import HlsRead
-from hwtHls.frontend.ioUtils import _getNativeInterfaceWordType, \
-    ANY_HLS_STREAM_INTF_TYPE, ANY_SCALAR_INT_VALUE
-from hwtHls.llvm.llvmIr import MachineInstr, Argument, Type, ArrayType, TypeToArrayType, \
-    Value, BasicBlock
-from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.llvm.llvmIr import Argument, Type, ArrayType, TypeToArrayType, \
+    Value, BasicBlock, MDTuple
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
-from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
-from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.nodes.writeIndexed import HlsNetNodeWriteIndexed
-from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.toLlvmArgumentUtils import getArgumentForHwIO
 
 
@@ -47,12 +40,10 @@ class HlsWrite(HlsStm):
         self.src = src
         self._parent = parent
         self._isVolatile = isVolatile
+        self._isBlocking = True
 
         self.dst = dst
         self.mayBecomeFlushable = mayBecomeFlushable
-
-    def _getNativeInterfaceWordType(self) -> HdlType:
-        return _getNativeInterfaceWordType(self.dst)
 
     def _getInterfaceName(self, io: Union[HwIO, Tuple[HwIO]]) -> str:
         return HlsRead._getInterfaceName(self, io)
@@ -62,38 +53,10 @@ class HlsWrite(HlsStm):
         bb, src = toLlvm._translateExprToLlvm(bb, self.src)
         # :attention: it is important that dst is evaluated after src expression was translated because Argument
         #  instanced may have been changed by mutateFunctionAddArg
-        dst, wordT = getArgumentForHwIO(toLlvm, self.dst, self, False)
+        dst, wordT = getArgumentForHwIO(toLlvm, self.dst, self._parent._ioProxyForIo[self.dst], self, False)
         dst: Argument
         wordT: Type
         return bb, b.CreateStore(src, dst, self._isVolatile)
-
-    @classmethod
-    def _translateMirToNetlist(cls,
-            representativeWriteStm: "HlsWrite",
-            mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
-            mbMeta: MachineBasicBlockMeta,
-            instr: MachineInstr,
-            srcVal: HlsNetNodeOutAny,
-            dstIo: Union[HwIO, RtlSignal],
-            index: Union[int, HlsNetNodeOutAny],
-            cond: Optional[HlsNetNodeOutAny],) -> Sequence[HlsNetNode]:
-        """
-        :see: :meth:`hwtHls.frontend.statementsRead.HlsRead._translateMirToNetlist`
-        """
-        netlist: HlsNetlistCtx = mirToNetlist.netlist
-        # srcVal, dstIo, index, cond = ops
-        assert isinstance(dstIo, (HwIO, RtlSignal)), dstIo
-        assert isinstance(index, int) and index == 0, (instr, index, "Because this read is not addressed there should not be any index")
-        n = HlsNetNodeWrite(netlist, dstIo, mayBecomeFlushable=representativeWriteStm.mayBecomeFlushable)
-        mbMeta.parentElement.addNode(n)
-        srcVal.connectHlsIn(n._inputs[0])
-
-        _cond = cond
-        # _cond = mbMeta.syncTracker.resolveControlOutput(cond)
-        mirToNetlist._addExtraCond(n, _cond, None)
-        mirToNetlist._addSkipWhen_n(n, _cond, None)
-        mbMeta.addOrderedNode(n)
-        return [n, ]
 
     def __repr__(self):
         src = self.src
@@ -115,12 +78,12 @@ class HlsWriteAddressed(HlsWrite):
 
     def _translateToLlvm(self, toLlvm: 'ToLlvmIrTranslator', bb: BasicBlock):
         b = toLlvm.b
-        dst, t = getArgumentForHwIO(toLlvm, self.dst, self, False)
+        dst, t = getArgumentForHwIO(toLlvm, self.dst, self._parent._ioProxyForIo[self.dst], self, False)
         dst: Argument
         t: Type
         bb, src = toLlvm._translateExprToLlvm(bb, self.src)
         # :note: the index type does not matter much as llvm::InstCombine extends it to i64
-        index_t = Type.getIntNTy(toLlvm.ctx, 64) # self.index._dtype.bit_length()
+        index_t = Type.getIntNTy(toLlvm.ctx, 64)  # self.index._dtype.bit_length()
         indexes = [toLlvm._translateExprInt(0, index_t), ]
         bb, index0 = toLlvm._translateExprToLlvm(bb, self.index)
         index0 = toLlvm.b.CreateZExt(index0, index_t)
@@ -131,36 +94,6 @@ class HlsWriteAddressed(HlsWrite):
         dst = b.CreateInBoundsGEP(arrTy, dst, indexes)
 
         return bb, b.CreateStore(src, dst, self._isVolatile)
-
-    @classmethod
-    def _translateMirToNetlist(cls,
-            representativeWriteStm: "HlsWrite",
-            mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
-            mbMeta: MachineBasicBlockMeta,
-            instr: MachineInstr,
-            srcVal: HlsNetNodeOutAny,
-            dstIo: HwIO,
-            index: Union[int, HlsNetNodeOutAny],
-            cond: Optional[HlsNetNodeOutAny],) -> Sequence[HlsNetNode]:
-        """
-        :see: :meth:`hwtHls.frontend.statementsRead.HlsRead._translateMirToNetlist`
-        """
-        netlist: HlsNetlistCtx = mirToNetlist.netlist
-        # srcVal, dstIo, index, cond = ops
-        assert isinstance(dstIo, HwIO), dstIo
-        if isinstance(index, int):
-            raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", dstIo, instr)
-        n = HlsNetNodeWriteIndexed(netlist, dstIo, mayBecomeFlushable=representativeWriteStm.mayBecomeFlushable)
-        index.connectHlsIn(n.indexes[0])
-        srcVal.connectHlsIn(n._inputs[0])
-
-        _cond = cond
-        # _cond = mbMeta.syncTracker.resolveControlOutput(cond)
-        mirToNetlist._addExtraCond(n, _cond, None)
-        mirToNetlist._addSkipWhen_n(n, _cond, None)
-        mbMeta.parentElement.addNode(n)
-        mbMeta.addOrderedNode(n)
-        return [n, ]
 
     def __repr__(self):
         src = self.src
@@ -179,13 +112,13 @@ class HlsStmWriteStartOfFrame(HlsWrite):
     """
 
     def __init__(self, parent:"HlsScope", hwIO:HwIO, mayBecomeFlushable:bool=True):
-        super(HlsStmWriteStartOfFrame, self).__init__(parent, HVoidOrdering.from_py(None), 
+        super(HlsStmWriteStartOfFrame, self).__init__(parent, HVoidOrdering.from_py(None),
                                                       hwIO, HVoidOrdering,
-                                                      True, # isVolatile
+                                                      True,  # isVolatile
                                                       mayBecomeFlushable=mayBecomeFlushable)
 
     def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
-        dst, _ = getArgumentForHwIO(toLlvm, self.dst, self, False)
+        dst, _ = getArgumentForHwIO(toLlvm, self.dst, self._parent._ioProxyForIo[self.dst], self, False)
         dst: Argument
         return bb, toLlvm.b.CreateStreamWriteStartOfFrame(dst)
 
@@ -197,10 +130,10 @@ class HlsStmWriteEndOfFrame(HlsWrite):
 
     def __init__(self, parent:"HlsScope", hwIO:HwIO):
         super(HlsStmWriteEndOfFrame, self).__init__(parent, HVoidOrdering.from_py(None), hwIO, HVoidOrdering,
-                                                    True, # isVolatile
+                                                    True,  # isVolatile
                                                     )
 
     def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
-        dst, _ = getArgumentForHwIO(toLlvm, self.dst, self, False)
+        dst, _ = getArgumentForHwIO(toLlvm, self.dst, self._parent._ioProxyForIo[self.dst], self, False)
         dst: Argument
         return bb, toLlvm.b.CreateStreamWriteEndOfFrame(dst)

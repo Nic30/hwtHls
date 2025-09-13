@@ -16,7 +16,8 @@ from hwtHls.frontend.statementsWrite import HlsWrite
 from hwtHls.frontend.hardBlock import HardBlockHwModule
 from hwtHls.io.portGroups import BankedPortGroup, MultiPortGroup
 from hwtHls.llvm.llvmIr import MachineRegisterInfo, MachineFunction, MachineBasicBlock, MachineLoop, Register, \
-    MachineInstr, MachineOperand, CmpInst, TargetOpcode, HFloatTmpConfig, HFloatTmpRounding, HFloatTmpSaturation
+    MachineInstr, MachineOperand, CmpInst, TargetOpcode, HFloatTmpConfig, HFloatTmpRounding, HFloatTmpSaturation, \
+    HwtHlsIoMetadata, MetadataAsMDString
 from hwtHls.netlist.analysis.blockSyncType import HlsNetlistAnalysisPassBlockSyncType
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -24,7 +25,8 @@ from hwtHls.netlist.hdlTypeVoid import HVoidData
 from hwtHls.netlist.nodes.aggregatedLoop import HlsNetNodeAggregateLoop
 from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
+from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
+    HlsNetNodeReadBackedge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
@@ -42,6 +44,10 @@ from hwtHls.ssa.translation.llvmMirToNetlist.utils import LiveInMuxMeta, \
     _regIsValidLiveIn
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from tests.math.hFloatTmp.hFloatTmpCast import OP_CAST_HFLOATTMP_TO_HFLOATTMP
+from hwtHls.ssa.translation.toLlvmUtils import _USE_DEFAULT_IO_NODE_CONSTRUCTOR
+from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge, \
+    HlsNetNodeReadForwardedge
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 
 BlockLiveInMuxSyncDict = Dict[Tuple[MachineBasicBlock, MachineBasicBlock, Register], HlsNetNodeExplicitSync]
 
@@ -54,6 +60,19 @@ def _getRtlAckOfNode(n: HlsNetNodeExplicitSync) -> Optional[HlsNetNodeOut]:
         if n._rtlUseReady:
             return n.getReadyNB()
     return None
+
+
+def applyHwIOPropertySelectrorFromMetadata(io: Union[HwIO, RtlSignalBase, BankedPortGroup, MultiPortGroup], md: HwtHlsIoMetadata):
+    if md.ioPropertyPath is not None:
+        for _p in md.ioPropertyPath.iterOperands():
+            p = MetadataAsMDString(_p.get())
+            assert p, _p.get()
+            if isinstance(io, (HwIO, RtlSignalBase)):
+                io = getattr(io, p.getString().str())
+            else:
+                raise NotImplementedError()
+
+    return io
 
 
 class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetlistLowLevel):
@@ -74,7 +93,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
         assert addrDefMO is not None, instr
         addrDefInstr = addrDefMO.getParent()
         addrDefOpc = addrDefInstr.getOpcode()
-        assert addrDefOpc == TargetOpcode.HWTFPGA_GLOBAL_VALUE
+        assert addrDefOpc == TargetOpcode.HWTFPGA_GLOBAL_VALUE, addrDefInstr
         ptrOp = valCache._toHlsCache[(addrDefInstr.getParent(), addrDefMO.getReg())]
         if isinstance(ptrOp, MemoryAllocationMeta):
             return ptrOp
@@ -101,9 +120,67 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
         ops = ops[:-HFloatTmpConfig.MEMBER_CNT]
         return opSpecialization, ops
 
+    def _translateDatapathInBlocksInstructionsOps(self, MRI: MachineRegisterInfo, mbMeta: MachineBasicBlockMeta, mb: MachineBasicBlock,
+                                                  valCache: MirToHwtHlsNetlistValueCache,
+                                                  builder: HlsNetlistBuilder,
+                                                  instr: MachineInstr, opc: TargetOpcode):
+        name: Optional[str] = None
+        dst: Union[Register, list[Register], None] = None
+        ops: List[Union[CmpInst.Predicate,
+                            MachineBasicBlock,
+                            Register,
+                            HlsNetNodeOutAny,
+                            HwIO,
+                            int]] = []
+        isLoadOrStore: bool = opc in self._HWTFPGA_CLOAD_CSTORE
+        for i, mo in enumerate(instr.operands()):
+            mo: MachineOperand
+            if mo.isReg():
+                r = mo.getReg()
+                if mo.isDef():
+                    if dst is None:
+                        dst = r
+                        name = f"bb{mb.getNumber()}_r{dst.virtRegIndex():d}"
+                    elif isinstance(dst, Register):
+                        dst = [dst, r]
+                    else:
+                        dst.append(r)
+                elif isLoadOrStore and i == 1:  # translate memory pointer
+                    op = self._translateRegToIoOrGlobalValue(MRI, instr, valCache, mbMeta, builder, r)
+                    ops.append(op)
+
+                else:
+                    isUndef: bool = r not in self.regToIo and MRI.def_empty(r)
+                    if not isUndef:
+                        rDef = MRI.getOneDef(r)
+                        isUndef = rDef is not None and rDef.getParent().getOpcode() == TargetOpcode.HWTFPGA_IMPLICIT_DEF
+
+                    if isUndef:
+                        bw = self.registerTypes[r]
+                        op = builder.buildConst(HBits(bw).from_py(None))
+                    else:
+                        op = self._translateRegister(mb, r)
+                    ops.append(op)
+
+            elif mo.isMBB():
+                ops.append(self._translateMBB(mo.getMBB()))
+            elif mo.isImm():
+                ops.append(mo.getImm())
+            elif mo.isCImm():
+                ops.append(self._translateConstant(builder, mo.getCImm()))
+            elif mo.isPredicate():
+                ops.append(CmpInst.Predicate(mo.getPredicate()))
+            elif mo.isGlobal():
+                ops.append(self._translateGlobal(builder, mo.getGlobal()))
+            else:
+                raise NotImplementedError(instr, mo)
+
+        return name, dst, ops
+
     def _translateDatapathInBlocksInstructions(self, MRI: MachineRegisterInfo, mbMeta: MachineBasicBlockMeta, mb: MachineBasicBlock):
         valCache: MirToHwtHlsNetlistValueCache = self.valCache
         builder: HlsNetlistBuilder = mbMeta.parentElement.builder
+        netlist = builder.netlist
         ioNodeConstructors = self.ioNodeConstructors
         allBlockingLoadAck: Optional[HlsNetNodeOutAny] = mbMeta.blockEn
         for instr in mb:
@@ -113,56 +190,15 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
             if opc == TargetOpcode.HWTFPGA_ARG_GET:
                 continue
 
-            dst: Union[Register, list[Register], None] = None
-            name: Optional[str] = None
+            name, dst, ops = self._translateDatapathInBlocksInstructionsOps(MRI, mbMeta, mb, valCache, builder, instr, opc)
+            dst: Union[Register, list[Register], None]
+            name: Optional[str]
             ops: List[Union[CmpInst.Predicate,
                             MachineBasicBlock,
                             Register,
                             HlsNetNodeOutAny,
                             HwIO,
-                            int]] = []
-            isLoadOrStore: bool = opc in self._HWTFPGA_CLOAD_CSTORE
-            for i, mo in enumerate(instr.operands()):
-                mo: MachineOperand
-                if mo.isReg():
-                    r = mo.getReg()
-                    if mo.isDef():
-                        if dst is None:
-                            dst = r
-                            name = f"bb{mb.getNumber()}_r{dst.virtRegIndex():d}"
-                        elif isinstance(dst, Register):
-                            dst = [dst, r]
-                        else:
-                            dst.append(r)
-                    elif isLoadOrStore and i == 1:
-                        op = self._translateRegToIoOrGlobalValue(MRI, instr, valCache, mbMeta, builder, r)
-                        ops.append(op)
-
-                    else:
-                        isUndef: bool = r not in self.regToIo and MRI.def_empty(r)
-                        if not isUndef:
-                            rDef = MRI.getOneDef(r)
-                            isUndef = rDef is not None and rDef.getParent().getOpcode() == TargetOpcode.HWTFPGA_IMPLICIT_DEF
-
-                        if isUndef:
-                            bw = self.registerTypes[r]
-                            op = builder.buildConst(HBits(bw).from_py(None))
-                        else:
-                            op = self._translateRegister(mb, r)
-                        ops.append(op)
-
-                elif mo.isMBB():
-                    ops.append(self._translateMBB(mo.getMBB()))
-                elif mo.isImm():
-                    ops.append(mo.getImm())
-                elif mo.isCImm():
-                    ops.append(self._translateConstant(builder, mo.getCImm()))
-                elif mo.isPredicate():
-                    ops.append(CmpInst.Predicate(mo.getPredicate()))
-                elif mo.isGlobal():
-                    ops.append(self._translateGlobal(builder, mo.getGlobal()))
-                else:
-                    raise NotImplementedError(instr, mo)
+                            int]]
 
             res = None
             opDef = self.OPC_TO_OP.get(opc, None)
@@ -215,8 +251,8 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     cond = None
 
                 if isinstance(srcIo, MemoryAllocationMeta):
-                    # r = HlsNetNodeReadMemoryAllocation(builder.netlist, srcIo, HBits(width), name)
-                    r = HlsNetNodeWriteMemoryAllocationCmd(builder.netlist, srcIo, READ,
+                    # r = HlsNetNodeReadMemoryAllocation(netlist, srcIo, HBits(width), name)
+                    r = HlsNetNodeWriteMemoryAllocationCmd(netlist, srcIo, READ,
                                                            HBits(width), mayBecomeFlushable=False, name=name)
                     builder.parentElm.addNode(r)
                     assert index is not None, instr
@@ -229,17 +265,39 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     newlyGeneratedRead = r
                     _cond = builder.buildAndOptional(allBlockingLoadAck, cond)
                 else:
+                    srcIo, srcIoMd = srcIo
                     assert isinstance(srcIo, (HwIO, RtlSignalBase, BankedPortGroup, MultiPortGroup)), srcIo
                     # this is form of load instruction which is delegated to constructor
                     # which was inferred from IO type on SSA construction
-                    constructor: HlsRead = ioNodeConstructors[srcIo][0]
-                    if constructor is None:
-                        raise AssertionError("The io without any read somehow requires read", srcIo, instr)
-
+                    constructor = ioNodeConstructors[srcIo]
+                    srcIo = applyHwIOPropertySelectrorFromMetadata(srcIo, srcIoMd)
                     _cond = builder.buildAndOptional(allBlockingLoadAck, cond)
-                    nodes = constructor._translateMirToNetlist(
-                        constructor, self, mbMeta, instr, srcIo, index, _cond, dst)
-                    if constructor._isBlocking:
+                    if srcIoMd.bufferCapacity:
+                        raise NotImplementedError(srcIo)
+
+                    if constructor is _USE_DEFAULT_IO_NODE_CONSTRUCTOR:
+                        (r, w) = netlist._channelsBetweenLlvmThreads[srcIo]
+                        assert r is None, srcIo
+                        isBackedge = False
+                        isBlocking = True
+                        rCls = HlsNetNodeReadBackedge if isBackedge else HlsNetNodeReadForwardedge
+                        (r,) = IoProxyScalar(None, srcIo)._translateMirToNetlist_HWTFPGA_CLOAD(
+                            self, mbMeta, instr,
+                            srcIo, srcIoMd, index, _cond, dst, readNodeCls=rCls._constructorAsHlsNetNodeRead)
+                        # r.src = srcIo
+                        if w is not None:
+                            w.associateRead(r)
+                        netlist._channelsBetweenLlvmThreads[srcIo] = (r, w)
+                        nodes = [r, ]
+                    else:
+                        if constructor is None:
+                            raise AssertionError("The io without any IoProxy somehow requires read", srcIo, instr)
+
+                        nodes = constructor._translateMirToNetlist_HWTFPGA_CLOAD(
+                            self, mbMeta, instr, srcIo, srcIoMd, index, _cond, dst)
+                        isBlocking = True if constructor.hasBlockingRead is None else constructor.hasBlockingRead
+
+                    if isBlocking:
                         newlyGeneratedRead = nodes[-1]
 
                 if newlyGeneratedRead is not None:
@@ -262,11 +320,11 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
 
                 if isinstance(dstIo, MemoryAllocationMeta):
                     w = HlsNetNodeWriteMemoryAllocationCmd(
-                        builder.netlist,
+                        netlist,
                         dstIo, WRITE,
                         HBits(width),
                         mayBecomeFlushable=False, name=name)
-                    # w = HlsNetNodeWriteMemoryAllocation(builder.netlist, dstIo, mayBecomeFlushable=False, name=name)
+                    # w = HlsNetNodeWriteMemoryAllocation(netlist, dstIo, mayBecomeFlushable=False, name=name)
                     builder.parentElm.addNode(w)
                     assert index is not None, instr
                     assert isinstance(index, HlsNetNodeOutLazy) or not isinstance(index.obj, HlsNetNodeConst), ("If address is constant this store should have been already lowered to reg", instr)
@@ -277,13 +335,35 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     mbMeta.addOrderedNode(w)
 
                 else:
+                    dstIo, dstIoMd = dstIo
                     assert isinstance(dstIo, (HwIO, RtlSignalBase, BankedPortGroup, MultiPortGroup)), dstIo
-                    constructor: HlsWrite = ioNodeConstructors[dstIo][1]
-                    if constructor is None:
-                        raise AssertionError("The io without any write somehow requires write", dstIo, instr)
+                    dstIoMd: HwtHlsIoMetadata
+                    constructor = ioNodeConstructors[dstIo]
+                    dstIo = applyHwIOPropertySelectrorFromMetadata(dstIo, dstIoMd)
                     _cond = builder.buildAndOptional(allBlockingLoadAck, cond)
-                    constructor._translateMirToNetlist(
-                        constructor, self, mbMeta, instr, srcVal, dstIo, index, _cond)
+                    if constructor is _USE_DEFAULT_IO_NODE_CONSTRUCTOR:
+                        (r, w) = netlist._channelsBetweenLlvmThreads[dstIo]
+                        assert w is None, dstIo
+                        isBackedge = False
+                        wCls = HlsNetNodeWriteBackedge if isBackedge else HlsNetNodeWriteForwardedge
+                        (w,) = IoProxyScalar(None, dstIo)._translateMirToNetlist_HWTFPGA_CSTORE(
+                            self, mbMeta, instr, srcVal, dstIo, dstIoMd, index, _cond,
+                            dstIoMd.bufferCapacity,
+                            writeNodeCls=wCls._constructorAsHlsNetNodeWrite)
+
+                        w: HlsNetNodeWriteBackedge
+                        w.name = f"{dstIo._name:s}_src"
+                        w.buffName = f"{dstIo._name:s}_buff"
+                        # w.dst = dstIo
+                        if r is not None:
+                            w.associateRead(r)
+                        netlist._channelsBetweenLlvmThreads[dstIo] = (r, w)
+                    else:
+                        if constructor is None:
+                            raise AssertionError("The io without any write somehow requires write", dstIo, instr)
+                        constructor._translateMirToNetlist_HWTFPGA_CSTORE(
+                            self, mbMeta, instr, srcVal, dstIo, dstIoMd, index, _cond,
+                            dstIoMd.bufferCapacity)
 
             elif opc == TargetOpcode.HWTFPGA_ICMP:
                 predicate, lhs, rhs = ops

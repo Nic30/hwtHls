@@ -15,7 +15,6 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.code import  zextToTy
 from hwtHls.frontend.statementsRead import HlsRead, \
     _copySliceNamesToFlattenedSignal
-from hwtHls.io.amba.axi4Stream.metadata import addAxi4StreamLllvmMetadata
 from hwtHls.llvm.llvmIr import Argument, Type, BasicBlock
 from hwtHls.ssa.translation.toLlvmArgumentUtils import getArgumentForHwIO
 from hwtLib.amba.axi4SSegmented import Axi4StreamSegmented
@@ -148,14 +147,13 @@ class HlsStmReadAxi4Stream(HlsRead):
 
     @override
     def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
-        toLlvm.addAfterTranslationUnique(addAxi4StreamLllvmMetadata)
-        src, elmT = getArgumentForHwIO(toLlvm, self._src, self, True)
+        src, elmT = getArgumentForHwIO(toLlvm, self._src, self._parent._ioProxyForIo[self._src], self, True)
         src: Argument
         t: Type
         name = toLlvm.strCtx.addTwine(self._name)
         v = toLlvm.b.CreateStreamRead(src,
-                                      self._dtypeOrig.bit_length(),
-                                      self._sig._dtype.bit_length(),
+                                      self._dtypeOrig.bit_length(),  # chunkBitWidth
+                                      self._sig._dtype.bit_length(),  # returnBitWidth
                                       self._isReliable, name)
         return toLlvm._translateToLlvm_HlsRead_registerVar(bb, self, v)
 
@@ -183,13 +181,14 @@ class HlsStmReadAxi4StreamSegmented(HlsStmReadAxi4Stream):
         :see: :meth:`~.HlsStmReadAxi4Stream._constructTypeOfInterfaceData`
         """
         dataWidth = dtype.bit_length()
+
         hasEmpty = src._hasEmpty(dataWidth, src.BYTE_WIDTH, src.SUPPORT_ZLP)
         if hasEmpty:
             emptyWidth = src._getWidthOfEmpty(dtype.bit_length(), src.BYTE_WIDTH, src.SUPPORT_ZLP)
 
         trueDtype = HStruct(
             (dtype, "data"),
-            (BIT, "enable"),
+            *(((BIT, "enable"),) if src._hasEnable(src.SEGMENT_CNT) else ()),
             *(((BIT, "sof"),) if src.USE_SOF else ()),
             (BIT, "eof"),  # we do not know how many words this read could be,
                            # the eof is disjunction of eof signals from each word
@@ -197,6 +196,9 @@ class HlsStmReadAxi4StreamSegmented(HlsStmReadAxi4Stream):
             *(((HBits(emptyWidth), "empty"),) if hasEmpty else ()),
         )
         return trueDtype
+
+    def _isEoF(self):
+        return self.eof
 
     @override
     def _copyRtlSignalsToSelf(self, sig: HwIOStruct):

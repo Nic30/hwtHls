@@ -8,12 +8,14 @@ from hwt.hdl.types.arrayConst import HArrayConst
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.hwIO import HwIO
+from hwt.hwIOs.std import HwIODataRdVld
 from hwtHls.code import OP_ASHR, OP_LSHR, OP_SHL, OP_CTLZ, OP_CTTZ, OP_CTPOP, \
     OP_FSHL, OP_FSHR
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, MachineInstr, MachineRegisterInfo, Register, \
     TargetOpcode, CmpInst, ConstantInt, TypeToIntegerType, TypeToArrayType, IntegerType, Type as LlvmType, ArrayType, \
     MachineLoopInfo, GlobalValue, ValueToConstantArray, ValueToConstantInt, ValueToConstantDataArray, ConstantArray, \
-    ValueToUndefValue, ValueToConstantAggregateZero, ConstantAggregateZero, HwtHlsIoMetadata_get, HwtHlsIoMetadata
+    ValueToUndefValue, ValueToConstantAggregateZero, ConstantAggregateZero, HwtHlsIoMetadata_get, HwtHlsIoMetadata, \
+    UserToInstruction, InstructionToLoadInst, InstructionToStoreInst, LoadInst, StoreInst, IODirection, MDNode
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -36,7 +38,8 @@ from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import Machin
 from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdgeMeta, MachineEdge
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
-from hwtHls.ssa.translation.toLlvmUtils import NetlistIoConstructorDictT
+from hwtHls.ssa.translation.toLlvmUtils import NetlistIoConstructorDictT, \
+    _USE_DEFAULT_IO_NODE_CONSTRUCTOR
 from tests.math.hFloatTmp.hFloatTmpOps import OP_FADD, OP_FSUB, OP_FMUL, OP_FDIV, \
     OP_FCMP_OEQ, OP_FCMP_OGT, OP_FCMP_OGE, OP_FCMP_OLT, OP_FCMP_OLE, OP_FCMP_ONE, \
     OP_FNEG, OP_FP_SHL, OP_FP_SHR, OP_CEIL, OP_FCOS, OP_FEXP, OP_FEXP10, \
@@ -284,20 +287,60 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         self.backedges = backedges
         self.liveness = liveness
         self.registerTypes = registerTypes
+        self.ioNodeConstructors: NetlistIoConstructorDictT = ioNodeConstructors
 
         hwHlsIoMetadata = HwtHlsIoMetadata_get(mf.getFunction())
-        self.regToIo: dict[Register, HwIO] = {}
+        self.regToIo: dict[Register, tuple[HwIO, MDNode]] = {}
         regToIo = self.regToIo
         # ioRegs[ai]: io for (ai, io) in _argIToIo.items()
         assert len(ioRegs) == len(hwHlsIoMetadata)
-        for ioReg, ioMd in zip(ioRegs, hwHlsIoMetadata):
+        for ioIndex, (ioReg, ioMd) in enumerate(zip(ioRegs, hwHlsIoMetadata)):
+            ioMd: HwtHlsIoMetadata
             if ioMd.otherThreadFn is None:
                 # global IO
-                regToIo[ioReg] = self._argIToIo[ioMd.otherArgIndex]
+                regToIo[ioReg] = (self._argIToIo[ioMd.otherArgIndex], ioMd)
             else:
-                raise NotImplementedError("Newly generated channel between threads")
+                # channel between 2 threads
+                dw: Optional[int] = None
+                F = mf.getFunction()
+                FArg = F.getArg(ioIndex)
+                for u in FArg.users():
+                    ui = UserToInstruction(u)
+                    assert ui, u
+                    ld = InstructionToLoadInst(ui)
+                    if ld:
+                        ld: LoadInst
+                        dw = ld.getType().getIntegerBitWidth()
+                        break
+                    else:
+                        st = InstructionToStoreInst(ui)
+                        if st:
+                            st:StoreInst
+                            dw = st.getOperand(0).getType().getIntegerBitWidth()
+                            break
+                        else:
+                            raise NotImplementedError(ui)
 
-        self.ioNodeConstructors: NetlistIoConstructorDictT = ioNodeConstructors
+                if dw is None:
+                    raise AssertionError("Unused channel IO (this should have been already removed)")
+
+                if ioMd.direction == IODirection.IO_DIR_IN:
+                    channelKey = (ioMd.otherThreadFn, ioMd.otherArgIndex, F, ioIndex)
+                else:
+                    channelKey = (F, ioIndex, ioMd.otherThreadFn, ioMd.otherArgIndex)
+
+                c = netlist._channelsBetweenLlvmThreadsMir.get(channelKey)
+                if c is None:
+                    c = HwIODataRdVld()
+                    c._name = FArg.getName().str()
+                    c.DATA_WIDTH = dw
+                    # print((channelKey[0].getName().str(), channelKey[1], channelKey[2].getName().str(), channelKey[3]))
+                    netlist._channelsBetweenLlvmThreadsMir[channelKey] = c
+                    netlist._channelsBetweenLlvmThreads[c] = (None, None)
+                
+                self.ioNodeConstructors[c] = _USE_DEFAULT_IO_NODE_CONSTRUCTOR
+                regToIo[ioReg] = (c, ioMd)
+
         self.globalMemories: dict[GlobalValue, MemoryAllocationMeta] = {}
         self.loops = loops
         # register self in netlist analysis cache
@@ -316,7 +359,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
             r = baseAddrOp.getReg()
             io = self.regToIo.get(r, None)
             if io is not None:
-                return io
+                return io[0]
             # could still be load or write from ROM/RAM constructed from alloca/GlobalValue
         elif opc == TargetOpcode.HWTFPGA_ICMP:
             predicate = CmpInst.Predicate(instr.getOperand(1).getPredicate())

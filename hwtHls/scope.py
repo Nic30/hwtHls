@@ -10,8 +10,8 @@ from hwt.hdl.const import HConst
 from hwt.hdl.types.defs import  BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
+from hwt.hwIOs.hwIOStruct import HwIOStruct
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld, HdlType_to_HwIO
-from hwt.hwIOs.hwIOStruct import HwIO_to_HdlType, HwIOStruct
 from hwt.hwIOs.std import HwIODataRdVld, HwIOSignal, HwIORdVldSync, HwIODataVld, \
     HwIODataRd
 from hwt.hwModule import HwModule
@@ -19,20 +19,19 @@ from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_without_regi
 from hwt.synthesizer.interfaceLevel.utils import HwIO_walkSignals
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.statementsRead import HlsRead
-from hwtHls.frontend.statementsWrite import HlsWrite
-from hwtHls.frontend.pyBytecode import hlsLowLevel
 from hwtHls.frontend.indexExpansion import PyObjectHwSubscriptRef
 from hwtHls.frontend.ioProxyAddressed import IoProxyAddressed
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
+from hwtHls.frontend.pyBytecode import hlsLowLevel
+from hwtHls.frontend.statementsRead import HlsRead
+from hwtHls.frontend.statementsWrite import HlsWrite
 from hwtHls.hwIOMeta import HwIOMeta
-from hwtHls.io.portGroups import getFirstInterfaceInstance
 from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
 from hwtHls.netlist.context import HlsNetlistChannels
-from hwtHls.netlist.hdlTypeVoid import HVoidExternData
 from hwtHls.platform.platform import DefaultHlsPlatform
 from hwtHls.thread import HlsThread, HlsThreadDoesNotUseSsa
 from hwtLib.amba.axi_common import Axi_hs
-from ipCorePackager.constants import INTF_DIRECTION
+
 
 # type representing HwIO and alike classes which are natively supported by HlsScope read/write
 ANY_HLS_COMPATIBLE_IO = Union[HwIODataRdVld, HwIOStructRdVld,
@@ -47,23 +46,6 @@ def HObjList_toTupleRec(v):
         return tuple(HObjList_toTupleRec(i) for i in v)
     else:
         return v
-
-
-class HlsScopeBoundIoScalar():
-
-    def __init__(self, hls: "HlsScope", io: HwIO, dtype:Optional[HdlType]=None):
-        self.io = io
-        if dtype is None:
-            self.T = getattr(io, "T")
-        else:
-            self.T = dtype
-        self.hls = hls
-
-    def write(self, data, isVolatile=True, mayBecomeFlushable=True):
-        return self.hls.write(data, self.io, isVolatile=isVolatile, mayBecomeFlushable=mayBecomeFlushable)
-
-    def read(self, blocking=True, isVolatile=True):
-        return self.hls.read(self.io, dtype=self.T, blocking=blocking, isVolatile=isVolatile)
 
 
 class HlsScope():
@@ -97,6 +79,7 @@ class HlsScope():
         self._rtlCtx = RtlNetlist()
         self._threads: List[HlsThread] = []
         self._currentThread: Optional[HlsThread] = None
+        self._ioProxyForIo: dict[ANY_HLS_COMPATIBLE_IO, IoProxyScalar] = {}
         self.hwIOMeta: Dict[ANY_HLS_COMPATIBLE_IO, HwIOMeta] = {}
 
     @hlsLowLevel
@@ -140,8 +123,6 @@ class HlsScope():
         Create a read statement for simple interfaces.
         :param volatile: if true the read has side-effect and must be performed in original code order
         """
-        _src = src
-        src = getFirstInterfaceInstance(src)
 
         if isinstance(src, PyObjectHwSubscriptRef):
             src: PyObjectHwSubscriptRef
@@ -149,99 +130,35 @@ class HlsScope():
             mem: IoProxyAddressed = src.sequence
             if dtype is not None and dtype != mem.rWordT:
                 raise NotImplementedError()
-            return mem.READ_CLS(mem, self, mem.interface, src.index, mem.rWordT, blocking, isVolatile=isVolatile)
-        elif dtype is None:
-            if isinstance(src, (HwIODataRdVld, HwIOStructRdVld, HwIORdVldSync, Axi_hs)):
-                if len(src._hwIOs) == 3 and hasattr(src, "data"):
-                    dtype = getattr(src.data, "_dtype", None)
-                    if dtype is None:
-                        dtype = HwIO_to_HdlType().apply(src.data, exclude=(src.vld,))
+            return mem.READ_CLS(mem, self, mem.interface, src.index, mem.getDataTypeOfNativeRead(), blocking, isVolatile=isVolatile)
+        else:
+            proxy = self._ioProxyForIo.get(src)
+            if proxy is None:
+                proxy = IoProxyScalar(self, src, dtype=dtype)
 
-                else:
-                    if isinstance(src, Axi_hs):
-                        exclude = (src.ready, src.valid)
-                    else:
-                        exclude = (src.rd, src.vld)
-                    dtype = HwIO_to_HdlType().apply(src, exclude=exclude)
-
-            elif isinstance(src, HwIODataVld):
-                if len(src._hwIOs) == 2 and hasattr(src, "data"):
-                    dtype = getattr(src.data, "_dtype", None)
-                    if dtype is None:
-                        dtype = HwIO_to_HdlType().apply(src.data, exclude=(src.vld,))
-
-                else:
-                    dtype = HwIO_to_HdlType().apply(src, exclude=(src.vld,))
-
-            elif isinstance(src, HwIODataRd):
-                if len(src._hwIOs) == 2 and hasattr(src, "data"):
-                    dtype = getattr(src.data, "_dtype", None)
-                    if dtype is None:
-                        dtype = HwIO_to_HdlType().apply(src.data, exclude=(src.vld,))
-
-                else:
-                    dtype = HwIO_to_HdlType().apply(src, exclude=(src.rd,))
-
-            elif isinstance(src, RtlSignal):
-                assert src._rtlCtx is not self._rtlCtx, ("Read should be used only for IO, it is not required for HLS variables")
-                dtype = src._dtype
-
-            elif isinstance(src, (HwIOSignal, HwIOStruct)):
-                dtype = src._dtype
-
-            else:
-                raise NotImplementedError(src)
-
-            if dtype.bit_length() == 0:
-                # if there is no data, the dtype will be empty struct
-                dtype = HVoidExternData
-
-        if isinstance(_src, HwIO):
-            assert _src._direction != INTF_DIRECTION.SLAVE, (_src, "Can not read from output")
-
-        return HlsRead(self, _src, dtype, blocking, isVolatile=isVolatile)
+            r = proxy.read(blocking=blocking, isVolatile=isVolatile)
+            if dtype is not None:
+                assert dtype == r._dtypeOrig, (dtype, r._dtypeOrig)
+            return r
 
     @hlsLowLevel
     def write(self, src: Union[HlsRead, bytes, int, HConst], dst: ANY_HLS_COMPATIBLE_IO, isVolatile:bool=True, mayBecomeFlushable=True) -> HlsWrite:
         """
         Create a write statement for simple interfaces.
         """
-        if src is None or isinstance(src, int):
-            dtype = getattr(dst, "_dtype", None)
-            if dtype is None:
-                if isinstance(dst, PyObjectHwSubscriptRef):
-                    dst: PyObjectHwSubscriptRef
-                    mem: IoProxyAddressed = dst.sequence
-                    assert isinstance(mem, IoProxyAddressed), (dst, mem)
-                    dtype = mem.nativeType.element_t
-                else:
-                    data = getattr(dst, "data", None)
-                    if data is None:
-                        dtype = HVoidExternData
-                    else:
-                        dtype = data._dtype
-            src = dtype.from_py(src)
-        elif isinstance(src, HObjList):
-            dtype = src[0]._dtype[len(src)]
-        else:
-            dtype = src._dtype
-
         if isinstance(dst, PyObjectHwSubscriptRef):
             dst: PyObjectHwSubscriptRef
             mem: IoProxyAddressed = dst.sequence
             assert isinstance(mem, IoProxyAddressed), (dst, mem)
-            return mem.WRITE_CLS(mem, self, src, mem.interface, dst.index, mem.wWordT,
+            return mem.WRITE_CLS(mem, self, src, mem.interface, dst.index, mem.getDataTypeOfNativeWrite(),
                                  isVolatile=isVolatile, mayBecomeFlushable=mayBecomeFlushable)
         else:
-            if isinstance(dst, HwIO):
-                assert dst._direction != INTF_DIRECTION.MASTER, (dst, "Can not write to input")
-            dstTy = getattr(dst, "_dtype", None)
-            if dstTy is None:
-                dstTy = getattr(dst, "T", None)
-            if dstTy is not None:
-                assert dtype.bit_length() == dstTy.bit_length(), (
-                    "For a normal write the width of src and dst must match", dtype, "->", dstTy, src, dst)
-            return HlsWrite(self, src, dst, dtype, isVolatile=isVolatile, mayBecomeFlushable=mayBecomeFlushable)
+            proxy = self._ioProxyForIo.get(dst)
+            if proxy is None:
+                proxy = IoProxyScalar(self, dst)
+
+            w = proxy.write(src, isVolatile=isVolatile, mayBecomeFlushable=mayBecomeFlushable)
+            return w
 
     def addThread(self, t: HlsThread) -> HlsThread:
         """
@@ -279,6 +196,12 @@ class HlsScope():
 
             t.compileToNetlist(p)
             assert t.netlist.subNodes, ("Thread produced empty netlist", t)
+
+        for t in self._threads:
+            t: HlsThread
+            # we have to wait with compilation until here
+            # because we need all IO and sharing constraints specified
+            self._currentThread = t
             for callback in t.netlistCallbacks:
                 callback(self, t)
 

@@ -5,10 +5,12 @@ from typing import Union, Optional, Set, Callable, Dict, List, Self, Sequence, \
     Type, Tuple
 
 from hwt.hwIO import HwIO
+from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwModule import HwModule
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.netlist import RtlNetlist
 from hwtHls.hwIOMeta import HwIOMeta
+from hwtHls.llvm.llvmIr import MachineFunction
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
@@ -19,7 +21,6 @@ from hwtHls.netlist.observableList import ObservableList, ObservableListRm
 from hwtHls.netlist.scheduler.resourceList import SchedulingResourceConstraints
 from hwtHls.netlist.scheduler.scheduler import HlsScheduler
 from hwtHls.ssa.analysisCache import AnalysisCache
-
 
 DEFAULT_SCHEDULER_RESOLUTION = 0.01e-9
 
@@ -41,6 +42,10 @@ class HlsNetlistCtx(AnalysisCache):
         template which must be translated
     :ivar _dbgAddSignalNamesToSync: add names to synchronization signals in order to improve readability,
         disabled by default as it goes against optimizations
+    :ivar _channelsBetweenLlvmThreadsMir: a dictionary used during conversion of LLVM MIR to HlsNetlist
+        and deleted immediately after, (because MachineFunctions are deallocated)
+    :ivar _channelsBetweenLlvmThreadsMir: same information as _channelsBetweenLlvmThreadsMir but using HlsNetNodes
+        and is alwailable once netlist is constructed from MIR
     """
 
     def __init__(self, parentHwModule: HwModule,
@@ -67,6 +72,8 @@ class HlsNetlistCtx(AnalysisCache):
         self.realTimeClkPeriod = 1 / int(freq)
         self.normalizedClkPeriod = int(ceil(self.realTimeClkPeriod / schedulerResolution))
         self.subNodes: ObservableList[HlsNetNode] = ObservableList()
+        self._channelsBetweenLlvmThreadsMir: dict[tuple[MachineFunction, int, MachineFunction, int], HwIODataRdVld] = {}
+        self._channelsBetweenLlvmThreads: dict[HwIODataRdVld, tuple[HlsNetNodeRead, HlsNetNodeWrite]] = {}
 
         self.ctx = RtlNetlist()
         AnalysisCache.__init__(self)

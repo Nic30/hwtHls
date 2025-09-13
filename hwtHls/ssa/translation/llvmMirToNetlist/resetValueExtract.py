@@ -1,7 +1,7 @@
 from typing import Optional, Set, Dict
 
 from hwt.hwIO import HwIO
-from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineRegisterInfo
+from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineRegisterInfo, MDNode
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge
@@ -29,7 +29,7 @@ class ResetValueExtractor():
                  liveness: Dict[MachineBasicBlock, Dict[MachineBasicBlock, Set[Register]]],
                  blockMeta: Dict[MachineBasicBlock, MachineBasicBlockMeta],
                  edgeMeta: Dict[MachineEdge, MachineEdgeMeta],
-                 regToIo: Dict[Register, HwIO],
+                 regToIo: Dict[Register, tuple[HwIO, MDNode]],
                  MRI: MachineRegisterInfo,
                  dbgTracer: DebugTracer):
         self.valCache = valCache

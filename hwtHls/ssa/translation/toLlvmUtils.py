@@ -1,5 +1,5 @@
 import re
-from typing import Dict, Tuple, Optional, Union, List
+from typing import Union
 
 from hwt.hdl.operator import HOperatorNode
 from hwt.hdl.operatorDefs import HwtOps
@@ -12,18 +12,26 @@ from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
 from hwtHls.llvm.llvmIr import IRBuilder, Function, Type, LoopInfo, Twine, Value, \
     HwtHlsIoMetadata, HwtHlsIoMetadataSmallVector, LlvmCompilationBundle, HwtHlsIoMetadata_set, \
     IODirection
+from hwtHls.frontend.ioProxy import IoProxy
 
-NetlistIoConstructorDictT = Dict[HwIO, Tuple[Optional[HlsRead], Optional[HlsWrite]]]
+
+class _USE_DEFAULT_IO_NODE_CONSTRUCTOR():
+    pass
+
+
+NetlistIoConstructorDictT = dict[HwIO, IoProxy]
 
 RE_ID_WITH_NUMBER = re.compile('[^0-9]+|[0-9]+')
 
-NaturalSortKey = Tuple[Union[str, int]]
+NaturalSortKey = tuple[Union[str, int]]
 
-ToLlvmIoRecordTuple = Tuple[Union[HwIO, MultiPortGroup, BankedPortGroup],
+ToLlvmIoRecordTuple = tuple[Union[HwIO, MultiPortGroup, BankedPortGroup],
                             Type,  # elmT
                             int,  # addrWidth
-                            List[HlsRead],
-                            List[HlsWrite]]
+                            IoProxy,
+                            list[HlsRead],
+                            list[HlsWrite],
+                            HwtHlsIoMetadata]
 
 
 def splitStrToStrsAndInts(name: str) -> NaturalSortKey:
@@ -40,7 +48,7 @@ def splitStrToStrsAndInts(name: str) -> NaturalSortKey:
 
 
 def llvmFunctionSortArgsByName(toLlvm: "ToLlvmIrTranslator"):
-    args: List[Tuple[int, NaturalSortKey, ToLlvmIoRecordTuple]] = [
+    args: list[tuple[int, NaturalSortKey, ToLlvmIoRecordTuple]] = [
         (i, splitStrToStrsAndInts(arg.getName().str()), argTuple)
         for i, (argTuple, arg) in enumerate(zip(toLlvm.ioSorted, toLlvm.llvm.main.args()))
     ]
@@ -57,18 +65,52 @@ def llvmFunctionSortArgsByName(toLlvm: "ToLlvmIrTranslator"):
         toLlvm.llvm.main = toLlvm.llvm.main.mutateFunctionShuffleArgs([i for i, _, _ in args])
 
 
-def addHwtHlsFunctionMetadata(toLlvm: "ToLlvmIrTranslator"):
+def addHwtHlsFunctionIoMetadata(toLlvm: "ToLlvmIrTranslator"):
     """
     :attention: expects :func:`~.sortFunctionArgsByName` to be applied
     """
     F: Function = toLlvm.llvm.main
     assert F.arg_size() == len(toLlvm.ioSorted), (F.arg_size(), len(toLlvm.ioSorted))
     hwtHlsIoMds = HwtHlsIoMetadataSmallVector()
-    for i, (_, _, addrWidth, reads, writes) in enumerate(toLlvm.ioSorted):
+    for i, (_, _, addrWidth, proxy, reads, writes, md) in enumerate(toLlvm.ioSorted):
+        proxy: IoProxy
+        md: HwtHlsIoMetadata
         dir_ = IODirection.IO_DIR_OUT if writes else\
                IODirection.IO_DIR_IN if reads else\
                IODirection.IO_DIR_UNRESOLVED
-        md = HwtHlsIoMetadata(dir_, addrWidth, None, i)
+        readWidth = 0
+        writeWidth = 0
+        isBlocking = True
+        protocolSpecificMd = None
+        if reads:
+            if proxy.hasBlockingRead is not None:
+                isBlocking &= proxy.hasBlockingRead
+
+            t = proxy.getDataTypeOfNativeRead()
+            readWidth = max(1, t.bit_length())
+
+        if writes:
+            if proxy.hasBlockingWrite is not None:
+                isBlocking &= proxy.hasBlockingWrite
+            t = proxy.getDataTypeOfNativeWrite()
+            writeWidth = max(1, t.bit_length())
+
+        protocolSpecificMd = proxy._getLlvmIoProtocolMetadata(toLlvm)
+
+        md.direction = dir_
+        md.addrWidth = addrWidth
+        md.readWordWidth = readWidth
+        md.writeWordWidth = writeWidth
+        md.isBlocking = isBlocking
+        md.otherThreadFn = None
+        md.otherArgIndex = i
+        md.bufferCapacity = 0
+        md.ioPropertyPath = None
+        md.latenciesFromPredecessorIo = None
+        md.streamIoMd = None
+        md.protocolSpecificMetadata = protocolSpecificMd
+        proxy.updateLlvmHwtHlsIoMetadata(toLlvm, md)
+
         hwtHlsIoMds.push_back(md)
 
     HwtHlsIoMetadata_set(F, hwtHlsIoMds)
@@ -77,11 +119,8 @@ def addHwtHlsFunctionMetadata(toLlvm: "ToLlvmIrTranslator"):
 def  getIoNodeConstructors(toLlvm: "ToLlvmIrTranslator") -> NetlistIoConstructorDictT:
     res: NetlistIoConstructorDictT = {}
     for hwIO, argIndex in toLlvm.ioToArgIndex.items():
-        _, _, _, reads, writes = toLlvm.ioSorted[argIndex]
-        res[hwIO] = (
-            reads[0] if reads else None,
-            writes[0] if writes else None,
-            )
+        _, _, _, ioProxy, _, _, _ = toLlvm.ioSorted[argIndex]
+        res[hwIO] = ioProxy
     return res
 
 

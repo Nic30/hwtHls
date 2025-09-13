@@ -26,6 +26,13 @@ class BankedPortGroup(HObjList[T]):
         return hash(tuple(self))
 
 
+def iterAllPortGroupVariants(hwIO:Union[HwIO, MultiPortGroup, BankedPortGroup]):
+    yield hwIO
+    if isinstance(hwIO, (MultiPortGroup, BankedPortGroup)):
+        for g in hwIO:
+            yield from iterAllPortGroupVariants(g)
+
+
 def getFirstInterfaceInstance(hwIO:Union[HwIO, MultiPortGroup, BankedPortGroup]) -> Union[HwIO, RtlSignalBase]:
     while isinstance(hwIO, (MultiPortGroup, BankedPortGroup)):
         hwIO = hwIO[0]

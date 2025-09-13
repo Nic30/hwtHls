@@ -4,6 +4,7 @@ from hwt.hdl.const import HConst
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwtHls.frontend.ioProxy import IoProxy
 from hwtHls.frontend.statementsRead import HlsStmReadStartOfFrame, \
     HlsStmReadEndOfFrame
 from hwtHls.frontend.statementsWrite import HlsStmWriteStartOfFrame, \
@@ -11,7 +12,7 @@ from hwtHls.frontend.statementsWrite import HlsStmWriteStartOfFrame, \
 from hwtHls.llvm.llvmIr import Value
 
 
-class IoProxyStream(object):
+class IoProxyStream(IoProxy):
     '''
     An object which builds the stream access statements.
     
@@ -23,9 +24,7 @@ class IoProxyStream(object):
     '''
 
     def __init__(self, hls: "HlsScope", interface: HwIO):
-        self.hls = hls
-        self.interface = interface
-        self.name = interface._name
+        IoProxy.__init__(self, hls, interface)
 
     def readStartOfFrame(self):
         ":see: :class:`~.HlsStmReadStartOfFrame`"
@@ -50,15 +49,19 @@ class IoProxyStream(object):
         return HlsStmWriteStartOfFrame(self.hls, self.interface, mayBecomeFlushable=mayBecomeFlushable)
 
     def write(self, v: Union[HConst, RtlSignal, Value, HwIO],
+              empty:Union[None, HConst, RtlSignal, Value, HwIO]=None,
               mask:Union[None, HConst, RtlSignal, Value, HwIO]=None,
+              sof:Union[None, HConst, RtlSignal, Value, HwIO]=None,
               eof:Union[None, HConst, RtlSignal, Value, HwIO]=None):
         """
         :param v: data to write
+        :param empty: specifies number of empty bytes in the word
         :param mask: mask which signalizes which byte of data is valid
             it may have 0 prefix when this is first word or 0 suffix if this
             last word, otherwise it must be all ones
+        :attention:  empty and mask are exclusive, only one type of byte enable signalization may be used at the same time
+        :param sof: input start-of-frame to write
         :param eof: input end-of-frame to write
-        
         """
         raise NotImplementedError("Must be implemented in an implementation of this class for the specific interface")
 

@@ -66,7 +66,7 @@ class MirToHwtHlsNetlistValueCache():
         ubi = self._unresolvedBlockInputs.get(block, None)
         if ubi is None:
             ubi = self._unresolvedBlockInputs[block] = {}
-        assert reg not in ubi
+        assert reg not in ubi, (reg, block.getNumber(), block.getName().str())
         ubi[reg] = lazyOut
         if k is not None:
             lazyOut.keys_of_self_in_cache.remove(k)

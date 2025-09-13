@@ -20,10 +20,10 @@ from hwtHls.frontend.pyBytecode import hlsLowLevel
 from hwtHls.frontend.ioProxyAddressed import IoProxyAddressed
 from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup, \
     isInstanceOfInterfacePort, getFirstInterfaceInstance
-from hwtHls.llvm.llvmIr import LoadInst, Register, MachineInstr, Value
+from hwtHls.llvm.llvmIr import LoadInst, Register, MachineInstr, Value, HwtHlsIoMetadata
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
+from hwtHls.netlist.hdlTypeVoid import HVoidOrdering, HVoidData
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, \
@@ -38,7 +38,6 @@ from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from ipCorePackager.constants import INTF_DIRECTION
-
 
 AnyBramPort = Union[HwIOBramPort_noClk, BankedPortGroup[HwIOBramPort_noClk], MultiPortGroup[HwIOBramPort_noClk]]
 
@@ -249,7 +248,7 @@ class HlsNetNodeReadBramData(HlsNetNodeRead):
 class HlsReadBram(HlsReadAddressed):
 
     def __init__(self,
-                 parentProxy: "BramArrayProxy",
+                 parentProxy: "IoProxyBram",
             parent:"HlsScope",
             src:AnyBramPort,
             index:ANY_SCALAR_INT_VALUE,
@@ -272,47 +271,6 @@ class HlsReadBram(HlsReadAddressed):
         HlsReadAddressed.__init__(self, parent, src, index, element_t, isBlocking, isVolatile, hwIOName=hwIOName)
         self.parentProxy = parentProxy
 
-    def _getNativeInterfaceWordType(self) -> HdlType:
-        src = getFirstInterfaceInstance(self._src)
-        return src.dout._dtype
-
-    @override
-    @classmethod
-    def _translateMirToNetlist(cls,
-            representativeReadStm: "HlsReadBram",
-            mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
-            mbMeta:MachineBasicBlockMeta,
-            instr:LoadInst,
-            srcIo:AnyBramPort,
-            index:Union[int, HlsNetNodeOutAny],
-            cond: Optional[HlsNetNodeOutAny],
-            instrDstReg:Register) -> Sequence[HlsNetNode]:
-        """
-        :see: :meth:`hwtHls.frontend.statementsRead.HlsRead._translateMirToNetlist`
-        """
-        valCache: MirToHwtHlsNetlistValueCache = mirToNetlist.valCache
-        netlist: HlsNetlistCtx = mirToNetlist.netlist
-        assert isinstance(srcIo, HwIOBramPort_noClk) or (isinstance(srcIo, MultiPortGroup) and isinstance(srcIo[0], HwIOBramPort_noClk)), srcIo
-        if isinstance(index, int):
-            raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", srcIo, instr)
-
-        n = HlsNetNodeWriteBramCmd(netlist, srcIo, READ)
-        mbMeta.parentElement.addNode(n)
-        mbMeta.addOrderedNode(n)
-
-        _io = n._getNominaInterface()
-        if _io.HAS_W:
-            xWrData = HlsNetNodeConst(netlist, _io.dout._dtype.from_py(None))
-            mbMeta.parentElement.addNode(xWrData)
-            xWrData._outputs[0].connectHlsIn(n._inputs[0])
-        index.connectHlsIn(n.indexes[0])
-
-        mirToNetlist._addExtraCond(n, cond, None)
-        mirToNetlist._addSkipWhen_n(n, cond, None)
-
-        valCache.add(mbMeta.block, instrDstReg, n._portDataOut, True)
-        return [n, ]
-
     def __repr__(self):
         t = self._dtype
         tName = getattr(t, "name")
@@ -325,7 +283,7 @@ class HlsReadBram(HlsReadAddressed):
 class HlsWriteBram(HlsWriteAddressed):
 
     def __init__(self,
-            parentProxy: "BramArrayProxy",
+            parentProxy: "IoProxyBram",
             parent:"HlsScope",
             src:Union[Value, RtlSignal, HConst],
             dst:AnyBramPort,
@@ -349,27 +307,136 @@ class HlsWriteBram(HlsWriteAddressed):
         HlsWriteAddressed.__init__(self, parent, src, dst, index, element_t, isVolatile, mayBecomeFlushable=mayBecomeFlushable)
         self.parentProxy = parentProxy
 
-    def _getNativeInterfaceWordType(self) -> HdlType:
-        dst = getFirstInterfaceInstance(self.dst)
-        if dst.HAS_BE:
-            return HBits(self._dtype.bit_length())
+
+class IoProxyBram(IoProxyAddressed):
+
+    def __init__(self, hls:"HlsScope", interface:AnyBramPort, dtype:Optional[HdlType]=None):
+        if isinstance(interface, (MultiPortGroup, BankedPortGroup)):
+            i = interface[0]
         else:
-            return dst.din._dtype
+            i = interface
+
+        assert i._direction != INTF_DIRECTION.MASTER, (
+            self.__class__, "this supports only slave interfaces,"
+            " because this is intended for mapping of IO to HLS as an array", interface)
+
+        assert isInstanceOfInterfacePort(i, HwIOBramPort_noClk), i
+        assert i.HAS_W or i.HAS_R, ("Must have at least one (read/write)", interface)
+
+        IoProxyAddressed.__init__(self, hls, interface, dtype=dtype)
+        self.indexT = i.addr._dtype
+
+    READ_CLS = HlsReadBram
+    WRITE_CLS = HlsWriteBram
+
+    @hlsLowLevel
+    def write(self, index: Union[AnyHBitsValue], data: AnyHBitsValue, mask=NOT_SPECIFIED, isVolatile:bool=True, mayBecomeFlushable=True) -> HlsWriteAddressed:
+        if self.interface.HAS_BE:
+            assert mask is not None
+            data = mask._concat(data)
+
+        return self.WRITE_CLS(self,
+                              self.hls,
+                              data,
+                              self.interface,
+                              index,
+                              self.getDataTypeOfNativeWrite(),
+                              isVolatile=isVolatile,
+                              mayBecomeFlushable=mayBecomeFlushable
+                              )
 
     @override
-    @classmethod
-    def _translateMirToNetlist(cls,
-            representativeWriteStm: "HlsWrite",
-            mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
+    def getDataWordType(self):
+        dtype = self._nativeDataWordTy
+        if dtype is None:
+            i = getFirstInterfaceInstance(self.interface)
+            if i.HAS_W:
+                dtype = i.din._dtype
+            else:
+                assert i.HAS_R, i
+                dtype = i.dout._dtype
+            self._nativeDataWordTy = dtype
+        return dtype
+
+    @override
+    def getDataTypeOfNativeWrite(self) -> HdlType:
+        dtype = self._nativeWriteTy
+        if dtype is None:
+            i = getFirstInterfaceInstance(self.interface)
+            if not i.HAS_W:
+                dtype = HVoidData
+            else:
+                dtype = i.din._dtype
+                if i.HAS_BE:
+                    dtype = HStruct(
+                        (dtype, "data"),
+                        (HBits(dtype.bit_length() // 8), "mask")
+                    )
+
+            self._nativeWriteTy = dtype
+        return dtype
+
+    @override
+    def getDataTypeOfNativeRead(self) -> HdlType:
+        dtype = self._nativeReadTy
+        if dtype is None:
+            i = getFirstInterfaceInstance(self.interface)
+            if not i.HAS_R:
+                dtype = HVoidData
+            else:
+                dtype = i.dout._dtype
+
+            self._nativeReadTy = dtype
+        return dtype
+
+    @override
+    def _translateMirToNetlist_HWTFPGA_CLOAD(self,
+                               mirToNetlist: "HlsNetlistAnalysisPassMirToNetlist",
+                               mbMeta: MachineBasicBlockMeta,
+                               instr: MachineInstr,
+                               srcIo: AnyBramPort,
+                               srcIoMd: HwtHlsIoMetadata,
+                               index: Union[int, HlsNetNodeOutAny],
+                               cond: Optional[HlsNetNodeOutAny],
+                               instrDstReg: Register) -> Sequence[HlsNetNode]:
+        valCache: MirToHwtHlsNetlistValueCache = mirToNetlist.valCache
+        netlist: HlsNetlistCtx = mirToNetlist.netlist
+        assert isinstance(srcIo, HwIOBramPort_noClk) or (isinstance(srcIo, MultiPortGroup) and isinstance(srcIo[0], HwIOBramPort_noClk)), srcIo
+        if isinstance(index, int):
+            raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", srcIo, instr)
+
+        n = HlsNetNodeWriteBramCmd(netlist, srcIo, READ)
+        mbMeta.parentElement.addNode(n)
+        mbMeta.addOrderedNode(n)
+
+        _io = n._getNominaInterface()
+        if _io.HAS_W:
+            xWrData = HlsNetNodeConst(netlist, _io.dout._dtype.from_py(None))
+            mbMeta.parentElement.addNode(xWrData)
+            xWrData._outputs[0].connectHlsIn(n._inputs[0])
+        index.connectHlsIn(n.indexes[0])
+
+        mirToNetlist._addExtraCond(n, cond, None)
+        mirToNetlist._addSkipWhen_n(n, cond, None)
+
+        valCache.add(mbMeta.block, instrDstReg, n._portDataOut, True)
+        return [n, ]
+
+    @override
+    def _translateMirToNetlist_HWTFPGA_CSTORE(self,
+            mirToNetlist: "HlsNetlistAnalysisPassMirToNetlist",
             mbMeta: MachineBasicBlockMeta,
             instr: MachineInstr,
             srcVal: HlsNetNodeOutAny,
             dstIo: AnyBramPort,
+            dstIoMd: HwtHlsIoMetadata,
             index: Union[int, HlsNetNodeOutAny],
-            cond: Optional[HlsNetNodeOutAny],) -> Sequence[HlsNetNode]:
+            cond: Optional[HlsNetNodeOutAny],
+            bufferCapacity: Optional[int]) -> Sequence[HlsNetNode]:
         """
-        :see: :meth:`hwtHls.frontend.statementsRead.HlsRead._translateMirToNetlist`
+        :see: :meth:`~.IoProxy._translateMirToNetlist_HWTFPGA_CLOAD`
         """
+        assert bufferCapacity == bufferCapacity, (dstIo, bufferCapacity)
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         isInstanceOfInterfacePort(dstIo, HwIOBramPort_noClk)
         if isinstance(index, int):
@@ -386,56 +453,3 @@ class HlsWriteBram(HlsWriteAddressed):
         mirToNetlist._addSkipWhen_n(n, _cond, None)
         mbMeta.addOrderedNode(n)
         return [n, ]
-
-
-class BramArrayProxy(IoProxyAddressed):
-
-    def __init__(self, hls:"HlsScope", interface:AnyBramPort):
-        if isinstance(interface, (MultiPortGroup, BankedPortGroup)):
-            i = interface[0]
-        else:
-            i = interface
-
-        assert i._direction != INTF_DIRECTION.MASTER, (
-            self.__class__, "this supports only slave interfaces,"
-            " because this is intended for mapping of IO to HLS as an array", interface)
-
-        assert isInstanceOfInterfacePort(i, HwIOBramPort_noClk), i
-        if i.HAS_W:
-            wWordType = rWordType = i.din._dtype
-            if i.HAS_BE:
-                wWordType = HStruct(
-                    (wWordType, "data"),
-                    (HBits(wWordType.bit_length() // 8), "mask")
-                )
-
-        else:
-            assert i.HAS_R, ("Must have at least one (read/write)", interface)
-            rWordType = i.dout._dtype
-            wWordType = None
-
-        nativeType = rWordType[int(2 ** i.ADDR_WIDTH)]
-        IoProxyAddressed.__init__(self, hls, interface, nativeType)
-        self.rWordT = rWordType
-        self.wWordT = wWordType
-        self.indexT = i.addr._dtype
-
-    READ_CLS = HlsReadBram
-    WRITE_CLS = HlsWriteBram
-
-    @hlsLowLevel
-    def write(self, index: Union[AnyHBitsValue], data: AnyHBitsValue, mask=NOT_SPECIFIED, isVolatile:bool=True, mayBecomeFlushable=True) -> HlsWriteBram:
-        if self.interface.HAS_BE:
-            assert mask is not None
-            data = mask._concat(data)
-
-        return self.WRITE_CLS(self,
-                              self.hls,
-                              data,
-                              self.interface,
-                              index,
-                              self.wWordT,
-                              isVolatile=isVolatile,
-                              mayBecomeFlushable=mayBecomeFlushable
-                              )
-

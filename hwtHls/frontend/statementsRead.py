@@ -1,4 +1,4 @@
-from typing import Optional, Union, Tuple, Sequence, Type as TypingType
+from typing import Optional, Union, Tuple, Sequence
 
 from hwt.doc_markers import internal
 from hwt.hObjList import HObjList
@@ -10,23 +10,13 @@ from hwt.hdl.types.bitsRtlSignal import HBitsRtlSignal
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.struct import HStruct, HStructField
 from hwt.hwIO import HwIO
-from hwt.mainBases import RtlSignalBase
 from hwt.pyUtils.typingFuture import override
-from hwtHls.frontend.ioUtils import _getNativeInterfaceWordType, \
+from hwtHls.frontend.ioUtils import  \
     ANY_HLS_STREAM_INTF_TYPE, ANY_SCALAR_INT_VALUE
 from hwtHls.frontend.utils import HwIO_getName
-from hwtHls.io.portGroups import getFirstInterfaceInstance, MultiPortGroup, \
-    BankedPortGroup
-from hwtHls.llvm.llvmIr import Register, MachineInstr, Argument, ArrayType, TypeToArrayType, \
+from hwtHls.llvm.llvmIr import Argument, ArrayType, TypeToArrayType, \
     Type, BasicBlock
-from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid, HVoidOrdering
-from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
-from hwtHls.netlist.nodes.read import HlsNetNodeRead
-from hwtHls.netlist.nodes.readIndexed import HlsNetNodeReadIndexed
-from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
-from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from hwtHls.ssa.translation.toLlvmArgumentUtils import getArgumentForHwIO
 
 
@@ -147,77 +137,13 @@ class HlsRead(HdlStatement):
     def _get_rtl_context(self) -> 'RtlNetlist':
         return self._parent.ctx
 
-    def _getNativeInterfaceWordType(self) -> HdlType:
-        return _getNativeInterfaceWordType(getFirstInterfaceInstance(self._src))
-
     def _translateToLlvm(self, toLlvm: "ToLlvmIrTranslator", bb: BasicBlock):
-        src, elmT = getArgumentForHwIO(toLlvm, self._src, self, True)
+        src, elmT = getArgumentForHwIO(toLlvm, self._src, self._parent._ioProxyForIo[self._src], self, True)
         src: Argument
         elmT: Type
         # [todo] see mustSuppressSpeculation
         v = toLlvm.b.CreateLoad(elmT, src, self._isVolatile, toLlvm.strCtx.addTwine(self._name))
         return toLlvm._translateToLlvm_HlsRead_registerVar(bb, self, v)
-
-    @classmethod
-    def _translateMirToNetlist(cls,
-                               representativeReadStm: "HlsRead",
-                               mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
-                               mbMeta: MachineBasicBlockMeta,
-                               instr: MachineInstr,
-                               srcIo: Union[HwIO, RtlSignalBase],
-                               index: Union[int, HlsNetNodeOutAny],
-                               cond: Optional[HlsNetNodeOutAny],
-                               instrDstReg: Register) -> Sequence[HlsNetNode]:
-        """
-        This method is called to generated HlsNetlist nodes from LLVM MIR.
-        The purpose of this function is to make this translation customizable for specific :class:`hwt.hwIO.HwIO` instances.
-
-        :param representativeReadStm: Any found read for this interface before LLVM opt.
-            We can not find the original because optimization process may remove and generate new reads and exact mapping can not be found.
-            This may be used to find meta informations about interface.
-        :param mirToNetlist: Main object form LLVM MIR to HlsNetlist translation.
-        :param instr: LLVM MIR instruction which is being translated
-        :param srcIo: An interface used by this instruction.
-        :param index: An index to specify the address used in this read.
-        :param cond: An enable condition for this operation to happen.
-        :param instrDstReg: A register where this instruction stores the read data.
-        """
-        valCache: MirToHwtHlsNetlistValueCache = mirToNetlist.valCache
-        netlist: HlsNetlistCtx = mirToNetlist.netlist
-        assert isinstance(srcIo, (HwIO, RtlSignalBase, MultiPortGroup, BankedPortGroup)), srcIo
-        assert isinstance(index, int) and index == 0, (srcIo, index, "Because this read is not addressed there should not be any index")
-        assert representativeReadStm._src is srcIo, (representativeReadStm, srcIo)
-
-        dtype = representativeReadStm._getNativeInterfaceWordType()
-        expectedWidth = mirToNetlist.mf.getRegInfo().getType(instrDstReg).getScalarSizeInBits()
-        if not representativeReadStm._isBlocking:
-            assert expectedWidth == dtype.bit_length() + 1, ("Width of physical signals of IO must be what is expected from LLVM MIR", instrDstReg, expectedWidth, dtype)
-        else:
-            assert expectedWidth == dtype.bit_length(), ("Width of physical signals of IO must be what is expected from LLVM MIR", instrDstReg, expectedWidth, dtype)
-
-        if (isinstance(dtype, HBits) and dtype.signed is not None) or not dtype.isScalar():
-            dtype = HBits(dtype.bit_length())
-
-        n = HlsNetNodeRead(netlist,
-                           srcIo,
-                           dtype=dtype,
-                           name=f"ld_r{instr.getOperand(0).getReg().virtRegIndex():d}")
-        mbMeta.parentElement.addNode(n)
-        if not representativeReadStm._isBlocking:
-            n.setNonBlocking()
-
-        mirToNetlist._addExtraCond(n, cond, mbMeta.blockEn)
-        mirToNetlist._addSkipWhen_n(n, cond, mbMeta.blockEn)
-        mbMeta.addOrderedNode(n)
-        if representativeReadStm._isBlocking:
-            o = n._portDataOut
-        else:
-            o = n.getRawValue()
-        assert not isinstance(o._dtype, HBits) or not o._dtype.signed, (
-            "At this stage all values of HBits type should have signed=None", o)  # can potentially be of void type
-        valCache.add(mbMeta.block, instrDstReg, o, True)
-
-        return [n, ]
 
     def _getInterfaceName(self, io: Union[HwIO, Tuple[HwIO]]) -> str:
         return HwIO_getName(self._parent.parentHwModule, io)
@@ -248,7 +174,7 @@ class HlsReadAddressed(HlsRead):
 
     @override
     def _translateToLlvm(self, toLlvm: "ToLlvmIrTranslator", bb: BasicBlock):
-        src, t = getArgumentForHwIO(toLlvm, self._src, self, True)
+        src, t = getArgumentForHwIO(toLlvm, self._src, self._parent._ioProxyForIo[self._src], self, True)
         src: Argument
         t: Type
         # :note: the index type does not matter much as llvm::InstCombine extends it to i64
@@ -264,46 +190,6 @@ class HlsReadAddressed(HlsRead):
         name = toLlvm.strCtx.addTwine(self._name)
         v = toLlvm.b.CreateLoad(elmT, ptr, self._isVolatile, name)
         return toLlvm._translateToLlvm_HlsRead_registerVar(bb, self, v)
-
-    @classmethod
-    def _translateMirToNetlist(cls,
-                               representativeReadStm: "HlsReadAddresed",
-                               mirToNetlist: "HlsNetlistAnalysisPassMirToNetlist",
-                               mbMeta: MachineBasicBlockMeta,
-                               instr: MachineInstr,
-                               srcIo: HwIO,
-                               index: Union[int, HlsNetNodeOutAny],
-                               cond: Optional[HlsNetNodeOutAny],
-                               instrDstReg: Register) -> Sequence[HlsNetNode]:
-        """
-        :see: :meth:`~.HlsRead._translateMirToNetlist`
-        """
-        valCache: MirToHwtHlsNetlistValueCache = mirToNetlist.valCache
-        netlist: HlsNetlistCtx = mirToNetlist.netlist
-        assert isinstance(srcIo, HwIO), srcIo
-        if isinstance(index, int):
-            raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", srcIo, instr)
-
-        n = HlsNetNodeReadIndexed(netlist, srcIo, name=f"ld_r{instr.getOperand(0).getReg().virtRegIndex()}")
-        index.connectHlsIn(n.indexes[0])
-        _cond = cond
-        # _cond = mbMeta.syncTracker.resolveControlOutput(cond)
-        mirToNetlist._addExtraCond(n, _cond, None)
-        mirToNetlist._addSkipWhen_n(n, _cond, None)
-        mbMeta.parentElement.addNode(n)
-        mbMeta.addOrderedNode(n)
-        o = n._portDataOut
-        assert isinstance(o._dtype, HBits)
-        sign = o._dtype.signed
-        if sign is None:
-            pass
-        elif sign:
-            raise NotImplementedError()
-        else:
-            raise NotImplementedError()
-        valCache.add(mbMeta.block, instrDstReg, o, True)
-
-        return [n, ]
 
     def __repr__(self):
         t = self._dtype
@@ -326,7 +212,7 @@ class HlsStmReadStartOfFrame(HlsRead):
 
     @override
     def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
-        src, _ = getArgumentForHwIO(toLlvm, self._src, self, True)
+        src, _ = getArgumentForHwIO(toLlvm, self._src, self._parent._ioProxyForIo[self._src], self, True)
         src: Argument
         v = toLlvm.b.CreateStreamReadStartOfFrame(src)
         return toLlvm._translateToLlvm_HlsRead_registerVar(bb, self, v)
@@ -344,7 +230,7 @@ class HlsStmReadEndOfFrame(HlsRead):
 
     @override
     def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
-        src, _ = getArgumentForHwIO(toLlvm, self._src, self, True)
+        src, _ = getArgumentForHwIO(toLlvm, self._src, self._parent._ioProxyForIo[self._src], self, True)
         src: Argument
         v = toLlvm.b.CreateStreamReadEndOfFrame(src)
         return toLlvm._translateToLlvm_HlsRead_registerVar(bb, self, v)

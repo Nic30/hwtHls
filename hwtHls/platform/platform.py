@@ -1,7 +1,7 @@
 from io import StringIO
 from pathlib import Path
 import sys
-from typing import Optional, Union, Set, Tuple, Dict, List, Type
+from typing import Optional, Union, Type
 
 from hwt.hdl.operatorDefs import HOperatorDef
 from hwt.serializer.resourceAnalyzer.resourceTypes import RtlResourceType
@@ -18,7 +18,8 @@ from hwtHls.architecture.transformation.ioPortPrivatization import HlsArchPassIo
 from hwtHls.architecture.transformation.loopControlLowering import HlsAndRtlNetlistPassLoopControlLowering
 from hwtHls.architecture.transformation.moveArchElementPortsToMinimizeSync import HlsArchPassMoveArchElementPortsToMinimizeSync
 from hwtHls.architecture.transformation.syncLowering import HlsArchPassSyncLowering
-from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineLoopInfo
+from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineLoopInfo, ModulePassManager, \
+    IoLowerAxiMMPass
 from hwtHls.netlist.analysis.blockSyncType import HlsNetlistAnalysisPassBlockSyncType
 from hwtHls.netlist.analysis.consistencyCheck import HlsNetlistPassConsistencyCheck
 from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
@@ -67,15 +68,16 @@ class DefaultHlsPlatform(DummyPlatform):
     """
 
     def __init__(self, debugDir:Optional[Union[str, Path]]=HlsDebugBundle.DEFAULT_DEBUG_DIR,
-                 debugFilter: Optional[Set[DebugId]]=HlsDebugBundle.DEFAULT,
-                 llvmCliArgs:List[LlvmCliArgTuple]=[]):
+                 debugFilter: Optional[set[DebugId]]=HlsDebugBundle.DEFAULT,
+                 llvmCliArgs: list[LlvmCliArgTuple]=[]):
         DummyPlatform.__init__(self)
         self.schedulerCls = HlsScheduler
-        self._componentGenerators: Dict[Union[Type[RtlResourceType], RtlResourceType, Type["HlsNetNode"], HOperatorDef],
+        self._componentGenerators: dict[Union[Type[RtlResourceType], RtlResourceType, Type["HlsNetNode"], HOperatorDef],
                                         ComponentGenerator] = {}
         self._debug = HlsDebugBundle(debugDir, debugFilter)
         self._debugExpandCompositeNodes = False
-        self._llvmCliArgs:List[LlvmCliArgTuple] = llvmCliArgs
+        self._llvmCliArgs: list[LlvmCliArgTuple] = llvmCliArgs
+        self._llvmIoLowerPasses: list["ModulePass"] = []
 
     def getPassManagerDebugLogFile(self) -> Optional[StringIO]:
         for llvmArg in self._llvmCliArgs:
@@ -102,6 +104,15 @@ class DefaultHlsPlatform(DummyPlatform):
         DBG(HlsDebugBundle.DBG_1_0_preLlvm, (toLlvm,), applyFnGetter=_runOnSsaMouduleGetter)
         DBG(SsaPassConsistencyCheck, (toLlvm,), applyFnGetter=_runOnSsaMouduleGetter)
 
+    def installLlvmIoLowerPass(self, modulePassCls: "ModulePass"):
+        passes = self._llvmIoLowerPasses
+        if modulePassCls not in passes:
+            passes.append(modulePassCls)
+
+    def addExtraModulePasses(self, MPM: ModulePassManager):
+        for pCls in self._llvmIoLowerPasses:
+            MPM.addPass(pCls())
+
     def runSsaToNetlist(self, hls: "HlsScope", toLlvm: ToLlvmIrTranslator, netlist: HlsNetlistCtx) -> HlsNetlistCtx:
         """
         :param hls: compilation scope
@@ -109,21 +120,23 @@ class DefaultHlsPlatform(DummyPlatform):
         :param netlist: netlist object where translated netlist nodes should be placed
         """
         assert isinstance(toLlvm, ToLlvmIrTranslator), toLlvm
-        toLlvm.llvm.runOpt(self.runMirToHlsNetlist, hls, toLlvm, netlist)
+        toLlvm.llvm.runOpt(self.runMirToHlsNetlist, self.addExtraModulePasses, hls, toLlvm, netlist)
+        netlist._channelsBetweenLlvmThreads = None  # delete because MachineFunctions are deallocated
 
     def runMirToHlsNetlist(self,
                            hls: "HlsScope",
                            toLlvm: ToLlvmIrTranslator,
                            netlist: HlsNetlistCtx,
                            mf: MachineFunction,
-                           backedges: Set[Tuple[MachineBasicBlock, MachineBasicBlock]],
-                           liveness: Dict[MachineBasicBlock, Dict[MachineBasicBlock, Set[Register]]],
-                           ioRegs: List[Register],
-                           registerTypes: Dict[Register, int],
+                           backedges: set[tuple[MachineBasicBlock, MachineBasicBlock]],
+                           liveness: dict[MachineBasicBlock, dict[MachineBasicBlock, set[Register]]],
+                           ioRegs: list[Register],
+                           registerTypes: dict[Register, int],
                            loops: MachineLoopInfo):
         """
         :attention: This function is called from c++ at the end of llvm pipeline.
-          It is implemented in this way to allow access to analysis in llvm pass manager. 
+          It is implemented in this way to allow access to analysis in llvm pass manager.
+        :note: this function may be called multipletimes for single llvm::Module if it contains mutiple function. 
         """
         assert isinstance(toLlvm, ToLlvmIrTranslator), toLlvm
         DBG = self._debug.runDebugIfEnabled
@@ -198,7 +211,7 @@ class DefaultHlsPlatform(DummyPlatform):
                     try:
                         DBG(D.DBG_3_1_netlistSimplifiedErr, (netlist,))
                     except:
-                        raise AssertionError("HlsNetlistPassSimplify failed and DBG_12_netlistSimplifiedErr also failed") from e
+                        raise AssertionError("HlsNetlistPassSimplify failed and DBG_3_1_netlistSimplifiedErr also failed") from e
                     raise
                 with netlist.dbgSubmoduleBuidTracer.scoped((HlsNetlistPassOperatorToHwtLowering, "preSchedule"), None):
                     HlsNetlistPassOperatorToHwtLowering(isScheduled=False, debugTracer=netlist.dbgSubmoduleBuidTracer).runOnHlsNetlist(netlist)
@@ -236,7 +249,7 @@ class DefaultHlsPlatform(DummyPlatform):
                             DBG(D.DBG_4_0_hwscheduleErr, (netlist,), constructorKwargs=dict(
                                 expandCompositeNodes=self._debugExpandCompositeNodes))
                         except:
-                            raise AssertionError("HlsNetlistAnalysisPassRunScheduler failed and DBG_18_hwscheduleErr also failed") from e
+                            raise AssertionError("HlsNetlistAnalysisPassRunScheduler failed and DBG_4_0_hwscheduleErr also failed") from e
                         raise
 
                 DBG(lambda: HlsNetlistPassConsistencyCheck(

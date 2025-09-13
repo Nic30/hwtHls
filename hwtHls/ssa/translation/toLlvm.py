@@ -26,24 +26,23 @@ from hwt.pyUtils.arrayQuery import grouper, flatten
 from hwt.synthesizer.interfaceLevel.utils import HwIO_pack
 from hwt.synthesizer.rtlLevel.exceptions import SignalDriverErr
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.statementsRead import HlsRead
-from hwtHls.frontend.statementsWrite import HlsWrite
 from hwtHls.frontend.hOperatorDefLlvm import HOperatorDefLlvm
 from hwtHls.frontend.hardBlock import HardBlockHwModule
 from hwtHls.frontend.pragma import _PyBytecodeIntrinsic
+from hwtHls.frontend.statementsRead import HlsRead
+from hwtHls.frontend.statementsWrite import HlsWrite
 from hwtHls.llvm.llvmIr import Value, Type, FunctionType, Function, VectorOfTypePtr, BasicBlock, \
     ConstantInt, ConstantArray, APInt, TypeToIntegerType, \
     LlvmCompilationBundle, LLVMContext, LLVMStringContext, ArrayType, MDString, \
-    ConstantAsMetadata, MDNode, Module, IRBuilder, UndefValue, PoisonValue, \
+    ConstantAsMetadata, MDNode, Module, IRBuilder, UndefValue, \
     GlobalVariable, GlobalValue, Align, AllocaInst, ValueToInstruction, ValueToAllocaInst, \
     TypeToArrayType, MaybeAlign, ValueToGlobalValue
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.platform.debugBundleTypes import LlvmCliArgTuple
-from hwtHls.ssa.translation.toLlvmUtils import addHwtHlsFunctionMetadata, \
+from hwtHls.ssa.translation.toLlvmUtils import addHwtHlsFunctionIoMetadata, \
     ToLlvmIrTranslator_createOperatorConstructorDictionaries, \
     llvmFunctionSortArgsByName, ToLlvmIoRecordTuple, applyLateLoopPragma
-from hwtLib.types.ctypes import uint32_t
 from pyMathBitPrecise.bit_utils import iter_bits_sequences, get_bit_range
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 
@@ -92,7 +91,7 @@ class ToLlvmIrTranslator():
 
         self._afterTranslation: List[Callable[[ToLlvmIrTranslator], None]] = [
             llvmFunctionSortArgsByName,
-            addHwtHlsFunctionMetadata,
+            addHwtHlsFunctionIoMetadata,
             applyLateLoopPragma,
         ]
         self.placeholderObjectSlots = []
