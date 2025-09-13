@@ -62,12 +62,15 @@ bool ConcatBlockLiveins::runOnMachineFunction(llvm::MachineFunction &MF) {
 			MRI.setType(liveInReg, LLT::scalar(newWidth));
 
 			Builder.setInsertPt(BB, BB.begin());
-			auto newLiveinMO = MachineOperand::CreateReg(liveInReg, true);
-			size_t offset = 0;
-			for (Register R : liveins) {
-				LLT T = MRI.getType(R);
-				buildHWTFPGA_EXTRACT(Builder, nullptr, R, newLiveinMO, newWidth,
-						offset, T.getSizeInBits());
+			{
+				auto newLiveinMO = MachineOperand::CreateReg(liveInReg, true);
+				size_t offset = 0;
+				for (Register R : liveins) {
+					LLT T = MRI.getType(R);
+					buildHWTFPGA_EXTRACT(Builder, nullptr, R, newLiveinMO,
+							newWidth, offset, T.getSizeInBits());
+					offset += T.getSizeInBits();
+				}
 			}
 
 			for (MachineBasicBlock *PredBB : BB.predecessors()) {
@@ -84,7 +87,8 @@ bool ConcatBlockLiveins::runOnMachineFunction(llvm::MachineFunction &MF) {
 					}
 				}
 				Builder.setInsertPt(*PredBB, PredBB->getFirstTerminator());
-				buildHWTFPGA_MERGE_VALUES(Builder, nullptr, liveInReg, concatItems);
+				buildHWTFPGA_MERGE_VALUES(Builder, nullptr, liveInReg,
+						concatItems);
 			}
 		}
 	}
