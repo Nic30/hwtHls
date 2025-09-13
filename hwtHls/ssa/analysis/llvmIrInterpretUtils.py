@@ -121,11 +121,9 @@ def _getMetadataInt(v: MDOperand) -> int:
 def _findLoadOrStoreWidthForValue(strCtx: LLVMStringContext, v: Value) -> int:
     if isinstance(v, Argument):
         v: Argument
-        streamIo = v.getParent().getMetadata(strCtx.addStringRef("hwtHls.streamIo"))
-        if streamIo is not None:
-            streamInfo = StreamChannelFormatInfo.findOptionalInMetadata(streamIo, v)
-            if streamInfo:
-                return streamInfo.getWidthOfBusWord()
+        streamInfo = StreamChannelFormatInfo.findOptionalInMetadata(v)
+        if streamInfo:
+            return streamInfo.getWidthOfBusWord()
 
     for u in v.users():
         u: User
