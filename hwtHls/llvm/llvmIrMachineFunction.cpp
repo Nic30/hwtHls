@@ -17,9 +17,10 @@
 #include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Target/TargetMachine.h>
 
+#include <hwtHls/llvm/llvmCompilationBundle.h>
 #include <hwtHls/llvm/llvmIrCommon.h>
 #include <hwtHls/llvm/targets/hwtFpgaMCTargetDesc.h>
-#include <hwtHls/llvm/llvmCompilationBundle.h>
+#include <hwtHls/llvm/targets/hwtFpgaIoUtils.h>
 
 namespace py = pybind11;
 
@@ -205,6 +206,7 @@ void register_MachineFunction(pybind11::module_ &m) {
 							"Can not parse machine functions from module");
 				return Context.module;
 			}, py::return_value_policy::reference_internal);
+	m.def("getLoadOrStoreElementType", &hwtHls::getLoadOrStoreElementType);
 }
 
 }
