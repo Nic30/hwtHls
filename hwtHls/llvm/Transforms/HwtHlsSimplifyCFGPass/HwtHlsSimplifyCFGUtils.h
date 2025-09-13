@@ -18,5 +18,6 @@ llvm::Value* CreateGlobalDataWithGEP(llvm::IRBuilder<> &builder,
 bool IsCheapInstruction(llvm::Instruction &I);
 bool tryHoistCheapInstsAtBlockBegin(llvm::BasicBlock &BB,
 		llvm::Instruction *MovePos);
-
+bool simplifyBranchToSameDst(llvm::BasicBlock *BB);
+void sortPhiOperands(llvm::BasicBlock &BB);
 }

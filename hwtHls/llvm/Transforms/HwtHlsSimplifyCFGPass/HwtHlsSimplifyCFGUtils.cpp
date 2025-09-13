@@ -113,5 +113,41 @@ bool tryHoistCheapInstsAtBlockBegin(BasicBlock &BB, Instruction *MovePos) {
 	return Changed;
 }
 
+bool simplifyBranchToSameDst(BasicBlock *BB) {
+	auto ter = BB->getTerminator();
+	auto br = dyn_cast<BranchInst>(ter);
+	if (ter->getNumSuccessors() > 0) {
+		BasicBlock *suc = BB->getTerminator()->getSuccessor(0);
+		if ((!br || br->isConditional()) && all_equal(successors(BB))) {
+			ter->eraseFromParent();
+			BranchInst::Create(suc, BB);
+			return true;
+		}
+	}
+	return false;
+}
+
+void sortPhiOperands(BasicBlock &BB) {
+	for (auto &phi : BB.phis()) {
+		int predI = 0;
+		for (auto pred : predecessors(&BB)) {
+			auto curPredI = phi.getBasicBlockIndex(pred);
+			if (curPredI < 0) {
+				llvm_unreachable(
+						"PHINode should have one entry for each predecessor of its parent basic block!");
+			} else if (predI != curPredI) {
+				// if the incoming block is not on its place swap it with the current bb to put it in its place
+				auto curV = phi.getIncomingValue(curPredI);
+				auto _v = phi.getIncomingValue(predI);
+				auto _bb = phi.getIncomingBlock(predI);
+				phi.setIncomingBlock(predI, pred);
+				phi.setIncomingValue(predI, curV);
+				phi.setIncomingBlock(curPredI, _bb);
+				phi.setIncomingValue(curPredI, _v);
+			}
+			predI++;
+		}
+	}
+}
 
 }
