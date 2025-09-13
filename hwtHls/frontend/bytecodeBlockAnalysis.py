@@ -63,6 +63,8 @@ def extractBytecodeBlocks(instructions: Tuple[Instruction, ...]) -> Tuple[Dict[i
         elif opc in JUMPS_CONDITIONAL_ANY:
             if instr.opcode == FOR_ITER:
                 # :note: FOR_ITER is always jump target and conditional jump so this block always contains just this instr.
+                # [fixme] the FOR_ITER block may be longer if there is unconditional break or raise in the loop and the code
+                #  directly after it (it is unreachable but it is present)
                 assert len(curBlock) == 1 or (
                     len(curBlock) == 2 and curBlock[0].opcode == EXTENDED_ARG), curBlock
 
