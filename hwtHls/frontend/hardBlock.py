@@ -50,15 +50,15 @@ class HardBlockHwModule(_PyBytecodeIntrinsic):
     def _translateExprHConstHardBlockFunctionDef(self, toLlvm: "ToLlvmIrTranslator"):
         strCtx = toLlvm.strCtx
         _argTypes = VectorOfTypePtr()
-        _argTypes.push_back(Type.getIntNTy(toLlvm.ctx, 32))
+        _argTypes.append(Type.getIntNTy(toLlvm.ctx, 32))
         if self.hasManyInputs:
             for field in self.hwInputT.fields:
                 field: HStructField
                 t = toLlvm._translateType(field.dtype)
-                _argTypes.push_back(t)
+                _argTypes.append(t)
         else:
             t = toLlvm._translateType(self.hwInputT)
-            _argTypes.push_back(t)
+            _argTypes.append(t)
 
         returnType = toLlvm._translateType(self.hwOutputT)
         FT = FunctionType.get(returnType, _argTypes, False)
