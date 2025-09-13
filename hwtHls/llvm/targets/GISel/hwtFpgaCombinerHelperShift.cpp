@@ -99,11 +99,14 @@ void HwtFpgaCombinerHelper::rewriteConstFunnelShift(llvm::MachineInstr &MI) {
 	auto src1 = MI.getOperand(2);
 	auto shAmount = MI.getOperand(3).getCImm()->getValue().getZExtValue();
 	size_t srcWidth = MI.getOperand(4).getImm();
+	assert(shAmount <= srcWidth);
 	auto Opc = MI.getOpcode();
 	Builder.setInstrAndDebugLoc(MI);
 	if (shAmount == 0) {
 		// just copy
 		Builder.buildInstr(HwtFpga::HWTFPGA_MUX, { DstReg }, { src0 });
+	} else if (shAmount == srcWidth) {
+		Builder.buildInstr(HwtFpga::HWTFPGA_MUX, { DstReg }, { src1 });
 	} else if (src0.isCImm() && src1.isCImm()) {
 		APInt Val0 = src0.getCImm()->getValue();
 		APInt Val1 = src1.getCImm()->getValue();
@@ -112,7 +115,8 @@ void HwtFpgaCombinerHelper::rewriteConstFunnelShift(llvm::MachineInstr &MI) {
 		APInt Val;
 		switch (Opc) {
 		case HwtFpga::HWTFPGA_FSHL:
-			Val = Val0.concat(Val1).shl(shAmount).extractBits(srcWidth, srcWidth);
+			Val = Val0.concat(Val1) // Val1 is in lower bits
+				.shl(shAmount).extractBits(srcWidth, srcWidth);
 			break;
 		case HwtFpga::HWTFPGA_FSHR:
 			Val = Val1.concat(Val0).lshr(shAmount).extractBits(srcWidth, 0);
@@ -135,7 +139,7 @@ void HwtFpgaCombinerHelper::rewriteConstFunnelShift(llvm::MachineInstr &MI) {
 			// top shAmount bits of src1 as new low bits
 			hwtHls::CImmOrRegOrUndefWithWidth src1Top =
 					hwtHls::buildHWTFPGA_EXTRACT(Builder, &Observer, src1,
-							srcWidth, srcWidth - shAmount - 1, shAmount);
+							srcWidth, srcWidth - shAmount, shAmount);
 
 			// lower bits of src0 as new high bits
 			hwtHls::CImmOrRegOrUndefWithWidth src0Bottom =
@@ -143,8 +147,8 @@ void HwtFpgaCombinerHelper::rewriteConstFunnelShift(llvm::MachineInstr &MI) {
 							srcWidth, 0, srcWidth - shAmount);
 
 			assert(src1Top.width + src0Bottom.width == srcWidth);
-			ConcatMembers.push_back(src1Top);
-			ConcatMembers.push_back(src0Bottom);
+			ConcatMembers.push_back(src1Top); // lower bits
+			ConcatMembers.push_back(src0Bottom); // upper bits
 			break;
 		}
 		case HwtFpga::HWTFPGA_FSHR: {
@@ -157,8 +161,8 @@ void HwtFpgaCombinerHelper::rewriteConstFunnelShift(llvm::MachineInstr &MI) {
 					hwtHls::buildHWTFPGA_EXTRACT(Builder, &Observer, src0,
 							srcWidth, 0, shAmount);
 			assert(src0Top.width + src1Bottom.width == srcWidth);
-			ConcatMembers.push_back(src0Top);
-			ConcatMembers.push_back(src1Bottom);
+			ConcatMembers.push_back(src0Top); // lower bits
+			ConcatMembers.push_back(src1Bottom); // upper bits
 			break;
 		}
 		default:
@@ -168,7 +172,6 @@ void HwtFpgaCombinerHelper::rewriteConstFunnelShift(llvm::MachineInstr &MI) {
 
 		hwtHls::buildHWTFPGA_MERGE_VALUES(Builder, &Observer, DstReg,
 				ConcatMembers);
-
 	}
 	MI.eraseFromParent();
 
