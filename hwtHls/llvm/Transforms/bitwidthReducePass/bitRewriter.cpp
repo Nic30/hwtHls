@@ -55,7 +55,7 @@ llvm::Value* BitPartsRewriter::rewriteKnownBitRangeInfo(IRBuilder<> *Builder,
 		// must select specific bits
 		if (auto *c = dyn_cast<ConstantInt>(kbri.src)) {
 			return Builder->getInt(
-					c->getValue().shl(kbri.srcBeginBitI).trunc(kbri.width));
+					c->getValue().extractBits(kbri.width, kbri.srcBeginBitI));
 		} else {
 			llvm::Value *src = const_cast<Value*>(kbri.src);
 			unsigned offset = kbri.srcBeginBitI;
