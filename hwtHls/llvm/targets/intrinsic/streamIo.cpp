@@ -26,15 +26,18 @@ CallInst* CreateStreamRead(IRBuilderBase *Builder, Value *ioArgPtr,
 				"CreateStreamRead must have chunkBitWidth <= returnBitWidth");
 	}
 
-	Value *Ops[] = { ioArgPtr, Builder->getInt64(chunkBitWidth), Builder->getInt1(isReliable) };
+	Value *Ops[] = { ioArgPtr, Builder->getInt64(chunkBitWidth),
+			Builder->getInt1(isReliable) };
 	Type *ResT = Builder->getIntNTy(returnBitWidth);
 	Type *TysForName[] = { Ops[0]->getType(), Ops[1]->getType(), ResT };
 	Module *M = Builder->GetInsertBlock()->getParent()->getParent();
-	Function *TheFn = cast<Function>(
-			M->getOrInsertFunction(
-					Intrinsic_getName(StreamReadName, TysForName), ResT,
-					Ops[0]->getType(), Ops[1]->getType(), Ops[2]->getType()).getCallee());
-	setArgNames(*TheFn, {"ioArgPtr", "chunkBitWidth", "isReliable"});
+	Function *TheFn =
+			cast<Function>(
+					M->getOrInsertFunction(
+							Intrinsic_getName(StreamReadName, TysForName), ResT,
+							Ops[0]->getType(), Ops[1]->getType(),
+							Ops[2]->getType()).getCallee());
+	setArgNames(*TheFn, { "ioArgPtr", "chunkBitWidth", "isReliable" });
 	AddDefaultFunctionAttributes(*TheFn);
 	CallInst *CI = Builder->CreateCall(TheFn, Ops);
 	CI->setOnlyAccessesArgMemory();
@@ -75,13 +78,14 @@ CallInst* CreateStreamMarker(IRBuilderBase *Builder, Value *ioArgPtr) {
 	Function *TheFn = cast<Function>(
 			M->getOrInsertFunction(Intrinsic_getName(NAME, TysForName), ResT,
 					Ops[0]->getType()).getCallee());
-	setArgNames(*TheFn, {"ioArgPtr"});
+	setArgNames(*TheFn, { "ioArgPtr" });
 	AddDefaultFunctionAttributes(*TheFn);
 	CallInst *CI = Builder->CreateCall(TheFn, Ops);
 	CI->setOnlyAccessesArgMemory();
 	return CI;
 }
-CallInst* CreateStreamReadStartOfFrame(IRBuilderBase *Builder, Value *ioArgPtr) {
+CallInst* CreateStreamReadStartOfFrame(IRBuilderBase *Builder,
+		Value *ioArgPtr) {
 	return CreateStreamMarker<StreamReadStartOfFrameName>(Builder, ioArgPtr);
 }
 
@@ -210,7 +214,8 @@ bool IsStreamWriteMasked(const llvm::Function *F) {
 }
 
 const std::string StreamWriteStartOfFrameName = "hwtHls.streamWriteStartOfFrame";
-CallInst* CreateStreamWriteStartOfFrame(IRBuilderBase *Builder, Value *ioArgPtr) {
+CallInst* CreateStreamWriteStartOfFrame(IRBuilderBase *Builder,
+		Value *ioArgPtr) {
 	return CreateStreamMarker<StreamWriteStartOfFrameName>(Builder, ioArgPtr);
 }
 
@@ -234,9 +239,8 @@ bool IsStreamWriteEndOfFrame(const llvm::Function *F) {
 	return F->getName().str().rfind(StreamWriteEndOfFrameName + ".", 0) == 0;
 }
 
-
 bool IsStreamIo(const llvm::CallInst *C) {
-	auto * F = C->getCalledFunction();
+	auto *F = C->getCalledFunction();
 	assert(F && "Function may null if definition is missing in IR");
 	return F->getName().str().rfind("hwtHls.stream") == 0;
 }
