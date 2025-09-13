@@ -255,6 +255,11 @@ Instruction* HwtHlsInstCombiner::runOnInstr(Instruction &I) {
 				assert(!verifyFunction(F, &errs()));
 #endif
 				return r;
+			} else if (auto r = tryReduceOrOfAssumedPredicates(*BI)) {
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+				assert(!verifyFunction(F, &errs()));
+#endif
+				return r;
 			} else if (auto r = tryReduceOrOnBits_toNE(*BI)) {
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 				assert(!verifyFunction(F, &errs()));

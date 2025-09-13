@@ -219,7 +219,7 @@ public:
 	llvm::Instruction* tryReduceOrOnBits_toNE(llvm::BinaryOperator &I);
 
 	llvm::Instruction* tryReduceAndOfAssumedPredicates(llvm::BinaryOperator &I);
-
+	llvm::Instruction* tryReduceOrOfAssumedPredicates(llvm::BinaryOperator &I);
 	llvm::Instruction* tryReduceAndWithEq_to_widerEq(llvm::BinaryOperator &I);
 
 	llvm::Instruction* tryReduceZExt_onTurncUMin(llvm::ZExtInst &I);
