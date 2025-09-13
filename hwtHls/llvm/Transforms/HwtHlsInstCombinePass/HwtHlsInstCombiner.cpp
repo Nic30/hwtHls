@@ -94,10 +94,9 @@ Instruction* HwtHlsInstCombiner::runOnInstr(Instruction &I) {
 			}
 		}
 	} else if (auto CMPI = dyn_cast<CmpInst>(&I)) {
-		//if (auto r = tryReduceCmpInst_hoistConstICmpOnConstArithAndSel(*CMPI)) {
-		//	return r;
-		//} else
-		if (auto r = tryReduceUMinNe_to_ULT(*CMPI)) {
+		if (auto r = tryReduceCmpInst_hoistConstICmpOnConstArithAndSel(*CMPI)) {
+			return r;
+		} else if (auto r = tryReduceUMinNe_to_ULT(*CMPI)) {
 			return r;
 		}
 		if (auto ICMPI = dyn_cast<ICmpInst>(&I)) {

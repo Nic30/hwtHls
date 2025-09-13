@@ -70,8 +70,8 @@ public:
 	///* The main purpose of this opt. is to remove add/sub trees with icmp on each level and replace them with icmp
 	// * of input data and single adder with select for const rhs
 	// * */
-	//llvm::Instruction* tryReduceCmpInst_hoistConstICmpOnConstArithAndSel(
-	//		llvm::CmpInst &I);
+	llvm::Instruction* tryReduceCmpInst_hoistConstICmpOnConstArithAndSel(
+			llvm::CmpInst &I);
 	llvm::Instruction* tryReduceSelectInst_unNegate(llvm::SelectInst &SI);
 	llvm::Instruction* _tryReduceSelectInst_toAndOr_SelectOfCompares(
 			llvm::SelectInst &SI);
