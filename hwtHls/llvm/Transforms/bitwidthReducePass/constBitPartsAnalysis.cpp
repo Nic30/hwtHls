@@ -1,11 +1,14 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/constBitPartsAnalysis.h>
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/phiValueProver.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/PatternMatch.h>
+
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/bitMath.h>
 #include <hwtHls/llvm/Transforms/utils/bitWidthInfo.h>
 
 using namespace llvm;
+using namespace llvm::PatternMatch;
 
 namespace hwtHls {
 
@@ -97,8 +100,10 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitSelectInst(
 		const SelectInst *I) {
 	// propagate from ops to this, union of masks an known values
 	VarBitConstraint &c = initConstraintMember(I, getIntegerBitWidthOr1(I));
-	auto CknownBits = getKnownBitBoolValue(I->getCondition());
+	auto CurC = I->getCondition();
+	auto CknownBits = getKnownBitBoolValue(CurC);
 	if (CknownBits.has_value()) {
+		// condition is known to be constant
 		const Value *V;
 		if (CknownBits.value()) {
 			V = I->getTrueValue();
@@ -113,8 +118,69 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitSelectInst(
 		c = visitValue(I->getTrueValue()); // intended copy to c
 		VarBitConstraint &_cF = visitValue(I->getFalseValue());
 		assert(_cF.consistencyCheck());
-		c.srcUnionInplace(_cF, I, true);
-		assert(c.consistencyCheck());
+		Instruction *CurCInsr = const_cast<Instruction*>(dyn_cast<Instruction>(
+				CurC));
+		SmallVector<VarBitConstraint::DetectBitsDrivenByConditionResultItem> bitsDrivenByC;
+		if (CurCInsr) {
+			// if condition is result of instruction we may potentially use it some output directly
+			// without the need for SelectInst
+			auto C_VBC = findInConstraints(CurC, true);
+			assert(!C_VBC || C_VBC->replacements.size() == 1);
+			if (C_VBC && isa<Instruction>(C_VBC->replacements[0].src)) {
+				IRBuilder<> Builder(CurCInsr);
+				auto &r = C_VBC->replacements[0];
+				CurCInsr = dyn_cast<Instruction>(const_cast<Value*>(r.src));
+				if (r.srcBeginBitI == 0 && r.width == 1
+						&& r.src->getType()->isIntegerTy(1)) {
+				} else {
+					assert(CurCInsr);
+					Builder.SetInsertPoint(CurCInsr);
+					CurCInsr = dyn_cast<Instruction>(
+							CreateBitRangeGetConst(&Builder,
+									const_cast<Value*>(r.src), r.srcBeginBitI,
+									r.width));
+				}
+				// errs() << "Analyzing " << *I << " with C: " << *CurCInsr << "\n";
+				VarBitConstraint::detectBitsDrivenByCondition(*C_VBC, c, _cF,
+						bitsDrivenByC);
+				c.srcUnionInplace(_cF, I, true);
+				assert(c.consistencyCheck());
+				KnownBitRangeInfo Cond_n(1);
+				bool usesCond_n =
+						any_of(bitsDrivenByC,
+								[](
+										VarBitConstraint::DetectBitsDrivenByConditionResultItem &v) {
+									return v.isDrivenByCondWithPolarity.has_value()
+											&& !v.isDrivenByCondWithPolarity.value();
+								});
+				if (usesCond_n) {
+					// create Cond_n if required by any bit
+					auto IP = GetAfterSlicesInsertPoint(*CurCInsr);
+					assert(
+							&*IP
+									&& "There always should be a terminator at least");
+					Instruction *_Cond_n;
+					if (match(&*IP, m_Not(m_Specific(CurCInsr)))) {
+						_Cond_n = &*IP; // avoid creating of new not if it already exits
+					} else {
+						Builder.SetInsertPoint(&*IP);
+						_Cond_n = dyn_cast<Instruction>(Builder.CreateNot(CurCInsr));
+						assert(_Cond_n);
+					}
+					Cond_n = visitInstruction(_Cond_n).replacements[0];
+				}
+				c.mergeWithBitsDrivenByCondition(I->getContext(), bitsDrivenByC,
+						C_VBC->replacements[0],
+						usesCond_n ? &Cond_n : (KnownBitRangeInfo*) nullptr);
+				assert(c.consistencyCheck());
+			} else {
+				c.srcUnionInplace(_cF, I, true);
+				assert(c.consistencyCheck());
+			}
+		} else {
+			c.srcUnionInplace(_cF, I, true);
+			assert(c.consistencyCheck());
+		}
 	}
 	return c;
 }

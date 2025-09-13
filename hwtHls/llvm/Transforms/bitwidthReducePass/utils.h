@@ -19,7 +19,7 @@ public:
 	KnownBitRangeInfo(unsigned bitwidth);
 	KnownBitRangeInfo(const llvm::ConstantInt *CI);
 	KnownBitRangeInfo(const llvm::Value *V);
-	KnownBitRangeInfo(const OffsetWidthValue & owv, unsigned dstBeginBitI);
+	KnownBitRangeInfo(const OffsetWidthValue &owv, unsigned dstBeginBitI);
 
 	unsigned dstEndBitI() const;
 	// check if this and itemOnRight overlaps in dst, if it is guaranteed this.begin <= itemOnRight.begin
@@ -27,20 +27,27 @@ public:
 	// :note: It does not construct slices of values, srcBeginBitI and width is used in that case,
 	//        constants are sliced immediately
 	KnownBitRangeInfo slice(unsigned offset, unsigned width) const;
+
+	llvm::APInt extractSelectedAPInt() const;
+
 	// :returns: true if this record specifies exactly value V
 	bool isValue(const llvm::Value *V) const;
 	void print(llvm::raw_ostream &O, bool IsForDebug = false) const;
 	bool operator!=(const KnownBitRangeInfo &rhs) const;
 	bool operator==(const KnownBitRangeInfo &rhs) const;
+	bool isNegationOf(const KnownBitRangeInfo &other) const;
 };
 
 struct UniqRangeSequence {
 	// start/width specified for dst
 	unsigned begin;
 	unsigned width;
+	// :attention: v0 anv v1 are not strictly at the begin, but they
+	//   are are known to define bits for range defined by this (the may be wider and shifted)
 	const KnownBitRangeInfo *v0;
 	const KnownBitRangeInfo *v1;
 
+	llvm::APInt extractSelectedAPInt(const KnownBitRangeInfo *v) const;
 	void print(llvm::raw_ostream &O, bool IsForDebug = false) const;
 	void dump() const;
 };
@@ -90,7 +97,8 @@ public:
 	VarBitConstraint(const VarBitConstraint &obj);
 
 	static VarBitConstraint fromConcat(const llvm::CallInst *V);
-	static bool valuesHaveSameMeaning(const llvm::Value *V0, const llvm::Value *V1);
+	static bool valuesHaveSameMeaning(const llvm::Value *V0,
+			const llvm::Value *V1);
 	bool _valuesHaveSameMeaning(const llvm::Value *V1) const;
 	bool valuesHaveSameMeaning(const llvm::Value *V1) const;
 
@@ -116,6 +124,25 @@ public:
 	void srcUnionInplace(const VarBitConstraint &other,
 			const llvm::Value *parent, bool reduceUndefs);
 
+	struct DetectBitsDrivenByConditionResultItem {
+		std::optional<bool> isDrivenByCondWithPolarity; // true if specified bits are driven by Cond, false if by ~Cond and noopt if something else
+		std::optional<bool> knownConst; // specifies if bit is known to be 0/1
+		unsigned dstBeginBitI; // first bit in dst from where the value is set
+		unsigned bitWidth; // the length of described bit sequence
+	};
+	/*
+	 * :param bitsDrivenByC: output vector for information about bits of SelectInst like instruction
+	 * :note: bitsDrivenByC is sparse, it contains items only for bits which were resolved to have isDrivenByCondWithPolarity/knownConst
+	 * */
+	static void detectBitsDrivenByCondition(const VarBitConstraint &Cond,
+			const VarBitConstraint &TrueVal, const VarBitConstraint &FalseVal,
+			llvm::SmallVector<DetectBitsDrivenByConditionResultItem> &bitsDrivenByC);
+
+	// update replacements and useMask from result of detectBitsDrivenByCondition
+	void mergeWithBitsDrivenByCondition(llvm::LLVMContext &Ctx,
+			llvm::ArrayRef<DetectBitsDrivenByConditionResultItem> bitsDrivenByC,
+			const KnownBitRangeInfo &Cond, const KnownBitRangeInfo *Cond_n);
+
 	// lowest first expected
 	static void srcUnionInplaceAddFillUp(
 			std::vector<KnownBitRangeInfo> &newList, const llvm::Value *parent,
@@ -135,6 +162,9 @@ public:
 	bool consistencyCheck() const;
 	void print(llvm::raw_ostream &O, bool IsForDebug = false) const;
 	void dump() const;
+	bool operator==(const KnownBitRangeInfo &other) const;
+	bool isNegationOf(const VarBitConstraint &other) const;
+	bool isNegationOf(const KnownBitRangeInfo &other) const;
 };
 
 }

@@ -1,6 +1,7 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/utils.h>
 #include <llvm/ADT/SmallString.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/PatternMatch.h>
 
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/targets/intrinsic/concatMemberVector.h>
@@ -8,6 +9,7 @@
 #include <hwtHls/llvm/Transforms/utils/bitWidthInfo.h>
 
 using namespace llvm;
+using namespace llvm::PatternMatch;
 
 namespace hwtHls {
 
@@ -67,14 +69,12 @@ bool KnownBitRangeInfo::isValue(const llvm::Value *V) const {
 
 void KnownBitRangeInfo::print(raw_ostream &O, bool IsForDebug) const {
 	O << "[" << (dstBeginBitI + width) << ":" << dstBeginBitI << "]=(";
-	if (dyn_cast<ConstantInt>(src)) {
+	if (isa<ConstantData>(src)) {
 		O << *src;
+	} else if (src->hasName()) {
+		O << "%" << src->getName();
 	} else {
-		if (src->hasName())
-			O << "%" << src->getName();
-		else {
-			O << "%" << src;
-		}
+		O << src; // print pointer
 	}
 	O << ")[" << (srcBeginBitI + width) << ":" << srcBeginBitI << "]";
 }
@@ -83,8 +83,59 @@ bool KnownBitRangeInfo::operator!=(const KnownBitRangeInfo &rhs) const {
 			|| width != rhs.width || src != rhs.src);
 }
 bool KnownBitRangeInfo::operator==(const KnownBitRangeInfo &rhs) const {
-	return (dstBeginBitI == rhs.dstBeginBitI && srcBeginBitI == rhs.srcBeginBitI
-			&& width == rhs.width && src == rhs.src);
+	if (dstBeginBitI == rhs.dstBeginBitI && srcBeginBitI == rhs.srcBeginBitI
+			&& width == rhs.width && src == rhs.src) {
+		return true;
+	}
+	return false;
+}
+
+bool KnownBitRangeInfo::isNegationOf(const KnownBitRangeInfo &rhs) const {
+	if (dstBeginBitI != rhs.dstBeginBitI || srcBeginBitI != rhs.srcBeginBitI
+			|| width != rhs.width) {
+		return false;
+	}
+	// handle commutativity
+	std::array<std::pair<const Value*, const Value*>, 2> values;
+	values[0] = { src, rhs.src };
+	values[1] = { rhs.src, src };
+	for (const auto& [src0, src1] : values) {
+		if (match(src0, m_Not(m_Specific(src1)))) {
+			return true;
+		}
+
+		Value *LHS0, *RHS0;
+		CmpInst::Predicate P0, P1;
+		if (width == 1 && match(src0, m_Cmp(P0, m_Value(LHS0), m_Value(RHS0)))) {
+			Value *LHS1, *RHS1;
+			if (match(src1, m_Cmp(P1, m_Value(LHS1), m_Value(RHS1)))) {
+				if (CmpInst::getInversePredicate(P0) == P1) {
+					// e.g. a == b is negation of a != b
+					return LHS0 == LHS1 && RHS0 == RHS1;
+				} else if (CmpInst::getSwappedPredicate(P0)
+						== CmpInst::getInversePredicate(P1)) {
+					if (LHS0 == RHS0 && LHS0 == LHS1 && RHS0 == RHS1)
+						// e.g. a == a is negation of a != a
+						return true;
+					if (LHS0 == RHS1 && RHS0 == LHS1)
+						// e.g. a < b is negation of !(b >= a) === (b < a)
+						return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+llvm::APInt UniqRangeSequence::extractSelectedAPInt(
+		const KnownBitRangeInfo *v) const {
+	assert(v == v0 || v == v1);
+	auto _v = dyn_cast<ConstantInt>(v->src);
+	assert(_v);
+	assert(begin >= v->dstBeginBitI);
+	// prepare values exactly selected by this item
+	return _v->getValue().extractBits(width,
+			v->srcBeginBitI + (begin - v->dstBeginBitI));
 }
 
 void UniqRangeSequence::print(llvm::raw_ostream &O, bool IsForDebug) const {
@@ -436,18 +487,11 @@ void VarBitConstraint::srcUnionInplace(const VarBitConstraint &other,
 						item.begin - item.v0->dstBeginBitI, item.width);
 				continue;
 			} else {
-				auto _v0 = dyn_cast<ConstantInt>(item.v0->src);
-				auto _v1 = dyn_cast<ConstantInt>(item.v1->src);
-				if (_v0 && _v1) {
-					assert(item.begin >= item.v0->dstBeginBitI);
-					assert(item.begin >= item.v1->dstBeginBitI);
+				if (isa<ConstantInt>(item.v0->src)
+						&& isa<ConstantInt>(item.v1->src)) {
 					// prepare values exactly selected by this item
-					auto v0 = _v0->getValue().extractBits(item.width,
-							item.v0->srcBeginBitI
-									+ (item.begin - item.v0->dstBeginBitI));
-					auto v1 = _v1->getValue().extractBits(item.width,
-							item.v1->srcBeginBitI
-									+ (item.begin - item.v1->dstBeginBitI));
+					auto v0 = item.extractSelectedAPInt(item.v0);
+					auto v1 = item.extractSelectedAPInt(item.v1);
 					auto equalBits = ~(v0 ^ v1);
 					// extract longest sequences of equal bits,
 					// for sequences of non equal bits add slice or original value because we can not reduce it entirely
@@ -495,6 +539,262 @@ void VarBitConstraint::srcUnionInplace(const VarBitConstraint &other,
 	}
 	assert(newList.size());
 	replacements = newList;
+}
+
+void VarBitConstraint::mergeWithBitsDrivenByCondition(llvm::LLVMContext &Ctx,
+		llvm::ArrayRef<VarBitConstraint::DetectBitsDrivenByConditionResultItem> bitsDrivenByC,
+		const KnownBitRangeInfo &Cond, const KnownBitRangeInfo *Cond_n) {
+	if (bitsDrivenByC.empty())
+		return;
+
+	KnownBitRangeInfo kbri(1);
+	auto update = bitsDrivenByC.begin();
+	std::vector<KnownBitRangeInfo> newReplacements;
+	newReplacements.reserve(replacements.size() + bitsDrivenByC.size());
+	auto rIt = replacements.begin();
+	// errs() << "updates: ";
+	// for (auto u : bitsDrivenByC) {
+	// 	errs() << " update: " << u.isDrivenByCondWithPolarity << " "
+	// 			<< u.knownConst << " " << u.dstBeginBitI << " " << u.bitWidth
+	// 			<< "\n";
+	// }
+	// iterate replacements and bitsDrivenByC at once and merge these sparse sequences which are
+	// defining knowledge about bits of value for which is this object created
+	for (; rIt != replacements.end() || update != bitsDrivenByC.end();) {
+		assert(
+				update == bitsDrivenByC.end()
+						|| update->isDrivenByCondWithPolarity.has_value()
+						|| update->knownConst.has_value());
+		//errs() << "mergeWithBitsDrivenByCondition: r:";
+		//if (rIt != replacements.end()) {
+		//	errs() << *rIt << " ";
+		//}
+		//if (update != bitsDrivenByC.end()) {
+		//	errs() << " update: " << update->isDrivenByCondWithPolarity << " "
+		//			<< update->knownConst << " " << update->dstBeginBitI << " "
+		//			<< update->bitWidth;
+		//}
+		//errs() << "\n";
+
+		if (update == bitsDrivenByC.end()
+				|| (rIt != replacements.end()
+						&& update->dstBeginBitI
+								>= rIt->dstBeginBitI + rIt->width)) {
+			// no other pending update or update is after this item from replacements
+			newReplacements.push_back(*rIt);
+			++rIt;
+			continue;
+		}
+		if (update->knownConst.has_value()) {
+			kbri = KnownBitRangeInfo(
+					update->knownConst.value() ?
+							ConstantInt::getTrue(Ctx) :
+							ConstantInt::getFalse(Ctx));
+		} else if (update->isDrivenByCondWithPolarity.has_value()) {
+			kbri = update->isDrivenByCondWithPolarity.value() ? Cond : *Cond_n; // intentional copy
+		} else {
+			llvm_unreachable(
+					"This case should have been filtered at the begin of this loop");
+		}
+		kbri.dstBeginBitI = update->dstBeginBitI;
+		assert(kbri.width == 1);
+		useMask.clearBit(kbri.dstBeginBitI);
+		for (auto &m : operandUseMask) {
+			m.clearBit(kbri.dstBeginBitI);
+		}
+		if (rIt == replacements.end()
+				|| kbri.dstBeginBitI < rIt->dstBeginBitI) {
+			// no remaining item in replacements or the item is after this update
+			newReplacements.push_back(kbri);
+			++update;
+			continue;
+		}
+		const auto &r = *rIt;
+		assert(
+				update->dstBeginBitI >= r.dstBeginBitI
+						&& update->dstBeginBitI < r.dstBeginBitI + r.width
+						&& "new update is somewhere in current replacement item");
+		// now we found item r in replacements which is on position requested by update
+
+		// if bit is in range defined by this item
+		if (r.width == 1) {
+			// r is exactly of the size of kbri
+			newReplacements.push_back(kbri);
+			++rIt;
+		} else if (r.dstBeginBitI == kbri.dstBeginBitI) {
+			// kbri begin on first bit of r
+			newReplacements.push_back(kbri);
+			*rIt = r.slice(1, r.width - 1);
+			// newReplacements.push_back(*rIt); // this will be done later as we do not increment rIt
+		} else if (r.dstBeginBitI + r.width - 1 == kbri.dstBeginBitI) {
+			// kbri begin on last bit of r
+			auto r0 = r.slice(0, r.width - 1);
+			newReplacements.push_back(r0);
+			newReplacements.push_back(kbri);
+			++rIt;
+		} else {
+			// kbri begin is in the middle of r
+			auto prefixWidth = kbri.dstBeginBitI - r.dstBeginBitI;
+			auto r0 = r.slice(0, prefixWidth);
+			*rIt = r.slice(prefixWidth + 1, r.width - prefixWidth - 1);
+			newReplacements.push_back(r0);
+			newReplacements.push_back(kbri);
+			// newReplacements.push_back(*rIt); // this will be done later as we do not increment rIt
+		}
+		assert(kbri.width == 1);
+		update++;
+	}
+	assert(update == bitsDrivenByC.end());
+	replacements = newReplacements;
+}
+
+void VarBitConstraint::detectBitsDrivenByCondition(const VarBitConstraint &Cond,
+		const VarBitConstraint &TrueVal, const VarBitConstraint &FalseVal,
+		llvm::SmallVector<DetectBitsDrivenByConditionResultItem> &bitsDrivenByC) {
+	RangeSequenceIterator rsa;
+	assert(TrueVal.replacements.size());
+	assert(FalseVal.replacements.size());
+	for (const auto &item : rsa.uniqueRanges(TrueVal.replacements,
+			FalseVal.replacements)) {
+		auto v0 = item.v0->slice(item.begin - item.v0->dstBeginBitI,
+				item.width);
+		auto v1 = item.v1->slice(item.begin - item.v1->dstBeginBitI,
+				item.width);
+		assert(v0.dstBeginBitI == v1.dstBeginBitI);
+		auto v0IsC = isa<ConstantInt>(v0.src);
+		auto v1IsC = isa<ConstantInt>(v1.src);
+		// if T == 1 or T == C and F == 0 or F == ~C
+		// then the bit is driven directly by Cond
+
+		// if sequence length is > 1 instead of C we should compare with sext C
+
+		// :note: items in uniqueRanges are split in a way which makes Cond be to always appear only once in item
+		//  this means that we do not need to iterate over all bits of the item to find C or !C
+		if (v0IsC) {
+			auto v0C = item.extractSelectedAPInt(item.v0);
+
+			if (v1IsC) {
+				// both constants iterate individual bits
+				auto v1C = item.extractSelectedAPInt(item.v1);
+				//errs() << "detectBitsDrivenByCondition: " << v0C << "  " << v1C
+				//		<< " width: " << item.width << "\n";
+				for (unsigned bitI = 0; bitI != item.width; bitI++) {
+					auto tBit = v0C[bitI];
+					auto fBit = v1C[bitI];
+					std::optional<bool> condAsBitPolarity = { };
+					if (tBit && !fBit) {
+						// T == 1, F == 0 ==> C
+						condAsBitPolarity = true;
+					} else if (!tBit && fBit) {
+						// T == 0, F == 1 ==> ~C
+						condAsBitPolarity = false;
+					}
+					// :attention: the cases of same values are not detected as this function detects only special
+					// cases related to Cond, and all other cases would be already known
+					if (condAsBitPolarity.has_value())
+						bitsDrivenByC.push_back(
+								{ condAsBitPolarity, { }, v0.dstBeginBitI
+										+ bitI, 1 });
+				}
+			} else {
+				//errs() << "detectBitsDrivenByCondition: " << v0C << "  " << v1
+				//		<< "\n";
+				// only v0 is const, v1 can still be C or ~C
+				if (item.width == 1) {
+					auto tBit = v0C[0];
+					auto &fBit = v1;
+
+					std::optional<bool> condAsBitPolarity = { };
+					std::optional<bool> knownConst = { };
+					if (fBit == Cond) {
+						if (tBit) {
+							// T == 1, F == C (==0) ==> C
+							condAsBitPolarity = true;
+						} else {
+							// T == 0, F == C (==0) ==> 0
+							knownConst = false;
+						}
+					} else if (Cond.isNegationOf(fBit)) {
+						if (tBit) {
+							// T == 1, F == !C (==1) ==> 1
+							knownConst = true;
+						} else {
+							// T == 0, F == !C (==1) ==> !C
+							condAsBitPolarity = false;
+						}
+					}
+					if (condAsBitPolarity.has_value() || knownConst.has_value())
+						bitsDrivenByC.push_back(
+								{ condAsBitPolarity, { }, v0.dstBeginBitI, 1 });
+				}
+			}
+		} else {
+			if (v1IsC) {
+				// only v1 is const, v0 can still be C or ~C
+				auto v1C = item.extractSelectedAPInt(item.v1);
+				//errs() << "detectBitsDrivenByCondition: " << v0 << "  " << v1C
+				//		<< "\n";
+				if (item.width == 1) {
+					auto &tBit = v0;
+					auto fBit = v1C[0];
+
+					std::optional<bool> condAsBitPolarity = { };
+					std::optional<bool> knownConst = { };
+					if (tBit == Cond) {
+						if (fBit) {
+							// T == C (==1), F == 1 ==> 1
+							knownConst = true;
+						} else {
+							// T == C (==1), F == 0 ==> C
+							condAsBitPolarity = true;
+						}
+					} else if (Cond.isNegationOf(tBit)) {
+						if (fBit) {
+							// T == !C (==0), F == 1 ==> !C
+							condAsBitPolarity = false;
+						} else {
+							// T == !C (==0), F == 0 ==> 0
+							knownConst = true;
+						}
+					}
+					if (condAsBitPolarity.has_value() || knownConst.has_value())
+						bitsDrivenByC.push_back(
+								{ condAsBitPolarity, { }, v0.dstBeginBitI, 1 });
+				}
+			} else {
+				//errs() << "detectBitsDrivenByCondition: " << v0 << "  "
+				//		<< *item.v1 << "\n";
+				// v0, v1 can still be C or ~C
+				if (item.width == 1) {
+					// the items should be split on smallest
+					auto &tBit = v0;
+					auto &fBit = v1;
+					std::optional<bool> condAsBitPolarity = { };
+					std::optional<bool> knownConst = { };
+					if (tBit == Cond) {
+						if (fBit == Cond) {
+							// T == C (==1), F == C (==0) ==> 1
+							knownConst = true;
+						} else if (Cond.isNegationOf(fBit)) {
+							// T == C (==1), F == !C (==1) ==> C
+							condAsBitPolarity = true;
+						}
+					} else if (Cond.isNegationOf(tBit)) {
+						if (fBit == Cond) {
+							// T == !C (==0), F == C (==0) ==> 0
+							knownConst = false;
+						} else if (Cond.isNegationOf(fBit)) {
+							// T == !C (==0), F == !C (==1) ==> !C
+							condAsBitPolarity = false;
+						}
+					}
+					if (condAsBitPolarity.has_value() || knownConst.has_value())
+						bitsDrivenByC.push_back(
+								{ condAsBitPolarity, { }, v0.dstBeginBitI, 1 });
+				}
+			}
+		}
+	}
 }
 
 void VarBitConstraint::srcUnionInplaceAddFillUp(
@@ -663,7 +963,7 @@ void VarBitConstraint::print(raw_ostream &O, bool IsForDebug) const {
 		for (auto &ou : operandUseMask) {
 			SmallString<40> UM;
 			ou.toString(UM, 16, /*isSigned*/false, /* formatAsCLiteral = */
-					false);
+			false);
 			O << "0x" << UM << ",";
 		}
 		O << "]";
@@ -673,6 +973,24 @@ void VarBitConstraint::print(raw_ostream &O, bool IsForDebug) const {
 
 void VarBitConstraint::dump() const {
 	print(dbgs(), true);
+	dbgs() << "\n";
+}
+
+bool VarBitConstraint::operator==(const KnownBitRangeInfo &other) const {
+	return replacements.size() == 1 && replacements[0] == other;
+}
+
+bool VarBitConstraint::isNegationOf(const VarBitConstraint &other) const {
+	if (replacements.size() != other.replacements.size())
+		return false;
+	for (const auto& [r0, r1] : zip(replacements, other.replacements)) {
+		if (!r0.isNegationOf(r1))
+			return false;
+	}
+	return true;
+}
+bool VarBitConstraint::isNegationOf(const KnownBitRangeInfo &other) const {
+	return replacements.size() == 1 && replacements[0].isNegationOf(other);
 }
 
 }
