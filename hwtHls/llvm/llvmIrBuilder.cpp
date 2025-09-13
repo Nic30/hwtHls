@@ -326,6 +326,12 @@ void register_IRBuilder(pybind11::module_ & m) {
 			py::arg("Name")=llvm::Twine(""),
 			py::return_value_policy::reference
 		)
+		.def("CreateThreadSplitBegin", [](llvm::IRBuilder<> * self, std::string &name, MDNodeWithDeletedDelete* md) {
+			return hwtHls::CreateThreadSplitBegin(*self, name, md);
+		})
+		.def("CreateThreadSplitEnd", [](llvm::IRBuilder<> * self, std::string &name, MDNodeWithDeletedDelete* md) {
+			return hwtHls::CreateThreadSplitEnd(*self, name, md);
+		})
 		.def("getIntNTy", &llvm::IRBuilder<>::getIntNTy, py::return_value_policy::reference_internal)
 		;
 
