@@ -253,11 +253,20 @@ bool addImplicationAssume(IRBuilderBase &Builder, Value *LHS, Value *RHS,
 	using Predicate = ICmpInst::Predicate;
 	Value *Cond;
 	if (isImpliedTrue) {
-		Cond = Builder.CreateICmp(Predicate::ICMP_ULE, LHS, RHS, "impCache");
+		/*
+		 * L R  <= (L ==> R)
+		 * 0 0  1
+		 * 0 1  1
+		 * 1 0  0
+		 * 1 1  1
+		 * */
+		Cond = Builder.CreateICmp(Predicate::ICMP_ULE, LHS, RHS, IMPLICATION_CACHE_INSTR_NAME_PREFIX);
+		Builder.CreateAssumption(Cond);
 	} else {
-		Cond = Builder.CreateOr(LHS, RHS, "impCache");
+		// currently can not cache that the L & !R is possible because
+		// it would mean that L and R may have any value and thus assume would have no meaning
+		// and would be immediately removed
 	}
-	Builder.CreateAssumption(Cond);
 	return isImpliedTrue;
 }
 
