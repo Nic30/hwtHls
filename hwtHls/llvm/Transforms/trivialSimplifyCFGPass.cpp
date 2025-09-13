@@ -3,6 +3,7 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/CFG.h>
+#include <llvm/Analysis/DomTreeUpdater.h>
 
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 
@@ -20,20 +21,29 @@ using namespace llvm;
 
 namespace hwtHls {
 
-void scavengeTerminatorMetadata(Instruction *br, Instruction *newBr) {
-	SmallVector<std::pair<unsigned, MDNode*>> MDs;
-	br->getAllMetadata(MDs);
+void mergeScavengedMetadata(
+		const SmallVector<std::pair<unsigned, MDNode*> > &MDs,
+		Instruction *newBr) {
 	for (const auto &md : MDs) {
 		if (newBr->getMetadata(md.first) == md.second)
 			continue;
-		assert(!newBr->hasMetadata(md.first) && "merge of metadata not implemented");
+
+		assert(
+				!newBr->hasMetadata(md.first)
+						&& "merge of metadata not implemented");
 		newBr->setMetadata(md.first, md.second);
 	}
 }
 
-bool tryRemoveSingleSuccessorSinglePredecessorBlock(BasicBlock *BB,
-		BasicBlock *PredBB, BasicBlock *SucBB,
-		llvm::SmallSetVector<BasicBlock*, 16> &WorkList) {
+void scavengeTerminatorMetadata(Instruction *br, Instruction *newBr) {
+	SmallVector<std::pair<unsigned, MDNode*>> MDs;
+	br->getAllMetadata(MDs);
+	mergeScavengedMetadata(MDs, newBr);
+}
+
+static bool tryRemoveSingleSuccessorSinglePredecessorBlock(DomTreeUpdater &DTU,
+		BasicBlock *BB, BasicBlock *PredBB, BasicBlock *SucBB,
+		llvm::SmallSetVector<WeakVH, 16> &WorkList) {
 	// Remove empty basic block if has single successor and predecessor and
 	// may be replaced by predecessor in successor PHIs
 
@@ -71,11 +81,16 @@ bool tryRemoveSingleSuccessorSinglePredecessorBlock(BasicBlock *BB,
 	// if PredBB terminator become non-conditional it must be rewritten otherwise
 	// PredBB would appear twice in SuccBB predecessors
 	auto PredTerm = PredBB->getTerminator();
+	assert(BB != SucBB);
 	PredTerm->replaceSuccessorWith(BB, SucBB);
+	DTU.applyUpdates( { { DominatorTree::Delete, PredBB, BB }, //
+			{ DominatorTree::Insert, PredBB, SucBB }, //
+			});
 	if (auto PredTermBr = dyn_cast<BranchInst>(PredTerm)) {
 		if (PredTermBr->isConditional()
 				&& PredTermBr->getSuccessor(0) == PredTermBr->getSuccessor(1)) {
-			auto newTerm = BranchInst::Create(PredTermBr->getSuccessor(0), PredBB);
+			auto newTerm = BranchInst::Create(PredTermBr->getSuccessor(0),
+					PredBB);
 			scavengeTerminatorMetadata(PredTerm, newTerm);
 			PredTerm->eraseFromParent();
 		}
@@ -83,10 +98,15 @@ bool tryRemoveSingleSuccessorSinglePredecessorBlock(BasicBlock *BB,
 	// because there is a single predecessor
 	BB->replaceAllUsesWith(PredBB); // replace in other PHIs, which effectively disconnect this from predecessor
 	BB->getTerminator()->replaceSuccessorWith(SucBB, BB);
+	DTU.applyUpdates( { { DominatorTree::Delete, BB, SucBB }, //
+			{ DominatorTree::Insert, BB, BB }, //
+			});
 	assert(BB->hasNPredecessors(1));
 	// BB->eraseFromParent();
-	DeleteDeadBlock(BB);
+	DeleteDeadBlock(BB, &DTU);
+	assert(PredBB->getParent());
 	WorkList.insert(PredBB);
+	assert(PredBB->getParent());
 	WorkList.insert(SucBB);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 	auto& F = *PredBB->getParent();
@@ -95,8 +115,9 @@ bool tryRemoveSingleSuccessorSinglePredecessorBlock(BasicBlock *BB,
 	return true;
 }
 
-bool tryRemoveSingleSuccessorManyPredecessorBlock(BasicBlock *BB,
-		BasicBlock *SucBB, llvm::SmallSetVector<BasicBlock*, 16> &WorkList) {
+bool tryRemoveSingleSuccessorManyPredecessorBlock(DomTreeUpdater &DTU,
+		BasicBlock *BB, BasicBlock *SucBB,
+		llvm::SmallSetVector<WeakVH, 16> &WorkList) {
 
 	SmallVector<PHINode*, 4> alreadyHasTheValueInPhis;
 	for (PHINode &SucPhi : SucBB->phis()) {
@@ -131,6 +152,10 @@ bool tryRemoveSingleSuccessorManyPredecessorBlock(BasicBlock *BB,
 	for (auto *PredBB : predecs) {
 		// guaranteed that there is only one branch with this block as a target
 		PredBB->getTerminator()->replaceSuccessorWith(BB, SucBB);
+		DTU.applyUpdates( { { DominatorTree::Delete, PredBB, BB }, //
+				{ DominatorTree::Insert, PredBB, SucBB }, //
+				});
+
 		// because there is a single predecessor
 		for (auto &phi : SucBB->phis()) {
 			auto idx = phi.getBasicBlockIndex(PredBB);
@@ -145,24 +170,27 @@ bool tryRemoveSingleSuccessorManyPredecessorBlock(BasicBlock *BB,
 		}
 		scavengeTerminatorMetadata(BB->getTerminator(),
 				PredBB->getTerminator());
+		assert(PredBB->getParent());
 		WorkList.insert(PredBB);
 	}
 	for (auto &phi : SucBB->phis()) {
 		phi.removeIncomingValue(BB);
 	}
 	assert(BB->hasNPredecessors(0));
-	BB->eraseFromParent();
+	DeleteDeadBlock(BB, &DTU);
+	// BB->eraseFromParent();
+	assert(SucBB->getParent());
 	WorkList.insert(SucBB);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 	auto& F = *SucBB->getParent();
 	assert(!verifyFunction(F, &errs()));
 #endif
 	return true;
-
 }
 
-bool tryRemoveSingleSuccessorBlock(const bool allowPhiNewIncommingValues, BasicBlock *BB,
-		llvm::SmallSetVector<BasicBlock*, 16> &WorkList) {
+bool tryRemoveSingleSuccessorBlockIfNotLatch(DomTreeUpdater &DTU,
+		const bool allowPhiNewIncommingValues, BasicBlock *BB,
+		llvm::SmallSetVector<WeakVH, 16> &WorkList) {
 	auto *SucBB = BB->getSingleSuccessor();
 	if (!SucBB)
 		return false;
@@ -172,7 +200,11 @@ bool tryRemoveSingleSuccessorBlock(const bool allowPhiNewIncommingValues, BasicB
 	bool blockEmpty = (BB->begin() == BB->end()
 			|| BB->begin() == BB->getTerminator()->getIterator());
 	if (!blockEmpty && SucBB->hasNPredecessors(1)) {
-		if (MergeBlockIntoPredecessor(SucBB)) {
+		SmallVector<std::pair<unsigned, MDNode*>> MDs;
+		BB->getTerminator()->getAllMetadata(MDs);
+		if (MergeBlockIntoPredecessor(SucBB, &DTU)) {
+			mergeScavengedMetadata(MDs, BB->getTerminator());
+			assert(BB->getParent());
 			WorkList.insert(BB);
 			return true;
 		}
@@ -181,22 +213,30 @@ bool tryRemoveSingleSuccessorBlock(const bool allowPhiNewIncommingValues, BasicB
 		return false;
 
 	auto *SinglePredBB = BB->getSinglePredecessor();
-	if (SinglePredBB) {
-		return tryRemoveSingleSuccessorSinglePredecessorBlock(BB, SinglePredBB,
-				SucBB, WorkList);
+	DTU.flush();
+	auto &DT = DTU.getDomTree();
+	bool isLoopLatch = DT.dominates(SucBB, BB);
+	if (isLoopLatch) {
+		return false;
+	} else if (SinglePredBB) {
+		return tryRemoveSingleSuccessorSinglePredecessorBlock(DTU, BB,
+				SinglePredBB, SucBB, WorkList);
 	} else if (BB->hasNPredecessors(0)) {
 		return false;
 	} else if (allowPhiNewIncommingValues || SucBB->phis().empty()) {
-		return tryRemoveSingleSuccessorManyPredecessorBlock(BB, SucBB, WorkList);
+		return tryRemoveSingleSuccessorManyPredecessorBlock(DTU, BB, SucBB,
+				WorkList);
 	}
 	return false;
 }
 
-bool trySimplifyTerminator(BasicBlock &BB,
-		llvm::SmallSetVector<BasicBlock*, 16> &worklist) {
+static bool trySimplifyTerminator(IRBuilder<> &Builder, DomTreeUpdater &DTU,
+		BasicBlock &BB, llvm::SmallSetVector<WeakVH, 16> &worklist) {
 	auto Term = BB.getTerminator();
 	if (!Term) {
-		throw std::runtime_error("AssertionError: Each block must have terminator");
+		errs() << BB << "\n";
+		throw std::runtime_error(
+				"AssertionError: Each block must have terminator");
 	}
 	if (auto br = dyn_cast<BranchInst>(Term)) {
 		if (br->isConditional()) {
@@ -217,18 +257,23 @@ bool trySimplifyTerminator(BasicBlock &BB,
 					_sucToRm = 0;
 				}
 			}
-			BasicBlock* NewSuc = _newSuc == -1 ? nullptr: br->getSuccessor(_newSuc);
+			BasicBlock *NewSuc =
+					_newSuc == -1 ? nullptr : br->getSuccessor(_newSuc);
 			if (NewSuc != nullptr) {
-				IRBuilder<> Builder(br);
+				Builder.SetInsertPoint(br);
 				auto *newBr = Builder.CreateBr(NewSuc);
 				scavengeTerminatorMetadata(br, newBr);
-				br->eraseFromParent();
 
 				assert(_sucToRm == 0 || _sucToRm == 1);
-				BasicBlock* sucToRm = br->getSuccessor(_sucToRm);
-				for (PHINode& PHI: make_early_inc_range(sucToRm->phis())) {
+				BasicBlock *sucToRm = br->getSuccessor(_sucToRm);
+				for (PHINode &PHI : make_early_inc_range(sucToRm->phis())) {
 					PHI.removeIncomingValue(&BB, true);
 				}
+				if (sucToRm != NewSuc) {
+					DTU.applyUpdates(
+							{ { DominatorTree::Delete, &BB, sucToRm } });
+				}
+				br->eraseFromParent();
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 				auto& F = *BB.getParent();
 				assert(!verifyFunction(F, &errs()));
@@ -241,32 +286,45 @@ bool trySimplifyTerminator(BasicBlock &BB,
 }
 TrivialSimplifyCFGPass::TrivialSimplifyCFGPass(
 		bool pruneSinglePredSingleSucBlocks, bool allowPhiNewIncommingValues) :
-		pruneSinglePredSingleSucBlocks(pruneSinglePredSingleSucBlocks), allowPhiNewIncommingValues(allowPhiNewIncommingValues) {
+		pruneSinglePredSingleSucBlocks(pruneSinglePredSingleSucBlocks), allowPhiNewIncommingValues(
+				allowPhiNewIncommingValues) {
 }
 llvm::PreservedAnalyses TrivialSimplifyCFGPass::run(llvm::Function &F,
 		llvm::FunctionAnalysisManager &AM) {
+	auto &DT = AM.getResult<DominatorTreeAnalysis>(F);
+	DomTreeUpdater DTU(DT, DomTreeUpdater::UpdateStrategy::Lazy);
+	IRBuilder<> Builder(F.getContext());
 	bool Changed = false;
-	Changed |= EliminateUnreachableBlocks(F, nullptr, false);
+	Changed |= EliminateUnreachableBlocks(F, &DTU, false);
 	for (BasicBlock &BB : F) {
 		if (BB.getSinglePredecessor())
 			Changed |= FoldSingleEntryPHINodes(&BB);
 	}
-	llvm::SmallSetVector<BasicBlock*, 16> WorkList;
+	llvm::SmallSetVector<WeakVH, 16> WorkList;
 	for (BasicBlock &BB : F) {
+		assert(BB.getParent());
 		WorkList.insert(&BB);
 	}
 
 	while (!WorkList.empty()) {
-		BasicBlock *BB = WorkList.pop_back_val();
-		// attention trySimplifyTerminator is required because previous opt may generate conditiona br to same successor causes issues for rest of transformations like llvm::SimplifyCFG
-		if (trySimplifyTerminator(*BB, WorkList)) {
+		BasicBlock *BB = dyn_cast_or_null<BasicBlock>(WorkList.pop_back_val());
+		if (!BB)
+			continue;
+		assert(BB->getParent());
+		// :attention: trySimplifyTerminator is required because previous opt may generate
+		// conditional br to same successor causes issues for rest of transformations like llvm::SimplifyCFG
+		if (trySimplifyTerminator(Builder, DTU, *BB, WorkList)) {
 			Changed = true;
 		}
 		if (pruneSinglePredSingleSucBlocks)
-			Changed |= tryRemoveSingleSuccessorBlock(allowPhiNewIncommingValues, BB, WorkList);
+			Changed |= tryRemoveSingleSuccessorBlockIfNotLatch(DTU,
+					allowPhiNewIncommingValues, BB, WorkList);
 	}
+	DTU.flush();
+
 	if (Changed) {
 		PreservedAnalyses PA;
+		PA.preserve<DominatorTreeAnalysis>();
 		return PA;
 	} else {
 		return PreservedAnalyses::all();
