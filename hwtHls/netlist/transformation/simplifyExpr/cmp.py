@@ -1,4 +1,5 @@
 from hwt.hdl.operatorDefs import HwtOps
+from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
@@ -7,7 +8,6 @@ from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.transformation.simplifyUtils import popNotFromExpr, \
     popConstAddFromExpr
 from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOperatorNodeWith
-from hwt.hdl.types.bitsConst import HBitsConst
 from pyMathBitPrecise.bit_utils import mask
 
 
