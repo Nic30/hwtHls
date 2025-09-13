@@ -129,6 +129,7 @@ def runAbcControlpathOpt(builder: HlsNetlistBuilder, worklist: SetList[HlsNetNod
             #    print("    ", o)
 
         if anyChangeSeen:
+            worklist.extend(i.obj for i in inputs) # because inputs may have become unused
             worklist.extend(o.obj for o in inTreeOutputs)
             worklist.extend(o.obj for o in outputs)
         abcFrame.DeleteAllNetworks()

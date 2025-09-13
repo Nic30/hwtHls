@@ -113,6 +113,7 @@ def runLlvmCmpOpt(builder: HlsNetlistBuilder, worklist: SetList[HlsNetNode],
                 anyChangeSeen = True
 
         if anyChangeSeen:
+            worklist.extend(i.obj for i in inputs)  # because inputs may have become unused
             worklist.extend(o.obj for o in outputs)
 
 
