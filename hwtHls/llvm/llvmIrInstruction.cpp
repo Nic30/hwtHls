@@ -334,6 +334,10 @@ void register_Instruction(pybind11::module_ & m) {
 	py::class_<llvm::FreezeInst, std::unique_ptr<llvm::FreezeInst, py::nodelete>, llvm::Instruction>(m, "FreezeInst");
 	m.def("InstructionToFreezeInst", &llvmInstructionCaster<llvm::FreezeInst>, py::return_value_policy::reference_internal);
 
+	py::class_<llvm::IntrinsicInst, std::unique_ptr<llvm::IntrinsicInst, py::nodelete>, llvm::CallInst> IntrinsicInst(m, "IntrinsicInst");
+	IntrinsicInst.def("getIntrinsicID",  &llvm::IntrinsicInst::getIntrinsicID);
+	m.def("InstructionToIntrinsicInst", &llvmInstructionCaster<llvm::IntrinsicInst>, py::return_value_policy::reference_internal);
+
 	py::class_<llvm::UnreachableInst, std::unique_ptr<llvm::UnreachableInst, py::nodelete>, llvm::Instruction>(m, "UnreachableInst");
 	m.def("InstructionToUnreachableInst", &llvmInstructionCaster<llvm::UnreachableInst>, py::return_value_policy::reference_internal);
 
