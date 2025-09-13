@@ -472,7 +472,7 @@ def makeDecode_G_funel_shift(opDef: HOperatorDef):
         dstTy = MRI.getType(instr.getOperand(0).getReg())
         assert dstTy.isValid(), instr
         width = dstTy.getScalarSizeInBits()
-        shAmountTruncSlice = SLICE.from_py(slice(log2ceil(width + 1), 0))
+        shAmountTruncSlice = SLICE.from_py(slice(log2ceil(width + 1), 0, -1))
         evalFn = opDef._evalFn
 
         def _opcode_G_funnel_shift(nowTime: int, regs: list[HConst]):
