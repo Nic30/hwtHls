@@ -1,15 +1,17 @@
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
+
+#include <llvm/ADT/StringExtras.h>
+
 #include <hwtHls/llvm/targets/intrinsic/utils.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
-#include <llvm/ADT/StringExtras.h>
 
 using namespace llvm;
 
 namespace hwtHls {
 
-inline static void setArgNames(Function &F, ArrayRef<const char*> argNames)  {
+inline static void setArgNames(Function &F, ArrayRef<const char*> argNames) {
 	size_t argI = 0;
-	for (auto name: argNames) {
+	for (auto name : argNames) {
 		assert(argI < F.arg_size());
 		F.getArg(0)->setName(name);
 	}
@@ -106,20 +108,25 @@ const std::string StreamWriteMaskedName = StreamWriteName + ".masked";
 
 // basic CreateStreamWrite without mask
 CallInst* CreateStreamWriteNoMask(IRBuilderBase *Builder, Value *ioArgPtr,
-		llvm::Value *valueToWrite, llvm::Value *isEoF) {
+		llvm::Value *valueToWrite, llvm::Value *isSoF, llvm::Value *isEoF) {
+	if (!isSoF) {
+		isSoF = Builder->getInt1(0);
+	}
 	if (!isEoF) {
 		isEoF = Builder->getInt1(0);
 	}
 	assert(ioArgPtr->getType()->isPointerTy());
-	Value *Ops[] = { ioArgPtr, valueToWrite, isEoF };
+	Value *Ops[] = { ioArgPtr, valueToWrite, isSoF, isEoF };
 	Type *ResT = Builder->getVoidTy();
-	Type *TysForName[] = { Ops[0]->getType(), Ops[1]->getType(), Ops[2]->getType() };
+	Type *TysForName[] = { Ops[0]->getType(), Ops[1]->getType(),
+			Ops[2]->getType(), Ops[3]->getType() };
 	Module *M = Builder->GetInsertBlock()->getParent()->getParent();
 	Function *TheFn = cast<Function>(
 			M->getOrInsertFunction(
 					Intrinsic_getName(StreamWriteName, TysForName), ResT,
-					Ops[0]->getType(), Ops[1]->getType(), Ops[2]->getType()).getCallee());
-	setArgNames(*TheFn, {"ioArgPtr", "valueToWrite", "isEoF"});
+					Ops[0]->getType(), Ops[1]->getType(), Ops[2]->getType(),
+					Ops[3]->getType()).getCallee());
+	setArgNames(*TheFn, { "ioArgPtr", "valueToWrite", "isSoF", "isEoF" });
 	AddDefaultFunctionAttributes(*TheFn);
 	CallInst *CI = Builder->CreateCall(TheFn, Ops);
 	CI->setOnlyAccessesArgMemory();
@@ -127,23 +134,31 @@ CallInst* CreateStreamWriteNoMask(IRBuilderBase *Builder, Value *ioArgPtr,
 }
 // CreateStreamWrite with mask
 CallInst* CreateStreamWrite(IRBuilderBase *Builder, Value *ioArgPtr,
-		llvm::Value *valueToWrite, llvm::Value *writeMask, llvm::Value *isEoF) {
-	if (!writeMask) {
-		return CreateStreamWriteNoMask(Builder, ioArgPtr, valueToWrite, isEoF);
+		llvm::Value *valueToWrite, llvm::Value *writeMaskOrEmpty,
+		llvm::Value *isSoF, llvm::Value *isEoF) {
+	if (!writeMaskOrEmpty) {
+		return CreateStreamWriteNoMask(Builder, ioArgPtr, valueToWrite, isSoF,
+				isEoF);
+	}
+	if (!isSoF) {
+		isSoF = Builder->getInt1(0);
 	}
 	if (!isEoF) {
 		isEoF = Builder->getInt1(0);
 	}
 	assert(ioArgPtr->getType()->isPointerTy());
-	Value *Ops[] = { ioArgPtr, valueToWrite, writeMask, isEoF };
+	Value *Ops[] = { ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF };
 	Type *ResT = Builder->getVoidTy();
-	Type *TysForName[] = { Ops[0]->getType(), Ops[1]->getType(), Ops[2]->getType(), Ops[3]->getType() };
+	Type *TysForName[] = { Ops[0]->getType(), Ops[1]->getType(),
+			Ops[2]->getType(), Ops[3]->getType(), Ops[4]->getType() };
 	Module *M = Builder->GetInsertBlock()->getParent()->getParent();
 	Function *TheFn = cast<Function>(
 			M->getOrInsertFunction(
 					Intrinsic_getName(StreamWriteMaskedName, TysForName), ResT,
-					Ops[0]->getType(), Ops[1]->getType(), Ops[2]->getType(), Ops[3]->getType()).getCallee());
-	setArgNames(*TheFn, {"ioArgPtr", "valueToWrite", "writeMask", "isEoF"});
+					Ops[0]->getType(), Ops[1]->getType(), Ops[2]->getType(),
+					Ops[3]->getType(), Ops[4]->getType()).getCallee());
+	setArgNames(*TheFn, { "ioArgPtr", "valueToWrite", "writeMaskOrEmpty",
+			"isSoF", "isEoF" });
 	AddDefaultFunctionAttributes(*TheFn);
 	CallInst *CI = Builder->CreateCall(TheFn, Ops);
 	CI->setOnlyAccessesArgMemory();
@@ -153,22 +168,26 @@ size_t streamWriteGetOrigChunkBitWidth(const CallInst *I) {
 	return I->getArgOperand(1)->getType()->getIntegerBitWidth();
 }
 llvm::Value* streamWriteGetIoArg(const llvm::CallInst *C) {
-	return C->getArgOperand(0); // ioArgPtr, valueToWrite, [writeMask], isEoF
+	return C->getArgOperand(0); // ioArgPtr, valueToWrite, [writeMaskOrEmpty], isSoF, isEoF
 }
 llvm::Value* streamWriteGetWriteData(const llvm::CallInst *C) {
-	return C->getArgOperand(1); // ioArgPtr, valueToWrite, [writeMask], isEoF
+	return C->getArgOperand(1); // ioArgPtr, valueToWrite, [writeMaskOrEmpty], isSoF, isEoF
 }
 
 llvm::Value* streamWriteGetWriteMaskOrEmpty(const llvm::CallInst *C) {
 	if (IsStreamWriteMasked(C))
-		return C->getArgOperand(2); // ioArgPtr, valueToWrite, writeMask, isEoF
+		return C->getArgOperand(2); // ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF
 	return nullptr;
 }
-
+llvm::Value* streamWriteGetWriteSoF(const llvm::CallInst *C) {
+	if (IsStreamWriteMasked(C))
+		return C->getArgOperand(3); // ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF
+	return C->getArgOperand(2); // ioArgPtr, valueToWrite, isSoF, isEoF;
+}
 llvm::Value* streamWriteGetWriteEoF(const llvm::CallInst *C) {
 	if (IsStreamWriteMasked(C))
-		return C->getArgOperand(3); // ioArgPtr, valueToWrite, writeMask, isEoF
-	return C->getArgOperand(2); // ioArgPtr, valueToWrite, isEoF;
+		return C->getArgOperand(4); // ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF
+	return C->getArgOperand(3); // ioArgPtr, valueToWrite, isSoF, isEoF;
 }
 
 bool IsStreamWrite(const llvm::CallInst *C) {
@@ -176,7 +195,7 @@ bool IsStreamWrite(const llvm::CallInst *C) {
 }
 bool IsStreamWrite(const llvm::Function *F) {
 	assert(F && "Function may null if definition is missing in IR");
-	if (F->arg_size() != 3 && F->arg_size() != 4) // dst, src, [mask], eof
+	if (F->arg_size() != 4 && F->arg_size() != 5) // ioArgPtr, valueToWrite, [writeMaskOrEmpty], isSoF, isEoF
 		return false;
 	return F->getName().str().rfind(StreamWriteName + ".", 0) == 0;
 }
@@ -185,7 +204,7 @@ bool IsStreamWriteMasked(const llvm::CallInst *C) {
 }
 bool IsStreamWriteMasked(const llvm::Function *F) {
 	assert(F && "Function may null if definition is missing in IR");
-	if (F->arg_size() != 4) // dst, src, mask, eof
+	if (F->arg_size() != 5) // ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF
 		return false;
 	return F->getName().str().rfind(StreamWriteMaskedName + ".", 0) == 0;
 }

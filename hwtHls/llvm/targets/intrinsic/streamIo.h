@@ -7,8 +7,9 @@ namespace hwtHls {
 
 extern const std::string StreamReadName;
 
-llvm::CallInst* CreateStreamRead(llvm::IRBuilderBase *Builder, llvm::Value *ioArg,
-		size_t chunkBitWidth, size_t returnBitWidth, bool isReliable);
+llvm::CallInst* CreateStreamRead(llvm::IRBuilderBase *Builder,
+		llvm::Value *ioArg, size_t chunkBitWidth, size_t returnBitWidth,
+		bool isReliable);
 bool IsStreamRead(const llvm::CallInst *C);
 bool IsStreamRead(const llvm::Function *F);
 // get number of bits of data which this instruction actually read from stream,
@@ -38,8 +39,9 @@ extern const std::string StreamWriteMaskedName;
 // :note: The masked variant of StreamWrite exists to make compilation faster as it is more easy to work with the mask
 //    than searching for chained writes in a complex CFG.
 llvm::CallInst* CreateStreamWrite(llvm::IRBuilderBase *Builder,
-		llvm::Value *ioArg, llvm::Value *valueToWrite, llvm::Value *writeMask =
-				nullptr, llvm::Value *isEoF = nullptr);
+		llvm::Value *ioArg, llvm::Value *valueToWrite,
+		llvm::Value *writeMaskOrEmpty = nullptr, llvm::Value *isSoF = nullptr,
+		llvm::Value *isEoF = nullptr);
 bool IsStreamWrite(const llvm::CallInst *C);
 bool IsStreamWrite(const llvm::Function *F);
 bool IsStreamWriteMasked(const llvm::CallInst *C);
@@ -49,6 +51,8 @@ size_t streamWriteGetOrigChunkBitWidth(const llvm::CallInst *C);
 llvm::Value* streamWriteGetIoArg(const llvm::CallInst *C);
 llvm::Value* streamWriteGetWriteData(const llvm::CallInst *C);
 llvm::Value* streamWriteGetWriteMaskOrEmpty(const llvm::CallInst *C);
+//llvm::Value* streamWriteGetWriteError(const llvm::CallInst *C);
+llvm::Value* streamWriteGetWriteSoF(const llvm::CallInst *C);
 llvm::Value* streamWriteGetWriteEoF(const llvm::CallInst *C);
 
 extern const std::string StreamWriteStartOfFrameName;
