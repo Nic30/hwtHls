@@ -487,7 +487,7 @@ bool HwtFpgaInstrInfo::PredicateInstruction(MachineInstr &MI,
 		//		}
 		//	}
 		//}
-		return true;
+		return opc == HwtFpga::HWTFPGA_CSTORE; // for HWTFPGA_LOAD return false because the instruction always updates dst
 	}
 	case HwtFpga::HWTFPGA_BR:
 	case HwtFpga::G_BR: {
