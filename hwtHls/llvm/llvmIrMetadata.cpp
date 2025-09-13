@@ -4,8 +4,9 @@
 #include <pybind11/stl_bind.h>
 
 #include <hwtHls/llvm/llvmIrCommon.h>
-#include <hwtHls/llvm/Transforms/utils/metadataHwtHlsIO.h>
+#include <hwtHls/llvm/targets/intrinsic/threadSplit.h>
 #include <hwtHls/llvm/targets/intrinsic/StreamChannelFormatInfo.h>
+#include <hwtHls/llvm/Transforms/utils/metadataHwtHlsIO.h>
 
 namespace py = pybind11;
 
@@ -68,6 +69,7 @@ void register_MDNode(pybind11::module_ & m) {
 			return self == other;
 		})
 		.def("__repr__", &printToStr<MDNodeWithDeletedDelete>);
+
 	m.def("MetadataAsMDNode", [](llvm::Metadata * MD) {
 		return dyn_cast<MDNodeWithDeletedDelete>(MD);
 	}, py::return_value_policy::reference_internal);
@@ -111,8 +113,12 @@ void register_MDNode(pybind11::module_ & m) {
 		.def_static("get", [](llvm::LLVMContext &Context, llvm::StringRef Str) {
 			return llvm::MDString::get(Context, Str);
 		}, py::return_value_policy::reference_internal)
+		.def("getString", &llvm::MDString::getString)
 		.def("asMetadata", &asMetadata<llvm::MDString>, py::return_value_policy::reference_internal)
 		.def("__repr__", &printToStr<llvm::MDString>);
+	m.def("MetadataAsMDString", [](llvm::Metadata * MD) {
+		return dyn_cast<llvm::MDString>(MD);
+	}, py::return_value_policy::reference_internal);
 
 	py::implicitly_convertible<MDTupleWithDeletedDelete, MDNodeWithDeletedDelete>();
 	py::implicitly_convertible<MDNodeWithDeletedDelete, llvm::Metadata>();
@@ -128,11 +134,72 @@ void register_MDNode(pybind11::module_ & m) {
 		.value("IO_DIR_UNRESOLVED", hwtHls::IODirection::IO_DIR_UNRESOLVED)
 		.export_values();
 	py::class_<hwtHls::HwtHlsIoMetadata>(m, "HwtHlsIoMetadata")
-		.def(py::init<hwtHls::IODirection, size_t, llvm::Function *, size_t>())
-		.def_readwrite("direction", &hwtHls::HwtHlsIoMetadata::direction)
-		.def_readwrite("addrWidth", &hwtHls::HwtHlsIoMetadata::addrWidth)
-		.def_readwrite("otherThreadFn", &hwtHls::HwtHlsIoMetadata::otherThreadFn)
-		.def_readwrite("otherArgIndex", &hwtHls::HwtHlsIoMetadata::otherArgIndex);
+		.def(py::init<>())
+    	.def(py::init<IODirection,  // direction
+    	              size_t,         // addrWidth
+    	              size_t,         // readWordWidth
+    	              size_t,         // writeWordWidth
+    	              bool,           // isBlocking
+    	              llvm::Function*,// otherThreadFn
+    	              size_t,         // otherArgIndex
+					  size_t,         // bufferCapacity
+    	              MDTupleWithDeletedDelete*, // ioPropertyPath
+    	              MDTupleWithDeletedDelete*, // latenciesFromPredecessorIo
+    	              MDTupleWithDeletedDelete*, // protocolSpecificMetadata
+					  MDTupleWithDeletedDelete*, // streamIoMd
+					  MDTupleWithDeletedDelete*> // ioFsmExtractMd
+    	      (),
+    	      py::arg("direction"),
+    	      py::arg("addrWidth"),
+    	      py::arg("readWordWidth"),
+    	      py::arg("writeWordWidth"),
+    	      py::arg("isBlocking"),
+    	      py::arg("otherThreadFn"),
+    	      py::arg("otherArgIndex"),
+			  py::arg("bufferCapacity"),
+    	      py::arg("ioPropertyPath"),
+    	      py::arg("latenciesFromPredecessorIo"),
+    	      py::arg("protocolSpecificMetadata"),
+			  py::arg("streamIoMd"),
+			  py::arg("ioFsmExtractMd")
+    	)
+    	.def_readwrite("direction", &HwtHlsIoMetadata::direction)
+    	.def_readwrite("addrWidth", &HwtHlsIoMetadata::addrWidth)
+    	.def_readwrite("readWordWidth", &HwtHlsIoMetadata::readWordWidth)
+    	.def_readwrite("writeWordWidth", &HwtHlsIoMetadata::writeWordWidth)
+    	.def_readwrite("isBlocking", &HwtHlsIoMetadata::isBlocking)
+    	.def_readwrite("otherThreadFn", &HwtHlsIoMetadata::otherThreadFn)
+    	.def_readwrite("otherArgIndex", &HwtHlsIoMetadata::otherArgIndex)
+    	.def_readwrite("bufferCapacity", &HwtHlsIoMetadata::bufferCapacity)
+    	.def_property("ioPropertyPath", [](hwtHls::HwtHlsIoMetadata & self) {
+			return reinterpret_cast<MDTupleWithDeletedDelete*>(self.ioPropertyPath);
+		}, [](hwtHls::HwtHlsIoMetadata & self, MDTupleWithDeletedDelete * v) {
+			self.ioPropertyPath = reinterpret_cast<llvm::MDTuple*>(v);
+		})
+    	.def_property("latenciesFromPredecessorIo", [](hwtHls::HwtHlsIoMetadata & self) {
+			return reinterpret_cast<MDTupleWithDeletedDelete*>(self.latenciesFromPredecessorIo);
+		}, [](hwtHls::HwtHlsIoMetadata & self, MDTupleWithDeletedDelete * v) {
+			self.latenciesFromPredecessorIo = reinterpret_cast<llvm::MDTuple*>(v);
+		})
+	 	.def_property("protocolSpecificMetadata", [](hwtHls::HwtHlsIoMetadata & self) {
+			return reinterpret_cast<MDTupleWithDeletedDelete*>(self.protocolSpecificMetadata);
+		}, [](hwtHls::HwtHlsIoMetadata & self, MDTupleWithDeletedDelete * v) {
+			self.protocolSpecificMetadata = reinterpret_cast<llvm::MDTuple*>(v);
+		})
+		.def_property("streamIoMd", [](hwtHls::HwtHlsIoMetadata & self) {
+			return reinterpret_cast<MDTupleWithDeletedDelete*>(self.streamIoMd);
+		}, [](hwtHls::HwtHlsIoMetadata & self, MDTupleWithDeletedDelete * v) {
+			self.streamIoMd = reinterpret_cast<llvm::MDTuple*>(v);
+		})
+		.def_property("ioFsmExtractMd", [](hwtHls::HwtHlsIoMetadata & self) {
+			return reinterpret_cast<MDTupleWithDeletedDelete*>(self.ioFsmExtractMd);
+		}, [](hwtHls::HwtHlsIoMetadata & self, MDTupleWithDeletedDelete * v) {
+			self.ioFsmExtractMd = reinterpret_cast<llvm::MDTuple*>(v);
+		})
+		.def("__eq__", [](const hwtHls::HwtHlsIoMetadata &V0, const hwtHls::HwtHlsIoMetadata & V1) { return V0 == V1;})
+		.def("__repr__", &printToStr<HwtHlsIoMetadata>)
+	    .def_readonly_static("METADATA_NAME", &HwtHlsIoMetadata::METADATA_NAME);
+		;
 	using HwtHlsIoMetadataSmallVector = llvm::SmallVector<hwtHls::HwtHlsIoMetadata>;
 	py::class_<HwtHlsIoMetadataSmallVector>(m, "HwtHlsIoMetadataSmallVector")
 		.def(py::init<>())
@@ -147,13 +214,16 @@ void register_MDNode(pybind11::module_ & m) {
 				return V[index];
 			}
 		})
+		.def("__eq__", [](HwtHlsIoMetadataSmallVector &V0, HwtHlsIoMetadataSmallVector &V1) {
+			return V0 == V1;
+		})
 		.def("__len__", [](HwtHlsIoMetadataSmallVector &V) { return V.size(); })
 		.def("__iter__", [](HwtHlsIoMetadataSmallVector &V) {
 			return py::make_iterator(V.begin(), V.end());
 		}, py::keep_alive<0, 1>()); /* Keep vector alive while iterator is used */
 		;
 	m.def("HwtHlsIoMetadata_get", [](llvm::Function & F) { return HwtHlsIoMetadata_get(F); });
-    m.def("HwtHlsIoMetadata_set", &HwtHlsIoMetadata_set);
+    m.def("HwtHlsIoMetadata_set", [](llvm::Function & F, const llvm::SmallVector<HwtHlsIoMetadata> & mds) { HwtHlsIoMetadata_set(F, mds);});
 
 	py::enum_<hwtHls::ByteEnableEncoding> (m, "ByteEnableEncoding")
 		.value("BEE_NONE", hwtHls::ByteEnableEncoding::BEE_NONE)
@@ -195,8 +265,8 @@ void register_MDNode(pybind11::module_ & m) {
 	.def("getWidthOfFramingEncoding", &hwtHls::StreamChannelFormatInfo::getWidthOfFramingEncoding)//
 	.def("getWidthOfBusWord", &hwtHls::StreamChannelFormatInfo::getWidthOfBusWord)//
 	.def_static("findInMetadata", &hwtHls::StreamChannelFormatInfo::findInMetadata)
-	.def_static("findOptionalInMetadata",  [](MDNodeWithDeletedDelete & hwtHls_streamIo_MD, llvm::Argument &ioArg) {
-		return hwtHls::StreamChannelFormatInfo::findOptionalInMetadata(hwtHls_streamIo_MD, ioArg);
+	.def_static("findOptionalInMetadata",  [](llvm::Argument &ioArg) {
+		return hwtHls::StreamChannelFormatInfo::findOptionalInMetadata(ioArg);
 	})
 	;
 }
