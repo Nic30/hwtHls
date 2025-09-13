@@ -37,8 +37,10 @@ PreservedAnalyses HwtHlsInstCombinePass::run(llvm::Function &F,
 			TargetFolder(DL),
 			IRBuilderCallbackInserter([&Worklist, &AC](Instruction *I) {
 				Worklist.add(I);
-				if (auto *Assume = dyn_cast<AssumeInst>(I))
+				if (auto *Assume = dyn_cast<AssumeInst>(I)) {
+					assert(!isa<ConstantInt>(Assume->getArgOperand(0)));
 					AC.registerAssumption(Assume);
+				}
 			}));
 
 	ReversePostOrderTraversal<BasicBlock*> RPOT(&F.front());
