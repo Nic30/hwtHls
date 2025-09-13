@@ -27,6 +27,8 @@
 #include <llvm/Pass.h>
 
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
+#include <pybind11/stl_bind.h>
 
 #include <memory>
 #include <string>
@@ -43,19 +45,7 @@ namespace hwtHls {
 // https://blog.ekbana.com/write-a-python-binding-for-your-c-code-using-pybind11-library-ef0992d4b68
 
 void register_VectorOfTypePtr(pybind11::module_ & m) {
-	py::class_<std::vector<llvm::Type*>>(m, "VectorOfTypePtr")
-		.def(py::init<>())
-		.def("clear", &std::vector<llvm::Type*>::clear)
-		.def("pop_back", &std::vector<llvm::Type*>::pop_back)
-		.def("push_back", [](std::vector<llvm::Type*> *self, llvm::Type *i) {
-			return self->push_back(i);
-		}, py::keep_alive<2, 1>()) /* Keep items alive while vector is used */
-		.def("__len__", [](const std::vector<llvm::Type*> &v) {
-			return v.size();
-		})
-		.def("__iter__", [](std::vector<llvm::Type*> &v) {
-			return py::make_iterator(v.begin(), v.end());
-		}, py::keep_alive<0, 1>()); /* Keep vector alive while iterator is used */
+	py::bind_vector<std::vector<llvm::Type*>>(m, "VectorOfTypePtr");
 }
 
 void register_Types(pybind11::module_ & m) {
