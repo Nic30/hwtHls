@@ -965,7 +965,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
             toLlvm: ToLlvmIrTranslator = self.toLlvm
             if not isinstance(key, (RtlSignal, Value, HwIOSignal, HConst)):
                 if isinstance(key, slice):
-                    key = slice_to_HSlice(key, value._dtype.bit_length())
+                    key = slice_to_HSlice(key, container._dtype.bit_length())
                 else:
                     key = toHVal(key)
 
