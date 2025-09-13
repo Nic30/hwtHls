@@ -1,5 +1,5 @@
 
-from typing import Dict
+from typing import Dict, Optional
 
 from hwt.hdl.const import HConst
 from hwt.hdl.operatorDefs import HOperatorDef, HwtOps
@@ -11,7 +11,7 @@ from hwtHls.llvm.llvmIr import Function, Value, ValueToConstantInt, ValueToUndef
     LoadInst, InstructionToStoreInst, StoreInst, Type, TypeToIntegerType, IntegerType, \
     ConstantInt, InstructionToReturnInst, InstructionToBinaryOperator, BinaryOperator, \
     InstructionToICmpInst, ICmpInst, InstructionToSelectInst, SelectInst, InstructionToCallInst, \
-    ValueToInstruction, UserToInstruction
+    ValueToInstruction, UserToInstruction, Intrinsic, CallInst, IntrinsicInst, InstructionToIntrinsicInst
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
@@ -205,14 +205,23 @@ class LlvmIrExprToHlsNetlist():
                     varMap[i] = v
                     continue
 
-                ci = InstructionToCallInst(i)
+                ci: Optional[CallInst] = InstructionToCallInst(i)
                 if ci is not None:
+                    ci: CallInst
                     fnName = ci.getCalledFunction().getName().str()
                     name = ci.getName().str()
                     if not name:
                         name = None
+                    ii = InstructionToIntrinsicInst(ci)
+                    if ii is not None:
+                        ii: IntrinsicInst
+                        iiId = ii.getIntrinsicID()
+                        if iiId == Intrinsic.assume:
+                            v = None
+                        else:
+                            raise NotImplementedError(ii)
 
-                    if fnName.startswith("llvm.umin."):
+                    elif fnName.startswith("llvm.umin."):
                         opV0, opV1 = (self._translateExpr(op.get()) for op in ci.args())
                         lt = b.buildULt(opV0, opV1)
                         v = b.buildMux(opV0._dtype, (opV0, lt, opV1), name)
