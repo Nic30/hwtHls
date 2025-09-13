@@ -8,12 +8,13 @@ from hwt.hwIOs.hwIOStruct import HwIOStructVld, HwIOStructRdVld, HwIOStruct, \
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
 from hwt.serializer.mode import serializeParamsUniq
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.componentGenerator import HlsErrorHighlyInefficientImplementation
-from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaLoop import PyBytecodeLLVMLoopUnroll
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.thread import HlsThreadFromPy
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
@@ -33,6 +34,7 @@ class _BaseALU1HwModule(HwModule):
         in some highly sub-optimal the exception is raised
     """
 
+    @override
     def hwConfig(self) -> None:
         self.T: HdlType = HwParam(None)
         self.CLK_FREQ: int = HwParam(int(20e6))
@@ -66,6 +68,7 @@ class _BaseALU1HwModule(HwModule):
             self.IN_CHANNEL_TYPE = HwIOStructVld
             self.OUT_CHANNEL_TYPE = HwIOStructRdVld
 
+    @override
     def hwDeclr(self) -> None:
         addClkRstn(self)
         t = self.T
@@ -105,11 +108,11 @@ class _BaseALU1HwModule(HwModule):
         UNROLL_FACTOR = self.UNROLL_FACTOR
         if UNROLL_FACTOR > 1:
             return PyBytecodeLLVMLoopUnroll(True, UNROLL_FACTOR,
-                # followup_unrolled=PyBytecodeLoopFlattenUsingIf()
+                # followup_unrolled=PyBytecodeLoopFlattenUsingIf(mode=PyBytecodeLoopFlattenUsingIf.Mode.CHILD_LOOP_ENTRY_IN_SAME_ITERATION)
                 )
         else:
             return None
-            # return PyBytecodeLoopFlattenUsingIf()
+            # return PyBytecodeLoopFlattenUsingIf(mode=PyBytecodeLoopFlattenUsingIf.Mode.CHILD_LOOP_ENTRY_IN_SAME_ITERATION)
 
     def _backupTiming(self, hls: HlsScope, isFullyUnrolled: bool):
         inputClkTickOffset = math.inf
@@ -143,6 +146,7 @@ class _BaseALU1HwModule(HwModule):
         )
         return outputClkTickOffset
 
+    @override
     def hwImpl(self) -> None:
         hls = HlsScope(self)
         # hls.hwIOMeta[self.data_in] = HwIOMeta(mayBecomeBackedge, channelInit)

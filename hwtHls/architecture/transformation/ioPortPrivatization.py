@@ -80,7 +80,7 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
             for n in ioNodesInUser:
                 if isRead:
                     assert isinstance(n, HlsNetNodeRead), (n, "Ports should be divided to reads/writes in advance")
-                    #if n._rtlUseReady and n._rtlUseValid:
+                    # if n._rtlUseReady and n._rtlUseValid:
                     n: HlsNetNodeRead
                     n.src = None
                     assert n.associatedWrite is None
@@ -90,17 +90,18 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
                     inArbiterW.associateRead(n)
                     inArbiterW.allocationType = CHANNEL_ALLOCATION_TYPE.IMMEDIATE
                     inArbiterW.setNonBlocking()
-                    #else:
+                    # else:
                     #    raise NotImplementedError(n)
 
                     nodesForArbitration.append(inArbiterW)
 
                 else:
-                    assert isinstance(n, HlsNetNodeWrite)
-                    assert not (isinstance(n, HlsNetNodeWriteMemoryAllocationCmd) and n.cmd == READ), n
+                    assert isinstance(n, HlsNetNodeWrite), n
+                    assert not (isinstance(n, HlsNetNodeWriteMemoryAllocationCmd) and n.cmd == READ), (
+                        n, "This should not require arbier and should be handled by MemoryAllocationMeta")
                     assert n._portSrc is not None, n
                     t = n.dependsOn[n._portSrc.in_i]._dtype
-                    #if n._rtlUseReady and n._rtlUseValid:
+                    # if n._rtlUseReady and n._rtlUseValid:
                     n: HlsNetNodeRead
                     n.dst = None
                     assert n.associatedRead is None
@@ -110,9 +111,9 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
                     n.associateRead(inArbiterR)
                     n.allocationType = CHANNEL_ALLOCATION_TYPE.IMMEDIATE
                     n._mayBecomeFlushable = False
-                    
+
                     inArbiterR.setNonBlocking()
-                    #else:
+                    # else:
                     #    # IO does not have control signals necessary for stalling of producer
                     #    # ArchElements
                     #    raise NotImplementedError(n)
@@ -132,14 +133,14 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
         builder: HlsNetlistBuilder = arbiterElm.builder
         hasWData = wDataType is not None and not HdlType_isNonData(wDataType)
         hasRData = rDataType is not None and not HdlType_isNonData(rDataType)
-        isReadWithoutReady = False # receiver can not be resolved
+        isReadWithoutReady = False  # receiver can not be resolved
         if isRead:
             assert not hasWData, (ioPort, ioNodes)
             if not nodesForArbitration[0]._rtlUseReady:
                 # in this case there is no signal which marks which receiver
                 # will process the data, but we can pass it to all
                 isReadWithoutReady = True
-            
+
         # add control to io nodes in arbiter which connect to arbitrated ports
         for isLast, n in iter_with_last(nodesForArbitration):
             if isReadWithoutReady:
