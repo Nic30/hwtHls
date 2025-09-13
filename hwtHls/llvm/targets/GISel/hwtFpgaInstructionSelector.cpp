@@ -398,7 +398,13 @@ MachineOperand HwtFpgaTargetInstructionSelector::rewrite_G_PTR_ADD_exprToIndexAD
 			//assert(srcDef);
 			//auto srcMOSelected = rewrite_G_PTR_ADD_exprToIndexADD(MF, MRI, MIRB, baseAddrDefiningReg, indexWidth, itemSize, *srcDef, replacements);
 			selectInstrArg(MF, indexMIB, MRI, srcMO);
-			indexMIB.addImm(MRI.getType(srcMO.getReg()).getScalarSizeInBits()); // $srcWidth
+			size_t srcWidth;
+			if (srcMO.isReg()) {
+				srcWidth = MRI.getType(srcMO.getReg()).getScalarSizeInBits();
+			} else {
+				srcWidth = srcMO.getCImm()->getType()->getIntegerBitWidth();
+			}
+			indexMIB.addImm(srcWidth); // $srcWidth
 			indexMIB.addImm(log2ceil(itemSize)); // $offset
 			indexMIB.addImm(indexWidth); // $dstWidth
 			assert(indexMIB->getNumExplicitOperands() == 5);
