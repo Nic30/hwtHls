@@ -4,7 +4,7 @@ from hwt.hdl.types.defs import BIT
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
 from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineLoopInfo, \
-    MachineLoop, MachineInstr, Register, TargetOpcode, MachineFunction, MachineRegisterInfo
+    MachineLoop, MachineInstr, Register, TargetOpcode, MachineFunction, MachineRegisterInfo, MachineOperand
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
@@ -73,13 +73,25 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
 
     @classmethod
     def _blockCanBeInlinedAsReset(cls, mb: MachineBasicBlock):
+        defsSeen: set[Register] = set()
         for mi in mb:
             mi: MachineInstr
             opc = mi.getOpcode()
+            for op in mi.operands():
+                op: MachineOperand
+                if op.isReg() and op.isDef():
+                    defsSeen.add(op.getReg())
+
             if opc not in cls._CONSTANT_OPCODES:
                 if opc == TargetOpcode.HWTFPGA_MUX and mi.getNumOperands() == 2:
                     # constant defined as copy of constant using HWTFPGA_MUX instr
                     continue
+                elif opc == TargetOpcode.HWTFPGA_MERGE_VALUES:
+                    for op in mi.operands():
+                        if op.isReg() and not op.isDef():
+                            if op.getReg() not in defsSeen:
+                                return False
+                    continue  # just merge of constants
 
                 return False
 
@@ -336,7 +348,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                 # canUseDataAsControl =  is not None
                 self._tryToFindRegWhichCanBeUsedAsControl(mir, MRI, pred, mb, eMeta)
 
-            if eMeta.etype != MACHINE_EDGE_TYPE.RESET and not predMbMeta.needsControl: # not canUseDataAsControl and
+            if eMeta.etype != MACHINE_EDGE_TYPE.RESET and not predMbMeta.needsControl:  # not canUseDataAsControl and
                 predMbMeta.needsControl = True
                 if not predMbMeta.needsStarter and not pred.pred_size():
                     predMbMeta.needsStarter = True
@@ -393,7 +405,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                 else:
                     for op in instr.operands():
                         if op.isReg() and op.isDef():
-                            constLiveOuts.discard(op.getReg())  
+                            constLiveOuts.discard(op.getReg())
 
             mbMeta = MachineBasicBlockMeta(
                 mb,
