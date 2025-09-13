@@ -12,7 +12,7 @@
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/StreamChannelProps.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
 
-#define DEBUG_TYPE "simplifycfg2"
+#define DEBUG_TYPE "hwthls-simplifycfg"
 //#define DBG_VERIFY_AFTER_EVERY_MODIFICATION
 
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION

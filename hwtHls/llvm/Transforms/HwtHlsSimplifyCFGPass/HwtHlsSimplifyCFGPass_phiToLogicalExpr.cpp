@@ -13,7 +13,7 @@
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/targets/bitMathUtils.h>
 
-#define DEBUG_TYPE "simplifycfg2"
+#define DEBUG_TYPE "hwthls-simplifycfg"
 
 using namespace llvm;
 using namespace llvm::PatternMatch;

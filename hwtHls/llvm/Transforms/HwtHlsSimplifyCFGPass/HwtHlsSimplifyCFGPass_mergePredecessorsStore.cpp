@@ -9,7 +9,7 @@
 
 #include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
 
-#define DEBUG_TYPE "simplifycfg2"
+#define DEBUG_TYPE "hwthls-simplifycfg"
 using namespace llvm;
 
 namespace hwtHls {
@@ -61,7 +61,6 @@ PHINode *getStoreValuePHIOperand(BasicBlock &BB, ArrayRef<StoreInst*> stores) {
  * */
 static void sinkStores(ArrayRef<StoreInst*> stores, BasicBlock &TargetBB) {
 	StoreInst *S0 = stores[0];
-	// Hoist the instruction.
 	BasicBlock::iterator InsertPt = TargetBB.getFirstInsertionPt();
 	// Intersect optional metadata.
 	for (auto *S1 : stores) {

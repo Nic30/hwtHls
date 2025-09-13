@@ -44,7 +44,7 @@
 #include <llvm/IR/Verifier.h>
 #endif
 
-#define DEBUG_TYPE "simplifycfg2"
+#define DEBUG_TYPE "hwthls-simplifycfg"
 
 // #undef LLVM_DEBUG
 // #define LLVM_DEBUG(x) x

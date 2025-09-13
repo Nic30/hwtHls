@@ -15,7 +15,7 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/constBitPartsAnalysis.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 
-#define DEBUG_TYPE "simplifycfg2"
+#define DEBUG_TYPE "hwthls-simplifycfg"
 using namespace llvm;
 
 namespace hwtHls {

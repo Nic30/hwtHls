@@ -16,7 +16,7 @@
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
 
-#define DEBUG_TYPE "simplifycfg2"
+#define DEBUG_TYPE "hwthls-simplifycfg"
 
 using namespace llvm;
 using namespace llvm::PatternMatch;
