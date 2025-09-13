@@ -53,10 +53,17 @@ bool DceWorklist::DCEInstruction(Instruction *I, BasicBlock::iterator &curI) {
 bool DceWorklist::empty() const {
 	return WorkList.empty();
 }
+
+void DceWorklist::insertValue(llvm::Value &V) {
+	if (auto I = dyn_cast<Instruction>(&V))
+		insert(*I);
+}
+
 void DceWorklist::insert(llvm::Instruction &I) {
 	if (!WorkList.count(&I))
 		WorkList.insert(&I);
 }
+
 bool DceWorklist::tryRemoveIfDead(llvm::Instruction &I,
 		BasicBlock::iterator &curI) {
 	if (!WorkList.count(&I)) {
@@ -64,6 +71,7 @@ bool DceWorklist::tryRemoveIfDead(llvm::Instruction &I,
 	}
 	return false;
 }
+
 bool DceWorklist::runToCompletition(llvm::BasicBlock::iterator &curIt) {
 	bool MadeChange = false;
 	while (!WorkList.empty()) {
@@ -72,13 +80,13 @@ bool DceWorklist::runToCompletition(llvm::BasicBlock::iterator &curIt) {
 	}
 	return MadeChange;
 }
+
 bool DceWorklist::runToCompletition() {
 	BasicBlock::iterator it;
 	return runToCompletition(it);
 }
 
-
-llvm::SmallSetVector<llvm::Instruction*, 16> & DceWorklist::getWorkList() {
+llvm::SmallSetVector<llvm::Instruction*, 16>& DceWorklist::getWorkList() {
 	return WorkList;
 }
 

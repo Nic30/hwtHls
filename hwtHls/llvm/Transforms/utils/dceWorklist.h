@@ -20,6 +20,7 @@ public:
 			TLI(TLI) {
 	}
 	bool empty() const;
+	void insertValue(llvm::Value &V);
 	void insert(llvm::Instruction &I);
 	bool tryRemoveIfDead(llvm::Instruction &I,
 			llvm::BasicBlock::iterator &curI);
