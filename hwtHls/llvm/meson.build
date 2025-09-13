@@ -57,6 +57,7 @@ py3.extension_module(
      'llvmIrValues.cpp',
 
      'llvmSrc/CodeGenPrepare.cpp',
+     'llvmSrc/CodeExtractor.cpp',
      'llvmSrc/BranchFolding.cpp',
      'targets/Analysis/liveVariableForEdge.cpp',
      'targets/Analysis/VRegLiveins.cpp',
@@ -69,6 +70,7 @@ py3.extension_module(
      'targets/intrinsic/streamIo.cpp',
      'targets/intrinsic/StreamChannelFormatInfo.cpp',
      'targets/intrinsic/StreamChannelWordValue.cpp',
+     'targets/intrinsic/threadSplit.cpp',
      'targets/intrinsic/utils.cpp',
 
 	 'targets/GISel/hwtFpgaCallLoweringInfo.cpp',
@@ -125,6 +127,10 @@ py3.extension_module(
      'targets/Transforms/vregMachineLateInstrsCleanup.cpp',
      'targets/Transforms/writeCFGToDotFile.cpp',
 
+     'Analysis/mergeSetsBasedLivenessAnalysis/djGraph.cpp',
+     'Analysis/mergeSetsBasedLivenessAnalysis/liveness.cpp',
+     'Analysis/mergeSetsBasedLivenessAnalysis/mergeSets.cpp',
+
      'Transforms/bitwidthReducePass/bitPartsUseAnalysis.cpp',
      'Transforms/bitwidthReducePass/bitRewriter.cpp',
      'Transforms/bitwidthReducePass/bitwidthReducePass.cpp',
@@ -151,6 +157,9 @@ py3.extension_module(
      'Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinerUtilsImplication.cpp',
      'Transforms/SelectPruningPass.cpp',
      'Transforms/StripProfMetadataPass.cpp',
+     'Transforms/ThreadExtractPass/ThreadExtractor.cpp',
+     'Transforms/ThreadExtractPass/ThreadExtractorIoArgUtils.cpp',
+     'Transforms/ThreadExtractPass/ThreadExtractPass.cpp',
      'Transforms/TmpAllocaLoweringPass.cpp',
      'Transforms/slicesToIndependentVariablesPass/detectSplitPoints.cpp',
      'Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.cpp',
