@@ -14,6 +14,7 @@ class IRBuilderBase;
 
 namespace hwtHls {
 
+extern const std::string IMPLICATION_CACHE_INSTR_NAME_PREFIX;
 // :see: llvm::isImpliedCondition
 std::optional<bool> isImpliedConditionAndOrTree(llvm::IRBuilderBase &Builder,
 		llvm::Value *LHS, llvm::Value *RHS, const llvm::DataLayout &DL,

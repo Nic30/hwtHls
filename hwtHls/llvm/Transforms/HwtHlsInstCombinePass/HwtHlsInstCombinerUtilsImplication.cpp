@@ -175,10 +175,13 @@ std::optional<bool> isImpliedConditionByAssume(const Value *LHS,
 			// check for implication in for of a ULE b
 			return true; // implied true
 		} else if (match(Arg, m_c_Or(m_Specific(LHS), m_Specific(RHS)))) {
+			// :attention: llvm-18 AssumptionCache findAffectedValues caches only "not" and CmpInst
+			//             llvm-19+  findAffectedValues uses findValuesAffectedByCondition which handles this case
 			// ~L ==> R == L | R
 			return false;
 		} else if (match(Arg,
 				m_c_Or(m_Not(m_Specific(LHS)), m_Specific(RHS)))) {
+			// :attention: llvm-19+
 			// L ==> R in ~L|R form
 			return true;
 		}
@@ -213,9 +216,38 @@ std::optional<bool> isImpliedConditionByAssume(const Value *LHS,
 			}
 		}
 	}
+	Value *LHS_n;
+	if (match(LHS, m_Not(m_Value(LHS_n)))) {
+		for (auto &AssumeVH : concat<llvm::AssumptionCache::ResultElem>(AC.assumptionsFor(LHS_n), AC.assumptionsFor(RHS))) {
+			if (!AssumeVH)
+				continue;
+			CallInst *I = cast<CallInst>(AssumeVH);
+			assert(
+					I->getParent()->getParent()
+							== CtxI->getParent()->getParent()
+							&& "Got assumption for the wrong function!");
+			assert(
+					I->getCalledFunction()->getIntrinsicID()
+							== Intrinsic::assume
+							&& "must be an assume intrinsic");
+
+			if (!isValidAssumeForContext(I, CtxI, DT))
+				continue;
+
+			// :attention: llvm-19+
+			Value *Arg = I->getArgOperand(0);
+			if (match(Arg, m_c_Or(m_Specific(LHS_n), m_Specific(RHS)))) {
+				// L ==> R == ~L | R
+				return true;
+			}
+		}
+	}
+
 	return {};
 }
 
+const std::string IMPLICATION_CACHE_INSTR_NAME_PREFIX = "impCache";
+// :param isImpliedTrue: if true cache that the LHS==>RHS else !(LHS==>RHS)
 bool addImplicationAssume(IRBuilderBase &Builder, Value *LHS, Value *RHS,
 		bool isImpliedTrue) {
 	using Predicate = ICmpInst::Predicate;
@@ -228,6 +260,7 @@ bool addImplicationAssume(IRBuilderBase &Builder, Value *LHS, Value *RHS,
 	Builder.CreateAssumption(Cond);
 	return isImpliedTrue;
 }
+
 std::optional<bool> _isImplidConditionAndOrTree(IRBuilderBase &Builder,
 		Value *LHS, Value *RHS, const DataLayout &DL, AssumptionCache *AC,
 		const DominatorTree *DT, const Instruction *CtxI) {
