@@ -226,6 +226,11 @@ class LlvmIrInterpretStreamIo():
                     eof = b0
 
             data = data[w:]
+            if hasMask:
+                if mask._dtype.bit_length() == 1:
+                    assert w == byteWidth
+                else:
+                    mask = mask[w // byteWidth:]
 
         self._streamIoTmpWords[ioArg] = newTmpWord
         retValMembers = [data, ]
@@ -257,6 +262,7 @@ class LlvmIrInterpretStreamIo():
         # print("   StreamRead", instr, retValMembers)
         retVal = Concat(*reversed(retValMembers))
         assert retVal._dtype.bit_length() == instr.getType().getIntegerBitWidth(), (instr, retVal, retValMembers)
+
         return retVal
 
     @staticmethod
@@ -283,11 +289,12 @@ class LlvmIrInterpretStreamIo():
 
     def _runLlvmIrFunctionInstrStreamWrite(self, regs: dict[Instruction, HConst],
                      instr: CallInst, ioArg: Argument, streamProps: StreamChannelFormatInfo, wWidth: int, isMaskedWrite: bool, ioSimStream: list) -> None:
-
-        if isMaskedWrite:
-            mask = self._streamIoInstrOpHBits(regs, streamWriteGetWriteMask(instr))
-        else:
-            mask = HBits(wWidth // streamProps.byteWidth).getAllOnesValue()
+        hasMask = streamProps.hasMask()
+        if hasMask:
+            if isMaskedWrite:
+                mask = self._streamIoInstrOpHBits(regs, streamWriteGetWriteMask(instr))
+            else:
+                mask = HBits(wWidth // streamProps.byteWidth).getAllOnesValue()
 
         curTmp = self._streamIoTmpWords.get(ioArg, None)
         data = self._streamIoInstrOpHBits(regs, streamWriteGetWriteData(instr))
@@ -295,41 +302,57 @@ class LlvmIrInterpretStreamIo():
         # print("streamWrite", instr, data, mask, eof)
         if curTmp is not None:
             data = Concat(data, curTmp[0])
-            mask = Concat(mask, curTmp[1])
+            if hasMask:
+                mask = Concat(mask, curTmp[1])
 
         dataWidth = streamProps.dataWidth
         byteWidth = streamProps.byteWidth
-        maskWidth = dataWidth // byteWidth
+        if hasMask:
+            maskWidth = dataWidth // byteWidth
         dataToWriteWidth = data._dtype.bit_length()
         dataLeftoverWidth = dataToWriteWidth % dataWidth
         fullWordCnt = dataToWriteWidth // dataWidth
         for isLastWord, wordI in iter_with_last(range(dataToWriteWidth // dataWidth)):
             # transmit complete bus words
             wordData = data[(wordI + 1) * dataWidth:wordI * dataWidth]
-            if wordI == 0 and mask._dtype.bit_length() == 1:
-                assert maskWidth == 1
-                wordMask = mask
-            else:
-                wordMask = mask[(wordI + 1) * maskWidth:wordI * maskWidth]
+            if hasMask:
+                if wordI == 0 and mask._dtype.bit_length() == 1:
+                    assert maskWidth == 1
+                    wordMask = mask
+                else:
+                    wordMask = mask[(wordI + 1) * maskWidth:wordI * maskWidth]
             wordEoF = eof if isLastWord and dataLeftoverWidth == 0 else b0
-            word = Concat(wordEoF, wordMask, wordData)
+            if hasMask:
+                word = Concat(wordEoF, wordMask, wordData)
+            else:
+                word = Concat(wordEoF, wordData)
+
             ioSimStream.append(word)
 
         if dataLeftoverWidth:
             if fullWordCnt > 0:
                 data = data[:fullWordCnt * dataWidth]
-                mask = mask[:fullWordCnt * maskWidth]
+                if hasMask:
+                    mask = mask[:fullWordCnt * maskWidth]
             if eof:
                 # add padding and transmit current data
                 wordData = Concat(HBits(dataWidth - dataLeftoverWidth).from_py(None), data)
                 assert (dataWidth - dataLeftoverWidth) % byteWidth == 0, (instr, dataWidth, dataLeftoverWidth)
-                wordMask = Concat(HBits((dataWidth - dataLeftoverWidth) // byteWidth).from_py(0), mask)
-                word = Concat(eof, wordMask, wordData)
+                if hasMask:
+                    wordMask = Concat(HBits((dataWidth - dataLeftoverWidth) // byteWidth).from_py(0), mask)
+                    word = Concat(eof, wordMask, wordData)
+                else:
+                    word = Concat(eof, wordData)
+
                 ioSimStream.append(word)
                 newTmpWord = None
             else:
                 # store pending data to tmpWord so it is merged with next write
-                newTmpWord = (data, mask)
+                if hasMask:
+                    newTmpWord = (data, mask)
+                else:
+                    newTmpWord = (data, None)
+
         else:
             newTmpWord = None
         # store leftover if any
@@ -338,17 +361,15 @@ class LlvmIrInterpretStreamIo():
     def _loadStreamChannelFormatInfo(self, ioArg: Argument) -> StreamChannelFormatInfo:
         streamInfo = self._streamProps.get(ioArg, None)
         if streamInfo is None:
-            streamIo = self.interpret.F.getMetadata(self.interpret.strCtx.addStringRef("hwtHls.streamIo"))
-            assert streamIo
-            streamInfo = StreamChannelFormatInfo.findOptionalInMetadata(streamIo, ioArg)
+            streamInfo = StreamChannelFormatInfo.findOptionalInMetadata(ioArg)
             assert streamInfo
             self._streamProps[ioArg] = streamInfo
         return streamInfo
 
     def _decodeLlvmIrFunctionInstrStreamIo(self, interpret: "LlvmIrInterpret", bb: BasicBlock, instr: CallInst) -> LlvmIrInstrFunction:
         ioArg: Argument = ValueToArgument(instr.getArgOperand(0))
-        assert ioArg
         if IsStreamRead(instr):
+            assert ioArg
             w: int = streamReadGetOrigChunkBitWidth(instr)
             isReliable: bool = streamReadGetIsReliable(instr)
             streamProps: StreamChannelFormatInfo = self._loadStreamChannelFormatInfo(ioArg)
@@ -361,6 +382,7 @@ class LlvmIrInterpretStreamIo():
             return _intrinsic_StreamRead
 
         elif IsStreamWrite(instr):
+            assert ioArg
             streamProps: StreamChannelFormatInfo = self._streamProps.get(ioArg)
             assert streamProps is not None, ("StreamChannelFormatInfo should have been discovered by previous StreamWriteStartOfFrame", instr)
             ioSimStream = self.interpret.fnArgs[ioArg.getArgNo()]
@@ -373,6 +395,7 @@ class LlvmIrInterpretStreamIo():
             return _intrinsic_StreamWrite
 
         elif IsStreamReadStartOfFrame(instr) or IsStreamWriteStartOfFrame(instr):
+            assert ioArg
             self._loadStreamChannelFormatInfo(ioArg)
 
             def _intrinsic_StreamReadStartOfFrame(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
@@ -382,7 +405,8 @@ class LlvmIrInterpretStreamIo():
             return _intrinsic_StreamReadStartOfFrame
 
         elif IsStreamReadEndOfFrame(instr):
-
+            assert ioArg
+            
             def _intrinsic_StreamReadEndOfFrame(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
                 curTmp = self._streamIoTmpWords.get(ioArg, None)
                 assert curTmp is None, ("The frame does not end when expected", instr, curTmp)
@@ -390,7 +414,8 @@ class LlvmIrInterpretStreamIo():
             return _intrinsic_StreamReadEndOfFrame
 
         elif IsStreamWriteEndOfFrame(instr):
-
+            assert ioArg
+            
             def _intrinsic_StreamWriteEndOfFrame(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
                 curTmp = self._streamIoTmpWords.get(ioArg, None)
                 assert curTmp is None, ("There was no write with EoF when EoF was expected", instr, curTmp)
