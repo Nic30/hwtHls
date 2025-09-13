@@ -95,7 +95,7 @@ llvm::Instruction* HwtHlsInstCombiner::tryReduceICmp_onTurncUMin(
 			if (C0V != CV) {
 				auto newI = Builder.CreateICmpEQ(v0, C);
 				Worklist.pushValue(newI);
-				return replaceInstUsesWith(I, newI);
+				return replaceInstUsesWith(I, newI, true);
 			}
 		} else if (Pred == ICmpInst::Predicate::ICMP_ULE) {
 			if (C0V.ule(CV)) {
@@ -103,7 +103,7 @@ llvm::Instruction* HwtHlsInstCombiner::tryReduceICmp_onTurncUMin(
 			} else {
 				auto newI = Builder.CreateICmpULE(v0, C);
 				Worklist.pushValue(newI);
-				return replaceInstUsesWith(I, newI);
+				return replaceInstUsesWith(I, newI, true);
 			}
 		} else if (Pred == ICmpInst::Predicate::ICMP_ULT) {
 			if (C0V.ult(CV)) {
@@ -111,7 +111,7 @@ llvm::Instruction* HwtHlsInstCombiner::tryReduceICmp_onTurncUMin(
 			} else {
 				auto newI = Builder.CreateICmpULT(v0, C);
 				Worklist.pushValue(newI);
-				return replaceInstUsesWith(I, newI);
+				return replaceInstUsesWith(I, newI, true);
 			}
 		}
 	}
