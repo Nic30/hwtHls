@@ -83,7 +83,7 @@ llvm::Value* SearchBitRangeGet(Instruction *bitVec, Value *lowBitNo,
 							return sucI;
 						}
 					} else if (srcIsPhi && isa<PHINode>(sucISrcArg)) {
-						continue;  // slices of PHI may be mixed together, we need to iterate all of them
+						continue; // slices of PHI may be mixed together, we need to iterate all of them
 					} else {
 						break;
 					}
@@ -165,7 +165,8 @@ llvm::Value* CreateBitRangeGet(llvm::IRBuilderBase *Builder, Value *bitVec,
 			return UndefValue::get(resTy);
 	} else if (auto CI = dyn_cast<ConstantInt>(bitVec)) {
 		auto resTy = Builder->getIntNTy(bitWidth);
-		return ConstantInt::get(resTy, CI->getValue().extractBits(bitWidth, lowBitNoC->getZExtValue()));
+		return ConstantInt::get(resTy,
+				CI->getValue().extractBits(bitWidth, lowBitNoC->getZExtValue()));
 	} else if (auto bitVecCI = dyn_cast<CallInst>(bitVec)) {
 		if (lowBitNoC) {
 			if (IsBitRangeGet(bitVecCI)) {
@@ -337,6 +338,7 @@ llvm::Value* CreateBitConcat(llvm::IRBuilderBase *Builder,
 	bool lastWasConst = false;
 	bool lastWasUndef = false;
 	for (auto *o : _OpsLowFirst) {
+		assert(o);
 		if (auto t = dyn_cast<IntegerType>(o->getType())) {
 			auto w = t->getBitWidth();
 			assert(w > 0 && "Can concatenate only int bit vectors");
@@ -454,19 +456,22 @@ bool IsBitConcat(const llvm::Function *F) {
 	return F->getName().str().rfind(BitConcatName, 0) == 0;
 }
 
-
 bool isAnyFormOfBitRangeGet(llvm::Instruction *I) {
 	size_t width, offset;
 	Value *V;
 	return match(I, m_Trunc(m_Value(V)))
-			|| match(I, hwtHls::PatternMatch::m_BitrangeGet(m_Value(V), offset, width));
+			|| match(I,
+					hwtHls::PatternMatch::m_BitrangeGet(m_Value(V), offset,
+							width));
 }
 
 bool isAnyFormOfBitRangeGet(llvm::Instruction *I, llvm::Value *&src) {
 	size_t width, offset;
 	Value *V;
 	if (match(I, m_Trunc(m_Value(V)))
-			|| match(I, hwtHls::PatternMatch::m_BitrangeGet(m_Value(V), offset, width))) {
+			|| match(I,
+					hwtHls::PatternMatch::m_BitrangeGet(m_Value(V), offset,
+							width))) {
 		if (src == nullptr) {
 			src = V;
 			return true;
@@ -477,11 +482,14 @@ bool isAnyFormOfBitRangeGet(llvm::Instruction *I, llvm::Value *&src) {
 	return false;
 }
 
-bool isAnyFormOfBitRangeGet(llvm::Instruction *I, llvm::Value *&src, size_t& offset) {
+bool isAnyFormOfBitRangeGet(llvm::Instruction *I, llvm::Value *&src,
+		size_t &offset) {
 	size_t width;
 	Value *V;
 	if (match(I, m_Trunc(m_Value(V)))
-			|| match(I, hwtHls::PatternMatch::m_BitrangeGet(m_Value(V), offset, width))) {
+			|| match(I,
+					hwtHls::PatternMatch::m_BitrangeGet(m_Value(V), offset,
+							width))) {
 		if (src == nullptr) {
 			src = V;
 			return true;
