@@ -243,6 +243,8 @@ class ToLlvmIrTranslator():
                 # append unmodified upper bits
                 new_bb, new_var = self._translateExprToLlvm(block, var[width:high])
                 parts.append(new_var)
+            else:
+                assert high == width
 
             name = self.strCtx.addTwine("" if var._hasGenericName else var._name)
             value = self.b.CreateBitConcat(parts, name)
@@ -350,6 +352,12 @@ class ToLlvmIrTranslator():
         if fn not in self._afterTranslation:
             self._afterTranslation.append(fn)
 
+    def mdGetBool(self, i: int):
+        """
+        Get LLVM metadata uint1 from python int
+        """
+        return ConstantAsMetadata.getConstant(self._translateExprInt(i, self.b.getIntNTy(1)))
+
     def mdGetStr(self, s: str):
         """
         Get LLVM metadata string from python string
@@ -360,7 +368,7 @@ class ToLlvmIrTranslator():
         """
         Get LLVM metadata uint32 from python int
         """
-        return ConstantAsMetadata.getConstant(self._translateExprInt(i, self._translateType(uint32_t)))
+        return ConstantAsMetadata.getConstant(self._translateExprInt(i, self.b.getIntNTy(32)))
 
     def mdGetTuple(self, items: Sequence[Union[ConstantAsMetadata, MDString, MDNode]], insertSelfAsFirts: bool):
         """
@@ -377,7 +385,7 @@ class ToLlvmIrTranslator():
         strCtx = self.strCtx
         _argTypes = VectorOfTypePtr()
         for _, t, _ , _ in args:
-            _argTypes.push_back(t)
+            _argTypes.append(t)
 
         FT = FunctionType.get(returnType, _argTypes, False)
         F = Function.Create(FT, Function.ExternalLinkage, strCtx.addTwine(name), self.module)
@@ -417,6 +425,18 @@ class ToLlvmIrTranslator():
         _v = APInt(t.getIntegerBitWidth(), f"{v:x}", 16)
         return ConstantInt.get(t, _v)
 
+    def _translateOptionalIntOrExpr(self, block: BasicBlock, v: HConst, bitwidth: int):
+        if v is not None:
+            if isinstance(v, int):
+                v = self._translateExprInt(v, Type.getIntNTy(self.ctx, bitwidth))
+            else:
+                block, v = self._translateExprToLlvm(block, v)
+        return block, v
+
+    def _translateExprHBitsConstToAPIntFullyDefined(self, v: HBitsConst) -> APInt:
+        vTy = v._dtype
+        return APInt(vTy.bit_length(), f"{v.val:x}", 16)
+
     def _translateExprHConst(self, block: BasicBlock, v: HConst) -> Value:
         toLlvm = getattr(v, "toLlvm", None)
         vTy = v._dtype
@@ -426,7 +446,7 @@ class ToLlvmIrTranslator():
         elif isinstance(v, HBitsConst):
             if v._is_full_valid():
                 t = self._translateType(vTy)
-                _v = APInt(vTy.bit_length(), f"{v.val:x}", 16)
+                _v = self._translateExprHBitsConstToAPIntFullyDefined(v)
                 return ConstantInt.get(t, _v)
             elif v.vld_mask == 0:
                 t = self._translateType(vTy)
