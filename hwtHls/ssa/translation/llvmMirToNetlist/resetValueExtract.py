@@ -129,8 +129,9 @@ class ResetValueExtractor():
             if mbMeta.needsControl and not mbMeta.isLoopHeaderOfFreeRunning:
                 dbgTracer.log("appending init value to control channel from rst")
                 rstBuff = newResetEdgeMeta.getBufferForReg(newResetEdge)
-                assert HdlType_isVoid(rstBuff.obj._portDataOut._dtype), (rstBuff, rstBuff.obj._portDataOut._dtype)
                 rstBuffR = rstBuff.obj
+                assert HdlType_isVoid(rstBuffR._portDataOut._dtype), (rstBuff, rstBuffR._portDataOut._dtype)
+                # add more tokens to buffer so body can be executed
                 rstBuffR.channelInitValues = tuple([(), *rstBuffR.channelInitValues])
             else:
                 dbgTracer.log("Ignoring reset behavior because it has no effect")
@@ -218,6 +219,18 @@ class ResetValueExtractor():
 
                 builder.registerOperatorNode(mux)
                 alreadyUpdated.add(mux)
+
+            edgeMeta: MachineEdgeMeta = self.edgeMeta[(otherPred, mb)]
+            for r, buffOut in edgeMeta.buffers:
+                if isinstance(r, Register):
+                    continue
+                else:
+                    assert isinstance(r, tuple) and r == (otherPred, mb)
+                    dbgTracer.log("appending init value to control channel from otherPred (for reset)")
+                    rstBuffR = buffOut.obj
+                    assert HdlType_isVoid(rstBuffR._portDataOut._dtype), (buffOut, rstBuffR._portDataOut._dtype)
+                    # add more tokens to buffer so body can be executed
+                    rstBuffR.channelInitValues = tuple([(), *rstBuffR.channelInitValues])
 
         # :attention: If there is a control channel we must place an initial CFG token into it once it is generated
 

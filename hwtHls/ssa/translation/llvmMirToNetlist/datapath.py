@@ -545,6 +545,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
         The MachineLoop may contain multiple ArchElements and ArchElement may contain multiple MachineLoop
         but MachineLoop or ArchElement must have a single parent (e.g. if loop span over multiple ArchElements
         they are children of this loop and contains only blocks of this loop)
+
         :note: mf iterator does not follow CFG, thus loop mb may not be a loop header when loop is visited first time
         :note: :class:`ArchElemnt` instances are never nested in each other, :class:`HlsNetNodeAggregateLoop` can
             be nested and may contain multiple :class:`ArchElemnt` instances
@@ -715,8 +716,9 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     # asserted to be the last
                     v = self._constructBuffer("c", predMb, sucMb, (predMb, sucMb), v,
                                               isBackedge=isBackedge, isControl=True)
-                    if edgeMeta.inlineRstDataFromEdge is not None:
-                        v.obj.channelInitValues = (tuple(),)
+                    # :note: this should be done in ResetValueExtractor._rewriteControlOfInfLoopWithReset
+                    # if edgeMeta.inlineRstDataFromEdge is not None:
+                    #     v.obj.channelInitValues = (tuple(),)
                     wn: HlsNetNodeWriteBackedge = v.obj.associatedWrite
                     edgeMeta.loopChannelGroupAppendWrite(wn, True)
                     edgeMeta.buffers.append(((predMb, sucMb), v))
