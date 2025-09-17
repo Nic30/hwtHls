@@ -50,7 +50,7 @@ from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtHls.ssa.translation.toLlvmUtils import getIoNodeConstructors
 
 
-def _runOnSsaMouduleGetter(p):
+def _runOnSsaModuleGetter(p):
     return p.runOnSsaModule
 
 
@@ -101,8 +101,8 @@ class DefaultHlsPlatform(DummyPlatform):
 
     def runSsaPasses(self, hls: "HlsScope", toLlvm: ToLlvmIrTranslator):
         DBG = self._debug.runDebugIfEnabled
-        DBG(HlsDebugBundle.DBG_1_0_preLlvm, (toLlvm,), applyFnGetter=_runOnSsaMouduleGetter)
-        DBG(SsaPassConsistencyCheck, (toLlvm,), applyFnGetter=_runOnSsaMouduleGetter)
+        DBG(HlsDebugBundle.DBG_1_0_preLlvm, (toLlvm,), applyFnGetter=_runOnSsaModuleGetter)
+        DBG(SsaPassConsistencyCheck, (toLlvm,), applyFnGetter=_runOnSsaModuleGetter)
 
     def installLlvmIoLowerPass(self, modulePassCls: "ModulePass"):
         passes = self._llvmIoLowerPasses
@@ -141,8 +141,8 @@ class DefaultHlsPlatform(DummyPlatform):
         assert isinstance(toLlvm, ToLlvmIrTranslator), toLlvm
         DBG = self._debug.runDebugIfEnabled
         D = HlsDebugBundle
-        DBG(D.DBG_2_0_mir, (toLlvm, mf), applyFnGetter=_runOnSsaMouduleGetter)
-        DBG(D.DBG_2_0_mirCfg, (toLlvm, mf), applyFnGetter=_runOnSsaMouduleGetter)
+        DBG(D.DBG_2_0_mir, (toLlvm, mf), applyFnGetter=_runOnSsaModuleGetter)
+        DBG(D.DBG_2_0_mirCfg, (toLlvm, mf), applyFnGetter=_runOnSsaModuleGetter)
 
         dbgTracer, doCloseTrace = self._getDebugTracer(netlist.label, D.DBG_2_1_netlistConstructionTrace)
         toNetlist = HlsNetlistAnalysisPassMirToNetlist(

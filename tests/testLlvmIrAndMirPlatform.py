@@ -11,7 +11,7 @@ from hwtHls.llvm.llvmIr import LlvmCompilationBundle, IntentionalCompilationInte
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.platform.debugBundleTypes import LlvmCliArgTuple
 from hwtHls.platform.platform import DebugId, HlsDebugBundle, \
-    _runOnSsaMouduleGetter
+    _runOnSsaModuleGetter
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.ssa.analysis.llvmIrInterpret import LlvmIrInterpret, \
     SimIoUnderflowErr
@@ -159,8 +159,8 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
                 else:
                     mf = llvm.getMachineFunction(llvm.main)
 
-                dbg(D.DBG_2_0_mir, (toLlvm, mf), applyFnGetter=_runOnSsaMouduleGetter)
-                dbg(D.DBG_2_0_mirCfg, (toLlvm, mf), applyFnGetter=_runOnSsaMouduleGetter)
+                dbg(D.DBG_2_0_mir, (toLlvm, mf), applyFnGetter=_runOnSsaModuleGetter)
+                dbg(D.DBG_2_0_mirCfg, (toLlvm, mf), applyFnGetter=_runOnSsaModuleGetter)
                 raise
 
         netlist = super(TestLlvmIrAndMirPlatform, self).runMirToHlsNetlist(hls, toLlvm, *args)
