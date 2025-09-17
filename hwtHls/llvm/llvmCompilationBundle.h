@@ -136,20 +136,16 @@ public:
 			bool SimplifyCondBranch,          //
 			bool HoistCheapInsts              //
 			);
-	llvm::Function& _testSlicesToIndependentVariablesPass();
-	llvm::Function& _testBitwidthReductionPass();
-	llvm::Function& _testHwtHlsInstCombinePass(bool runBitcountMergePass,
-			bool runStreamReadEoFThreading);
-	llvm::Function& _testSlicesMergePass();
-	llvm::Function& _testLoopUnrotatePass();
 	llvm::Function& _testLoopFlattenUsingIfPass();
 	llvm::Function& _testRewriteExtractOnMergeValues();
-	llvm::Function& _testPruneLoopPhiDeadIncomingValuesPass();
-	llvm::Function& _testSelectPruningPass();
-	llvm::Function& _testHFloatTmpLoweringPass();
-	llvm::Function& _testStreamReadLoweringPass();
+
+	llvm::Module& _runCustomModulePass(
+			std::function<void(llvm::ModulePassManager&)> addPasses);
 	llvm::Function& _runCustomFunctionPass(
 			std::function<void(llvm::FunctionPassManager&)> addPasses);
+	llvm::Function& _runCustomLoopPass(
+			std::function<void(llvm::LoopPassManager&)> addPasses);
+
 	void _testMachineFunctionPass(
 			std::function<void(llvm::HwtFpgaTargetPassConfig&)> addPasses);
 

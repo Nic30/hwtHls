@@ -12,7 +12,6 @@ class BitwidthReductionPass_PHI_inLoopHeader_TC(BaseLlvmIrTC):
     def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
         return BitwidthReductionPass_TC._runTestOpt(self, llvm)
 
-
     def test_loopCondBitSet(self):
         llvmIr = """\
         define void @LoopCondBitSet(ptr addrspace(1) %i, ptr addrspace(2) %o) {
@@ -47,7 +46,7 @@ class BitwidthReductionPass_PHI_inLoopHeader_TC(BaseLlvmIrTC):
         self._test_ll(llvmIr)
 
     def test_PhiChain0(self):
-        # :see: PyArrShift 
+        # :see: PyArrShift
         llvmIr = """\
         define void @PhiChain0(ptr addrspace(1) %i, ptr addrspace(2) %o) {
          bb0:
@@ -121,7 +120,6 @@ class BitwidthReductionPass_PHI_inLoopHeader_TC(BaseLlvmIrTC):
         }
         """
         self._test_ll(llvmIr)
-    
 
     def test_PhiWithConstValues(self):
         # :see: HlsPythonTupleAssign 8b 0 and 1 variables swapped and written out
@@ -159,7 +157,6 @@ class BitwidthReductionPass_PHI_inLoopHeader_TC(BaseLlvmIrTC):
         """
         self._test_ll(llvmIr)
 
-
     def test_phiInitToUndef0b(self):
         # :note: phiInitToUndef0a with order of phi operands reversed
         llvmIr = """\
@@ -177,10 +174,9 @@ class BitwidthReductionPass_PHI_inLoopHeader_TC(BaseLlvmIrTC):
             }
         """
         self._test_ll(llvmIr)
-            
-            
+
     def test_phiInitToUndef1(self):
-        # :note: same as phiInitToUndef0 with 2 nested loops 
+        # :note: same as phiInitToUndef0 with 2 nested loops
         llvmIr = """\
         define void @PhiInitToUndef1(ptr addrspace(1) %dout, ptr addrspace(3) %timerTick, ptr addrspace(4) %uart) {
             bb11:
@@ -225,7 +221,7 @@ class BitwidthReductionPass_PHI_inLoopHeader_TC(BaseLlvmIrTC):
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([BitwidthReductionPass_PHI_inLoopHeader_TC('test_PhiShiftWithShuffle')])
     suite = testLoader.loadTestsFromTestCase(BitwidthReductionPass_PHI_inLoopHeader_TC)
+    # suite = unittest.TestSuite([BitwidthReductionPass_PHI_inLoopHeader_TC('test_phiWithShiftIn')])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

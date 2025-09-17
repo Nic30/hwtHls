@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function, FunctionPassManager, SlicesMergePass
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
+
+
+def _addSlicesMergePass(FPM: FunctionPassManager):
+    FPM.addPass(SlicesMergePass())
 
 
 class SlicesMergePass_TC(BaseLlvmIrTC):
@@ -10,7 +14,7 @@ class SlicesMergePass_TC(BaseLlvmIrTC):
 
     def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
         # llvm.addLlvmCliArgOccurence("debug-only", 0, "", "newgvn")
-        return llvm._testSlicesMergePass()
+        return llvm._runCustomFunctionPass(_addSlicesMergePass)
 
     def test_notingToReduce(self):
         llvmIr0 = """

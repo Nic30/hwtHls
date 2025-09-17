@@ -8,6 +8,7 @@ from tests.llvmIr.bitWidthReductionPass_Cmp import BitWidthReductionCmp2Values, 
     BitWidthReductionCmpReducibleEq, BitWidthReductionCmpReducibleNe, \
     BitWidthReductionCmpReducibleLt, BitWidthReductionCmpReducibleLe, \
     BitWidthReductionCmpReducibleGt, BitWidthReductionCmpReducibleGe
+from tests.llvmIr.bitWidthReduction_test import BitwidthReductionPass_TC
 
 
 class BitWidthReductionPass_Cmp_example_TC(BaseSsaTC):
@@ -42,7 +43,7 @@ class BitWidthReductionPass_Cmp_IR_TC(BaseLlvmIrTC):
     __FILE__ = __file__
 
     def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
-        return llvm._testBitwidthReductionPass()
+        return BitwidthReductionPass_TC._runTestOpt(self, llvm)
 
     def test_cmpUltLowerBits0(self):
         llvmIr = """\
@@ -76,6 +77,7 @@ class BitWidthReductionPass_Cmp_IR_TC(BaseLlvmIrTC):
         """
         self._test_ll(llvmIr)
 
+
 BitWidthReductionPass_Cmp_TCs = [
     BitWidthReductionPass_Cmp_example_TC,
     BitWidthReductionPass_Cmp_IR_TC,
@@ -87,7 +89,7 @@ if __name__ == "__main__":
     testLoader = unittest.TestLoader()
     suite = unittest.TestSuite(testLoader.loadTestsFromTestCase(tc)
                           for tc in BitWidthReductionPass_Cmp_TCs)
-    # suite = unittest.TestSuite([BitWidthReductionPass_Cmp_sim_TC('test_ult')])
+    # suite = unittest.TestSuite([BitWidthReductionPass_Cmp_example_TC('test_BitWidthReductionCmp2Values_ll')])
     # suite = testLoader.loadTestsFromTestCase(BitWidthReductionPass_Cmp_IR_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

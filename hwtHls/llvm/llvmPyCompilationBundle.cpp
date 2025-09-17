@@ -116,21 +116,27 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 				py::arg("SimplifyCondBranch").noconvert() = true,
 				py::arg("HoistCheapInsts").noconvert() = false,
 				py::return_value_policy::reference_internal)
-		.def("_testPruneLoopPhiDeadIncomingValuesPass", &hwtHls::LlvmCompilationBundle::_testPruneLoopPhiDeadIncomingValuesPass, py::return_value_policy::reference_internal)
-		.def("_testSlicesToIndependentVariablesPass", &hwtHls::LlvmCompilationBundle::_testSlicesToIndependentVariablesPass, py::return_value_policy::reference_internal)
-		.def("_testSlicesMergePass", &hwtHls::LlvmCompilationBundle::_testSlicesMergePass, py::return_value_policy::reference_internal)
-		.def("_testSelectPruningPass", &hwtHls::LlvmCompilationBundle::_testSelectPruningPass, py::return_value_policy::reference_internal)
-		.def("_testHFloatTmpLoweringPass", &hwtHls::LlvmCompilationBundle::_testHFloatTmpLoweringPass, py::return_value_policy::reference_internal)
-		.def("_testLoopFlattenUsingIfPass", &hwtHls::LlvmCompilationBundle::_testLoopFlattenUsingIfPass, py::return_value_policy::reference_internal)
-		.def("_testLoopRotationNormalizationPass", &hwtHls::LlvmCompilationBundle::_testLoopUnrotatePass, py::return_value_policy::reference_internal)
-		.def("_testBitwidthReductionPass", &hwtHls::LlvmCompilationBundle::_testBitwidthReductionPass, py::return_value_policy::reference_internal)
-		.def("_testHwtHlsInstCombinePass", &hwtHls::LlvmCompilationBundle::_testHwtHlsInstCombinePass, py::return_value_policy::reference_internal)
-		.def("_testRewriteExtractOnMergeValuesPass", &hwtHls::LlvmCompilationBundle::_testRewriteExtractOnMergeValues, py::return_value_policy::reference_internal)
-		.def("_testStreamReadLoweringPass", &hwtHls::LlvmCompilationBundle::_testStreamReadLoweringPass, py::return_value_policy::reference_internal)
+		.def("_runCustomModulePass", [](hwtHls::LlvmCompilationBundle & self, py::function & addModulePassesFn) -> llvm::Module& {
+			return self._runCustomModulePass([&addModulePassesFn](llvm::ModulePassManager& MPM) {
+					addModulePassesFn.operator() <py::return_value_policy::reference, llvm::ModulePassManager&>(MPM);
+				});
+	    }, py::return_value_policy::reference_internal)
+		.def("_runCustomFunctionPass", [](hwtHls::LlvmCompilationBundle & self, py::function & addFunctionPassesFn) -> llvm::Function& {
+			return self._runCustomFunctionPass([&addFunctionPassesFn](llvm::FunctionPassManager& FPM) {
+					addFunctionPassesFn.operator() <py::return_value_policy::reference, llvm::FunctionPassManager&>(FPM);
+				});
+	    }, py::return_value_policy::reference_internal)
+		.def("_runCustomLoopPass", [](hwtHls::LlvmCompilationBundle & self, py::function & addLoopPassesFn) -> llvm::Function& {
+			return self._runCustomLoopPass([&addLoopPassesFn](llvm::LoopPassManager& LPM) {
+					addLoopPassesFn.operator() <py::return_value_policy::reference, llvm::LoopPassManager&>(LPM);
+				});
+	    }, py::return_value_policy::reference_internal)
 		.def("_testEarlyIfConverter", &hwtHls::LlvmCompilationBundle::_testEarlyIfConverter, py::return_value_policy::reference_internal)
+		.def("_testHwtFpgaPreToNetlistCombiner", &hwtHls::LlvmCompilationBundle::_testHwtFpgaPreToNetlistCombiner, py::return_value_policy::reference_internal)
+		.def("_testLoopFlattenUsingIfPass", &hwtHls::LlvmCompilationBundle::_testLoopFlattenUsingIfPass, py::return_value_policy::reference_internal)
+		.def("_testRewriteExtractOnMergeValuesPass", &hwtHls::LlvmCompilationBundle::_testRewriteExtractOnMergeValues, py::return_value_policy::reference_internal)
 		.def("_testVRegIfConverter", &hwtHls::LlvmCompilationBundle::_testVRegIfConverter, py::return_value_policy::reference_internal)
 		.def("_testVRegIfConverterForIr", &hwtHls::LlvmCompilationBundle::_testVRegIfConverterForIr, py::return_value_policy::reference_internal)
-		.def("_testHwtFpgaPreToNetlistCombiner", &hwtHls::LlvmCompilationBundle::_testHwtFpgaPreToNetlistCombiner, py::return_value_policy::reference_internal)
 		.def("_testStripInstrucionUnrelatedToCrash", [](hwtHls::LlvmCompilationBundle &ctx, size_t nprocs, py::function testFunction) {
 			llmIrStripInstrucionUnrelatedToCrash(ctx, nprocs, [&testFunction](hwtHls::LlvmCompilationBundle &ctx) {
 				testFunction(ctx);

@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function, FunctionPassManager, BitwidthReductionPass
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
 from tests.llvmIr.rewriteExtractOnMergeValues_test import RewriteExtractOnMergeValuesPass_TC
 # from tests.stripInstructionsUnrelatedToCrash import llmIrStripInstrucionsUnrelatedToCrash
+
+
+def _addBitwidthReductionPass(FPM: FunctionPassManager):
+    FPM.addPass(BitwidthReductionPass())
 
 
 class BitwidthReductionPass_TC(BaseLlvmIrTC):
     __FILE__ = __file__
 
     def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
-        return llvm._testBitwidthReductionPass()
+        return llvm._runCustomFunctionPass(_addBitwidthReductionPass)
 
     def test_constInConcat0(self):
         llvmIr = """\
@@ -179,7 +183,7 @@ class BitwidthReductionPass_TC(BaseLlvmIrTC):
           br label %bb3
         }
         """
-        # llvm = llmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: llvm._testBitwidthReductionPass())
+        # llvm = llmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: self._runTestOpt(llvm))
         # print(str(llvm.main))
 
         self._test_ll(llvmIr)
@@ -200,8 +204,8 @@ class BitwidthReductionPass_TC(BaseLlvmIrTC):
           br label %bb3
         }
         """
-        #llvm = llmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: llvm._testBitwidthReductionPass())
-        #print(str(llvm.main))
+        # llvm = llmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: self._runTestOpt(llvm))
+        # print(str(llvm.main))
 
         self._test_ll(llvmIr)
 

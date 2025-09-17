@@ -3,13 +3,15 @@
 
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
+from tests.llvmIr.HwtHlsInstCombinePass_test import HwtHlsInstCombinePass_TC
 
 
 class HwtHlsInstCombinePass_bitcountExtract_TC(BaseLlvmIrTC):
     __FILE__ = __file__
 
     def _runTestOpt(self, llvm:LlvmCompilationBundle, runBitcountMergePass=True, runStreamReadEoFThreading=False) -> Function:
-        return llvm._testHwtHlsInstCombinePass(runBitcountMergePass, runStreamReadEoFThreading)
+        return HwtHlsInstCombinePass_TC._runTestOpt(self, llvm,
+                                                    runBitcountMergePass=runBitcountMergePass, runStreamReadEoFThreading=runStreamReadEoFThreading)
 
     def test_tryReduceSelectInst_deepAdderChainToBitCounts0(self):
         llvmIr = """\
@@ -95,7 +97,6 @@ class HwtHlsInstCombinePass_bitcountExtract_TC(BaseLlvmIrTC):
         """
         self._test_ll(llvmIr)
 
-
     def test_ctpop_withLimit_and_iremovableIntermediateUse(self):
         # this should generate 2* ctpop
         llvmIr = """\
@@ -132,7 +133,7 @@ class HwtHlsInstCombinePass_bitcountExtract_TC(BaseLlvmIrTC):
         }
         """
         self._test_ll(llvmIr)
-        
+
     def test_cttz_withIntermediateUse(self):
         llvmIr = """\
         define void @test_cttz_withIntermediateUse(ptr addrspace(1) %rx, ptr addrspace(2) %tx) {
@@ -204,7 +205,7 @@ if __name__ == "__main__":
     import unittest
     import sys
     testLoader = unittest.TestLoader()
-    #suite = unittest.TestSuite([HwtHlsInstCombinePass_bitcountExtract_TC('test_cttz_withIntermediateUse')])
+    # suite = unittest.TestSuite([HwtHlsInstCombinePass_bitcountExtract_TC('test_cttz_withIntermediateUse')])
     suite = testLoader.loadTestsFromTestCase(HwtHlsInstCombinePass_bitcountExtract_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     sys.exit(not runner.run(suite).wasSuccessful())

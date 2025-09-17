@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function, LoopPassManager, LoopRotationNormalizationPass
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
+
+
+def _addLoopRotationNormalizationPass(LPM: LoopPassManager):
+    LPM.addPass(LoopRotationNormalizationPass())
 
 
 class LoopRotationNormalizationPass_TC(BaseLlvmIrTC):
     __FILE__ = __file__
 
     def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
-        return llvm._testLoopRotationNormalizationPass()
+        return llvm._runCustomLoopPass(_addLoopRotationNormalizationPass)
 
     def test_phiInGuard(self):
         llvmIr = """\

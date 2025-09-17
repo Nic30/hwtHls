@@ -1,6 +1,6 @@
 #include <hwtHls/llvm/llvmCompilationBundle.h>
 
-#include <llvm/Transforms/Scalar/ADCE.h>
+
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/MachineBasicBlock.h>
 #include <llvm/CodeGen/MachineInstr.h>
@@ -8,7 +8,6 @@
 #include <llvm/CodeGen/MIRPrinter.h>
 #include <llvm/CodeGen/MachineModuleInfo.h>
 #include <llvm/CodeGen/MIRParser/MIRParser.h>
-#include <llvm/Transforms/Scalar/EarlyCSE.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/GlobalValue.h>
 #include <llvm/IR/Function.h>
@@ -21,22 +20,15 @@
 // #include <llvm/Transforms/Scalar/LoopInstSimplify.h>
 // #include <llvm/Transforms/InstCombine/InstCombine.h>
 // #include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
+#include <hwtHls/llvm/llvmIrCommon.h>
 
-#include <hwtHls/llvm/Transforms/BitcountMergePass.h>
-#include <hwtHls/llvm/Transforms/slicesMerge/slicesMerge.h>
-#include <hwtHls/llvm/Transforms/LoopFlattenUsingIfPass.h>
-#include <hwtHls/llvm/Transforms/LoopRotationNormalizationPass.h>
-#include <hwtHls/llvm/Transforms/PruneLoopPhiDeadIncomingValuesPass/PruneLoopPhiDeadIncomingValuesPass.h>
-#include <hwtHls/llvm/Transforms/SelectPruningPass.h>
-#include <hwtHls/llvm/Transforms/HFloatTmpLoweringPass.h>
-#include <hwtHls/llvm/Transforms/StripProfMetadataPass.h>
-#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass.h>
-#include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamReadLoweringPass.h>
-#include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
-#include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinePass.h>
+#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
+#include <hwtHls/llvm/Transforms/StripProfMetadataPass.h>
 #include <hwtHls/llvm/Transforms/utils/dceWorklist.h>
 #include <hwtHls/llvm/Transforms/utils/bitSliceFlattening.h>
+#include <hwtHls/llvm/Transforms/LoopFlattenUsingIfPass.h>
+
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaPreLegalizerCombiner.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaPreRegAllocCombiner.h>
@@ -44,11 +36,22 @@
 #include <hwtHls/llvm/targets/hwtFpgaMCTargetDesc.h>
 #include <hwtHls/llvm/targets/Transforms/EarlyMachineCopyPropagation.h>
 #include <hwtHls/llvm/targets/Transforms/vregIfConversion.h>
-#include <hwtHls/llvm/llvmIrCommon.h>
+
 
 using namespace llvm;
 
 namespace hwtHls {
+
+llvm::Function& LlvmCompilationBundle::_runCustomLoopPass(
+		std::function<void(llvm::LoopPassManager&)> addPasses) {
+	return _runCustomFunctionPass([&addPasses](llvm::FunctionPassManager &FPM) {
+		llvm::LoopPassManager LPM0;
+		addPasses(LPM0);
+		FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM0),
+		/*UseMemorySSA=*/false,
+		/*UseBlockFrequencyInfo=*/false));
+	});
+}
 
 llvm::Function& LlvmCompilationBundle::_runCustomFunctionPass(
 		std::function<void(llvm::FunctionPassManager&)> addPasses) {
@@ -71,6 +74,18 @@ llvm::Function& LlvmCompilationBundle::_runCustomFunctionPass(
 	}
 	FPM.run(F, *FAM);
 	return F;
+}
+
+llvm::Module& LlvmCompilationBundle::_runCustomModulePass(
+		std::function<void(llvm::ModulePassManager&)> addPasses) {
+	if (!PB) {
+		_initPassBuilder();
+	}
+	llvm::ModulePassManager MPM;
+	addPasses(MPM);
+	MPM.run(*module, *MAM);
+	_tryToFindMain();
+	return *module;
 }
 
 void LlvmCompilationBundle::_testMachineFunctionPass(
@@ -148,44 +163,6 @@ llvm::Function& LlvmCompilationBundle::_testHwtHlsSimplifyCFGPass(
 		));
 	});
 }
-llvm::Function& LlvmCompilationBundle::_testBitwidthReductionPass() {
-	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
-		FPM.addPass(hwtHls::BitwidthReductionPass());
-	});
-}
-llvm::Function& LlvmCompilationBundle::_testHwtHlsInstCombinePass(bool runBitcountMergePass, bool runStreamReadEoFThreading) {
-	return _runCustomFunctionPass([runBitcountMergePass, runStreamReadEoFThreading](llvm::FunctionPassManager &FPM) {
-		hwtHls::HwtHlsInstCombinePassOptions opts;
-		opts.extractBitcounts = runBitcountMergePass;
-		opts.setStreamReadEoFThreading(runStreamReadEoFThreading);
-		FPM.addPass(hwtHls::HwtHlsInstCombinePass(opts));
-		if (runBitcountMergePass) {
-			FPM.addPass(llvm::EarlyCSEPass());
-			FPM.addPass(hwtHls::BitcountMergePass());
-			FPM.addPass(hwtHls::HwtHlsInstCombinePass());
-			FPM.addPass(llvm::EarlyCSEPass());
-		}
-	});
-}
-
-
-llvm::Function& LlvmCompilationBundle::_testSlicesMergePass() {
-	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
-		FPM.addPass(hwtHls::SlicesMergePass());
-	});
-}
-
-llvm::Function& LlvmCompilationBundle::_testLoopUnrotatePass() {
-	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
-		llvm::LoopPassManager LPM0;
-		LPM0.addPass(hwtHls::LoopRotationNormalizationPass());
-
-		FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM0),
-				/*UseMemorySSA=*/ false,
-				/*UseBlockFrequencyInfo=*/ false));
-	});
-}
-
 
 llvm::Function& LlvmCompilationBundle::_testLoopFlattenUsingIfPass() {
 	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
@@ -202,13 +179,6 @@ llvm::Function& LlvmCompilationBundle::_testLoopFlattenUsingIfPass() {
 		// FPM.addPass(llvm::InstCombinePass());
 		// FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
 		// FPM.addPass(hwtHls::DumpAndExitPass(false, false, "LoopFlattenUsingIfPass.simplified.dot"));
-	});
-}
-
-llvm::Function& LlvmCompilationBundle::_testSlicesToIndependentVariablesPass() {
-	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
-		FPM.addPass(hwtHls::SlicesToIndependentVariablesPass());
-		FPM.addPass(llvm::ADCEPass());
 	});
 }
 
@@ -251,30 +221,7 @@ public:
 
 llvm::Function& LlvmCompilationBundle::_testRewriteExtractOnMergeValues() {
 	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
-		FPM.addPass(hwtHls::SlicesToIndependentVariablesPass());
-	});
-}
-llvm::Function& LlvmCompilationBundle::_testPruneLoopPhiDeadIncomingValuesPass() {
-	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
-		FPM.addPass(hwtHls::PruneLoopPhiDeadIncomingValuesPass());
-	});
-}
-llvm::Function& LlvmCompilationBundle::_testSelectPruningPass() {
-	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
-		FPM.addPass(hwtHls::SelectPruningPass());
-	});
-}
-
-llvm::Function& LlvmCompilationBundle::_testHFloatTmpLoweringPass() {
-	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
-		FPM.addPass(hwtHls::HFloatTmpLoweringPass());
-	});
-}
-
-
-llvm::Function& LlvmCompilationBundle::_testStreamReadLoweringPass() {
-	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
-		FPM.addPass(hwtHls::StreamReadLoweringPass());
+		FPM.addPass(hwtHls::RewriteExtractOnMergeValuesPass());
 	});
 }
 

@@ -13,7 +13,8 @@ from hwt.hwModule import HwModule
 from hwtHls.architecture.componentGenerators.countBits import CountLeadingZeros
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function, FunctionPassManager, \
+    ADCEPass, SlicesToIndependentVariablesPass
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtHls.ssa.analysis.consistencyCheck import SsaPassConsistencyCheck
@@ -169,6 +170,11 @@ class Slice2(Slice0):
         hls.write(v27, self.o)
 
 
+def _addSlicesToIndependentVariablesPass(FPM: FunctionPassManager):
+    FPM.addPass(SlicesToIndependentVariablesPass())
+    FPM.addPass(ADCEPass())
+
+
 class BaseSliceBreakTestPlatform(VirtualHlsPlatform):
 
     def __init__(self):
@@ -177,7 +183,7 @@ class BaseSliceBreakTestPlatform(VirtualHlsPlatform):
 
     def runSsaPasses(self, hls:"HlsScope", toLlvm:ToLlvmIrTranslator):
         SsaPassConsistencyCheck().runOnSsaModule(toLlvm)
-        f = toLlvm.llvm._testSlicesToIndependentVariablesPass()
+        f = toLlvm.llvm._runCustomFunctionPass(_addSlicesToIndependentVariablesPass)
         fStr = repr(f)
         # print(fStr)
         self.postSliceBreak.write(fStr)
@@ -188,7 +194,7 @@ class SlicesToIndependentVariablesPass_TC(BaseLlvmIrTC):
     __FILE__ = __file__
 
     def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
-        return llvm._testSlicesToIndependentVariablesPass()
+        return llvm._runCustomFunctionPass(_addSlicesToIndependentVariablesPass)
 
     def _test_ll_direct(self, irStr: str):
         return BaseLlvmIrTC._test_ll(self, irStr)
@@ -390,7 +396,7 @@ if __name__ == "__main__":
 
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([SlicesToIndependentVariablesPass_TC('test_CountLeadingZeros')])
+    # suite = unittest.TestSuite([SlicesToIndependentVariablesPass_TC('test_Slice1_ll')])
     suite = testLoader.loadTestsFromTestCase(SlicesToIndependentVariablesPass_TC)
-    runner = unittest.TextTestRunner(verbosity=3)
+    runner = unittest.TextTestRunner(verbosity=3)  # , failfast=True
     runner.run(suite)

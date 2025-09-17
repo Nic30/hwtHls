@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function, FunctionPassManager, SelectPruningPass
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
+
+
+def _addSelectPruningPass(FPM: FunctionPassManager):
+    FPM.addPass(SelectPruningPass())
 
 
 class SelectPruningPass_TC(BaseLlvmIrTC):
     __FILE__ = __file__
 
     def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
-        return llvm._testSelectPruningPass()
+        return llvm._runCustomFunctionPass(_addSelectPruningPass)
 
     def test_nestedSelWithSameCond0(self):
         llvmIr0 = """
@@ -120,7 +124,7 @@ class SelectPruningPass_TC(BaseLlvmIrTC):
 
     def test_counterArray(self):
         # originally CntrArray.mainThread
-        
+
         # %o_addr = load volatile i2, ptr addrspace(3) %o_addr, align 1
         # %o_addr_0 = icmp eq i2 %o_addr, 0
         # %o_addr_1 = icmp eq i2 %o_addr, 1
@@ -129,7 +133,7 @@ class SelectPruningPass_TC(BaseLlvmIrTC):
         # %outSel1 = select i1 %o_addr_1, i16 %v1, i16 %outSel0
         # %outSel2 = select i1 %o_addr_2, i16 %v2, i16 %outSel1
         # store volatile i16 %outSel2, ptr addrspace(2) %o, align 2
-        
+
         llvmIr0 = """
         define void @test_counterArray(ptr addrspace(1) %i) {
         entry:
@@ -161,7 +165,6 @@ class SelectPruningPass_TC(BaseLlvmIrTC):
         """
 
         self._test_ll(llvmIr0)
-        
 
 
 if __name__ == "__main__":

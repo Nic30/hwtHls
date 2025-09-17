@@ -303,7 +303,7 @@ class BitwidthReductionPass_PHI_TC(BaseLlvmIrTC):
           br label %bb3
         }
         """
-        # llvm = llmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: llvm._testBitwidthReductionPass())
+        # llvm = llmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: self._runTestOpt(llvm))
         # print(str(llvm.main))
 
         self._test_ll(llvmIr)
@@ -322,7 +322,7 @@ class BitwidthReductionPass_PHI_TC(BaseLlvmIrTC):
           br label %bb3
         }
         """
-        # llvm = llmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: llvm._testBitwidthReductionPass())
+        # llvm = llmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: self._runTestOpt(llvm))
         # print(str(llvm.main))
 
         self._test_ll(llvmIr)

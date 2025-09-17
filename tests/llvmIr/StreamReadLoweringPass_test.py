@@ -3,8 +3,13 @@
 
 from pathlib import Path
 
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function, verifyFunction, \
+    FunctionPassManager, StreamReadLoweringPass
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
+
+
+def _addStreamReadLoweringPass(FPM: FunctionPassManager):
+    FPM.addPass(StreamReadLoweringPass())
 
 
 class StreamReadLoweringPass_TC(BaseLlvmIrTC):
@@ -12,13 +17,16 @@ class StreamReadLoweringPass_TC(BaseLlvmIrTC):
 
     def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
         # llvm.addLlvmCliArgOccurence("debug-only", 0, "", "newgvn")
-        return llvm._testStreamReadLoweringPass()
+        F = llvm._runCustomFunctionPass(_addStreamReadLoweringPass)
+        if verifyFunction(F):
+            raise AssertionError()
+        return F
 
-    def _test_ir_file(self):
+    def _test_ir_file(self, use_generateAndAppendHwtHlsFunctionDeclarations=False):
         nameOfMain = self.getTestName()
         inputFileName = Path(self.__FILE__).expanduser().resolve().parent / "dataIn" / (nameOfMain + ".in.ir.ll")
         with open(inputFileName) as f:
-            self._test_ll(f.read(), use_generateAndAppendHwtHlsFunctionDeclarations=False)
+            self._test_ll(f.read(), use_generateAndAppendHwtHlsFunctionDeclarations=use_generateAndAppendHwtHlsFunctionDeclarations)
 
     def test_copy2B(self):
         # based on:

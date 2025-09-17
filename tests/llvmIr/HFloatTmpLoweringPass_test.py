@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function, FunctionPassManager, HFloatTmpLoweringPass
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
+
+
+def _addHFloatTmpLoweringPass(FPM: FunctionPassManager):
+    FPM.addPass(HFloatTmpLoweringPass())
 
 
 class HFloatTmpLoweringPass_TC(BaseLlvmIrTC):
     __FILE__ = __file__
 
     def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
-        return llvm._testHFloatTmpLoweringPass()
+        return llvm._runCustomFunctionPass(_addHFloatTmpLoweringPass)
 
     def test_addSub(self):
         llvmIr = """\
@@ -27,7 +31,7 @@ class HFloatTmpLoweringPass_TC(BaseLlvmIrTC):
         }
         """
         self._test_ll(llvmIr)
-    
+
     def test_addSubUnsigned(self):
         llvmIr = """\
         define void @test_addSubUnsigned(ptr addrspace(1) %dataIn, ptr addrspace(2) %dataOut) {

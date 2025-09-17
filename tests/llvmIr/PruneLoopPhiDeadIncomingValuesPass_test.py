@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function, FunctionPassManager, \
+    PruneLoopPhiDeadIncomingValuesPass
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
+
+
+def _addPruneLoopPhiDeadIncomingValuesPass(FPM: FunctionPassManager):
+    FPM.addPass(PruneLoopPhiDeadIncomingValuesPass())
+
 
 class PruneLoopPhiDeadIncomingValuesPass_TC(BaseLlvmIrTC):
     __FILE__ = __file__
 
     def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
-        return llvm._testPruneLoopPhiDeadIncomingValuesPass()
+        return llvm._runCustomFunctionPass(_addPruneLoopPhiDeadIncomingValuesPass)
 
     def test_ShiftSequential(self):
         # 0 in "9(d_sh)3" should be replaced with poison
@@ -48,7 +54,7 @@ class PruneLoopPhiDeadIncomingValuesPass_TC(BaseLlvmIrTC):
         """
         self._test_ll(llvmIr0)
 
-    
+
 if __name__ == "__main__":
     import unittest
     import sys

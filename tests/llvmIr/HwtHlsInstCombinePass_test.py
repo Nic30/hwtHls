@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function, FunctionPassManager, HwtHlsInstCombinePassOptions, \
+    HwtHlsInstCombinePass, EarlyCSEPass, BitcountMergePass
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
 
 
@@ -9,7 +10,19 @@ class HwtHlsInstCombinePass_TC(BaseLlvmIrTC):
     __FILE__ = __file__
 
     def _runTestOpt(self, llvm:LlvmCompilationBundle, runBitcountMergePass=False, runStreamReadEoFThreading=False) -> Function:
-        return llvm._testHwtHlsInstCombinePass(runBitcountMergePass, runStreamReadEoFThreading)
+
+        def _addHwtHlsInstCombinePass(FPM:FunctionPassManager):
+            opts = HwtHlsInstCombinePassOptions()
+            opts.extractBitcounts = runBitcountMergePass
+            opts.streamReadEoFThreading = runStreamReadEoFThreading
+            FPM.addPass(HwtHlsInstCombinePass(opts))
+            if runBitcountMergePass:
+                FPM.addPass(EarlyCSEPass());
+                FPM.addPass(BitcountMergePass());
+                FPM.addPass(HwtHlsInstCombinePass());
+                FPM.addPass(EarlyCSEPass());
+
+        return llvm._runCustomFunctionPass(_addHwtHlsInstCombinePass)
 
     def test_tryReduceConcatOnConcat(self):
         llvmIr = """\
@@ -245,6 +258,20 @@ class HwtHlsInstCombinePass_TC(BaseLlvmIrTC):
         }
         """
         self._test_ll(llvmIr)
+
+    def test_tryReduceSelectInst_toAndOr5(self):
+        llvmIr = """\
+        define void @test_tryReduceSelectInst_toAndOr5(ptr addrspace(1) %i, ptr addrspace(2) %o) {
+        bb0:
+          %i_read2 = load volatile i16, ptr addrspace(1) %i, align 2
+          %0 = icmp eq i16 %i_read2, 10
+          %.mux = select i1 %0, i16 20, i16 26
+          store volatile i16 %.mux, ptr addrspace(2) %o, align 2
+          ret void
+        }
+        """
+        self._test_ll(llvmIr)
+
     def test_tryReducePopcnt_toCTLZ(self):
         llvmIr = """\
         define void @test_tryReducePopcnt_toCTLZ(ptr addrspace(1) %condIn, ptr addrspace(2) %dataOut) {
@@ -428,7 +455,7 @@ if __name__ == "__main__":
     import unittest
     import sys
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([HwtHlsInstCombinePass_TC('test_tryReduceSelectInst_toAndOr3')])
+    # suite = unittest.TestSuite([HwtHlsInstCombinePass_TC('test_tryReducePopcnt_toCTLO')])
     suite = testLoader.loadTestsFromTestCase(HwtHlsInstCombinePass_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     sys.exit(not runner.run(suite).wasSuccessful())

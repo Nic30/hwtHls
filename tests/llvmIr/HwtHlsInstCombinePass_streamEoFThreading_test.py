@@ -3,13 +3,15 @@
 
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
+from tests.llvmIr.HwtHlsInstCombinePass_test import HwtHlsInstCombinePass_TC
 
 
 class HwtHlsInstCombinePass_streamEoFThreading_TC(BaseLlvmIrTC):
     __FILE__ = __file__
 
     def _runTestOpt(self, llvm:LlvmCompilationBundle, runBitcountMergePass=False, runStreamReadEoFThreading=False) -> Function:
-        return llvm._testHwtHlsInstCombinePass(runBitcountMergePass, runStreamReadEoFThreading)
+        return HwtHlsInstCombinePass_TC._runTestOpt(self, llvm,
+                                                    runBitcountMergePass=runBitcountMergePass, runStreamReadEoFThreading=runStreamReadEoFThreading)
 
     def test_streamEoFThreading0(self):
         llvmIr = """\
@@ -28,7 +30,7 @@ class HwtHlsInstCombinePass_streamEoFThreading_TC(BaseLlvmIrTC):
           br i1 %eof, label %bb2, label %bb1
         
         bb2:
-          store volatile i8 10, ptr addrspace(1) %o, align 4
+          store volatile i1 1, ptr addrspace(1) %o, align 4
           br label %bb1
         }
         
@@ -36,7 +38,6 @@ class HwtHlsInstCombinePass_streamEoFThreading_TC(BaseLlvmIrTC):
         !9 = !{i32 1, i32 0, i32 32, i32 8, !"mask", i32 0, !"eof", i32 0, i32 1}
         """
         self._test_ll(llvmIr, passKwArgs=dict(runStreamReadEoFThreading=True))
-
 
     def test_streamEoFThreading1(self):
         # test_streamEoFThreading0 with assume added
@@ -62,7 +63,7 @@ class HwtHlsInstCombinePass_streamEoFThreading_TC(BaseLlvmIrTC):
           br i1 %eof, label %bb2, label %bb1
         
         bb2:
-          store volatile i8 10, ptr addrspace(1) %o, align 4
+          store volatile i1 1, ptr addrspace(1) %o, align 4
           br label %bb1
         }
         
@@ -103,11 +104,12 @@ class HwtHlsInstCombinePass_streamEoFThreading_TC(BaseLlvmIrTC):
           %.2 = and i1 %r.m1, %r.eof
           %9 = call i2 @hwtHls.bitConcat.i1.i1(i1 true, i1 %r.m1) #2
           %10 = or i1 %.1, %.2
+          %11 = sext i1 %10 to i2
           br i1 %r.m0, label %bb4.write, label %bb5.exit
         
         bb4.write:
           store volatile i2 %9, ptr addrspace(1) %o, align 4
-          store volatile i1 %10, ptr addrspace(1) %o, align 4
+          store volatile i2 %11, ptr addrspace(1) %o, align 4
           br label %bb5.exit
         
         bb5.exit:

@@ -3,13 +3,14 @@
 
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
+from tests.llvmIr.bitWidthReduction_test import BitwidthReductionPass_TC
 
 
 class BitWidthReductionPass_SwitchInst_TC(BaseLlvmIrTC):
     __FILE__ = __file__
 
     def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
-        return llvm._testBitwidthReductionPass()
+        return BitwidthReductionPass_TC._runTestOpt(self, llvm)
 
     def test_uselessSuffix(self):
         llvmIr = """\
@@ -100,6 +101,7 @@ class BitWidthReductionPass_SwitchInst_TC(BaseLlvmIrTC):
             }
         """
         self._test_ll(llvmIr)
+
 
 if __name__ == "__main__":
     import unittest
