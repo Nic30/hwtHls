@@ -9,7 +9,7 @@ from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
-from hwtHls.io.bram import BramArrayProxy
+from hwtHls.io.bram import IoProxyBram
 from hwtHls.scope import HlsScope
 
 
@@ -32,7 +32,7 @@ class ReadSizeFromRamAndSendSequence(HwModule):
             self.out = HwIODataRdVld()._m()
 
     @hlsBytecode
-    def mainThread(self, hls: HlsScope, ram: BramArrayProxy):
+    def mainThread(self, hls: HlsScope, ram: IoProxyBram):
         """
         Read index to ram and send sequence of size stored at ram[index] (size-1 to 0)
         """
@@ -48,7 +48,7 @@ class ReadSizeFromRamAndSendSequence(HwModule):
     @override
     def hwImpl(self):
         hls = HlsScope(self)
-        mainThread = HlsThreadFromPy(hls, self.mainThread, hls, BramArrayProxy(hls, self.ram))
+        mainThread = HlsThreadFromPy(hls, self.mainThread, hls, IoProxyBram(hls, self.ram))
         hls.addThread(mainThread)
         hls.compile()
 

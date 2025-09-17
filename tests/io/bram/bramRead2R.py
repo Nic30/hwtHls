@@ -11,7 +11,7 @@ from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
-from hwtHls.io.bram import BramArrayProxy
+from hwtHls.io.bram import IoProxyBram
 from hwtHls.io.portGroups import MultiPortGroup
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
@@ -44,7 +44,7 @@ class BramRead2R(HwModule):
             self.ram1: HwIOBramPort_noClk = HwIOBramPort_noClk()._m()
 
     @hlsBytecode
-    def mainThread(self, hls: HlsScope, ram: BramArrayProxy):
+    def mainThread(self, hls: HlsScope, ram: IoProxyBram):
         addrT = HBits(self.ADDR_WIDTH)
         i = HBits(self.ADDR_WIDTH - 1).from_py(0)
         while BIT.from_py(1):
@@ -74,7 +74,7 @@ class BramRead2R(HwModule):
     @override
     def hwImpl(self) -> None:
         hls = HlsScope(self)
-        ram = BramArrayProxy(hls, MultiPortGroup((self.ram0, self.ram1)))
+        ram = IoProxyBram(hls, MultiPortGroup((self.ram0, self.ram1)))
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
         mainThread.netlistCallbacks.append(self.reduceOrdering)
         hls.addThread(mainThread)

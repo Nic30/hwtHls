@@ -2,9 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from hwt.constants import WRITE, READ
-from hwt.hdl.commonConstants import b1
+from hwt.hdl.commonConstants import b1, b0
 from hwt.hdl.types.bits import HBits
-from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn, propagateClkRstn
 from hwt.hwModule import HwModule
@@ -14,7 +13,7 @@ from hwtHls.architecture.transformation.utils.memoryAccessUtils import detectRea
     ArchImplementStaling, ArchImplementWriteForwarding
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
-from hwtHls.io.bram import BramArrayProxy
+from hwtHls.io.bram import IoProxyBram
 from hwtHls.io.portGroups import MultiPortGroup
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.scope import HlsScope
@@ -43,7 +42,7 @@ class BramCounterArray0nocheck(HwModule):
         self.ram = t
 
     @hlsBytecode
-    def resetRam(self, hls: HlsScope, ram: BramArrayProxy):
+    def resetRam(self, hls: HlsScope, ram: IoProxyBram):
         i = HBits(ram.indexT.bit_length()).from_py(0)
         # [todo] if bit slicing is used on i, the llvm generates uglygep because it is not recognizing
         # the bit slicing and this ugly GEP uses 64b pinter type
@@ -54,7 +53,7 @@ class BramCounterArray0nocheck(HwModule):
             i += 1
 
     @hlsBytecode
-    def mainThread(self, hls: HlsScope, ram: BramArrayProxy):
+    def mainThread(self, hls: HlsScope, ram: IoProxyBram):
         # reset
         # PyBytecodeInline(self.resetRam)(hls, ram)
         while b1:
@@ -67,7 +66,7 @@ class BramCounterArray0nocheck(HwModule):
     def hwImpl(self) -> None:
         propagateClkRstn(self)
         hls = HlsScope(self)
-        ram = BramArrayProxy(hls, MultiPortGroup(self.ram.port))
+        ram = IoProxyBram(hls, MultiPortGroup(self.ram.port))
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
         hls.addThread(mainThread)
         hls.compile()
@@ -81,12 +80,12 @@ class BramCounterArray1hardcodedWriteForwarding(BramCounterArray0nocheck):
     """
 
     @hlsBytecode
-    def mainThread(self, hls: HlsScope, ram: BramArrayProxy):
+    def mainThread(self, hls: HlsScope, ram: IoProxyBram):
         # reset
         # PyBytecodeInline(self.resetRam)(hls, ram)
-        lastVld = BIT.from_py(0)
+        lastVld = b0
         lastAddr = self.incr.data._dtype.from_py(None)
-        lastData = ram.nativeType.element_t.from_py(None)
+        lastData = ram.getDataWordType().from_py(None)
         while b1:
             index = hls.read(self.incr).data
             # The ram[index] can not be read until write is finished or there is an LSU to update read data later
@@ -112,7 +111,7 @@ class BramCounterArray3stall(BramCounterArray0nocheck):
     def hwImpl(self) -> None:
         propagateClkRstn(self)
         hls = HlsScope(self)
-        ram = BramArrayProxy(hls, MultiPortGroup(self.ram.port))
+        ram = IoProxyBram(hls, MultiPortGroup(self.ram.port))
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
 
         def implementStaling(hls: HlsScope, thread: HlsThreadFromPy):
@@ -134,7 +133,7 @@ class BramCounterArray4WriteForwarding(BramCounterArray0nocheck):
     def hwImpl(self) -> None:
         propagateClkRstn(self)
         hls = HlsScope(self)
-        ram = BramArrayProxy(hls, MultiPortGroup(self.ram.port))
+        ram = IoProxyBram(hls, MultiPortGroup(self.ram.port))
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
 
         def implementWriteForwarding(hls: HlsScope, thread: HlsThreadFromPy):
@@ -149,7 +148,7 @@ class BramCounterArray4WriteForwarding(BramCounterArray0nocheck):
 
 
     @hlsBytecode
-    def mainThread(self, hls: HlsScope, ram: BramArrayProxy):
+    def mainThread(self, hls: HlsScope, ram: IoProxyBram):
         # reset
         # PyBytecodeInline(self.resetRam)(hls, ram)
         p = hls.parentHwModule._target_platform

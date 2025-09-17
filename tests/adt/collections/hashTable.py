@@ -19,7 +19,7 @@ from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.ioProxyAddressed import IoProxyAddressed
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
-from hwtHls.io.bram import BramArrayProxy
+from hwtHls.io.bram import IoProxyBram
 from hwtHls.io.portGroups import MultiPortGroup
 from hwtHls.scope import HlsScope
 from hwtLib.mem.ram import RamSingleClock
@@ -123,7 +123,7 @@ class HashTable(HwModule):
     def hwImpl(self) -> None:
         propagateClkRstn(self)
         hls = HlsScope(self)
-        ram = BramArrayProxy(hls, MultiPortGroup(self.tableRam.port))
+        ram = IoProxyBram(hls, MultiPortGroup(self.tableRam.port))
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
         hls.addThread(mainThread)
         hls.compile()

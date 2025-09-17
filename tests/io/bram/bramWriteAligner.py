@@ -19,12 +19,13 @@ from hwt.hwParam import HwParam
 from hwt.math import log2ceil
 from hwt.pyUtils.typingFuture import override
 from hwtHls.code import shl
-from hwtHls.frontend.pyBytecode import hlsBytecode
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.frontend.pragmaInstruction import PyBytecodeNoSplitSlices
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
-from hwtHls.io.bram import BramArrayProxy
-from hwtHls.scope import HlsScope, HlsScopeBoundIoScalar
+from hwtHls.io.bram import IoProxyBram
+from hwtHls.scope import HlsScope
 from hwtLib.commonHwIO.addr_data import HwIOAddrDataRdVld
 from pyMathBitPrecise.bit_utils import byte_mask_to_bit_mask
 
@@ -86,8 +87,8 @@ class HwIOAddrDataUnalignedToBram(HwModule):
                              wordMaskTy: HdlType,
                              ALIGN_BIT_CNT:int,
                              WORD_INDEX_STEP: int,
-                             reqIn:HlsScopeBoundIoScalar,
-                             ramOut: BramArrayProxy,
+                             reqIn:IoProxyScalar,
+                             ramOut: IoProxyBram,
                              isSim: bool,
                              ):
 
@@ -203,7 +204,7 @@ class HwIOAddrDataUnalignedToBram(HwModule):
             #    print("w1 - invalid")
 
     @hlsBytecode
-    def mainThread(self, hls: HlsScope, reqIn: HwIOAddrDataRdVld, ramOut: BramArrayProxy, isSim=False):
+    def mainThread(self, hls: HlsScope, reqIn: HwIOAddrDataRdVld, ramOut: IoProxyBram, isSim=False):
         ALIGN_BIT_CNT = log2ceil(self.DATA_WIDTH // 8)
         wordT = ramOut.interface.din._dtype
         wordIndexTy = ramOut.interface.addr._dtype
@@ -215,8 +216,8 @@ class HwIOAddrDataUnalignedToBram(HwModule):
 
     def hwImpl(self) -> None:
         hls = HlsScope(self, namePrefix="")
-        ramOut = BramArrayProxy(hls, self.ramOut)
-        reqIn = HlsScopeBoundIoScalar(
+        ramOut = IoProxyBram(hls, self.ramOut)
+        reqIn = IoProxyScalar(
             hls, self.reqIn,
             dtype=HwIO_to_HdlType().apply(self.reqIn, exclude=(self.reqIn.rd,
                                                                self.reqIn.vld)))
@@ -232,5 +233,5 @@ if __name__ == "__main__":
 
     m = HwIOAddrDataUnalignedToBram()
     m.CLK_FREQ = int(1e6)
-    m.ADDR_WIDTH = 10-2
+    m.ADDR_WIDTH = 10 - 2
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

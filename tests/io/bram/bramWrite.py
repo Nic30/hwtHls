@@ -10,7 +10,7 @@ from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
-from hwtHls.io.bram import BramArrayProxy
+from hwtHls.io.bram import IoProxyBram
 from hwtHls.scope import HlsScope
 
 
@@ -36,7 +36,7 @@ class BramWrite(HwModule):
             ram.HAS_R = False
 
     @hlsBytecode
-    def mainThread(self, hls: HlsScope, ram: BramArrayProxy):
+    def mainThread(self, hls: HlsScope, ram: IoProxyBram):
         i = HBits(self.ADDR_WIDTH).from_py(0)
         while b1:
             hls.write(i._reinterpret_cast(self.ram.din._dtype), ram[i])
@@ -45,7 +45,7 @@ class BramWrite(HwModule):
     def hwImpl(self) -> None:
         hls = HlsScope(self)
 
-        ram = BramArrayProxy(hls, self.ram)
+        ram = IoProxyBram(hls, self.ram)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
         hls.addThread(mainThread)
         hls.compile()
