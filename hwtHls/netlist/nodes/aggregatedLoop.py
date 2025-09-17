@@ -1,5 +1,5 @@
 from math import inf
-from typing import Optional, Generator, List, Tuple, Union, Literal, Callable
+from typing import Optional, Generator, List, Tuple, Callable
 
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override

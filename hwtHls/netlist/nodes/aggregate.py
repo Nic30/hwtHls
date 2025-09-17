@@ -227,7 +227,7 @@ class HlsNetNodeAggregate(HlsNetNode):
         HlsNetNode.resetScheduling(self)
 
     def copySchedulingFromChildren(self):
-        assert self.subNodes, ("HlsNetNodeAggregate should always contain some nodes", self)
+        assert self.subNodes, ("should always contain some nodes", self)
         self.scheduledIn = tuple(i.scheduledOut[0] for i in self._inputsInside)
         self.scheduledOut = tuple(o.scheduledIn[0] for o in self._outputsInside)
         self.scheduledZero = max(self.scheduledIn) if self.scheduledIn else\

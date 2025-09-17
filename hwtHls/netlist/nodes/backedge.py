@@ -100,7 +100,7 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
 
         return dataVldReg, fullReg
 
-    def _mayHappenConcurrentlyWithWrite(self):
+    def _mayHappenConcurrentlyWithWrite(self) -> bool:
         w = self.associatedWrite
         assert w is not None, self
         rParent, rClkI = self.getParentSyncNode()
