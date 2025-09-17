@@ -1,15 +1,18 @@
-from typing import Union
+from typing import Union, Sequence
 
 from hwt.hdl.const import HConst
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
+from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ioProxy import IoProxy
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.frontend.statementsRead import HlsStmReadStartOfFrame, \
     HlsStmReadEndOfFrame
 from hwtHls.frontend.statementsWrite import HlsStmWriteStartOfFrame, \
     HlsStmWriteEndOfFrame
 from hwtHls.llvm.llvmIr import Value
+from hwtHls.netlist.nodes.node import HlsNetNode
 
 
 class IoProxyStream(IoProxy):
@@ -25,6 +28,17 @@ class IoProxyStream(IoProxy):
 
     def __init__(self, hls: "HlsScope", interface: HwIO):
         IoProxy.__init__(self, hls, interface)
+
+    def getNativeTypeOfHwIoWithoutSyncSignals(self, src: HwIO):
+        return IoProxyScalar.getNativeTypeOfHwIoWithoutSyncSignals(self, src)
+
+    @override
+    def getDataTypeOfNativeRead(self) -> HdlType:
+        return IoProxyScalar.getDataTypeOfNativeRead(self)
+
+    @override
+    def getDataTypeOfNativeWrite(self) -> HdlType:
+        return IoProxyScalar.getDataTypeOfNativeWrite(self)
 
     def readStartOfFrame(self):
         ":see: :class:`~.HlsStmReadStartOfFrame`"
@@ -68,3 +82,12 @@ class IoProxyStream(IoProxy):
     def writeEndOfFrame(self):
         ":see: :class:`~.HlsStmWriteEndOfFrame`"
         return HlsStmWriteEndOfFrame(self.hls, self.interface)
+
+    @override
+    def _translateMirToNetlist_HWTFPGA_CLOAD(self, *args, **kwargs) -> Sequence[HlsNetNode]:
+        return IoProxyScalar._translateMirToNetlist_HWTFPGA_CLOAD(self, *args, **kwargs)
+
+    @override
+    def _translateMirToNetlist_HWTFPGA_CSTORE(self, *args, **kwargs) -> Sequence[HlsNetNode]:
+        return IoProxyScalar._translateMirToNetlist_HWTFPGA_CSTORE(self, *args, **kwargs)
+

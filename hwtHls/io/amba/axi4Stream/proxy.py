@@ -5,14 +5,12 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.frontend.ioProxyStream import IoProxyStream
 from hwtHls.io.amba.axi4Stream.stmRead import HlsStmReadAxi4Stream, \
     HlsStmReadAxi4StreamSegmented
 from hwtHls.io.amba.axi4Stream.stmWrite import HlsStmWriteAxi4Stream, \
     HlsStmWriteAxi4StreamSegmented
 from hwtHls.llvm.llvmIr import Value, HwtHlsIoMetadata
-from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtLib.amba.axi4SSegmented import Axi4StreamSegmented
 from hwtLib.amba.axi4s import Axi4Stream
 
@@ -25,17 +23,6 @@ class IoProxyAxi4Stream(IoProxyStream):
     def __init__(self, hls:"HlsScope", interface:Axi4Stream):
         IoProxyStream.__init__(self, hls, interface)
 
-    def getNativeTypeOfHwIoWithoutSyncSignals(self, src: HwIO):
-        return IoProxyScalar.getNativeTypeOfHwIoWithoutSyncSignals(self, src)
-
-    @override
-    def getDataTypeOfNativeRead(self) -> HdlType:
-        return IoProxyScalar.getDataTypeOfNativeRead(self)
-
-    @override
-    def getDataTypeOfNativeWrite(self) -> HdlType:
-        return IoProxyScalar.getDataTypeOfNativeWrite(self)
-
     def read(self, dtype:HdlType, reliable=True):
         return HlsStmReadAxi4Stream(self.hls, self.interface, dtype, reliable)
 
@@ -47,14 +34,6 @@ class IoProxyAxi4Stream(IoProxyStream):
         if empty is not None:
             raise NotImplementedError("Convert empty to mask because this interface uses mask")
         return HlsStmWriteAxi4Stream(self.hls, v, mask, sof, eof, self.interface)
-
-    @override
-    def _translateMirToNetlist_HWTFPGA_CLOAD(self, *args, **kwargs) -> Sequence[HlsNetNode]:
-        return IoProxyScalar._translateMirToNetlist_HWTFPGA_CLOAD(self, *args, **kwargs)
-
-    @override
-    def _translateMirToNetlist_HWTFPGA_CSTORE(self, *args, **kwargs) -> Sequence[HlsNetNode]:
-        return IoProxyScalar._translateMirToNetlist_HWTFPGA_CSTORE(self, *args, **kwargs)
 
     @override
     def updateLlvmHwtHlsIoMetadata(self, tr: "ToLlvmIrTranslator", md: HwtHlsIoMetadata) -> bool:
