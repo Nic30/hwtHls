@@ -291,6 +291,9 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 		MPM.addPass(hwtHls::StripProfMetadataPass());
 	}
     MPM.run(*module, *MAM);
+    _tryToFindMain();
+    // main function may mutate in ThreadExtractPass
+    // module cleanup section
 
     _addMachineCodegenPasses(toNetlistConversionFn);
 
@@ -312,6 +315,20 @@ void LlvmCompilationBundle::runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetl
 	}
 }
 
+void LlvmCompilationBundle::_tryToFindMain() {
+    std::optional<llvm::Function*> mainFn;
+    for (auto &F: *module) {
+    	if (F.isDeclaration())
+    		continue;
+    	if (mainFn.has_value())
+    		mainFn = nullptr;
+    	else
+    		mainFn = &F;
+    }
+    if (!mainFn.has_value())
+    	mainFn = nullptr;
+    main = mainFn.value();
+}
 
 void LlvmCompilationBundle::runExprOpt() {
 	_runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {

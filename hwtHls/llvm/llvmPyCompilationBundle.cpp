@@ -103,6 +103,7 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 		})
 		.def("getMachineFunction", &hwtHls::LlvmCompilationBundle::getMachineFunction, py::return_value_policy::reference_internal)
 		.def("getMachineModuleInfo", &hwtHls::LlvmCompilationBundle::getMachineModuleInfo, py::return_value_policy::reference_internal)
+		.def("_tryToFindMain",  &hwtHls::LlvmCompilationBundle::_tryToFindMain)
 		.def("_testHwtHlsSimplifyCFGPass", &hwtHls::LlvmCompilationBundle::_testHwtHlsSimplifyCFGPass,
 				//py::kw_only(),
 				py::arg("BonusInstThreshold").noconvert() = 1,
