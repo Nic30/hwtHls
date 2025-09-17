@@ -1,7 +1,8 @@
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.pyUtils.setList import SetList
-from hwtHls.netlist.builder import HlsNetlistBuilder
+from hwtHls.netlist.builder import HlsNetlistBuilder,\
+    HlsNetlistBuilderWithWorklist
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
@@ -98,7 +99,7 @@ def netlistReduceCmpConstAfterConstAddSub(n: HlsNetNodeOperator, worklist: SetLi
     if isinstance(o1.obj, HlsNetNodeConst):
         o0, op1AddVal = popConstAddFromExpr(o0)
         if op1AddVal is not None:
-            b: HlsNetlistBuilder = n.getHlsNetlistBuilder()
+            b: HlsNetlistBuilder = HlsNetlistBuilderWithWorklist(n.getHlsNetlistBuilder(), worklist)
             if op is HwtOps.EQ or op is HwtOps.NE:
                 # convert to a compare with offset applied
                 newO1 = o1.obj.val - op1AddVal
