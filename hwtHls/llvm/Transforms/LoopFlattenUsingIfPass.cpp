@@ -22,13 +22,16 @@
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/Transforms/Scalar/LoopPassManager.h>
-#include <llvm/Transforms/Utils/LoopUtils.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <llvm/Transforms/Utils/PromoteMemToReg.h>
 
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
 #include <hwtHls/llvm/Transforms/utils/inLoopConditionalExecution.h>
 #include <hwtHls/llvm/Transforms/utils/loopMerging.h>
 #include <hwtHls/llvm/Transforms/utils/loopHwtHlsMetadata.h>
+#include <hwtHls/llvm/Transforms/LoopFlattenUsingIfPass/findAssociatedPhis.h>
+#include <hwtHls/llvm/Transforms/LoopFlattenUsingIfPass/mergeLoopMetadata.h>
+#include <hwtHls/llvm/Transforms/LoopFlattenUsingIfPass/rerouteChildBackedgeAndTransferChildPhis.h>
 
 // #define LoopFlattenUsingIfPass_TRACE
 
@@ -46,14 +49,26 @@ namespace hwtHls {
 static size_t dbgCntr = 0;
 #endif
 
-const std::string LoopFlattenUsingIfPass_enable =
-		"hwthls.loop.flattenusingif.enable";
-const std::string LoopFlattenUsingIfPass_followup =
-		"hwthls.loop.flattenusingif.followup";
+const std::string LoopFlattenUsingIfPass::METADATANAME_MODE =
+		"hwthls.loop.flattenusingif.mode";
 
-PHINode* createIsChildLoopPhiInHeader(llvm::LoopStandardAnalysisResults &AR,
-		DomTreeUpdater &DTU, MemorySSAUpdater *MSSAU, llvm::Loop &LParent,
-		llvm::Loop &LChild, BasicBlock *header, BasicBlock *childHeader) {
+LoopFlattenUsingIfPass::Mode LoopFlattenUsingIfPass::modeStringToMode(
+		const llvm::StringRef mode) {
+	if (mode == "CHILD_LOOP_ENTRY_IN_SAME_ITERATION")
+		return CHILD_LOOP_ENTRY_IN_SAME_ITERATION;
+	else if (mode == "CHILD_LOOP_ENTRY_IN_NEXT_ITERATION")
+		return CHILD_LOOP_ENTRY_IN_NEXT_ITERATION;
+	else {
+		llvm_unreachable(
+				(std::string("unsupported value for LoopFlattenUsingIfPass::Mode: ") + mode).str().c_str());
+	}
+	return CHILD_LOOP_ENTRY_IN_SAME_ITERATION;
+}
+
+static PHINode* createIsChildLoopPhiInHeader(
+		llvm::LoopStandardAnalysisResults &AR, DomTreeUpdater &DTU,
+		MemorySSAUpdater *MSSAU, llvm::Loop &LParent, llvm::Loop &LChild,
+		BasicBlock *header, BasicBlock *childHeader) {
 	auto &Ctx = header->getContext();
 	auto int1Ty = IntegerType::getInt1Ty(Ctx);
 	auto *isChildLoop = PHINode::Create(int1Ty,
@@ -91,7 +106,7 @@ PHINode* createIsChildLoopPhiInHeader(llvm::LoopStandardAnalysisResults &AR,
 	return isChildLoop;
 }
 
-void collectBlocksUntilSrcBlock(BasicBlock &untilBlock,
+static void collectBlocksUntilSrcBlock(BasicBlock &untilBlock,
 		SetVector<BasicBlock*> &seen, BasicBlock &current) {
 	if (&current == &untilBlock || seen.contains(&current))
 		return;
@@ -101,265 +116,18 @@ void collectBlocksUntilSrcBlock(BasicBlock &untilBlock,
 	}
 }
 
-void createPhiForSwitchBetweenParentAndChildLoopInLatch(BasicBlock *header,
-		BasicBlock *newLatchBlock, BasicBlock *childHeader,
-		PHINode &isChildLoop, BasicBlock *oldLatchBlock) {
-	auto &Ctx = header->getContext();
-	auto int1Ty = IntegerType::getInt1Ty(Ctx);
-	auto *isChildLoopInLatch = PHINode::Create(int1Ty, pred_size(newLatchBlock),
-			"isChildLoopInLatch." + childHeader->getName(),
-			newLatchBlock->getFirstNonPHI());
-	isChildLoop.addIncoming(isChildLoopInLatch, newLatchBlock);
-	for (auto latchPred : predecessors(newLatchBlock)) {
-		isChildLoopInLatch->addIncoming(
-				ConstantInt::get(int1Ty, latchPred != oldLatchBlock),
-				latchPred);
-	}
-}
-
-void createNewLatchPhis(llvm::BasicBlock *childLatch, BasicBlock *childHeader,
-		BasicBlock *&newLatchBlock, MemorySSAUpdater *MSSAU,
-		DomTreeUpdater &DTU, BasicBlock *header, PHINode &isChildLoopSwitchPhi,
-		BasicBlock *oldLatchBlock) {
-	SmallVector<DominatorTree::UpdateType, 2> Updates;
-	Updates.push_back( { DominatorTree::Delete, childLatch, childHeader });
-	Updates.push_back( { DominatorTree::Insert, childLatch, newLatchBlock });
-	// DTU, MSSAU update as done in llvm::splitBlockBefore
-	DTU.applyUpdates(Updates);
-	DTU.flush();
-	if (MSSAU) {
-		MSSAU->applyUpdates(Updates, DTU.getDomTree());
-	}
-	IRBuilder<> Builder(newLatchBlock->getFirstNonPHI());
-	auto &DT = DTU.getDomTree();
-	for (auto &phi : header->phis()) {
-		if (&phi == &isChildLoopSwitchPhi)
-			continue;
-
-		auto latchVal = phi.getIncomingValueForBlock(newLatchBlock);
-		if (auto latchValI = dyn_cast<Instruction>(latchVal)) {
-			auto latchValDefBB = latchValI->getParent();
-			if (!DT.dominates(latchValDefBB, newLatchBlock)) {
-				auto Ty = latchValI->getType();
-				assert(!Ty->isPointerTy());
-				auto newLatchPhi = Builder.CreatePHI(Ty,
-						pred_size(newLatchBlock), latchValI->getName());
-				if (newLatchBlock == oldLatchBlock)
-					llvm_unreachable("NotImplemented");
-
-				newLatchPhi->addIncoming(latchVal, oldLatchBlock);
-				newLatchPhi->addIncoming(PoisonValue::get(Ty), childLatch); // undef if looping in child loop mode
-				phi.setIncomingValueForBlock(newLatchBlock, newLatchPhi);
-			}
-		}
-	}
-}
-
-void updatePhiIncommingValuesInOldLatchBlock(llvm::BasicBlock *childLatch,
-		BasicBlock *oldLatchBlock, BasicBlock *childHeader) {
-	// if reusing old latch block we may not update
-	// all phis because some of them may not be related
-	// to phis in childHeader
-	size_t predCnt = pred_size(oldLatchBlock);
-	for (auto &oldLatchPhi : oldLatchBlock->phis()) {
-		size_t valCnt = oldLatchPhi.getNumIncomingValues();
-		if (valCnt != predCnt) {
-			assert(predCnt == valCnt + 1);
-			assert(oldLatchPhi.getBasicBlockIndex(childHeader) < 0);
-			oldLatchPhi.addIncoming(PoisonValue::get(oldLatchPhi.getType()),
-					childLatch);
-		}
-	}
-}
-
-std::pair<PHINode*, bool> createPhiInHeaderForChild(PHINode &childPhi,
-		const std::map<PHINode*, PHINode*> &associatedPhis,
-		size_t headerPredCnt, Instruction *firstNonPhiOfHeader) {
-	auto Ty = childPhi.getType();
-	auto existingParentPhi = associatedPhis.find(&childPhi);
-	bool reusingParentPhi = existingParentPhi != associatedPhis.end();
-	PHINode *headerPhi;
-	if (reusingParentPhi) {
-		headerPhi = existingParentPhi->second;
-		assert(childPhi.getType() == headerPhi->getType());
-	} else {
-		assert(!Ty->isPointerTy());
-		headerPhi = PHINode::Create(Ty, headerPredCnt,
-				childPhi.getName() + ".inChildHeader", firstNonPhiOfHeader);
-	}
-	return {headerPhi, reusingParentPhi};
-
-}
-// create a phi in newLatchBlock which will switch between undef and value from the child loop body
-std::pair<PHINode*, bool> createPhiInNewLatch(llvm::Type *Ty,
-		PHINode &childHeaderPhi, Instruction *firstNonPhiOfNewLatch,
-		BasicBlock *newLatchBlock, BasicBlock *oldLatchBlock,
-		BasicBlock *childLatch) {
-	auto childBackedgeVal = childHeaderPhi.getIncomingValueForBlock(childLatch);
-	PHINode *latchPhi;
-	bool latchPhiIsNew = true;
-	if (auto oldLatchPhi = dyn_cast<PHINode>(childBackedgeVal)) {
-		if (oldLatchPhi->getParent() == newLatchBlock) {
-			assert(newLatchBlock == oldLatchBlock);
-			latchPhi = oldLatchPhi;
-			latchPhiIsNew = false;
-		}
-	}
-	if (latchPhiIsNew) {
-		assert(!Ty->isPointerTy());
-		latchPhi = PHINode::Create(Ty, 2, childHeaderPhi.getName() + ".inLatch",
-				firstNonPhiOfNewLatch);
-		latchPhi->addIncoming(childBackedgeVal, childLatch);
-	}
-	return {latchPhi, latchPhiIsNew};
-}
 /*
- * :param childPreHeader: original child loop preheader (the childHeader now has 2 because it has new edge
- *     which implements skip of parent loop begin section)
- * :param parentBeginSectionEnd: block at the end of section in parent loop which was just
- * 		made conditional, values coming from there are alloca loads if they are generated
- * 		by that section
+ * :param phiInLatchDrivingBranch: phi generated by this function which is resolved whenver
+ *    the merged loop should exit or not.
+ * :param valueForPhiInLatchCausingReenter: the value resolved by this function,
+ *    if the phiInLatchDrivingBranch will have this value the code will jump out of merged loop
  * */
-void rerouteChildBackedgeAndTransferChildPhis(BasicBlock *childPreHeader,
-		BasicBlock *childHeader, BasicBlock *extractedSectionGuard,
-		llvm::Loop &LChild, BasicBlock *oldLatchBlock,
-		BasicBlock *newLatchBlock, BasicBlock *parentHeader,
-		llvm::Loop &LParent, PHINode *phiInLatchDrivingBranch,
-		Value *valueForPhiInLatchCausingReenter, PHINode &isChildLoopSwitchPhi,
-		const std::map<PHINode*, PHINode*> &associatedPhis,
-		MemorySSAUpdater *MSSAU, DomTreeUpdater &DTU) {
-	// :note: because we split parent latch and reroute child backedge to it
-	//    some variables defined in parent loop may not dominate all uses
-	//    parent header PHIs. For them we have to create a new phi in new
-	//    latch block to select undef if loop executes in child loop mode.
-	//    (the predecessor of new latch is a child latch)
-
-	// reroute all continue edges in child loop to jump to newLatchBlock
-	// with value asserting that it will jump to parent loop header
-	//DTU.flush();
-	auto childLatch = LChild.getLoopLatch();
-	assert(
-			childLatch
-					&& "LoopSimplify normal form specifies just 1 backedge and 1 latch block");
-
-	// for each child phi
-	auto headerPredCnt = llvm::pred_size(newLatchBlock);
-	auto *firstNonPhiOfParentHeader = &*parentHeader->getFirstNonPHI();
-	auto *firstNonPhiOfNewLatch = &*newLatchBlock->getFirstNonPHI();
-	auto *childHeaderFirstNonPhi = childHeader->getFirstNonPHI();
-	auto parentPreheader = LParent.getLoopPreheader();
-	assert(
-			parentPreheader
-					&& "LoopSimplify normal form specifies that there must be preheader");
-	for (PHINode &childHeaderPhi : make_early_inc_range(childHeader->phis())) {
-		// create a phi in parent header which will switch between undef on enter and value from prev iteration
-		auto Ty = childHeaderPhi.getType();
-		bool reusingParentHeaderPhi;
-		PHINode *parentHeaderPhi;
-		std::tie(parentHeaderPhi, reusingParentHeaderPhi) =
-				createPhiInHeaderForChild(childHeaderPhi, associatedPhis,
-						headerPredCnt, firstNonPhiOfParentHeader);
-		if (!reusingParentHeaderPhi)
-			// value for child loop is undef in first iteration (because it is computed in child loop and it was not executed before parent loop header)
-			parentHeaderPhi->addIncoming(PoisonValue::get(Ty), parentPreheader);
-
-		PHINode *newLatchPhi;
-		bool newLatchPhiIsNew;
-		std::tie(newLatchPhi, newLatchPhiIsNew) = createPhiInNewLatch(Ty,
-				childHeaderPhi, firstNonPhiOfNewLatch, newLatchBlock,
-				oldLatchBlock, childLatch);
-
-		auto valFromExtractedSection = childHeaderPhi.getIncomingValueForBlock(
-				childPreHeader);
-		// remove value for removed backedge
-		childHeaderPhi.removeIncomingValue(childLatch);
-		// add value for edge which is used if parent loop is running in child loop mode
-		childHeaderPhi.addIncoming(parentHeaderPhi, extractedSectionGuard);
-
-		auto valFromExtractedSectionAsInst = dyn_cast<LoadInst>(
-				valFromExtractedSection);
-		if (valFromExtractedSectionAsInst
-				&& isa<AllocaInst>(
-						valFromExtractedSectionAsInst->getPointerOperand())) {
-			// move alloca load to this block and use it instead of this phi
-			auto ld = valFromExtractedSectionAsInst->clone();
-			ld->insertBefore(childHeaderFirstNonPhi);
-			valFromExtractedSection = ld;
-		} else {
-			// the value is not generated by extracted block and we can use it instead of this phi
-		}
-		//childPhi.replaceAllUsesWith(valFromExtractedSection);
-		//childPhi.eraseFromParent();
-
-		// if value from extracted section is load of alloca, clone load of alloca and use it
-		// else this is not variable generated by extracted section and we can use it as is
-		//childPhi.addIncoming(V, BB)
-		//for (int Idx = childPhi.getNumIncomingValues() - 1; Idx > 0;
-		//		--Idx) {
-		//	childPhi.removeIncomingValue(Idx, /*DeletePHIIfEmpty*/
-		//	false);
-		//}
-		//for (auto _childHeadPred : predecessors(childHeader)) {
-		//	if (_childHeadPred != childHeadPred) {
-		//		latchPhi->addIncoming(headerPhi, _childHeadPred);
-		//	}
-		//}
-		if (newLatchPhiIsNew) {
-			// if this is new phi in new latch block add incoming values
-			for (auto latchPred : predecessors(newLatchBlock)) {
-				// newLatchBlock can not have childHeadPred as a predecessor because it is latch and child has to have loopexit block
-				// so latchPred may be childLoopExit or something after, childHeader or something child prequel section which is in parent loop
-				assert(latchPred != newLatchBlock);
-				// value for child loop is undef once code exited child loop
-				Value *V = nullptr;
-				if (reusingParentHeaderPhi) {
-					V = parentHeaderPhi->getIncomingValueForBlock(
-							newLatchBlock);
-					if (newLatchBlock == oldLatchBlock) {
-						// if latch block is reused it means that the value may be defined in oldLatchBlock block,
-						// it is necessary to keep define before use so if this a phi the incoming value should be used instead
-						if (auto *existingLatchPhi = dyn_cast<PHINode>(V)) {
-							if (existingLatchPhi->getParent() == oldLatchBlock)
-								V = existingLatchPhi->getIncomingValueForBlock(
-										latchPred);
-							assert(V);
-						} else if (auto *I = dyn_cast<Instruction>(V)) {
-							assert(I->getParent() != newLatchBlock);
-						}
-					}
-				} else {
-					V = PoisonValue::get(Ty);
-				}
-				newLatchPhi->addIncoming(V, latchPred);
-			}
-		}
-		if (reusingParentHeaderPhi)
-			parentHeaderPhi->setIncomingValueForBlock(newLatchBlock,
-					newLatchPhi);
-		else
-			parentHeaderPhi->addIncoming(newLatchPhi, newLatchBlock);
-	}
-	childLatch->getTerminator()->replaceUsesOfWith(childHeader, newLatchBlock);
-	if (phiInLatchDrivingBranch) {
-		assert(valueForPhiInLatchCausingReenter);
-		phiInLatchDrivingBranch->addIncoming(valueForPhiInLatchCausingReenter,
-				childLatch);
-	}
-	if (newLatchBlock == oldLatchBlock) {
-		updatePhiIncommingValuesInOldLatchBlock(childLatch, oldLatchBlock,
-				childHeader);
-	}
-
-	createNewLatchPhis(childLatch, childHeader, newLatchBlock, MSSAU, DTU,
-			parentHeader, isChildLoopSwitchPhi, oldLatchBlock);
-	createPhiForSwitchBetweenParentAndChildLoopInLatch(parentHeader,
-			newLatchBlock, childHeader, isChildLoopSwitchPhi, oldLatchBlock);
-}
-
-std::pair<BasicBlock*, BasicBlock*> prepareNewLatchBlock(llvm::Loop &LParent,
+static std::pair<BasicBlock*, BasicBlock*> prepareNewLatchBlock(
+		LoopFlattenUsingIfPass::Mode mode, llvm::Loop &LParent,
 		DomTreeUpdater &DTU, llvm::LoopStandardAnalysisResults &AR,
 		MemorySSAUpdater *MSSAU, PHINode *&phiInLatchDrivingBranch,
-		Value *&valueForPhiInLatchCausingReenter, BasicBlock *header) {
+		Value *&valueForPhiInLatchCausingReenter, BasicBlock *header,
+		BasicBlock *childPreHeader) {
 	BasicBlock *oldLatchBlock = LParent.getLoopLatch();
 	BasicBlock *newLatchBlock = oldLatchBlock;
 
@@ -371,61 +139,83 @@ std::pair<BasicBlock*, BasicBlock*> prepareNewLatchBlock(llvm::Loop &LParent,
 					&& "Must be present because this is in LoopSimplify normal form");
 	Instruction *Term = oldLatchBlock->getTerminator();
 	assert(Term);
-	auto BR = dyn_cast<BranchInst>(Term);
-	if (BR && !BR->isConditional()
-			&& (Term == &*oldLatchBlock->begin()
-					|| isa<PHINode>(Term->getPrevNode()))) {
-		// block contains only PHIs and terminator
-		// we can reuse this block because it has unconditional branch
-	} else {
-		if (DTU.hasPendingUpdates()) {
-			DTU.flush();
-		}
-#ifdef LoopFlattenUsingIfPass_TRACE
-		assert(DTU.getDomTree().verify());
-		//if (MSSAU)
-		//	MSSAU->getMemorySSA()->verifyMemorySSA(
-		//			MemorySSA::VerificationLevel::Full);
-#endif
-		oldLatchBlock = SplitBlock(oldLatchBlock, Term, &DTU, &AR.LI, MSSAU,
-				oldLatchBlock->getName() + ".oldLatch", /*Before*/
-				true);
 
-		if (DTU.hasPendingUpdates()) {
-			DTU.flush();
-		}
-		if (BR) {
-			if (BR->isConditional()) {
-				phiInLatchDrivingBranch = PHINode::Create(int1Ty, 2, "continue",
-						&*newLatchBlock->begin());
-				phiInLatchDrivingBranch->addIncoming(BR->getCondition(),
-						oldLatchBlock);
-				BR->setCondition(phiInLatchDrivingBranch);
-				valueForPhiInLatchCausingReenter = ConstantInt::get(int1Ty,
-						BR->getSuccessor(0) == header);
-			} else {
-				// no need to resolve valueForPhiInLatchCausingReenter
-				// the SplitBlock was called to separate non-phi instructions to other block
-			}
-		} else if (SwitchInst *SW = dyn_cast<SwitchInst>(Term)) {
-			auto Cond = SW->getCondition();
-			phiInLatchDrivingBranch = PHINode::Create(Cond->getType(), 2,
-					"continue", &*newLatchBlock->begin());
-			phiInLatchDrivingBranch->addIncoming(Cond, oldLatchBlock);
+	//if (BR && !BR->isConditional()
+	//		&& (Term == &*oldLatchBlock->begin()
+	//				|| isa<PHINode>(Term->getPrevNode()))) {
+	// :note: this does not work because it would not be possible to recognize if we
+	//       jumped from
+	//	// block contains only PHIs and terminator
+	//	// we can reuse this block because it has unconditional branch
+	//  return {newLatchBlock, oldLatchBlock};
+	//}
+
+	if (DTU.hasPendingUpdates()) {
+		DTU.flush();
+	}
+#ifdef LoopFlattenUsingIfPass_TRACE
+	assert(DTU.getDomTree().verify());
+	//if (MSSAU)
+	//	MSSAU->getMemorySSA()->verifyMemorySSA(
+	//			MemorySSA::VerificationLevel::Full);
+#endif
+	oldLatchBlock = SplitBlock(oldLatchBlock, Term, &DTU, &AR.LI, MSSAU,
+			oldLatchBlock->getName() + ".oldLatch", /*Before*/
+			true);
+
+	if (DTU.hasPendingUpdates()) {
+		DTU.flush();
+	}
+	size_t phiArgCnt =
+			2
+					+ (mode
+							== LoopFlattenUsingIfPass::Mode::CHILD_LOOP_ENTRY_IN_NEXT_ITERATION);
+	if (auto BR = dyn_cast<BranchInst>(Term)) {
+		if (BR->isConditional()) {
+			phiInLatchDrivingBranch = PHINode::Create(int1Ty, phiArgCnt,
+					"fusedLoopContinueFromBr", &*newLatchBlock->begin());
+			phiInLatchDrivingBranch->addIncoming(BR->getCondition(),
+					oldLatchBlock);
+
 			BR->setCondition(phiInLatchDrivingBranch);
-			for (auto &SwCase : SW->cases()) {
-				if (SwCase.getCaseSuccessor() == header) {
-					valueForPhiInLatchCausingReenter = SwCase.getCaseValue();
-					break;
-				}
+			// reenter (the loop exits and it may be reentered) is when successor is not header
+			auto _loopExitOrReenterVal = ConstantInt::get(int1Ty,
+					BR->getSuccessor(0) == header);
+			valueForPhiInLatchCausingReenter = _loopExitOrReenterVal;
+			if (mode
+					== LoopFlattenUsingIfPass::Mode::CHILD_LOOP_ENTRY_IN_NEXT_ITERATION) {
+				// addIncoming for every child loop preheader which will not cause break
+				phiInLatchDrivingBranch->addIncoming(
+						ConstantInt::get(int1Ty, ~_loopExitOrReenterVal->getValue()),
+						childPreHeader);
 			}
-			if (!valueForPhiInLatchCausingReenter)
-				llvm_unreachable(
-						"NotImplemented: backedge is switch default branch, need to infer value for condition");
 		} else {
-			Term->dump();
-			llvm_unreachable("Unsupported type of terminator");
+			// no need to resolve valueForPhiInLatchCausingReenter
+			// the SplitBlock was called to separate non-phi instructions to other block
 		}
+	} else if (SwitchInst *SW = dyn_cast<SwitchInst>(Term)) {
+		auto Cond = SW->getCondition();
+		phiInLatchDrivingBranch = PHINode::Create(Cond->getType(), 2,
+				"fusedLoopContinueFromSw", &*newLatchBlock->begin());
+		phiInLatchDrivingBranch->addIncoming(Cond, oldLatchBlock);
+		BR->setCondition(phiInLatchDrivingBranch);
+		for (auto &SwCase : SW->cases()) {
+			if (SwCase.getCaseSuccessor() == header) {
+				valueForPhiInLatchCausingReenter = SwCase.getCaseValue();
+				break;
+			}
+		}
+		if (!valueForPhiInLatchCausingReenter)
+			llvm_unreachable(
+					"NotImplemented: backedge is switch default branch, need to infer value for condition");
+		if (mode
+				== LoopFlattenUsingIfPass::Mode::CHILD_LOOP_ENTRY_IN_NEXT_ITERATION) {
+			llvm_unreachable(
+					"NotImplemented: addIncoming for every child loop preheader which will not cause break");
+		}
+	} else {
+		Term->dump();
+		llvm_unreachable("Unsupported type of terminator");
 	}
 	return {newLatchBlock, oldLatchBlock};
 }
@@ -498,150 +288,10 @@ std::pair<BasicBlock*, BasicBlock*> prepareNewLatchBlock(llvm::Loop &LParent,
 //	}
 //}
 
-void collectBlocksUntilLoopEnd(llvm::Loop &L, SetVector<BasicBlock*> &seen,
-		BasicBlock &BB) {
-	if (&BB == L.getHeader())
-		return; // header is start of new iteration, which is after loop end
-	if (seen.insert(&BB)) {
-		// analyzing also loop exit block, which is not part of the loop
-		if (!L.contains(&BB))
-			return;
-		for (auto Suc : successors(&BB)) {
-			collectBlocksUntilLoopEnd(L, seen, *Suc);
-		}
-	}
-}
-struct ScoreAndRank {
-	size_t score; // main score, more = better
-	size_t rank; // order of original item to make winner selection deterministic
-};
 
-void countHowManytimesValueIsDrivenFromPhi(llvm::Loop &L,  llvm::Instruction &I,
-		size_t exprDepth, std::set<Instruction*> &seen,
-		std::map<Instruction*, ScoreAndRank> &score) {
-	if (!L.contains(I.getParent()))
-		return; // driver outside of parent loop, this can not lead to parent phi
-
-	auto _score = score.find(&I);
-	if (_score != score.end()) {
-		size_t curScore = _score->second.score;
-		size_t thisScore = std::numeric_limits<size_t>::max() - exprDepth;
-		_score->second.score = std::max(curScore, thisScore);
-		return;
-	}
-
-	if (seen.find(&I) != seen.end()) {
-		// prevent looping on loop header phis
-		return;
-	} else {
-		seen.insert(&I);
-	}
-
-	for (Use &Op : I.operands()) {
-		if (Op.get()->getType() == I.getType())
-			if (auto OpI = dyn_cast<Instruction>(Op.get())) {
-				countHowManytimesValueIsDrivenFromPhi(L, *OpI, exprDepth + 1,
-						seen, score);
-			}
-	}
-}
-
-/*
- * The parent PHI is associated with child PHI if:
- *  * it does not live trough child loop
- *  * has the same type
- *  * there is a path in expression from parent PHI to child PHI
- * */
-std::map<PHINode*, PHINode*> findAssociatedPhis(llvm::Loop &LParent,
-		llvm::Loop &LChild) {
-	std::map<PHINode*, PHINode*> childToParentPhi;
-	auto childHeader = LChild.getHeader();
-	auto childPhis = childHeader->phis();
-	if (childPhis.begin() == childPhis.end()) {
-		// there is nothing to associate with
-		return childToParentPhi;
-	}
-
-	SetVector<BasicBlock*> blocksAfterChildLoop;
-	SmallVector<BasicBlock*> ExitBlocks;
-	LChild.getExitBlocks(ExitBlocks);
-	for (auto BB : ExitBlocks)
-		collectBlocksUntilLoopEnd(LParent, blocksAfterChildLoop, *BB);
-
-	// :note: except for PHI incoming values from outside of after child loop section
-	// :note: this expects LoopSimplify normal form where all loop liveouts have phi in exit block
-	auto isUsedAfterChildLoop = [&](PHINode &phi) {
-		for (auto &U : phi.uses()) {
-			if (auto UInst = dyn_cast<Instruction>(U.getUser())) {
-				auto Ubb = UInst->getParent();
-				if (auto UPhi = dyn_cast<PHINode>(UInst)) {
-					if (!LParent.contains(Ubb)) {
-						// this is liveout of parent loop
-						return true;
-					} else {
-						for (size_t i = 0; i < UPhi->getNumIncomingValues();
-								++i) {
-							if (UPhi->getIncomingValue(i) == &phi
-									&& blocksAfterChildLoop.contains(Ubb)) {
-								return true; // used internally in phi inside of after child loop section
-							}
-						}
-						// used only on edge from child loop or section before it
-					}
-				} else {
-					if (blocksAfterChildLoop.contains(Ubb))
-						return true; // used internally in section after loop
-				}
-			}
-		}
-		return false;
-	};
-
-	using ScoreDict = std::map<Instruction*, ScoreAndRank>;
-	ScoreDict availablePhiScore;
-	size_t rank = 0;
-	for (PHINode &parentPhi : LParent.getHeader()->phis()) {
-		if (!isUsedAfterChildLoop(parentPhi))
-			availablePhiScore[&parentPhi] = { 0, rank++ };
-	}
-	if (availablePhiScore.size()) {
-		for (PHINode &childPhi : childHeader->phis()) {
-			std::set<Instruction*> seen;
-			countHowManytimesValueIsDrivenFromPhi(LParent, childPhi, 0, seen,
-					availablePhiScore);
-
-			auto bestCandidate = std::max_element(availablePhiScore.begin(),
-					availablePhiScore.end(),
-					[](ScoreDict::reference &v0, ScoreDict::reference &v1) {
-						if (v0.second.score == v1.second.score)
-							return v0.second.rank < v1.second.rank;
-						else
-							return v0.second.score < v1.second.score;
-					});
-
-			if (bestCandidate->second.score) {
-				childToParentPhi[&childPhi] = dyn_cast<PHINode>(
-						bestCandidate->first);
-				assert(childPhi.getType() == bestCandidate->first->getType() && "If type is different score should be 0 and we should never get there");
-				availablePhiScore.erase(bestCandidate);
-			}
-
-			if (availablePhiScore.empty())
-				break;
-			// reset score for next phi search
-			for (auto &score : availablePhiScore) {
-				score.second.score = 0;
-			}
-		}
-	}
-
-	return childToParentPhi;
-}
-
-bool LoopFlattenUsingIfPass_flatten(llvm::Loop &LParent, llvm::Loop &LChild,
-		llvm::LoopStandardAnalysisResults &AR, DomTreeUpdater &DTU,
-		MemorySSAUpdater *MSSAU, llvm::LPMUpdater &LPMU) {
-
+static bool LoopFlattenUsingIfPass_flatten(const LoopFlattenUsingIfPass::Mode mode, llvm::Loop &LParent,
+		llvm::Loop &LChild, llvm::LoopStandardAnalysisResults &AR,
+		DomTreeUpdater &DTU, MemorySSAUpdater *MSSAU, llvm::LPMUpdater &LPMU) {
 	{
 		auto *F = LParent.getHeader()->getParent();
 		using namespace ore;
@@ -681,7 +331,8 @@ bool LoopFlattenUsingIfPass_flatten(llvm::Loop &LParent, llvm::Loop &LChild,
 	DTU.flush();
 	assert(DTU.getDomTree().verify());
 	if (MSSAU) {
-		MSSAU->getMemorySSA()->verifyMemorySSA(MemorySSA::VerificationLevel::Full);
+		MSSAU->getMemorySSA()->verifyMemorySSA(
+				MemorySSA::VerificationLevel::Full);
 	}
 #endif
 
@@ -697,9 +348,11 @@ bool LoopFlattenUsingIfPass_flatten(llvm::Loop &LParent, llvm::Loop &LChild,
 	DTU.flush();
 	assert(DTU.getDomTree().verify());
 	if (MSSAU) {
-		MSSAU->getMemorySSA()->verifyMemorySSA(MemorySSA::VerificationLevel::Full);
+		MSSAU->getMemorySSA()->verifyMemorySSA(
+				MemorySSA::VerificationLevel::Full);
 	}
 #endif
+
 	//BasicBlock *beginSectionBegin;
 	//BasicBlock *beginSectionEnd;
 	//std::tie(beginSectionBegin, beginSectionEnd) =
@@ -714,7 +367,8 @@ bool LoopFlattenUsingIfPass_flatten(llvm::Loop &LParent, llvm::Loop &LChild,
 	DTU.flush();
 	assert(DTU.getDomTree().verify());
 	if (MSSAU) {
-		MSSAU->getMemorySSA()->verifyMemorySSA(MemorySSA::VerificationLevel::Full);
+		MSSAU->getMemorySSA()->verifyMemorySSA(
+				MemorySSA::VerificationLevel::Full);
 	}
 #endif
 
@@ -739,9 +393,9 @@ bool LoopFlattenUsingIfPass_flatten(llvm::Loop &LParent, llvm::Loop &LChild,
 	//DTU.flush();
 	BasicBlock *newLatchBlock;
 	BasicBlock *oldLatchBlock;
-	std::tie(newLatchBlock, oldLatchBlock) = prepareNewLatchBlock(LParent, DTU,
-			AR, MSSAU, phiInLatchDrivingBranch,
-			valueForPhiInLatchCausingReenter, header);
+	std::tie(newLatchBlock, oldLatchBlock) = prepareNewLatchBlock(mode, LParent,
+			DTU, AR, MSSAU, phiInLatchDrivingBranch,
+			valueForPhiInLatchCausingReenter, header, childPreHeader);
 #ifdef LoopFlattenUsingIfPass_TRACE
 	writeCFGToDotFile(*LParent.getHeader()->getParent(),
 			"LoopFlattenUsingIfPass." + std::to_string(dbgCntr++)
@@ -750,7 +404,7 @@ bool LoopFlattenUsingIfPass_flatten(llvm::Loop &LParent, llvm::Loop &LChild,
 	//DTU.flush();
 	// reroute all continue edges in child loop to jump to newLatchBlock
 	// with value asserting that it will jump to parent loop header
-	rerouteChildBackedgeAndTransferChildPhis(childPreHeader, childHeader,
+	rerouteChildBackedgeAndTransferChildPhis(mode, childPreHeader, childHeader,
 			header, LChild, oldLatchBlock, newLatchBlock, header, LParent,
 			phiInLatchDrivingBranch, valueForPhiInLatchCausingReenter,
 			*isChildLoop, associatedPhis, MSSAU, DTU);
@@ -776,78 +430,23 @@ bool LoopFlattenUsingIfPass_flatten(llvm::Loop &LParent, llvm::Loop &LChild,
 			AR.BFI, AR.BPI);
 #endif
 	Changed = true;
+	sortPhiOperands(*childHeader);
+	sortPhiOperands(*newLatchBlock);
+
 	return Changed;
-}
-
-void mergeLlvmLoopMd(llvm::Loop &SrcL, llvm::Loop &DstL) {
-	MDNode *llvmLoopMdSrcOriginal = Loop_getHwtHlsLoopID(SrcL);
-	assert(llvmLoopMdSrcOriginal);
-	std::optional<MDNode*> llvmLoopMdSrcFollowup = makeFollowupLoopID(
-			llvmLoopMdSrcOriginal, { LoopFlattenUsingIfPass_followup });
-	if (llvmLoopMdSrcFollowup.has_value() && llvmLoopMdSrcFollowup.value()) {
-		MDNode *llvmLoopMdSrc = llvmLoopMdSrcFollowup.value();
-		MDNode *llvmLoopMdDst = Loop_getHwtHlsLoopID(DstL);
-		llvm::MDNode *res = nullptr;
-		std::vector<llvm::Metadata*> MDs_tmp;
-		std::set<std::string> parentKeyValues;
-		if (llvmLoopMdDst) {
-			// llvm::MDNode::getTemporary(Context, {}).get()
-			MDs_tmp.push_back(nullptr);
-			bool first = true;
-			for (auto &curOp : llvmLoopMdDst->operands()) {
-				if (first) {
-					assert(curOp.get() == llvmLoopMdDst);
-					first = false;
-				} else {
-					MDs_tmp.push_back(curOp.get());
-					MDNode *MD = dyn_cast<MDNode>(curOp.get());
-					if (MD && MD->getNumOperands() >= 1) {
-						if (MDString *S = dyn_cast<MDString>(
-								MD->getOperand(0))) {
-							parentKeyValues.insert(S->getString().str());
-						}
-					}
-				}
-			}
-		}
-		bool first = true;
-		for (auto &srcOp : llvmLoopMdSrc->operands()) {
-			// expects tuples (keyStr, value)
-			// based on llvm::findOptionMDForLoopID
-			if (first) {
-				first = false;
-				continue;
-			}
-			// Iterate over the metdata node operands and look for MDString metadata.
-			MDNode *MD = dyn_cast<MDNode>(srcOp.get());
-			if (MD && MD->getNumOperands() >= 1) {
-				if (MDString *S = dyn_cast<MDString>(MD->getOperand(0))) {
-					// MDString holding name from excludeKeys.
-					if (parentKeyValues.contains(S->getString().str()))
-						continue;
-				}
-			}
-			MDs_tmp.push_back(MD);
-		}
-
-		res = llvm::MDNode::get(llvmLoopMdSrc->getContext(), MDs_tmp);
-		res->replaceOperandWith(0, res);
-		Loop_setHwtHlsLoopID(DstL, res);
-	}
-	Loop_setHwtHlsLoopID(SrcL, nullptr);
 }
 
 llvm::PreservedAnalyses LoopFlattenUsingIfPass::run(llvm::Loop &L,
 		llvm::LoopAnalysisManager &AM, llvm::LoopStandardAnalysisResults &AR,
 		llvm::LPMUpdater &U) {
-	auto passEn = getOptionalIntHwtHlsLoopAttribute(&L,
-			LoopFlattenUsingIfPass_enable);
+	auto passMode = getOptionalStringHwtHlsLoopAttribute(&L,
+			METADATANAME_MODE);
 	bool Changed = false;
-	if (passEn.has_value() && passEn.value()) {
+	if (passMode.has_value()) {
 		assert(
 				L.isRecursivelyLCSSAForm(AR.DT, AR.LI)
 						&& "Requested to preserve LCSSA, but it's already broken.");
-		auto &F = *L.getHeader()->getParent();
+		//auto &F = *L.getHeader()->getParent();
 		std::optional<MemorySSAUpdater> MSSAU;
 		if (AR.MSSA)
 			MSSAU = MemorySSAUpdater(AR.MSSA);
@@ -855,16 +454,19 @@ llvm::PreservedAnalyses LoopFlattenUsingIfPass::run(llvm::Loop &L,
 		DomTreeUpdater DTU(AR.DT, DomTreeUpdater::UpdateStrategy::Lazy);
 		auto parentLoop = L.getParentLoop();
 		if (!parentLoop) {
-			throw std::runtime_error(
-					LoopFlattenUsingIfPass_enable
-							+ " in loop without parent (no parent to flatten this loop into)");
+			throw std::runtime_error("LoopFlattenUsingIfPass enabled in a loop without parent (no parent to flatten this loop into)");
 		}
 		mergeLlvmLoopMd(L, *parentLoop);
-		Changed = LoopFlattenUsingIfPass_flatten(*parentLoop, L, AR, DTU,
+		//errs() << "LoopFlattenUsingIfPass before: \n";
+		//F.getParent()->dump();
+		auto mode = modeStringToMode(passMode.value());
+		Changed |= LoopFlattenUsingIfPass_flatten(mode, *parentLoop, L, AR, DTU,
 				MSSAU ? &*MSSAU : nullptr, U);
 
 		if (Changed) {
-			assert(!verifyFunction(F, &errs()));
+			// errs() << "LoopFlattenUsingIfPass after: \n";
+			// F.dump();
+			//assert(!verifyFunction(F, &errs()));
 			U.markLoopNestChanged(true);
 		}
 		for (auto &L0 : AR.LI) {

@@ -102,7 +102,7 @@ class WhileSendSequence1(WhileSendSequence0):
                 PyBytecodeBlockLabel("WhileSendSequence1.whileSize")
                 hls.write(size, self.dataOut)
                 size = size - 1
-                PyBytecodeLoopFlattenUsingIf()
+                PyBytecodeLoopFlattenUsingIf(mode=PyBytecodeLoopFlattenUsingIf.Mode.CHILD_LOOP_ENTRY_IN_SAME_ITERATION)
 
             PyBytecodeBlockLabel("WhileSendSequence1.read")
             size = hls.read(self.dataIn).data

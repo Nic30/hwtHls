@@ -4,6 +4,7 @@ from typing import Union, Literal, Optional
 from hwt.hwIO import HwIO
 from hwtHls.frontend.ioProxyStream import IoProxyStream
 from hwtHls.frontend.pragma import _PyBytecodeLoopPragma
+from hwtHls.llvm.llvmIr import LoopFlattenUsingIfPass
 
 
 class PyBytecodeLLVMLoopUnroll(_PyBytecodeLoopPragma):
@@ -140,24 +141,24 @@ class PyBytecodeStreamLoopUnroll(_PyBytecodeLoopPragma):
 
         return items
 
-
 class PyBytecodeLoopFlattenUsingIf(_PyBytecodeLoopPragma):
     """
     Merge child loop into parent loop.
     """
+    Mode = LoopFlattenUsingIfPass.Mode
 
-    def __init__(self, followup:Optional[_PyBytecodeLoopPragma]=None):
+    def __init__(self, mode: LoopFlattenUsingIfPass.Mode, followup:Optional[_PyBytecodeLoopPragma]=None):
         _PyBytecodeLoopPragma.__init__(self)
+        self.mode = mode
         self.followup = followup
 
     def getLlvmLoopMetadataItems(self, irTranslator: "ToLlvmIrTranslator"):
         getStr = irTranslator.mdGetStr
-        getInt = irTranslator.mdGetUInt32
         getTuple = irTranslator.mdGetTuple
         items = [
             getTuple([
-                    getStr("hwthls.loop.flattenusingif.enable"),
-                    getInt(1)
+                    getStr(LoopFlattenUsingIfPass.METADATANAME_MODE),
+                    getStr(self.mode.name)
                 ],
                 False)
         ]

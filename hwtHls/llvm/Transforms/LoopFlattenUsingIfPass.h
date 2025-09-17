@@ -12,6 +12,11 @@ namespace hwtHls {
 
 /**
  *  Merge child loop into parent, use flag to switch between body and condition of parent or child.
+ *  :attention: FoldCondBranchOnValueKnownInPredecessorImpl from SimplifyCFG reverts transformed code back to original
+ *    whole point of this transformation is to allow code hoisting and sinking.
+ *    This is useful in cases where most of the code can be sinked or hoisted.
+ *    If this is the case the SimplifyCFG will then just slice off and remove empty parent loop.
+ *    This can be done by running SimplifyCFG and alike with HoistCheapInsts=true, HoistCommonInsts=true
  *
  *  .. code-block::cpp
  *
@@ -56,9 +61,16 @@ namespace hwtHls {
  *
  *  :note: works for all types of loops including rotated loops (do-while)
  *
+ *  .. figure:: ./_static/LoopFlattenUsingIfPass.png
  */
 class LoopFlattenUsingIfPass: public llvm::PassInfoMixin<LoopFlattenUsingIfPass> {
 public:
+	static const std::string METADATANAME_MODE;
+	enum Mode {
+		CHILD_LOOP_ENTRY_IN_SAME_ITERATION,
+		CHILD_LOOP_ENTRY_IN_NEXT_ITERATION,
+	};
+	static Mode modeStringToMode(const llvm::StringRef mode);
 	llvm::PreservedAnalyses run(llvm::Loop &L, llvm::LoopAnalysisManager &AM,
 				llvm::LoopStandardAnalysisResults &AR, llvm::LPMUpdater &U);
 };

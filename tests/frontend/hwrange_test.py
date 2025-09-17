@@ -95,7 +95,8 @@ class HlsPythonHwrange_fromInt2(HlsPythonHwrange_fromInt0):
             for y in hwrange(4):
                 for x in hwrange(4):
                     hls.write(fitTo_t(Concat(y[2:], x[2:]), self.o._dtype), self.o)
-                    # PyBytecodeLoopFlattenUsingIf()
+                    #PyBytecodeLoopFlattenUsingIf(mode=PyBytecodeLoopFlattenUsingIf.Mode.CHILD_LOOP_ENTRY_IN_SAME_ITERATION)
+                #PyBytecodeLoopFlattenUsingIf(mode=PyBytecodeLoopFlattenUsingIf.Mode.CHILD_LOOP_ENTRY_IN_SAME_ITERATION)
 
 
 class HlsPythonHwrange_fromSsaVal(HlsPythonHwrange_fromInt0):
@@ -151,15 +152,15 @@ class HlsPythonHwrange_TC(SimTestCase):
 
 
 if __name__ == "__main__":
-    from hwt.synth import to_rtl_str
-    from hwtHls.platform.xilinx.artix7 import Artix7Medium
-    from hwtHls.platform.debugBundle import HlsDebugBundle
-    
-    m = HlsPythonHwrange_fromInt1_breakBefore()
-    print(to_rtl_str(m, target_platform=Artix7Medium(debugFilter=HlsDebugBundle.ALL_RELIABLE, 
-                                                     #llvmCliArgs=[("print-after-all", 0, "", "true"),]
-                                                     )))
+    # from hwt.synth import to_rtl_str
+    # from hwtHls.platform.xilinx.artix7 import Artix7Medium
+    # from hwtHls.platform.debugBundle import HlsDebugBundle
 
+    # m = HlsPythonHwrange_fromInt2()
+    # print(to_rtl_str(m, target_platform=Artix7Medium(debugFilter=HlsDebugBundle.ALL_RELIABLE,
+    #                                                  llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED, ]
+    #                                                  )))
+    #
     import unittest
 
     testLoader = unittest.TestLoader()

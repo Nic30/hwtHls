@@ -82,7 +82,7 @@ class ShiftSequential2Loops(ShiftSequential1Loop):
                 d.sh -= 1
                 # PyBytecodeNoSplitSlices(d.data)
                 # merge this with parent loop to have just 1 loop with conditional input read
-                PyBytecodeLoopFlattenUsingIf()
+                PyBytecodeLoopFlattenUsingIf(mode=PyBytecodeLoopFlattenUsingIf.Mode.CHILD_LOOP_ENTRY_IN_SAME_ITERATION)
 
             hls.write(d.data, dataOut)
 
