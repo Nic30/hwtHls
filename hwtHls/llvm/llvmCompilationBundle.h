@@ -13,7 +13,6 @@
 #include <hwtHls/llvm/targets/Transforms/hwtFpgaToNetlist.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetPassConfig.h>
 
-
 namespace hwtHls {
 
 /*
@@ -63,8 +62,8 @@ public:
 	// using llvm it must set its own llvm cli options first
 	std::vector<LlvmCliOptionTuple> llvmCliOpts;
 
-	LlvmCompilationBundle(const std::string &moduleName, const std::vector<LlvmCliOptionTuple> & llvmCliOpts);
-
+	LlvmCompilationBundle(const std::string &moduleName,
+			const std::vector<LlvmCliOptionTuple> &llvmCliOpts);
 
 	// ellipsis (...) operator used to iterate over all template arguments using recursion
 	// template parameter list must end with void which is used as handle
@@ -98,7 +97,9 @@ public:
 	// for arg description see HwtFpgaTargetPassConfig
 	// :param combinerCallback: is an optional callback function called during last state of
 	//        instruction combining
-	void runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetlistConversionFn);
+	void runOpt(hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetlistConversionFn,
+			std::function<void(llvm::ModulePassManager&)> addExtraModulePasses);
+	void _tryToFindMain();
 	llvm::MachineFunction* getMachineFunction(llvm::Function &fn);
 
 	llvm::MachineModuleInfo* getMachineModuleInfo();
@@ -114,7 +115,7 @@ public:
 	void _addInstrCombinePasses(llvm::FunctionPassManager &FPM,
 			bool bitwidthReduction = true, bool selectPruning = true,
 			bool llvmInstrCombine = true, bool streamReadEoFThreading = false,
-			bool hwtHlsFpInstrCombine=false);
+			bool hwtHlsFpInstrCombine = false);
 	void _addAfterUnrollFollowupPasses(llvm::FunctionPassManager &FPM);
 
 	// for arg description see HwtFpgaTargetPassConfig
@@ -125,7 +126,7 @@ public:
 	void runExprOpt();
 
 	// for param doc :see: HwtHlsSimplifyCFGOptions
-	llvm::Function& _testHwtHlsSimplifyCFGPass(int BonusInstThreshold,           //
+	llvm::Function& _testHwtHlsSimplifyCFGPass(int BonusInstThreshold,        //
 			bool ForwardSwitchCondToPhi,      //
 			bool ConvertSwitchRangeToICmp,    //
 			bool ConvertSwitchToLookupTable,  //
@@ -137,7 +138,8 @@ public:
 			);
 	llvm::Function& _testSlicesToIndependentVariablesPass();
 	llvm::Function& _testBitwidthReductionPass();
-	llvm::Function& _testHwtHlsInstCombinePass(bool runBitcountMergePass, bool runStreamReadEoFThreading);
+	llvm::Function& _testHwtHlsInstCombinePass(bool runBitcountMergePass,
+			bool runStreamReadEoFThreading);
 	llvm::Function& _testSlicesMergePass();
 	llvm::Function& _testLoopUnrotatePass();
 	llvm::Function& _testLoopFlattenUsingIfPass();

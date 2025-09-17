@@ -43,9 +43,15 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 	py::class_<hwtHls::LlvmCompilationBundle>(m, "LlvmCompilationBundle")
 		.def(py::init<const std::string &, const std::vector<hwtHls::LlvmCompilationBundle::LlvmCliOptionTuple> &>())
 		.def("getTargetLibraryInfo", &hwtHls::LlvmCompilationBundle::getTargetLibraryInfo)
-		.def("runOpt", [](hwtHls::LlvmCompilationBundle * LCB, py::function & callbackFn, py::object & hls, py::object & toSsa, py::object & netlist) {
+		.def("runOpt", [](hwtHls::LlvmCompilationBundle * LCB,
+				py::function & callbackFn,
+				py::function & addExtraModulePasses,
+				py::object & hls,
+				py::object & toSsa,
+				py::object & netlist) {
 			py::object returnObj;
-			LCB->runOpt([callbackFn, &hls, &toSsa, &netlist, &returnObj](llvm::MachineFunction &MF,
+			auto callbackFnCpp = [callbackFn, &hls, &toSsa, &netlist, &returnObj](
+					llvm::MachineFunction &MF,
 					std::set<hwtHls::HwtFpgaToNetlist::MachineBasicBlockEdge>& backedges,
 					hwtHls::EdgeLivenessDict & liveness,
 					std::vector<llvm::Register> & ioRegs,
@@ -65,7 +71,12 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 					    llvm::MachineLoopInfo &>(
 					    		hls, toSsa, netlist, MF, backedges, liveness, ioRegs, registerTypes, loops
 				);
-			});
+			};
+			auto addExtraModulePassesCpp = [&addExtraModulePasses](llvm::ModulePassManager &MPM) {
+				addExtraModulePasses.operator() <py::return_value_policy::reference, llvm::ModulePassManager &>(std::ref(MPM));
+			};
+
+			LCB->runOpt(callbackFnCpp, addExtraModulePassesCpp);
 			return returnObj;
 		})
 		.def("runExprOpt", &hwtHls::LlvmCompilationBundle::runExprOpt)
