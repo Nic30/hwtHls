@@ -105,7 +105,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
         if n.hasSideeffect():
             return False
         elif isinstance(n, HlsNetNodeAggregate):
-            return not n.subNodes and not n._outputs
+            return not n.subNodes or all(sn._isMarkedRemoved for sn in n.subNodes) and not n._outputs
         else:
             if not isinstance(n, HlsNetNode):
                 raise AssertionError(n)
