@@ -9,7 +9,7 @@ from hwtHls.frontend.indexExpansion import PyObjectRequiresExpandBeforeUse
 from hwtHls.frontend.pragma import _PyBytecodeInstructionPragma, _PyBytecodeIntrinsic, \
     _PyBytecodePragma
 from hwtHls.llvm.llvmIr import IRBuilder, Value, ValueToInstruction, BasicBlock, \
-    OverflowingBinaryOperator
+    OverflowingBinaryOperator, MDNode, ThreadSplitSectionMetadata, LLVMContext
 from hwtHls.netlist.hdlTypeVoid import HVoidData
 
 
@@ -49,7 +49,7 @@ class PyBytecodeIntrinsicAssume(_PyBytecodeIntrinsic):
         return b.CreateAssumption(args[0])
 
 
-class ThreadSplitContext():
+class ThreadSplitSection():
     """
     Syntax sugar for PyBytecodeIntrinsicThreadSplitBegin/End
     
@@ -65,18 +65,32 @@ class ThreadSplitContext():
     """
 
     def __init__(self, name: str, asyncBegin=False, asyncEnd=False,
-                 aggregateInputs=True, aggregateOutputs=True):
+                 aggregateInputs=True, aggregateOutputs=True, inputBufferCapacity=0, outputBufferCapacity=0):
         self.name = name
         self.asyncBegin = asyncBegin
         self.asyncEnd = asyncEnd
         self.aggregateInputs = aggregateInputs
         self.aggregateOutputs = aggregateOutputs
 
+        self.inputBufferCapacity = inputBufferCapacity
+        self.outputBufferCapacity = outputBufferCapacity
+        self.metadata: Optional[MDNode] = None
+
+    def getLlvmMetadata(self, ctx: LLVMContext):
+        if self.metadata is None:
+            md = ThreadSplitSectionMetadata(
+                self.name,
+                self.aggregateInputs, self.asyncBegin,
+                self.aggregateOutputs, self.asyncEnd,
+                self.inputBufferCapacity, self.outputBufferCapacity)
+            self.metadata = md.toMetadata(ctx)
+        return self.metadata
+
     def begin(self):
-        return PyBytecodeIntrinsicThreadSplitBegin(self.name, self.asyncBegin, self.aggregateInputs)
+        return PyBytecodeIntrinsicThreadSplitBegin(self)
 
     def end(self):
-        return PyBytecodeIntrinsicThreadSplitEnd(self.name, self.asyncEnd, self.aggregateOutputs)
+        return PyBytecodeIntrinsicThreadSplitEnd(self)
 
 
 class PyBytecodeIntrinsicThreadSplitBegin(_PyBytecodePragma):
@@ -92,24 +106,24 @@ class PyBytecodeIntrinsicThreadSplitBegin(_PyBytecodePragma):
     * PHIs of parent loops are sinked if possible to reduce inter-thread communication.
     """
 
-    def __init__(self, name: str, mayBecomeAsync: bool, aggregateIO: bool):
-        self.name = name
-        self.mayBecomeAsync = mayBecomeAsync
-        self.aggregateIO = aggregateIO
+    def __init__(self, section: ThreadSplitSection):
+        self.section = section
 
     @override
     def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction):
-        return pyToSsa.toLlvm.b.CreateThreadSplitBegin(self.name, self.mayBecomeAsync, self.aggregateIO)
+        call = pyToSsa.toLlvm.b.CreateThreadSplitBegin(self.section.name, self.section.getLlvmMetadata(pyToSsa.toLlvm.ctx))
+        return call
 
 
 class PyBytecodeIntrinsicThreadSplitEnd(_PyBytecodePragma):
 
-    def __init__(self, name: str, mayBecomeAsync: bool, aggregateIO: bool):
-        PyBytecodeIntrinsicThreadSplitBegin.__init__(self, name, mayBecomeAsync, aggregateIO)
+    def __init__(self, section: ThreadSplitSection):
+        PyBytecodeIntrinsicThreadSplitBegin.__init__(self, section)
 
     @override
     def apply(self, pyToSsa: "PyBytecodeToSsa", frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction):
-        return pyToSsa.toLlvm.b.CreateThreadSplitEnd(self.name, self.mayBecomeAsync, self.aggregateIO)
+        call = pyToSsa.toLlvm.b.CreateThreadSplitEnd(self.section.name, self.section.getLlvmMetadata(pyToSsa.toLlvm.ctx))
+        return call
 
 
 class setHasNoUnsignedWrap(PyObjectRequiresExpandBeforeUse):

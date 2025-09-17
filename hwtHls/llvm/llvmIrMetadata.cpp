@@ -225,6 +225,24 @@ void register_MDNode(pybind11::module_ & m) {
 	m.def("HwtHlsIoMetadata_get", [](llvm::Function & F) { return HwtHlsIoMetadata_get(F); });
     m.def("HwtHlsIoMetadata_set", [](llvm::Function & F, const llvm::SmallVector<HwtHlsIoMetadata> & mds) { HwtHlsIoMetadata_set(F, mds);});
 
+    py::class_<hwtHls::ThreadSplitSectionMetadata> _ThreadSplitSectionMetadata(m, "ThreadSplitSectionMetadata");
+    _ThreadSplitSectionMetadata
+		.def(py::init<>())
+		.def(py::init<std::string, bool, bool, bool, bool, size_t, size_t>())
+		.def_readwrite("name", &ThreadSplitSectionMetadata::name)
+		.def_readwrite("aggregateInputs", &ThreadSplitSectionMetadata::aggregateInputs)
+		.def_readwrite("beginMayBeAsync", &ThreadSplitSectionMetadata::beginMayBeAsync)
+		.def_readwrite("aggregateOutputs", &ThreadSplitSectionMetadata::aggregateOutputs)
+		.def_readwrite("endMayBeAsync", &ThreadSplitSectionMetadata::name)
+		.def_readwrite("inputBufferSize", &ThreadSplitSectionMetadata::inputBufferCapacity)
+		.def_readwrite("outputBufferSize", &ThreadSplitSectionMetadata::outputBufferCapacity)
+		.def("toMetadata", [](hwtHls::ThreadSplitSectionMetadata & self, llvm::LLVMContext & Ctx) {
+			return reinterpret_cast<MDNodeWithDeletedDelete*>(self.toMetadata(Ctx));
+		})
+		.def_static("fromMetadata", &ThreadSplitSectionMetadata::fromMetadata)
+		.def_readonly_static("METADATA_NAME", &ThreadSplitSectionMetadata::METADATA_NAME)
+		;
+
 	py::enum_<hwtHls::ByteEnableEncoding> (m, "ByteEnableEncoding")
 		.value("BEE_NONE", hwtHls::ByteEnableEncoding::BEE_NONE)
 		.value("BEE_MASK", hwtHls::ByteEnableEncoding::BEE_MASK)
