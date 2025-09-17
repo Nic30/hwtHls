@@ -6,11 +6,10 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.struct import HStructField
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pragma import _PyBytecodeIntrinsic
-from hwtHls.llvm.llvmIr import MachineInstr, CallInst, AddDefaultFunctionAttributes, Register, Value, \
+from hwtHls.llvm.llvmIr import MachineInstr, CallInst, AddDefaultFunctionAttributes, Value, \
     IRBuilder, FunctionCallee, VectorOfTypePtr, FunctionType, Function, Type
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
@@ -74,8 +73,8 @@ class HardBlockHwModule(_PyBytecodeIntrinsic):
 
     @override
     def translateToLlvm(self, toLlvm: "ToLlvmIrTranslator", b: IRBuilder, args: Tuple[Value]) -> CallInst:
-        #F = self._llvmFunction
-        #if F is None:
+        # F = self._llvmFunction
+        # if F is None:
         #    F = self.F = self._createLlvmFunctionDef(toLlvm)
         _, F = toLlvm.placeholderObjectSlots[self.placeholderObjectId]
         _args = [toLlvm._translateExprInt(self.placeholderObjectId, Type.getIntNTy(toLlvm.ctx, 32))]
@@ -87,7 +86,7 @@ class HardBlockHwModule(_PyBytecodeIntrinsic):
         # res.setOnlyAccessesArgMemory()
         res.setDoesNotAccessMemory()
         return res
-      
+
     def translateMirToNetlist(self,
                               mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
                               mbMeta: MachineBasicBlockMeta,
@@ -126,11 +125,11 @@ class HardBlockHwModule(_PyBytecodeIntrinsic):
         # res.obj.name = name
         # valCache.add(mb, dst, res, True)
 
-    #def translateNetlistToArch(self, n: HlsNetNodeAggregate):
+    # def translateNetlistToArch(self, n: HlsNetNodeAggregate):
     #    """
     #    Produces scheduled ArchElement(s).
     #    * Product will be subject of synchronization resolution algorithm.
-    #    * internal IO will be realized using channels. 
+    #    * internal IO will be realized using channels.
     #
     #    :note: If this method succeeds the node is replaced with ArchElement
     #        and this object is no longer part of any input code.
