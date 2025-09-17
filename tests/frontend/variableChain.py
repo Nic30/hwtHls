@@ -9,7 +9,7 @@ from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.thread import HlsThreadFromPy
+from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
 

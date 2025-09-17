@@ -22,7 +22,7 @@ from hwt.math import log2ceil
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaLoop import PyBytecodeLLVMLoopUnroll
-from hwtHls.frontend.thread import HlsThreadFromPy
+from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 
 

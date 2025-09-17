@@ -12,7 +12,7 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwtHls.architecture.componentGenerators.countBits import CountLeadingZeros
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.thread import HlsThreadFromPy
+from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope

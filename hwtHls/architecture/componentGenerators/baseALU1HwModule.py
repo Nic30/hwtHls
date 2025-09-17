@@ -15,7 +15,7 @@ from hwtHls.architecture.componentGenerator import HlsErrorHighlyInefficientImpl
 from hwtHls.frontend.pragmaLoop import PyBytecodeLLVMLoopUnroll
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.thread import HlsThreadFromPy
+from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.read import HlsNetNodeRead

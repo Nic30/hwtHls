@@ -16,7 +16,7 @@ from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_without_registration
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaPreproc import PyBytecodeBlockLabel
-from hwtHls.frontend.thread import HlsThreadFromPy
+from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.commonHwIO.addr_data import HwIOAddrDataVldRdVld
 
@@ -140,6 +140,8 @@ class ExampleCam(HwModule):
             hls.write(Concat(*reversed(match_bits)), self.out)
 
     def updateThread(self, hls: HlsScope, record_t: HStruct, keysOut: List[HwIOStruct]):
+        # :note: this spawns a variable for each item, this hard to optimize later,
+        #   using LLVM compatible arrays is preffered
         keys = [hls.var(f"k{i:d}", record_t) for i in range(self.ITEMS)]
         # initial reset
         for k in keys:

@@ -8,7 +8,7 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.frontend.netlist import HlsThreadFromNetlist
+from hwtHls.frontend.threadFromNetlist import HlsThreadFromNetlist
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline

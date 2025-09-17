@@ -9,7 +9,7 @@ from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwtHls.code import zextToTy
-from hwtHls.frontend.thread import HlsThreadFromPy
+from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4StreamSegmented
 from hwtHls.io.amba.axi4Stream.stmRead import HlsStmReadAxi4StreamSegmented
 from hwtHls.scope import HlsScope

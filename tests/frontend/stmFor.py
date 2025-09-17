@@ -8,7 +8,7 @@ from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaPreproc import PyBytecodeBlockLabel
-from hwtHls.frontend.thread import HlsThreadFromPy
+from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 
 

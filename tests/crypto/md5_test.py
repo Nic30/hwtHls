@@ -16,7 +16,7 @@ from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaFunction import PyBytecodeSkipPass
 from hwtHls.frontend.pragmaLoop import PyBytecodeLLVMLoopUnroll
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
-from hwtHls.frontend.thread import HlsThreadFromPy
+from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
 from tests.crypto.md5 import md5_accumulator_t, md5ProcessChunk, \

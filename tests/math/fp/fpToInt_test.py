@@ -12,7 +12,7 @@ from hwt.hwParam import HwParam
 from hwt.hwModule import HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
-from hwtHls.frontend.thread import HlsThreadFromPy
+from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import int64_t
 from hwtSimApi.utils import freq_to_period

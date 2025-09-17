@@ -8,7 +8,7 @@ from hwt.hwModule import HwModule
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaPreproc import PyBytecodePreprocHwCopy
-from hwtHls.frontend.thread import HlsThreadFromPy
+from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
 from tests.baseSsaTest import BaseSsaTC
@@ -86,12 +86,15 @@ class HlsPythonTupleAssign_TC(BaseSsaTC):
 
 
 if __name__ == "__main__":
-    # from hwt.synth import to_rtl_str
-    # from hwtHls.platform.virtual import VirtualHlsPlatform
-    # from hwtHls.platform.debugBundle import HlsDebugBundle
+    from hwt.synth import to_rtl_str
+    from hwtHls.platform.virtual import VirtualHlsPlatform
+    from hwtHls.platform.debugBundle import HlsDebugBundle
+    from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 
-    # m = HlsPythonTupleAssign()
-    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m = HlsPythonSwap()
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
+        # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED],
+        debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
 

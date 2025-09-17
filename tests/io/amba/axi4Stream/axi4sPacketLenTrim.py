@@ -13,7 +13,7 @@ from hwtHls.frontend.pragmaInstruction import PyBytecodeIntrinsicAssume,\
     setHasNoUnsignedWrap
 from hwtHls.frontend.pragmaLoop import PyBytecodeStreamLoopUnroll
 from hwtHls.frontend.pragmaPreproc import PyBytecodeBlockLabel
-from hwtHls.frontend.thread import HlsThreadFromPy
+from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4s import Axi4Stream

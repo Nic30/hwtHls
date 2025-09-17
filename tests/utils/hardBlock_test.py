@@ -12,7 +12,7 @@ from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.hardBlock import HardBlockHwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.thread import HlsThreadFromPy
+from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.llvm.llvmIr import Attribute, CallInst, Function, AddDefaultFunctionAttributes
 from hwtHls.llvm.llvmIr import MachineInstr
 from hwtHls.netlist.builder import HlsNetlistBuilder

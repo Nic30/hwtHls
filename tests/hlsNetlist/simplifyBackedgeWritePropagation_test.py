@@ -5,7 +5,7 @@ from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
-from hwtHls.frontend.netlist import HlsThreadFromNetlist
+from hwtHls.frontend.threadFromNetlist import HlsThreadFromNetlist
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \

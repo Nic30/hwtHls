@@ -9,7 +9,7 @@ from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwModule import HwModule
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.thread import HlsThreadFromPy
+from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from pyMathBitPrecise.bit_utils import mask

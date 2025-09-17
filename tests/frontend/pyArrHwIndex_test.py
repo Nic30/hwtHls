@@ -4,7 +4,7 @@
 from io import StringIO
 import os
 
-from hwtHls.frontend.thread import HlsThreadFromPy
+from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from tests.baseSsaTest import BaseSsaTC, TestFinishedSuccessfuly, BaseTestPlatform
