@@ -747,11 +747,52 @@ class VRegIfConverter_TC(BaseLlvmMirTC):
         # it original register (%5) is overrwriten before use of negated value (%6)
         self._test_mir_file()
 
+    def test_HWTFPGA_CLOAD_dst_preservedOnNoLoad(self):
+        # :note: when ifConverting bb.3 the mux should be reated for %8
+        llvmIr = f"""\
+        bb.0.{self.getTestName()}:
+          successors: %bb.1(0x80000000); %bb.1(100.00%)
+        
+          %0:anyregcls = HWTFPGA_ARG_GET 0
+          %1:anyregcls = HWTFPGA_ARG_GET 1
+          %7:anyregcls = HWTFPGA_MUX i1 false
+          %8:anyregcls = HWTFPGA_MUX i8 0
+        
+        bb.1.WhileSendSequence1.mainLoop:
+        ; predecessors: %bb.0, %bb.2, %bb.3
+          successors: %bb.2(0x40000000), %bb.3(0x40000000); %bb.2(50.00%), %bb.3(50.00%)
+        
+          %2:anyregcls = HWTFPGA_MUX killed %8:anyregcls
+          %3:anyregcls = HWTFPGA_ICMP intpred(ne), %2:anyregcls, i8 0
+          %4:anyregcls = HWTFPGA_OR killed %7:anyregcls, killed %3:anyregcls
+          %6:anyregcls = HWTFPGA_NOT killed %4:anyregcls
+          HWTFPGA_BRCOND killed %6:anyregcls, %bb.3
+        
+        bb.2.WhileSendSequence1.whileSize:
+        ; predecessors: %bb.1
+          successors: %bb.3(0x40000000), %bb.1(0x40000000); %bb.3(50.00%), %bb.1(50.00%)
+        
+          HWTFPGA_CSTORE %2:anyregcls, %1:anyregcls, 0, 8, 1 :: (volatile store (s8) into %ir.dataOut, addrspace 2)
+          %8:anyregcls = HWTFPGA_ADD %2:anyregcls, i8 -1
+          %5:anyregcls(s1) = HWTFPGA_ICMP intpred(ne), killed %2:anyregcls, i8 1
+          %7:anyregcls = HWTFPGA_MUX i1 true
+          HWTFPGA_BRCOND killed %5:anyregcls(s1), %bb.1
+        
+        bb.3.WhileSendSequence1.read.oldLatch:
+        ; predecessors: %bb.1, %bb.2
+          successors: %bb.1(0x80000000); %bb.1(100.00%)
+        
+          %8:anyregcls = HWTFPGA_CLOAD %0:anyregcls, 0, 8, 1 :: (volatile load (s8) from %ir.dataIn, addrspace 1)
+          %7:anyregcls = HWTFPGA_MUX i1 false
+          HWTFPGA_BR %bb.1
+        """
+        self._test_mir(llvmIr)
+
 
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([VRegIfConverter_TC('test_for2add')])
     suite = testLoader.loadTestsFromTestCase(VRegIfConverter_TC)
+    # suite = unittest.TestSuite([VRegIfConverter_TC('test_HWTFPGA_CLOAD_dst_preservedOnNoLoad')])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
