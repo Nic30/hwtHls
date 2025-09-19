@@ -341,7 +341,7 @@ class IoProxyAxi4Lite(IoProxyAddressed):
             padding = builder.buildConst(HBits(wWordWidth - rWordWidth).from_py(None))
             rDataO = builder.buildConcat(rDataO, padding)
         else:
-            assert rWordWidth == wWordWidth
+            assert not self.interface.HAS_W or rWordWidth == wWordWidth
 
         valCache.add(mbMeta.block, instrDstReg, rDataO, True)
         return rNode
