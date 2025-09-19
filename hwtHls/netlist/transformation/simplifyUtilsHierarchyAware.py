@@ -42,6 +42,7 @@ def replaceOperatorNodeWith(n: HlsNetNodeOperator,
     disconnectAllInputs(n, worklist)
     if n.scheduledOut is not None:
         scheduleUncheduledDummyAlap(newO, n.scheduledOut[0])
+        
     n.markAsRemoved()
     
 

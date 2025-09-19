@@ -6,7 +6,7 @@ from hwt.hdl.operatorDefs import HwtOps, HOperatorDef, ALWAYS_COMMUTATIVE_OPS
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.slice import HSlice
 from hwt.pyUtils.setList import SetList
-from hwtHls.netlist.builder import HlsNetlistBuilder,\
+from hwtHls.netlist.builder import HlsNetlistBuilder, \
     HlsNetlistBuilderWithWorklist
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
@@ -184,7 +184,8 @@ def popConcatOfSlices(o: HlsNetNodeOut, depthLimit: int) -> Generator[Tuple[HlsN
         yield (o, 0, o._dtype.bit_length())
 
 
-ShiftValueBitsTuple = Tuple[HlsNetNodeOut, int, int] # vMember, beginBitI, endBitI
+ShiftValueBitsTuple = Tuple[HlsNetNodeOut, int, int]  # vMember, beginBitI, endBitI
+
 
 def netlistReduceMuxToShift(builder: HlsNetlistBuilder, n: HlsNetNodeMux, worklist: SetList[HlsNetNode]):
     assert len(n._inputs) % 2 == 1, n
@@ -271,6 +272,7 @@ def netlistReduceMuxConstantConditionsAndChildMuxSink(n: HlsNetNodeMux, worklist
     newCondSet: Set[HlsNetNodeOut] = set()
     newOps: List[HlsNetNodeIn] = []
     newValSet: Set[HlsNetNodeIn] = set()
+
     for (v, c) in n._iterValueConditionDriverPairs():
         if c is not None and isinstance(c.obj, HlsNetNodeConst):
             if c.obj.val:
@@ -756,7 +758,7 @@ def netlistReduceMux(n: HlsNetNodeMux, worklist: SetList[HlsNetNode]):
                 return True
 
         if inpCnt > 2:
-            #if netlistReduceMuxToShift(builder, n, worklist):
+            # if netlistReduceMuxToShift(builder, n, worklist):
             #    return True
             if netlistReduceMuxSinkIncommingValueArithOperators(n, worklist):
                 return True
