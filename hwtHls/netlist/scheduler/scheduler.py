@@ -59,30 +59,53 @@ def alapSchedulePartlyScheduled(o: HlsNetNodeOut,
     :param beforeSchedulingFn: :see: :func:`asapSchedulePartlyScheduled`
     """
     n: HlsNetNode = o.obj
-    if n.scheduledOut is None:
-        if beforeSchedulingFn is not None and not beforeSchedulingFn(n):
-            return
+    if n.scheduledOut is not None:
+        return
 
-        netlist: "HlsNetlistCtx" = n.netlist
-        clkPeriod = netlist.normalizedClkPeriod
-        epsilon = netlist.scheduler.epsilon
-        ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
-        toSearch = [n]
-        while toSearch:
-            n1 = toSearch.pop()
-            if n1.scheduledOut is None:
-                if beforeSchedulingFn is not None and not beforeSchedulingFn(n1):
-                    continue
+    if beforeSchedulingFn is not None and not beforeSchedulingFn(n):
+        return
 
-                for dep in n1.dependsOn:
-                    toSearch.append(dep.obj)
+    netlist: "HlsNetlistCtx" = n.netlist
+    clkPeriod = netlist.normalizedClkPeriod
+    epsilon = netlist.scheduler.epsilon
+    ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
+    toSearch = SetList([n])
+    toSearchNext = SetList([])
+    while toSearch:
+        n1 = toSearch.pop()
+        if not toSearch:
+            toSearch = toSearchNext
+            toSearchNext = toSearch
 
-                if n1.isMulticlock:
-                    n1._setScheduleZeroTimeMultiClock(endOfLastClk, clkPeriod, epsilon, ffdelay)
-                else:
-                    n1._setScheduleZeroTimeSingleClock(endOfLastClk)
-                if n1.parent is not None:
-                    n1.parent._addNodeIntoScheduled(n1.scheduledZero // clkPeriod, n1, allowNewClockWindow=allowNewClockWindow)
+        if n1.scheduledOut is not None:
+            continue
+
+        if beforeSchedulingFn is not None and not beforeSchedulingFn(n1):
+            continue
+
+        for dep in n1.dependsOn:
+            if dep.obj.scheduledOut is None:
+                toSearchNext.append(dep.obj)
+
+        if n1.isMulticlock:
+            n1._setScheduleZeroTimeMultiClock(endOfLastClk, clkPeriod, epsilon, ffdelay)
+        else:
+            n1._setScheduleZeroTimeSingleClock(endOfLastClk)
+
+        if n1.parent is not None:
+            n1.parent._addNodeIntoScheduled(n1.scheduledZero // clkPeriod, n1, allowNewClockWindow=allowNewClockWindow)
+
+        for dep, inT in zip(n1.dependsOn, n1.scheduledIn):
+            dep: HlsNetNodeOut
+            inT: SchedTime
+            if dep.obj.scheduledOut is None:
+                continue
+            if dep.obj.scheduledOut[dep.out_i] > inT:
+                n2: HlsNetNode = dep.obj
+                # [todo] collect conflicting nodes in advance
+                for _ in n2.scheduleAsapCompaction(beginOfClk(inT, clkPeriod), None):
+                    pass
+                assert n2.scheduledOut[dep.out_i] <= inT, ("alapSchedulePartlyScheduled failed because inputs have time larger than output", n1, n2, n2.scheduledOut[dep.out_i], inT)
 
 
 class HlsScheduler():
@@ -247,7 +270,7 @@ class HlsScheduler():
         if self.debug and dbgDir:
             from hwtHls.netlist.translation.dumpSchedulingJson import HlsNetlistAnalysisPassDumpSchedulingJson
             from hwtHls.platform.fileUtils import outputFileGetter
-        
+
         self._scheduleAsap()
         self._checkAllNodesScheduled()
 
@@ -273,7 +296,7 @@ class HlsScheduler():
                     HlsNetlistAnalysisPassDumpSchedulingJson(
                         outputFileGetter(dbgDir, "schedulingDbg.2.asap1.hwschedule.json"),
                         expandCompositeNodes=True).runOnHlsNetlist(self.netlist)
-            
+
             self._scheduleAlapCompaction(True)
             if self.debug:
                 self._checkAllNodesScheduled()
