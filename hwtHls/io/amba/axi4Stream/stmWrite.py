@@ -56,7 +56,7 @@ class HlsStmWriteAxi4StreamSegmented(HlsWrite):
         self.eof = eof
 
     def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
-        dst, _ = getArgumentForHwIO(toLlvm, self.dst, self, True)
+        dst, _ = getArgumentForHwIO(toLlvm, self.dst, self._parent._ioProxyForIo[self.dst], self, True)
         dst: Argument
         bb, src = toLlvm._translateExprToLlvm(bb, self.src)
 
