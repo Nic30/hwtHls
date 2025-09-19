@@ -98,10 +98,9 @@ def ArchElementValuePropagation(dbgTracer: DebugTracer,
             if n._isMarkedRemoved:
                 continue
 
-            builder = n.getHlsNetlistBuilder()
             if isinstance(n, HlsNetNodeOperator):
                 if HlsNetlistPassSimplify._isTriviallyDead(n):
-                    builder.unregisterNode(n)
+                    n.getHlsNetlistBuilder().unregisterNode(n)
                     disconnectAllInputs(n, worklist)
                     n.markAsRemoved()
                     continue
@@ -119,7 +118,7 @@ def ArchElementValuePropagation(dbgTracer: DebugTracer,
 
             elif isinstance(n, HlsNetNodeConst):
                 if HlsNetlistPassSimplify._isTriviallyDead(n):
-                    builder.unregisterNode(n)
+                    n.getHlsNetlistBuilder().unregisterNode(n)
                     disconnectAllInputs(n, worklist)
                     n.markAsRemoved()
                     continue
