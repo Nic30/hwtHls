@@ -189,7 +189,7 @@ class HlsNetlistCtx(AnalysisCache):
         """
         :attention: Highly inefficient intended only for debugging
         """
-        for n in self.iterAllNodes():
+        for n in self.iterAllNodesFlat(NODE_ITERATION_TYPE.PREORDER):
             if n._id == _id:
                 return n
         raise ValueError("Node with requested id not found", _id)
