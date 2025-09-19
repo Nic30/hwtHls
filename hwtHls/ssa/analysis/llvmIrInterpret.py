@@ -4,6 +4,7 @@ from operator import add, truediv, mod, sub, mul
 import re
 from typing import Generator, Union, Optional, Callable, Sequence
 
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.const import HConst
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
@@ -16,7 +17,8 @@ from hwtHls.llvm.llvmIr import Function, BasicBlock, InstructionToCallInst, \
     ValueToConstantFP, TypeToPointerType, TypeToIntegerType, IntegerType, \
     LLVMStringContext, ValueToUndefValue, TypeToArrayType, ArrayType, \
     Intrinsic, ValueToAllocaInst, ValueToConstantArray, ValueToConstantDataArray, IsStreamIo, Value, PHINode, \
-    Module, Argument, InstructionToGetElementPtrInst
+    Module, Argument, InstructionToGetElementPtrInst, HwtHlsIoMetadata, HwtHlsIoMetadata_get, \
+    AllocaInst, StreamChannelProps
 from hwtHls.ssa.analysis.llvmIrInterpretCall import _decodeOpcode_CallInst
 from hwtHls.ssa.analysis.llvmIrInterpretFP import _decodeIntrinsic_fp_castToHFloatTmp, \
     _decodeIntrinsic_fp_castFromHFloatTmp, _decodeIntrinsic_fp_unspecialized_shr, \
@@ -47,6 +49,7 @@ from pyMathBitPrecise.bit_utils import to_unsigned
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 from tests.math.hFloatTmp.hFloatTmpConst import HFloatTmpConst
 from tests.math.hFloatTmp.hFloatTmpOps import fpowi, fpow
+
 
 LlvmIrInterpretArgs = tuple[Generator[Union[int, HConst], None, None], list[HConst], ...]
 
@@ -146,6 +149,7 @@ class LlvmIrInterpret():
         self.strCtx: LLVMStringContext = strCtx
         self.codelineOffset: int = 0
         self.fnArgs: Optional[LlvmIrInterpretArgs] = None
+        self.ioMetadata: list[HwtHlsIoMetadata] = HwtHlsIoMetadata_get(F)
         self.streamIoHandler = LlvmIrInterpretStreamIo(self)
         # instructions with special handling of operands
         self._dispatchDict0: dict[int, Callable] = {
@@ -335,9 +339,28 @@ class LlvmIrInterpret():
         assert load is not None, instr
         srcPtr, = load.iterOperandValues()
         srcPtrAsArg = ValueToArgument(srcPtr)
-        if srcPtrAsArg is not None:
+        if srcPtrAsArg is None:
+            # load with GEP from GlobalVariable
+            width = instr.getType().getScalarSizeInBits()
+            srcAlloca = ValueToAllocaInst(srcPtr)
+            if srcAlloca is not None:
+                srcAlloca: AllocaInst
+                streamOffsetMd = srcAlloca.getMetadata(self.strCtx.addStringRef(StreamChannelProps.METADATA_NAME_TMP_VAR_DATA_OFFSET))
+                if streamOffsetMd is not None:
+                    return self.streamIoHandler._decodeLoadFromStreamTmpVar_offset(instr, srcAlloca, streamOffsetMd)
+ 
+
+            def _opcode_Load(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
+                res = _getItemFromLocalPointer(regs, srcPtr, width, instr)
+                self._storeInstrResult(waveLog, nowTime, regs, instr, res)
+
+        else:
+
             t = TypeToPointerType(srcPtrAsArg.getType())
-            ioValues = self.fnArgs[t.getAddressSpace() - 1]
+            argI = t.getAddressSpace() - 1
+            ioValues = self.fnArgs[argI]
+            ioMd: HwtHlsIoMetadata = self.ioMetadata[argI]
+            isBlocking = ioMd.isBlocking
 
             def _opcode_Load(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
                 try:
@@ -348,17 +371,14 @@ class LlvmIrInterpret():
                 assert isinstance(res, HConst) and \
                     isinstance(res._dtype, HBits) and\
                     not res._dtype.signed, ("Input value must be must be unsigned BitsVal", instr, res)
-                assert res._dtype.bit_length() == instr.getType().getScalarSizeInBits(), (
-                    "Input value must be must have correct width", instr, res)
+                if isBlocking:
+                    assert res._dtype.bit_length() == instr.getType().getScalarSizeInBits(), (
+                        "Input value must be must have correct width", instr, res)
+                else:
+                    assert res._dtype.bit_length() + 1 == instr.getType().getScalarSizeInBits(), (
+                        "Input value must be must have correct width", instr, res)
+                    res = b1._concat(res)  # concat with valid=1
                 # print("  load", instr, res)
-                self._storeInstrResult(waveLog, nowTime, regs, instr, res)
-
-        else:
-            # load with GEP from GlobalVariable
-            width = instr.getType().getScalarSizeInBits()
-
-            def _opcode_Load(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
-                res = _getItemFromLocalPointer(regs, srcPtr, width, instr)
                 self._storeInstrResult(waveLog, nowTime, regs, instr, res)
 
         return _opcode_Load

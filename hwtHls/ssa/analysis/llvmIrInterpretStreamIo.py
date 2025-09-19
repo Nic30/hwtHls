@@ -11,7 +11,8 @@ from hwtHls.llvm.llvmIr import Argument, BasicBlock, ValueToConstantInt, ValueTo
     IsStreamReadStartOfFrame, IsStreamReadEndOfFrame, IsStreamWrite, IsStreamWriteMasked, IsStreamWriteStartOfFrame, \
     IsStreamWriteEndOfFrame, streamReadGetOrigChunkBitWidth, streamWriteGetOrigChunkBitWidth, \
     streamWriteGetWriteData, streamWriteGetWriteMask, streamWriteGetWriteEoF, StreamChannelFormatInfo, \
-    Value, ByteEnableEncoding, streamReadGetIsReliable
+    Value, ByteEnableEncoding, streamReadGetIsReliable, IsStreamTmpAllocaTmpSetterPlaceholder, \
+    MetadataToValueAsMetadata, MDNode, LoadInst, AllocaInst
 from hwtHls.ssa.analysis.llvmIrInterpretUtils import SimIoUnderflowErr, \
     LlvmIrInstrFunction
 from pyDigitalWaveTools.vcd.writer import VcdWriter
@@ -406,7 +407,7 @@ class LlvmIrInterpretStreamIo():
 
         elif IsStreamReadEndOfFrame(instr):
             assert ioArg
-            
+
             def _intrinsic_StreamReadEndOfFrame(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
                 curTmp = self._streamIoTmpWords.get(ioArg, None)
                 assert curTmp is None, ("The frame does not end when expected", instr, curTmp)
@@ -415,12 +416,38 @@ class LlvmIrInterpretStreamIo():
 
         elif IsStreamWriteEndOfFrame(instr):
             assert ioArg
-            
+
             def _intrinsic_StreamWriteEndOfFrame(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
                 curTmp = self._streamIoTmpWords.get(ioArg, None)
                 assert curTmp is None, ("There was no write with EoF when EoF was expected", instr, curTmp)
 
             return _intrinsic_StreamWriteEndOfFrame
+        elif IsStreamTmpAllocaTmpSetterPlaceholder(instr):
+            # assert ioArg
 
+            def _intrinsic_StreamTmpAllocaTmpSetterPlaceholder(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
+                pass
+
+            return _intrinsic_StreamTmpAllocaTmpSetterPlaceholder
         else:
             raise NotImplementedError("Unknown streamIO intrinsic", instr)
+
+    def _decodeLoadFromStreamTmpVar_offset(self, instr: LoadInst, srcAlloca: AllocaInst, streamOffsetMd: MDNode):
+        assert streamOffsetMd.getNumOperands() == 1, streamOffsetMd
+        ioIdMd = streamOffsetMd.getOperand(0).get()
+        ioIdV = MetadataToValueAsMetadata(ioIdMd).getValue()
+        ioId = ValueToConstantInt(ioIdV).getValue().getZExtValue()
+        ioArg = self.interpret.F.getArg(ioId)
+        interpret = self.interpret
+        resT = HBits(instr.getType().getIntegerBitWidth())
+        DW = self._streamProps[ioArg].dataWidth
+        def _opcode_LoadInst_streamTmpVar_offset(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
+            tmpWord = self._streamIoTmpWords.get(ioArg, None)
+            if tmpWord is None:
+                res = 0
+            else:
+                res = DW - tmpWord[0]._dtype.bit_length()
+                assert res >= 0, (DW, tmpWord)
+            interpret._storeInstrResult(waveLog, nowTime, regs, instr, resT.from_py(res))
+
+        return _opcode_LoadInst_streamTmpVar_offset

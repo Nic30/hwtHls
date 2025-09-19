@@ -7,6 +7,8 @@
 #include <hwtHls/llvm/targets/intrinsic/threadSplit.h>
 #include <hwtHls/llvm/targets/intrinsic/StreamChannelFormatInfo.h>
 #include <hwtHls/llvm/Transforms/utils/metadataHwtHlsIO.h>
+#include <hwtHls/llvm/Transforms/streamIoLoweringPass/StreamChannelProps.h>
+
 
 namespace py = pybind11;
 
@@ -254,6 +256,11 @@ void register_MDNode(pybind11::module_ & m) {
 		.value("FRAMING_EOF", hwtHls::FramingSignalizationEconding::FRAMING_EOF)
 		.value("FRAMING_SOF_EOF", hwtHls::FramingSignalizationEconding::FRAMING_SOF_EOF)
 		.export_values();
+
+	py::class_<hwtHls::StreamChannelProps> _StreamChannelProps(m, "StreamChannelProps");
+	_StreamChannelProps
+		.def_readonly_static("METADATA_NAME_TMP_VAR_DATA_OFFSET", &hwtHls::StreamChannelProps::METADATA_NAME_TMP_VAR_DATA_OFFSET);
+
 
 	py::class_<hwtHls::StreamChannelFormatInfo> _StreamChannelFormatInfo(m, "StreamChannelFormatInfo");
 	_StreamChannelFormatInfo
