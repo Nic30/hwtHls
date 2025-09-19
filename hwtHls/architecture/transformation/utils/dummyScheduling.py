@@ -56,9 +56,7 @@ def scheduleUncheduledDummyAlap(out: HlsNetNodeOut, alapTime: SchedTime, allowNe
     """
     :param alapTime: end of last clk window
     """
-    schedOut = out.obj.scheduledOut
-    if schedOut is None:
-        alapSchedulePartlyScheduled(out, setUnscheduledNodeRealizationToCombForSyncLogic, alapTime, allowNewClockWindow)
+    alapSchedulePartlyScheduled(out, setUnscheduledNodeRealizationToCombForSyncLogic, alapTime, allowNewClockWindow)
 
 
 def scheduledUnscheduedDummyAsap(out: HlsNetNodeOut, beginOfFirstClk: SchedTime):
