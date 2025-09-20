@@ -87,7 +87,7 @@ Instruction* HwtHlsInstCombiner::tryReduceCmpInst_hoistConstICmpOnConstArithAndS
 	// from this reason we just add select and expect that it will be optimized later but this generates 3 times more instructions which then
 	// are likely to fall apart to up to (3+4)x more instructions as select is rewritten into and/or/not
 	auto rhs = I.getOperand(1);
-	if (!isa<Constant>(rhs))
+	if (!isa<ConstantInt>(rhs))
 		return nullptr;
 	auto cmpRhsVal = dyn_cast<ConstantInt>(rhs)->getValue();
 	auto lhs = I.getOperand(0);
