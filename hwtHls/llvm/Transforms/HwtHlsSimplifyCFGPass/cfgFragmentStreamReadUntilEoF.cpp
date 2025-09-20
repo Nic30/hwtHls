@@ -19,7 +19,6 @@ CallInst* StreamReadUntilEoFCFGFragment::mergeReads(
 		const StreamChannelFormatInfo &streamProps,
 		const llvm::SmallVector<llvm::CallInst*> &reads) {
 	assert(reads.size() > 1);
-	auto *srcIO = reads[0]->getArgOperand(0);
 
 	size_t mergedDataBitWidth = 0;
 	bool mergedReadIsReliable = true;
@@ -53,11 +52,12 @@ CallInst* StreamReadUntilEoFCFGFragment::mergeReads(
 		auto dataWidth = streamReadGetOrigChunkBitWidth(r);
 		//Builder.SetInsertPoint(r);
 		bool rIsLast = reads.back() == r;
-		bool rDataAlwaysPresent = readIndex < reliableReadsCnt;
+		bool rDataAlwaysPresent = readIndex < reliableReadsCnt - 1;
+		bool nextRDataAlwaysPresent = readIndex < reliableReadsCnt && readIndex < reliableReadsCnt - 1;
 		auto partWordForR = mergedReadWord.slice(Builder, dataBitOffset,
 				dataWidth,                                                 //
-				/*isGuaranteedToBeNotEoF*/ rDataAlwaysPresent && !rIsLast, //
-				/*isGuarangeedToContainSomeData*/ rDataAlwaysPresent       //
+				/*isGuaranteedToBeNotEoF*/!rIsLast && nextRDataAlwaysPresent, //
+				/*isGuarangeedToContainSomeData*/rDataAlwaysPresent       //
 				);
 		auto newR = partWordForR.flatten(Builder, nullptr);
 		assert(newR->getType() == r->getType());
