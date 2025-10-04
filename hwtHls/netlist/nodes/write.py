@@ -1,5 +1,7 @@
 from typing import Union, Optional, Generator, Callable
 
+from hwt.hObjList import HObjList
+from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
@@ -11,8 +13,6 @@ from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.interfaceLevel.utils import HwIO_pack, \
     HwIO_connectPacked
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.architecture.syncUtils import HwIO_getSyncSignals, \
-    HwIO_getSyncTuple
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
@@ -57,12 +57,14 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
     _PORT_ATTR_NAMES = HlsNetNodeExplicitSync._PORT_ATTR_NAMES + ["_portSrc"]
 
     def __init__(self, netlist: "HlsNetlistCtx",
+                 ioProxy: "IoProxy",
                  dst: Union[RtlSignal, HwIO, None],
                  mayBecomeFlushable=False,
                  name:Optional[str]=None,
                  bufferCapacity:Optional[int]=None,
                  addSrcPort=True):
         HlsNetNode.__init__(self, netlist, name=name)
+        self.ioProxy = ioProxy
         self._associatedReadSync: Optional["HlsNetNodeReadSync"] = None
         self.associatedRead: Optional[HlsNetNodeRead] = None
         self._initCommonPortProps(dst)
@@ -154,14 +156,14 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
     def scheduleAsap(self, pathForDebug: Optional[SetList["HlsNetNode"]], beginOfFirstClk: int,
                      outputTimeGetter: Optional[OutputTimeGetter]) -> list[int]:
         assert self.dependsOn, self
-        return HlsNetNodeRead.scheduleAsap(self, pathForDebug, beginOfFirstClk, outputTimeGetter)
+        return HlsNetNodeRead.scheduleAsap(self, pathForDebug, beginOfFirstClk, outputTimeGetter, isRead=False)
 
     @override
     def scheduleAlapCompaction(self,
                                endOfLastClk:int,
                                outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter],
                                excludeNode: Optional[Callable[[HlsNetNode], bool]]):
-        return HlsNetNodeRead.scheduleAlapCompaction(self, endOfLastClk, outputMinUseTimeGetter, excludeNode)
+        return HlsNetNodeRead.scheduleAlapCompaction(self, endOfLastClk, outputMinUseTimeGetter, excludeNode, isRead=False)
 
     def _getBufferCapacity(self):
         srcWrite = self
@@ -234,8 +236,14 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
             "If this edge is not buffer this port should not be used, because it would do nothing", self)
         return HlsNetNodeExplicitSync.getForceEnPort(self)
 
+    def _getRtlSyncTuple(self):
+        return self.ioProxy._getRtlSyncTuple(self.dst)
+
+    def _getRtlSyncSignals(self):
+        return self.ioProxy._getRtlSyncSignals(self.dst)
+
     def _rtlAllocReadyPorts(self, allocator: "ArchElement"):
-        readyRtl = HwIO_getSyncTuple(self.dst)[1]
+        readyRtl = self._getRtlSyncTuple()[1]
         if isinstance(readyRtl, int):
             raise NotImplementedError("rtl ready should not be requested because it is constant", self)
 
@@ -244,6 +252,21 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
 
         if self.hasReadyNB():
             allocator.rtlRegisterOutputRtlSignal(self._readyNB, readyRtl, False, False, True)
+
+    def _rtlAlloc_assignToSequenceOfRtlSignal(self, dst: Union[HObjList, tuple], src: RtlSignal, offset: int, rtlObj: list[HdlAssignmentContainer]):
+        for dstItem in dst:
+            if isinstance(dstItem, (HObjList, tuple)):
+                offset = self._rtlAlloc_assignToSequenceOfRtlSignal(dstItem, src, offset, rtlObj)
+            else:
+                w = dstItem._dtype.bit_length()
+                if w == 1:
+                    _src = src[offset]
+                else:
+                    _src = src[w + offset:offset]
+                offset += w
+                rtlObj.append(dstItem(_src))
+
+        return offset
 
     @override
     def rtlAlloc(self, allocator: "ArchElement") -> list[HdlStatement]:
@@ -278,7 +301,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
             rtlObj = []
         else:
             assert dst is not None, ("dst io port should be specified or resolved", self)
-            exclude = HwIO_getSyncSignals(dst)
+            exclude = self._getRtlSyncSignals()
             if isinstance(_o.data, HwIOStruct):
                 rtlObj = dst(_o.data, exclude=exclude)
             elif isinstance(_o.data, RtlSignal) and isinstance(dst, RtlSignal):
@@ -288,6 +311,9 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
                     rtlObj = dst(HwIO_pack(_o.data, exclude=exclude))
                 else:
                     rtlObj = dst(_o.data)
+            elif isinstance(dst, (HObjList, tuple)):
+                rtlObj = []
+                self._rtlAlloc_assignToSequenceOfRtlSignal(dst, _o.data, 0, rtlObj)
             else:
                 rtlObj = HwIO_connectPacked(_o.data, dst, exclude=exclude)
 
@@ -299,7 +325,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         if dst is None:
             rtlVldSignal = None
         else:
-            rtlVldSignal, _ = HwIO_getSyncTuple(dst)
+            rtlVldSignal, _ = self._getRtlSyncTuple()
             if rtlVldSignal == 1:
                 rtlVldSignal = None
         allocator.rtlAllocDatapathWrite(self, rtlVldSignal, allocator.connections[clkI], rtlObj)

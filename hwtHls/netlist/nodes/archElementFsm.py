@@ -12,9 +12,9 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.analysis.fsmStateEncoding import HlsAndRtlNetlistAnalysisPassFsmStateEncoding
 from hwtHls.architecture.connectionsOfStage import \
     setNopValIfNotSet, ConnectionsOfStage, ConnectionsOfStageList
-from hwtHls.architecture.syncUtils import HwIO_getSyncSignals
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME, \
     TimeIndependentRtlResourceItem
+from hwtHls.frontend.ioProxy import IoProxy
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HdlType_isNonData
 from hwtHls.netlist.nodes.archElement import ArchElement
@@ -159,14 +159,13 @@ class ArchElementFsm(ArchElement):
 
         return tir
 
-    def _initNopValsOfIoForHwIO(self, hwIO: Union[HwIO], dir_: INTF_DIRECTION):
+    def _initNopValsOfIoForHwIO(self, hwIO: Union[HwIO], ioProxy: IoProxy, dir_: INTF_DIRECTION):
+        syncSignals = ioProxy._getRtlSyncSignals(hwIO)
         if dir_ == INTF_DIRECTION.MASTER:
             # to prevent latching when interface is not used
-            syncSignals = HwIO_getSyncSignals(hwIO)
             setNopValIfNotSet(hwIO, None, syncSignals)
         else:
             assert dir_ == INTF_DIRECTION.SLAVE, (hwIO, dir_)
-            syncSignals = HwIO_getSyncSignals(hwIO)
 
         for s in syncSignals:
             setNopValIfNotSet(s, 0, ())
@@ -179,11 +178,11 @@ class ArchElementFsm(ArchElement):
             for node in nodes:
                 if isinstance(node, HlsNetNodeWrite):
                     if node.dst is not None:
-                        self._initNopValsOfIoForHwIO(node.dst, INTF_DIRECTION.MASTER)
+                        self._initNopValsOfIoForHwIO(node.dst, node.ioProxy, INTF_DIRECTION.MASTER)
 
                 elif isinstance(node, HlsNetNodeRead):
                     if node.src is not None:
-                        self._initNopValsOfIoForHwIO(node.src, INTF_DIRECTION.SLAVE)
+                        self._initNopValsOfIoForHwIO(node.src, node.ioProxy, INTF_DIRECTION.SLAVE)
 
     @override
     def rtlStatesMayHappenConcurrently(self, stateClkI0: int, stateClkI1: int):

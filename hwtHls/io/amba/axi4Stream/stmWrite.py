@@ -5,21 +5,21 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.statementsWrite import HlsWrite
 from hwtHls.llvm.llvmIr import Argument, BasicBlock
 from hwtHls.ssa.translation.toLlvmArgumentUtils import getArgumentForHwIO
-from hwtLib.amba.axi4s import Axi4Stream
 from hwtLib.amba.axi4SSegmented import Axi4StreamSegmented
+from hwtLib.amba.axi4s import Axi4Stream
 
 
 class HlsStmWriteAxi4Stream(HlsWrite):
 
     def __init__(self,
-        parent:"HlsScope",
-        src:Union[RtlSignal, HConst],
-        mask:Optional[Union[RtlSignal, HConst]],
-        sof:Optional[Union[RtlSignal, HConst]],
-        eof:Optional[Union[RtlSignal, HConst]],
-        dst:Axi4Stream,
-        mayBecomeFlushable:bool=True):
-        HlsWrite.__init__(self, parent, src, dst, src._dtype,
+            ioProxy: "IoProxyAxi4Stream",
+            src: Union[RtlSignal, HConst],
+            mask: Optional[Union[RtlSignal, HConst]],
+            sof: Optional[Union[RtlSignal, HConst]],
+            eof: Optional[Union[RtlSignal, HConst]],
+            dst: Axi4Stream,
+            mayBecomeFlushable: bool=True):
+        HlsWrite.__init__(self, ioProxy, src, dst, src._dtype,
                           # True, # isBlocking,
                           True,  # isVolatile
                           mayBecomeFlushable=mayBecomeFlushable)
@@ -28,7 +28,7 @@ class HlsStmWriteAxi4Stream(HlsWrite):
         self.eof = eof
 
     def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
-        dst, _ = getArgumentForHwIO(toLlvm, self.dst, self._parent._ioProxyForIo[self.dst], self, True)
+        dst, _ = getArgumentForHwIO(toLlvm, self.dst, self._ioProxy, self, True)
         dst: Argument
         bb, src = toLlvm._translateExprToLlvm(bb, self.src)
         bb, mask = toLlvm._translateOptionalIntOrExpr(bb, self.mask, self.dst.DATA_WIDTH // 8)
@@ -40,14 +40,14 @@ class HlsStmWriteAxi4Stream(HlsWrite):
 class HlsStmWriteAxi4StreamSegmented(HlsWrite):
 
     def __init__(self,
-        parent:"HlsScope",
-        src:Union[RtlSignal, HConst],
-        empty:Optional[Union[RtlSignal, HConst]],
-        sof:Optional[Union[RtlSignal, HConst]],
-        eof:Optional[Union[RtlSignal, HConst]],
-        dst:Axi4Stream,
-        mayBecomeFlushable:bool=True):
-        HlsWrite.__init__(self, parent, src, dst, src._dtype,
+            ioProxy: "IoProxyAxi4Stream",
+            src: Union[RtlSignal, HConst],
+            empty: Optional[Union[RtlSignal, HConst]],
+            sof: Optional[Union[RtlSignal, HConst]],
+            eof: Optional[Union[RtlSignal, HConst]],
+            dst: Axi4Stream,
+            mayBecomeFlushable: bool=True):
+        HlsWrite.__init__(self, ioProxy, src, dst, src._dtype,
                           # True,  # isBlocking
                           True,  # isVolatile
                           mayBecomeFlushable=mayBecomeFlushable)
@@ -56,7 +56,7 @@ class HlsStmWriteAxi4StreamSegmented(HlsWrite):
         self.eof = eof
 
     def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
-        dst, _ = getArgumentForHwIO(toLlvm, self.dst, self._parent._ioProxyForIo[self.dst], self, True)
+        dst, _ = getArgumentForHwIO(toLlvm, self.dst, self._ioProxy, self, True)
         dst: Argument
         bb, src = toLlvm._translateExprToLlvm(bb, self.src)
 

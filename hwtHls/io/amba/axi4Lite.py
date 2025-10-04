@@ -1,23 +1,21 @@
 
-from typing import Union, Sequence, Optional, Type as TypingType
+from typing import Union, Sequence, Optional, Type as TypingType, Literal
 
 from hwt.constants import NOT_SPECIFIED
-from hwt.hdl.const import HConst
 from hwt.hdl.types.bitConstFunctions import AnyHBitsValue
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.struct import offsetof
 from hwt.hdl.types.structValBase import HStructConstBase
 from hwt.hwIOs.hwIOStruct import HwIO_to_HdlType
-from hwt.hwIOs.std import HwIOBramPort_noClk
 from hwt.math import log2ceil
+from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ioProxyAddressed import IoProxyAddressed
-from hwtHls.frontend.ioUtils import ANY_SCALAR_INT_VALUE
 from hwtHls.frontend.pyBytecode import hlsLowLevel
 from hwtHls.frontend.statementsRead import HlsReadAddressed
 from hwtHls.frontend.statementsWrite import HlsWriteAddressed
-from hwtHls.llvm.llvmIr import LoadInst, StoreInst, Register, MachineInstr, Value, MetadataIoAxiMM, IoLowerAxiMMPass, MDTuple, \
+from hwtHls.llvm.llvmIr import Register, MachineInstr, MetadataIoAxiMM, IoLowerAxiMMPass, MDTuple, \
     APInt, HwtHlsIoMetadata, MetadataAsMDString, MemoryOrdering
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidExternData, HVoidData
@@ -33,7 +31,7 @@ from hwtLib.amba.axi4Lite import Axi4Lite, Axi4Lite_addr, Axi4Lite_r, Axi4Lite_w
     Axi4Lite_b
 from hwtLib.amba.axi_common import Axi_hs
 from hwtLib.amba.constants import PROT_DEFAULT, RESP_OKAY
-from hwt.pyUtils.typingFuture import override
+from hwtLib.handshaked.streamNode import ValidReadyTuple
 
 
 def _MDTupleGetLastString(md: MDTuple) -> str:
@@ -41,33 +39,11 @@ def _MDTupleGetLastString(md: MDTuple) -> str:
 
 
 class HlsReadAxi4Lite(HlsReadAddressed):
-
-    def __init__(self,
-            parentProxy: "IoProxyAxi4Lite",
-            parent:"HlsScope",
-            src:Axi4Lite,
-            index:RtlSignal,
-            element_t:HdlType,
-            isBlocking: bool,
-            isVolatile:bool,
-            hwIOName: Optional[str]=None):
-        HlsReadAddressed.__init__(self, parent, src, index, element_t, isBlocking, isVolatile, hwIOName=hwIOName)
-        self.parentProxy = parentProxy
+    pass
 
 
 class HlsWriteAxi4Lite(HlsWriteAddressed):
-
-    def __init__(self,
-            parentProxy: "IoProxyAxi4Lite",
-            parent:"HlsScope",
-            src:Union[Value, HConst],
-            dst:Union[HwIOBramPort_noClk, tuple[HwIOBramPort_noClk]],
-            index:ANY_SCALAR_INT_VALUE,
-            element_t:HdlType,
-            isVolatile:bool,
-            mayBecomeFlushable=False):
-        HlsWriteAddressed.__init__(self, parent, src, dst, index, element_t, isVolatile, mayBecomeFlushable)
-        self.parentProxy = parentProxy
+    pass
 
 
 class IoProxyAxi4Lite(IoProxyAddressed):
@@ -93,27 +69,27 @@ class IoProxyAxi4Lite(IoProxyAddressed):
                  memOrdering=MemoryOrdering.MEMORDERING_MUST_WAIT_FOR_WRITE_CONFIRM):
         indexWidth = interface.ADDR_WIDTH - log2ceil(interface.DATA_WIDTH // 8 - 1)
         if interface.HAS_R:
-            rWordT = HwIO_to_HdlType().apply(interface.r, exclude=(interface.r.valid, interface.r.ready))
-            nativeType = rWordT[int(2 ** indexWidth)]
+            _nativeReadTy = self._getTypeOfAxiChannel(interface.r)
+            nativeType = _nativeReadTy[int(2 ** indexWidth)]
             dataWordT = interface.r.data._dtype
         else:
-            rWordT = None
+            _nativeReadTy = None
 
         if interface.HAS_W:
-            wWordT = HwIO_to_HdlType().apply(interface.w, exclude=(interface.w.valid, interface.w.ready))
-            nativeType = wWordT[int(2 ** indexWidth)]
+            _nativeWriteTy = self._getTypeOfAxiChannel(interface.w)
+            nativeType = _nativeWriteTy[int(2 ** indexWidth)]
             dataWordT = interface.w.data._dtype
 
         else:
-            wWordT = None
+            _nativeWriteTy = None
 
         offsetWidth = log2ceil(interface.DATA_WIDTH // 8 - 1)
         assert indexWidth > 1, (interface.ADDR_WIDTH, indexWidth, "Address is of insufficient size because", interface.DATA_WIDTH, offsetWidth)
         IoProxyAddressed.__init__(self, hls, interface, nativeType)
         self.indexT = HBits(indexWidth)
         self.offsetWidth = offsetWidth
-        self.rWordT = rWordT
-        self.wWordT = wWordT
+        self._nativeReadTy = _nativeReadTy
+        self._nativeWriteTy = _nativeWriteTy
         self.dataWordT = dataWordT
         self.LATENCY_AR_TO_R = LATENCY_AR_TO_R
         self.LATENCY_AW_TO_W = LATENCY_AW_TO_W
@@ -232,23 +208,23 @@ class IoProxyAxi4Lite(IoProxyAddressed):
         return md.toMetadata(toLlvm.ctx)
 
     @hlsLowLevel
-    def read(self, index: Union[AnyHBitsValue], dtype: HdlType, isVolatile:bool=True) -> HlsReadAddressed:
-        if dtype.bit_length() != self.rWordT.field_by_name['data'].dtype.bit_length():
-            raise NotImplementedError()
+    def read(self, index: Union[AnyHBitsValue], dtype: HdlType=None, isVolatile:bool=True) -> HlsReadAddressed:
+        if dtype is not None:
+            if dtype.bit_length() != self._nativeReadTy.field_by_name['data'].dtype.bit_length():
+                raise NotImplementedError()
 
         return self.READ_CLS(self,
-                              self.hls,
                               self.interface,
                               index,
-                              self.rWordT,
+                              self._nativeReadTy,
                               isBlocking=True,
                               isVolatile=isVolatile,
                               )
 
     @hlsLowLevel
     def write(self, index: Union[AnyHBitsValue], data: AnyHBitsValue, mask=NOT_SPECIFIED, isVolatile:bool=True, mayBecomeFlushable=True) -> HlsWriteAddressed:
-        if data._dtype.bit_length() != self.wWordT.field_by_name['data'].dtype.bit_length():
-            raise NotImplementedError()
+        if data._dtype.bit_length() != self._nativeWriteTy.field_by_name['data'].dtype.bit_length():
+            raise NotImplementedError(data._dtype, self._nativeWriteTy.field_by_name['data'].dtype)
         maskWidth = data._dtype.bit_length() // 8
         if mask is NOT_SPECIFIED:
             assert mask is not None
@@ -259,17 +235,15 @@ class IoProxyAxi4Lite(IoProxyAddressed):
         data = mask._concat(data)
 
         return self.WRITE_CLS(self,
-                              self.hls,
                               data,
                               self.interface,
                               index,
-                              self.wWordT,
+                              self._nativeWriteTy,
                               isVolatile=isVolatile,
                               mayBecomeFlushable=mayBecomeFlushable
                               )
 
-    @classmethod
-    def _constructAddrWrite(cls,
+    def _constructAddrWrite(self,
             netlist: HlsNetlistCtx,
             mirToNetlist:HlsNetlistAnalysisPassMirToNetlist,
             parent: ArchElement,
@@ -284,10 +258,9 @@ class IoProxyAxi4Lite(IoProxyAddressed):
             prot = parent.builder.buildConst(addr.prot._dtype.from_py(prot))
 
         aVal = parent.builder.buildConcat(HBits(offsetWidth).from_py(0), addrVal, prot)
-        return cls._constructAddrWriteRaw(netlist, mirToNetlist, parent, mbSync, addr, aVal, cond)
+        return self._constructAddrWriteRaw(netlist, mirToNetlist, parent, mbSync, addr, aVal, cond)
 
-    @classmethod
-    def _constructAddrWriteRaw(cls,
+    def _constructAddrWriteRaw(self,
             netlist: HlsNetlistCtx,
             mirToNetlist:HlsNetlistAnalysisPassMirToNetlist,
             parent: ArchElement,
@@ -296,7 +269,7 @@ class IoProxyAxi4Lite(IoProxyAddressed):
             addrVal: HlsNetNodeOutAny,
             cond:Union[int, HlsNetNodeOutAny]):
 
-        aNode = HlsNetNodeWrite(netlist, addr)
+        aNode = HlsNetNodeWrite(netlist, self, addr)
         parent.addNode(aNode)
         addrVal.connectHlsIn(aNode._inputs[0])
 
@@ -323,7 +296,7 @@ class IoProxyAxi4Lite(IoProxyAddressed):
                         srcIo: Axi4Lite_r,
                         _cond: Optional[HlsNetNodeOutAny],
                         instrDstReg: Register):
-        rNode = HlsNetNodeRead(netlist, srcIo)
+        rNode = HlsNetNodeRead(netlist, self, srcIo)
         mbMeta.parentElement.addNode(rNode)
         mbMeta.addOrderedNode(rNode)
 
@@ -346,13 +319,12 @@ class IoProxyAxi4Lite(IoProxyAddressed):
         valCache.add(mbMeta.block, instrDstReg, rDataO, True)
         return rNode
 
-    @staticmethod
-    def _constructBNode(mirToNetlist: HlsNetlistAnalysisPassMirToNetlist,
+    def _constructBNode(self, mirToNetlist: HlsNetlistAnalysisPassMirToNetlist,
                         netlist: HlsNetlistCtx,
                         mbMeta: MachineBasicBlockMeta,
                         dstIo: Axi4Lite_b,
                         _cond: Optional[HlsNetNodeOutAny]):
-        bNode = HlsNetNodeRead(netlist, dstIo)
+        bNode = HlsNetNodeRead(netlist, self, dstIo)
         mbMeta.parentElement.addNode(bNode)
 
         mirToNetlist._addExtraCond(bNode, _cond, None)
@@ -417,9 +389,9 @@ class IoProxyAxi4Lite(IoProxyAddressed):
                         dstIo: Axi4Lite_w,
                         _cond: Optional[HlsNetNodeOutAny],
                         srcVal: HlsNetNodeOutAny):
-        wNode = HlsNetNodeWrite(netlist, dstIo)
+        wNode = HlsNetNodeWrite(netlist, self, dstIo)
         mbMeta.parentElement.addNode(wNode)
-        assert srcVal._dtype.bit_length() == self.wWordT.bit_length(), (dstIo, srcVal._dtype, dstIo.DATA_WIDTH)
+        assert srcVal._dtype.bit_length() == self._nativeWriteTy.bit_length(), (dstIo, srcVal._dtype, dstIo.DATA_WIDTH)
         srcVal.connectHlsIn(wNode._inputs[0])
 
         mirToNetlist._addExtraCond(wNode, _cond, None)
@@ -486,3 +458,16 @@ class IoProxyAxi4Lite(IoProxyAddressed):
                 raise NotImplementedError(self.interface)
             else:
                 raise NotImplementedError(self.interface, channelName)
+
+    @override
+    @classmethod
+    def _getRtlSyncSignals(cls,
+                hwIO: Union[Axi_hs, ValidReadyTuple],
+                formatAsValidReadyTuple: bool=False,
+                ) -> Union[ValidReadyTuple, tuple[Union[RtlSignal, Literal[1]], Union[RtlSignal, Literal[1]]]]:
+        if isinstance(hwIO, Axi_hs):
+            return (hwIO.valid, hwIO.ready)
+        else:
+            assert isinstance(hwIO, tuple) and len(hwIO) == 2
+            return hwIO
+

@@ -18,13 +18,14 @@ class HlsNetNodeWriteMemoryAllocationCmd(HlsNetNodeWriteBramCmd):
     """
 
     def __init__(self, netlist:"HlsNetlistCtx",
+                 ioProxy: "IoProxyBram",
                  src: MemoryAllocationMeta,
                  cmd: Literal[READ, WRITE],
                  dtype: HdlType,
                  mayBecomeFlushable=True,
                  name:Optional[str]=None):
         assert isinstance(src, MemoryAllocationMeta), src
-        HlsNetNodeWriteBramCmd.__init__(self, netlist, src, cmd,
+        HlsNetNodeWriteBramCmd.__init__(self, netlist, ioProxy, src, cmd,
                                         dtype=dtype,
                                         hasR=cmd is READ,
                                         hasW=cmd is WRITE,
@@ -59,6 +60,7 @@ class HlsNetNodeWriteMemoryAllocationCmd(HlsNetNodeWriteBramCmd):
                 dtype = self._portDataOut._dtype
                 dNode = HlsNetNodeReadMemoryAllocationReadData(
                     self.netlist,
+                    self.ioProxy,
                     self.dst,
                     self,
                     dtype,
@@ -81,14 +83,15 @@ class HlsNetNodeWriteMemoryAllocationCmd(HlsNetNodeWriteBramCmd):
 class HlsNetNodeReadMemoryAllocationReadData(HlsNetNodeReadBramData):
 
     def __init__(self, netlist: "HlsNetlistCtx",
+                 ioProxy: "IoProxyBram",
                  src: MemoryAllocationMeta,
                  cmdNode: HlsNetNodeWriteMemoryAllocationCmd,
                  dtype: Optional[HdlType]=None,
                  name:Optional[str]=None):
-        super().__init__(netlist, None, dtype, name=name, addPortDataOut=True)
+        super().__init__(netlist, ioProxy, None, dtype, name=name, addPortDataOut=True)
         self.src = src
         self.cmdNode = cmdNode
-    
+
     def getRtlDataSig(self):
         meta: "ComponentGeneratorMemoryMeta" = self.src.dataOfComponentGenerator
         return meta.rtlInstance.port[self.src.users.index(self.cmdNode)].dout

@@ -15,7 +15,6 @@ from hwtHls.architecture.analysis.hlsArchAnalysisPass import HlsArchAnalysisPass
 from hwtHls.architecture.componentGeneratorUtils import HlsNetNodeWriteOfFnUnitPort, \
     HlsNetNodeReadOfFnUnitPort
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage  # , IORecord
-from hwtHls.architecture.syncUtils import HwIO_getSyncTuple
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
@@ -197,8 +196,8 @@ class RtlArchToGraphviz():
                                     f"<td>{html.escape(repr(out._dtype))}</td></tr>")
                 else:
                     outNode = out
-                    writeVldRdyTuple = HwIO_getSyncTuple(outNode.dst) if outNode.dst is not None else None
-                    readVldRdyTuple = HwIO_getSyncTuple(outNode.associatedRead.src) if outNode.associatedRead.src is not None else None
+                    writeVldRdyTuple = outNode._getRtlSyncTuple() if outNode.dst is not None else None
+                    readVldRdyTuple = outNode.associatedRead._getRtlSyncTuple() if outNode.associatedRead.src is not None else None
 
                     name = outNode.name
                     if not name:

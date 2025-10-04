@@ -3,6 +3,7 @@ from typing import Tuple, Optional, Dict
 from hwt.hdl.operatorDefs import HwtOps
 from hwtHls.architecture.analysis.nodeParentSyncNode import ArchSyncNodeTy
 from hwtHls.architecture.transformation.utils.dummyScheduling import scheduleUnscheduledControlLogic
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate, \
     HlsNetNodeAggregatePortOut, HlsNetNodeAggregatePortIn
 from hwtHls.netlist.nodes.archElement import ArchElement
@@ -21,6 +22,7 @@ class ArchSyncNodeTerm():
     Class used as a key for ArchElementTermPropagationCtx caches.
     :note: name is excluded from equality operator and hash
     """
+
     def __init__(self, node: ArchSyncNodeTy, out: HlsNetNodeOut, name: Optional[str]):
         self.node = node
         self.out = out
@@ -92,9 +94,10 @@ class ArchElementTermPropagationCtx():
                             not r._isBlocking and r.scheduledOut[r._portDataOut.out_i] == clkBeginTime:
                         return r._portDataOut
 
+            ioProxy = IoProxyScalar(None, None, dep._dtype)
             # else create a new backedge to clk begin
             r = HlsNetNodeReadBackedge(
-                elm.netlist,
+                elm.netlist, ioProxy,
                 dep._dtype,
                 name=f"{dep.getPrettyName():s}_dst",
             )
@@ -104,7 +107,7 @@ class ArchElementTermPropagationCtx():
             elm._addNodeIntoScheduled(clkI, r)
 
             w = HlsNetNodeWriteBackedge(
-                elm.netlist,
+                elm.netlist, ioProxy,
                 name=f"{dep.getPrettyName():s}_src")
             w.allocationType = CHANNEL_ALLOCATION_TYPE.IMMEDIATE
             w.resolveRealization()

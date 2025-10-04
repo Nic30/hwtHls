@@ -12,6 +12,7 @@ from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -31,18 +32,19 @@ class HlsNetNodeReadBackedge(HlsNetNodeRead):
         which is 1 if data was written (or there is init value) and not yet read
     """
 
-    def __init__(self, netlist:"HlsNetlistCtx", dtype: HdlType, name: Optional[str]=None, channelInitValues=()):
-        HlsNetNodeRead.__init__(self, netlist, None, dtype=dtype, name=name, channelInitValues=channelInitValues)
+    def __init__(self, netlist:"HlsNetlistCtx", ioProxy: IoProxyScalar, dtype: HdlType, name: Optional[str]=None, channelInitValues=()):
+        HlsNetNodeRead.__init__(self, netlist, ioProxy, None, dtype=dtype, name=name, channelInitValues=channelInitValues)
         self._rtlDataVldReg:Optional[Union[RtlSignal, HwIO]] = None
         self._rtlFullReg:Optional[Union[RtlSignal, HwIO]] = None
 
     @classmethod
-    def _constructorAsHlsNetNodeRead(cls, netlist: "HlsNetlistCtx", src: Union[RtlSignal, HwIO, None],
+    def _constructorAsHlsNetNodeRead(cls, netlist: "HlsNetlistCtx", ioProxy: IoProxyScalar, src: Union[RtlSignal, HwIO, None],
                  dtype: Optional[HdlType]=None, name:Optional[str]=None, channelInitValues=(), addPortDataOut=True):
         assert dtype is not None
         assert addPortDataOut
-        n = cls(netlist, dtype, name=name, channelInitValues=channelInitValues)
-        # n.src = src
+        # assert src is None
+        n = cls(netlist, ioProxy, dtype, name=name, channelInitValues=channelInitValues)
+        n.src = src
         return n
 
     @override
@@ -210,20 +212,23 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
     _PORT_ATTR_NAMES = HlsNetNodeWrite._PORT_ATTR_NAMES + ["_fullPort"]
 
     def __init__(self, netlist:"HlsNetlistCtx",
+                 ioProxy: IoProxyScalar,
                  name:Optional[str]=None,
                  mayBecomeFlushable:bool=False,
                  bufferCapacity:Optional[int]=None):
-        HlsNetNodeWrite.__init__(self, netlist, None, name=name, mayBecomeFlushable=mayBecomeFlushable, bufferCapacity=bufferCapacity)
+        HlsNetNodeWrite.__init__(self, netlist, ioProxy, None, name=name, mayBecomeFlushable=mayBecomeFlushable, bufferCapacity=bufferCapacity)
 
     @classmethod
     def _constructorAsHlsNetNodeWrite(cls, netlist: "HlsNetlistCtx",
+                 ioProxy: IoProxyScalar,
                  dst: Union[RtlSignal, HwIO, None],
                  mayBecomeFlushable=False,
                  name:Optional[str]=None,
                  addSrcPort=True):
         assert addSrcPort
-        n = cls(netlist, mayBecomeFlushable=mayBecomeFlushable, name=name)
-        # n.dst = dst
+        # assert dst is None
+        n = cls(netlist, ioProxy, mayBecomeFlushable=mayBecomeFlushable, name=name)
+        n.dst = dst
         return n
 
     @override

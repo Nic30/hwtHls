@@ -1,4 +1,4 @@
-from typing import Union, Sequence
+from typing import Union, Optional
 
 from hwt.hdl.const import HConst
 from hwt.hdl.types.hdlType import HdlType
@@ -6,11 +6,12 @@ from hwt.hwIO import HwIO
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ioProxyStream import IoProxyStream
+from hwtHls.frontend.pyBytecode import hlsLowLevel
 from hwtHls.io.amba.axi4Stream.stmRead import HlsStmReadAxi4Stream, \
     HlsStmReadAxi4StreamSegmented
 from hwtHls.io.amba.axi4Stream.stmWrite import HlsStmWriteAxi4Stream, \
     HlsStmWriteAxi4StreamSegmented
-from hwtHls.llvm.llvmIr import Value, HwtHlsIoMetadata
+from hwtHls.llvm.llvmIr import Value, MDTuple, StreamChannelFormatInfo
 from hwtLib.amba.axi4SSegmented import Axi4StreamSegmented
 from hwtLib.amba.axi4s import Axi4Stream
 
@@ -23,9 +24,13 @@ class IoProxyAxi4Stream(IoProxyStream):
     def __init__(self, hls:"HlsScope", interface:Axi4Stream):
         IoProxyStream.__init__(self, hls, interface)
 
+    @override
+    @hlsLowLevel
     def read(self, dtype:HdlType, reliable=True):
-        return HlsStmReadAxi4Stream(self.hls, self.interface, dtype, reliable)
+        return HlsStmReadAxi4Stream(self, self.interface, dtype, reliable)
 
+    @override
+    @hlsLowLevel
     def write(self, v:Union[HConst, RtlSignal, Value, HwIO],
               empty:Union[None, HConst, RtlSignal, Value, HwIO]=None,
               mask:Union[None, HConst, RtlSignal, Value, HwIO]=None,
@@ -33,7 +38,7 @@ class IoProxyAxi4Stream(IoProxyStream):
               eof:Union[None, HConst, RtlSignal, Value, HwIO]=None):
         if empty is not None:
             raise NotImplementedError("Convert empty to mask because this interface uses mask")
-        return HlsStmWriteAxi4Stream(self.hls, v, mask, sof, eof, self.interface)
+        return HlsStmWriteAxi4Stream(self, v, mask, sof, eof, self.interface)
 
     @override
     def updateLlvmHwtHlsIoMetadata(self, tr: "ToLlvmIrTranslator", md: HwtHlsIoMetadata) -> bool:
@@ -62,9 +67,10 @@ class IoProxyAxi4Stream(IoProxyStream):
                                       ], False)
         return True
 
-        # if changed and F.getMetadata(tr.strCtx.addStringRef(HwtHlsIoMetadata.METADATA_NAME)) is not None:
-        #    addHwtHlsFunctionIoMetadata(tr)  # update current metadata
-        # # else assume that the metadata will be set later
+    @override
+    @classmethod
+    def _getRtlSyncSignals(cls, src: Axi4Stream, formatAsValidReadyTuple=True):
+        return (src.valid, src.ready)
 
 
 class IoProxyAxi4StreamSegmented(IoProxyStream):
@@ -76,9 +82,13 @@ class IoProxyAxi4StreamSegmented(IoProxyStream):
     def __init__(self, hls:"HlsScope", interface:Axi4Stream):
         IoProxyStream.__init__(self, hls, interface)
 
+    @override
+    @hlsLowLevel
     def read(self, dtype:HdlType, reliable=True):
-        return HlsStmReadAxi4StreamSegmented(self.hls, self.interface, dtype, reliable)
+        return HlsStmReadAxi4StreamSegmented(self, self.interface, dtype, reliable)
 
+    @override
+    @hlsLowLevel
     def write(self, v:Union[HConst, RtlSignal, Value, HwIO],
               empty:Union[None, HConst, RtlSignal, Value, HwIO]=None,
               mask:Union[None, HConst, RtlSignal, Value, HwIO]=None,
@@ -86,7 +96,7 @@ class IoProxyAxi4StreamSegmented(IoProxyStream):
               eof:Union[None, HConst, RtlSignal, Value, HwIO]=None):
         if mask is not None:
             raise NotImplementedError("convert mask to empty because this interface uses empty")
-        return HlsStmWriteAxi4StreamSegmented(self.hls, v, empty, sof, eof, self.interface)
+        return HlsStmWriteAxi4StreamSegmented(self, v, empty, sof, eof, self.interface)
 
     @override
     def updateLlvmHwtHlsIoMetadata(self, tr: "ToLlvmIrTranslator", md: HwtHlsIoMetadata) -> bool:

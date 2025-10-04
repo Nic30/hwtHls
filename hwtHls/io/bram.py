@@ -9,22 +9,24 @@ from hwt.hdl.types.bitConstFunctions import AnyHBitsValue
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.struct import HStruct
-from hwt.hwIOs.std import HwIOBramPort_noClk
+from hwt.hwIOs.std import HwIOBramPort_noClk, HwIOSignal
+from hwt.math import log2ceil
 from hwt.pyUtils.typingFuture import override
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.statementsRead import HlsReadAddressed
-from hwtHls.frontend.statementsWrite import HlsWriteAddressed
+from hwtHls.frontend.ioProxyAddressed import IoProxyAddressed
 from hwtHls.frontend.ioUtils import ANY_SCALAR_INT_VALUE
 from hwtHls.frontend.pyBytecode import hlsLowLevel
-from hwtHls.frontend.ioProxyAddressed import IoProxyAddressed
+from hwtHls.frontend.statementsRead import HlsReadAddressed
+from hwtHls.frontend.statementsWrite import HlsWriteAddressed
 from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup, \
     isInstanceOfInterfacePort, getFirstInterfaceInstance
-from hwtHls.llvm.llvmIr import LoadInst, Register, MachineInstr, Value, HwtHlsIoMetadata
+from hwtHls.llvm.llvmIr import Register, MachineInstr, Value, HwtHlsIoMetadata
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering, HVoidData
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
+from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, \
     HlsNetNodeOut
@@ -37,9 +39,10 @@ from hwtHls.netlist.scheduler.clk_math import epsilon, indexOfClkPeriod, \
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
+from hwtLib.handshaked.streamNode import ValidReadyTuple
 from ipCorePackager.constants import INTF_DIRECTION
 
-AnyBramPort = Union[HwIOBramPort_noClk, BankedPortGroup[HwIOBramPort_noClk], MultiPortGroup[HwIOBramPort_noClk]]
+AnyBramPort = Union[HwIOBramPort_noClk, BankedPortGroup[HwIOBramPort_noClk], MultiPortGroup[HwIOBramPort_noClk], MemoryAllocationMeta]
 
 
 class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
@@ -49,6 +52,7 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
     _PORT_ATTR_NAMES = HlsNetNodeWriteIndexed._PORT_ATTR_NAMES + ["_portDataOut"]
 
     def __init__(self, netlist:"HlsNetlistCtx",
+                 ioProxy: "IoProxyBram",
                  dst: Optional[AnyBramPort],
                  cmd: Literal[READ, WRITE],
                  dtype:Optional[HBits]=None,
@@ -68,7 +72,7 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
             if hasW is None:
                 hasW = _dst.HAS_W
 
-        HlsNetNodeWriteIndexed.__init__(self, netlist, dst, mayBecomeFlushable=mayBecomeFlushable,
+        HlsNetNodeWriteIndexed.__init__(self, netlist, ioProxy, dst, mayBecomeFlushable=mayBecomeFlushable,
                                         addSrcPort=hasW, name=name)
         self._rtlUseValid = True  # en is form of valid
         assert cmd is READ or cmd is WRITE, cmd
@@ -134,7 +138,7 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
             if _dst.HAS_R:
                 readDataIo = self._extractDout(self.dst)
 
-                dNode = HlsNetNodeReadBramData(self.netlist, readDataIo, _dst.dout._dtype, name=self.name)
+                dNode = HlsNetNodeReadBramData(self.netlist, self.ioProxy, readDataIo, _dst.dout._dtype, name=self.name)
                 self._extractReadPortsToSeparateNode(dNode)
                 yield dNode
 
@@ -234,7 +238,9 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
 
     def __repr__(self, minify=False):
         src = self.dependsOn[0]
-        dstName = "None" if self.dst is None else self._getInterfaceName(self.dst)
+        dstName = None if self.dst is None else self._getInterfaceName(self.dst)
+        if dstName is None:
+            dstName = "None"
         if minify:
             return f"<{self.__class__.__name__:s} {self._id:d} {self.cmd} {dstName:s}>"
         else:
@@ -248,14 +254,13 @@ class HlsNetNodeReadBramData(HlsNetNodeRead):
 class HlsReadBram(HlsReadAddressed):
 
     def __init__(self,
-                 parentProxy: "IoProxyBram",
-            parent:"HlsScope",
-            src:AnyBramPort,
-            index:ANY_SCALAR_INT_VALUE,
-            element_t:HdlType,
-            isBlocking:bool,
-            isVolatile:bool,
-            hwIOName: Optional[str]=None):
+                 ioProxy: "IoProxyBram",
+                 src:AnyBramPort,
+                 index:ANY_SCALAR_INT_VALUE,
+                 element_t:HdlType,
+                 isBlocking:bool,
+                 isVolatile:bool,
+                 hwIOName: Optional[str]=None):
 
         if isinstance(src, MultiPortGroup):
             src = MultiPortGroup(i for i in src if i.HAS_R)
@@ -267,9 +272,7 @@ class HlsReadBram(HlsReadAddressed):
             raise NotImplementedError()
         else:
             assert src.HAS_R
-
-        HlsReadAddressed.__init__(self, parent, src, index, element_t, isBlocking, isVolatile, hwIOName=hwIOName)
-        self.parentProxy = parentProxy
+        HlsReadAddressed.__init__(self, ioProxy, src, index, element_t, isBlocking, isVolatile, hwIOName=hwIOName)
 
     def __repr__(self):
         t = self._dtype
@@ -283,8 +286,7 @@ class HlsReadBram(HlsReadAddressed):
 class HlsWriteBram(HlsWriteAddressed):
 
     def __init__(self,
-            parentProxy: "IoProxyBram",
-            parent:"HlsScope",
+            ioProxy: "IoProxyBram",
             src:Union[Value, RtlSignal, HConst],
             dst:AnyBramPort,
             index:Union[Value, RtlSignal, HConst],
@@ -304,31 +306,35 @@ class HlsWriteBram(HlsWriteAddressed):
             assert isinstance(dst, HwIOBramPort_noClk), dst
             assert dst.HAS_W, dst
 
-        HlsWriteAddressed.__init__(self, parent, src, dst, index, element_t, isVolatile, mayBecomeFlushable=mayBecomeFlushable)
-        self.parentProxy = parentProxy
+        HlsWriteAddressed.__init__(self, ioProxy, src, dst, index, element_t, isVolatile, mayBecomeFlushable=mayBecomeFlushable)
 
 
 class IoProxyBram(IoProxyAddressed):
 
     def __init__(self, hls:"HlsScope", interface:AnyBramPort, dtype:Optional[HdlType]=None):
-        if isinstance(interface, (MultiPortGroup, BankedPortGroup)):
-            i = interface[0]
+        if isinstance(interface, MemoryAllocationMeta):
+            addrType = HBits(log2ceil(interface.dtype.size))
         else:
-            i = interface
+            if isinstance(interface, (MultiPortGroup, BankedPortGroup)):
+                i = interface[0]
+            else:
+                i = interface
 
-        assert i._direction != INTF_DIRECTION.MASTER, (
-            self.__class__, "this supports only slave interfaces,"
-            " because this is intended for mapping of IO to HLS as an array", interface)
+            assert i._direction != INTF_DIRECTION.MASTER, (
+                self.__class__, "this supports only slave interfaces,"
+                " because this is intended for mapping of IO to HLS as an array", interface)
 
-        assert isInstanceOfInterfacePort(i, HwIOBramPort_noClk), i
-        assert i.HAS_W or i.HAS_R, ("Must have at least one (read/write)", interface)
+            assert isInstanceOfInterfacePort(i, HwIOBramPort_noClk), i
+            assert i.HAS_W or i.HAS_R, ("Must have at least one (read/write)", interface)
+            addrType = i.addr._dtype
 
         IoProxyAddressed.__init__(self, hls, interface, dtype=dtype)
-        self.indexT = i.addr._dtype
+        self.indexT = addrType
 
     READ_CLS = HlsReadBram
     WRITE_CLS = HlsWriteBram
 
+    @override
     @hlsLowLevel
     def write(self, index: Union[AnyHBitsValue], data: AnyHBitsValue, mask=NOT_SPECIFIED, isVolatile:bool=True, mayBecomeFlushable=True) -> HlsWriteAddressed:
         if self.interface.HAS_BE:
@@ -336,7 +342,6 @@ class IoProxyBram(IoProxyAddressed):
             data = mask._concat(data)
 
         return self.WRITE_CLS(self,
-                              self.hls,
                               data,
                               self.interface,
                               index,
@@ -405,7 +410,7 @@ class IoProxyBram(IoProxyAddressed):
         if isinstance(index, int):
             raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", srcIo, instr)
 
-        n = HlsNetNodeWriteBramCmd(netlist, srcIo, READ)
+        n = HlsNetNodeWriteBramCmd(netlist, self, srcIo, READ)
         mbMeta.parentElement.addNode(n)
         mbMeta.addOrderedNode(n)
 
@@ -442,7 +447,7 @@ class IoProxyBram(IoProxyAddressed):
         if isinstance(index, int):
             raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", dstIo, instr)
 
-        n = HlsNetNodeWriteBramCmd(netlist, dstIo, WRITE)
+        n = HlsNetNodeWriteBramCmd(netlist, self, dstIo, WRITE)
         mbMeta.parentElement.addNode(n)
         srcVal.connectHlsIn(n._portSrc)
         index.connectHlsIn(n.indexes[0])
@@ -453,3 +458,23 @@ class IoProxyBram(IoProxyAddressed):
         mirToNetlist._addSkipWhen_n(n, _cond, None)
         mbMeta.addOrderedNode(n)
         return [n, ]
+
+    @override
+    @classmethod
+    def _getRtlSyncSignals(cls,
+                hwIO: Union[HwIOBramPort_noClk, HwIOSignal],
+                formatAsValidReadyTuple: bool=False,
+                ) -> Union[ValidReadyTuple, tuple[Union[RtlSignal, Literal[1]], Union[RtlSignal, Literal[1]]]]:
+        if isinstance(hwIO, HwIOBramPort_noClk):
+            if formatAsValidReadyTuple:
+                return (hwIO.en, 1)
+            else:
+                return (hwIO.en,)
+        elif isinstance(hwIO, HwIOSignal):
+            # case of direct read of dout
+            if formatAsValidReadyTuple:
+                return (1, 1)
+            else:
+                return ()
+        else:
+            raise NotImplementedError(hwIO)

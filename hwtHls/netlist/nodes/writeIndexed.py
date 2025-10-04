@@ -14,11 +14,13 @@ class HlsNetNodeWriteIndexed(HlsNetNodeWrite):
     Same as :class:`~.HlsNetNodeWrite` but for memory mapped interfaces with address or index.
     """
 
-    def __init__(self, netlist:"HlsNetlistCtx", dst:Union[RtlSignal, HwIO],
+    def __init__(self, netlist:"HlsNetlistCtx",
+                 ioProxy: "IoProxyAddressed",
+                 dst:Union[RtlSignal, HwIO],
                  mayBecomeFlushable=False,
                  name:Optional[str]=None,
                  addSrcPort=True):
-        HlsNetNodeWrite.__init__(self, netlist, dst,
+        HlsNetNodeWrite.__init__(self, netlist, ioProxy, dst,
                                  mayBecomeFlushable=mayBecomeFlushable,
                                  name=name,
                                  addSrcPort=addSrcPort)

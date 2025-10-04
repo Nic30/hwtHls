@@ -84,7 +84,7 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
                     n: HlsNetNodeRead
                     n.src = None
                     assert n.associatedWrite is None
-                    inArbiterW = HlsNetNodeWrite(netlist, None, mayBecomeFlushable=False)
+                    inArbiterW = HlsNetNodeWrite(netlist, None, n.ioProxy, mayBecomeFlushable=False)
                     inArbiterW._rtlUseReady = n._rtlUseReady
                     inArbiterW._rtlUseValid = n._rtlUseValid
                     inArbiterW.associateRead(n)
@@ -105,7 +105,7 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
                     n: HlsNetNodeRead
                     n.dst = None
                     assert n.associatedRead is None
-                    inArbiterR = HlsNetNodeRead(netlist, None, t)
+                    inArbiterR = HlsNetNodeRead(netlist, None, n.ioProxy, t)
                     inArbiterR._rtlUseReady = n._rtlUseReady
                     inArbiterR._rtlUseValid = n._rtlUseValid
                     n.associateRead(inArbiterR)
@@ -273,7 +273,7 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
                     netlist.addNode(arbiterElm)
                     self._constructArbitrationLogic(arbiterElm, io, ioNodes, userSyncNodes, portOwner)
 
-        ioDiscovery.interfaceList[:] = (io for io in ioDiscovery.interfaceList if not isinstance(io, tuple))
+        ioDiscovery.interfaceList[:] = (io for io in tuple(ioDiscovery.interfaceList) if not isinstance(io, tuple))
         pa = PreservedAnalysisSet.preserveScheduling()
         pa.add(HlsNetlistAnalysisPassIoDiscover)
         return pa

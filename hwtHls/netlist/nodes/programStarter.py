@@ -4,6 +4,7 @@ from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlRes
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.explicitSync import IO_COMB_REALIZATION
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 
 
 class HlsProgramStarter(HlsNetNodeRead):
@@ -12,7 +13,7 @@ class HlsProgramStarter(HlsNetNodeRead):
     """
 
     def __init__(self, netlist:HlsNetlistCtx, name:str=None):
-        HlsNetNodeRead.__init__(self, netlist, None, BIT, name=name, addPortDataOut=False)
+        HlsNetNodeRead.__init__(self, netlist, IoProxyScalar(None, None, BIT), None, BIT, name=name, addPortDataOut=False)
         self._portDataOut = None
 
     @override

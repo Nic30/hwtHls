@@ -2,6 +2,7 @@ from math import ceil
 from typing import Optional, Union
 
 from hwt.hdl.commonConstants import b1
+from hwt.hdl.types.bitConstFunctions import AnyHBitsValue
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
@@ -32,21 +33,21 @@ class HlsStmReadAxi4Stream(HlsRead):
     """
 
     def __init__(self,
-                 parent: "HlsScope",
+                 ioProxy: "IoProxyAxi4Stream",
                  src: Axi4Stream,
                  dtype: HdlType,
                  isReliable: bool):
         super(HlsRead, self).__init__()
         self._isAccessible = True
-        self._parent = parent
+        self._ioProxy = ioProxy
         self._src = src
         self._isReliable = isReliable
         self._isBlocking = True
         self._isVolatile = True
         assert isinstance(dtype, HdlType), dtype
 
-        hwIOName = HwIO_getName(self._parent.parentHwModule, src)
-        var = parent.var
+        hwIOName = HwIO_getName(ioProxy.hls.parentHwModule, src)
+        var = ioProxy.hls.var
         name = f"{hwIOName:s}_read"
         trueDtype = self._constructTypeOfInterfaceData(src, dtype)
 
@@ -61,7 +62,7 @@ class HlsStmReadAxi4Stream(HlsRead):
         self._name = name
         sig: HwIO = sig_flat._reinterpret_cast(trueDtype)
         sig._name = name
-        sig._parent = parent.parentHwModule
+        sig._parent = ioProxy.hls.parentHwModule
         self._hwIOs = sig._hwIOs
         _copySliceNamesToFlattenedSignal(sig_flat, trueDtype, name, 0)
 
@@ -82,7 +83,7 @@ class HlsStmReadAxi4Stream(HlsRead):
         if src.ID_WIDTH:
             raise NotImplementedError(src)
 
-        if src.USE_KEEP or src.USE_STRB:
+        if not self._isReliable and (src.USE_KEEP or src.USE_STRB):
             data_w = dtype.bit_length()
             assert data_w % 8 == 0, data_w
             mask_w = ceil(dtype.bit_length() / 8)
@@ -90,8 +91,8 @@ class HlsStmReadAxi4Stream(HlsRead):
 
         trueDtype = HStruct(
             (dtype, "data"),
-            *(((maskT, "keep"),) if src.USE_KEEP else ()),
-            *(((maskT, "strb"),) if src.USE_STRB else ()),
+            *(((maskT, "keep"),) if not self._isReliable and src.USE_KEEP else ()),
+            *(((maskT, "strb"),) if not self._isReliable and src.USE_STRB else ()),
             (BIT, "last"),  # we do not know how many words this read could be,
                            # the eof is disjunction of eof signals from each word
         )
@@ -103,9 +104,11 @@ class HlsStmReadAxi4Stream(HlsRead):
         (which represents represents this read value in frontend AST expressions)
         to this object properties.
         """
+        self.data: RtlSignal
         self.last: RtlSignal
         self.strb: Optional[RtlSignal]
         self.keep: Optional[RtlSignal]
+        self.user: Optional[RtlSignal]
         for field_path, fieldHwIO in sig._fieldsToHwIOs.items():
             if len(field_path) == 1:
                 n = field_path[0]
@@ -122,11 +125,13 @@ class HlsStmReadAxi4Stream(HlsRead):
         """
         return self.last
 
-    def _isValid(self):
+    def _isValid(self) -> AnyHBitsValue:
         """
         :return: an expression which is 1 if all bytes of data are marked valid by mask (strb/keep)
         """
         src = self._src
+        if self._isReliable:
+            return b1
         if src.USE_STRB:
             mask = self.strb
             if src.USE_KEEP:
@@ -147,7 +152,7 @@ class HlsStmReadAxi4Stream(HlsRead):
 
     @override
     def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
-        src, elmT = getArgumentForHwIO(toLlvm, self._src, self._parent._ioProxyForIo[self._src], self, True)
+        src, elmT = getArgumentForHwIO(toLlvm, self._src, self._ioProxy, self, True)
         src: Argument
         t: Type
         name = toLlvm.strCtx.addTwine(self._name)
@@ -163,17 +168,17 @@ class HlsStmReadAxi4Stream(HlsRead):
         if tName is not None:
             t = tName
 
-        return f"<{self.__class__.__name__} {self._name:s} {HwIO_getName(self._parent.parentHwModule, self._src):s}, {t}>"
+        return f"<{self.__class__.__name__} {self._name:s} {HwIO_getName(self._ioProxy.hls.parentHwModule, self._src):s}, {t}>"
 
 
 class HlsStmReadAxi4StreamSegmented(HlsStmReadAxi4Stream):
 
     def __init__(self,
-                 parent: "HlsScope",
+                 ioProxy: "IoProxyAxi4Stream",
                  src: Axi4StreamSegmented,
                  dtype: HdlType,
                  reliable: bool):
-        HlsStmReadAxi4Stream.__init__(self, parent, src, dtype, reliable)
+        HlsStmReadAxi4Stream.__init__(self, ioProxy, src, dtype, reliable)
 
     @override
     def _constructTypeOfInterfaceData(self, src: Axi4StreamSegmented, dtype: HdlType):
@@ -182,7 +187,7 @@ class HlsStmReadAxi4StreamSegmented(HlsStmReadAxi4Stream):
         """
         dataWidth = dtype.bit_length()
 
-        hasEmpty = src._hasEmpty(dataWidth, src.BYTE_WIDTH, src.SUPPORT_ZLP)
+        hasEmpty = not self._isReliable and src._hasEmpty(dataWidth, src.BYTE_WIDTH, src.SUPPORT_ZLP)
         if hasEmpty:
             emptyWidth = src._getWidthOfEmpty(dtype.bit_length(), src.BYTE_WIDTH, src.SUPPORT_ZLP)
 

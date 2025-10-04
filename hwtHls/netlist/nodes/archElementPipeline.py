@@ -11,6 +11,7 @@ from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage, \
     ConnectionsOfStageList
 from hwtHls.architecture.timeIndependentRtlResource import INVARIANT_TIME, \
     TimeIndependentRtlResourceItem
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering, HdlType_isVoid
 from hwtHls.netlist.nodes.archElement import ArchElement
@@ -20,13 +21,13 @@ from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge, \
     HlsNetNodeReadForwardedge
+from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
 
 
 class ArchElementPipeline(ArchElement):
@@ -115,7 +116,8 @@ class ArchElementPipeline(ArchElement):
                 self._addNodeIntoScheduled(clkI, dummyC, allowNewClockWindow=True)
 
                 name = f"{self.namePrefix:s}stSync_{previousClkI:d}_to_{clkI:d}"
-                wNode = HlsNetNodeWriteForwardedge(netlist,
+                ioProxy = IoProxyScalar(None, None)
+                wNode = HlsNetNodeWriteForwardedge(netlist, ioProxy,
                                                    mayBecomeFlushable=False,
                                                    name=f"{name}_atSrc")
                 wNode.resolveRealization()
@@ -123,7 +125,7 @@ class ArchElementPipeline(ArchElement):
                 self._addNodeIntoScheduled(previousClkI, wNode, allowNewClockWindow=True)
                 dummyC._outputs[0].connectHlsIn(wNode._portSrc)
 
-                rNode = HlsNetNodeReadForwardedge(netlist, dtype=HVoidOrdering,
+                rNode = HlsNetNodeReadForwardedge(netlist, ioProxy, dtype=HVoidOrdering,
                                                   name=f"{name:s}_atDst")
                 assert clkI >= 1, clkI
                 rNode.resolveRealization()
@@ -344,11 +346,11 @@ class ArchElementPipeline(ArchElement):
 
         nextStRegDrivers.extend(con.stateChangeDependentDrives)
 
-        #if con.inputs or con.outputs:
+        # if con.inputs or con.outputs:
         #    con.rtlChannelSyncFinalize(self.netlist.parentHwModule,
         #                               self._dbgAddSignalNamesToSync,
         #                               self._dbgExplicitlyNamedSyncSignals)
-        #con.rtlAllocSync()
+        # con.rtlAllocSync()
         # check if results of this stage do validity register
         ack = con.stageAck
         if isinstance(ack, (HConst, int)):

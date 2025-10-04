@@ -1,5 +1,7 @@
 from typing import Union, Optional, List, Generator, Tuple, Callable
 
+from hwt.code import Concat
+from hwt.hObjList import HObjList
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
@@ -15,8 +17,6 @@ from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_without_registration
 from hwt.synthesizer.interfaceLevel.utils import HwIO_pack
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.architecture.syncUtils import HwIO_getSyncTuple, \
-    HwIO_getSyncSignals
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.frontend.utils import HwIO_getName
 from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
@@ -27,7 +27,8 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, OutputTimeGetter, \
     OutputMinUseTimeGetter, SchedTime
-from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
+from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod, beginOfNextClk, \
+    beginOfClk
 from ipCorePackager.constants import INTF_DIRECTION_asDirecton, \
     DIRECTION_opposite, DIRECTION, INTF_DIRECTION
 
@@ -47,10 +48,11 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
     """
     _PORT_ATTR_NAMES = HlsNetNodeExplicitSync._PORT_ATTR_NAMES + ["_rawValue", "_portDataOut"]
 
-    def __init__(self, netlist: "HlsNetlistCtx", src: Union[RtlSignal, HwIO, None],
+    def __init__(self, netlist: "HlsNetlistCtx", ioProxy: "IoProxy", src: Union[RtlSignal, HwIO, None],
                  dtype: Optional[HdlType]=None, name:Optional[str]=None, channelInitValues=(), addPortDataOut=True):
         HlsNetNode.__init__(self, netlist, name=name)
         self.src = src
+        self.ioProxy = ioProxy
         self.channelInitValues = channelInitValues
         self._isBlocking: bool = True
         self._rawValue: Optional[HlsNetNodeOut] = None
@@ -179,7 +181,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
     def _rtlAllocValidPorts(self, allocator: "ArchElement"):
         netNodeToRtl = allocator.netNodeToRtl
         if self._rtlUseValid:
-            validRtl = HwIO_getSyncTuple(self.src)[0]
+            validRtl = self._getRtlSyncTuple()[0]
             if isinstance(validRtl, int):
                 raise NotImplementedError("rtl valid should not be requested because it is constant", self)
         else:
@@ -201,6 +203,12 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
     def _rtlAllocDataVoidOut(self, allocator: "ArchElement"):
         v = self._dataVoidOut._dtype.from_py(None)
         return allocator.rtlRegisterOutputRtlSignal(self._dataVoidOut, v, False, False, False)
+
+    def _getRtlSyncTuple(self):
+        return self.ioProxy._getRtlSyncTuple(self.src)
+
+    def _getRtlSyncSignals(self):
+        return self.ioProxy._getRtlSyncSignals(self.src)
 
     @override
     def rtlAlloc(self, allocator: "ArchElement") -> Union[TimeIndependentRtlResource, List[HdlStatement]]:
@@ -243,7 +251,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             if self.src is None:
                 rtlReadySignal = None
             else:
-                _, rtlReadySignal = HwIO_getSyncTuple(self.src)
+                _, rtlReadySignal = self._getRtlSyncTuple()
                 if rtlReadySignal == 1:
                     rtlReadySignal = None
             allocator.rtlAllocDatapathRead(self, rtlReadySignal, allocator.connections[clkI], [])
@@ -380,13 +388,13 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             for dep in self.dependsOn:
                 yield dep.obj
 
-    def getRtlDataSig(self) -> Optional[RtlSignal]:
-        src: HwIO = self.src
-        assert src is not None, ("This operation is missing hw interface or it is only virtual and does not use any data signals", self)
+    def _getRtlDataSig(self, src: Union[HwIO, tuple, HObjList, RtlSignalBase]) -> RtlSignal:
         if isinstance(src, RtlSignalBase):
-            res = src
+            return src
+        elif isinstance(src, (tuple, HObjList)):
+            return Concat(*(self._getRtlDataSig(v) for v in reversed(src)))
         else:
-            exclude = HwIO_getSyncSignals(src)
+            exclude = self.ioProxy._getRtlSyncSignals(src)
 
             if isinstance(src, HwIODataRd):
                 if src.rd._direction == INTF_DIRECTION.UNKNOWN:
@@ -400,9 +408,14 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
                 else:
                     masterDirEqTo = src._masterDir
 
-            res = HwIO_pack(src,
+            return HwIO_pack(src,
                             masterDirEqTo=masterDirEqTo,
                             exclude=exclude)
+
+    def getRtlDataSig(self) -> Optional[RtlSignal]:
+        src = self.src
+        assert src is not None, ("This operation is missing hw interface or it is only virtual and does not use any data signals", self)
+        res = self._getRtlDataSig(src)
         if res is not None:
             assert isinstance(res._dtype, HBits), (res, res._dtype)
             if res._dtype.signed is not None:

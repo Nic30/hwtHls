@@ -3,7 +3,6 @@ from typing import Union, Optional, List
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
-from hwtHls.architecture.syncUtils import HwIO_getSyncTuple
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
@@ -16,7 +15,6 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOperatorNodeWith
 from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
-from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
 
 
 class HlsNetlistPassReadSyncToAckOfIoNodes(HlsNetlistPass):
@@ -26,7 +24,7 @@ class HlsNetlistPassReadSyncToAckOfIoNodes(HlsNetlistPass):
             # drop this for input which does not have vld signal
             n: HlsNetNodeRead
 
-            vld, _ = HwIO_getSyncTuple(n.src)
+            vld, _ = n._getRtlSyncTuple()
             if isinstance(vld, (int, HBitsConst)):
                 # if IO interface does not use any sync replace this with 1
                 assert vld == 1, (n, vld)
@@ -37,7 +35,7 @@ class HlsNetlistPassReadSyncToAckOfIoNodes(HlsNetlistPass):
         else:
             assert isinstance(n, HlsNetNodeWrite), n
             # drop this for output which does not have rd signal
-            _, rd = HwIO_getSyncTuple(n.dst)
+            _, rd = n._getRtlSyncTuple()
             if isinstance(rd, (int, HBitsConst)):
                 # if IO interface does not use any sync replace this with 1
                 assert rd == 1, (n, rd)

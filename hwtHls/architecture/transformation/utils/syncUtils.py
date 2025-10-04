@@ -2,6 +2,7 @@ from typing import Optional, Tuple
 
 from hwt.constants import NOT_SPECIFIED
 from hwt.hdl.types.hdlType import HdlType
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering, HdlType_isVoid
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
@@ -44,9 +45,10 @@ def createBackedgeInClkWindow(parent: ArchElement, clkIndex: int, name: str, dty
         channelInitValues = ()
     else:
         channelInitValues = (channelInitValue,)
-    regR = HlsNetNodeReadBackedge(netlist, dtype, name=name + "_dst", channelInitValues=channelInitValues)
+    ioProxy = IoProxyScalar(None, None, dtype=dtype)
+    regR = HlsNetNodeReadBackedge(netlist, ioProxy, dtype, name=name + "_dst", channelInitValues=channelInitValues)
 
-    regW = HlsNetNodeWriteBackedge(netlist, name=name + "_src")
+    regW = HlsNetNodeWriteBackedge(netlist, ioProxy, name=name + "_src")
     clkPeriod = netlist.normalizedClkPeriod
     clkBegin = beginOfClkWindow(clkIndex, clkPeriod)
     clkEnd = clkBegin + clkPeriod - 1
@@ -67,5 +69,4 @@ def createBackedgeInClkWindow(parent: ArchElement, clkIndex: int, name: str, dty
         c1.connectHlsIn(regW._portSrc)
 
     return regR, regW
-
 

@@ -14,6 +14,7 @@ from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.nodes.explicitSync import createOrderingLink
 from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 
 
 class HlsNetNodeReadForwardedge(HlsNetNodeRead):
@@ -21,18 +22,19 @@ class HlsNetNodeReadForwardedge(HlsNetNodeRead):
     A read of data from loop enter block or from loop exit block.
     """
 
-    def __init__(self, netlist:"HlsNetlistCtx", dtype: HdlType, name: Optional[str]=None, channelInitValues=()):
-        HlsNetNodeRead.__init__(self, netlist, None, dtype=dtype, name=name, channelInitValues=channelInitValues)
-        self.associatedWrite: Optional[HlsNetNodeWriteForwardedge] = None
+    def __init__(self, netlist:"HlsNetlistCtx", ioProxy: IoProxyScalar, dtype: HdlType, name: Optional[str]=None, channelInitValues=()):
+        HlsNetNodeRead.__init__(self, netlist, ioProxy, None, dtype=dtype, name=name, channelInitValues=channelInitValues)
+        self.associatedWrite: Optional[HlsNetNodeWriteForwardedge]
         self._rtlDataVldReg:Optional[Union[RtlSignal, HwIO]] = None
 
     @classmethod
-    def _constructorAsHlsNetNodeRead(cls, netlist: "HlsNetlistCtx", src: Union[RtlSignal, HwIO, None],
+    def _constructorAsHlsNetNodeRead(cls, netlist: "HlsNetlistCtx", ioProxy: IoProxyScalar, src: Union[RtlSignal, HwIO, None],
                  dtype: Optional[HdlType]=None, name:Optional[str]=None, channelInitValues=(), addPortDataOut=True):
         assert dtype is not None
         assert addPortDataOut
-        n = cls(netlist, dtype, name=name, channelInitValues=channelInitValues)
-        # n.src = src
+        # assert src is None, src
+        n = cls(netlist, ioProxy, dtype, name=name, channelInitValues=channelInitValues)
+        n.src = src
         return n
 
     @override
@@ -57,8 +59,8 @@ class HlsNetNodeWriteForwardedge(HlsNetNodeWrite):
     """
     _PORT_ATTR_NAMES = HlsNetNodeWrite._PORT_ATTR_NAMES + ["_fullPort"]
 
-    def __init__(self, netlist:"HlsNetlistCtx", mayBecomeFlushable=False, bufferCapacity:Optional[int]=None, name:Optional[str]=None):
-        HlsNetNodeWrite.__init__(self, netlist, None, mayBecomeFlushable=mayBecomeFlushable, bufferCapacity=bufferCapacity, name=name)
+    def __init__(self, netlist:"HlsNetlistCtx", ioProxy: IoProxyScalar, mayBecomeFlushable=False, bufferCapacity:Optional[int]=None, name:Optional[str]=None):
+        HlsNetNodeWrite.__init__(self, netlist, ioProxy, None, mayBecomeFlushable=mayBecomeFlushable, bufferCapacity=bufferCapacity, name=name)
         self.associatedRead: Optional[HlsNetNodeReadForwardedge]
 
     @override
@@ -73,14 +75,16 @@ class HlsNetNodeWriteForwardedge(HlsNetNodeWrite):
 
     @classmethod
     def _constructorAsHlsNetNodeWrite(cls, netlist: "HlsNetlistCtx",
+                 ioProxy: IoProxyScalar,
                  dst: Union[RtlSignal, HwIO, None],
                  mayBecomeFlushable=False,
                  bufferCapacity:Optional[int]=None,
                  name:Optional[str]=None,
                  addSrcPort=True):
         assert addSrcPort
-        n = cls(netlist, mayBecomeFlushable=mayBecomeFlushable, bufferCapacity=bufferCapacity, name=name)
-        # n.dst = dst
+        #assert dst is None, dst
+        n = cls(netlist, ioProxy, mayBecomeFlushable=mayBecomeFlushable, bufferCapacity=bufferCapacity, name=name)
+        n.dst = dst
         return n
 
     @override
@@ -117,8 +121,9 @@ class HlsNetNodeWriteForwardedge(HlsNetNodeWrite):
                           parentForRead: "ArchElement",
                           name: str, srcV: HlsNetNodeOut)\
             ->Tuple["HlsNetNodeLoopDataWrite", HlsNetNodeReadForwardedge, HlsNetNodeOut]:
-        r = HlsNetNodeReadForwardedge(netlist, srcV._dtype, name=name + "_dst")
-        w = HlsNetNodeWriteForwardedge(netlist, name=name + "_src")
+        ioProxy = IoProxyScalar(None, None, dtype=srcV._dtype)
+        r = HlsNetNodeReadForwardedge(netlist, ioProxy, srcV._dtype, name=name + "_dst")
+        w = HlsNetNodeWriteForwardedge(netlist, ioProxy, name=name + "_src")
         parentForRead.addNode(r)
         parentForWrite.addNode(w)
         srcV.connectHlsIn(w._portSrc)
