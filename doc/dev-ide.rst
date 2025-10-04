@@ -16,13 +16,15 @@ In eclipse.ini allow more memory for JVM by appending
   -Xms4G
   -Xmx16G
 
-* After update of LLVM, Eclipse CDT C++ code indexer usually breaks and Index "Rebuild" or "Freshen All Files"
+* After update of LLVM, pybind11, Eclipse CDT C++ code indexer usually breaks and Index "Rebuild" or "Freshen All Files"
   will end up successfully but the index is still out of date.
   This can be solved by manual delete of CDT analysis cache
 
-.. code-block::
-  rm workspace/.metadata/.plugins/org.eclipse.cdt.core/llvm.*.pdom\
-     workspace/.metadata/.plugins/org.eclipse.cdt.core/hwtHls.*.pdom
+  .. code-block::
+    rm workspace/.metadata/.plugins/org.eclipse.cdt.core/llvm.*.pdom\
+       workspace/.metadata/.plugins/org.eclipse.cdt.core/pybind11.*.pdom\
+       workspace/.metadata/.plugins/org.eclipse.cdt.core/hwtHls.*.pdom
+       
 
 * Eclipse CDT can not find pybind11 files
   To fix that add include paths
