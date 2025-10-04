@@ -34,6 +34,9 @@ class HlsThread():
         if self.toLlvm is not None:
             self.toLlvm.namePrefix = self.getNamePrefix()
 
+    def prepareLlvmTranslator(self):
+        pass
+
     def getLabel(self) -> str:
         if self._label is not None:
             return self._label
@@ -54,7 +57,7 @@ class HlsThread():
 
     def compileToNetlist(self, platform: DefaultHlsPlatform):
         hls = self.hls
-        
+
         self.netlist = HlsNetlistCtx(
             hls.parentHwModule, hls.freq, self.hls.parentHwModule._getDefaultName() + "_" + self.getLabel(),
             self.resourceConstraints,

@@ -175,8 +175,11 @@ class HlsScope():
 
         return netlist
 
+    def getPlatform(self) -> DefaultHlsPlatform:
+        return self.parentHwModule._target_platform
+
     def compile(self):
-        p: DefaultHlsPlatform = self.parentHwModule._target_platform
+        p = self.getPlatform()
         channels = HlsNetlistChannels(self.hwIOMeta)
         isThread0 = True
         for t in self._threads:
@@ -195,7 +198,7 @@ class HlsScope():
                 p.runSsaPasses(self, t.toLlvm)
 
             t.compileToNetlist(p)
-            assert t.netlist.subNodes, ("Thread produced empty netlist", t)
+            # assert t.netlist.subNodes, ("Thread produced empty netlist", t)
 
         for t in self._threads:
             t: HlsThread
@@ -208,7 +211,8 @@ class HlsScope():
             if not isThread0:
                 channels.propagateChannelTimingConstraints(t.netlist)
 
-            p.runHlsNetlistPasses(self, t.netlist)
+            if t.netlist.subNodes:
+                p.runHlsNetlistPasses(self, t.netlist)
 
             if isThread0:
                 isThread0 = False
@@ -218,7 +222,8 @@ class HlsScope():
 
         for t in self._threads:
             self._currentThread = t
-            p.runHlsNetlistToArchNetlist(self, t.netlist)
+            if t.netlist.subNodes:
+                p.runHlsNetlistToArchNetlist(self, t.netlist)
             for callback in t.archNetlistCallbacks:
                 callback(self, t)
 
@@ -232,6 +237,7 @@ class HlsScope():
             if a is not HlsNetlistAnalysisPassRunScheduler:
                 netlist.invalidateAnalysis(a)
 
-        p.runArchNetlistToRtlNetlist(self, netlist)
-        p.runHlsAndRtlNetlistPasses(self, netlist)
+        if netlist.subNodes:
+            p.runArchNetlistToRtlNetlist(self, netlist)
+            p.runHlsAndRtlNetlistPasses(self, netlist)
 

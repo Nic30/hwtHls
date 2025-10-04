@@ -8,6 +8,7 @@ from hwt.hwIO import HwIO
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.mainBases import HwIOBase
+from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.fromPython import PyBytecodeToSsa
 from hwtHls.netlist.debugTracer import DebugTracer
@@ -36,6 +37,22 @@ def _getFullHierarchyPath(tmp) -> str:
     return name
 
 
+def _dumpModuleParams(dbgDir: Path, label: str, parentHwMod: HwModule):
+    dbgDir.mkdir(exist_ok=True)
+    path = _getFullHierarchyPath(parentHwMod)
+    with open(dbgDir / HlsDebugBundle.DBG_0_0_hierachyPath[1], "w") as f:
+        f.write(path)
+        f.write("/")
+        f.write(label)
+        f.write("\n")
+        for par in parentHwMod._hwParams:
+            par: HwParam
+            f.write(par._name)
+            f.write(" = ")
+            f.write(str(par.get_value()))
+            f.write("\n")
+
+
 class HlsThreadFromPy(HlsThread):
 
     def __init__(self, hls: HlsScope, fn: FunctionType, *fnArgs, **fnKwargs):
@@ -51,10 +68,12 @@ class HlsThreadFromPy(HlsThread):
         self._exports: List[Tuple[Union[RtlSignal, HwIO], DIRECTION]] = []
         self._doCloseTrace = False
 
+    @override
     def prepareLlvmTranslator(self):
         self.toLlvm = ToLlvmIrTranslator(self.hls.parentHwModule, None, self.hls.parentHwModule._target_platform._llvmCliArgs)
         self.bytecodeToSsa = PyBytecodeToSsa(self.hls, self.toLlvm, self.dbgTracer, self.getLabel(), self.getNamePrefix())
 
+    @override
     def debugCopyConfig(self, p: DefaultHlsPlatform):
         d = p._debug
         debugDir = d.dir
@@ -81,25 +100,10 @@ class HlsThreadFromPy(HlsThread):
             toSsa.debugCfgFinal = debugCfgFinal
 
             if debugHierarchyPath:
-                parentHwMod = self.hls.parentHwModule
                 dbgDir = toSsa.toLlvm._dbgRootDir / toSsa.toLlvm._dbgSubDir
-                dbgDir.mkdir(exist_ok=True)
-                path = _getFullHierarchyPath(parentHwMod)
-                with open(dbgDir / HlsDebugBundle.DBG_0_0_hierachyPath[1], "w") as f:
-                    f.write(path)
-                    f.write("/")
-                    f.write(self.getLabel())
-                    f.write("\n")
-                    for par in parentHwMod._hwParams:
-                        par: HwParam 
-                        f.write(par._name)
-                        f.write(" = ")
-                        f.write(str(par.get_value()))
-                        f.write("\n")
-                    
-                    
+                _dumpModuleParams(dbgDir, self.getLabel(), self.hls.parentHwModule)
 
-
+    @override
     def getLabel(self) -> str:
         if self._label is not None:
             return self._label
@@ -114,6 +118,7 @@ class HlsThreadFromPy(HlsThread):
         self._label = ns.checked_name(label, self)
         return self._label
 
+    @override
     def compileToSsa(self):
         self.toLlvm: Optional[ToLlvmIrTranslator] = self.bytecodeToSsa.toLlvm
         try:
