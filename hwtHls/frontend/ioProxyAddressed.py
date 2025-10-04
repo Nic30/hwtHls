@@ -7,6 +7,7 @@ from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
 from hwt.pyUtils.typingFuture import override
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.indexExpansion import PyObjectHwSubscriptRef
 from hwtHls.frontend.ioProxy import IoProxy
 from hwtHls.frontend.pyBytecode import hlsLowLevel
@@ -21,10 +22,8 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
 from hwtHls.netlist.nodes.readIndexed import HlsNetNodeReadIndexed
 from hwtHls.netlist.nodes.writeIndexed import HlsNetNodeWriteIndexed
-from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from ipCorePackager.constants import INTF_DIRECTION
-from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 
 
 class IoProxyAddressed(IoProxy):
@@ -46,7 +45,6 @@ class IoProxyAddressed(IoProxy):
             raise NotImplementedError()
 
         return self.READ_CLS(self,
-                              self.hls,
                               self.interface,
                               index,
                               self.rWordT,
@@ -61,7 +59,7 @@ class IoProxyAddressed(IoProxy):
             src = dtype.from_py(src)
         else:
             assert src._dtype.bit_length() == self.getDataTypeOfNativeWrite().bit_length(), (
-                "For a normal write the width of src and dst must match", dtype, "->",  self.getDataTypeOfNativeWrite(), src, self.interface)
+                "For a normal write the width of src and dst must match", dtype, "->", self.getDataTypeOfNativeWrite(), src, self.interface)
 
         if isinstance(self.interface, HwIO):
             assert self.interface._direction != INTF_DIRECTION.MASTER, (self.interface, "Can not write to input")
@@ -76,7 +74,6 @@ class IoProxyAddressed(IoProxy):
                 self.interface, "mayBecomeFlushable flag must be the same for all writes to same IO")
 
         return self.WRITE_CLS(self,
-                              self.hls,
                               src,
                               self.interface,
                               index,
@@ -108,7 +105,7 @@ class IoProxyAddressed(IoProxy):
     @override
     def _translateMirToNetlist_HWTFPGA_CLOAD(self,
                                mirToNetlist: "HlsNetlistAnalysisPassMirToNetlist",
-                               mbMeta: MachineBasicBlockMeta,
+                               mbMeta: "MachineBasicBlockMeta",
                                instr: MachineInstr,
                                srcIo: HwIO,
                                srcIoMd: HwtHlsIoMetadata,
@@ -148,7 +145,7 @@ class IoProxyAddressed(IoProxy):
     @override
     def _translateMirToNetlist_HWTFPGA_CSTORE(self,
             mirToNetlist: "HlsNetlistAnalysisPassMirToNetlist",
-            mbMeta: MachineBasicBlockMeta,
+            mbMeta: "MachineBasicBlockMeta",
             instr: MachineInstr,
             srcVal: HlsNetNodeOutAny,
             dstIo: Union[HwIO, RtlSignal],

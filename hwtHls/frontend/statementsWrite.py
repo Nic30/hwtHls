@@ -1,4 +1,4 @@
-from typing import Union, Tuple, Optional
+from typing import Union, Tuple
 
 from hwt.hdl.const import HConst
 from hwt.hdl.types.hdlType import HdlType
@@ -9,7 +9,7 @@ from hwtHls.frontend.ioUtils import  ANY_HLS_STREAM_INTF_TYPE, ANY_SCALAR_INT_VA
 from hwtHls.frontend.statements import HlsStm
 from hwtHls.frontend.statementsRead import HlsRead
 from hwtHls.llvm.llvmIr import Argument, Type, ArrayType, TypeToArrayType, \
-    Value, BasicBlock, MDTuple
+    Value, BasicBlock
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
 from hwtHls.ssa.translation.toLlvmArgumentUtils import getArgumentForHwIO
 
@@ -20,14 +20,14 @@ class HlsWrite(HlsStm):
     """
 
     def __init__(self,
-                 parent: "HlsScope",
+                 ioProxy: "IoProxy",
                  src:Union[RtlSignal, HConst],
                  dst: ANY_HLS_STREAM_INTF_TYPE,
                  dtype: HdlType,
                  isVolatile:bool,
                  mayBecomeFlushable:bool=True,
                  ):
-        HlsStm.__init__(self, parent)
+        HlsStm.__init__(self, ioProxy.hls)
         if isinstance(dst, RtlSignal):
             hwIO, indexes, sign_cast_seen = dst._getIndexCascade()
             if hwIO is not dst or indexes:
@@ -38,10 +38,9 @@ class HlsWrite(HlsStm):
         # [todo] this put this object in temporary inconsistent state,
         #  because src can be more than just SsaValue/HConst instance
         self.src = src
-        self._parent = parent
+        self._ioProxy = ioProxy
         self._isVolatile = isVolatile
         self._isBlocking = True
-
         self.dst = dst
         self.mayBecomeFlushable = mayBecomeFlushable
 
@@ -53,32 +52,32 @@ class HlsWrite(HlsStm):
         bb, src = toLlvm._translateExprToLlvm(bb, self.src)
         # :attention: it is important that dst is evaluated after src expression was translated because Argument
         #  instanced may have been changed by mutateFunctionAddArg
-        dst, wordT = getArgumentForHwIO(toLlvm, self.dst, self._parent._ioProxyForIo[self.dst], self, False)
+        dst, wordT = getArgumentForHwIO(toLlvm, self.dst, self._ioProxy, self, False)
         dst: Argument
         wordT: Type
         return bb, b.CreateStore(src, dst, self._isVolatile)
 
     def __repr__(self):
         src = self.src
-        return f"<{self.__class__.__name__} {src if isinstance(src, HConst) else src._name}->{HwIO_getName(self._parent.parentHwModule, self.dst)}>"
+        return f"<{self.__class__.__name__} {src if isinstance(src, HConst) else src._name}->{self._getInterfaceName(self.dst)}>"
 
 
 class HlsWriteAddressed(HlsWrite):
 
     def __init__(self,
-            parent:"HlsScope",
+            ioProxy:"IoProxyAddressed",
             src:Union[Value, HConst],
             dst:HwIO,
             index: ANY_SCALAR_INT_VALUE,
             element_t: HdlType,
             isVolatile:bool,
             mayBecomeFlushable=True):
-        HlsWrite.__init__(self, parent, src, dst, element_t, isVolatile, mayBecomeFlushable=mayBecomeFlushable)
+        HlsWrite.__init__(self, ioProxy, src, dst, element_t, isVolatile, mayBecomeFlushable=mayBecomeFlushable)
         self.index = index
 
     def _translateToLlvm(self, toLlvm: 'ToLlvmIrTranslator', bb: BasicBlock):
         b = toLlvm.b
-        dst, t = getArgumentForHwIO(toLlvm, self.dst, self._parent._ioProxyForIo[self.dst], self, False)
+        dst, t = getArgumentForHwIO(toLlvm, self.dst, self._ioProxy, self, False)
         dst: Argument
         t: Type
         bb, src = toLlvm._translateExprToLlvm(bb, self.src)
@@ -111,14 +110,14 @@ class HlsStmWriteStartOfFrame(HlsWrite):
     Statement which marks a start of frame on specified interface.
     """
 
-    def __init__(self, parent:"HlsScope", hwIO:HwIO, mayBecomeFlushable:bool=True):
-        super(HlsStmWriteStartOfFrame, self).__init__(parent, HVoidOrdering.from_py(None),
+    def __init__(self, ioProxy: "IoProxyStream", hwIO:HwIO, mayBecomeFlushable:bool=True):
+        super(HlsStmWriteStartOfFrame, self).__init__(ioProxy, HVoidOrdering.from_py(None),
                                                       hwIO, HVoidOrdering,
                                                       True,  # isVolatile
                                                       mayBecomeFlushable=mayBecomeFlushable)
 
     def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
-        dst, _ = getArgumentForHwIO(toLlvm, self.dst, self._parent._ioProxyForIo[self.dst], self, False)
+        dst, _ = getArgumentForHwIO(toLlvm, self.dst, self._ioProxy, self, False)
         dst: Argument
         return bb, toLlvm.b.CreateStreamWriteStartOfFrame(dst)
 
@@ -128,12 +127,12 @@ class HlsStmWriteEndOfFrame(HlsWrite):
     Statement which marks an end of frame on specified interface.
     """
 
-    def __init__(self, parent:"HlsScope", hwIO:HwIO):
-        super(HlsStmWriteEndOfFrame, self).__init__(parent, HVoidOrdering.from_py(None), hwIO, HVoidOrdering,
+    def __init__(self, ioProxy:"IoProxyStream", hwIO:HwIO):
+        super(HlsStmWriteEndOfFrame, self).__init__(ioProxy, HVoidOrdering.from_py(None), hwIO, HVoidOrdering,
                                                     True,  # isVolatile
                                                     )
 
     def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
-        dst, _ = getArgumentForHwIO(toLlvm, self.dst, self._parent._ioProxyForIo[self.dst], self, False)
+        dst, _ = getArgumentForHwIO(toLlvm, self.dst, self._ioProxy, self, False)
         dst: Argument
         return bb, toLlvm.b.CreateStreamWriteEndOfFrame(dst)

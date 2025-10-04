@@ -130,7 +130,7 @@ class HlsScope():
             mem: IoProxyAddressed = src.sequence
             if dtype is not None and dtype != mem.rWordT:
                 raise NotImplementedError()
-            return mem.READ_CLS(mem, self, mem.interface, src.index, mem.getDataTypeOfNativeRead(), blocking, isVolatile=isVolatile)
+            return mem.READ_CLS(mem, mem.interface, src.index, mem.getDataTypeOfNativeRead(), blocking, isVolatile=isVolatile)
         else:
             proxy = self._ioProxyForIo.get(src)
             if proxy is None:
@@ -150,7 +150,7 @@ class HlsScope():
             dst: PyObjectHwSubscriptRef
             mem: IoProxyAddressed = dst.sequence
             assert isinstance(mem, IoProxyAddressed), (dst, mem)
-            return mem.WRITE_CLS(mem, self, src, mem.interface, dst.index, mem.getDataTypeOfNativeWrite(),
+            return mem.WRITE_CLS(mem, src, mem.interface, dst.index, mem.getDataTypeOfNativeWrite(),
                                  isVolatile=isVolatile, mayBecomeFlushable=mayBecomeFlushable)
         else:
             proxy = self._ioProxyForIo.get(dst)

@@ -119,6 +119,8 @@ class MirToHwtHlsNetlistValueCache():
             return _v
 
         except KeyError:
+            # case where value is not yet available because the block was not visited yet
+            # (this may happen because CFG can not be linearized)
             o = HlsNetNodeOutLazy(self._netlist, [k], self, dtype)
             if isinstance(v, MachineBasicBlock):
                 o.name = f"bb{block.getNumber():d}_brFrom_bb{v.getNumber():d}"

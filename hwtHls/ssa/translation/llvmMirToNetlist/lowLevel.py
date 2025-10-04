@@ -271,7 +271,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
                  registerTypes: dict[Register, int],
                  loops: MachineLoopInfo,
                  netlist: HlsNetlistCtx,
-                 ioNodeConstructors: NetlistIoConstructorDictT,
+                 ioProxyForHwIo: NetlistIoConstructorDictT,
                  dbgTracer: Optional[DebugTracer],
                  ):
         super(HlsNetlistAnalysisPassMirToNetlistLowLevel, self).__init__()
@@ -287,8 +287,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         self.backedges = backedges
         self.liveness = liveness
         self.registerTypes = registerTypes
-        self.ioNodeConstructors: NetlistIoConstructorDictT = ioNodeConstructors
-
+        self.ioProxyForHwIo: NetlistIoConstructorDictT = ioProxyForHwIo
         hwHlsIoMetadata = HwtHlsIoMetadata_get(mf.getFunction())
         self.regToIo: dict[Register, tuple[HwIO, MDNode]] = {}
         regToIo = self.regToIo
@@ -301,28 +300,29 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
                 regToIo[ioReg] = (self._argIToIo[ioMd.otherArgIndex], ioMd)
             else:
                 # channel between 2 threads
-                dw: Optional[int] = None
+                # dw: Optional[int] = None
                 F = mf.getFunction()
+                md = HwtHlsIoMetadata_get(F, ioIndex)
                 FArg = F.getArg(ioIndex)
-                for u in FArg.users():
-                    ui = UserToInstruction(u)
-                    assert ui, u
-                    ld = InstructionToLoadInst(ui)
-                    if ld:
-                        ld: LoadInst
-                        dw = ld.getType().getIntegerBitWidth()
-                        break
-                    else:
-                        st = InstructionToStoreInst(ui)
-                        if st:
-                            st:StoreInst
-                            dw = st.getOperand(0).getType().getIntegerBitWidth()
-                            break
-                        else:
-                            raise NotImplementedError(ui)
-
-                if dw is None:
-                    raise AssertionError("Unused channel IO (this should have been already removed)")
+                # for u in FArg.users():
+                #    ui = UserToInstruction(u)
+                #    assert ui, u
+                #    ld = InstructionToLoadInst(ui)
+                #    if ld:
+                #        ld: LoadInst
+                #        dw = ld.getType().getIntegerBitWidth()
+                #        break
+                #    else:
+                #        st = InstructionToStoreInst(ui)
+                #        if st:
+                #            st:StoreInst
+                #            dw = st.getOperand(0).getType().getIntegerBitWidth()
+                #            break
+                #        else:
+                #            raise NotImplementedError(ui)
+                #
+                # if dw is None:
+                #    raise AssertionError("Unused channel IO (this should have been already removed)")
 
                 if ioMd.direction == IODirection.IO_DIR_IN:
                     channelKey = (ioMd.otherThreadFn, ioMd.otherArgIndex, F, ioIndex)
@@ -331,14 +331,15 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
 
                 c = netlist._channelsBetweenLlvmThreadsMir.get(channelKey)
                 if c is None:
+                    # add new record about channel if this is first seen access to the channel
                     c = HwIODataRdVld()
                     c._name = FArg.getName().str()
-                    c.DATA_WIDTH = dw
+                    c.DATA_WIDTH = md.readWordWidth if md.direction == IODirection.IO_DIR_IN else md.writeWordWidth
                     # print((channelKey[0].getName().str(), channelKey[1], channelKey[2].getName().str(), channelKey[3]))
                     netlist._channelsBetweenLlvmThreadsMir[channelKey] = c
                     netlist._channelsBetweenLlvmThreads[c] = (None, None)
-                
-                self.ioNodeConstructors[c] = _USE_DEFAULT_IO_NODE_CONSTRUCTOR
+
+                self.ioProxyForHwIo[c] = _USE_DEFAULT_IO_NODE_CONSTRUCTOR
                 regToIo[ioReg] = (c, ioMd)
 
         self.globalMemories: dict[GlobalValue, MemoryAllocationMeta] = {}
@@ -377,8 +378,9 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
                          addWriteToOrderingChain=True) -> HlsNetNodeOut:
         namePrefix = f"bb{srcBlock.getNumber():d}_to_bb{dstBlock.getNumber():d}_{name:s}"
         rCls = HlsNetNodeReadBackedge if isBackedge else HlsNetNodeReadForwardedge
+        ioProxy = IoProxyScalar(None, None, val._dtype)
         rFromIn = rCls(
-            self.netlist,
+            self.netlist, ioProxy,
             val._dtype,
             name=f"{namePrefix:s}_dst",
         )
@@ -404,7 +406,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
 
         wCls = HlsNetNodeWriteBackedge if isBackedge else HlsNetNodeWriteForwardedge
         wToOut = wCls(
-            self.netlist,
+            self.netlist, ioProxy,
             name=f"{namePrefix:s}_src")
         srcBlockMeta = self.blockMeta[srcBlock]
         srcBlockMeta.parentElement.addNode(wToOut)

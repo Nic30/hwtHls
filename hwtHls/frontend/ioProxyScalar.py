@@ -21,7 +21,6 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from hwtLib.amba.axi_common import Axi_hs
 from ipCorePackager.constants import INTF_DIRECTION
@@ -136,7 +135,7 @@ class IoProxyScalar(IoProxy):
         else:
             assert self.mayBecomeFlushable == mayBecomeFlushable, (self.interface, "mayBecomeFlushable flag must be the same for all writes to same IO")
 
-        return HlsWrite(self.hls, src, dst, dtype, isVolatile, mayBecomeFlushable=mayBecomeFlushable)
+        return HlsWrite(self, src, dst, dtype, isVolatile, mayBecomeFlushable=mayBecomeFlushable)
 
     def read(self, blocking=True, isVolatile=True):
         if isinstance(self.interface, HwIO):
@@ -146,12 +145,12 @@ class IoProxyScalar(IoProxy):
             self.hasBlockingRead = blocking
         else:
             assert self.hasBlockingRead == blocking, (self.hasBlockingRead, blocking, "Can not combine blocking and unblocking reads")
-        return HlsRead(self.hls, self.interface, self.getDataTypeOfNativeRead(), blocking, isVolatile)
+        return HlsRead(self, self.interface, self.getDataTypeOfNativeRead(), blocking, isVolatile)
 
     @override
     def _translateMirToNetlist_HWTFPGA_CLOAD(self,
                                mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
-                               mbMeta: MachineBasicBlockMeta,
+                               mbMeta: "MachineBasicBlockMeta",
                                instr: MachineInstr,
                                srcIo: Union[HwIO, RtlSignalBase],
                                srcIoMd: HwtHlsIoMetadata,
@@ -183,6 +182,7 @@ class IoProxyScalar(IoProxy):
                            srcIo,
                            dtype=dtype,
                            name=f"ld_r{instr.getOperand(0).getReg().virtRegIndex():d}")
+        assert n.ioProxy is self, n
         mbMeta.parentElement.addNode(n)
         if not isBlocking:
             n.setNonBlocking()
@@ -222,6 +222,7 @@ class IoProxyScalar(IoProxy):
         n = writeNodeCls(netlist, dstIo,
                          mayBecomeFlushable=self.mayBecomeFlushable,
                          bufferCapacity=bufferCapacity)
+        assert n.ioProxy is self, n
         mbMeta.parentElement.addNode(n)
         srcVal.connectHlsIn(n._inputs[0])
 
@@ -231,4 +232,44 @@ class IoProxyScalar(IoProxy):
         mirToNetlist._addSkipWhen_n(n, _cond, None)
         mbMeta.addOrderedNode(n)
         return [n, ]
+
+
+    @override
+    @staticmethod
+    def _getRtlSyncSignals(
+                hwIO: Union[HwIORdVldSync, HwIORdSync, HwIOVldSync, RtlSignalBase, HwIOSignal, ValidReadyTuple],
+                formatAsValidReadyTuple: bool=False,
+                ) -> Union[ValidReadyTuple, tuple[Union[RtlSignal, Literal[1]], Union[RtlSignal, Literal[1]]]]:
+        if isinstance(hwIO, tuple):
+            # expect ValidReadyTuple
+            assert len(hwIO) == 2, hwIO
+            assert isinstance(hwIO[0], (int, RtlSignalBase, HwIOSignal)), hwIO
+            assert isinstance(hwIO[1], (int, RtlSignalBase, HwIOSignal)), hwIO
+            return hwIO
+        elif isinstance(hwIO, Axi_hs):
+            return (hwIO.valid, hwIO.ready)
+        elif isinstance(hwIO, (HwIODataRdVld, HwIORdVldSync)):
+            return (hwIO.vld, hwIO.rd)
+        elif isinstance(hwIO, HwIOVldSync):
+            if formatAsValidReadyTuple:
+                return (hwIO.vld, 1)
+            else:
+                return (hwIO.vld,)
+        elif isinstance(hwIO, HwIOBramPort_noClk):
+            if formatAsValidReadyTuple:
+                return (hwIO.en, 1)
+            else:
+                return (hwIO.en,)
+        elif isinstance(hwIO, HwIORdSync):
+            if formatAsValidReadyTuple:
+                return (1, hwIO.rd)
+            else:
+                return (hwIO.rd,)
+        elif isinstance(hwIO, (RtlSignalBase, HwIOSignal, HwIOStruct)):
+            if formatAsValidReadyTuple:
+                return (1, 1)
+            else:
+                return ()
+        else:
+            raise TypeError("Unknown synchronization of ", hwIO)
 

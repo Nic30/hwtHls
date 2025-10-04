@@ -59,7 +59,7 @@ class ToLlvmIrTranslator():
       * all replaced with zext, sext, trunc, hwtHls.bitrangeGet/hwtHls.bitConcat
     
     :ivar currentDef: dictionary mapping a value for each variable in each block
-    :ivar ioNodeConstructors: dictionary of read/write statements associated with io used to construct HlsNetlist node later
+    :ivar ioProxyForHwIo: dictionary of read/write statements associated with IoProxy used to construct HlsNetlist node later
     :ivar _variableInBlock: A dictionary holding a variable which currently
         contains an expression for each expression in each block.
         This dictionary is used to use already translated variable currently storing

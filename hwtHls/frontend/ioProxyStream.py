@@ -7,6 +7,7 @@ from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ioProxy import IoProxy
 from hwtHls.frontend.ioProxyScalar import IoProxyScalar
+from hwtHls.frontend.pyBytecode import hlsLowLevel
 from hwtHls.frontend.statementsRead import HlsStmReadStartOfFrame, \
     HlsStmReadEndOfFrame
 from hwtHls.frontend.statementsWrite import HlsStmWriteStartOfFrame, \
@@ -42,8 +43,9 @@ class IoProxyStream(IoProxy):
 
     def readStartOfFrame(self):
         ":see: :class:`~.HlsStmReadStartOfFrame`"
-        return HlsStmReadStartOfFrame(self.hls, self.interface)
+        return HlsStmReadStartOfFrame(self, self.interface)
 
+    @hlsLowLevel
     def read(self, t: HdlType, reliable=True):
         """
         :param reliable: if true the it is expected that the stream never ends prematurely and the check is ommited
@@ -51,17 +53,20 @@ class IoProxyStream(IoProxy):
         """
         raise NotImplementedError("Must be implemented in an implementation of this class for the specific interface")
 
+    @hlsLowLevel
     def readEndOfFrame(self):
         ":see: :class:`~.HlsStmReadEndOfFrame`"
-        return HlsStmReadEndOfFrame(self.hls, self.interface)
+        return HlsStmReadEndOfFrame(self, self.interface)
 
+    @hlsLowLevel
     def writeStartOfFrame(self, mayBecomeFlushable=False):
         """
         :see: :class:`~.HlsStmWriteStartOfFrame`
         :param mayBecomeFlushable: :see: :class:`~.HlsNetNodeWrite`
         """
-        return HlsStmWriteStartOfFrame(self.hls, self.interface, mayBecomeFlushable=mayBecomeFlushable)
+        return HlsStmWriteStartOfFrame(self, self.interface, mayBecomeFlushable=mayBecomeFlushable)
 
+    @hlsLowLevel
     def write(self, v: Union[HConst, RtlSignal, Value, HwIO],
               empty:Union[None, HConst, RtlSignal, Value, HwIO]=None,
               mask:Union[None, HConst, RtlSignal, Value, HwIO]=None,
@@ -79,9 +84,10 @@ class IoProxyStream(IoProxy):
         """
         raise NotImplementedError("Must be implemented in an implementation of this class for the specific interface")
 
+    @hlsLowLevel
     def writeEndOfFrame(self):
         ":see: :class:`~.HlsStmWriteEndOfFrame`"
-        return HlsStmWriteEndOfFrame(self.hls, self.interface)
+        return HlsStmWriteEndOfFrame(self, self.interface)
 
     @override
     def _translateMirToNetlist_HWTFPGA_CLOAD(self, *args, **kwargs) -> Sequence[HlsNetNode]:

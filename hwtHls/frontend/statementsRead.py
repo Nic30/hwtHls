@@ -1,4 +1,4 @@
-from typing import Optional, Union, Tuple, Sequence
+from typing import Optional, Union, Tuple
 
 from hwt.doc_markers import internal
 from hwt.hObjList import HObjList
@@ -62,7 +62,7 @@ class HlsRead(HdlStatement):
     """
 
     def __init__(self,
-                 parent: "HlsScope",
+                 ioProxy: "IoProxy",
                  src: ANY_HLS_STREAM_INTF_TYPE,
                  dtype: HdlType,
                  isBlocking: bool,
@@ -70,7 +70,7 @@ class HlsRead(HdlStatement):
                  hwIOName: Optional[str]=None):
         super(HlsRead, self).__init__()
         self._isAccessible = True
-        self._parent = parent
+        self._ioProxy = ioProxy
         self._src = src
         self._isBlocking = isBlocking
         self._isVolatile = isVolatile
@@ -84,7 +84,7 @@ class HlsRead(HdlStatement):
             name = f"{hwIOName:s}_read"
 
         # create an interface and signals which will hold value of this object
-        var = parent.var
+        var = ioProxy.hls.var
         self._name = name
         isVoid = HdlType_isVoid(dtype)
         if isVoid:
@@ -135,10 +135,10 @@ class HlsRead(HdlStatement):
 
     @internal
     def _get_rtl_context(self) -> 'RtlNetlist':
-        return self._parent.ctx
+        return self.ioProxy.hls.ctx
 
     def _translateToLlvm(self, toLlvm: "ToLlvmIrTranslator", bb: BasicBlock):
-        src, elmT = getArgumentForHwIO(toLlvm, self._src, self._parent._ioProxyForIo[self._src], self, True)
+        src, elmT = getArgumentForHwIO(toLlvm, self._src, self._ioProxy, self, True)
         src: Argument
         elmT: Type
         # [todo] see mustSuppressSpeculation
@@ -146,7 +146,7 @@ class HlsRead(HdlStatement):
         return toLlvm._translateToLlvm_HlsRead_registerVar(bb, self, v)
 
     def _getInterfaceName(self, io: Union[HwIO, Tuple[HwIO]]) -> str:
-        return HwIO_getName(self._parent.parentHwModule, io)
+        return HwIO_getName(self._ioProxy.hls.parentHwModule, io)
 
     def __repr__(self):
         t = self._dtype
@@ -162,19 +162,19 @@ class HlsReadAddressed(HlsRead):
     Variant of :class:`~.HlsRead` with an index or address input.
     """
 
-    def __init__(self, parent:"HlsScope",
+    def __init__(self, ioProxy:"IoProxyAddressed",
                  src:HwIO,
                  index: ANY_SCALAR_INT_VALUE,
                  element_t: HdlType,
                  isBlocking:bool,
                  isVolatile:bool,
                  hwIOName: Optional[str]=None):
-        super(HlsReadAddressed, self).__init__(parent, src, element_t, isBlocking, isVolatile, hwIOName=hwIOName)
+        super(HlsReadAddressed, self).__init__(ioProxy, src, element_t, isBlocking, isVolatile, hwIOName=hwIOName)
         self.index = index
 
     @override
     def _translateToLlvm(self, toLlvm: "ToLlvmIrTranslator", bb: BasicBlock):
-        src, t = getArgumentForHwIO(toLlvm, self._src, self._parent._ioProxyForIo[self._src], self, True)
+        src, t = getArgumentForHwIO(toLlvm, self._src, self._ioProxy, self, True)
         src: Argument
         t: Type
         # :note: the index type does not matter much as llvm::InstCombine extends it to i64
@@ -207,12 +207,12 @@ class HlsStmReadStartOfFrame(HlsRead):
     :attention: This does not read SOF flag from interface. (To get EOF you have to read data which contains also SOF flag.)
     """
 
-    def __init__(self, parent:"HlsScope", src:ANY_HLS_STREAM_INTF_TYPE):
-        HlsRead.__init__(self, parent, src, HVoidOrdering, True, isVolatile=True)
+    def __init__(self, ioProxy:"IoProxyStream", src:ANY_HLS_STREAM_INTF_TYPE):
+        HlsRead.__init__(self, ioProxy, src, HVoidOrdering, True, isVolatile=True)
 
     @override
     def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
-        src, _ = getArgumentForHwIO(toLlvm, self._src, self._parent._ioProxyForIo[self._src], self, True)
+        src, _ = getArgumentForHwIO(toLlvm, self._src, self._ioProxy, self, True)
         src: Argument
         v = toLlvm.b.CreateStreamReadStartOfFrame(src)
         return toLlvm._translateToLlvm_HlsRead_registerVar(bb, self, v)
@@ -225,12 +225,12 @@ class HlsStmReadEndOfFrame(HlsRead):
     :attention: Does not read EOF flag from interface. (To get SOF you have to read data which contains also EOF flag.)
     """
 
-    def __init__(self, parent:"HlsScope", src:ANY_HLS_STREAM_INTF_TYPE):
-        HlsRead.__init__(self, parent, src, HVoidOrdering, True, isVolatile=True)
+    def __init__(self, ioProxy:"IoProxyStream", src:ANY_HLS_STREAM_INTF_TYPE):
+        HlsRead.__init__(self, ioProxy, src, HVoidOrdering, True, isVolatile=True)
 
     @override
     def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
-        src, _ = getArgumentForHwIO(toLlvm, self._src, self._parent._ioProxyForIo[self._src], self, True)
+        src, _ = getArgumentForHwIO(toLlvm, self._src, self._ioProxy, self, True)
         src: Argument
         v = toLlvm.b.CreateStreamReadEndOfFrame(src)
         return toLlvm._translateToLlvm_HlsRead_registerVar(bb, self, v)

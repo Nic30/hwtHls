@@ -1,9 +1,16 @@
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, List, Tuple, Dict, Union
 
 from hwt.hwIO import HwIO
 from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineLoop, Register, \
-    TargetOpcode, MachineRegisterInfo, MDNode
+    TargetOpcode, MachineRegisterInfo, MDNode, CmpInst
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
+
+MirToHlsNetlistTranslatedInstrOpsT = list[Union[CmpInst.Predicate,
+                             MachineBasicBlock,
+                             Register,
+                             HlsNetNodeOutAny,
+                             HwIO,
+                             int]]
 
 
 class LiveInMuxMeta():

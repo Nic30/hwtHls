@@ -1,4 +1,4 @@
-from typing import Optional, Union, Sequence, Type as TypingType
+from typing import Optional, Union, Sequence, Type as TypingType, Literal
 
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
@@ -9,15 +9,21 @@ from hwtHls.llvm.llvmIr import MDTuple, MachineInstr, Register, Type, PointerTyp
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
+from hwtLib.handshaked.streamNode import ValidReadyTuple
 
 
 class IoProxy(object):
+    """
+    An object managing of translation of HW IO access
+    from python to LLVM IR,
+    from LLVM MIR to HlsNetlist and
+    from HlsNetlist to HWT RTL
+    """
 
     def __init__(self, hls: "HlsScope", interface: Union[HwIO, MultiPortGroup, BankedPortGroup], dtype:Optional[HdlType]=None):
         self.interface = interface
-        self._nativeReadTy: Optional[HdlType] = None  # :note: use getDataTypeOfNativeRead
-        self._nativeWriteTy: Optional[HdlType] = None  # :note: use getDataTypeOfNativeWrite
+        self._nativeReadTy: Optional[HdlType] = dtype  # :note: use getDataTypeOfNativeRead
+        self._nativeWriteTy: Optional[HdlType] = dtype  # :note: use getDataTypeOfNativeWrite
         self._nativeDataWordTy: Optional[HdlType] = None  # :note: use
         self.hls = hls
         self.hasBlockingRead = None
@@ -33,7 +39,7 @@ class IoProxy(object):
         """
         Get the HdlType which represents just data without any other support signals like byte enable, framing signals etc.
         """
-        raise AssertionError("Override this method in implementation of this abstract class", self)
+        raise AssertionError("Override this method in implementation of this abstract class", self.__class__)
 
     def getDataTypeOfNativeRead(self) -> HdlType:
         """
@@ -43,13 +49,13 @@ class IoProxy(object):
         :attention: the type for read/write may be different.
            This is for example if the write word has write mask and read has not.
         """
-        raise AssertionError("Override this method in implementation of this abstract class", self)
+        raise AssertionError("Override this method in implementation of this abstract class", self.__class__)
 
     def getDataTypeOfNativeWrite(self) -> HdlType:
         """
         Equivalent of :meth:`~.getDataTypeOfNativeRead` for write word.
         """
-        raise AssertionError("Override this method in implementation of this abstract class", self)
+        raise AssertionError("Override this method in implementation of this abstract class", self.__class__)
 
     def _getInterfaceTypeForLlvmFnArg(self, toLlvm: 'ToLlvmIrTranslator',
                                       ioIndex: int) -> tuple[Type, Type]:
@@ -72,9 +78,16 @@ class IoProxy(object):
     def _getLlvmIoProtocolMetadata(self, toLlvm: "ToLlvmIrTranslator") -> Optional[MDTuple]:
         pass
 
+    def updateLlvmHwtHlsIoMetadata(self, tr: "ToLlvmIrTranslator", md: HwtHlsIoMetadata) -> bool:
+        """
+        This prepares HwtHlsIoMetadata metadata
+        :returns: True if some change has been made
+        """
+        return False
+
     def _translateMirToNetlist_HWTFPGA_CLOAD(self,
                                mirToNetlist: "HlsNetlistAnalysisPassMirToNetlist",
-                               mbMeta: MachineBasicBlockMeta,
+                               mbMeta: "MachineBasicBlockMeta",
                                instr: MachineInstr,
                                srcIo: HwIO,
                                srcIoMd: HwtHlsIoMetadata,
@@ -95,11 +108,11 @@ class IoProxy(object):
         :param cond: An enable condition for this operation to happen.
         :param instrDstReg: A register where this instruction stores the read data.
         """
-        raise AssertionError("Override this method in implementation of this abstract class")
+        raise AssertionError("Override this method in implementation of this abstract class", self.__class__)
 
     def _translateMirToNetlist_HWTFPGA_CSTORE(self,
             mirToNetlist: "HlsNetlistAnalysisPassMirToNetlist",
-            mbMeta: MachineBasicBlockMeta,
+            mbMeta: "MachineBasicBlockMeta",
             instr: MachineInstr,
             srcVal: HlsNetNodeOutAny,
             dstIo: Union[HwIO, RtlSignal],
@@ -111,12 +124,16 @@ class IoProxy(object):
         """
         :see: :meth:`~.IoProxy._translateMirToNetlist_HWTFPGA_CLOAD`
         """
+        raise AssertionError("Override this method in implementation of this abstract class", self.__class__)
 
-        raise AssertionError("Override this method in implementation of this abstract class")
+    @classmethod
+    def _getRtlSyncSignals(cls,
+                hwIO: Union[HwIO, ValidReadyTuple],
+                formatAsValidReadyTuple: bool=False,
+                ) -> Union[ValidReadyTuple, tuple[Union[RtlSignal, Literal[1]], Union[RtlSignal, Literal[1]]]]:
+        raise AssertionError("Override this method in implementation of this abstract class", cls)
 
-    def updateLlvmHwtHlsIoMetadata(self, tr: "ToLlvmIrTranslator", md: HwtHlsIoMetadata) -> bool:
-        """
-        This prepares HwtHlsIoMetadata metadata
-        :returns: True if some change has been made
-        """
-        return False
+    @classmethod
+    def _getRtlSyncTuple(cls, hwIO: Union[HwIO, ValidReadyTuple]):
+        return cls._getRtlSyncSignals(hwIO, formatAsValidReadyTuple=True)
+
