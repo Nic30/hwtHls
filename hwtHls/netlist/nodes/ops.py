@@ -51,6 +51,7 @@ class HlsNetNodeOperator(HlsNetNode):
         :param _dtype: RTL data type of output
         """
         super(HlsNetNodeOperator, self).__init__(netlist, name=name)
+        assert operator is not None
         self.operator = operator
         self.operatorSpecialization = operatorSpecialization
         for _ in range(operandCnt):
