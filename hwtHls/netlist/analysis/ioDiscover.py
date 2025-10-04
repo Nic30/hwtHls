@@ -52,7 +52,7 @@ class HlsNetlistAnalysisPassIoDiscover(HlsNetlistAnalysisPass):
             if i is None:
                 continue
 
-            assert isinstance(i, (RtlSignalBase, HwIOBase, MultiPortGroup, BankedPortGroup, MemoryAllocationMeta)), (i, op)
+            assert isinstance(i, (RtlSignalBase, HwIOBase, tuple, MultiPortGroup, BankedPortGroup, MemoryAllocationMeta)), (i, op)
             opList = ioByInterface.get(i, None)
             if opList is None:
                 opList = ioByInterface[i] = SetList()

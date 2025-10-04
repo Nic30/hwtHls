@@ -13,7 +13,6 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.frame import PyBytecodeFrame
 from hwtHls.llvm.llvmIr import Value, BasicBlock, IRBuilder, \
     SwitchInst, ConstantInt, APInt, ValueToConstantInt
-from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 
 
 class PyObjectRequiresExpandBeforeUse():
@@ -105,12 +104,12 @@ class PyObjectHwSubscriptRef(PyObjectRequiresExpandBeforeUse):
     def _createSwitchCaseBlocks(self, toSsa: "PyBytecodeToSsa",
                        offsetForLabels: int,
                        curBlock: BasicBlock,
-                       populateCaseBlockFn: Callable[[ToLlvmIrTranslator, int, object], None]) -> BasicBlock:
+                       populateCaseBlockFn: Callable[["ToLlvmIrTranslator", int, object], None]) -> BasicBlock:
         _o = self.instructionOffsetForLabels
         if _o is not None:
             offsetForLabels = _o
 
-        toLlvm: ToLlvmIrTranslator = toSsa.toLlvm
+        toLlvm: "ToLlvmIrTranslator" = toSsa.toLlvm
         # construct sucBlock. It is a block where all case blocks will jump to
         sucBLockName = toLlvm.strCtx.addTwine(f"{curBlock.getName().str():s}_{offsetForLabels:d}_setSwEnd")
         sucBlock = BasicBlock.Create(toLlvm.ctx, sucBLockName, toLlvm.llvm.main, None)

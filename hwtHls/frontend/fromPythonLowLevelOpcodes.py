@@ -3,7 +3,7 @@ from dis import Instruction, dis
 from inspect import ismethod
 import operator
 from types import FunctionType, CellType, MethodType
-from typing import Callable, Dict, Union, Optional
+from typing import Callable, Dict, Union, Optional, Sequence
 
 from hwt.hObjList import HObjList
 from hwt.hdl.const import HConst
@@ -20,6 +20,7 @@ from hwt.hwIOs.std import HwIOSignal
 from hwt.mainBases import HwIOBase
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.frame import PyBytecodeFrame
+from hwtHls.frontend.hObjListUtils import HObjList_getHdlType
 from hwtHls.frontend.hwIterator import HwIterator
 from hwtHls.frontend.indexExpansion import expandBeforeUse, \
     PyObjectHwSubscriptRef, expandBeforeUseSequence
@@ -40,19 +41,6 @@ from hwtHls.frontend.statementsWrite import HlsWrite
 from hwtHls.llvm.llvmIr import Value, BasicBlock, IRBuilder
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
-
-
-def HObjList_getHdlType(vVal):
-    if isinstance(vVal, Value):
-        _t = vVal.getType()
-        if _t.isDoubleTy():
-            return HFloatTmp
-        else:
-            return HBits(_t.getScalarSizeInBits())
-    elif isinstance(vVal, HObjList):
-        return HObjList_getHdlType(vVal[0])[len(vVal)]
-    else:
-        return getattr(vVal, "_dtypeOrig", vVal._dtype)
 
 
 def _isSameOrIsSameTuple(a, b):
@@ -487,7 +475,12 @@ class PyBytecodeToSsaLowLevelOpcodes():
         elif isinstance(vVal, ObjectWithHlsStoreOverride):
             return vVal.hlsOverrideInitializeStorageCell(self, name)
         elif isinstance(vVal, HObjList):
-            v = self.hls.var(name, HObjList_getHdlType(vVal))
+            # construct variable for every item and return new HObjList which will be
+            # the container of ev values
+            v = HObjList(self._initializeStorageCellForHwSignal(f"{name:s}[{i:d}]", vItem)
+                         for i, vItem in enumerate(vVal)
+                         )
+            v._dtype = HObjList_getHdlType(vVal)
             return v
         else:
             t = HObjList_getHdlType(vVal)
@@ -501,7 +494,30 @@ class PyBytecodeToSsaLowLevelOpcodes():
         v = self.hls.var(name, t)
         return v
 
-    def _storeToHwSignal(self, curBlock: BasicBlock, dst: Union[RtlSignal, HwIOBase, ObjectWithHlsStoreOverride], src):
+    def _storeToHwSignalArrayLoad(self, curBlock: BasicBlock, src: Sequence):
+        toLlvm = self.toLlvm
+        loadedSrcs: HObjList[Value] = HObjList()
+        for srcItem in src:
+            if isinstance(srcItem, HObjList):
+                block, srcItem = self._storeToHwSignalArrayLoad(curBlock, srcItem)
+            else:
+                block, srcItem = toLlvm._translateExprToLlvm(curBlock, srcItem)
+            loadedSrcs.append(srcItem)
+        return block, loadedSrcs
+
+    def _storeToHwSignalArrayStore(self, block: BasicBlock,
+                                   dst: HObjList[Union[RtlSignal, HwIOBase, ObjectWithHlsStoreOverride]],
+                                   src: HObjList[Union[Value], HObjList]):
+        assert isinstance(dst, HObjList), dst
+        assert len(dst) == len(src), (len(dst), len(src))
+        toLlvm = self.toLlvm
+        for dstElm, srcElm in zip(dst, src):
+            if isinstance(dstElm, HObjList):
+                self._storeToHwSignalArrayStore(block, dstElm, srcElm)
+            else:
+                toLlvm._variableInBlock_insertRedef(block, dstElm, [], srcElm)
+
+    def _storeToHwSignal(self, curBlock: BasicBlock, dst: Union[RtlSignal, HwIOBase, HObjList, ObjectWithHlsStoreOverride], src):
         if isinstance(dst, ObjectWithHlsStoreOverride):
             return dst.hlsStoreOverride(self, curBlock, src)
         toLlvm = self.toLlvm
@@ -509,7 +525,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
         if isinstance(src, Value) and not srcIsRead:
             if isinstance(dst, HwIOBase):
                 if isinstance(dst, HwIOStruct):
-                    # HwIOStruct is special case because it may be stored as a flat vector and intrpreted as structured type only in frontend
+                    # HwIOStruct is special case because it may be stored as a flat vector and interpreted as structured type only in frontend
                     w = src.getType().getIntegerBitWidth()
                     assert w == dst._dtype.bit_length(), (src, dst, w, dst._dtype.bit_length(), dst._dtype)
                     off = 0
@@ -529,12 +545,28 @@ class PyBytecodeToSsaLowLevelOpcodes():
             _src = src.data if srcIsRead else src
             if isinstance(dst._dtype, HArray):
                 # inlined part of visit_Assignment
-                block, src = toLlvm._translateExprToLlvm(curBlock, src)
+                # src is now of scalar type
+                #
+
+                # inlined part of visit_Assignment
+                # src is now of scalar type
+
                 # this may result in:
                 # * store instruction
                 # * just the registration of the variable for the symbol
                 #   * only a segment in bit vector can be assigned, this result in the assignment of the concatenation of previous and new value
-                toLlvm._variableInBlock_insertRedef(block, dst, [], src)
+                if isinstance(dst, HObjList):
+                    # this is assing of array to array
+                    # in this case we have to first load all values from src
+                    # and then store it to dst
+                    # because the dst may contain refernces used in src and we have to perform the store atomically
+                    # with original values, not the partially updated src because of src references in dst
+                    block, src = self._storeToHwSignalArrayLoad(curBlock, src)
+                    self._storeToHwSignalArrayStore(block, dst, src)
+                else:
+                    # this is assign of array which is represented by scalar
+                    block, src = toLlvm._translateExprToLlvm(curBlock, src)
+                    toLlvm._variableInBlock_insertRedef(curBlock, dst, (), src)
                 return block
             else:
                 stm = dst(_src)
@@ -576,7 +608,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
                         v = self._initializeStorageCellForHwSignal(instr.argval, vVal)
                         localsplus[varIndex] = v
 
-            if isinstance(v, (RtlSignal, HwIO, ObjectWithHlsStoreOverride)):
+            if isinstance(v, (RtlSignal, HwIO, HObjList, ObjectWithHlsStoreOverride)):
                 # only if it is a hw variable, create assignment to HW variable
                 if isinstance(v, RtlSignal) and v._hasGenericName:
                     v._name = instr.argval

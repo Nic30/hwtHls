@@ -9,6 +9,7 @@ from hwt.hObjList import HObjList
 from hwt.hdl.const import HConst
 from hwt.hdl.types.defs import  BIT
 from hwt.hdl.types.hdlType import HdlType
+from hwt.hdl.types.struct import HStruct
 from hwt.hwIO import HwIO
 from hwt.hwIOs.hwIOStruct import HwIOStruct
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld, HdlType_to_HwIO
@@ -93,7 +94,9 @@ class HlsScope():
         toLlvm = self._currentThread.toLlvm
         sig = HwModule._sig(self, name, dtype, def_val, nop_val)
         # generate allocas for new variable
-        if isinstance(sig, RtlSignal):
+        if isinstance(dtype, HStruct):
+            pass  # HwModule._sig uses HwIO_without_registration which automatically calls this method in recurse
+        elif isinstance(sig, RtlSignal):
             toLlvm._getOrCreateAllocaForTmpVariable(sig, allocaKnownToBeMissing=True)
         elif isinstance(sig, HObjList):
             for _var in sig:

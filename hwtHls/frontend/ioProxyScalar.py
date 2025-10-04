@@ -1,4 +1,4 @@
-from typing import Optional, Union, Type as TypingType, Sequence
+from typing import Optional, Union, Type as TypingType, Sequence, Literal
 
 from hwt.hObjList import HObjList
 from hwt.hdl.types.bits import HBits
@@ -9,6 +9,7 @@ from hwt.hwIOs.std import HwIODataRdVld, HwIORdVldSync, HwIODataVld, HwIODataRd,
 from hwt.mainBases import RtlSignalBase
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwtHls.frontend.hObjListUtils import HObjList_getHdlType
 from hwtHls.frontend.ioProxy import IoProxy
 from hwtHls.frontend.statementsRead import HlsRead
 from hwtHls.frontend.statementsWrite import HlsWrite
@@ -81,7 +82,8 @@ class IoProxyScalar(IoProxy):
 
         elif isinstance(src, (HwIOSignal, HwIOStruct)):
             dtype = src._dtype
-
+        elif isinstance(src, (tuple, HObjList)):
+            dtype = HObjList_getHdlType(src)
         else:
             raise NotImplementedError(src)
 
@@ -166,7 +168,7 @@ class IoProxyScalar(IoProxy):
         isBlocking = True if self.hasBlockingRead is None else self.hasBlockingRead
         valCache: MirToHwtHlsNetlistValueCache = mirToNetlist.valCache
         netlist: HlsNetlistCtx = mirToNetlist.netlist
-        assert isinstance(srcIo, (HwIO, RtlSignalBase, MultiPortGroup, BankedPortGroup)), srcIo
+        assert isinstance(srcIo, (HwIO, RtlSignalBase, tuple, MultiPortGroup, BankedPortGroup)), srcIo
         assert isinstance(index, int) and index == 0, (srcIo, index, "Because this read is not addressed there should not be any index")
 
         if (isinstance(dtype, HBits) and dtype.signed is not None) or not dtype.isScalar():
@@ -203,7 +205,7 @@ class IoProxyScalar(IoProxy):
     @override
     def _translateMirToNetlist_HWTFPGA_CSTORE(self,
             mirToNetlist: "HlsNetlistAnalysisPassMirToNetlist",
-            mbMeta: MachineBasicBlockMeta,
+            mbMeta: "MachineBasicBlockMeta",
             instr: MachineInstr,
             srcVal: HlsNetNodeOutAny,
             dstIo: Union[HwIO, RtlSignal],
@@ -217,9 +219,9 @@ class IoProxyScalar(IoProxy):
         """
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         # srcVal, dstIo, index, cond = ops
-        assert isinstance(dstIo, (HwIO, RtlSignal)), dstIo
+        assert isinstance(dstIo, (HwIO, tuple, RtlSignal)), dstIo
         assert isinstance(index, int) and index == 0, (instr, index, "Because this read is not addressed there should not be any index")
-        n = writeNodeCls(netlist, dstIo,
+        n = writeNodeCls(netlist, self, dstIo,
                          mayBecomeFlushable=self.mayBecomeFlushable,
                          bufferCapacity=bufferCapacity)
         assert n.ioProxy is self, n
@@ -232,7 +234,6 @@ class IoProxyScalar(IoProxy):
         mirToNetlist._addSkipWhen_n(n, _cond, None)
         mbMeta.addOrderedNode(n)
         return [n, ]
-
 
     @override
     @staticmethod
