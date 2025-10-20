@@ -243,6 +243,8 @@ class HwtHlsNetlistToTimelineJson():
             name = obj.name
             if not name:
                 name = obj._getInterfaceName(obj.dst)
+                if name is None:
+                    name = "None"
             if isinstance(obj, HlsNetNodeWriteBramCmd):
                 label = f"{name:s}.write_cmd({obj.cmd})  {obj._id:d}"
             else:
