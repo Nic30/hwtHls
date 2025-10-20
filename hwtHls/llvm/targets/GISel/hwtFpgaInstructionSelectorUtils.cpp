@@ -38,7 +38,7 @@ ConstantInt* machineOperandTryGetConst(LLVMContext &Context,
 }
 
 void selectInstrArg(MachineFunction &MF, MachineInstrBuilder &MIB,
-		MachineRegisterInfo &MRI, MachineOperand &MO) {
+		MachineRegisterInfo &MRI, const MachineOperand &MO) {
 	if (MO.isReg() && MO.getReg()) {
 		if (MO.isDef()) {
 			MIB.add(MO);
