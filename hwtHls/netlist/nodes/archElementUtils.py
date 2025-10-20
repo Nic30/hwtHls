@@ -2,6 +2,7 @@ from itertools import chain, zip_longest
 from typing import Optional, Dict
 
 from hwt.pyUtils.setList import SetList
+from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
@@ -101,16 +102,18 @@ def ArchElement_mergeFsms(src: ArchElementFsm, dst: ArchElementFsm):
 
 
 def ArchElement_mergePipeToFsm(src: ArchElementPipeline,
-                            dst: ArchElementFsm):
+                               dst: ArchElementFsm):
     for c in src.connections:
         assert c is None or not c.signals, ("RTL for this element should not yet be instantiated", src)
 
-    raise NotImplementedError()
-    dstFsm = dst.fsm
     for clkI, nodes in enumerate(src.stages):
-        dstSt = dstFsm.addState(clkI)
-        dstSt.extend(nodes)
-        dst.connections[clkI].merge(src.connections[clkI])
+        srcCon: Optional[ConnectionsOfStage] = src.connections[clkI]
+        if nodes:
+            dstSt = dst.getStageForClock(clkI, createIfNotExists=True)
+            dstSt.extend(nodes)
+            dst.connections[clkI].merge(srcCon)
+        else:
+            assert srcCon is None or not srcCon.signals, (clkI, src)
 
     dst.subNodes.extend(src.subNodes)
     for n in src.subNodes:
