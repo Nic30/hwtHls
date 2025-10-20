@@ -1,7 +1,8 @@
 #include <hwtHls/llvm/targets/intrinsic/hfloattmp.h>
-#include <hwtHls/llvm/targets/intrinsic/utils.h>
 #include <llvm/ADT/StringExtras.h>
 #include <llvm/CodeGen/MachineInstr.h>
+
+#include <hwtHls/llvm/targets/intrinsic/utils.h>
 #include <hwtHls/llvm/bitMath.h>
 
 #include <math.h>
@@ -206,7 +207,8 @@ APInt HFloatTmpConfig::bitCastAPFloatToHFloatTmpAPInt(const APFloat &v) const {
 				}
 			} else {
 				if (vAsDouble < 0.0 && vAsDouble != -0.0) {
-					throw HFloatTmpConversionError("negative number constant for unsigned type");
+					throw HFloatTmpConversionError(
+							"negative number constant for unsigned type");
 				}
 			}
 			offset += numWidth;
@@ -280,7 +282,8 @@ APInt HFloatTmpConfig::bitCastAPFloatToHFloatTmpAPInt(const APFloat &v) const {
 			offset += 1;
 		} else {
 			if (!sign)
-				throw std::runtime_error("Can not convert negative float constant to unsigned float type");
+				throw std::runtime_error(
+						"Can not convert negative float constant to unsigned float type");
 		}
 	}
 
@@ -500,9 +503,7 @@ HFloatTmpConfig HFloatTmpConfig::fromMachineInstrOperands(
 	return res;
 }
 
-
-void HFloatTmpConfig::print(llvm::raw_ostream &ss,
-		bool IsForDebug) const {
+void HFloatTmpConfig::print(llvm::raw_ostream &ss, bool IsForDebug) const {
 	ss << "<HFloatTmpConfig";
 	if (isInQFormat) {
 		ss << " format=Q" << (unsigned) exponentOrIntWidth << "."
@@ -822,7 +823,7 @@ DEFINE_FP_UNSPECIALIZED_BINOP(UnspecializedShr, unspecialized.shr)
 
 DEFINE_FP_UNOP(FNeg, fneg)
 DEFINE_FP_BINOP(FAdd, fadd)
-DEFINE_FP_BINOP(FSub, fsub)
+DEFINE_FP_BINOP(FSub, fsub) // :note: for floating point types a-b should lowered to a+(-b)
 DEFINE_FP_BINOP(FMul, fmul)
 DEFINE_FP_BINOP(FDiv, fdiv)
 DEFINE_FP_BINOP(FRem, frem)
