@@ -436,13 +436,20 @@ llvm::Value* CreateBitConcat(llvm::IRBuilderBase *Builder,
 	Type *RetTy = Builder->getIntNTy(bitWidth);
 	if (OpsLowFirst.size() > 1) {
 		bool isSExt = true;
+		Value* base = OpsLowFirst.front();
+		bool baseIs1b = base->getType()->getIntegerBitWidth() == 1;
 		for (auto member = OpsLowFirst.begin() + 1; member != OpsLowFirst.end();
 				++member) {
-			auto v = OffsetWidthValue::fromValue(*member);
-			if (!v.isMsbOf(OpsLowFirst.front())) {
-				isSExt = false;
-				break;
+			Value* memberV = *member;
+			auto v = OffsetWidthValue::fromValue(memberV);
+			if (v.isMsbOf(base))
+				continue;
+			if (baseIs1b && match(memberV, m_SExt(m_Specific(base)))) {
+				// front is 1b and next item is just SExt of it
+				continue;
 			}
+			isSExt = false;
+			break;
 		}
 		if (isSExt)
 			return Builder->CreateSExt(OpsLowFirst.front(), RetTy, Name);
