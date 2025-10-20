@@ -153,6 +153,7 @@ class HlsNetlistBuilder():
                 operatorSpecialization:Optional[HFloatTmpConfig],
                 resT: HdlType,
                 *operands: Tuple[Union[HlsNetNodeOut, HConst], ...],
+                operatorNodeCls:Type[HlsNetNodeOperator]=HlsNetNodeOperator,
                 name:Optional[str]=None) -> HlsNetNodeOut:
         assert operator is not None
         assert operator not in {HwtOps.DIV, HwtOps.GT, HwtOps.GE, HwtOps.LT, HwtOps.LE}, ("Signed or unsigned variant should be used instead", operator, operands)
@@ -171,7 +172,7 @@ class HlsNetlistBuilder():
         operandsWithOutputsOnly = tuple(self._toNodeOut(o) for o in operands)
         if  operator is HwtOps.INDEX:
             assert operands[0]._dtype.bit_length() > 1, operands
-        n = HlsNetNodeOperator(self.netlist, operator, len(operands), resT, name=name, operatorSpecialization=operatorSpecialization)
+        n = operatorNodeCls(self.netlist, operator, len(operands), resT, name=name, operatorSpecialization=operatorSpecialization)
         self._addNode(n)
         for i, arg in zip(n._inputs, operandsWithOutputsOnly):
             arg.connectHlsIn(i)
@@ -189,6 +190,7 @@ class HlsNetlistBuilder():
                 operatorSpecialization:Optional[HFloatTmpConfig],
                 resT: Tuple[HdlType, ...],
                 *operands: Tuple[Union[HlsNetNodeOut, HConst], ...],
+                operatorNodeCls:Type[HlsNetNodeOperator]=HlsNetNodeOperator,
                 name:Optional[str]=None,
                 ) -> HlsNetNodeOut:
         assert len(resT) > 1, (operator, resT, "For single output operators use buildOp")
@@ -206,7 +208,7 @@ class HlsNetlistBuilder():
             return res.obj
 
         operandsWithOutputsOnly = tuple(self._toNodeOut(o) for o in operands)
-        n = HlsNetNodeOperator(self.netlist, operator, 0, resT[0], name=name, operatorSpecialization=operatorSpecialization)
+        n = operatorNodeCls(self.netlist, operator, 0, resT[0], name=name, operatorSpecialization=operatorSpecialization)
         for _resT in islice(resT, 1, None):
             n._addOutput(_resT, None)
         for _ in range(len(operands)):
