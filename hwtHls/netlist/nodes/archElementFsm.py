@@ -20,6 +20,7 @@ from hwtHls.netlist.hdlTypeVoid import HdlType_isNonData
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
+from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
@@ -160,6 +161,10 @@ class ArchElementFsm(ArchElement):
         return tir
 
     def _initNopValsOfIoForHwIO(self, hwIO: Union[HwIO], ioProxy: IoProxy, dir_: INTF_DIRECTION):
+        if isinstance(hwIO, MemoryAllocationMeta):
+            assert hwIO.isInlined(), (hwIO, "must be inlined otherwise this meta should have been replaced with a proper port")
+            return
+
         syncSignals = ioProxy._getRtlSyncSignals(hwIO)
         if dir_ == INTF_DIRECTION.MASTER:
             # to prevent latching when interface is not used
