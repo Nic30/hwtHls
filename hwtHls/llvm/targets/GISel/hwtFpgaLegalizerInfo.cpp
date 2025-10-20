@@ -131,7 +131,7 @@ bool HwtFpgaLegalizerInfo::legalizeCustomBitcount(LegalizerHelper &Helper,
 	MachineRegisterInfo &MRI = MF.getRegInfo();
 
 	Register Dst = MI.getOperand(0).getReg();
-	const auto & SrcMO = MI.getOperand(1);
+	auto & SrcMO = MI.getOperand(1);
 	Register Src = SrcMO.getReg();
 	LLT DstTy = MRI.getType(Dst);
 	LLT SrcTy = MRI.getType(Src);
@@ -160,19 +160,25 @@ bool HwtFpgaLegalizerInfo::legalizeCustomBitcount(LegalizerHelper &Helper,
 	}
 
 	unsigned newBitWidth = log2ceil(dataWidth + 1);
-	auto DstTruncated = MRI.cloneVirtualRegister(Dst);
-	MIRBuilder.buildInstr(NewOpc, { DstTruncated }, { Src });
-	MRI.setType(DstTruncated, LLT::scalar(newBitWidth));
+	if (newBitWidth == dataWidth) {
+		// e.g. for dataWidth=2
+		auto MIB = MIRBuilder.buildInstr(NewOpc, { Dst }, { });
+		hwtHls::HwtFpgaInstructionSelector::selectInstrArg(MF, MIB, MRI, SrcMO);
 
-	for (auto R : { DstTruncated, Src })
-		MRI.setRegClass(R, &HwtFpga::anyregclsRegClass);
+	} else {
+		assert(newBitWidth < dataWidth);
+		auto DstTruncated = MRI.cloneVirtualRegister(Dst);
+		MRI.setType(DstTruncated, LLT::scalar(newBitWidth));
 
-	auto MIB1 = MIRBuilder.buildInstr(NewOpc, { Dst }, { });
-	auto DstTruncatedMO = MachineOperand::CreateReg(DstTruncated, false);
-	hwtHls::HwtFpgaInstructionSelector::selectInstrArg(MF, MIB1, MRI, DstTruncatedMO);
+		for (auto R : { DstTruncated, Src })
+			MRI.setRegClass(R, &HwtFpga::anyregclsRegClass);
 
-	MIRBuilder.buildZExt(Dst, DstTruncated);
+		auto MIB1 = MIRBuilder.buildInstr(NewOpc, { DstTruncated }, { });
+		//auto DstTruncatedMO = MachineOperand::CreateReg(DstTruncated, false);
+		hwtHls::HwtFpgaInstructionSelector::selectInstrArg(MF, MIB1, MRI, SrcMO);
 
+		MIRBuilder.buildZExt(Dst, DstTruncated);
+	}
 	MI.eraseFromParent();
 	return true;
 }
