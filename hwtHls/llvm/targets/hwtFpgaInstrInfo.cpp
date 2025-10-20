@@ -404,6 +404,19 @@ bool HwtFpgaInstrInfo::analyzeSelect(const MachineInstr &MI,
 	}
 }
 
+bool HwtFpgaInstrInfo::isPredicable(const MachineInstr &MI) const {
+	switch (MI.getOpcode()) {
+	case HwtFpga::HWTFPGA_RET:
+		return false;
+	default:
+		break;
+	}
+	// because other instructions are predictable
+	// or may be predicated by register duplication
+	return true;
+	//return MI.getDesc().isPredicable();
+}
+
 bool HwtFpgaInstrInfo::isPredicated(const MachineInstr &MI) const {
 	auto opc = MI.getOpcode();
 	switch (opc) {
@@ -431,13 +444,73 @@ bool HwtFpgaInstrInfo::PredicateInstruction(MachineInstr &MI,
 		llvm_unreachable("NotImplemented - predicate with multiple terms");
 
 	switch (opc) {
+	// can not just easily use isPredicable = 1 in instruction definition
+	// because llvm would not be able to merge predicates
 	case HwtFpga::HWTFPGA_CLOAD:
-	case HwtFpga::HWTFPGA_CSTORE: {
+	case HwtFpga::HWTFPGA_CSTORE:
+	case HwtFpga::HWTFPGA_UDIV:
+	case HwtFpga::HWTFPGA_SDIV:
+	case HwtFpga::HWTFPGA_UREM:
+	case HwtFpga::HWTFPGA_SREM:
+	case HwtFpga::HWTFPGA_UDIVREM:
+	case HwtFpga::HWTFPGA_SDIVREM:
+
+	case HwtFpga::HWTFPGA_FP_FNEG:
+	case HwtFpga::HWTFPGA_FP_FADD:
+	case HwtFpga::HWTFPGA_FP_FSUB:
+	case HwtFpga::HWTFPGA_FP_FMUL:
+	case HwtFpga::HWTFPGA_FP_FMUL_S_HL:
+	case HwtFpga::HWTFPGA_FP_FMUL_U_HL:
+	case HwtFpga::HWTFPGA_FP_FDIV:
+	case HwtFpga::HWTFPGA_FP_FREM:
+	case HwtFpga::HWTFPGA_FP_FMOD:
+	case HwtFpga::HWTFPGA_FP_FDIVREM:
+	case HwtFpga::HWTFPGA_FP_SHR:
+	case HwtFpga::HWTFPGA_FP_SHL:
+	case HwtFpga::HWTFPGA_FP_FCMP:
+	case HwtFpga::HWTFPGA_FP_CEIL:
+	case HwtFpga::HWTFPGA_FP_COS:
+	case HwtFpga::HWTFPGA_FP_EXP:
+	case HwtFpga::HWTFPGA_FP_EXP10:
+	case HwtFpga::HWTFPGA_FP_EXP2:
+	case HwtFpga::HWTFPGA_FP_FABS:
+	case HwtFpga::HWTFPGA_FP_FLOOR:
+	case HwtFpga::HWTFPGA_FP_LOG:
+	case HwtFpga::HWTFPGA_FP_LOG2:
+	case HwtFpga::HWTFPGA_FP_LOG10:
+	case HwtFpga::HWTFPGA_FP_FPOW:
+	case HwtFpga::HWTFPGA_FP_FPOWI:
+	case HwtFpga::HWTFPGA_FP_ROUND:
+	case HwtFpga::HWTFPGA_FP_ROUNDEVEN:
+	case HwtFpga::HWTFPGA_FP_SIN:
+	case HwtFpga::HWTFPGA_FP_SQRT:
+
+	case HwtFpga::HWTFPGA_FP_SINPI:
+	case HwtFpga::HWTFPGA_FP_COSPI:
+	case HwtFpga::HWTFPGA_FP_ASIN:
+	case HwtFpga::HWTFPGA_FP_SINH:
+	case HwtFpga::HWTFPGA_FP_ACOS:
+	case HwtFpga::HWTFPGA_FP_COSH:
+	case HwtFpga::HWTFPGA_FP_TAN:
+	case HwtFpga::HWTFPGA_FP_TANPI:
+	case HwtFpga::HWTFPGA_FP_ATAN:
+	case HwtFpga::HWTFPGA_FP_TANH:
+	case HwtFpga::HWTFPGA_FP_ATAN2:
+	case HwtFpga::HWTFPGA_FP_SINCOS:
+	case HwtFpga::HWTFPGA_FP_SINCOSPI:
+	case HwtFpga::HWTFPGA_FP_ASINCOS:
+	case HwtFpga::HWTFPGA_FP_SINCOSH:
+
+	case HwtFpga::HWTFPGA_FP_CAST:
+
+	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER:
+	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER_WITH_SIDEEFFECT:
+	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE:
+	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE_WITH_SIDEEFECT: {
 		// dst/val, addr, index, dstWidth, cond
-		assert(MI.getNumExplicitOperands() == 5);
 		bool hasSomePred = false;
 		Register curPred;
-		constexpr size_t condOpIndex = 4;
+		const size_t condOpIndex = MI.getNumExplicitOperands() - 1;
 		if (MI.getOperand(condOpIndex).isReg()) {
 			hasSomePred = true;
 			curPred = MI.getOperand(condOpIndex).getReg();
@@ -487,7 +560,8 @@ bool HwtFpgaInstrInfo::PredicateInstruction(MachineInstr &MI,
 		//		}
 		//	}
 		//}
-		return opc == HwtFpga::HWTFPGA_CSTORE; // for HWTFPGA_LOAD return false because the instruction always updates dst
+		// for insruction with out value return false because the instruction always updates dst
+		return MI.getNumDefs() == 0;
 	}
 	case HwtFpga::HWTFPGA_BR:
 	case HwtFpga::G_BR: {

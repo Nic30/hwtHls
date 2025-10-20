@@ -66,12 +66,10 @@ public:
 	bool analyzeSelect(const MachineInstr &MI,
 			SmallVectorImpl<MachineOperand> &Cond, unsigned &TrueOp,
 			unsigned &FalseOp, bool &Optimizable) const override;
-	virtual bool isPredicable(const MachineInstr &MI) const override {
-		return MI.getOpcode() != HwtFpga::HWTFPGA_RET; // because other instructions are predictable
-		// or may be predicated by register duplication
-		//return MI.getDesc().isPredicable();
-	}
+	virtual bool isPredicable(const MachineInstr &MI) const override;
 	bool isPredicated(const MachineInstr &MI) const override;
+	// :attention: HwtFpga instruction predicate works more like enable condition for functional
+	//  unit, the instruction sets undef to all dst registers (def operands) if predicate is false
 	bool PredicateInstruction(MachineInstr &MI,
 			ArrayRef<MachineOperand> Pred) const;
 
