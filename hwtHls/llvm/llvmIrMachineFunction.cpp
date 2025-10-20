@@ -21,6 +21,7 @@
 #include <hwtHls/llvm/llvmIrCommon.h>
 #include <hwtHls/llvm/targets/hwtFpgaMCTargetDesc.h>
 #include <hwtHls/llvm/targets/hwtFpgaIoUtils.h>
+#include <pybind11/native_enum.h>
 
 namespace py = pybind11;
 
@@ -147,11 +148,11 @@ void register_MachineFunction(pybind11::module_ &m) {
 		 }, py::keep_alive<0, 1>()); /* Keep vector alive while iterator is used */
 
 	auto MCII = createHwtFpgaMCInstrInfo();
-	py::enum_<TargetOpcode> _TargetOpcode(m, "TargetOpcode");
+	py::native_enum<TargetOpcode> _TargetOpcode(m, "TargetOpcode", "enum.Enum");
 	for (unsigned i = 0; i < MCII->getNumOpcodes(); i++) {
 		_TargetOpcode.value(MCII->getName(i).str().c_str(), static_cast<TargetOpcode>(i));
 	}
-	_TargetOpcode.export_values();
+	_TargetOpcode.finalize();
 	delete MCII;
 
 	// [fixme] from some reason the the register object pointer points to deallocated memory in exception handlers (asserts messages)

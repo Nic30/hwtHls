@@ -17,6 +17,7 @@
 
 #include <pybind11/stl.h>
 #include <pybind11/stl_bind.h>
+#include <pybind11/native_enum.h>
 
 
 PYBIND11_MAKE_OPAQUE(std::vector<llvm::Type*>)
@@ -103,13 +104,13 @@ void register_Function(pybind11::module_ & m) {
 	m.def("ValueToArgument", &valueCaster<llvm::Argument>);
 
 	py::class_<llvm::Attribute, std::unique_ptr<llvm::Attribute, py::nodelete>> Attribute(m, "Attribute");
-	py::enum_<llvm::Attribute::AttrKind> AttrKind(Attribute, "AttrKind");
+	py::native_enum<llvm::Attribute::AttrKind> AttrKind(Attribute, "AttrKind", "enum.Enum");
 	AttrKind.value("None",            llvm::Attribute::AttrKind::None           );
 #define GET_ATTR_NAMES
 #define _QUOTE(x) #x
 #define ATTRIBUTE_ENUM(name, name_snakecase)  AttrKind.value(_QUOTE(name), llvm::Attribute::AttrKind::name);
 #include <llvm/IR/Attributes.inc>
-	AttrKind.export_values();
+	AttrKind.finalize();
 
 	m.def("AddDefaultFunctionAttributes", &AddDefaultFunctionAttributes);
 
@@ -117,7 +118,7 @@ void register_Function(pybind11::module_ & m) {
 	FunctionCallee.def(py::init<llvm::Function *>());
 
 	auto Intrinsic = m.def_submodule("Intrinsic");
-	py::enum_<llvm::Intrinsic::IndependentIntrinsics> IndependentIntrinsics(Intrinsic, "IndependentIntrinsics");
+	py::native_enum<llvm::Intrinsic::IndependentIntrinsics> IndependentIntrinsics(Intrinsic, "IndependentIntrinsics", "enum.Enum");
 	for (unsigned I= llvm::Intrinsic::IndependentIntrinsics::abs; I <= llvm::Intrinsic::xray_typedevent; ++I) {
 		auto _name = llvm::Intrinsic::getBaseName(I);
 		assert(_name.starts_with("llvm."));
@@ -126,6 +127,7 @@ void register_Function(pybind11::module_ & m) {
 		IndependentIntrinsics.value(name.c_str(), llvm::Intrinsic::IndependentIntrinsics(I));
 	}
 	IndependentIntrinsics.export_values();
+	IndependentIntrinsics.finalize();
 	//py::bind_vector<std::vector<llvm::Type*>>(m, "VectorType");
 	py::bind_vector<std::vector<llvm::StringRef>>(m, "VectorOfStringRef");
 }

@@ -2,14 +2,14 @@
 #include <hwtHls/llvm/targets/intrinsic/hfloattmp.h>
 
 #include <llvm/CodeGen/MachineInstr.h>
+#include <pybind11/native_enum.h>
 
 namespace py = pybind11;
 
 namespace hwtHls {
 
 void register_HFloatTmpConfig(pybind11::module_ &m) {
-
-	py::enum_<hwtHls::HFloatTmpRounding>(m, "HFloatTmpRounding")
+	py::native_enum<hwtHls::HFloatTmpRounding>(m, "HFloatTmpRounding", "enum.Enum")
 		.value("ROUND_HALF_EVEN", hwtHls::HFloatTmpRounding::ROUND_HALF_EVEN)
 		.value("ROUND_HALF_UP", hwtHls::HFloatTmpRounding::ROUND_HALF_UP)
 		.value("ROUND_DOWN", hwtHls::HFloatTmpRounding::ROUND_DOWN)
@@ -17,12 +17,14 @@ void register_HFloatTmpConfig(pybind11::module_ &m) {
 		.value("ROUND_FLOOR", hwtHls::HFloatTmpRounding::ROUND_FLOOR)
 		.value("ROUND_WIDTH", hwtHls::HFloatTmpRounding::ROUND_WIDTH)
 		.value("ROUND_C_DEFAULT", hwtHls::HFloatTmpRounding::ROUND_C_DEFAULT)
+		.finalize()
 		;
-	py::enum_<hwtHls::HFloatTmpSaturation>(m, "HFloatTmpSaturation")
+	py::native_enum<hwtHls::HFloatTmpSaturation>(m, "HFloatTmpSaturation", "enum.Enum")
 		.value("SATURATE_NONE", hwtHls::HFloatTmpSaturation::SATURATE_NONE)
 		.value("SATURATE_INF", hwtHls::HFloatTmpSaturation::SATURATE_INF)
 		.value("SATURATE_WIDTH", hwtHls::HFloatTmpSaturation::SATURATE_WIDTH)
 		.value("SATURATE_C_DEFAULT", hwtHls::HFloatTmpSaturation::SATURATE_C_DEFAULT)
+		.finalize()
 		;
 	py::class_<hwtHls::HFloatTmpConfig>(m, "HFloatTmpConfig")
 		.def(py::init<bool,

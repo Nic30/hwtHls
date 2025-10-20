@@ -12,6 +12,7 @@
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/GlobalValue.h>
 
+#include <pybind11/native_enum.h>
 
 namespace py = pybind11;
 
@@ -165,7 +166,7 @@ void register_Values_and_Use(pybind11::module_ & m) {
 				return self.getAggregateElement(index);
 			}, py::return_value_policy::reference);
 	py::class_<llvm::GlobalValue, std::unique_ptr<llvm::GlobalValue, py::nodelete>, llvm::Constant> GlobalValue(m, "GlobalValue");
-	py::enum_<llvm::GlobalValue::LinkageTypes>(GlobalValue, "LinkageTypes")
+	py::native_enum<llvm::GlobalValue::LinkageTypes>(GlobalValue, "LinkageTypes", "enum.Enum")
     	 .value("ExternalLinkage",           llvm::GlobalValue::LinkageTypes::ExternalLinkage,           "Externally visible function")
     	 .value("AvailableExternallyLinkage",llvm::GlobalValue::LinkageTypes::AvailableExternallyLinkage,"Available for inspection, not emission.")
     	 .value("LinkOnceAnyLinkage",        llvm::GlobalValue::LinkageTypes::LinkOnceAnyLinkage,        "Keep one copy of function when linking (inline)")
@@ -177,12 +178,12 @@ void register_Values_and_Use(pybind11::module_ & m) {
     	 .value("PrivateLinkage",            llvm::GlobalValue::LinkageTypes::PrivateLinkage,            "Like Internal, but omit from symbol table.")
     	 .value("ExternalWeakLinkage",       llvm::GlobalValue::LinkageTypes::ExternalWeakLinkage,       "ExternalWeak linkage description.")
     	 .value("CommonLinkage",             llvm::GlobalValue::LinkageTypes::CommonLinkage,             "Tentative definitions.")
-    	 .export_values();
-	py::enum_<llvm::GlobalValue::UnnamedAddr>(GlobalValue, "UnnamedAddr")
+    	 .finalize();
+	py::native_enum<llvm::GlobalValue::UnnamedAddr>(GlobalValue, "UnnamedAddr", "enum.Enum")
 		.value("None",   llvm::GlobalValue::UnnamedAddr::None)
 		.value("Local",  llvm::GlobalValue::UnnamedAddr::Local)
 		.value("Global", llvm::GlobalValue::UnnamedAddr::Global)
-		.export_values();
+		.finalize();
 	py::class_<llvm::ConstantData, std::unique_ptr<llvm::ConstantData, py::nodelete>, llvm::Constant>(m, "ConstantData");
 	py::class_<llvm::ConstantAggregateZero, std::unique_ptr<llvm::ConstantAggregateZero, py::nodelete>, llvm::ConstantData>(m, "ConstantAggregateZero");
 	m.def("ValueToConstantAggregateZero", &llvmValueCaster<llvm::ConstantAggregateZero>, py::return_value_policy::reference);

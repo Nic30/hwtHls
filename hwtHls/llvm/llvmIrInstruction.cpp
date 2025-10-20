@@ -7,6 +7,7 @@
 
 #include <hwtHls/llvm/llvmIrMetadata.h>
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
+#include <pybind11/native_enum.h>
 
 namespace py = pybind11;
 
@@ -87,7 +88,7 @@ void register_Instruction(pybind11::module_ & m) {
 			  return (llvm::Instruction *) nullptr;
 		  }
 	}, py::return_value_policy::reference_internal);
-	py::enum_<llvm::Instruction::TermOps>(Instruction, "TermOps")
+	py::native_enum<llvm::Instruction::TermOps>(Instruction, "TermOps", "enum.Enum")
 		.value("Ret", llvm::Instruction::TermOps::Ret)
 		.value("Br", llvm::Instruction::TermOps::Br)
 		.value("Switch", llvm::Instruction::TermOps::Switch)
@@ -99,13 +100,13 @@ void register_Instruction(pybind11::module_ & m) {
 		.value("CatchRet", llvm::Instruction::TermOps::CatchRet)
 		.value("CatchSwitch", llvm::Instruction::TermOps::CatchSwitch)
 		.value("CallBr", llvm::Instruction::TermOps::CallBr)
-		.export_values();
+		.finalize();
 
-	py::enum_<llvm::Instruction::UnaryOps>(Instruction, "UnaryOps")
+	py::native_enum<llvm::Instruction::UnaryOps>(Instruction, "UnaryOps", "enum.Enum")
 		.value("FNeg", llvm::Instruction::UnaryOps::FNeg)
-		.export_values();
+		.finalize();
 
-	py::enum_<llvm::Instruction::BinaryOps>(Instruction, "BinaryOps")
+	py::native_enum<llvm::Instruction::BinaryOps>(Instruction, "BinaryOps", "enum.Enum")
 		.value("Add", llvm::Instruction::BinaryOps::Add)
 		.value("FAdd", llvm::Instruction::BinaryOps::FAdd)
 		.value("Sub", llvm::Instruction::BinaryOps::Sub)
@@ -124,7 +125,7 @@ void register_Instruction(pybind11::module_ & m) {
 		.value("And", llvm::Instruction::BinaryOps::And)
 		.value("Or", llvm::Instruction::BinaryOps::Or)
 		.value("Xor", llvm::Instruction::BinaryOps::Xor)
-		.export_values();
+		.finalize();
 
 	py::class_<llvm::AllocaInst, std::unique_ptr<llvm::AllocaInst, py::nodelete>, llvm::Instruction> AllocaInst(m, "AllocaInst");
 	AllocaInst
@@ -149,7 +150,7 @@ void register_Instruction(pybind11::module_ & m) {
 		return llvm::OverflowingBinaryOperator::classof(&I);
 	});
 
-	py::enum_<llvm::Instruction::MemoryOps>(Instruction, "MemoryOps")
+	py::native_enum<llvm::Instruction::MemoryOps>(Instruction, "MemoryOps", "enum.Enum")
 		.value("Alloca", llvm::Instruction::MemoryOps::Alloca)
 		.value("Load", llvm::Instruction::MemoryOps::Load)
 		.value("Store", llvm::Instruction::MemoryOps::Store)
@@ -157,9 +158,9 @@ void register_Instruction(pybind11::module_ & m) {
 		.value("Fence", llvm::Instruction::MemoryOps::Fence)
 		.value("AtomicCmpXchg", llvm::Instruction::MemoryOps::AtomicCmpXchg)
 		.value("AtomicRMW", llvm::Instruction::MemoryOps::AtomicRMW)
-		.export_values();
+		.finalize();
 
-	py::enum_<llvm::Instruction::CastOps>(Instruction, "CastOps")
+	py::native_enum<llvm::Instruction::CastOps>(Instruction, "CastOps", "enum.Enum")
 		.value("Trunc", llvm::Instruction::CastOps::Trunc)
 		.value("ZExt", llvm::Instruction::CastOps::ZExt)
 		.value("SExt", llvm::Instruction::CastOps::SExt)
@@ -173,14 +174,14 @@ void register_Instruction(pybind11::module_ & m) {
 		.value("IntToPtr", llvm::Instruction::CastOps::IntToPtr)
 		.value("BitCast", llvm::Instruction::CastOps::BitCast)
 		.value("AddrSpaceCast", llvm::Instruction::CastOps::AddrSpaceCast)
-		.export_values();
+		.finalize();
 
-	py::enum_<llvm::Instruction::FuncletPadOps>(Instruction, "FuncletPadOps")
+	py::native_enum<llvm::Instruction::FuncletPadOps>(Instruction, "FuncletPadOps", "enum.Enum")
 		.value("CleanupPad", llvm::Instruction::FuncletPadOps::CleanupPad)
 		.value("CatchPad", llvm::Instruction::FuncletPadOps::CatchPad)
-		.export_values();
+		.finalize();
 
-	py::enum_<llvm::Instruction::OtherOps>(Instruction, "OtherOps")
+	py::native_enum<llvm::Instruction::OtherOps>(Instruction, "OtherOps", "enum.Enum")
 		.value("ICmp", llvm::Instruction::OtherOps::ICmp)
 		.value("FCmp", llvm::Instruction::OtherOps::FCmp)
 		.value("PHI", llvm::Instruction::OtherOps::PHI)
@@ -196,11 +197,11 @@ void register_Instruction(pybind11::module_ & m) {
 		.value("InsertValue", llvm::Instruction::OtherOps::InsertValue)
 		.value("LandingPad", llvm::Instruction::OtherOps::LandingPad)
 		.value("Freeze", llvm::Instruction::OtherOps::Freeze)
-		.export_values();
+		.finalize();
 
 	py::class_<llvm::CmpInst, std::unique_ptr<llvm::CmpInst, py::nodelete>, llvm::Instruction> CmpInst(m, "CmpInst");
 	py::implicitly_convertible<llvm::CmpInst, llvm::Instruction>();
-	py::enum_<llvm::CmpInst::Predicate>(CmpInst, "Predicate")
+	py::native_enum<llvm::CmpInst::Predicate>(CmpInst, "Predicate", "enum.Enum")
 	    .value("FCMP_FALSE", llvm::CmpInst::Predicate::FCMP_FALSE)
 	    .value("FCMP_OEQ", llvm::CmpInst::Predicate::FCMP_OEQ)
 	    .value("FCMP_OGT", llvm::CmpInst::Predicate::FCMP_OGT)
@@ -233,7 +234,7 @@ void register_Instruction(pybind11::module_ & m) {
 	    .value("FIRST_ICMP_PREDICATE", llvm::CmpInst::Predicate::FIRST_ICMP_PREDICATE)
 	    .value("LAST_ICMP_PREDICATE", llvm::CmpInst::Predicate::LAST_ICMP_PREDICATE)
 	    .value("BAD_ICMP_PREDICATE", llvm::CmpInst::Predicate::BAD_ICMP_PREDICATE)
-		.export_values();
+		.finalize();
 	CmpInst
 		.def("getPredicate", &llvm::CmpInst::getPredicate);
 

@@ -3,6 +3,8 @@
 
 #include <llvm/Analysis/TargetLibraryInfo.h>
 
+#include <pybind11/native_enum.h>
+
 namespace py = pybind11;
 
 namespace hwtHls {
@@ -12,7 +14,7 @@ void register_TargetLibrary(pybind11::module_ &m) {
 			std::unique_ptr<llvm::TargetLibraryInfo, py::nodelete>> TargetLibraryInfo(
 			m, "TargetLibraryInfo");
 
-	py::enum_<llvm::LibFunc> LibFunc(m, "LibFunc");
+	py::native_enum<llvm::LibFunc> LibFunc(m, "LibFunc", "enum.Enum");
 
 	llvm::TargetLibraryInfoImpl TLII(
 			llvm::Triple(LlvmCompilationBundle::TargetTriple));
@@ -63,6 +65,7 @@ void register_TargetLibrary(pybind11::module_ &m) {
 	}
 	LibFunc.value("NumLibFuncs", llvm::LibFunc::NumLibFuncs);
 	LibFunc.value("NotLibFunc", llvm::LibFunc::NotLibFunc);
+	LibFunc.finalize();
 }
 
 }
