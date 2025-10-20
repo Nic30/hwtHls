@@ -135,6 +135,7 @@ class HlsDebugBundle():
     DBG_2_0_mirCfg = (SsaPassDumpMirCfg, "02.00.mirCfg.dot")  # Control Flow Graph of MIR
     DBG_2_1_netlistConstructionTrace = (None, "02.01.netlistConstructionTrace.txt")  # trace of netlist construction (typically from LLVM MIR)
     DBG_2_1_blockSync = (HlsNetlistAnalysisPassDumpBlockSync, "02.01.blockSync.dot")  # synchronization features of basic blocks
+    DBG_2_1_submoduleBuildLogMir = (None, "02.01.submoduleBuildLogMir.txt")  # log which direct children submodules are build to resolve synchronization during MirToNetlist
     DBG_2_2_preSync = (HlsNetlistAnalysisPassDumpNodesDot, "02.02.preSync.dot")  # io of basic blocks before implementation of sync
     DBG_2_3_postRst = (HlsNetlistAnalysisPassDumpNodesDot, "02.03.postRst.dot")  # basic block io after implementation of reset value extraction
     DBG_2_4_postLoop = (HlsNetlistAnalysisPassDumpNodesDot, "02.04.postLoop.dot")  # basic block io after implementation of loops
@@ -198,6 +199,7 @@ class HlsDebugBundle():
         DBG_2_0_mirCfg,
         DBG_2_1_netlistConstructionTrace,
         DBG_2_1_blockSync,
+        DBG_2_1_submoduleBuildLogMir,
         DBG_2_2_preSync,
         DBG_2_3_postRst,
         DBG_2_4_postLoop,
@@ -244,6 +246,7 @@ class HlsDebugBundle():
         DBG_2_0_mir,
         DBG_2_0_mirCfg,
         DBG_2_1_netlistConstructionTrace,
+        DBG_2_1_submoduleBuildLogMir,
         DBG_2_1_blockSync,
         DBG_2_2_preSync,
         DBG_2_3_postRst,
@@ -274,6 +277,7 @@ class HlsDebugBundle():
     DBG_ARCH_SYNC = {
         DBG_0_0_hierachyPath,
         DBG_2_0_mir,
+        DBG_2_1_submoduleBuildLogMir,
         DBG_3_2_netlistSyncDomains,
         DBG_3_4_submoduleBuildLogPreSchedule,
         DBG_4_0_submoduleBuildLogPostSchedule,
