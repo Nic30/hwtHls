@@ -201,9 +201,6 @@ class PyBytecodePyException_TC(SimTestCase):
     def test_PyExceptionRaiseRaiseUsingAssertFromInlined1(self):
         self._test_PyExceptionRaisePyConditionaly(PyExceptionRaiseRaiseUsingAssertFromInlined1, errCls=AssertionError)
 
-    # [fixme] arbitrated IO does not have any sync signal arbiter is constructed as there was any 
-    #  and SyncLogicSearcher fails on assert that none using sync of io which does not have any sync
-    @unittest.expectedFailure
     def test_PyExceptionRaiseRaiseUsingAssertFromInlined2(self):
         self._test_PyExceptionRaisePyConditionaly(PyExceptionRaiseRaiseUsingAssertFromInlined2, errCls=AssertionError)
 
