@@ -117,6 +117,7 @@ py3.extension_module(
      'targets/Transforms/HwtHlsRunPassInstrumentationCallbacksPass.cpp',
      'targets/Transforms/liveVRegs.cpp',
      'targets/Transforms/machineDumpAndExitPass.cpp',
+     'targets/Transforms/regenerateSsa.cpp',
      'targets/Transforms/RemovePointerArithmeticPass.cpp',
      'targets/Transforms/vregConditionUtils.cpp',
      'targets/Transforms/vregIfConversion.cpp',

@@ -24,6 +24,7 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/Support/Debug.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaCombinerHelper.h>
+#include <hwtHls/llvm/targets/Transforms/regenerateSsa.h>
 
 #define DEBUG_TYPE "hwtfpga-pretonetlist-combiner"
 
@@ -152,7 +153,11 @@ bool HwtFpgaPreToNetlistCombiner::runOnMachineFunction(
 	                   F.hasMinSize());
 	HwtFpgaPreToNetlistGICombinerImpl Impl(MF, CInfo, TPC, *KB, CSEInfo,
 	                                      RuleConfig, ST, MDT, LI);
-	return Impl.combineMachineInstrs();
+	bool change = false;
+	do {
+		change |= Impl.combineMachineInstrs();
+	} while (hwtHls::regenerateSsaInMachineFunctionBlocks(MF));
+	return change;
 }
 
 char HwtFpgaPreToNetlistCombiner::ID = 0;

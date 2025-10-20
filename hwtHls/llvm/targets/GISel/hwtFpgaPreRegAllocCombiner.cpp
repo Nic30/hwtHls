@@ -24,6 +24,7 @@
 #include <llvm/Support/Debug.h>
 
 #include <hwtHls/llvm/targets/GISel/hwtFpgaCombinerHelper.h>
+#include <hwtHls/llvm/targets/Transforms/regenerateSsa.h>
 
 #define DEBUG_TYPE "hwtfpga-preregalloc-combiner"
 
@@ -150,7 +151,11 @@ bool HwtFpgaPreRegAllocCombiner::runOnMachineFunction(
 	                   F.hasMinSize());
 	HwtFpgaPreRegAllocGICombinerImpl Impl(MF, CInfo, TPC, *KB, CSEInfo,
 	                                      RuleConfig, ST, MDT, LI);
-	return Impl.combineMachineInstrs();
+	bool change = false;
+	do {
+		change |= Impl.combineMachineInstrs();
+	} while (hwtHls::regenerateSsaInMachineFunctionBlocks(MF));
+	return change;
 }
 
 char HwtFpgaPreRegAllocCombiner::ID = 0;
