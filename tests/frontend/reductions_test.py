@@ -9,6 +9,7 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
@@ -62,7 +63,7 @@ class ForLoopAccumulateSumInputSelByIndex(ForLoopWithIoSelectIn):
     @override
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
-        din = self.dataIn
+        din = PyBytecodeInPreproc(self.dataIn)
         res = self.dataOut0.T.from_py(0)
         while b1:
             i = uint8_t.from_py(0)
