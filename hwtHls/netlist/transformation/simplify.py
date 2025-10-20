@@ -32,7 +32,8 @@ from hwtHls.netlist.transformation.simplifyExpr.normalizeConstToRhs import netli
 from hwtHls.netlist.transformation.simplifyExpr.rehash import HlsNetlistPassRehashDeduplicate
 from hwtHls.netlist.transformation.simplifyExpr.simplifyAbc import runAbcControlpathOpt
 from hwtHls.netlist.transformation.simplifyExpr.simplifyBitwise import netlistReduceNot, netlistReduceAndOrXor
-from hwtHls.netlist.transformation.simplifyExpr.simplifyIndex import netlistReduceIndexOnIndex
+from hwtHls.netlist.transformation.simplifyExpr.simplifyIndex import netlistReduceIndexOnIndex, \
+    netlistReduceIndexSelectAll
 from hwtHls.netlist.transformation.simplifyExpr.simplifyIndexOnConcat import netlistReduceIndexOnConcat
 from hwtHls.netlist.transformation.simplifyExpr.simplifyIndexOnMuxOfConcats import netlistReduceIndexOnMuxOfConcats
 from hwtHls.netlist.transformation.simplifyExpr.simplifyIo import netlistReduceReadReadSyncWithReadOfValidNB
@@ -181,7 +182,9 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                     if netlistReduceCmpConstAfterConstAddSub(n, worklist):
                         return True
                 elif o is HwtOps.INDEX:
-                    if netlistReduceIndexOnIndex(n, worklist):
+                    if netlistReduceIndexSelectAll(n, worklist):
+                        return True
+                    elif netlistReduceIndexOnIndex(n, worklist):
                         return True
                     elif netlistReduceIndexOnConcat(n, worklist):
                         return True

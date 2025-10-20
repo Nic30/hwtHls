@@ -8,6 +8,13 @@ from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOpe
 from hwtHls.netlist.builder import HlsNetlistBuilderWithWorklist
 
 
+def netlistReduceIndexSelectAll(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
+    if n.dependsOn[0]._dtype == n._outputs[0]._dtype:
+        replaceOperatorNodeWith(n, n.dependsOn[0], worklist)
+        return True
+    return False
+
+
 def netlistReduceIndexOnIndex(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
     assert n.operator is HwtOps.INDEX, n
     srcObj = n.dependsOn[0].obj
