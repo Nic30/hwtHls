@@ -41,6 +41,9 @@ class IoProxyScalar(IoProxy):
     '''
 
     def getNativeTypeOfHwIoWithoutSyncSignals(self, src: HwIO):
+        if isinstance(src, MultiPortGroup):
+            return self.getNativeTypeOfHwIoWithoutSyncSignals(src[0])
+
         dtype = getattr(src, "_dtype", None)
         if dtype is not None:
             return dtype
