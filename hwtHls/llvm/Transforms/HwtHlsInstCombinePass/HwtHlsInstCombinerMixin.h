@@ -25,6 +25,12 @@
 #include <llvm/Support/DebugCounter.h>
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/AliasScopeTracker.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <hwtHls/llvm/intrinsic/metadataWithBitrange.h>
+
+// :note: for metadata names
+#include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinePass.h>
+#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
+
 
 namespace hwtHls {
 
@@ -70,6 +76,7 @@ public:
 	void eraseInstrRecursivelyIfTriviallyDead(llvm::Value &V);
 	llvm::Instruction* replaceInstUsesWith(llvm::Instruction &I, llvm::Value *V,
 			bool excludeAssumeUsers = false);
+	void inheritAndPropagateBitMetadata(llvm::Instruction &IOld, llvm::Instruction &INew);
 	// method called at the beginning of replaceInstUsesWith, it can be used to implement hooks for before instruction remove
 	void replaceInstUsesWithBefore(llvm::Instruction &I, llvm::Value *V,
 			bool excludeAssumeUsers) {
@@ -240,6 +247,24 @@ bool HwtHlsInstCombinerMixin<DerivedT>::prepareWorklist(
 	return MadeIRChange;
 }
 
+template<typename DerivedT>
+void HwtHlsInstCombinerMixin<DerivedT>::inheritAndPropagateBitMetadata(
+		llvm::Instruction &IOld, llvm::Instruction &INew) {
+	auto &ctx = F.getContext();
+	auto NoSplitMDKind = ctx.getMDKindID(
+			SlicesToIndependentVariablesPass::metadataName_NoSplit);
+	auto ContinuousMaskMDKind = ctx.getMDKindID(
+			HwtHlsInstCombinePass::metadataName_expr_maskContinuosFromLsb);
+	for (auto mdKindId: {NoSplitMDKind, ContinuousMaskMDKind}) {
+		auto md = IOld.getMetadata(mdKindId);
+		if (!md)
+			continue;
+		MetadataBitRanges::BitRanges br;
+		MetadataBitRanges::fromMetadata(md, br);
+		MetadataBitRanges::propagateBiDir(INew, mdKindId, br);
+	}
+}
+
 // copied copied llvm-18 InstCombiner::replaceInstUsesWith
 /// A combiner-aware RAUW-like routine.
 ///
@@ -296,6 +321,9 @@ llvm::Instruction* HwtHlsInstCombinerMixin<DerivedT>::replaceInstUsesWith(
 //#endif
 		I.replaceAllUsesWith(V);
 	}
+	if (auto VI = llvm::dyn_cast<llvm::Instruction>(V))
+		inheritAndPropagateBitMetadata(I, *VI);
+
 	return &I;
 }
 

@@ -8,8 +8,9 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Transforms/Utils/PromoteMemToReg.h>
 
-#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <hwtHls/llvm/intrinsic/metadataWithBitrange.h>
 #include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
+#include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinePass.h>
 
 using namespace llvm;
 
@@ -17,75 +18,26 @@ namespace hwtHls {
 
 const std::string TmpAllocaLoweringPass::HwtHlsTmpAllocaName =
 		"hwtHls.tmp.alloca";
+const std::string TmpAllocaLoweringPass::HwtHlsTmpPropagateNoSplitName =
+		"hwtHls.tmp.propagateNoSplit";
+const std::string TmpAllocaLoweringPass::HwtHlsTmpPropagate_expr_maskContinuosFromLsb =
+		"hwtHls.tmp.expr.maskContinuosFromLsb";
 
 
-const std::string TmpAllocaLoweringPass::HwtHlsTmpPropagateNoSplitName = "hwtHls.tmp.propagateNoSplit";
-
-void propagateNoSplitOnUserPhis(Instruction &I, MDNode *NoSplitMD) {
-	// if this is some form of bit manipulation propagate use->def
-	if (auto CI = dyn_cast<CallInst>(&I)) {
-		if (IsBitConcat(CI) || IsBitRangeGet(CI)) {
-			for (Use &_Op : CI->args()) {
-				auto Op = _Op.get();
-				if (auto OpI = dyn_cast<Instruction>(Op)) {
-					if (OpI->getMetadata(
-							SlicesToIndependentVariablesPass::metadataName_NoSplit))
-						continue;
-					OpI->setMetadata(
-							SlicesToIndependentVariablesPass::metadataName_NoSplit,
-							NoSplitMD);
-					propagateNoSplitOnUserPhis(*OpI, NoSplitMD);
-				}
-			}
-		}
-	} else if (auto cast = dyn_cast<CastInst>(&I)) { // ZExtInst, SExtInst, ...
-		if (auto src = dyn_cast<Instruction>(cast->getOperand(0))) {
-			propagateNoSplitOnUserPhis(*src, NoSplitMD);
-		}
-	}
-	// propagate def->use
-	for (User *U : I.users()) {
-		if (auto UI = dyn_cast<Instruction>(U)) {
-			if (UI->getMetadata(
-					SlicesToIndependentVariablesPass::metadataName_NoSplit))
-				continue;
-			UI->setMetadata(
-					SlicesToIndependentVariablesPass::metadataName_NoSplit,
-					NoSplitMD);
-		} else {
-			continue;
-		}
-		if (auto Phi = dyn_cast<PHINode>(U)) {
-			assert(
-					Phi != &I
-							&& "This should not happen because propagateNoSplitOnUserPhis is called only on instructions with NoSplit");
-			propagateNoSplitOnUserPhis(*Phi, NoSplitMD);
-		} else if (auto cast = dyn_cast<CastInst>(U)) { // ZExtInst, SExtInst, ...
-			propagateNoSplitOnUserPhis(*cast, NoSplitMD);
-		} else if (auto call = dyn_cast<CallInst>(U)) {
-			if (IsBitConcat(call) || IsBitRangeGet(call)) {
-				propagateNoSplitOnUserPhis(*call, NoSplitMD);
-			}
-		}
-	}
-}
-
-MDNode* collectInstructionsForNoSplitPropagation(AllocaInst &Alloca) {
-	auto _noSplit = Alloca.getMetadata(
-			SlicesToIndependentVariablesPass::metadataName_NoSplit);
-	if (!_noSplit)
-		return nullptr;
-	// copy noSplit metadata to all stored values
+void collectInstructionsForMetadataPropagation(AllocaInst &Alloca,
+		unsigned mdKind, unsigned tmpMdKind, MDNode *&MDForBackup) {
+	auto _md = Alloca.getMetadata(mdKind);
+	if (!_md)
+		return;
+	// copy metadata to all stored values
 	for (User *U : Alloca.users()) {
 		if (isa<Instruction>(U)) {
 			if (isa<LoadInst>(U)) {
 			} else if (auto ST = dyn_cast<StoreInst>(U)) {
 				if (auto StoredValueInstr = dyn_cast<Instruction>(
 						ST->getValueOperand())) {
-					StoredValueInstr->setMetadata(
-							SlicesToIndependentVariablesPass::metadataName_NoSplit,
-							_noSplit);
-					StoredValueInstr->setMetadata(TmpAllocaLoweringPass::HwtHlsTmpPropagateNoSplitName, _noSplit);
+					StoredValueInstr->setMetadata(mdKind, _md);
+					StoredValueInstr->setMetadata(tmpMdKind, _md);
 				}
 			} else {
 				U->dump();
@@ -93,8 +45,9 @@ MDNode* collectInstructionsForNoSplitPropagation(AllocaInst &Alloca) {
 			}
 		}
 	}
-	return _noSplit;
+	MDForBackup = _md;
 }
+
 llvm::PreservedAnalyses TmpAllocaLoweringPass::run(llvm::Function &F,
 		llvm::FunctionAnalysisManager &AM) {
 	auto &DT = AM.getResult<llvm::DominatorTreeAnalysis>(F);
@@ -110,6 +63,15 @@ llvm::PreservedAnalyses TmpAllocaLoweringPass::run(llvm::Function &F,
 	IRBuilder<> Builder(F.getContext());
 	SmallVector<Instruction*> toRm;
 	MDNode *NoSplitMD = nullptr;
+	MDNode *ContinuousMaskMD = nullptr;
+	auto &ctx = F.getContext();
+	auto NoSplitMDKind = ctx.getMDKindID(
+			SlicesToIndependentVariablesPass::metadataName_NoSplit);
+	auto NoSplitTmpMDKind = ctx.getMDKindID(HwtHlsTmpPropagateNoSplitName);
+	auto ContinuousMaskMDKind = ctx.getMDKindID(
+			HwtHlsInstCombinePass::metadataName_expr_maskContinuosFromLsb);
+	auto ContinuousMaskTmpMDKind = ctx.getMDKindID(
+			HwtHlsTmpPropagate_expr_maskContinuosFromLsb);
 	for (auto &BB : F) {
 		for (auto &I : make_early_inc_range(BB)) {
 			if (auto AI = dyn_cast<AllocaInst>(&I)) {
@@ -121,9 +83,12 @@ llvm::PreservedAnalyses TmpAllocaLoweringPass::run(llvm::Function &F,
 				if (AllocTy->isArrayTy())
 					continue; // keep as it is
 
-				auto _noSplit = collectInstructionsForNoSplitPropagation(*AI);
-				if (_noSplit && !NoSplitMD)
-					NoSplitMD = _noSplit;
+				collectInstructionsForMetadataPropagation(*AI, NoSplitMDKind,
+						NoSplitTmpMDKind, NoSplitMD);
+				collectInstructionsForMetadataPropagation(*AI,
+						ContinuousMaskMDKind, ContinuousMaskTmpMDKind,
+						ContinuousMaskMD);
+
 				if (AllocTy->isDoubleTy()) {
 					TmpAllocas.push_back(AI);
 					continue; // promote to reg
@@ -212,11 +177,27 @@ llvm::PreservedAnalyses TmpAllocaLoweringPass::run(llvm::Function &F,
 	}
 	if (TmpAllocas.size()) {
 		llvm::PromoteMemToReg(TmpAllocas, DT, AC);
+		struct PropagateMdItem {
+			unsigned mdKind;
+			unsigned mdTmpKind;
+			MDNode *md;
+			bool allowWidthIncrease;
+		};
+		std::array<PropagateMdItem, 2> propagatedMetadataIds;
+		propagatedMetadataIds[0] = { NoSplitMDKind, NoSplitTmpMDKind, NoSplitMD,
+				true };
+		propagatedMetadataIds[1] = { ContinuousMaskMDKind,
+				ContinuousMaskTmpMDKind, ContinuousMaskMD, false };
 		for (auto &BB : F) {
-			for (auto &I: BB) {
-				if (I.hasMetadata(HwtHlsTmpPropagateNoSplitName)) {
-					propagateNoSplitOnUserPhis(I, NoSplitMD);
-					I.setMetadata(HwtHlsTmpPropagateNoSplitName, nullptr);
+			for (auto &I : BB) {
+				for (auto md : propagatedMetadataIds) {
+					auto mdNode = I.getMetadata(md.mdTmpKind);
+					if (mdNode) {
+						MetadataBitRanges::BitRanges bitRanges;
+						MetadataBitRanges::fromMetadata(mdNode, bitRanges);
+						MetadataBitRanges::propagateBiDir(I, md.mdKind, bitRanges);
+						I.setMetadata(md.mdTmpKind, nullptr);
+					}
 				}
 			}
 		}

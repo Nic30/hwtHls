@@ -1,12 +1,17 @@
 #include <hwtHls/llvm/targets/intrinsic/StreamChannelFormatInfo.h>
-#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+
 #include <stdexcept>
 #include <llvm/IR/Constants.h>
-#include <hwtHls/llvm/bitMath.h>
-#include <hwtHls/llvm/targets/bitMathUtils.h>
 #include <llvm/IR/PatternMatch.h>
+
+#include <hwtHls/llvm/bitMath.h>
+#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <hwtHls/llvm/targets/bitMathUtils.h>
 #include <hwtHls/llvm/targets/intrinsic/PatternMatch.h>
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
+#include <hwtHls/llvm/intrinsic/metadataSideEffect.h>
+#include <hwtHls/llvm/intrinsic/metadataWithBitrange.h>
+#include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinePass.h>
 
 using namespace llvm;
 using namespace llvm::PatternMatch;
@@ -218,8 +223,7 @@ void StreamChannelFormatInfo::CreateAssumptionForControl(
 	if (hasMask()) {
 		CreateAssumptionForMask(Builder, segmentVal, nullptr, nullptr);
 	} else if (hasEmpty()) {
-		CreateAssumptionForEmpty(Builder, segmentVal, nullptr, nullptr,
-				nullptr);
+		CreateAssumptionForEmpty(Builder, segmentVal, nullptr, nullptr);
 	}
 }
 
@@ -246,11 +250,13 @@ void StreamChannelFormatInfo::CreateAssumptionForMask(
 		// this bit=1 implies that prev bit=1
 		Builder.CreateAssumption(
 				Builder.CreateICmpULE(thisBit, prevBit, "prevMaskBit1Impl"));
-		if (maskBitI > 1)
+		if (maskBitI > 1) {
 			// this bit=1 implies that mask[0]=1
-			Builder.CreateAssumption(
+			auto a = Builder.CreateAssumption(
 					Builder.CreateICmpULE(thisBit, maskBit0,
 							"prevMaskBit1Impl"));
+			setMetadataSideeffectAllowHoist(*a);
+		}
 
 		// [todo] after llvm-19 use this:
 		// Value *prevMaskBits = CreateBitRangeGetConst(&Builder,
@@ -261,25 +267,33 @@ void StreamChannelFormatInfo::CreateAssumptionForMask(
 		//		Builder.CreateICmpULE(thisBit, maskAllPrev1,
 		//				"prevMaskBitAll1Impl"));
 
-		// eof=0 implies that this bit=1
-		Builder.CreateAssumption(
+		// eof=0 implies that this bit=1 (maskBit==0 only if eof=1)
+		// :attention: llvm-19+
+		auto a = Builder.CreateAssumption(
 				Builder.CreateOr(eof, thisBit, "NonEoFImplMaskBit1"));
+		setMetadataSideeffectAllowHoist(*a);
 		prevBit = thisBit;
 	}
 	if (!mask)
 		mask = CreateBitRangeGetConst(&Builder, segmentValue, maskOffset,
 				maskWidth);
+	if (auto maskI = dyn_cast<Instruction>(mask)) {
+		auto maskMdKing = Builder.getContext().getMDKindID(HwtHlsInstCombinePass::metadataName_expr_maskContinuosFromLsb);
+		MetadataBitRanges::BitRanges bitR;
+		MetadataBitRanges::setAndPropagateBiDir(*maskI, maskMdKing, bitR);
+	}
 	Value *maskAll1 = Builder.CreateICmpEQ(mask,
 			ConstantInt::getAllOnesValue(mask->getType()));
 	// eof=0 implies that all mask bits are 1(not eof implies that all bytes are valid because
 	// there can not be a hole inside of packet which is not aligned to a word boundary)
-	Builder.CreateAssumption(
+	auto a = Builder.CreateAssumption(
 			Builder.CreateOr(eof, maskAll1, "NonEoFImplMaskAll1"));
+	setMetadataSideeffectAllowHoist(*a);
 }
 
 void StreamChannelFormatInfo::CreateAssumptionForEmpty(
-		llvm::IRBuilderBase &Builder, Value *segmentValue, Value *enable,
-		Value *empty, Value *eof) const {
+		llvm::IRBuilderBase &Builder, Value *segmentValue, Value *empty,
+		Value *eof) const {
 	assert(byteEnableEncoding == ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY);
 	if (hasEmpty()) {
 		size_t bytesPerSegment = dataWidth / byteWidth;
@@ -289,17 +303,19 @@ void StreamChannelFormatInfo::CreateAssumptionForEmpty(
 
 		if (!supportZLP) {
 			if (!isPow2(bytesPerSegment)) {
-				Builder.CreateAssumption(
+				auto a = Builder.CreateAssumption(
 						Builder.CreateICmpULT(empty,
 								ConstantInt::get(empty->getType(),
 										bytesPerSegment - 1)));
+				setMetadataSideeffectAllowHoist(*a);
 			}
 		} else {
 			if (!isPow2(bytesPerSegment)) {
-				Builder.CreateAssumption(
+				auto a = Builder.CreateAssumption(
 						Builder.CreateICmpULT(empty,
 								ConstantInt::get(empty->getType(),
 										bytesPerSegment)));
+				setMetadataSideeffectAllowHoist(*a);
 			}
 		}
 		if (hasEoF()) {
@@ -308,11 +324,12 @@ void StreamChannelFormatInfo::CreateAssumptionForEmpty(
 						getOffsetOfEoF(), 1);
 			// eof=0 implies that empty==0 (not eof implies that all bytes are valid because
 			// there can not be a hole inside of packet which is not aligned to a word boundary)
-			Builder.CreateAssumption(
+			auto a = Builder.CreateAssumption(
 					Builder.CreateOr(eof,
 							Builder.CreateICmpEQ(empty,
 									ConstantInt::get(empty->getType(), 0)),
 							"NonEoFImplEmptyEq0"));
+			setMetadataSideeffectAllowHoist(*a);
 		}
 	}
 }

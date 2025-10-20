@@ -1,11 +1,14 @@
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinerUtilsImplication.h>
-#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
-#include <hwtHls/llvm/targets/intrinsic/concatMemberVector.h>
 
 #include <llvm/IR/PatternMatch.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Analysis/ValueTracking.h>
 #include <llvm/Analysis/AssumptionCache.h>
+
+#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <hwtHls/llvm/targets/intrinsic/concatMemberVector.h>
+#include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinePass.h>
+#include <hwtHls/llvm/intrinsic/metadataWithBitrange.h>
 
 using namespace llvm;
 using namespace llvm::PatternMatch;
@@ -141,8 +144,29 @@ std::optional<bool> isImpliedConditionByAssume(const Value *LHS,
 		const Instruction *CtxI) {
 	assert(LHS->getType()->getIntegerBitWidth() == 1);
 	assert(RHS->getType()->getIntegerBitWidth() == 1);
+	if (LHS == RHS)
+		return true;
 	const OffsetWidthValue RHS_slice = OffsetWidthValue::fromValue(
 			const_cast<Value*>(RHS));
+
+	if (!RHS_slice.isIdentity()) {
+		const OffsetWidthValue LHS_slice = OffsetWidthValue::fromValue(
+				const_cast<Value*>(RHS));
+		auto baseBitVector = dyn_cast<Instruction>(LHS_slice.value);
+		if (baseBitVector && LHS_slice.value == RHS_slice.value && LHS_slice.offset > RHS_slice.offset) {
+			assert(LHS_slice.width == 1);
+			assert(RHS_slice.width == 1);
+			assert(!LHS_slice.isIdentity());
+			auto maskMdId = LHS->getContext().getMDKindID(HwtHlsInstCombinePass::metadataName_expr_maskContinuosFromLsb);
+			// bit closer to MSB implies all bits closer to LSB are set
+			size_t l = RHS_slice.offset;
+			size_t h = LHS_slice.offset + 1;
+			if (MetadataBitRanges::isSelected(*baseBitVector, maskMdId, {l, h}))
+				return true;
+
+		}
+
+	}
 
 	// Try to restrict the range based on information from assumptions.
 	for (auto &AssumeVH : AC.assumptionsFor(LHS)) {
