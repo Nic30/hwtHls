@@ -364,22 +364,37 @@ void register_Instruction(pybind11::module_ & m) {
 	m.def("InstructionToUnreachableInst", &llvmInstructionCaster<llvm::UnreachableInst>, py::return_value_policy::reference_internal);
 
 	m.def("IsStreamIo", &IsStreamIo);
+	py::native_enum<StreamReadBehaviorType>(m, "StreamReadBehaviorType", "enum.Enum")
+		.value("RELIABLE", StreamReadBehaviorType::RELIABLE)
+		.value("UNRELIABLE", StreamReadBehaviorType::UNRELIABLE)
+	    .value("ALIGNING", StreamReadBehaviorType::ALIGNING)
+		.finalize();
+	;
 
 	m.def("IsStreamRead", [](llvm::CallInst * CI) { return IsStreamRead(CI); });
 	m.def("IsStreamReadStartOfFrame", [](llvm::CallInst * CI) { return IsStreamReadStartOfFrame(CI); });
 	m.def("IsStreamReadEndOfFrame", [](llvm::CallInst * CI) { return IsStreamReadEndOfFrame(CI); });
+	m.def("streamReadGetOrigChunkBitWidth", &streamReadGetOrigChunkBitWidth);
+	m.def("streamReadGetBehavior", &streamReadGetBehavior);
+
+	m.def("IsStreamTmpAllocaTmpSetterPlaceholder", [](llvm::CallInst * CI) { return IsStreamTmpAllocaTmpSetterPlaceholder(CI); });
+
+	py::native_enum<StreamWriteBehaviorType>(m, "StreamWriteBehaviorType", "enum.Enum")
+		.value("ALLVALID", StreamWriteBehaviorType::ALLVALID)
+		.value("MASKED", StreamWriteBehaviorType::MASKED)
+	    .value("PACKING", StreamWriteBehaviorType::PACKING)
+		.finalize();
+	;
 	m.def("IsStreamWrite", [](llvm::CallInst * CI) { return IsStreamWrite(CI); });
-	m.def("IsStreamWriteMasked", [](llvm::CallInst * CI) { return IsStreamWriteMasked(CI); });
 	m.def("IsStreamWriteStartOfFrame", [](llvm::CallInst * CI) { return IsStreamWriteStartOfFrame(CI); });
 	m.def("IsStreamWriteEndOfFrame", [](llvm::CallInst * CI) { return IsStreamWriteEndOfFrame(CI); });
-
-	m.def("streamReadGetOrigChunkBitWidth", &streamReadGetOrigChunkBitWidth);
-	m.def("streamReadGetIsReliable", &streamReadGetIsReliable);
+	m.def("streamWriteGetBehavior", &streamWriteGetBehavior);
 	m.def("streamWriteGetOrigChunkBitWidth", &streamWriteGetOrigChunkBitWidth);
-
 	m.def("streamWriteGetIoArg", &streamWriteGetIoArg, py::return_value_policy::reference_internal);
 	m.def("streamWriteGetWriteData", &streamWriteGetWriteData, py::return_value_policy::reference_internal);
-	m.def("streamWriteGetWriteMask", &streamWriteGetWriteMaskOrEmpty, py::return_value_policy::reference_internal);
+	m.def("streamWriteGetWriteMaskOrEmpty", &streamWriteGetWriteMaskOrEmpty, py::return_value_policy::reference_internal);
+	m.def("streamWriteGetWriteSoF", &streamWriteGetWriteSoF, py::return_value_policy::reference_internal);
 	m.def("streamWriteGetWriteEoF", &streamWriteGetWriteEoF, py::return_value_policy::reference_internal);
+	m.def("streamWriteGetWriteError", &streamWriteGetWriteError, py::return_value_policy::reference_internal);
 }
 }
