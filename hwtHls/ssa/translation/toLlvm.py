@@ -391,7 +391,7 @@ class ToLlvmIrTranslator():
             _argTypes.append(t)
 
         FT = FunctionType.get(returnType, _argTypes, False)
-        F = Function.Create(FT, Function.ExternalLinkage, strCtx.addTwine(name), self.module)
+        F = Function.Create(FT, Function.LinkageTypes.ExternalLinkage, strCtx.addTwine(name), self.module)
 
         for a, (aName, _, _, _) in zip(F.args(), args):
             a.setName(strCtx.addTwine(aName))
@@ -510,7 +510,7 @@ class ToLlvmIrTranslator():
             newCRom = ConstantArray.get(arrayTy, items)
             isConstant = True
             newArray = GlobalVariable(self.module, arrayTy,
-                                      isConstant, GlobalVariable.PrivateLinkage,
+                                      isConstant, GlobalVariable.LinkageTypes.PrivateLinkage,
                                       newCRom)
             newArray.setUnnamedAddr(GlobalValue.UnnamedAddr.Global)
             newArray.setAlignment(Align(1))
