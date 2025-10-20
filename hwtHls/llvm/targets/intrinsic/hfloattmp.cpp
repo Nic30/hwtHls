@@ -483,7 +483,7 @@ HFloatTmpConfig HFloatTmpConfig::fromMachineInstrOperands(
 	assert(HFloatTmpConfig::MEMBER_CNT == 11);
 	assert(
 			MI.getNumExplicitOperands()
-					>= operandOffset + HFloatTmpConfig::MEMBER_CNT);
+					>= operandOffset + HFloatTmpConfig::MEMBER_CNT + 1); // + for enCondition
 	auto isInQFormat = MI.getOperand(operandOffset++).getImm();
 	auto exponentOrIntWidth = MI.getOperand(operandOffset++).getImm();
 	auto mantissaOrFracWidth = MI.getOperand(operandOffset++).getImm();
