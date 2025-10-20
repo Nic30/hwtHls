@@ -83,7 +83,7 @@ class ExampleCntrArray(HwModule):
         while b1:
             o = mem[hls.read(self.o_addr).data]
             i = hls.read(self.i).data
-            hls.write(o, self.o)
+            hls.write(o, self.o, mayBecomeFlushable=False)
             mem[i] += 1
 
     @override
