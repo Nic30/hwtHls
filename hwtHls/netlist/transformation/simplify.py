@@ -56,6 +56,7 @@ from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 class HlsNetlistPassSimplify(HlsNetlistPass):
     """
     HlsNetlist simplification pass
+    (pass which executes expression and io sync rewriting rules)
 
     :var REST_OF_EVALUABLE_OPS: set of operators which can evaluated and are not a specific case
     """
