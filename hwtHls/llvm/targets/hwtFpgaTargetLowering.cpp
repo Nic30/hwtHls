@@ -5,7 +5,7 @@
 #include <llvm/Analysis/ValueTracking.h>
 #include <llvm/Support/KnownBits.h>
 #include <llvm/CodeGen/GlobalISel/GISelKnownBits.h>
-#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtils.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtilsInstrFns.h>
 
 namespace llvm {
 

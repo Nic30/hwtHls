@@ -10,7 +10,7 @@
 #include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetPassConfig.h>
 #include <hwtHls/llvm/targets/Analysis/liveVariableForEdge.h>
-#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtils.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtilsInstrFns.h>
 
 #define DEBUG_TYPE "hwtfpga-concatblockliveins"
 

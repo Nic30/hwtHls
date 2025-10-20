@@ -1,7 +1,8 @@
 #pragma once
 
 #include <llvm/CodeGen/GlobalISel/CombinerHelper.h>
-#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtils.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtilsInstrFns.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtilsInstrReducibleValuesInfo.h>
 #include <hwtHls/llvm/targets/intrinsic/hfloattmp.h>
 
 namespace llvm {
@@ -76,14 +77,16 @@ public:
 class HwtFpgaCombinerHelper: public llvm::CombinerHelper {
 public:
 	struct ConcatMember {
-		MachineOperand &op;
-		uint64_t offsetOfUse, width, widthOfUse;
-		ConcatMember(MachineOperand &op, uint64_t offsetOfUse, uint64_t width,
-				uint64_t widthOfUse) :
-				op(op), offsetOfUse(offsetOfUse), width(width), widthOfUse(
-						widthOfUse) {
-			assert(width >= offsetOfUse + widthOfUse);
-		}
+		const MachineOperand &op;
+		const ConstantInt *constOverride; // if specified the op should not be used and this const should be used instead
+		uint64_t offsetOfUse;
+		uint64_t width;
+		uint64_t widthOfUse;
+		MachineInstr *existingSlice; //  optional pointer to HWTFPGA_EXTRACT instruction implementing bit extraction
+		// as specified by this struct
+
+		ConcatMember(const MachineOperand &op, uint64_t offsetOfUse,
+				uint64_t width, uint64_t widthOfUse);
 	};
 
 	using llvm::CombinerHelper::CombinerHelper;

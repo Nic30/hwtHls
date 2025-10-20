@@ -8,7 +8,7 @@
 #include <hwtHls/llvm/targets/hwtFpgaIoUtils.h>
 #include <hwtHls/llvm/targets/bitMathUtils.h>
 #include <hwtHls/llvm/targets/intrinsic/hfloattmp.h>
-#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtils.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtilsInstrFns.h>
 
 using namespace llvm;
 

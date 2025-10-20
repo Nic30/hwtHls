@@ -4,7 +4,7 @@
 #include <llvm/CodeGen/GlobalISel/GISelKnownBits.h>
 #include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionSelectorUtils.h>
-#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtils.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtilsInstrFns.h>
 
 namespace llvm {
 
@@ -212,6 +212,23 @@ void HwtFpgaCombinerHelper::rewriteConstBinOp(llvm::MachineInstr &MI,
 	replaceInstWithConstant(MI, fn(a, b));
 }
 
+HwtFpgaCombinerHelper::ConcatMember::ConcatMember(const MachineOperand &op,
+		uint64_t offsetOfUse, uint64_t width, uint64_t widthOfUse) :
+		op(op), constOverride(nullptr), offsetOfUse(offsetOfUse), width(width), widthOfUse(
+				widthOfUse), existingSlice(nullptr) {
+	assert(width >= offsetOfUse + widthOfUse);
+	if (op.isCImm()) {
+		assert(width == op.getCImm()->getType()->getIntegerBitWidth());
+		if (offsetOfUse != 0 || width != widthOfUse) {
+			// extract targeted bits immediately
+			auto C = op.getCImm();
+			this->constOverride = ConstantInt::get(C->getContext(),
+					C->getValue().extractBits(widthOfUse, offsetOfUse));
+			this->width = widthOfUse;
+			this->offsetOfUse = 0;
+		}
+	}
+}
 
 inline bool collectConcatMembersAsItIs(llvm::MachineOperand &MIOp,
 		std::vector<HwtFpgaCombinerHelper::ConcatMember> &members,

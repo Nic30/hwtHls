@@ -94,6 +94,8 @@ py3.extension_module(
      'targets/GISel/hwtFpgaCombinerHelperMuxValPropagation.cpp',
      'targets/GISel/hwtFpgaCombinerHelperShift.cpp',
      'targets/GISel/hwtFpgaInstructionBuilderUtils.cpp',
+     'targets/GISel/hwtFpgaInstructionBuilderUtilsInstrFns.cpp',
+     'targets/GISel/hwtFpgaInstructionBuilderUtilsMuxReducibleValuesInfo.cpp',
 
 	 'targets/hwtFpgaInstrInfo.cpp',
 	 'targets/hwtFpgaIoUtils.cpp',
