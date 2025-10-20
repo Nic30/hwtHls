@@ -33,7 +33,19 @@ HFloatTmpConfig::HFloatTmpConfig(bool isInQFormat, //
 }
 
 bool HFloatTmpConfig::operator==(const HFloatTmpConfig &other) const {
-	return std::memcmp(this, &other, sizeof *this) == 0;
+	assert(MEMBER_CNT == 11);
+	return //
+	isInQFormat == other.isInQFormat && //
+			exponentOrIntWidth == other.exponentOrIntWidth && //
+			mantissaOrFracWidth == other.mantissaOrFracWidth && //
+			supportSubnormal == other.supportSubnormal && //
+			hasSign == other.hasSign && //
+			hasIsNaN == other.hasIsNaN && //
+			hasIsInf == other.hasIsInf && //
+			hasIs1 == other.hasIs1 && //
+			hasIs0 == other.hasIs0 && //
+			rounding == other.rounding && //
+			saturation == other.saturation;
 }
 
 size_t HFloatTmpConfig::__hash__() const {
