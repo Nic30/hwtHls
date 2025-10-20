@@ -91,8 +91,8 @@ void HwtFpgaCombinerHelper::rewriteNestedMERGE_VALUES(MachineInstr &MI) {
 	// [todo] handle kills for MI value operands and DstReg
 	Observer.changedInstr(newParentMI);
 
-	if (DstRegNo == newParentMI.getOperand(0).getReg() || MRI.use_empty(DstRegNo)
-			|| all_of(MRI.use_instructions(DstRegNo),
+	if (DstRegNo == newParentMI.getOperand(0).getReg()
+			|| MRI.use_empty(DstRegNo) || all_of(MRI.use_instructions(DstRegNo),
 			// MI is only user of its dst
 					[&MI](const MachineInstr &_MI) {
 						return &_MI == &MI;

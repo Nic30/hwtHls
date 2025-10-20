@@ -235,12 +235,12 @@ bool HwtFpgaCombinerHelper::matchIsExtractOnConstShift(llvm::MachineInstr &MI) {
 	auto _src = MI.getOperand(1);
 	if (_src.isReg()) {
 		if (auto *src = MRI.getOneDef(MI.getOperand(1).getReg())) {
-			auto* srcInstr = src->getParent();
+			auto *srcInstr = src->getParent();
 			auto opc = srcInstr->getOpcode();
-			switch(opc) {
+			switch (opc) {
 			case HwtFpga::HWTFPGA_SHL:
-			//case HwtFpga::HWTFPGA_ASHR:
-			//case HwtFpga::HWTFPGA_LSHR:
+				//case HwtFpga::HWTFPGA_ASHR:
+				//case HwtFpga::HWTFPGA_LSHR:
 				return srcInstr->getOperand(2).isCImm();
 			default:
 				return false;
@@ -250,8 +250,7 @@ bool HwtFpgaCombinerHelper::matchIsExtractOnConstShift(llvm::MachineInstr &MI) {
 	return false;
 }
 
-void HwtFpgaCombinerHelper::rewriteExtractOnConstShift(
-		llvm::MachineInstr &MI) {
+void HwtFpgaCombinerHelper::rewriteExtractOnConstShift(llvm::MachineInstr &MI) {
 	assert(MI.getOpcode() == HwtFpga::HWTFPGA_EXTRACT);
 	auto *src = MRI.getOneDef(MI.getOperand(1).getReg());
 	MachineInstr *srcInstr = src->getParent();
@@ -269,7 +268,7 @@ void HwtFpgaCombinerHelper::rewriteExtractOnConstShift(
 
 		MIB.addDef(MI.getOperand(0).getReg());
 		MIB.add(srcValMO);
-		assert(extractOpts.srcWidth>= offset + extractOpts.dstWidth);
+		assert(extractOpts.srcWidth >= offset + extractOpts.dstWidth);
 		MIB.addImm(extractOpts.srcWidth);
 		MIB.addImm(offset);
 		MIB.addImm(extractOpts.dstWidth);
@@ -278,9 +277,9 @@ void HwtFpgaCombinerHelper::rewriteExtractOnConstShift(
 
 		break;
 	}
-	//case HwtFpga::HWTFPGA_ASHR:
-	//case HwtFpga::HWTFPGA_LSHR:
-	//	return srcInstr->getOperand(2).isCImm();
+		//case HwtFpga::HWTFPGA_ASHR:
+		//case HwtFpga::HWTFPGA_LSHR:
+		//	return srcInstr->getOperand(2).isCImm();
 	default:
 		llvm_unreachable("This should have been checked before");
 	};
@@ -311,9 +310,8 @@ void HwtFpgaCombinerHelper::rewriteExtractOfSameWidthToCopy(
 	// to  HWTFPGA_MUX $dst $src
 	for (size_t i = 4; i > 1; --i)
 		MI.removeOperand(i);
-    MI.setDesc(Builder.getTII().get(HwtFpga::HWTFPGA_MUX));
+	MI.setDesc(Builder.getTII().get(HwtFpga::HWTFPGA_MUX));
 	Observer.changedInstr(MI);
 }
-
 
 }
