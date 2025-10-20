@@ -30,18 +30,20 @@ class LLVM_CLI_COMMON_OPTS:
     #     "hwtfpga-pretonetlist-combiner"
     #     "vreg-if-converter"
     #     "loop-simplify"
+    # :note: LLVM MIR GISel combiners have options to disable/allow rules like
+    #   "hwtfpgapreregallocgicombiner-disable-rule"/"hwtfpgapreregallocgicombiner-only-enable-rule" 
     DEBUG_PASS_MANAGER = ("debug-pass-manager", 0, "", "")  # print used passes until machinemoduleinfo
     DEBUG_PASS_ARGUMENTS = ("debug-pass", 0, "", "Arguments")  # print used passes starting from machinemoduleinfo
     DEBUG_PASS_STRUCTURE = ("debug-pass", 0, "", "Structure")  # same as Arguments but pretty formated
     # see https://github.com/llvm/llvm-project/blob/main/llvm/lib/IR/PrintPasses.cpp
-    PRINT_MODULE_SCOPE = ("print-module-scope", 0, "", "true") # When printing IR for print-[before|after]{-all} always print a module IR
+    PRINT_MODULE_SCOPE = ("print-module-scope", 0, "", "true")  # When printing IR for print-[before|after]{-all} always print a module IR
     PRINT_AFTER_ALL = ("print-after-all", 0, "", "true")
     PRINT_BEFORE_ALL = ("print-before-all", 0, "", "true")
     PRINT_CHANGED = ("print-changed", 0, "", "")
-    PRINT_CHANGED_DOT_CFG = ("print-changed", 0, "", "dot-cfg") # :attention: blocks without name will cause crash https://github.com/llvm/llvm-project/pull/148582
-    
-    PRINT_MODULE_SCOPE = ("print-module-scope", 0, "", "") # instead of just function, print whole module
-    STATS = ("stats", 0, "", "") # print values of llvm statistics defined by STATISTIC(<id>, <string>) 
+    PRINT_CHANGED_DOT_CFG = ("print-changed", 0, "", "dot-cfg")  # :attention: blocks without name will cause crash https://github.com/llvm/llvm-project/pull/148582
+
+    PRINT_MODULE_SCOPE = ("print-module-scope", 0, "", "")  # instead of just function, print whole module
+    STATS = ("stats", 0, "", "")  # print values of llvm statistics defined by STATISTIC(<id>, <string>)
 
     @classmethod
     def filterPrintFuncs(cls, functionNames: list[str]):
