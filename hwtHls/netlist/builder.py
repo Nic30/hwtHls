@@ -714,13 +714,13 @@ class HlsNetlistBuilder():
         return self.buildConcat(a, *(msb for _ in range(newWidth - w)), operatorSpecialization=operatorSpecialization)
 
     def buildIndexConst(self, resT: HdlType, a: HlsNetNodeOut, high: int, low: Optional[int],
-                        operatorSpecialization:Optional[HFloatTmpConfig]=None):
+                        operatorSpecialization:Optional[HFloatTmpConfig]=None, name:Optional[str]=None):
         if resT == a._dtype:
             return a
         elif high == low + 1:
             high = low
             low = None
-        return self.buildIndexConstSlice(resT, a, high, low, operatorSpecialization=operatorSpecialization)
+        return self.buildIndexConstSlice(resT, a, high, low, operatorSpecialization=operatorSpecialization, name=name)
 
     def buildIndexConstSlice(self, resT: HdlType, a: HlsNetNodeOut, high: int, low: Optional[int],
                              operatorSpecialization:Optional[HFloatTmpConfig]=None,
