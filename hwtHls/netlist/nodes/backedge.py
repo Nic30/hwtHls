@@ -528,6 +528,7 @@ class HlsNetNodeWriteBackedge(HlsNetNodeWrite):
         assert self._forceEnPort is None, ("forceEnPort should have been lowered during HlsArchPassSyncLowering", self)
 
         dstRead: HlsNetNodeReadBackedge = self.associatedRead
+        assert dstRead is not None, self
         dstRead._rtlAllocDatapathIo()
 
         if self.allocationType == CHANNEL_ALLOCATION_TYPE.BUFFER:
