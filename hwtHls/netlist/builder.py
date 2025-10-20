@@ -961,7 +961,10 @@ class HlsNetlistBuilder():
         if k not in self.operatorCache:
             # there may be the temporary case when some operand is replaced
             # and the operator node becomes something which already exits
-            self.operatorCache[k] = n._outputs[0]
+            if len(n._outputs) == 1:
+                self.operatorCache[k] = n._outputs[0]
+            else:
+                self.operatorCache[k] = n
 
 
 class HlsNetlistBuilderWithWorklist(HlsNetlistBuilder):
