@@ -1,6 +1,6 @@
-from typing import List, overload, Union, TypeVar, Iterable, Callable, \
+from typing import List, Union, TypeVar, Iterable, Callable, \
     SupportsIndex
-from _collections import deque
+from collections import deque
 
 _T = TypeVar("_T")
 
@@ -9,22 +9,22 @@ class ObservableListRm():
     pass
 
 
-class ObservableList(List):
+class ObservableList(list[_T]):
 
     def __init__(self, *__iterable:Iterable[_T]) -> None:
         list.__init__(self, *__iterable)
         self._beforeSet = None
         self._beforeSetArg = None
-        
+
     def _setObserver(self, beforeSet:Callable[[object, Union[slice, int], Union[object, ObservableListRm]], None], extraArg):
         self._beforeSet = beforeSet
         self._beforeSetArg = extraArg
-        
+
     def __setitem__(self, __s:Union[slice, int], __o:Iterable[_T]) -> None:
         if self._beforeSet:
             self._beforeSet(self._beforeSetArg, self, __s, __o)
         list.__setitem__(self, __s, __o)
-    
+
     def __delitem__(self, __i:int | slice) -> None:
         if self._beforeSet:
             self._beforeSet(self._beforeSetArg, self, __i, ObservableListRm)
@@ -48,7 +48,7 @@ class ObservableList(List):
             for i in __iterable:
                 self._beforeSet(self._beforeSetArg, self, index, i)
                 index += 1
-                
+
         list.extend(self, __iterable)
 
     def pop(self, *__index) -> _T:
@@ -59,12 +59,12 @@ class ObservableList(List):
             else:
                 i = len(self) - 1
                 assert i > 0
-            self._beforeSet(self._beforeSetArg, self, i, ObservableListRm)            
+            self._beforeSet(self._beforeSetArg, self, i, ObservableListRm)
         return list.pop(self, *__index)
 
     def remove(self, __value:_T) -> None:
         if self._beforeSet:
-            self._beforeSet(self._beforeSetArg, self, self.index(), ObservableListRm)   
+            self._beforeSet(self._beforeSetArg, self, self.index(), ObservableListRm)
         list.remove(self, __value)
 
     def insert(self, __index:SupportsIndex, __object:_T) -> None:
@@ -74,5 +74,5 @@ class ObservableList(List):
         if self._beforeSet:
             for i, _ in enumerate(self):
                 self._beforeSet(self._beforeSetArg, self, i, None)
-        
+
         list.clear(self)
