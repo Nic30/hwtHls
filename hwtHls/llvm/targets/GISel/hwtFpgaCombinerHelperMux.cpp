@@ -94,7 +94,6 @@ void HwtFpgaCombinerHelper::convertPHI_to_HWTFPGA_MUX(MachineInstr &MI) {
 	MI.eraseFromParent();
 }
 
-
 bool HwtFpgaCombinerHelper::hasSomeConstConditions(MachineInstr &MI) {
 	// dst, a, (cond, b)*
 	assert(MI.getOpcode() == HwtFpga::HWTFPGA_MUX);
@@ -183,7 +182,8 @@ bool HwtFpgaCombinerHelper::matchNestedMux(MachineInstr &MI,
 	requiresAndWithParentCond.clear();
 	// check if is used only by a HWTFPGA_MUX and can merge operands into user
 	auto DstRegNo = MI.getOperand(0).getReg();
-	MachineOperand *otherUse = getNextUseOfRegAfterInstructionExceptMI(DstRegNo, MI);
+	MachineOperand *otherUse = getNextUseOfRegAfterInstructionExceptMI(DstRegNo,
+			MI);
 	if (!otherUse) {
 		return false;
 	}
@@ -253,14 +253,17 @@ void HwtFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
 		const SmallVector<bool> &requiresAndWithParentCond) {
 	assert(MI.getOpcode() == HwtFpga::HWTFPGA_MUX);
 	auto DstRegNo = MI.getOperand(0).getReg();
-	assert((MRI.hasOneDef(DstRegNo) || MI.findRegisterUseOperandIdx(DstRegNo) < 0)
-			&& "Dst must have just this def or previous def must not be operand");
+	assert(
+			(MRI.hasOneDef(DstRegNo)
+					|| MI.findRegisterUseOperandIdx(DstRegNo) < 0)
+					&& "Dst must have just this def or previous def must not be operand");
 	MachineOperand *parentUse = nullptr;
 	if (MRI.hasOneUse(DstRegNo)) {
 		parentUse = &*MRI.use_begin(DstRegNo);
 		assert(parentUse->getReg() == DstRegNo);
 	} else {
-		MachineInstr* NextInstr = getNextUseOfRegInBlock(MI, DstRegNo)->getParent();
+		MachineInstr *NextInstr =
+				getNextUseOfRegInBlock(MI, DstRegNo)->getParent();
 		assert(NextInstr && "Should be already checked in matchNestedMux");
 		assert(NextInstr->getOpcode() == HwtFpga::HWTFPGA_MUX);
 		auto UseOpIndx = NextInstr->findRegisterUseOperandIdx(DstRegNo, false);
@@ -298,7 +301,8 @@ void HwtFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
 				if (nestedOpIsCond && requiresAndWithParentCond.size()
 						&& requiresAndWithParentCond[condI]) {
 					assert(ParentOpI + 1 < parentMI->getNumOperands());
-					MachineOperand &parentCondOp = parentMI->getOperand(ParentOpI + 1);
+					MachineOperand &parentCondOp = parentMI->getOperand(
+							ParentOpI + 1);
 
 					if (NesOp.getReg() == DstRegNo) {
 						MIB0.addUse(newParentDst);
@@ -341,7 +345,7 @@ void HwtFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
 
 	if (DstRegNo == newParentDst || MRI.use_empty(DstRegNo)
 			|| all_of(MRI.use_instructions(DstRegNo),
-					// MI is only user of its dst
+			// MI is only user of its dst
 					[&MI](const MachineInstr &_MI) {
 						return &_MI == &MI;
 					})
@@ -355,80 +359,78 @@ bool HwtFpgaCombinerHelper::hasAll1AndAll0Values(MachineInstr &MI,
 	matchinfo.CImm = nullptr;
 	matchinfo.Negate = false;
 
-	if (MI.getNumOperands() == 1 + 3) {
-		auto &v0 = MI.getOperand(1);
-		auto &c0 = MI.getOperand(2);
-		auto &v1 = MI.getOperand(3);
-		LLT Ty = MRI.getType(MI.getOperand(0).getReg());
-		bool is1b = Ty.isScalar() && Ty.getSizeInBits() == 1;
+	if (MI.getNumOperands() != 1 + 3)
+		return false;
+	auto &v0 = MI.getOperand(1);
+	auto &c0 = MI.getOperand(2);
+	auto &v1 = MI.getOperand(3);
+	LLT Ty = MRI.getType(MI.getOperand(0).getReg());
+	bool is1b = Ty.isScalar() && Ty.getSizeInBits() == 1;
 
-		if (v0.isReg() && v1.isReg()) {
-			if (v0.getReg() == v1.getReg()) {
-				// c ? v:v -> v
-				matchinfo.Reg = v0.getReg();
-				return true;
+	if (v0.isReg() && v1.isReg()) {
+		if (v0.getReg() == v1.getReg()) {
+			// c ? v:v -> v
+			matchinfo.Reg = v0.getReg();
+			return true;
 
-			} else if (is1b) {
-				if (MachineOperand *v0def = MRI.getOneDef(v0.getReg())) {
-					if (v0def->getParent()->getOpcode()
-							== HwtFpga::HWTFPGA_NOT) {
-						auto &v0_n = v0def->getParent()->getOperand(1);
-						if (v0_n.isReg() && v0_n.getReg() == v1.getReg()) {
-							// c ? ~v:v -> ~c
-							if (c0.isReg()) {
-								matchinfo.Reg = c0.getReg();
-							} else {
-								matchinfo.CImm = c0.getCImm();
-							}
-							matchinfo.Negate = true;
-							return true;
+		} else if (is1b) {
+			if (MachineOperand *v0def = MRI.getOneDef(v0.getReg())) {
+				if (v0def->getParent()->getOpcode() == HwtFpga::HWTFPGA_NOT) {
+					auto &v0_n = v0def->getParent()->getOperand(1);
+					if (v0_n.isReg() && v0_n.getReg() == v1.getReg()) {
+						// c ? ~v:v -> ~c
+						if (c0.isReg()) {
+							matchinfo.Reg = c0.getReg();
+						} else {
+							matchinfo.CImm = c0.getCImm();
 						}
+						matchinfo.Negate = true;
+						return true;
 					}
+				}
 
-				} else if (MachineOperand *v1def = MRI.getOneDef(v1.getReg())) {
-					if (v1def->getParent()->getOpcode()
-							== HwtFpga::HWTFPGA_NOT) {
-						auto &v1_n = v0def->getParent()->getOperand(1);
-						if (v1_n.isReg() && v1_n.getReg() == v1.getReg()) {
-							// c ? v:~v -> c
-							if (c0.isReg()) {
-								matchinfo.Reg = c0.getReg();
-							} else {
-								matchinfo.CImm = c0.getCImm();
-							}
-							return true;
+			} else if (MachineOperand *v1def = MRI.getOneDef(v1.getReg())) {
+				if (v1def->getParent()->getOpcode() == HwtFpga::HWTFPGA_NOT) {
+					auto &v1_n = v0def->getParent()->getOperand(1);
+					if (v1_n.isReg() && v1_n.getReg() == v1.getReg()) {
+						// c ? v:~v -> c
+						if (c0.isReg()) {
+							matchinfo.Reg = c0.getReg();
+						} else {
+							matchinfo.CImm = c0.getCImm();
 						}
+						return true;
 					}
 				}
 			}
+		}
 
-		} else if (v0.isCImm() && v1.isCImm()) {
-			auto vc0 = v0.getCImm();
-			auto vc1 = v1.getCImm();
-			if (vc0->getValue() == vc1->getValue()) {
-				matchinfo.CImm = vc0;
+	} else if (v0.isCImm() && v1.isCImm()) {
+		auto vc0 = v0.getCImm();
+		auto vc1 = v1.getCImm();
+		if (vc0->getValue() == vc1->getValue()) {
+			matchinfo.CImm = vc0;
+			return true;
+
+		} else if (is1b) {
+			if (vc0->isZero() && vc1->isAllOnesValue()) {
+				// c ? 0:1 -> ~c
+				if (c0.isReg()) {
+					matchinfo.Reg = c0.getReg();
+				} else {
+					matchinfo.CImm = c0.getCImm();
+				}
+				matchinfo.Negate = true;
 				return true;
 
-			} else if (is1b) {
-				if (vc0->isZero() && vc1->isAllOnesValue()) {
-					// c ? 0:1 -> ~c
-					if (c0.isReg()) {
-						matchinfo.Reg = c0.getReg();
-					} else {
-						matchinfo.CImm = c0.getCImm();
-					}
-					matchinfo.Negate = true;
-					return true;
-
-				} else if (vc1->isZero() && vc0->isAllOnesValue()) {
-					// c ? 1:0 -> c
-					if (c0.isReg()) {
-						matchinfo.Reg = c0.getReg();
-					} else {
-						matchinfo.CImm = c0.getCImm();
-					}
-					return true;
+			} else if (vc1->isZero() && vc0->isAllOnesValue()) {
+				// c ? 1:0 -> c
+				if (c0.isReg()) {
+					matchinfo.Reg = c0.getReg();
+				} else {
+					matchinfo.CImm = c0.getCImm();
 				}
+				return true;
 			}
 		}
 	}
@@ -441,7 +443,8 @@ void HwtFpgaCombinerHelper::rewriteConstValMux(MachineInstr &MI,
 	auto Dst = MI.getOperand(0).getReg();
 	if (matchinfo.CImm) {
 		if (!MRI.getType(Dst).isValid())
-			MRI.setType(Dst, LLT::scalar(matchinfo.CImm->getValue().getBitWidth()));
+			MRI.setType(Dst,
+					LLT::scalar(matchinfo.CImm->getValue().getBitWidth()));
 		if (matchinfo.Negate) {
 			replaceInstWithConstant(MI, ~matchinfo.CImm->getValue());
 		} else {
@@ -457,7 +460,9 @@ void HwtFpgaCombinerHelper::rewriteConstValMux(MachineInstr &MI,
 						replacement = v_n.getReg();
 					} else {
 						if (!MRI.getType(Dst).isValid())
-							MRI.setType(Dst, LLT::scalar(v_n.getCImm()->getValue().getBitWidth()));
+							MRI.setType(Dst,
+									LLT::scalar(
+											v_n.getCImm()->getValue().getBitWidth()));
 
 						replaceInstWithConstant(MI, v_n.getCImm()->getValue());
 						MI.eraseFromParent();
