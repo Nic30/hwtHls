@@ -23,13 +23,15 @@ class _ExprRehasher():
     def __init__(self, worklist: Optional[SetList[HlsNetNode]],
                        b: HlsNetlistBuilder,
                        seen: Set[HlsNetNode],
-                       operatorCache:Optional[HlsNetlistBuilderOperatorCache_t]=None):
+                       operatorCache:Optional[HlsNetlistBuilderOperatorCache_t]=None,
+                       replacedOutputs:Optional[dict[HlsNetNodeOut, HlsNetNodeOut]]=None):
         self.worklist = worklist
         self.b = b
         if operatorCache is None:
             operatorCache = b.operatorCache
         self.operatorCache = operatorCache
         self.seen = seen
+        self.replacedOutputs:Optional[dict[HlsNetNodeOut, HlsNetNodeOut]] = replacedOutputs
 
     def _normalizeOperands(self, ops: List[HlsNetNodeOut]):
         """
@@ -57,10 +59,12 @@ class _ExprRehasher():
     def _handleDuplicatedNodes(self,
                                curentInCache: HlsNetNodeOut,
                                newFound: HlsNetNodeOut,
-                               cacheKey: HlsNetlistBuilderOperatorCacheKey_t) -> HlsNetNodeOut:
+                               cacheKey: HlsNetlistBuilderOperatorCacheKey_t,
+                               ) -> HlsNetNodeOut:
         # remove newFound and replace it with a curentInCache
         worklist = self.worklist
         n = newFound.obj
+        assert not n._isMarkedRemoved, (curentInCache, newFound)
         if worklist is not None:
             worklist.extend(dep.obj for dep in n.dependsOn)
             worklist.append(curentInCache.obj)
@@ -68,6 +72,8 @@ class _ExprRehasher():
         self.b.replaceOutput(newFound, curentInCache, False)
         disconnectAllInputs(n, [])
         n.markAsRemoved()
+        if self.replacedOutputs is not None:
+            self.replacedOutputs[newFound] = curentInCache
         return curentInCache
 
     def _rehashExpr(self, o: HlsNetNodeOut) -> HlsNetNodeOut:

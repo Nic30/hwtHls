@@ -17,8 +17,9 @@ class _ExprRehasherClockWindowOnly(_ExprRehasher):
                  clockIndex: int,
                  worklist:Optional[SetList[HlsNetNode]],
                  b:HlsNetlistBuilder,
-                 seen:Set[HlsNetNode],):
-        _ExprRehasher.__init__(self, worklist, b, seen, operatorCache={})
+                 seen:Set[HlsNetNode],
+                 replacedOutputs:Optional[dict[HlsNetNodeOut, HlsNetNodeOut]]):
+        _ExprRehasher.__init__(self, worklist, b, seen, operatorCache={}, replacedOutputs=replacedOutputs)
         self.parent = parent
         self.beginTime = clockIndex * parent.netlist.normalizedClkPeriod
 
@@ -41,11 +42,11 @@ class _ExprRehasherClockWindowOnly(_ExprRehasher):
         return _ExprRehasher._rehashExpr(self, o)
 
     @classmethod
-    def rehashNodesInElements(cls, worklist: SetList[HlsNetNode], elements: Sequence[ArchElement]):
+    def rehashNodesInElements(cls, worklist: SetList[HlsNetNode], elements: Sequence[ArchElement], replacedOutputs:Optional[dict[HlsNetNodeOut, HlsNetNodeOut]]=None):
         for elm in elements:
             if isinstance(elm, ArchElement):
                 elm: ArchElement
                 for clockIndex, nodes in elm.iterStages():
-                    rehasher = cls(elm, clockIndex, worklist, elm.builder, set())
+                    rehasher = cls(elm, clockIndex, worklist, elm.builder, set(), replacedOutputs=replacedOutputs)
                     rehasher.rehashNodes(nodes)
                     elm.builder.operatorCache.update(rehasher.operatorCache)
