@@ -133,18 +133,18 @@ class ArchElement(HlsNetNodeAggregate):
     def filterNodesUsingSet(self, removed: set[HlsNetNode], recursive=False, clearRemoved=True):
         if self.scheduledZero is not None:
             for _, state in self.iterStages():
-                state[:] = (n for n in state if n not in removed)
+                state[:] = (n for n in tuple(state) if n not in removed)
         super(ArchElement, self).filterNodesUsingSet(removed, recursive=recursive, clearRemoved=clearRemoved)
 
     def filterNodesUsingSetInSingleStage(self, removed: set[HlsNetNode], stageIndex: int, recursive=False, clearRemoved=True):
         stage = self.getStageForClock(stageIndex)
-        stage[:] = (n for n in stage if n not in removed)
+        stage[:] = (n for n in tuple(stage) if n not in removed)
         super(ArchElement, self).filterNodesUsingSet(removed, recursive=recursive, clearRemoved=clearRemoved)
 
     def filterNodesUsingRemovedSetInSingleStage(self, stageIndex: int, recursive=False):
         stage = self.getStageForClock(stageIndex)
         removed = self.getHlsNetlistBuilder()._removedNodes
-        stage[:] = (n for n in stage if n not in removed)
+        stage[:] = (n for n in tuple(stage) if n not in removed)
         super(ArchElement, self).filterNodesUsingRemovedSet(recursive=recursive)
 
     def iterStages(self) -> Generator[tuple[int, list[HlsNetNode]], None, None]:

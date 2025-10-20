@@ -408,7 +408,7 @@ class HlsNetNodeAggregate(HlsNetNode):
             for oNode in toRm:
                 self._removeOutput(oNode.parentOut.out_i)
 
-            self.subNodes[:] = (n for n in self.subNodes if n not in removed)
+            self.subNodes[:] = (n for n in tuple(self.subNodes) if n not in removed)
             if recursive:
                 for n in self.subNodes:
                     if isinstance(n, HlsNetNodeAggregate):

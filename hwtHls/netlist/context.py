@@ -157,7 +157,7 @@ class HlsNetlistCtx(AnalysisCache):
 
     def filterNodesUsingSet(self, removed: Set[HlsNetNode], recursive=False, clearRemoved=True):
         if removed:
-            self.subNodes[:] = (n for n in self.subNodes if n not in removed)
+            self.subNodes[:] = (n for n in tuple(self.subNodes) if n not in removed)
             if recursive:
                 for n in self.iterAllNodes():
                     n.filterNodesUsingSet(removed, recursive=recursive, clearRemoved=False)

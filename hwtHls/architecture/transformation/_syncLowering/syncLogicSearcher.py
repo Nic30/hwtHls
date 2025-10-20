@@ -404,5 +404,5 @@ class SyncLogicSearcher():
                 if (dep, (dep.obj.parent, clkI)) in self.primaryInputs:
                     toRm.add(item)
         if toRm:
-            self.nodes[:] = (item for item in self.nodes if item not in toRm)
+            self.nodes[:] = (item for item in tuple(self.nodes) if item not in toRm)
 
