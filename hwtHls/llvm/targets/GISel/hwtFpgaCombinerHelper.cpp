@@ -24,6 +24,35 @@ void HwtFpgaCombinerHelper::replaceInstWithUndef(llvm::MachineInstr &MI) {
 	return llvm::CombinerHelper::replaceInstWithUndef(MI);
 }
 
+bool HwtFpgaCombinerHelper::matchEqualDefs(const MachineOperand &MO0,
+		const MachineOperand &MO1) {
+	if (&MO0 == &MO1)
+		return true;
+	else if ((MO0.isReg() && (MO0.isUndef() || !MRI.hasOneDef(MO0.getReg())))
+			|| (MO1.isReg() && (MO1.isUndef() || !MRI.hasOneDef(MO1.getReg()))))
+		return false;
+	else if (MO0.isImm()) {
+		if (MO1.isImm())
+			return MO0.getImm() == MO1.getImm();
+		else
+			return false;
+	} else if (MO0.isCImm()) {
+		if (MO1.isCImm())
+			return MO0.getCImm() == MO1.getCImm();
+		else
+			return false;
+	}
+	// :attention: assumes SSA
+	return CombinerHelper::matchEqualDefs(MO0, MO1);
+}
+
+bool HwtFpgaCombinerHelper::matchEqualDefs(const MachineInstr &MI0,
+		const MachineInstr &MI1, size_t opI) {
+	auto &mo0 = MI0.getOperand(opI);
+	auto &mo1 = MI1.getOperand(opI);
+	return matchEqualDefs(mo0, mo1);
+}
+
 bool HwtFpgaCombinerHelper::isUndefOperand(const MachineOperand &MO) {
 	if (MO.isReg()) {
 		return (MO.isUndef()
