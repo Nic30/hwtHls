@@ -4,6 +4,7 @@
 #include <optional>
 #include <llvm/IR/Instructions.h>
 #include <llvm/ADT/SetVector.h>
+#include <llvm/Analysis/LazyValueInfo.h>
 
 namespace hwtHls {
 
@@ -49,13 +50,19 @@ namespace hwtHls {
  * :ivar cfg: the dependencies of reads/writes as they appear in code
  * :note: nullptr represents the starting node
  * :ivar DATA_WIDTH: number of bits of data in a single stream word
+ * :ivar offsetVar: optional tmp alloca holding the value of current offset
+ *                  used to constrain possible offset variant when jumping based on value of offsetVar
+ *                  or on llvm.assume for offsetVar
  * :ivar allStms: list of all reads/writes to keep all structures ordered in deterministic order
  */
 class StreamIoDetector {
 public:
 	using HlsReadOrWrite = llvm::CallInst;
 	static constexpr HlsReadOrWrite *BEGIN = nullptr;
+
+	llvm::LazyValueInfo * LVI; // :note: optional
 	const size_t DATA_WIDTH;
+	const llvm::AllocaInst * offsetVar; // :note: optional
 	const llvm::SetVector<const HlsReadOrWrite*> &allStms;
 
 	std::map<const HlsReadOrWrite*,
@@ -69,7 +76,7 @@ public:
 	std::set<const HlsReadOrWrite*> resolvedStms;
 
 	// map used outside of this class to mark which blocks were visited
-	StreamIoDetector(size_t DATA_WIDTH,
+	StreamIoDetector(llvm::LazyValueInfo *LVI, size_t DATA_WIDTH, const llvm::AllocaInst * offsetVar,
 			const llvm::SetVector<const HlsReadOrWrite*> &allStms);
 	void _addTransition(const HlsReadOrWrite *src, size_t dstInWordOffset,
 			const HlsReadOrWrite *dst);
@@ -88,14 +95,16 @@ public:
 			std::set<std::pair<size_t, const llvm::BasicBlock*>> &seenBlockOffsets);
 	void detectIoAccessGraphs(const llvm::BasicBlock &startBlock);
 	void resolvePossibleOffset();
-	const llvm::BasicBlock* findStartBlock();
-	const llvm::BasicBlock* _findStartBlock(
-			const llvm::SetVector<std::pair<size_t, const HlsReadOrWrite*>> &firstInstrs);
-	void _collectAllPredecessors(const llvm::BasicBlock &BB,
-			std::set<const llvm::BasicBlock*> &seen);
-	const llvm::BasicBlock* _findCommonPredecessorOfBlocks(
-			const std::vector<const llvm::BasicBlock*> &blocks);
+	//const llvm::BasicBlock* findStartBlock();
+	//const llvm::BasicBlock* _findStartBlock(
+	//		const llvm::SetVector<std::pair<size_t, const HlsReadOrWrite*>> &firstInstrs);
+	//void _collectAllPredecessors(const llvm::BasicBlock &BB,
+	//		std::set<const llvm::BasicBlock*> &seen);
+	//const llvm::BasicBlock* _findCommonPredecessorOfBlocks(
+	//		const std::vector<const llvm::BasicBlock*> &blocks);
+	bool isDirectlyAfterSoF(const HlsReadOrWrite *op) const;
 	llvm::raw_ostream& print(llvm::raw_ostream &OS) const;
+	void dump() const;
 };
 inline llvm::raw_ostream& operator<<(llvm::raw_ostream &OS,
 		const hwtHls::StreamIoDetector &V) {

@@ -5,8 +5,9 @@
 #include <llvm/IR/CFG.h>
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 
-namespace hwtHls {
+using namespace llvm;
 
+namespace hwtHls {
 
 //llvm::raw_ostream& StreamChunkLastMeta::print(llvm::raw_ostream &OS) const {
 //	OS << "<StreamChunkLastMeta isLast:" << isLast << " isLastExpr:";
@@ -31,9 +32,10 @@ namespace hwtHls {
 //	return OS;
 //}
 
-StreamIoDetector::StreamIoDetector(size_t DATA_WIDTH,
+StreamIoDetector::StreamIoDetector(llvm::LazyValueInfo *LVI, size_t DATA_WIDTH,
+		const llvm::AllocaInst *offsetVar,
 		const llvm::SetVector<const HlsReadOrWrite*> &allStms) :
-		DATA_WIDTH(DATA_WIDTH), allStms(allStms) {
+		LVI(LVI), DATA_WIDTH(DATA_WIDTH), offsetVar(offsetVar), allStms(allStms) {
 	cfg[nullptr] = { };
 }
 
@@ -103,7 +105,36 @@ void StreamIoDetector::_detectIoAccessGraphs(const HlsReadOrWrite *predecessor,
 			}
 		}
 	}
+	const Value *dynOffsetVal = nullptr;
+	if (offsetVar) {
+		for (auto &I : reverse(block)) {
+			if (auto *ldI = dyn_cast<const LoadInst>(&I)) {
+				if (ldI->getPointerOperand() == offsetVar) {
+					dynOffsetVal = ldI;
+					break;
+				}
+			}
+		}
+	}
 	for (auto suc : llvm::successors(&block)) {
+		if (offsetVar && LVI && dynOffsetVal) {
+			auto predEndOffsetV = ConstantInt::get(dynOffsetVal->getType(),
+					predEndOffset);
+			// :note: in llvm-18 LVI can analyze only if dynOffsetVal is directly SwitchCondition
+			// 	or BranchInst condition is ICMP with dynOffsetVal
+			auto lviGuess = LVI->getPredicateOnEdge(llvm::CmpInst::ICMP_EQ,
+					const_cast<Value*>(dynOffsetVal), predEndOffsetV,
+					const_cast<BasicBlock*>(&block),
+					const_cast<BasicBlock*>(suc),
+					const_cast<Instruction*>(&*suc->begin()));
+			if (lviGuess == LazyValueInfo::False) {
+				// offsetVar the edge is known to not have this (predEndOffset) value
+				// errs() << "Skipping " << block.getName() << " -> " << suc->getName() << " for offset: " << predEndOffset << "\n";
+				continue;
+			} else {
+				// errs() << "not Skipping " << block.getName() << " -> " << suc->getName() << " for offset: " << predEndOffset << " lviGuess:" << lviGuess << " \n";
+			}
+		}
 		_detectIoAccessGraphs(predecessor, predEndOffset, *suc, seenBlocks,
 				seenBlockOffsets);
 	}
@@ -145,10 +176,17 @@ void StreamIoDetector::resolvePossibleOffset() {
 	}
 }
 
+bool StreamIoDetector::isDirectlyAfterSoF(const HlsReadOrWrite *op) const {
+	auto preds = predecessors.find(op);
+	assert(preds != predecessors.end());
+	return (preds->second.size() == 1
+			and IsStreamIoStartOfFrame(preds->second[0]));
+}
+
 llvm::raw_ostream& StreamIoDetector::print(llvm::raw_ostream &OS) const {
 	OS << "<StreamIoDetector \n";
 	for (const auto *io : allStms) {
-		OS << *io << "     off: [";
+		OS << "off: [";
 		const auto &offsets = inWordOffset.find(io)->second;
 		bool first = true;
 		for (auto o : offsets) {
@@ -159,7 +197,7 @@ llvm::raw_ostream& StreamIoDetector::print(llvm::raw_ostream &OS) const {
 			}
 			OS << o;
 		}
-		OS << "]:";
+		OS << "]: " << *io;
 		//OS << "] meta:";
 		//const auto meta = ioInstrMeta.find(io);
 		//if (meta == ioInstrMeta.end()) {
@@ -167,7 +205,7 @@ llvm::raw_ostream& StreamIoDetector::print(llvm::raw_ostream &OS) const {
 		//} else {
 		//	OS << *meta->second;
 		//}
-		OS << "\n        predecs:";
+		OS << "\n    predecs:\n";
 		for (const auto pred : predecessors.find(io)->second) {
 			OS << "        ";
 			if (pred)
@@ -179,6 +217,10 @@ llvm::raw_ostream& StreamIoDetector::print(llvm::raw_ostream &OS) const {
 	}
 	OS << ">";
 	return OS;
+}
+
+void StreamIoDetector::dump() const {
+	print(dbgs());
 }
 //const llvm::BasicBlock* StreamIoDetector::findStartBlock() {
 //	return _findStartBlock(cfg[nullptr]);
