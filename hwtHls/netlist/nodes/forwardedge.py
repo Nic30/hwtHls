@@ -26,6 +26,7 @@ class HlsNetNodeReadForwardedge(HlsNetNodeRead):
         HlsNetNodeRead.__init__(self, netlist, ioProxy, None, dtype=dtype, name=name, channelInitValues=channelInitValues)
         self.associatedWrite: Optional[HlsNetNodeWriteForwardedge]
         self._rtlDataVldReg:Optional[Union[RtlSignal, HwIO]] = None
+        self._rtlFullReg:Optional[Union[RtlSignal, HwIO]] = None
 
     @classmethod
     def _constructorAsHlsNetNodeRead(cls, netlist: "HlsNetlistCtx", ioProxy: IoProxyScalar, src: Union[RtlSignal, HwIO, None],
@@ -48,6 +49,9 @@ class HlsNetNodeReadForwardedge(HlsNetNodeRead):
     def rtlAllocDataVldAndFullReg(self, allocator:"ArchElement"):
         return HlsNetNodeReadBackedge.rtlAllocDataVldAndFullReg(self, allocator)
 
+    def _mayHappenConcurrentlyWithWrite(self):
+        return HlsNetNodeReadBackedge._mayHappenConcurrentlyWithWrite(self)
+
     @override
     def rtlAlloc(self, allocator:"ArchElement") -> Union[TimeIndependentRtlResource, List[HdlStatement]]:
         return HlsNetNodeReadBackedge.rtlAlloc(self, allocator)
@@ -66,8 +70,8 @@ class HlsNetNodeWriteForwardedge(HlsNetNodeWrite):
     @override
     def _getBufferCapacity(self) -> int:
         if self._bufferCapacity is not None:
-            dstRead = self.associatedRead
-            if dstRead is None or self.allocationType == CHANNEL_ALLOCATION_TYPE.IMMEDIATE:
+            assert self.associatedRead is not None
+            if self.allocationType == CHANNEL_ALLOCATION_TYPE.IMMEDIATE:
                 assert self._bufferCapacity == 0, self
             return self._bufferCapacity
 
@@ -134,6 +138,9 @@ class HlsNetNodeWriteForwardedge(HlsNetNodeWrite):
 
     def _rtlAllocAsBuffer(self, allocator: "ArchElement", dstRead: HlsNetNodeReadForwardedge):
         return HlsNetNodeWriteBackedge._rtlAllocAsBuffer(self, allocator, dstRead)
+
+    def _rtlAllocAsRegOrImmediate(self, allocator: "ArchElement", dstRead: HlsNetNodeReadForwardedge):
+        return HlsNetNodeWriteBackedge._rtlAllocAsRegOrImmediate(self, allocator, dstRead)
 
     @override
     def rtlAlloc(self, allocator: "ArchElement"):

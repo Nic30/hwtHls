@@ -56,13 +56,13 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
         :note: The state transition can not be extracted if there is communication with some other FSM
             which already have some communication with this FSM. (In order to prevent deadlock.)
         """
-        localControlReads, controlToStateI = cls._collectLoopsAndSetBackedgesToReg(fsmElm)
+        localControlReads, controlToStateI = cls._collectLoops(fsmElm)
         nonSkipableStateI = cls._collectStatesWhichCanNotBeSkipped(fsmElm)
         return cls._resolveTranstitionTableFromLoopControlChannels(
             localControlReads, controlToStateI, nonSkipableStateI, fsmElm, usedStates)
 
     @classmethod
-    def _collectLoopsAndSetBackedgesToReg(cls, fsmElm: ArchElementFsm):
+    def _collectLoops(cls, fsmElm: ArchElementFsm):
         localControlReads: SetList[HlsNetNodeReadAnyChannel] = SetList()
         controlToStateI: Dict[Union[HlsNetNodeReadAnyChannel, HlsNetNodeWriteAnyChannel], int] = {}
         clkPeriod = fsmElm.netlist.normalizedClkPeriod
@@ -73,20 +73,23 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
                 if isinstance(node, HlsNetNodeRead) and node.associatedWrite is not None:
                     node: HlsNetNodeReadBackedge
                     wr: HlsNetNodeWriteBackedge = node.associatedWrite
-                    if wr in fsmElm.subNodes:
-                        if wr.allocationType == CHANNEL_ALLOCATION_TYPE.BUFFER:
-                            # is in the same arch. element
-                            # allocate as a register because this is just local control channel
-                            wr.allocationType = CHANNEL_ALLOCATION_TYPE.REG
-                        channelGroup = wr._loopChannelGroup
-                        if channelGroup is not None and channelGroup.getChannelUsedAsControl() is wr:
-                            for _, role in channelGroup.connectedLoopsAndBlocks:
-                                role: LOOP_CHANEL_GROUP_ROLE
-                                if role == LOOP_CHANEL_GROUP_ROLE.REENTER:
-                                    localControlReads.append(node)
-                                    controlToStateI[node] = stI
-                                    wrTime = max(wr.scheduledIn, default=wr.scheduledZero)
-                                    controlToStateI[wr] = indexOfClkPeriod(wrTime, clkPeriod)
+                    if wr not in fsmElm.subNodes:
+                        continue
+                    channelGroup = wr._loopChannelGroup
+                    if channelGroup is None or channelGroup.getChannelUsedAsControl() is not wr:
+                        continue
+                    for _, role in channelGroup.connectedLoopsAndBlocks:
+                        role: LOOP_CHANEL_GROUP_ROLE
+                        if role not in (LOOP_CHANEL_GROUP_ROLE.ENTER,
+                                        LOOP_CHANEL_GROUP_ROLE.REENTER,
+                                        LOOP_CHANEL_GROUP_ROLE.EXIT_TO_SUCCESSOR):
+                            continue
+                        # :note: initial condition asserts that the "enter" port read and write are in this FSM
+                        # print("_collectLoops", node, stI)
+                        localControlReads.append(node)
+                        controlToStateI[node] = stI
+                        wrTime = max(wr.scheduledIn, default=wr.scheduledZero)
+                        controlToStateI[wr] = indexOfClkPeriod(wrTime, clkPeriod)
 
                 # elif isinstance(node, HlsNetNodeLoopStatus):
                 #    for g in node.fromReenter:

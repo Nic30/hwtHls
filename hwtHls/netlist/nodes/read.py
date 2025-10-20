@@ -320,28 +320,57 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
 
     @override
     def scheduleAsap(self, pathForDebug: Optional[SetList["HlsNetNode"]], beginOfFirstClk: int,
-                     outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
+                     outputTimeGetter: Optional[OutputTimeGetter],
+                     isRead=True) -> List[int]:
         # schedule all dependencies
         if self.scheduledOut is None:
             HlsNetNode.scheduleAsap(self, pathForDebug, beginOfFirstClk, outputTimeGetter)
+            netlist = self.netlist
+            clkPeriod = netlist.normalizedClkPeriod
             scheduledZero = self.scheduledZero
-            clkPeriod = self.netlist.normalizedClkPeriod
+
+            minTime = None
+            if isRead:
+                # optionaly move to next clock cycle because we can not allow write to be in the same clock cycle as read
+                # for forward edges allocated as REG
+                w = self.associatedWrite
+                if w is not None and\
+                        w.isForwardedge() and\
+                        w.allocationType == CHANNEL_ALLOCATION_TYPE.REG:
+                    w.scheduleAsap(pathForDebug, beginOfFirstClk, outputTimeGetter)
+                    minTime = beginOfNextClk(w.scheduledZero, clkPeriod)
+            # else:
+            #    r = self.associatedRead
+            #    if r is not None and\
+            #            self.isBackedge() and\
+            #            self.allocationType == CHANNEL_ALLOCATION_TYPE.REG:
+            #        r.scheduleAsap(pathForDebug, beginOfFirstClk, outputTimeGetter)
+            #        minTime = beginOfNextClk(r.scheduledZero, clkPeriod)
+            if minTime is not None and scheduledZero < minTime:
+                scheduledZero = minTime
+                t = minTime
+            else:
+                t = None
+
             curClkI = scheduledZero // clkPeriod
             resourceType = self.getSchedulingResourceType()
+            scheduler = netlist.scheduler
+            epsilon = scheduler.epsilon
             if resourceType is not None:
-                scheduler = self.netlist.scheduler
                 suitableClkI = scheduler.resourceUsage.findFirstClkISatisfyingLimit(resourceType, curClkI)
                 if curClkI != suitableClkI:
                     # move to next clock cycle if IO constraint requires it
-                    epsilon = scheduler.epsilon
                     t = suitableClkI * clkPeriod + epsilon + max(self.inputWireDelay, default=0)
-                    if self.isMulticlock:
-                        ffdelay = self.netlist.platform.get_ff_store_time(self.netlist.realTimeClkPeriod, self.netlist.scheduler.resolution)
-                        self._setScheduleZeroTimeMultiClock(t, clkPeriod, epsilon, ffdelay)
-                    else:
-                        self._setScheduleZeroTimeSingleClock(t)
 
                 scheduler.resourceUsage.addUse(resourceType, suitableClkI)
+
+            if t is not None:
+                if self.isMulticlock:
+                    ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
+                    self._setScheduleZeroTimeMultiClock(t, clkPeriod, epsilon, ffdelay)
+                else:
+                    self._setScheduleZeroTimeSingleClock(t)
+
             assert self.scheduledOut is not None, self
 
         return self.scheduledOut
@@ -350,21 +379,39 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
     def scheduleAlapCompaction(self,
                                endOfLastClk: SchedTime,
                                outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter],
-                               excludeNode: Optional[Callable[[HlsNetNode], bool]]):
+                               excludeNode: Optional[Callable[[HlsNetNode], bool]],
+                               isRead=True):
         originalTimeZero = self.scheduledZero
         netlist = self.netlist
         scheduler = netlist.scheduler
         clkPeriod = netlist.normalizedClkPeriod
         resourceType = self.getSchedulingResourceType()
         originalClkI = indexOfClkPeriod(originalTimeZero, clkPeriod)
-        if self.isMulticlock:
-            for _ in HlsNetNodeExplicitSync.scheduleAlapCompactionMultiClock(self, endOfLastClk, outputMinUseTimeGetter, excludeNode):
-                pass
-        else:
-            for _ in HlsNetNodeExplicitSync.scheduleAlapCompaction(self, endOfLastClk, outputMinUseTimeGetter, excludeNode):
-                pass
+        epsilon = scheduler.epsilon
+        ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, scheduler.resolution)
 
-        curClkI = indexOfClkPeriod(self.scheduledZero, clkPeriod)
+        maxTime = None
+        if not isRead:
+            if self.associatedRead is not None and\
+                    self.isForwardedge() and\
+                    self.allocationType == CHANNEL_ALLOCATION_TYPE.REG:
+                # optionaly move to prev clock cycle because we can not allow write to be in the same clock cycle as read
+                for _ in self.associatedRead.scheduleAlapCompaction(endOfLastClk, outputMinUseTimeGetter, excludeNode):
+                    pass
+                maxTime = beginOfClk(self.associatedRead.scheduledZero, clkPeriod) - epsilon
+
+        for _ in HlsNetNodeExplicitSync.scheduleAlapCompaction(self, endOfLastClk, outputMinUseTimeGetter, excludeNode):
+            pass
+
+        scheduledZero = self.scheduledZero
+        if maxTime is not None and maxTime < scheduledZero:
+            scheduledZero = maxTime
+            t = maxTime
+        else:
+            t = None
+
+        curClkI = indexOfClkPeriod(scheduledZero, clkPeriod)
+
         if resourceType is not None:
             if originalClkI != curClkI:
                 scheduler.resourceUsage.moveUse(resourceType, originalClkI, curClkI)
@@ -373,15 +420,14 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
 
                 if curClkI != suitableClkI:
                     # move to next clock cycle if IO constraint requires it
-                    ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, scheduler.resolution)
                     t = (suitableClkI + 1) * clkPeriod - ffdelay
-                    if self.isMulticlock:
-                        epsilon = scheduler.epsilon
-                        self._setScheduleZeroTimeMultiClock(t, clkPeriod, epsilon, ffdelay)
-                    else:
-                        self._setScheduleZeroTimeSingleClock(t)
-
                     scheduler.resourceUsage.moveUse(resourceType, curClkI, suitableClkI)
+
+        if t is not None:
+            if self.isMulticlock:
+                self._setScheduleZeroTimeMultiClock(t, clkPeriod, epsilon, ffdelay)
+            else:
+                self._setScheduleZeroTimeSingleClock(t)
 
         if originalTimeZero != self.scheduledZero:
             assert originalTimeZero < self.scheduledZero, (self, originalTimeZero, self.scheduledZero)

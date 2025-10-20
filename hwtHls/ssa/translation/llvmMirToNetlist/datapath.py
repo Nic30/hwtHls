@@ -571,6 +571,8 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
         """
         bi-directionally collect all successors reachable trough NORMAL and RESET edges
         """
+        assert self.blockMeta[mb].fsm is None, mb.getName()
+
         found: SetList[MachineBasicBlock] = SetList()
         worklist: List[MachineBasicBlock] = [mb]
         edgeMeta = self.edgeMeta
@@ -587,7 +589,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     ((otherMb, (mb, otherMb)) for otherMb in mb.successors())
                     ):
                     eMeta: MachineEdgeMeta = edgeMeta[edge]
-                    if eMeta.etype in SUPPORTED_EDGES:
+                    if eMeta.etype in SUPPORTED_EDGES and self.blockMeta[otherMb].fsm is None:
                         worklist.append(otherMb)
         return found
 
@@ -645,8 +647,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
     def _constructParentElementForBlock(self, netlist:HlsNetlistCtx,
                                         resolved: Set[MachineBasicBlock],
                                         loopElements: Dict[MachineBasicBlock, HlsNetNodeAggregateLoop],
-                                        mb: MachineBasicBlock,
-                                        violatesResourceConstraints:bool):
+                                        mb: MachineBasicBlock):
         """
         The MachineLoop may contain multiple ArchElements and ArchElement may contain multiple MachineLoop
         but MachineLoop or ArchElement must have a single parent (e.g. if loop span over multiple ArchElements
@@ -669,7 +670,11 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
             suc = None
 
         innerMostLoop: MachineLoop = self.loops.getLoopFor(suc if isResetBlock else mb)
-        elementBlocks = self._collectBlocksForElement(mb)
+        fsm = self.blockMeta[mb].fsm
+        if fsm is not None:
+            elementBlocks = fsm
+        else:
+            elementBlocks = self._collectBlocksForElement(mb)
         # for _mb in elementBlocks:
         #    _mbLoop = self.loops.getLoopFor(_mb)
         #    assert _mbLoop == innerMostLoop, (_mb, _mbLoop, innerMostLoop) # :note: may not be in the same loop if loop has isLoopHeaderOfFreeRunning (is discarded)
@@ -683,7 +688,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
         # * If it is only a part top parent will be loop and child ArchElements will be inside
         # * if it is whole loop ArchElement will be parent and the loop will be inside
 
-        if violatesResourceConstraints:
+        if fsm is not None:
             parentElement = ArchElementFsm(netlist, netlist.label, netlist.namePrefix)
             if self.dbgTracer:
                 self.dbgTracer.log(("parent element for block ", mb.getNumber(), "new FSM:", parentElement._id))
@@ -702,32 +707,12 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
 
     def _constructParentElement(self, mf: MachineFunction):
         """
-        Analyze resource constraints to decide if we should start with ArchElementPipeline or if there is some constraint and
-        circuit must start from ArchElementFsm
+        Analyze resource constraints to decide if we should start as ArchElementPipeline or ArchElementFsm
+        
         :note: 1 MF should represent just 1 ArchElement.
-        It is desired to cut function to threads on MIR level, but ArchElement can be also cut later
-        (but the analysis is significantly more complex and is done after scheduling).
+          It is desired to cut function to threads on MIR level, but ArchElement can be also cut later
+          (but the analysis is significantly more complex and is done after scheduling).
         """
-        constraints: SchedulingResourceConstraints = self.netlist.scheduler.resourceUsage.resourceConstraints
-        # if it is in format of:
-        # resetBlock (loopHeaderOfFreeRunning)*
-        resourcesAvailable = copy(constraints)
-        MRI = mf.getRegInfo()
-        violatesResourceConstraints = False
-        for mb in mf:
-            mb: MachineBasicBlock
-            # mbMeta: MachineBasicBlockMeta = self.blockMeta[mb]
-            for instr in mb:
-                res = self._getSchedulingResourceForInstruction(MRI, instr)
-                if res is not None:
-                    curAvailable = resourcesAvailable.get(res, None)
-                    if curAvailable is not None:
-                        if curAvailable == 0:
-                            violatesResourceConstraints = True
-                            break
-                        curAvailable -= 1
-                        resourcesAvailable[res] = curAvailable
-
         netlist = self.netlist
         resolved: Set[MachineBasicBlock] = set()
         loopElements: Dict[MachineBasicBlock, HlsNetNodeAggregateLoop] = {}
@@ -735,7 +720,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
         for mb in mf:
             mb: MachineBasicBlock
             self._constructParentElementForBlock(
-                netlist, resolved, loopElements, mb, violatesResourceConstraints)
+                netlist, resolved, loopElements, mb)
 
     def translateDatapathInBlocks(self, mf: MachineFunction):
         """
@@ -743,7 +728,6 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
         (Excluding connections between blocks)
         """
         self.netlist.getAnalysis(HlsNetlistAnalysisPassBlockSyncType)
-        MRI = mf.getRegInfo()
         # valCache: MirToHwtHlsNetlistValueCache = self.valCache
         if self.dbgTracer:
             with self.dbgTracer.scoped("_constructParentElement", mf.getName().str()):
@@ -765,7 +749,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
             #            #liveInO = valCache.get(mb, liveIn, dtype)
             #            #blockBoudary.add(liveInO)
             #            seenLiveIns.add(liveIn)
-            self._translateDatapathInBlocksInstructions(MRI, mbMeta, mb)
+            self._translateDatapathInBlocksInstructions(mbMeta, mb)
 
     def _constructLiveInMuxesFromMeta(self,
                                       mb: MachineBasicBlock,
@@ -808,9 +792,10 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
             valCache.add(mb, liveIn, v, False)
 
     def _constructControlChannelsFromMeta(self, mb: MachineBasicBlock):
+        fsm = self.blockMeta[mb].fsm
         # construct control channels
+        sucMb = mb
         for predMb in mb.predecessors():
-            sucMb = mb
             edgeMeta = self.edgeMeta[(predMb, sucMb)]
 
             if edgeMeta.reuseDataAsControl is None:
@@ -826,6 +811,9 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     # if edgeMeta.inlineRstDataFromEdge is not None:
                     #     v.obj.channelInitValues = (tuple(),)
                     wn: HlsNetNodeWriteBackedge = v.obj.associatedWrite
+                    if fsm and predMb in fsm:
+                        # allocate as a register because this is just local control channel
+                        wn.allocationType = CHANNEL_ALLOCATION_TYPE.REG
                     edgeMeta.loopChannelGroupAppendWrite(wn, True)
                     edgeMeta.buffers.append(((predMb, sucMb), v))
 
@@ -853,7 +841,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
             # the libeIn is used only by MUX input for a specific predecessor
             # First we collect all inputs for all variant then we build MUX.
             predLiveness = liveness[predMb]
-            predMbMeta = self.blockMeta[predMb]
+            predMbMeta: MachineBasicBlockMeta = self.blockMeta[predMb]
             constLiveOuts = predMbMeta.constLiveOuts
             with self.dbgTracer.scoped(HlsNetlistAnalysisPassMirToNetlistDatapath.constructLiveInMuxes, predMb.getNumber()):
                 for sucMb in predMb.successors():
@@ -868,7 +856,9 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                         isBackedge = edgeMeta.etype == MACHINE_EDGE_TYPE.BACKWARD
                         isEdgeWithChannels = edgeMeta.etype in (MACHINE_EDGE_TYPE.BACKWARD,
                                                                 MACHINE_EDGE_TYPE.FORWARD)
+                        isImplementedAsReg = predMbMeta.fsm is not None and sucMb in predMbMeta.fsm
                         mayPropagateConstants = edgeMeta.inlineRstDataFromEdge is None
+
                         for liveIn in predLiveness[sucMb]:
                             liveIn: Register
                             if not _regIsValidLiveIn(self.regToIo, MRI, liveIn):
@@ -900,7 +890,9 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                                     wn = v.obj.associatedWrite
                                     if isBackedge:
                                         writeListForOrdering.append(wn)
-
+                                    if isImplementedAsReg:
+                                        # allocate as a register because this is just local control channel
+                                        wn.allocationType = CHANNEL_ALLOCATION_TYPE.REG
                                     self.dbgTracer.log(("adding channel, ", wn))
                                     blockLiveInMuxInputSync[(predMb, sucMb, liveIn)] = rn
 

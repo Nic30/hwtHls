@@ -1,10 +1,10 @@
 from typing import Union, Optional, Literal, Dict, Set
 
+from hwt.pyUtils.setList import SetList
 from hwtHls.llvm.llvmIr import MachineBasicBlock, Register
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
 from hwtHls.netlist.nodes.aggregatedLoop import HlsNetNodeAggregateLoop
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, \
@@ -13,9 +13,9 @@ from hwtHls.netlist.nodes.portsUtils import HlsNetNodeOutLazy_replace, \
     HlsNetNodeOutLazy_replaceThisInUsers
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-#from hwtHls.ssa.translation.llvmMirToNetlist.insideOfBlockSyncTracker import InsideOfBlockSyncTracker
 
 
+# from hwtHls.ssa.translation.llvmMirToNetlist.insideOfBlockSyncTracker import InsideOfBlockSyncTracker
 class ADD_ORDERING_PREPEND:
 
     def __init__(self):
@@ -53,7 +53,8 @@ class MachineBasicBlockMeta():
                  block: MachineBasicBlock,
                  constLiveOuts: Set[Register],
                  blockEn: Optional[HlsNetNodeOutAny],
-                 orderingIn: Optional[HlsNetNodeOutAny]):
+                 orderingIn: Optional[HlsNetNodeOutAny],
+                 fsm: Optional[SetList[MachineBasicBlock]]):
         self.block = block
         self.constLiveOuts = constLiveOuts
         self.blockEn = blockEn
@@ -69,16 +70,17 @@ class MachineBasicBlockMeta():
         self.isLoopAsyncPrequel: bool = False
         self.loopStatusNode: Optional[HlsNetNodeLoopStatus] = None
         self.parentElement: Union["ArchElement", HlsNetNodeAggregateLoop, None] = None
+        self.fsm = fsm
         # self.uselessOrderingFrom: Set[MachineBasicBlock] = set()
         # self.uselessControlBackedgesFrom: Set[MachineBasicBlock] = set()
-        #self.syncTracker = InsideOfBlockSyncTracker(blockEn, None)
+        # self.syncTracker = InsideOfBlockSyncTracker(blockEn, None)
         self.translatedBranchConditions: Dict[Register, HlsNetNodeOutAny] = {}
 
     def assignParentElement(self, elm: Union["ArchElement", HlsNetNodeAggregateLoop]):
         self.parentElement = elm
-        #self.syncTracker.builder = elm.builder
+        # self.syncTracker.builder = elm.builder
 
-    def addOrderedNodeForControlWrite(self, n: HlsNetNodeWriteBackedge, dstBlokSync: "MachineBasicBlockMeta"):
+    def addOrderedNodeForControlWrite(self, n: "HlsNetNodeWriteBackedge", dstBlokSync: "MachineBasicBlockMeta"):
         # if self.block in dstBlokSync.uselessOrderingFrom:
         #    i = n._addInput("orderingIn")
         #    n.associatedRead.getOrderingOutPort().connectHlsIn(i)
