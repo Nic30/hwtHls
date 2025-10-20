@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.platform.debugBundle import HlsDebugBundle
+from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.constants import CLK_PERIOD
 from hwtSimApi.utils import freq_to_period
@@ -186,20 +186,22 @@ if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     m = WhileSendSequence1()
     m.CLK_FREQ = int(20e6)
-    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={
-    #   *HlsDebugBundle.ALL_RELIABLE,
-    #   HlsDebugBundle.DBG_20_addSignalNamesToSync,
-    #   HlsDebugBundle.DBG_20_addSignalNamesToData,
-    # })))
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
+        #llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED, ],
+        debugFilter={
+      *HlsDebugBundle.ALL_RELIABLE,
+      # HlsDebugBundle.DBG_20_addSignalNamesToSync,
+      # HlsDebugBundle.DBG_20_addSignalNamesToData,
+    })))
     # Artix7Medium
-    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={*HlsDebugBundle.ALL_RELIABLE, })))
+    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={*HlsDebugBundle.ALL_RELIABLE, })))
 
     import unittest
     testLoader = unittest.TestLoader()
+    suite = testLoader.loadTestsFromTestCase(HlsAstWhileTrue_TC)
     # suite = unittest.TestSuite([
     #    HlsAstWhileTrue_TC('test_WhileSendSequence1_20Mhz'),
     #  #  HlsAstWhileTrue_TC('test_WhileSendSequence2_py_100Mhz_rand'),
     # ])
-    suite = testLoader.loadTestsFromTestCase(HlsAstWhileTrue_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

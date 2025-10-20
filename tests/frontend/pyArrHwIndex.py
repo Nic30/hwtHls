@@ -193,5 +193,9 @@ if __name__ == "__main__":
     m.ITEMS = 4
     print(to_rtl_str(m, target_platform=Artix7Medium(
         debugFilter=HlsDebugBundle.ALL_RELIABLE,
-         llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL, ],
+         llvmCliArgs=[ LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+                      # LLVM_CLI_COMMON_OPTS.PRINT_BEFORE_ALL,
+                      # LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL,
+                      # LLVM_CLI_COMMON_OPTS.printBefore("hwtHls::TrivialSimplifyCFGPass")
+                       ],
         )))

@@ -34,8 +34,8 @@ class HlsAstTrivial_TC(SimTestCase):
         self.runSim(CLK * CLK_PERIOD)
         self._test_no_comb_loops()
 
-        self.assertSequenceEqual(dut.dataIn._ag.data, [2, 3])
         self.assertValSequenceEqual(dut.dataOut._ag.data, [0, ])
+        self.assertSequenceEqual(dut.dataIn._ag.data, [2, 3])
 
     def test_ReadWriteOnce1(self):
         self.test_ReadWriteOnce0(ReadWriteOnce1)
@@ -87,7 +87,7 @@ if __name__ == "__main__":
 
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([HlsAstTrivial_TC("test_ReadWriteOnce0")])
     suite = testLoader.loadTestsFromTestCase(HlsAstTrivial_TC)
+    # suite = unittest.TestSuite([HlsAstTrivial_TC("test_ReadWriteOnce0")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

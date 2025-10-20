@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.simulator.simTestCase import SimTestCase
-from hwt.hwModule import HwModule
-from hwt.pyUtils.typingFuture import override
-from hwt.hwParam import HwParam
-from hwt.hwIOs.utils import addClkRstn
-from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hdl.types.bits import HBits
-from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.scope import HlsScope
-from tests.frontend.trivial import WriteOnce
 from hwt.hdl.types.struct import HStruct
+from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
+from hwt.hwIOs.utils import addClkRstn
+from hwt.hwModule import HwModule
+from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
+from hwt.simulator.simTestCase import SimTestCase
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.platform.virtual import VirtualHlsPlatform
+from hwtHls.scope import HlsScope
 from hwtSimApi.constants import CLK_PERIOD
+from tests.frontend.trivial import WriteOnce
 
 
 class HStructAssignHwModule(HwModule):

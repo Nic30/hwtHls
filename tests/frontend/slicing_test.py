@@ -14,6 +14,7 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from pyMathBitPrecise.bit_utils import mask
 from tests.baseSsaTest import BaseSsaTC
+from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 
 
 # [todo] duplication with WhileTrueReadWrite
@@ -99,7 +100,12 @@ class HlsSlicingTC(BaseSsaTC):
         self._test_ll(unit_constructor)
 
         unit = unit_constructor()
-        self.compileSimAndStart(unit, target_platform=VirtualHlsPlatform())
+        self.compileSimAndStart(unit, target_platform=VirtualHlsPlatform(
+            llvmCliArgs=[
+                #LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL,
+                #LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+                LLVM_CLI_COMMON_OPTS.VERIFY_EACH]
+            ))
         unit.a._ag.data.extend(data_in)
         self.runSim(len(data_in) * 10 * Time.ns)
         self.assertValSequenceEqual(unit.b._ag.data, data_out)
@@ -135,8 +141,8 @@ if __name__ == "__main__":
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([HlsSlicingTC('test_HlsSlice2TmpHlsVarSlice')])
     suite = testLoader.loadTestsFromTestCase(HlsSlicingTC)
+    # suite = unittest.TestSuite([HlsSlicingTC('test_HlsSlice2TmpHlsVarSlice')])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
 

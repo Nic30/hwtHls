@@ -245,7 +245,7 @@ class HlsPythonHwWhile4(HlsPythonHwWhile2):
         self.o.DATA_WIDTH = 8
 
     @staticmethod
-    #@override
+    @override
     def model(dataIn: Iterator[HBitsConst], dataOut: List[HBitsConst]):
         while True:
             data = HBits(8).from_py(None)
@@ -346,6 +346,8 @@ class HlsPythonHwWhile5c(HlsPythonHwWhile4):
                 PyBytecodeBlockLabel("LCntrParent")
                 cntr = HBits(4, signed=True).from_py(8 - 1)
                 while cntr >= 0:
+                    # [todo] this loop is not removed as it is merged in HwtHlsSimplifyCFGPass_speculatePredecessor
+                    # before relevant opt can happen
                     # :note: loop and counter will be entirely removed because it has no effect on IO
                     PyBytecodeBlockLabel("LDelayCntr")
                     cntr -= 1

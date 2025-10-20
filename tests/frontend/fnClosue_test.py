@@ -11,20 +11,19 @@ class FnClosure_TC(BaseSsaTC):
     TEST_MIR = False
     TEST_BLOCK_SYNC = False
 
-
     def test_FnClosureSingleItem_ll(self):
         self._test_ll(FnClosureSingleItem)
-        
+
     def test_FnClosureNone0_ll(self):
         self._test_ll(FnClosureNone0)
-        
+
     def test_FnClosureNone1_ll(self):
         self._test_ll(FnClosureNone1)
 
 
 if __name__ == "__main__":
     import unittest
-    
+
     testLoader = unittest.TestLoader()
     # suite = unittest.TestSuite([FnClosure_TC('test_frameHeader')])
     suite = testLoader.loadTestsFromTestCase(FnClosure_TC)

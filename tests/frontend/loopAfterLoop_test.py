@@ -143,17 +143,20 @@ class LoopAfterLoop_TC(BaseSsaTC):
 
 
 if __name__ == "__main__":
-    from hwt.synth import to_rtl_str
-    from hwtHls.platform.debugBundle import HlsDebugBundle
-
-    m = WriteBeforeFiniteWhileInWhileTrue()
-    # m.CLK_FREQ = int(150e6)
-    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={
-        *HlsDebugBundle.ALL_RELIABLE,
-        HlsDebugBundle.DBG_4_0_addSignalNamesToData,
-        HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
-    })))
-
+    # from hwt.synth import to_rtl_str
+    # from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
+    # 
+    # m = TwoTimesFiniteWhile()
+    # # m.CLK_FREQ = int(150e6)
+    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
+    #     # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED],
+    #     debugFilter={
+    #         *HlsDebugBundle.ALL_RELIABLE,
+    #         HlsDebugBundle.DBG_4_0_addSignalNamesToData,
+    #         HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+    #         })
+    #     ))
+    # 
     import unittest
     testLoader = unittest.TestLoader()
     # suite = unittest.TestSuite([LoopAfterLoop_TC('test_TwoTimesFiniteWhileInWhileTrue')])

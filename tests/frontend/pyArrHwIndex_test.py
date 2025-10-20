@@ -52,7 +52,7 @@ class PyArrHwIndex_TC(BaseSsaTC):
 
         class FrontendTestPlatform(BaseTestPlatform):
 
-            def runSsaPasses(self, hls:"HlsScope", tpLllvm:ToLlvmIrTranslator):
+            def runSsaPasses(self, hls: "HlsScope", toLlvm: ToLlvmIrTranslator):
                 raise TestFinishedSuccessfuly()
 
         m = ExampleCntrArrayWithCfgDotDump()
@@ -65,7 +65,7 @@ if __name__ == "__main__":
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([PyArrHwIndex_TC("test_ExampleCntrArray_ll")])
     suite = testLoader.loadTestsFromTestCase(PyArrHwIndex_TC)
+    # suite = unittest.TestSuite([PyArrHwIndex_TC("test_ExampleCntrArray_cfgDot")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
