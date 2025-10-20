@@ -7,10 +7,10 @@ requires = [
   "cmake>=3.26.3", # cmake buildsystem for LLVM/ABC
   "meson>=1.1.0", # meson buildsystem
   'meson-python>=0.12.1', # meson to pip adapter
-  "pybind11>=2.12.0", # c++ to Python binding
+  "pybind11>=3.0.1", # c++ to Python binding
   "ninja>=1.11.1", # build tool for meson to use
 ]
-build-backend = 'mesonpy'
+build-backend = 'mesonpy' # calls meson-build to build C++ part
 
 
 [project]
