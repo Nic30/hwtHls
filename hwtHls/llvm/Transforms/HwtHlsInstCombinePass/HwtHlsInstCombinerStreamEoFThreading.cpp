@@ -185,6 +185,12 @@ void HwtHlsInstCombiner::_duplicateExprForEoFandNotEoFVariant(
 		bool UserIsAlsoSpeculated = false;
 		auto UserI = dyn_cast<Instruction>(U->getUser());
 		if (UserI) {
+			if (speculatedExprMap.find(UserI) == speculatedExprMap.end()) {
+				// User can be speculated only after all operands were speculated
+				// but user may use I in multiple operands
+				// if this is the case the speculated version of UserI was already created
+				continue;
+			}
 			if (isa<AssumeInst>(UserI))
 				continue; // @llvm.assume calls are never speculated
 
@@ -417,7 +423,8 @@ bool HwtHlsInstCombiner::tryImplementStreamReadEoFThreading(BranchInst &I) {
 		for (const Use *U : Uses) {
 			auto UI = dyn_cast<Instruction>(U->getUser());
 			if (UI && speculableExprs.contains(UI)
-					&& !exprUsedByAssumes.contains(UI)) {
+					&& !exprUsedByAssumes.contains(UI)
+					&& speculatedExprMap.contains(UI)) {
 				assert(!isa<AssumeInst>(UI));
 				replaceOperand(*UI, U->getOperandNo(), b1);
 				Worklist.push(UI);
