@@ -8,6 +8,22 @@
 
 namespace llvm {
 
+void HwtFpgaCombinerHelper::replaceInstWithUndef(llvm::MachineInstr &MI) {
+	auto dstReg = MI.getOperand(0).getReg();
+	auto dstTy = MRI.getType(dstReg);
+	if (!dstTy.isValid()) {
+		// attempt to backup register type
+		if (MI.getOpcode() == HwtFpga::HWTFPGA_EXTRACT) {
+			auto eOps = hwtHls::HWTFPGA_EXTRACTOptions::get(MI);
+			Builder.buildInstr(HwtFpga::HWTFPGA_IMPLICIT_DEF,
+					{ MI.getOperand(0) }, { eOps.dstWidth });
+			MI.eraseFromParent();
+			return;
+		}
+	}
+	return llvm::CombinerHelper::replaceInstWithUndef(MI);
+}
+
 bool HwtFpgaCombinerHelper::isUndefOperand(const MachineOperand &MO) {
 	if (MO.isReg()) {
 		return (MO.isUndef()
