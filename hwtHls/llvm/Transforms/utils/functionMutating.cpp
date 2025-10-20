@@ -266,12 +266,8 @@ llvm::MDNode* recursivelyUpdateMetadataIoArgIndexes(llvm::MDNode *md,
 				}
 				auto newArgI = oldArgToNewArgIndex[oldArgI];
 				if (!newArgI.has_value()) {
-					llvm::errs() << *t;
-					std::string errTmp =
-							"recursivelyUpdateMetadataIoArgIndexes: Metadata references IO argument of function which was just removed: ";
-					llvm::raw_string_ostream errSS(errTmp);
-					errSS << *t;
-					throw std::runtime_error(errSS.str());
+					// Metadata references IO argument of function which was just removed
+					return nullptr;
 				}
 				if (newArgI.value() != oldArgI) {
 					auto newC = llvm::ConstantInt::get(argIc->getType(),
@@ -287,7 +283,8 @@ llvm::MDNode* recursivelyUpdateMetadataIoArgIndexes(llvm::MDNode *md,
 						opsChanged = true;
 				}
 			}
-			newOps.push_back(newOpV);
+			if (newOpV)
+				newOps.push_back(newOpV);
 			++opI;
 		}
 		if (!opsChanged) {
@@ -389,9 +386,21 @@ void mutateFunctionShuffleArgs_updateStreamLoopMDs(llvm::Function *NewF,
 			} else {
 				// :note: we do not update all uses of this metadata as it may be used also in other functions
 				// which are not a target of this update
-				auto newMd = recursivelyUpdateMetadataIoArgIndexes(loopMd,
+				auto loopMdTuple = llvm::dyn_cast<llvm::MDTuple>(loopMd);
+				// MD_loop should be tuple like !0 = distinct !{!0, !1}
+				assert(
+						loopMdTuple && loopMdTuple->getNumOperands() == 2
+								&& loopMdTuple->getOperand(0) == loopMdTuple);
+				auto loopMdVal = loopMdTuple->getOperand(1).get();
+				auto loopMdValMd = llvm::dyn_cast<llvm::MDNode>(loopMdVal);
+				auto newMd = recursivelyUpdateMetadataIoArgIndexes(loopMdValMd,
 						mdNamesToUpdate, oldArgToNewArgIndex);
-				if (newMd != loopMd) {
+				if (newMd != loopMdVal) {
+					if (newMd) {
+						newMd = llvm::MDTuple::getDistinct(NewF->getContext(), {
+								nullptr, newMd });
+						newMd->replaceOperandWith(0, newMd);
+					} // else delete MD_loop by setting nullptr
 					Ter->setMetadata(llvm::LLVMContext::MD_loop, newMd);
 				}
 				updatedMds[loopMd] = newMd;
