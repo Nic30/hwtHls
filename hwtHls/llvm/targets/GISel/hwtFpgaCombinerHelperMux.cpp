@@ -471,7 +471,12 @@ void HwtFpgaCombinerHelper::rewriteConstValMux(MachineInstr &MI,
 				}
 			}
 		}
-		replaceSingleDefInstWithReg(MI, replacement);
+		if (MI.getOperand(0).getReg() == replacement) {
+			// case for %0 = HWTFPGA_MUX %0, %1, killed %0
+			MI.eraseFromParent();
+		} else {
+			replaceSingleDefInstWithReg(MI, replacement);
+		}
 	}
 }
 
