@@ -223,7 +223,8 @@ class ArchElement(HlsNetNodeAggregate):
         endClkI = self._endClkI
         if endClkI is None or endClkI < clkI:
             self._endClkI = clkI
-
+        
+        assert clkI >= 0, (node, clkI)
         self.getStageForClock(clkI, createIfNotExists=allowNewClockWindow).append(node)
         self.subNodes.append(node)
         if isinstance(node, HlsNetNodeFsmStateEn):
