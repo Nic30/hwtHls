@@ -80,11 +80,11 @@ llvm::Instruction* HwtHlsInstCombiner::tryReduceAndAndWithCommon(
 	//  %38 = icmp ne i2 %28, -1
 	//  %39 = and i1 %16, %38
 	//  %40 = xor i1 %39, true
-    //
+	//
 	//  %13 = call i1 @hwtHls.bitRangeGet.i73.i8.i1.66(i73 %.w0, i8 66) #6
 	//  %37 = icmp ult i10 %34, 128
 	//  %wEn3.2 = and i1 %13, %37
-    //
+	//
 	//  %.streamWrite.en19.2 = and i1 %wEn3.2, %40
 
 	return nullptr;
