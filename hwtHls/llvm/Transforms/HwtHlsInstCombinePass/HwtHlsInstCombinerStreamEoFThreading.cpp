@@ -246,7 +246,8 @@ void HwtHlsInstCombiner::_duplicateExprForEoFandNotEoFVariant(
 					speculationExit = speculationCondition;
 				} else {
 					// set insert point after original and newly created speculation instruction and it slices
-					resolveBuilderInsertPointForSpeculationExitSelect(Builder, I, ISpeculated);
+					resolveBuilderInsertPointForSpeculationExitSelect(Builder,
+							I, ISpeculated);
 					Value *TrueValue = ISpeculated;
 					Value *FalseValue = I;
 					if (!speculationConditionVal) {
@@ -280,7 +281,7 @@ bool HwtHlsInstCombiner::tryImplementStreamReadEoFThreading(BranchInst &I) {
 	// create a 2 versions of code between read and this branch
 	// one for eof=1 which will remain as it is and
 	// second for eof=0 which will have read mask replaced with all ones
-	// because eof=0 implies that all mask bits are 1
+	// because eof=0 implies that all mask bits are 1 (or empty==0)
 	if (!I.isConditional())
 		return false;
 
@@ -321,8 +322,6 @@ bool HwtHlsInstCombiner::tryImplementStreamReadEoFThreading(BranchInst &I) {
 		LoadInst *srcLd = cast<LoadInst>(cast<Instruction>(EoF)->getOperand(0));
 		if (streamLoadsWithEoFThreadingApplied.contains(srcLd))
 			return false;
-		// errs() << "tryImplementStreamReadEoFThreading before\n";
-		// F.dump();
 		// collect all blocks from this to bb with load defined
 		SmallSet<BasicBlock*, 16> blocks;
 		collectUntilDominatingBlock(DT, *srcLd->getParent(), *I.getParent(),
@@ -333,9 +332,25 @@ bool HwtHlsInstCombiner::tryImplementStreamReadEoFThreading(BranchInst &I) {
 		// if expr ending with select eof, x, y it means that
 		std::set<Instruction*> speculableExprs;
 		std::set<Instruction*> exprUsedByAssumes;
-		size_t maskOffset = streamProps.getOffsetOfMask();
-		size_t maskWidth = streamProps.getWidthOfMask();
+
+		bool hasMask = streamProps.hasMask();
+		bool hasEmpty = streamProps.hasEmpty();
+		size_t maskOffset;
+		size_t maskWidth;
+		size_t emptyOffset;
+		size_t emptyWidth;
+
+		if (hasMask) {
+			assert(!hasEmpty);
+			maskOffset = streamProps.getOffsetOfMask();
+			maskWidth = streamProps.getWidthOfMask();
+		} else if (hasEmpty) {
+			assert(!hasMask);
+			emptyOffset = streamProps.getOffsetOfEmpty();
+			emptyWidth = streamProps.getWidthOfEmpty();
+		}
 		SmallVector<Instruction*> maskValues;
+		SmallVector<Instruction*> emptyValues;
 		// add all masks and eof to speculableExprs because we would like to replace them in expressions as well
 		auto EoFAsI = cast<Instruction>(EoF);
 		speculableExprs.insert(EoFAsI);
@@ -346,12 +361,21 @@ bool HwtHlsInstCombiner::tryImplementStreamReadEoFThreading(BranchInst &I) {
 				collectSpeculableExpr(blocks, srcLd, U, speculableExprs,
 						exprUsedByAssumes);
 			} else if (match(U, m_BitrangeGet(m_Specific(srcLd), offset, width))
-					&& offset >= maskOffset
-					&& offset + width <= maskOffset + maskWidth) {
+					&& ((hasMask && offset >= maskOffset
+							&& offset + width <= maskOffset + maskWidth)
+							|| (hasEmpty && offset >= emptyOffset
+									&& offset + width
+											<= emptyOffset + emptyWidth))) {
 				// is select of some part of mask
-				maskValues.push_back(cast<Instruction>(U));
+				if (hasMask) {
+					maskValues.push_back(cast<Instruction>(U));
+				} else if (hasEmpty) {
+					emptyValues.push_back(cast<Instruction>(U));
+				} else {
+					llvm_unreachable("has to have mask or empty");
+				}
 				collectSpeculableExpr(blocks, srcLd, U, speculableExprs,
-						exprUsedByAssumes);
+					exprUsedByAssumes);
 			}
 		}
 		//assert(
@@ -368,8 +392,8 @@ bool HwtHlsInstCombiner::tryImplementStreamReadEoFThreading(BranchInst &I) {
 		std::map<Value*, Value*> speculatedExprExitMap;
 		std::map<Value*, Value*> backupExprForAssume;
 		_duplicateExprForEoFandNotEoFVariant(speculableExprs, EoF, false,
-				EoFAsI, Builder.getFalse(),
-				speculatedExprMap, speculatedExprExitMap, exprUsedByAssumes);
+				EoFAsI, Builder.getFalse(), speculatedExprMap,
+				speculatedExprExitMap, exprUsedByAssumes);
 		//size_t i = 0;
 		for (auto m : maskValues) {
 			auto mWidth = m->getType()->getIntegerBitWidth();
@@ -377,9 +401,13 @@ bool HwtHlsInstCombiner::tryImplementStreamReadEoFThreading(BranchInst &I) {
 			_duplicateExprForEoFandNotEoFVariant(speculableExprs, EoF, false, m,
 					speculatedMVal, speculatedExprMap, speculatedExprExitMap,
 					exprUsedByAssumes);
-			//i++;
-			//if (i == 2)
-			//	break;
+		}
+		for (auto e : emptyValues) {
+			auto eWidth = e->getType()->getIntegerBitWidth();
+			auto speculatedEVal = Builder.getInt(APInt::getZero(eWidth));
+			_duplicateExprForEoFandNotEoFVariant(speculableExprs, EoF, false, e,
+					speculatedEVal, speculatedExprMap, speculatedExprExitMap,
+					exprUsedByAssumes);
 		}
 
 		// replace operands in original speculated expr to have value for EoF=1
@@ -395,8 +423,7 @@ bool HwtHlsInstCombiner::tryImplementStreamReadEoFThreading(BranchInst &I) {
 				Worklist.push(UI);
 			}
 		}
-		//errs() << "tryImplementStreamReadEoFThreading after\n";
-		//F.dump();
+
 		streamLoadsWithEoFThreadingApplied.insert(srcLd);
 		return true;
 	}
