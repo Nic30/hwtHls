@@ -155,8 +155,15 @@ public:
 			std::vector<ConcatMember> &members, uint64_t mainOffset,
 			uint64_t mainWidth, uint64_t &mainOffsetCurrent,
 			uint64_t miResOffset, uint64_t miResWidths);
+	// fallback of collectConcatMembers which just takes MIOp as is and put it inside of members vector
+	bool collectConcatMembersAsItIs(llvm::MachineOperand &MIOp,
+			std::vector<HwtFpgaCombinerHelper::ConcatMember> &members,
+			uint64_t mainOffset, uint64_t mainWidth,
+			uint64_t &mainOffsetCurrent, uint64_t MIOpOffset,
+			uint64_t MIOpWidth, uint64_t MIOpSelectedWidth);
 	MachineInstrBuilder buildHwtFpgaCopy(MachineOperand opDst,
-			MachineOperand op1);
+			MachineOperand opSrc);
+	MachineInstrBuilder buildHwtFpgaCopy(MachineOperand opSrc);
 	void copyOperand(MachineInstrBuilder &MIB, MachineRegisterInfo &MRI,
 			MachineFunction &MF, MachineOperand &MO);
 	void copyOperandsForHFloatTmpAndPredicate(MachineInstrBuilder &MIB,

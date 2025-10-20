@@ -12,18 +12,37 @@
 
 namespace llvm {
 
-
-MachineInstrBuilder HwtFpgaCombinerHelper::buildHwtFpgaCopy(MachineOperand opDst, MachineOperand op1) {
-	auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX, {opDst},{});
+MachineInstrBuilder HwtFpgaCombinerHelper::buildHwtFpgaCopy(
+		MachineOperand opDst, MachineOperand opSrc) {
+	auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX, { opDst }, { });
 	Observer.changingInstr(*MIB.getInstr());
-	MIB.add(op1);
+	if (opSrc.isReg() && opSrc.isReg()) {
+		MIB.addUse(opSrc.getReg());
+	} else {
+		MIB.add(opSrc);
+	}
 	Observer.changedInstr(*MIB.getInstr());
 	return MIB;
 }
 
+MachineInstrBuilder HwtFpgaCombinerHelper::buildHwtFpgaCopy(
+		MachineOperand opSrc) {
+	assert(opSrc.isReg());
+	Register dstReg = MRI.cloneVirtualRegister(opSrc.getReg());
+	//MRI.setType(memberReg, LLT::scalar(src.widthOfUse));
+	auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX, { dstReg }, { });
+	Observer.changingInstr(*MIB.getInstr());
+	if (opSrc.isReg() && opSrc.isReg()) {
+		MIB.addUse(opSrc.getReg());
+	} else {
+		MIB.add(opSrc);
+	}
+	Observer.changedInstr(*MIB.getInstr());
+	return MIB;
+}
 
-void HwtFpgaCombinerHelper::copyOperand(MachineInstrBuilder &MIB, MachineRegisterInfo &MRI,
-		MachineFunction &MF, MachineOperand &MO) {
+void HwtFpgaCombinerHelper::copyOperand(MachineInstrBuilder &MIB,
+		MachineRegisterInfo &MRI, MachineFunction &MF, MachineOperand &MO) {
 	if (MO.isReg() && MO.isDef()) {
 		MIB.addDef(MO.getReg(), MO.getTargetFlags());
 		return;
