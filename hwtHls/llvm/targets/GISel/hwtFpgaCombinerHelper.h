@@ -127,9 +127,11 @@ public:
 
 	// :attention: this is only for instructions in same block
 	//             extract/merge instruction does copy of original data, it must be proven that
-	//             correct copy is used and we can no just take any register with output
-	bool matchIsExtractOnMergeValues(llvm::MachineInstr &MI);
-	void rewriteExtractOnMergeValues(llvm::MachineInstr &MI);
+	//             correct copy is used and we can not just take any register with output
+	bool matchIsExtractOnMergeValues(llvm::MachineInstr &MI,
+			std::vector<ConcatMember> &concatMembers);
+	void rewriteExtractOnMergeValues(llvm::MachineInstr &MI,
+			const std::vector<ConcatMember> &concatMembers);
 
 	bool matchIsExtractOnConstShift(llvm::MachineInstr &MI);
 	void rewriteExtractOnConstShift(llvm::MachineInstr &MI);
@@ -145,16 +147,18 @@ public:
 	 *
 	 * :param MIOp: an operand from where to collect concat members
 	 * :param members: output vector of records containing the operand and the information about which bits are selected
-	 * :param mainOffset: offsets (number of bits) where selected value from whole value
+	 * :param mainOffset: offsets (number of bits) where selected value from whole value begins
 	 * :param mainWidth: number of bits to select in total
 	 * :param mainOffsetCurrent: a number of bits already collected
-	 * :param miResOffset: offsets (number of bits) where selected value from this operand starts
-	 * :param miResWidth: a number of bits for MIOp (the result operand of some instruction)
+	 * :param MIOpOffset: offsets (number of bits) where selected value from this operand starts
+	 * :param MIOpWidth: a number of bits for MIOp (the result operand of some instruction)
+	 * :param MIOpSelectedWidth: a number of bits extracted from MIOpWidth used by this member (MIOp value may actually be wider MIOpWidth)
 	 * */
 	bool collectConcatMembers(llvm::MachineOperand &MIOp,
 			std::vector<ConcatMember> &members, uint64_t mainOffset,
 			uint64_t mainWidth, uint64_t &mainOffsetCurrent,
-			uint64_t miResOffset, uint64_t miResWidths);
+			uint64_t MIOpOffset, uint64_t MIOpWidth,
+			uint64_t MIOpSelectedWidth);
 	// fallback of collectConcatMembers which just takes MIOp as is and put it inside of members vector
 	bool collectConcatMembersAsItIs(llvm::MachineOperand &MIOp,
 			std::vector<HwtFpgaCombinerHelper::ConcatMember> &members,

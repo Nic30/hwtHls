@@ -536,11 +536,12 @@ def xor_right_allOnes: GICombineRule<
 >;
 
 // Fold (HWTFPGA_EXTRACT (HWTFPGA_MERGE_VALUES ...)) -> HWTFPGA_MERGE_VALUES of just selected parts
+def extract_on_merge_values_matchdata : GIDefMatchData<"std::vector<HwtFpgaCombinerHelper::ConcatMember>">;
 def extract_on_merge_values: GICombineRule<
-  (defs root:$root),
+  (defs root:$root, extract_on_merge_values_matchdata:$matchinfo),
   (match (wip_match_opcode HWTFPGA_EXTRACT):$root,
-    [{ return Helper.matchIsExtractOnMergeValues(*${root}); }]),
-  (apply [{ Helper.rewriteExtractOnMergeValues(*${root}); }])
+    [{ return Helper.matchIsExtractOnMergeValues(*${root}, ${matchinfo}); }]),
+  (apply [{ Helper.rewriteExtractOnMergeValues(*${root}, ${matchinfo}); }])
 >;
 
 // Fold (HWTFPGA_EXTRACT (HWTFPGA_SHL src, constShAmount), offset, width) -> HWTFPGA_EXTRACT src, constShAmount+offset, width
