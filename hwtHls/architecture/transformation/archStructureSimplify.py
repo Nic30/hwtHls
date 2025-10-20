@@ -14,6 +14,8 @@ from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge, \
     HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, unlink_hls_node_input_if_exists
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
 from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
@@ -57,9 +59,27 @@ class HlsArchPassArchStructureSimplify(HlsArchPass):
         """
         Check if pipeline fits exactly to FSM states.
         """
+        clkPeriod = src.netlist.normalizedClkPeriod
         for clkI, nodes in enumerate(src.stages):
-            if nodes and not dst.fsm.hasUsedStateForClkI(clkI):
-                return False
+            if nodes:
+                if not dst.hasUsedStateForClkI(clkI):
+                    return False
+                for n in nodes:
+                    if isinstance(n, HlsNetNodeRead):
+                        w = n.associatedWrite
+                        if w is not None:
+                            w: HlsNetNodeWrite
+                            wClkI = w.scheduledZero // clkPeriod
+                            if clkI == wClkI and w._getBufferCapacity() == 0:
+                                # this would deadlock
+                                return False
+                    elif isinstance(n, HlsNetNodeWrite):
+                        r = n.associatedRead
+                        if r is not None:
+                            rClkI = r.scheduledZero // clkPeriod
+                            if clkI == rClkI and n._getBufferCapacity() == 0:
+                                # this would deadlock
+                                return False
         return True
 
     @staticmethod
@@ -141,35 +161,31 @@ class HlsArchPassArchStructureSimplify(HlsArchPass):
                 archElm.markAsRemoved()
                 continue
 
-            if isinstance(archElm, ArchElementFsm):
-                for suc in archElmSuccessors[archElm]:
-                    if suc is archElm:
-                        continue
-                    # pipelinePath = []
-                    # if self.isPipelineEndingInElm(archElmPredecessors, archElmSuccessors, suc, archElm, pipelinePath):
-                    #    raise NotImplementedError()
+            archElmIsFsm = isinstance(archElm, ArchElementFsm)
+            archElmIsPipe = isinstance(archElm, ArchElementPipeline)
+            for suc in tuple(archElmSuccessors[archElm]):
+                if suc is archElm:
+                    continue
+                if suc._isMarkedRemoved:
+                    # If suc is removed it should not be in archElmSuccessors dict
+                    # but we modifying it during the iteration so we used a copy of values
+                    # which may not be up to date, that is why there may be removed items
+                    continue
+                # pipelinePath = []
+                # if self.isPipelineEndingInElm(archElmPredecessors, archElmSuccessors, suc, archElm, pipelinePath):
+                #    raise NotImplementedError()
 
-                    # [todo] move all nodes from this clock cycle to predecessor to have element crossing on clock boundary
-                    #   * this requires to update channel control writes and possibly move HlsNetNodeWriteForwardedge and HlsNetNodeReadForwardedge
-                    if isinstance(suc, ArchElementPipeline):
-                        if self.shouldMergePipelineToFsm(suc, archElm):
-                            ArchElement_merge(suc, archElm, archElmPredecessors, archElmSuccessors)
-                            continue
-
-            if isinstance(archElm, ArchElementPipeline):
-                for suc in tuple(archElmSuccessors[archElm]):
-                    if suc is archElm:
-                        continue
-                    if suc._isMarkedRemoved:
-                        # If suc is removed it should not be in archElmSuccessors dict
-                        # but we modifying it during the iteration so we used a copy of values
-                        # which may not be up to date, that is why there may be removed items
+                # [todo] move all nodes from this clock cycle to predecessor to have element crossing on clock boundary
+                #   * this requires to update channel control writes and possibly move HlsNetNodeWriteForwardedge and HlsNetNodeReadForwardedge
+                if archElmIsFsm and isinstance(suc, ArchElementPipeline):
+                    if self.shouldMergePipelineToFsm(suc, archElm):
+                        ArchElement_merge(suc, archElm, archElmPredecessors, archElmSuccessors)
                         continue
 
-                    if isinstance(suc, ArchElementPipeline):
-                        if self.shouldMergePipelineToPipeline(suc, archElm):
-                            ArchElement_merge(suc, archElm, archElmPredecessors, archElmSuccessors)
-                            continue
+                if archElmIsPipe and isinstance(suc, ArchElementPipeline):
+                    if self.shouldMergePipelineToPipeline(suc, archElm):
+                        ArchElement_merge(suc, archElm, archElmPredecessors, archElmSuccessors)
+                        continue
 
         if netlist.filterNodesUsingRemovedSet():
             return PreservedAnalysisSet.preserveScheduling()
