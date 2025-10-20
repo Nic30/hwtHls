@@ -1,12 +1,12 @@
 from typing import Union, Optional, List, Generator, Tuple, Callable
 
 from hwt.code import Concat
-from hwt.hObjList import HObjList
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
+from hwt.hwIOs.hwIOArray import HwIOArray
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld, HwIOStructVld, HwIOStructRd, \
     HdlType_to_HwIO
 from hwt.hwIOs.std import HwIODataRd, HwIORdVldSync, HwIOVldSync, HwIORdSync
@@ -388,10 +388,10 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             for dep in self.dependsOn:
                 yield dep.obj
 
-    def _getRtlDataSig(self, src: Union[HwIO, tuple, HObjList, RtlSignalBase]) -> RtlSignal:
+    def _getRtlDataSig(self, src: Union[HwIO, tuple, RtlSignalBase]) -> RtlSignal:
         if isinstance(src, RtlSignalBase):
             return src
-        elif isinstance(src, (tuple, HObjList)):
+        elif isinstance(src, (tuple, HwIOArray)):
             return Concat(*(self._getRtlDataSig(v) for v in reversed(src)))
         else:
             exclude = self.ioProxy._getRtlSyncSignals(src)

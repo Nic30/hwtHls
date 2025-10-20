@@ -42,7 +42,7 @@ class TestHwModuleCmpConcatWithConst(HwModule):
         outputCnt = len(self.applyPredicate(HBits(2).from_py(0)))
         self.dataOut = HwIODataVld()._m()
         self.dataOut.DATA_WIDTH = outputCnt
-        # self.dataOut = HObjList(
+        # self.dataOut = HwIOArray(
         #    HwIODataVld()._m() for _ in range(outputCnt)
         # )
         # for i in self.dataOut:

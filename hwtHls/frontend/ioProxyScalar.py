@@ -1,21 +1,22 @@
 from typing import Optional, Union, Type as TypingType, Sequence, Literal
 
-from hwt.hObjList import HObjList
 from hwt.hdl.types.bits import HBits
 from hwt.hwIO import HwIO
+from hwt.hwIOs.hwIOArray import HwIOArray
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld, HwIO_to_HdlType, HwIOStruct
 from hwt.hwIOs.std import HwIODataRdVld, HwIORdVldSync, HwIODataVld, HwIODataRd, \
-    HwIOSignal, HwIOVldSync, HwIORdSync
+    HwIOSignal, HwIOVldSync, HwIORdSync, HwIOBramPort_noClk
 from hwt.mainBases import RtlSignalBase
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.hObjListUtils import HObjList_getHdlType
+from hwtHls.frontend.hObjListUtils import HwIOArray_getHdlType
 from hwtHls.frontend.ioProxy import IoProxy
 from hwtHls.frontend.statementsRead import HlsRead
 from hwtHls.frontend.statementsWrite import HlsWrite
 from hwtHls.io.portGroups import getFirstInterfaceInstance, MultiPortGroup, \
     BankedPortGroup
 from hwtHls.llvm.llvmIr import MachineInstr, Register, HwtHlsIoMetadata
+from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidExternData
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -24,6 +25,7 @@ from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from hwtLib.amba.axi_common import Axi_hs
+from hwtLib.handshaked.streamNode import ValidReadyTuple
 from ipCorePackager.constants import INTF_DIRECTION
 
 
@@ -82,8 +84,8 @@ class IoProxyScalar(IoProxy):
 
         elif isinstance(src, (HwIOSignal, HwIOStruct)):
             dtype = src._dtype
-        elif isinstance(src, (tuple, HObjList)):
-            dtype = HObjList_getHdlType(src)
+        elif isinstance(src, HwIOArray):
+            dtype = HwIOArray_getHdlType(src)
         else:
             raise NotImplementedError(src)
 
@@ -119,7 +121,7 @@ class IoProxyScalar(IoProxy):
         if src is None or isinstance(src, int):
             src = dstTy.from_py(src)
             dtype = dstTy
-        elif isinstance(src, HObjList):
+        elif isinstance(src, HwIOArray):
             dtype = src[0]._dtype[len(src)]
             assert dtype.bit_length() == dstTy.bit_length(), (
                 "For a normal write the width of src and dst must match", dtype, "->", dstTy, src, self.interface)
@@ -266,7 +268,7 @@ class IoProxyScalar(IoProxy):
                 return (1, hwIO.rd)
             else:
                 return (hwIO.rd,)
-        elif isinstance(hwIO, (RtlSignalBase, HwIOSignal, HwIOStruct)):
+        elif isinstance(hwIO, (RtlSignalBase, HwIOSignal, HwIOArray, HwIOStruct)):
             if formatAsValidReadyTuple:
                 return (1, 1)
             else:

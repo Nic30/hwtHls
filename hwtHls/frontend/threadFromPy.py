@@ -3,7 +3,6 @@ from types import FunctionType
 from typing import Optional, List, Tuple, Union
 
 from hdlConvertorAst.translate.common.name_scope import NameScope
-from hwt.hObjList import HObjList
 from hwt.hwIO import HwIO
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
@@ -21,7 +20,7 @@ from ipCorePackager.constants import DIRECTION
 def _getFullHierarchyPath(tmp) -> str:
     """get all name hierarchy separated by '/' """
     name = ""
-    while isinstance(tmp, (HwModule, HwIOBase, HObjList)):
+    while isinstance(tmp, (HwModule, HwIOBase)):
         n = tmp._name
         if name == '':
             if n is not None:

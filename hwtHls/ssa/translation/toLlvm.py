@@ -19,6 +19,7 @@ from hwt.hdl.types.sliceConst import HSliceConst
 from hwt.hdl.types.string import HString
 from hwt.hdl.types.struct import HStruct
 from hwt.hwIO import HwIO
+from hwt.hwIOs.hwIOArray import HwIOArray
 from hwt.hwIOs.hwIOStruct import HwIOStruct
 from hwt.hwIOs.std import HwIOSignal
 from hwt.hwModule import HwModule
@@ -563,12 +564,12 @@ class ToLlvmIrTranslator():
             builder.SetInsertPoint(block)
 
     def _translateExprToLlvm(self, block: BasicBlock,
-                             var: Union[RtlSignal, Value, HConst, HObjList],
+                             var: Union[RtlSignal, Value, HConst, HwIOArray],
                              allowHConst:bool=False) -> tuple[BasicBlock, Union[Value, HConst]]:
         """
         Translate RtlSignal expression to SSA with constant propagation and expression cache
         """
-        if isinstance(var, HObjList):
+        if isinstance(var, HwIOArray):
             members = []
             for item in var:
                 block, item = self._translateExprToLlvm(block, item, allowHConst)

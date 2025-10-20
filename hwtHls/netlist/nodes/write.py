@@ -1,11 +1,11 @@
 from typing import Union, Optional, Generator, Callable
 
-from hwt.hObjList import HObjList
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
 from hwt.hwIO import HwIO
+from hwt.hwIOs.hwIOArray import HwIOArray
 from hwt.hwIOs.hwIOStruct import HwIOStruct
 from hwt.hwIOs.std import HwIOSignal
 from hwt.pyUtils.setList import SetList
@@ -253,9 +253,9 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         if self.hasReadyNB():
             allocator.rtlRegisterOutputRtlSignal(self._readyNB, readyRtl, False, False, True)
 
-    def _rtlAlloc_assignToSequenceOfRtlSignal(self, dst: Union[HObjList, tuple], src: RtlSignal, offset: int, rtlObj: list[HdlAssignmentContainer]):
+    def _rtlAlloc_assignToSequenceOfRtlSignal(self, dst: Union[HwIOArray, tuple], src: RtlSignal, offset: int, rtlObj: list[HdlAssignmentContainer]):
         for dstItem in dst:
-            if isinstance(dstItem, (HObjList, tuple)):
+            if isinstance(dstItem, (HwIOArray, tuple)):
                 offset = self._rtlAlloc_assignToSequenceOfRtlSignal(dstItem, src, offset, rtlObj)
             else:
                 w = dstItem._dtype.bit_length()
@@ -311,7 +311,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
                     rtlObj = dst(HwIO_pack(_o.data, exclude=exclude))
                 else:
                     rtlObj = dst(_o.data)
-            elif isinstance(dst, (HObjList, tuple)):
+            elif isinstance(dst, (HwIOArray, tuple)):
                 rtlObj = []
                 self._rtlAlloc_assignToSequenceOfRtlSignal(dst, _o.data, 0, rtlObj)
             else:

@@ -3,9 +3,9 @@
 
 from functools import reduce
 
-from hwt.hObjList import HObjList
 from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
+from hwt.hwIOs.hwIOArray import HwIOArray
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.std import HwIOVectSignal
 from hwt.hwIOs.utils import addClkRstn
@@ -37,7 +37,7 @@ class HlsMAC_example(HwModule):
         addClkRstn(self)
         assert int(self.INPUT_CNT) % 2 == 0
 
-        self.dataIn = HObjList(
+        self.dataIn = HwIOArray(
             HwIOVectSignal(self.DATA_WIDTH, signed=False)
             for _ in range(int(self.INPUT_CNT))
         )
@@ -96,7 +96,7 @@ class HlsMAC_example_handshake(HlsMAC_example2):
         addClkRstn(self)
         assert int(self.INPUT_CNT) % 2 == 0
 
-        self.dataIn = HObjList(
+        self.dataIn = HwIOArray(
             HwIOStructRdVld()
             for _ in range(int(self.INPUT_CNT))
         )

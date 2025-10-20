@@ -1,11 +1,11 @@
 from typing import Sequence, Union, Callable, List, Tuple, Optional
 
-from hwt.hObjList import HObjList
 from hwt.hdl.const import HConst
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
+from hwt.hwIOs.hwIOArray import HwIOArray
 from hwt.mainBases import HwIOBase
 from hwt.mainBases import RtlSignalBase
 from hwt.math import AnyHValue
@@ -40,8 +40,8 @@ class PyObjectHwSubscriptRef(PyObjectRequiresExpandBeforeUse):
         self.index = index
 
     @classmethod
-    def _getTypeOfHObj(cls, v: Union[HObjList, HConst, RtlSignal, HwIO]):
-        if isinstance(v, (tuple, HObjList)):
+    def _getTypeOfHObj(cls, v: Union[HConst, RtlSignal, HwIO]):
+        if isinstance(v, HwIOArray):
             return cls._getTypeOfHObj(v[0])[len(v)]
         else:
             return v._dtype

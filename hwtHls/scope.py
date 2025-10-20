@@ -5,12 +5,12 @@ from itertools import islice
 from typing import Union, List, Optional, Literal, Dict
 
 from hwt.constants import NOT_SPECIFIED
-from hwt.hObjList import HObjList
 from hwt.hdl.const import HConst
 from hwt.hdl.types.defs import  BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.struct import HStruct
 from hwt.hwIO import HwIO
+from hwt.hwIOs.hwIOArray import HwIOArray
 from hwt.hwIOs.hwIOStruct import HwIOStruct
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld, HdlType_to_HwIO
 from hwt.hwIOs.std import HwIODataRdVld, HwIOSignal, HwIORdVldSync, HwIODataVld, \
@@ -40,13 +40,6 @@ ANY_HLS_COMPATIBLE_IO = Union[HwIODataRdVld, HwIOStructRdVld,
                               HwIODataVld, HwIODataRd, HwIOSignal,
                               HwIOStruct, RtlSignal,
                               PyObjectHwSubscriptRef]
-
-
-def HObjList_toTupleRec(v):
-    if isinstance(v, HObjList):
-        return tuple(HObjList_toTupleRec(i) for i in v)
-    else:
-        return v
 
 
 class HlsScope():
@@ -98,7 +91,7 @@ class HlsScope():
             pass  # HwModule._sig uses HwIO_without_registration which automatically calls this method in recurse
         elif isinstance(sig, RtlSignal):
             toLlvm._getOrCreateAllocaForTmpVariable(sig, allocaKnownToBeMissing=True)
-        elif isinstance(sig, HObjList):
+        elif isinstance(sig, HwIOArray):
             for _var in sig:
                 toLlvm._getOrCreateAllocaForTmpVariable(_var._sig, allocaKnownToBeMissing=True)
         else:
@@ -116,7 +109,7 @@ class HlsScope():
         """
         if arrayPartitionComplete:
             intf = HdlType_to_HwIO().apply(dtype)
-            return HObjList_toTupleRec(HwIO_without_registration(self, intf, name))
+            return HwIO_without_registration(self, intf, name)
         else:
             return self._sig(name, dtype)
 

@@ -7,6 +7,7 @@ from tests.frontend.binToBcd_test import BinToBcd_TC
 from tests.frontend.bitonicSort import BitonicSorterHLS_TCs
 from tests.frontend.errors_test import PyBytecodeErrors_TC
 from tests.frontend.exprTree3_test import HlsAstExprTree3_example_TC
+from tests.frontend.fnCall_test import FnCall_TC
 from tests.frontend.fnClosue_test import FnClosure_TC
 from tests.frontend.hStructAssign_test import HStructAssign_TC
 from tests.frontend.hwenumerate_test import HlsPythonHwenumerate_TC
@@ -20,6 +21,7 @@ from tests.frontend.preprocLoopMultiExit_test import PreprocLoopMultiExit_TCs
 from tests.frontend.pyArrHwIndex_test import PyArrHwIndex_TC
 from tests.frontend.pyArrShift_test import PyArrShift_TC
 from tests.frontend.pyExceptionRaise_test import PyBytecodePyException_TC
+from tests.frontend.readHwIOArray_test import ReadHwIOArray_TC
 from tests.frontend.readIf_test import HlsAstReadIfTc
 from tests.frontend.readNonBlocking_test import ReadNonBlocking_TC
 from tests.frontend.slicing_test import HlsSlicingTC
@@ -34,7 +36,6 @@ from tests.frontend.variableChain_test import VariableChain_TC
 from tests.frontend.whileIf_test import HlsAstWhileIf_TC
 from tests.frontend.whileTrue_test import HlsAstWhileTrue_TC
 from tests.testCaseUtils import testSuiteFromTCs
-from tests.frontend.fnCall_test import FnCall_TC
 
 
 frontend_TCs = [
@@ -45,6 +46,7 @@ frontend_TCs = [
     HlsPythonHwrange_TC,
     HlsPythonHwenumerate_TC,
     HlsAstReadIfTc,
+    ReadHwIOArray_TC,
     *PreprocLoopMultiExit_TCs,
     *BitonicSorterHLS_TCs,
     HlsMAC_example_TC,

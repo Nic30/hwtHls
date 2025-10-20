@@ -1,7 +1,6 @@
 from typing import Optional, Union, Tuple
 
 from hwt.doc_markers import internal
-from hwt.hObjList import HObjList
 from hwt.hdl.commonConstants import b1
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.array import HArray
@@ -101,7 +100,7 @@ class HlsRead(HdlStatement):
                 sig_flat._rtlDrivers.append(self)
                 sig_flat._rtlObjectOrigin = self
 
-        elif isinstance(sig, (HwIO, tuple, HObjList)) or not isBlocking:
+        elif isinstance(sig, HwIO) or not isBlocking:
             w = dtype.bit_length()
             force_vector = False
             totalWidth = w + (0 if isBlocking else 1)
