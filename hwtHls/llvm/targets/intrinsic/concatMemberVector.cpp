@@ -35,8 +35,29 @@ OffsetWidthValue OffsetWidthValue::fromValue(Value *V) {
 }
 
 bool OffsetWidthValue::isMsbOf(const llvm::Value *v) const {
-	return width == 1 && value == v
-			&& offset == v->getType()->getIntegerBitWidth() - 1;
+	if (width == 1) {
+		if (value == v && offset == v->getType()->getIntegerBitWidth() - 1) {
+			// this is an extract of msb from v
+			return true;
+		}
+		if (auto vAsSExt = dyn_cast<SExtInst>(v)) {
+			auto srcV = vAsSExt->getOperand(0);
+			if (value == v && offset >= srcV->getType()->getIntegerBitWidth() - 1) {
+				// this is an extract of msb from SExt
+				return true;
+			} else if (value == srcV && offset == srcV->getType()->getIntegerBitWidth() - 1) {
+				// this is an extract of msb directly from srcV operand of v which is SExtInst
+				return true;
+			}
+		} else {
+			auto vOWV = OffsetWidthValue::fromValue(const_cast<Value*>(v));
+			if (value == vOWV.value && offset == vOWV.offset + vOWV.width - 1) {
+				// the v itself is some sort of extract from same vector and msb is same bit as this
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 bool OffsetWidthValue::isIdentity() const {
@@ -143,6 +164,7 @@ void ConcatMemberVector::push_back_flattened(Value *operand) {
 	}
 	push_back(OffsetWidthValue::fromValue(operand));
 }
+
 
 bool ConcatMemberVector::isLsbBitsOf(const ConcatMemberVector &other) const {
 	auto thisIt = members.begin();
