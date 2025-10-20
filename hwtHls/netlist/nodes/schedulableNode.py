@@ -84,7 +84,7 @@ class SchedulableNode():
         self.scheduledOut = None
 
     def moveSchedulingTime(self, offset: SchedTime):
-        assert offset != 0, "If offset is 0 this is useless to call"
+        assert offset != 0, ("If offset is 0 this is useless to call", self)
         self.scheduledZero += offset
         if self.scheduledZeroMin is not None:
             assert self.scheduledZero >= self.scheduledZeroMin, (self, self.scheduledZero, '>=', self.scheduledZeroMin)
@@ -95,6 +95,7 @@ class SchedulableNode():
         self.scheduledOut = tuple(t + offset for t in self.scheduledOut)
 
     def _setScheduleZeroTimeSingleClock(self, t: SchedTime):
+        assert not self.isMulticlock, self
         assert isinstance(t, SchedTime), t
         assert self.scheduledZero != t, (self, t, "If time is the same this is useless to call")
         if self.scheduledZeroMin is not None:
@@ -149,7 +150,8 @@ class SchedulableNode():
 
     @staticmethod
     def _schedulerJumpToPrevCycleIfRequired(time: Union[float, SchedTime], requestedTime: SchedTime,
-                                            clkPeriod: SchedTime, timeSpacingBeforeClkEnd: SchedTime) -> SchedTime:
+                                            clkPeriod: SchedTime,
+                                            timeSpacingBeforeClkEnd: SchedTime) -> SchedTime:
         prevClkEndTime = indexOfClkPeriod(time, clkPeriod) * clkPeriod
         if requestedTime < prevClkEndTime:
             # must shift whole node sooner in time because the input of input can not be satisfied
@@ -238,7 +240,9 @@ class SchedulableNode():
                     # now we have times when the value is available on input
                     # and we must resolve the minimal time so each input timing constraints are satisfied
                     nodeZeroTime = beginOfFirstClk
-                    for (availableInTime, inWireLatency, inputClkTickOffset) in zip(inputTimes, self.inputWireDelay, self.inputClkTickOffset):
+                    for (availableInTime, inWireLatency, inputClkTickOffset) in zip(inputTimes,
+                                                                                    self.inputWireDelay,
+                                                                                    self.inputClkTickOffset):
                         if inWireLatency >= clkPeriod:
                             raise TimeConstraintError(
                                 "Impossible scheduling, clkPeriod too low for ",
@@ -280,7 +284,7 @@ class SchedulableNode():
         if self.isMulticlock:
             yield from self.scheduleAlapCompactionMultiClock(endOfLastClk, outputMinUseTimeGetter, excludeNode)
             return
-       
+
         # assert not self.isMulticlock, (self, "this node should use scheduleAlapCompactionMultiClock instead")
         # assert self.usedBy, ("Compaction should be called only for nodes with dependencies, others should be moved only manually", self)
         netlist = self.netlist
@@ -355,9 +359,11 @@ class SchedulableNode():
                 # We can not move this node because it would potentially move whole circuit which would eventually result
                 # in an endless cycle in scheduling
                 raise TimeConstraintError(
-                       "Can not be scheduled sooner then current best ALAP time because otherwise time should have been kept", self, self.scheduledZero, nodeZeroTime)
+                       "Can not be scheduled sooner then current best ALAP time,"
+                       " because otherwise time should have been kept", self, self.scheduledZero, nodeZeroTime)
 
             self._setScheduleZeroTimeSingleClock(nodeZeroTime)
+            # self.checkScheduling()
 
             for dep in self.dependsOn:
                 yield dep.obj
@@ -365,7 +371,7 @@ class SchedulableNode():
     def scheduleAlapCompactionMultiClock(self, endOfLastClk: SchedTime,
                                          outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter],
                                          excludeNode: Optional[Callable[[Self], bool]])\
-                                          -> Generator["HlsNetNode", None, None]:
+                                          ->Generator["HlsNetNode", None, None]:
         """
         Move node to a later time if possible. Netlist is expected to be scheduled.
         This allows to move trees of nodes to later times and allow for possibly better fit of nodes
@@ -387,7 +393,10 @@ class SchedulableNode():
         else:
             # move back in time to satisfy all output timing requirements
             nodeZeroTime = inf
-            for out, uses, oDelay, oTicks in zip(self._outputs, self.usedBy, self.outputWireDelay, self.outputClkTickOffset):
+            for out, uses, oDelay, oTicks in zip(self._outputs,
+                                                 self.usedBy,
+                                                 self.outputWireDelay,
+                                                 self.outputClkTickOffset):
                 # find earliest time where this output is used
                 if uses:
                     oT = inf
