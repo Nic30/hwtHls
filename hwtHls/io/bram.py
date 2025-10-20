@@ -263,7 +263,9 @@ class HlsReadBram(HlsReadAddressed):
                  hwIOName: Optional[str]=None):
 
         if isinstance(src, MultiPortGroup):
-            src = MultiPortGroup(i for i in src if i.HAS_R)
+            _src = MultiPortGroup(i for i in src if i.HAS_R)
+            if len(_src) != len(src):
+                src = _src  # reuse original object if all have HAS_R
             if len(src) == 1:
                 src = src[0]
             else:
@@ -295,7 +297,9 @@ class HlsWriteBram(HlsWriteAddressed):
             mayBecomeFlushable=True):
 
         if isinstance(dst, MultiPortGroup):
-            dst = MultiPortGroup(i for i in dst if i.HAS_W)
+            _dst = MultiPortGroup(i for i in dst if i.HAS_W)
+            if len(_dst) != len(dst):
+                dst = _dst  # resuse original object if all have HAS_W
             if len(dst) == 1:
                 dst = dst[0]
             else:
