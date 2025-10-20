@@ -20,6 +20,7 @@ from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.fsmStateEn import HlsNetNodeFsmStateEn, \
     HlsNetNodeStageAck
+from hwtHls.netlist.nodes.fsmStateWrite import HlsNetNodeFsmStateWrite
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
@@ -33,8 +34,6 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod, \
     offsetInClockCycle, timeUntilClkEnd
 from hwtHls.platform.fileUtils import OutputStreamGetter
-from hwtHls.netlist.nodes.fsmStateWrite import HlsNetNodeFsmStateWrite
-
 
 COLOR_INPUT_READ = "LightGreen"
 COLOR_OUTPUT_WRITE = "LightBlue"
@@ -74,6 +73,7 @@ class HwtHlsNetlistToGraphviz():
         self.name = name
         self.allNodes = SetList(nodes)
         self.graph = pydot.Dot(f'"{name}"')
+        self.graph.set("rankdir", "LR")
         self.obj_to_node: Dict[HlsNetNode, pydot.Node] = {}
         self.nodeCounter = 0
         self.expandAggregates = expandAggregates
@@ -158,6 +158,7 @@ class HwtHlsNetlistToGraphviz():
                 label = f"{parent.__class__.__name__} {parent._id:d} {self._formatNodeScheduleTime(parent)}{' ' + parent.name if parent.name else ''}"
                 elmClusterName = f"n{self._getNewNodeId()}"
                 clusterNode = pydot.Cluster(elmClusterName, label=f'"{html.escape(label)}"')
+
                 g, ordringIn, orderingOut = self._getGraph(parent)
                 g.add_subgraph(clusterNode)
                 parentCluster[parent] = (clusterNode, None, None)
@@ -295,7 +296,7 @@ class HwtHlsNetlistToGraphviz():
                     outerTime = None
                 else:
                     outerTime = node.parent.scheduledIn[node.parentIn.in_i]
-                
+
             elif isinstance(node, HlsNetNodeAggregatePortOut):
                 if node.parent.scheduledOut is None:
                     outerTime = None
@@ -583,15 +584,23 @@ class HwtHlsNetlistToGraphviz():
             label = f"{obj.__class__.__name__} {obj._id:d}{self._formatNodeScheduleTime(obj)}"
 
         buff.append(f'            <tr><td colspan="2">{html.escape(label):s}</td></tr>\n')
-        if isinstance(obj, (HlsNetNodeWriteForwardedge, HlsNetNodeWriteBackedge)):
-            if obj._loopChannelGroup is not None:
-                buff.append(f'            <tr><td colspan="2">{html.escape(repr(obj._loopChannelGroup))}</td></tr>\n')
+        if isinstance(obj, HlsNetNodeWrite):
+            if isinstance(obj, (HlsNetNodeWriteForwardedge, HlsNetNodeWriteBackedge)):
+                if obj._loopChannelGroup is not None:
+                    buff.append(f'            <tr><td colspan="2">{html.escape(repr(obj._loopChannelGroup))}</td></tr>\n')
 
-            if isinstance(obj, HlsNetNodeWriteBackedge):
-                obj: HlsNetNodeWriteBackedge
-                if obj.associatedRead.channelInitValues:
-                    initValuesStr = html.escape(repr(obj.associatedRead.channelInitValues))
+            buffCap = obj._getBufferCapacity() if obj.associatedRead and (obj.scheduledZero is not None or obj._bufferCapacity) else 0
+            if obj.associatedRead is not None and obj.associatedRead.channelInitValues:
+                initValuesStr = html.escape(repr(obj.associatedRead.channelInitValues))
+                if buffCap:
+                    buff.append(f'            <tr><td colspan="2">buffCap={buffCap:d}, init:{initValuesStr:s}</td></tr>\n')
+                else:
                     buff.append(f'            <tr><td colspan="2">init:{initValuesStr:s}</td></tr>\n')
+            elif buffCap or obj._isFlushable or obj._mayBecomeFlushable:
+                flushInfo = (" isFlushable" if obj._isFlushable else
+                             " mayBecomeFlushable" if obj._mayBecomeFlushable else
+                             "")
+                buff.append(f'            <tr><td colspan="2">buffCap={buffCap:d}{flushInfo:s}</td></tr>\n')
 
         # if useInputConstRow:
         #    assert len(constInputRows) == len(input_rows)
@@ -692,7 +701,7 @@ class HlsNetlistAnalysisPassDumpIoClustersDot(HlsNetlistAnalysisPassDumpNodesDot
     def getNodes(self, netlist: HlsNetlistCtx):
         return (n for n in super(HlsNetlistAnalysisPassDumpIoClustersDot, self).getNodes(netlist)
                  if isinstance(n, HlsNetNodeExplicitSync) or
-                    (isinstance(n, HlsNetNodeOperator) and 
+                    (isinstance(n, HlsNetNodeOperator) and
                      n.operator is HwtOps.CONCAT and
                      HdlType_isVoid(n._outputs[0]._dtype)))
 
