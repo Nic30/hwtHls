@@ -206,6 +206,16 @@ void rewriteAddressSpace(llvm::IRBuilder<> &Builder,
 			CI->replaceAllUsesWith(NewCI);
 			CI->eraseFromParent();
 			NewCI->setName(Name);
+		} else if (auto addrCast = dyn_cast<AddrSpaceCastInst>(U)) {
+			if (addrCast->getType() == NewPtrTy) {
+				addrCast->replaceAllUsesWith(replacement->second);
+			} else {
+				Builder.SetInsertPoint(addrCast);
+				auto repl = Builder.CreateAddrSpaceCast(replacement->second, addrCast->getType());
+				repl->takeName(addrCast);
+				addrCast->replaceAllUsesWith(repl);
+				addrCast->eraseFromParent();
+			}
 		} else {
 			std::string errStr =
 					"NotImplemented: replaceAlUsesOfPointerWithPotentiallyChangedAddressSpace ";
@@ -216,6 +226,7 @@ void rewriteAddressSpace(llvm::IRBuilder<> &Builder,
 	}
 }
 
+// :note: may return nullptr if the metadata is discarded
 llvm::MDNode* recursivelyUpdateMetadataIoArgIndexes(llvm::MDNode *md,
 		llvm::ArrayRef<std::string> mdNamesToUpdate,
 		llvm::ArrayRef<std::optional<size_t>> oldArgToNewArgIndex) {
