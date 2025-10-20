@@ -2,6 +2,7 @@
 
 #include <llvm/IR/Function.h>
 #include <llvm/IR/IRBuilder.h>
+#include <hwtHls/llvm/Transforms/utils/metadataHwtHlsIO.h>
 
 namespace hwtHls {
 
@@ -38,9 +39,9 @@ protected:
 
 public:
 	static StreamChannelFormatInfo parseMetadata(llvm::Argument &ioArg,
-			llvm::MDTuple *streamIoMd);
+			bool isOutput, llvm::MDTuple *streamIoMd);
 	static std::optional<StreamChannelFormatInfo> findOptionalInMetadata(
-			llvm::MDNode &hwtHls_streamIoMD, llvm::Argument &ioArg);
+			llvm::Argument &ioArg);
 	static StreamChannelFormatInfo findInMetadata(llvm::Argument &ioArg);
 	static std::vector<StreamChannelFormatInfo> parseAllMetadata(
 			llvm::Function &F);
@@ -73,6 +74,8 @@ public:
 	// word used for native communication using this stream, it is composed of segmentTy in a way described
 	// in doc of this class :class:`StreamChannelFormatInfo`
 	llvm::IntegerType *wordTy;
+
+	static const std::string METADATA_NAME;
 
 	// get number of bus words required to transfer "width" number of bits with specified offset
 	size_t _getBusWordCntForChunk(size_t offset, size_t width) const;

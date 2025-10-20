@@ -33,6 +33,9 @@ static StringRef MDTuple_getOperandAsStr(const MDTuple *metaTuple, size_t opI) {
 	return CM->getString();
 }
 
+const std::string StreamChannelFormatInfo::METADATA_NAME =
+		"hwtHls.io.protocol.stream";
+
 size_t StreamChannelFormatInfo::FramingSignalizationEconding_getWidth(
 		FramingSignalizationEconding v) {
 	switch (v) {
@@ -342,12 +345,94 @@ llvm::Value* StreamChannelFormatInfo::streamReadGetEoF(
 	return CreateBitRangeGetConst(&Builder, r, scfi.getOffsetOfEoF(), 1);
 }
 
+llvm::Value* StreamChannelFormatInfo::streamReadGetData(
+		llvm::IRBuilderBase &Builder, llvm::CallInst *r) const {
+	auto dw = streamReadGetOrigChunkBitWidth(r);
+	auto scfi = resize(dw);
+	return CreateBitRangeGetConst(&Builder, r, scfi.getOffsetOfData(), dw,
+			r->getName() + ".data");
+}
+llvm::Value* StreamChannelFormatInfo::streamReadGetMask(
+		llvm::IRBuilderBase &Builder, llvm::CallInst *r) const {
+	assert(hasMask());
+	auto dw = streamReadGetOrigChunkBitWidth(r);
+	auto scfi = resize(dw);
+	return CreateBitRangeGetConst(&Builder, r, scfi.getOffsetOfMask(),
+			scfi.getWidthOfMask(), r->getName() + ".mask");
+}
+
+llvm::Value* StreamChannelFormatInfo::streamReadFindSoF(
+		llvm::CallInst *r) const {
+	assert(hasEoF());
+	auto dw = streamReadGetOrigChunkBitWidth(r);
+	auto scfi = resize(dw);
+	return SearchBitRangeGetConst(r, scfi.getOffsetOfSoF(), 1);
+}
+llvm::Value* StreamChannelFormatInfo::streamReadFindEoF(
+		llvm::CallInst *r) const {
+	assert(hasEoF());
+	auto dw = streamReadGetOrigChunkBitWidth(r);
+	auto scfi = resize(dw);
+	return SearchBitRangeGetConst(r, scfi.getOffsetOfEoF(), 1);
+}
+llvm::Value* StreamChannelFormatInfo::streamReadFindData(
+		llvm::CallInst *r) const {
+	auto dw = streamReadGetOrigChunkBitWidth(r);
+	return SearchBitRangeGetConst(r, 0, dw);
+}
+llvm::Value* StreamChannelFormatInfo::streamReadFindMask(
+		llvm::CallInst *r) const {
+	assert(hasMask());
+	auto dw = streamReadGetOrigChunkBitWidth(r);
+	auto scfi = resize(dw);
+	return SearchBitRangeGetConst(r, scfi.getOffsetOfMask(),
+			scfi.getWidthOfMask());
+}
+llvm::Value* StreamChannelFormatInfo::streamReadFindEmpty(
+		llvm::CallInst *r) const {
+	assert(hasEmpty());
+	auto dw = streamReadGetOrigChunkBitWidth(r);
+	auto scfi = resize(dw);
+	return SearchBitRangeGetConst(r, scfi.getOffsetOfEmpty(),
+			scfi.getWidthOfEmpty());
+}
+
+llvm::Value* StreamChannelFormatInfo::streamReadGetEnable(
+		llvm::IRBuilderBase &Builder, llvm::CallInst *r) const {
+	assert(hasEnable());
+	auto dw = streamReadGetOrigChunkBitWidth(r);
+	auto scfi = resize(dw);
+	return CreateBitRangeGetConst(&Builder, r, scfi.getOffsetOfEnable(), 1,
+			r->getName() + ".enable");
+}
+
 llvm::Value* StreamChannelFormatInfo::streamReadGetError(
 		llvm::IRBuilderBase &Builder, llvm::CallInst *r) const {
 	auto dw = streamReadGetOrigChunkBitWidth(r);
 	auto scfi = resize(dw);
 	return CreateBitRangeGetConst(&Builder, r, scfi.getOffsetOfError(), 1); // msb
 }
+
+llvm::Value* StreamChannelFormatInfo::CreateExtractSegmentValue(
+		llvm::IRBuilderBase &Builder, llvm::Value *allSegmentValue,
+		size_t segmentIndex) const {
+	if (segmentCnt == 1)
+		return allSegmentValue;
+	auto data = CreateBitRangeGetConst(&Builder, allSegmentValue,
+			segmentIndex * dataWidth, dataWidth);
+	SmallVector<Value*, 2> segmentValParts;
+	segmentValParts.push_back(data);
+
+	assert(segmentTy->getBitWidth() >= dataWidth);
+	auto otherSigsWidth = segmentTy->getBitWidth() - dataWidth;
+	if (otherSigsWidth > 0) {
+		auto otherSigs = CreateBitRangeGetConst(&Builder, allSegmentValue,
+				segmentIndex * otherSigsWidth, otherSigsWidth);
+		segmentValParts.push_back(otherSigs);
+	}
+	return CreateBitConcat(&Builder, segmentValParts);
+}
+
 bool StreamChannelFormatInfo::isStreamReadEoF(const llvm::CallInst *read,
 		llvm::Value *EoF) const {
 	if (!hasEoF())
@@ -386,25 +471,29 @@ void StreamChannelFormatInfo::initWordTySegmentTy() {
 }
 
 StreamChannelFormatInfo StreamChannelFormatInfo::parseMetadata(
-		llvm::Argument &ioArg, llvm::MDTuple *streamIoMd) {
+		llvm::Argument &ioArg, bool isOutput, llvm::MDTuple *streamIoMd) {
 	StreamChannelFormatInfo props(ioArg);
-	assert(MDTuple_getOperandAsU64(streamIoMd, 0) == ioArg.getArgNo());
-	if (streamIoMd->getNumOperands() != 9)
-		throw std::runtime_error("hwtHls.streamIo: expects tuple with 9 items");
-	props.isOutput = MDTuple_getOperandAsU64(streamIoMd, 1);
-	props.dataWidth = MDTuple_getOperandAsU64(streamIoMd, 2);
-	props.byteWidth = MDTuple_getOperandAsU64(streamIoMd, 3);
+	if (streamIoMd->getNumOperands() != 8)
+		throw std::runtime_error(
+				"hwtHls.io.protocol.stream: expects tuple with 8 items");
+	if (!streamIoMd->getOperand(0).equalsStr(METADATA_NAME))
+		throw std::runtime_error(
+				"hwtHls.io.protocol.stream: first operand to be its name");
+
+	props.isOutput = isOutput;
+	props.dataWidth = MDTuple_getOperandAsU64(streamIoMd, 1);
+	props.byteWidth = MDTuple_getOperandAsU64(streamIoMd, 2);
 	if (props.dataWidth <= 0) {
 		throw std::runtime_error(
-				"hwtHls.streamIo: DataWidth of a stream must be > 0");
+				"hwtHls.io.protocol.stream: DataWidth of a stream must be > 0");
 	}
 	if (props.dataWidth % props.byteWidth != 0) {
 		throw std::runtime_error(
-				"hwtHls.streamIo: DataWidth must by divisible by byteWidth of a stream "
+				"hwtHls.io.protocol.stream: DataWidth must by divisible by byteWidth of a stream "
 						+ std::to_string(props.dataWidth) + " byteWidth:"
 						+ std::to_string(props.byteWidth));
 	}
-	auto beEnc = MDTuple_getOperandAsStr(streamIoMd, 4);
+	auto beEnc = MDTuple_getOperandAsStr(streamIoMd, 3);
 	if (beEnc == "mask") {
 		props.byteEnableEncoding = ByteEnableEncoding::BEE_MASK;
 	} else if (beEnc == "enable+empty") {
@@ -413,11 +502,11 @@ StreamChannelFormatInfo StreamChannelFormatInfo::parseMetadata(
 		props.byteEnableEncoding = ByteEnableEncoding::BEE_NONE;
 	} else {
 		throw std::runtime_error(
-				("hwtHls.streamIo: Invalid value for byte enable encoding of a stream: "
+				("hwtHls.io.protocol.stream: Invalid value for byte enable encoding of a stream: "
 						+ beEnc).str());
 	}
-	props.supportZLP = MDTuple_getOperandAsU64(streamIoMd, 5);
-	auto framingEnc = MDTuple_getOperandAsStr(streamIoMd, 6);
+	props.supportZLP = MDTuple_getOperandAsU64(streamIoMd, 4);
+	auto framingEnc = MDTuple_getOperandAsStr(streamIoMd, 5);
 	if (framingEnc == "sof+eof") {
 		props.framingEncoding = FramingSignalizationEconding::FRAMING_SOF_EOF;
 	} else if (framingEnc == "eof") {
@@ -429,61 +518,55 @@ StreamChannelFormatInfo StreamChannelFormatInfo::parseMetadata(
 				("Invalid value for framing encoding of a stream: " + framingEnc).str());
 	}
 
-	props.errorWidth = MDTuple_getOperandAsU64(streamIoMd, 7);
-	props.segmentCnt = MDTuple_getOperandAsU64(streamIoMd, 8);
+	props.errorWidth = MDTuple_getOperandAsU64(streamIoMd, 6);
+	props.segmentCnt = MDTuple_getOperandAsU64(streamIoMd, 7);
 	props.initWordTySegmentTy();
 	return props;
 }
 
 std::optional<StreamChannelFormatInfo> StreamChannelFormatInfo::findOptionalInMetadata(
-		llvm::MDNode &hwtHls_streamIoMD, llvm::Argument &ioArg) {
-	for (auto &_metaTuple : hwtHls_streamIoMD.operands()) {
-		auto metaTuple = dyn_cast<MDTuple>(_metaTuple.get());
-		assert(metaTuple);
-		auto argI = MDTuple_getOperandAsU64(metaTuple, 0);
-		if (argI == ioArg.getArgNo()) {
-			auto props = StreamChannelFormatInfo::parseMetadata(ioArg,
-					metaTuple);
-			return props;
-		}
-	}
-	return {};
+		llvm::Argument &ioArg) {
+	auto _md = HwtHlsIoMetadata_get(*ioArg.getParent(), ioArg.getArgNo());
+	if (!_md.has_value())
+		return {};
+	if (!ioMetadataHasStreamMetadata(_md.value()))
+		return {};
+	bool isOut = _md.value().direction == IODirection::IO_DIR_OUT;
+	auto props = StreamChannelFormatInfo::parseMetadata(ioArg, isOut,
+			_md.value().ioProtocolMd);
+	return props;
 }
 
 StreamChannelFormatInfo StreamChannelFormatInfo::findInMetadata(
 		llvm::Argument &ioArg) {
-	auto &F = *ioArg.getParent();
-	auto *md = F.getMetadata("hwtHls.streamIo");
-	if (!md) {
-		throw std::runtime_error(
-				"function is missing hwtHls.streamIo metadata");
-	}
-	auto found = findOptionalInMetadata(*md, ioArg);
+	auto found = findOptionalInMetadata(ioArg);
 	if (found.has_value()) {
 		return found.value();
 	} else {
 		throw std::runtime_error(
-				"hwtHls.streamIo is missing is missing record for ioArg");
+				"HwtHlsIoMetadata streamIoMd is missing is missing record for ioArg");
 	}
 }
 
 std::vector<StreamChannelFormatInfo> StreamChannelFormatInfo::parseAllMetadata(
 		llvm::Function &F) {
 	std::vector<StreamChannelFormatInfo> res;
-	auto *md = F.getMetadata("hwtHls.streamIo");
-	if (!md) {
-		return res;
-	}
-	for (auto &_metaTuple : md->operands()) {
-		auto metaTuple = dyn_cast<MDTuple>(_metaTuple.get());
-		assert(metaTuple);
-		auto argI = MDTuple_getOperandAsU64(metaTuple, 0);
+	auto ioMds = HwtHlsIoMetadata_get(F);
+	size_t argI = 0;
+	for (auto &md : ioMds) {
+		if (!md.ioProtocolMd || //
+				md.ioProtocolMd->getNumOperands() == 0 || //
+				!md.ioProtocolMd->getOperand(0).equalsStr(
+						StreamChannelFormatInfo::METADATA_NAME))
+			continue;
 		if (argI >= F.arg_size())
 			throw std::runtime_error(
-					"hwtHls.streamIo metadata specifies the argument which is not present on function");
+					"HwtHlsIoMetadata specifies the argument which is not present on function");
 		auto &srcArg = *(F.arg_begin() + argI);
-		auto props = StreamChannelFormatInfo::parseMetadata(srcArg, metaTuple);
+		auto props = StreamChannelFormatInfo::parseMetadata(srcArg, md.isOut(),
+				md.ioProtocolMd);
 		res.push_back(props);
+		argI++;
 	}
 	return res;
 }
@@ -496,6 +579,14 @@ StreamChannelFormatInfo StreamChannelFormatInfo::resize(
 		res.supportZLP = newSupportZLP.value();
 	res.initWordTySegmentTy();
 	return res;
+}
+
+bool StreamChannelFormatInfo::ioMetadataHasStreamMetadata(
+		HwtHlsIoMetadata &md) {
+	return md.ioProtocolMd && //
+			md.ioProtocolMd->getNumOperands() > 1 && //
+			md.ioProtocolMd->getOperand(0).equalsStr(
+					StreamChannelFormatInfo::METADATA_NAME);
 }
 
 }
