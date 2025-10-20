@@ -2,6 +2,7 @@
 // HwtFpga Instruction list
 // note that this is a list of special instructions and generic G_* instructions are inherited.
 //===----------------------------------------------------------------------===//
+// :attention: when updating this, you may want to also update the HwtFpgaInstrInfo, typically HwtFpgaInstrInfo::isPredicable
 
 // base class for HwtFpga instructions, for full option list :see: Instruction definition at llvm/Target/Target.td
 class HwtFpgaInst<
@@ -137,7 +138,7 @@ let mayLoad = 1, canFoldAsLoad=1, hasSideEffects = 0, isPredicable = 0, isNotDup
 	// :attention: this is not predicated instruction because dst is always modified
 	def HWTFPGA_CLOAD : HwtFpgaInst<
 	    (outs anyregcls:$dst),
-	    (ins anyregcls:$baseaddr, unknown: $index, i64imm:$dstWidth, unknown:$cond),
+	    (ins anyregcls:$baseaddr, unknown: $index, i64imm:$dstWidth, unknown:$cond), // :note: cond is Imm or Reg
 	    []>; // no pattern because we match in C++
 }
 
@@ -145,7 +146,7 @@ let mayLoad = 0, mayStore = 1, hasSideEffects = 0, isPredicable = 1, isNotDuplic
 	// conditional store
 	def HWTFPGA_CSTORE : HwtFpgaInst<
 	    (outs),
-	    (ins anyregcls:$val, anyregcls:$addr, unknown: $index, i64imm:$valWidth, unknown:$cond),
+	    (ins anyregcls:$val, anyregcls:$addr, unknown: $index, i64imm:$valWidth, unknown:$cond), // :note: cond is Imm or Reg
 	    []>; // no pattern because we match in C++
 }
 // return from a function, if this is a top function the whole circuit execution is halted
