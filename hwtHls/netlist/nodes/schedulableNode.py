@@ -154,11 +154,11 @@ class SchedulableNode():
                                             timeSpacingBeforeClkEnd: SchedTime) -> SchedTime:
         prevClkEndTime = indexOfClkPeriod(time, clkPeriod) * clkPeriod
         if requestedTime < prevClkEndTime:
-            # must shift whole node sooner in time because the input of input can not be satisfied
+            # must shift whole node sooner in time because the input  time of the input can not be satisfied
             # in a clock cycle where the input is currently scheduled
-            time = prevClkEndTime - timeSpacingBeforeClkEnd
+            requestedTime = prevClkEndTime - timeSpacingBeforeClkEnd
 
-        return time
+        return requestedTime
 
     @staticmethod
     def _schedulerGetNormalizedTimeForInput(availableInTime: SchedTime, inWireLatency: SchedTime,
@@ -309,14 +309,17 @@ class SchedulableNode():
                     # find earliest time where this output is used
                     for dependentIn in uses:
                         dependentIn: HlsNetNodeIn
-                        iT = dependentIn.obj.scheduledIn[dependentIn.in_i]
+                        inpTime = dependentIn.obj.scheduledIn[dependentIn.in_i]
                         if curZero is not None:
-                            assert iT >= curZero, (iT, curZero, self.scheduledOut[out.out_i], "Output time violates input arrival time.", out, dependentIn)
-                        zeroTFromInput = iT - outWireLatency
-                        zeroTFromInput = self._schedulerJumpToPrevCycleIfRequired(
-                            iT, zeroTFromInput, clkPeriod, ffdelay + outWireLatency) - outWireLatency
-                        # zeroTFromInput is in previous clk ffdelay + outWireLatency from the end
-                        oZeroT = min(oZeroT, zeroTFromInput)
+                            assert inpTime >= curZero, (inpTime, curZero, self.scheduledOut[out.out_i],
+                                                        "Current output time violates input arrival time.", out, dependentIn)
+                        zeroTFromUserInput = inpTime - outWireLatency
+                        # if outWireLatency does not fit into space until clock end,
+                        # it should move to prev clk end + ffdelay + outWireLatency
+                        zeroTFromUserInput = self._schedulerJumpToPrevCycleIfRequired(
+                            inpTime, zeroTFromUserInput, clkPeriod, ffdelay + outWireLatency)
+                        assert inpTime >= zeroTFromUserInput, self
+                        oZeroT = min(oZeroT, zeroTFromUserInput)
                 else:
                     # there are some other uses we may skip this
                     oZeroT = inf
@@ -328,18 +331,17 @@ class SchedulableNode():
 
         maxOutputLatency = max(self.outputWireDelay, default=0)
         if isfinite(nodeZeroTime):
+            maxInDelay = max(self.inputWireDelay, default=0)
             # we have to check if every input has enough time for its delay
             # and optionally move this node to previous clock cycle
-            for in_delay in self.inputWireDelay:
-                if in_delay + ffdelay >= clkPeriod:
+            for inDelay in self.inputWireDelay:
+                if inDelay + ffdelay >= clkPeriod:
                     raise TimeConstraintError(
                         "Impossible scheduling, clkPeriod too low for ",
                         self.inputWireDelay, clkPeriod, self)
-                inTime = nodeZeroTime - in_delay
-                nodeZeroTime = self._schedulerJumpToPrevCycleIfRequired(
-                    nodeZeroTime, inTime, clkPeriod, ffdelay + maxOutputLatency)
-                # must shift whole node sooner in time because the input of input can not be satisfied
-                # in a clock cycle where the input is currently scheduled
+            inTime = nodeZeroTime - maxInDelay
+            nodeZeroTime = self._schedulerJumpToPrevCycleIfRequired(
+                nodeZeroTime, inTime, clkPeriod, maxInDelay + maxOutputLatency + ffdelay) + maxInDelay
         else:
             # no use of any output, we must use some ASAP input time and move to end of the clock
             assert self._inputs, (self, "Node must have at least some port used (or more likely it should be removed because it is useless)")
@@ -425,12 +427,7 @@ class SchedulableNode():
                         "Impossible scheduling, clkPeriod too low for ",
                         self.inputWireDelay, self.outputWireDelay, self)
                 inTime = nodeZeroTime - iDelay
-                prevClkEndTime = indexOfClkPeriod(nodeZeroTime, clkPeriod) * clkPeriod
-
-                if inTime <= prevClkEndTime:
-                    # must shift whole node sooner in time because the input of input can not be satisfied
-                    # in a clock cycle where the input is currently scheduled
-                    nodeZeroTime = indexOfClkPeriod(nodeZeroTime, clkPeriod) * clkPeriod - ffdelay - epsilon
+                nodeZeroTime = self._schedulerJumpToPrevCycleIfRequired(nodeZeroTime, inTime, clkPeriod, ffdelay - epsilon) + iDelay
 
         nodeZeroTime = self._scheduledZeroApplyLimits(nodeZeroTime, True, False)
         if nodeZeroTime > self.scheduledZero:
