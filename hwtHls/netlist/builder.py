@@ -30,7 +30,6 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.simplifyUtils import getConstOfOutput
 from pyMathBitPrecise.bit_utils import mask
 
-
 HlsNetlistBuilderOperatorCacheKey_t = Tuple[Union[HOperatorDef, Type[HlsNetNode]],
                                               Tuple[Union[HlsNetNodeOut, HConst], ...]]
 # :note: value in HlsNetlistBuilderOperatorCache_t is HlsNetNodeOperator only if node has multiple outputs
@@ -109,7 +108,9 @@ class HlsNetlistBuilder():
     def buildScheduledConstPy(cls, parent: "ArchElement", clkIndex: int, dtype: HdlType, v):
         return cls.buildScheduledConst(parent, clkIndex, dtype.from_py(v))
 
-    def _tryToFindInUseList(self, operator: HOperatorDef, operatorSpecialization:Optional[HFloatTmpConfig], operands: Tuple[HlsNetNodeOut, ...]):
+    def _tryToFindInUseList(self, operator: HOperatorDef,
+                            operatorSpecialization:Optional[HFloatTmpConfig],
+                            operands: Tuple[HlsNetNodeOut, ...]):
         """
         find operator nodes in usedBy lists of operands
         """
@@ -153,6 +154,7 @@ class HlsNetlistBuilder():
                 resT: HdlType,
                 *operands: Tuple[Union[HlsNetNodeOut, HConst], ...],
                 name:Optional[str]=None) -> HlsNetNodeOut:
+        assert operator is not None
         assert operator not in {HwtOps.DIV, HwtOps.GT, HwtOps.GE, HwtOps.LT, HwtOps.LE}, ("Signed or unsigned variant should be used instead", operator, operands)
         assert operator not in CAST_OPS, ("Internally there is no cast required", operator, operands)
         assert isinstance(resT, HdlType) and (not isinstance(resT, HBits) or not resT.signed), ("Only unsigned should be used internally", resT)
@@ -632,7 +634,7 @@ class HlsNetlistBuilder():
         if isinstance(v, HConst):
             raise NotImplementedError(v)
         else:
-            resBits = []
+            resBits = []  # msb first
             for i in reversed(range(v._dtype.bit_length())):
                 b = self.buildIndexConst(BIT, v, i + 1, i, worklist)
                 resBits.append(b)
@@ -675,6 +677,20 @@ class HlsNetlistBuilder():
             t = HBits(w)
 
         return self.buildOp(HwtOps.CONCAT, operatorSpecialization, t, *lsbToMsbOps, name=name)
+
+    def buildTrunc(self, a: Union[HlsNetNodeOut, HConst], newWidth: int, name:Optional[str]=None):
+        curWidth = a._dtype.bit_length()
+        if newWidth == curWidth:
+            return a
+        assert newWidth < curWidth, (a, curWidth, newWidth)
+        return self.buildIndexConst(HBits(newWidth), a, newWidth, 0, name=name)
+
+    def buildTruncOrZExt(self, a: Union[HlsNetNodeOut, HConst], newWidth: int, name:Optional[str]=None):
+        curWidth = a._dtype.bit_length()
+        if curWidth < newWidth:
+            return self.buildZExt(a, newWidth)
+        else:
+            return self.buildTrunc(a, newWidth, name)
 
     def buildZExt(self, a:Union[HlsNetNodeOut, HConst], newWidth: int,
                   operatorSpecialization:Optional[HFloatTmpConfig]=None):
@@ -926,7 +942,7 @@ class HlsNetlistBuilder():
             # and the operator node becomes something which already exits
             self.operatorCache.pop(k)
 
-    def registerNode(self, n):
+    def registerNode(self, n: HlsNetNode):
         if isinstance(n, HlsNetNodeOperator):
             self.registerOperatorNode(n)
 
