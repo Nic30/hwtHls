@@ -93,16 +93,82 @@ class SyncLogicExtractor():
                 u.disconnectFromHlsOut(o)
                 newO.connectHlsIn(u, checkParent=False)  # can not check parent because some nodes may not yet be transfered
 
-    @staticmethod
-    def _reconstructNetlistBuilderOperatorCache(parent: ArchElementNoImplicitSync):
+    def _reconstructNetlistBuilderOperatorCache(self, parent: ArchElementNoImplicitSync):
+        # initial chek that primaryInputs/primaryOutputs do not contain any port of removed node
+        for oList in (self.syncLogicSearch.primaryInputs, self.syncLogicSearch.primaryOutputs):
+            for (o, _) in oList:
+                if isinstance(o, HlsNetNodeOut):
+                    assert not o.obj._isMarkedRemoved, o
+                else:
+                    assert not o[0]._isMarkedRemoved, o
+
         builder: HlsNetlistBuilder = parent.builder
         # update builder operatorCache so it reuses nodes
         builder.operatorCache.clear()
 
-        rehasher = _ExprRehasher(SetList(), builder, set())
+        rehasher = _ExprRehasher(SetList(), builder, set(), replacedOutputs={})
         rehasher.rehashNodes(parent.subNodes)
         if builder._removedNodes:
             parent.filterNodesUsingRemovedSet(recursive=False)
+
+        # primaryOutputs: SetList[tuple[HlsNetNodeOut, ArchSyncNodeTy]]
+        replacedOutputsGet = rehasher.replacedOutputs.get
+        newOuts: list[tuple[HlsNetNodeOut, ArchSyncNodeTy]] = []
+        assert len(self.syncLogicSearch.primaryOutputs) == len(self._newPrimaryOutputs), (
+            len(self.syncLogicSearch.primaryOutputs), len(self._newPrimaryOutputs))
+
+        parentElm = self.parentElm
+        builder = parentElm.getHlsNetlistBuilder()
+        poToNewPrimaryOutputs: dict[tuple[HlsNetNodeOut, ArchSyncNodeTy], HlsNetNodeIn] = {}
+        newPrimaryOutputs: list[HlsNetNodeIn] = []
+        for (o, sn), aggrPortInOfOutput in zip(self.syncLogicSearch.primaryOutputs, self._newPrimaryOutputs):
+            o: HlsNetNodeOut
+            sn: ArchSyncNodeTy
+            newO = replacedOutputsGet(o)
+            while newO is not None:
+                o = newO
+                newO = replacedOutputsGet(o)
+
+            if isinstance(o, HlsNetNodeOut):
+                assert not o.obj._isMarkedRemoved, o
+            else:
+                assert not o[0]._isMarkedRemoved, o
+
+            oTuple = (o, sn)
+            newOuts.append(oTuple)
+            curPOIn = poToNewPrimaryOutputs.get(oTuple)
+            if curPOIn is None:
+                poToNewPrimaryOutputs[oTuple] = aggrPortInOfOutput
+                newPrimaryOutputs.append(aggrPortInOfOutput)
+            else:
+                # this output port from sync logic was just resolved to be equal some other output
+                # remove duplicit output whish was previously created for this output
+                # termPropagationCtx.importedPorts.pop(ArchSyncNodeTerm(dstNode, _out, None))
+                curOutOfAggregate: HlsNetNodeAggregatePortOut = aggrPortInOfOutput.obj
+                # replace with the output for equivalent output port from sync logic
+                builder.replaceOutput(curOutOfAggregate.parentOut, curPOIn.obj.parentOut, True)
+                parentElm._removeOutput(curOutOfAggregate.parentOut.out_i)
+
+        self.syncLogicSearch.primaryOutputs[:] = newOuts
+        assert len(self.syncLogicSearch.primaryOutputs) <= len(newOuts)  # some PO may be resolved to be some other PO
+        self._newPrimaryOutputs = newPrimaryOutputs
+
+        # primaryInputsReplacedByNegationOf: dict[tuple[HlsNetNodeOut, int], tuple[HlsNetNodeOut, int]]
+        newPrimaryInputsReplacedByNegationOf: dict[tuple[HlsNetNodeOut, int], tuple[HlsNetNodeOut, int]] = {}
+        for (kO, kClkI), (vO, vClkI) in self.syncLogicSearch.primaryInputsReplacedByNegationOf.items():
+            kO: HlsNetNodeOut
+            vO: HlsNetNodeOut
+            newKO = replacedOutputsGet(kO)
+            while newKO is not None:
+                kO = newKO
+                newKO = replacedOutputsGet(kO)
+
+            newVO = replacedOutputsGet(vO)
+            while newVO is not None:
+                vO = newVO
+                newVO = replacedOutputsGet(vO)
+            newPrimaryInputsReplacedByNegationOf[(kO, kClkI)] = (vO, vClkI)
+        self.syncLogicSearch.primaryInputsReplacedByNegationOf[:] = newPrimaryInputsReplacedByNegationOf
 
     def _extractHlsNetNodeAggregatePortIn(self, n: HlsNetNodeAggregatePortIn,
                                           clkIndex: int,
