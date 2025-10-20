@@ -22,14 +22,14 @@ from pyMathBitPrecise.bit_utils import to_unsigned
 
 class LlvmIrExprToHlsNetlist():
     OPS_MAP = {
-        Instruction.And: HwtOps.AND,
-        Instruction.Or: HwtOps.OR,
-        Instruction.Xor: HwtOps.XOR,
-        Instruction.Add: HwtOps.ADD,
-        Instruction.Sub: HwtOps.SUB,
-        Instruction.Mul: HwtOps.MUL,
-        Instruction.SDiv: HwtOps.SDIV,
-        Instruction.UDiv: HwtOps.UDIV,
+        Instruction.BinaryOps.And: HwtOps.AND,
+        Instruction.BinaryOps.Or: HwtOps.OR,
+        Instruction.BinaryOps.Xor: HwtOps.XOR,
+        Instruction.BinaryOps.Add: HwtOps.ADD,
+        Instruction.BinaryOps.Sub: HwtOps.SUB,
+        Instruction.BinaryOps.Mul: HwtOps.MUL,
+        Instruction.BinaryOps.SDiv: HwtOps.SDIV,
+        Instruction.BinaryOps.UDiv: HwtOps.UDIV,
     }
 
     def __init__(self, builder: HlsNetlistBuilder):
@@ -139,8 +139,8 @@ class LlvmIrExprToHlsNetlist():
                     bi: BinaryOperator
                     _op0, _op1 = bi.iterOperandValues()
                     op0 = self._translateExpr(_op0)
-                    opc = bi.getOpcode()
-                    if opc == Instruction.Xor:
+                    opc = Instruction.BinaryOps(bi.getOpcode())
+                    if opc == Instruction.BinaryOps.Xor:
                         op1c = ValueToConstantInt(_op1)
                         if op1c is not None:
                             if int(op1c.getValue()) == -1:
@@ -215,20 +215,20 @@ class LlvmIrExprToHlsNetlist():
                     ii = InstructionToIntrinsicInst(ci)
                     if ii is not None:
                         ii: IntrinsicInst
-                        iiId = ii.getIntrinsicID()
+                        iiId = Intrinsic.IndependentIntrinsics(ii.getIntrinsicID())
                         if iiId == Intrinsic.assume:
                             v = None
+                        elif iiId == Intrinsic.umin:
+                            opV0, opV1 = (self._translateExpr(op.get()) for op in ci.args())
+                            lt = b.buildULt(opV0, opV1)
+                            v = b.buildMux(opV0._dtype, (opV0, lt, opV1), name)
+                        elif iiId == Intrinsic.umax:
+                            opV0, opV1 = (self._translateExpr(op.get()) for op in ci.args())
+                            lt = b.buildULt(opV0, opV1)
+                            v = b.buildMux(opV0._dtype, (opV1, lt, opV0), name)
                         else:
                             raise NotImplementedError(ii)
 
-                    elif fnName.startswith("llvm.umin."):
-                        opV0, opV1 = (self._translateExpr(op.get()) for op in ci.args())
-                        lt = b.buildULt(opV0, opV1)
-                        v = b.buildMux(opV0._dtype, (opV0, lt, opV1), name)
-                    elif fnName.startswith("llvm.umax."):
-                        opV0, opV1 = (self._translateExpr(op.get()) for op in ci.args())
-                        lt = b.buildULt(opV0, opV1)
-                        v = b.buildMux(opV0._dtype, (opV1, lt, opV0), name)
                     elif fnName.startswith("hwtHls.bitConcat."):
                         ops = tuple(self._translateExpr(op.get()) for op in ci.args())
                         v = b.buildConcat(*ops)
@@ -246,29 +246,29 @@ class LlvmIrExprToHlsNetlist():
 
                     varMap[i] = v
                     continue
-
-                opc = i.getOpcode()
-                if opc in (Instruction.SExt, Instruction.ZExt):
-                    opV0, = (self._translateExpr(op) for op in i.iterOperandValues())
-                    w = opV0._dtype.bit_length()
-                    t = i.getType()
-                    assert t.isIntegerTy(), i
-                    resTwidth = t.getIntegerBitWidth()
-                    if opc == Instruction.SExt:
-                        if opV0._dtype.bit_length() == 1:
-                            msb = opV0
+                if i.isCast():
+                    opc = Instruction.CastOps(i.getOpcode())
+                    if opc in (Instruction.CastOps.SExt, Instruction.CastOps.ZExt):
+                        opV0, = (self._translateExpr(op) for op in i.iterOperandValues())
+                        w = opV0._dtype.bit_length()
+                        t = i.getType()
+                        assert t.isIntegerTy(), i
+                        resTwidth = t.getIntegerBitWidth()
+                        if opc == Instruction.CastOps.SExt:
+                            if opV0._dtype.bit_length() == 1:
+                                msb = opV0
+                            else:
+                                msb = b.buildIndexConstSlice(resT, opV0, w, w - 1, [])
+                            v = b.buildConcat(opV0, *(msb for _ in range(resTwidth - w)))
                         else:
-                            msb = b.buildIndexConstSlice(resT, opV0, w, w - 1, [])
-                        v = b.buildConcat(opV0, *(msb for _ in range(resTwidth - w)))
-                    else:
-                        assert opc == Instruction.ZExt, opc
-                        v = b.buildConcat(opV0, b.buildConst(HBits(resTwidth - w).from_py(0)))
+                            assert opc == Instruction.CastOps.ZExt, opc
+                            v = b.buildConcat(opV0, b.buildConst(HBits(resTwidth - w).from_py(0)))
 
-                    name = i.getName().str()
-                    if name and v.obj.name is None:
-                        v.obj.name = name
-                    varMap[i] = v
-                    continue
+                        name = i.getName().str()
+                        if name and v.obj.name is None:
+                            v.obj.name = name
+                        varMap[i] = v
+                        continue
 
                 if InstructionToReturnInst(i) is not None:
                     break
