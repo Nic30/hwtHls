@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <llvm/IR/PatternMatch.h>
+#include <llvm/ADT/SmallPtrSet.h>
 
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/targets/intrinsic/PatternMatch.h>
@@ -675,7 +676,18 @@ llvm::Value* BitPartsRewriter::rewritePHINodeArgsIfRequired(
 
 	IRBuilder<> b(phi);
 	unsigned opI = 0;
+	SmallPtrSet<BasicBlock*, 32> updatedForBB; // phi may have block in phi args multiple times
+	// but the value must be always the same (this is common for SwitchInst jumping multiple times to this block)
 	for (BasicBlock *pred : phi->blocks()) {
+		if (updatedForBB.contains(pred)) {
+			if (newPhi != phi) {
+				Value *val = newPhi->getIncomingValueForBlock(pred);
+				newPhi->addIncoming(val, pred);
+			}
+			continue;
+		}
+		updatedForBB.insert(pred);
+
 		Value *val = phi->getIncomingValueForBlock(pred);
 		auto constr = constraints.findInConstraints(val);
 		if (constr) {
