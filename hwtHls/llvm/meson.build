@@ -136,7 +136,8 @@ py3.extension_module(
      'Analysis/mergeSetsBasedLivenessAnalysis/mergeSets.cpp',
      
      'intrinsic/metadataSideEffect.cpp',
-
+     'intrinsic/metadataWithBitrange.cpp',
+     
      'Transforms/bitwidthReducePass/bitPartsUseAnalysis.cpp',
      'Transforms/bitwidthReducePass/bitRewriter.cpp',
      'Transforms/bitwidthReducePass/bitwidthReducePass.cpp',
