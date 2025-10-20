@@ -827,6 +827,13 @@ class HlsNetlistBuilder():
 
     def replaceOutputWithConst1b(self, o: HlsNetNodeOut, updateCache: bool) -> HlsNetNodeOut:
         c = self.buildConstBit(1)
+        cNode = c.obj
+        if o.obj.scheduledOut is not None:
+            cNode.resolveRealization()
+            clkPeriod = self.netlist.normalizedClkPeriod
+            clkIndex = o.obj.scheduledOut[o.out_i] // clkPeriod
+            cNode._setScheduleZeroTimeSingleClock(clkIndex * self.netlist.normalizedClkPeriod)
+            self.parentElm._addNodeIntoScheduled(clkIndex, cNode)
         self.replaceOutput(o, c, updateCache)
         return c
 
