@@ -4,7 +4,7 @@ project(
   # https://stackoverflow.com/questions/59201214/can-the-meson-project-version-be-assigned-dynamically
   version: '0.0', # FIXME: git hash (see URL above).
   license: 'MIT',
-  meson_version: '>= 1.1.0',
+  meson_version: '>= 1.4.0',
   default_options: ['cpp_std=c++20'],
 )
 
@@ -17,7 +17,7 @@ pybind11_inc = include_directories(pybind11_inc)
 pybind11_dep = declare_dependency(
   include_directories : pybind11_inc)
 
-llvm_dep = dependency('llvm', method: 'config-tool', version : '>=18.0.0')
+llvm_dep = dependency('llvm', method: 'config-tool', version : '>=18.1.3') # '>=18.1.8'
 llvm_bin = llvm_dep.get_variable('bindir')
 llvm_includedir = llvm_dep.get_variable('includedir')
 llvm_tblgen = find_program(llvm_bin + '/llvm-tblgen', required: true)
