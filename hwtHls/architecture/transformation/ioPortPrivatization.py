@@ -84,7 +84,7 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
                     n: HlsNetNodeRead
                     n.src = None
                     assert n.associatedWrite is None
-                    inArbiterW = HlsNetNodeWrite(netlist, None, n.ioProxy, mayBecomeFlushable=False)
+                    inArbiterW = HlsNetNodeWrite(netlist, n.ioProxy, None, mayBecomeFlushable=False)
                     inArbiterW._rtlUseReady = n._rtlUseReady
                     inArbiterW._rtlUseValid = n._rtlUseValid
                     inArbiterW.associateRead(n)
@@ -105,7 +105,7 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
                     n: HlsNetNodeRead
                     n.dst = None
                     assert n.associatedRead is None
-                    inArbiterR = HlsNetNodeRead(netlist, None, n.ioProxy, t)
+                    inArbiterR = HlsNetNodeRead(netlist, n.ioProxy, None, dtype=t)
                     inArbiterR._rtlUseReady = n._rtlUseReady
                     inArbiterR._rtlUseValid = n._rtlUseValid
                     n.associateRead(inArbiterR)
@@ -174,10 +174,11 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
                 anyPrevEnabled = builder.buildOr(anyPrevEnabled, req)
 
         # construct an io node which connect to io port in arbiter
+        ioProxy = ioNodes[0].ioProxy
         if isRead:
-            newIoNode = HlsNetNodeRead(netlist, ioPort)
+            newIoNode = HlsNetNodeRead(netlist, ioProxy, ioPort, dtype=ioNodes[0]._portDataOut._dtype)
         else:
-            newIoNode = HlsNetNodeWrite(netlist, ioPort, mayBecomeFlushable=False)
+            newIoNode = HlsNetNodeWrite(netlist, ioProxy, ioPort, mayBecomeFlushable=False)
 
         newIoNode.assignRealization(OpRealizationMeta(mayBeInFFStoreTime=True))
         newIoNode._setScheduleZeroTimeSingleClock(0)
