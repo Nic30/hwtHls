@@ -7,7 +7,7 @@ bb0 [fillcolor=white, label=<
             <tr><td>IO out=[(2, 'o')]</td></tr>
             <tr><td>blockEn=&lt;HlsNetNodeOutLazy 0 bb0_en&gt;</td></tr>
             <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 1 bb0_orderingIn&gt;</td></tr>
-            <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeWrite 21 &lt;&gt; o&gt; [0-orderingOut]&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeWrite 15 &lt;&gt; o&gt; [0-orderingOut]&gt;</td></tr>
             <tr><td>constLiveOuts=[]</td></tr>
         </table>
 >, shape=plaintext, style=filled];

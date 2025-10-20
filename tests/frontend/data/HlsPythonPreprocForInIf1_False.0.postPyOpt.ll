@@ -3,7 +3,7 @@ bb0:
   br label %begin
 
 begin:                                            ; preds = %bb0
-  %cntr = alloca i8, align 1, !hwtHls.tmp.alloca !3
+  %cntr = alloca i8, align 1, !hwtHls.tmp.alloca !2
   store i8 undef, ptr %cntr, align 1
   store i8 0, ptr %cntr, align 1
   br label %exit

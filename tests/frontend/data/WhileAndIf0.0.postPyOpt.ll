@@ -6,7 +6,7 @@ block0:                                           ; preds = %bb0
   br label %blockL14i0_14
 
 blockL14i0_14:                                    ; preds = %blockL14i0_200, %block0
-  %x = alloca i8, align 1, !hwtHls.tmp.alloca !3
+  %x = alloca i8, align 1, !hwtHls.tmp.alloca !2
   store i8 undef, ptr %x, align 1
   store i8 10, ptr %x, align 1
   br label %blockL14i0_L94i0_94

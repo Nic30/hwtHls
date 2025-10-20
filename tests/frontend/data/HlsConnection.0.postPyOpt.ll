@@ -6,7 +6,7 @@ block0:                                           ; preds = %bb0
   br label %blockL14i0_14
 
 blockL14i0_14:                                    ; preds = %blockL14i0_152, %block0
-  %a_read = alloca i32, align 4, !hwtHls.tmp.alloca !4
+  %a_read = alloca i32, align 4, !hwtHls.tmp.alloca !3
   store i32 undef, ptr %a_read, align 4
   %a_read1 = load volatile i32, ptr addrspace(1) %a, align 4
   store i32 %a_read1, ptr %a_read, align 4

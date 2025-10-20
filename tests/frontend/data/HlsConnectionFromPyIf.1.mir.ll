@@ -17,10 +17,9 @@
     ret void
   }
   
-  !0 = distinct !{!0, !1}
-  !1 = !{!2, !3}
-  !2 = !{!"IN", i64 0, ptr null, i64 0}
-  !3 = !{!"OUT", i64 0, ptr null, i64 1}
+  !0 = distinct !{!1, !2}
+  !1 = !{!"IN", i64 0, i64 8, i64 0, ptr null, i64 0}
+  !2 = !{!"OUT", i64 0, i64 0, i64 8, ptr null, i64 1}
 
 ...
 ---

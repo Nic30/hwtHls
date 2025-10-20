@@ -14,9 +14,8 @@
     br label %blockL110i0_110
   }
   
-  !0 = distinct !{!0, !1}
-  !1 = !{!2}
-  !2 = !{!"OUT", i64 0, ptr null, i64 0}
+  !0 = distinct !{!1}
+  !1 = !{!"OUT", i64 0, i64 0, i64 8, ptr null, i64 0}
 
 ...
 ---

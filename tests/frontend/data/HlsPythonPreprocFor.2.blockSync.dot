@@ -2,7 +2,7 @@ digraph "HlsPythonPreprocFor.mainThread" {
 bb0 [fillcolor=white, label=<
         <table border="0" cellborder="1" cellspacing="0">
             <tr><td>bb0.bb0</td></tr>
-            <tr><td>needsStarter, needsControl</td></tr>
+            <tr><td>needsStarter, needsControl, fsm=[0]</td></tr>
             <tr><td>IO in=[]</td></tr>
             <tr><td>IO out=[(1, 'o')]</td></tr>
             <tr><td>blockEn=&lt;HlsNetNodeOutLazy 0 bb0_en&gt;</td></tr>

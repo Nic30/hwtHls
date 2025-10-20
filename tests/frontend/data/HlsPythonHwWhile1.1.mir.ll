@@ -5,39 +5,20 @@
   
   define void @HlsPythonHwWhile1.mainThread(ptr addrspace(1) %i, ptr addrspace(2) %o) !hwtHls.io !0 {
   bb0:
-    br label %blockL56i0_56
-  
-  blockL56i0_56:                                    ; preds = %blockL56i0_L58i0_58, %bb0
-    %i1.02 = phi i2 [ -1, %bb0 ], [ 0, %blockL56i0_L58i0_58 ]
-    %0 = call i1 @hwtHls.bitRangeGet.i2.i2.i1.0(i2 %i1.02, i2 0) #1
-    %1 = call i1 @hwtHls.bitRangeGet.i2.i2.i1.1(i2 %i1.02, i2 1) #1
-    %i1.0 = call i8 @hwtHls.bitConcat.i1.i1.i1.i1.i4(i1 false, i1 %0, i1 false, i1 %1, i4 0) #1
     br label %blockL56i0_L58i0_58
   
-  blockL56i0_L58i0_58:                              ; preds = %blockL56i0_L58i0_58, %blockL56i0_56
-    %i1.1 = phi i8 [ %i1.0, %blockL56i0_56 ], [ %2, %blockL56i0_L58i0_58 ]
+  blockL56i0_L58i0_58:                              ; preds = %blockL56i0_L58i0_58, %bb0
+    %i1.1 = phi i8 [ 10, %bb0 ], [ %spec.select, %blockL56i0_L58i0_58 ]
     store volatile i8 %i1.1, ptr addrspace(2) %o, align 1
     %i_read3 = load volatile i1, ptr addrspace(1) %i, align 1
-    %2 = add i8 %i1.1, 1
-    br i1 %i_read3, label %blockL56i0_56, label %blockL56i0_L58i0_58
+    %0 = add i8 %i1.1, 1
+    %spec.select = select i1 %i_read3, i8 0, i8 %0
+    br label %blockL56i0_L58i0_58
   }
   
-  ; Function Attrs: nofree nounwind speculatable willreturn
-  declare i1 @hwtHls.bitRangeGet.i2.i2.i1.0(i2, i2) #0
-  
-  ; Function Attrs: nofree nounwind speculatable willreturn
-  declare i1 @hwtHls.bitRangeGet.i2.i2.i1.1(i2, i2) #0
-  
-  ; Function Attrs: nofree nounwind speculatable willreturn
-  declare i8 @hwtHls.bitConcat.i1.i1.i1.i1.i4(i1, i1, i1, i1, i4) #0
-  
-  attributes #0 = { nofree nounwind speculatable willreturn }
-  attributes #1 = { memory(none) }
-  
-  !0 = distinct !{!0, !1}
-  !1 = !{!2, !3}
-  !2 = !{!"IN", i64 0, ptr null, i64 0}
-  !3 = !{!"OUT", i64 0, ptr null, i64 1}
+  !0 = distinct !{!1, !2}
+  !1 = !{!"IN", i64 0, i64 1, i64 0, ptr null, i64 0}
+  !2 = !{!"OUT", i64 0, i64 0, i64 8, ptr null, i64 1}
 
 ...
 ---
@@ -64,23 +45,12 @@ registers:
   - { id: 1, class: anyregcls, preferred-register: '' }
   - { id: 2, class: anyregcls, preferred-register: '' }
   - { id: 3, class: anyregcls, preferred-register: '' }
-  - { id: 4, class: anyregcls, preferred-register: '' }
+  - { id: 4, class: anyregbank, preferred-register: '' }
   - { id: 5, class: anyregcls, preferred-register: '' }
-  - { id: 6, class: _, preferred-register: '' }
-  - { id: 7, class: anyregcls, preferred-register: '' }
+  - { id: 6, class: anyregcls, preferred-register: '' }
+  - { id: 7, class: anyregbank, preferred-register: '' }
   - { id: 8, class: anyregcls, preferred-register: '' }
   - { id: 9, class: anyregcls, preferred-register: '' }
-  - { id: 10, class: anyregcls, preferred-register: '' }
-  - { id: 11, class: anyregcls, preferred-register: '' }
-  - { id: 12, class: anyregbank, preferred-register: '' }
-  - { id: 13, class: anyregcls, preferred-register: '' }
-  - { id: 14, class: anyregcls, preferred-register: '' }
-  - { id: 15, class: anyregcls, preferred-register: '' }
-  - { id: 16, class: anyregcls, preferred-register: '' }
-  - { id: 17, class: anyregcls, preferred-register: '' }
-  - { id: 18, class: anyregcls, preferred-register: '' }
-  - { id: 19, class: anyregcls, preferred-register: '' }
-  - { id: 20, class: anyregcls, preferred-register: '' }
 liveins:         []
 frameInfo:
   isFrameAddressTaken: false
@@ -116,24 +86,15 @@ body:             |
   
     %0:anyregcls = HWTFPGA_ARG_GET 0
     %1:anyregcls = HWTFPGA_ARG_GET 1
-    %15:anyregcls(s2) = HWTFPGA_MUX i2 -1
+    %9:anyregcls(s8) = HWTFPGA_MUX i8 10
   
-  bb.1.blockL56i0_56:
-    successors: %bb.2(0x80000000)
+  bb.1.blockL56i0_L58i0_58:
+    successors: %bb.1(0x80000000)
   
-    %3:anyregcls(s1) = HWTFPGA_EXTRACT %15(s2), 2, 0, 1
-    %5:anyregcls(s1) = HWTFPGA_EXTRACT %15(s2), 2, 1, 1
-    %16:anyregcls(s8) = HWTFPGA_MERGE_VALUES i1 false, %3(s1), i1 false, %5(s1), i4 0, 1, 1, 1, 1, 4
-  
-  bb.2.blockL56i0_L58i0_58:
-    successors: %bb.1(0x04000000), %bb.2(0x7c000000)
-  
-    HWTFPGA_CSTORE %16(s8), %1, 0, 8, 1 :: (volatile store (s8) into %ir.o, addrspace 2)
-    %11:anyregcls(s1) = HWTFPGA_CLOAD %0, 0, 1, 1 :: (volatile load (s1) from %ir.i, addrspace 1)
-    %13:anyregcls(s8) = HWTFPGA_ADD %16(s8), i8 1
-    %15:anyregcls(s2) = HWTFPGA_MUX i2 0
-    %16:anyregcls(s8) = HWTFPGA_MUX %13(s8)
-    HWTFPGA_BRCOND %11(s1), %bb.1
-    HWTFPGA_BR %bb.2
+    HWTFPGA_CSTORE %9(s8), %1, 0, 8, 1 :: (volatile store (s8) into %ir.o, addrspace 2)
+    %3:anyregcls(s1) = HWTFPGA_CLOAD %0, 0, 1, 1 :: (volatile load (s1) from %ir.i, addrspace 1)
+    %5:anyregcls(s8) = HWTFPGA_ADD %9(s8), i8 1
+    %9:anyregcls(s8) = HWTFPGA_MUX i8 0, %3(s1), %5(s8)
+    HWTFPGA_BR %bb.1
 
 ...

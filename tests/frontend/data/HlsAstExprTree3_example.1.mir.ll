@@ -28,19 +28,18 @@
     br label %blockL64i0_64
   }
   
-  !0 = distinct !{!0, !1}
-  !1 = !{!2, !3, !4, !5, !6, !7, !8, !9, !10, !11, !12}
-  !2 = !{!"IN", i64 0, ptr null, i64 0}
-  !3 = !{!"IN", i64 0, ptr null, i64 1}
-  !4 = !{!"IN", i64 0, ptr null, i64 2}
-  !5 = !{!"IN", i64 0, ptr null, i64 3}
-  !6 = !{!"OUT", i64 0, ptr null, i64 4}
-  !7 = !{!"OUT", i64 0, ptr null, i64 5}
-  !8 = !{!"OUT", i64 0, ptr null, i64 6}
-  !9 = !{!"IN", i64 0, ptr null, i64 7}
-  !10 = !{!"IN", i64 0, ptr null, i64 8}
-  !11 = !{!"IN", i64 0, ptr null, i64 9}
-  !12 = !{!"IN", i64 0, ptr null, i64 10}
+  !0 = distinct !{!1, !2, !3, !4, !5, !6, !7, !8, !9, !10, !11}
+  !1 = !{!"IN", i64 0, i64 32, i64 0, ptr null, i64 0}
+  !2 = !{!"IN", i64 0, i64 32, i64 0, ptr null, i64 1}
+  !3 = !{!"IN", i64 0, i64 32, i64 0, ptr null, i64 2}
+  !4 = !{!"IN", i64 0, i64 32, i64 0, ptr null, i64 3}
+  !5 = !{!"OUT", i64 0, i64 0, i64 32, ptr null, i64 4}
+  !6 = !{!"OUT", i64 0, i64 0, i64 32, ptr null, i64 5}
+  !7 = !{!"OUT", i64 0, i64 0, i64 32, ptr null, i64 6}
+  !8 = !{!"IN", i64 0, i64 32, i64 0, ptr null, i64 7}
+  !9 = !{!"IN", i64 0, i64 32, i64 0, ptr null, i64 8}
+  !10 = !{!"IN", i64 0, i64 32, i64 0, ptr null, i64 9}
+  !11 = !{!"IN", i64 0, i64 32, i64 0, ptr null, i64 10}
 
 ...
 ---

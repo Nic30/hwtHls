@@ -5,24 +5,21 @@
   
   define void @WhileAndIf2.mainThread(ptr addrspace(1) %dataIn, ptr addrspace(2) %dataOut) !hwtHls.io !0 {
   bb0:
-    br label %blockL14i0_14
-  
-  blockL14i0_14:                                    ; preds = %blockL14i0_L94i0_94, %bb0
     br label %blockL14i0_L94i0_94
   
-  blockL14i0_L94i0_94:                              ; preds = %blockL14i0_L94i0_94, %blockL14i0_14
-    %x.0 = phi i8 [ 10, %blockL14i0_14 ], [ %0, %blockL14i0_L94i0_94 ]
+  blockL14i0_L94i0_94:                              ; preds = %blockL14i0_L94i0_94, %bb0
+    %x.0 = phi i8 [ 10, %bb0 ], [ %spec.select, %blockL14i0_L94i0_94 ]
     %dataIn_read1 = load volatile i8, ptr addrspace(1) %dataIn, align 1
     %0 = sub i8 %x.0, %dataIn_read1
     store volatile i8 %0, ptr addrspace(2) %dataOut, align 1
-    %.not = icmp eq i8 %0, 0
-    br i1 %.not, label %blockL14i0_14, label %blockL14i0_L94i0_94
+    %.not = icmp eq i8 %x.0, %dataIn_read1
+    %spec.select = select i1 %.not, i8 10, i8 %0
+    br label %blockL14i0_L94i0_94
   }
   
-  !0 = distinct !{!0, !1}
-  !1 = !{!2, !3}
-  !2 = !{!"IN", i64 0, ptr null, i64 0}
-  !3 = !{!"OUT", i64 0, ptr null, i64 1}
+  !0 = distinct !{!1, !2}
+  !1 = !{!"IN", i64 0, i64 8, i64 0, ptr null, i64 0}
+  !2 = !{!"OUT", i64 0, i64 0, i64 8, ptr null, i64 1}
 
 ...
 ---
@@ -50,14 +47,10 @@ registers:
   - { id: 2, class: anyregcls, preferred-register: '' }
   - { id: 3, class: anyregcls, preferred-register: '' }
   - { id: 4, class: anyregcls, preferred-register: '' }
-  - { id: 5, class: anyregbank, preferred-register: '' }
+  - { id: 5, class: anyregcls, preferred-register: '' }
   - { id: 6, class: anyregcls, preferred-register: '' }
   - { id: 7, class: anyregcls, preferred-register: '' }
   - { id: 8, class: anyregcls, preferred-register: '' }
-  - { id: 9, class: anyregcls, preferred-register: '' }
-  - { id: 10, class: anyregcls, preferred-register: '' }
-  - { id: 11, class: anyregcls, preferred-register: '' }
-  - { id: 12, class: anyregcls, preferred-register: '' }
 liveins:         []
 frameInfo:
   isFrameAddressTaken: false
@@ -99,12 +92,10 @@ body:             |
     successors: %bb.1(0x80000000)
   
     %3:anyregcls(s8) = HWTFPGA_CLOAD %0, 0, 8, 1 :: (volatile load (s8) from %ir.dataIn, addrspace 1)
-    %8:anyregcls(s8) = HWTFPGA_SUB %8(s8), %3(s8)
-    HWTFPGA_CSTORE %8(s8), %1, 0, 8, 1 :: (volatile store (s8) into %ir.dataOut, addrspace 2)
-    %6:anyregcls(s1) = HWTFPGA_ICMP intpred(eq), %8(s8), i8 0
-    %9:anyregcls(s1) = HWTFPGA_NOT %6(s1)
-    %11:anyregcls(s1) = HWTFPGA_NOT %9(s1)
-    %8:anyregcls(s8) = HWTFPGA_MUX i8 10, %11(s1), %8(s8)
+    %4:anyregcls(s8) = HWTFPGA_SUB %8(s8), %3(s8)
+    HWTFPGA_CSTORE %4(s8), %1, 0, 8, 1 :: (volatile store (s8) into %ir.dataOut, addrspace 2)
+    %5:anyregcls(s1) = HWTFPGA_ICMP intpred(eq), %8(s8), %3
+    %8:anyregcls(s8) = HWTFPGA_MUX i8 10, %5(s1), %4(s8)
     HWTFPGA_BR %bb.1
 
 ...

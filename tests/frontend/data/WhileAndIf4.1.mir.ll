@@ -7,8 +7,8 @@
   bb0:
     br label %blockL14i0_L102i0_102
   
-  blockL14i0_L102i0_102:                            ; preds = %blockL14i0_L102i0_192, %blockL14i0_L102i0_102, %bb0
-    %x.0 = phi i8 [ 10, %bb0 ], [ %0, %blockL14i0_L102i0_102 ], [ %0, %blockL14i0_L102i0_192 ]
+  blockL14i0_L102i0_102:                            ; preds = %blockL14i0_L102i0_102, %blockL14i0_L102i0_192, %bb0
+    %x.0 = phi i8 [ 10, %bb0 ], [ %0, %blockL14i0_L102i0_192 ], [ %0, %blockL14i0_L102i0_102 ]
     %dataIn_read1 = load volatile i8, ptr addrspace(1) %dataIn, align 1
     %0 = sub i8 %x.0, %dataIn_read1
     %1 = icmp ult i8 %0, 5
@@ -19,10 +19,9 @@
     br label %blockL14i0_L102i0_102
   }
   
-  !0 = distinct !{!0, !1}
-  !1 = !{!2, !3}
-  !2 = !{!"IN", i64 0, ptr null, i64 0}
-  !3 = !{!"OUT", i64 0, ptr null, i64 1}
+  !0 = distinct !{!1, !2}
+  !1 = !{!"IN", i64 0, i64 8, i64 0, ptr null, i64 0}
+  !2 = !{!"OUT", i64 0, i64 0, i64 8, ptr null, i64 1}
 
 ...
 ---

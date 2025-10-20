@@ -31,10 +31,9 @@
   attributes #0 = { nofree nounwind speculatable willreturn }
   attributes #1 = { memory(none) }
   
-  !0 = distinct !{!0, !1}
-  !1 = !{!2, !3}
-  !2 = !{!"OUT", i64 0, ptr null, i64 0}
-  !3 = !{!"OUT", i64 0, ptr null, i64 1}
+  !0 = distinct !{!1, !2}
+  !1 = !{!"OUT", i64 0, i64 0, i64 8, ptr null, i64 0}
+  !2 = !{!"OUT", i64 0, i64 0, i64 8, ptr null, i64 1}
 
 ...
 ---

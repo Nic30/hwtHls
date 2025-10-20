@@ -1,4 +1,4 @@
-define void @VariableChain.mainThread(ptr addrspace(1) %i, ptr addrspace(2) %o) !hwtHls.param_addr_width !0 {
+define void @VariableChain.mainThread(ptr addrspace(1) %i, ptr addrspace(2) %o) !hwtHls.io !0 {
 bb0:
   br label %block0
 
@@ -9,7 +9,7 @@ blockL52i0_52:                                    ; preds = %block0
   br label %blockL52i0_56
 
 blockL52i0_56:                                    ; preds = %blockL52i0_52
-  %i0 = alloca i8, align 1, !hwtHls.tmp.alloca !2
+  %i0 = alloca i8, align 1, !hwtHls.tmp.alloca !3
   store i8 undef, ptr %i0, align 1
   br label %blockL52i1_52
 
@@ -29,9 +29,9 @@ blockL162i0_L184i0_188:                           ; preds = %blockL162i0_L184i0_
   br label %blockL162i0_L184i0_206
 
 blockL162i0_L184i0_206:                           ; preds = %blockL162i0_L184i0_188
-  %i_read = alloca i8, align 1, !hwtHls.tmp.alloca !2
+  %i_read = alloca i8, align 1, !hwtHls.tmp.alloca !3
   store i8 undef, ptr %i_read, align 1
-  %prev = alloca i8, align 1, !hwtHls.tmp.alloca !2
+  %prev = alloca i8, align 1, !hwtHls.tmp.alloca !3
   store i8 undef, ptr %prev, align 1
   %i_read1 = load volatile i8, ptr addrspace(1) %i, align 1
   store i8 %i_read1, ptr %i_read, align 1

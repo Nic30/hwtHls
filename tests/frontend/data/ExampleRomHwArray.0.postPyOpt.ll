@@ -33,15 +33,15 @@ blockL100i4_100:                                  ; preds = %blockL100i3_104
   br label %block118
 
 block118:                                         ; preds = %blockL100i4_100
-  %mem = alloca [4 x i32], align 4, !hwtHls.tmp.alloca !4
+  %mem = alloca [4 x i32], align 4, !hwtHls.tmp.alloca !3
   store [4 x i32] undef, ptr %mem, align 4
   call void @llvm.memcpy.p0.p0.i64(ptr align 1 %mem, ptr align 1 @0, i64 16, i1 false)
   br label %blockL146i0_146
 
 blockL146i0_146:                                  ; preds = %blockL146i0_298, %block118
-  %i_read = alloca i2, align 1, !hwtHls.tmp.alloca !4
+  %i_read = alloca i2, align 1, !hwtHls.tmp.alloca !3
   store i2 undef, ptr %i_read, align 1
-  %o1 = alloca i32, align 4, !hwtHls.tmp.alloca !4
+  %o1 = alloca i32, align 4, !hwtHls.tmp.alloca !3
   store i32 undef, ptr %o1, align 4
   %i_read1 = load volatile i2, ptr addrspace(1) %i, align 1
   store i2 %i_read1, ptr %i_read, align 1

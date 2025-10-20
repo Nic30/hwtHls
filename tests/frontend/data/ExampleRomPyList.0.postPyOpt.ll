@@ -36,9 +36,9 @@ block124:                                         ; preds = %blockL76i4_76
   br label %blockL142i0_142
 
 blockL142i0_142:                                  ; preds = %blockL142i0_294, %block124
-  %i_read = alloca i2, align 1, !hwtHls.tmp.alloca !4
+  %i_read = alloca i2, align 1, !hwtHls.tmp.alloca !3
   store i2 undef, ptr %i_read, align 1
-  %o1 = alloca i32, align 4, !hwtHls.tmp.alloca !4
+  %o1 = alloca i32, align 4, !hwtHls.tmp.alloca !3
   store i32 undef, ptr %o1, align 4
   %i_read1 = load volatile i2, ptr addrspace(1) %i, align 1
   store i2 %i_read1, ptr %i_read, align 1

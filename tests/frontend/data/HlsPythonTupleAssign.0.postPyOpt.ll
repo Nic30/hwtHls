@@ -3,10 +3,10 @@ bb0:
   br label %block0
 
 block0:                                           ; preds = %bb0
-  %i0 = alloca i8, align 1, !hwtHls.tmp.alloca !4
+  %i0 = alloca i8, align 1, !hwtHls.tmp.alloca !3
   store i8 undef, ptr %i0, align 1
   store i8 0, ptr %i0, align 1
-  %i1 = alloca i8, align 1, !hwtHls.tmp.alloca !4
+  %i1 = alloca i8, align 1, !hwtHls.tmp.alloca !3
   store i8 undef, ptr %i1, align 1
   store i8 1, ptr %i1, align 1
   br label %blockL98i0_98

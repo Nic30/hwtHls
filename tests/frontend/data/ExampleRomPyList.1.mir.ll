@@ -18,10 +18,9 @@
     br label %blockL142i0_142
   }
   
-  !0 = distinct !{!0, !1}
-  !1 = !{!2, !3}
-  !2 = !{!"IN", i64 0, ptr null, i64 0}
-  !3 = !{!"OUT", i64 0, ptr null, i64 1}
+  !0 = distinct !{!1, !2}
+  !1 = !{!"IN", i64 0, i64 2, i64 0, ptr null, i64 0}
+  !2 = !{!"OUT", i64 0, i64 0, i64 32, ptr null, i64 1}
 
 ...
 ---
@@ -58,7 +57,6 @@ registers:
   - { id: 11, class: anyregcls, preferred-register: '' }
   - { id: 12, class: anyregcls, preferred-register: '' }
   - { id: 13, class: anyregcls, preferred-register: '' }
-  - { id: 14, class: anyregcls, preferred-register: '' }
 liveins:         []
 frameInfo:
   isFrameAddressTaken: false

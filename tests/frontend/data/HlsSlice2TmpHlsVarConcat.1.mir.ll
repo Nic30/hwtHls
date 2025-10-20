@@ -3,9 +3,6 @@
   source_filename = "hwtHlsModule"
   target datalayout = "e-m:e-i8:8-i16:16-i32:32-i64:64-i128:128-i256:256-i512:512-i1024:1024-i2048:2048-i4096:4096-n8:16:32:64-S128-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
   
-  ; Function Attrs: nofree nounwind speculatable willreturn
-  declare i32 @hwtHls.bitConcat.i16.i16(i16, i16) #0
-  
   define void @HlsSlice2TmpHlsVarConcat.mainThread(ptr addrspace(1) %a, ptr addrspace(2) %b) !hwtHls.io !0 {
   bb0:
     br label %blockL14i0_14
@@ -17,13 +14,15 @@
     br label %blockL14i0_14
   }
   
+  ; Function Attrs: nofree nounwind speculatable willreturn
+  declare i32 @hwtHls.bitConcat.i16.i16(i16, i16) #0
+  
   attributes #0 = { nofree nounwind speculatable willreturn }
   attributes #1 = { memory(none) }
   
-  !0 = distinct !{!0, !1}
-  !1 = !{!2, !3}
-  !2 = !{!"IN", i64 0, ptr null, i64 0}
-  !3 = !{!"OUT", i64 0, ptr null, i64 1}
+  !0 = distinct !{!1, !2}
+  !1 = !{!"IN", i64 0, i64 16, i64 0, ptr null, i64 0}
+  !2 = !{!"OUT", i64 0, i64 0, i64 32, ptr null, i64 1}
 
 ...
 ---

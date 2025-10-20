@@ -1,9 +1,9 @@
-define void @ReadIfOtherEqualOnce.mainThread(ptr addrspace(1) %a, ptr addrspace(2) %b) !hwtHls.param_addr_width !0 {
+define void @ReadIfOtherEqualOnce.mainThread(ptr addrspace(1) %a, ptr addrspace(2) %b) !hwtHls.io !0 {
 bb0:
   br label %block0
 
 block0:                                           ; preds = %bb0
-  %a_read = alloca i8, align 1, !hwtHls.tmp.alloca !2
+  %a_read = alloca i8, align 1, !hwtHls.tmp.alloca !3
   store i8 undef, ptr %a_read, align 1
   %a_read1 = load volatile i8, ptr addrspace(1) %a, align 1
   store i8 %a_read1, ptr %a_read, align 1
@@ -12,7 +12,7 @@ block0:                                           ; preds = %bb0
   br i1 %0, label %block106, label %block162
 
 block106:                                         ; preds = %block0
-  %b_read = alloca i8, align 1, !hwtHls.tmp.alloca !2
+  %b_read = alloca i8, align 1, !hwtHls.tmp.alloca !3
   store i8 undef, ptr %b_read, align 1
   %b_read1 = load volatile i8, ptr addrspace(2) %b, align 1
   store i8 %b_read1, ptr %b_read, align 1

@@ -2,7 +2,7 @@ digraph "HlsPythonPreprocForInIf2.mainThread" {
 bb0 [fillcolor=white, label=<
         <table border="0" cellborder="1" cellspacing="0">
             <tr><td>bb0.bb0</td></tr>
-            <tr><td></td></tr>
+            <tr><td>fsm=[0, 1]</td></tr>
             <tr><td>IO in=[]</td></tr>
             <tr><td>IO out=[]</td></tr>
             <tr><td>blockEn=&lt;HlsNetNodeOutLazy 0 bb0_en&gt;</td></tr>
@@ -14,7 +14,7 @@ bb0 [fillcolor=white, label=<
 bb1 [fillcolor=white, label=<
         <table border="0" cellborder="1" cellspacing="0">
             <tr><td>bb1.blockL110i0_110</td></tr>
-            <tr><td>needsControl, rstPredeccessor=bb0, isLoopHeader</td></tr>
+            <tr><td>needsControl, rstPredeccessor=bb0, isLoopHeader, fsm=[0, 1]</td></tr>
             <tr><td>IO in=[]</td></tr>
             <tr><td>IO out=[(1, 'o')]</td></tr>
             <tr><td>blockEn=&lt;HlsNetNodeOutLazy 2 bb1_en&gt;</td></tr>

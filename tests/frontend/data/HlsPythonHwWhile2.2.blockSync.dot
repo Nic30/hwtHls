@@ -2,7 +2,7 @@ digraph "HlsPythonHwWhile2.mainThread" {
 bb0 [fillcolor=white, label=<
         <table border="0" cellborder="1" cellspacing="0">
             <tr><td>bb0.bb0</td></tr>
-            <tr><td></td></tr>
+            <tr><td>fsm=[0, 1, 2]</td></tr>
             <tr><td>IO in=[]</td></tr>
             <tr><td>IO out=[]</td></tr>
             <tr><td>blockEn=&lt;HlsNetNodeOutLazy 0 bb0_en&gt;</td></tr>
@@ -14,24 +14,24 @@ bb0 [fillcolor=white, label=<
 bb1 [fillcolor=white, label=<
         <table border="0" cellborder="1" cellspacing="0">
             <tr><td>bb1.wh0</td></tr>
-            <tr><td>needsControl, rstPredeccessor=bb0, isLoopHeader</td></tr>
+            <tr><td>needsControl, rstPredeccessor=bb0, isLoopHeader, fsm=[0, 1, 2]</td></tr>
             <tr><td>IO in=[]</td></tr>
             <tr><td>IO out=[(1, 'o')]</td></tr>
             <tr><td>blockEn=&lt;HlsNetNodeOutLazy 2 bb1_en&gt;</td></tr>
             <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 3 bb1_orderingIn&gt;</td></tr>
-            <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeWrite 16 &lt;r, v&gt; o&gt; [0-orderingOut]&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeWrite 14 &lt;r, v&gt; o&gt; [0-orderingOut]&gt;</td></tr>
             <tr><td>constLiveOuts=[]</td></tr>
         </table>
 >, shape=plaintext, style=filled];
 bb2 [fillcolor=white, label=<
         <table border="0" cellborder="1" cellspacing="0">
             <tr><td>bb2.wh1</td></tr>
-            <tr><td>needsControl, isLoopHeader</td></tr>
+            <tr><td>needsControl, isLoopHeader, fsm=[0, 1, 2]</td></tr>
             <tr><td>IO in=[]</td></tr>
             <tr><td>IO out=[(1, 'o')]</td></tr>
             <tr><td>blockEn=&lt;HlsNetNodeOutLazy 4 bb2_en&gt;</td></tr>
             <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 5 bb2_orderingIn&gt;</td></tr>
-            <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeWrite 29 &lt;r, v&gt; o&gt; [0-orderingOut]&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeWrite 27 &lt;r, v&gt; o&gt; [0-orderingOut]&gt;</td></tr>
             <tr><td>constLiveOuts=[]</td></tr>
         </table>
 >, shape=plaintext, style=filled];
