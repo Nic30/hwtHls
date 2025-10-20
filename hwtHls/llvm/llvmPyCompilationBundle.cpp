@@ -132,6 +132,7 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 				});
 	    }, py::return_value_policy::reference_internal)
 		.def("_testEarlyIfConverter", &hwtHls::LlvmCompilationBundle::_testEarlyIfConverter, py::return_value_policy::reference_internal)
+		.def("_testHwtFpgaPreRegAllocGICombiner", &hwtHls::LlvmCompilationBundle::_testHwtFpgaPreRegAllocGICombiner, py::return_value_policy::reference_internal)
 		.def("_testHwtFpgaPreToNetlistCombiner", &hwtHls::LlvmCompilationBundle::_testHwtFpgaPreToNetlistCombiner, py::return_value_policy::reference_internal)
 		.def("_testLoopFlattenUsingIfPass", &hwtHls::LlvmCompilationBundle::_testLoopFlattenUsingIfPass, py::return_value_policy::reference_internal)
 		.def("_testRewriteExtractOnMergeValuesPass", &hwtHls::LlvmCompilationBundle::_testRewriteExtractOnMergeValues, py::return_value_policy::reference_internal)
