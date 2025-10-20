@@ -97,7 +97,6 @@
 #include <hwtHls/llvm/Transforms/extractBitConcatAndSliceOpsPass.h>
 #include <hwtHls/llvm/Transforms/HFloatTmpLoweringPass.h>
 #include <hwtHls/llvm/Transforms/ICmpToOnlyEqLtLePass.h>
-#include <hwtHls/llvm/Transforms/TmpAllocaLoweringPass.h>
 #include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
 #include <hwtHls/llvm/Transforms/slicesMerge/slicesMerge.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass.h>
@@ -117,7 +116,7 @@
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamWriteLoweringPass.h>
 #include <hwtHls/llvm/Transforms/streamLoopUnrollPass/streamLoopUnrollPass.h>
 #include <hwtHls/llvm/Transforms/PruneLoopPhiDeadIncomingValuesPass/PruneLoopPhiDeadIncomingValuesPass.h>
-
+#include <hwtHls/llvm/Transforms/TmpAllocaLoweringPass.h>
 
 namespace hwtHls {
 
@@ -153,9 +152,11 @@ void LlvmCompilationBundle::_registerHwtHlsPasses() {
 }
 
 struct HwtFpgaAllowVolatileMemOpDuplication {
-	llvm::TargetMachine * TM;
-	llvm::FunctionPassManager & FPM;
-	HwtFpgaAllowVolatileMemOpDuplication(llvm::TargetMachine * TM, llvm::FunctionPassManager & FPM):TM(TM), FPM(FPM) {
+	llvm::TargetMachine *TM;
+	llvm::FunctionPassManager &FPM;
+	HwtFpgaAllowVolatileMemOpDuplication(llvm::TargetMachine *TM,
+			llvm::FunctionPassManager &FPM) :
+			TM(TM), FPM(FPM) {
 		FPM.addPass(hwtHls::ReconfigureHwtFpgaTTIPass(TM, true));
 	}
 	~HwtFpgaAllowVolatileMemOpDuplication() {
@@ -201,22 +202,23 @@ void LlvmCompilationBundle::runOpt(
 	FPM.addPass(llvm::CorrelatedValuePropagationPass());
 
 	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
-	_addInstrCombinePasses(FPM, /*bitwidthReduction*/ false, /*selectPruning*/ false);
+	_addInstrCombinePasses(FPM, /*bitwidthReduction*/false, /*selectPruning*/
+	false);
 
 	//if (EnableConstraintElimination)
 	FPM.addPass(llvm::ConstraintEliminationPass()); // hwtHls specific
 
 	//if (!Level.isOptimizingForSize())
 	//  FPM.addPass(LibCallsShrinkWrapPass());
-    //
+	//
 	//invokePeepholeEPCallbacks(FPM, Level);
-    //
+	//
 	//// For PGO use pipeline, try to optimize memory intrinsics such as memcpy
 	//// using the size value profile. Don't perform this when optimizing for size.
 	//if (PGOOpt && PGOOpt->Action == PGOOptions::IRUse &&
 	//    !Level.isOptimizingForSize())
 	//  FPM.addPass(PGOMemOPSizeOpt());
-    //
+	//
 	//FPM.addPass(TailCallElimPass());
 	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
 
@@ -244,33 +246,32 @@ void LlvmCompilationBundle::runOpt(
 	//				|| PGOOpt->Action == PGOOptions::SampleUse))
 	//	FPM.addPass(llvm::ControlHeightReductionPass());
 	_addVectorPasses(Level, FPM, true); // LTO like vector opt, after all IR opt, followed by final cleanup and machine passes
-	FPM.addPass(
-			hwtHls::HwtHlsSimplifyCFGPass(
-					hwtHls::HwtHlsSimplifyCFGOptions()//
-					.forwardSwitchCondToPhi(true)//
-					.convertSwitchRangeToICmp(true)//
-					.convertSwitchToLookupTable(true)//
-					.needCanonicalLoops(false)// :attention: conversion back to canonical loops will spawn new loops if loop header has phi and more than 2 predecessors
-					.hoistCommonInsts(true)//
-					.sinkCommonInsts(true)//
-					.hoistCommonInsts(true)//
-					.bonusInstThreshold(1024)
-	));
-
+	{
+		auto simplifyCfgOpts = hwtHls::HwtHlsSimplifyCFGOptions() //
+		.forwardSwitchCondToPhi(true) //
+		.convertSwitchRangeToICmp(true) //
+		.convertSwitchToLookupTable(true) //
+		.needCanonicalLoops(false) // :attention: conversion back to canonical loops will spawn new loops if loop header has phi and more than 2 predecessors
+		.hoistCommonInsts(true) //
+		.sinkCommonInsts(true) //
+		.hoistCommonInsts(true) //
+		.bonusInstThreshold(1024);
+		FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(simplifyCfgOpts));
+	}
 	FPM.addPass(llvm::DCEPass()); // because of convertSwitchToLookupTable=true
 	FPM.addPass(hwtHls::SlicesMergePass());
 	FPM.addPass(hwtHls::PruneLoopPhiDeadIncomingValuesPass());
 
 	_addInstrCombinePasses(FPM,
-			/*bitwidthReduction*/ true, /*selectPruning*/true,
-			/*llvmInstrCombine*/ true, /*streamReadEoFThreading*/false,
-			/*hwtHlsFpInstrCombine*/true);
+	/*bitwidthReduction*/true, /*selectPruning*/true,
+	/*llvmInstrCombine*/true, /*streamReadEoFThreading*/false,
+	/*hwtHlsFpInstrCombine*/true);
 	FPM.addPass(hwtHls::PromoteAllocaToGlobalPass());
 	FPM.addPass(hwtHls::HFloatTmpLoweringPass());
 	_addInstrCombinePasses(FPM,
-			/*bitwidthReduction*/ true, /*selectPruning*/true,
-			/*llvmInstrCombine*/ true, /*streamReadEoFThreading*/false,
-			/*hwtHlsFpInstrCombine*/true);
+	/*bitwidthReduction*/true, /*selectPruning*/true,
+	/*llvmInstrCombine*/true, /*streamReadEoFThreading*/false,
+	/*hwtHlsFpInstrCombine*/true);
 	//FPM.addPass(hwtHls::DumpAndExitPass(true, false, "dump.dot"));
 
 	//FPM.run(F, *FAM);
@@ -286,12 +287,12 @@ void LlvmCompilationBundle::runOpt(
 		MPM.addPass(hwtHls::StripProfMetadataPass());
 	}
 	MPM.addPass(hwtHls::ProfMetadataRmDummy())
-    MPM.run(*module, *MAM);
-    _tryToFindMain();
-    // main function may mutate in ThreadExtractPass
-    // module cleanup section
+	MPM.run(*module, *MAM);
+	_tryToFindMain();
+	// main function may mutate in ThreadExtractPass
+	// module cleanup section
 
-    _addMachineCodegenPasses(toNetlistConversionFn);
+	_addMachineCodegenPasses(toNetlistConversionFn);
 
 	PM.run(*module);
 
@@ -312,18 +313,18 @@ void LlvmCompilationBundle::runOpt(
 }
 
 void LlvmCompilationBundle::_tryToFindMain() {
-    std::optional<llvm::Function*> mainFn;
-    for (auto &F: *module) {
-    	if (F.isDeclaration())
-    		continue;
-    	if (mainFn.has_value())
-    		mainFn = nullptr;
-    	else
-    		mainFn = &F;
-    }
-    if (!mainFn.has_value())
-    	mainFn = nullptr;
-    main = mainFn.value();
+	std::optional<llvm::Function*> mainFn;
+	for (auto &F : *module) {
+		if (F.isDeclaration())
+			continue;
+		if (mainFn.has_value())
+			mainFn = nullptr;
+		else
+			mainFn = &F;
+	}
+	if (!mainFn.has_value())
+		mainFn = nullptr;
+	main = mainFn.value();
 }
 
 void LlvmCompilationBundle::runExprOpt() {
@@ -361,34 +362,37 @@ void LlvmCompilationBundle::_addInitialNormalizationPasses(
 	LPM0.addPass(hwtHls::LoopRotationNormalizationPass(0)); // normalize to rotated form, unrotate loop with costly header
 	bool debugUse_BFI_BPI = false;
 	FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM0),
-			/*UseMemorySSA=*/ false,
-			/*UseBlockFrequencyInfo=*/ debugUse_BFI_BPI,
-			/*UseBranchProbabilityInfo=*/ debugUse_BFI_BPI));
+	/*UseMemorySSA=*/false,
+	/*UseBlockFrequencyInfo=*/debugUse_BFI_BPI,
+	/*UseBranchProbabilityInfo=*/debugUse_BFI_BPI));
 
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true, false)); // simplify trivial cases so IR is more easy to read
 	llvm::LoopPassManager LPM0_1; // again the LoopRotationNormalizationPass because some patterns were not recognized because of redundant blocks
 	LPM0_1.addPass(hwtHls::LoopRotationNormalizationPass(10000));
 	FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM0_1),
-			/*UseMemorySSA=*/ false,
-			/*UseBlockFrequencyInfo=*/ debugUse_BFI_BPI,
-			/*UseBranchProbabilityInfo=*/ debugUse_BFI_BPI));
+	/*UseMemorySSA=*/false,
+	/*UseBlockFrequencyInfo=*/debugUse_BFI_BPI,
+	/*UseBranchProbabilityInfo=*/debugUse_BFI_BPI));
 
 	llvm::LoopPassManager LPM1;
 	LPM1.addPass(hwtHls::LoopFlattenUsingIfPass());
 	FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM1),
-			/*UseMemorySSA=*/ false,
-			/*UseBlockFrequencyInfo=*/ debugUse_BFI_BPI,
-			/*UseBranchProbabilityInfo=*/ debugUse_BFI_BPI));
+	/*UseMemorySSA=*/false,
+	/*UseBlockFrequencyInfo=*/debugUse_BFI_BPI,
+	/*UseBranchProbabilityInfo=*/debugUse_BFI_BPI));
 
 	// [fixme] LoopUnrotatePass probably breaks SE and TrivialSimplifyCFGPass forces to recompute it
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true, false)); // simplify trivial cases so IR is more easy to read
-
 	FPM.addPass(llvm::UnifyFunctionExitNodesPass()); // llvm mergereturn
 	// Form SSA out of local memory accesses after breaking apart aggregates into
 	// scalars.
-	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(hwtHls::HwtHlsSimplifyCFGOptions()\
-			.hoistCommonInsts(true)\
-			.setHoistCheapInsts(true)));
+	{
+		auto simplifyCfgOpts = hwtHls::HwtHlsSimplifyCFGOptions()	//
+		.hoistCommonInsts(true)	//
+		.setHoistCheapInsts(true)	//
+				;
+		FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(simplifyCfgOpts));
+	}
 	FPM.addPass(hwtHls::SlicesToIndependentVariablesPass()); // hwtHls specific
 	FPM.addPass(llvm::ADCEPass()); // hwtHls specific
 	FPM.addPass(llvm::SROAPass(llvm::SROAOptions::ModifyCFG));
@@ -403,9 +407,13 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 	// StreamLoopUnrollPass must be before StreamReadLoweringPass, StreamWriteLoweringPass
 	// because if used correctly it reduces complexity of stream processing exponentially
 	_addInstrCombinePasses(FPM, false, false, false);
-	//FPM.addPass(hwtHls::DumpAndExitPass(false, false, "tmp/StreamLoopUnrollPass.before.dot", true));
 	FPM.addPass(hwtHls::StreamLoopUnrollPass());
-	//FPM.addPass(hwtHls::DumpAndExitPass(false, false, "tmp/StreamLoopUnrollPass.0.dot", true));
+
+	// :note: if SwitchReduceRange is allowed the LVI is not able to recognize expressions generated by it (llvm-18)
+	//  the LVI is important for stream related transformations as pruning of viable options for offset in stream
+	//  must work perfectly to avoid code explosions
+	auto SimplifyCfgOpts =
+			hwtHls::HwtHlsSimplifyCFGOptions().setSwitchReduceRange(false);
 
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true, false));
 	//FPM.addPass(hwtHls::DumpAndExitPass(false, false, "tmp/StreamLoopUnrollPass.1.dot", true));
@@ -415,15 +423,11 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
 	_addInstrCombinePasses(FPM, false, false, false);
 
-	//FPM.addPass(hwtHls::DumpAndExitPass(false, false, "tmp/StreamLoopUnrollPass.1.dot", true));
 	FPM.addPass(hwtHls::StreamReadLoweringPass());
-	//FPM.addPass(hwtHls::DumpAndExitPass(false, false, "tmp/StreamReadLoweringPass.0.dot", true));
 	_addInstrCombinePasses(FPM, false, false, false);
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true, false));
 	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
 	_addInstrCombinePasses(FPM, false, false, false, true);
-	//FPM.addPass(hwtHls::DumpAndExitPass(false, false, "tmp/StreamReadLoweringPass.1.dot", true));
-	//FPM.addPass(hwtHls::DumpAndExitPass(true, true, "tmp/StreamLoopUnrollPass.3.dot", true));
 
 	FPM.addPass(hwtHls::StreamWriteLoweringPass());
 	_addInstrCombinePasses(FPM, false, false);
@@ -431,9 +435,7 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
 	_addInstrCombinePasses(FPM, false, false);
 
-
 	FPM.addPass(llvm::LoopSimplifyPass());
-	//FPM.addPass(hwtHls::DumpAndExitPass(false, false, "tmp/StreamWriteLoweringPass.2.dot", true));
 }
 
 void LlvmCompilationBundle::_addCommonPasses(llvm::FunctionPassManager &FPM) {
@@ -485,22 +487,25 @@ void LlvmCompilationBundle::_addCommonPasses(llvm::FunctionPassManager &FPM) {
 					llvm::LICMPass(PTO.LicmMssaOptCap,
 							PTO.LicmMssaNoAccForPromotionCap, /*AllowSpeculation=*/
 							true),
-							/*UseMemorySSA=*/true,
-							/*UseBlockFrequencyInfo=*/true));
+					/*UseMemorySSA=*/true,
+					/*UseBlockFrequencyInfo=*/true));
+
 	//FPM.addPass(llvm::CoroElidePass());
 	//	for (auto &C : ScalarOptimizerLateEPCallbacks)
 	//		C(FPM, Level);
-	FPM.addPass(
-			hwtHls::HwtHlsSimplifyCFGPass(
-					hwtHls::HwtHlsSimplifyCFGOptions()//
-					.convertSwitchRangeToICmp(true)//
-					.hoistCommonInsts(true)//
-					.sinkCommonInsts(true)//
-			));
+	{
+		auto simplifyCfgOpts = hwtHls::HwtHlsSimplifyCFGOptions()	//
+		.convertSwitchRangeToICmp(true)	//
+		.hoistCommonInsts(true)	//
+		.sinkCommonInsts(true)	//
+				;
+		FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(simplifyCfgOpts));
+	}
 	_addInstrCombinePassesLight(FPM);
 }
 
-void LlvmCompilationBundle::_addInstrCombinePassesLight(llvm::FunctionPassManager &FPM) {
+void LlvmCompilationBundle::_addInstrCombinePassesLight(
+		llvm::FunctionPassManager &FPM) {
 	FPM.addPass(hwtHls::RomExtractPass());
 	FPM.addPass(hwtHls::HwtHlsInstCombinePass());
 	FPM.addPass(llvm::InstCombinePass());
@@ -509,20 +514,21 @@ void LlvmCompilationBundle::_addInstrCombinePassesLight(llvm::FunctionPassManage
 
 void LlvmCompilationBundle::_addInstrCombinePasses(
 		llvm::FunctionPassManager &FPM, bool bitwidthReduction,
-		bool selectPruning, bool llvmInstrCombine,
-		bool streamReadEoFThreading, bool hwtHlsFpInstrCombine) {
+		bool selectPruning, bool llvmInstrCombine, bool streamReadEoFThreading,
+		bool hwtHlsFpInstrCombine) {
 	// [todo]
 	//  if (II.getCalledFunction()->isTargetIntrinsic()) {
 	//    return TTI.instCombineIntrinsic(*this, II);
 	//  }
 	FPM.addPass(llvm::EarlyCSEPass());
 	FPM.addPass(hwtHls::RomExtractPass());
-	FPM.addPass(
-			hwtHls::HwtHlsInstCombinePass(
-					HwtHlsInstCombinePassOptions()\
-					.setStreamReadEoFThreading(streamReadEoFThreading)\
-					.setHwtHlsFpCombining(hwtHlsFpInstrCombine)
-			));
+	{
+		auto icOpts = HwtHlsInstCombinePassOptions() //
+		.setStreamReadEoFThreading(streamReadEoFThreading) //
+		.setHwtHlsFpCombining(hwtHlsFpInstrCombine) //
+				;
+		FPM.addPass(hwtHls::HwtHlsInstCombinePass(icOpts));
+	}
 	if (llvmInstrCombine) {
 		FPM.addPass(llvm::InstCombinePass()); // hwtHls specific
 		FPM.addPass(hwtHls::HwtHlsInstCombinePass());
@@ -539,27 +545,37 @@ void LlvmCompilationBundle::_addInstrCombinePasses(
 		FPM.addPass(llvm::InstCombinePass()); // hwtHls specific
 	}
 	if (llvmInstrCombine || bitwidthReduction || selectPruning) {
-		FPM.addPass(hwtHls::HwtHlsInstCombinePass(
-				HwtHlsInstCombinePassOptions()\
-				.setHwtHlsFpCombining(hwtHlsFpInstrCombine)));
+		auto icOpts = HwtHlsInstCombinePassOptions() //
+		.setHwtHlsFpCombining(hwtHlsFpInstrCombine) //
+				;
+		FPM.addPass(hwtHls::HwtHlsInstCombinePass(icOpts));
 	}
 }
 
-void LlvmCompilationBundle::_addAfterUnrollFollowupPasses(llvm::FunctionPassManager &FPM) {
+void LlvmCompilationBundle::_addAfterUnrollFollowupPasses(
+		llvm::FunctionPassManager &FPM) {
 	llvm::LoopPassManager LPM;
 	// We provide the opt remark emitter pass for LICM to use. We only need to do
 	// this once as it is immutable.
 	FPM.addPass(
 			llvm::RequireAnalysisPass<llvm::OptimizationRemarkEmitterAnalysis,
 					llvm::Function>());
+
 	// LoopSimplifyPass should be added automatically https://llvm.org/docs/LoopTerminology.html#loop-simplify-form
 	// :note: This LoopSimplifyPass is not added automatically
 	LPM.addPass(hwtHls::LoopFlattenUsingIfPass());
 	FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM), /*UseMemorySSA=*/
-		false,
-		/*UseBlockFrequencyInfo=*/ true,
-		/*UseBranchProbabilityInfo=*/ true));
-
+	false,
+	/*UseBlockFrequencyInfo=*/true,
+	/*UseBranchProbabilityInfo=*/true));
+	{
+		auto simplifyCfgOpts = hwtHls::HwtHlsSimplifyCFGOptions()	//
+		.hoistCommonInsts(true)	//
+		.setHoistCheapInsts(true)	//
+				;
+		FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(simplifyCfgOpts));
+	}
+	//FPM.addPass(hwtHls::DumpAndExitPass(false, false, "tmp/debug.5.afterLoopFlattenUsingIfPass.dot", true));
 }
 
 void LlvmCompilationBundle::_addLoopPasses(llvm::FunctionPassManager &FPM) {
@@ -600,7 +616,7 @@ void LlvmCompilationBundle::_addLoopPasses(llvm::FunctionPassManager &FPM) {
 	//   LPM1.addPass(llvm::LoopFlattenPass());
 	//LPM1.addPass(hwtHls::LoopBackedgeSimplifyPass());
 	LPM2.addPass(llvm::LoopIdiomRecognizePass());
-	LPM2.addPass(llvm::IndVarSimplifyPass(/*WidenIndVars*/ true));
+	LPM2.addPass(llvm::IndVarSimplifyPass(/*WidenIndVars*/true));
 	//for (auto &C : LateLoopOptimizationsEPCallbacks)
 	//  C(LPM2, Level);
 	LPM2.addPass(llvm::LoopDeletionPass());
@@ -626,9 +642,12 @@ void LlvmCompilationBundle::_addLoopPasses(llvm::FunctionPassManager &FPM) {
 	FPM.addPass(llvm::createFunctionToLoopPassAdaptor(std::move(LPM1), /*UseMemorySSA=*/
 	true, /*UseBlockFrequencyInfo=*/
 	true));
-	FPM.addPass(
-			hwtHls::HwtHlsSimplifyCFGPass(
-					hwtHls::HwtHlsSimplifyCFGOptions().convertSwitchRangeToICmp(true)));
+	{
+		auto simplifyCfgOpts = hwtHls::HwtHlsSimplifyCFGOptions()	//
+		.convertSwitchRangeToICmp(true) //
+				;
+		FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(simplifyCfgOpts));
+	}
 	FPM.addPass(llvm::LoopSimplifyPass());
 	_addInstrCombinePassesLight(FPM);
 
@@ -670,10 +689,10 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 		FPM.addPass(
 				llvm::LoopUnrollPass(
 						llvm::LoopUnrollOptions(Level.getSpeedupLevel(), /*OnlyWhenForced=*/
-						!PTO.LoopUnrolling, PTO.ForgetAllSCEVInLoopUnroll)//
-						.setPartial(false)//
-						.setPeeling(false)//
-						.setRuntime(false)//
+						!PTO.LoopUnrolling, PTO.ForgetAllSCEVInLoopUnroll)	//
+						.setPartial(false)		//
+						.setPeeling(false)		//
+						.setRuntime(false)		//
 						.setProfileBasedPeeling(false)));
 		_addAfterUnrollFollowupPasses(FPM);
 		FPM.addPass(llvm::WarnMissedTransformationsPass());
@@ -715,9 +734,12 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 		ExtraPasses.addPass(createFunctionToLoopPassAdaptor(std::move(LPM), /*UseMemorySSA=*/
 		true,
 		/*UseBlockFrequencyInfo=*/true));
-		ExtraPasses.addPass(
-				hwtHls::HwtHlsSimplifyCFGPass(hwtHls::HwtHlsSimplifyCFGOptions()//
-				.convertSwitchRangeToICmp(true)));
+		{
+			auto simplifyCfgOpts = hwtHls::HwtHlsSimplifyCFGOptions()		//
+			.convertSwitchRangeToICmp(true) //
+					;
+			ExtraPasses.addPass(hwtHls::HwtHlsSimplifyCFGPass(simplifyCfgOpts));
+		}
 		ExtraPasses.addPass(llvm::LoopSimplifyPass());
 		ExtraPasses.addPass(hwtHls::RomExtractPass());
 		ExtraPasses.addPass(llvm::InstCombinePass());
@@ -733,15 +755,16 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 	// convert to more optimized IR using more aggressive simplify CFG options.
 	// The extra sinking transform can create larger basic blocks, so do this
 	// before SLP vectorization.
-	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(
-			hwtHls::HwtHlsSimplifyCFGOptions()\
-				.forwardSwitchCondToPhi(true)\
-				.convertSwitchRangeToICmp(true)\
-				//.convertSwitchToLookupTable(true)
-				.needCanonicalLoops(true)\
-				.hoistCommonInsts(true)\
-				.sinkCommonInsts(true)\
-	));
+	{
+		auto simplifyCfgOpts = hwtHls::HwtHlsSimplifyCFGOptions()	//
+		.forwardSwitchCondToPhi(true)	//
+		.convertSwitchRangeToICmp(true)	//
+		//.convertSwitchToLookupTable(true)//
+		.needCanonicalLoops(true)						//
+		.hoistCommonInsts(true)						//
+		.sinkCommonInsts(true);
+		FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(simplifyCfgOpts));
+	}
 
 	FPM.addPass(llvm::LoopSimplifyPass());
 
@@ -784,15 +807,16 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 			}
 
 			//FPM.addPass(hwtHls::DumpAndExitPass(false, false, "tmp/_addAfterUnrollFollowupPasses.0-before.dot", true, true));
-			FPM.addPass(
-					llvm::LoopUnrollPass(
-							llvm::LoopUnrollOptions(Level.getSpeedupLevel(), /*OnlyWhenForced=*/
-									!PTO.LoopUnrolling,
-									PTO.ForgetAllSCEVInLoopUnroll)//
-									.setPartial(false)//
-									.setPeeling(false)//
-									.setRuntime(false)//
-									.setProfileBasedPeeling(false)));
+			{
+				auto luOpts = llvm::LoopUnrollOptions(Level.getSpeedupLevel(), /*OnlyWhenForced=*/
+				!PTO.LoopUnrolling, PTO.ForgetAllSCEVInLoopUnroll) //
+				.setPartial(false) //
+				.setPeeling(false) //
+				.setRuntime(false) //
+				.setProfileBasedPeeling(false) //
+						;
+				FPM.addPass(llvm::LoopUnrollPass(luOpts));
+			}
 			_addAfterUnrollFollowupPasses(FPM);
 			FPM.addPass(llvm::WarnMissedTransformationsPass());
 		}
@@ -836,8 +860,9 @@ void LlvmCompilationBundle::_addMachineCodegenPasses(
 	PM.add(MMIWP);
 
 	// check for incompatible passes
-	TPC = static_cast<llvm::HwtFpgaTargetPassConfig*>(static_cast<llvm::LLVMTargetMachine&>(*TM).createPassConfig(
-			PM));
+	TPC =
+			static_cast<llvm::HwtFpgaTargetPassConfig*>(static_cast<llvm::LLVMTargetMachine&>(*TM).createPassConfig(
+					PM));
 	// if PIC used in new pass manager is used there is a segfault in callbacks added into PIC using print-after-all and many others
 	TPC->setPassInstrumentationCallbacks(&PICForLegacyPM);
 	// :note: we can not use pass constructor to pass toNetlistConversionFn because
@@ -845,7 +870,8 @@ void LlvmCompilationBundle::_addMachineCodegenPasses(
 	// :note: we can not call pass explicitly after PM.run() because addRequired/getAnalysis will not work
 	TPC->toNetlistConversionFn = &toNetlistConversionFn;
 	if (TPC->hasLimitedCodeGenPipeline()) {
-		llvm::errs() << "run-pass cannot be used with " << TPC->getLimitedCodeGenPipelineReason() << ".\n";
+		llvm::errs() << "run-pass cannot be used with "
+				<< TPC->getLimitedCodeGenPipelineReason() << ".\n";
 		throw std::runtime_error("run-pass cannot be used with ...");
 	}
 	// PM.add(llvm::createCFGPrinterLegacyPassPass()); //llvm::CFGPrinterPass());
@@ -863,6 +889,5 @@ void LlvmCompilationBundle::_addMachineCodegenPasses(
 
 	PM.add(llvm::createFreeMachineFunctionPass());
 }
-
 
 }
