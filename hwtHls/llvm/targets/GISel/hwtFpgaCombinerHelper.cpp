@@ -230,18 +230,58 @@ HwtFpgaCombinerHelper::ConcatMember::ConcatMember(const MachineOperand &op,
 	}
 }
 
-inline bool collectConcatMembersAsItIs(llvm::MachineOperand &MIOp,
+bool HwtFpgaCombinerHelper::collectConcatMembersAsItIs(
+		llvm::MachineOperand &MIOp,
 		std::vector<HwtFpgaCombinerHelper::ConcatMember> &members,
 		uint64_t mainOffset, uint64_t mainWidth, uint64_t &mainOffsetCurrent,
-		uint64_t miResOffset, uint64_t miResWidth) {
+		uint64_t MIOpOffset, uint64_t MIOpWidth, uint64_t MIOpSelectedWidth) {
+	assert(mainOffsetCurrent < mainWidth);
+	assert(MIOpSelectedWidth + MIOpOffset <= MIOpWidth);
 	uint64_t mainEnd = mainOffset + mainWidth;
 	// take slice from this instruction as it is
-	uint64_t bitsToTake = std::min(miResWidth - miResOffset, mainEnd - mainOffsetCurrent);
+	uint64_t bitsToTake = std::min(MIOpSelectedWidth,
+			mainEnd - mainOffsetCurrent);
 	mainOffsetCurrent += bitsToTake;
 	if (mainOffsetCurrent < mainOffset) {
 		// skip prefix
 		return true;
 	} else {
+		if (!members.empty()) {
+			auto &last = members.back();
+			if (last.op.isCImm()) {
+				if (MIOp.isCImm()) {
+					assert(last.offsetOfUse == 0);
+					assert(last.widthOfUse == last.width);
+					const ConstantInt *lastC;
+					if (last.constOverride)
+						lastC = last.constOverride;
+					else
+						lastC = last.op.getCImm();
+
+					auto &Ctx = lastC->getContext();
+					auto vL = lastC->getValue().extractBits(last.widthOfUse,
+							last.offsetOfUse);
+					auto vH = MIOp.getCImm()->getValue().extractBits(MIOpWidth,
+							MIOpOffset);
+					auto newV = vH.concat(vL);
+					last.constOverride = ConstantInt::get(Ctx, newV);
+					last.widthOfUse += bitsToTake;
+					last.width += bitsToTake;
+					last.existingSlice = nullptr;
+					return true;
+				}
+			} else if (matchEqualDefs(last.op, MIOp)) {
+				assert(
+						last.width == MIOpWidth
+								&& "The width of MIOp should always be the same");
+				if (last.offsetOfUse + last.widthOfUse == MIOpOffset) {
+					// merge 2 continuous slices to 1 wider
+					last.widthOfUse += bitsToTake;
+					last.existingSlice = nullptr;
+					return true;
+				}
+			}
+		}
 		members.push_back(HwtFpgaCombinerHelper::ConcatMember { MIOp,
 				MIOpOffset, MIOpWidth, bitsToTake });
 		return false;
@@ -251,16 +291,18 @@ inline bool collectConcatMembersAsItIs(llvm::MachineOperand &MIOp,
 // RegisterIsDefinedWithinRange
 bool HwtFpgaCombinerHelper::collectConcatMembers(llvm::MachineOperand &MIOp,
 		std::vector<ConcatMember> &members, uint64_t mainOffset,
-		uint64_t mainWidth, uint64_t &mainOffsetCurrent, uint64_t miResOffset,
-		uint64_t miResWidth) {
+		uint64_t mainWidth, uint64_t &mainOffsetCurrent, uint64_t MIOpOffset,
+		uint64_t MIOpWidth, uint64_t MIOpSelectedWidth) {
 	uint64_t mainEnd = mainOffset + mainWidth;
 	MachineInstr &MI = *MIOp.getParent();
 #ifndef NDEBUG
-	assert(miResOffset < miResWidth);
-	MachineRegisterInfo& MRI = MI.getParent()->getParent()->getRegInfo();
+	assert(MIOpOffset < MIOpWidth);
+	MachineRegisterInfo &MRI = MI.getParent()->getParent()->getRegInfo();
 	auto MIOpTy = MRI.getType(MIOp.getReg());
 	if (MIOpTy.isValid()) {
-		assert(MIOpTy.getScalarSizeInBits() == miResWidth && "Has enough bits to extract");
+		assert(
+				MIOpTy.getScalarSizeInBits() == MIOpWidth
+						&& "Has enough bits to extract");
 	}
 #endif
 	switch (MI.getOpcode()) {
@@ -271,36 +313,39 @@ bool HwtFpgaCombinerHelper::collectConcatMembers(llvm::MachineOperand &MIOp,
 		size_t valMOIndex = 0;
 		for (const auto& [valMO, widthMO] : hwtHls::MERGE_VALUES_iter_valuesWidthPairs(
 				MI)) {
-			uint64_t thisMemberOffset = 0;
 			uint64_t valMOWidth = widthMO.getImm();
 			uint64_t valMOWidthToExtract = valMOWidth;
-			if (miResOffset) { // if slice on this MERGE_VALUES instruction does not start at current operand
-				if (miResOffset > valMOWidth) { // this operand is entirely sliced out
-					thisMemberOffset = valMOWidth;
-					miResOffset -= valMOWidth;
-					valMOWidthToExtract = 0;
-				} else {
-					thisMemberOffset = miResOffset;
-					valMOWidthToExtract -= miResOffset;
-					miResOffset = 0;
-				}
-			}
-			if (mainOffsetCurrent + valMOWidthToExtract < mainOffset || valMOWidthToExtract == 0) {
-				didReduce = true;
-				mainOffsetCurrent += valMOWidthToExtract;
-				// skipping the entirely unused prefix
+			if (MIOpOffset > valMOWidth) {
+				// this operand is entirely sliced out prefix
+				MIOpOffset -= valMOWidth;
+				valMOWidthToExtract = 0;
 			} else {
-				MachineOperand *src = nullptr;
-				if (valMO.isReg())
-					src = MRI.getOneDef(valMO.getReg());
-				if (src) {
-					// can look trough
-					didReduce |= collectConcatMembers(*src, members, mainOffset,
-							mainWidth, mainOffsetCurrent, thisMemberOffset, valMOWidth);
+				uint64_t thisMemberOffset = MIOpOffset;
+				valMOWidthToExtract -= MIOpOffset;
+				MIOpOffset = 0; // set to 0 for next item
+				if (mainOffsetCurrent + valMOWidthToExtract < mainOffset
+						|| valMOWidthToExtract == 0) {
+					// skipping the entirely unused prefix
+					didReduce = true;
+					mainOffsetCurrent += valMOWidthToExtract;
 				} else {
-					// must take as it is
-					collectConcatMembersAsItIs(valMO, members, mainOffset,
-							mainWidth, mainOffsetCurrent, thisMemberOffset, valMOWidth);
+					MachineOperand *src = nullptr;
+					if (valMO.isReg()) {
+						src = MRI.getOneDef(valMO.getReg());
+					}
+					if (src) {
+						// can look trough
+						didReduce |= collectConcatMembers(*src, members,
+								mainOffset, mainWidth, mainOffsetCurrent,
+								thisMemberOffset, valMOWidth,
+								valMOWidth - thisMemberOffset);
+					} else {
+						// must take as it is
+						didReduce |= collectConcatMembersAsItIs(valMO, members,
+								mainOffset, mainWidth, mainOffsetCurrent,
+								thisMemberOffset, valMOWidth,
+								valMOWidth - thisMemberOffset);
+					}
 				}
 			}
 			if (mainOffsetCurrent >= mainEnd) {
@@ -315,41 +360,65 @@ bool HwtFpgaCombinerHelper::collectConcatMembers(llvm::MachineOperand &MIOp,
 	case HwtFpga::HWTFPGA_EXTRACT: {
 		// fit this is a HWTFPGA_EXTRACT try to use src operand instead
 		auto subSlice = hwtHls::HWTFPGA_EXTRACTOptions::get(MI);
-		subSlice.offset += miResOffset;
-		if (miResWidth != subSlice.dstWidth) {
-			errs() << MI << " widthOfIRes:" << miResWidth << " subSlice.dstWidth:" << subSlice.dstWidth << "\n";
+		if (subSlice.dstWidth >= MIOpSelectedWidth) {
+			// selects only some bits from this slice
+		} else {
+			errs() << MI << " widthOfIRes:" << MIOpSelectedWidth
+					<< " subSlice.dstWidth:" << subSlice.dstWidth << "\n";
 			llvm_unreachable(
 					"HWTFPGA_EXTRACT provides value of less bits than expected");
 		}
 
-		if (auto *src = MRI.getOneDef(MI.getOperand(1).getReg())) {
-			// look trough the source operand of this HWTFPGA_EXTRACT instruction
-			// if src operand is extract or merge we drill down to find most primitive inputs
-			bool mayContainOtherSlicesAndConcats = false;
-			switch (src->getParent()->getOpcode()) {
-			case HwtFpga::HWTFPGA_MERGE_VALUES:
-			case HwtFpga::HWTFPGA_EXTRACT:
-				mayContainOtherSlicesAndConcats = true;
-				break;
-			}
+		auto *extractSrc = MRI.getOneDef(MI.getOperand(1).getReg());
+		if (!extractSrc)
+			break; // we can not look on def of src because there are multiple defs,
+		// we have to use use MIOp (HWTFPGA_EXTRACT dst) as is
+
+		// look trough the source operand of this HWTFPGA_EXTRACT instruction
+		// if src operand is extract or merge we drill down to find most primitive inputs
+		bool mayContainOtherSlicesAndConcats = false;
+		auto srcOpc = extractSrc->getParent()->getOpcode();
+		switch (srcOpc) {
+		case HwtFpga::HWTFPGA_MERGE_VALUES:
+		case HwtFpga::HWTFPGA_EXTRACT:
+			mayContainOtherSlicesAndConcats = true;
+			break;
+		}
+		bool didReduce;
+		{
+			auto offset = subSlice.offset + MIOpOffset;
+			auto dstWidth = std::min(MIOpSelectedWidth, subSlice.dstWidth);
+			assert(offset + dstWidth <= subSlice.srcWidth);
 			if (mayContainOtherSlicesAndConcats) {
-				bool didReduce = collectConcatMembers(*src, members, mainOffset,
-						mainWidth, mainOffsetCurrent, subSlice.offset,
-						subSlice.srcWidth);
-				assert(members.size());
-				const auto &lastAdded = members.back();
-				didReduce |= &lastAdded.op != src;
-				return didReduce;
+				didReduce = collectConcatMembers(*extractSrc, members,
+						mainOffset, mainWidth, mainOffsetCurrent, offset,
+						subSlice.srcWidth, dstWidth);
+			} else {
+				didReduce = collectConcatMembersAsItIs(*extractSrc, members,
+						mainOffset, mainWidth, mainOffsetCurrent, offset,
+						subSlice.srcWidth, dstWidth);
+
 			}
 		}
-
-		break;
+		assert(members.size());
+		auto &lastAdded = members.back();
+		// :note: can not reuse existing slices as they are because, if we do that we wold not be able to merge items in members
+		//        because we would not know that we should analyze this item again when resolving continuous slices
+		if (matchEqualDefs(lastAdded.op, *extractSrc) && lastAdded.width != 1 // to discard [0] slices on 1b vectors
+		&& lastAdded.offsetOfUse == subSlice.offset
+				&& lastAdded.widthOfUse == subSlice.dstWidth) {
+			// this would result in copy of this instruction, to prevent it, we use reuse existing instruction
+			lastAdded.existingSlice = &MI;
+		} else {
+			didReduce = true;
+		}
+		return didReduce;
 	}
 	}
+	// can not look trough instruction to find a source of bits
 	return collectConcatMembersAsItIs(MIOp, members, mainOffset, mainWidth,
-			mainOffsetCurrent, miResOffset, miResWidth);
+			mainOffsetCurrent, MIOpOffset, MIOpWidth, MIOpSelectedWidth);
 }
-
 
 bool HwtFpgaCombinerHelper::matchCmpToMsbCheck(llvm::MachineInstr &MI,
 		BuildFnTy &rewriteFn) {
