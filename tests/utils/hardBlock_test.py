@@ -30,7 +30,7 @@ class ExampleHardBlockHwModule_netlist_add1(HardBlockHwModule):
         res.setOnlyAccessesArgMemory()
         TheFn: Function = res.getCalledFunction()
         AddDefaultFunctionAttributes(TheFn)
-        TheFn.addFnAttrKind(Attribute.Speculatable)
+        TheFn.addFnAttrKind(Attribute.AttrKind.Speculatable)
         return  res
 
     @override
