@@ -9,7 +9,8 @@ from hwtHls.frontend.indexExpansion import PyObjectRequiresExpandBeforeUse
 from hwtHls.frontend.pragma import _PyBytecodeInstructionPragma, _PyBytecodeIntrinsic, \
     _PyBytecodePragma
 from hwtHls.llvm.llvmIr import IRBuilder, Value, ValueToInstruction, BasicBlock, \
-    OverflowingBinaryOperator, MDNode, ThreadSplitSectionMetadata, LLVMContext
+    OverflowingBinaryOperator, MDNode, ThreadSplitSectionMetadata, LLVMContext, \
+    SlicesToIndependentVariablesPass, HwtHlsInstCombinePass
 from hwtHls.netlist.hdlTypeVoid import HVoidData
 
 
@@ -23,7 +24,22 @@ class PyBytecodeNoSplitSlices(_PyBytecodeInstructionPragma):
         inst = ValueToInstruction(v)
         assert inst, v
         inst.setMetadata(
-            irTranslator.strCtx.addStringRef("hwtHls.slicesToIndependentVariables.noSplit"),
+            irTranslator.strCtx.addStringRef(SlicesToIndependentVariablesPass.metadataName_NoSplit),
+            irTranslator.mdGetTuple([], False))
+
+
+class PyBytecodeIsMaskContinuosFromLsb(_PyBytecodeInstructionPragma):
+    """
+    Specifies that the value is always continuous sequence of 1 starting from lsb bit.
+    e.g. 3b value may be only 0b000, 0b001, 0b011, 0b111
+    """
+
+    @override
+    def toLlvm(self, irTranslator: "ToLlvmIrTranslator", v: Value):
+        inst = ValueToInstruction(v)
+        assert inst, v
+        inst.setMetadata(
+            irTranslator.strCtx.addStringRef(HwtHlsInstCombinePass.metadataName_expr_maskContinuosFromLsb),
             irTranslator.mdGetTuple([], False))
 
 
