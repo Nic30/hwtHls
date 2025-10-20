@@ -600,7 +600,10 @@ class HwtHlsNetlistToGraphviz():
                 flushInfo = (" isFlushable" if obj._isFlushable else
                              " mayBecomeFlushable" if obj._mayBecomeFlushable else
                              "")
-                buff.append(f'            <tr><td colspan="2">buffCap={buffCap:d}{flushInfo:s}</td></tr>\n')
+                if buffCap != 0:
+                    buff.append(f'            <tr><td colspan="2">buffCap={buffCap:d}{flushInfo:s}</td></tr>\n')
+                else:
+                    buff.append(f'            <tr><td colspan="2">{flushInfo:s}</td></tr>\n')
 
         # if useInputConstRow:
         #    assert len(constInputRows) == len(input_rows)
