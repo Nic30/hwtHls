@@ -5,8 +5,8 @@
 namespace py = pybind11;
 
 namespace hwtHls {
-void register_GlobalVariable(pybind11::module_ &m) {
 
+void register_GlobalVariable(pybind11::module_ &m) {
 	py::class_<llvm::Align> Align(m, "Align");
 	Align.def(py::init<uint64_t>());
 
@@ -31,4 +31,5 @@ void register_GlobalVariable(pybind11::module_ &m) {
 			)//
 	.def("setUnnamedAddr", &llvm::GlobalVariable::setUnnamedAddr);
 }
+
 }
