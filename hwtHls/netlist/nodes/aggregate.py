@@ -207,10 +207,7 @@ class HlsNetNodeAggregate(HlsNetNode):
             outerDepT = outerDep.obj.scheduledOut[outerDep.out_i]
             assert outerDepT <= outerInT, (outerDepT, outerInT, outerDep, outerIn)
             portT = port.scheduledOut[0]
-            try:
-                assert outerInT == portT, (outerInT, portT, outerIn, port)
-            except:
-                raise
+            assert outerInT == portT, (outerInT, portT, outerIn, port)
         for outer, port, t in zip(self._outputs, self._outputsInside, self.scheduledOut):
             outer: HlsNetNodeOut
             port: HlsNetNodeAggregatePortOut
