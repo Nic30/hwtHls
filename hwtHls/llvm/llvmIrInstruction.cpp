@@ -39,6 +39,9 @@ void register_Instruction(pybind11::module_ & m) {
 		.def("getOpcodeName", [](llvm::Instruction*self) {
 				return self->getOpcodeName();
 			}, py::return_value_policy::reference)
+		.def("getParent", [](llvm::Instruction & self) {
+			return self.getParent();
+		}, py::return_value_policy::reference_internal)
 		.def("__eq__", [](const llvm::Instruction & self, const llvm::Instruction & other) {
 			return &self == &other;
 		})
@@ -48,6 +51,14 @@ void register_Instruction(pybind11::module_ & m) {
 		.def("__hash__", [](const llvm::Instruction * self) {
 			return reinterpret_cast<intptr_t>(self);
 		})
+		.def("isTerminator",  [](llvm::Instruction *I) { return I->isTerminator();})
+		.def("isUnaryOp",  [](llvm::Instruction *I) { return I->isUnaryOp();})
+		.def("isBinaryOp",  [](llvm::Instruction *I) { return I->isBinaryOp();})
+		.def("isIntDivRem",  [](llvm::Instruction *I) { return I->isIntDivRem();})
+		.def("isShift",  [](llvm::Instruction *I) { return I->isShift();})
+		.def("isCast",  [](llvm::Instruction *I) { return I->isCast();})
+		.def("isFuncletPad",  [](llvm::Instruction *I) { return I->isFuncletPad();})
+		.def("isSpecialTerminator",  [](llvm::Instruction *I) { return I->isSpecialTerminator();})
 		.def("getMetadata", [](llvm::Instruction * I, llvm::StringRef Kind) {
 			return reinterpret_cast<MDNodeWithDeletedDelete*>(I->getMetadata(Kind));
 		})
@@ -266,6 +277,16 @@ void register_Instruction(pybind11::module_ & m) {
 			;
 	py::implicitly_convertible<llvm::CallInst, llvm::Instruction>();
 	m.def("InstructionToCallInst", &llvmInstructionCaster<llvm::CallInst>, py::return_value_policy::reference_internal);
+
+	py::class_<llvm::ExtractValueInst, std::unique_ptr<llvm::ExtractValueInst, py::nodelete>, llvm::Instruction> _ExtractValueInst(m, "ExtractValueInst");
+	_ExtractValueInst
+		.def("indices", [](llvm::ExtractValueInst*I) {
+				return py::make_iterator(I->idx_begin(), I->idx_end());
+		}, py::keep_alive<0, 1>())
+		.def("getNumIndices", [](llvm::ExtractValueInst*I) { return I->getNumIndices(); })
+		;
+	py::implicitly_convertible<llvm::ExtractValueInst, llvm::Instruction>();
+	m.def("InstructionToExtractValueInst", &llvmInstructionCaster<llvm::ExtractValueInst>, py::return_value_policy::reference_internal);
 
 	py::class_<llvm::SelectInst, std::unique_ptr<llvm::SelectInst, py::nodelete>, llvm::Instruction>(m, "SelectInst");
 	py::implicitly_convertible<llvm::SelectInst, llvm::Instruction>();

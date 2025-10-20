@@ -46,7 +46,19 @@ void register_HFloatTmpConfig(pybind11::module_ &m) {
 		})
 		.def_readonly_static("MEMBER_CNT", &hwtHls::HFloatTmpConfig::MEMBER_CNT)
 		.def_static("fromCallArgs", &hwtHls::HFloatTmpConfig::fromCallArgs, py::arg("call"), py::arg("argsToSkip")=1u)
-		.def_static("fromMachineInstrOperands", &hwtHls::HFloatTmpConfig::fromMachineInstrOperands, py::arg("MI"), py::arg("operandOffset"))
+		.def_static("fromMachineInstrOperands", [](llvm::MachineInstr & MI, size_t operandOffset) {
+			assert(HFloatTmpConfig::MEMBER_CNT == 11);
+			if (MI.getNumExplicitOperands()
+					< operandOffset + HFloatTmpConfig::MEMBER_CNT + 1) {
+				throw std::runtime_error(
+						"Instruction does not have enough operands to extract HFloatTmpConfig, (ops should end with HFloatTmpConfig members and enCond)");
+			}
+			if (!MI.getOperand(operandOffset).isImm()) {
+				throw std::runtime_error(
+								"The first selected operand and all following for HFloatTmpConfig must be Imm");
+			}
+			return hwtHls::HFloatTmpConfig::fromMachineInstrOperands(MI, operandOffset);
+		}, py::arg("MI"), py::arg("operandOffset"))
 		.def_readwrite("isInQFormat", &HFloatTmpConfig::isInQFormat)
 		.def_readwrite("exponentOrIntWidth", &HFloatTmpConfig::exponentOrIntWidth)
 		.def_readwrite("mantissaOrFracWidth", &HFloatTmpConfig::mantissaOrFracWidth)

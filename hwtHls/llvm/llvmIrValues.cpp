@@ -83,6 +83,7 @@ void register_Values_and_Use(pybind11::module_ & m) {
 		})
 		.def("getType", &llvm::Value::getType, py::return_value_policy::reference)
 		.def("getName", &llvm::Value::getName)
+		.def("hasName", &llvm::Value::hasName)
 		.def("setName", &llvm::Value::setName)
 		.def("getNumUses", &llvm::Value::getNumUses)
 		.def("hasOneUse", &llvm::Value::hasOneUse)

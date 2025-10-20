@@ -63,6 +63,9 @@ void register_MachineFunction(pybind11::module_ &m) {
 	MachineBasicBlock
 		.def("getName", &llvm::MachineBasicBlock::getName, py::return_value_policy::reference_internal)
 		.def("getNumber", &llvm::MachineBasicBlock::getNumber)
+		.def("getParent", [](llvm::MachineBasicBlock & self) {
+			return self.getParent();
+		})
 		.def("getFallThrough", &llvm::MachineBasicBlock::getFallThrough, py::return_value_policy::reference_internal)
 		.def("canFallThrough", &llvm::MachineBasicBlock::canFallThrough)
 	    .def("predecessors", [](llvm::MachineBasicBlock &MB) {
@@ -130,6 +133,7 @@ void register_MachineFunction(pybind11::module_ &m) {
 			return MI->getParent();
 		}, py::return_value_policy::reference_internal)
 		.def("getNumOperands", &llvm::MachineInstr::getNumOperands)
+		.def("getNumExplicitOperands", &llvm::MachineInstr::getNumExplicitOperands)
 		.def("getOperand", [](llvm::MachineInstr & I, unsigned i) {
 			return I.getOperand(i);
 		}, py::return_value_policy::reference_internal)
@@ -185,7 +189,10 @@ void register_MachineFunction(pybind11::module_ &m) {
 		.def("getOneDef", &llvm::MachineRegisterInfo::getOneDef, py::return_value_policy::reference_internal);
 	py::class_<llvm::LLT> LLT(m, "LLT");
 	LLT.def("getScalarSizeInBits", &llvm::LLT::getScalarSizeInBits)
-	   .def("isValid", &llvm::LLT::isValid);
+	   .def("isValid", &llvm::LLT::isValid)
+	   .def("isPointer", &llvm::LLT::isPointer)
+	   .def("getAddressSpace", &llvm::LLT::getAddressSpace)
+	   ;
 
 	py::class_<llvm::MachineModuleInfo, std::unique_ptr<llvm::MachineModuleInfo, py::nodelete>> MachineModuleInfo(m, "MachineModuleInfo");
 	MachineModuleInfo

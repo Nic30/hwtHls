@@ -66,6 +66,12 @@ void register_TargetLibrary(pybind11::module_ &m) {
 	LibFunc.value("NumLibFuncs", llvm::LibFunc::NumLibFuncs);
 	LibFunc.value("NotLibFunc", llvm::LibFunc::NotLibFunc);
 	LibFunc.finalize();
+
+	py::class_<llvm::TargetInstrInfo,
+			std::unique_ptr<llvm::TargetInstrInfo, py::nodelete>> TargetInstrInfo(
+			m, "TargetInstrInfo");
+	TargetInstrInfo.def_static("isGenericOpcode", llvm::TargetInstrInfo::isGenericOpcode);
+
 }
 
 }
