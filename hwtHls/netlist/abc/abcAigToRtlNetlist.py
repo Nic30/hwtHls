@@ -1,9 +1,10 @@
 from itertools import islice
-from typing import Dict, Tuple, Generator
+from typing import Dict, Tuple, Generator, Union
 
 from hwt.code import Or, And, Xor
 from hwt.constants import NOT_SPECIFIED
 from hwt.hdl.operatorDefs import HwtOps, HOperatorDef
+from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.defs import BIT
 from hwt.pyUtils.arrayQuery import grouper
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
@@ -28,7 +29,7 @@ class AbcAigToRtlNetlist():
         self.net = net
         self.aig = aig
         self.ioMap = ioMap
-        self.translationCache: Dict[Tuple[Abc_Obj_t, bool], RtlSignal] = {}
+        self.translationCache: Dict[Tuple[Abc_Obj_t, bool], Union[RtlSignal, HBitsConst]] = {}
 
     @classmethod
     def _collectOrMembers(cls, o: Abc_Obj_t):
