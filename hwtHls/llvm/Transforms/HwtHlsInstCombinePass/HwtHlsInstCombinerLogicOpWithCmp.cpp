@@ -39,7 +39,8 @@ llvm::Instruction* HwtHlsInstCombiner::tryReduceAndWithEq_to_widerEq(
 			Worklist.pushValue(src);
 			Builder.SetInsertPoint(&I);
 			auto r = Builder.CreateICmpEQ(src, Builder.getInt(c));
-			return replaceInstUsesWith(I, r);
+			// excludeAssumeUsers because AssumptionCache would not be able to recognize this in query for bits
+			return replaceInstUsesWith(I, r, true);
 		}
 	}
 	return nullptr;
