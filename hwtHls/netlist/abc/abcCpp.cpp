@@ -20,6 +20,8 @@
 #include <hwtHls/netlist/abc/expandExternalCombLoops.h>
 #include <hwtHls/netlist/abc/patternRecognize.h>
 
+#include <pybind11/native_enum.h>
+
 namespace py = pybind11;
 
 PYBIND11_MAKE_OPAQUE(std::map<Abc_Obj_t*, Abc_Obj_t*>);
@@ -368,7 +370,7 @@ void register_Abc_Ntk_t(py::module_ &m) {
 	).doc() = "ABC network object.";
 
 
-	py::enum_<Io_FileType_t>(m, "Io_FileType_t")
+	py::native_enum<Io_FileType_t>(m, "Io_FileType_t", "enum.Enum")
 	 .value("IO_FILE_NONE",    Io_FileType_t::IO_FILE_NONE   )//
 	 .value("IO_FILE_AIGER",   Io_FileType_t::IO_FILE_AIGER  , "Writes the combinational AIG in binary AIGER format developed by Armin Biere. This format is very compact and leads to a substantial reduction in the reading/writing times. (When writing AIGER for sequential circuits with non-0 initial states, use command zero to normalize the registers initial states.)")//
 	 .value("IO_FILE_BAF",     Io_FileType_t::IO_FILE_BAF    , "Writes the combinational AIG in Binary Aig Format (BAF). For a description of BAF, refer to the source code file src/base/io/ioWriteBaf.c. This format is superseded by the AIGER format and kept for backward compatibility with earlier versions of ABC.")//
@@ -389,7 +391,7 @@ void register_Abc_Ntk_t(py::module_ &m) {
 	 .value("IO_FILE_SMV",     Io_FileType_t::IO_FILE_SMV    )//
 	 .value("IO_FILE_VERILOG", Io_FileType_t::IO_FILE_VERILOG, "Outputs the network using technology-independent Verilog.")//
 	 .value("IO_FILE_UNKNOWN", Io_FileType_t::IO_FILE_UNKNOWN)//
-     .export_values();
+     .finalize();
 
 #define PYBIND11_ABC_ARG_NOT_NONE_BIN_OP py::arg("p0").none(false), py::arg("p1").none(false), py::return_value_policy::reference_internal
 #define PYBIND11_ABC_ARG_NOT_NONE_MUX_OP py::arg("pC").none(false), py::arg("p1").none(false), py::arg("p0").none(false), py::return_value_policy::reference_internal
@@ -431,15 +433,15 @@ void register_Abc_Ntk_t(py::module_ &m) {
 		}, py::return_value_policy::reference_internal, "apply \"miter\" operator on Abc_Obj_t")
 		.def("Cleanup", wrap_Abc_Aig_t(&Abc_AigCleanup));
 
-	py::enum_<Abc_NtkType_t>(m, "Abc_NtkType_t")
+	py::native_enum<Abc_NtkType_t>(m, "Abc_NtkType_t", "enum.Enum")
 	    .value("ABC_NTK_NONE", Abc_NtkType_t::ABC_NTK_NONE  )
 	    .value("ABC_NTK_NETLIST", Abc_NtkType_t::ABC_NTK_NETLIST)
 	    .value("ABC_NTK_LOGIC", Abc_NtkType_t::ABC_NTK_LOGIC )
 	    .value("ABC_NTK_STRASH", Abc_NtkType_t::ABC_NTK_STRASH)
 	    .value("ABC_NTK_OTHER", Abc_NtkType_t::ABC_NTK_OTHER  )
-		.export_values();
+		.finalize();
 
-	py::enum_<Abc_NtkFunc_t>(m, "Abc_NtkFunc_t")
+	py::native_enum<Abc_NtkFunc_t>(m, "Abc_NtkFunc_t", "enum.Enum")
 	    .value("ABC_FUNC_NONE", Abc_NtkFunc_t::ABC_FUNC_NONE, "unknown")
 	    .value("ABC_FUNC_SOP", Abc_NtkFunc_t::ABC_FUNC_SOP, "sum-of-products")
 	    .value("ABC_FUNC_BDD", Abc_NtkFunc_t::ABC_FUNC_BDD, "binary decision diagrams")
@@ -448,7 +450,7 @@ void register_Abc_Ntk_t(py::module_ &m) {
 	    .value("ABC_FUNC_BLIFMV", Abc_NtkFunc_t::ABC_FUNC_BLIFMV, "BLIF-MV node functions")
 	    .value("ABC_FUNC_BLACKBOX", Abc_NtkFunc_t::ABC_FUNC_BLACKBOX, "black box about which nothing is known")
 	    .value("ABC_FUNC_OTHER", Abc_NtkFunc_t::ABC_FUNC_OTHER, "unused")
-		.export_values();
+		.finalize();
 }
 
 template<typename ReturnT, typename ... Args>
@@ -459,7 +461,7 @@ auto Abc_Obj_t_rmComplementBeforeCall(ReturnT (*f)(Abc_Obj_t * self, Args...)) {
 }
 
 void register_Abc_Obj_t(py::module_ &m) {
-	py::enum_<Abc_ObjType_t>(m, "Abc_ObjType_t")
+	py::native_enum<Abc_ObjType_t>(m, "Abc_ObjType_t", "enum.Enum")
 	    .value("ABC_OBJ_NONE",     Abc_ObjType_t::ABC_OBJ_NONE,      "unknown"                   )//
 	    .value("ABC_OBJ_CONST1",   Abc_ObjType_t::ABC_OBJ_CONST1,    "constant 1 node (AIG only)")//
 	    .value("ABC_OBJ_PI",       Abc_ObjType_t::ABC_OBJ_PI,        "primary input terminal"    )//
@@ -472,7 +474,7 @@ void register_Abc_Obj_t(py::module_ &m) {
 	    .value("ABC_OBJ_WHITEBOX", Abc_ObjType_t::ABC_OBJ_WHITEBOX,  "box with known contents"   )//
 	    .value("ABC_OBJ_BLACKBOX", Abc_ObjType_t::ABC_OBJ_BLACKBOX,  "box with unknown contents" )//
 	    .value("ABC_OBJ_NUMBER",   Abc_ObjType_t::ABC_OBJ_NUMBER,    "unused"                    )//
-		.export_values();
+		.finalize();
 
 	// this must be without delete, because life is mantained by parent Abc_Ntk_t
 	// and some bits of pointer are used to mark private information so this is not even proper C++ pointer
