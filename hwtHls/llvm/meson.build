@@ -134,6 +134,8 @@ py3.extension_module(
      'Analysis/mergeSetsBasedLivenessAnalysis/djGraph.cpp',
      'Analysis/mergeSetsBasedLivenessAnalysis/liveness.cpp',
      'Analysis/mergeSetsBasedLivenessAnalysis/mergeSets.cpp',
+     
+     'intrinsic/metadataSideEffect.cpp',
 
      'Transforms/bitwidthReducePass/bitPartsUseAnalysis.cpp',
      'Transforms/bitwidthReducePass/bitRewriter.cpp',
@@ -189,6 +191,7 @@ py3.extension_module(
      'Transforms/HwtHlsSimplifyCFGPass/cfgFragmentStreamReadUntilEoF.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFG.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_aggresiveStoreSink.cpp',
+     'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_hoistHoistableAssumes.cpp',
 	 'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_mergePredecessorsStore.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_normalizeLookupTableIndex.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_phiToLogicalExpr.cpp',

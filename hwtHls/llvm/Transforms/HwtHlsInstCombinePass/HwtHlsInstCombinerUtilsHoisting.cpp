@@ -1,7 +1,9 @@
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinerUtilsHoisting.h>
+#include <hwtHls/llvm/intrinsic/metadataSideEffect.h>
 #include <llvm/Analysis/ValueTracking.h>
 
 using namespace llvm;
+
 namespace hwtHls {
 
 bool hoistIntoDominatingBlock(Value &V, Instruction &insertPoint,
@@ -12,7 +14,8 @@ bool hoistIntoDominatingBlock(Value &V, Instruction &insertPoint,
 		}
 		if (I->mayWriteToMemory() || I->mayReadFromMemory()
 				|| I->mayHaveSideEffects() || !isSafeToSpeculativelyExecute(I))
-			return false;
+			if (!hasMetadataSideeffectAllowHoist(*I))
+				return false;
 
 		for (auto &O : I->operands()) {
 			if (!hoistIntoDominatingBlock(*O.get(), insertPoint, DT)) {
