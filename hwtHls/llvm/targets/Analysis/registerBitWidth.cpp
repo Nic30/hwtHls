@@ -13,9 +13,8 @@
 using namespace llvm;
 
 namespace hwtHls {
-
-bool checkOrSetWidth(MachineRegisterInfo &MRI, MachineOperand &op,
-		unsigned width,
+bool MachineOperand_checkOrSetWidth(MachineRegisterInfo &MRI,
+		MachineOperand &op, unsigned width,
 		llvm::SmallVector<std::pair<unsigned, uint64_t>> *undefsToDuplicate) {
 	if (op.isReg()) {
 		Register Reg = op.getReg();
@@ -34,8 +33,8 @@ bool checkOrSetWidth(MachineRegisterInfo &MRI, MachineOperand &op,
 									&& "This instruction should already be removed");
 				} else if (MRI.def_empty(Reg)) {
 					if (!MRI.hasOneUse(Reg)) {
-						undefsToDuplicate->push_back( {
-								op.getParent()->getOperandNo(&op), width });
+						undefsToDuplicate->push_back(
+								{ op.getParent()->getOperandNo(&op), width });
 					}
 					return true;
 				}
@@ -51,8 +50,8 @@ bool checkOrSetWidth(MachineRegisterInfo &MRI, MachineOperand &op,
 	}
 }
 
-void checkOrSetWidth(MachineRegisterInfo &MRI, MachineOperand &MO,
-		unsigned bitWidth) {
+void MachineOperand_checkOrSetWidth(MachineRegisterInfo &MRI,
+		MachineOperand &MO, unsigned bitWidth) {
 	if (MO.isCImm()) {
 		auto *CI = MO.getCImm();
 		auto w = MO.getCImm()->getBitWidth();
@@ -107,7 +106,8 @@ void checkOrSetWidth(MachineRegisterInfo &MRI, MachineOperand &MO,
 						MO.setReg(NewReg);
 						MO.setIsUndef();
 					}
-					if (!checkOrSetWidth(MRI, MO, bitWidth, nullptr)) {
+					if (!MachineOperand_checkOrSetWidth(MRI, MO, bitWidth,
+							nullptr)) {
 						errs() << *MO.getParent() << "\n";
 						errs() << MO << "\n";
 						llvm_unreachable(
@@ -138,24 +138,23 @@ void duplicateRegsForUndefValues(
 		auto &O = MI.getOperand(v.first);
 		O.setReg(Reg);
 		O.setIsUndef();
-		if (!checkOrSetWidth(MRI, O, v.second, nullptr)) {
+		if (!MachineOperand_checkOrSetWidth(MRI, O, v.second, nullptr)) {
 			llvm_unreachable(
 					"Set of type for register for operand with undefined value failed");
 		}
 	}
 }
 
-
-const MachineOperand & getMopReference(const MachineOperand* v) {
+const MachineOperand& getMopReference(const MachineOperand *v) {
 	return *v;
 }
 
-const MachineOperand & getMopReference(const MachineOperand & v) {
+const MachineOperand& getMopReference(const MachineOperand &v) {
 	return v;
 }
 
-
-inline unsigned tryResolveBitWidthFromOperand(MachineRegisterInfo &MRI, const MachineOperand & MO) {
+inline unsigned tryResolveBitWidthFromOperand(MachineRegisterInfo &MRI,
+		const MachineOperand &MO) {
 	unsigned bitWidth = 0;
 	if (MO.isCImm()) {
 		bitWidth = MO.getCImm()->getBitWidth();
@@ -201,7 +200,8 @@ bool resolveTypes(MachineInstr &MI) {
 		//			LLT::scalar(MI.getOperand(1).getCImm()->getBitWidth()));
 		//	return true;
 	case HwtFpga::HWTFPGA_IMPLICIT_DEF:
-		MRI.setType(MI.getOperand(0).getReg(), LLT::scalar(MI.getOperand(1).getImm()));
+		MRI.setType(MI.getOperand(0).getReg(),
+				LLT::scalar(MI.getOperand(1).getImm()));
 		return true;
 	case HwtFpga::HWTFPGA_GLOBAL_VALUE: {
 		auto ptrT = MI.getOperand(1).getGlobal()->getType();
@@ -233,7 +233,7 @@ bool resolveTypes(MachineInstr &MI) {
 		if (bitWidth == 0)
 			return false;
 		for (MachineOperand &MO : MI.operands()) {
-			checkOrSetWidth(MRI, MO, bitWidth);
+			MachineOperand_checkOrSetWidth(MRI, MO, bitWidth);
 		}
 		return true;
 	}
@@ -243,12 +243,12 @@ bool resolveTypes(MachineInstr &MI) {
 		int64_t width1 = MI.getOperand(6).getImm();
 		int64_t dstWidth = MI.getOperand(7).getImm();
 
-		checkOrSetWidth(MRI, MI.getOperand(0), dstWidth);
-		checkOrSetWidth(MRI, MI.getOperand(1), width0);
-		checkOrSetWidth(MRI, MI.getOperand(2), width1);
+		MachineOperand_checkOrSetWidth(MRI, MI.getOperand(0), dstWidth);
+		MachineOperand_checkOrSetWidth(MRI, MI.getOperand(1), width0);
+		MachineOperand_checkOrSetWidth(MRI, MI.getOperand(2), width1);
 		return true;
 	}
-	// shift, src, dst same, shiftAmount log2ceil(src.width()+1) bits
+		// shift, src, dst same, shiftAmount log2ceil(src.width()+1) bits
 	case HwtFpga::HWTFPGA_LSHR:
 	case HwtFpga::HWTFPGA_ASHR:
 	case HwtFpga::HWTFPGA_SHL: {
@@ -258,9 +258,9 @@ bool resolveTypes(MachineInstr &MI) {
 		std::vector dataOps( { &dst, &src });
 		unsigned bitWidth = MI.getOperand(3).getImm();
 		for (auto MO : dataOps)
-			checkOrSetWidth(MRI, *MO, bitWidth);
+			MachineOperand_checkOrSetWidth(MRI, *MO, bitWidth);
 		unsigned shWidth = log2ceil(bitWidth + 1);
-		checkOrSetWidth(MRI, shiftAmount, shWidth);
+		MachineOperand_checkOrSetWidth(MRI, shiftAmount, shWidth);
 		return true;
 	}
 	case HwtFpga::HWTFPGA_FSHL:
@@ -272,9 +272,9 @@ bool resolveTypes(MachineInstr &MI) {
 		std::vector dataOps( { &dst, &src0, &src1 });
 		unsigned bitWidth = MI.getOperand(4).getImm();
 		for (auto MO : dataOps)
-			checkOrSetWidth(MRI, *MO, bitWidth);
+			MachineOperand_checkOrSetWidth(MRI, *MO, bitWidth);
 		unsigned shWidth = log2ceil(bitWidth + 1);
-		checkOrSetWidth(MRI, shiftAmount, shWidth);
+		MachineOperand_checkOrSetWidth(MRI, shiftAmount, shWidth);
 		return true;
 	}
 	// bit counts, dst of log2ceil(src.width()+1) width
@@ -289,7 +289,7 @@ bool resolveTypes(MachineInstr &MI) {
 		if (dataBitWidth == 0)
 			return false;
 		unsigned shWidth = log2ceil(dataBitWidth + 1);
-		checkOrSetWidth(MRI, dst, shWidth);
+		MachineOperand_checkOrSetWidth(MRI, dst, shWidth);
 		return true;
 	}
 	case HwtFpga::HWTFPGA_MUX: {
@@ -322,7 +322,7 @@ bool resolveTypes(MachineInstr &MI) {
 		OpI = 0;
 		for (MachineOperand &MO : MI.operands()) {
 			bool isValueOp = OpI == 0 || OpI % 2 == 1; // dst or any src val
-			checkOrSetWidth(MRI, MO, isValueOp ? bitWidth : 1);
+			MachineOperand_checkOrSetWidth(MRI, MO, isValueOp ? bitWidth : 1);
 			OpI++;
 		}
 		return true;
@@ -334,16 +334,21 @@ bool resolveTypes(MachineInstr &MI) {
 		// HWTFPGA_CLOAD dst, addr, index, dstWidth, cond
 		Type *elemT;
 		size_t indexWidth;
-		MachineInstr * addrDef;
-		std::tie(elemT, indexWidth, addrDef) = getLoadOrStoreElementType(MRI, MI);
-		assert(elemT && elemT->isIntegerTy() && "Instruction load/store type must be resolvable");
+		MachineInstr *addrDef;
+		std::tie(elemT, indexWidth, addrDef) = getLoadOrStoreElementType(MRI,
+				MI);
+		assert(
+				elemT && elemT->isIntegerTy()
+						&& "Instruction load/store type must be resolvable");
 		unsigned bitWidth = elemT->getIntegerBitWidth();
-		assert(bitWidth == MI.getOperand(3).getImm() && "access width must be exactly one item (array type should have been casted if different size is required)");
+		assert(
+				bitWidth == MI.getOperand(3).getImm()
+						&& "access width must be exactly one item (array type should have been casted if different size is required)");
 
-		checkOrSetWidth(MRI, MI.getOperand(0), bitWidth);
+		MachineOperand_checkOrSetWidth(MRI, MI.getOperand(0), bitWidth);
 
 		auto &cond = MI.getOperand(3);
-		checkOrSetWidth(MRI, cond, 1);
+		MachineOperand_checkOrSetWidth(MRI, cond, 1);
 
 		return true;
 	}
@@ -355,7 +360,8 @@ bool resolveTypes(MachineInstr &MI) {
 		for (unsigned i = 0; i < srcCnt; i++) {
 			auto width = MI.getOperand(1 + srcCnt + i).getImm();
 			auto &O = MI.getOperand(1 + i);
-			if (!checkOrSetWidth(MRI, O, width, &undefsToDuplicate)) {
+			if (!MachineOperand_checkOrSetWidth(MRI, O, width,
+					&undefsToDuplicate)) {
 				MF.dump();
 				errs() << MI << " i:" << i << ", " << O << ", " << width
 						<< "\n";
@@ -365,13 +371,17 @@ bool resolveTypes(MachineInstr &MI) {
 			totalWidth += width;
 		}
 		duplicateRegsForUndefValues(undefsToDuplicate, MRI, MI);
-		assert(checkOrSetWidth(MRI, MI.getOperand(0), totalWidth, nullptr));
+		assert(
+				MachineOperand_checkOrSetWidth(MRI, MI.getOperand(0),
+						totalWidth, nullptr));
 		return true;
 	}
 	case HwtFpga::HWTFPGA_EXTRACT: {
 		auto subSlice = hwtHls::HWTFPGA_EXTRACTOptions::get(MI);
 
-		assert(checkOrSetWidth(MRI, MI.getOperand(0), subSlice.dstWidth, nullptr));
+		assert(
+				MachineOperand_checkOrSetWidth(MRI, MI.getOperand(0),
+						subSlice.dstWidth, nullptr));
 		auto &src = MI.getOperand(1);
 		if (src.isUndef()) {
 			MF.dump();
@@ -382,7 +392,7 @@ bool resolveTypes(MachineInstr &MI) {
 		if (src.isReg()) {
 			LLT srcT = MRI.getType(src.getReg());
 			if (srcT.isValid()) {
-				if (srcT.getSizeInBits() != subSlice.srcWidth ) {
+				if (srcT.getSizeInBits() != subSlice.srcWidth) {
 					MF.dump();
 					errs() << MI;
 					llvm_unreachable(
@@ -390,7 +400,7 @@ bool resolveTypes(MachineInstr &MI) {
 				}
 				return true;
 			} else {
-				MRI.setType(src.getReg(), LLT::scalar(subSlice.srcWidth ));
+				MRI.setType(src.getReg(), LLT::scalar(subSlice.srcWidth));
 			}
 		} else {
 			unsigned srcWidth = src.getCImm()->getType()->getIntegerBitWidth();
@@ -403,8 +413,8 @@ bool resolveTypes(MachineInstr &MI) {
 	case HwtFpga::HWTFPGA_FP_FCMP: {
 		auto fpCfg = HFloatTmpConfig::fromMachineInstrOperands(MI, 1 + 1 + 2);
 		size_t w = fpCfg.getBitWidth();
-		checkOrSetWidth(MRI, MI.getOperand(0), w);
-		checkOrSetWidth(MRI, MI.getOperand(1), w);
+		MachineOperand_checkOrSetWidth(MRI, MI.getOperand(0), w);
+		MachineOperand_checkOrSetWidth(MRI, MI.getOperand(1), w);
 		MRI.setType(MI.getOperand(0).getReg(), LLT::scalar(1));
 		return true;
 	}
@@ -447,8 +457,7 @@ bool resolveTypes(MachineInstr &MI) {
 
 	case HwtFpga::HWTFPGA_FP_ATAN2:
 	case HwtFpga::HWTFPGA_FP_SINCOS:
-	case HwtFpga::HWTFPGA_FP_SINCOSPI:
-	{
+	case HwtFpga::HWTFPGA_FP_SINCOSPI: {
 		size_t opCnt = 2; // dst0, dst1?, op0, op1?, HFloatTmpConfig ops...
 		switch (Opc) {
 		case HwtFpga::HWTFPGA_FP_FADD:
@@ -479,8 +488,8 @@ bool resolveTypes(MachineInstr &MI) {
 		}
 		auto fpCfg = HFloatTmpConfig::fromMachineInstrOperands(MI, opCnt);
 		size_t w = fpCfg.getBitWidth();
-		checkOrSetWidth(MRI, MI.getOperand(0), w);
-		checkOrSetWidth(MRI, MI.getOperand(1), w);
+		MachineOperand_checkOrSetWidth(MRI, MI.getOperand(0), w);
+		MachineOperand_checkOrSetWidth(MRI, MI.getOperand(1), w);
 		if (opCnt >= 3) {
 			switch (Opc) {
 			case HwtFpga::HWTFPGA_FP_FPOWI:
@@ -488,9 +497,9 @@ bool resolveTypes(MachineInstr &MI) {
 			case HwtFpga::HWTFPGA_FP_SHR:
 				break;
 			default:
-				checkOrSetWidth(MRI, MI.getOperand(2), w);
+				MachineOperand_checkOrSetWidth(MRI, MI.getOperand(2), w);
 				if (opCnt >= 4) {
-					checkOrSetWidth(MRI, MI.getOperand(3), w);
+					MachineOperand_checkOrSetWidth(MRI, MI.getOperand(3), w);
 				}
 				break;
 			}
@@ -498,12 +507,13 @@ bool resolveTypes(MachineInstr &MI) {
 		return true;
 	}
 	case HwtFpga::HWTFPGA_FP_CAST: {
-		auto srcFpCfg = HFloatTmpConfig::fromMachineInstrOperands(MI, 1+1);
-		auto dstFpCfg = HFloatTmpConfig::fromMachineInstrOperands(MI, 1+1+HFloatTmpConfig::MEMBER_CNT);
+		auto srcFpCfg = HFloatTmpConfig::fromMachineInstrOperands(MI, 1 + 1);
+		auto dstFpCfg = HFloatTmpConfig::fromMachineInstrOperands(MI,
+				1 + 1 + HFloatTmpConfig::MEMBER_CNT);
 		size_t srcW = srcFpCfg.getBitWidth();
 		size_t dstW = dstFpCfg.getBitWidth();
-		checkOrSetWidth(MRI, MI.getOperand(0), dstW);
-		checkOrSetWidth(MRI, MI.getOperand(1), srcW);
+		MachineOperand_checkOrSetWidth(MRI, MI.getOperand(0), dstW);
+		MachineOperand_checkOrSetWidth(MRI, MI.getOperand(1), srcW);
 		return true;
 	}
 	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER:
@@ -512,29 +522,31 @@ bool resolveTypes(MachineInstr &MI) {
 	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE_WITH_SIDEEFECT: {
 		// $dst, $objId, $dstWidt, $src[n], $srcWidth[n]
 		auto dstWidth = MI.getOperand(2).getImm();
-		assert(checkOrSetWidth(MRI, MI.getOperand(0), dstWidth, nullptr));
+		assert(
+				MachineOperand_checkOrSetWidth(MRI, MI.getOperand(0), dstWidth,
+						nullptr));
 
 		unsigned srcCnt = (MI.getNumExplicitOperands() - 3) / 2;
 		llvm::SmallVector<std::pair<unsigned, uint64_t>> undefsToDuplicate;
 		for (unsigned i = 0; i < srcCnt; i++) {
 			auto width = MI.getOperand(3 + srcCnt + i).getImm();
 			auto &O = MI.getOperand(3 + i);
-			if (!checkOrSetWidth(MRI, O, width, &undefsToDuplicate)) {
+			if (!MachineOperand_checkOrSetWidth(MRI, O, width,
+					&undefsToDuplicate)) {
 				MF.dump();
 				errs() << MI << " i:" << i << ", " << O << ", " << width
 						<< "\n";
-				llvm_unreachable(
-						"operand specified and actual width differs");
+				llvm_unreachable("operand specified and actual width differs");
 			}
 		}
 		duplicateRegsForUndefValues(undefsToDuplicate, MRI, MI);
-
 		return true;
 	}
 	default: {
 		//const auto *TII = MF.getSubtarget().getInstrInfo();
 		errs() << "Not implemented for this instruction: " << MI << "\n";
-		llvm_unreachable("Not implemented for this instruction (G_* instructions should already be selected)");
+		llvm_unreachable(
+				"Not implemented for this instruction (G_* instructions should already be selected)");
 	}
 	}
 	return false;
