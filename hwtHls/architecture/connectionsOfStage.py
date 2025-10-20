@@ -482,6 +482,7 @@ class ConnectionsOfStageList(list[Optional[SetList[ConnectionsOfStage]]]):
 def setNopValIfNotSet(hwIO: Union[HwIO, RtlSignal], nopVal, exclude: list[HwIO]):
     if hwIO in exclude:
         return
+
     elif isinstance(hwIO, RtlSignal):
         hwIO._nop_val = hwIO._dtype.from_py(nopVal)
 

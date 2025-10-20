@@ -54,7 +54,6 @@ class SyncLogicSearcher():
 #                return super().append(v)
 
         self.primaryInputs: SetList[Tuple[HlsNetNodeOut, ArchSyncNodeTy]] = SetList()
-
         self.primaryInputsReplacedByNegationOf: Dict[Tuple[HlsNetNodeOut, int], Tuple[HlsNetNodeOut, int]] = {}
         self.primaryOutputs: SetList[Tuple[HlsNetNodeOut, ArchSyncNodeTy]] = SetList()
         self.nodes: SetList[Tuple[Union[HlsNetNodeOperator, HlsNetNodeAggregatePortIn, HlsNetNodeAggregatePortOut], int]] = SetList()

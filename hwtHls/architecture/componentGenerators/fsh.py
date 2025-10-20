@@ -35,7 +35,13 @@ class ComponentGeneratorFshl(ComponentGenerator):
 
     @staticmethod
     def _assertIsConcatAnyShiftOrIndex(n: HlsNetNode):
-        assert isinstance(n, HlsNetNodeOperator) and n.operator in (HwtOps.CONCAT, HwtOps.INDEX, OP_LSHR, OP_ASHR, OP_SHL, OP_ROL, OP_ROR), n
+        assert isinstance(n, HlsNetNodeOperator) and n.operator in (HwtOps.CONCAT,
+                                                                    HwtOps.INDEX,
+                                                                    OP_LSHR,
+                                                                    OP_ASHR,
+                                                                    OP_SHL,
+                                                                    OP_ROL,
+                                                                    OP_ROR), n
         return True
 
     def toHwtCompatibleOperatorAfterScheduling(self, node:"HlsNetNode", worklist:SetList["HlsNetNode"]):

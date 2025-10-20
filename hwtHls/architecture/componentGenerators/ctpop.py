@@ -8,9 +8,9 @@ from hwt.math import log2ceil
 from hwt.pyUtils.typingFuture import override
 from hwt.serializer.mode import serializeParamsUniq
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from hwtHls.architecture.componentGenerators.baseALU1HwModule import _BaseALU1HwModule
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.pyBytecode import hlsBytecode
 
 
 @hlsBytecode

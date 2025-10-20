@@ -155,8 +155,7 @@ class SyncLogicAbcToHlsNetlist():
         builder.replaceOutput(out, _replacement, True)
         if isinstance(node, HlsNetNodeExplicitSync) and out in (node._ready, node._readyNB, node._valid, node._validNB):
             node._removeOutput(out.out_i)
-        
-        
+
     # def _proveChannelWritePossible(self, termPropagationCtx: ArchElementTermPropagationCtx, wNode: HlsNetNodeWrite, writeEn: HlsNetNodeOut):
     #    """
     #    prove that writeEn may become 1 if read.validNB=0
@@ -252,7 +251,7 @@ class SyncLogicAbcToHlsNetlist():
 
         driver = termPropagationCtx.propagateFromDstElm(
             dstNode, driver, f"n{ioObj._id:d}_en", resetTimeToClkWindowBegin=True)
-        
+
         if ioObj.extraCond is None:
             ioObj.addControlSerialExtraCond(driver, addDefaultScheduling=True, checkCycleFree=False)
         else:
@@ -280,7 +279,6 @@ class SyncLogicAbcToHlsNetlist():
                                      parentElm: ArchElementNoImplicitSync,
                                      termPropagationCtx: ArchElementTermPropagationCtx,
                                     ):
-
         scc = self.scc
         allSccIOs = self.allSccIOs
         ioMap = self.ioMap
@@ -315,11 +313,11 @@ class SyncLogicAbcToHlsNetlist():
         if self._dbgDumpNodes:
             HlsNetlistAnalysisPassDumpNodesDot(
                 outputFileGetter("tmp", f"SyncLowering.{self.sccIndex:d}.5.extractBegin.dot"),
-                colorOverride={n:("white", "red")
+                colorOverride={n: ("white", "red")
                                for (n, _) in self.syncLogicNodes}
             ).runOnHlsNetlist(parentElm.netlist)
 
-        SyncLogicExtractor._reconstructNetlistBuilderOperatorCache(parentElm)
+        extractor._reconstructNetlistBuilderOperatorCache(parentElm)
 
         # drop current schedule
         for (n, _) in self.syncLogicNodes:
