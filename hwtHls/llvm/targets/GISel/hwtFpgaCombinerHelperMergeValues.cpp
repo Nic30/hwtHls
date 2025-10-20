@@ -102,4 +102,59 @@ void HwtFpgaCombinerHelper::rewriteNestedMERGE_VALUES(MachineInstr &MI) {
 	parentMI->eraseFromParent();
 }
 
+bool HwtFpgaCombinerHelper::matchIsMergeValueContinuousSlice(
+		llvm::MachineInstr &MI, std::vector<ConcatMember> &concatMembers) {
+	concatMembers.clear();
+	assert(MI.getOpcode() == HwtFpga::HWTFPGA_MERGE_VALUES);
+	size_t mainOffset = 0;
+	size_t mainWidth = hwtHls::MERGE_VALUES_getResultWidth(MI);
+	size_t mainOffsetCurrent = 0;
+	bool didReduce = false;
+	for (const auto& [valMO, widthMO] : hwtHls::MERGE_VALUES_iter_valuesWidthPairs(
+			MI)) {
+		uint64_t valMOWidth = widthMO.getImm();
+		MachineOperand *src = nullptr;
+		if (valMO.isReg()) {
+			src = MRI.getOneDef(valMO.getReg());
+		}
+		// errs() << "matchIsMergeValueContinuousSlice " << mainOffsetCurrent
+		// 		<< " " << valMOWidth << "\n";
+		if (src) {
+			auto &srcMI = *src->getParent();
+			if (srcMI.getOpcode() == HwtFpga::HWTFPGA_EXTRACT) {
+				auto subSlice = hwtHls::HWTFPGA_EXTRACTOptions::get(srcMI);
+				assert(subSlice.dstWidth == valMOWidth);
+				auto &extractSrcOp = srcMI.getOperand(1);
+				if (extractSrcOp.isReg()) {
+					if (auto extracSrc = MRI.getOneDef(extractSrcOp.getReg())) {
+						didReduce |= collectConcatMembersAsItIs(*extracSrc,
+								concatMembers, mainOffset, mainWidth,
+								mainOffsetCurrent, subSlice.offset,
+								subSlice.srcWidth, subSlice.dstWidth);
+						continue;
+					}
+				}
+			}
+		}
+		didReduce |= collectConcatMembersAsItIs(valMO, concatMembers,
+				mainOffset, mainWidth, mainOffsetCurrent, 0, valMOWidth,
+				valMOWidth);
+
+	}
+#ifndef NDEBUG
+	size_t resWidth = 0;
+	for (auto & m: concatMembers) {
+		resWidth += m.widthOfUse;
+	}
+	assert(resWidth == mainWidth);
+#endif
+	return didReduce;
+}
+
+void HwtFpgaCombinerHelper::rewriteMergeValueContinuousSlice(
+		llvm::MachineInstr &MI,
+		const std::vector<ConcatMember> &concatMembers) {
+	rewriteExtractOnMergeValues(MI, concatMembers);
+}
+
 }

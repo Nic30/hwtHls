@@ -551,6 +551,15 @@ def extract_on_const_shift: GICombineRule<
   (apply [{ Helper.rewriteExtractOnConstShift(*${root}); }])
 >;
 
+// Fold (HWTFPGA_MERGE_VALUES (HWTFPGA_EXTRACT src off0 width0), (HWTFPGA_EXTRACT src off1 width1)) ->
+//      (HWTFPGA_MERGE_VALUES (HWTFPGA_EXTRACT src off0 width0 + width1)) if off0 + width0 == off1
+def merge_value_merge_continuous_slices_matchdata : GIDefMatchData<"std::vector<HwtFpgaCombinerHelper::ConcatMember>">;
+def merge_value_merge_continuous_slices : GICombineRule<
+  (defs root:$root, merge_value_merge_continuous_slices_matchdata:$matchinfo),
+  (match (wip_match_opcode HWTFPGA_MERGE_VALUES):$root,
+    [{ return Helper.matchIsMergeValueContinuousSlice(*${root}, ${matchinfo}); }]),
+  (apply [{ Helper.rewriteMergeValueContinuousSlice(*${root}, ${matchinfo}); }])
+>;
 
 //
 // Fold (HWTFPGA_MUX (... HWTFPGA_MUX ...)) -> HWTFPGA_MUX ...
@@ -601,6 +610,7 @@ def HwtFpgaPreRegAllocGICombiner: GICombiner<
   	copy_to_HWTFPGA_mux,
     extract_on_merge_values,
     extract_on_const_shift,
+    merge_value_merge_continuous_slices,
     const_eval_combines,
     trivial_copy_propagate,
     mux_trivial_const_propagation,
@@ -641,6 +651,7 @@ def HwtFpgaPreToNetlistGICombiner: GICombiner<
   	xor_right_allOnes,
   	extract_on_merge_values,
   	extract_on_const_shift,
+  	merge_value_merge_continuous_slices,
     const_eval_combines,
     mux_merge,
     mux_trivial_const_propagation,

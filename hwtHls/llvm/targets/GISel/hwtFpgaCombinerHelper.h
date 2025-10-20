@@ -227,6 +227,12 @@ public:
 	void rewriteConstMergeValues(llvm::MachineInstr &MI,
 			const llvm::APInt &replacement);
 
+	// :note: similarity with matchIsExtractOnMergeValues, rewriteExtractOnMergeValues, collectConcatMembers
+	bool matchIsMergeValueContinuousSlice(llvm::MachineInstr &MI,
+			std::vector<ConcatMember> &concatMembers);
+	void rewriteMergeValueContinuousSlice(llvm::MachineInstr &MI,
+			const std::vector<ConcatMember> &concatMembers);
+
 	bool matchTrivialInstrDuplication(llvm::MachineInstr &MI);
 	void rewriteTrivialInstrDuplication(llvm::MachineInstr &MI);
 
