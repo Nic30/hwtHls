@@ -1,5 +1,5 @@
 from math import ceil
-from typing import Optional, Callable
+from typing import Optional, Callable, Self
 
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.typingFuture import override
@@ -22,7 +22,7 @@ class HlsNetNodeDelayClkTick(HlsNetNode):
 
     def __init__(self, netlist:HlsNetlistCtx,
                  dtype: HdlType,
-                 clkCnt: int, 
+                 clkCnt: int,
                  normalizedOutDelay: SchedTime=0,
                  name:str=None):
         HlsNetNode.__init__(self, netlist, name=name)
@@ -63,8 +63,12 @@ class HlsNetNodeDelayClkTick(HlsNetNode):
         start = self.scheduledIn[0] // clkPeriod
         times = range(ceil(self.scheduledOut[0] / clkPeriod) + 1, start)
         # generate parts from remaining times
-        last = None
+        last: Optional[Self] = None
         dtype = self._outputs[0]._dtype
-        for t in times:
+        for i, t in enumerate(times):
             raise NotImplementedError()
-            yield self.__class__(self.netlist, dtype)
+            d = self.__class__(self.netlist, dtype)
+            self.parent._addNodeIntoScheduled(d.scheduledZero // self.netlist.normalizedClkPeriod, d)
+            last = d
+        return len(times) > 1
+

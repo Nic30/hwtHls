@@ -68,9 +68,12 @@ class HlsNetNodeWriteMemoryAllocationCmd(HlsNetNodeWriteBramCmd):
                 dNode._rtlUseReady = False
                 dNode._rtlUseValid = False
                 self._extractReadPortsToSeparateNode(dNode)
-                yield dNode
+                self.parent._addNodeIntoScheduled(dNode.scheduledZero // self.netlist.normalizedClkPeriod, dNode)
+                return True
             else:
                 assert self.cmd is WRITE, self
+
+        return False
 
     @override
     def rtlAlloc(self, allocator: "ArchElement") -> Union[TimeIndependentRtlResource, List[HdlStatement]]:

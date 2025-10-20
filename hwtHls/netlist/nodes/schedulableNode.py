@@ -544,5 +544,4 @@ class SchedulableNode():
 
     def splitOnClkWindows(self):
         assert not self.isMulticlock, ("This node class does not have clock splitting implemented", self)
-        return
-        yield
+        return False

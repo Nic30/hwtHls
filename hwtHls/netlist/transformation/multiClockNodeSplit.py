@@ -15,7 +15,6 @@ class HlsNetlistPassMultiClockNodeSplit(HlsNetlistPass):
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
         changed = False
-        clkPeriod = netlist.normalizedClkPeriod
         for node in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.PREORDER):
             node: HlsNetNode
             if isinstance(node, HlsNetNodeAggregate):
@@ -24,9 +23,7 @@ class HlsNetlistPassMultiClockNodeSplit(HlsNetlistPass):
             if node.isMulticlock:
                 parent: ArchElement = node.parent
                 assert parent is not None, ("Node is expected to be in ArchElement", node)
-                for newNode in node.splitOnClkWindows():
-                    parent._addNodeIntoScheduled(newNode.scheduledZero // clkPeriod, newNode)
-                    changed = True
+                changed |= node.splitOnClkWindows()
 
         if changed:
             return PreservedAnalysisSet.preserveScheduling()
