@@ -20,7 +20,7 @@ enum FramingSignalizationEconding {
 };
 // :note: for locations of bits in words are derived from HwIO classes from hwtLib:
 // * Axi4Stream (data, strb/keep?, err?, sof?, eof?)
-// * Axi4StreamSegmented (data[n], (enable, sof?, eof?, err?, empty)[n])
+// * Axi4StreamSegmented (data[n], (enable?, sof?, eof?, err?, empty)[n])
 // * mask can have 0 suffix only in last word, else it must be all 1
 // * data begins at data bit 0, segment 0, data is on lsb bits of bus word
 class StreamChannelFormatInfo {
@@ -46,7 +46,9 @@ public:
 	static std::vector<StreamChannelFormatInfo> parseAllMetadata(
 			llvm::Function &F);
 	StreamChannelFormatInfo resize(size_t newDataWidth,
-			std::optional<bool> newSupportZLP = { }) const;
+			std::optional<bool> newSupportZLP = { },
+			std::optional<ByteEnableEncoding> newByteEnableEncoding = { }) const;
+
 	// argument on top function which is used to access the interface
 	llvm::Argument *ioArg;
 	// true if channel is output, false if it is input
@@ -95,6 +97,7 @@ public:
 	bool hasMask() const; // has mask to signalize valid bytes in last word
 	bool hasError() const; // returns true if channel supports signaling of the error
 
+	size_t getOffsetOfData() const;
 	size_t getOffsetOfError() const;
 	size_t getOffsetOfSoF() const;
 	size_t getOffsetOfEoF() const;
@@ -110,7 +113,8 @@ public:
 	size_t getWidthOfBusWord() const;
 
 	std::pair<size_t, size_t> _resolveMinMaxSegmentCount(
-			std::vector<size_t> possibleOffsets, size_t chunkWidth) const;
+			const std::vector<size_t> &possibleOffsets,
+			size_t chunkWidth) const;
 
 	void CreateAssumptionForControl(llvm::IRBuilderBase &Builder,
 			llvm::Value *segmentVal);
@@ -120,14 +124,37 @@ public:
 			llvm::Value *eof) const;
 	// :note: enable, empty, eof are optional are extracted from segment value if not provided
 	void CreateAssumptionForEmpty(llvm::IRBuilderBase &Builder,
-			llvm::Value *segmentValue, llvm::Value *enable, llvm::Value *empty,
+			llvm::Value *segmentValue, llvm::Value *empty,
 			llvm::Value *eof) const;
 
+	llvm::Value* streamReadGetSoF(llvm::IRBuilderBase &Builder,
+			llvm::CallInst *r) const;
 	llvm::Value* streamReadGetEoF(llvm::IRBuilderBase &Builder,
 			llvm::CallInst *r) const;
+	llvm::Value* streamReadGetData(llvm::IRBuilderBase &Builder,
+			llvm::CallInst *r) const;
+	llvm::Value* streamReadGetMask(llvm::IRBuilderBase &Builder,
+			llvm::CallInst *r) const;
+	llvm::Value* streamReadGetEmpty(llvm::IRBuilderBase &Builder,
+			llvm::CallInst *r) const;
+	llvm::Value* streamReadGetEnable(llvm::IRBuilderBase &Builder,
+			llvm::CallInst *r) const;
+
+	llvm::Value* streamReadFindSoF(llvm::CallInst *r) const;
+	llvm::Value* streamReadFindEoF(llvm::CallInst *r) const;
+	llvm::Value* streamReadFindData(llvm::CallInst *r) const;
+	llvm::Value* streamReadFindMask(llvm::CallInst *r) const;
+	llvm::Value* streamReadFindEmpty(llvm::CallInst *r) const;
+
 	bool isStreamReadEoF(const llvm::CallInst *read, llvm::Value *EoF) const;
+	bool isStreamReadEnableOfSegment(const llvm::LoadInst *segmentLd,
+			llvm::Value *segmentEn) const;
 	llvm::Value* streamReadGetError(llvm::IRBuilderBase &Builder,
 			llvm::CallInst *r) const;
+	llvm::Value* CreateExtractSegmentValue(llvm::IRBuilderBase &Builder,
+			llvm::Value *allSegmentValue, size_t segmentIndex) const;
+
+	static bool ioMetadataHasStreamMetadata(HwtHlsIoMetadata &md);
 
 	bool operator==(const StreamChannelFormatInfo &other) const {
 		return ioArg == other.ioArg &&                       //

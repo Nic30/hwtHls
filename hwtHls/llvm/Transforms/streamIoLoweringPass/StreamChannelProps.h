@@ -26,6 +26,9 @@ public:
 	llvm::AllocaInst *wDataPendingVar; // "variable" for flag which is 1 if dataVar contains data,
 	// which are waiting to be send
 
+	// metadata which is added to tmp allocas to associate them with this io arg
+	// (the value stored under this metadata is i32 argument index)
+	static const std::string METADATA_NAME_TMP_VAR_DATA_OFFSET;
 	StreamChannelProps(const StreamChannelProps &p) = default;
 	StreamChannelProps(const StreamChannelFormatInfo &scfi,
 			llvm::SmallVector<llvm::AllocaInst*> &GeneratedAllocas);
@@ -50,7 +53,7 @@ public:
 	 * :param dataBitsToTake: number of bits to insert from src chunk to current word
 	 * :param maskOrEmptyForWholeChunk: mask or empty for original ADT write which is sliced according to
 	 * 	dataBitOffset and dataBitsToTake (mask or empty is selected based on byteEnableEncoding of a stream)
-     * */
+	 * */
 	void setDataMaskOrEmpty(llvm::IRBuilderBase &Builder, size_t widthOfWrite,
 			size_t srcDataBitsOffset, size_t dataBitOffset,
 			size_t dataBitsToTake, llvm::Value *maskOrEmptyForWholeChunk) const;
@@ -67,7 +70,16 @@ public:
 	llvm::LoadInst* getVarValue(llvm::IRBuilderBase &Builder,
 			llvm::AllocaInst *var) const;
 	StreamChannelWordValue getAllData(llvm::IRBuilderBase &Builder) const;
+	llvm::AllocaInst* _getOrCreateTmpVar(llvm::IRBuilderBase &Builder,
+			llvm::Type *Ty, const llvm::Twine &Name, const std::string &mdName,
+			bool findOnly = false);
+	llvm::AllocaInst* _getOrCreateTmpVarDataOffset(llvm::IRBuilderBase *Builder,
+			bool findOnly = false);
+	// :attention: the variables are uninitialized, the initialization should be done on location where
+	//   @hwtHls.streamReadStartOfFrame/ @hwtHls.streamWriteStartOfFrame was
 	void createCommonVars(llvm::IRBuilderBase &Builder);
+	// initialize all except dataOffsetVar
+	void commonVarsInitialize(llvm::IRBuilderBase &Builder) const;
 	void createWDataPendingVar(llvm::IRBuilderBase &Builder);
 };
 

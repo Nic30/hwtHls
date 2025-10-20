@@ -16,8 +16,19 @@ inline static void setArgNames(Function &F, ArrayRef<const char*> argNames) {
 		F.getArg(0)->setName(name);
 	}
 }
+const std::string StreamReadName = "hwtHls.streamRead";
+const std::string StreamReadUnreliableName = StreamReadName + ".unreliable";
+const std::string StreamReadAligningName = StreamReadName + "aligning";
+const std::string StreamReadStartOfFrameName = "hwtHls.streamReadStartOfFrame";
+const std::string StreamReadEndOfFrameName = "hwtHls.streamReadEndOfFrame";
+const std::string StreamTmpAllocaTmpSetterPlaceholder =
+		"hwtHls.streamTmpAllocaTmpSetterPlaceholder";
+const std::string StreamWriteName = "hwtHls.streamWrite";
+const std::string StreamWriteMaskedName = StreamWriteName + ".masked";
+const std::string StreamWritePackingName = StreamWriteName + ".packing";
+const std::string StreamWriteStartOfFrameName = "hwtHls.streamWriteStartOfFrame";
+const std::string StreamWriteEndOfFrameName = "hwtHls.streamWriteEndOfFrame";
 
-const std::string StreamTmpAllocaTmpSetterPlaceholder = "hwtHls.streamTmpAllocaTmpSetterPlaceholder";
 // create a call of function which will acts a placeholder setter to prevent removal of the alloca
 // while its driving logic was not constructed yet
 llvm::CallInst* CreateStreamTmpAllocaTmpSetterPlaceholder(
@@ -36,50 +47,81 @@ llvm::CallInst* CreateStreamTmpAllocaTmpSetterPlaceholder(
 	CI->onlyAccessesInaccessibleMemOrArgMem();
 	return CI;
 }
-
 bool IsStreamTmpAllocaTmpSetterPlaceholder(const llvm::CallInst *C) {
 	return IsStreamTmpAllocaTmpSetterPlaceholder(C->getCalledFunction());
 }
 bool IsStreamTmpAllocaTmpSetterPlaceholder(const llvm::Function *F) {
 	if (F->arg_size() != 1) // alloca
 		return false;
-	return F->getName().str().rfind(StreamTmpAllocaTmpSetterPlaceholder + ".", 0) == 0;
+	return F->getName().str().rfind(StreamTmpAllocaTmpSetterPlaceholder + ".",
+			0) == 0;
 }
-
-const std::string StreamReadName = "hwtHls.streamRead";
 CallInst* CreateStreamRead(IRBuilderBase *Builder, Value *ioArgPtr,
-		size_t chunkBitWidth, size_t returnBitWidth, bool isReliable) {
+		size_t chunkBitWidth, size_t returnBitWidth, bool isReliable,
+		std::optional<size_t> endAlignas) {
 	assert(ioArgPtr->getType()->isPointerTy());
 	if (chunkBitWidth > returnBitWidth) {
+		// :note: returnBitWidth is chunkBitWidth + width of control bits like empty/mask/eof ... it can be computed by StreamChannelFormatInfo::getReadReturnWidth
 		throw std::runtime_error(
 				"CreateStreamRead must have chunkBitWidth <= returnBitWidth");
 	}
-
-	Value *Ops[] = { ioArgPtr, Builder->getInt64(chunkBitWidth),
-			Builder->getInt1(isReliable) };
-	Type *ResT = Builder->getIntNTy(returnBitWidth);
-	Type *TysForName[] = { Ops[0]->getType(), Ops[1]->getType(), Ops[2]->getType(), ResT };
 	Module *M = Builder->GetInsertBlock()->getParent()->getParent();
-	Function *TheFn =
-			cast<Function>(
-					M->getOrInsertFunction(
-							Intrinsic_getName(StreamReadName, TysForName), ResT,
-							Ops[0]->getType(), Ops[1]->getType(),
-							Ops[2]->getType()).getCallee());
-	setArgNames(*TheFn, { "ioArgPtr", "chunkBitWidth", "isReliable" });
-	AddDefaultFunctionAttributes(*TheFn);
-	CallInst *CI = Builder->CreateCall(TheFn, Ops);
+	CallInst *CI;
+	if (endAlignas.has_value()) {
+		if (isReliable) {
+			throw std::runtime_error(
+					"CreateStreamRead endAlignas option specifies where read should end premature thus isReliable must equal False");
+		}
+		Value *Ops[] = { ioArgPtr,                //
+				Builder->getInt64(chunkBitWidth), //
+				Builder->getInt64(endAlignas.value()), };
+		Type *ResT = Builder->getIntNTy(returnBitWidth);
+		Type *TysForName[] = { Ops[0]->getType(), //
+				Ops[1]->getType(), //
+				Ops[2]->getType(), //
+				ResT };
+		auto name = Intrinsic_getName(StreamReadAligningName, TysForName);
+		Function *TheFn = cast<Function>(M->getOrInsertFunction(name, ResT,   //
+				Ops[0]->getType(), //
+				Ops[1]->getType(), //
+				Ops[2]->getType()  //
+				).getCallee());
+		setArgNames(*TheFn, { "ioArgPtr", "chunkBitWidth", "endAlignas" });
+		AddDefaultFunctionAttributes(*TheFn);
+		CI = Builder->CreateCall(TheFn, Ops);
+	} else {
+		Value *Ops[] = { ioArgPtr,                //
+				Builder->getInt64(chunkBitWidth) //
+				};
+		Type *ResT = Builder->getIntNTy(returnBitWidth);
+		Type *TysForName[] = { Ops[0]->getType(), //
+				Ops[1]->getType(), //
+				ResT };
+		auto name = Intrinsic_getName(
+				isReliable ? StreamReadName : StreamReadUnreliableName,
+				TysForName);
+		Function *TheFn = cast<Function>(M->getOrInsertFunction(name, ResT,   //
+				Ops[0]->getType(), //
+				Ops[1]->getType() //
+				).getCallee());
+		setArgNames(*TheFn, { "ioArgPtr", "chunkBitWidth" });
+		AddDefaultFunctionAttributes(*TheFn);
+		CI = Builder->CreateCall(TheFn, Ops);
+	}
 	CI->setOnlyAccessesArgMemory();
 	return CI;
 }
-
 bool IsStreamRead(const llvm::CallInst *C) {
 	return IsStreamRead(C->getCalledFunction());
 }
 bool IsStreamRead(const llvm::Function *F) {
-	if (F->arg_size() != 3) // src, chunkBitWidth, isReliable
+	if (F->arg_size() != 2 && F->arg_size() != 3) // src, chunkBitWidth, [endAlignas]
 		return false;
 	return F->getName().str().rfind(StreamReadName + ".", 0) == 0;
+}
+
+llvm::Value* streamReadGetIoArg(const llvm::CallInst *C) {
+	return C->getArgOperand(0);
 }
 size_t streamReadGetOrigChunkBitWidth(const CallInst *I) {
 	auto _chunkBitWidth = I->getArgOperand(1);
@@ -89,14 +131,20 @@ size_t streamReadGetOrigChunkBitWidth(const CallInst *I) {
 					&& "Second arg of streamRead must always be const int");
 	return chunkBitWidth->getZExtValue();
 }
-bool streamReadGetIsReliable(const llvm::CallInst *I) {
-	auto _isReliable = I->getArgOperand(2);
-	auto isReliable = dyn_cast<ConstantInt>(_isReliable);
-	assert(isReliable && "arg[2] of streamRead must always be const int");
-	return isReliable->getZExtValue();
+
+StreamReadBehaviorType streamReadGetBehavior(const llvm::CallInst *I) {
+	auto F = I->getCalledFunction();
+	auto name = F->getName().str();
+	if (name.rfind(StreamReadUnreliableName, 0) == 0) {
+		return StreamReadBehaviorType::UNRELIABLE;
+	} else if (name.rfind(StreamReadAligningName, 0) == 0) {
+		return StreamReadBehaviorType::ALIGNING;
+	} else {
+		assert(name.rfind(StreamReadName, 0) == 0);
+		return StreamReadBehaviorType::RELIABLE;
+	}
 }
 
-const std::string StreamReadStartOfFrameName = "hwtHls.streamReadStartOfFrame";
 template<const std::string &NAME>
 CallInst* CreateStreamMarker(IRBuilderBase *Builder, Value *ioArgPtr) {
 	assert(ioArgPtr->getType()->isPointerTy());
@@ -113,11 +161,11 @@ CallInst* CreateStreamMarker(IRBuilderBase *Builder, Value *ioArgPtr) {
 	CI->setOnlyAccessesArgMemory();
 	return CI;
 }
+
 CallInst* CreateStreamReadStartOfFrame(IRBuilderBase *Builder,
 		Value *ioArgPtr) {
 	return CreateStreamMarker<StreamReadStartOfFrameName>(Builder, ioArgPtr);
 }
-
 bool IsStreamReadStartOfFrame(const llvm::CallInst *C) {
 	return IsStreamReadStartOfFrame(C->getCalledFunction());
 }
@@ -125,7 +173,6 @@ bool IsStreamReadStartOfFrame(const llvm::Function *F) {
 	return F->getName().str().rfind(StreamReadStartOfFrameName + ".", 0) == 0;
 }
 
-const std::string StreamReadEndOfFrameName = "hwtHls.streamReadEndOfFrame";
 CallInst* CreateStreamReadEndOfFrame(IRBuilderBase *Builder, Value *ioArgPtr) {
 	return CreateStreamMarker<StreamReadEndOfFrameName>(Builder, ioArgPtr);
 }
@@ -136,66 +183,92 @@ bool IsStreamReadEndOfFrame(const llvm::Function *F) {
 	return F->getName().str().rfind(StreamReadEndOfFrameName + ".", 0) == 0;
 }
 
-const std::string StreamWriteName = "hwtHls.streamWrite";
-const std::string StreamWriteMaskedName = StreamWriteName + ".masked";
-
-// basic CreateStreamWrite without mask
-CallInst* CreateStreamWriteNoMask(IRBuilderBase *Builder, Value *ioArgPtr,
-		llvm::Value *valueToWrite, llvm::Value *isSoF, llvm::Value *isEoF) {
+// CreateStreamWrite with optional mask, error argument
+CallInst* CreateStreamWrite(IRBuilderBase *Builder, Value *ioArgPtr,
+		llvm::Value *valueToWrite, llvm::Value *writeMaskOrEmpty,
+		llvm::Value *isSoF, llvm::Value *isEoF, llvm::Value *errorVal,
+		bool isPacking) {
+	assert(ioArgPtr->getType()->isPointerTy());
 	if (!isSoF) {
 		isSoF = Builder->getInt1(0);
 	}
 	if (!isEoF) {
 		isEoF = Builder->getInt1(0);
 	}
-	assert(ioArgPtr->getType()->isPointerTy());
-	Value *Ops[] = { ioArgPtr, valueToWrite, isSoF, isEoF };
-	Type *ResT = Builder->getVoidTy();
-	Type *TysForName[] = { Ops[0]->getType(), Ops[1]->getType(),
-			Ops[2]->getType(), Ops[3]->getType() };
+	if (!errorVal)
+		errorVal = ConstantPointerNull::get(Builder->getPtrTy(0));
+
+#define __CreateStreamWrite_OPSTYPES4 \
+	            Ops[0]->getType(),\
+	            Ops[1]->getType(),\
+	            Ops[2]->getType(),\
+	            Ops[3]->getType(),\
+	            Ops[4]->getType() \
+
 	Module *M = Builder->GetInsertBlock()->getParent()->getParent();
-	Function *TheFn = cast<Function>(
-			M->getOrInsertFunction(
-					Intrinsic_getName(StreamWriteName, TysForName), ResT,
-					Ops[0]->getType(), Ops[1]->getType(), Ops[2]->getType(),
-					Ops[3]->getType()).getCallee());
-	setArgNames(*TheFn, { "ioArgPtr", "valueToWrite", "isSoF", "isEoF" });
-	AddDefaultFunctionAttributes(*TheFn);
-	CallInst *CI = Builder->CreateCall(TheFn, Ops);
+	CallInst *CI;
+	// switch between variants of StreamWrite based on presence of writeMaskOrEmpty/errorVal
+	if (writeMaskOrEmpty) {
+		Value *Ops[] = { ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF,
+				errorVal };
+		Type *ResT = Builder->getVoidTy();
+		Type *TysForName[] = { __CreateStreamWrite_OPSTYPES4, //
+		Ops[5]->getType()};
+		auto fnName = Intrinsic_getName(
+				isPacking ? StreamWritePackingName : StreamWriteMaskedName,
+				TysForName);
+		Function *TheFn = cast<Function>(M->getOrInsertFunction(fnName, ResT, //
+				__CreateStreamWrite_OPSTYPES4, //
+		Ops[5]->getType()//
+		).getCallee());
+		setArgNames(*TheFn, { "ioArgPtr", "valueToWrite", "writeMaskOrEmpty",
+				"isSoF", "isEoF", "errorVal" });
+		AddDefaultFunctionAttributes(*TheFn);
+		CI = Builder->CreateCall(TheFn, Ops);
+	} else {
+		if (isPacking) {
+			throw std::runtime_error(
+					"CreateStreamWrite: if isPacking==True, writeMaskOrEmpty must be provided");
+		}
+		Value *Ops[] = { ioArgPtr, valueToWrite, isSoF, isEoF, errorVal };
+		Type *ResT = Builder->getVoidTy();
+		Type *TysForName[] = { __CreateStreamWrite_OPSTYPES4};
+		auto fnName = Intrinsic_getName(StreamWriteName, TysForName);
+		Function *TheFn = cast<Function>(M->getOrInsertFunction(fnName, ResT, //
+				__CreateStreamWrite_OPSTYPES4).getCallee());
+		setArgNames(*TheFn, { "ioArgPtr", "valueToWrite", "isSoF", "isEoF",
+				"errorVal" });
+		AddDefaultFunctionAttributes(*TheFn);
+		CI = Builder->CreateCall(TheFn, Ops);
+
+	}
+#undef __CreateStreamWrite_OPSTYPES4
 	CI->setOnlyAccessesArgMemory();
 	return CI;
 }
-// CreateStreamWrite with mask
-CallInst* CreateStreamWrite(IRBuilderBase *Builder, Value *ioArgPtr,
-		llvm::Value *valueToWrite, llvm::Value *writeMaskOrEmpty,
-		llvm::Value *isSoF, llvm::Value *isEoF) {
-	if (!writeMaskOrEmpty) {
-		return CreateStreamWriteNoMask(Builder, ioArgPtr, valueToWrite, isSoF,
-				isEoF);
+
+StreamWriteBehaviorType streamWriteGetBehavior(const llvm::CallInst *C) {
+	switch (C->arg_size()) {
+	case 5:
+		// ioArgPtr, valueToWrite, isSoF, isEoF, errorVal
+		return StreamWriteBehaviorType::ALLVALID;
+	case 6: {
+		auto F = C->getCalledFunction();
+		auto name = F->getName().str();
+		if (name.rfind(StreamWriteMaskedName + ".", 0) == 0) {
+			return StreamWriteBehaviorType::MASKED;
+		} else if (name.rfind(StreamWritePackingName + ".", 0) == 0) {
+			return StreamWriteBehaviorType::PACKING;
+		} else {
+			llvm_unreachable(
+					"streamWriteGetBehavior unrecognized StreamWriteBehaviorType");
+		}
 	}
-	if (!isSoF) {
-		isSoF = Builder->getInt1(0);
+	default:
+		llvm_unreachable(
+				"streamWriteGetBehavior wrong number of call arguments");
 	}
-	if (!isEoF) {
-		isEoF = Builder->getInt1(0);
-	}
-	assert(ioArgPtr->getType()->isPointerTy());
-	Value *Ops[] = { ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF };
-	Type *ResT = Builder->getVoidTy();
-	Type *TysForName[] = { Ops[0]->getType(), Ops[1]->getType(),
-			Ops[2]->getType(), Ops[3]->getType(), Ops[4]->getType() };
-	Module *M = Builder->GetInsertBlock()->getParent()->getParent();
-	Function *TheFn = cast<Function>(
-			M->getOrInsertFunction(
-					Intrinsic_getName(StreamWriteMaskedName, TysForName), ResT,
-					Ops[0]->getType(), Ops[1]->getType(), Ops[2]->getType(),
-					Ops[3]->getType(), Ops[4]->getType()).getCallee());
-	setArgNames(*TheFn, { "ioArgPtr", "valueToWrite", "writeMaskOrEmpty",
-			"isSoF", "isEoF" });
-	AddDefaultFunctionAttributes(*TheFn);
-	CallInst *CI = Builder->CreateCall(TheFn, Ops);
-	CI->setOnlyAccessesArgMemory();
-	return CI;
+
 }
 size_t streamWriteGetOrigChunkBitWidth(const CallInst *I) {
 	return I->getArgOperand(1)->getType()->getIntegerBitWidth();
@@ -206,43 +279,47 @@ llvm::Value* streamWriteGetIoArg(const llvm::CallInst *C) {
 llvm::Value* streamWriteGetWriteData(const llvm::CallInst *C) {
 	return C->getArgOperand(1); // ioArgPtr, valueToWrite, [writeMaskOrEmpty], isSoF, isEoF
 }
-
 llvm::Value* streamWriteGetWriteMaskOrEmpty(const llvm::CallInst *C) {
-	if (IsStreamWriteMasked(C))
+	// ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF, errorVal
+	if (C->arg_size() == 6)
 		return C->getArgOperand(2); // ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF
-	return nullptr;
+	else {
+		assert(C->arg_size() == 5);
+		// ioArgPtr, valueToWrite, isSoF, isEoF, errorVal
+		return nullptr;
+	}
 }
 llvm::Value* streamWriteGetWriteSoF(const llvm::CallInst *C) {
-	if (IsStreamWriteMasked(C))
-		return C->getArgOperand(3); // ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF
-	return C->getArgOperand(2); // ioArgPtr, valueToWrite, isSoF, isEoF;
+	// ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF, errorVal
+	// ioArgPtr, valueToWrite, isSoF, isEoF, errorVal
+	return C->getArgOperand(C->arg_size() - 2 - 1);
 }
 llvm::Value* streamWriteGetWriteEoF(const llvm::CallInst *C) {
-	if (IsStreamWriteMasked(C))
-		return C->getArgOperand(4); // ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF
-	return C->getArgOperand(3); // ioArgPtr, valueToWrite, isSoF, isEoF;
+	// ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF, errorVal
+	// ioArgPtr, valueToWrite, isSoF, isEoF, errorVal
+	return C->getArgOperand(C->arg_size() - 1 - 1);
 }
-
+llvm::Value* streamWriteGetWriteError(const llvm::CallInst *C) {
+	// ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF, errorVal
+	// ioArgPtr, valueToWrite, isSoF, isEoF, errorVal
+	auto err = C->getArgOperand(C->arg_size() - 1);
+	if (err->getType()->isPointerTy()) {
+		assert(isa<ConstantPointerNull>(err));
+		return nullptr;
+	} else {
+		return err;
+	}
+}
 bool IsStreamWrite(const llvm::CallInst *C) {
 	return IsStreamWrite(C->getCalledFunction());
 }
 bool IsStreamWrite(const llvm::Function *F) {
 	assert(F && "Function may null if definition is missing in IR");
-	if (F->arg_size() != 4 && F->arg_size() != 5) // ioArgPtr, valueToWrite, [writeMaskOrEmpty], isSoF, isEoF
+	if (F->arg_size() != 5 && F->arg_size() != 6) // ioArgPtr, valueToWrite, [writeMaskOrEmpty], isSoF, isEoF, errorVal
 		return false;
 	return F->getName().str().rfind(StreamWriteName + ".", 0) == 0;
 }
-bool IsStreamWriteMasked(const llvm::CallInst *C) {
-	return IsStreamWriteMasked(C->getCalledFunction());
-}
-bool IsStreamWriteMasked(const llvm::Function *F) {
-	assert(F && "Function may null if definition is missing in IR");
-	if (F->arg_size() != 5) // ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF
-		return false;
-	return F->getName().str().rfind(StreamWriteMaskedName + ".", 0) == 0;
-}
 
-const std::string StreamWriteStartOfFrameName = "hwtHls.streamWriteStartOfFrame";
 CallInst* CreateStreamWriteStartOfFrame(IRBuilderBase *Builder,
 		Value *ioArgPtr) {
 	return CreateStreamMarker<StreamWriteStartOfFrameName>(Builder, ioArgPtr);
@@ -256,7 +333,6 @@ bool IsStreamWriteStartOfFrame(const llvm::Function *F) {
 	return F->getName().str().rfind(StreamWriteStartOfFrameName + ".", 0) == 0;
 }
 
-const std::string StreamWriteEndOfFrameName = "hwtHls.streamWriteEndOfFrame";
 CallInst* CreateStreamWriteEndOfFrame(IRBuilderBase *Builder, Value *ioArgPtr) {
 	return CreateStreamMarker<StreamWriteEndOfFrameName>(Builder, ioArgPtr);
 }

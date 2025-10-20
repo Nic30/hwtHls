@@ -8,11 +8,11 @@ from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwtHls.llvm.llvmIr import Argument, BasicBlock, ValueToConstantInt, ValueToInstruction, \
     Instruction, ValueToArgument, ValueToUndefValue, CallInst, IsStreamRead, \
-    IsStreamReadStartOfFrame, IsStreamReadEndOfFrame, IsStreamWrite, IsStreamWriteMasked, IsStreamWriteStartOfFrame, \
+    IsStreamReadStartOfFrame, IsStreamReadEndOfFrame, IsStreamWrite, IsStreamWriteStartOfFrame, \
     IsStreamWriteEndOfFrame, streamReadGetOrigChunkBitWidth, streamWriteGetOrigChunkBitWidth, \
-    streamWriteGetWriteData, streamWriteGetWriteMask, streamWriteGetWriteEoF, StreamChannelFormatInfo, \
-    Value, ByteEnableEncoding, streamReadGetIsReliable, IsStreamTmpAllocaTmpSetterPlaceholder, \
-    MetadataToValueAsMetadata, MDNode, LoadInst, AllocaInst
+    streamWriteGetWriteData, streamWriteGetWriteMaskOrEmpty, streamWriteGetWriteEoF, StreamChannelFormatInfo, \
+    Value, ByteEnableEncoding, streamReadGetBehavior, streamWriteGetBehavior, StreamWriteBehaviorType, StreamReadBehaviorType, \
+    IsStreamTmpAllocaTmpSetterPlaceholder, MetadataToValueAsMetadata, MDNode, LoadInst, AllocaInst
 from hwtHls.ssa.analysis.llvmIrInterpretUtils import SimIoUnderflowErr, \
     LlvmIrInstrFunction
 from pyDigitalWaveTools.vcd.writer import VcdWriter
@@ -30,7 +30,9 @@ class LlvmIrInterpretStreamIo():
         self._streamIoTmpWords: dict[Argument, tuple[HBitsConst, ...] | list[tuple[HBitsConst, ...]] | None] = {}
         self._streamProps: dict[Argument, StreamChannelFormatInfo] = {}
 
-    def _runLlvmIrFunctionInstrStreamRead(self, instr: CallInst, ioArg: Argument, w: int, isReliable: bool, streamProps: StreamChannelFormatInfo) -> None:
+    def _runLlvmIrFunctionInstrStreamRead(self, instr: CallInst, ioArg: Argument, w: int,
+                                          behaviorType: StreamReadBehaviorType,
+                                          streamProps: StreamChannelFormatInfo) -> None:
         # try return value from tmp word, else read from input until the required amount
         # of data is collected and then return it
         curTmp = self._streamIoTmpWords.get(ioArg, None)
@@ -54,6 +56,10 @@ class LlvmIrInterpretStreamIo():
         if streamProps.hasError():
             raise NotImplementedError(instr)
         bee = streamProps.byteEnableEncoding
+        isUnreliable = behaviorType != StreamReadBehaviorType.RELIABLE
+        if behaviorType == StreamReadBehaviorType.ALIGNING:
+            raise NotImplementedError(str)
+
         if curTmp is not None:
             if bee == ByteEnableEncoding.BEE_MASK or bee == ByteEnableEncoding.BEE_NONE:
                 # data, mask?, error?, sof?, eof?
@@ -94,7 +100,7 @@ class LlvmIrInterpretStreamIo():
         ioSimStream = self.interpret.fnArgs[ioArg.getArgNo()]
         while data is None or data._dtype.bit_length() < w:
             try:
-                streamWord = next(ioSimStream)
+                streamWord = next(ioSimStream)  # :note: Function argumets are sorted, if this fails you may specified interpert args in wrong order
             except StopIteration:
                 raise SimIoUnderflowErr()
 
@@ -135,7 +141,10 @@ class LlvmIrInterpretStreamIo():
                 if hasEnable:
                     enable = newEnable
                 if hasEmpty:
-                    newEmptyWidth = streamProps.getWidthOfEmptyForData(data._dtype.bit_length(), byteWidth, supportZLP or not isReliable)
+                    newEmptyWidth = streamProps.getWidthOfEmptyForData(
+                        data._dtype.bit_length(),
+                        byteWidth,
+                        supportZLP or isUnreliable)
                     empty = HBits(newEmptyWidth).from_py(int(empty) + int(newEmpty))
 
             if hasSoF:
@@ -207,11 +216,11 @@ class LlvmIrInterpretStreamIo():
                     if hasError:
                         newTmpWord.append(error)
                     if hasEmpty:
-                        newEmptyWidth = streamProps.getWidthOfEmptyForData(w, byteWidth, supportZLP or not isReliable)
+                        newEmptyWidth = streamProps.getWidthOfEmptyForData(w, byteWidth, supportZLP or isUnreliable)
                         leftoverByteCnt = (actualWidth - w) // byteWidth
                         empty = int(empty)
                         # compute new empty for remaining bytes
-                        newEmptyLeftoverWidth = streamProps.getWidthOfEmptyForData(actualWidth - w, byteWidth, supportZLP or not isReliable)
+                        newEmptyLeftoverWidth = streamProps.getWidthOfEmptyForData(actualWidth - w, byteWidth, supportZLP or isUnreliable)
                         emptyLeftover = HBits(newEmptyLeftoverWidth).from_py(min(empty, leftoverByteCnt))
                         newTmpWord.append(emptyLeftover)
                         empty = HBits(newEmptyWidth).from_py(max(0, empty - leftoverByteCnt))
@@ -237,7 +246,7 @@ class LlvmIrInterpretStreamIo():
         retValMembers = [data, ]
         if bee == ByteEnableEncoding.BEE_MASK or bee == ByteEnableEncoding.BEE_NONE:
             # data, mask?, error?, sof?, eof?
-            if hasMask:
+            if isUnreliable and hasMask:
                 retValMembers.append(mask)
             if hasError:
                 retValMembers.append(error)
@@ -248,14 +257,15 @@ class LlvmIrInterpretStreamIo():
 
         elif bee == ByteEnableEncoding.BEE_ENABLE_PLUS_EMPTY:
             # data, enable, sof?, eof?, err?, empty?
-            retValMembers.append(enable)
+            if hasEnable:
+                retValMembers.append(enable)
             if hasSoF:
                 retValMembers.append(sof)
             if hasEoF:
                 retValMembers.append(eof)
             if hasError:
                 retValMembers.append(error)
-            if hasEmpty and not (not supportZLP and w == 8 and isReliable):
+            if isUnreliable and hasEmpty:
                 retValMembers.append(empty)
         else:
             raise NotImplementedError(streamProps.byteEnableEncoding)
@@ -289,13 +299,19 @@ class LlvmIrInterpretStreamIo():
         raise ValueError(v)
 
     def _runLlvmIrFunctionInstrStreamWrite(self, regs: dict[Instruction, HConst],
-                     instr: CallInst, ioArg: Argument, streamProps: StreamChannelFormatInfo, wWidth: int, isMaskedWrite: bool, ioSimStream: list) -> None:
+                     instr: CallInst, ioArg: Argument, streamProps: StreamChannelFormatInfo,
+                     wWidth: int, behaviorType: StreamWriteBehaviorType, ioSimStream: list) -> None:
         hasMask = streamProps.hasMask()
         if hasMask:
-            if isMaskedWrite:
-                mask = self._streamIoInstrOpHBits(regs, streamWriteGetWriteMask(instr))
-            else:
+            if behaviorType == StreamWriteBehaviorType.ALLVALID:
                 mask = HBits(wWidth // streamProps.byteWidth).getAllOnesValue()
+            else:
+                mask = self._streamIoInstrOpHBits(regs, streamWriteGetWriteMaskOrEmpty(instr))
+
+        if streamProps.hasEnable():
+            raise NotImplementedError(instr)
+        if streamProps.hasEmpty():
+            raise NotImplementedError(instr)
 
         curTmp = self._streamIoTmpWords.get(ioArg, None)
         data = self._streamIoInstrOpHBits(regs, streamWriteGetWriteData(instr))
@@ -372,12 +388,12 @@ class LlvmIrInterpretStreamIo():
         if IsStreamRead(instr):
             assert ioArg
             w: int = streamReadGetOrigChunkBitWidth(instr)
-            isReliable: bool = streamReadGetIsReliable(instr)
+            behaviorType: StreamReadBehaviorType = streamReadGetBehavior(instr)
             streamProps: StreamChannelFormatInfo = self._loadStreamChannelFormatInfo(ioArg)
             assert streamProps is not None, ("StreamChannelFormatInfo should have been discovered by previous StreamReadStartOfFrame", instr)
 
             def _intrinsic_StreamRead(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
-                v = self._runLlvmIrFunctionInstrStreamRead(instr, ioArg, w, isReliable, streamProps)
+                v = self._runLlvmIrFunctionInstrStreamRead(instr, ioArg, w, behaviorType, streamProps)
                 interpret._storeInstrResult(waveLog, nowTime, regs, instr, v)
 
             return _intrinsic_StreamRead
@@ -388,10 +404,10 @@ class LlvmIrInterpretStreamIo():
             assert streamProps is not None, ("StreamChannelFormatInfo should have been discovered by previous StreamWriteStartOfFrame", instr)
             ioSimStream = self.interpret.fnArgs[ioArg.getArgNo()]
             wWidth = streamWriteGetOrigChunkBitWidth(instr)
-            isMaskedWrite = IsStreamWriteMasked(instr)
+            behaviorType = streamWriteGetBehavior(instr)
 
             def _intrinsic_StreamWrite(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
-                self._runLlvmIrFunctionInstrStreamWrite(regs, instr, ioArg, streamProps, wWidth, isMaskedWrite, ioSimStream)
+                self._runLlvmIrFunctionInstrStreamWrite(regs, instr, ioArg, streamProps, wWidth, behaviorType, ioSimStream)
 
             return _intrinsic_StreamWrite
 
@@ -409,8 +425,12 @@ class LlvmIrInterpretStreamIo():
             assert ioArg
 
             def _intrinsic_StreamReadEndOfFrame(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
-                curTmp = self._streamIoTmpWords.get(ioArg, None)
-                assert curTmp is None, ("The frame does not end when expected", instr, curTmp)
+                curTmp = self._streamIoTmpWords.pop(ioArg, None)
+                streamProps: StreamChannelFormatInfo = self._streamProps[ioArg]
+                if streamProps.byteEnableEncoding == ByteEnableEncoding.BEE_NONE:
+                    pass
+                else:
+                    assert curTmp is None, ("The frame does not end when expected", instr, curTmp)
 
             return _intrinsic_StreamReadEndOfFrame
 
@@ -418,10 +438,11 @@ class LlvmIrInterpretStreamIo():
             assert ioArg
 
             def _intrinsic_StreamWriteEndOfFrame(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
-                curTmp = self._streamIoTmpWords.get(ioArg, None)
+                curTmp = self._streamIoTmpWords.pop(ioArg, None)
                 assert curTmp is None, ("There was no write with EoF when EoF was expected", instr, curTmp)
 
             return _intrinsic_StreamWriteEndOfFrame
+
         elif IsStreamTmpAllocaTmpSetterPlaceholder(instr):
             # assert ioArg
 
@@ -429,6 +450,7 @@ class LlvmIrInterpretStreamIo():
                 pass
 
             return _intrinsic_StreamTmpAllocaTmpSetterPlaceholder
+
         else:
             raise NotImplementedError("Unknown streamIO intrinsic", instr)
 
@@ -441,6 +463,7 @@ class LlvmIrInterpretStreamIo():
         interpret = self.interpret
         resT = HBits(instr.getType().getIntegerBitWidth())
         DW = self._streamProps[ioArg].dataWidth
+
         def _opcode_LoadInst_streamTmpVar_offset(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
             tmpWord = self._streamIoTmpWords.get(ioArg, None)
             if tmpWord is None:

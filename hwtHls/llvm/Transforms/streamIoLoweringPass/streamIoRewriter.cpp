@@ -124,8 +124,17 @@ void finalizeStreamIoLowerig(llvm::Function &F,
 			io->eraseFromParent();
 		}
 	}
-	auto &AC = FAM.getResult<llvm::AssumptionAnalysis>(F);
-	llvm::PromoteMemToReg(GeneratedAllocas, DT, &AC);
+	auto *AC = FAM.getCachedResult<llvm::AssumptionAnalysis>(F);
+	for (auto a: GeneratedAllocas) {
+		SmallVector<User*> Users(a->users());
+		for (auto u: Users) {
+			if (auto uci = dyn_cast<CallInst>(u)) {
+				if (IsStreamTmpAllocaTmpSetterPlaceholder(uci))
+					uci->eraseFromParent();
+			}
+		}
+	}
+	llvm::PromoteMemToReg(GeneratedAllocas, DT, AC);
 }
 
 }

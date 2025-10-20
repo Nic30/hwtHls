@@ -1,3 +1,6 @@
+#include <hwtHls/llvm/Transforms/streamIoLoweringPass/StreamChannelProps.h>
+
+#include <algorithm>
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/bitMath.h>
@@ -6,6 +9,9 @@
 using namespace llvm;
 
 namespace hwtHls {
+
+const std::string StreamChannelProps::METADATA_NAME_TMP_VAR_DATA_OFFSET =
+		"hwtHls.io.protocol.stream.tmpVar.dataOffset";
 
 StreamChannelProps::StreamChannelProps(const StreamChannelFormatInfo &scfi,
 		llvm::SmallVector<llvm::AllocaInst*> &GeneratedAllocas) :
@@ -41,7 +47,7 @@ llvm::Value* StreamChannelProps::deparseNativeWord(
 		break;
 	}
 	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY: {
-		// Axi4StreamSegmented (data[n], (enable, sof?, eof?, err?, empty)[n])
+		// Axi4StreamSegmented (data[n], (enable?, sof?, eof?, err?, empty)[n])
 		partVars = { dataVar, dataEnableVar, dataSoFVar, dataEoFVar,
 				dataErrorVar, dataEmptyVar };
 		break;
@@ -77,12 +83,14 @@ void StreamChannelProps::setDataMaskOrEmptyConst(llvm::IRBuilderBase &builder,
 	case ByteEnableEncoding::BEE_NONE:
 		break;
 	case ByteEnableEncoding::BEE_MASK: {
-		auto *T = dataMaskVar->getAllocatedType();
-		auto val = APInt::getBitsSet(T->getIntegerBitWidth(),
-				dataBitOffset / byteWidth,
-				(dataBitOffset + dataBitsToTake) / byteWidth);
-		auto *CI = ConstantInt::get(T, val);
-		_setDataMask(builder, dataBitOffset != 0, CI);
+		if (dataMaskVar) {
+			auto *T = dataMaskVar->getAllocatedType();
+			auto val = APInt::getBitsSet(T->getIntegerBitWidth(),
+					dataBitOffset / byteWidth,
+					(dataBitOffset + dataBitsToTake) / byteWidth);
+			auto *CI = ConstantInt::get(T, val);
+			_setDataMask(builder, dataBitOffset != 0, CI);
+		}
 		break;
 	}
 	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY: {
@@ -96,8 +104,10 @@ void StreamChannelProps::setDataMaskOrEmptyConst(llvm::IRBuilderBase &builder,
 			builder.CreateStore(ConstantInt::get(emptyTy, newEmptyVal),
 					dataEmptyVar, /*isVolatile*/false);
 		}
-		bool isInitialSet = dataBitOffset == 0 && dataBitsToTake == 0;
-		setVarU64(builder, !isInitialSet, dataEnableVar);
+		if (dataEnableVar) {
+			bool isInitialSet = dataBitOffset == 0 && dataBitsToTake == 0;
+			setVarU64(builder, !isInitialSet, dataEnableVar);
+		}
 		break;
 	}
 	default:
@@ -126,23 +136,26 @@ void StreamChannelProps::setDataMaskOrEmpty(llvm::IRBuilderBase &builder,
 		case ByteEnableEncoding::BEE_NONE:
 			break;
 		case ByteEnableEncoding::BEE_MASK: {
-			Value *newMask = CreateBitRangeGetConst(&builder,
-					maskOrEmptyForWholeChunk, srcDataBitOffset / byteWidth,
-					dataBitsToTake / byteWidth);
-			size_t lsbPadWidth = dstDataBitOffset / byteWidth;
-			size_t msbPadWidth =
-					(dataVar->getAllocatedType()->getIntegerBitWidth()
-							/ byteWidth
-							- newMask->getType()->getIntegerBitWidth()
-							- lsbPadWidth);
-			newMask = zeroPad(builder, msbPadWidth, newMask, lsbPadWidth);
-			_setDataMask(builder, lsbPadWidth != 0 || msbPadWidth != 0,
-					newMask);
+			if (dataMaskVar) {
+				Value *newMask = CreateBitRangeGetConst(&builder,
+						maskOrEmptyForWholeChunk, srcDataBitOffset / byteWidth,
+						dataBitsToTake / byteWidth);
+				size_t lsbPadWidth = dstDataBitOffset / byteWidth;
+				size_t msbPadWidth =
+						(dataVar->getAllocatedType()->getIntegerBitWidth()
+								/ byteWidth
+								- newMask->getType()->getIntegerBitWidth()
+								- lsbPadWidth);
+				newMask = zeroPad(builder, msbPadWidth, newMask, lsbPadWidth);
+				_setDataMask(builder, lsbPadWidth != 0 || msbPadWidth != 0,
+						newMask);
+			}
 			break;
 		}
 		case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY: {
-			builder.CreateStore(builder.getTrue(), dataEnableVar, /*isVolatile*/
-			false);
+			if (dataEnableVar)
+				builder.CreateStore(builder.getTrue(), dataEnableVar, /*isVolatile*/
+				false);
 			if (dataEmptyVar) {
 				Value *empty =
 						StreamChannelWordValue::computeEmptyForDataInsert(
@@ -199,7 +212,8 @@ void StreamChannelProps::setAllData(llvm::IRBuilderBase &builder,
 		llvm::Instruction *nativeWord) const {
 	builder.SetInsertPoint(nativeWord->getParent(),
 			nativeWord->getNextNode()->getIterator());
-	auto data = StreamChannelWordValue::parseNativeWord(*this, builder, nativeWord);
+	auto data = StreamChannelWordValue::parseNativeWord(*this, builder,
+			nativeWord);
 	setAllData(builder, data);
 }
 
@@ -224,23 +238,30 @@ void StreamChannelProps::setAllData(llvm::IRBuilderBase &builder,
 					== dataVar->getAllocatedType()->getIntegerBitWidth());
 	builder.CreateStore(data.data, dataVar, /*isVolatile*/false);
 	switch (byteEnableEncoding) {
-	case ByteEnableEncoding::BEE_NONE:
+	case ByteEnableEncoding::BEE_NONE: {
 		assert(!data.mask);
 		assert(!data.enable);
 		assert(!data.empty);
 		break;
-	case ByteEnableEncoding::BEE_MASK:
+	}
+	case ByteEnableEncoding::BEE_MASK: {
 		assert(!data.enable);
 		assert(!data.empty);
 		_setAllData_setVarConditionally(builder, hasMask(), data.mask,
 				dataMaskVar);
 		break;
-	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY:
-		_setAllData_setVarConditionally(builder, true, data.enable,
-				dataEnableVar);
-		_setAllData_setVarConditionally(builder, hasEmpty(), data.empty,
-				dataEmptyVar);
+	}
+	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY: {
+		assert(!data.mask);
+		if (hasEnable())
+			_setAllData_setVarConditionally(builder, true, data.enable,
+					dataEnableVar);
+		if (hasEmpty())
+			_setAllData_setVarConditionally(builder, hasEmpty(),
+					builder.CreateZExt(data.empty,
+							dataEmptyVar->getAllocatedType()), dataEmptyVar);
 		break;
+	}
 	default:
 		llvm_unreachable("NotImplemented");
 	}
@@ -256,13 +277,17 @@ llvm::LoadInst* StreamChannelProps::getVarValue(llvm::IRBuilderBase &builder,
 	if (var == dataVar) {
 		Name = ".data";
 	} else if (var == dataMaskVar) {
-		Name = ".dataMask";
+		Name = ".mask";
+	} else if (var == dataEmptyVar) {
+		Name = ".empty";
 	} else if (var == dataSoFVar) {
 		Name = ".sof";
 	} else if (var == dataEoFVar) {
 		Name = ".eof";
 	} else if (var == dataOffsetVar) {
 		Name = ".offset";
+	} else if (var == dataErrorVar) {
+		Name = ".error";
 	} else if (var == wDataPendingVar) {
 		Name = ".wDataPending";
 	}
@@ -281,22 +306,72 @@ StreamChannelWordValue StreamChannelProps::getAllData(
 
 	Value *_sof = nullptr;
 	if (hasSoF())
-		llvm_unreachable("NotImplemented");
+		_sof = getVarValue(builder, dataSoFVar);
 
 	auto _eof = getVarValue(builder, dataEoFVar);
 	Value *_error = nullptr;
 	if (errorWidth)
-		llvm_unreachable("NotImplemented");
+		_error = getVarValue(builder, dataErrorVar);
+
+	Value *_enable = nullptr;
+	if (hasEnable())
+		_enable = builder.getTrue();
 
 	Value *_empty = nullptr;
-	Value *_enable = nullptr;
-	if (byteEnableEncoding == ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY) {
-		_enable = builder.getTrue();
-		if (hasEmpty())
-			_empty = getVarValue(builder, dataEmptyVar);
+	if (hasEmpty()) {
+		_empty = getVarValue(builder, dataEmptyVar);
+		if (!supportZLP) {
+			_empty = builder.CreateTrunc(_empty,
+					builder.getIntNTy(getWidthOfEmpty()));
+		}
 	}
-
 	return {*this, _data, _mask, _enable, _empty, _sof, _eof, _error};
+}
+
+llvm::AllocaInst* StreamChannelProps::_getOrCreateTmpVar(
+		llvm::IRBuilderBase &Builder, llvm::Type *Ty, const Twine &Name,
+		const std::string &mdName, bool findOnly) {
+	auto &BB = ioArg->getParent()->getEntryBlock();
+	for (auto &I : BB) {
+		if (auto AI = dyn_cast<AllocaInst>(&I)) {
+			auto md = AI->getMetadata(mdName);
+			if (md) {
+				auto mdTuple = dyn_cast<MDTuple>(md);
+				if (mdTuple && mdTuple->getNumOperands() == 1) {
+					ConstantInt *ArgIndexMD = mdconst::extract_or_null<
+							ConstantInt>(md->getOperand(0));
+					assert(ArgIndexMD);
+					if (ioArg->getArgNo() == ArgIndexMD->getZExtValue())
+						return AI;
+				}
+			}
+		}
+	}
+	if (findOnly)
+		return nullptr;
+
+	assert(
+			Builder.GetInsertBlock() == &BB
+					&& "Tmp allocas should be created only in entry block");
+	auto res = Builder.CreateAlloca(Ty, nullptr, Name);
+	auto &C = Builder.getContext();
+	auto md = ValueAsMetadata::getConstant(
+			ConstantInt::getSigned(IntegerType::getInt32Ty(C),
+					ioArg->getArgNo()));
+	res->setMetadata(mdName, MDTuple::get(C, { md, }));
+	return res;
+}
+
+llvm::AllocaInst* StreamChannelProps::_getOrCreateTmpVarDataOffset(
+		llvm::IRBuilderBase *Builder, bool findOnly) {
+	if (dataOffsetVar)
+		return dataOffsetVar;
+	IntegerType *offT = IntegerType::getIntNTy(ioArg->getContext(),
+			log2ceil(dataWidth));
+	dataOffsetVar = _getOrCreateTmpVar(*Builder, offT,
+			ioArg->getName() + "DataOffset", METADATA_NAME_TMP_VAR_DATA_OFFSET,
+			findOnly);
+	return dataOffsetVar;
 }
 
 void StreamChannelProps::createCommonVars(llvm::IRBuilderBase &builder) {
@@ -321,16 +396,16 @@ void StreamChannelProps::createCommonVars(llvm::IRBuilderBase &builder) {
 		break;
 	}
 	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY: {
-		dataEnableVar = builder.CreateAlloca(IntegerType::getInt1Ty(C), nullptr,
-				ioArg->getName() + "DataEmpty");
-		GeneratedAllocas.push_back(dataEnableVar);
-
+		if (hasEnable()) {
+			dataEnableVar = builder.CreateAlloca(IntegerType::getInt1Ty(C),
+					nullptr, ioArg->getName() + "DataEmpty");
+			GeneratedAllocas.push_back(dataEnableVar);
+		}
 		if (hasEmpty()) {
 			assert(dataMaskVar == nullptr);
 			// force supportZLP because it is necessary to store size value to empty during initialization of writes
 			IntegerType *emptyT = IntegerType::getIntNTy(C,
-					getWidthOfEmptyForData(dataWidth, byteWidth,
-							isOutput ? true : supportZLP));
+					getWidthOfEmptyForData(dataWidth, byteWidth, true));
 			dataEmptyVar = builder.CreateAlloca(emptyT, nullptr,
 					ioArg->getName() + "DataEmpty");
 			GeneratedAllocas.push_back(dataEmptyVar);
@@ -357,11 +432,49 @@ void StreamChannelProps::createCommonVars(llvm::IRBuilderBase &builder) {
 		GeneratedAllocas.push_back(dataErrorVar);
 	}
 
-	assert(dataOffsetVar == nullptr);
-	IntegerType *offT = IntegerType::getIntNTy(C, log2ceil(dataWidth));
-	dataOffsetVar = builder.CreateAlloca(offT, nullptr,
-			ioArg->getName() + "DataOffset");
-	GeneratedAllocas.push_back(dataOffsetVar);
+	if (!dataOffsetVar)
+		dataOffsetVar = _getOrCreateTmpVarDataOffset(&builder);
+	if (std::find(GeneratedAllocas.begin(), GeneratedAllocas.end(),
+			dataOffsetVar) == GeneratedAllocas.end())
+		GeneratedAllocas.push_back(dataOffsetVar);
+}
+
+void StreamChannelProps::commonVarsInitialize(
+		llvm::IRBuilderBase &Builder) const {
+	if (wDataPendingVar)
+		setVarU64(Builder, 0, wDataPendingVar);
+	switch (byteEnableEncoding) {
+	case ByteEnableEncoding::BEE_NONE:
+		break;
+	case ByteEnableEncoding::BEE_MASK: {
+		if (hasMask()) {
+			// must be initialized to 0 otherwise we will not be able to resolve in data from prev. iteration is valid or not
+			Builder.CreateStore(
+					ConstantInt::get(dataMaskVar->getAllocatedType(), 0),
+					dataMaskVar);
+		}
+		break;
+	}
+	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY: {
+		if (hasEnable()) {
+			Builder.CreateStore(Builder.getInt1(0), dataEnableVar);
+		}
+		if (hasEmpty()) {
+			// must be initialized to all 1s otherwise we will not be able to resolve in data from prev. iteration is valid or not
+			Builder.CreateStore(
+					ConstantInt::getAllOnesValue(
+							dataEmptyVar->getAllocatedType()), dataEmptyVar);
+		}
+	}
+	}
+	Builder.CreateStore(PoisonValue::get(dataVar->getAllocatedType()), dataVar);
+	if (hasSoF())
+		Builder.CreateStore(Builder.getInt1(0), dataSoFVar);
+	if (hasEoF())
+		Builder.CreateStore(Builder.getInt1(0), dataEoFVar);
+	if (hasError())
+		Builder.CreateStore(Builder.getIntN(errorWidth, 0), dataErrorVar);
+
 }
 
 void StreamChannelProps::createWDataPendingVar(llvm::IRBuilderBase &builder) {

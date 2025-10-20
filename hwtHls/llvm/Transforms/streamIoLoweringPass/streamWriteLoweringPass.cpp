@@ -96,14 +96,9 @@ public:
 				throw std::runtime_error("Multiple positions of frame start"); // possibleOffsets
 			} else {
 				// reset or wipe variables with previous data
-				streamProps.setVarU64(Builder, 0, streamProps.wDataPendingVar);
-				if (streamProps.dataSoFVar)
-					streamProps.setVarU64(Builder, 1, streamProps.dataSoFVar);
-				if (streamProps.dataEoFVar)
-					streamProps.setVarU64(Builder, 0, streamProps.dataEoFVar);
+				streamProps.commonVarsInitialize(Builder);
 				streamProps.setDataMaskOrEmptyConst(Builder, possibleOffsets[0],
 						0);
-				streamProps.setVarU64(Builder, { }, streamProps.dataVar);
 				streamProps.setVarU64(Builder, possibleOffsets[0],
 						streamProps.dataOffsetVar);
 			}
@@ -257,7 +252,7 @@ llvm::PreservedAnalyses StreamWriteLoweringPass::run(llvm::Function &F,
 	bool changed = false;
 	llvm::SmallVector<llvm::AllocaInst*> GeneratedAllocas;
 	auto streamProps = getStreamIoProps(F, GeneratedAllocas);
-
+    LazyValueInfo *LVI = nullptr;
 	auto &DT = FAM.getResult<DominatorTreeAnalysis>(F);
 	DomTreeUpdater DTU(DT, DomTreeUpdater::UpdateStrategy::Lazy);
 	// writeCFGToDotFile(F, "tmp/StreamWriteLoweringPass.before.dot", FAM);
@@ -267,10 +262,14 @@ llvm::PreservedAnalyses StreamWriteLoweringPass::run(llvm::Function &F,
 			continue;
 
 		changed = true;
-		StreamIoDetector cfg(s.dataWidth,
+		if (s.dataOffsetVar && !LVI )
+			LVI = &FAM.getResult<LazyValueAnalysis>(F);
+		StreamIoDetector cfg(LVI, s.dataWidth, s.dataOffsetVar,
 				reinterpret_cast<llvm::SetVector<const llvm::CallInst*>&>(s.ios));
 		cfg.detectIoAccessGraphs(F.getEntryBlock());
 		cfg.resolvePossibleOffset();
+		if (LVI)
+			LVI->clear();
 
 		IRBuilder<> builder(F.getEntryBlock().getFirstNonPHI());
 		s.createCommonVars(builder);

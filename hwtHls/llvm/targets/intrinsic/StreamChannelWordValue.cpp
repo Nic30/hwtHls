@@ -2,6 +2,7 @@
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/bitMath.h>
+#include <tuple>
 
 using namespace llvm;
 
@@ -15,10 +16,7 @@ StreamChannelWordValue::StreamChannelWordValue(
 				sof), eof(eof), error(error) {
 	assert(data);
 	assert(props.hasMask() == (mask != nullptr));
-	assert(
-			(props.byteEnableEncoding
-					== ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY)
-					== (enable != nullptr));
+	assert(props.hasEnable() == (enable != nullptr));
 	assert(props.hasEmpty() == (empty != nullptr));
 	assert(props.hasSoF() == (sof != nullptr));
 	assert(props.hasEoF() == (eof != nullptr));
@@ -37,9 +35,19 @@ StreamChannelWordValue::StreamChannelWordValue(
 							== props.errorWidth);
 }
 
+std::array<llvm::Value*, 7> StreamChannelWordValue::asArray() {
+	return {data, mask, enable, empty, sof, eof, error};
+}
+
+void StreamChannelWordValue::setFromArray(
+		const std::array<llvm::Value*, 7> &arr) {
+	std::tie(data, mask, enable, empty, sof, eof, error) = std::tuple_cat(arr);
+}
+
 StreamChannelWordValue StreamChannelWordValue::concat(
 		llvm::IRBuilderBase &builder,
-		llvm::ArrayRef<StreamChannelWordValue> lowerFirstMembers) {
+		llvm::ArrayRef<StreamChannelWordValue> lowerFirstMembers,
+		bool resultIsReliable) {
 	assert(lowerFirstMembers.size());
 	llvm::SmallVector<llvm::Value*> data;
 	llvm::SmallVector<llvm::Value*> mask; // mask is concatenated
@@ -50,7 +58,8 @@ StreamChannelWordValue StreamChannelWordValue::concat(
 	llvm::SmallVector<llvm::Value*> eof; // eof is or-ed
 
 	assert(!lowerFirstMembers.empty());
-	const auto & props =  lowerFirstMembers[lowerFirstMembers.size() > 2 ? 1 : 0].props;
+	const auto &props =
+			lowerFirstMembers[lowerFirstMembers.size() > 2 ? 1 : 0].props;
 	for (auto &d : lowerFirstMembers) {
 		bool isLast = &d == &lowerFirstMembers.back();
 		bool isFirst = &d == &lowerFirstMembers.front();
@@ -63,6 +72,19 @@ StreamChannelWordValue StreamChannelWordValue::concat(
 		assert(props.hasSoF() == (d.sof != nullptr));
 		assert(props.hasEoF() == (d.eof != nullptr));
 		assert(props.hasError() == (d.error != nullptr));
+
+		//	switch (streamProps.byteEnableEncoding) {
+		//			case ByteEnableEncoding::BEE_MASK:
+		//				if (!_readRes.mask && !streamProps.hasMask()
+		//						&& streamProps.dataWidth == 8
+		//						&& read->getType()->getIntegerBitWidth() == 10) {
+		//					// corner case for read from 1B interface without mask
+		//					_readRes.mask = Builder.getTrue();
+		//				}
+		//				break;
+		//			default:
+		//				break;
+		//			}
 
 		if (d.mask) {
 			mask.push_back(d.mask);
@@ -79,20 +101,47 @@ StreamChannelWordValue StreamChannelWordValue::concat(
 			error.push_back(d.error);
 	}
 	Value *_data = CreateBitConcat(&builder, data);
-	Value *_mask = nullptr;
-	if (!mask.empty()) {
-		_mask = CreateBitConcat(&builder, mask);
-	}
 	auto &item0 = lowerFirstMembers[0];
+
+	std::optional<bool> newSupportZLP;
+	if (item0.props.byteEnableEncoding
+			== ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY)
+		newSupportZLP = false;
+	std::optional<ByteEnableEncoding> byteEnableEncodingOverride;
+	if (resultIsReliable) {
+		newSupportZLP = false;
+		byteEnableEncodingOverride = ByteEnableEncoding::BEE_NONE;
+	}
+	auto newStreamProps = item0.props.resize(
+			_data->getType()->getIntegerBitWidth(), newSupportZLP,
+			byteEnableEncodingOverride);
+
 	// :note: this expect that all words, except last, have always all bytes valid
 	//        but the first and last word may be smaller than words in the middle
 	Value *_empty = lowerFirstMembers.back().empty;
-	auto newStreamProps = item0.props.resize(
-			_data->getType()->getIntegerBitWidth());
-	if (_empty) {
-		_empty = builder.CreateZExt(_empty,
-				builder.getIntNTy(newStreamProps.getWidthOfEmpty()));
+	if (newStreamProps.hasEmpty()) {
+		if (_empty) {
+			_empty = builder.CreateZExt(_empty,
+					builder.getIntNTy(newStreamProps.getWidthOfEmpty()));
+		} else {
+			// because we concatenated multiple bytes together, empty now can not be omitted
+			_empty = builder.getIntN(newStreamProps.getWidthOfEmpty(), 0);
+		}
+	} else {
+		_empty = nullptr;
 	}
+	Value *_mask = nullptr;
+	if (newStreamProps.hasMask()) {
+		if (mask.empty()) {
+			_mask = builder.getInt(
+					APInt::getAllOnes(newStreamProps.getWidthOfMask()));
+		} else {
+			_mask = CreateBitConcat(&builder, mask);
+		}
+	} else {
+		_mask = nullptr;
+	}
+
 	Value *_eof = nullptr;
 	if (eof.size()) {
 		_eof = builder.CreateOr(eof);
@@ -100,10 +149,6 @@ StreamChannelWordValue StreamChannelWordValue::concat(
 	Value *_error = nullptr;
 	if (!error.empty()) {
 		_error = CreateBitConcat(&builder, error);
-	}
-	if (newStreamProps.hasEmpty() && !_empty) {
-		// because we concatenated multiple bytes together empty now can not be omitted
-		_empty = builder.getIntN(newStreamProps.getWidthOfEmpty(), 0);
 	}
 	return {
 		newStreamProps,
@@ -115,6 +160,34 @@ StreamChannelWordValue StreamChannelWordValue::concat(
 		_eof,
 		_error,
 	};
+}
+
+void StreamChannelWordValue::populateWithDummyMaskOrEmptyIfNecessary(
+		const StreamChannelFormatInfo &streamProps) {
+	auto &C = data->getContext();
+	auto DW = data->getType()->getIntegerBitWidth();
+	switch (props.byteEnableEncoding) {
+	case ByteEnableEncoding::BEE_NONE:
+		break;
+	case ByteEnableEncoding::BEE_MASK: {
+		if (streamProps.hasMask() && !mask) {
+			mask = ConstantInt::getAllOnesValue(
+					IntegerType::get(C, streamProps.getWidthOfMaskForData(DW)));
+		}
+		break;
+	}
+	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY: {
+		if (streamProps.hasEmpty() && !empty) {
+			IntegerType *emptyT = IntegerType::get(C,
+					streamProps.getWidthOfEmptyForData(DW,
+							streamProps.byteWidth, streamProps.supportZLP));
+			empty = ConstantInt::get(emptyT, 0);
+		}
+		break;
+	}
+	default:
+		llvm_unreachable("Unknown value for ByteEnableEncoding");
+	}
 }
 
 llvm::Value* StreamChannelWordValue::computeEmptyForDataExtract(
@@ -144,7 +217,8 @@ llvm::Value* StreamChannelWordValue::computeEmptyForDataExtract(
 			ConstantInt::get(srcEmptyTy, bytesAfterThis), "", /*HasNUW*/true);
 	size_t newWidthOfEmpty = StreamChannelFormatInfo::getWidthOfEmptyForData(
 			dstDataWidth, byteWidth, dstMayBeEmpty);
-	empty = builder.CreateTrunc(empty, builder.getIntNTy(newWidthOfEmpty));
+	empty = builder.CreateZExtOrTrunc(empty,
+			builder.getIntNTy(newWidthOfEmpty));
 	return empty;
 }
 
@@ -212,7 +286,7 @@ llvm::Value* StreamChannelWordValue::computeEmptyForDataInsert(
 				emptyForEndInSrc - emptyForEndInCur);
 		empty = builder.CreateSub(empty, off, "", /*HasNUW*/true);
 	}
-	empty = builder.CreateTrunc(empty, &dstEmptyTy);
+	empty = builder.CreateZExtOrTrunc(empty, &dstEmptyTy);
 	return empty;
 }
 
@@ -221,7 +295,11 @@ StreamChannelWordValue StreamChannelWordValue::slice(
 		bool isGuaranteedToBeNotEoF, bool isGuarangeedToContainSomeData) const {
 	assert(bitsToTake > 0);
 	bool mayBeEmpty = isGuarangeedToContainSomeData ? props.supportZLP : true;
-	auto newProps = props.resize(bitsToTake, mayBeEmpty);
+	std::optional<ByteEnableEncoding> byteEnableEncodingOverride;
+	if (isGuarangeedToContainSomeData)
+		byteEnableEncodingOverride = ByteEnableEncoding::BEE_NONE;
+	auto newProps = props.resize(bitsToTake, mayBeEmpty,
+			byteEnableEncodingOverride);
 	Value *_data = CreateBitRangeGetConst(&builder, data, dataLowBitIndex,
 			bitsToTake);
 	Value *_mask = nullptr;
@@ -229,7 +307,7 @@ StreamChannelWordValue StreamChannelWordValue::slice(
 	Value *_sof = sof;
 	Value *_enable = enable;
 	Value *_error = error;
-	Value *_empty = newProps.hasEmpty() ? empty : nullptr;
+	Value *_empty = nullptr;
 	const size_t dataWidth = data->getType()->getIntegerBitWidth();
 	const size_t byteWidth = props.byteWidth;
 	if (dataLowBitIndex != 0) {
@@ -238,18 +316,10 @@ StreamChannelWordValue StreamChannelWordValue::slice(
 		}
 	}
 	Value *readIsFollowedByMoreData = nullptr;
-	bool endsOnEndOfThisWord = dataLowBitIndex + bitsToTake
-			== dataWidth;
+	bool endsOnEndOfThisWord = dataLowBitIndex + bitsToTake == dataWidth;
 	if (isGuaranteedToBeNotEoF) {
 		if (_enable) {
 			_enable = ConstantInt::get(_enable->getType(), 1);
-		}
-		if (props.hasMask()) {
-			_mask = ConstantInt::getAllOnesValue(
-					builder.getIntNTy(bitsToTake / byteWidth));
-		}
-		if (_empty) {
-			_empty = builder.getIntN(newProps.getWidthOfEmpty(), 0);
 		}
 		if (_eof) {
 			_eof = ConstantInt::get(_eof->getType(), 0);
@@ -271,14 +341,18 @@ StreamChannelWordValue StreamChannelWordValue::slice(
 			// resolve eof, if this is not last read in read sequence we have to check also mask of next byte
 			// to verify this is really the end and not just some middle byte in last word
 			// nextMaskBit
-			if (!endsOnEndOfThisWord) {
-				if (props.hasEoF() || props.hasError())
-					readIsFollowedByMoreData = CreateBitRangeGetConst(&builder,
-							mask, (dataLowBitIndex + bitsToTake) / byteWidth, 1);
-			}
 			if (props.hasMask()) {
-				_mask = CreateBitRangeGetConst(&builder, mask,
-						dataLowBitIndex / byteWidth, bitsToTake / byteWidth);
+				if (!endsOnEndOfThisWord) {
+					if (newProps.hasEoF() || newProps.hasError())
+						readIsFollowedByMoreData = CreateBitRangeGetConst(
+								&builder, mask,
+								(dataLowBitIndex + bitsToTake) / byteWidth, 1);
+				}
+				if (newProps.hasMask()) {
+					_mask = CreateBitRangeGetConst(&builder, mask,
+							dataLowBitIndex / byteWidth,
+							bitsToTake / byteWidth);
+				}
 			}
 			break;
 		}
@@ -288,15 +362,15 @@ StreamChannelWordValue StreamChannelWordValue::slice(
 						- (dataLowBitIndex + bitsToTake)) / byteWidth;
 				auto emptyT = empty->getType();
 				if (!endsOnEndOfThisWord) {
-					if (props.hasEoF() || props.hasError())
+					if (newProps.hasEoF() || newProps.hasError())
 						readIsFollowedByMoreData =
 								builder.CreateICmpULT(empty,
 										ConstantInt::get(emptyT,
 												maxValueOfEmptyToHaveAllRBytesStillOccupied));
 				}
 				if (newProps.hasEmpty()) {
-					_empty = computeEmptyForDataExtract(builder, byteWidth, empty,
-							props.dataWidth, dataLowBitIndex, bitsToTake,
+					_empty = computeEmptyForDataExtract(builder, byteWidth,
+							empty, props.dataWidth, dataLowBitIndex, bitsToTake,
 							mayBeEmpty);
 				}
 			}
@@ -304,6 +378,13 @@ StreamChannelWordValue StreamChannelWordValue::slice(
 		}
 		default:
 			llvm_unreachable("Unknown value for ByteEnableEncoding");
+		}
+		if (!_mask && newProps.hasMask()) {
+			_mask = ConstantInt::getAllOnesValue(
+					builder.getIntNTy(bitsToTake / byteWidth));
+		}
+		if (!_empty && newProps.hasEmpty()) {
+			_empty = builder.getIntN(newProps.getWidthOfEmpty(), 0);
 		}
 	}
 
@@ -320,25 +401,24 @@ StreamChannelWordValue StreamChannelWordValue::slice(
 	}
 
 	assert(newProps.hasEmpty() == (_empty != nullptr));
-	return {newProps, _data, _mask, enable, _empty, _sof, _eof, _error};
+	return {newProps, _data, _mask, _enable, _empty, _sof, _eof, _error};
 }
 
 llvm::Instruction* StreamChannelWordValue::flatten(llvm::IRBuilderBase &builder,
-		llvm::Value *wordHasAdditionalData) const {
-
+		llvm::Value *lastWordHasAdditionalData) const {
 	auto _eof = eof;
 	auto _error = error;
-	if (wordHasAdditionalData) {
+	if (lastWordHasAdditionalData) {
 		// is last if this word is last and there is nothing in this word after this chunk
 		if (eof) {
 			_eof = builder.CreateAnd(eof,
-					builder.CreateNot(wordHasAdditionalData));
+					builder.CreateNot(lastWordHasAdditionalData));
 		} else {
 			assert(props.hasEoF());
 		}
 
 		if (error) {
-			_error = builder.CreateSelect(wordHasAdditionalData,
+			_error = builder.CreateSelect(lastWordHasAdditionalData,
 					ConstantInt::get(error->getType(), 0), error);
 		} else {
 			assert(!props.hasError());
@@ -350,7 +430,9 @@ llvm::Instruction* StreamChannelWordValue::flatten(llvm::IRBuilderBase &builder,
 	switch (props.byteEnableEncoding) {
 	// Axi4Stream (data, strb?, err?, sof?, eof?)
 	case ByteEnableEncoding::BEE_MASK:
-		res.push_back(mask);
+		if (mask) {
+			res.push_back(mask);
+		}
 		__attribute__ ((fallthrough));
 	case ByteEnableEncoding::BEE_NONE:
 		if (props.hasError())
@@ -362,8 +444,9 @@ llvm::Instruction* StreamChannelWordValue::flatten(llvm::IRBuilderBase &builder,
 		break;
 	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY: {
 		// :note: this function produces result only for a single segment
-		// Axi4StreamSegmented (data[n], (enable, sof?, eof?, err?, empty)[n])
-		res.push_back(enable);
+		// Axi4StreamSegmented (data[n], (enable?, sof?, eof?, err?, empty?)[n])
+		if (props.hasEnable())
+			res.push_back(enable);
 		if (props.hasSoF())
 			res.push_back(sof);
 		if (props.hasEoF())
@@ -407,28 +490,33 @@ StreamChannelWordValue StreamChannelWordValue::parseNativeWord(
 	case ByteEnableEncoding::BEE_NONE:
 		break;
 	case ByteEnableEncoding::BEE_MASK: {
-		dataMask = dyn_cast<Instruction>(
-				CreateBitRangeGetConst(&Builder, nativeWord,
-						props.getOffsetOfMask(),
-						props.dataWidth / props.byteWidth,
-						nativeWord->getName() + ".mask"));
-		assert(dataMask);
-		props.CreateAssumptionForMask(Builder, nativeWord, dataMask, dataEoF);
+		if (props.hasMask()) {
+			dataMask = dyn_cast<Instruction>(
+					CreateBitRangeGetConst(&Builder, nativeWord,
+							props.getOffsetOfMask(),
+							props.dataWidth / props.byteWidth,
+							nativeWord->getName() + ".mask"));
+			assert(dataMask);
+			props.CreateAssumptionForMask(Builder, nativeWord, dataMask,
+					dataEoF);
+		}
 		break;
 	}
 	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY: {
-		enable = dyn_cast<Instruction>(
-				CreateBitRangeGetConst(&Builder, nativeWord,
-						props.getOffsetOfEnable(), 1,
-						nativeWord->getName() + ".empty"));
+		if (props.hasEnable()) {
+			enable = dyn_cast<Instruction>(
+					CreateBitRangeGetConst(&Builder, nativeWord,
+							props.getOffsetOfEnable(), 1,
+							nativeWord->getName() + ".enable"));
+		}
 		if (props.hasEmpty()) {
 			size_t widthOfEmpty = props.getWidthOfEmpty();
 			assert(widthOfEmpty > 0);
 			empty = dyn_cast<Instruction>(
 					CreateBitRangeGetConst(&Builder, nativeWord,
-							props.getOffsetOfEmpty(), widthOfEmpty));
-			props.CreateAssumptionForEmpty(Builder, nativeWord, enable, empty,
-					dataEoF);
+							props.getOffsetOfEmpty(), widthOfEmpty,
+							nativeWord->getName() + ".empty"));
+			props.CreateAssumptionForEmpty(Builder, nativeWord, empty, dataEoF);
 		}
 		break;
 	}
@@ -442,6 +530,33 @@ StreamChannelWordValue StreamChannelWordValue::parseNativeWord(
 				props.getOffsetOfError(), props.errorWidth,
 				nativeWord->getName() + ".error");
 	return {props, data, dataMask, enable, empty, dataSoF, dataEoF, error};
+}
+
+llvm::Value* StreamChannelWordValue::CreateMaskToEmpty(
+		llvm::IRBuilderBase &builder, llvm::Value *mask) const {
+	// empty = ctlz(mask)
+	Value* v = builder.CreateIntrinsic(Intrinsic::ctlz, { mask->getType() }, {
+			mask, /*isZeroPoisonous*/
+			builder.getFalse() });
+	auto truncT = builder.getIntNTy(log2ceil(mask->getType()->getIntegerBitWidth() + int(props.supportZLP)));
+	return builder.CreateTrunc(v, truncT);
+}
+
+llvm::Value* StreamChannelWordValue::CreateEmptyToMask(
+		llvm::IRBuilderBase &builder, llvm::Value *empty) const {
+	size_t maskWidth = props.dataWidth / props.byteWidth;
+	// maskVal
+	// = mask(bytesEnabled)
+	// = (1 << bytesEnabled) - 1
+	// = (1 << (wordBytes - empty)) - 1
+	// = (1 << (maskWidth - empty)) - 1
+	// = mask(maskWidth) >> empty
+	//auto *validByteCnt = builder.CreateSub(ConstantInt::get(empty->getType(), maskWidth), empty);
+	auto *maskT = builder.getIntNTy(maskWidth);
+	//auto m1 = ConstantInt::get(maskT, 1);
+	//auto m = builder.CreateShl(m1, builder.CreateZExt(validByteCnt, maskT));
+	//return builder.CreateSub(m, m1);
+	return builder.CreateLShr(ConstantInt::getAllOnesValue(maskT), builder.CreateZExt(empty, maskT));
 }
 
 }
