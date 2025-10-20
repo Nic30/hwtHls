@@ -1,4 +1,4 @@
-from typing import Union, List, Dict, Tuple, Optional, Generator, Literal, Set
+from typing import Union, Optional, Generator, Literal
 
 from hwt.constants import NOT_SPECIFIED
 from hwt.hdl.const import HConst
@@ -65,10 +65,10 @@ class ArchElement(HlsNetNodeAggregate):
         HlsNetNodeAggregate.__init__(self, netlist, subNodes, name)
         self.namePrefix = namePrefix
         self.netlist = netlist
-        self.netNodeToRtl: Dict[
+        self.netNodeToRtl: dict[
             Union[
                 HlsNetNodeOut,  # any operation output
-                Tuple[HlsNetNodeOut, HwIO]  # write
+                tuple[HlsNetNodeOut, HwIO]  # write
             ],
             TimeIndependentRtlResource] = {}
         # function to create register/signal on RTL level
@@ -82,7 +82,7 @@ class ArchElement(HlsNetNodeAggregate):
         self._rtlSyncAllocated: bool = False
 
     @override
-    def clone(self, memo:dict, keepTopPortsConnected:bool) -> Tuple["HlsNetNode", bool]:
+    def clone(self, memo:dict, keepTopPortsConnected:bool) -> tuple["HlsNetNode", bool]:
         y, isNew = HlsNetNodeAggregate.clone(self, memo, keepTopPortsConnected)
         if isNew:
             for cos in self.connections:
@@ -96,7 +96,7 @@ class ArchElement(HlsNetNodeAggregate):
     def _reg(self, name: str,
              dtype: HdlType=BIT,
              def_val: Union[int, None, dict, list]=None,
-             clk: Union[RtlSignalBase, None, Tuple[RtlSignalBase, HOperatorDef]]=None,
+             clk: Union[RtlSignalBase, None, tuple[RtlSignalBase, HOperatorDef]]=None,
              rst: Optional[RtlSignalBase]=None,
              nextSig:Optional[RtlSignalBase]=NOT_SPECIFIED) -> RtlSignal:
         """
@@ -114,7 +114,7 @@ class ArchElement(HlsNetNodeAggregate):
         return self.netlist.parentHwModule._sig(name, dtype=dtype, def_val=def_val, nop_val=nop_val)
 
     @override
-    def _addOutput(self, t:HdlType, name:Optional[str], time:Optional[SchedTime]=None) -> Tuple[HlsNetNodeOut, HlsNetNodeIn]:
+    def _addOutput(self, t:HdlType, name:Optional[str], time:Optional[SchedTime]=None) -> tuple[HlsNetNodeOut, HlsNetNodeIn]:
         outerO, internI = super(ArchElement, self)._addOutput(t, name, time=time)
         if time is not None:
             clkIndex = indexOfClkPeriod(time, self.netlist.normalizedClkPeriod)
@@ -122,7 +122,7 @@ class ArchElement(HlsNetNodeAggregate):
         return outerO, internI
 
     @override
-    def _addInput(self, t:HdlType, name:Optional[str], time:Optional[SchedTime]=None) -> Tuple[HlsNetNodeIn, HlsNetNodeOut]:
+    def _addInput(self, t:HdlType, name:Optional[str], time:Optional[SchedTime]=None) -> tuple[HlsNetNodeIn, HlsNetNodeOut]:
         outerI, internO = super(ArchElement, self)._addInput(t, name, time=time)
         if time is not None:
             clkIndex = indexOfClkPeriod(time, self.netlist.normalizedClkPeriod)
@@ -130,13 +130,13 @@ class ArchElement(HlsNetNodeAggregate):
         return outerI, internO
 
     @override
-    def filterNodesUsingSet(self, removed: Set[HlsNetNode], recursive=False, clearRemoved=True):
+    def filterNodesUsingSet(self, removed: set[HlsNetNode], recursive=False, clearRemoved=True):
         if self.scheduledZero is not None:
             for _, state in self.iterStages():
                 state[:] = (n for n in state if n not in removed)
         super(ArchElement, self).filterNodesUsingSet(removed, recursive=recursive, clearRemoved=clearRemoved)
 
-    def filterNodesUsingSetInSingleStage(self, removed: Set[HlsNetNode], stageIndex: int, recursive=False, clearRemoved=True):
+    def filterNodesUsingSetInSingleStage(self, removed: set[HlsNetNode], stageIndex: int, recursive=False, clearRemoved=True):
         stage = self.getStageForClock(stageIndex)
         stage[:] = (n for n in stage if n not in removed)
         super(ArchElement, self).filterNodesUsingSet(removed, recursive=recursive, clearRemoved=clearRemoved)
@@ -147,17 +147,17 @@ class ArchElement(HlsNetNodeAggregate):
         stage[:] = (n for n in stage if n not in removed)
         super(ArchElement, self).filterNodesUsingRemovedSet(recursive=recursive)
 
-    def iterStages(self) -> Generator[Tuple[int, List[HlsNetNode]], None, None]:
+    def iterStages(self) -> Generator[tuple[int, list[HlsNetNode]], None, None]:
         """
         Iterate slots for clock windows which are containing scheduled nodes in this element.
         """
         raise NotImplementedError("Implement this method in child class", self)
 
-    def getStageForTime(self, time: SchedTime) -> List[HlsNetNode]:
+    def getStageForTime(self, time: SchedTime) -> list[HlsNetNode]:
         assert time >= 0, time
         return self.getStageForClock(time // self.netlist.normalizedClkPeriod)
 
-    def getStageForClock(self, clkIndex: int, createIfNotExists=False) -> List[HlsNetNode]:
+    def getStageForClock(self, clkIndex: int, createIfNotExists=False) -> list[HlsNetNode]:
         """
         Get clock window slot for a specified clock index.
         :param createIfNotExists: generate a new clock window container if it is 
@@ -165,7 +165,7 @@ class ArchElement(HlsNetNodeAggregate):
         """
         raise NotImplementedError("Implement this method in child class", self)
 
-    def getStageEnable(self, clkIndex: int) -> Tuple[Optional[HlsNetNodeOut], bool]:
+    def getStageEnable(self, clkIndex: int) -> tuple[Optional[HlsNetNodeOut], bool]:
         """
         Get existing or create a :class:`HlsNetNodeFsmStateEn` (is 1 if stage is allowed to perform its function)
         
@@ -182,7 +182,7 @@ class ArchElement(HlsNetNodeAggregate):
         self._addNodeIntoScheduled(clkIndex, enNode)
         return enNode._outputs[0], True
 
-    def getStageAckNode(self, clkIndex: int) -> Tuple[HlsNetNodeStageAck, bool]:
+    def getStageAckNode(self, clkIndex: int) -> tuple[HlsNetNodeStageAck, bool]:
         """
         Get existing or create a :class:`HlsNetNodeStageAck` (a sink for ack signal which is 1 if stage performing its function)
         """
@@ -259,7 +259,8 @@ class ArchElement(HlsNetNodeAggregate):
                                    isExplicitRegister: bool,
                                    isForwardDeclr: bool,
                                    mayChangeOutOfCfg: bool,
-                                   timeOffset: Union[SchedTime, Literal[INVARIANT_TIME, NOT_SPECIFIED]]=NOT_SPECIFIED):
+                                   timeOffset: Union[SchedTime, Literal[INVARIANT_TIME, NOT_SPECIFIED]]=NOT_SPECIFIED)\
+                                   -> TimeIndependentRtlResource:
         """
         Construct the container for RtlSignal and alike which is used for resolving of synchronization for it.
         """
@@ -295,7 +296,7 @@ class ArchElement(HlsNetNodeAggregate):
 
         return tir
 
-    def rtlAllocHlsNetNodeOut(self, o: HlsNetNodeOut) -> Union[TimeIndependentRtlResourceItem, List[HdlStatement]]:
+    def rtlAllocHlsNetNodeOut(self, o: HlsNetNodeOut) -> Union[TimeIndependentRtlResourceItem, list[HdlStatement]]:
         """
         Allocate all RTL which is represented by provided output
         """
@@ -342,7 +343,7 @@ class ArchElement(HlsNetNodeAggregate):
         return _o
 
     def rtlAllocHlsNetNodeOutInTime(self, o: HlsNetNodeOut, time:int,
-                                       ) -> Union[TimeIndependentRtlResourceItem, List[HdlStatement]]:
+                                       ) -> Union[TimeIndependentRtlResourceItem, list[HdlStatement]]:
         """
         :meth:`~.rtlAllocHlsNetNodeOut` method with also gets the RTL resource in specified time.
         """
@@ -368,7 +369,7 @@ class ArchElement(HlsNetNodeAggregate):
         return self.rtlAllocHlsNetNodeOutInTime(i.obj.dependsOn[i.in_i], time)
 
     def rtlAllocHlsNetNodeInDriverIfAlocatedElseForwardDeclr(self, i: HlsNetNodeIn)\
-            ->Union[TimeIndependentRtlResourceItem, List[HdlStatement]]:
+            ->Union[TimeIndependentRtlResourceItem, list[HdlStatement]]:
         obj = i.obj
         dep = obj.dependsOn[i.in_i]
         assert isinstance(dep, HlsNetNodeOut), dep
@@ -381,7 +382,7 @@ class ArchElement(HlsNetNodeAggregate):
         return self.rtlAllocHlsNetNodeOutInTime(dep, obj.scheduledIn[i.in_i])
 
     def rtlAllocHlsNetNodeInDriverIfExists(self, i: Optional[HlsNetNodeIn])\
-            ->Union[TimeIndependentRtlResourceItem, List[HdlStatement]]:
+            ->Union[TimeIndependentRtlResourceItem, list[HdlStatement]]:
         if i is None:
             return None
         obj = i.obj
@@ -389,23 +390,23 @@ class ArchElement(HlsNetNodeAggregate):
         assert dep
         return self.rtlAllocHlsNetNodeOutInTime(dep, obj.scheduledIn[i.in_i])
 
-    # def rtlAllocDatapathRead(self, node: HlsNetNodeRead, con: ConnectionsOfStage, rtl: List[HdlStatement],
+    # def rtlAllocDatapathRead(self, node: HlsNetNodeRead, con: ConnectionsOfStage, rtl: list[HdlStatement],
     #                         validHasCustomDriver:bool=False, readyHasCustomDriver:bool=False):
     #    """
     #    :attention: :see: :meth:`~._rtlAllocDatapathIo`
     #    """
     #    self._rtlAllocDatapathIo(node.src, node, con, rtl, True, validHasCustomDriver, readyHasCustomDriver)
     #
-    # def rtlAllocDatapathWrite(self, node: HlsNetNodeWrite, con: ConnectionsOfStage, rtl: List[HdlStatement],
+    # def rtlAllocDatapathWrite(self, node: HlsNetNodeWrite, con: ConnectionsOfStage, rtl: list[HdlStatement],
     #                          validHasCustomDriver:bool=False, readyHasCustomDriver:bool=False):
     #    """
     #    :attention: :see: :meth:`~._rtlAllocDatapathIo`
     #    """
     #    self._rtlAllocDatapathIo(node.dst, node, con, rtl, False, validHasCustomDriver, readyHasCustomDriver)
-    def rtlAllocDatapathRead(self, node: HlsNetNodeRead, rtlReadySignal: Optional[RtlSignal], con: ConnectionsOfStage, rtl: List[HdlStatement]):
+    def rtlAllocDatapathRead(self, node: HlsNetNodeRead, rtlReadySignal: Optional[RtlSignal], con: ConnectionsOfStage, rtl: list[HdlStatement]):
         self._rtlAllocDatapathIo(node.src, node, rtlReadySignal, con, rtl)
 
-    def rtlAllocDatapathWrite(self, node: HlsNetNodeWrite, rtlValidSignal: Optional[RtlSignal], con: ConnectionsOfStage, rtl: List[HdlStatement]):
+    def rtlAllocDatapathWrite(self, node: HlsNetNodeWrite, rtlValidSignal: Optional[RtlSignal], con: ConnectionsOfStage, rtl: list[HdlStatement]):
         self._rtlAllocDatapathIo(node.dst, node, rtlValidSignal, con, rtl)
 
     def _rtlAllocDatapathIo(self,
@@ -413,7 +414,7 @@ class ArchElement(HlsNetNodeAggregate):
                     node: Union[HlsNetNodeRead, HlsNetNodeWrite],
                     rtlIoEnableSignal: Optional[RtlSignal],
                     con: ConnectionsOfStage,
-                    rtl: List[HdlStatement]):
+                    rtl: list[HdlStatement]):
         """
         There may be multiple read/write instances accessing the same hw interface in this ConnectionsOfStage.
         If this is the case it is proven that the access is concurrent.
@@ -455,4 +456,4 @@ class ArchElement(HlsNetNodeAggregate):
         return f"<{self.__class__.__name__:s} {self._id:d} {self.name:s}>"
 
 
-ArchElmEdge = Tuple[ArchElement, ArchElement]
+ArchElmEdge = tuple[ArchElement, ArchElement]
