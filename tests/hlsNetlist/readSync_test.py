@@ -8,8 +8,9 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.frontend.threadFromNetlist import HlsThreadFromNetlist
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.frontend.pyBytecode import hlsBytecode
+from hwtHls.frontend.threadFromNetlist import HlsThreadFromNetlist
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
@@ -40,14 +41,14 @@ class ReadOrDefaultHwModule(HwModule):
         elm = ArchElementPipeline(netlist, self.__class__.__name__, self.__class__.__name__ + "_")
         netlist.addNode(elm)
         b = elm.builder
-        r = HlsNetNodeRead(netlist, self.dataIn)
+        r = HlsNetNodeRead(netlist, IoProxyScalar(None, self.dataIn), self.dataIn)
         elm.addNode(r)
         r = r._outputs[0]
         rVld = b.buildReadSync(r)
         t = r._dtype
 
         mux = b.buildMux(r._dtype, (r, rVld, t.from_py(0)))
-        w = HlsNetNodeWrite(netlist, self.dataOut)
+        w = HlsNetNodeWrite(netlist, IoProxyScalar(None, None), self.dataOut)
         elm.addNode(w)
         mux.connectHlsIn(w._portSrc)
 
@@ -71,7 +72,7 @@ class ReadNonBlockingOrDefaultHwModule(ReadOrDefaultHwModule):
         netlist.addNode(elm)
         b = elm.builder
 
-        r = HlsNetNodeRead(netlist, self.dataIn)
+        r = HlsNetNodeRead(netlist, IoProxyScalar(None, self.dataIn), self.dataIn)
         r._isBlocking = False
         elm.addNode(r)
         r = r._outputs[0]
@@ -79,7 +80,7 @@ class ReadNonBlockingOrDefaultHwModule(ReadOrDefaultHwModule):
         t = r._dtype
 
         mux = b.buildMux(t, (r, rVld, t.from_py(0)))
-        w = HlsNetNodeWrite(netlist, self.dataOut)
+        w = HlsNetNodeWrite(netlist, IoProxyScalar(None, self.dataOut), self.dataOut)
         elm.addNode(w)
         mux.connectHlsIn(w._portSrc)
 
@@ -133,7 +134,7 @@ class ReadAnyHsHwModule(ReadOrDefaultHwModule):
         inputs = []
         anyPrevVld = None
         for last, i in iter_with_last(self.dataIn):
-            r = HlsNetNodeRead(netlist, i)
+            r = HlsNetNodeRead(netlist, IoProxyScalar(None, i), i)
             elm.addNode(r)
             if not last:
                 r.setNonBlocking()
@@ -160,7 +161,7 @@ class ReadAnyHsHwModule(ReadOrDefaultHwModule):
         t = inputs[0][1]._dtype
         muxOps.append(t.from_py(0))
         mux = b.buildMux(r._dtype, tuple(muxOps))
-        w = HlsNetNodeWrite(netlist, self.dataOut)
+        w = HlsNetNodeWrite(netlist, IoProxyScalar(None, self.dataOut), self.dataOut)
         elm.addNode(w)
         mux.connectHlsIn(w._portSrc)
 

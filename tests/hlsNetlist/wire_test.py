@@ -8,6 +8,7 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.simulator.simTestCase import SimTestCase
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.frontend.threadFromNetlist import HlsThreadFromNetlist
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
@@ -31,8 +32,8 @@ class HlsNetlistWireHwModule(HwModule):
     def connectIo(self, netlist: HlsNetlistCtx):
         elm = ArchElementPipeline(netlist, "p0", "p0_")
         netlist.addNode(elm)
-        r = HlsNetNodeRead(netlist, self.dataIn)
-        w = HlsNetNodeWrite(netlist, self.dataOut)
+        r = HlsNetNodeRead(netlist, IoProxyScalar(None, self.dataIn), self.dataIn)
+        w = HlsNetNodeWrite(netlist, IoProxyScalar(None, self.dataOut), self.dataOut)
         r._portDataOut.connectHlsIn(w._portSrc)
         w.addControlSerialExtraCond(r.getValidNB())
         elm.addNodes((r, w))

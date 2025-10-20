@@ -10,6 +10,7 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.simulator.simTestCase import SimTestCase
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.frontend.threadFromNetlist import HlsThreadFromNetlist
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
@@ -35,7 +36,7 @@ class HlsNetlistBitwiseOpsPreorder0HwModule(HwModule):
     def hwDeclr(self) -> None:
         # added because of sim agent
         addClkRstn(self)
-        
+
         with self._hwParamsShared():
             self.i0 = HwIOSignal()
             self.i1 = HwIOSignal()
@@ -52,11 +53,11 @@ class HlsNetlistBitwiseOpsPreorder0HwModule(HwModule):
     def mainThread(self, netlist: HlsNetlistCtx, treeOrder:TREE_ORDER):
         elm = ArchElementPipeline(netlist, "p0", "p0_")
         netlist.addNode(elm)
-        i0 = HlsNetNodeRead(netlist, self.i0)
-        i1 = HlsNetNodeRead(netlist, self.i1)
-        i2 = HlsNetNodeRead(netlist, self.i2)
+        i0 = HlsNetNodeRead(netlist, IoProxyScalar(None, self.i0), self.i0)
+        i1 = HlsNetNodeRead(netlist, IoProxyScalar(None, self.i1), self.i1)
+        i2 = HlsNetNodeRead(netlist, IoProxyScalar(None, self.i2), self.i2)
         elm.addNodes([i0, i1, i2])
-        
+
         # scheduling offset 1clk for i2 from i1
         i0.getOrderingOutPort().connectHlsIn(i1._addInput("orderingIn"))
         lat = HlsNetNodeDelayClkTick(netlist, HVoidOrdering, 1)
@@ -64,7 +65,7 @@ class HlsNetlistBitwiseOpsPreorder0HwModule(HwModule):
         i1.getOrderingOutPort().connectHlsIn(lat._inputs[0])
         lat._outputs[0].connectHlsIn(i2._addInput("orderingIn"))
 
-        o = HlsNetNodeWrite(netlist, self.o)
+        o = HlsNetNodeWrite(netlist, IoProxyScalar(None, self.o), self.o)
         elm.addNode(o)
         b = elm.builder
         if treeOrder == TREE_ORDER.PRE:
@@ -74,12 +75,12 @@ class HlsNetlistBitwiseOpsPreorder0HwModule(HwModule):
         elif treeOrder == TREE_ORDER.IN:
             i0andI2 = b.buildAnd(i0._outputs[0], i2._outputs[0])
             i0andI1andI2 = b.buildAnd(i0andI2, i1._outputs[0])
-            
+
         else:
             assert treeOrder == TREE_ORDER.POST
             i1andI2 = b.buildAnd(i1._outputs[0], i2._outputs[0])
             i0andI1andI2 = b.buildAnd(i1andI2, i0._outputs[0])
-            
+
         i0andI1andI2.connectHlsIn(o._inputs[0])
 
     def hwImpl(self, treeOrder:TREE_ORDER=TREE_ORDER.PRE) -> None:
@@ -109,7 +110,7 @@ class HlsNetlistBitwiseOpsTC(SimTestCase):
         i0 = dut.i0._ag.data
         i1 = dut.i1._ag.data
         i2 = dut.i2._ag.data
-        
+
         N = (1 << 3) * 2
         for i in range(N):
             i0.append(get_bit(i, 0))
@@ -120,9 +121,9 @@ class HlsNetlistBitwiseOpsTC(SimTestCase):
         m = cls.model(iter(i0), iter(i1), iter(i2))
         for _ in range(N):
             ref.append(next(m))
-        
+
         self.runSim(int((N + 1) * freq_to_period(dut.CLK_FREQ)))
-    
+
         res = dut.o._ag.data
         self.assertValSequenceEqual(res, ref)
 
@@ -140,7 +141,7 @@ if __name__ == "__main__":
     import unittest
     from hwt.synth import to_rtl_str
     from hwtHls.platform.debugBundle import HlsDebugBundle
-    
+
     m = HlsNetlistBitwiseOpsPostorder0HwModule()
     m.CLK_FREQ = int(100e6)
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

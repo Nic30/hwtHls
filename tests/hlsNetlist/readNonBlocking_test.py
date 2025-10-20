@@ -6,6 +6,7 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.simulator.simTestCase import SimTestCase
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.frontend.threadFromNetlist import HlsThreadFromNetlist
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
@@ -44,7 +45,7 @@ class ReadNonBlockingHwModule(HwModule):
         netlist.addNode(elm)
         b = elm.builder
 
-        r = HlsNetNodeRead(netlist, self.dataIn)
+        r = HlsNetNodeRead(netlist, IoProxyScalar(None, self.dataIn), self.dataIn)
         r._isBlocking = False
         elm.addNode(r)
         rOut = r._portDataOut
@@ -52,7 +53,7 @@ class ReadNonBlockingHwModule(HwModule):
         t = rOut._dtype
 
         mux = b.buildMux(t, (rOut, rVld, t.from_py(0)))
-        w = HlsNetNodeWrite(netlist, self.dataOut)
+        w = HlsNetNodeWrite(netlist, IoProxyScalar(None, self.dataOut), self.dataOut)
         elm.addNode(w)
         mux.connectHlsIn(w._portSrc)
 
@@ -72,7 +73,7 @@ class ReadNonBockingTC(SimTestCase):
         self.runSim(t)
         self.assertValSequenceEqual(dut.dataOut._ag.data, [1, 0, 0])
 
-     
+
 if __name__ == '__main__':
     import unittest
 

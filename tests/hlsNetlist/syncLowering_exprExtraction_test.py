@@ -13,6 +13,7 @@ from hwtHls.architecture.transformation.syncLowering import HlsArchPassSyncLower
 from hwtHls.architecture.transformation.syncPredicatePruning import HlsArchPassSyncPredicatePruning
 from hwtHls.architecture.transformation.utils.dummyScheduling import scheduleUncheduledDummyAlap
 from hwtHls.architecture.translation.dumpHsSCCsDot import RtlArchAnalysisPassDumpHsSCCsDot
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement
@@ -68,9 +69,9 @@ class RtlArchPassSyncLowering_exprExtraction_1Pipeline_TC(BaseSerializationTC):
         # w.write(r0)
         b: HlsNetlistBuilder = elm.builder
 
-        r0 = HlsNetNodeRead(netlist, None, dtype=HBits(8))
+        r0 = HlsNetNodeRead(netlist, IoProxyScalar(None, None), None, dtype=HBits(8))
         elm.addNode(r0)
-        w = HlsNetNodeWrite(netlist, None)
+        w = HlsNetNodeWrite(netlist, IoProxyScalar(None, None), None)
         elm.addNode(w)
         r0._portDataOut.connectHlsIn(w._portSrc)
         w_en = r0.getValidNB()
@@ -84,9 +85,9 @@ class RtlArchPassSyncLowering_exprExtraction_1Pipeline_TC(BaseSerializationTC):
         # if r0 != 0:
         #   w.write(r0)
         b: HlsNetlistBuilder = elm.builder
-        r0 = HlsNetNodeRead(netlist, None, dtype=HBits(8))
+        r0 = HlsNetNodeRead(netlist, IoProxyScalar(None, None), None, dtype=HBits(8))
         elm.addNode(r0)
-        w = HlsNetNodeWrite(netlist, None)
+        w = HlsNetNodeWrite(netlist, IoProxyScalar(None, None), None)
         elm.addNode(w)
         r0._portDataOut.connectHlsIn(w._portSrc)
         r0_ne0 = b.buildNe(r0._portDataOut, r0._portDataOut._dtype.from_py(0))
@@ -102,11 +103,11 @@ class RtlArchPassSyncLowering_exprExtraction_1Pipeline_TC(BaseSerializationTC):
         # if r1:
         #   w.write(r0)
         b: HlsNetlistBuilder = elm.builder
-        r0 = HlsNetNodeRead(netlist, None, dtype=HBits(8))
+        r0 = HlsNetNodeRead(netlist, IoProxyScalar(None, None), None, dtype=HBits(8))
         elm.addNode(r0)
-        r1 = HlsNetNodeRead(netlist, None, dtype=BIT)
+        r1 = HlsNetNodeRead(netlist, IoProxyScalar(None, None), None, dtype=BIT)
         elm.addNode(r1)
-        w = HlsNetNodeWrite(netlist, None)
+        w = HlsNetNodeWrite(netlist, IoProxyScalar(None, None), None)
         elm.addNode(w)
         r0._portDataOut.connectHlsIn(w._portSrc)
         r1_v = b.buildAnd(r1._portDataOut, r1.getValidNB())
@@ -124,7 +125,7 @@ class RtlArchPassSyncLowering_exprExtraction_1Pipeline_TC(BaseSerializationTC):
         #   w1.write(r0)
         r0, r1, w0 = self._constructLinear1Read1WriteWithEnRead(netlist, elm)
         b: HlsNetlistBuilder = elm.builder
-        w1 = HlsNetNodeWrite(netlist, None)
+        w1 = HlsNetNodeWrite(netlist, IoProxyScalar(None, None), None)
         elm.addNode(w1)
         r0._portDataOut.connectHlsIn(w1._portSrc)
         w1.addControlSerialExtraCond(_getPortDrive(w0.extraCond))
@@ -138,7 +139,7 @@ class RtlArchPassSyncLowering_exprExtraction_1Pipeline_TC(BaseSerializationTC):
         #   w1.write(r0)
         r0, r1, w0 = self._constructLinear1Read1WriteWithNe0(netlist, elm)
         b: HlsNetlistBuilder = elm.builder
-        w1 = HlsNetNodeWrite(netlist, None)
+        w1 = HlsNetNodeWrite(netlist, IoProxyScalar(None, None), None)
         elm.addNode(w1)
         r0._portDataOut.connectHlsIn(w1._portSrc)
         w1.addControlSerialExtraCond(_getPortDrive(w0.extraCond))

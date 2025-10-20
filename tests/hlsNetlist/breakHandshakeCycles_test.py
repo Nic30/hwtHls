@@ -3,8 +3,8 @@ from itertools import islice
 from typing import List, Tuple, Optional, Dict
 
 from hwt.hdl.types.defs import BIT
-#from hwtHls.architecture.transformation._syncLowering.syncLogicResolver import ChannelDeadlockError
 from hwtHls.architecture.transformation.syncLowering import HlsArchPassSyncLowering
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidData
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
@@ -23,6 +23,7 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.examples.base_serialization_TC import BaseSerializationTC
 
 
+#from hwtHls.architecture.transformation._syncLowering.syncLogicResolver import ChannelDeadlockError
 class BreakHandshakeCycles_TC(BaseSerializationTC):
     __FILE__ = __file__
 
@@ -71,10 +72,10 @@ class BreakHandshakeCycles_TC(BaseSerializationTC):
                     if nodeTy == "r":
                         cur = channels.get(cId, None)
                         if cTy == 'b':
-                            r = HlsNetNodeReadBackedge(netlist, HVoidData, nodeName)
+                            r = HlsNetNodeReadBackedge(netlist, IoProxyScalar(None, None, HVoidData), HVoidData, nodeName)
                         else:
                             assert cTy == 'f'
-                            r = HlsNetNodeReadForwardedge(netlist, HVoidData, nodeName)
+                            r = HlsNetNodeReadForwardedge(netlist, IoProxyScalar(None, None, HVoidData), HVoidData, nodeName)
                         if initValueCnt:
                             r.channelInitValues = tuple(() for _ in range(initValueCnt))
 
@@ -90,10 +91,10 @@ class BreakHandshakeCycles_TC(BaseSerializationTC):
                     elif nodeTy == 'w':
                         cur = channels.get(cId, None)
                         if cTy == 'b':
-                            w = HlsNetNodeWriteBackedge(netlist, name=nodeName)
+                            w = HlsNetNodeWriteBackedge(netlist, IoProxyScalar(None, None, HVoidData), name=nodeName)
                         else:
                             assert cTy == 'f'
-                            w = HlsNetNodeWriteForwardedge(netlist, name=nodeName)
+                            w = HlsNetNodeWriteForwardedge(netlist, IoProxyScalar(None, None, HVoidData), name=nodeName)
                         assert initValueCnt == 0, "Only read may have init values"
                         if cur is not None:
                             assert cur[0] is None, ("This channel must not have write already", cId, cur)
@@ -104,14 +105,14 @@ class BreakHandshakeCycles_TC(BaseSerializationTC):
                             channels[cId] = (w, None)
                         n = w
                     elif nodeTy == 'i':
-                        n = HlsNetNodeRead(netlist, None, HVoidData, nodeName)
+                        n = HlsNetNodeRead(netlist, IoProxyScalar(None, None), None, HVoidData, nodeName)
                     elif nodeTy == 'o':
-                        n = HlsNetNodeWrite(netlist, None, nodeName)
+                        n = HlsNetNodeWrite(netlist, IoProxyScalar(None, None), None, nodeName)
                     else:
                         raise NotImplementedError(nodeTy)
 
                     if hasEc:
-                        nEc = HlsNetNodeRead(netlist, None, BIT, f"{nodeName}_ec")
+                        nEc = HlsNetNodeRead(netlist, IoProxyScalar(None, None), None, BIT, f"{nodeName}_ec")
                         nEc._rtlUseReady = nEc._rtlUseValid = False
                         stageNodes.append(nEc)
                         nEc.resolveRealization()
@@ -119,7 +120,7 @@ class BreakHandshakeCycles_TC(BaseSerializationTC):
                         n.addControlSerialExtraCond(nEc._outputs[0], addDefaultScheduling=True)
 
                     if hasSw:
-                        nSw = HlsNetNodeRead(netlist, None, BIT, f"{nodeName}_sw")
+                        nSw = HlsNetNodeRead(netlist, IoProxyScalar(None, None), None, BIT, f"{nodeName}_sw")
                         nSw._rtlUseReady = nSw._rtlUseValid = False
                         stageNodes.append(nSw)
                         nSw.resolveRealization()

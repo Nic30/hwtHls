@@ -5,6 +5,7 @@ from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.frontend.threadFromNetlist import HlsThreadFromNetlist
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
@@ -37,16 +38,16 @@ class CycleDelayHwModule(HwModule):
         netlist.addNode(elm)
         b = elm.builder
         T = self.dataOut.data._dtype
-        br = HlsNetNodeReadBackedge(netlist, T)
+        br = HlsNetNodeReadBackedge(netlist, IoProxyScalar(None, None), T)
         elm.addNode(br)
 
-        bw = HlsNetNodeWriteBackedge(netlist)
+        bw = HlsNetNodeWriteBackedge(netlist, IoProxyScalar(None, None))
         elm.addNode(bw)
         c9 = b.buildConst(T.from_py(9))
         c9.connectHlsIn(bw._portSrc)
         bw.associateRead(br)
 
-        w = HlsNetNodeWrite(netlist, self.dataOut)
+        w = HlsNetNodeWrite(netlist, IoProxyScalar(None, self.dataOut), self.dataOut)
         elm.addNode(w)
         br._portDataOut.connectHlsIn(w._portSrc)
 

@@ -6,6 +6,7 @@ import unittest
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwtHls.architecture.transformation.utils.dummyScheduling import scheduleUncheduledDummyAlap
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
@@ -103,11 +104,11 @@ class RtlArchPassSyncLowering_exprExtraction_negations_TC(BaseSerializationTC):
 
         b: HlsNetlistBuilder = elm.builder
         t = HBits(8)
-        r0 = HlsNetNodeRead(netlist, None, dtype=t)
-        r1 = HlsNetNodeRead(netlist, None, dtype=t)
-        r2 = HlsNetNodeRead(netlist, None, dtype=t)
-        w0 = HlsNetNodeWrite(netlist, None)
-        w1 = HlsNetNodeWrite(netlist, None)
+        r0 = HlsNetNodeRead(netlist, IoProxyScalar(None, None), None, dtype=t)
+        r1 = HlsNetNodeRead(netlist, IoProxyScalar(None, None), None, dtype=t)
+        r2 = HlsNetNodeRead(netlist, IoProxyScalar(None, None), None, dtype=t)
+        w0 = HlsNetNodeWrite(netlist, IoProxyScalar(None, None), None)
+        w1 = HlsNetNodeWrite(netlist, IoProxyScalar(None, None), None)
         for n in (r0, r1, r2, w0, w1):
             elm.addNode(n)
 
@@ -169,12 +170,12 @@ class RtlArchPassSyncLowering_exprExtraction_negations_TC(BaseSerializationTC):
 
         b: HlsNetlistBuilder = elm.builder
         t = HBits(8)
-        r0 = HlsNetNodeRead(netlist, None, dtype=t)
+        r0 = HlsNetNodeRead(netlist, IoProxyScalar(None, None), None, dtype=t)
         elm.addNode(r0)
         r0vld = r0.getValidNB()
         r0vld_n = b.buildNot(r0vld)
 
-        w0 = HlsNetNodeWrite(netlist, None)
+        w0 = HlsNetNodeWrite(netlist, IoProxyScalar(None, None), None)
         elm.addNode(w0)
 
         r0._portDataOut.connectHlsIn(w0._portSrc)

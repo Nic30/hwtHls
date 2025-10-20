@@ -4,6 +4,7 @@ import unittest
 from hwt.hdl.operatorDefs import HOperatorDef
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.sliceConst import HSliceConst
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
@@ -40,13 +41,13 @@ class BaseHlsNetlistReduceTC(unittest.TestCase):
         return netlist, netlist.builder
 
     def _r(self, netlist: HlsNetlistCtx, dtype=BIT):
-        r = HlsNetNodeRead(netlist, None, dtype=dtype)
+        r = HlsNetNodeRead(netlist, IoProxyScalar(None, None), None, dtype=dtype)
         netlist.addNode(r)
         return r._outputs[0]
 
     def _w(self, src: HlsNetNodeOut):
         netlist = src.obj.netlist
-        w = HlsNetNodeWrite(netlist, None)
+        w = HlsNetNodeWrite(netlist, IoProxyScalar(None, None), None)
         netlist.addNode(w)
         src.connectHlsIn(w._portSrc)
         return w
