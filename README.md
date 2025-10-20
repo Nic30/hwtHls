@@ -186,7 +186,8 @@ source venv/bin/activate # modifies current shell to use previously generate pyt
 * [TCE](https://github.com/cpc/tce)- C++/LLVM, environment for development of application specific processors
 * [tiramisu](https://github.com/Tiramisu-Compiler/tiramisu) - 2016-?, C++, A polyhedral compiler
 * [Tydi](https://github.com/abs-tudelft/tydi) - Rust, specification for complex data structures over hardware streams
-* [UCLA-VAST/TAPA](https://github.com/UCLA-VAST/tapa) - C++, HLS tool build on the top of VivadoHLS with explicit parallelism
+* [UCLA-VAST/TAPA](https://github.com/UCLA-VAST/tapa) - C++, HLS tool build on the top of VivadoHLS with explicit parallelism, host runtime
+* [rapidstream-tapa](https://github.com/rapidstream-org/rapidstream-tapa) - C++, TAPA with atomatic F_max tunning
 * [utwente-fmt](https://github.com/utwente-fmt) - abstract hls, verification libraries
 * [Xilinx/Vitis HLS](https://github.com/Xilinx/HLS) - C++/LLVM, partially opensource
 * [xls](https://github.com/google/xls) - 2020-?, C++ HLS compiler with JIT
