@@ -1,4 +1,5 @@
 digraph "test" {
+rankdir=LR;
 subgraph cluster_n0 {
 label="ArchElementPipeline 2  0clk+0 p0";
 subgraph cluster_n0_0 {
@@ -42,6 +43,7 @@ n6 [bgcolor=LightGreen, color=black, fontcolor=black, label=<
 n8 [bgcolor=LightBlue, color=black, fontcolor=black, label=<
         <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">&lt;HlsNetNodeWrite NB 3 &lt;r, v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
+            <tr><td colspan="2"> isFlushable</td></tr>
             <tr><td port='i0'>src  0clk+0</td><td port='o0'>readyNB  0clk+0</td></tr>
             <tr><td port='i1'>extraCond  0clk+0</td><td></td></tr>
         </table>>, shape=plaintext];
@@ -86,7 +88,7 @@ n15:o0 -> n14:i0  [weight=100001];
 n16 [bgcolor=LightBlue, color=black, fontcolor=black, label=<
         <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">&lt;HlsNetNodeWriteBackedge NB 10 wb1 &lt;r, v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
-            <tr><td colspan="2">init:((),)</td></tr>
+            <tr><td colspan="2">buffCap=1, init:((),)</td></tr>
             <tr><td port='i0'>src  0clk+0</td><td></td></tr>
             <tr><td port='i1'>extraCond  0clk+0</td><td></td></tr>
         </table>>, shape=plaintext];
@@ -199,7 +201,7 @@ n33:o2 -> n32:i0  [weight=100001];
 n34 [bgcolor=LightBlue, color=black, fontcolor=black, label=<
         <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">&lt;HlsNetNodeWriteBackedge NB 35 n3_flushToken_src &lt;r, v&gt; &lt;None&gt;&gt; 0clk+99999</td></tr>
-            <tr><td colspan="2">init:((),)</td></tr>
+            <tr><td colspan="2">buffCap=1, init:((),)</td></tr>
             <tr><td port='i0'>src  0clk+99999 = &lt;void&gt; 36</td><td></td></tr>
             <tr><td port='i1'>orderingIn  0clk+99999</td><td></td></tr>
             <tr><td port='i2'>extraCond  0clk+99999</td><td></td></tr>

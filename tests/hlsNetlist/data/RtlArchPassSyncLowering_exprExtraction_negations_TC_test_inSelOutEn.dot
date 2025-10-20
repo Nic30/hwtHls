@@ -1,4 +1,5 @@
 digraph "test" {
+rankdir=LR;
 subgraph cluster_n0 {
 label="ArchElementPipeline 0  0clk+0 p0";
 subgraph cluster_n0_0 {
@@ -42,6 +43,7 @@ n9:o0 -> n8:i0  [weight=987];
 n14 [bgcolor=LightBlue, color=black, fontcolor=black, label=<
         <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">&lt;HlsNetNodeWriteForwardedge NB 20 p0_stSync_0_to_1_atSrc &lt;r, v&gt; &lt;None&gt;&gt; 0clk+880</td></tr>
+            <tr><td colspan="2">buffCap=1</td></tr>
             <tr><td port='i0'>src  0clk+880 = &lt;void&gt; 19</td><td port='o0'>readyNB  0clk+880</td></tr>
             <tr><td port='i1'>extraCond  0clk+880</td><td></td></tr>
         </table>>, shape=plaintext];
@@ -131,6 +133,7 @@ n17:o0 -> n16:i0  [weight=1001];
 n18 [bgcolor=LightBlue, color=black, fontcolor=black, label=<
         <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">&lt;HlsNetNodeWriteForwardedge NB 23 p0_stSync_1_to_2_atSrc &lt;r, v&gt; &lt;None&gt;&gt; 1clk+880</td></tr>
+            <tr><td colspan="2">buffCap=1</td></tr>
             <tr><td port='i0'>src  1clk+880 = &lt;void&gt; 22</td><td port='o0'>readyNB  1clk+880</td></tr>
             <tr><td port='i1'>extraCond  1clk+880</td><td></td></tr>
         </table>>, shape=plaintext];

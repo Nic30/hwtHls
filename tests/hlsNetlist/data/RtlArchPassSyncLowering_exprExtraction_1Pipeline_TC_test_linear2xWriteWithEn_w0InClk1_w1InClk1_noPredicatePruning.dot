@@ -1,4 +1,5 @@
 digraph "test" {
+rankdir=LR;
 subgraph cluster_n0 {
 label="ArchElementPipeline 0  0clk+0 p0";
 subgraph cluster_n0_0 {
@@ -30,6 +31,7 @@ n6:o0 -> n5:i0  [weight=1002];
 n11 [bgcolor=LightBlue, color=black, fontcolor=black, label=<
         <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">&lt;HlsNetNodeWriteForwardedge NB 9 p0_stSync_0_to_1_atSrc &lt;r, v&gt; &lt;None&gt;&gt; 0clk+880</td></tr>
+            <tr><td colspan="2">buffCap=1</td></tr>
             <tr><td port='i0'>src  0clk+880 = &lt;void&gt; 8</td><td port='o0'>readyNB  0clk+880</td></tr>
             <tr><td port='i1'>extraCond  0clk+880</td><td></td></tr>
         </table>>, shape=plaintext];

@@ -1,4 +1,5 @@
 digraph "test" {
+rankdir=LR;
 subgraph cluster_n0 {
 label="ArchElementPipeline 0  0clk+0 p0";
 subgraph cluster_n0_0 {

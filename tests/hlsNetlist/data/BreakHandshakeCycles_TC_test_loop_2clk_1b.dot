@@ -1,4 +1,5 @@
 digraph "test" {
+rankdir=LR;
 subgraph cluster_n0 {
 label="ArchElementPipeline 6  0clk+0 p0";
 subgraph cluster_n0_0 {
@@ -18,6 +19,7 @@ n3:o0 -> n2:i0  [weight=100001];
 n4 [bgcolor=LightBlue, color=black, fontcolor=black, label=<
         <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">&lt;HlsNetNodeWrite NB 1 &lt;r, v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
+            <tr><td colspan="2"> isFlushable</td></tr>
             <tr><td port='i0'>src  0clk+0</td><td port='o0'>readyNB  0clk+0</td></tr>
             <tr><td port='i1'>extraCond  0clk+0</td><td></td></tr>
         </table>>, shape=plaintext];
@@ -42,6 +44,7 @@ n7:o0 -> n6:i0  [weight=100001];
 n8 [bgcolor=LightBlue, color=black, fontcolor=black, label=<
         <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">&lt;HlsNetNodeWriteForwardedge NB 3 wf1 &lt;r, v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
+            <tr><td colspan="2">buffCap=1</td></tr>
             <tr><td port='i0'>src  0clk+0</td><td></td></tr>
             <tr><td port='i1'>extraCond  0clk+0</td><td></td></tr>
         </table>>, shape=plaintext];
@@ -89,7 +92,7 @@ n10:o0 -> n9:i0  [weight=100001];
 n11 [bgcolor=LightBlue, color=black, fontcolor=black, label=<
         <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">&lt;HlsNetNodeWriteBackedge NB 5 wb0 &lt;r, v&gt; &lt;None&gt;&gt; 1clk+0</td></tr>
-            <tr><td colspan="2">init:((),)</td></tr>
+            <tr><td colspan="2">buffCap=1, init:((),)</td></tr>
             <tr><td port='i0'>src  1clk+0</td><td></td></tr>
             <tr><td port='i1'>extraCond  1clk+0</td><td></td></tr>
         </table>>, shape=plaintext];
@@ -147,7 +150,7 @@ n22:o2 -> n21:i0  [weight=100001];
 n23 [bgcolor=LightBlue, color=black, fontcolor=black, label=<
         <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">&lt;HlsNetNodeWriteBackedge NB 19 n1_flushToken_src &lt;r, v&gt; &lt;None&gt;&gt; 0clk+99999</td></tr>
-            <tr><td colspan="2">init:((),)</td></tr>
+            <tr><td colspan="2">buffCap=1, init:((),)</td></tr>
             <tr><td port='i0'>src  0clk+99999 = &lt;void&gt; 20</td><td></td></tr>
             <tr><td port='i1'>orderingIn  0clk+99999</td><td></td></tr>
             <tr><td port='i2'>extraCond  0clk+99999</td><td></td></tr>
