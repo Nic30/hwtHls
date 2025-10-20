@@ -1,4 +1,4 @@
-from typing import Set, Dict, Tuple, Literal, List, Callable, Union
+from typing import Literal, Callable, Union
 
 from hwt.pyUtils.setList import SetList
 from hwtHls.architecture.analysis.nodeParentSyncNode import ArchSyncNodeTy
@@ -24,9 +24,8 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.simplifyExpr.rehash import _ExprRehasher
 from hwtHls.netlist.scheduler.clk_math import endOfClkWindow
 
-
-HlsNetOutToAbcOutMap_t = Dict[Union[HlsNetNodeOut,
-                                    Tuple[HlsNetNode, Literal[FLAG_FLUSH_TOKEN_AVAILABLE, FLAG_FLUSH_TOKEN_ACQUIRE]]],
+HlsNetOutToAbcOutMap_t = dict[Union[HlsNetNodeOut,
+                                    tuple[HlsNetNode, Literal[FLAG_FLUSH_TOKEN_AVAILABLE, FLAG_FLUSH_TOKEN_ACQUIRE]]],
                               Abc_Obj_t]
 
 
@@ -67,10 +66,10 @@ class SyncLogicExtractor():
         self.parentElm = parentElm
         self.termPropagationCtx = termPropagationCtx
         self.clkPeriod = clkPeriod
-        self._newPrimaryOutputs: List[HlsNetNodeIn] = []
-        self._primaryOutUpdateDict: Dict[HlsNetNodeOut, HlsNetNodeOut] = {}
-        self._writeFlushTokens: Dict[HlsNetNodeWrite, HlsNetNodeWriteBackedge] = {}
-        self._stageAckToAllWriteFlushTokens: Dict[HlsNetNodeStageAck, List[HlsNetNodeWriteBackedge]] = {}
+        self._newPrimaryOutputs: list[HlsNetNodeIn] = []
+        self._primaryOutUpdateDict: dict[HlsNetNodeOut, HlsNetNodeOut] = {}
+        self._writeFlushTokens: dict[HlsNetNodeWrite, HlsNetNodeWriteBackedge] = {}
+        self._stageAckToAllWriteFlushTokens: dict[HlsNetNodeStageAck, list[HlsNetNodeWriteBackedge]] = {}
         self._scheduleDefault = scheduleDefault
 
     def _replaceAllExtractedUsesInClkWindow(self,
@@ -83,7 +82,7 @@ class SyncLogicExtractor():
         uses in this clock. If the will be persistenceRanges items. Take them in account
         and replace all uses covered by it. 
         """
-        _, lastPersistentClkI  = SyncLogicSearcher._getEarliestTimeIfValueIsPersistent(o, (o.obj.parent, clkIndex))
+        _, lastPersistentClkI = SyncLogicSearcher._getEarliestTimeIfValueIsPersistent(o, (o.obj.parent, clkIndex))
         clkWindowBegin = clkIndex * clkPeriod
         clkWindowEnd = endOfClkWindow(lastPersistentClkI, clkPeriod)
         for u in tuple(o.obj.usedBy[o.out_i]):
@@ -107,7 +106,7 @@ class SyncLogicExtractor():
 
     def _extractHlsNetNodeAggregatePortIn(self, n: HlsNetNodeAggregatePortIn,
                                           clkIndex: int,
-                                          movedOrRemovedSyncLogicNodes: Set[HlsNetNode]):
+                                          movedOrRemovedSyncLogicNodes: set[HlsNetNode]):
         """
         Extract :class:`HlsNetNodeAggregatePortIn` to "parentSyncNode" possibly using value driving it or cloning this port
         to avoid obfuscation by redundant hierarchy ports.
@@ -150,7 +149,7 @@ class SyncLogicExtractor():
                 n.getDep().connectHlsIn(outerI, checkCycleFree=False)
 
                 dep = internO
-            
+
             assert len(n._outputs) == 1, n
             inpO = n._outputs[0]
             for user in tuple(n.usedBy[0]):
@@ -171,11 +170,11 @@ class SyncLogicExtractor():
             return dep.obj
 
     def _extractNewPort(self,
-                        ioMap: Dict[str, HlsNetNodeOut],
+                        ioMap: dict[str, HlsNetNodeOut],
                         hlsNetOutToAbcOut: HlsNetOutToAbcOutMap_t,
-                        toAbcTranslationCache: Dict[Tuple[HlsNetNodeOut, int], Abc_Obj_t],
+                        toAbcTranslationCache: dict[tuple[HlsNetNodeOut, int], Abc_Obj_t],
                         srcNode: ArchSyncNodeTy,
-                        o: Tuple[HlsNetNodeWrite, Literal[FLAG_FLUSH_TOKEN_AVAILABLE]]):
+                        o: tuple[HlsNetNodeWrite, Literal[FLAG_FLUSH_TOKEN_AVAILABLE]]):
         """
         part of :meth:`_extractSyncLogicNodesToNewElm` which is responsible for :class:`HlsNetNodeOut` which were generated
         newly generated and are not replacement of anything
@@ -222,7 +221,7 @@ class SyncLogicExtractor():
         termPropagationCtx = self.termPropagationCtx
         newPOs = self._newPrimaryOutputs
         clkPeriod = self.clkPeriod
-        newOutputsSubstitutingOriginal: Dict[HlsNetNodeOut, HlsNetNodeOut] = {}
+        newOutputsSubstitutingOriginal: dict[HlsNetNodeOut, HlsNetNodeOut] = {}
         # :attention: expects primaryOutputs to be sorted earlier first
         for (out, dstNode) in self.syncLogicSearch.primaryOutputs:
             out: HlsNetNodeOut
@@ -248,9 +247,10 @@ class SyncLogicExtractor():
         return newOutputsSubstitutingOriginal
 
     def extractSyncLogicNodesToNewElm(self,
-                                      ioMap: Dict[str, HlsNetNodeOut],
+                                      ioMap: dict[str, HlsNetNodeOut],
                                       hlsNetOutToAbcOut: HlsNetOutToAbcOutMap_t,
-                                      toAbcTranslationCache: Dict[Tuple[HlsNetNodeOut, int], Abc_Obj_t],) -> Tuple[Dict[HlsNetNodeOut, HlsNetNodeOut], Set[HlsNetNodeOut]]:
+                                      toAbcTranslationCache: dict[tuple[HlsNetNodeOut, int], Abc_Obj_t],) \
+                                      ->tuple[dict[HlsNetNodeOut, HlsNetNodeOut], set[HlsNetNodeOut]]:
         """
         Move subgraph selected by syncLogicSearch to a new element "parent"
         construct all ports moving data between original ArchElements and new ArchElement for sync logic
@@ -260,11 +260,11 @@ class SyncLogicExtractor():
         parentElm = self.parentElm
         termPropagationCtx = self.termPropagationCtx
         syncLogicSearch = self.syncLogicSearch
-        newOutpustFromSrcElements: Set[HlsNetNodeOut] = set()
+        newOutpustFromSrcElements: set[HlsNetNodeOut] = set()
         primaryInputsReplacedByNegationOf = syncLogicSearch.primaryInputsReplacedByNegationOf
         primaryInputsReplacedByNegationList = []
-        movedOrRemovedSyncLogicNodes: Set[HlsNetNode] = set()
-        primaryOutUpdateDict: Dict[HlsNetNodeOut, HlsNetNodeOut] = self._primaryOutUpdateDict
+        movedOrRemovedSyncLogicNodes: set[HlsNetNode] = set()
+        primaryOutUpdateDict: dict[HlsNetNodeOut, HlsNetNodeOut] = self._primaryOutUpdateDict
         # sort to process earlier nodes first so if
         syncLogicSearch.primaryOutputs.sort(key=lambda item: item[1][1])
         syncLogicSearch.primaryInputs.sort(key=lambda item: item[1][1])
@@ -299,7 +299,7 @@ class SyncLogicExtractor():
                     primaryInputsReplacedByNegationList.append((_o, srcNode, negatedAbcI))
                     continue
                 o = _o
-                
+
                 if isinstance(o.obj, HlsNetNodeAggregatePortIn):
                     if self._extractHlsNetNodeAggregatePortIn(
                             o.obj, clkIndex,
@@ -320,7 +320,7 @@ class SyncLogicExtractor():
                 else:
                     name = o.getPrettyName(useParentName=False)
 
-                newO = termPropagationCtx.propagate(srcNode, o, name =name)
+                newO = termPropagationCtx.propagate(srcNode, o, name=name)
                 assert newO.obj.parent is parentElm, (newO, o, newO.obj.parent, parentElm)
                 newOutpustFromSrcElements.add(HlsNetNodeAggregatePortIn_getInput(newO))
                 abcI = toAbcTranslationCache[(originalO, clkIndex)]
@@ -338,12 +338,12 @@ class SyncLogicExtractor():
             assert unNegatedNewO.obj.parent is parentElm, (o, unNegatedNewO, unNegatedNewO.obj.parent, parentElm)
             defClkIndex = o.obj.scheduledOut[o.out_i] // clkPeriod
             clkIndex = srcNode[1]
-            
-            #if defClkIndex != clkIndex:
+
+            # if defClkIndex != clkIndex:
             #    o = newOutputsSubstitutingOriginal.get(o, o)
 
             newO = parentBuilder.buildNot(unNegatedNewO)
-            #defClkIndex = o.obj.scheduledOut[o.out_i] // clkPeriod
+            # defClkIndex = o.obj.scheduledOut[o.out_i] // clkPeriod
             if defClkIndex == clkIndex:
                 primaryOutUpdateDict[o] = newO
             syncLogicNodes.append((newO.obj, srcNode[1]))
@@ -385,8 +385,8 @@ class SyncLogicExtractor():
                 parentElm._addNodeIntoScheduled(0, n, allowNewClockWindow=True)
                 movedOrRemovedSyncLogicNodes.add(n)
 
-                #beginOfNextClk = (clkIndex + 1) * clkPeriod
-                #for nOut, uses in zip(n._outputs, n.usedBy):
+                # beginOfNextClk = (clkIndex + 1) * clkPeriod
+                # for nOut, uses in zip(n._outputs, n.usedBy):
                 #    syncLogicSearch._getEarliestTimeIfValueIsPersistent(o, syncNode)
                 #    for u in uses:
                 #        if u.obj.scheduledIn[u.in_i] >= beginOfNextClk:
@@ -402,7 +402,7 @@ class SyncLogicExtractor():
         parent = self.parentElm
         primaryOutUpdateDict = self._primaryOutUpdateDict
 
-        assert len(self.syncLogicSearch.primaryOutputs) == len(self._newPrimaryOutputs)
+        assert len(self.syncLogicSearch.primaryOutputs) == len(self._newPrimaryOutputs), (len(self.syncLogicSearch.primaryOutputs), len(self._newPrimaryOutputs))
         for (o, dstNode), newOInput in zip(self.syncLogicSearch.primaryOutputs, self._newPrimaryOutputs):
             o: HlsNetNodeOut
             newOInput: HlsNetNodeIn
