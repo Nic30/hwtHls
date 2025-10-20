@@ -45,6 +45,11 @@ bool MachineOperand_checkOrSetWidth(MachineRegisterInfo &MRI,
 			return true;
 		}
 	} else {
+		if (op.isImm()) {
+			// case for enCond
+			assert(width == 1);
+			return op.getImm() >= 0 && op.getImm() <= 1;
+		}
 		unsigned opWidth = op.getCImm()->getType()->getIntegerBitWidth();
 		return opWidth <= width;
 	}
@@ -277,7 +282,7 @@ bool resolveTypes(MachineInstr &MI) {
 		MachineOperand_checkOrSetWidth(MRI, shiftAmount, shWidth);
 		return true;
 	}
-	// bit counts, dst of log2ceil(src.width()+1) width
+		// bit counts, dst of log2ceil(src.width()+1) width
 	case HwtFpga::HWTFPGA_CTLZ_ZERO_UNDEF:
 	case HwtFpga::HWTFPGA_CTTZ_ZERO_UNDEF:
 	case HwtFpga::HWTFPGA_CTLZ:
@@ -416,6 +421,8 @@ bool resolveTypes(MachineInstr &MI) {
 		MachineOperand_checkOrSetWidth(MRI, MI.getOperand(0), w);
 		MachineOperand_checkOrSetWidth(MRI, MI.getOperand(1), w);
 		MRI.setType(MI.getOperand(0).getReg(), LLT::scalar(1));
+		auto enCond = MI.getOperand(1 + 1 + 2 + HFloatTmpConfig::MEMBER_CNT);
+		assert(MachineOperand_checkOrSetWidth(MRI, enCond, 1, nullptr));
 		return true;
 	}
 	case HwtFpga::HWTFPGA_FP_FNEG:
@@ -504,6 +511,8 @@ bool resolveTypes(MachineInstr &MI) {
 				break;
 			}
 		}
+		auto enCond = MI.getOperand(opCnt + HFloatTmpConfig::MEMBER_CNT);
+		assert(MachineOperand_checkOrSetWidth(MRI, enCond, 1, nullptr));
 		return true;
 	}
 	case HwtFpga::HWTFPGA_FP_CAST: {
@@ -514,13 +523,15 @@ bool resolveTypes(MachineInstr &MI) {
 		size_t dstW = dstFpCfg.getBitWidth();
 		MachineOperand_checkOrSetWidth(MRI, MI.getOperand(0), dstW);
 		MachineOperand_checkOrSetWidth(MRI, MI.getOperand(1), srcW);
+		auto enCond = MI.getOperand(1 + 1 + 2 * HFloatTmpConfig::MEMBER_CNT);
+		assert(MachineOperand_checkOrSetWidth(MRI, enCond, 1, nullptr));
 		return true;
 	}
 	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER:
 	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE:
 	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER_WITH_SIDEEFFECT:
 	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE_WITH_SIDEEFECT: {
-		// $dst, $objId, $dstWidt, $src[n], $srcWidth[n]
+		// $dst, $objId, $dstWidt, $src[n], $srcWidth[n], $enCond
 		auto dstWidth = MI.getOperand(2).getImm();
 		assert(
 				MachineOperand_checkOrSetWidth(MRI, MI.getOperand(0), dstWidth,
@@ -540,6 +551,8 @@ bool resolveTypes(MachineInstr &MI) {
 			}
 		}
 		duplicateRegsForUndefValues(undefsToDuplicate, MRI, MI);
+		auto enCond = MI.getOperand(MI.getNumExplicitOperands() - 1);
+		assert(MachineOperand_checkOrSetWidth(MRI, enCond, 1, nullptr));
 		return true;
 	}
 	default: {

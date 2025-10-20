@@ -178,6 +178,8 @@ bool HwtFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 				uint64_t width = MRI.getType(op.Regs[0]).getSizeInBits();
 				MIB.addImm(width);
 			}
+			MIB.addImm(1); // enCond
+
 			return true;
 		} else if (hwtHls::IsHwtHlsFp(F)) {
 			int opc;
@@ -311,6 +313,7 @@ bool HwtFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 				}
 				opArgCnt +=  hwtHls::HFloatTmpConfig::MEMBER_CNT;
 			}
+			MIB.addImm(1); // enCond
 			return true;
 		} else {
 			std::string errStr =

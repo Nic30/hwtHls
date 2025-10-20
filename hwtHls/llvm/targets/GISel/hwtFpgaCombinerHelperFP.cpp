@@ -9,8 +9,18 @@
 #include <hwtHls/llvm/targets/machineInstrUtils.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionSelectorUtils.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtils.h>
+#include <hwtHls/llvm/targets/intrinsic/hfloattmp.h>
 
 namespace llvm {
+
+void HwtFpgaCombinerHelper::copyOperandsForHFloatTmpAndPredicate(MachineInstrBuilder & MIB, size_t offset, MachineInstr & MI) {
+	MachineBasicBlock &MBB = *MI.getParent();
+	MachineFunction &MF = *MBB.getParent();
+	// add HFloatTmpConfig params
+	for (size_t i = offset; i < offset + hwtHls::HFloatTmpConfig::MEMBER_CNT + 1; i++) {
+		copyOperand(MIB, MRI, MF, MI.getOperand(i));
+	}
+}
 
 bool HwtFpgaCombinerHelper::matchFMulByPow2(llvm::MachineInstr &MI,
 		MatchFMulByPow2MatchInfo &shValue) {
@@ -75,10 +85,7 @@ void HwtFpgaCombinerHelper::rewriteFMulByPow2(llvm::MachineInstr &MI,
 		IntegerType *shTy = IntegerType::getInt32Ty(
 				MF.getFunction().getContext());
 		MIB.addCImm(ConstantInt::get(shTy, int(std::abs(shValue.sh))));
-		// add HFloatTmpConfig params
-		for (size_t i = 3; i < 3 + hwtHls::HFloatTmpConfig::MEMBER_CNT; i++) {
-			copyOperand(MIB, MRI, MF, MI.getOperand(i));
-		}
+		copyOperandsForHFloatTmpAndPredicate(MIB, 3, MI);
 		Observer.changedInstr(*MIB.getInstr());
 	}
 	MI.eraseFromParent();
@@ -165,6 +172,7 @@ void HwtFpgaCombinerHelper::rewriteFDivByPowi(llvm::MachineInstr &MI, MatchFDivB
 			MIB0.addDef(dst.getReg());
 			MIB0.add(x);
 			shTrunc.addAsUse(MIB0);
+			copyOperandsForHFloatTmpAndPredicate(MIB0, 3, MI);
 			Observer.changedInstr(*MIB0.getInstr());
 		}
 	}
@@ -180,8 +188,6 @@ enum TrigonometricFnType {
 
 inline TrigonometricFnType TrigonometricFnType_get(unsigned Opcode) {
 	switch (Opcode) {
-	default:
-		llvm_unreachable("Unexpected opcode!");
 	case HwtFpga::HWTFPGA_FP_SIN:
 	case HwtFpga::HWTFPGA_FP_COS:
 		return TrigonometricFnType::TRIG_NORMAL;
@@ -195,13 +201,13 @@ inline TrigonometricFnType TrigonometricFnType_get(unsigned Opcode) {
 	case HwtFpga::HWTFPGA_FP_COSH: {
 		return TrigonometricFnType::TRIG_HYPERBOLIC;
 	}
+	default:
+		llvm_unreachable("Unexpected opcode!");
 	}
 }
 
 inline bool TrigonometricFnType_isAnyFormOfSin(unsigned Opcode) {
 	switch (Opcode) {
-	default:
-		llvm_unreachable("Unexpected opcode!");
 	case HwtFpga::HWTFPGA_FP_SIN:
 	case HwtFpga::HWTFPGA_FP_SINPI:
 	case HwtFpga::HWTFPGA_FP_ASIN:
@@ -212,13 +218,13 @@ inline bool TrigonometricFnType_isAnyFormOfSin(unsigned Opcode) {
 	case HwtFpga::HWTFPGA_FP_ACOS:
 	case HwtFpga::HWTFPGA_FP_COSH:
 		return false;
+	default:
+		llvm_unreachable("Unexpected opcode!");
 	}
 }
 
 inline unsigned TrigonometricFnType_getComplementOpcode(unsigned Opcode) {
 	switch (Opcode) {
-	default:
-		llvm_unreachable("Unexpected opcode!");
 	case HwtFpga::HWTFPGA_FP_SIN:
 		return HwtFpga::HWTFPGA_FP_COS;
 	case HwtFpga::HWTFPGA_FP_COS:
@@ -235,8 +241,9 @@ inline unsigned TrigonometricFnType_getComplementOpcode(unsigned Opcode) {
 		return HwtFpga::HWTFPGA_FP_COSH;
 	case HwtFpga::HWTFPGA_FP_COSH:
 		return HwtFpga::HWTFPGA_FP_SINH;
+	default:
+		llvm_unreachable("Unexpected opcode!");
 	}
-
 }
 
 /*
@@ -261,9 +268,12 @@ bool HwtFpgaCombinerHelper::matchCombineSinCos(MachineInstr &MI,
 			continue;
 		if (MI.getParent() != UseMI.getParent()
 				|| UseMI.getOpcode() != complementOpc)
-			continue;
-		if (!matchEqualDefs(MI.getOperand(1), UseMI.getOperand(1)))
-			continue;
+			continue; // user not a target opcode or in different block
+
+		if (!matchEqualDefs(MI, UseMI, 1))
+			continue; // both writing to same dst, computation in parallel not possible
+		if (!matchEqualDefs(MI, UseMI, MI.getNumExplicitOperands() - 1))
+			continue; // enCond is not the same, we are not sure if to hoist and how to build merged enCond
 
 		bool HFloatTmpConfigMatch = true;
 		for (size_t i = 2; i < hwtHls::HFloatTmpConfig::MEMBER_CNT + 2; i++) {
@@ -274,6 +284,7 @@ bool HwtFpgaCombinerHelper::matchCombineSinCos(MachineInstr &MI,
 		}
 		if (!HFloatTmpConfigMatch)
 			continue;
+
 		assert(&MI != &UseMI);
 		OtherMI = &UseMI;
 		return true;
@@ -335,8 +346,8 @@ void HwtFpgaCombinerHelper::applyCombineSinCos(MachineInstr &MI,
 	MIB.addDef(DestSinReg);
 	MIB.addDef(DestCosReg);
 	// start at 1 to  copy also src, +2 because dst,src operands are before HFloatTmpConfig
-	for (size_t i = 1; i < hwtHls::HFloatTmpConfig::MEMBER_CNT + 2; i++)
-		MIB.add(FirstInst->getOperand(i));
+	MIB.add(FirstInst->getOperand(1));
+	copyOperandsForHFloatTmpAndPredicate(MIB, 2, MI); // 2 for dst, src in original MI
 
 	Observer.changedInstr(*MIB.getInstr());
 

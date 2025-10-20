@@ -1,4 +1,4 @@
-
+// :attention: when updating this, you may want to also update the HwtFpgaInstrInfo, typically HwtFpgaInstrInfo::isPredicable
 
 class HwtFpgaFpUn : HwtFpgaInst<
     (outs anyregcls:$dst),
@@ -14,7 +14,8 @@ class HwtFpgaFpUn : HwtFpgaInst<
 		i64imm:$hasIs1,
 		i64imm:$hasIs0,
 		i64imm:$rounding,
-		i64imm:$saturation
+		i64imm:$saturation,
+		anyregcls:$enCond // :note: enCond is Imm or Reg
 	),
     []>;
 
@@ -32,7 +33,8 @@ class HwtFpgaFpUnBinRes : HwtFpgaInst<
 		i64imm:$hasIs1,
 		i64imm:$hasIs0,
 		i64imm:$rounding,
-		i64imm:$saturation
+		i64imm:$saturation,
+		anyregcls:$enCond // :note: enCond is Imm or Reg
 	),
     []>;
  
@@ -50,7 +52,8 @@ class HwtFpgaFpBin : HwtFpgaInst<
 		i64imm:$hasIs1,
 		i64imm:$hasIs0,
 		i64imm:$rounding,
-		i64imm:$saturation
+		i64imm:$saturation,
+		anyregcls:$enCond // :note: enCond is Imm or Reg
 	),
     []>;
 class HwtFpgaFpBinBinRes: HwtFpgaInst<
@@ -67,7 +70,8 @@ class HwtFpgaFpBinBinRes: HwtFpgaInst<
 		i64imm:$hasIs1,
 		i64imm:$hasIs0,
 		i64imm:$rounding,
-		i64imm:$saturation
+		i64imm:$saturation,
+		anyregcls:$enCond // :note: enCond is Imm or Reg
 	),
     []>;
     
@@ -99,7 +103,9 @@ let hasSideEffects = 0 in {
 			i64imm:$hasIs1,
 			i64imm:$hasIs0,
 		    i64imm:$rounding,
-		    i64imm:$saturation),
+		    i64imm:$saturation,
+		    anyregcls:$enCond // :note: enCond is Imm or Reg
+		    ), 
 	    []>;
 
 	def HWTFPGA_FP_CEIL: HwtFpgaFpUn;
@@ -161,7 +167,8 @@ let hasSideEffects = 0 in {
 			i64imm:$dstHasIs1,
 			i64imm:$dstHasIs0,
 		    i64imm:$dstRounding,
-		    i64imm:$dstSaturation
+		    i64imm:$dstSaturation,
+		    anyregcls:$enCond // :note: enCond is Imm or Reg
 		    ),
 	    []>;
 }
