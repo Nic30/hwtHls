@@ -176,13 +176,13 @@ class IoProxyScalar(IoProxy):
         if (isinstance(dtype, HBits) and dtype.signed is not None) or not dtype.isScalar():
             dtype = HBits(dtype.bit_length())
 
-        expectedWidth = mirToNetlist.mf.getRegInfo().getType(instrDstReg).getScalarSizeInBits()
-        if not isBlocking:
-            assert expectedWidth == dtype.bit_length() + 1, ("Width of physical signals of IO must be what is expected from LLVM MIR", instrDstReg, expectedWidth, dtype)
+        mirExpectedWidth = mirToNetlist.mf.getRegInfo().getType(instrDstReg).getScalarSizeInBits()
+        if isBlocking:
+            assert mirExpectedWidth == max(1, dtype.bit_length()), ("Width of physical signals of IO must be what is expected from LLVM MIR", instrDstReg, mirExpectedWidth, dtype)
         else:
-            assert expectedWidth == max(1, dtype.bit_length()), ("Width of physical signals of IO must be what is expected from LLVM MIR", instrDstReg, expectedWidth, dtype)
-
-        n = readNodeCls(netlist,
+            assert mirExpectedWidth == max(1, dtype.bit_length()) + 1, ("Width of physical signals of IO must be what is expected from LLVM MIR", instrDstReg, mirExpectedWidth, dtype)
+        n: HlsNetNodeRead = readNodeCls(netlist,
+                           self,
                            srcIo,
                            dtype=dtype,
                            name=f"ld_r{instr.getOperand(0).getReg().virtRegIndex():d}")
@@ -198,6 +198,11 @@ class IoProxyScalar(IoProxy):
             o = n._portDataOut
         else:
             o = n.getRawValue()
+            if dtype.bit_length() == 0:
+                # must extend because MIR represented void with 1b int and in HlsNetlist there is void
+                b: HlsNetlistBuilder = n.getHlsNetlistBuilder()
+                o = b.buildConcat(o, o)
+
         assert not isinstance(o._dtype, HBits) or not o._dtype.signed, (
             "At this stage all values of HBits type should have signed=None", o)  # can potentially be of void type
         valCache.add(mbMeta.block, instrDstReg, o, True)
