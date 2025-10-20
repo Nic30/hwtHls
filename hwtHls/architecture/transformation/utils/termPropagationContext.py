@@ -227,10 +227,7 @@ def importPortToArchElement(out: HlsNetNodeOut, name: str,
     srcArchElm: ArchElement = out.obj
     assert isinstance(srcArchElm, ArchElement), ("Only ports of ArchElement instances should be imported", out)
     clkPeriod = srcArchElm.netlist.normalizedClkPeriod
-    try:
-        assert srcArchElm._outputs[out.out_i] is out, out
-    except:
-        raise
+    assert srcArchElm._outputs[out.out_i] is out, out
     srcClkI = indexOfClkPeriod(srcArchElm.scheduledOut[out.out_i], clkPeriod)
 
     time = srcArchElm.scheduledOut[out.out_i]
