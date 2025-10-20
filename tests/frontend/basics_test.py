@@ -58,14 +58,14 @@ class FromPythonBasics_TC(SimTestCase):
 
 if __name__ == "__main__":
     import unittest
-    #from hwt.synth import to_rtl_str
-    #from hwtHls.platform.debugBundle import HlsDebugBundle
-    #
-    #m = HlsConnectionFromPyFnIf()
-    #print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    from hwt.synth import to_rtl_str
+    from hwtHls.platform.debugBundle import HlsDebugBundle
+    
+    m = HlsConnectionFromPyFnElif()
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([FromPythonBasics_TC('test_HlsConnectionFromPyFnIf')])
     suite = testLoader.loadTestsFromTestCase(FromPythonBasics_TC)
+    # suite = unittest.TestSuite([FromPythonBasics_TC('test_HlsConnectionFromPyFnElif')])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

@@ -24,7 +24,7 @@ class HlsConnectionFromPyFn0(HwModule):
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while b1:
             hls.write(hls.read(self.i).data, self.o)
 
     @override
@@ -39,7 +39,7 @@ class HlsConnectionFromPyFnTmpVar(HlsConnectionFromPyFn0):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while b1:
             v = hls.read(self.i).data
             hls.write(v, self.o)
 
@@ -49,7 +49,7 @@ class HlsConnectionFromPyFnPreprocTmpVar0(HlsConnectionFromPyFn0):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while b1:
             o = PyBytecodeInPreproc(self.o)
             hls.write(hls.read(self.i).data, o)
 
@@ -60,7 +60,7 @@ class HlsConnectionFromPyFnPreprocTmpVar1(HlsConnectionFromPyFn0):
     @override
     def mainThread(self, hls: HlsScope):
         o = PyBytecodeInPreproc(self.o)
-        while BIT.from_py(1):
+        while b1:
             hls.write(hls.read(self.i).data, o)
 
 
@@ -74,7 +74,7 @@ class HlsConnectionFromPyFn1(HwModule):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while b1:
             hls.write(Concat(hls.read(self.i).data, HBits(4).from_py(0)), self.o)
 
     @override
@@ -87,7 +87,7 @@ class HlsConnectionFromPyFnIfTmpVar(HlsConnectionFromPyFn0):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while b1:
             a: uint32_t = hls.read(self.i).data
             if a._eq(3):
                 hls.write(10, self.o)
@@ -100,7 +100,7 @@ class HlsConnectionFromPyFnIf(HlsConnectionFromPyFn0):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while b1:
             if hls.read(self.i).data._eq(3):
                 hls.write(10, self.o)
             else:
@@ -112,7 +112,7 @@ class HlsConnectionFromPyFnIfIf(HlsConnectionFromPyFn0):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while b1:
             a = hls.read(self.i).data
             if a._eq(3):
                 if a._eq(4):
@@ -127,10 +127,16 @@ class HlsConnectionFromPyFnIfIf(HlsConnectionFromPyFn0):
 
 class HlsConnectionFromPyFnElif(HlsConnectionFromPyFn0):
 
+    @override
+    def hwDeclr(self):
+        HlsConnectionFromPyFn0.hwDeclr(self)
+        addClkRstn(self) # clock is required because 3b ctlz is inferred and code generator
+        # reguires reference clock, but final hw does not need clk
+
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while b1:
             a = hls.read(self.i).data
             if a._eq(3):
                 hls.write(10, self.o)
@@ -150,7 +156,7 @@ class HlsConnectionFromPyFnWhile(HlsConnectionFromPyFn0):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        while BIT.from_py(1):
+        while b1:
             v = uint8_t.from_py(0)
             i = uint8_t.from_py(0)
             while i < 3:
@@ -168,7 +174,7 @@ class HlsConnectionFromPyFnKwArgs(HwModule):
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope, kwArg=1):
-        while BIT.from_py(1):
+        while b1:
             hls.write(kwArg, self.o)
 
     @override
@@ -182,5 +188,5 @@ if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.debugBundle import HlsDebugBundle
-    m = HlsConnectionFromPyFn0()
+    m = HlsConnectionFromPyFnElif()
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
