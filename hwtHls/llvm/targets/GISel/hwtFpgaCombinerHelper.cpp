@@ -13,8 +13,7 @@ bool HwtFpgaCombinerHelper::isUndefOperand(const MachineOperand &MO) {
 		return (MO.isUndef()
 				|| getOpcodeDef(HwtFpga::HWTFPGA_IMPLICIT_DEF, MO.getReg(), MRI)
 				|| getOpcodeDef(TargetOpcode::G_IMPLICIT_DEF, MO.getReg(), MRI)
-				|| getOpcodeDef(TargetOpcode::IMPLICIT_DEF, MO.getReg(), MRI)
-				);
+				|| getOpcodeDef(TargetOpcode::IMPLICIT_DEF, MO.getReg(), MRI));
 	}
 	return false;
 }
@@ -68,13 +67,15 @@ void HwtFpgaCombinerHelper::rewriteConstExtract(llvm::MachineInstr &MI) {
 		MRI.setType(Dst, LLT::scalar(extractOpt.dstWidth));
 	}
 
-	replaceInstWithConstant(MI, v.extractBits(extractOpt.dstWidth, extractOpt.offset));
+	replaceInstWithConstant(MI,
+			v.extractBits(extractOpt.dstWidth, extractOpt.offset));
 }
 
 bool HwtFpgaCombinerHelper::hasG_CONSTANTasUse(llvm::MachineInstr &MI) {
 	return hasG_CONSTANTasUse(MRI, MI);
 }
-bool HwtFpgaCombinerHelper::hasG_CONSTANTasUse(MachineRegisterInfo &MRI, llvm::MachineInstr &MI) {
+bool HwtFpgaCombinerHelper::hasG_CONSTANTasUse(MachineRegisterInfo &MRI,
+		llvm::MachineInstr &MI) {
 	auto &Context = MI.getMF()->getFunction().getContext();
 	for (auto &MO : MI.uses()) {
 		if (hwtHls::HwtFpgaInstructionSelector::machineOperandTryGetConst(
@@ -131,7 +132,8 @@ bool HwtFpgaCombinerHelper::matchAllOnesConstantOp(
 		auto MaybeCst = isConstantOrConstantSplatVector(*MI, MRI);
 		if (MaybeCst.has_value() && MaybeCst->isAllOnes())
 			return true;
-		if (MI->getOpcode() == HwtFpga::HWTFPGA_MUX && MI->getNumExplicitOperands() == 2) {
+		if (MI->getOpcode() == HwtFpga::HWTFPGA_MUX
+				&& MI->getNumExplicitOperands() == 2) {
 			auto &_MOP = MI->getOperand(1);
 			if (_MOP.isCImm()) {
 				return _MOP.getCImm()->isAllOnesValue();
@@ -179,11 +181,12 @@ inline bool collectConcatMembersAsItIs(llvm::MachineOperand &MIOp,
 		return true;
 	} else {
 		members.push_back(HwtFpgaCombinerHelper::ConcatMember { MIOp,
-				miResOffset, miResWidth, bitsToTake });
+				MIOpOffset, MIOpWidth, bitsToTake });
 		return false;
 	}
 }
 
+// RegisterIsDefinedWithinRange
 bool HwtFpgaCombinerHelper::collectConcatMembers(llvm::MachineOperand &MIOp,
 		std::vector<ConcatMember> &members, uint64_t mainOffset,
 		uint64_t mainWidth, uint64_t &mainOffsetCurrent, uint64_t miResOffset,
@@ -382,8 +385,10 @@ bool HwtFpgaCombinerHelper::matchConstCmpConstAdd(llvm::MachineInstr &MI,
 	return false;
 }
 
-void HwtFpgaCombinerHelper::rewriteGenericOpcodeToHwtFpga(llvm::MachineInstr &MI) {
+void HwtFpgaCombinerHelper::rewriteGenericOpcodeToHwtFpga(
+		llvm::MachineInstr &MI) {
 	unsigned newOpc;
+	bool addPredicate = false;
 	switch (MI.getOpcode()) {
 	case TargetOpcode::G_ADD:
 		newOpc = HwtFpga::HWTFPGA_ADD;
@@ -400,10 +405,8 @@ void HwtFpgaCombinerHelper::rewriteGenericOpcodeToHwtFpga(llvm::MachineInstr &MI
 	case TargetOpcode::G_ICMP:
 		newOpc = HwtFpga::HWTFPGA_ICMP;
 		break;
-	case TargetOpcode::G_IMPLICIT_DEF:
-		newOpc = HwtFpga::HWTFPGA_IMPLICIT_DEF;
-		break;
 	case TargetOpcode::IMPLICIT_DEF:
+	case TargetOpcode::G_IMPLICIT_DEF:
 		newOpc = HwtFpga::HWTFPGA_IMPLICIT_DEF;
 		break;
 	case TargetOpcode::G_GLOBAL_VALUE:
@@ -414,21 +417,27 @@ void HwtFpgaCombinerHelper::rewriteGenericOpcodeToHwtFpga(llvm::MachineInstr &MI
 		break;
 	case TargetOpcode::G_UDIV:
 		newOpc = HwtFpga::HWTFPGA_UDIV;
+		addPredicate = true;
 		break;
 	case TargetOpcode::G_SDIV:
 		newOpc = HwtFpga::HWTFPGA_SDIV;
+		addPredicate = true;
 		break;
 	case TargetOpcode::G_UREM:
 		newOpc = HwtFpga::HWTFPGA_UREM;
+		addPredicate = true;
 		break;
 	case TargetOpcode::G_SREM:
 		newOpc = HwtFpga::HWTFPGA_SREM;
+		addPredicate = true;
 		break;
 	case TargetOpcode::G_UDIVREM:
 		newOpc = HwtFpga::HWTFPGA_UDIVREM;
+		addPredicate = true;
 		break;
 	case TargetOpcode::G_SDIVREM:
 		newOpc = HwtFpga::HWTFPGA_SDIVREM;
+		addPredicate = true;
 		break;
 	case TargetOpcode::G_OR:
 		newOpc = HwtFpga::HWTFPGA_OR;
@@ -448,18 +457,22 @@ void HwtFpgaCombinerHelper::rewriteGenericOpcodeToHwtFpga(llvm::MachineInstr &MI
 		llvm_unreachable(
 				"All cases should be covered in this switch in generic_opcode_to_hwtfpga");
 	}
-	replaceOpcodeWith(MI, newOpc);
-	if (newOpc == HwtFpga::HWTFPGA_IMPLICIT_DEF) {
+	if (addPredicate) {
+		Observer.changingInstr(MI);
+		auto MIB = MachineInstrBuilder(*MI.getMF(), &MI);
+		MIB.addImm(1);
+		Observer.changedInstr(MI);
+	} else if (newOpc == HwtFpga::HWTFPGA_IMPLICIT_DEF) {
 		Observer.changingInstr(MI);
 		auto dst = MI.getOperand(0).getReg();
-		auto MIB = MachineInstrBuilder(*MI.getMF(), &MI);
 		auto Ty = MRI.getType(dst);
 		assert(Ty.isValid());
 		assert(Ty.isScalar());
+		auto MIB = MachineInstrBuilder(*MI.getMF(), &MI);
 		MIB.addImm(Ty.getSizeInBits()); // add dstWidth
 		Observer.changedInstr(MI);
-
 	}
+	replaceOpcodeWith(MI, newOpc);
 }
 
 bool HwtFpgaCombinerHelper::matchConstMergeValues(llvm::MachineInstr &MI,
@@ -507,7 +520,7 @@ bool HwtFpgaCombinerHelper::matchTrivialInstrDuplication(
 			|| NextInst->getNumOperands() != MI.getNumOperands()) {
 		return false;
 	}
-	for (auto def: MI.defs()) {
+	for (auto def : MI.defs()) {
 		auto r = def.getReg();
 		if (NextInst->findRegisterUseOperand(r))
 			return false; // next instr uses result of this
@@ -615,7 +628,7 @@ void HwtFpgaCombinerHelper::rewriteAndOrSequenceReduce(llvm::MachineInstr &MI,
 	MI.eraseFromParent();
 }
 
-MachineOperand *HwtFpgaCombinerHelper::getNextUseOfRegInBlock(MachineInstr &MI,
+MachineOperand* HwtFpgaCombinerHelper::getNextUseOfRegInBlock(MachineInstr &MI,
 		Register &DstRegNo) {
 	if (!MRI.hasOneUse(DstRegNo)) {
 		for (MachineInstr *NextInstr = MI.getNextNode(); NextInstr != nullptr;
@@ -631,7 +644,8 @@ MachineOperand *HwtFpgaCombinerHelper::getNextUseOfRegInBlock(MachineInstr &MI,
 	return nullptr;
 }
 
-bool HwtFpgaCombinerHelper::checkAnyOperandRedefined(MachineInstr &MI, MachineInstr &MIEnd) {
+bool HwtFpgaCombinerHelper::checkAnyOperandRedefined(MachineInstr &MI,
+		MachineInstr &MIEnd) {
 	const MachineBasicBlock &MBB = *MI.getParent();
 	if (&MBB != MIEnd.getParent()) {
 		return true; // search in a different block not implemented
@@ -656,7 +670,8 @@ bool HwtFpgaCombinerHelper::checkAnyOperandRedefined(MachineInstr &MI, MachineIn
 	return true;
 }
 
-MachineOperand * HwtFpgaCombinerHelper::getNextUseOfRegAfterInstructionExceptMI(Register DstRegNo, MachineInstr &MI) {
+MachineOperand* HwtFpgaCombinerHelper::getNextUseOfRegAfterInstructionExceptMI(
+		Register DstRegNo, MachineInstr &MI) {
 	if (!MRI.hasOneDef(DstRegNo)
 			&& MI.findRegisterUseOperandIdx(DstRegNo) > 0) {
 		// Dst must have just this def or previous def must not be operand
