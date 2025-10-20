@@ -143,7 +143,7 @@ class HlsAndRtlNetlistAnalysisPassSyncNodeStallling(HlsArchAnalysisPass):
             n = toSearch.pop()
             rList, wList = nodeChannels.get(n, ((), ()))  # channel ports for node
             canStall: ArchSyncNodeStallingMeta = nodeCanStall[n]
-            if canStall.inputCanStall:
+            if canStall.outputCanStall or canStall.inputCanStall:
                 # input to this node may stall -> all nodes reading from this node may have input stalled
                 for w in wList:
                     w: HlsNetNodeWriteAnyChannel
@@ -154,7 +154,6 @@ class HlsAndRtlNetlistAnalysisPassSyncNodeStallling(HlsArchAnalysisPass):
                         otherCanStall.inputCanStall = True
                         toSearch.append(other)
 
-            if canStall.outputCanStall:
                 # output from this node may stall -> all nodes writing to this node may have output stalled
                 for r in rList:
                     r: HlsNetNodeReadAnyChannel

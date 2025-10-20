@@ -4,38 +4,54 @@ from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.bits import HBits
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
+from hwtHls.architecture.componentGeneratorUtils import \
+    ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule
 from hwtHls.llvm.llvmIr import HFloatTmpConfig, HFloatTmpSaturation
+from hwtHls.netlist.builder import HlsNetlistBuilderWithWorklist
+from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOperatorNodeWith
-from hwtHls.architecture.componentGenerator import ComponentGenerator
-from hwtHls.architecture.componentGeneratorUtils import \
-    ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule
-from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from tests.math.fixp.fixpTypes import HFixedPointQ
+from hwtHls.platform.opRealizationMeta import OpRealizationMeta, \
+    ComponentRealizationMeta
+from hwtHls.platform.platform import DefaultHlsPlatform
+from hwtHls.ssa.analysis.llvmIrInterpretInt import _makeDecodeOpcodeFunction_BinaryOperator
+from tests.math.componentGenerators._componentGeneratorFp import ComponentGeneratorFp
+from tests.math.componentGenerators._genericHwModules import _FpBinOpAluHwModule
+from tests.math.componentGenerators._llvmIrInterpretFP import ComponentGeneratorForSpecializedHwtHlsFpIntrinsicBinary_FloatFloat
 from tests.math.fp.fpadd import IEEE754FpAdd
 from tests.math.fp.fptypes import IEEE754Fp
-from tests.math.componentGenerators.genericHwModules import _FpBinOpAluHwModule
 from tests.math.hFloatTmp.hFloatTmpCast import OP_CAST_HFLOATTMP_TO_HFLOATTMP
-from hwtHls.netlist.builder import HlsNetlistBuilderWithWorklist
+from tests.math.hFloatTmp.hFloatTmpOps import OP_FADD
 
 
-class ComponentGeneratorFADD(ComponentGenerator):
+class ComponentGeneratorFADD_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicBinary_FloatFloat):
+
+    @override
+    @staticmethod
+    def evalFn(a: float, b: float) -> float:
+        return a + b
+
+
+class ComponentGeneratorFADD(ComponentGeneratorFp):
     """
     A generator for OP_FADD (fixed point or floating point adder)
     """
+    INPUT_CNT = 2
     HWT_OPERATOR = HwtOps.ADD
     FP_OPERATOR_FN = staticmethod(IEEE754FpAdd)
+    opDef = OP_FADD
 
-    def __init__(self, platform:"DefaultHlsPlatform",
+    def __init__(self, platform:DefaultHlsPlatform,
                  genNamePrefix:str, moduleName:str,
                  optThroughputVsArea=0.0,
                  FP_HWMODULE_CLS=_FpBinOpAluHwModule):
-        ComponentGenerator.__init__(self, platform, genNamePrefix, moduleName)
+        ComponentGeneratorFp.__init__(self, platform, genNamePrefix, moduleName)
         # dataWidth (optThroughputVsArea, HFloatTmpConfig) -> scheduling (OpRealizationMeta, UNROLL_FACTOR)
-        self.schedulingCache: dict[tuple[float, HFloatTmpConfig], tuple[OpRealizationMeta, int]]
+        self.schedulingCache: dict[tuple[float, HFloatTmpConfig], tuple[ComponentRealizationMeta, ComponentRealizationMeta, int]]
         self.optThroughputVsArea = optThroughputVsArea
         self.FP_HWMODULE_CLS = FP_HWMODULE_CLS
+        self.llvmIrInterpretDecode = _makeDecodeOpcodeFunction_BinaryOperator(self.HWT_OPERATOR._evalFn)
 
     def toHwtCompatibleOperatorBeforeScheduling_Q_getTmpCfg(self, cfg: HFloatTmpConfig) -> tuple[HFloatTmpConfig, HFloatTmpConfig]:
         """
@@ -73,25 +89,6 @@ class ComponentGeneratorFADD(ComponentGenerator):
 
         return False
 
-    def _scaleUnrollFactor(self, cfg: HFloatTmpConfig):
-        if cfg.isInQFormat:
-            ty = HFixedPointQ.fromHFloatTmpConfig(cfg)
-        else:
-            ty = IEEE754Fp.fromHFloatTmpConfig(cfg)
-
-        if self.optThroughputVsArea == 0:
-            UNROLL_FACTOR = 1
-        elif self.optThroughputVsArea == 1.0:
-            if cfg.isInQFormat:
-                HWMODULE_CLS = self.FIXP_HWMODULE_CLS
-            else:
-                HWMODULE_CLS = self.FP_HWMODULE_CLS
-
-            UNROLL_FACTOR = HWMODULE_CLS._getMaxIterationCountForTy(ty)
-        else:
-            raise NotImplementedError()
-        return UNROLL_FACTOR
-
     def _getConfiguredHwModule(self, realTimeClkPeriod:float, ty:IEEE754Fp, UNROLL_FACTOR:int, realization: Optional[OpRealizationMeta]):
         hwModule = self.FP_HWMODULE_CLS()
         hwModule.T = ty
@@ -103,25 +100,40 @@ class ComponentGeneratorFADD(ComponentGenerator):
 
         return hwModule
 
+    @override
     def resolveRealizationOfNode(self, node: HlsNetNodeOperator) -> None:
-        assert len(node.dependsOn) == 2, node
         cfg: HFloatTmpConfig = node.operatorSpecialization
         if cfg.isInQFormat:
             raise AssertionError("This should have been lowered by toHwtCompatibleOperatorBeforeScheduling()", node)
+        return ComponentGeneratorFp.resolveRealizationOfNode(self, node)
 
+    @override
+    def resolveRealizationForHlsNetlist(self, netlist: HlsNetlistCtx,
+                                        cfg: HFloatTmpConfig) -> ComponentRealizationMeta:
         cacheKey = (self.optThroughputVsArea, cfg)
+
         try:
-            return self.schedulingCache[cacheKey][0]
+            return self.schedulingCache[cacheKey][1]
         except KeyError:
             pass
 
         UNROLL_FACTOR = self._scaleUnrollFactor(cfg)
-        netlist = node.netlist
-        # run compilation of IntDiv HwModule to resolve scheduling properties
-        hwModule = self._getConfiguredHwModule(netlist.realTimeClkPeriod, IEEE754Fp.fromHFloatTmpConfig(cfg), UNROLL_FACTOR, None)
-        _, r = self.resolveRealizationOfNode_compileToResolveScheduling(
-            netlist.parentHwModule, hwModule,
-            netlist.dbgSubmoduleBuidTracer, cacheKey, (UNROLL_FACTOR,))
+        if cfg.isInQFormat:
+            if cfg.hasIs0 or cfg.hasIs1 or cfg.hasIsInf or cfg.hasIsNaN:
+                raise NotImplementedError(cfg)
+            cfgIn, cfgOut = self.toHwtCompatibleOperatorBeforeScheduling_Q_getTmpCfg(cfg)
+            w = max(cfgIn.getBitWidth(), cfgOut.getBitWidth())
+            r = self.platform.get_op_realization(self.HWT_OPERATOR, None, w, 2, netlist.realTimeClkPeriod)
+            r = ComponentRealizationMeta.fromOpRealization(r)
+
+            netlist.dbgSubmoduleBuidTracer.log(("resolved realization", self, cfg, r,))
+            self.schedulingCache[cacheKey] = (r, r, UNROLL_FACTOR)
+        else:
+            # run compilation of IntDiv HwModule to resolve scheduling properties
+            hwModule = self._getConfiguredHwModule(netlist.realTimeClkPeriod, IEEE754Fp.fromHFloatTmpConfig(cfg), UNROLL_FACTOR, None)
+            _, _, r = self.resolveRealizationOfNode_compileToResolveScheduling(
+                netlist.parentHwModule, hwModule,
+                netlist.dbgSubmoduleBuidTracer, cacheKey, (UNROLL_FACTOR,))
         return r
 
     @override
@@ -131,12 +143,12 @@ class ComponentGeneratorFADD(ComponentGenerator):
         if cfg.isInQFormat:
             raise AssertionError("This should have been lowered by toHwtCompatibleOperatorBeforeScheduling()", node)
 
-        realization, UNROLL_FACTOR = self.schedulingCache[(self.optThroughputVsArea, cfg)]
-        hwModule = self._getConfiguredHwModule(freq, IEEE754Fp.fromHFloatTmpConfig(cfg), UNROLL_FACTOR, realization)
+        realizationSeenFromIn, realizationSeenFromOut, UNROLL_FACTOR = self.schedulingCache[(self.optThroughputVsArea, cfg)]
+        hwModule = self._getConfiguredHwModule(freq, IEEE754Fp.fromHFloatTmpConfig(cfg), UNROLL_FACTOR, realizationSeenFromIn)
         ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule(self, node, hwModule, worklist)
 
-        if realization.fitsIntoSingleClockWindow():
-            assert hwModule.hlsOpRealizationMeta.fitsIntoSingleClockWindow(), (hwModule, realization, hwModule.hlsOpRealizationMeta)
+        if realizationSeenFromOut.fitsIntoSingleClockWindow():
+            assert hwModule.getHlsOpRealizationMeta()[1].fitsIntoSingleClockWindow(), (hwModule, realizationSeenFromOut, hwModule.getHlsOpRealizationMeta())
         return True
 
     #

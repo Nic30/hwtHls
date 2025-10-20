@@ -22,7 +22,7 @@ from hwtHls.llvm.llvmIr import HFloatTmpConfig, HFloatTmpRounding
 from tests.math.componentGenerators._div.divRestoring import _divCastToUnsigned, \
     DivRemHwModule
 from tests.math.fixp.fixpTypes import HFixedPointQ
-from tests.math.componentGenerators.genericHwModules import _FpBinOpAluHwModule
+from tests.math.componentGenerators._genericHwModules import _FpBinOpAluHwModule
 
 
 @hlsBytecode

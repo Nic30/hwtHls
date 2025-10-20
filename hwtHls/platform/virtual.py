@@ -8,9 +8,6 @@ from hwt.hdl.operatorDefs import HwtOps, HOperatorDef
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF, \
     ResourceRAM
 from hwtHls.architecture.componentGenerators.componentGeneratorMemory import ComponentGeneratorMemory
-from hwtHls.architecture.componentGenerators.countBits import ComponentGeneratorBitcount, \
-    CountTrailingZeros, CountLeadingZeros
-from hwtHls.architecture.componentGenerators.ctpop import Ctpop
 from hwtHls.architecture.componentGenerators.ext import ComponentGeneratorZExt, ComponentGeneratorSExt
 from hwtHls.architecture.componentGenerators.fsh import ComponentGeneratorFshl, \
     ComponentGeneratorFshr
@@ -18,13 +15,14 @@ from hwtHls.architecture.componentGenerators.icmpNeEq import ComponentGeneratorI
 from hwtHls.architecture.componentGenerators.mul_hl import ComponentGeneratorMUL_HL
 from hwtHls.code import OP_ASHR, OP_SHL, OP_LSHR, OP_CTLZ, OP_CTPOP, OP_CTTZ, \
     OP_BITREVERSE, OP_FSHR, OP_FSHL, OP_ROL, OP_ROR
-from hwtHls.llvm.llvmIr import HFloatTmpConfig
+from hwtHls.llvm.llvmIr import HFloatTmpConfig, TargetOpcode
 from hwtHls.netlist.extraOps import OP_MUL_HL
 from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
 from hwtHls.platform.debugBundleTypes import LlvmCliArgTuple
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.platform.platform import DefaultHlsPlatform, DebugId, HlsDebugBundle
-
+from hwtHls.architecture.componentGenerators.countBits import ComponentGeneratorCTLZ, \
+    ComponentGeneratorCTTZ, ComponentGeneratorCTPOP
 
 _OPS_T_GROWING_EXP = {
     HwtOps.POW,
@@ -175,14 +173,24 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
         genNamePrefix = "gen_"
         _componentGenerators = self._componentGenerators
         _componentGenerators[MemoryAllocationMeta] = ComponentGeneratorMemory(self, genNamePrefix, "mem")
-        _componentGenerators[HwtOps.ZEXT] = ComponentGeneratorZExt(self, genNamePrefix, "zext")
+        _componentGenerators[TargetOpcode] = _componentGenerators[HwtOps.ZEXT] = ComponentGeneratorZExt(self, genNamePrefix, "zext")
         _componentGenerators[HwtOps.SEXT] = ComponentGeneratorSExt(self, genNamePrefix, "sext")
         _componentGenerators[HwtOps.EQ] = ComponentGeneratorICMP_EQ_NE(self, genNamePrefix, "eq", HwtOps.EQ)
         _componentGenerators[HwtOps.NE] = ComponentGeneratorICMP_EQ_NE(self, genNamePrefix, "ne", HwtOps.NE)
         _componentGenerators[OP_MUL_HL] = ComponentGeneratorMUL_HL(self, genNamePrefix, "mul_hl")
-        _componentGenerators[OP_CTLZ] = ComponentGeneratorBitcount(self, CountLeadingZeros, genNamePrefix, "ctlz")
-        _componentGenerators[OP_CTTZ] = ComponentGeneratorBitcount(self, CountTrailingZeros, genNamePrefix, "cttz")
-        _componentGenerators[OP_CTPOP] = ComponentGeneratorBitcount(self, Ctpop, genNamePrefix, "ctpop")
+        _componentGenerators[TargetOpcode.G_CTLZ] = \
+        _componentGenerators[TargetOpcode.G_CTLZ_ZERO_UNDEF] = \
+        _componentGenerators[TargetOpcode.HWTFPGA_CTLZ] = \
+        _componentGenerators[TargetOpcode.HWTFPGA_CTLZ_ZERO_UNDEF] = \
+        _componentGenerators[OP_CTLZ] = ComponentGeneratorCTLZ(self, genNamePrefix, "ctlz")
+        _componentGenerators[TargetOpcode.G_CTTZ] =\
+        _componentGenerators[TargetOpcode.G_CTTZ_ZERO_UNDEF] =\
+        _componentGenerators[TargetOpcode.HWTFPGA_CTTZ] = \
+        _componentGenerators[TargetOpcode.HWTFPGA_CTTZ_ZERO_UNDEF] = \
+        _componentGenerators[OP_CTTZ] = ComponentGeneratorCTTZ(self, genNamePrefix, "cttz")
+        _componentGenerators[TargetOpcode.G_CTPOP] = \
+        _componentGenerators[TargetOpcode.HWTFPGA_CTPOP] = \
+        _componentGenerators[OP_CTPOP] = ComponentGeneratorCTPOP(self, genNamePrefix, "ctpop")
         _componentGenerators[OP_FSHL] = ComponentGeneratorFshl(self, genNamePrefix, "fshl")
         _componentGenerators[OP_FSHR] = ComponentGeneratorFshr(self, genNamePrefix, "fshr")
 

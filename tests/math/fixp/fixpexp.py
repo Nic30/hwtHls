@@ -12,7 +12,7 @@ from hwt.serializer.mode import serializeParamsUniq
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from pyMathBitPrecise.bit_utils import mask
-from tests.math.componentGenerators.genericHwModules import _FpUnOpAluHwModule
+from tests.math.componentGenerators._genericHwModules import _FpUnOpAluHwModule
 from tests.math.fixp.fixpConst import HFixedPointQConst
 from tests.math.fixp.fixpRtlSignal import HFixedPointQRtlSignal
 from tests.math.fixp.fixpTypes import HFixedPointQ

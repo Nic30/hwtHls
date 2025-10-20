@@ -4,8 +4,10 @@ import sys
 from typing import Optional, Union, Type
 
 from hwt.hdl.operatorDefs import HOperatorDef
+from hwt.hwModule import HwModule
 from hwt.serializer.resourceAnalyzer.resourceTypes import RtlResourceType
 from hwt.synthesizer.dummyPlatform import DummyPlatform
+from hwtHls.architecture.componentGenerator import ComponentGenerator
 from hwtHls.architecture.transformation.addImplicitSyncChannels import HlsArchPassAddImplicitSyncChannels
 from hwtHls.architecture.transformation.addRtlSigNames import HlsAndRtlNetlistPassAddSignalForDeepExpr
 from hwtHls.architecture.transformation.archStructureSimplify import HlsArchPassArchStructureSimplify
@@ -39,7 +41,6 @@ from hwtHls.netlist.transformation.readSyncToAckOfIoNodes import HlsNetlistPassR
 from hwtHls.netlist.transformation.romDeduplication import HlsNetlistPassRomDeduplication
 from hwtHls.netlist.transformation.simplify import HlsNetlistPassSimplify
 from hwtHls.netlist.transformation.simplifyExpr.trivialSimplifyExplicitSync import HlsNetlistPassTrivialSimplifyExplicitSync
-from hwtHls.architecture.componentGenerator import ComponentGenerator
 from hwtHls.platform.debugBundle import HlsDebugBundle, DebugId
 from hwtHls.platform.debugBundleTypes import LlvmCliArgTuple
 from hwtHls.platform.fileUtils import outputFileGetter
@@ -50,8 +51,8 @@ from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtHls.ssa.translation.toLlvmUtils import getIoNodeConstructors
 
 
-def _runOnSsaModuleGetter(p):
-    return p.runOnSsaModule
+ComponentGeneratorDict = dict[Union[Type[RtlResourceType], RtlResourceType, Type["HlsNetNode"], HOperatorDef],
+                                        ComponentGenerator]
 
 
 class DefaultHlsPlatform(DummyPlatform):
@@ -72,8 +73,7 @@ class DefaultHlsPlatform(DummyPlatform):
                  llvmCliArgs: list[LlvmCliArgTuple]=[]):
         DummyPlatform.__init__(self)
         self.schedulerCls = HlsScheduler
-        self._componentGenerators: dict[Union[Type[RtlResourceType], RtlResourceType, Type["HlsNetNode"], HOperatorDef],
-                                        ComponentGenerator] = {}
+        self._componentGenerators: ComponentGeneratorDict = {}
         self._debug = HlsDebugBundle(debugDir, debugFilter)
         self._debugExpandCompositeNodes = False
         self._llvmCliArgs: list[LlvmCliArgTuple] = llvmCliArgs
@@ -145,6 +145,8 @@ class DefaultHlsPlatform(DummyPlatform):
         DBG(D.DBG_2_0_mirCfg, (toLlvm, mf), applyFnGetter=_runOnSsaModuleGetter)
 
         dbgTracer, doCloseTrace = self._getDebugTracer(netlist.label, D.DBG_2_1_netlistConstructionTrace)
+        netlist.dbgSubmoduleBuidTracer, submoduleBuildDbgTracerDoClose = self._getDebugTracer(netlist.label, D.DBG_2_1_submoduleBuildLogMir)
+
         toNetlist = HlsNetlistAnalysisPassMirToNetlist(
             hls, toLlvm, mf, backedges, liveness, ioRegs, registerTypes,
             loops, netlist, getIoNodeConstructors(toLlvm), dbgTracer)
@@ -168,6 +170,10 @@ class DefaultHlsPlatform(DummyPlatform):
             toNetlist.connectOrderingPorts(mf)
             DBG(D.DBG_2_5_postSync, (netlist,))
         finally:
+            if submoduleBuildDbgTracerDoClose:
+                netlist.dbgSubmoduleBuidTracer._out.close()
+            netlist.dbgSubmoduleBuidTracer = None
+
             if doCloseTrace:
                 dbgTracer._out.close()
 

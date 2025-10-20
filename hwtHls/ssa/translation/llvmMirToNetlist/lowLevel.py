@@ -1,4 +1,3 @@
-from operator import gt, eq, ge, lt, le, ne
 from typing import Union, Optional
 
 from hwt.hdl.const import HConst
@@ -11,16 +10,17 @@ from hwt.hwIO import HwIO
 from hwt.hwIOs.std import HwIODataRdVld
 from hwtHls.code import OP_ASHR, OP_LSHR, OP_SHL, OP_CTLZ, OP_CTTZ, OP_CTPOP, \
     OP_FSHL, OP_FSHR
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, MachineInstr, MachineRegisterInfo, Register, \
     TargetOpcode, CmpInst, ConstantInt, TypeToIntegerType, TypeToArrayType, IntegerType, Type as LlvmType, ArrayType, \
     MachineLoopInfo, GlobalValue, ValueToConstantArray, ValueToConstantInt, ValueToConstantDataArray, ConstantArray, \
     ValueToUndefValue, ValueToConstantAggregateZero, ConstantAggregateZero, HwtHlsIoMetadata_get, HwtHlsIoMetadata, \
-    UserToInstruction, InstructionToLoadInst, InstructionToStoreInst, LoadInst, StoreInst, IODirection, MDNode
+    IODirection, MDNode
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.debugTracer import DebugTracer
-from hwtHls.netlist.extraOps import OP_UDIVREM, OP_SDIVREM, OP_MUL_HL
+from hwtHls.netlist.extraOps import OP_MUL_HL
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
@@ -40,13 +40,6 @@ from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlis
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtHls.ssa.translation.toLlvmUtils import NetlistIoConstructorDictT, \
     _USE_DEFAULT_IO_NODE_CONSTRUCTOR
-from tests.math.hFloatTmp.hFloatTmpOps import OP_FADD, OP_FSUB, OP_FMUL, OP_FDIV, \
-    OP_FCMP_OEQ, OP_FCMP_OGT, OP_FCMP_OGE, OP_FCMP_OLT, OP_FCMP_OLE, OP_FCMP_ONE, \
-    OP_FNEG, OP_FP_SHL, OP_FP_SHR, OP_CEIL, OP_FCOS, OP_FEXP, OP_FEXP10, \
-    OP_FEXP2, OP_FABS, OP_FLOOR, OP_FLOG, OP_FLOG2, OP_FLOG10, OP_FPOW, OP_FPOWI, OP_ROUND, \
-    OP_ROUNDEVEN, OP_FSIN, OP_FSQRT, OP_FSINPI, OP_FCOSPI, OP_FASIN, OP_FSINH, \
-    OP_FACOS, OP_FCOSH, OP_FTAN, OP_FATAN, OP_FTANH, OP_FATAN2, OP_FSINCOS, \
-    OP_FSINCOSPI, OP_FREM, OP_FMOD
 
 
 class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
@@ -70,10 +63,10 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         TargetOpcode.G_ADD: HwtOps.ADD,
         TargetOpcode.G_SUB: HwtOps.SUB,
         TargetOpcode.G_MUL: HwtOps.MUL,
-        TargetOpcode.G_UDIV: HwtOps.UDIV,
-        TargetOpcode.G_SDIV: HwtOps.SDIV,
-        TargetOpcode.G_UREM: HwtOps.UREM,
-        TargetOpcode.G_SREM: HwtOps.SREM,
+        # TargetOpcode.G_UDIV: HwtOps.UDIV,
+        # TargetOpcode.G_SDIV: HwtOps.SDIV,
+        # TargetOpcode.G_UREM: HwtOps.UREM,
+        # TargetOpcode.G_SREM: HwtOps.SREM,
         TargetOpcode.G_AND: HwtOps.AND,
         TargetOpcode.G_OR: HwtOps.OR,
         TargetOpcode.G_XOR: HwtOps.XOR,
@@ -82,14 +75,6 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         TargetOpcode.HWTFPGA_SUB: HwtOps.SUB,
         TargetOpcode.HWTFPGA_MUL: HwtOps.MUL,
         TargetOpcode.HWTFPGA_MUL_HL: OP_MUL_HL,
-        TargetOpcode.HWTFPGA_UDIV: HwtOps.UDIV,
-        TargetOpcode.HWTFPGA_SDIV: HwtOps.SDIV,
-        TargetOpcode.HWTFPGA_UREM: HwtOps.UREM,
-        TargetOpcode.HWTFPGA_SREM: HwtOps.SREM,
-        TargetOpcode.HWTFPGA_UDIVREM: OP_UDIVREM,
-        TargetOpcode.HWTFPGA_SDIVREM: OP_SDIVREM,
-        TargetOpcode.G_UDIVREM: OP_UDIVREM,
-        TargetOpcode.G_SDIVREM: OP_SDIVREM,
 
         TargetOpcode.HWTFPGA_AND: HwtOps.AND,
         TargetOpcode.HWTFPGA_OR: HwtOps.OR,
@@ -113,53 +98,11 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         TargetOpcode.G_FSHL: OP_FSHL,
         TargetOpcode.G_FSHR: OP_FSHR,
 
-        TargetOpcode.G_CTLZ: OP_CTLZ,
-        TargetOpcode.G_CTLZ_ZERO_UNDEF: OP_CTLZ,
-        TargetOpcode.G_CTTZ: OP_CTTZ,
-        TargetOpcode.G_CTTZ_ZERO_UNDEF: OP_CTTZ,
-        TargetOpcode.G_CTPOP: OP_CTPOP,
-
-        # HwtFpgaInstrInfoFP.td
-        TargetOpcode.HWTFPGA_FP_FNEG: OP_FNEG,
-        TargetOpcode.HWTFPGA_FP_FADD: OP_FADD,
-        TargetOpcode.HWTFPGA_FP_FSUB: OP_FSUB,
-        TargetOpcode.HWTFPGA_FP_FMUL: OP_FMUL,
-        TargetOpcode.HWTFPGA_FP_FDIV: OP_FDIV,
-        TargetOpcode.HWTFPGA_FP_SHL: OP_FP_SHL,
-        TargetOpcode.HWTFPGA_FP_SHR: OP_FP_SHR,
-        TargetOpcode.HWTFPGA_FP_FREM: OP_FREM,
-        TargetOpcode.HWTFPGA_FP_FMOD: OP_FMOD,
-        # HWTFPGA_FP_FDIVREM
-        # HWTFPGA_FP_FCMP
-        TargetOpcode.HWTFPGA_FP_CEIL: OP_CEIL,
-        TargetOpcode.HWTFPGA_FP_COS: OP_FCOS,
-        TargetOpcode.HWTFPGA_FP_EXP: OP_FEXP,
-        TargetOpcode.HWTFPGA_FP_EXP10: OP_FEXP10,
-        TargetOpcode.HWTFPGA_FP_EXP2: OP_FEXP2,
-        TargetOpcode.HWTFPGA_FP_FABS: OP_FABS,
-        TargetOpcode.HWTFPGA_FP_FLOOR: OP_FLOOR,
-        TargetOpcode.HWTFPGA_FP_LOG: OP_FLOG,
-        TargetOpcode.HWTFPGA_FP_LOG2: OP_FLOG2,
-        TargetOpcode.HWTFPGA_FP_LOG10: OP_FLOG10,
-        TargetOpcode.HWTFPGA_FP_FPOW: OP_FPOW,
-        TargetOpcode.HWTFPGA_FP_FPOWI: OP_FPOWI,
-        TargetOpcode.HWTFPGA_FP_ROUND: OP_ROUND,
-        TargetOpcode.HWTFPGA_FP_ROUNDEVEN: OP_ROUNDEVEN,
-        TargetOpcode.HWTFPGA_FP_SIN: OP_FSIN,
-        TargetOpcode.HWTFPGA_FP_SQRT: OP_FSQRT,
-
-        TargetOpcode.HWTFPGA_FP_SINPI: OP_FSINPI,
-        TargetOpcode.HWTFPGA_FP_COSPI: OP_FCOSPI,
-        TargetOpcode.HWTFPGA_FP_ASIN: OP_FASIN,
-        TargetOpcode.HWTFPGA_FP_SINH: OP_FSINH,
-        TargetOpcode.HWTFPGA_FP_ACOS: OP_FACOS,
-        TargetOpcode.HWTFPGA_FP_COSH: OP_FCOSH,
-        TargetOpcode.HWTFPGA_FP_TAN: OP_FTAN,
-        TargetOpcode.HWTFPGA_FP_ATAN: OP_FATAN,
-        TargetOpcode.HWTFPGA_FP_TANH: OP_FTANH,
-        TargetOpcode.HWTFPGA_FP_ATAN2: OP_FATAN2,
-        TargetOpcode.HWTFPGA_FP_SINCOS: OP_FSINCOS,
-        TargetOpcode.HWTFPGA_FP_SINCOSPI: OP_FSINCOSPI,
+        # TargetOpcode.G_CTLZ: OP_CTLZ,
+        # TargetOpcode.G_CTLZ_ZERO_UNDEF: OP_CTLZ,
+        # TargetOpcode.G_CTTZ: OP_CTTZ,
+        # TargetOpcode.G_CTTZ_ZERO_UNDEF: OP_CTTZ,
+        # TargetOpcode.G_CTPOP: OP_CTPOP,
     }
 
     # U - unsigned, S - signed, O - ordered
@@ -174,23 +117,8 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         CmpInst.Predicate.ICMP_SGE: HwtOps.SGE,
         CmpInst.Predicate.ICMP_SLT: HwtOps.SLT,
         CmpInst.Predicate.ICMP_SLE: HwtOps.SLE,
-
-        CmpInst.Predicate.FCMP_OEQ: OP_FCMP_OEQ,
-        CmpInst.Predicate.FCMP_OGT: OP_FCMP_OGT,
-        CmpInst.Predicate.FCMP_OGE: OP_FCMP_OGE,
-        CmpInst.Predicate.FCMP_OLT: OP_FCMP_OLT,
-        CmpInst.Predicate.FCMP_OLE: OP_FCMP_OLE,
-        CmpInst.Predicate.FCMP_ONE: OP_FCMP_ONE,
     }
-    CMP_PREDICATE_TO_FP_OP_PY = {
-        CmpInst.Predicate.FCMP_OEQ: eq,
-        CmpInst.Predicate.FCMP_OGT: gt,
-        CmpInst.Predicate.FCMP_OGE: ge,
-        CmpInst.Predicate.FCMP_OLT: lt,
-        CmpInst.Predicate.FCMP_OLE: le,
-        CmpInst.Predicate.FCMP_ONE: ne,
 
-    }
     OPC_TO_OP_SCHEDULING_RESOURCE = {
         TargetOpcode.HWTFPGA_MUX: HwtOps.TERNARY,
         TargetOpcode.HWTFPGA_EXTRACT: HwtOps.INDEX,
@@ -215,53 +143,6 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         TargetOpcode.HWTFPGA_FSHL,
         TargetOpcode.HWTFPGA_FSHR,
     }
-    _FP_UNARY_OPCODES = {
-        TargetOpcode.HWTFPGA_FP_FNEG,
-        TargetOpcode.HWTFPGA_FP_CEIL,
-        TargetOpcode.HWTFPGA_FP_COS,
-        TargetOpcode.HWTFPGA_FP_EXP,
-        TargetOpcode.HWTFPGA_FP_EXP10,
-        TargetOpcode.HWTFPGA_FP_EXP2,
-        TargetOpcode.HWTFPGA_FP_FABS,
-        TargetOpcode.HWTFPGA_FP_FLOOR,
-        TargetOpcode.HWTFPGA_FP_LOG,
-        TargetOpcode.HWTFPGA_FP_LOG2,
-        TargetOpcode.HWTFPGA_FP_LOG10,
-        TargetOpcode.HWTFPGA_FP_ROUND,
-        TargetOpcode.HWTFPGA_FP_ROUNDEVEN,
-        TargetOpcode.HWTFPGA_FP_SIN,
-        TargetOpcode.HWTFPGA_FP_SQRT,
-        TargetOpcode.HWTFPGA_FP_SINPI,
-        TargetOpcode.HWTFPGA_FP_COSPI,
-        TargetOpcode.HWTFPGA_FP_ASIN,
-        TargetOpcode.HWTFPGA_FP_SINH,
-        TargetOpcode.HWTFPGA_FP_ACOS,
-        TargetOpcode.HWTFPGA_FP_COSH,
-        TargetOpcode.HWTFPGA_FP_TAN,
-        TargetOpcode.HWTFPGA_FP_ATAN,
-        TargetOpcode.HWTFPGA_FP_TANH,
-        TargetOpcode.HWTFPGA_FP_SINCOS,
-        TargetOpcode.HWTFPGA_FP_SINCOSPI,
-    }
-    _FP_BIN_OPCODES = {
-        TargetOpcode.HWTFPGA_FP_FADD,
-        TargetOpcode.HWTFPGA_FP_FSUB,
-        TargetOpcode.HWTFPGA_FP_FMUL,
-        TargetOpcode.HWTFPGA_FP_FDIV,
-        TargetOpcode.HWTFPGA_FP_SHL,
-        TargetOpcode.HWTFPGA_FP_SHR,
-        TargetOpcode.HWTFPGA_FP_FREM,
-        TargetOpcode.HWTFPGA_FP_FMOD,
-        TargetOpcode.HWTFPGA_FP_FPOW,
-        TargetOpcode.HWTFPGA_FP_FPOWI,
-        TargetOpcode.HWTFPGA_FP_ATAN2,
-    }
-    # floating/fixed point opcodes which have second operand of integer type
-    _FP_BIN_OPCODES_FLOAT_INT = {
-        TargetOpcode.HWTFPGA_FP_SHL,
-        TargetOpcode.HWTFPGA_FP_SHR,
-        TargetOpcode.HWTFPGA_FP_FPOWI,
-    }
 
     def __init__(self, hls: "HlsScope", toLlvm: ToLlvmIrTranslator,
                  mf: MachineFunction,
@@ -275,6 +156,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
                  dbgTracer: Optional[DebugTracer],
                  ):
         super(HlsNetlistAnalysisPassMirToNetlistLowLevel, self).__init__()
+        self.componentGenerators = hls.getPlatform()._componentGenerators
         self.netlist = netlist
         # :note: value of a block in block0 means that the control flow was passed to block0 from block
         self.valCache = MirToHwtHlsNetlistValueCache(netlist)
@@ -284,6 +166,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         self.blockMeta: dict[MachineBasicBlock, MachineBasicBlockMeta] = {}
         self.edgeMeta: dict[MachineEdge, MachineEdgeMeta] = {}
         self.mf = mf
+        self.MRI: MachineRegisterInfo = mf.getRegInfo()
         self.backedges = backedges
         self.liveness = liveness
         self.registerTypes = registerTypes
@@ -507,7 +390,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
             else:
                 raise NotImplementedError("Unknown type of value ", val)
 
-        mem = MemoryAllocationMeta(g.getName().str(), t, pyVal)
+        mem = MemoryAllocationMeta(g.getName().str() if g.hasName() else "mem", t, pyVal)
         self.globalMemories[g] = mem
         return mem
 

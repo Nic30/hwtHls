@@ -35,9 +35,10 @@ class BaseTestPlatform(VirtualHlsPlatform):
         self.postPyOpt = StringIO()
         self.mir = StringIO()
         self.blockSync = StringIO()
+        self.dumpMainOnly = True
 
     def runSsaPasses(self, hls:"HlsScope", toLlvm: ToLlvmIrTranslator):
-        SsaPassDumpIR(lambda name: (self.postPyOpt, False)).runOnSsaModule(toLlvm)
+        SsaPassDumpIR(lambda name: (self.postPyOpt, False), dumpMainOnly=self.dumpMainOnly).runOnSsaModule(toLlvm)
 
     def runMirToHlsNetlist(self,
                               hls: "HlsScope", toLlvm: ToLlvmIrTranslator, netlist: HlsNetlistCtx,
@@ -97,8 +98,10 @@ class BaseSsaTC(BaseSerializationTC):
 
     def _test_ll(self, hwModuleConstructor: HwModule, name=None):
         p = BaseTestPlatform(llvmCliArgs=[
-            #LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL,
-            #LLVM_CLI_COMMON_OPTS.VREGIFCVT_TRACE,
+            LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+            # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+            # LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL,
+            # LLVM_CLI_COMMON_OPTS.VREGIFCVT_TRACE,
         ])
         if isinstance(hwModuleConstructor, HwModule):
             unit = hwModuleConstructor

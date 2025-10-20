@@ -367,7 +367,7 @@ class LlvmIrInterpretStreamIo():
             self._streamProps[ioArg] = streamInfo
         return streamInfo
 
-    def _decodeLlvmIrFunctionInstrStreamIo(self, interpret: "LlvmIrInterpret", bb: BasicBlock, instr: CallInst) -> LlvmIrInstrFunction:
+    def _decodeLlvmIrFunctionInstrStreamIo(self, interpret: "LlvmIrInterpret", instr: CallInst) -> LlvmIrInstrFunction:
         ioArg: Argument = ValueToArgument(instr.getArgOperand(0))
         if IsStreamRead(instr):
             assert ioArg

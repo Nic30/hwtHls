@@ -1,10 +1,11 @@
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.struct import HStruct
 from hwt.hwIOs.utils import addClkRstn
+from hwt.pyUtils.typingFuture import override
 from hwt.serializer.mode import serializeParamsUniq
-from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from hwtHls.architecture.componentGenerators.baseALU1HwModule import _BaseALU1HwModule
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from tests.math.fixp.fixpTypes import HFixedPointQ
 
 
@@ -13,6 +14,7 @@ class _FpUnOpAluHwModule(_BaseALU1HwModule):
     Universal HwModule wrapper around floating point unary operator function.
     """
 
+    @override
     def hwDeclr(self) -> None:
         addClkRstn(self)
 
@@ -23,6 +25,7 @@ class _FpUnOpAluHwModule(_BaseALU1HwModule):
 
         self._addDataInDataOut(t, t)
 
+    @override
     @hlsBytecode
     def aluFn(self, inp):
         return PyBytecodeInline(self.FN)(
@@ -36,6 +39,7 @@ class _FpBinOpAluHwModule(_FpUnOpAluHwModule):
     Universal HwModule wrapper around floating point binary operator function.
     """
 
+    @override
     def hwDeclr(self) -> None:
         assert self.FN is not NotImplemented
         addClkRstn(self)
@@ -50,7 +54,8 @@ class _FpBinOpAluHwModule(_FpUnOpAluHwModule):
             (t, "b"),
         )
         self._addDataInDataOut(inT, t)
-    
+
+    @override
     @hlsBytecode
     def aluFn(self, inp):
         if self.FN.__code__.co_kwonlyargcount == 0:

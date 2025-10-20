@@ -10,7 +10,6 @@ from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.defs import INT, SLICE
 from hwt.math import log2ceil
 from hwt.pyUtils.arrayQuery import grouper
-from hwtHls.code import zext
 from hwtHls.llvm.llvmIr import MachineRegisterInfo, MachineInstr
 from hwtHls.ssa.analysis.llvmMirInterpretUtils import LlvmMirInstrFunction
 from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
@@ -39,7 +38,7 @@ def _decodeOpcode_HWTFPGA_EXTRACT(interpret: "LlvmMirInterpret", MRI: MachineReg
             elif not isinstance(_src, HConst):
                 raise AssertionError(instr, _src)
 
-        assert _src._dtype.bit_length() == srcWidth, (_src._dtype.bit_length() == srcWidth)
+        assert _src._dtype.bit_length() == srcWidth, (_src._dtype.bit_length() == srcWidth, instr, _src._dtype.bit_length(), "expected:", srcWidth)
         res = _src[index]
         assert res is not None, instr
         regs[dst] = res
@@ -68,7 +67,7 @@ def _decodeOpcode_G_EXTRACT(interpret: "LlvmMirInterpret", MRI: MachineRegisterI
             _src = regs[src]
 
             if src is None:
-                raise AssertionError("Indexing on uninitialized value (this is use before def)", mi)
+                raise AssertionError("Indexing on uninitialized value (this is use before def)", instr)
         regs[dst] = _src[index]
 
     return _opcode_G_EXTRACT
@@ -81,10 +80,16 @@ def _decodeOpcode_HWTFPGA_MERGE_VALUES(interpret: "LlvmMirInterpret", MRI: Machi
     assert (opNum - 1) % 2 == 0, instr
     half = (opNum - 1) // 2
     ops = tuple(instr.operands())[1:half + 1]
+    widths = tuple(instr.operands())[half + 1:]
+    widths = tuple(w.getImm() for w in widths)
     ops = interpret._decodeInstArguments(MRI, instr, ops)
 
     def _opcode_HWTFPGA_MERGE_VALUES(nowTime: int, regs: list[HConst]):
         _ops = interpret._prepareInstrArguments(ops, regs)
+        for i, (o, w) in enumerate(zip(_ops, widths)):
+            if o is None:
+                raise AssertionError("Indexing on uninitialized value (this is use before def)", i, instr)
+            assert (o._dtype.bit_length() == w), (instr, i, o, w)
         res = Concat(*reversed(_ops))
         regs[dst] = res
 
@@ -341,60 +346,6 @@ def _makeMinMaxDecoder(predicate: HOperatorDef):
     return _decodeOpcode_minmax
 
 
-def makeDecode_G_bitcounts(opDef: HOperatorDef):
-
-    # G_ bitcounts require zext of result to match width of src operand
-    def _decodeOpcode_G_bitcounts(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
-        dst, _src0 = interpret._decodeInstArguments(MRI, instr, instr.operands())
-        src0IsConst = isinstance(_src0, HConst)
-        evalFn = opDef._evalFn
-
-        # resTy = HBits(log2ceil(w + 1))
-        def _opcode_G_bitcounts(nowTime: int, regs: list[HConst]):
-            if src0IsConst:
-                src0 = _src0
-            else:
-                src0 = regs[_src0]
-
-            if src0._dtype.signed is not None:
-                src0 = src0._cast_sign(None)
-
-            res = evalFn(src0)
-            w = res._dtype.bit_length()
-            srcWidth = src0._dtype.bit_length()
-            if w != srcWidth:
-                assert w < srcWidth
-                res = zext(res, srcWidth)
-
-            regs[dst] = res
-
-        return _opcode_G_bitcounts
-
-    return _decodeOpcode_G_bitcounts
-
-
-def makeDecode_HWTFPGA_NOT_or_bitcounts(opDef: HOperatorDef):
-
-    def _decodeOpcode_HWTFPGA_NOT_or_bitcounts(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
-        dst, _src0 = interpret._decodeInstArguments(MRI, instr, instr.operands())
-        src0IsConst = isinstance(_src0, HConst)
-        evalFn = opDef._evalFn
-
-        def _opcode_HWTFPGA_NOT_or_bitcounts(nowTime: int, regs: list[HConst]):
-            if src0IsConst:
-                src0 = _src0
-            else:
-                src0 = regs[_src0]
-            if src0._dtype.signed is not None:
-                src0 = src0._cast_sign(None)
-            res = evalFn(src0)
-            regs[dst] = res
-
-        return _opcode_HWTFPGA_NOT_or_bitcounts
-
-    return _decodeOpcode_HWTFPGA_NOT_or_bitcounts
-
-
 def _makeDecode_G_shift(opDef: HOperatorDef):
 
     def _decodeOpcode_G_shift(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
@@ -549,36 +500,26 @@ def makeDecode_funel_shift(opDef: HOperatorDef):
     return _decodeOpcode_funel_shift
 
 
-def makeDecode_arithmeticBinRes(opDef: HOperatorDef):
+def makeDecode_arithUnary(opDef: HOperatorDef):
 
-    def _decodeOpcode_arithmeticBinRes(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
-        dst0, dst1, _src0, _src1 = interpret._decodeInstArguments(MRI, instr, instr.operands())
+    def _decodeOpcode_arithUnary(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
+        dst, _src0 = interpret._decodeInstArguments(MRI, instr, instr.operands())
         src0IsConst = isinstance(_src0, HConst)
-        src1IsConst = isinstance(_src1, HConst)
         evalFn = opDef._evalFn
 
-        def _opcode_arithmeticBinRes(nowTime: int, regs: list[HConst]):
+        def _opcode_arithUnary(nowTime: int, regs: list[HConst]):
             if src0IsConst:
                 src0 = _src0
             else:
                 src0 = regs[_src0]
-
-            if src1IsConst:
-                src1 = _src1
-            else:
-                src1 = regs[_src1]
-
             if src0._dtype.signed is not None:
                 src0 = src0._cast_sign(None)
-            if src1._dtype.signed is not None:
-                src1 = src1._cast_sign(None)
-            res0, res1 = evalFn(src0, src1)
-            regs[dst0] = res0
-            regs[dst1] = res1
+            res = evalFn(src0)
+            regs[dst] = res
 
-        return _opcode_arithmeticBinRes
+        return _opcode_arithUnary
 
-    return _decodeOpcode_arithmeticBinRes
+    return _decodeOpcode_arithUnary
 
 
 def makeDecode_arithmeticBin(opDef: HOperatorDef):
@@ -609,7 +550,10 @@ def makeDecode_arithmeticBin(opDef: HOperatorDef):
                 src0 = src0._cast_sign(None)
             if src1._dtype.signed is not None:
                 src1 = src1._cast_sign(None)
-            res = evalFn(src0, src1)
+            try:
+                res = evalFn(src0, src1)
+            except ZeroDivisionError:
+                res = src0._dtype.from_py(None)
             regs[dst] = res
 
         return _opcode_arithmetic

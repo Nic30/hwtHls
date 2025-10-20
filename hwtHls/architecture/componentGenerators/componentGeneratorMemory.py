@@ -202,13 +202,14 @@ class ComponentGeneratorMemory(ComponentGenerator):
         meta:ComponentGeneratorMemoryMeta = mem.dataOfComponentGenerator
         netlist: HlsNetlistCtx = node.netlist
         if meta.rtlInstance is None and meta.rtlMemSignal is None:
+            name = mem.name if mem.name is not None else "mem"
             # the memory is not allocated yet
             if meta.implementation == ComponentGeneratorMemoryAllocationImplementationType.DISTMEM_INLINED:
                 # inline this memory as a constant signal
                 assert mem.initValue is not None, mem
                 assert not node._rtlUseValid, node
                 assert not node._rtlUseReady, node
-                s = allocator._sig(mem.name, mem.dtype, def_val=mem.initValue)
+                s = allocator._sig(name, mem.dtype, def_val=mem.initValue)
                 s._const = True
                 meta.rtlMemSignal = s
             else:
@@ -233,7 +234,7 @@ class ComponentGeneratorMemory(ComponentGenerator):
                                     init if isinstance(init, HConst) else\
                                     tuple(init)
                 compBuilder = AbstractComponentBuilder(netlist.parentHwModule, None, netlist.namePrefix)
-                name = compBuilder._findSuitableName(mem.name, firstWithoutCntrSuffix=True)
+                name = compBuilder._findSuitableName(name, firstWithoutCntrSuffix=True)
                 setattr(netlist.parentHwModule, name, memInst)
                 compBuilder._propagateClkRstn(memInst)
                 meta.rtlInstance = memInst

@@ -1,30 +1,77 @@
 
+import math
+from operator import truediv
+from typing import Optional
+
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
-from hwtHls.architecture.componentGenerator import ComponentGenerator
 from hwtHls.architecture.componentGeneratorUtils import \
     ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule
 from hwtHls.llvm.llvmIr import HFloatTmpConfig
+from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+from hwtHls.platform.platform import DefaultHlsPlatform
+from hwtHls.ssa.analysis.llvmIrInterpretInt import _makeDecodeOpcodeFunction_BinaryOperator
+from tests.math.componentGenerators._componentGeneratorFp import ComponentGeneratorFp
+from tests.math.componentGenerators._llvmIrInterpretFP import ComponentGeneratorForSpecializedHwtHlsFpIntrinsicBinary_FloatFloat
+from tests.math.componentGenerators.divrem import ComponentGeneratorDIVREM
 from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.math.fixp.fixpdivrem import FixpDivRemHwModule
+from tests.math.hFloatTmp.hFloatTmpOps import OP_FDIV, OP_FREM
 
 
-class ComponentGeneratorFDIVREM(ComponentGenerator):
+class ComponentGeneratorFDIV_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicBinary_FloatFloat):
 
-    def __init__(self, platform:"DefaultHlsPlatform", hasDiv:bool, hasRem:bool,
+    @override
+    @staticmethod
+    def evalFn(a: float, b: float) -> float:
+        return a / b
+
+
+class ComponentGeneratorFREM_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicBinary_FloatFloat):
+
+    @override
+    @staticmethod
+    def evalFn(a: float, b: float) -> float:
+        return math.remainder(a, b)
+
+
+class ComponentGeneratorFDIVREM(ComponentGeneratorFp):
+    INPUT_CNT = 2
+
+    def __init__(self, platform:DefaultHlsPlatform,
                  genNamePrefix:str, moduleName:str,
+                 hasDiv:bool, hasRem:bool,
                  optThroughputVsArea=0.0,
                  FIXP_HWMODULE_CLS=FixpDivRemHwModule):
-        ComponentGenerator.__init__(self, platform, genNamePrefix, moduleName)
+        ComponentGeneratorFp.__init__(self, platform, genNamePrefix, moduleName)
         # dataWidth (optThroughputVsArea, HFloatTmpConfig) -> scheduling (OpRealizationMeta, UNROLL_FACTOR)
         self._hasDiv = hasDiv
         self._hasRem = hasRem
         self.optThroughputVsArea = optThroughputVsArea
         self.FIXP_HWMODULE_CLS = FIXP_HWMODULE_CLS
-        assert hasDiv or hasRem
+
+        if hasDiv and hasRem:
+            raise NotImplementedError()
+        elif hasDiv:
+            op = OP_FDIV
+            evalFn = truediv
+        elif hasRem:
+            op = OP_FREM
+            evalFn = math.remainder
+        else:
+            raise AssertionError()
+
+        self.opDef = op
+        self.llvmIrInterpretDecode = _makeDecodeOpcodeFunction_BinaryOperator(evalFn)
+
+    @override
+    def llvmMirToHlsNetlist(self, *args) -> Optional[HlsNetNodeOutAny]:
+        IN_NAMES, OUT_NAMES = ComponentGeneratorDIVREM.getHlsNetlistInOutNames(self)
+        return super().llvmMirToHlsNetlist(*args, IN_NAMES, OUT_NAMES)
 
     def _getConfiguredFixpHwModule(self, realTimeClkPeriod:float, ty:HFixedPointQ, UNROLL_FACTOR:int, realization:OpRealizationMeta):
         hwModule = self.FIXP_HWMODULE_CLS()
@@ -39,14 +86,10 @@ class ComponentGeneratorFDIVREM(ComponentGenerator):
         return hwModule
 
     @override
-    def resolveRealizationOfNode(self, node:HlsNetNodeOperator) -> None:
-        assert len(node.dependsOn) == 2, node
-        return self.resolveRealizationForHlsNetlist(node.netlist, node.operatorSpecialization)
-
-    def resolveRealizationForHlsNetlist(self, netlist: "HlsNetlistCtx", cfg: HFloatTmpConfig) -> None:
+    def resolveRealizationForHlsNetlist(self, netlist: HlsNetlistCtx, cfg: HFloatTmpConfig) -> None:
         cacheKey = (cfg, self.optThroughputVsArea)
         try:
-            return self.schedulingCache[cacheKey][0]
+            return self.schedulingCache[cacheKey][1]
         except KeyError:
             pass
 
@@ -64,7 +107,7 @@ class ComponentGeneratorFDIVREM(ComponentGenerator):
 
             # run compilation of IntDiv HwModule to resolve scheduling properties
             hwModule = self._getConfiguredFixpHwModule(netlist.realTimeClkPeriod, ty, UNROLL_FACTOR, None)
-            _, r = self.resolveRealizationOfNode_compileToResolveScheduling(
+            _, _, r = self.resolveRealizationOfNode_compileToResolveScheduling(
                 netlist.parentHwModule, hwModule,
                 netlist.dbgSubmoduleBuidTracer, cacheKey, (UNROLL_FACTOR,))
             return r
@@ -72,7 +115,7 @@ class ComponentGeneratorFDIVREM(ComponentGenerator):
             raise NotImplementedError()
 
     @override
-    def toHwtCompatibleOperatorAfterScheduling(self, node:"HlsNetNode", worklist: SetList[HlsNetNode]) -> bool:
+    def toHwtCompatibleOperatorAfterScheduling(self, node:HlsNetNode, worklist: SetList[HlsNetNode]) -> bool:
         freq = node.netlist.realTimeClkPeriod
         cfg: HFloatTmpConfig = node.operatorSpecialization
         if cfg.isInQFormat:
@@ -113,7 +156,7 @@ class ComponentGeneratorFDIVREM(ComponentGenerator):
             # newO = builder.buildIndexConstSlice(node._outputs[0]._dtype, divRes, w, 0, name=node.name)
             # replaceHlsNetNodeWithExpression(node, newO, None, self._assertIsConcatAnyShiftOrIndex)
 
-            realization, UNROLL_FACTOR = self.schedulingCache[(cfg, self.optThroughputVsArea)]
+            realization, _, UNROLL_FACTOR = self.schedulingCache[(cfg, self.optThroughputVsArea)]
             hwModule = self._getConfiguredFixpHwModule(freq, HFixedPointQ.fromHFloatTmpConfig(cfg), UNROLL_FACTOR, realization)
             if self._hasDiv and self._hasRem:
                 outputsBitMap = None
@@ -131,5 +174,5 @@ class ComponentGeneratorFDIVREM(ComponentGenerator):
         return True
 
     @override
-    def toRtlForNode(self, node:"HlsNetNode", allocator:"ArchElement") -> None:
+    def toRtlForNode(self, node:"HlsNetNode", allocator:ArchElement) -> None:
         raise NotImplementedError("This should have been lowered before in toHwtCompatibleOperatorAfterScheduling", node)

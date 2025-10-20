@@ -9,7 +9,6 @@ from hwt.hwIOs.std import HwIOSignal
 from hwt.hwModule import HwModule
 from hwt.pyUtils.setList import SetList
 from hwtHls.architecture.componentGenerator import ComponentGenerator
-from hwtHls.architecture.syncUtils import HwIO_getSyncSignals
 from hwtHls.netlist.analysis.ioOrdering import HlsNetlistAnalysisPassIoOrdering
 from hwtHls.netlist.builder import HlsNetlistBuilder, \
     HlsNetlistBuilderWithWorklist
@@ -27,15 +26,18 @@ from hwtHls.netlist.scheduler.scheduler import asapSchedulePartlyScheduled
 from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import disconnectAllInputs
 from hwtHls.platform.opRealizationMeta import EMPTY_OP_REALIZATION
 from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
-
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 
 HwModuleHwIoForNodePortGetter = Callable[[HlsNetNodeOperator, HwModule], Sequence[HwIO]]
+
 
 class HlsNetNodeReadOfFnUnitPort(HlsNetNodeRead):
     pass
 
+
 class HlsNetNodeWriteOfFnUnitPort(HlsNetNodeWrite):
     pass
+
 
 def replaceHlsNetNodeWithExpression(n: HlsNetNodeOperator,
                                     newO: HlsNetNodeOut,
@@ -83,7 +85,7 @@ def _replaceHlsNetNodeOperatorInputWithWrite(netlist: HlsNetlistCtx,
         inUseReady, inUseValid = _getUseReadyUseValid(inpHwIo)
     else:
         inUseReady, inUseValid = inputUseReadyValid
-    inpWrite = HlsNetNodeWriteOfFnUnitPort(netlist, inpHwIo, mayBecomeFlushable=False)
+    inpWrite = HlsNetNodeWriteOfFnUnitPort(netlist, IoProxyScalar(None, inpHwIo, inpVal._dtype), inpHwIo, mayBecomeFlushable=False)
     # inpWrite.setNonBlocking()
     inpWrite.setRtlUseReady(inUseReady)
     inpWrite.setRtlUseValid(inUseValid)
@@ -126,7 +128,7 @@ def _replaceHlsNetNodOperatorOutputWithRead(netlist: HlsNetlistCtx,
     else:
         outUseReady, outUseValid = outputUseReadyValid
 
-    outRead = HlsNetNodeReadOfFnUnitPort(netlist, outHwIo, dtype)
+    outRead = HlsNetNodeReadOfFnUnitPort(netlist, IoProxyScalar(None, outHwIo, dtype), outHwIo, dtype)
     outRead.setRtlUseReady(outUseReady)
     outRead.setRtlUseValid(outUseValid)
     # outRead.setNonBlocking()
@@ -158,6 +160,24 @@ def _replaceHlsNetNodOperatorOutputWithRead(netlist: HlsNetlistCtx,
     return outRead
 
 
+def scheduleOrRescheduleToTime(out: HlsNetNodeOut, time: SchedTime):
+    n: HlsNetNode = out.obj
+    if n.scheduledOut is None:
+        n.resolveRealization()
+        n._setScheduleZeroTimeSingleClock(time)
+    assert n.scheduledOut[out.out_i] <= time, (n, n.scheduledOut[out.out_i], time)
+    # if n.scheduledOut[out.out_i] > time:
+    #    n._setScheduleZeroTimeSingleClock(time)
+
+
+def replaceHlsNetNodeOperatorWithHwModule_addEnToPort(builder: HlsNetlistBuilder, n: HlsNetNodeExplicitSync, reqEn: HlsNetNodeOut, inpTime: SchedTime):
+    assert reqEn is not None, n
+    n.addControlSerialExtraCond(reqEn, addDefaultScheduling=True)
+    reqEn_n = builder.buildNot(reqEn)
+    scheduleOrRescheduleToTime(reqEn_n, inpTime)
+    n.addControlSerialSkipWhen(reqEn_n, addDefaultScheduling=True)
+
+
 def replaceHlsNetNodeOperatorWithHwModule(compBuilder: AbstractComponentBuilder,
                                           n: HlsNetNodeOperator,
                                           m: HwModule,
@@ -166,6 +186,8 @@ def replaceHlsNetNodeOperatorWithHwModule(compBuilder: AbstractComponentBuilder,
                                           outGetter: HwModuleHwIoForNodePortGetter=lambda n, m: (m.data_out,),
                                           inputUseReadyValid:Optional[tuple[bool, bool]]=None,  # (False, False),
                                           outputUseReadyValid:Optional[tuple[bool, bool]]=None,  # (False, False),
+                                          hasReqEn=True,
+                                          hasReqDone=True,
                                           inputsConcatenated=False,
                                           outputsConcatenated=False,
                                           inputsMayFlush=False,
@@ -193,6 +215,12 @@ def replaceHlsNetNodeOperatorWithHwModule(compBuilder: AbstractComponentBuilder,
     clkPeriod = netlist.normalizedClkPeriod
     parent: ArchElement = n.getParent()
     assert isinstance(parent, ArchElement), (n, parent)
+    if hasReqEn:
+        reqEn = n.dependsOn[-1]
+        assert len(n._inputs) >= 2, n
+
+    if hasReqDone:
+        assert len(n._outputs) >= 2, n
 
     firstInputWrite: Optional[HlsNetNodeWrite] = None
     if inputsConcatenated:
@@ -201,20 +229,35 @@ def replaceHlsNetNodeOperatorWithHwModule(compBuilder: AbstractComponentBuilder,
             inpTime = min(n.scheduledIn)
 
             inpHwIo = inGetter(n, m)[0]
-            if len(n.dependsOn) > 1:
-                inpVal = builder.buildConcat(*n.dependsOn)
+            dataDeps = n.dependsOn
+            if hasReqEn:
+                dataDeps = dataDeps[:-1]
+            if len(dataDeps) > 1:
+                inpVal = builder.buildConcat(*dataDeps)
                 inpValConc = inpVal.obj
                 inpValConc.assignRealization(EMPTY_OP_REALIZATION)
                 inpValConc._setScheduleZeroTimeSingleClock(inpTime)
                 parent._addNodeIntoScheduled(inpTime // clkPeriod, inpValConc)
             else:
-                inpVal = n.dependsOn[0]
-            firstInputWrite = inpWrite = _replaceHlsNetNodeOperatorInputWithWrite(netlist, parent, inpHwIo, inputUseReadyValid, inpTime, inpVal)
-            inpWrite._mayBecomeFlushable = inputsMayFlush
+                inpVal = dataDeps[0]
 
+            firstInputWrite = inpWrite = _replaceHlsNetNodeOperatorInputWithWrite(netlist, parent, inpHwIo, inputUseReadyValid, inpTime, inpVal)
+            inpWrite: HlsNetNodeWrite
+            inpWrite._mayBecomeFlushable = inputsMayFlush
+            if hasReqEn:
+                if inpWrite._rtlUseValid:
+                    replaceHlsNetNodeOperatorWithHwModule_addEnToPort(builder, inpWrite, reqEn, inpTime)
+                else:
+                    simplifyWorklist.append(reqEn.obj)
     else:
         inpCnt = 0
-        for inpVal, inpTime, inpHwIo in zip(n.dependsOn, n.scheduledIn, inGetter(n, m)):
+        dependsOn = n.dependsOn
+        scheduledIn = n.scheduledIn
+        if hasReqEn:
+            dependsOn = dependsOn[:-1]
+            scheduledIn = scheduledIn[:-1]
+
+        for inpVal, inpTime, inpHwIo in zip(dependsOn, scheduledIn, inGetter(n, m)):
             inpVal: HlsNetNodeOut
             assert inpHwIo._dtype == inpVal._dtype, ("Original node input must have same type as in of module replacing it",
                                                   n, inpHwIo._dtype, inpVal._dtype, inpHwIo, inpVal)
@@ -226,31 +269,43 @@ def replaceHlsNetNodeOperatorWithHwModule(compBuilder: AbstractComponentBuilder,
                 createOrderingLink(firstInputWrite, inpWrite)
 
             inpCnt += 1
+            if hasReqEn:
+                if inpWrite._rtlUseValid:
+                    replaceHlsNetNodeOperatorWithHwModule_addEnToPort(builder, inpWrite, reqEn, inpTime)
+                else:
+                    simplifyWorklist.append(reqEn.obj)
 
-        assert inpCnt == len(n._inputs), ("Every input must be replaced",
+        if hasReqDone:
+            assert firstInputWrite is not None, n
+
+        assert inpCnt + int(hasReqDone) == len(n._inputs), ("Every input must be replaced",
                                           n, inpCnt, len(n._inputs), n._inputs, tuple(inGetter(n, m)))
     disconnectAllInputs(n, simplifyWorklist)
 
-    outCnt = 0
     if outputsConcatenated:
         # HwModule has a single output, values HlsNetNode outputs must be extracted by bit vector slicing
         outTime = max(n.scheduledOut)
         outHwIo = outGetter(n, m)[0]
-        outTy = HBits(outHwIo._bit_length() - len(HwIO_getSyncSignals(outHwIo)))
-        users = []
+        outTy = HBits(outHwIo._bit_length() - len(IoProxyScalar._getRtlSyncSignals(outHwIo)))
+        users: list[HlsNetNodeIn] = []
         for _users in n.usedBy:
             users.extend(_users)
 
-        outRead = _replaceHlsNetNodOperatorOutputWithRead(
+        outRead: HlsNetNodeRead = _replaceHlsNetNodOperatorOutputWithRead(
             netlist, parent, outHwIo,
             outputUseReadyValid, outTy,
             outTime, firstInputWrite, users)
+
         outReadData = outRead._portDataOut
         off = 0
-        if outputsBitMap is None:
-            outputsBitMap = (None for _ in range(len(n._outputs)))
+        outputs = n._outputs
+        if hasReqDone:
+            outputs = outputs[:-1]
 
-        for out, offsetOverride in zip(n._outputs, outputsBitMap):
+        if outputsBitMap is None:
+            outputsBitMap = (None for _ in range(len(outputs)))
+
+        for out, offsetOverride in zip(outputs, outputsBitMap):
             out: HlsNetNodeOut
             if offsetOverride is not None:
                 off = offsetOverride
@@ -262,7 +317,11 @@ def replaceHlsNetNodeOperatorWithHwModule(compBuilder: AbstractComponentBuilder,
             off += w
 
     else:
-        for outHwIo, out, users, outTime in zip(outGetter(n, m), n._outputs, n.usedBy, n.scheduledOut):
+        outCnt = 0
+        outputs = zip(outGetter(n, m), n._outputs, n.usedBy, n.scheduledOut)
+        if hasReqDone:
+            outputs = tuple(outputs)[:len(n._outputs) - 1]
+        for outHwIo, out, users, outTime in outputs:
             # for every output port replace it with read from new module output signal
             assert outHwIo._dtype == out._dtype, ("Original node output must have same type as out of module replacing it",
                                                   n, outHwIo._dtype, out._dtype, outHwIo, out)
@@ -270,8 +329,22 @@ def replaceHlsNetNodeOperatorWithHwModule(compBuilder: AbstractComponentBuilder,
             builder.replaceOutput(out, outRead._portDataOut, True, checkCycleFree=False)
             outCnt += 1
 
-        assert outCnt == len(n._outputs), ("Every output must be replaced",
+        assert outCnt + int(hasReqDone) == len(n._outputs), ("Every output must be replaced",
                                            n, outCnt, len(n._outputs), n._outputs, tuple(outGetter(n, m)))
+
+    if hasReqDone:
+        reqDone = n._outputs[-1]
+        if outRead._rtlUseValid:
+            if inpWrite._rtlUseValid:
+                replaceHlsNetNodeOperatorWithHwModule_addEnToPort(builder, outRead, reqEn, inpTime)
+            else:
+                simplifyWorklist.append(reqEn.obj)
+            builder.replaceOutput(reqDone, outRead.getValidNB(), True, checkCycleFree=False)
+        else:
+            for u in n.usedBy[-1]:
+                simplifyWorklist.append(u.obj)
+            builder.replaceOutputWithConst1b(reqDone, True)
+
     if len(n._inputs) == 1 or inputsConcatenated and (len(n._outputs) == 1 or outputsConcatenated):
 
         def debugIterShadowConnectionDst() -> Generator[tuple[HlsNetNode, bool], None, None]:
@@ -285,15 +358,20 @@ def replaceHlsNetNodeOperatorWithHwModule(compBuilder: AbstractComponentBuilder,
 def ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule(
         generator: ComponentGenerator,
         node: HlsNetNodeOperator,
-        hwModule: HwModule,
+        hwModule: "_BaseALU1HwModule",
         simplifyWorklist: SetList[HlsNetNode],
         outputsBitMap:Optional[Sequence[int]]=None,):
-    compBuilder = AbstractComponentBuilder(node.netlist.parentHwModule, None, f"{generator._genNamePrefix:s}_{generator._moduleName:s}")
+    compBuilder = AbstractComponentBuilder(
+        node.netlist.parentHwModule, None,
+        f"{generator._genNamePrefix:s}_{generator._moduleName:s}")
+    mayStall = hwModule._isFullyUnrolled()
     replaceHlsNetNodeOperatorWithHwModule(
         compBuilder, node, hwModule,
         simplifyWorklist,
         inputsConcatenated=True,
         outputsConcatenated=True,
         outputsBitMap=outputsBitMap,
-        inputsMayFlush=not hwModule._isFullyUnrolled(),
+        hasReqEn=not mayStall,
+        hasReqDone=not mayStall,
+        inputsMayFlush=hwModule.IN_CHANNEL_TYPE == HwIOStructRdVld,
     )

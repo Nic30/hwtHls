@@ -1,12 +1,18 @@
 from io import StringIO
-from typing import Optional
+from typing import Optional, Union
 
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.setList import SetList
 from hwt.serializer.store_manager import SaveToStream
 from hwt.synth import to_rtl
+from hwtHls.llvm.llvmIr import MachineInstr, Register, MachineRegisterInfo, Instruction
 from hwtHls.netlist.debugTracer import DebugTracer
+from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
+from hwtHls.platform.opRealizationMeta import ComponentRealizationMeta
+from hwtHls.ssa.analysis.llvmIrInterpretUtils import LlvmIrInstrFunction
+from hwtHls.ssa.analysis.llvmMirInterpretUtils import LlvmMirInstrFunction
+from hwtHls.ssa.translation.llvmMirToNetlist.utils import MirToHlsNetlistTranslatedInstrOpsT
 from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
 
 
@@ -211,11 +217,33 @@ class ComponentGenerator():
     :ivar _moduleName: a name prefix part specific to this generator
     """
 
-    def __init__(self, platform: "DefaultHlsPlatform", genNamePrefix:str, moduleName:str,):
+    def __init__(self, platform: "DefaultHlsPlatform", genNamePrefix: str, moduleName: str):
         self.platform = platform
         self._genNamePrefix = genNamePrefix
         self._moduleName = moduleName
         self.schedulingCache = {}
+
+    def llvmIrInterpretDecode(self, interpret: "LlvmIrInterpret", instr: Instruction) -> LlvmIrInstrFunction:
+        raise NotImplementedError("This method is supposed to be overriden in child class", self.__class__)
+
+    def llvmMirInterpretDecode(self, interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
+        raise NotImplementedError("This method is supposed to be overriden in child class", self.__class__)
+
+    def llvmMirToHlsNetlist(self,
+                            mirToNetlist: "HlsNetlistAnalysisPassMirToNetlist",
+                            builder: "HlsNetlistBuilder",
+                            mbMeta: "MachineBasicBlockMeta",
+                            allBlockingLoadAck: Optional[HlsNetNodeOutAny],
+                            name: Optional[str],
+                            instr: MachineInstr,
+                            dst: Union[Register, tuple[Register]],
+                            ops: MirToHlsNetlistTranslatedInstrOpsT) -> Optional[HlsNetNodeOutAny]:
+        """
+        Translate llvm MIR MachineInstr to HlsNetlist object and register result in valCache
+        
+        :returns: updated allBlockingLoadAck
+        """
+        raise NotImplementedError("This method is supposed to be overriden in child class", self.__class__)
 
     def resolveRealizationOfNode_compileToResolveScheduling(self, parentHwModule: HwModule,
                                                             hwModule: HwModule,
@@ -235,19 +263,35 @@ class ComponentGenerator():
 
         # store_manager = netlist.parentHwModule._store_manager
         to_rtl(hwModule, store_manager, target_platform=self.platform)
-        r = hwModule.hlsOpRealizationMeta
+        rSeenFromIn, rSeenFromOut = hwModule.getHlsOpRealizationMeta()
         if cacheKey is not None:
             if extraCacheValueItems:
-                cacheItem = (r, *extraCacheValueItems)
+                cacheItem = (rSeenFromIn, rSeenFromOut, *extraCacheValueItems)
             else:
-                cacheItem = r
+                cacheItem = rSeenFromIn, rSeenFromOut
             self.schedulingCache[cacheKey] = cacheItem
-        debugTracer.log(("resolved realization", hwModule._hdl_module_name, r,))
-        return store_manager, r
+        debugTracer.log(("resolved realization", hwModule._hdl_module_name, "rSeenFromIn", rSeenFromIn, "rSeenFromOut", rSeenFromOut,))
+        return store_manager, rSeenFromIn, rSeenFromOut
 
-    def resolveRealizationOfNode(self, node: "HlsNetNode") -> None:
+    def resolveRealizationOfLlvmMirMachineInstr(self, MRI: MachineRegisterInfo,
+                                                netlist: "HlsNetlistCtx", instr: MachineInstr) -> ComponentRealizationMeta:
         """
-        Get OpRealizationMeta which is used during scheduling.
+        Get ComponentRealizationMeta which is used during initial decisions about synchronization of MIR blocks.
+        
+        :note: netlist is required as a container about informations for potential build
+            of sub components to discover ComponentRealizationMeta
+            but this method should not add anything to netlist
+        """
+        raise NotImplementedError("This method is supposed to be overriden in child class", self.__class__, instr)
+
+    def resolveRealizationOfNode(self, node: "HlsNetNode") -> ComponentRealizationMeta:
+        """
+        Get ComponentRealizationMeta which is used during scheduling.
+        
+        :note: this function may return more realization which is more simple (synchronization wise)
+            than resolveRealizationOfLlvmMirMachineInstr but it can not return realization
+            which request additional synchronization because it would be to late to construct it
+            as blocks are disolved once HlsNetlist is constructed
         """
         raise NotImplementedError("This method is supposed to be overriden in child class", self.__class__, node)
 

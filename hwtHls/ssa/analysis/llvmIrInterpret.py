@@ -1,8 +1,6 @@
 from datetime import datetime
-import math
-from operator import add, truediv, mod, sub, mul
 import re
-from typing import Generator, Union, Optional, Callable, Sequence
+from typing import Union, Optional, Callable, Sequence
 
 from hwt.hdl.commonConstants import b1
 from hwt.hdl.const import HConst
@@ -18,28 +16,29 @@ from hwtHls.llvm.llvmIr import Function, BasicBlock, InstructionToCallInst, \
     LLVMStringContext, ValueToUndefValue, TypeToArrayType, ArrayType, \
     Intrinsic, ValueToAllocaInst, ValueToConstantArray, ValueToConstantDataArray, IsStreamIo, Value, PHINode, \
     Module, Argument, InstructionToGetElementPtrInst, HwtHlsIoMetadata, HwtHlsIoMetadata_get, \
-    AllocaInst, StreamChannelProps
+    AllocaInst, StreamChannelProps, LlvmCompilationBundle, TargetOpcode
+from hwtHls.platform.platform import ComponentGeneratorDict
 from hwtHls.ssa.analysis.llvmIrInterpretCall import _decodeOpcode_CallInst
-from hwtHls.ssa.analysis.llvmIrInterpretFP import _decodeIntrinsic_fp_castToHFloatTmp, \
-    _decodeIntrinsic_fp_castFromHFloatTmp, _decodeIntrinsic_fp_unspecialized_shr, \
-    _decodeIntrinsic_fp_unspecialized_shl, _decodeOpcode_FCmpInst, _decodeOpcode_FNeg, \
-    _decodeIntrinsic_fp_fcmp, _decodeIntrinsic_fp_binOp, _decodeIntrinsic_fp_unOp, \
-    _decodeIntrinsic_fp_binOp_floatInt
 from hwtHls.ssa.analysis.llvmIrInterpretInt import _decodeOpcode_ICmpInst, \
     _decodeOpcode_SelectInst, _makeDecodeOpcodeFunction_BinaryOperator, \
     _decodeOpcode_CastInst, _opcode_Intrinsic_usub_sat, \
     _opcode_Intrinsic_uadd_sat, _opcode_Intrinsic_sadd_sat, \
-    _opcode_Intrinsic_ssub_sat
+    _opcode_Intrinsic_ssub_sat, _opcode_Intrinsic_uadd_with_overflow, \
+    _opcode_Intrinsic_usub_with_overflow, _opcode_Intrinsic_sadd_with_overflow, \
+    _opcode_Intrinsic_ssub_with_overflow
 from hwtHls.ssa.analysis.llvmIrInterpretJump import _decodeOpcode_Br, \
     _decodeOpcode_Switch, _decodeOpcode_RetInst
 from hwtHls.ssa.analysis.llvmIrInterpretMem import _decodeOpcode_GetElementPtr, \
-    _decodeOpcode_Freeze, _decodeOpcode_Alloca, _getItemFromLocalPointer
+    _decodeOpcode_Freeze, _decodeOpcode_Alloca, _getItemFromLocalPointer, \
+    _decodeOpcode_ExtractValueInst
 from hwtHls.ssa.analysis.llvmIrInterpretStreamIo import LlvmIrInterpretStreamIo
 from hwtHls.ssa.analysis.llvmIrInterpretUtils import BINARY_OPS_TO_FN, \
     _prepareWaveWriterTopIo, VcdLlvmIrCodelineFormatter, \
     VcdLlvmIrSimTimeFormatter, VcdLlvmIrBBFormatter, RE_NON_ID, PtrAddrTuple, \
-    SimIoUnderflowErr, LlvmIrInstrFunction
+    SimIoUnderflowErr, LlvmIrInstrFunction, LlvmIrInterpretArgs, AnyInstrOpcode
+from hwtHls.ssa.translation.toLlvm import PyObjectPlaceholderList
 from hwtLib.abstract.sim_ram import SimRam
+from hwtSimApi.agents.base import NOP
 from hwtSimApi.constants import CLK_PERIOD
 from hwtSimApi.triggers import StopSimumulation
 from pyDigitalWaveTools.vcd.common import VCD_SIG_TYPE
@@ -48,10 +47,6 @@ from pyDigitalWaveTools.vcd.writer import VcdWriter
 from pyMathBitPrecise.bit_utils import to_unsigned
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 from tests.math.hFloatTmp.hFloatTmpConst import HFloatTmpConst
-from tests.math.hFloatTmp.hFloatTmpOps import fpowi, fpow
-
-
-LlvmIrInterpretArgs = tuple[Generator[Union[int, HConst], None, None], list[HConst], ...]
 
 
 class LlvmIrInterpret():
@@ -66,6 +61,13 @@ class LlvmIrInterpret():
     :ivar waveLog: writer for wave logging
     :ivar codelineOffset: offset from beginning from the MIR .ll file where function body starts
     """
+    OPCODE_INT_TO_ENUM: dict[int, AnyInstrOpcode] = {
+        **{i.value: i for i in Instruction.MemoryOps},
+        **{i.value: i for i in Instruction.BinaryOps},
+        **{i.value: i for i in Instruction.OtherOps},
+        **{i.value: i for i in Instruction.TermOps},
+        **{i.value: i for i in Instruction.CastOps},
+    }
     INTRINSIC_ID_TO_FN = {
         Intrinsic.ctlz: lambda ops: zext(ctlz(*ops), ops[0]._dtype.bit_length()),
         Intrinsic.cttz: lambda ops: zext(cttz(*ops), ops[0]._dtype.bit_length()),
@@ -76,88 +78,67 @@ class LlvmIrInterpret():
         Intrinsic.smin: lambda ops: hwSMin(*ops),
         Intrinsic.fshl: lambda ops: fshl(*ops),
         Intrinsic.fshr: lambda ops: fshr(*ops),
-        Intrinsic.powi: lambda ops: fpowi(*ops),
-        Intrinsic.pow: lambda ops: fpow(*ops),
         Intrinsic.usub_sat: _opcode_Intrinsic_usub_sat,
         Intrinsic.uadd_sat: _opcode_Intrinsic_uadd_sat,
         Intrinsic.sadd_sat: _opcode_Intrinsic_sadd_sat,
         Intrinsic.ssub_sat: _opcode_Intrinsic_ssub_sat,
-
+        Intrinsic.uadd_with_overflow: _opcode_Intrinsic_uadd_with_overflow,
+        Intrinsic.usub_with_overflow: _opcode_Intrinsic_usub_with_overflow,
+        Intrinsic.sadd_with_overflow: _opcode_Intrinsic_sadd_with_overflow,
+        Intrinsic.ssub_with_overflow: _opcode_Intrinsic_ssub_with_overflow,
     }
-    RE_FP_INTRINSIC_ID = re.compile(r"(hwtHls\.fp\.(unspecialized\.)?([a-zA-Z_]+)\.)")
-    _dispatchDict1: dict[int, Callable] = {
-        Instruction.GetElementPtr.value: _decodeOpcode_GetElementPtr,
-        Instruction.Call.value: _decodeOpcode_CallInst,
-        Instruction.ICmp.value: _decodeOpcode_ICmpInst,
-        Instruction.FCmp.value: _decodeOpcode_FCmpInst,
-        Instruction.Select.value: _decodeOpcode_SelectInst,
-        Instruction.Freeze.value: _decodeOpcode_Freeze,
-        Instruction.Alloca.value: _decodeOpcode_Alloca,
-        Instruction.FNeg.value: _decodeOpcode_FNeg,
-        Instruction.Br.value: _decodeOpcode_Br,
-        Instruction.Switch.value: _decodeOpcode_Switch,
-        Instruction.Ret.value: _decodeOpcode_RetInst,
-        **{opcode.value: _decodeOpcode_CastInst
+    RE_FP_INTRINSIC_ID = re.compile(r"(hwtHls\.fp\.(unspecialized\.)?([a-zA-Z_0-9]+)\.)")
+    # instruction with common handling of operands
+    _dispatchDict1: dict[AnyInstrOpcode, Callable] = {
+        Instruction.MemoryOps.GetElementPtr: _decodeOpcode_GetElementPtr,
+        Instruction.OtherOps.Call: _decodeOpcode_CallInst,
+        Instruction.OtherOps.ICmp: _decodeOpcode_ICmpInst,
+        Instruction.OtherOps.Select: _decodeOpcode_SelectInst,
+        Instruction.OtherOps.Freeze: _decodeOpcode_Freeze,
+        Instruction.MemoryOps.Alloca: _decodeOpcode_Alloca,
+        Instruction.TermOps.Br: _decodeOpcode_Br,
+        Instruction.TermOps.Switch: _decodeOpcode_Switch,
+        Instruction.TermOps.Ret: _decodeOpcode_RetInst,
+        Instruction.OtherOps.ExtractValue: _decodeOpcode_ExtractValueInst,
+        **{opcode: _decodeOpcode_CastInst
            for opcode in (Instruction.CastOps.BitCast,
                           Instruction.CastOps.Trunc,
                           Instruction.CastOps.ZExt,
                           Instruction.CastOps.SExt)
         },
-        **{opcode.value: _makeDecodeOpcodeFunction_BinaryOperator(fn)
+        **{opcode: _makeDecodeOpcodeFunction_BinaryOperator(fn)
            for opcode, fn in BINARY_OPS_TO_FN.items()
         }
     }
 
-    _dispatchDictFP = {
-        "hwtHls.fp.castToHFloatTmp.": _decodeIntrinsic_fp_castToHFloatTmp,
-        "hwtHls.fp.castFromHFloatTmp.": _decodeIntrinsic_fp_castFromHFloatTmp,
-        "hwtHls.fp.unspecialized.shr.": _decodeIntrinsic_fp_unspecialized_shr,
-        "hwtHls.fp.unspecialized.shl.": _decodeIntrinsic_fp_unspecialized_shl,
-        "hwtHls.fp.shr.": _decodeIntrinsic_fp_binOp_floatInt(lambda v, sh: v * (2.0 ** -sh)),
-        "hwtHls.fp.shl.": _decodeIntrinsic_fp_binOp_floatInt(lambda v, sh: v * (2.0 ** sh)),
-        "hwtHls.fp.fcmp.": _decodeIntrinsic_fp_fcmp,
-        "hwtHls.fp.fneg.": _decodeIntrinsic_fp_unOp(lambda x:-x),
-        "hwtHls.fp.fadd.": _decodeIntrinsic_fp_binOp(add),
-        "hwtHls.fp.fsub.": _decodeIntrinsic_fp_binOp(sub),
-        "hwtHls.fp.fmul.": _decodeIntrinsic_fp_binOp(mul),
-        "hwtHls.fp.fdiv.": _decodeIntrinsic_fp_binOp(truediv),
-        "hwtHls.fp.frem.": _decodeIntrinsic_fp_binOp(mod),
-        "hwtHls.fp.ceil.": _decodeIntrinsic_fp_unOp(math.ceil),
-        "hwtHls.fp.cos.": _decodeIntrinsic_fp_unOp(math.cos),
-        "hwtHls.fp.cospi.":_decodeIntrinsic_fp_unOp(lambda x: math.cos(x * math.pi)),
-        "hwtHls.fp.exp.": _decodeIntrinsic_fp_unOp(math.exp),
-        # "hwThls.fp.exp10.": _decodeIntrinsic_fp_unOp(math.exp10),
-        # "hwThls.fp.exp2.":  _decodeIntrinsic_fp_unOp(math.exp2),
-        "hwtHls.fp.fabs.": _decodeIntrinsic_fp_unOp(math.fabs),
-        "hwtHls.fp.floor.": _decodeIntrinsic_fp_unOp(math.floor),
-        "hwtHls.fp.log.": _decodeIntrinsic_fp_unOp(math.log),
-        "hwtHls.fp.log10.": _decodeIntrinsic_fp_unOp(math.log10),
-        "hwtHls.fp.log2.": _decodeIntrinsic_fp_unOp(math.log2),
-        "hwtHls.fp.fpow.": _decodeIntrinsic_fp_binOp(math.pow),
-        "hwtHls.fp.fpowi.": _decodeIntrinsic_fp_binOp_floatInt(math.pow),
-        "hwtHls.fp.round.": _decodeIntrinsic_fp_unOp(round),
-        # "hwthls.fp.roundeven.":  _decodeIntrinsic_fp_unOp(roundeven),
-        "hwtHls.fp.sin.": _decodeIntrinsic_fp_unOp(math.sin),
-        "hwtHls.fp.sinpi.": _decodeIntrinsic_fp_unOp(lambda x: math.sin(x * math.pi)),
-        "hwtHls.fp.sqrt.": _decodeIntrinsic_fp_unOp(math.sqrt),
-    }
-
-    def __init__(self, F: Function, strCtx: LLVMStringContext, timeStep: int=CLK_PERIOD):
-        self.F = F
+    def __init__(self, llvm: LlvmCompilationBundle,
+                 placeholderObjectSlots: PyObjectPlaceholderList,
+                 componentGenerators: ComponentGeneratorDict,
+                 fnArgs: LlvmIrInterpretArgs,
+                 timeStep: int=CLK_PERIOD):
+        assert llvm.main
+        self.F = llvm.main
         self.timeStep = timeStep
         self.waveLog: Optional[VcdWriter] = None
-        self.strCtx: LLVMStringContext = strCtx
+        self.strCtx: LLVMStringContext = llvm.strCtx
         self.codelineOffset: int = 0
         self.fnArgs: Optional[LlvmIrInterpretArgs] = None
-        self.ioMetadata: list[HwtHlsIoMetadata] = HwtHlsIoMetadata_get(F)
+        self.ioMetadata: list[HwtHlsIoMetadata] = HwtHlsIoMetadata_get(self.F)
         self.streamIoHandler = LlvmIrInterpretStreamIo(self)
+        self.placeholderObjectSlots = placeholderObjectSlots
+        self.componentGenerators = componentGenerators
+        self.fnArgs = fnArgs
         # instructions with special handling of operands
-        self._dispatchDict0: dict[int, Callable] = {
-            Instruction.Load.value: self._decodeOpcode_Load,
-            Instruction.Store.value: self._decodeOpcode_Store,
-            Instruction.Unreachable.value: self._decodeOpcode_UnreachableInst,
+        self._dispatchDict0: dict[AnyInstrOpcode, Callable] = {
+            Instruction.MemoryOps.Load: self._decodeOpcode_Load,
+            Instruction.MemoryOps.Store: self._decodeOpcode_Store,
+            Instruction.TermOps.Unreachable: self._decodeOpcode_UnreachableInst,
         }
-
+        d = self._dispatchDict0
+        for k, cg in componentGenerators.items():
+            if isinstance(k, TargetOpcode):
+                continue
+            d[k] = cg.llvmIrInterpretDecode
         # dictionary which holds list of compiled function exec. functions for each block
         self._decodedBlocks: dict[BasicBlock, list[tuple[Instruction, LlvmIrInstrFunction]]] = {}
         # dictionary (src, dst block) -> tuples (phi, new value)
@@ -251,6 +232,7 @@ class LlvmIrInterpret():
         """
         Atomically evaluate PHIs at the top of the block.
         """
+        # print("_runBlockPhis", bb.getName().str())
         assert bb is not None, predBb
         # print(bb.printAsOperand())
         newPhiVals = []
@@ -268,7 +250,8 @@ class LlvmIrInterpret():
     def _storeInstrResult(self, waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst],
                      instr: Instruction, res: Union[HBitsConst, HFloatTmpConst]):
         if waveLog is not None:
-            waveLog.logChange(nowTime, instr, res, None)
+            if isinstance(res, HConst):
+                waveLog.logChange(nowTime, instr, res, None)
         regs[instr] = res
 
     def _decodeInstArguments(self, operandValues: Sequence[Value]):
@@ -334,7 +317,7 @@ class LlvmIrInterpret():
 
         return ops
 
-    def _decodeOpcode_Load(self, _, bb: BasicBlock, instr: Instruction) -> LlvmIrInstrFunction:
+    def _decodeOpcode_Load(self, _, instr: Instruction) -> LlvmIrInstrFunction:
         load = InstructionToLoadInst(instr)
         assert load is not None, instr
         srcPtr, = load.iterOperandValues()
@@ -348,7 +331,6 @@ class LlvmIrInterpret():
                 streamOffsetMd = srcAlloca.getMetadata(self.strCtx.addStringRef(StreamChannelProps.METADATA_NAME_TMP_VAR_DATA_OFFSET))
                 if streamOffsetMd is not None:
                     return self.streamIoHandler._decodeLoadFromStreamTmpVar_offset(instr, srcAlloca, streamOffsetMd)
- 
 
             def _opcode_Load(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
                 res = _getItemFromLocalPointer(regs, srcPtr, width, instr)
@@ -360,30 +342,40 @@ class LlvmIrInterpret():
             argI = t.getAddressSpace() - 1
             ioValues = self.fnArgs[argI]
             ioMd: HwtHlsIoMetadata = self.ioMetadata[argI]
-            isBlocking = ioMd.isBlocking
+            isBlocking = ioMd.hasBlockingLoad
+            if not isBlocking:
+                w = instr.getType().getScalarSizeInBits()
+                nopVal = HBits(w).from_py(0, 1 << (w - 1))  # only vld=0 valid
 
             def _opcode_Load(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
                 try:
                     res = next(ioValues)
                 except StopIteration:
                     raise SimIoUnderflowErr()
-
-                assert isinstance(res, HConst) and \
-                    isinstance(res._dtype, HBits) and\
-                    not res._dtype.signed, ("Input value must be must be unsigned BitsVal", instr, res)
-                if isBlocking:
-                    assert res._dtype.bit_length() == instr.getType().getScalarSizeInBits(), (
-                        "Input value must be must have correct width", instr, res)
+                if res is NOP:
+                    assert not isBlocking, instr
+                    res = nopVal
                 else:
-                    assert res._dtype.bit_length() + 1 == instr.getType().getScalarSizeInBits(), (
-                        "Input value must be must have correct width", instr, res)
-                    res = b1._concat(res)  # concat with valid=1
+                    assert isinstance(res, HConst) and \
+                        isinstance(res._dtype, HBits) and\
+                        res._dtype.signed is None, ("Input value must be must be not-signed BitsVal", instr, res)
+                    if isBlocking:
+                        assert res._dtype.bit_length() == instr.getType().getScalarSizeInBits(), (
+                            "Input value must be must have correct width", instr, res)
+                    else:
+                        assert res._dtype.bit_length() + 1 == instr.getType().getScalarSizeInBits(), (
+                            "Input value must be must have correct width", instr, res)
+                        res = b1._concat(res)  # concat with valid=1
                 # print("  load", instr, res)
+                if waveLog is not None:
+                    # update for value of input port itself
+                    waveLog.logChange(nowTime, srcPtrAsArg, res, None)
+                # update for result of load instruction
                 self._storeInstrResult(waveLog, nowTime, regs, instr, res)
 
         return _opcode_Load
 
-    def _decodeOpcode_Store(self, _, bb: BasicBlock, instr: Instruction) -> LlvmIrInstrFunction:
+    def _decodeOpcode_Store(self, _, instr: Instruction) -> LlvmIrInstrFunction:
         """
         Convert StoreInst to a python function which will do just that.
         """
@@ -407,6 +399,7 @@ class LlvmIrInterpret():
                 _v = HFloatTmp.from_py(float(vAsConstFP.getValue()))
             else:
                 vIsConst = False
+
         dstPtrInstr = ValueToInstruction(dstPtr)
         if dstPtrInstr is not None:
             dstGep = InstructionToGetElementPtrInst(dstPtrInstr)
@@ -446,6 +439,7 @@ class LlvmIrInterpret():
                     v = regs[_v]
                 ioValues.append(v)
                 if waveLog is not None:
+                    # update for value of output port
                     waveLog.logChange(nowTime, dstPtrAsArg, v, None)
 
             return _opcode_Store
@@ -470,26 +464,29 @@ class LlvmIrInterpret():
 
             raise NotImplementedError(instr)
 
-    def _decodeOpcode_UnreachableInst(self, _, bb: BasicBlock, instr: Instruction) -> LlvmIrInstrFunction:
+    def _decodeOpcode_UnreachableInst(self, _, instr: Instruction) -> LlvmIrInstrFunction:
 
         def _opcode_UnreachableInst(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
             raise AssertionError("UnreachableInst should have never been reached", nowTime, instr)
 
         return  _opcode_UnreachableInst
 
-    def _decodeLlvmInstr(self, bb: BasicBlock, instr: Instruction) -> LlvmIrInstrFunction:
+    def _decodeLlvmInstr(self, instr: Instruction) -> LlvmIrInstrFunction:
         # check for instructions which require special handling of operands
-        opcodeFn = self._dispatchDict0.get(instr.getOpcode(), None)
+        opc = instr.getOpcode()
+        opc = self.OPCODE_INT_TO_ENUM[opc]
+        opcodeFn = self._dispatchDict0.get(opc, None)
         if opcodeFn is not None:
-            return opcodeFn(self, bb, instr)
+            return opcodeFn(self, instr)
+
         callInstr = InstructionToCallInst(instr)
         if callInstr is not None:
             if IsStreamIo(callInstr):
-                return self.streamIoHandler._decodeLlvmIrFunctionInstrStreamIo(self, bb, callInstr)
+                return self.streamIoHandler._decodeLlvmIrFunctionInstrStreamIo(self, callInstr)
 
-        opcodeFn = self._dispatchDict1.get(instr.getOpcode(), None)
+        opcodeFn = self._dispatchDict1.get(opc, None)
         if opcodeFn is not None:
-            return opcodeFn(self, bb, instr)
+            return opcodeFn(self, instr)
 
         raise NotImplementedError(instr)
 
@@ -514,7 +511,7 @@ class LlvmIrInterpret():
                 instr: Instruction
                 if InstructionToPHINode(instr):
                     continue
-                iDecoded = self._decodeLlvmInstr(bb, instr)
+                iDecoded = self._decodeLlvmInstr(instr)
                 assert iDecoded is not None, instr
                 bbDecoded.append((instr, iDecoded))
 
@@ -576,9 +573,8 @@ class LlvmIrInterpret():
                 instanceOfGv = arrTyHwt.from_py([float(ValueToConstantFP(i).getValue()) for i in v])
             regs[gv] = instanceOfGv
 
-    def run(self, fnArgs: LlvmIrInterpretArgs, wallTime:Optional[int]=None):
+    def run(self, wallTime:Optional[int]=None):
         F = self.F
-        self.fnArgs = fnArgs
 
         regs: dict[Instruction, HConst] = {}
         self._initGlobalsFromIr(F.getParent(), regs)

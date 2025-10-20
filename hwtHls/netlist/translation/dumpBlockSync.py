@@ -59,6 +59,8 @@ class HlsNetlistAnalysisPassDumpBlockSync(HlsNetlistAnalysisPass):
                 flags.append(f"isLoopHeader")
             if mbMeta.isLoopHeaderOfFreeRunning:
                 flags.append(f"isLoopHeaderOfFreeRunning")
+            if mbMeta.fsm is not None:
+                flags.append(f"fsm={sorted(mb.getNumber() for mb in mbMeta.fsm)}")
             inputs = set()
             outputs = set()
             for instr in b:

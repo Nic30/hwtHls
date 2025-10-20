@@ -1,19 +1,29 @@
-from typing import Union, Optional, List, Tuple
+from typing import Union, Optional
 
 from hwt.constants import NOT_SPECIFIED
+from hwt.hdl.operatorDefs import HOperatorDef
 from hwt.hdl.types.function import HFunction
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.struct import HStructField
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pragma import _PyBytecodeIntrinsic
-from hwtHls.llvm.llvmIr import MachineInstr, CallInst, AddDefaultFunctionAttributes, Value, \
-    IRBuilder, FunctionCallee, VectorOfTypePtr, FunctionType, Function, Type
-from hwtHls.netlist.builder import HlsNetlistBuilder
-from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut
+from hwtHls.llvm.llvmIr import CallInst, AddDefaultFunctionAttributes, Value, \
+    IRBuilder, FunctionCallee, VectorOfTypePtr, FunctionType, Function, Type, \
+    Instruction, MachineInstr, Register, MachineRegisterInfo
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+from hwtHls.architecture.componentGenerator import ComponentGenerator
+from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, HlsNetNodeOut
+from hwtHls.ssa.translation.llvmMirToNetlist.utils import MirToHlsNetlistTranslatedInstrOpsT
+from hwtHls.ssa.analysis.llvmIrInterpretUtils import LlvmIrInstrFunction
+from hwtHls.ssa.analysis.llvmMirInterpretUtils import LlvmMirInstrFunction
+from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
+from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
+from hwtHls.ssa.analysis.llvmIrInterpret import LlvmIrInterpret
+from hwtHls.ssa.analysis.llvmMirInterpret import LlvmMirInterpret
+from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
+from hwt.hdl.types.bits import HBits
 
 
 class HardBlockHwModule(_PyBytecodeIntrinsic):
@@ -21,14 +31,13 @@ class HardBlockHwModule(_PyBytecodeIntrinsic):
     A container for part of the circuit inlined later during compilation.
     :note: this class inherits from HFunctionConst because the object represents a constant function pointer
     
-    [todo] maybe it is better to implement inlining on arch level using processes
     There are multiple ways how to inline function in hwtHls:
        * call normal python function which produces expression/ast and analyze this expression.
        * call hlsBytecode with PyBytecodeInline which inlines function in frontend
-       * use :meth:`HardBlockHwModule.translateMirToNetlist` to merge with netlist of parent function on netlist level
-       * use :meth:`HardBlockHwModule.translateNetlistToArch` to merge with netlist of parent function on architecture level
+       * use :class:`HardBlockHwModule` + :class:`ComponentGenerator` to inline on various places during
+         HlsNetlist to optimization and lowering to RTL
     
-    :ivar placeholderObjectId: index of this in placeholder list
+    :ivar placeholderObjectId: index of this in :attr:`ToLlvmIrTranslator.placeholderObjectSlots` list
     """
 
     __hlsIsLowLevelFn = True
@@ -38,15 +47,16 @@ class HardBlockHwModule(_PyBytecodeIntrinsic):
                  hwInputT: HdlType,
                  hwOutputT: Union[HdlType, NOT_SPECIFIED]=NOT_SPECIFIED,
                  name: Optional[str]=None,
+                 defaultKwargs={},
                  operationRealizationMeta: Optional[OpRealizationMeta]=None):
-        super().__init__(hwInputT, hwOutputT=hwOutputT, name=name, operationRealizationMeta=operationRealizationMeta)
+        super().__init__(hwInputT, hwOutputT=hwOutputT, defaultKwargs=defaultKwargs, name=name, operationRealizationMeta=operationRealizationMeta)
         self.placeholderObjectId: Optional[int] = None
         self._llvmFunction:Optional[Function] = None
 
     def getFnName(self):
         return f"hwtHls.pyObjectPlaceholder.{self.placeholderObjectId:d}.{self.__class__.__name__:s}.i{self.hwInputT.bit_length():d}"
 
-    def _translateExprHConstHardBlockFunctionDef(self, toLlvm: "ToLlvmIrTranslator"):
+    def _translateExprHConstHardBlockFunctionDef(self, toLlvm: ToLlvmIrTranslator):
         strCtx = toLlvm.strCtx
         _argTypes = VectorOfTypePtr()
         _argTypes.append(Type.getIntNTy(toLlvm.ctx, 32))
@@ -62,7 +72,7 @@ class HardBlockHwModule(_PyBytecodeIntrinsic):
         returnType = toLlvm._translateType(self.hwOutputT)
         FT = FunctionType.get(returnType, _argTypes, False)
         name = strCtx.addTwine(self.getFnName())
-        F = Function.Create(FT, Function.ExternalLinkage, name, toLlvm.module)
+        F = Function.Create(FT, Function.LinkageTypes.ExternalLinkage, name, toLlvm.module)
         if self.hasManyInputs:
             for field, a in zip(self.hwInputT.fields, F.args()):
                 field: HStructField
@@ -72,7 +82,7 @@ class HardBlockHwModule(_PyBytecodeIntrinsic):
         return F
 
     @override
-    def translateToLlvm(self, toLlvm: "ToLlvmIrTranslator", b: IRBuilder, args: Tuple[Value]) -> CallInst:
+    def translateToLlvm(self, toLlvm: "ToLlvmIrTranslator", b: IRBuilder, args: tuple[Value]) -> CallInst:
         # F = self._llvmFunction
         # if F is None:
         #    F = self.F = self._createLlvmFunctionDef(toLlvm)
@@ -87,51 +97,72 @@ class HardBlockHwModule(_PyBytecodeIntrinsic):
         res.setDoesNotAccessMemory()
         return res
 
-    def translateMirToNetlist(self,
-                              mirToNetlist:"HlsNetlistAnalysisPassMirToNetlist",
-                              mbMeta: MachineBasicBlockMeta,
-                              instr: MachineInstr,
-                              builder: HlsNetlistBuilder,
-                              inputs: List[HlsNetNodeOut],
-                              dstName: str
-                              ):
-        """
-        This method is called to generated HlsNetlist nodes from LLVM MIR.
-        Produces netlist (DAG) + input output delays
-        * Products of this block will be subject of ArchElement extraction algorithm.
-        * internal IO will be realized as normal HlsNetlistNodePortIn/Out links.
+    @staticmethod
+    def _llvmMirToHlsNetlist_cutOfIdAndWidthFromOps(ops: tuple):
+        # ops are in foramt $objId id, $resultWidth, inputs,  inputWidths, enCond
+        # extract inputs and enCond
+        return ops[1 + 1:2 + (len(ops) - 2) // 2], ops[-1]
 
-        :note: If this method succeeds this object is no longer a part of netlist or any code to process.
 
-        :param mirToNetlist: Main object form LLVM MIR to HlsNetlist translation.
-        :param instr: LLVM MIR instruction which is being translated
-        """
-        opRealizationMeta = self.operationRealizationMeta
-        assert opRealizationMeta is not None, ("If this function has no override this default function will construct black box, and needs scheduling info")
+class ComponentGeneratorForHardBlock(ComponentGenerator):
+
+    @override
+    def llvmIrInterpretDecode(self, interpret: LlvmIrInterpret, instr: Instruction,
+                          pyObjectPlaceholder: HardBlockHwModule) -> LlvmIrInstrFunction:
+        ":note: same as :meth:`ComponentGenerator.llvmIrInterpretDecode` just pyObjectPlaceholder added"
+        raise NotImplementedError("This method is supposed to be overriden in child class", self.__class__)
+
+    @override
+    def llvmMirInterpretDecode(self, interpret: LlvmMirInterpret, MRI: MachineRegisterInfo, instr: MachineInstr,
+                   pyObjectPlaceholder: HardBlockHwModule) -> LlvmMirInstrFunction:
+        ":note: same as :meth:`ComponentGenerator.llvmMirInterpretDecode` just pyObjectPlaceholder added"
+        raise NotImplementedError("This method is supposed to be overriden in child class", self.__class__)
+
+    @override
+    def _llvmMirToHlsNetlistBuildNode(self,
+                                   mirToNetlist: "HlsNetlistAnalysisPassMirToNetlist",
+                                   instr: MachineInstr,
+                                   ops: MirToHlsNetlistTranslatedInstrOpsT,
+                                   pyObjectPlaceholder: HardBlockHwModule,
+                                   builder: HlsNetlistBuilder,
+                                   resTy: HBits,
+                                   inputs: list[HlsNetNodeOutAny]
+                                   ):
+        op = pyObjectPlaceholder.getComponentGeneratorKey()
+        assert isinstance(op, HOperatorDef), (pyObjectPlaceholder, op)
+        res = builder.buildOp(op, self.getOperationSpecialization(mirToNetlist, instr, ops, pyObjectPlaceholder), resTy, *inputs)
+        return res
+
+    @override
+    def llvmMirToHlsNetlist(self,
+                            mirToNetlist: "HlsNetlistAnalysisPassMirToNetlist",
+                            builder: "HlsNetlistBuilder",
+                            mbMeta: "MachineBasicBlockMeta",
+                            allBlockingLoadAck: Optional[HlsNetNodeOutAny],
+                            name: Optional[str],
+                            instr: MachineInstr,
+                            dst: Union[Register, tuple[Register]],
+                            ops: MirToHlsNetlistTranslatedInstrOpsT,
+                            pyObjectPlaceholder: HardBlockHwModule) -> Optional[HlsNetNodeOutAny]:
         valCache: MirToHwtHlsNetlistValueCache = mirToNetlist.valCache
-        netlist: HlsNetlistCtx = mirToNetlist.netlist
+        inputs, cond = HardBlockHwModule._llvmMirToHlsNetlist_cutOfIdAndWidthFromOps(ops)
+        argCnt = len(inputs)
+        if pyObjectPlaceholder.hasManyInputs:
+            assert argCnt == len(pyObjectPlaceholder.hwInputT.fields), (inputs, pyObjectPlaceholder.hwInputT)
+        else:
+            assert argCnt == 1, inputs
 
-        raise NotImplementedError("[todo] construct aggregate  with assigned opRealizationMeta")
+        if pyObjectPlaceholder.hasManyOutputs:
+            raise NotImplementedError()
 
-        # n = HlsNetNodeRead(netlist, srcIo, name=f"ld_r{instr.getOperand(0).getReg().virtRegIndex():d}")
-        #
-        # _cond = syncTracker.resolveControlOutput(cond)
-        #
-        # o = n._portDataOut if representativeReadStm._isBlocking else n.getRawValue()
-        # assert not o._dtype.signed, o
-        # valCache.add(mbSync.block, instrDstReg, o, True)
-        #
-        # return [n, ]
-        # res.obj.name = name
-        # valCache.add(mb, dst, res, True)
+        resTy = HBits(mirToNetlist.MRI.getType(dst).getScalarSizeInBits())
+        res = self._llvmMirToHlsNetlistBuildNode(mirToNetlist, instr, ops, pyObjectPlaceholder, builder, resTy, inputs)
 
-    # def translateNetlistToArch(self, n: HlsNetNodeAggregate):
-    #    """
-    #    Produces scheduled ArchElement(s).
-    #    * Product will be subject of synchronization resolution algorithm.
-    #    * internal IO will be realized using channels.
-    #
-    #    :note: If this method succeeds the node is replaced with ArchElement
-    #        and this object is no longer part of any input code.
-    #    """
-    #    raise NotImplementedError()
+        res.name = name
+        opRealizationMeta = pyObjectPlaceholder.operationRealizationMeta
+        if opRealizationMeta:
+            res.obj.assignRealization(opRealizationMeta)
+
+        valCache.add(mbMeta.block, dst, res, True)
+
+        return allBlockingLoadAck

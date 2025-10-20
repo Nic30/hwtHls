@@ -1,4 +1,5 @@
-from typing import List, Dict, Optional, Tuple, Set
+from copy import copy
+from typing import List, Dict, Optional, Tuple, Set, Sequence
 
 from hwt.hdl.types.defs import BIT
 from hwt.pyUtils.setList import SetList
@@ -9,12 +10,16 @@ from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPas
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy
+from hwtHls.netlist.scheduler.resourceList import SchedulingResourceConstraints, \
+    SchedulingResourceType
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import \
     MachineEdgeMeta, MachineEdge, MACHINE_EDGE_TYPE, MachineLoopId
 from hwtHls.ssa.translation.llvmMirToNetlist.utils import _regIsValidLiveIn
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from ipCorePackager.constants import DIRECTION
+from hwtHls.architecture.componentGenerator import ComponentGenerator
+from hwtHls.platform.opRealizationMeta import ComponentRealizationMeta
 
 
 class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
@@ -137,6 +142,12 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
             assert mostOuterOuterPred is not None, ("Can not find block where to inline initialization for rst block for", mb)
 
             mbMeta.rstPredeccessor = p0
+            if mbMeta.fsm is not None:
+                p0Meta = self.blockMeta[p0]
+                assert p0Meta.fsm is None, p0
+                mbMeta.fsm.append(p0)
+                p0Meta.fsm = mbMeta.fsm
+
             rstE: MachineEdgeMeta = self.edgeMeta[(p0, mb)]
             rstE.etype = MACHINE_EDGE_TYPE.RESET
             rstE.inlineRstDataToEdge = (mostOuterOuterPred, mb)
@@ -224,6 +235,7 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
             return True
         else:
             return False
+
     # def _hasSomeLiveInFromEveryPredec(self, mb: MachineBasicBlock):
     #    mir = self.originalMir
     #    MF = mir.mf
@@ -248,66 +260,79 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
         """
         The code needs a synchronization if it starts a new thread without data dependencies and has predecessor thread.
 
-        :note: They synchronization is always marked for the start of the thread.
+        :note: The synchronization is always marked for the start of the thread.
         """
         # resolve control enable flag for a block
         mbMeta: MachineBasicBlockMeta = self.blockMeta[mb]
         loops: MachineLoopInfo = self.loops
         needsControlOld = mbMeta.needsControl
+        if not needsControlOld:
+            componentGenerators = self.platform._componentGenerators
+            MRI = mb.getParent().getRegInfo()
+            netlist = self.netlist
+            for mi in mb:
+                mi: MachineInstr
+                opc = mi.getOpcode()
+                cgen = componentGenerators.get(opc)
+                if cgen is not None:
+                    cgen: ComponentGenerator
+                    r: ComponentRealizationMeta = cgen.resolveRealizationOfLlvmMirMachineInstr(MRI, netlist, mi)
+                    assert isinstance(r, ComponentRealizationMeta), (mi, cgen, r)
+                    if not r.canBeSynchornizedPurelyByLatency():
+                        mbMeta.needsControl = True
+                        break
 
         if mb.pred_size() == 0 and mb.succ_size() == 0:
             assert next(iter(self.originalMir.mf)) == mb, "No predecessor is allowed only for entry block"
             mbMeta.needsControl = True
             mbMeta.needsStarter = True
-        else:
+        elif self.loops.isLoopHeader(mb):
+            loop: MachineLoop = loops.getLoopFor(mb)
+            # The synchronization is not required if it could be only by the data itself.
+            # It can be done by data itself if there is an single output/write which has all
+            # input as transitive dependencies (unconditionally.) And if this is an infinite cycle.
+            # So we do not need to check the number of executions.
+            self._resolveRstPredecessor(mb, mbMeta, loop)
+            self._resolveUsedLoops(mb, mbMeta, loop)
 
-            if self.loops.isLoopHeader(mb):
-                loop: MachineLoop = loops.getLoopFor(mb)
-                # The synchronization is not required if it could be only by the data itself.
-                # It can be done by data itself if there is an single output/write which has all
-                # input as transitive dependencies (unconditionally.) And if this is an infinite cycle.
-                # So we do not need to check the number of executions.
-                self._resolveRstPredecessor(mb, mbMeta, loop)
-                self._resolveUsedLoops(mb, mbMeta, loop)
+            if not mbMeta.needsControl:
+                if (
+                      (mb.pred_size() > 1 and
+                       (mb.pred_size() != 2 or not mbMeta.rstPredeccessor)  # and
+                        # not self._hasSomeLiveInFromEveryPredec(mb)
+                       )
+                      ):
+                    # check for multiple independent threads in body or more entry points to a loop
+                    loopBodySelfSynchronized = True
+                    for pred in mb.predecessors():
+                        pred: MachineBasicBlock
+                        isLoopReenter = loop.containsBlock(pred)
+                        # reenter does not need explicit sync because it is synced by data
+                        # rstPredeccessor does not need explicit sync because it will be inlined to reset values
+                        if not isLoopReenter and mbMeta.rstPredeccessor is not pred:
+                            loopBodySelfSynchronized = False
+                            break
 
-                if not mbMeta.needsControl:
-                    if (
-                          (mb.pred_size() > 1 and
-                           (mb.pred_size() != 2 or not mbMeta.rstPredeccessor)  # and
-                            # not self._hasSomeLiveInFromEveryPredec(mb)
-                           )
-                          ):
-                        # check for multiple independent threads in body or more entry points to a loop
-                        loopBodySelfSynchronized = True
-                        for pred in mb.predecessors():
-                            pred: MachineBasicBlock
-                            isLoopReenter = loop.containsBlock(pred)
-                            # reenter does not need explicit sync because it is synced by data
-                            # rstPredeccessor does not need explicit sync because it will be inlined to reset values
-                            if not isLoopReenter and mbMeta.rstPredeccessor is not pred:
-                                loopBodySelfSynchronized = False
-                                break
-
-                        if loopBodySelfSynchronized and mb.pred_size() == 2:
-                            pass
-                        else:
-                            mbMeta.needsControl = True
-
+                    if loopBodySelfSynchronized and mb.pred_size() == 2:
+                        pass
                     else:
                         mbMeta.needsControl = True
 
-            elif not mbMeta.needsControl:
-                needsControl = False
-                if (any(self.blockMeta[pred].needsControl for pred in mb.predecessors()) or
-                    any(self.blockMeta[suc].needsControl for suc in mb.successors())
-                    ):
-                    needsControl = True
-                elif (mbMeta.needsStarter and
-                          (mb.succ_size() == 0 or
-                           any(loops.getLoopFor(suc) is None for suc in mb.successors()))):
-                    needsControl = True
+                else:
+                    mbMeta.needsControl = True
 
-                mbMeta.needsControl = needsControl
+        elif not mbMeta.needsControl:
+            needsControl = False
+            if (any(self.blockMeta[pred].needsControl for pred in mb.predecessors()) or
+                any(self.blockMeta[suc].needsControl for suc in mb.successors())
+                ):
+                needsControl = True
+            elif (mbMeta.needsStarter and
+                      (mb.succ_size() == 0 or
+                       any(loops.getLoopFor(suc) is None for suc in mb.successors()))):
+                needsControl = True
+
+            mbMeta.needsControl = needsControl
 
         if not needsControlOld and mbMeta.needsControl:
             self._onBlockNeedsControl(mb)
@@ -389,7 +414,8 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
     def _initBlockMeta(mf: MachineFunction,
                            netlist: HlsNetlistCtx,
                            valCache: MirToHwtHlsNetlistValueCache,
-                           blockMeta:Dict[MachineBasicBlock, MachineBasicBlockMeta]):
+                           blockMeta:Dict[MachineBasicBlock, MachineBasicBlockMeta],
+                           blockFsms: dict[MachineBasicBlock, SetList[MachineBasicBlock]]):
         for mb in mf:
             mb: MachineBasicBlock
 
@@ -411,7 +437,8 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                 mb,
                 constLiveOuts,
                 HlsNetNodeOutLazy(netlist, [], valCache, BIT, name=f"bb{mb.getNumber():d}_en"),
-                HlsNetNodeOutLazy(netlist, [], valCache, HVoidOrdering, name=f"bb{mb.getNumber():d}_orderingIn"))
+                HlsNetNodeOutLazy(netlist, [], valCache, HVoidOrdering, name=f"bb{mb.getNumber():d}_orderingIn"),
+                blockFsms.get(mb))
             blockMeta[mb] = mbMeta
 
     def _prunebackedgesOfFreeRunningLoops(self):
@@ -431,7 +458,13 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                 # if this block has reset predecessor, some edge may have channelInitValues
                 compatible = True
                 edgesToDiscard: List[Tuple[MachineEdge, MachineEdgeMeta]] = []
+                succFms = mbMeta.fsm
                 for pred in mb.predecessors():
+                    predFsm = self.blockMeta[pred].fsm
+                    if predFsm is not None and predFsm is succFms:
+                        # can not discard jump in the same FSM
+                        continue
+
                     e = (pred, mb)
                     eMeta: MachineEdgeMeta = self.edgeMeta[e]
                     eT = eMeta.etype
@@ -454,8 +487,9 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
                     edgesToDiscard.append((e, eMeta))
 
                 if compatible and edgesToDiscard:
-                    mbMeta.isLoopHeaderOfFreeRunning = True
-                    mbMeta.needsControl = False
+                    if succFms is None:
+                        mbMeta.isLoopHeaderOfFreeRunning = True
+                        mbMeta.needsControl = False
                     for _, eMeta in edgesToDiscard:
                         # assert eMeta.inlineRstDataFromEdge is None, ("Can not discard edge holding reset data", eMeta)
                         eMeta.etype = MACHINE_EDGE_TYPE.DISCARDED
@@ -507,19 +541,177 @@ class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):
 
         return edgeMeta
 
+    def _mergeFsmsBasedOnSharedResourcesOfBlock(self,
+                                                bbResources: SetList[SchedulingResourceType],
+                                                fsmForResource: dict[SchedulingResourceType, SetList[MachineBasicBlock]],
+                                                fsmForBlock: dict[MachineBasicBlock, SetList[MachineBasicBlock]]):
+        """
+        merge all FSMs for resources used inside of this block inside of a single FSM
+        """
+        # find first existing fsm in advance so we can merge more efficly
+        # without excesime update of sets
+        newFsmBBs = None
+        for resource in bbResources:
+            fsm = fsmForResource.get(resource)
+            if fsm is not None:
+                newFsmBBs = fsm
+                break
+
+        if newFsmBBs is None:
+            newFsmBBs = SetList()
+
+        # for every resource, query existing fsms and merge them into one
+        for resource in bbResources:
+            fsm = fsmForResource.get(resource)
+            if fsm is newFsmBBs:
+                continue
+            if fsm is not None:
+                newFsmBBs.extend(fsm)
+            fsmForResource[resource] = newFsmBBs
+
+        # now all FSMs for all resources are merged into one (and replaced with it)
+
+        # update fsm for all blocks
+        for bb in tuple(newFsmBBs):
+            curBbFsm = fsmForBlock.get(bb)
+            if curBbFsm is not None and curBbFsm is not newFsmBBs:
+                newFsmBBs.extend(curBbFsm)
+                for bb2 in curBbFsm:
+                    fsmForBlock[bb2] = newFsmBBs
+                fsmForBlock[bb] = newFsmBBs
+
+        return newFsmBBs
+
+    def _mergeFsmsForSequenceOfBlocks(self, blocks: Sequence[MachineBasicBlock],
+                                      sharedResourcesUsedByBlock: dict[MachineBasicBlock, SetList[SchedulingResourceType]],
+                                      fsmForResource: dict[SchedulingResourceType, SetList[MachineBasicBlock]],
+                                      fsmForBlock: dict[MachineBasicBlock, SetList[MachineBasicBlock]]):
+        resourcesUsedByBlocks = SetList()
+        newFsmBBs = None
+        for bb in blocks:
+            resources = sharedResourcesUsedByBlock.get(bb)
+            if resources is not None:
+                resourcesUsedByBlocks.extend(resources)
+
+            if newFsmBBs is None:
+                # find some existing fsm so we can use it as a base in order
+                # to optimize merge of sets of fsm blocks
+                fsm = fsmForBlock.get(bb)
+                if fsm is not None:
+                    newFsmBBs = fsm
+
+        if newFsmBBs is None:
+            newFsmBBs = SetList()
+
+        # iterate all blocks inside of loop and merge them into a single FSM
+        for bb in blocks:
+            if bb in newFsmBBs:
+                continue
+
+            curFsm = fsmForBlock.get(bb)
+            if curFsm is not None and curFsm is not newFsmBBs:
+                newFsmBBs.extend(curFsm)
+                for bb2 in curFsm:
+                    fsmForBlock[bb2] = newFsmBBs
+            else:
+                newFsmBBs.append(bb)
+                fsmForBlock[bb] = newFsmBBs
+
+        for resource in resourcesUsedByBlocks:
+            fsmForResource[resource] = newFsmBBs
+
+    def _detectFsmsSharedResources(self, netlist:"HlsNetlistCtx", mf: MachineFunction):
+        constraints: SchedulingResourceConstraints = netlist.scheduler.resourceUsage.resourceConstraints
+        resourcesAvailable = copy(constraints)
+        # discover which resources will have to be shared
+        # thus requiring some form of FSM to manage access
+        blocksUsingLimitedResource: dict[SchedulingResourceType, SetList[MachineBasicBlock]] = {}
+        limitedResourcesUsedByBlock: dict[MachineBasicBlock, SetList[SchedulingResourceType]] = {}
+        sharedResources: set[SchedulingResourceType] = set()
+
+        MRI = mf.getRegInfo()
+        for mb in mf:
+            mb: MachineBasicBlock
+            # mbMeta: MachineBasicBlockMeta = self.blockMeta[mb]
+            bbResources = limitedResourcesUsedByBlock[mb] = SetList()
+            for instr in mb:
+                resource = self.originalMir._getSchedulingResourceForInstruction(MRI, instr)
+                if resource is not None:
+                    curAvailable: Optional[int] = resourcesAvailable.get(resource, None)
+                    if curAvailable is not None:
+                        bbResources.append(resource)
+                        users = blocksUsingLimitedResource.get(resource)
+                        if users is None:
+                            users = blocksUsingLimitedResource[resource] = SetList()
+                        users.append(mb)
+
+                        if curAvailable == 0:
+                            sharedResources.add(resource)
+                        curAvailable -= 1
+                        resourcesAvailable[resource] = curAvailable
+
+        sharedResourcesUsedByBlock: dict[MachineBasicBlock, SetList[SchedulingResourceType]] = {
+            mb: SetList(r for r in resources if resourcesAvailable[r] < 0)
+            for mb, resources in  limitedResourcesUsedByBlock.items()}
+        return sharedResourcesUsedByBlock
+
+    def _detectFsms(self, netlist:"HlsNetlistCtx", mf: MachineFunction) -> dict[MachineBasicBlock, SetList[MachineBasicBlock]]:
+        """
+        if there are more instructions which contain access to some resource
+        which does not support arbitration (e.g. scalar input or output port) (and the resource must be shared)
+        all blocks containing this must be inside same ArchElementFsm
+        In some cases when the resource is limiting factor all blocks in loop or on some
+        path should be collected into fsm because they wont be able to execute
+        because resource is locked for some other instruction in the region.
+        """
+        sharedResourcesUsedByBlock = self._detectFsmsSharedResources(netlist, mf)
+        loops = self.loops
+        fsmForResource: dict[SchedulingResourceType, SetList[MachineBasicBlock]] = {}
+        fsmForBlock: dict[MachineBasicBlock, SetList[MachineBasicBlock]] = {}
+        seenLoops: set[MachineLoop] = set()
+        for mb in mf:
+            mb: MachineBasicBlock
+            bbSharedResources = sharedResourcesUsedByBlock[mb]
+            if not bbSharedResources:
+                continue
+            newFsmBBs = self._mergeFsmsBasedOnSharedResourcesOfBlock(bbSharedResources, fsmForResource, fsmForBlock)
+            newFsmBBs.append(mb)
+            fsmForBlock[mb] = newFsmBBs
+
+            loop = loops.getLoopFor(mb)
+            # if mb uses shared resource put all blocks of fsm into loop because execution of another
+            # iteration will be locked anyway because we can not speculate use of this resource
+            # and thus we can not speculate execution of next iteration until the previous one finishies
+            if loop:
+                loop: MachineLoop
+                if loop in seenLoops:
+                    continue
+
+                self._mergeFsmsForSequenceOfBlocks(list(loop.getBlocks()), sharedResourcesUsedByBlock, fsmForResource, fsmForBlock)
+                seenLoops.add(loop)
+
+            else:
+                # if block is not in the loop whole function must be in same FSM because nothing can be speculated
+                self._mergeFsmsForSequenceOfBlocks(mf, sharedResourcesUsedByBlock, fsmForResource, fsmForBlock)
+                break  # now all blocks should be merged into a single FSM
+
+        return fsmForBlock
+
     @override
-    def runOnHlsNetlistImpl(self, netlist:"HlsNetlistCtx"):
+    def runOnHlsNetlistImpl(self, netlist: "HlsNetlistCtx"):
         from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 
         originalMir: HlsNetlistAnalysisPassMirToNetlist = netlist.getAnalysis(HlsNetlistAnalysisPassMirToNetlist)
-
+        self.netlist = netlist
+        self.platform = netlist.platform
         self.originalMir = originalMir
         self.blockMeta = originalMir.blockMeta
         self.loops: MachineLoopInfo = originalMir.loops
         self.backedges = originalMir.backedges
         self.edgeMeta = originalMir.edgeMeta
 
-        self._initBlockMeta(originalMir.mf, netlist, originalMir.valCache, originalMir.blockMeta)
+        blockFsms = self._detectFsms(netlist, originalMir.mf)
+        self._initBlockMeta(originalMir.mf, netlist, originalMir.valCache, originalMir.blockMeta, blockFsms)
         self._initEdgeMeta(originalMir.mf)
 
         for mb in originalMir.mf:

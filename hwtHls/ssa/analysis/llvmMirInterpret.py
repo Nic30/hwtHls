@@ -1,3 +1,4 @@
+from copy import copy
 from datetime import datetime
 from typing import Tuple, List, Generator, Union, Optional, Dict, \
     Callable, Sequence
@@ -6,12 +7,18 @@ from hwt.hdl.const import HConst
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
+from hwtHls.architecture.componentGenerator import ComponentGenerator
 from hwtHls.llvm.llvmIr import parseMIR, LlvmCompilationBundle, MachineFunction, \
     MachineBasicBlock, MachineInstr, TargetOpcode, MachineOperand, \
-    CmpInst, TypeToIntegerType, Register, LLVMStringContext, MachineRegisterInfo
+    CmpInst, TypeToIntegerType, Register, LLVMStringContext, MachineRegisterInfo, \
+    HwtHlsIoMetadata_get, HwtHlsIoMetadata
+from hwtHls.platform.platform import ComponentGeneratorDict
 from hwtHls.ssa.analysis.llvmIrInterpret import VcdLlvmIrCodelineFormatter, \
     VcdLlvmIrSimTimeFormatter, SimIoUnderflowErr, _prepareWaveWriterTopIo, \
     LlvmIrInterpret
+from hwtHls.ssa.analysis.llvmIrInterpretInt import _opcode_Intrinsic_usub_sat, \
+    _opcode_Intrinsic_uadd_sat, _opcode_Intrinsic_sadd_sat, \
+    _opcode_Intrinsic_ssub_sat
 from hwtHls.ssa.analysis.llvmMirInterpretInt import _decodeOpcode_HWTFPGA_EXTRACT, \
     _decodeOpcode_G_EXTRACT, _decodeOpcode_HWTFPGA_MERGE_VALUES, \
     _decodeOpcode_HWTFPGA_MUX, _decodeOpcode_G_SELECT, \
@@ -27,18 +34,16 @@ from hwtHls.ssa.analysis.llvmMirInterpretMem import _decodeOpcode_HWTFPGA_ARG_GE
     _decodeOpcode_G_CONSTANT, _decodeOpcode_G_GLOBAL_VALUE, \
     _decodeOpcode_G_PTR_ADD
 from hwtHls.ssa.analysis.llvmMirInterpretOthers import _makeDecodeOpcodeFunction, \
-    _decode_HWTFPGA_FP_FCMP
+    _decodeOpcode_HWTFPGA_PYOBJECT_PLACEHOLDER
 from hwtHls.ssa.analysis.llvmMirInterpretUtils import LlvmMirInstrFunction, \
     DictWithSetitemListener, VcdLlvmMirBBFormatter
 from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
+from hwtHls.ssa.translation.toLlvm import PyObjectPlaceholderList
 from hwtSimApi.constants import CLK_PERIOD
 from hwtSimApi.triggers import StopSimumulation
 from pyDigitalWaveTools.vcd.common import VCD_SIG_TYPE
 from pyDigitalWaveTools.vcd.value_format import VcdBitsFormatter
 from pyDigitalWaveTools.vcd.writer import VcdWriter
-from hwtHls.ssa.analysis.llvmIrInterpretInt import _opcode_Intrinsic_usub_sat, \
-    _opcode_Intrinsic_uadd_sat, _opcode_Intrinsic_sadd_sat, \
-    _opcode_Intrinsic_ssub_sat
 
 
 class LlvmMirInterpret():
@@ -51,58 +56,75 @@ class LlvmMirInterpret():
     :ivar strCtx: string context for llvm string allocations during initialization of waveLog
     :ivar codelineOffset: offset from beginning from the MIR .ll file where function body starts
     """
-    _dispatchDict: Dict[int, Callable] = {
-        TargetOpcode.HWTFPGA_BR.value: _decodeOpcode_BR,
-        TargetOpcode.G_BR.value: _decodeOpcode_BR,
-        TargetOpcode.HWTFPGA_BRCOND.value: _decodeOpcode_BRCOND,
-        TargetOpcode.G_BRCOND.value: _decodeOpcode_BRCOND,
-        TargetOpcode.HWTFPGA_RET.value: _decodeOpcode_HWTFPGA_RET,
-        TargetOpcode.HWTFPGA_ARG_GET.value: _decodeOpcode_HWTFPGA_ARG_GET,
-        TargetOpcode.HWTFPGA_CLOAD.value: _decodeOpcode_HWTFPGA_CLOAD,
-        TargetOpcode.G_LOAD.value: _decodeOpcode_G_LOAD,
-        TargetOpcode.HWTFPGA_CSTORE.value: _decodeOpcode_HWTFPGA_CSTORE,
-        TargetOpcode.G_STORE.value: _decodeOpcode_G_STORE,
-        TargetOpcode.HWTFPGA_EXTRACT.value: _decodeOpcode_HWTFPGA_EXTRACT,
-        TargetOpcode.G_EXTRACT.value: _decodeOpcode_G_EXTRACT,
-        TargetOpcode.HWTFPGA_MERGE_VALUES.value: _decodeOpcode_HWTFPGA_MERGE_VALUES,
-        TargetOpcode.HWTFPGA_MUX.value: _decodeOpcode_HWTFPGA_MUX,
-        TargetOpcode.G_SELECT.value: _decodeOpcode_G_SELECT,
-        # TargetOpcode.G_FSHL.value: _decodeOpcode_G_FSHL, # already in HlsNetlistAnalysisPassMirToNetlistLowLevel.OPC_TO_OP
-        # TargetOpcode.G_FSHR.value: _decodeOpcode_G_FSHR,
-        TargetOpcode.COPY.value: _decodeOpcode_COPY,
-        TargetOpcode.G_ICMP.value: _decodeOpcode_G_ICMP,
-        TargetOpcode.HWTFPGA_ICMP.value: _decodeOpcode_G_ICMP,
-        TargetOpcode.HWTFPGA_IMPLICIT_DEF.value: _decodeOpcode_HWTFPGA_IMPLICIT_DEF,
-        TargetOpcode.G_IMPLICIT_DEF.value: _decodeOpcode_G_IMPLICIT_DEF,
-        TargetOpcode.G_CONSTANT.value: _decodeOpcode_G_CONSTANT,
-        TargetOpcode.G_GLOBAL_VALUE.value: _decodeOpcode_G_GLOBAL_VALUE,
-        TargetOpcode.HWTFPGA_GLOBAL_VALUE.value: _decodeOpcode_G_GLOBAL_VALUE,
-        TargetOpcode.G_TRUNC.value: _decodeOpcode_G_TRUNC,
-        TargetOpcode.G_ZEXT.value: _decodeOpcode_G_ZEXT,
-        TargetOpcode.G_SEXT.value: _decodeOpcode_G_SEXT,
-        TargetOpcode.G_UMIN.value: _makeMinMaxDecoder(HwtOps.ULT),
-        TargetOpcode.G_UMAX.value: _makeMinMaxDecoder(HwtOps.UGT),
-        TargetOpcode.G_SMIN.value: _makeMinMaxDecoder(HwtOps.SLT),
-        TargetOpcode.G_SMAX.value: _makeMinMaxDecoder(HwtOps.SGT),
-        TargetOpcode.G_UADDSAT.value: makeDecode_AddSubSatBin(_opcode_Intrinsic_uadd_sat),
-        TargetOpcode.G_USUBSAT.value: makeDecode_AddSubSatBin(_opcode_Intrinsic_usub_sat),
-        TargetOpcode.G_SADDSAT.value: makeDecode_AddSubSatBin(_opcode_Intrinsic_sadd_sat),
-        TargetOpcode.G_SSUBSAT.value: makeDecode_AddSubSatBin(_opcode_Intrinsic_ssub_sat),
-        TargetOpcode.G_PTR_ADD.value: _decodeOpcode_G_PTR_ADD,
+    _dispatchDict: Dict[TargetOpcode, Callable] = {
+        TargetOpcode.HWTFPGA_BR: _decodeOpcode_BR,
+        TargetOpcode.G_BR: _decodeOpcode_BR,
+        TargetOpcode.HWTFPGA_BRCOND: _decodeOpcode_BRCOND,
+        TargetOpcode.G_BRCOND: _decodeOpcode_BRCOND,
+        TargetOpcode.HWTFPGA_RET: _decodeOpcode_HWTFPGA_RET,
+        TargetOpcode.HWTFPGA_ARG_GET: _decodeOpcode_HWTFPGA_ARG_GET,
+        TargetOpcode.HWTFPGA_CLOAD: _decodeOpcode_HWTFPGA_CLOAD,
+        TargetOpcode.G_LOAD: _decodeOpcode_G_LOAD,
+        TargetOpcode.HWTFPGA_CSTORE: _decodeOpcode_HWTFPGA_CSTORE,
+        TargetOpcode.G_STORE: _decodeOpcode_G_STORE,
+        TargetOpcode.HWTFPGA_EXTRACT: _decodeOpcode_HWTFPGA_EXTRACT,
+        TargetOpcode.G_EXTRACT: _decodeOpcode_G_EXTRACT,
+        TargetOpcode.HWTFPGA_MERGE_VALUES: _decodeOpcode_HWTFPGA_MERGE_VALUES,
+        TargetOpcode.HWTFPGA_MUX: _decodeOpcode_HWTFPGA_MUX,
+        TargetOpcode.G_SELECT: _decodeOpcode_G_SELECT,
+        # TargetOpcode.G_FSHL: _decodeOpcode_G_FSHL, # already in HlsNetlistAnalysisPassMirToNetlistLowLevel.OPC_TO_OP
+        # TargetOpcode.G_FSHR: _decodeOpcode_G_FSHR,
+        TargetOpcode.COPY: _decodeOpcode_COPY,
+        TargetOpcode.G_ICMP: _decodeOpcode_G_ICMP,
+        TargetOpcode.HWTFPGA_ICMP: _decodeOpcode_G_ICMP,
+        TargetOpcode.HWTFPGA_IMPLICIT_DEF: _decodeOpcode_HWTFPGA_IMPLICIT_DEF,
+        TargetOpcode.G_IMPLICIT_DEF: _decodeOpcode_G_IMPLICIT_DEF,
+        TargetOpcode.G_CONSTANT: _decodeOpcode_G_CONSTANT,
+        TargetOpcode.G_GLOBAL_VALUE: _decodeOpcode_G_GLOBAL_VALUE,
+        TargetOpcode.HWTFPGA_GLOBAL_VALUE: _decodeOpcode_G_GLOBAL_VALUE,
+        TargetOpcode.G_TRUNC: _decodeOpcode_G_TRUNC,
+        TargetOpcode.G_ZEXT: _decodeOpcode_G_ZEXT,
+        TargetOpcode.G_SEXT: _decodeOpcode_G_SEXT,
+        TargetOpcode.G_UMIN: _makeMinMaxDecoder(HwtOps.ULT),
+        TargetOpcode.G_UMAX: _makeMinMaxDecoder(HwtOps.UGT),
+        TargetOpcode.G_SMIN: _makeMinMaxDecoder(HwtOps.SLT),
+        TargetOpcode.G_SMAX: _makeMinMaxDecoder(HwtOps.SGT),
+        TargetOpcode.G_UADDSAT: makeDecode_AddSubSatBin(_opcode_Intrinsic_uadd_sat),
+        TargetOpcode.G_USUBSAT: makeDecode_AddSubSatBin(_opcode_Intrinsic_usub_sat),
+        TargetOpcode.G_SADDSAT: makeDecode_AddSubSatBin(_opcode_Intrinsic_sadd_sat),
+        TargetOpcode.G_SSUBSAT: makeDecode_AddSubSatBin(_opcode_Intrinsic_ssub_sat),
+        TargetOpcode.G_PTR_ADD: _decodeOpcode_G_PTR_ADD,
+        TargetOpcode.HWTFPGA_PYOBJECT_PLACEHOLDER: _decodeOpcode_HWTFPGA_PYOBJECT_PLACEHOLDER,
+        TargetOpcode.HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE: _decodeOpcode_HWTFPGA_PYOBJECT_PLACEHOLDER,
+        TargetOpcode.HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE_WITH_SIDEEFECT: _decodeOpcode_HWTFPGA_PYOBJECT_PLACEHOLDER,
+        TargetOpcode.HWTFPGA_PYOBJECT_PLACEHOLDER_WITH_SIDEEFFECT: _decodeOpcode_HWTFPGA_PYOBJECT_PLACEHOLDER,
         **{
-            opc.value: _makeDecodeOpcodeFunction(opc, op)
+            opc: _makeDecodeOpcodeFunction(opc, op)
             for opc, op in HlsNetlistAnalysisPassMirToNetlistLowLevel.OPC_TO_OP.items()
         },
-        TargetOpcode.HWTFPGA_FP_FCMP.value: _decode_HWTFPGA_FP_FCMP,
     }
 
-    def __init__(self, MF: MachineFunction, strCtx: LLVMStringContext, timeStep: int=CLK_PERIOD):
-        self.MF = MF
+    def __init__(self,
+                 llvm: LlvmCompilationBundle,
+                 placeholderObjectSlots: PyObjectPlaceholderList,
+                 componentGenerators: ComponentGeneratorDict,
+                 fnArgs: Tuple[Generator[Union[int, HConst], None, None], List[HConst], ...],
+                 timeStep: int=CLK_PERIOD):
+        assert llvm.main
+        self.MF: MachineFunction = llvm.getMachineFunction(llvm.main)
+        assert self.MF
         self.timeStep = timeStep
-        self.strCtx: LLVMStringContext = strCtx
+        self.strCtx: LLVMStringContext = llvm.strCtx
         self.waveLog: Optional[VcdWriter] = None
         self.codelineOffset: int = 0
-        self.fnArgs: Optional[Tuple] = None
+        self.ioMetadata: list[HwtHlsIoMetadata] = HwtHlsIoMetadata_get(self.MF.getFunction())
+        self.fnArgs = fnArgs
+        self.placeholderObjectSlots = placeholderObjectSlots
+        self.componentGenerators = componentGenerators
+        self._dispatchDict = copy(self._dispatchDict)
+        for opc, cg in componentGenerators.items():
+            if isinstance(opc, TargetOpcode):
+                self._dispatchDict[opc] = cg.llvmMirInterpretDecode
 
         # dictionary which holds list of compiled function exec. functions for each block
         self._decodedBlocks: dict[MachineBasicBlock, list[tuple[MachineInstr, LlvmMirInstrFunction]]] = {}
@@ -243,6 +265,28 @@ class LlvmMirInterpret():
 
         return ops
 
+    def _decodeEnableCondition(self, instr: MachineInstr) -> tuple[Union[int], bool]:
+        """
+        Some instructions like HWTFPGA_CLOAD have an additionl enable condition, which were generated
+        during predication of instructions in IfConverter and others, this functions extract it
+        """
+        condMo: MachineOperand = instr.getOperand(instr.getNumExplicitOperands() - 1)
+        hasRuntimeCond = condMo.isReg()
+        if not hasRuntimeCond:
+            if condMo.isImm():
+                if not condMo.getImm():
+                    raise AssertionError("Always disabled instruction, this instruction should not exits", instr)
+            elif condMo.isCImm():
+                if not condMo.getCImm():
+                    raise AssertionError("Always disabled instruction, this instruction should not exits", instr)
+            else:
+                raise AssertionError("Uknown type of enCond operand", condMo, instr)
+            r = None
+        else:
+            assert condMo.isReg(), instr
+            r = condMo.getReg().virtRegIndex()
+        return r, hasRuntimeCond
+
     def _decodePhiArgument(self, MRI: MachineRegisterInfo, phi: MachineInstr, vOp: MachineOperand) -> Union[int, HBitsConst]:
         if vOp.isReg():
             r = vOp.getReg()
@@ -274,6 +318,7 @@ class LlvmMirInterpret():
         """
         :note: wraped in extra function so bb, fallThroughNextBB will get captured in function scope
         """
+
         def _opcode_default_fallthrough(nowTime: int, regs: List[HConst]):
             assert fallThroughNextBB is not None
             nextBb = fallThroughNextBB
@@ -384,7 +429,9 @@ class LlvmMirInterpret():
                 self.nowTime = nowTime
                 if waveLog is not None:
                     waveLog.logChange(nowTime, simTimeLabel, nowTime, None)
-                    waveLog.logChange(nowTime, simCodelineLabel, instr, None)
+                    if instr is not None:
+                        # instr may be None if this is fallThrough at the end of the block to successor block
+                        waveLog.logChange(nowTime, simCodelineLabel, instr, None)
 
                 nextBb = instrDecoded(nowTime, regs)
                 if wallTime is not None and nowTime >= wallTime:
@@ -394,13 +441,11 @@ class LlvmMirInterpret():
                     bbDecoded = decodedBlocks[nextBb]
                     break
 
-    def run(self, fnArgs: Tuple[Generator[Union[int, HConst], None, None], List[HConst], ...],
-            wallTime:Optional[int]=None):
+    def run(self, wallTime:Optional[int]=None):
         """
         :param fnArgs: arguments for executed function, generator is used for inputs,
             list is for RAM/ROMs and outputs streams 
         """
-        self.fnArgs = fnArgs
         MF = self.MF
         MRI: MachineRegisterInfo = MF.getRegInfo()
 
@@ -428,19 +473,23 @@ class LlvmMirInterpret():
         self._run(bb, regs, wallTime)
 
     @classmethod
-    def runMirStr(cls, strCtx: LLVMStringContext, mirStr: str, nameOfMain: str, args: list):
-        ctx = LlvmCompilationBundle(nameOfMain, [])
-        m = parseMIR(mirStr, nameOfMain, ctx)
-        MMI = ctx.getMachineModuleInfo()
+    def runMirStr(cls,
+                  llvm: LlvmCompilationBundle,
+                  placeholderObjectSlots: PyObjectPlaceholderList,
+                  componentGenerators: ComponentGeneratorDict,
+                  nameOfMain: str,
+                  mirStr: str,
+                  fnArgs: Tuple[Generator[Union[int, HConst], None, None], List[HConst], ...],
+                  timeStep: int=CLK_PERIOD):
+        m = parseMIR(mirStr, nameOfMain, llvm)
+        MMI = llvm.getMachineModuleInfo()
         assert m is not None
-        f = m.getFunction(ctx.strCtx.addStringRef(nameOfMain))
-        assert f is not None
-        mf = MMI.getMachineFunction(f)
-        assert mf is not None
-        interpret = cls(mf, strCtx)
+        llvm.main = m.getFunction(llvm.strCtx.addStringRef(nameOfMain))
+        assert llvm.main is not None
+        interpret = cls(llvm, placeholderObjectSlots, componentGenerators, fnArgs)
 
         try:
-            interpret.run(args)
+            interpret.run()
         except SimIoUnderflowErr:
             # some io consumed all the inputs
             pass
@@ -448,4 +497,4 @@ class LlvmMirInterpret():
             # HWTFPGA_RET or similar is asking to stop the simulation
             pass
 
-        return ctx, MMI, m, mf
+        return llvm, MMI, m, interpret.MF

@@ -1,14 +1,17 @@
 
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.const import HConst
 from hwt.hdl.types.arrayConst import HArrayConst
 from hwt.hdl.types.bits import HBits
 from hwtHls.llvm.llvmIr import MachineRegisterInfo, MachineInstr, GlobalValue, ValueToGlobalValue, \
-    ValueToConstantArray, ValueToConstantDataArray, ConstantDataArray, ArrayType, TypeToArrayType
+    ValueToConstantArray, ValueToConstantDataArray, ConstantDataArray, ArrayType, TypeToArrayType, \
+    HwtHlsIoMetadata
 from hwtHls.ssa.analysis.llvmIrInterpretMem import _getItemFromLocalPointer
 from hwtHls.ssa.analysis.llvmIrInterpretUtils import PtrAddrTuple, \
     SimIoUnderflowErr
 from hwtHls.ssa.analysis.llvmMirInterpretUtils import LlvmMirInstrFunction
 from hwtLib.abstract.sim_ram import SimRam
+from hwtSimApi.agents.base import NOP
 
 
 def _decodeOpcode_HWTFPGA_ARG_GET(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
@@ -23,18 +26,24 @@ def _decodeOpcode_HWTFPGA_ARG_GET(interpret: "LlvmMirInterpret", MRI: MachineReg
 
 
 def _decodeOpcode_HWTFPGA_CLOAD(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
-    dst, io, index, width, cond = interpret._decodeInstArguments(MRI, instr, instr.operands())
+    dst, io, index, width, _ = interpret._decodeInstArguments(MRI, instr, instr.operands())
     indexMo = instr.getOperand(2)
     hasRuntimeIndex = indexMo.isReg()
-    condMo = instr.getOperand(4)
-    hasRuntimeCond = condMo.isReg()
-    if not hasRuntimeCond:
-        if not cond:
-            raise AssertionError("Always disabled HWTFPGA_CLOAD, this instruction should not exits", instr)
+    cond, hasRuntimeCond = interpret._decodeEnableCondition(instr)
 
+    argI = tuple(instr.memoperands())[0].getAddrSpace() - 1
+    ioMd: HwtHlsIoMetadata = interpret.ioMetadata[argI]
+    isBlocking = ioMd.hasBlockingLoad
     t = HBits(width)
+    if isBlocking:
+        tWithoutVld = t
+        validFlagMask = 0
+    else:
+        tWithoutVld = HBits(width - 1)
+        validFlagMask = 1 << width - 1
+
     # data invalid, but vld=0 (vld is msb bit)
-    invalidData = t.from_py(0, vld_mask=1 << width - 1)
+    invalidData = t.from_py(0, vld_mask=validFlagMask)
 
     def _opcode_HWTFPGA_CLOAD(timeNow: int, regs: list[HConst]):
         if hasRuntimeCond:
@@ -58,13 +67,26 @@ def _decodeOpcode_HWTFPGA_CLOAD(interpret: "LlvmMirInterpret", MRI: MachineRegis
                 v = next(regs[io])
             except StopIteration:
                 raise SimIoUnderflowErr("underflow on io argument", instr)
-
-            if isinstance(v, HConst):
-                if v._dtype != t:
-                    assert v._dtype.bit_length() == t.bit_length(), (instr, v._dtype, t, v)
-                    v = v._reinterpret_cast(t)
+            if v is NOP:
+                assert not isBlocking, instr
+                v = invalidData
             else:
-                v = t.from_py(v)
+                if isinstance(v, HConst):
+                    if v._dtype != tWithoutVld:
+                        if isBlocking:
+                            assert v._dtype.bit_length() == width, (instr, v._dtype, t, v)
+                        else:
+                            assert v._dtype.bit_length() == width - 1, (instr, v._dtype, t, v)
+
+                        v = v._reinterpret_cast(tWithoutVld)
+
+                    if not isBlocking:
+                        v = b1._concat(v)  # concat with valid=1
+
+                else:
+                    if not isBlocking:
+                        v |= validFlagMask
+                    v = t.from_py(v)
         regs[dst] = v
 
     return _opcode_HWTFPGA_CLOAD
@@ -75,43 +97,60 @@ def _decodeOpcode_G_LOAD(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo
     llt = MRI.getType(instr.getOperand(0).getReg())
     assert llt.isValid()
     width = llt.getScalarSizeInBits()
-    t = HBits(width)
+
+    ptrLlt = MRI.getType(instr.getOperand(1).getReg())
+    assert ptrLlt.isPointer(), ptrLlt
+    addrSpace = ptrLlt.getAddressSpace()
+    if addrSpace > 0:
+        ioMd: HwtHlsIoMetadata = interpret.ioMetadata[addrSpace - 1]
+        isBlocking = ioMd.hasBlockingLoad
+    else:
+        ioMd = None
+        isBlocking = True
+
+    if isBlocking:
+        t = HBits(width)
+    else:
+        t = HBits(width + 1)
 
     def _opcode_G_LOAD(timeNow: int, regs: list[HConst]):
         if isinstance(_io, int):
             io = regs[_io]
         else:
             io = _io
+
         if isinstance(io, (GlobalValue, PtrAddrTuple)):
             # load from local memory
-            v = _getItemFromLocalPointer(regs, io, width, instr)
+            res = _getItemFromLocalPointer(regs, io, width, instr)
         else:
-
             # load from io
             try:
-                v = next(io)
+                res = next(io)
             except StopIteration:
                 raise SimIoUnderflowErr("underflow on io argument", instr)
 
-            if isinstance(v, HConst):
-                if v._dtype != t:
-                    assert v._dtype.bit_length() == t.bit_length(), (instr, v._dtype, t, v)
-                    v = v._reinterpret_cast(t)
+            if isinstance(res, HConst):
+                if isBlocking:
+                    assert res._dtype.bit_length() == width, (
+                        "Input value must be must have correct width", instr, res._dtype, width)
+                    if res._dtype != t:
+                        res = res._reinterpret_cast(t)
+                else:
+                    assert res._dtype.bit_length() + 1 == width, (
+                        "Input value must be must have correct width", instr, res._dtype, width + 1)
+                    res = b1._concat(res)  # concat with valid=1
+
             else:
-                v = t.from_py(v)
-        regs[dst] = v
+                res = t.from_py(res)
+        regs[dst] = res
 
     return _opcode_G_LOAD
 
 
 def _decodeOpcode_HWTFPGA_CSTORE(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
-    val, _io, index, width, cond = interpret._decodeInstArguments(MRI, instr, instr.operands())
+    val, _io, index, width, _ = interpret._decodeInstArguments(MRI, instr, instr.operands())
     assert isinstance(_io, int), instr
-    condMo = instr.getOperand(4)
-    hasRuntimeCond = condMo.isReg()
-    if not hasRuntimeCond:
-        if not cond:
-            raise AssertionError("Always disabled HWTFPGA_CLOAD, this instruction should not exits", instr)
+    cond, hasRuntimeCond = interpret._decodeEnableCondition(instr)
     valIsConst = isinstance(val, HConst)
     hasIndex = not isinstance(index, int) or index != 0
 

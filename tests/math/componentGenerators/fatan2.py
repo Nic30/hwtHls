@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import math
+
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsRtlSignal import HBitsRtlSignal
 from hwt.hdl.types.struct import HStruct
@@ -13,19 +15,22 @@ from hwtHls.architecture.componentGenerator import ComponentGenerator
 from hwtHls.architecture.componentGeneratorUtils import \
     ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule
 from hwtHls.architecture.componentGenerators.baseALU1HwModule import _BaseALU1HwModule
-from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.llvm.llvmIr import HFloatTmpConfig, HFloatTmpRounding, HFloatTmpSaturation
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+from hwtHls.platform.opRealizationMeta import OpRealizationMeta, \
+    ComponentRealizationMeta
+from tests.math.componentGenerators._componentGeneratorFp import ComponentGeneratorFp
+from tests.math.componentGenerators._llvmIrInterpretFP import ComponentGeneratorForSpecializedHwtHlsFpIntrinsicBinary_FloatFloat
 from tests.math.componentGenerators.fsincos import FixpSinCosCordic
 from tests.math.fixp.cordicAtan2 import CordicAtan2
 from tests.math.fixp.fixpTypes import HFixedPointQ
+from tests.math.hFloatTmp.hFloatTmpOps import OP_FATAN2
+
 
 # maybe useful:
 # * approx version https://doi.org/10.1109/UPCON56432.2022.9986456
-
 @serializeParamsUniq
 class FixpAtan2HypotCordic(FixpSinCosCordic):
 
@@ -78,18 +83,53 @@ class FixpAtan2HypotCordic(FixpSinCosCordic):
             resTmp.hypot = res[1]._auto_cast(T)._reinterpret_cast(resTmp.hypot._dtype)
         return resTmp
 
+# class ComponentGeneratorFATAN2HYPOT_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicBinary_binResult):
+#
+#    def evalFn(self, y:float, x:float) -> tuple[float, float]:
+#        return (math.atan2(y, x), math.hypot(y, x))
+# class ComponentGeneratorFATAN2HYPOT_PI_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicBinary_binResult):
+#
+#    def evalFn(self, y:float, x:float) -> tuple[float, float]:
+#        x *= math.pi
+#        y *= math.pi
+#        return (math.atan2(y, x), math.hypot(y, x))
 
-class ComponentGeneratorFATAN2HYPOT(ComponentGenerator):
 
-    def __init__(self, platform:"DefaultHlsPlatform", hasAtan2:bool, hasHypot:bool,
+class ComponentGeneratorFATAN2_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicBinary_FloatFloat):
+
+    @override
+    @staticmethod
+    def evalFn(y:float, x:float) -> float:
+        return math.atan2(y, x)
+
+
+class ComponentGeneratorFATAN2_PI_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicBinary_FloatFloat):
+
+    @override
+    @staticmethod
+    def evalFn(y:float, x:float) -> tuple[float, float]:
+        return math.atan2(y * math.pi, x * math.pi)
+
+
+class ComponentGeneratorFATAN2HYPOT(ComponentGeneratorFp):
+
+    def __init__(self, platform:"DefaultHlsPlatform",
                  genNamePrefix:str, moduleName:str,
+                 hasAtan2:bool, hasHypot:bool,
                  optThroughputVsArea=0.0,
                  FIXP_HWMODULE_CLS=FixpAtan2HypotCordic):
         ComponentGenerator.__init__(self, platform, genNamePrefix, moduleName)
         # dataWidth -> scheduling
-        self.schedulingCache: dict[tuple[float, HFloatTmpConfig], tuple[OpRealizationMeta, int, int]]
+        self.schedulingCache: dict[tuple[float, HFloatTmpConfig], tuple[ComponentRealizationMeta, ComponentRealizationMeta, int, int]]
         self._hasAtan2 = hasAtan2
         self._hasHypot = hasHypot
+        if hasAtan2 and hasHypot:
+            raise NotImplementedError()
+        elif hasAtan2:
+            self.opDef = OP_FATAN2
+        else:
+            raise NotImplementedError()
+
         self.optThroughputVsArea = optThroughputVsArea
         self.FIXP_HWMODULE_CLS = FIXP_HWMODULE_CLS
         assert hasAtan2 or hasHypot
@@ -111,14 +151,10 @@ class ComponentGeneratorFATAN2HYPOT(ComponentGenerator):
         return hwModule
 
     @override
-    def resolveRealizationOfNode(self, node:HlsNetNodeOperator) -> None:
-        assert len(node.dependsOn) == 2, node
-        return self.resolveRealizationForHlsNetlist(node.netlist, node.operatorSpecialization)
-
     def resolveRealizationForHlsNetlist(self, netlist: "HlsNetlistCtx", cfg: HFloatTmpConfig) -> None:
         cacheKey = (cfg, self.optThroughputVsArea)
         try:
-            return self.schedulingCache[cacheKey][0]
+            return self.schedulingCache[cacheKey][1]
         except KeyError:
             pass
 
@@ -137,7 +173,7 @@ class ComponentGeneratorFATAN2HYPOT(ComponentGenerator):
 
             # run compilation of IntDiv HwModule to resolve scheduling properties
             hwModule = self._getConfiguredFixpHwModule(netlist.realTimeClkPeriod, ty, UNROLL_FACTOR, None)
-            _, r = self.resolveRealizationOfNode_compileToResolveScheduling(
+            _, _, r = self.resolveRealizationOfNode_compileToResolveScheduling(
                 netlist.parentHwModule, hwModule,
                 netlist.dbgSubmoduleBuidTracer, cacheKey, (UNROLL_FACTOR,))
             return r
@@ -153,7 +189,7 @@ class ComponentGeneratorFATAN2HYPOT(ComponentGenerator):
                 raise NotImplementedError()
 
             cacheKey = (cfg, self.optThroughputVsArea)
-            realization, UNROLL_FACTOR = self.schedulingCache[cacheKey]
+            realization, _, UNROLL_FACTOR = self.schedulingCache[cacheKey]
             hwModule = self._getConfiguredFixpHwModule(freq, HFixedPointQ.fromHFloatTmpConfig(cfg),
                                                        UNROLL_FACTOR, realization)
             if self._hasAtan2 and self._hasHypot:

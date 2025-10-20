@@ -50,7 +50,7 @@ from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from tests.math.fixp.fixpConst import HFixedPointQConst
 from tests.math.fixp.fixpRtlSignal import HFixedPointQRtlSignal
 from tests.math.fixp.fixpTypes import HFixedPointQ
-from tests.math.componentGenerators.genericHwModules import _FpUnOpAluHwModule
+from tests.math.componentGenerators._genericHwModules import _FpUnOpAluHwModule
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 
 

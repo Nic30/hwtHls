@@ -1,25 +1,24 @@
 from collections import deque
 from pathlib import Path
 from typing import Iterable, Tuple, Union, Callable, Optional, Any, Set, \
-    Generator, List
+    Generator, List, Sequence
 
 from hwt.hdl.const import HConst
 from hwt.hwModule import HwModule
 from hwt.serializer.combLoopAnalyzer import CombLoopAnalyzer
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.llvm.llvmIr import Function, LLVMStringContext, MachineFunction, \
-    LlvmCompilationBundle
 from hwtHls.platform.platform import DebugId, HlsDebugBundle
 from hwtHls.ssa.analysis.llvmIrInterpret import LlvmIrInterpret, \
     SimIoUnderflowErr
 from hwtHls.ssa.analysis.llvmMirInterpret import LlvmMirInterpret
+from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtLib.examples.errors.combLoops import freeze_set_of_sets
 from hwtSimApi.triggers import StopSimumulation
 from hwtSimApi.utils import freq_to_period
 from pyDigitalWaveTools.vcd.writer import VcdWriter
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
-LlvmSimFunctionArgT = Tuple[Union[list, deque]]
+LlvmSimFunctionArgT = Union[list, deque]
 
 
 class ListRaisingStopSimumulationWhenFilled(list):
@@ -54,40 +53,32 @@ class BaseIrMirRtl_TC(SimTestCase):
 
         self.assertEqual(comb_loops, frozenset(), msg="\n".join(msg_buff))
 
-    def _testLlvmIr(self, strCtx: LLVMStringContext, F: Function, variantName:str, prepareArgs: Callable[LlvmSimFunctionArgT, []],
-                    checkArgs:Callable[None, [LlvmSimFunctionArgT]], wallTime:Optional[int]):
-        args = prepareArgs()
+    def _runLlvmIrOrMir(self, platform: TestLlvmIrAndMirPlatform, toLlvm: ToLlvmIrTranslator,
+                         variantName: str, wallTime:Optional[int],
+                         isMir: bool, args: tuple[LlvmSimFunctionArgT, ...]):
         try:
-            with open(Path(self.DEFAULT_LOG_DIR, f"{self.getTestName()}{variantName:s}.llvmIrWave.vcd"), "w") as vcdFile:
+            if isMir:
+                vcdFileName = f"{self.getTestName()}{variantName:s}.llvmMirWave.vcd"
+            else:
+                vcdFileName = f"{self.getTestName()}{variantName:s}.llvmIrWave.vcd"
+
+            with open(Path(self.DEFAULT_LOG_DIR, vcdFileName), "w") as vcdFile:
                 waveLog = VcdWriter(vcdFile)
-                interpret = LlvmIrInterpret(F, strCtx)
+                if isMir:
+                    interpret = LlvmMirInterpret(toLlvm.llvm, toLlvm.placeholderObjectSlots, platform._componentGenerators, args)
+                else:
+                    interpret = LlvmIrInterpret(toLlvm.llvm, toLlvm.placeholderObjectSlots, platform._componentGenerators, args)
                 interpret.installWaveLog(waveLog)
+                # gdbLlvmIrHandler = GdbCmdHandlerLllvmIr(interpret, args)
+                # gdbServer = GDBServerStub(gdbLlvmIrHandler)
+                # gdbServer.start()
                 if wallTime is not None:
                     wallTime *= interpret.timeStep
-                interpret.run(args, wallTime=wallTime)
+                interpret.run(wallTime=wallTime)
         except SimIoUnderflowErr:
             pass  # all inputs consumed
         except StopSimumulation:
             pass
-        checkArgs(args)
-
-    def _testLlvmMir(self, strCtx: LLVMStringContext, MF: MachineFunction, prepareArgs: Callable[LlvmSimFunctionArgT, []],
-                    checkArgs:Callable[None, [LlvmSimFunctionArgT]], wallTime:Optional[int]):
-        args = prepareArgs()
-        try:
-            with open(Path(self.DEFAULT_LOG_DIR, f"{self.getTestName()}.llvmMirWave.vcd"), "w") as vcdFile:
-                waveLog = VcdWriter(vcdFile)
-                interpret = LlvmMirInterpret(MF, strCtx)
-                interpret.installWaveLog(waveLog)
-                if wallTime is not None:
-                    wallTime *= interpret.timeStep
-                interpret.run(args, wallTime=wallTime)
-        except SimIoUnderflowErr:
-            pass  # all inputs consumed
-        except StopSimumulation:
-            pass
-
-        checkArgs(args)
 
     def _test(self, dut: HwModule,
               prepareIrAndMirArgs: Callable[LlvmSimFunctionArgT, []],
@@ -125,20 +116,28 @@ class BaseIrMirRtl_TC(SimTestCase):
 
         tc = self
 
-        def testLlvmIrNoOpt(llvm: LlvmCompilationBundle):
-            tc._testLlvmIr(llvm.strCtx, llvm.main, "", prepareIrAndMirArgs, checkIrAndMirArgs, wallTimeIr)
+        def testLlvmIrNoOpt(platform: TestLlvmIrAndMirPlatform, toLlvm: ToLlvmIrTranslator):
+            args = prepareIrAndMirArgs()
+            tc._runLlvmIrOrMir(platform, toLlvm, "", wallTimeIr, False, args)
+            checkIrAndMirArgs(args)
 
-        def testLlvmIr(llvm: LlvmCompilationBundle):
-            tc._testLlvmIr(llvm.strCtx, llvm.main, ".opt", prepareIrAndMirArgs, checkIrAndMirArgs, wallTimeOptIr)
+        def testLlvmIr(platform: TestLlvmIrAndMirPlatform, toLlvm: ToLlvmIrTranslator):
+            args = prepareIrAndMirArgs()
+            tc._runLlvmIrOrMir(platform, toLlvm, "opt", wallTimeOptIr, False, args)
+            checkIrAndMirArgs(args)
 
-        def testLlvmMir(llvm: LlvmCompilationBundle):
-            tc._testLlvmMir(llvm.strCtx, llvm.getMachineFunction(llvm.main), prepareIrAndMirArgs, checkIrAndMirArgs, wallTimeOptMir)
-        #        
+        def testLlvmMir(platform: TestLlvmIrAndMirPlatform, toLlvm: ToLlvmIrTranslator):
+            args = prepareIrAndMirArgs()
+            tc._runLlvmIrOrMir(platform, toLlvm, "", wallTimeOptMir, False, args)
+            checkIrAndMirArgs(args)
+
         self.compileSimAndStart(dut, target_platform=TestLlvmIrAndMirPlatform(
+            topToRunTestsOn=dut,
             noOptIrTest=testLlvmIrNoOpt,
             optIrTest=testLlvmIr,
             optMirTest=testLlvmMir,
             debugFilter=debugFilter, *args, **kwargs))
+
         self._test_no_comb_loops()
         ref = prepareRtlSimArgs(dut)
         t = int(wallTimeRtlClks * freq_to_period(freq))
@@ -172,11 +171,11 @@ class BaseIrMirRtl_TC(SimTestCase):
             dataOut = ListRaisingStopSimumulationWhenFilled((), OUT_CNT)
             return (dataOut,)
 
-        def checkIrAndMirArgs(args):
+        def checkIrAndMirArgs(args: tuple[deque, deque]):
             dataOut = args[0]
             self.assertValSequenceEqual(dataOut, dataOutRef)
 
-        def prepareRtlSimArgs(u):
+        def prepareRtlSimArgs(dut: HwModule):
             ref = dataOutRef
             return ref
 
@@ -193,8 +192,8 @@ class BaseIrMirRtl_TC(SimTestCase):
                    )
 
     def _test_OneInOneOut(self, dut: HwModule,
-                          model,
-                          dataIn,
+                          model: Callable[Sequence, list],
+                          dataIn: Sequence,
                           wallTimeIr: Optional[int]=None,
                           wallTimeOptIr: Optional[int]=None,
                           wallTimeOptMir: Optional[int]=None,
@@ -220,16 +219,16 @@ class BaseIrMirRtl_TC(SimTestCase):
                 dataOut = []
                 return (iter(dataIn), dataOut)
 
-        def checkIrAndMirArgs(args):
+        def checkIrAndMirArgs(args: tuple[deque]):
             dataOut = args[1]
             self.assertValSequenceEqual(dataOut, dataOutRef)
 
-        def prepareRtlSimArgs(dut):
+        def prepareRtlSimArgs(dut: HwModule):
             dut.i._ag.data.extend(dataIn)
             ref = dataOutRef
             return ref
 
-        def checkRtlSimResults(dut, ref):
+        def checkRtlSimResults(dut: HwModule, ref: list):
             self.assertValSequenceEqual(dut.o._ag.data, ref)
 
         if wallTimeRtlClks is None:

@@ -4,17 +4,22 @@ from typing import Optional
 from hwt.code import Concat
 from hwt.hdl.const import HConst
 from hwt.hdl.types.bitsConst import HBitsConst
-from hwtHls.llvm.llvmIr import BasicBlock, Instruction, CallInst, InstructionToCallInst, Intrinsic
+from hwtHls.llvm.llvmIr import BasicBlock, Instruction, CallInst, InstructionToCallInst, Intrinsic, ValueToConstantInt
+from hwtHls.ssa.analysis.llvmIrInterpretUtils import HwtHlsFpIntrisicName
 from pyDigitalWaveTools.vcd.writer import VcdWriter
 
 
-def _decodeOpcode_CallInst(interpret: "LlvmIrInterpret", bb: BasicBlock, instr: Instruction) -> tuple[BasicBlock, bool]:
+def _decodeOpcode_CallInst(interpret: "LlvmIrInterpret", instr: Instruction) -> tuple[BasicBlock, bool]:
     call: CallInst = InstructionToCallInst(instr)
     assert call is not None, instr
     fn = call.getCalledFunction()
     fnName = fn.getName().str()
     inId = fn.getIntrinsicID()
-    iiFn = interpret.INTRINSIC_ID_TO_FN.get(inId, None)
+    if inId != 0:
+        inId = Intrinsic.IndependentIntrinsics(inId)
+        iiFn = interpret.INTRINSIC_ID_TO_FN.get(inId, None)
+    else:
+        iiFn = None
     if iiFn is not None:
         _ops = interpret._decodeInstArguments(a.get() for a in call.args())
 
@@ -77,10 +82,18 @@ def _decodeOpcode_CallInst(interpret: "LlvmIrInterpret", bb: BasicBlock, instr: 
     elif fnName.startswith("hwtHls.fp."):
         m = interpret.RE_FP_INTRINSIC_ID.match(fnName)
         if m:
-            fn = interpret._dispatchDictFP[m.group(1)]  # lookup fn by name
-            return fn(interpret, bb, instr)
+            cg: "ComponentGenerator" = interpret.componentGenerators[HwtHlsFpIntrisicName(m.group(1))]  # lookup fn by name
+            return cg.llvmIrInterpretDecode(interpret, instr)
         else:
             raise NotImplementedError(instr)
+
+    elif fnName.startswith("hwtHls.pyObjectPlaceholder."):
+        fnId = ValueToConstantInt(instr.getOperand(0))
+        assert fnId, instr
+        fnId = fnId.getValue().getZExtValue()
+        ph: "HardBlockHwModule" = interpret.placeholderObjectSlots[fnId][0]
+        gen: "ComponentGeneratorForHardBlock" = interpret.componentGenerators[ph.getComponentGeneratorKey()]
+        return gen.llvmIrInterpretDecode(interpret, instr, ph)
 
     else:
         raise NotImplementedError(instr, Intrinsic.IndependentIntrinsics(inId))

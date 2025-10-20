@@ -1,14 +1,15 @@
 from dis import Instruction
+from itertools import islice
 from typing import Union, Optional, Tuple
 
 from hwt.constants import NOT_SPECIFIED
 from hwt.hdl.const import HConst
 from hwt.hdl.operator import HOperatorNode
-from hwt.hdl.operatorDefs import HwtOps
+from hwt.hdl.operatorDefs import HwtOps, HOperatorDef
 from hwt.hdl.types.array import HArray
 from hwt.hdl.types.function import HFunctionConst, HFunction
 from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.types.struct import HStruct
+from hwt.hdl.types.struct import HStruct, HStructField
 from hwt.hwIO import HwIO
 from hwt.mainBases import RtlSignalBase
 from hwtHls.frontend.frame import PyBytecodeFrame
@@ -25,6 +26,8 @@ class _PyBytecodePragma():
 
 class _PyBytecodeIntrinsic(HFunctionConst):
     """
+    A base class for python defined intrinsic functions
+    
     :cvar __hlsIsLowLevelFn: a constant flag which tells pybytecode frontend that this object call will translate this object
     :cvar _dtype: constant attribute holding type of HFunction
     :ivar val: name used for user to better identify object in LLVM and netlist
@@ -38,6 +41,7 @@ class _PyBytecodeIntrinsic(HFunctionConst):
     def __init__(self,
                  hwInputT: HdlType,
                  hwOutputT: Union[HdlType, NOT_SPECIFIED]=NOT_SPECIFIED,
+                 defaultKwargs: dict[str, HConst]={},
                  name: Optional[str]=None,
                  operationRealizationMeta: Optional[OpRealizationMeta]=None):
         if name is None:
@@ -55,6 +59,7 @@ class _PyBytecodeIntrinsic(HFunctionConst):
         # in infinite cycle during cmp
         self.val = name
         self.vld_mask = 1
+        self.defaultKwargs = defaultKwargs
         self.operationRealizationMeta = operationRealizationMeta
 
     def __call__(self, *args, **kwargs):
@@ -63,8 +68,18 @@ class _PyBytecodeIntrinsic(HFunctionConst):
         """
         if self.hasManyInputs:
             if kwargs:
-                raise NotImplementedError()
-            assert len(args) == len(self.hwInputT.fields), (self.hwInputT, args)
+                raise NotImplementedError(self, kwargs)
+            argFields = self.hwInputT.fields
+            resolvedArgCnt = len(args)
+            if resolvedArgCnt != len(argFields):
+                args = list(args)
+                for f in islice(argFields, resolvedArgCnt, None):
+                    f: HStructField
+                    v = self.defaultKwargs.get(f.name, NOT_SPECIFIED)
+                    if v is NOT_SPECIFIED:
+                        raise AssertionError("Call arg/kwarg is missing value ", self, f.name)
+                    args.append(v)
+
         else:
             assert not kwargs, kwargs
             assert len(args) <= 1, args
@@ -74,6 +89,9 @@ class _PyBytecodeIntrinsic(HFunctionConst):
         else:
             args = [a._sig if isinstance(a, HwIO) else a for a in args]
             return HOperatorNode.withRes(HwtOps.CALL, [self, *args], self.hwOutputT)
+
+    def getComponentGeneratorKey(self) -> HOperatorDef:
+        raise NotImplementedError("Override this method in implementation of this abstract class in", self.__class__)
 
     def translateToLlvm(self, toLlvm: "ToLlvmIrTranslator", b: IRBuilder, args: Tuple[Value]):
         raise NotImplementedError("Implement this method in child class")

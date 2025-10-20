@@ -10,6 +10,7 @@ class OpRealizationMeta():
     :ivar mayBeginInFFStoreTime: if true the input end time may be at the end of clock window in FF store time,
         Asserting this true means that the node is not moved to next clock cycle if its node ends in ffstore time.
 
+    :note: inputWireDelay/outputWireDelay unit is second (e.g. for 1ns it will have 1e-9)
     :note: all times are relative to scheduledZero of HlsNetNode.
         inputWireDelay>0 means the input is before scheduledZero
         inputWireDelay<0 means the input is after scheduledZero
@@ -115,3 +116,49 @@ EMPTY_OP_REALIZATION = OpRealizationMeta(mayBeInFFStoreTime=True)
 UNSPECIFIED_OP_REALIZATION = OpRealizationMeta(
     inputWireDelay=None, outputWireDelay=None,
     inputClkTickOffset=None, outputClkTickOffset=None)
+
+
+class ComponentRealizationMeta(OpRealizationMeta):
+    """
+    :ivar requiresInValid: True if he input por requires rtl valid signal which
+        marks that the value of input is valid ad the operation
+        implemented in this component should be performed
+    :ivar mayGenerateInStall: True if the component implementation
+        may stall input even if all outputs are not stalled by sink
+    :ivar mayGenerateOutStall: mayGenerateOutStall similar as mayGenerateInStall
+        just for outputs
+    """
+
+    def __init__(self, inputClkTickOffset:int=0,
+                 inputWireDelay=0.0, outputWireDelay=0.0,
+                 outputClkTickOffset:int=0,
+                 mayBeInFFStoreTime:bool=False,
+                 requiresInValid: bool=False,
+                 mayGenerateInStall: bool=False,
+                 mayGenerateOutStall: bool=False
+                 ):
+        OpRealizationMeta.__init__(
+            self,
+            inputClkTickOffset,
+            inputWireDelay,
+            outputWireDelay,
+            outputClkTickOffset,
+            mayBeInFFStoreTime)
+        self.requiresInValid = requiresInValid
+        self.mayGenerateInStall = mayGenerateInStall
+        self.mayGenerateOutStall = mayGenerateOutStall
+
+    def canBeSynchornizedPurelyByLatency(self):
+        return not self.requiresInValid and\
+               not self.mayGenerateInStall and \
+               not self.mayGenerateOutStall
+
+    @classmethod
+    def fromOpRealization(cls, r: OpRealizationMeta):
+        return cls(
+            r.inputClkTickOffset,
+            r.inputWireDelay,
+            r.outputWireDelay,
+            r.outputClkTickOffset,
+            r.mayBeInFFStoreTime)
+

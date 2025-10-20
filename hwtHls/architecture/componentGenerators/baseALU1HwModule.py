@@ -1,3 +1,4 @@
+from copy import copy
 import math
 from typing import Type
 
@@ -20,7 +21,7 @@ from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+from hwtHls.platform.opRealizationMeta import  ComponentRealizationMeta
 from hwtHls.scope import HlsScope
 
 
@@ -44,7 +45,7 @@ class _BaseALU1HwModule(HwModule):
         self.IN_CHANNEL_TYPE: Type[HwIOStructVld] = HwParam(HwIOStructVld)
         self.OUT_CHANNEL_TYPE: Type[HwIOStructVld] = HwParam(HwIOStructRdVld)
 
-    def _setIoChannelTypes(self, realization: OpRealizationMeta):
+    def _setIoChannelTypes(self, realization: ComponentRealizationMeta):
         if not realization.fitsIntoSingleClockWindow():
             # contains FSM and read, write should be in different state and there should not
             # be any path from control of output to control of input and reverse
@@ -101,7 +102,8 @@ class _BaseALU1HwModule(HwModule):
 
     def _isFullyUnrolled(self):
         ITERATION_CNT = self._getMaxIterationCount()
-        assert self.UNROLL_FACTOR <= ITERATION_CNT, "Using larger UNROLL_FACTOR does not bring any benefit"
+        if self.CHECK_FOR_INEFFICIENCY:
+            assert self.UNROLL_FACTOR <= ITERATION_CNT, "Using larger UNROLL_FACTOR does not bring any benefit"
         return self.UNROLL_FACTOR == ITERATION_CNT
 
     def _getLoopMeta(self):
@@ -119,6 +121,8 @@ class _BaseALU1HwModule(HwModule):
         inputWireDelay = math.inf
         outputClkTickOffset = 0
         outputWireDelay = 0
+        inSeen = False
+        outSeen = False
         for t in hls._threads:
             netlist: HlsNetlistCtx = t.netlist
             clkPeriod = netlist.normalizedClkPeriod
@@ -126,25 +130,52 @@ class _BaseALU1HwModule(HwModule):
             for n in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT):
                 if isinstance(n, HlsNetNodeRead):
                     if n.src is self.data_in:
+                        assert not inSeen, self
                         t = min(n.scheduledOut)
-                        inputWireDelay = min(inputWireDelay, (t % clkPeriod))
+                        inputWireDelay = min(inputWireDelay, t % clkPeriod)
                         inputClkTickOffset = min(inputClkTickOffset, t // clkPeriod)
+                        inSeen = True
 
                 elif isinstance(n, HlsNetNodeWrite):
                     if n.dst is self.data_out:
+                        assert not outSeen, self
                         t = max(n.scheduledIn)
-                        outputWireDelay = max(outputWireDelay, (t % clkPeriod))
+                        outputWireDelay = max(outputWireDelay, t % clkPeriod)
                         outputClkTickOffset = max(outputClkTickOffset, t // clkPeriod)
+                        outSeen = True
+        assert inSeen, self
+        assert outSeen, self
+        assert isinstance(inputClkTickOffset, int), (self, inputClkTickOffset)
 
-        self.hlsOpRealizationMeta = OpRealizationMeta(
-            inputClkTickOffset,
-            inputWireDelay * timeResolution,
-            outputWireDelay * timeResolution,
-            outputClkTickOffset  # + (0 if isFullyUnrolled else 1)
+        hlsOpRealizationMetaAsSeenFromInside = ComponentRealizationMeta(
+            inputClkTickOffset=inputClkTickOffset,
+            inputWireDelay=inputWireDelay * timeResolution,
+            outputWireDelay=outputWireDelay * timeResolution,
+            outputClkTickOffset=outputClkTickOffset,
+            requiresInValid=not isFullyUnrolled,
+            mayGenerateInStall=not isFullyUnrolled,
+            mayGenerateOutStall=not isFullyUnrolled
+        )
+        hlsOpRealizationMetaAsSeenFromOutside: ComponentRealizationMeta = copy(hlsOpRealizationMetaAsSeenFromInside)
+        if not isFullyUnrolled and inputClkTickOffset == 0 and outputClkTickOffset == 0:
             # +1 because the output is in fist clk, but after n iterations
             # and thus data_in read and data_out write can not happen at once
-        )
+            hlsOpRealizationMetaAsSeenFromOutside.inputClkTickOffset = 1
+            # :attention: Inside and Outside realization may be different
+            # because in parent the port of this component may be used earlier
+            # if the input and output happen in same clock and the implementation
+            # can not respond with output within the same clock cycle
+
+        self.__hlsOpRealizationMeta = (hlsOpRealizationMetaAsSeenFromInside,
+                                       hlsOpRealizationMetaAsSeenFromOutside)
+
         return outputClkTickOffset
+
+    def getHlsOpRealizationMeta(self):
+        if self._shared_component_with is None:
+            return self.__hlsOpRealizationMeta
+        else:
+            return self._shared_component_with[0].getHlsOpRealizationMeta()
 
     @override
     def hwImpl(self) -> None:
@@ -170,68 +201,150 @@ class _BaseALU1HwModule(HwModule):
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
         self.MAIN_FN_META
-        if self._isFullyUnrolled() or (self.IN_CHANNEL_TYPE == HwIOStruct and self.OUT_CHANNEL_TYPE == HwIOStruct):
+        aluFn = PyBytecodeInline(self.aluFn)
+        if self._isFullyUnrolled() or\
+                (self.IN_CHANNEL_TYPE == HwIOStruct and self.OUT_CHANNEL_TYPE == HwIOStruct):
+            # or \
+            #    (self.IN_CHANNEL_TYPE == HwIOStructRdVld and self.OUT_CHANNEL_TYPE == HwIOStructRdVld)
+            # :note: V0
+            # :note: In this case the read and write does not need to be scheduled into the same clk window
             while b1:
                 # main loop for the case this is just strait pipeline
                 inp = hls.read(self.data_in).data
-                resTmp = PyBytecodeInline(self.aluFn)(inp)
+                resTmp = aluFn(inp)
                 hls.write(resTmp, self.data_out, mayBecomeFlushable=False)
         else:
-            # version with read rotated at the end of the loop to allow read of input in the same
-            # cycle when the data is written to output
-            inp = self._getTypeOfIo(self.data_in).from_py(None)
-            inpValid = b0
-            while b1:
-                if inpValid:
-                    # # read input at the end of the loop to be able receive it in the same clock as output is produced
-                    # while ~inpValid:
-                    #    # [fixme] This is necessary because the if inp.valid would not prevent the execution of
-                    #    #         functional to execute, (just if r.valid in the main loop would not be sufficient as r.valid
-                    #    #         would travel to next loop iteration as data on channel with non blocking read.)
-                    #    #         That would not be a problem, the functional unit would execute and data would be correctly
-                    #    #         dropped at the end. However the latency of unit would be added as delay to this loop.
-                    #    #         This could cause serious performance loss and it is prevented by this loop,
-                    #    r = hls.read(self.data_in, blocking=False)
-                    #    inp = r.data
-                    #    inpValid = r.valid
-                    # # loop for the case where functional unit has some internal delay.
-                    # The output of the lop
-                    # if inpValid:
-                    resTmp = PyBytecodeInline(self.aluFn)(inp)
-                    hls.write(resTmp, self.data_out, mayBecomeFlushable=False)
+            # assert self.IN_CHANNEL_TYPE == HwIOStructVld and self.OUT_CHANNEL_TYPE == HwIOStructRdVld, self
+            # :note: In this case the read and write must must be scheduled into the same clk window
+            #   because the new data must be accepted in the same clock when the output is flushed
+            # Complications:
+            #  * aluFn can not be speculatively executed because it is expected that the computation time would be long
+            #  * the read must happen after write for write to be flushable
+            #  * the static scheduling needs a clock window where read/write is performed or not
+            #    this time if this io operation is in the cycle this time will be consumed during execution even
+            #    if the io operation is not performed
+            #  * Components generated by this function may be nested,  this implies 
+            #    that any overhead in this function will multiply quiclky
 
-                r = hls.read(self.data_in, blocking=False)
-                inp = r.data
+            outT = self._getTypeOfIo(self.data_out)
+            inpValid = b0
+            inpData = self._getTypeOfIo(self.data_in).from_py(None)
+            while b1:
+                # :note: if to prevent speculative execution of the potentially costly aluFn
+                out = outT.from_py(None)
+                if inpValid:
+                    out = aluFn(inpData)
+                    # :note: read/write may happen only in the same clock cycle
+                    hls.write(out, self.data_out, mayBecomeFlushable=False)
+                r = hls.read(self.data_in, blocking=False) # :note: non-blocking so data_in.valid does not stall data_out write
+                inpData = r.data
                 inpValid = r.valid
 
-        # while b1:
-        #    # data_in = MultiPortGroup((self.data_in, self.data_in)) # :note: workaround to allow 2 reads in same clock cycle
-        #    # data_in = self.data_in
-        #    ## non blocking read to avoid comb loop from data_in.valid to data_out.valid
-        #    ## as it cancels the new data_in word when writing res
-        #    r = hls.read(self.data_in) # , blocking=False
-        #    inp = r.data
-        #    # main loop for the case this is just strait pipeline
-        #    res = FN(inp.dividend, inp.divisor,
-        #             inp.signed if self.HAS_RUNTIME_SIGN else self.T.signed,
-        #             loopPragmaGetter=self._getLoopMeta)
-        #    resTmp = outT.from_py(None)
-        #    resTmp.quotient = res[0]
-        #    resTmp.remainder = res[1]
-        #    hls.write(resTmp, self.data_out, mayBecomeFlushable=False)
-        #    # inp = hls.read(data_in).data
-        #
-        # if self._isFullyUnrolled() or (self.IN_CHANNEL_TYPE == HwIOStruct and self.OUT_CHANNEL_TYPE == HwIOStruct):
-        # while b1:
-        #    # main loop for the case this is just strait pipeline
-        #    inp = hls.read(self.data_in).data
-        #    res = PyBytecodeInline(DIV_FN)(inp.dividend, inp.divisor, inp.signed if self.HAS_RUNTIME_SIGN else self.IS_SIGNED,
-        #        loopPragmaGetter=self._getLoopMeta)
-        #    resTmp = outT.from_py(None)
-        #    resTmp.quotient = res[0]
-        #    resTmp.remainder = res[1]
-        #    hls.write(resTmp, self.data_out, mayBecomeFlushable=False)
-        # else:
+
+            ########################################################################################
+            # # :note: equivalent to V0, due to loop rotation
+            # data_in = PyBytecodeInPreproc(self.data_in)
+            # r = hls.read(data_in, blocking=True)
+            # inpData = r.data
+            # while b1:
+            #     res = aluFn(inpData)
+            #     hls.write(res, self.data_out, mayBecomeFlushable=True)
+            #     r = hls.read(data_in, blocking=True)
+            #     inpData = r.data
+            ########################################################################################
+            # # :note: V1 this version has combinational loop from data_in.valid to data_out.ready
+            # out = self._getTypeOfIo(self.data_out).from_py(None)
+            # outVld = b0
+            # while b1:
+            #     if outVld:
+            #         hls.write(out, self.data_out, mayBecomeFlushable=True)
+            #     inp = hls.read(self.data_in).data
+            #     out = PyBytecodeInline(self.aluFn)(inp)
+            #     outVld = b1
+            ########################################################################################
+            # # :note: V2 this has the problem that the block with read may be entered conditionaly from header,
+            # #  this means that the whole loop synchronization is one big SCC
+            # # version with read rotated at the end of the loop to allow read of input in the same
+            # # cycle when the data is written to output
+            # inp = self._getTypeOfIo(self.data_in).from_py(None)
+            # inpValid = b0
+            # while b1:
+            #     if inpValid:
+            #         # # read input at the end of the loop to be able receive it in the same clock as output is produced
+            #         # while ~inpValid:
+            #         #    # [fixme] This is necessary because the if inp.valid would not prevent the execution of
+            #         #    #         functional to execute, (just if r.valid in the main loop would not be sufficient as r.valid
+            #         #    #         would travel to next loop iteration as data on channel with non blocking read.)
+            #         #    #         That would not be a problem, the functional unit would execute and data would be correctly
+            #         #    #         dropped at the end. However the latency of unit would be added as delay to this loop.
+            #         #    #         This could cause serious performance loss and it is prevented by this loop,
+            #         #    r = hls.read(self.data_in, blocking=False)
+            #         #    inp = r.data
+            #         #    inpValid = r.valid
+            #         # # loop for the case where functional unit has some internal delay.
+            #         # The output of the lop
+            #         # if inpValid:
+            #         resTmp = PyBytecodeInline(self.aluFn)(inp)
+            #         hls.write(resTmp, self.data_out, mayBecomeFlushable=True)
+            #     # :note: using write(mayBecomeFlushable=False) and read(blocking=False)
+            #     #   may result in more simple circuit but fsm will spin in idle, if aluFn
+            #     #   takes more than 1 clk cycle component would not be abble to accept data
+            #     #   if it is spinning on some iddle state then first one, this would cause delay
+            #     #   bubles if input is not saturated
+            #     r = hls.read(self.data_in)
+            #     inp = r.data
+            #     inpValid = r.valid
+            ########################################################################################
+            # :note: V3 this will reduce to V2
+            # inp = self._getTypeOfIo(self.data_in).from_py(None)
+            # inpValid = b0
+            # while b1:
+            #     if inpValid:
+            #         resTmp = PyBytecodeInline(self.aluFn)(inp)
+            #         hls.write(resTmp, self.data_out, mayBecomeFlushable=True)
+            #
+            #     inpValid = b0
+            #     while ~inpValid:
+            #         r = hls.read(self.data_in)
+            #         inp = r.data
+            #         inpValid = r.valid
+            ########################################################################################
+            # :note: V4 this variant have problem with input valid combinational path to output valid
+            # outT = self._getTypeOfIo(self.data_out)
+            # out = outT.from_py(None)
+            # outVld = b0
+            # while b1:
+            #     # :note: read/write may happen only in the same clock cycle
+            #     if outVld:
+            #         hls.write(out, self.data_out, mayBecomeFlushable=False)
+            # 
+            #     r = hls.read(self.data_in, blocking=False) # :note: non-blocking so data_in.valid does not stall data_out write
+            #     inpData = r.data
+            #     inpValid = r.valid
+            #     # :note: if to prevent speculative execution of the potentially costly aluFn
+            #     if inpValid:
+            #         out = aluFn(inpData)
+            #     else:
+            #         out = outT.from_py(None)
+            #     outVld = inpValid
+            ########################################################################################
+
+            # inpData = self._getTypeOfIo(self.data_in).from_py(None)
+            # inpValid = b0
+            # while b1:
+            #    # data_in = PyBytecodeInPreproc(MultiPortGroup((self.data_in, self.data_in)))  # :note: workaround to allow 2 reads in same clock cycle
+            #    data_in = PyBytecodeInPreproc(self.data_in)
+            #    if ~inpValid:
+            #        r = hls.read(data_in, blocking=True)
+            #        inpData = r.data
+            #        inpValid = r.valid
+            #
+            #    res = aluFn(inpData)
+            #    hls.write(res, self.data_out, mayBecomeFlushable=True)
+            #    r = hls.read(data_in, blocking=True)
+            #    inpData = r.data
+            #    inpValid = r.valid
+
         #    inp = self.data_in.T.from_py({"dividend":0, "divisor":0})
         #    while b1:
         #        # loop for the case where functional unit has some internal delay.
@@ -255,29 +368,4 @@ class _BaseALU1HwModule(HwModule):
         #            if r.valid:
         #                break
         #        inp = r.data
-    # @hlsBytecode
-    # def mainThread(self, hls: HlsScope):
-    #    # disable slow optimizations which are useless in this case
-    #    # PyBytecodeSkipPass(["hwtHls::SlicesToIndependentVariablesPass", "hwtHls::SelectPruningPass"])
-    #
-    #    self.MAIN_FN_META
-    #    FN = PyBytecodeInline(self.FN)
-    #    raise NotImplementedError()
-    #    # if self._isFullyUnrolled() or (self.IN_CHANNEL_TYPE == HwIOStruct and self.OUT_CHANNEL_TYPE == HwIOStruct):
-    #    #    while b1:
-    #    #        inp = hls.read(self.data_in).data
-    #    #        res = FN(inp._reinterpret_cast(self.T), loopPragmaGetter=self._getLoopMeta)
-    #    #        hls.write(res, self.data_out, mayBecomeFlushable=False)
-    #    # else:
-    #    #    vld = b0
-    #    #    inp = self.data_in.T.from_py(None)
-    #    #    while b1:
-    #    #        if vld:
-    #    #            res = FN(inp._reinterpret_cast(self.T), loopPragmaGetter=self._getLoopMeta)
-    #    #            hls.write(res, self.data_out, mayBecomeFlushable=False)
-    #    #        # read input at the end of the loop to be able receive it in the same clock as output is produced
-    #    #        r = hls.read(self.data_in, blocking=False)
-    #    #        inp = r.data
-    #    #        vld = r.valid
-    #
 

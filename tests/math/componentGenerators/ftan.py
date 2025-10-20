@@ -1,3 +1,4 @@
+import math
 from typing import Union, Optional
 
 from hwt.hdl.types.bits import HBits
@@ -10,15 +11,21 @@ from hwtHls.architecture.componentGenerator import ComponentGenerator
 from hwtHls.architecture.componentGeneratorUtils import \
     ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule
 from hwtHls.architecture.componentGenerators.baseALU1HwModule import _BaseALU1HwModule
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.llvm.llvmIr import HFloatTmpConfig, HFloatTmpRounding, HFloatTmpSaturation
+from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+from hwtHls.platform.opRealizationMeta import ComponentRealizationMeta
+from hwtHls.platform.platform import DefaultHlsPlatform
+from hwtHls.scope import HlsScope
+from tests.math.componentGenerators._componentGeneratorFp import ComponentGeneratorFp
+from tests.math.componentGenerators._llvmIrInterpretFP import ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary
 from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.math.fp.fptypes import IEEE754Fp
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
-from tests.math.hFloatTmp.hFloatTmpOps import sin, cos, sinpi, cospi
+from tests.math.hFloatTmp.hFloatTmpOps import sin, cos, sinpi, cospi, OP_FTAN, \
+    OP_FTANPI, OP_FSIN, OP_FCOS, OP_FDIV
 from tests.math.hFloatTmp.hFloatTmpUtils import HFloatTmpConfigToHType
 
 
@@ -35,7 +42,14 @@ class TanCordicDivHwModule(_BaseALU1HwModule):
         _BaseALU1HwModule._addDataInDataOut(self, t, t)
 
     def _isFullyUnrolled(self):
-        return True  # the tan itself has no unroll factor but internal sin/cos and div have its own
+        gens = self._target_platform._componentGenerators
+        sinGen = gens[OP_FSIN]
+        cosGen = gens[OP_FCOS]
+        divGen = gens[OP_FDIV]
+        # the tan itself has no unroll factor but internal sin/cos and div have its own
+        return abs(sinGen.optThroughputVsArea - 1.0) <= 0.001 and \
+            abs(cosGen.optThroughputVsArea - 1.0) <= 0.001 and \
+            abs(divGen.optThroughputVsArea - 1.0) <= 0.001
 
     @hlsBytecode
     def aluFn(self, _inp: HBitsRtlSignal) -> HBitsRtlSignal:
@@ -45,6 +59,10 @@ class TanCordicDivHwModule(_BaseALU1HwModule):
         cosVal = cos(inp)
         tanVal = sinVal / cosVal
         return tanVal._auto_cast(T)._reinterpret_cast(self._getTypeOfIo(self.data_out))
+
+    @hlsBytecode
+    def mainThread(self, hls: HlsScope):
+        PyBytecodeInline(_BaseALU1HwModule.mainThread)(self, hls)
 
 
 @serializeParamsUniq
@@ -60,18 +78,36 @@ class TanpiCordicDivHwModule(TanCordicDivHwModule):
         return tanVal._auto_cast(T)._reinterpret_cast(self._getTypeOfIo(self.data_out))
 
 
-class ComponentGeneratorFTAN(ComponentGenerator):
+class ComponentGeneratorFTAN_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary):
+
+    @override
+    @staticmethod
+    def evalFn(x: float) -> float:
+        return math.tan(x)
+
+
+class ComponentGeneratorFTANPI_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary):
+
+    @override
+    @staticmethod
+    def evalFn(x: float) -> float:
+        return math.tan(x * math.pi)
+
+
+class ComponentGeneratorFTAN(ComponentGeneratorFp):
     FP_HWMODULE_CLS = TanCordicDivHwModule
     INPUT_CNT = 1
+    opDef = OP_FTAN
 
-    def __init__(self, platform:"DefaultHlsPlatform",
+    def __init__(self, platform:DefaultHlsPlatform,
                  genNamePrefix:str, moduleName:str):
         ComponentGenerator.__init__(self, platform, genNamePrefix, moduleName)
         # HFloatTmpConfig -> scheduling OpRealizationMeta
-        self.schedulingCache: dict[tuple[HFloatTmpConfig], OpRealizationMeta]
+        self.schedulingCache: dict[tuple[HFloatTmpConfig], tuple[ComponentRealizationMeta, ComponentRealizationMeta]]
 
-    def _getConfiguredHwModule(self, realTimeClkPeriod:float, ty:Union[IEEE754Fp, HFixedPointQ], realization: Optional[OpRealizationMeta]):
+    def _getConfiguredHwModule(self, realTimeClkPeriod:float, ty:Union[IEEE754Fp, HFixedPointQ], realization: Optional[ComponentRealizationMeta]):
         hwModule = self.FP_HWMODULE_CLS()
+        hwModule._target_platform = self.platform
         hwModule.T = ty
         hwModule.CLK_FREQ = int(1 / realTimeClkPeriod)
         if realization is not None:
@@ -79,41 +115,40 @@ class ComponentGeneratorFTAN(ComponentGenerator):
 
         return hwModule
 
-    def resolveRealizationOfNode(self, node: HlsNetNodeOperator) -> None:
-        assert len(node.dependsOn) == self.INPUT_CNT, node
-        cfg: HFloatTmpConfig = node.operatorSpecialization
-
+    @override
+    def resolveRealizationForHlsNetlist(self, netlist: HlsNetlistCtx,
+                                        cfg: HFloatTmpConfig) -> ComponentRealizationMeta:
         try:
-            return self.schedulingCache[cfg]
+            return self.schedulingCache[cfg][1]
         except KeyError:
             pass
-        netlist = node.netlist
         # run compilation of IntDiv HwModule to resolve scheduling properties
         ty = HFloatTmpConfigToHType(cfg)
 
         hwModule = self._getConfiguredHwModule(netlist.realTimeClkPeriod, ty, None)
-        _, r = self.resolveRealizationOfNode_compileToResolveScheduling(
+        _, _, r = self.resolveRealizationOfNode_compileToResolveScheduling(
             netlist.parentHwModule, hwModule,
             netlist.dbgSubmoduleBuidTracer, cfg)
         return r
 
     @override
-    def toHwtCompatibleOperatorAfterScheduling(self, node:"HlsNetNode", worklist: SetList[HlsNetNode]) -> bool:
+    def toHwtCompatibleOperatorAfterScheduling(self, node:HlsNetNode, worklist: SetList[HlsNetNode]) -> bool:
         freq = node.netlist.realTimeClkPeriod
         cfg: HFloatTmpConfig = node.operatorSpecialization
 
-        realization = self.schedulingCache[cfg]
+        realizationSeenFromIn, realizationSeenFromOut = self.schedulingCache[cfg]
         ty = HFloatTmpConfigToHType(cfg)
 
-        hwModule = self._getConfiguredHwModule(freq, ty, realization)
+        hwModule = self._getConfiguredHwModule(freq, ty, realizationSeenFromIn)
         ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule(self, node, hwModule, worklist)
-        if realization.fitsIntoSingleClockWindow():
-            assert hwModule.hlsOpRealizationMeta.fitsIntoSingleClockWindow(), (hwModule, realization, hwModule.hlsOpRealizationMeta)
+        if realizationSeenFromOut.fitsIntoSingleClockWindow():
+            assert hwModule.getHlsOpRealizationMeta()[1].fitsIntoSingleClockWindow(), (hwModule, realizationSeenFromOut, hwModule.getHlsOpRealizationMeta())
         return True
 
 
 class ComponentGeneratorFTANPI(ComponentGeneratorFTAN):
     FP_HWMODULE_CLS = TanpiCordicDivHwModule
+    opDef = OP_FTANPI
 
 
 if __name__ == "__main__":
@@ -129,11 +164,12 @@ if __name__ == "__main__":
     platform = Artix7Fast(debugFilter=HlsDebugBundle.ALL_RELIABLE,
                           llvmCliArgs=[
                               # LLVM_CLI_COMMON_OPTS.filterPrintFuncs(["FixpCosSinCordic.mainThread",]),
+                              LLVM_CLI_COMMON_OPTS.filterPrintFuncs(["TanCordicDivHwModule.mainThread", ]),
                               # LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
                               # LLVM_CLI_COMMON_OPTS.DEBUG_PASS_ARGUMENTS,
                               # LLVM_CLI_COMMON_OPTS.PRINT_BEFORE_ALL,
-                              # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+                              LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
                           ]
                           )
-    installFpComponentGenerators(platform, defaultOptThroughputVsArea=1.0, MAX_TABLE_ADDR_WIDTH=10)
+    installFpComponentGenerators(platform, optThroughputVsArea=0.0, MAX_TABLE_ADDR_WIDTH=0)
     print(to_rtl_str(m, target_platform=platform))

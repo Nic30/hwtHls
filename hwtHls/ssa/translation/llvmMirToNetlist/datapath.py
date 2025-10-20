@@ -8,9 +8,7 @@ from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT, SLICE, INT
 from hwt.hwIO import HwIO
 from hwt.mainBases import RtlSignalBase
-from hwt.math import log2ceil
 from hwt.pyUtils.setList import SetList
-from hwtHls.frontend.hardBlock import HardBlockHwModule
 from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.io.bram import IoProxyBram
 from hwtHls.io.portGroups import BankedPortGroup, MultiPortGroup
@@ -48,6 +46,7 @@ from hwtHls.ssa.translation.toLlvmUtils import _USE_DEFAULT_IO_NODE_CONSTRUCTOR,
     NetlistIoConstructorDictT
 from hwt.hdl.types.hdlType import HdlType
 from hwtHls.platform.opRealizationMeta import ComponentRealizationMeta
+from hwtHls.architecture.componentGenerator import ComponentGenerator
 
 BlockLiveInMuxSyncDict = Dict[Tuple[MachineBasicBlock, MachineBasicBlock, Register], HlsNetNodeExplicitSync]
 
@@ -109,16 +108,6 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
             else:
                 raise NotImplementedError(instr, ptrOp)
         return ptrOp
-
-    @staticmethod
-    def _extractHFloatTmpConfigFromOps(ops: List[Union[CmpInst.Predicate, MachineBasicBlock, Register, HlsNetNodeOutAny, HwIO, int]]):
-        """
-        Extract HFloatTmpConfig options from end of the operands
-        """
-        hFloatTmpConfigMembers = ops[-HFloatTmpConfig.MEMBER_CNT:-2]
-        opSpecialization = HFloatTmpConfig(*hFloatTmpConfigMembers, HFloatTmpRounding(ops[-2]), HFloatTmpSaturation(ops[-1]))
-        ops = ops[:-HFloatTmpConfig.MEMBER_CNT]
-        return opSpecialization, ops
 
     def _translateDatapathInBlocksInstructionsOps(self, MRI: MachineRegisterInfo, mbMeta: MachineBasicBlockMeta,
                                                   valCache: MirToHwtHlsNetlistValueCache,
@@ -326,6 +315,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                             builder: "HlsNetlistBuilder",
                             mbMeta: "MachineBasicBlockMeta",
                             allBlockingLoadAck: Optional[HlsNetNodeOutAny],
+                            enCond: Union[int, HlsNetNodeOutAny],
                             name: Optional[str],
                             instr: MachineInstr,
                             dst: Union[Register, tuple[Register]],
@@ -338,7 +328,6 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                             ) -> Optional[HlsNetNodeOutAny]:
         assert opDef is not None, instr
         assert allBlockingLoadAck is not None, instr
-
         resT = ops[0]._dtype
         mb = mbMeta.block
         valCache = mirToNetlist.valCache
@@ -362,7 +351,16 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
 
         dst: tuple[Register]
         if r.requiresInValid:
-            ops.append(allBlockingLoadAck)
+            en = allBlockingLoadAck
+            if isinstance(enCond, int):
+                assert enCond, instr
+            else:
+                if en is None:
+                    en = enCond
+                else:
+                    en = builder.buildAnd(en, enCond)
+
+            ops.append(en)
 
         if len(resT) == 1:
             res = builder.buildOp(opDef, opSpecialization, resT[0], *ops, name=name)
@@ -371,16 +369,16 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
             res = builder.buildOpManyDst(opDef, opSpecialization, resT, *ops, name=name)
 
         if inNames:
-            assert len(res._inputs) == len(inNames), instr
+            assert len(res._inputs) == len(inNames) or not r.requiresInValid and len(res._inputs) + 1 == len(inNames), (instr, inNames)
             for nodeIn, inName in zip(res._inputs, inNames):
                 nodeIn.name = inName
 
         if outNames:
-            assert len(res._outputs) == len(outNames), instr
+            assert len(res._outputs) == len(outNames) or not r.mayGenerateOutStall and len(res._outputs) + 1 == len(outNames), (instr, outNames)
         else:
             outNames = (None for _ in res._outputs)
 
-        for dstReg, nodeOut, outName in zip(dst, res._outputs, outNames):
+        for isLast, (dstReg, nodeOut, outName) in iter_with_last(zip(dst, res._outputs, outNames)):
             nodeOut: HlsNetNodeOut
             if outName is not None:
                 nodeOut.name = outName
@@ -389,7 +387,21 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 valCache.add(mb, dstReg, nodeOut, True)
             else:
                 assert r.mayGenerateOutStall, instr
-                allBlockingLoadAck = builder.buildAnd(allBlockingLoadAck, nodeOut)
+                if isinstance(enCond, int):
+                    assert enCond, instr
+                    allBlockingLoadAck = nodeOut
+                else:
+                    if allBlockingLoadAck is None:
+                        allBlockingLoadAck = nodeOut
+                    else:
+                        allBlockingLoadAck = builder.buildOr(
+                            builder.buildAnd(allBlockingLoadAck, builder.buildNot(enCond)),
+                            nodeOut
+                        )
+                # :note: do not and with current allBlockingLoadAck as it should be anded internally in the component
+                #  and we wan to handshake sync nodes to recognize that the input write should be happen before wait for
+                #  write output
+                # builder.buildAnd(allBlockingLoadAck, nodeOut)
 
         return allBlockingLoadAck
 
@@ -432,15 +444,20 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
             name: Optional[str]
             ops: MirToHlsNetlistTranslatedInstrOpsT
 
+            gen = componentGenerators.get(opc, None)
+            if gen is not None:
+                gen: ComponentGenerator
+                allBlockingLoadAck = gen.llvmMirToHlsNetlist(
+                    self, builder, mbMeta, allBlockingLoadAck,
+                    name, instr, dst, ops)
+                continue
+
             opDef = self.OPC_TO_OP.get(opc, None)
             if opDef is not None:
                 opSpecialization = None
                 resT = ops[0]._dtype
-                if opc in self._FP_BIN_OPCODES or opc in self._FP_UNARY_OPCODES:
-                    opSpecialization, ops = self._extractHFloatTmpConfigFromOps(ops)
-                elif opc in self._BITCOUNT_OPCODES:
-                    resT = HBits(log2ceil(resT.bit_length() + 1))
-                elif opc in self._SHIFT_OPCODES:
+
+                if opc in self._SHIFT_OPCODES:
                     # cut-off last argument which is the width
                     ops = ops[:-1]
                 elif opc == TargetOpcode.HWTFPGA_MUL_HL:
@@ -539,11 +556,14 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                          TargetOpcode.HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE_WITH_SIDEEFECT):
                 objId = ops[0]
                 try:
-                    obj: HardBlockHwModule = self.placeholderObjectSlots[objId]
+                    obj: "HardBlockHwModule" = self.placeholderObjectSlots[objId]
                 except IndexError:
-                    raise IndexError("ThMissing object requested by placeholder object id", objId, instr)
-                inputs = ops[2:2 + (len(ops) - 2) // 2]
-                obj.translateMirToNetlist(self, mbMeta, instr, builder, inputs, name)
+                    raise IndexError("Missing object requested by placeholder object id", objId, instr)
+
+                gen: "ComponentGeneratorForHardBlock" = self.componentGenerators[obj.getComponentGeneratorKey()]
+                gen.llvmMirToHlsNetlist(
+                    self, builder, mbMeta, allBlockingLoadAck,
+                    name, instr, dst, ops, obj)
             else:
                 raise NotImplementedError(instr)
 

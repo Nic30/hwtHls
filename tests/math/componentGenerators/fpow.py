@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import math
+
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsRtlSignal import HBitsRtlSignal
 from hwt.hdl.types.struct import HStruct
 from hwt.hwIOs.utils import addClkRstn
+from hwt.pyUtils.typingFuture import override
 from hwt.serializer.mode import serializeParamsUniq
+from hwtHls.architecture.componentGenerators.baseALU1HwModule import _BaseALU1HwModule
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.llvm.llvmIr import HFloatTmpRounding, HFloatTmpSaturation
-from hwtHls.architecture.componentGenerators.baseALU1HwModule import _BaseALU1HwModule
-from tests.math.componentGenerators.ftan import TanCordicDivHwModule,\
+from tests.math.componentGenerators._llvmIrInterpretFP import ComponentGeneratorForSpecializedHwtHlsFpIntrinsicBinary_FloatFloat
+from tests.math.componentGenerators.ftan import TanCordicDivHwModule, \
     ComponentGeneratorFTAN
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
-from tests.math.hFloatTmp.hFloatTmpOps import log2, exp2
+from tests.math.hFloatTmp.hFloatTmpOps import log2, exp2, OP_FPOW
+
 
 # https://www.geeksforgeeks.org/exponential-squaring-fast-modulo-multiplication/
 # def exponentiation(bas: int, exp: int):
@@ -41,8 +46,6 @@ from tests.math.hFloatTmp.hFloatTmpOps import log2, exp2
 #         base *= base
 #         exp //= 2
 #     return result
-
-
 @serializeParamsUniq
 class PowHwModule(TanCordicDivHwModule):
 
@@ -75,9 +78,18 @@ class PowHwModule(TanCordicDivHwModule):
         return powVal._auto_cast(T)
 
 
+class ComponentGeneratorFPOW_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicBinary_FloatFloat):
+
+    @override
+    @staticmethod
+    def evalFn(v: float, p:float) -> float:
+        return math.pow(v, p)
+
+
 class ComponentGeneratorFPOW(ComponentGeneratorFTAN):
     INPUT_CNT = 2
     FP_HWMODULE_CLS = PowHwModule
+    opDef = OP_FPOW
 
 
 if __name__ == "__main__":
@@ -100,7 +112,7 @@ if __name__ == "__main__":
                              # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
                          ]
                          )
-    installFpComponentGenerators(platform, defaultOptThroughputVsArea=1.0, MAX_TABLE_ADDR_WIDTH=10)
+    installFpComponentGenerators(platform, optThroughputVsArea=1.0, MAX_TABLE_ADDR_WIDTH=10)
     print(to_rtl_str(m, target_platform=platform))
 
     # test_values = [1., 2., 3., 4., 10., 0, 0.25, 0.75, 0.125, -1., -2., -3., -10. ]

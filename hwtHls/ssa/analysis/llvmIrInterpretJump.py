@@ -3,6 +3,7 @@ from typing import Optional, Union
 
 from hwt.hdl.const import HConst
 from hwt.hdl.types.bitsConst import HBitsConst
+from hwt.hdl.types.defs import BIT
 from hwt.pyUtils.arrayQuery import grouper
 from hwtHls.llvm.llvmIr import BasicBlock, Instruction, InstructionToBranchInst, ValueToBasicBlock, InstructionToSwitchInst
 from hwtHls.ssa.analysis.llvmIrInterpretUtils import LlvmIrInstrFunction
@@ -10,9 +11,10 @@ from hwtSimApi.triggers import StopSimumulation
 from pyDigitalWaveTools.vcd.writer import VcdWriter
 
 
-def _decodeOpcode_Br(interpret: "LlvmIrInterpret", bb: BasicBlock, instr: Instruction) -> LlvmIrInstrFunction:
+def _decodeOpcode_Br(interpret: "LlvmIrInterpret", instr: Instruction) -> LlvmIrInstrFunction:
     br = InstructionToBranchInst(instr)
     assert br is not None, instr
+    bb: BasicBlock = instr.getParent()
     if instr.getNumOperands() == 1:
         nextBb = ValueToBasicBlock(instr.getOperand(0))
         assert nextBb is not None, instr
@@ -51,12 +53,13 @@ def _decodeOpcode_Br(interpret: "LlvmIrInterpret", bb: BasicBlock, instr: Instru
     raise NotImplementedError(instr)
 
 
-def _decodeOpcode_Switch(interpret: "LlvmIrInterpret", bb: BasicBlock, instr: Instruction) -> LlvmIrInstrFunction:
+def _decodeOpcode_Switch(interpret: "LlvmIrInterpret", instr: Instruction) -> LlvmIrInstrFunction:
     switchBr = InstructionToSwitchInst(instr)
     assert switchBr is not None, instr
     ops = interpret._decodeInstArguments(instr.iterOperandValues())
     _cond = ops[0]
     condIsConst = isinstance(_cond, HConst)
+    bb: BasicBlock = instr.getParent()
     if condIsConst:
         assert _cond._is_full_valid(), ("jump condition must be always valid", _cond, bb, instr)
         _cond = _cond._cast_sign(None)
@@ -76,6 +79,9 @@ def _decodeOpcode_Switch(interpret: "LlvmIrInterpret", bb: BasicBlock, instr: In
             cond = regs[_cond]
             assert cond._is_full_valid(), ("jump condition must be always valid", cond, bb, instr)
             cond = cond._cast_sign(None)
+            if cond._dtype.bit_length() == 1 and not (cond._dtype == BIT):
+                # cast bool to 1b
+                cond = cond._reinterpret_cast(BIT)
 
         nextBB = defDst
         for condVal, condValIsConst, dst in condValPairs:
@@ -93,7 +99,7 @@ def _decodeOpcode_Switch(interpret: "LlvmIrInterpret", bb: BasicBlock, instr: In
     return _opcode_SwitchInst
 
 
-def _decodeOpcode_RetInst(interpret: "LlvmIrInterpret", bb: BasicBlock, instr: Instruction) -> LlvmIrInstrFunction:
+def _decodeOpcode_RetInst(interpret: "LlvmIrInterpret", instr: Instruction) -> LlvmIrInstrFunction:
 
     def _opcode_RetInst(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
         raise StopSimumulation()

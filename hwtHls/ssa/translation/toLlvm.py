@@ -2,7 +2,7 @@ from io import StringIO
 from pathlib import Path
 from typing import Union, Sequence, Callable, Optional
 
-from hwt.hObjList import HObjList
+from hwt.constants import NOT_SPECIFIED
 from hwt.hdl.const import HConst
 from hwt.hdl.operator import HOperatorNode
 from hwt.hdl.operatorDefs import HwtOps, HOperatorDef
@@ -27,7 +27,6 @@ from hwt.synthesizer.interfaceLevel.utils import HwIO_pack
 from hwt.synthesizer.rtlLevel.exceptions import SignalDriverErr
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.hOperatorDefLlvm import HOperatorDefLlvm
-from hwtHls.frontend.hardBlock import HardBlockHwModule
 from hwtHls.frontend.pragma import _PyBytecodeIntrinsic
 from hwtHls.frontend.statementsRead import HlsRead
 from hwtHls.frontend.statementsWrite import HlsWrite
@@ -45,6 +44,9 @@ from hwtHls.ssa.translation.toLlvmUtils import addHwtHlsFunctionIoMetadata, \
     llvmFunctionSortArgsByName, ToLlvmIoRecordTuple, applyLateLoopPragma
 from pyMathBitPrecise.bit_utils import iter_bits_sequences, get_bit_range
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
+
+
+PyObjectPlaceholderList = list[_PyBytecodeIntrinsic]
 
 
 class ToLlvmIrTranslator():
@@ -94,7 +96,7 @@ class ToLlvmIrTranslator():
             addHwtHlsFunctionIoMetadata,
             applyLateLoopPragma,
         ]
-        self.placeholderObjectSlots = []
+        self.placeholderObjectSlots: PyObjectPlaceholderList = []
         self._lateLoopPragmaToApply: list[tuple[BasicBlock, list["_PyBytecodeLoopPragma"]]] = []
 
         self._allocaForVariable: dict[RtlSignal, AllocaInst] = {}
@@ -469,11 +471,11 @@ class ToLlvmIrTranslator():
                 return self.b.CreateBitConcat(concatMembers)
 
         elif isinstance(v, HFunctionConst):
-            assert isinstance(v, _PyBytecodeIntrinsic)
-            if isinstance(v, HardBlockHwModule):
-                v: HardBlockHwModule
-                if v.placeholderObjectId is not None:
-                    cur, curV = self.placeholderObjectSlots[v.placeholderObjectId]
+            placeholderObjectId = getattr(v, "placeholderObjectId", NOT_SPECIFIED)
+            if isinstance(v, _PyBytecodeIntrinsic) and placeholderObjectId is not NOT_SPECIFIED:
+                v: _PyBytecodeIntrinsic
+                if placeholderObjectId is not None:
+                    cur, curV = self.placeholderObjectSlots[placeholderObjectId]
                     assert cur is v, (cur, v)
                     return curV
 

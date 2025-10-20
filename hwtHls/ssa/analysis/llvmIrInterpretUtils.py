@@ -3,23 +3,30 @@ LlvmIrInstrFunction takes wave logger, current time, and regs as inputs, and ret
 """
 
 from io import StringIO
-from operator import and_, or_, xor, add, mul, sub, floordiv, rshift, lshift, mod, truediv
+from operator import and_, or_, xor, add, mul, sub, rshift, lshift
 import re
-from typing import Union, Dict, Any, Callable, Optional
+from typing import Union, Dict, Any, Callable, Optional, Generator
 
 from hwt.hdl.const import HConst
-from hwt.hdl.types.bitsConst import HBitsConst
 from hwtHls.llvm.llvmIr import Function, BasicBlock, Instruction, MDOperand, ValueToConstantInt, \
     MetadataToValueAsMetadata, LLVMStringContext, Argument, Value, UserToInstruction, \
-    InstructionToLoadInst, User, InstructionToStoreInst, InstructionToGetElementPtrInst, StreamChannelFormatInfo,\
+    InstructionToLoadInst, User, InstructionToStoreInst, InstructionToGetElementPtrInst, StreamChannelFormatInfo, \
     HwtHlsIoMetadata_get, HwtHlsIoMetadata
 from pyDigitalWaveTools.vcd.common import VCD_SIG_TYPE
 from pyDigitalWaveTools.vcd.value_format import VcdBitsFormatter, \
     LogValueFormatter
 from pyDigitalWaveTools.vcd.writer import VcdWriter
 
-
 LlvmIrInstrFunction = Callable[[Optional[VcdWriter], int, dict[Instruction, HConst]], tuple[BasicBlock, bool]]
+
+
+class HwtHlsFpIntrisicName(str):
+
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__:s} {str(self):s}>"
+
+
+LlvmIrInterpretArgs = tuple[Generator[Union[int, HConst], None, None], list[HConst], ...]
 
 
 class PtrAddrTuple(tuple[Any, Union[int, HConst]]):
@@ -35,7 +42,6 @@ class SimIoUnderflowErr(Exception):
     the simulation did finish or simulated function is missing some data
     """
 
-
 # LLVM_BIN_OP_TO_HWT = {
 #    TargetOpcode.HWTFPGA_ADD: AllOps.ADD,
 #    TargetOpcode.HWTFPGA_SUB: AllOps.SUB,
@@ -46,34 +52,24 @@ class SimIoUnderflowErr(Exception):
 #    TargetOpcode.HWTFPGA_XOR: AllOps.XOR,
 #    TargetOpcode.HWTFPGA_NOT: AllOps.NOT,
 # }
-def floorsdiv(a: HBitsConst, b: HBitsConst):
-    return (a._signed() // b._signed())._vec()
-
-
-def srem(a: HBitsConst, b: HBitsConst):
-    return (a._signed() % b._signed())._vec()
 
 
 RE_NON_ID = re.compile('[^0-9a-zA-Z_]+')
-BINARY_OPS_TO_FN = {
+AnyInstrOpcode = Union[Instruction.MemoryOps,
+                       Instruction.OtherOps,
+                       Instruction.TermOps,
+                       Instruction.CastOps,
+                       Instruction.BinaryOps]
+
+BINARY_OPS_TO_FN: dict[Instruction.BinaryOps, Callable] = {
     Instruction.BinaryOps.And: and_,
     Instruction.BinaryOps.Or: or_,
     Instruction.BinaryOps.Xor: xor,
     Instruction.BinaryOps.Add: add,
     Instruction.BinaryOps.Sub: sub,
     Instruction.BinaryOps.Mul: mul,
-    Instruction.BinaryOps.UDiv: floordiv,
-    Instruction.BinaryOps.SDiv: floorsdiv,
-    Instruction.BinaryOps.URem: mod,
-    Instruction.BinaryOps.SRem: srem,
     Instruction.BinaryOps.LShr: rshift,  # logical shift right
     Instruction.BinaryOps.Shl: lshift,
-    Instruction.BinaryOps.Shl: lshift,
-    Instruction.BinaryOps.FAdd: add,
-    Instruction.BinaryOps.FSub: sub,
-    Instruction.BinaryOps.FDiv: truediv,
-    Instruction.BinaryOps.FMul: mul,
-
 }
 
 
@@ -98,7 +94,8 @@ class VcdLlvmIrCodelineFormatter(LogValueFormatter):
         self.vcdId = varInfo.vcdId
 
     def format(self, newVal: Instruction, updater, t: int, out: StringIO):
-        out.write(f"b{self.instrCodeline[newVal]:b} {self.vcdId:s}\n")
+        codeline =  self.instrCodeline[newVal]
+        out.write(f"b{codeline:b} {self.vcdId:s}\n")
 
 
 class VcdLlvmIrSimTimeFormatter(LogValueFormatter):
@@ -154,7 +151,8 @@ def _prepareWaveWriterTopIo(waveLog: VcdWriter, strCtx: LLVMStringContext, fn: F
             arg: Argument
             ioMetadata: HwtHlsIoMetadata
             if ioMetadata.addrWidth != 0:
-                raise NotImplementedError(arg, ioMetadata.addrWidth)
+                continue  # :note: not implementd
+                # raise NotImplementedError(arg, ioMetadata.addrWidth)
             name = RE_NON_ID.sub("_", arg.getName().str())
             assert name, arg
             argWidth = _findLoadOrStoreWidthForValue(strCtx, arg)

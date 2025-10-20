@@ -4,7 +4,7 @@ from hwt.code import Concat
 from hwt.hdl.const import HConst
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
-from hwtHls.llvm.llvmIr import Instruction, BasicBlock, InstructionToICmpInst, \
+from hwtHls.llvm.llvmIr import Instruction, InstructionToICmpInst, \
     InstructionToCastInst, InstructionToSelectInst, InstructionToBinaryOperator, BinaryOperator, \
     CastInst
 from hwtHls.ssa.analysis.llvmIrInterpretUtils import LlvmIrInstrFunction
@@ -12,7 +12,7 @@ from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisP
 from pyDigitalWaveTools.vcd.writer import VcdWriter
 
 
-def _decodeOpcode_ICmpInst(interpret: "LlvmIrInterpret", bb: BasicBlock, instr: Instruction) -> LlvmIrInstrFunction:
+def _decodeOpcode_ICmpInst(interpret: "LlvmIrInterpret", instr: Instruction) -> LlvmIrInstrFunction:
     cmp = InstructionToICmpInst(instr)
     assert cmp is not None, instr
 
@@ -55,7 +55,7 @@ def _decodeOpcode_ICmpInst(interpret: "LlvmIrInterpret", bb: BasicBlock, instr: 
     return _opcode_SelectInst
 
 
-def _decodeOpcode_SelectInst(interpret: "LlvmIrInterpret", bb: BasicBlock, instr: Instruction) -> LlvmIrInstrFunction:
+def _decodeOpcode_SelectInst(interpret: "LlvmIrInterpret", instr: Instruction) -> LlvmIrInstrFunction:
     select = InstructionToSelectInst(instr)
     assert select is not None, instr
 
@@ -96,11 +96,10 @@ def _decodeOpcode_SelectInst(interpret: "LlvmIrInterpret", bb: BasicBlock, instr
     return _opcode_SelectInst
 
 
-def _decodeOpcode_CastInst(interpret: "LlvmIrInterpret", bb: BasicBlock, instr: Instruction) -> LlvmIrInstrFunction:
+def _decodeOpcode_CastInst(interpret: "LlvmIrInterpret", instr: Instruction) -> LlvmIrInstrFunction:
     cast: CastInst = InstructionToCastInst(instr)
     assert cast is not None, instr
 
-    opc = cast.getOpcode()
     _src0, = interpret._decodeInstArguments(cast.iterOperandValues())
     src0IsConst = isinstance(_src0, HConst)
     CastOps = Instruction.CastOps
@@ -108,72 +107,77 @@ def _decodeOpcode_CastInst(interpret: "LlvmIrInterpret", bb: BasicBlock, instr: 
     oTy = cast.getOperand(0).getType()
     assert oTy.isIntegerTy(), oTy
     oWidth = oTy.getIntegerBitWidth()
+    if instr.isCast():
+        opc = CastOps(cast.getOpcode())
+        if opc == CastOps.ZExt:
+            padding = HBits(newWidth - oWidth).from_py(0)
 
-    if opc == CastOps.ZExt:
-        padding = HBits(newWidth - oWidth).from_py(0)
+            def _opcode_ZExt(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
+                if src0IsConst:
+                    o = _src0
+                else:
+                    o = regs[_src0]
+                assert o._dtype.signed is None, (instr, o)
+                res = Concat(padding, o)
+                # inlined interpret._storeInstrResult from perf. reasons
+                if waveLog is not None:
+                    waveLog.logChange(nowTime, instr, res, None)
+                regs[instr] = res
 
-        def _opcode_ZExt(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
-            if src0IsConst:
-                o = _src0
-            else:
-                o = regs[_src0]
-            assert o._dtype.signed is None, (instr, o)
-            res = Concat(padding, o)
-            # inlined interpret._storeInstrResult from perf. reasons
-            if waveLog is not None:
-                waveLog.logChange(nowTime, instr, res, None)
-            regs[instr] = res
+            return _opcode_ZExt
 
-        return _opcode_ZExt
+        elif opc == CastOps.SExt:
 
-    elif opc == CastOps.SExt:
+            def _opcode_SExt(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
+                if src0IsConst:
+                    o = _src0
+                else:
+                    o = regs[_src0]
+                assert o._dtype.signed is None, (instr, o)
+                msb = o[oWidth - 1]
+                res = Concat(*(msb for _ in range(newWidth - oWidth)), o)
+                # inlined interpret._storeInstrResult from perf. reasons
+                if waveLog is not None:
+                    waveLog.logChange(nowTime, instr, res, None)
+                regs[instr] = res
 
-        def _opcode_SExt(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
-            if src0IsConst:
-                o = _src0
-            else:
-                o = regs[_src0]
-            assert o._dtype.signed is None, (instr, o)
-            msb = o[oWidth - 1]
-            res = Concat(*(msb for _ in range(newWidth - oWidth)), o)
-            # inlined interpret._storeInstrResult from perf. reasons
-            if waveLog is not None:
-                waveLog.logChange(nowTime, instr, res, None)
-            regs[instr] = res
+            return _opcode_SExt
 
-        return _opcode_SExt
+        elif opc == CastOps.Trunc:
 
-    elif opc == CastOps.Trunc:
+            def _opcode_Trunc(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
+                if src0IsConst:
+                    o = _src0
+                else:
+                    o = regs[_src0]
 
-        def _opcode_Trunc(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
-            if src0IsConst:
-                o = _src0
-            else:
-                o = regs[_src0]
+                res = o[newWidth:]
+                # inlined interpret._storeInstrResult from perf. reasons
+                if waveLog is not None:
+                    waveLog.logChange(nowTime, instr, res, None)
+                regs[instr] = res
 
-            res = o[newWidth:]
-            # inlined interpret._storeInstrResult from perf. reasons
-            if waveLog is not None:
-                waveLog.logChange(nowTime, instr, res, None)
-            regs[instr] = res
+            return _opcode_Trunc
 
-        return _opcode_Trunc
-
-    else:
-        raise NotImplementedError(instr)
+    raise NotImplementedError(instr)
 
 
 def _makeDecodeOpcodeFunction_BinaryOperator(fn: Callable[[HConst, HConst], HConst]):
 
-    def _decodeOpcode_BinaryOperator(interpret: "LlvmIrInterpret", bb: BasicBlock, instr: Instruction) -> LlvmIrInstrFunction:
+    def _decodeOpcode_BinaryOperator(interpret: "LlvmIrInterpret", instr: Instruction) -> LlvmIrInstrFunction:
         bi: BinaryOperator = InstructionToBinaryOperator(instr)
-        assert bi is not None, instr
-
+        try:
+            assert bi is not None, (instr, fn)
+        except:
+            raise
         _ops = interpret._decodeInstArguments(bi.iterOperandValues())
 
         def _opcode_BinaryOperator(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
             ops = interpret._prepareInstrArguments(_ops, regs)
-            res = fn(*ops)
+            try:
+                res = fn(*ops)
+            except ZeroDivisionError:
+                res = ops[0]._dtype.from_py(None)
             # inlined interpret._storeInstrResult from perf. reasons
             if waveLog is not None:
                 waveLog.logChange(nowTime, instr, res, None)
@@ -233,3 +237,39 @@ def _opcode_Intrinsic_ssub_sat(ops: tuple[HBitsConst, HBitsConst]):
             return a._dtype.from_py(intMin)._vec()
 
     return res._vec()
+
+
+def _opcode_Intrinsic_uadd_with_overflow(ops: tuple[HBitsConst, HBitsConst]):
+        a, b = ops
+        w = a._dtype.bit_length()
+        a = a._zext(w + 1)
+        b = b._zext(w + 1)
+        c = a + b
+        return (c[w:], c[w])
+
+
+def _opcode_Intrinsic_usub_with_overflow(ops: tuple[HBitsConst, HBitsConst]):
+        a, b = ops
+        w = a._dtype.bit_length()
+        a = a._zext(w + 1)
+        b = b._zext(w + 1)
+        c = a - b
+        return (c[w:], c[w])
+
+
+def _opcode_Intrinsic_sadd_with_overflow(ops: tuple[HBitsConst, HBitsConst]):
+        a, b = ops
+        w = a._dtype.bit_length()
+        a = a._sext(w + 1)
+        b = b._sext(w + 1)
+        c = a + b
+        return (c[w:], c[w])
+
+
+def _opcode_Intrinsic_ssub_with_overflow(ops: tuple[HBitsConst, HBitsConst]):
+        a, b = ops
+        w = a._dtype.bit_length()
+        a = a._sext(w + 1)
+        b = b._sext(w + 1)
+        c = a - b
+        return (c[w:], c[w])

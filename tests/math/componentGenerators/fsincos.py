@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import math
 from typing import Optional
 
 from hwt.hdl.types.bits import HBits
@@ -15,15 +16,22 @@ from hwtHls.architecture.componentGenerator import ComponentGenerator
 from hwtHls.architecture.componentGeneratorUtils import \
     ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule
 from hwtHls.architecture.componentGenerators.baseALU1HwModule import _BaseALU1HwModule
-from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaFunction import PyBytecodeSkipPass
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.llvm.llvmIr import HFloatTmpConfig, HFloatTmpRounding, HFloatTmpSaturation
+from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+from hwtHls.platform.opRealizationMeta import OpRealizationMeta, \
+    ComponentRealizationMeta
+from hwtHls.platform.platform import DefaultHlsPlatform
+from tests.math.componentGenerators._componentGeneratorFp import ComponentGeneratorFp
+from tests.math.componentGenerators._llvmIrInterpretFP import ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary
 from tests.math.fixp.cordicHybridLut import Cordic
 from tests.math.fixp.fixpTypes import HFixedPointQ
+from tests.math.hFloatTmp.hFloatTmpOps import OP_FSINCOS, OP_FSIN, OP_FCOS, \
+    OP_FSINCOSPI, OP_FSINPI, OP_FCOSPI
 
 
 @serializeParamsUniq
@@ -87,22 +95,62 @@ class FixpSinCosCordic(_BaseALU1HwModule):
         return resTmp
 
 
-class ComponentGeneratorFSINCOS(ComponentGenerator):
+class ComponentGeneratorFSIN_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary):
 
-    def __init__(self, platform:"DefaultHlsPlatform", hasCos:bool, hasSin:bool,
+    @override
+    @staticmethod
+    def evalFn(x: float) -> float:
+        return math.sin(x)
+
+
+class ComponentGeneratorFCOS_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary):
+
+    @override
+    @staticmethod
+    def evalFn(x: float) -> float:
+        return math.cos(x)
+
+
+class ComponentGeneratorFSINPI_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary):
+
+    @override
+    @staticmethod
+    def evalFn(x: float) -> float:
+        return math.sin(x * math.pi)
+
+
+class ComponentGeneratorFCOSPI_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary):
+
+    @override
+    @staticmethod
+    def evalFn(x: float) -> float:
+        return math.cos(x * math.pi)
+
+
+class ComponentGeneratorFSINCOS(ComponentGeneratorFp):
+
+    def __init__(self, platform:DefaultHlsPlatform,
                  genNamePrefix:str, moduleName:str,
+                 hasCos:bool, hasSin:bool,
                  optThroughputVsArea=0.0,
                  optMaxStagesInLut=10,
                  FIXP_HWMODULE_CLS=FixpSinCosCordic):
         ComponentGenerator.__init__(self, platform, genNamePrefix, moduleName)
         # dataWidth -> scheduling
-        self.schedulingCache: dict[tuple[float, HFloatTmpConfig], tuple[OpRealizationMeta, int, int]]
+        self.schedulingCache: dict[tuple[float, HFloatTmpConfig], tuple[ComponentRealizationMeta, ComponentRealizationMeta, int, int]]
         self._hasCos = hasCos
         self._hasSin = hasSin
+        if hasSin and hasCos:
+            self.opDef = OP_FSINCOS
+        elif hasSin:
+            self.opDef = OP_FSIN
+        elif hasCos:
+            self.opDef = OP_FCOS
+        else:
+            raise AssertionError()
         self.optThroughputVsArea = optThroughputVsArea
         self.optMaxStagesInLut = optMaxStagesInLut
         self.FIXP_HWMODULE_CLS = FIXP_HWMODULE_CLS
-        assert hasCos or hasSin
 
     def _getConfiguredFixpHwModule(self,
                                    realTimeClkPeriod:float,
@@ -122,15 +170,10 @@ class ComponentGeneratorFSINCOS(ComponentGenerator):
 
         return hwModule
 
-    @override
-    def resolveRealizationOfNode(self, node:HlsNetNodeOperator) -> None:
-        assert len(node.dependsOn) == 1, node
-        return self.resolveRealizationForHlsNetlist(node.netlist, node.operatorSpecialization)
-
-    def resolveRealizationForHlsNetlist(self, netlist: "HlsNetlistCtx", cfg: HFloatTmpConfig) -> None:
+    def resolveRealizationForHlsNetlist(self, netlist: HlsNetlistCtx, cfg: HFloatTmpConfig) -> None:
         cacheKey = (cfg, self.optThroughputVsArea, self.optMaxStagesInLut)
         try:
-            return self.schedulingCache[cacheKey][0]
+            return self.schedulingCache[cacheKey][1]
         except KeyError:
             pass
 
@@ -154,7 +197,7 @@ class ComponentGeneratorFSINCOS(ComponentGenerator):
 
             # run compilation of IntDiv HwModule to resolve scheduling properties
             hwModule = self._getConfiguredFixpHwModule(netlist.realTimeClkPeriod, ty, STAGES_IN_LUT, UNROLL_FACTOR, None)
-            _, r = self.resolveRealizationOfNode_compileToResolveScheduling(
+            _, _, r = self.resolveRealizationOfNode_compileToResolveScheduling(
                 netlist.parentHwModule, hwModule,
                 netlist.dbgSubmoduleBuidTracer, cacheKey, (STAGES_IN_LUT, UNROLL_FACTOR))
             return r
@@ -170,7 +213,7 @@ class ComponentGeneratorFSINCOS(ComponentGenerator):
                 raise NotImplementedError()
 
             cacheKey = (cfg, self.optThroughputVsArea, self.optMaxStagesInLut)
-            realization, STAGES_IN_LUT, UNROLL_FACTOR = self.schedulingCache[cacheKey]
+            realization, _, STAGES_IN_LUT, UNROLL_FACTOR = self.schedulingCache[cacheKey]
             hwModule = self._getConfiguredFixpHwModule(freq, HFixedPointQ.fromHFloatTmpConfig(cfg),
                                                        STAGES_IN_LUT, UNROLL_FACTOR, realization)
             if self._hasCos and self._hasSin:
@@ -212,15 +255,24 @@ class FixpSinCosCordicPi(FixpSinCosCordic):
 
 class ComponentGeneratorFSINCOS_PI(ComponentGeneratorFSINCOS):
 
-    def __init__(self, platform:"DefaultHlsPlatform", hasCos:bool, hasSin:bool,
+    def __init__(self, platform:"DefaultHlsPlatform",
                  genNamePrefix:str, moduleName:str,
+                 hasCos:bool, hasSin:bool,
                  optThroughputVsArea=0.0,
                  optMaxStagesInLut=10,
                  FIXP_HWMODULE_CLS=FixpSinCosCordicPi):
-        super().__init__(platform, hasCos, hasSin, genNamePrefix, moduleName,
+        super().__init__(platform, genNamePrefix, moduleName, hasCos, hasSin,
                          optThroughputVsArea=optThroughputVsArea,
                          optMaxStagesInLut=optMaxStagesInLut,
                          FIXP_HWMODULE_CLS=FIXP_HWMODULE_CLS)
+        if hasSin and hasCos:
+            self.opDef = OP_FSINCOSPI
+        elif hasSin:
+            self.opDef = OP_FSINPI
+        elif hasCos:
+            self.opDef = OP_FCOSPI
+        else:
+            raise AssertionError()
 
 
 if __name__ == "__main__":
