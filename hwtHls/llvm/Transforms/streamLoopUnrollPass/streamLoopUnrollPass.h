@@ -25,6 +25,7 @@ namespace hwtHls {
 //  :note: This pass handles both input and output stream IO.
 class StreamLoopUnrollPass: public llvm::PassInfoMixin<StreamLoopUnrollPass> {
 public:
+	static const std::string METADATA_NAME;
 	llvm::PreservedAnalyses run(llvm::Function &F,
 			llvm::FunctionAnalysisManager &AM);
 };

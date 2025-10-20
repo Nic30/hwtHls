@@ -108,34 +108,47 @@ class PyBytecodeStreamLoopUnroll(_PyBytecodeLoopPragma):
         br i1 %exitcond, label %._crit_edge, label %.lr.ph, !llvm.loop !0
         ...
         !0 = !{!0, !1}
-        !1 = !{!"hwthls.loop.streamunroll.io", i32 0}
+        !1 = !{!"hwthls.loop.streamunroll.io", i32 0, i1 false} 
+        ; :note: i32 0 is stream ioArgIndex, i1 false alignLoopBodyBeginByPrequelExtract flag
     
+    :ivar io: this loop unroll pass unrolls this loop to match throughput of this specified io
+    :ivar alignLoopBodyBeginByPrequelExtract: if True this pass tries to move several first loop iterations
+        into prequel of this loop so the main loop body always works from data bit 0 of io
     """
+    METADATA_NAME_IO = "hwthls.loop.streamunroll.io"
+    METADATA_NAME_FOLLOWUP = "hwthls.loop.streamunroll.followup_unrolled"
 
-    def __init__(self, io_: Union[HwIO, IoProxyStream], followup:Optional[_PyBytecodeLoopPragma]=None):
+    def __init__(self, io_: Union[HwIO, IoProxyStream],
+                  alignLoopBodyBeginByPrequelExtract=False,
+                  followup_unrolled:Optional[_PyBytecodeLoopPragma]=None):
         _PyBytecodeLoopPragma.__init__(self)
         self.io = io_
-        self.followup = followup
+        self.followup_unrolled = followup_unrolled
+        self.alignLoopBodyBeginByPrequelExtract = alignLoopBodyBeginByPrequelExtract
 
-    def getLlvmLoopMetadataItems(self, irTranslator:"ToLlvmIrTranslator"):
+    def getLlvmLoopMetadataItems(self, irTranslator:"ToLlvmIrTranslator", addAlignLoopBodyBeginByPrequelExtract=True):
         getStr = irTranslator.mdGetStr
         getInt = irTranslator.mdGetUInt32
+        getBool = irTranslator.mdGetBool
+
         getTuple = irTranslator.mdGetTuple
         io_ = self.io
         if isinstance(io_, IoProxyStream):
             io_ = io_.interface
-        ioArgIndex =irTranslator.ioToArgIndex[io_]
+        ioArgIndex = irTranslator.ioToArgIndex[io_]
         items = [
             getTuple([
-                    getStr("hwthls.loop.streamunroll.io"),
-                    getInt(ioArgIndex)
+                    getStr(self.METADATA_NAME_IO),
+                    getInt(ioArgIndex),
+                    *((getBool(self.alignLoopBodyBeginByPrequelExtract),) if addAlignLoopBodyBeginByPrequelExtract else ())
                 ],
                 False)
         ]
-        if self.followup is not None:
+
+        if self.followup_unrolled is not None:
             md = getTuple([
-                    getStr("hwthls.loop.streamunroll.followup"),
-                    *self.followup.getLlvmLoopMetadataItems(irTranslator),
+                    getStr(self.METADATA_NAME_FOLLOWUP),
+                    *self.followup_unrolled.getLlvmLoopMetadataItems(irTranslator),
                 ], False)
             items.append(md)
 

@@ -6,9 +6,11 @@
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <llvm/Transforms/Utils/PromoteMemToReg.h>
 #include <llvm/Analysis/DomTreeUpdater.h>
+#include <llvm/Analysis/SimplifyQuery.h>
 
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/cfgFragmentOptionaStreamWrite.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_streamWriteMerge.h>
 
 using namespace llvm;
 
@@ -43,12 +45,12 @@ void sinkMergableSequenceOfWritesMoveWrites(llvm::Loop &L, llvm::LoopInfo &LI,
 				auto Ty = A->getType();
 				auto tmpAlloca = Builder.CreateAlloca(Ty, nullptr, ArgName);
 				Builder.CreateLifetimeStart(tmpAlloca);
-				Value* initVal;
+				Value *initVal;
 				if (argI == 1) {
 					// data do not need to be set to some specific value
 					initVal = PoisonValue::get(Ty);
 				} else {
-					initVal =  Builder.getIntN(Ty->getIntegerBitWidth(), 0);
+					initVal = Builder.getIntN(Ty->getIntegerBitWidth(), 0);
 				}
 				Builder.CreateStore(initVal, tmpAlloca);
 				Builder.SetInsertPoint(wr.write);
@@ -79,8 +81,8 @@ void sinkMergableSequenceOfWritesMoveWrites(llvm::Loop &L, llvm::LoopInfo &LI,
 		Builder.CreateLifetimeEnd(tmpAlloca);
 
 		auto wrBBTerm = SplitBlockAndInsertIfThen(enCond, /*SplitBefore*/
-				curBB->getTerminator(), /*Unreachable*/false, /*BranchWeights*/
-				nullptr, &DTU, &LI);
+		curBB->getTerminator(), /*Unreachable*/false, /*BranchWeights*/
+		nullptr, &DTU, &LI);
 		auto &wrBB = *wrBBTerm->getParent();
 		wrBB.setName(wr.write->getParent()->getName() + ".streamWrite.sinked");
 		// move write instruction to write block
@@ -269,6 +271,7 @@ void sinkMergableSequenceOfWrites(llvm::Loop &L, llvm::LoopInfo &LI,
  **/
 void sinkStreamWritesInLoop(llvm::Loop &L, llvm::ScalarEvolution &SE,
 		llvm::DominatorTree &DT, llvm::LoopInfo &LI, llvm::AssumptionCache &AC,
+		const llvm::TargetLibraryInfo &TLI,
 		const llvm::TargetTransformInfo &TTI, bool PreserveLCSSA) {
 	formDedicatedExitBlocks(&L, &DT, &LI, nullptr, PreserveLCSSA);
 	assert(L.isLoopSimplifyForm());
@@ -276,10 +279,18 @@ void sinkStreamWritesInLoop(llvm::Loop &L, llvm::ScalarEvolution &SE,
 	//std::map<BasicBlock*, OptionalStreamWriteCFGFragment> exitBBToWrite;
 	// detect linear sequences of optional writes
 	SmallVector<OptionalStreamWriteCFGFragment> writeSeqeunce;
+	auto &F = *L.getBlocks()[0]->getParent();
+	IRBuilder<> Builder(F.getContext());
+	llvm::SimplifyQuery SQ(F.getParent()->getDataLayout(), &TLI, &DT, &AC);
 	for (auto *BB : L.blocks()) {
-		auto wr = OptionalStreamWriteCFGFragment::detect(*BB);
-		if (wr.has_value()) {
-			writeSeqeunce.push_back(wr.value());
+		llvm::CallInst *wr =
+				HwtHlsSimplifyCFGPass_streamWriteMergeInSingleBlock(Builder,
+						*BB, SQ);
+		if (wr) {
+			auto wrFrag = OptionalStreamWriteCFGFragment::detect(*wr);
+			if (wrFrag.has_value()) {
+				writeSeqeunce.push_back(wrFrag.value());
+			}
 		}
 	}
 	SmallVector<OptionalStreamWriteCFGFragment> mergableWriteSeqeunce;
