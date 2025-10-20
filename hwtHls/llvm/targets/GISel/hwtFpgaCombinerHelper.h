@@ -91,6 +91,13 @@ public:
 
 	using llvm::CombinerHelper::CombinerHelper;
 
+	void replaceInstWithUndef(llvm::MachineInstr & MI);
+
+	// :note: does not require SSA
+	bool matchEqualDefs(const llvm::MachineOperand &MO0,
+			const llvm::MachineOperand &MO1); // override
+	bool matchEqualDefs(const MachineInstr &MI0, const MachineInstr &MI1,
+			size_t opI);
 	/* If register is defined only by an instruction of the specified code return it*/
 	MachineInstr* getOpcodeDef(unsigned Opcode, Register Reg,
 			const llvm::MachineRegisterInfo &MRI);
@@ -152,6 +159,8 @@ public:
 			MachineOperand op1);
 	void copyOperand(MachineInstrBuilder &MIB, MachineRegisterInfo &MRI,
 			MachineFunction &MF, MachineOperand &MO);
+	void copyOperandsForHFloatTmpAndPredicate(MachineInstrBuilder &MIB,
+			size_t offset, MachineInstr &MI);
 	void convertG_SELECT_to_HWTFPGA_MUX(llvm::MachineInstr &MI);
 	void convertPHI_to_HWTFPGA_MUX(llvm::MachineInstr &MI);
 	bool hasSomeConstConditions(llvm::MachineInstr &MI);
