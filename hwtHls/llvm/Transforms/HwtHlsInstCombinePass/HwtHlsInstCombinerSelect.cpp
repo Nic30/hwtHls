@@ -255,30 +255,23 @@ Instruction* HwtHlsInstCombiner::tryReduceSelectInst_toAndOr(
 		assert(off == width);
 		return replaceInstUsesWith(SI, CreateBitConcat(&Builder, concatOps));
 	}
-
-	// handle cases it zero or all ones value operands
-	if (VFC && VFC->isZero()) {
-		// select %c, v0, 0 -> and(c, v0)
-		if (width != 1)
-			C = Builder.CreateSExt(C, VT->getType());
-		return replaceInstUsesWith(SI, Builder.CreateAnd(C, VT));
-	} else if (VTC && VTC->isAllOnesValue()) {
-		// select %c, 1, v1 -> or(c, v1)
-		if (width != 1)
-			C = Builder.CreateSExt(C, VT->getType());
-		return replaceInstUsesWith(SI, Builder.CreateOr(C, VF));
-	} else if (VTC && VTC->isZero()) {
-		// select %c, 0, v1 -> and(!c, v1)
-		if (width != 1)
-			C = Builder.CreateSExt(C, VT->getType());
-		auto nC = Builder.CreateNot(C);
-		return replaceInstUsesWith(SI, Builder.CreateAnd(nC, VF));
-	} else if (VFC && VFC->isAllOnesValue()) {
-		// select %c, v0, 1 -> or(!c, v0)
-		if (width != 1)
-			C = Builder.CreateSExt(C, VT->getType());
-		auto nC = Builder.CreateNot(C);
-		return replaceInstUsesWith(SI, Builder.CreateOr(nC, VT));
+	if (width == 1) {
+		// handle cases it zero or all ones value operands
+		if (VFC && VFC->isZero()) {
+			// select %c, v0, 0 -> and(c, v0)
+			return replaceInstUsesWith(SI, Builder.CreateAnd(C, VT));
+		} else if (VTC && VTC->isAllOnesValue()) {
+			// select %c, 1, v1 -> or(c, v1)
+			return replaceInstUsesWith(SI, Builder.CreateOr(C, VF));
+		} else if (VTC && VTC->isZero()) {
+			// select %c, 0, v1 -> and(!c, v1)
+			auto nC = Builder.CreateNot(C);
+			return replaceInstUsesWith(SI, Builder.CreateAnd(nC, VF));
+		} else if (VFC && VFC->isAllOnesValue()) {
+			// select %c, v0, 1 -> or(!c, v0)
+			auto nC = Builder.CreateNot(C);
+			return replaceInstUsesWith(SI, Builder.CreateOr(nC, VT));
+		}
 	}
 
 	// handle cases where VT/VF is C or its negation
