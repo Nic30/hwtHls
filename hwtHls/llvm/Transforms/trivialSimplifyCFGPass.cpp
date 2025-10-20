@@ -11,7 +11,10 @@
 
 #include <algorithm>
 
+#define DEBUG_TYPE "hwthls-trivialsimplifycfg"
 // #define DBG_VERIFY_AFTER_EVERY_MODIFICATION
+// #undef LLVM_DEBUG
+// #define LLVM_DEBUG(x) x
 
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 #include <llvm/IR/Verifier.h>
@@ -63,6 +66,8 @@ static bool tryRemoveSingleSuccessorSinglePredecessorBlock(DomTreeUpdater &DTU,
 			}
 		}
 	}
+	LLVM_DEBUG(
+			dbgs() << "tryRemoveSingleSuccessorSinglePredecessorBlock: "; PredBB->printAsOperand(dbgs()); dbgs() << '\n');
 
 	// update successor PHIs
 	for (PHINode &SucPhi : SucBB->phis()) {
@@ -138,6 +143,8 @@ bool tryRemoveSingleSuccessorManyPredecessorBlock(DomTreeUpdater &DTU,
 		}
 	}
 
+	LLVM_DEBUG(
+			dbgs() << "tryRemoveSingleSuccessorManyPredecessorBlock: "; BB->printAsOperand(dbgs()); dbgs() << '\n');
 	// update PHIs
 	for (PHINode &SucPhi : SucBB->phis()) {
 		if (std::find(alreadyHasTheValueInPhis.begin(),
@@ -191,12 +198,21 @@ bool tryRemoveSingleSuccessorManyPredecessorBlock(DomTreeUpdater &DTU,
 bool tryRemoveSingleSuccessorBlockIfNotLatch(DomTreeUpdater &DTU,
 		const bool allowPhiNewIncommingValues, BasicBlock *BB,
 		llvm::SmallSetVector<WeakVH, 16> &WorkList) {
+	if (BB == &BB->getParent()->getEntryBlock())
+		return false; // can not remove entry point
 	auto *SucBB = BB->getSingleSuccessor();
 	if (!SucBB)
 		return false;
 	if (SucBB == BB) {
 		return false; // can not remove self loop
 	}
+	DTU.flush();
+	auto &DT = DTU.getDomTree();
+	bool isLoopLatch = DT.dominates(SucBB, BB);
+	if (isLoopLatch)
+		return false;
+	LLVM_DEBUG(
+			dbgs() << "tryRemoveSingleSuccessorBlockIfNotLatch BB:   "; BB->printAsOperand(dbgs()); dbgs() << "\n");
 	bool blockEmpty = (BB->begin() == BB->end()
 			|| BB->begin() == BB->getTerminator()->getIterator());
 	if (!blockEmpty && SucBB->hasNPredecessors(1)) {
@@ -213,12 +229,8 @@ bool tryRemoveSingleSuccessorBlockIfNotLatch(DomTreeUpdater &DTU,
 		return false;
 
 	auto *SinglePredBB = BB->getSinglePredecessor();
-	DTU.flush();
-	auto &DT = DTU.getDomTree();
-	bool isLoopLatch = DT.dominates(SucBB, BB);
-	if (isLoopLatch) {
-		return false;
-	} else if (SinglePredBB) {
+
+	if (SinglePredBB) {
 		return tryRemoveSingleSuccessorSinglePredecessorBlock(DTU, BB,
 				SinglePredBB, SucBB, WorkList);
 	} else if (BB->hasNPredecessors(0)) {
@@ -260,6 +272,8 @@ static bool trySimplifyTerminator(IRBuilder<> &Builder, DomTreeUpdater &DTU,
 			BasicBlock *NewSuc =
 					_newSuc == -1 ? nullptr : br->getSuccessor(_newSuc);
 			if (NewSuc != nullptr) {
+				LLVM_DEBUG(
+						dbgs() << "trySimplifyTerminator: removing cond branc in "; BB.printAsOperand(dbgs()); dbgs() << '\n');
 				Builder.SetInsertPoint(br);
 				auto *newBr = Builder.CreateBr(NewSuc);
 				scavengeTerminatorMetadata(br, newBr);
