@@ -12,10 +12,10 @@ namespace hwtHls {
 //===----------------------------------------------------------------------===//
 //
 // This pass loops over all of the functions in the input module and
-// removes prof metadata from them
+// removes prof metadata from them if they have ProfMetadataAddDummy::METADATA_NAME_DUMMY_PROF_MD set
 //
 //===----------------------------------------------------------------------===//
-class StripProfMetadataPass: public llvm::PassInfoMixin<StripProfMetadataPass> {
+class ProfMetadataRmDummy: public llvm::PassInfoMixin<ProfMetadataRmDummy> {
 public:
 	llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager&);
 	llvm::PreservedAnalyses run(llvm::Function &F,
