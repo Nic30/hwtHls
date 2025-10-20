@@ -630,7 +630,7 @@ class HlsNetlistBuilder():
         self.operatorCache[keyWithHConsts] = o
         return o
 
-    def buildBitReverse(self, v: Union[HlsNetNodeOut, HConst], worklist: Optional[SetList[HlsNetNode]],
+    def buildBitReverse(self, v: Union[HlsNetNodeOut, HConst],
                         name:Optional[str]=None,
                         operatorSpecialization:Optional[HFloatTmpConfig]=None):
         if isinstance(v, HConst):
@@ -638,7 +638,7 @@ class HlsNetlistBuilder():
         else:
             resBits = []  # msb first
             for i in reversed(range(v._dtype.bit_length())):
-                b = self.buildIndexConst(BIT, v, i + 1, i, worklist)
+                b = self.buildIndexConst(BIT, v, i + 1, i)
                 resBits.append(b)
 
             return self.buildConcat(*resBits, operatorSpecialization=operatorSpecialization, name=name)
