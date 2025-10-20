@@ -18,6 +18,8 @@ namespace hwtHls {
  *     - only the structure to discover known 0 or 1 in bit vectors
  *   * llvm::ValueTracking
  *     - only a set of functions to analyze specific patterns
+ *   * llvm::DemandedBitsAnalysis
+ *     - uses llvm::KnownBits ==> can not compare symbolic values
  *   * A generic logic minimizer like ABC, Z3 bit-blast
  *     + performs full minimization
  *     - computationally complex, destroys the information about used operands and thus prevents other optimization
