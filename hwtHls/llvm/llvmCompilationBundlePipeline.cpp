@@ -121,12 +121,10 @@
 
 namespace hwtHls {
 
-
 void LlvmCompilationBundle::_registerHwtHlsPasses() {
 	__registerHwtHlsPasses<hwtHls::BitwidthReductionPass, //
 			hwtHls::BitcountMergePass,                   //
 			hwtHls::HwtHlsInstCombinePass,               //
-	        hwtHls::SelectPruningPass,                   //
 			hwtHls::TmpAllocaLoweringPass,               //
 			hwtHls::SlicesToIndependentVariablesPass,    //
 			hwtHls::ExtractBitConcatAndSliceOpsPass,     //
@@ -142,6 +140,8 @@ void LlvmCompilationBundle::_registerHwtHlsPasses() {
 			hwtHls::PruneLoopPhiDeadIncomingValuesPass,  //
 			hwtHls::ReconfigureHwtFpgaTTIPass,           //
 			hwtHls::RomExtractPass,                      //
+			hwtHls::SelectPruningPass,                   //
+			hwtHls::StripAssumePass,                     //
 			hwtHls::HwtHlsSimplifyCFGPass,               //
 			hwtHls::TrivialSimplifyCFGPass,              //
 			hwtHls::HwtHlsInstCombinePass,               //
@@ -151,7 +151,6 @@ void LlvmCompilationBundle::_registerHwtHlsPasses() {
 			hwtHls::StreamLoopUnrollPass,                //
 			void>();
 }
-
 
 struct HwtFpgaAllowVolatileMemOpDuplication {
 	llvm::TargetMachine * TM;
@@ -342,6 +341,7 @@ void LlvmCompilationBundle::runExprOpt() {
 		FPM.addPass(hwtHls::HwtHlsInstCombinePass());
 		// FPM.addPass(hwtHls::SlicesMergePass());
 		FPM.addPass(hwtHls::ICmpToOnlyEqLtLePass());
+		FPM.addPass(hwtHls::StripAssumePass());
 		FPM.addPass(llvm::DCEPass());
 	});
 }
