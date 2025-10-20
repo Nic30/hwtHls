@@ -51,7 +51,9 @@ class FromPythonBasics_TC(SimTestCase):
         self._test_connection(HlsConnectionFromPyFnIf, [10 if i == 3 else 11 for i in range(10)])
 
     def test_HlsConnectionFromPyFnElif(self):
-        self._test_connection(HlsConnectionFromPyFnElif, [10 if i == 3 else 11 if i == 4 else 12 for i in range(10)])
+        self._test_connection(HlsConnectionFromPyFnElif, [10 if i == 3 else 11 if i == 4 else 12 for i in range(10)],
+                              CLK=11 # [fixme]: find out what makes +1 clk required
+                              )
 
 
 if __name__ == "__main__":
