@@ -16,10 +16,10 @@ from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.math import log2ceil
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.ioProxyAddressed import IoProxyAddressed
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline, \
     PyBytecodeBlockLabel
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.io.bram import IoProxyBram
 from hwtHls.io.portGroups import MultiPortGroup
@@ -28,6 +28,7 @@ from hwtLib.mem.ram import RamSingleClock
 from pyMathBitPrecise.bit_utils import mask
 from tests.adt.collections.hashTableIo import HashTableCmd, HashTableCmdResult, \
     HASH_TABLE_CMD
+
 
 # other HLS implementations:
 # https://github.com/Xilinx/HLS_packet_processing/blob/master/apps/common/cam.h
@@ -65,7 +66,7 @@ class HashTableCuckoo(HwModule):
         )
         RAM_ADDR_WIDTH = log2ceil(self.ITEMS_PER_TABLE)
         RAM_DATA_WIDTH = item_t.bit_length()
-        tableRams = HObjList()
+        tableRams: HObjList[RamSingleClock] = HObjList()
         for _ in range(self.TABLE_CNT):
             t = RamSingleClock()
             t.ADDR_WIDTH = RAM_ADDR_WIDTH
@@ -219,7 +220,7 @@ if __name__ == "__main__":
         m.KEY_T = HBits(16)
         m.CLK_FREQ = int(100e6)
         m.TABLE_CNT = tableCnt
-        m.STASH_CAM_SIZE = 1
+        m.STASH_CAM_SIZE = 16
         m.ITEMS_PER_TABLE = 1024
         print(to_rtl_str(m, target_platform=Artix7Medium(
             llvmCliArgs=[
@@ -228,25 +229,25 @@ if __name__ == "__main__":
             ],
             debugFilter=HlsDebugBundle.ALL_RELIABLE,
             )))
-        # 
-        #from sphinx_hwt.debugUtils import hwt_unit_to_html
-        #hwt_unit_to_html(m, "tmp/HashTableCuckoo.scheme.html")
-        
-        #import sqlite3
-        #import os
-        #import datetime
-        #from hwtBuildsystem.vivado.executor import VivadoExecutor
-        #from hwtBuildsystem.vivado.part import XilinxPart
-        #from hwtBuildsystem.examples.synthetizeHwModule import buildHwModule,\
+        #
+        # from sphinx_hwt.debugUtils import hwt_unit_to_html
+        # hwt_unit_to_html(m, "tmp/HashTableCuckoo.scheme.html")
+
+        # import sqlite3
+        # import os
+        # import datetime
+        # from hwtBuildsystem.vivado.executor import VivadoExecutor
+        # from hwtBuildsystem.vivado.part import XilinxPart
+        # from hwtBuildsystem.examples.synthetizeHwModule import buildHwModule,\
         #  store_vivado_report_in_db
         #
         #
-        #conn = sqlite3.connect('build_report.db')
-        #c = conn.cursor()
-        #logComunication = True
+        # conn = sqlite3.connect('build_report.db')
+        # c = conn.cursor()
+        # logComunication = True
         #
-        #start = datetime.datetime.now()
-        #with VivadoExecutor(logComunication=logComunication) as executor:
+        # start = datetime.datetime.now()
+        # with VivadoExecutor(logComunication=logComunication) as executor:
         #    __pb = XilinxPart
         #    part = XilinxPart(
         #            __pb.Family.kintex7,

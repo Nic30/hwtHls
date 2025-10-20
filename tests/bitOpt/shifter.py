@@ -12,7 +12,6 @@ from typing import Optional
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
-from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.std import HwIOSignal
 from hwt.hwIOs.utils import addClkRstn

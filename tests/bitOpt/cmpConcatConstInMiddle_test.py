@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 from operator import lt
-import os
 from typing import Callable
 
 from hwt.code import Concat
@@ -11,7 +10,7 @@ from hwt.hdl.commonConstants import b1
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
-from hwt.hwIOs.std import HwIODataRdVld, HwIODataVld
+from hwt.hwIOs.std import HwIODataVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam

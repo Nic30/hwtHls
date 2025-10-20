@@ -152,6 +152,10 @@ testMatrix = TestMatrix([(0,), (1,), (2,)],
 
 
 class CmpConcatWithConst_TC(SimTestCase):
+    """
+    :note: this testcase tests all possible combinations of constant and non constant bits
+        there are many combinations and thus this test takes long
+    """
 
     def _test(self, prefixLens: tuple[int, ...], suffixLens: tuple[int, ...], predicate: Callable[[int, int], bool]):
         dut = TestHwModuleCmpConcatWithConst()
@@ -242,7 +246,7 @@ if __name__ == "__main__":
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([CmpConcatWithConst_TC('test_ult')])
+    # suite = unittest.TestSuite([CmpConcatWithConst_TC('test_sge')])
     suite = testLoader.loadTestsFromTestCase(CmpConcatWithConst_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
