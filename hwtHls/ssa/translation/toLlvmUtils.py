@@ -80,18 +80,19 @@ def addHwtHlsFunctionIoMetadata(toLlvm: "ToLlvmIrTranslator"):
                IODirection.IO_DIR_UNRESOLVED
         readWidth = 0
         writeWidth = 0
-        isBlocking = True
+        hasBlockingRead = True
+        hasBlockingStore = True
         protocolSpecificMd = None
         if reads:
             if proxy.hasBlockingRead is not None:
-                isBlocking &= proxy.hasBlockingRead
+                hasBlockingRead &= proxy.hasBlockingRead
 
             t = proxy.getDataTypeOfNativeRead()
             readWidth = max(1, t.bit_length())
 
         if writes:
             if proxy.hasBlockingWrite is not None:
-                isBlocking &= proxy.hasBlockingWrite
+                hasBlockingStore &= proxy.hasBlockingWrite
             t = proxy.getDataTypeOfNativeWrite()
             writeWidth = max(1, t.bit_length())
 
@@ -101,14 +102,14 @@ def addHwtHlsFunctionIoMetadata(toLlvm: "ToLlvmIrTranslator"):
         md.addrWidth = addrWidth
         md.readWordWidth = readWidth
         md.writeWordWidth = writeWidth
-        md.isBlocking = isBlocking
+        md.hasBlockingLoad = hasBlockingRead
+        md.hasBlockingStore = hasBlockingRead
         md.otherThreadFn = None
         md.otherArgIndex = i
         md.bufferCapacity = 0
         md.ioPropertyPath = None
         md.latenciesFromPredecessorIo = None
-        md.streamIoMd = None
-        md.protocolSpecificMetadata = protocolSpecificMd
+        md.ioProtocolMd = protocolSpecificMd
         proxy.updateLlvmHwtHlsIoMetadata(toLlvm, md)
 
         hwtHlsIoMds.push_back(md)

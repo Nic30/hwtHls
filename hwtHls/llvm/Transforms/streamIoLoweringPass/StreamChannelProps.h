@@ -10,7 +10,6 @@
 
 namespace hwtHls {
 
-
 class StreamChannelProps: public StreamChannelFormatInfo {
 public:
 	llvm::SmallVector<llvm::AllocaInst*> &GeneratedAllocas;
@@ -30,7 +29,7 @@ public:
 	StreamChannelProps(const StreamChannelProps &p) = default;
 	StreamChannelProps(const StreamChannelFormatInfo &scfi,
 			llvm::SmallVector<llvm::AllocaInst*> &GeneratedAllocas);
-
+	void findStreamAccessInstructions();
 	void setOffsetVar(llvm::IRBuilderBase &builder, size_t val) const;
 
 	llvm::Value* deparseNativeWord(llvm::IRBuilderBase &builder) const;
@@ -76,8 +75,7 @@ public:
 //                          it is not modified in this function
 // :param ioFilter: an argument pointer which can be set to collect StreamChannelProps only for selected IO
 std::vector<StreamChannelProps> getStreamIoProps(llvm::Function &F,
-		llvm::SmallVector<llvm::AllocaInst*> &GeneratedAllocas,
-		llvm::Argument *ioFilter = nullptr);
+		llvm::SmallVector<llvm::AllocaInst*> &GeneratedAllocas);
 
 StreamChannelProps findStreamIoPropsInMetadata(const llvm::Function &F,
 		llvm::Value *IOArg,

@@ -41,9 +41,9 @@ class IoProxyAxi4Stream(IoProxyStream):
         return HlsStmWriteAxi4Stream(self, v, mask, sof, eof, self.interface)
 
     @override
-    def updateLlvmHwtHlsIoMetadata(self, tr: "ToLlvmIrTranslator", md: HwtHlsIoMetadata) -> bool:
+    def _getLlvmIoProtocolMetadata(self, tr: "ToLlvmIrTranslator") -> Optional[MDTuple]:
         """
-        This prepares HwtHlsIoMetadata.streamIoMd metadata which is composed of tuples for StreamChannelFormatInfo
+        This prepares HwtHlsIoMetadata.ioProtocolMd metadata which is composed of tuples for StreamChannelFormatInfo
         """
         byteWidth = tr.mdGetUInt32(8)
         io: Axi4Stream = self.interface
@@ -56,16 +56,15 @@ class IoProxyAxi4Stream(IoProxyStream):
         errorWidth = tr.mdGetUInt32(io.USER_WIDTH)
         segmentCnt = tr.mdGetUInt32(1)
 
-        md.streamIoMd = tr.mdGetTuple([
-                                      dataWidth,
-                                      byteWidth,
-                                      byteEnableEncoding,
-                                      supportZLP,
-                                      framingEncoding,
-                                      errorWidth,
-                                      segmentCnt,
-                                      ], False)
-        return True
+        return tr.mdGetTuple([tr.mdGetStr(StreamChannelFormatInfo.METADATA_NAME),
+                              dataWidth,
+                              byteWidth,
+                              byteEnableEncoding,
+                              supportZLP,
+                              framingEncoding,
+                              errorWidth,
+                              segmentCnt,
+                              ], False)
 
     @override
     @classmethod
@@ -99,9 +98,9 @@ class IoProxyAxi4StreamSegmented(IoProxyStream):
         return HlsStmWriteAxi4StreamSegmented(self, v, empty, sof, eof, self.interface)
 
     @override
-    def updateLlvmHwtHlsIoMetadata(self, tr: "ToLlvmIrTranslator", md: HwtHlsIoMetadata) -> bool:
+    def _getLlvmIoProtocolMetadata(self, tr: "ToLlvmIrTranslator") -> Optional[MDTuple]:
         """
-        This prepares HwtHlsIoMetadata.streamIoMd metadata which is composed of tuples for StreamChannelFormatInfo
+        This prepares HwtHlsIoMetadata.ioProtocolMd metadata which is composed of tuples for StreamChannelFormatInfo
         """
         byteWidth = tr.mdGetUInt32(8)
         io: Axi4StreamSegmented = self.interface
@@ -111,13 +110,18 @@ class IoProxyAxi4StreamSegmented(IoProxyStream):
         framingEncoding = tr.mdGetStr("sof+eof" if io.USE_SOF else "eof")
         errorWidth = tr.mdGetUInt32(io.ERROR_WIDTH)
         segmentCnt = tr.mdGetUInt32(io.SEGMENT_CNT)
-        md.streamIoMd = tr.mdGetTuple([
-                                      dataWidth,
-                                      byteWidth,
-                                      byteEnableEncoding,
-                                      supportZLP,
-                                      framingEncoding,
-                                      errorWidth,
-                                      segmentCnt,
-                                      ], False)
-        return True
+        return tr.mdGetTuple([
+            tr.mdGetStr(StreamChannelFormatInfo.METADATA_NAME),
+            dataWidth,
+            byteWidth,
+            byteEnableEncoding,
+            supportZLP,
+            framingEncoding,
+            errorWidth,
+            segmentCnt,
+            ], False)
+
+    @override
+    @classmethod
+    def _getRtlSyncSignals(cls, src: Axi4StreamSegmented, formatAsValidReadyTuple=True):
+        return IoProxyAxi4Stream._getRtlSyncSignals(src, formatAsValidReadyTuple=formatAsValidReadyTuple)

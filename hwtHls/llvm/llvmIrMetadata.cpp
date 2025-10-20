@@ -4,6 +4,7 @@
 #include <pybind11/stl_bind.h>
 
 #include <hwtHls/llvm/llvmIrCommon.h>
+#include <hwtHls/llvm/intrinsic/metadataThreadHwtComponent.h>
 #include <hwtHls/llvm/targets/intrinsic/threadSplit.h>
 #include <hwtHls/llvm/targets/intrinsic/StreamChannelFormatInfo.h>
 #include <hwtHls/llvm/Transforms/utils/metadataHwtHlsIO.h>
@@ -12,6 +13,8 @@
 #include <pybind11/native_enum.h>
 
 namespace py = pybind11;
+
+PYBIND11_MAKE_OPAQUE(std::vector<llvm::Metadata*>);
 
 namespace hwtHls {
 
@@ -38,29 +41,27 @@ void register_HwtHlsIoMetadata(pybind11::module_ & m) {
     	              size_t,         // addrWidth
     	              size_t,         // readWordWidth
     	              size_t,         // writeWordWidth
-    	              bool,           // isBlocking
     	              llvm::Function*,// otherThreadFn
     	              size_t,         // otherArgIndex
+    	              bool,           // hasBlockingLoad
+    	              bool,           // hasBlockingStore
 					  size_t,         // bufferCapacity
     	              MDTupleWithDeletedDelete*, // ioPropertyPath
     	              MDTupleWithDeletedDelete*, // latenciesFromPredecessorIo
-    	              MDTupleWithDeletedDelete*, // protocolSpecificMetadata
-					  MDTupleWithDeletedDelete*, // streamIoMd
-					  MDTupleWithDeletedDelete*> // ioFsmExtractMd
-    	      (),
+    	              MDTupleWithDeletedDelete* // ioProtocolMd
+    	      >(),
     	      py::arg("direction"),
     	      py::arg("addrWidth"),
     	      py::arg("readWordWidth"),
     	      py::arg("writeWordWidth"),
-    	      py::arg("isBlocking"),
     	      py::arg("otherThreadFn"),
     	      py::arg("otherArgIndex"),
+    	      py::arg("hasBlockingLoad"),
+    	      py::arg("hasBlockingStore"),
 			  py::arg("bufferCapacity"),
     	      py::arg("ioPropertyPath"),
     	      py::arg("latenciesFromPredecessorIo"),
-    	      py::arg("protocolSpecificMetadata"),
-			  py::arg("streamIoMd"),
-			  py::arg("ioFsmExtractMd")
+    	      py::arg("ioProtocolMd")
     	)
     	.def_readwrite("direction", &HwtHlsIoMetadata::direction)
     	.def_readwrite("addrWidth", &HwtHlsIoMetadata::addrWidth)
@@ -68,6 +69,8 @@ void register_HwtHlsIoMetadata(pybind11::module_ & m) {
     	.def_readwrite("writeWordWidth", &HwtHlsIoMetadata::writeWordWidth)
     	.def_readwrite("otherThreadFn", &HwtHlsIoMetadata::otherThreadFn)
     	.def_readwrite("otherArgIndex", &HwtHlsIoMetadata::otherArgIndex)
+    	.def_readwrite("hasBlockingLoad", &HwtHlsIoMetadata::hasBlockingLoad)
+    	.def_readwrite("hasBlockingStore", &HwtHlsIoMetadata::hasBlockingStore)
     	.def_readwrite("bufferCapacity", &HwtHlsIoMetadata::bufferCapacity)
     	.def_property("ioPropertyPath", [](hwtHls::HwtHlsIoMetadata & self) {
 			return reinterpret_cast<MDTupleWithDeletedDelete*>(self.ioPropertyPath);
@@ -79,21 +82,13 @@ void register_HwtHlsIoMetadata(pybind11::module_ & m) {
 		}, [](hwtHls::HwtHlsIoMetadata & self, MDTupleWithDeletedDelete * v) {
 			self.latenciesFromPredecessorIo = reinterpret_cast<llvm::MDTuple*>(v);
 		})
-	 	.def_property("protocolSpecificMetadata", [](hwtHls::HwtHlsIoMetadata & self) {
-			return reinterpret_cast<MDTupleWithDeletedDelete*>(self.protocolSpecificMetadata);
+	 	.def_property("ioProtocolMd", [](hwtHls::HwtHlsIoMetadata & self) {
+			return reinterpret_cast<MDTupleWithDeletedDelete*>(self.ioProtocolMd);
 		}, [](hwtHls::HwtHlsIoMetadata & self, MDTupleWithDeletedDelete * v) {
-			self.protocolSpecificMetadata = reinterpret_cast<llvm::MDTuple*>(v);
+			self.ioProtocolMd = reinterpret_cast<llvm::MDTuple*>(v);
 		})
-		.def_property("streamIoMd", [](hwtHls::HwtHlsIoMetadata & self) {
-			return reinterpret_cast<MDTupleWithDeletedDelete*>(self.streamIoMd);
-		}, [](hwtHls::HwtHlsIoMetadata & self, MDTupleWithDeletedDelete * v) {
-			self.streamIoMd = reinterpret_cast<llvm::MDTuple*>(v);
-		})
-		.def_property("ioFsmExtractMd", [](hwtHls::HwtHlsIoMetadata & self) {
-			return reinterpret_cast<MDTupleWithDeletedDelete*>(self.ioFsmExtractMd);
-		}, [](hwtHls::HwtHlsIoMetadata & self, MDTupleWithDeletedDelete * v) {
-			self.ioFsmExtractMd = reinterpret_cast<llvm::MDTuple*>(v);
-		})
+		.def_readwrite("unparsedMd", &hwtHls::HwtHlsIoMetadata::unparsedMd) // this requires PYBIND11_MAKE_OPAQUE(std::vector<llvm::Metadata*>); otherwise
+		// the access to property just returns new python list instance and it would not be possible to append to this vector from python
 		.def("__eq__", [](const hwtHls::HwtHlsIoMetadata &V0, const hwtHls::HwtHlsIoMetadata & V1) { return V0 == V1;})
 		.def("__repr__", &printToStr<HwtHlsIoMetadata>)
 	    .def_readonly_static("METADATA_NAME", &HwtHlsIoMetadata::METADATA_NAME);
@@ -101,7 +96,9 @@ void register_HwtHlsIoMetadata(pybind11::module_ & m) {
 	using HwtHlsIoMetadataSmallVector = llvm::SmallVector<hwtHls::HwtHlsIoMetadata>;
 	py::class_<HwtHlsIoMetadataSmallVector>(m, "HwtHlsIoMetadataSmallVector")
 		.def(py::init<>())
-		.def("push_back", &HwtHlsIoMetadataSmallVector::push_back)
+		.def("push_back", [](HwtHlsIoMetadataSmallVector * self, const HwtHlsIoMetadata & elm) {
+			self->push_back(elm);
+		})
 		.def("__getitem__", [](HwtHlsIoMetadataSmallVector &V, int index) {
 			if (index >= int(V.size()) || index < -int(V.size())) {
 				throw std::runtime_error("IndexError");
@@ -120,7 +117,12 @@ void register_HwtHlsIoMetadata(pybind11::module_ & m) {
 			return py::make_iterator(V.begin(), V.end());
 		}, py::keep_alive<0, 1>()); /* Keep vector alive while iterator is used */
 		;
+
+    py::bind_vector<std::vector<llvm::Metadata*>>(m, "VectorMetadataPtr");
+	py::implicitly_convertible<py::list, std::vector<llvm::Metadata*>>();
+
 	m.def("HwtHlsIoMetadata_get", [](llvm::Function & F) { return HwtHlsIoMetadata_get(F); });
+	m.def("HwtHlsIoMetadata_get", [](llvm::Function & F, size_t argI) { return HwtHlsIoMetadata_get(F, argI); });
     m.def("HwtHlsIoMetadata_set", [](llvm::Function & F, const llvm::SmallVector<HwtHlsIoMetadata> & mds) { HwtHlsIoMetadata_set(F, mds);});
 
     py::class_<hwtHls::ThreadSplitSectionMetadata> _ThreadSplitSectionMetadata(m, "ThreadSplitSectionMetadata");

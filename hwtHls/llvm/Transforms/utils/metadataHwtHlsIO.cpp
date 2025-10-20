@@ -38,6 +38,18 @@ const char* IODirection_toString(IODirection d) {
 }
 
 const std::string HwtHlsIoMetadata::METADATA_NAME = "hwtHls.io";
+const std::string HwtHlsIoMetadata::METADATA_NAME_NON_BLOCKING_LOAD =
+		"hwtHls.io.nonblockingload";
+const std::string HwtHlsIoMetadata::METADATA_NAME_NON_BLOCKING_STORE =
+		"hwtHls.io.nonblockingload";
+const std::string HwtHlsIoMetadata::METADATA_NAME_BUFFER_CAPACITY =
+		"hwtHls.io.buffercapacity";
+const std::string HwtHlsIoMetadata::METADATA_NAME_IO_PROPERTY_PATH =
+		"hwtHls.io.propertypath";
+const std::string HwtHlsIoMetadata::METADATA_NAME_LATENCIES_FROM_PREDECESSOR_IO =
+		"hwtHls.io.latencyfrompredecessor";
+const std::string HwtHlsIoMetadata::METADATA_NAME_IO_PROTOCOL =
+		"hwtHls.io.protocol";
 
 bool HwtHlsIoMetadata::isOut() const {
 	return direction == IODirection::IO_DIR_OUT;
@@ -62,27 +74,52 @@ bool HwtHlsIoMetadata::operator==(const HwtHlsIoMetadata &other) const {
 			addrWidth == other.addrWidth && //
 			readWordWidth == other.readWordWidth && //
 			writeWordWidth == other.writeWordWidth && //
-			isBlocking == other.isBlocking && //
+			hasBlockingLoad == other.hasBlockingLoad && //
+			hasBlockingStore == other.hasBlockingStore && //
 			otherThreadFn == other.otherThreadFn && //
-			otherArgIndex == other.otherArgIndex);
+			otherArgIndex == other.otherArgIndex && //
+			bufferCapacity == other.bufferCapacity && //
+			ioPropertyPath == other.ioPropertyPath && //
+			latenciesFromPredecessorIo == other.latenciesFromPredecessorIo && //
+			ioProtocolMd == other.ioProtocolMd && //
+			unparsedMd == unparsedMd);
 }
 
 void HwtHlsIoMetadata::print(llvm::raw_ostream &O, bool IsForDebug) const {
 	O << "<HwtHlsIoMetadata " << IODirection_toString(direction);
 	O << " addrWidth=" << addrWidth << " readWordWidth=" << readWordWidth;
-	O << " writeWordWidth=" << writeWordWidth << " isBlocking=" << isBlocking
-			<< " otherThreadFn=";
+	O << " writeWordWidth=" << writeWordWidth;
+	if (hasBlockingLoad)
+		O << " hasBlockingLoad=1";
+	if (hasBlockingStore)
+		O << " hasBlockingStore=1";
 	if (otherThreadFn) {
-		O << otherThreadFn->getName();
-	} else {
-		O << "null";
+		O << " otherThreadFn=" << otherThreadFn->getName();
 	}
-	O << " otherArgIndex=" << otherArgIndex << ">";
+	O << " otherArgIndex=" << otherArgIndex;
+
+	if (bufferCapacity)
+		O << " bufferCapacity=" << bufferCapacity;
+	if (bufferCapacity)
+		O << " ioPropertyPath=" << *ioPropertyPath;
+	if (latenciesFromPredecessorIo)
+		O << " latenciesFromPredecessorIo=" << *latenciesFromPredecessorIo;
+	if (ioProtocolMd)
+		O << " ioProtocolMd=" << *ioProtocolMd;
+	if (!unparsedMd.empty()) {
+		O << " unparsedMd=[";
+		for (auto md : unparsedMd) {
+			O << *md << ", ";
+		}
+		O << "]";
+	}
+
+	O << ">";
 }
 
 HwtHlsIoMetadata HwtHlsIoMetadata::fromMetadata(llvm::Metadata &hwtHlsIOItem) {
 	MDTuple *aMD = dyn_cast<MDTuple>(&hwtHlsIOItem);
-	assert(aMD->getNumOperands() == 13);
+	assert(aMD->getNumOperands() >= 6);
 	HwtHlsIoMetadata aMd;
 	auto dir = cast<MDString>(aMD->getOperand(0).get())->getString();
 	if (dir.equals("UNRESOLVED")) {
@@ -95,25 +132,70 @@ HwtHlsIoMetadata HwtHlsIoMetadata::fromMetadata(llvm::Metadata &hwtHlsIOItem) {
 		throw std::runtime_error(
 				("HwtHlsIoMetadata_get invalid value for direction: " + dir).str());
 	}
-	auto getMdInt = [&aMD](size_t argI) {
-		auto v = cast<ValueAsMetadata>(aMD->getOperand(argI).get())->getValue();
+	auto getMdIntFromMd = [](Metadata *md) {
+		auto v = cast<ValueAsMetadata>(md)->getValue();
 		assert(isa<ConstantInt>(v));
 		return dyn_cast<ConstantInt>(v)->getZExtValue();
+	};
+	auto getMdInt = [&aMD, &getMdIntFromMd](size_t argI) {
+		return getMdIntFromMd(aMD->getOperand(argI).get());
 	};
 	aMd.addrWidth = getMdInt(1);
 	aMd.readWordWidth = getMdInt(2);
 	aMd.writeWordWidth = getMdInt(3);
-	aMd.isBlocking = getMdInt(4);
-	auto ofn = dyn_cast<ValueAsMetadata>(aMD->getOperand(5).get());
+	auto ofn = dyn_cast<ValueAsMetadata>(aMD->getOperand(4).get());
 	aMd.otherThreadFn = dyn_cast<Function>(ofn->getValue());
-	aMd.otherArgIndex = getMdInt(6);
-	aMd.bufferCapacity = getMdInt(7);
-	aMd.ioPropertyPath = dyn_cast<MDTuple>(aMD->getOperand(8).get());
-	aMd.latenciesFromPredecessorIo = dyn_cast<MDTuple>(
-			aMD->getOperand(9).get());
-	aMd.protocolSpecificMetadata = dyn_cast<MDTuple>(aMD->getOperand(10).get());
-	aMd.streamIoMd = dyn_cast<MDTuple>(aMD->getOperand(11).get());
-	aMd.ioFsmExtractMd = dyn_cast<MDTuple>(aMD->getOperand(12).get());
+	aMd.otherArgIndex = getMdInt(5);
+
+	for (unsigned oI = 6; oI < aMD->getNumOperands(); ++oI) {
+		auto o = aMD->getOperand(oI).get();
+		if (auto oStr = dyn_cast<MDString>(o)) {
+			auto str = oStr->getString();
+			if (str == METADATA_NAME_NON_BLOCKING_LOAD) {
+				aMd.hasBlockingLoad = false;
+			} else if (str == METADATA_NAME_NON_BLOCKING_STORE) {
+				aMd.hasBlockingStore = false;
+			} else {
+				aMd.unparsedMd.push_back(oStr);
+			}
+		} else if (auto oTuple = dyn_cast<MDTuple>(o)) {
+			assert(
+					oTuple->getNumOperands()
+							&& "HwtHlsIoMetadata should not contain any empty MDTuples");
+			if (auto oStr = dyn_cast<MDString>(oTuple->getOperand(0))) {
+				auto str = oStr->getString();
+				if (str == METADATA_NAME_BUFFER_CAPACITY) {
+					aMd.bufferCapacity = getMdIntFromMd(
+							oTuple->getOperand(1).get());
+					assert(
+							aMd.bufferCapacity > 0
+									&& "for 0 the metadata should not be present");
+					assert(oTuple->getNumOperands() == 2);
+				} else if (str == METADATA_NAME_IO_PROPERTY_PATH) {
+					aMd.ioPropertyPath = dyn_cast<MDTuple>(
+							oTuple->getOperand(1).get());
+					assert(aMd.ioPropertyPath);
+					assert(oTuple->getNumOperands() == 2);
+				} else if (str == METADATA_NAME_LATENCIES_FROM_PREDECESSOR_IO) {
+					aMd.latenciesFromPredecessorIo = dyn_cast<MDTuple>(
+							oTuple->getOperand(1).get());
+					assert(aMd.latenciesFromPredecessorIo);
+					assert(oTuple->getNumOperands() == 2);
+				} else if (str == METADATA_NAME_IO_PROTOCOL) {
+					aMd.ioProtocolMd = dyn_cast<MDTuple>(
+							oTuple->getOperand(1).get());
+					assert(aMd.ioProtocolMd);
+					assert(oTuple->getNumOperands() == 2);
+				} else {
+					aMd.unparsedMd.push_back(oTuple);
+				}
+			} else {
+				llvm_unreachable("HwtHlsIoMetadata unparsedMd tuple must have first operand string");
+			}
+		} else {
+			llvm_unreachable("HwtHlsIoMetadata unparsedMd may be only string or tuple with first operand string");
+		}
+	}
 	return aMd;
 }
 
@@ -138,7 +220,7 @@ void HwtHlsIoMetadata::getLatenciesFromPredecessorIo(
 	assert(
 			latenciesFromPredecessorIo
 					&& "It should be checked that there any before call of this fn");
-	for (const auto& md : latenciesFromPredecessorIo->operands()) {
+	for (const auto &md : latenciesFromPredecessorIo->operands()) {
 		auto v = cast<ValueAsMetadata>(md.get())->getValue();
 		assert(isa<ConstantInt>(v));
 		int vAsInt = dyn_cast<ConstantInt>(v)->getSExtValue();
@@ -254,8 +336,7 @@ llvm::SmallVector<HwtHlsIoMetadata> HwtHlsIoMetadata_get(
 									ldStTy.first->getIntegerBitWidth() : 0,
 							ldStTy.second ?
 									ldStTy.second->getIntegerBitWidth() : 0,
-							true, nullptr, A.getArgNo(), 0, nullptr, nullptr, nullptr,
-							nullptr, nullptr));
+							nullptr, A.getArgNo()));
 		}
 	}
 	return res;
@@ -267,32 +348,46 @@ llvm::MDNode* HwtHlsIoMetadata::asMetadata(LLVMContext &Ctx) const {
 			otherThreadFn ?
 					(Value*) otherThreadFn :
 					(Value*) ConstantPointerNull::get(PointerType::get(Ctx, 0));
-	auto _isBlocking = ConstantInt::get(IntegerType::getInt1Ty(Ctx),
-			isBlocking);
 	auto *u64 = IntegerType::get(Ctx, 64);
 	auto getU64md = [u64](uint64_t v) {
 		return ValueAsMetadata::get(ConstantInt::get(u64, v));
 	};
-	auto getMd = [&Ctx](Metadata *md) {
-		if (!md)
-			md = ValueAsMetadata::get(
-					ConstantPointerNull::get(PointerType::get(Ctx, 0)));
-		return md;
-	};
-	std::array<Metadata*, 13> mdArgs = { //
+	SmallVector<Metadata*> mdArgs = { //
 			MDString::get(Ctx, dir), //
 			getU64md(addrWidth),     //
 			getU64md(readWordWidth), //
 			getU64md(writeWordWidth), //
-			ValueAsMetadata::get(_isBlocking),        //
 			ValueAsMetadata::get(_otherThreadFn), //
 			getU64md(otherArgIndex), //
-			getU64md(bufferCapacity), //
-			getMd(ioPropertyPath), //
-			getMd(latenciesFromPredecessorIo), //
-			getMd(protocolSpecificMetadata), //
-			getMd(streamIoMd), //
-			getMd(ioFsmExtractMd) };
+			};
+	if (!hasBlockingLoad) {
+		mdArgs.push_back(MDString::get(Ctx, METADATA_NAME_NON_BLOCKING_LOAD));
+	}
+	if (!hasBlockingStore) {
+		mdArgs.push_back(MDString::get(Ctx, METADATA_NAME_NON_BLOCKING_STORE));
+	}
+
+	auto addNamedMd = [&mdArgs, &Ctx](const std::string &name,
+			llvm::Metadata *md) {
+		mdArgs.push_back(MDTuple::get(Ctx, { MDString::get(Ctx, name), md }));
+	};
+	if (bufferCapacity) {
+		addNamedMd(METADATA_NAME_BUFFER_CAPACITY, getU64md(bufferCapacity));
+	}
+	if (ioPropertyPath) {
+		addNamedMd(METADATA_NAME_IO_PROPERTY_PATH, ioPropertyPath);
+	}
+
+	if (latenciesFromPredecessorIo) {
+		addNamedMd(METADATA_NAME_LATENCIES_FROM_PREDECESSOR_IO,
+				latenciesFromPredecessorIo);
+	}
+	if (ioProtocolMd) {
+		addNamedMd(METADATA_NAME_IO_PROTOCOL, ioProtocolMd);
+	}
+	for (auto umd: unparsedMd) {
+		mdArgs.push_back(umd);
+	}
 	MDNode *MD = MDNode::get(Ctx, mdArgs);
 	return MD;
 }

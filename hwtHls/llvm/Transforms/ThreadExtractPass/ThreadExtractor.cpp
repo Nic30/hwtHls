@@ -90,14 +90,12 @@ std::pair<Function*, SmallVector<HwtHlsIoMetadata>> HwtHlsCodeExtractor::constru
 		auto isIn = dirForNewFn == IODirection::IO_DIR_IN;
 		newFnHwtHlsIoMD.push_back(
 				HwtHlsIoMetadata(dirForNewFn, 0, isIn ? width : 0,
-						isIn ? 0 : width, true, nullptr, 0,
-						isIn ? 0 : outputBufferCapacity, nullptr, nullptr,
-						nullptr, nullptr, nullptr)); // connection should be initialized later in emitCallAndSwitchStatement()
+						isIn ? 0 : width, nullptr, 0, true, true,
+						isIn ? 0 : outputBufferCapacity)); // connection should be initialized later in emitCallAndSwitchStatement()
 		argsToAddToParentFn.push_back(
 				{ tmpAlloca, HwtHlsIoMetadata(IODirection_reverse(dirForNewFn),
-						0, isIn ? 0 : width, isIn ? width : 0, true, nullptr, 0,
-						isIn ? inputBufferCapacity : 0, nullptr, nullptr,
-						nullptr, nullptr, nullptr) }); // connection should be initialized later in emitCallAndSwitchStatement()
+						0, isIn ? 0 : width, isIn ? width : 0, nullptr, 0, true, true,
+						isIn ? inputBufferCapacity : 0) }); // connection should be initialized later in emitCallAndSwitchStatement()
 
 	};
 
@@ -930,7 +928,7 @@ CallInst* HwtHlsCodeExtractor::emitCallAndSwitchStatement(Function *newFunction,
 			auto Output = ReloadOutputs[scalarIdx];
 			++scalarIdx;
 			load = new LoadInst(Out.getType(), Output,
-					Out.getName() + ".reload", codeReplacer);
+					Out.getName() + ".reload", true, codeReplacer);
 		}
 		Reloads.push_back(load);
 		std::vector<User*> Users(Out.user_begin(), Out.user_end());

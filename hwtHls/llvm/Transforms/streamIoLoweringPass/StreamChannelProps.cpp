@@ -1,8 +1,7 @@
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/bitMath.h>
-#include <algorithm>
-#include <hwtHls/llvm/Transforms/streamIoLoweringPass/StreamChannelProps.h>
+#include <hwtHls/llvm/Transforms/utils/metadataHwtHlsIO.h>
 
 using namespace llvm;
 
@@ -374,76 +373,59 @@ void StreamChannelProps::createWDataPendingVar(llvm::IRBuilderBase &builder) {
 	GeneratedAllocas.push_back(wDataPendingVar);
 }
 
-static size_t MDTuple_getOperandAsU64(const MDTuple *metaTuple, size_t opI) {
-	auto CM = dyn_cast<ConstantAsMetadata>(metaTuple->getOperand(opI));
-	assert(CM);
-	auto C = dyn_cast<ConstantInt>(CM->getValue());
-	assert(C);
-	return C->getZExtValue();
-}
-
 StreamChannelProps findStreamIoPropsInMetadata(const Function &F, Value *ioArg,
 		llvm::SmallVector<llvm::AllocaInst*> &GeneratedAllocas) {
-	auto *md = F.getMetadata("hwtHls.streamIo");
-	if (!md) {
-		throw std::runtime_error(
-				"Can not find hwtHls.streamIo metadata on function");
-	}
 	auto srcArg = dyn_cast<Argument>(ioArg);
 	assert(srcArg);
-	size_t argI = srcArg->getArgNo();
-	for (auto &_metaTuple : md->operands()) {
-		auto metaTuple = dyn_cast<MDTuple>(_metaTuple.get());
-		assert(metaTuple);
-		if (argI == MDTuple_getOperandAsU64(metaTuple, 0)) {
-			auto props = StreamChannelFormatInfo::parseMetadata(*srcArg,
-					metaTuple);
-			return StreamChannelProps(props, GeneratedAllocas);
+	auto _md = HwtHlsIoMetadata_get(F, srcArg->getArgNo());
+	if (!_md.has_value())
+		throw std::runtime_error(
+				"Can not find HwtHlsIoMetadata metadata on function");
+	if (!StreamChannelProps::ioMetadataHasStreamMetadata(_md.value()))
+		throw std::runtime_error(
+				"Can not find hwtHls.io.protocol.stream metadata on function");
+
+	auto *md = _md.value().ioProtocolMd;
+
+	auto props = StreamChannelFormatInfo::parseMetadata(*srcArg,
+			_md.value().isOut(), md);
+	return StreamChannelProps(props, GeneratedAllocas);
+}
+
+void StreamChannelProps::findStreamAccessInstructions() {
+	_getOrCreateTmpVarDataOffset(nullptr, true);
+	for (auto U : ioArg->users()) {
+		if (auto *CI = dyn_cast<llvm::CallInst>(U)) {
+			if (IsStreamWrite(CI) || IsStreamWriteStartOfFrame(CI)
+					|| IsStreamWriteEndOfFrame(CI)) {
+				auto ioArg = streamWriteGetIoArg(CI);
+				assert(ioArg == ioArg);
+			}
+			if (IsStreamRead(CI) || IsStreamReadStartOfFrame(CI)
+					|| IsStreamReadEndOfFrame(CI)) {
+				auto ioArg = streamReadGetIoArg(CI);
+				assert(ioArg == ioArg);
+			}
+			ios.insert(CI);
 		}
 	}
-	throw std::runtime_error(
-			"Metadata is missing for " + srcArg->getName().str());
 }
 
 std::vector<StreamChannelProps> getStreamIoProps(llvm::Function &F,
-		llvm::SmallVector<llvm::AllocaInst*> &GeneratedAllocas,
-		llvm::Argument *ioFilter) {
+		llvm::SmallVector<llvm::AllocaInst*> &GeneratedAllocas) {
 	std::vector<StreamChannelProps> streamProps;
-	for (auto &BB : F) {
-		for (auto &I : BB) {
-			if (auto *CI = dyn_cast<llvm::CallInst>(&I)) {
-				bool isWrite = IsStreamWrite(CI)
-						|| IsStreamWriteStartOfFrame(CI)
-						|| IsStreamWriteEndOfFrame(CI);
-				if (isWrite || IsStreamRead(CI) || IsStreamReadStartOfFrame(CI)
-						|| IsStreamReadEndOfFrame(CI)) {
-					auto ioArg = CI->getArgOperand(0);
-					if (ioFilter && ioArg != ioFilter)
-						continue;
-					auto cur = std::find_if(streamProps.begin(),
-							streamProps.end(),
-							[ioArg](const StreamChannelProps &p) {
-								return p.ioArg == ioArg;
-							});
-					if (cur == streamProps.end()) {
-						// if there was not record for this argument yet, construct it from function metadata
-						auto props = findStreamIoPropsInMetadata(F, ioArg,
-								GeneratedAllocas);
-						assert(props.isOutput == isWrite);
-						props.ios.insert(CI);
-						streamProps.push_back(props);
-					} else {
-						assert(cur->isOutput == isWrite);
-						cur->ios.insert(CI);
-					}
-				}
-			}
+	auto ioMds = HwtHlsIoMetadata_get(F);
+	auto srcArg = F.arg_begin();
+	for (auto &ioMd : ioMds) {
+		if (StreamChannelFormatInfo::ioMetadataHasStreamMetadata(ioMd)) {
+			auto sfprops = StreamChannelFormatInfo::parseMetadata(*srcArg,
+					ioMd.isOut(), ioMd.ioProtocolMd);
+			auto sprops = StreamChannelProps(sfprops, GeneratedAllocas);
+			sprops.findStreamAccessInstructions();
+			streamProps.push_back(sprops);
 		}
+		++srcArg;
 	}
-	if (ioFilter)
-		assert(
-				streamProps.size() == 1
-						&& "Can not find any stream IO instruction for specified stream. If ioFilter was set properties should be found only for this single IO");
 	return streamProps;
 }
 

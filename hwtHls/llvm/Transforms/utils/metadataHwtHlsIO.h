@@ -1,6 +1,8 @@
 #pragma once
+
 #include <map>
 #include <set>
+
 #include <llvm/IR/IRBuilder.h>
 
 namespace hwtHls {
@@ -10,56 +12,66 @@ enum IODirection {
 };
 IODirection IODirection_reverse(IODirection d);
 
-// :note: This record is an override of default argument connections.
-//   if argument is connected directly to topIo on same index there is not metadata.
 class HwtHlsIoMetadata {
 public:
+	// non-optional members:
 	IODirection direction;
 	size_t addrWidth; // width of address for addressed io (0 for scalars)
 	size_t readWordWidth; // specifies the native width of a single load from this io
 	size_t writeWordWidth; // specifies the native width of a single store to this io
-	bool isBlocking; // specifies if io is blocking non-blocking, non-blocking have extra 1 bit (msb) which specifies
-	// if the read data is valid or not
-
 	llvm::Function *otherThreadFn; // :note: other thread or nullptr if this argument is connected to a top IO
 	size_t otherArgIndex; // index of argument in other thread or at top where this IO is connected
+
+	// optional members:
+	bool hasBlockingLoad;
+	//  non-blocking load have extra 1 bit (msb) which specifies
+	// if the read data is valid or not
+	bool hasBlockingStore;
 	size_t bufferCapacity; // size of FIFO buffer for scalar io
 	// :note: if two HwtHlsIoMetadata are connected together using otherThreadFn/otherArgIndex the total buffer size is the sum from both
-
 	llvm::MDTuple *ioPropertyPath; // optional property path specifying where exactly is this io connected on io object
 	// (which is specified by otherThreadFn, otherArgIndex)
 	// :note: typically used for IO which dissolve to communication on multiple channels like AMBA AXI4
 	llvm::MDTuple *latenciesFromPredecessorIo; // optional tuple of latencies to other io of this function
 	// the number is signed int where -1 marks not-specified value and the >=0 value marks how many
 	// clock cycles must be left between predecessor and this IO during scheduling
-	llvm::MDTuple *protocolSpecificMetadata; // IO type dependent tuple specifying additional info about IO
-	llvm::MDTuple *streamIoMd; // optional metadata for StreamChannelFormatInfo
-	llvm::MDTuple *ioFsmExtractMd; // optional metadata for ThreadExtractIoFsmPass
+	llvm::MDTuple *ioProtocolMd; // IO type dependent tuple specifying additional info about IO, e.g. StreamChannelFormatInfo
+	std::vector<llvm::Metadata*> unparsedMd; // string or tuple with string as first operand
+
+	static const std::string METADATA_NAME; // primary name under HwtHlsIoMetadata is stored as function metadata
+	// secondary metadata names for members inside of HwtHlsIoMetadata tuple
+	static const std::string METADATA_NAME_NON_BLOCKING_LOAD; // if this string appears in HwtHlsIoMetadata tuple hasBlockingLoad=true
+	static const std::string METADATA_NAME_NON_BLOCKING_STORE; // same as METADATA_NAME_NON_BLOCKING_LOAD just for Store
+	// following metadata names are used as a name of optional tuple for HwtHlsIoMetadata for example !{!"BUFFER_CAPACITY", i32 num}
+	static const std::string METADATA_NAME_BUFFER_CAPACITY; // specifies bufferCapacity
+	static const std::string METADATA_NAME_IO_PROPERTY_PATH; // specifies ioPropertyPath
+	static const std::string METADATA_NAME_LATENCIES_FROM_PREDECESSOR_IO; // specifies latenciesFromPredecessorIo
+	static const std::string METADATA_NAME_IO_PROTOCOL; // specifies ioProtocolMd
 
 	HwtHlsIoMetadata() :
 			direction(IODirection::IO_DIR_UNRESOLVED), addrWidth(0), readWordWidth(
-					1), writeWordWidth(1), isBlocking(true), otherThreadFn(
-					nullptr), otherArgIndex(0), bufferCapacity(0), ioPropertyPath(
-					nullptr), latenciesFromPredecessorIo(nullptr), protocolSpecificMetadata(
-					nullptr), streamIoMd(nullptr), ioFsmExtractMd(nullptr) {
+					1), writeWordWidth(1), otherThreadFn(nullptr), otherArgIndex(
+					0), hasBlockingLoad(true), hasBlockingStore(true), bufferCapacity(
+					0), ioPropertyPath(nullptr), latenciesFromPredecessorIo(
+					nullptr), ioProtocolMd(nullptr) {
 
 	}
 	HwtHlsIoMetadata(IODirection direction, size_t addrWidth,
-			size_t readWordWidth, size_t writeWordWidth, bool isBlocking,
+			size_t readWordWidth, size_t writeWordWidth,
 			llvm::Function *otherThreadFn, size_t otherArgIndex,
-			size_t bufferCapacity, llvm::MDTuple *ioPropertyPath,
-			llvm::MDTuple *latenciesFromPredecessorIo,
-			llvm::MDTuple *protocolSpecificMetadata, llvm::MDTuple *streamIoMd,
-			llvm::MDTuple *ioFsmExtractMd) :
+			bool hasBlockingLoad = true, bool hasBlockingStore = true,
+			size_t bufferCapacity = 0, llvm::MDTuple *ioPropertyPath = nullptr,
+			llvm::MDTuple *latenciesFromPredecessorIo = nullptr,
+			llvm::MDTuple *ioProtocolMd = nullptr,
+			const std::vector<llvm::Metadata*> &unparsedMd = { }) :
 			direction(direction), addrWidth(addrWidth), readWordWidth(
-					readWordWidth), writeWordWidth(writeWordWidth), isBlocking(
-					isBlocking), otherThreadFn(otherThreadFn), otherArgIndex(
-					otherArgIndex), bufferCapacity(bufferCapacity), ioPropertyPath(
-					ioPropertyPath), latenciesFromPredecessorIo(
-					latenciesFromPredecessorIo), protocolSpecificMetadata(
-					protocolSpecificMetadata), streamIoMd(streamIoMd), ioFsmExtractMd(
-					ioFsmExtractMd) {
-		if (!isBlocking)
+					readWordWidth), writeWordWidth(writeWordWidth), otherThreadFn(
+					otherThreadFn), otherArgIndex(otherArgIndex), hasBlockingLoad(
+					hasBlockingLoad), hasBlockingStore(hasBlockingStore), bufferCapacity(
+					bufferCapacity), ioPropertyPath(ioPropertyPath), latenciesFromPredecessorIo(
+					latenciesFromPredecessorIo), ioProtocolMd(ioProtocolMd), unparsedMd(
+					unparsedMd) {
+		if (hasBlockingLoad || !hasBlockingStore)
 			assert(addrWidth == 0);
 		if (addrWidth != 0)
 			assert(bufferCapacity == 0);
@@ -77,7 +89,7 @@ public:
 	void consystencyCheck() const;
 	bool operator==(const HwtHlsIoMetadata &other) const;
 	void print(llvm::raw_ostream &O, bool IsForDebug = false) const;
-	static const std::string METADATA_NAME;
+
 };
 
 std::pair<llvm::Type*, llvm::Type*> getLoadOrStoreElementType(
