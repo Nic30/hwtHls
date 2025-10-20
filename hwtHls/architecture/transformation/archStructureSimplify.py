@@ -1,5 +1,3 @@
-from typing import Dict, List, Set
-
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
@@ -23,9 +21,9 @@ from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 class HlsArchPassArchStructureSimplify(HlsArchPass):
 
     @staticmethod
-    def findSuccessorsPredecessors(archElements: List[ArchElement]):
-        archElmSuccessors: Dict[ArchElement, SetList[ArchElement]] = {}
-        archElmPredecessors: Dict[ArchElement, SetList[ArchElement]] = {}
+    def findSuccessorsPredecessors(archElements: list[ArchElement]):
+        archElmSuccessors: dict[ArchElement, SetList[ArchElement]] = {}
+        archElmPredecessors: dict[ArchElement, SetList[ArchElement]] = {}
         for archElm in archElements:
             archElmSuccessors[archElm] = SetList()
             archElmPredecessors[archElm] = SetList()
@@ -39,9 +37,9 @@ class HlsArchPassArchStructureSimplify(HlsArchPass):
         return archElmPredecessors, archElmSuccessors
 
     @classmethod
-    def isPipelineEndingInElm(cls, archElmPredecessors: Dict[ArchElement, SetList[ArchElement]],
-                              archElmSuccessors: Dict[ArchElement, SetList[ArchElement]],
-                              cur: ArchElementPipeline, dst: ArchElement, path: List[ArchElementPipeline]):
+    def isPipelineEndingInElm(cls, archElmPredecessors: dict[ArchElement, SetList[ArchElement]],
+                              archElmSuccessors: dict[ArchElement, SetList[ArchElement]],
+                              cur: ArchElementPipeline, dst: ArchElement, path: list[ArchElementPipeline]):
         if cur is dst:
             return True
         elif not isinstance(cur, ArchElementPipeline):
@@ -110,7 +108,7 @@ class HlsArchPassArchStructureSimplify(HlsArchPass):
                     userElm: ArchElement = u.obj
                     assert userElm is not archElm, u
                     if last and len(srcUsers) == 1:
-                        srcUsers[0].disconnectFromHlsOut(src) # [todo] src may not be the direct driver of u
+                        srcUsers[0].disconnectFromHlsOut(src)  # [todo] src may not be the direct driver of u
                         # move constant nodes between arch elements
                         if src.obj.scheduledIn is not None:
                             clkI = indexOfClkPeriod(src.obj.scheduledZero, clkPeriod)
