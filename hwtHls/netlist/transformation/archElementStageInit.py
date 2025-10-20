@@ -12,6 +12,7 @@ class HlsNetlistPassArchElementStageInit(HlsNetlistPass):
         clkPeriod = elm.netlist.normalizedClkPeriod
         for n in elm.subNodes:
             assert n.scheduledZero is not None, ("Node must be scheduled", n, elm)
+            assert n.scheduledZero >= 0, (n, elm, n.scheduledZero, n.scheduledIn, n.scheduledOut)
             elm._addNodeIntoScheduled(n.scheduledZero // clkPeriod, n, allowNewClockWindow=True)
  
     @override
