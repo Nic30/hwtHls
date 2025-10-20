@@ -19,8 +19,8 @@ from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.observableList import ObservableList, ObservableListRm
 from hwtHls.netlist.scheduler.resourceList import SchedulingResourceConstraints
-from hwtHls.netlist.scheduler.scheduler import HlsScheduler
 from hwtHls.ssa.analysisCache import AnalysisCache
+
 
 DEFAULT_SCHEDULER_RESOLUTION = 0.01e-9
 
@@ -77,7 +77,7 @@ class HlsNetlistCtx(AnalysisCache):
 
         self.ctx = RtlNetlist()
         AnalysisCache.__init__(self)
-        self.scheduler: HlsScheduler = self.platform.schedulerCls(self, schedulerResolution, resourceConstraints)
+        self.scheduler: "HlsScheduler" = self.platform.schedulerCls(self, schedulerResolution, resourceConstraints)
         self._dbgAddSignalNamesToSync = False
         self._dbgAddSignalNamesToData = False
         self._dbgLogPassExec:Optional[StringIO] = None
