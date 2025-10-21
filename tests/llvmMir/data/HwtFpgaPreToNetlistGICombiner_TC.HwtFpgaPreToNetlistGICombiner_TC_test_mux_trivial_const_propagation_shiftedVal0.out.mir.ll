@@ -16,8 +16,8 @@ bb.1:
   %4:anyregcls = HWTFPGA_ICMP intpred(eq), %3:anyregcls, i3 2
   %5:anyregcls = HWTFPGA_EXTRACT %2:anyregcls, 8, 0, 6
   %7:anyregcls = HWTFPGA_EXTRACT %2:anyregcls, 8, 0, 5
-  %11:anyregcls(s6) = HWTFPGA_MERGE_VALUES i1 false, %7:anyregcls, 1, 5
-  %12:anyregcls = HWTFPGA_MUX %5:anyregcls, %4:anyregcls, %11:anyregcls(s6)
+  %11:anyregcls = HWTFPGA_MERGE_VALUES i1 false, %7:anyregcls, 1, 5
+  %12:anyregcls = HWTFPGA_MUX %5:anyregcls, %4:anyregcls, %11:anyregcls
   %13:anyregcls = HWTFPGA_EXTRACT %12:anyregcls, 6, 0, 6
   %14:anyregcls = HWTFPGA_MERGE_VALUES i2 0, %13:anyregcls, 2, 6
   HWTFPGA_CSTORE %14:anyregcls, %2:anyregcls, 0, 8, 1 :: (volatile store (s8) into %ir.dataOut, addrspace 2)

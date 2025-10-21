@@ -16,12 +16,12 @@ bb.2.bb2:
 ; predecessors: %bb.1, %bb.2
   successors: %bb.2(0x80000000); %bb.2(100.00%)
 
-  %2:anyregcls(s16) = HWTFPGA_MUX i16 1
-  %5:anyregcls(s16) = HWTFPGA_ADD %2:anyregcls(s16), i16 1
+  %6:anyregcls(s16) = HWTFPGA_MUX i16 1
+  %5:anyregcls(s16) = HWTFPGA_ADD %6:anyregcls(s16), i16 1
   HWTFPGA_CSTORE %5:anyregcls(s16), %1:anyregcls, 0, 16, 1 :: (volatile store (s16) into %ir.txBody, addrspace 2)
   %3:anyregcls(s16) = HWTFPGA_CLOAD %0:anyregcls, 0, 1, 16 :: (volatile load (s16) from %ir.rx, addrspace 1)
   %4:anyregcls(s1) = HWTFPGA_EXTRACT %3:anyregcls(s16), 16, 0, 1
-  %2:anyregcls(s16) = HWTFPGA_MUX %2:anyregcls(s16), %4:anyregcls(s1), %3:anyregcls(s16)
+  %2:anyregcls(s16) = HWTFPGA_MUX killed %6:anyregcls(s16), %4:anyregcls(s1), %3:anyregcls(s16)
   HWTFPGA_CSTORE %2:anyregcls(s16), %1:anyregcls, 0, 16, 1 :: (volatile store (s16) into %ir.txBody, addrspace 2)
   HWTFPGA_BR %bb.2
 
