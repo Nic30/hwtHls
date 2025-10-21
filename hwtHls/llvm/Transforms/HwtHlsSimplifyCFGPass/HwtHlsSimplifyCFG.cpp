@@ -2,6 +2,7 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFG_priv.h>
 
 #include <map>
+#include <assert.h>
 
 #include <llvm/Analysis/MemorySSAUpdater.h>
 #include <llvm/Analysis/ValueTracking.h>
@@ -38,6 +39,10 @@ inline bool _DBG_SimplifyCFGOpt2_check(bool changed, Function &F,
 	return changed;
 }
 
+#  if !defined __ASSERT_FILE
+#   define __ASSERT_FILE __FILE__
+#   define __ASSERT_LINE __LINE__
+#  endif
 // :attention: expect local variable F (llvm::Function) to be defined
 #define DBG_SimplifyCFGOpt2_check(changed) _DBG_SimplifyCFGOpt2_check(changed, F, __ASSERT_FILE, __ASSERT_LINE, __ASSERT_FUNCTION, #changed)
 
