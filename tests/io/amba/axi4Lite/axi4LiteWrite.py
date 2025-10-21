@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
-from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
-from hwtHls.io.amba.axi4Lite import Axi4LiteArrayProxy
+from hwtHls.io.amba.axi4Lite import IoProxyAxi4Lite
 from hwtHls.scope import HlsScope
+from hwtHls.llvm.llvmIr import MemoryOrdering
 from hwtLib.amba.axi4Lite import Axi4Lite
 from pyMathBitPrecise.bit_utils import mask
 
@@ -35,20 +36,21 @@ class Axi4LiteWrite(HwModule):
             self.ram.HAS_R = False
 
     @hlsBytecode
-    def mainThread(self, hls: HlsScope, ram: Axi4LiteArrayProxy):
+    def mainThread(self, hls: HlsScope, ram: IoProxyAxi4Lite):
         i = HBits(self.ADDR_WIDTH).from_py(0)
-        while BIT.from_py(1):
-            w = ram.wWordT.from_py(None)
-            w.data = i._reinterpret_cast(ram.dataWordT)
-            w.strb = mask(w.strb._dtype.bit_length())
-            hls.write(w, ram[i])
+        t = ram.getDataTypeOfNativeWrite().field_by_name["data"].dtype
+        while b1:
+            ram.write(i, i._reinterpret_cast(t))
+            # w.data = i._reinterpret_cast(ram.dataWordT)
+            # w.strb = mask(w.strb._dtype.bit_length())
+            # hls.write(w, ram[i])
             i += 1
 
     @override
     def hwImpl(self) -> None:
         hls = HlsScope(self)
 
-        ram = Axi4LiteArrayProxy(hls, self.ram)
+        ram = IoProxyAxi4Lite(hls, self.ram, memOrdering=MemoryOrdering.MEMORDERING_NONE)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
         hls.addThread(mainThread)
         hls.compile()

@@ -180,6 +180,7 @@ py3.extension_module(
      'Transforms/extractBitConcatAndSliceOpsPass.cpp',
      'Transforms/HFloatTmpLoweringPass.cpp',
      'Transforms/ICmpToOnlyEqLtLePass.cpp',
+     'Transforms/IoLowerAxiMmPass.cpp',
      'Transforms/LoopAddLatchPass.cpp',
      'Transforms/LoopFlattenUsingIfPass.cpp',
      'Transforms/LoopFlattenUsingIfPass/findAssociatedPhis.cpp',

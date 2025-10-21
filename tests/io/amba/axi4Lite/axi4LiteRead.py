@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
@@ -9,7 +10,7 @@ from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
-from hwtHls.io.amba.axi4Lite import Axi4LiteArrayProxy
+from hwtHls.io.amba.axi4Lite import IoProxyAxi4Lite
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4Lite import Axi4Lite
 
@@ -35,9 +36,9 @@ class Axi4LiteRead(HwModule):
             self.ram.HAS_W = False
 
     @hlsBytecode
-    def mainThread(self, hls: HlsScope, ram: Axi4LiteArrayProxy):
+    def mainThread(self, hls: HlsScope, ram: IoProxyAxi4Lite):
         i = ram.indexT.from_py(0)
-        while BIT.from_py(1):
+        while b1:
             d = hls.read(ram[i]).data.data
             hls.write(d, self.dataOut)
             i += 1
@@ -45,7 +46,7 @@ class Axi4LiteRead(HwModule):
     @override
     def hwImpl(self) -> None:
         hls = HlsScope(self)
-        ram = Axi4LiteArrayProxy(hls, self.ram)
+        ram = IoProxyAxi4Lite(hls, self.ram)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
         hls.addThread(mainThread)
         hls.compile()

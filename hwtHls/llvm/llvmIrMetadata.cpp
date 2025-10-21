@@ -8,7 +8,9 @@
 #include <hwtHls/llvm/targets/intrinsic/threadSplit.h>
 #include <hwtHls/llvm/targets/intrinsic/StreamChannelFormatInfo.h>
 #include <hwtHls/llvm/Transforms/utils/metadataHwtHlsIO.h>
+#include <hwtHls/llvm/Transforms/IoLowerAxiMMPass.h>
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/StreamChannelProps.h>
+#include <hwtHls/llvm/Transforms/ThreadExtractIoFsmPass/ThreadExtractIoFsmPass.h>
 
 #include <pybind11/native_enum.h>
 
@@ -125,24 +127,75 @@ void register_HwtHlsIoMetadata(pybind11::module_ & m) {
 	m.def("HwtHlsIoMetadata_get", [](llvm::Function & F, size_t argI) { return HwtHlsIoMetadata_get(F, argI); });
     m.def("HwtHlsIoMetadata_set", [](llvm::Function & F, const llvm::SmallVector<HwtHlsIoMetadata> & mds) { HwtHlsIoMetadata_set(F, mds);});
 
-    py::class_<hwtHls::ThreadSplitSectionMetadata> _ThreadSplitSectionMetadata(m, "ThreadSplitSectionMetadata");
-    _ThreadSplitSectionMetadata
+}
+
+void register_ThreadSplitSectionMetadata(pybind11::module_ & m) {
+	py::class_<hwtHls::ThreadSplitSectionMetadata> _ThreadSplitSectionMetadata(m, "ThreadSplitSectionMetadata");
+	    _ThreadSplitSectionMetadata
+			.def(py::init<>())
+			.def(py::init<std::string, bool, bool, bool, bool, size_t, size_t>())
+			.def_readwrite("name", &ThreadSplitSectionMetadata::name)
+			.def_readwrite("aggregateInputs", &ThreadSplitSectionMetadata::aggregateInputs)
+			.def_readwrite("beginMayBeAsync", &ThreadSplitSectionMetadata::beginMayBeAsync)
+			.def_readwrite("aggregateOutputs", &ThreadSplitSectionMetadata::aggregateOutputs)
+			.def_readwrite("endMayBeAsync", &ThreadSplitSectionMetadata::name)
+			.def_readwrite("inputBufferSize", &ThreadSplitSectionMetadata::inputBufferCapacity)
+			.def_readwrite("outputBufferSize", &ThreadSplitSectionMetadata::outputBufferCapacity)
+			.def("toMetadata", [](hwtHls::ThreadSplitSectionMetadata & self, llvm::LLVMContext & Ctx) {
+				return reinterpret_cast<MDNodeWithDeletedDelete*>(self.toMetadata(Ctx));
+			})
+			.def_static("fromMetadata", &ThreadSplitSectionMetadata::fromMetadata)
+			.def_readonly_static("METADATA_NAME", &ThreadSplitSectionMetadata::METADATA_NAME)
+			;
+}
+
+void register_ThreadExtractIoFsmMetadata(pybind11::module_ & m) {
+    py::class_<hwtHls::ThreadExtractIoFsmMetadata> _ThreadExtractIoFsmMetadata(m, "ThreadExtractIoFsmMetadata");
+    _ThreadExtractIoFsmMetadata
+		//.def(py::init<>())
+		.def_readonly_static("METADATA_NAME", &ThreadExtractIoFsmMetadata::METADATA_NAME)
+	;
+}
+
+void register_MetadataThreadHwtComponent(pybind11::module_ & m) {
+	py::class_<hwtHls::MetadataPyObjectPath> _MetadataPyObjectPath(m, "MetadataPyObjectPath");
+	_MetadataPyObjectPath.def_readwrite("value", &hwtHls::MetadataPyObjectPath::value);
+
+	py::class_<hwtHls::IntStringTupleOrObjectPath> _IntStringTupleOrObjectPath(m, "IntStringTupleOrObjectPath");
+	py::native_enum<hwtHls::IntStringTupleOrObjectPath::ValueT> (_IntStringTupleOrObjectPath, "ValueT", "enum.Enum")
+		.value("V_NULL", hwtHls::IntStringTupleOrObjectPath::ValueT::V_NULL)
+		.value("V_INT", hwtHls::IntStringTupleOrObjectPath::ValueT::V_INT)
+		.value("V_STR", hwtHls::IntStringTupleOrObjectPath::ValueT::V_STR)
+		.value("V_TUPLE", hwtHls::IntStringTupleOrObjectPath::ValueT::V_TUPLE)
+		.value("V_OBJECT", hwtHls::IntStringTupleOrObjectPath::ValueT::V_OBJECT)
+		.finalize();
+
+	_IntStringTupleOrObjectPath
 		.def(py::init<>())
-		.def(py::init<std::string, bool, bool, bool, bool, size_t, size_t>())
-		.def_readwrite("name", &ThreadSplitSectionMetadata::name)
-		.def_readwrite("aggregateInputs", &ThreadSplitSectionMetadata::aggregateInputs)
-		.def_readwrite("beginMayBeAsync", &ThreadSplitSectionMetadata::beginMayBeAsync)
-		.def_readwrite("aggregateOutputs", &ThreadSplitSectionMetadata::aggregateOutputs)
-		.def_readwrite("endMayBeAsync", &ThreadSplitSectionMetadata::name)
-		.def_readwrite("inputBufferSize", &ThreadSplitSectionMetadata::inputBufferCapacity)
-		.def_readwrite("outputBufferSize", &ThreadSplitSectionMetadata::outputBufferCapacity)
-		.def("toMetadata", [](hwtHls::ThreadSplitSectionMetadata & self, llvm::LLVMContext & Ctx) {
-			return reinterpret_cast<MDNodeWithDeletedDelete*>(self.toMetadata(Ctx));
-		})
-		.def_static("fromMetadata", &ThreadSplitSectionMetadata::fromMetadata)
-		.def_readonly_static("METADATA_NAME", &ThreadSplitSectionMetadata::METADATA_NAME)
+		.def(py::init<const llvm::APInt &>())
+		.def(py::init<uint64_t>())
+		.def(py::init<const std::string &>())
+		.def(py::init<const std::vector<IntStringTupleOrObjectPath> & >())
+		.def(py::init<const MetadataPyObjectPath &>())
+		.def_readwrite("valT", &hwtHls::IntStringTupleOrObjectPath::valT)
+		.def_readwrite("vInt", &hwtHls::IntStringTupleOrObjectPath::vInt)
+		.def_readwrite("vStr", &hwtHls::IntStringTupleOrObjectPath::vStr)
+		.def_readwrite("vTuple", &hwtHls::IntStringTupleOrObjectPath::vTuple)
+		.def_readwrite("vObj", &hwtHls::IntStringTupleOrObjectPath::vObj)
 		;
 
+	py::class_<hwtHls::MetadataThreadHwtComponent> _MetadataThreadHwtComponent(m, "MetadataThreadHwtComponent");
+	_MetadataThreadHwtComponent
+		.def(py::init<>())
+		.def_readwrite("constructor", &hwtHls::MetadataThreadHwtComponent::constructor)
+	    .def_readwrite("constructorArgs", &hwtHls::MetadataThreadHwtComponent::constructorArgs)
+	    .def_readwrite("constructorKwargs", &hwtHls::MetadataThreadHwtComponent::constructorKwargs)
+	    .def_readwrite("hwParams", &hwtHls::MetadataThreadHwtComponent::hwParams)
+	    .def_readwrite("ioMappingOverride", &hwtHls::MetadataThreadHwtComponent::ioMappingOverride)
+		.def_static("get", &hwtHls::MetadataThreadHwtComponent::get)
+		.def("set", &hwtHls::MetadataThreadHwtComponent::set);
+
+}
 
 void register_StreamChannelFormatInfo(pybind11::module_ & m) {
 	py::native_enum<hwtHls::ByteEnableEncoding> (m, "ByteEnableEncoding", "enum.Enum")
@@ -197,6 +250,81 @@ void register_StreamChannelFormatInfo(pybind11::module_ & m) {
 	;
 }
 
+void register_MetadataIoAxiMM(pybind11::module_ & m) {
+	py::native_enum<hwtHls::MemoryOrdering> (m, "MemoryOrdering", "enum.Enum")
+		.value("MEMORDERING_NONE", hwtHls::MemoryOrdering::MEMORDERING_NONE)
+		.value("MEMORDERING_MUST_WAIT_FOR_WRITE_CONFIRM", hwtHls::MemoryOrdering::MEMORDERING_MUST_WAIT_FOR_WRITE_CONFIRM)
+		.finalize();
+
+	py::class_<MetadataIoAxiMM>(m, "MetadataIoAxiMM")
+		.def(py::init<>())
+		.def(py::init<
+				const llvm::APInt&,  // arDefault
+                const llvm::APInt&,  // rDefault
+                const llvm::APInt&,  // awDefault
+                const llvm::APInt&,  // wDefault
+                const llvm::APInt&,  // bDefault
+                const std::pair<size_t, size_t>&,  // aId
+                const std::pair<size_t, size_t>&,  // bId
+                const std::pair<size_t, size_t>&,  // rId
+                const std::pair<size_t, size_t>&,  // wId
+                const std::pair<size_t, size_t>&,  // addr
+                const std::pair<size_t, size_t>&,  // len
+                const std::pair<size_t, size_t>&,  // rData
+                const std::pair<size_t, size_t>&,   // wData
+				size_t ,  // dataWidth
+	            unsigned, // latencyArToR,
+				unsigned, // latencyAwToW,
+	            unsigned, // latencyWToB,
+	            unsigned, // latencyBToR
+				hwtHls::MemoryOrdering  // memOrdering
+				>(),
+				py::arg("arDefault"),
+				py::arg("rDefault"),
+				py::arg("awDefault"),
+				py::arg("wDefault"),
+				py::arg("bDefault"),
+				py::arg("aId"),
+				py::arg("bId"),
+				py::arg("rId"),
+				py::arg("wId"),
+				py::arg("addr"),
+				py::arg("len"),
+				py::arg("rData"),
+				py::arg("wData"),
+				py::arg("dataWidth"),
+				py::arg("latencyArToR"),
+				py::arg("latencyAwToW"),
+				py::arg("latencyWToB"),
+				py::arg("latencyBToR"),
+				py::arg("memOrdering")
+		)
+		.def_readwrite("arDefault", &MetadataIoAxiMM::arDefault)
+	    .def_readwrite("rDefault", &MetadataIoAxiMM::rDefault)
+	    .def_readwrite("awDefault", &MetadataIoAxiMM::awDefault)
+	    .def_readwrite("wDefault", &MetadataIoAxiMM::wDefault)
+	    .def_readwrite("bDefault", &MetadataIoAxiMM::bDefault)
+	    .def_readwrite("aId", &MetadataIoAxiMM::aId)
+	    .def_readwrite("bId", &MetadataIoAxiMM::bId)
+	    .def_readwrite("rId", &MetadataIoAxiMM::rId)
+	    .def_readwrite("wId", &MetadataIoAxiMM::wId)
+	    .def_readwrite("addr", &MetadataIoAxiMM::addr)
+	    .def_readwrite("len", &MetadataIoAxiMM::len)
+	    .def_readwrite("rData", &MetadataIoAxiMM::rData)
+	    .def_readwrite("wData", &MetadataIoAxiMM::wData)
+		.def_readwrite("dataWidth", &MetadataIoAxiMM::dataWidth)
+		.def_readwrite("latencyArToR", &MetadataIoAxiMM::latencyArToR)
+		.def_readwrite("latencyAwToW", &MetadataIoAxiMM::latencyAwToW)
+		.def_readwrite("latencyWToB", &MetadataIoAxiMM::latencyWToB)
+		.def_readwrite("latencyBToR", &MetadataIoAxiMM::latencyBToR)
+		.def_readwrite("memOrdering", &MetadataIoAxiMM::memOrdering)
+		.def("toMetadata", [](hwtHls::MetadataIoAxiMM & self, llvm::LLVMContext & Ctx) {
+			return reinterpret_cast<MDTupleWithDeletedDelete*>(self.toMetadata(Ctx));
+		}, py::return_value_policy::reference_internal)
+		.def_static("fromMetadata", [](const MDTupleWithDeletedDelete &md) {
+			return MetadataIoAxiMM::fromMetadata(md);
+		});
+}
 void register_MDNode(pybind11::module_ & m) {
 	py::class_<llvm::Metadata, std::unique_ptr<llvm::Metadata, py::nodelete>> Metadata(m, "Metadata");
 	Metadata
@@ -304,6 +432,9 @@ void register_MDNode(pybind11::module_ & m) {
 	//py::implicitly_convertible<llvm::MDString, llvm::Metadata>();
 	register_HwtHlsIoMetadata(m);
 	register_ThreadSplitSectionMetadata(m);
+	register_ThreadExtractIoFsmMetadata(m);
+	register_MetadataThreadHwtComponent(m);
+	register_MetadataIoAxiMM(m);
 	register_StreamChannelFormatInfo(m);
 }
 

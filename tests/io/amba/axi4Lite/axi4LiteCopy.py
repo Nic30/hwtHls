@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.hdl.types.defs import BIT
+from hwt.hdl.commonConstants import b1
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
+from hwtHls.frontend.pragmaPreproc import PyBytecodeBlockLabel
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
-from hwtHls.io.amba.axi4Lite import Axi4LiteArrayProxy
+from hwtHls.io.amba.axi4Lite import IoProxyAxi4Lite
+from hwtHls.llvm.llvmIr import MemoryOrdering
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4Lite import Axi4Lite
-from pyMathBitPrecise.bit_utils import mask
 from tests.io.bram.bramRead import BramRead
-from hwt.hdl.commonConstants import b1
 
 
 class Axi4LiteCopy(BramRead):
@@ -36,14 +36,15 @@ class Axi4LiteCopy(BramRead):
             self.ram: Axi4Lite = Axi4Lite()._m()
 
     @hlsBytecode
-    def mainThread(self, hls: HlsScope, ram: Axi4LiteArrayProxy):
+    def mainThread(self, hls: HlsScope, ram: IoProxyAxi4Lite):
         i = ram.indexT.from_py(0)
         while b1:
-            d = hls.read(ram[i]).data.data
-            w = ram.wWordT.from_py(None)
-            w.data = d
-            w.strb = mask(w.strb._dtype.bit_length())
-            hls.write(w, ram[i + self.OFFSET // (self.DATA_WIDTH // 8)])
+            PyBytecodeBlockLabel("copyLoop")
+            d = ram.read(i).data.data
+            # w = ram.wWordT.from_py(None)
+            # w.data = d
+            # w.strb = mask(w.strb._dtype.bit_length())
+            ram.write(i + self.OFFSET // (self.DATA_WIDTH // 8), d)
             if i._eq(self.SIZE - 1):
                 i = 0
             else:
@@ -52,7 +53,7 @@ class Axi4LiteCopy(BramRead):
     @override
     def hwImpl(self) -> None:
         hls = HlsScope(self)
-        ram = Axi4LiteArrayProxy(hls, self.ram)
+        ram = IoProxyAxi4Lite(hls, self.ram, memOrdering=MemoryOrdering.MEMORDERING_NONE)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
         hls.addThread(mainThread)
         hls.compile()
@@ -66,6 +67,5 @@ if __name__ == "__main__":
     m = Axi4LiteCopy()
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
         debugFilter=HlsDebugBundle.ALL_RELIABLE,
-        # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL]
-        
+        llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED, LLVM_CLI_COMMON_OPTS.VERIFY_EACH]
         )))
