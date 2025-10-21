@@ -17,28 +17,28 @@ OptionalStreamWriteCFGFragment::OptionalStreamWriteCFGFragment(
 }
 
 std::optional<OptionalStreamWriteCFGFragment> OptionalStreamWriteCFGFragment::detect(
-		BasicBlock &BlockWithWrite) {
+		CallInst & write) {
+	BasicBlock &writeBB = *write.getParent();
 	OptionalStreamWriteCFGFragment res;
-
-	for (auto &I : BlockWithWrite) {
+	res.write = &write;
+	auto ioArg = streamWriteGetIoArg(&write);
+#ifndef NDEBUG
+	for (auto &I : writeBB) {
+		if (&I == &write)
+			continue;
 		if (auto *CI = dyn_cast<CallInst>(&I)) {
-			if (IsStreamWrite(CI)) {
-				assert(
-						!res.write
-								&& "NotImplemented: merge consecutive writes in the same block");
-				res.write = CI;
+			if (IsStreamWrite(CI) && streamWriteGetIoArg(CI) == ioArg) {
+				llvm_unreachable("Consecutive writes in the same block should be already merged before detection of this pattern");
 			}
 		}
 	}
-	if (!res.write)
-		return {};
+#endif
 
-	auto *writeBB = res.write->getParent();
-	res.guard = writeBB->getSinglePredecessor();
+	res.guard = writeBB.getSinglePredecessor();
 	if (!res.guard)
 		return {};
 
-	auto wTerm = writeBB->getTerminator();
+	auto wTerm = writeBB.getTerminator();
 	if (wTerm->getNumSuccessors() != 1)
 		return {};
 
@@ -51,7 +51,7 @@ std::optional<OptionalStreamWriteCFGFragment> OptionalStreamWriteCFGFragment::de
 		return {};
 
 	for (auto *GuardSuc : successors(res.guard)) {
-		if (GuardSuc == writeBB || GuardSuc == res.exit)
+		if (GuardSuc == &writeBB || GuardSuc == res.exit)
 			continue;
 		else
 			return {};
@@ -59,6 +59,7 @@ std::optional<OptionalStreamWriteCFGFragment> OptionalStreamWriteCFGFragment::de
 
 	return res;
 }
+
 bool OptionalStreamWriteCFGFragment::_blockContainsOnlyWriteAndAssumeAndTerminator(
 		BasicBlock &BB) const {
 	for (auto &I : BB) {
@@ -71,6 +72,7 @@ bool OptionalStreamWriteCFGFragment::_blockContainsOnlyWriteAndAssumeAndTerminat
 	}
 	return true;
 }
+
 bool OptionalStreamWriteCFGFragment::containsOnlyStreamWrite(
 		bool allowNonEmptyGuard) const {
 	if (!allowNonEmptyGuard && guard->size() != 1) {
@@ -81,6 +83,7 @@ bool OptionalStreamWriteCFGFragment::containsOnlyStreamWrite(
 				*write->getParent());
 	if (exit->size() != 1)
 		return _blockContainsOnlyWriteAndAssumeAndTerminator(*exit);;
+
 	return true;
 }
 
@@ -88,10 +91,12 @@ std::pair<Value*, bool> OptionalStreamWriteCFGFragment::getWriteEnableCondition(
 	if (!guard)
 		return {ConstantInt::getBool(write->getContext(), 1), false};
 
-	auto gTerm = guard->getTerminator();
+	auto gTerm = dyn_cast<BranchInst>(guard->getTerminator());
+	assert(gTerm);
 	bool isNegated = gTerm->getSuccessor(0) != write->getParent();
 	if (isNegated)
 		assert(gTerm->getSuccessor(1) == write->getParent());
+
 	return {dyn_cast<BranchInst>(gTerm)->getCondition(), isNegated};
 }
 

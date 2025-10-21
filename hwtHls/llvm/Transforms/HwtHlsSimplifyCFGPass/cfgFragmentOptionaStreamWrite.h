@@ -22,9 +22,9 @@ public:
 	OptionalStreamWriteCFGFragment();
 	OptionalStreamWriteCFGFragment(llvm::BasicBlock *guard,
 			llvm::CallInst *write, llvm::BasicBlock *exit);
-
+	// :note: write is expected to be only write to this stream io in this block (all stream io writes should be merged in advance)
 	static std::optional<OptionalStreamWriteCFGFragment> detect(
-			llvm::BasicBlock &BlockWithWrite);
+			llvm::CallInst &write);
 	// :returns: true if guard, exit and block with write contains only write and branches and optional llvm.assume
 	bool containsOnlyStreamWrite(bool allowNonEmptyGuard = false) const;
 	bool _blockContainsOnlyWriteAndAssumeAndTerminator(llvm::BasicBlock &BB) const;
