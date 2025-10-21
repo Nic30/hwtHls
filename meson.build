@@ -29,6 +29,7 @@ cmake = import('cmake')
 berkeley_abc_opt_var = cmake.subproject_options()
 # berkeley_abc_opt_var.add_cmake_defines({'ABC_NAMESPACE': 'abc'})
 # berkeley_abc_opt_var.add_cmake_defines({'ABC_USE_NO_READLINE': 1})
+berkeley_abc_opt_var.add_cmake_defines({'ABC_SKIP_TESTS': 1})
 BERKELEY_ABC_CXX_FLAGS = (
 	'-Wno-unused-variable -Wno-unused-function -Wno-sign-compare -Wno-unused-but-set-variable -Wno-write-strings ' +
 	'-Wno-format-overflow -Wno-maybe-uninitialized -Wno-alloc-size-larger-than -Wno-array-bounds -Wno-nonnull ' + 
