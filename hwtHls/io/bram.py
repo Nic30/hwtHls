@@ -467,7 +467,7 @@ class IoProxyBram(IoProxyAddressed):
     @override
     @classmethod
     def _getRtlSyncSignals(cls,
-                hwIO: Union[HwIOBramPort_noClk, HwIOSignal],
+                hwIO: Union[HwIOBramPort_noClk, HwIOSignal, MemoryAllocationMeta],
                 formatAsValidReadyTuple: bool=False,
                 ) -> Union[ValidReadyTuple, tuple[Union[RtlSignal, Literal[1]], Union[RtlSignal, Literal[1]]]]:
         if isinstance(hwIO, HwIOBramPort_noClk):
@@ -481,5 +481,8 @@ class IoProxyBram(IoProxyAddressed):
                 return (1, 1)
             else:
                 return ()
+        elif isinstance(hwIO, MemoryAllocationMeta):
+            assert hwIO.isInlined(), (hwIO, "must be inlined otherwise this meta should have been replaced with a proper port")
+            return ()
         else:
             raise NotImplementedError(hwIO)
