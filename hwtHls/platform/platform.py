@@ -4,7 +4,6 @@ import sys
 from typing import Optional, Union, Type
 
 from hwt.hdl.operatorDefs import HOperatorDef
-from hwt.hwModule import HwModule
 from hwt.serializer.resourceAnalyzer.resourceTypes import RtlResourceType
 from hwt.synthesizer.dummyPlatform import DummyPlatform
 from hwtHls.architecture.componentGenerator import ComponentGenerator
@@ -20,8 +19,8 @@ from hwtHls.architecture.transformation.ioPortPrivatization import HlsArchPassIo
 from hwtHls.architecture.transformation.loopControlLowering import HlsAndRtlNetlistPassLoopControlLowering
 from hwtHls.architecture.transformation.moveArchElementPortsToMinimizeSync import HlsArchPassMoveArchElementPortsToMinimizeSync
 from hwtHls.architecture.transformation.syncLowering import HlsArchPassSyncLowering
-from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineLoopInfo, ModulePassManager, \
-    IoLowerAxiMMPass
+from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineLoopInfo, ModulePassManager, Function, \
+    MetadataThreadHwtComponent
 from hwtHls.netlist.analysis.blockSyncType import HlsNetlistAnalysisPassBlockSyncType
 from hwtHls.netlist.analysis.consistencyCheck import HlsNetlistPassConsistencyCheck
 from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
@@ -49,6 +48,11 @@ from hwtHls.ssa.translation.llvmMirToNetlist.datapath import BlockLiveInMuxSyncD
 from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtHls.ssa.translation.toLlvmUtils import getIoNodeConstructors
+from hwtHls.ssa.translation.mirThreadFromHwtComponent import mirThreadFromHwtComponentMetadata
+
+
+def _runOnSsaModuleGetter(p):
+    return p.runOnSsaModule
 
 
 ComponentGeneratorDict = dict[Union[Type[RtlResourceType], RtlResourceType, Type["HlsNetNode"], HOperatorDef],
@@ -154,21 +158,26 @@ class DefaultHlsPlatform(DummyPlatform):
         initSchedulingResourceConstraintsFromIO(netlist.scheduler.resourceUsage.resourceConstraints,
                                                 (io[0] for io in toLlvm.ioSorted))
         try:
-            toNetlist.translateDatapathInBlocks(mf)
-            DBG(D.DBG_2_1_blockSync, (netlist,))
+            F: Function = mf.getFunction()
+            hwtCompMd = MetadataThreadHwtComponent.get(F)
+            if hwtCompMd is None:
+                toNetlist.translateDatapathInBlocks(mf)
+                DBG(D.DBG_2_1_blockSync, (netlist,))
 
-            blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist.constructLiveInMuxes(mf)
-            DBG(D.DBG_2_2_preSync, (netlist,))
+                blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist.constructLiveInMuxes(mf)
+                DBG(D.DBG_2_2_preSync, (netlist,))
 
-            toNetlist.extractRstValues(mf)
-            DBG(D.DBG_2_3_postRst, (netlist,))
+                toNetlist.extractRstValues(mf)
+                DBG(D.DBG_2_3_postRst, (netlist,))
 
-            toNetlist.resolveControlForBlockWithChannelLivein(mf, blockLiveInMuxInputSync)
-            DBG(D.DBG_2_4_postLoop, (netlist,))
+                toNetlist.resolveControlForBlockWithChannelLivein(mf, blockLiveInMuxInputSync)
+                DBG(D.DBG_2_4_postLoop, (netlist,))
 
-            toNetlist.resolveBlockEn(mf)
-            toNetlist.connectOrderingPorts(mf)
-            DBG(D.DBG_2_5_postSync, (netlist,))
+                toNetlist.resolveBlockEn(mf)
+                toNetlist.connectOrderingPorts(mf)
+                DBG(D.DBG_2_5_postSync, (netlist,))
+            else:
+                mirThreadFromHwtComponentMetadata(hwtCompMd, toLlvm, toNetlist, F)
         finally:
             if submoduleBuildDbgTracerDoClose:
                 netlist.dbgSubmoduleBuidTracer._out.close()

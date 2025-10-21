@@ -16,6 +16,7 @@
 #include <hwtHls/llvm/Transforms/ThreadExtractPass/ThreadExtractor.h>
 #include <hwtHls/llvm/Transforms/utils/functionMutating.h>
 #include <hwtHls/llvm/targets/intrinsic/threadSplit.h>
+#include <hwtHls/llvm/intrinsic/metadataThreadHwtComponent.h>
 
 using namespace llvm;
 
@@ -54,7 +55,7 @@ llvm::PreservedAnalyses ThreadExtractPass::run(llvm::Module &M,
 
 	for (Function *_F : oldFunctions) {
 		auto &F = *_F;
-		if (F.isDeclaration())
+		if (F.isDeclaration() || F.hasMetadata(MetadataThreadHwtComponent::METADATA_NAME))
 			continue;
 		AssumptionCache *AC = LookupAssumptionCache(F);
 		for (;;) {
