@@ -14,22 +14,42 @@
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/targets/bitMathUtils.h>
 
+using namespace llvm;
+using namespace llvm::PatternMatch;
 
 namespace hwtHls {
 
+//void _redursivelyCollectPredecessorBlocks(BasicBlock * BB, BasicBlock * handle, SmallPtrSet<BasicBlock*, 16> &blocks) {
+//	assert(&BB->getParent()->getEntryBlock() != BB && "BB should have been dominated by handle");
+//	blocks.insert(BB);
+//	if (BB == handle)
+//		return;
+//	for (auto* pred: llvm::predecessors(BB)) {
+//		if (!blocks.contains(pred) && pred != handle)
+//			_redursivelyCollectPredecessorBlocks(pred, handle, blocks);
+//	}
+//}
+
 // attempt to hoist to first pred BB
+// :attention: there may be some blocks in between blocks inpredecChain
 bool HwtHlsSimplifyCFGPass_phiToLogicalExpr_hoist(
 		CfgFragmentChainOfblocksWithSameSucc &predecChain,
 		SmallPtrSet<BasicBlock*, 16> &blocksToHoistFrom) {
 	bool Changed = false;
-	bool first = true;
 
+	bool first = true;
+	BasicBlock * pred;
 	for (auto &BBItem : predecChain.blocks) {
 		if (first) {
 			first = false;
+			pred = BBItem.BB;
 			continue;
 		}
+		if (BBItem.BB->getUniquePredecessor() != pred)
+			return false; // this is not just a simple chain, there are some additional blocks between the blocks of chain
 		blocksToHoistFrom.insert(BBItem.BB);
+		// _redursivelyCollectPredecessorBlocks(BBItem.BB, pred, blocksToHoistFrom);
+		pred = BBItem.BB;
 	}
 
 	first = true;
@@ -40,6 +60,9 @@ bool HwtHlsSimplifyCFGPass_phiToLogicalExpr_hoist(
 			continue;
 		}
 		for (Instruction &I : make_early_inc_range(*BBItem.BB)) {
+			assert(
+					!isa<PHINode>(&I)
+							&& "This can not be phi because all non-first blocks should have just 1 predecessor");
 			if (I.mayHaveSideEffects() || I.isVolatile() || I.isTerminator()) {
 				continue; // can not move
 			} else if (any_of(I.operands(), [&blocksToHoistFrom](Use &op) {
@@ -72,10 +95,15 @@ bool HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 			return false;
 		}
 	}
-
-	auto _predecChain = CfgFragmentChainOfblocksWithSameSucc::detect(exitBB);
+	CfgFragmentChainOfblocksWithSameSucc _predecChainTmp;
+	auto _predecChain = CfgFragmentChainOfblocksWithSameSucc::detect(exitBB,
+			_predecChainTmp);
 	if (!_predecChain.has_value())
 		return false; // there is no chain of predecessors which we could use to optimize phis
+	//if (_predecChain.value().blocks.back().toExitBrCond)
+	//	return false; // last block has conditional branch, this pattern accepts only unconditional
+	//// because wee need all blocks to converge at exit block
+
 	auto predecChain = _predecChain.value();
 	if (predecChain.blocks.size() == 2
 			&& all_of(exitBB.phis(), [](const PHINode &phi) {
@@ -113,8 +141,8 @@ bool HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 
 	for (auto &PHI : make_early_inc_range(exitBB.phis())) {
 		bool allIncommingValuesDominatingBB = true;
-		for (auto& v: PHI.incoming_values()) {
-			if (auto I = dyn_cast<Instruction>(v.get())){
+		for (auto &v : PHI.incoming_values()) {
+			if (auto I = dyn_cast<Instruction>(v.get())) {
 				if (!DT.dominates(I, &exitBB)) {
 					allIncommingValuesDominatingBB = false;
 					break;
@@ -176,18 +204,20 @@ void checkForZeroAndAllOnes(Value *V, bool &isZero, bool &isAllOnes) {
 }
 
 using BasicBlockAndBrCondVectorIterator = llvm::SmallVector<CfgFragmentChainOfblocksWithSameSucc::BasicBlockAndBrCond>::const_iterator;
+// collect conditions for exit (negate=false) or continue (negate=true) in chain of blocks
 void getConditions(IRBuilderBase &Builder,
 		iterator_range<BasicBlockAndBrCondVectorIterator> blocks, bool negate,
 		SmallVector<Value*> &res) {
-	for (auto BB : blocks) {
+	for (const CfgFragmentChainOfblocksWithSameSucc::BasicBlockAndBrCond &BB : blocks) {
 		auto Cond = BB.toExitBrCond;
-		if (BB.toExitBrCondIsNegated != negate) {
-			if (Cond)
+		if (Cond) {
+			if (BB.toExitBrCondIsNegated != negate) {
 				Cond = Builder.CreateNot(Cond);
-			else
-				Cond = Builder.getInt1(!negate);
+			}
+			res.push_back(Cond);
+		} else {
+			Cond = Builder.getInt1(!negate); // condition is not specified and it is default exit condition
 		}
-		res.push_back(Cond);
 	}
 }
 
