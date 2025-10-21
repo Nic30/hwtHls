@@ -42,6 +42,7 @@ inline bool _DBG_SimplifyCFGOpt2_check(bool changed, Function &F,
 #  if !defined __ASSERT_FILE
 #   define __ASSERT_FILE __FILE__
 #   define __ASSERT_LINE __LINE__
+#   define __ASSERT_FUNCTION	__func__
 #  endif
 // :attention: expect local variable F (llvm::Function) to be defined
 #define DBG_SimplifyCFGOpt2_check(changed) _DBG_SimplifyCFGOpt2_check(changed, F, __ASSERT_FILE, __ASSERT_LINE, __ASSERT_FUNCTION, #changed)
