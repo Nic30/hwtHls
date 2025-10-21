@@ -137,10 +137,11 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
             _dst = self._getNominaInterface()
             if _dst.HAS_R:
                 readDataIo = self._extractDout(self.dst)
-
                 dNode = HlsNetNodeReadBramData(self.netlist, self.ioProxy, readDataIo, _dst.dout._dtype, name=self.name)
                 self._extractReadPortsToSeparateNode(dNode)
-                yield dNode
+                self.parent._addNodeIntoScheduled(dNode.scheduledZero // self.netlist.normalizedClkPeriod, dNode)
+                return True
+        return False
 
     def _extractReadPortsToSeparateNode(self, dNode: "HlsNetNodeReadBramData"):
         dNode.assignRealization(OpRealizationMeta(0, 0, 0, 0, True))
