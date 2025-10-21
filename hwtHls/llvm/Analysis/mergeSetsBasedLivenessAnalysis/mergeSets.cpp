@@ -36,7 +36,7 @@ bool _isIncomingJEdgeInconsistent(MergeSets &mergeSets, const DJGraph &djGraph,
 			auto dstMs = mergeSets.find(dstNode);
 			assert(srcMs != mergeSets.end());
 			assert(dstMs == mergeSets.end());
-			if (!containsAll(mergeSets[srcNode], mergeSets[dstNode])) {
+			if (!containsAll(srcMs->second, dstMs->second)) {
 				return true;
 			}
 		}

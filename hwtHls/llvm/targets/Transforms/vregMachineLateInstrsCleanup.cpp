@@ -137,7 +137,7 @@ char VRegMachineLateInstrsCleanup::ID = 0;
 bool VRegMachineLateInstrsCleanup::runOnMachineFunction(MachineFunction &MF) {
 	if (skipFunction(MF.getFunction()))
 		return false;
-
+#ifndef NDEBUG
 	const auto &MFP = MF.getProperties();
 	assert(
 			!MFP.hasProperty(MachineFunctionProperties::Property::IsSSA)
@@ -145,7 +145,7 @@ bool VRegMachineLateInstrsCleanup::runOnMachineFunction(MachineFunction &MF) {
 	assert(
 			!MFP.hasProperty(MachineFunctionProperties::Property::NoVRegs)
 					&& "If it has NoVRegs use original LLVM::MachineLateInstrsCleanup");
-
+#endif
 	TRI = MF.getSubtarget().getRegisterInfo();
 	TII = MF.getSubtarget().getInstrInfo();
 	MRI = &MF.getRegInfo();

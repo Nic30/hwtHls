@@ -27,10 +27,14 @@ bool MachineOperand_checkOrSetWidth(MachineRegisterInfo &MRI,
 				// we may be able to duplicate G_IMPLICIT_DEF to avoid type collision
 				// at this point there should not be any G_IMPLICIT_DEF
 				if (MachineOperand *Def = MRI.getOneDef(Reg)) {
+#ifndef NDEBUG
 					assert(
 							Def->getParent()->getOpcode()
 									!= TargetOpcode::G_IMPLICIT_DEF
 									&& "This instruction should already be removed");
+#else
+					(void*)Def;
+#endif
 				} else if (MRI.def_empty(Reg)) {
 					if (!MRI.hasOneUse(Reg)) {
 						undefsToDuplicate->push_back(
@@ -408,8 +412,10 @@ bool resolveTypes(MachineInstr &MI) {
 				MRI.setType(src.getReg(), LLT::scalar(subSlice.srcWidth));
 			}
 		} else {
+#ifndef NDEBUG
 			unsigned srcWidth = src.getCImm()->getType()->getIntegerBitWidth();
 			assert(subSlice.srcWidth == srcWidth);
+#endif
 			return true;
 		}
 
@@ -422,7 +428,9 @@ bool resolveTypes(MachineInstr &MI) {
 		MachineOperand_checkOrSetWidth(MRI, MI.getOperand(1), w);
 		MRI.setType(MI.getOperand(0).getReg(), LLT::scalar(1));
 		auto enCond = MI.getOperand(1 + 1 + 2 + HFloatTmpConfig::MEMBER_CNT);
-		assert(MachineOperand_checkOrSetWidth(MRI, enCond, 1, nullptr));
+		if (!MachineOperand_checkOrSetWidth(MRI, enCond, 1, nullptr)) {
+			llvm_unreachable("enCond must be 1b variable");
+		}
 		return true;
 	}
 	case HwtFpga::HWTFPGA_FP_FNEG:
@@ -512,7 +520,9 @@ bool resolveTypes(MachineInstr &MI) {
 			}
 		}
 		auto enCond = MI.getOperand(opCnt + HFloatTmpConfig::MEMBER_CNT);
-		assert(MachineOperand_checkOrSetWidth(MRI, enCond, 1, nullptr));
+		if (!MachineOperand_checkOrSetWidth(MRI, enCond, 1, nullptr)) {
+			llvm_unreachable("enCond must be 1b variable");
+		}
 		return true;
 	}
 	case HwtFpga::HWTFPGA_FP_CAST: {
@@ -524,7 +534,9 @@ bool resolveTypes(MachineInstr &MI) {
 		MachineOperand_checkOrSetWidth(MRI, MI.getOperand(0), dstW);
 		MachineOperand_checkOrSetWidth(MRI, MI.getOperand(1), srcW);
 		auto enCond = MI.getOperand(1 + 1 + 2 * HFloatTmpConfig::MEMBER_CNT);
-		assert(MachineOperand_checkOrSetWidth(MRI, enCond, 1, nullptr));
+		if (!MachineOperand_checkOrSetWidth(MRI, enCond, 1, nullptr)) {
+			llvm_unreachable("enCond must be 1b variable");
+		}
 		return true;
 	}
 	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER:
@@ -552,7 +564,9 @@ bool resolveTypes(MachineInstr &MI) {
 		}
 		duplicateRegsForUndefValues(undefsToDuplicate, MRI, MI);
 		auto enCond = MI.getOperand(MI.getNumExplicitOperands() - 1);
-		assert(MachineOperand_checkOrSetWidth(MRI, enCond, 1, nullptr));
+		if (!MachineOperand_checkOrSetWidth(MRI, enCond, 1, nullptr)) {
+			llvm_unreachable("enCond must be 1b variable");
+		}
 		return true;
 	}
 	default: {

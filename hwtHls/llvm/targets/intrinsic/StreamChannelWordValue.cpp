@@ -56,11 +56,13 @@ StreamChannelWordValue StreamChannelWordValue::concat(
 	llvm::SmallVector<llvm::Value*> error; // error is or-ed
 	// sof from first part is used
 	llvm::SmallVector<llvm::Value*> eof; // eof is or-ed
-
+#ifndef NDEBUG
 	assert(!lowerFirstMembers.empty());
 	const auto &props =
 			lowerFirstMembers[lowerFirstMembers.size() > 2 ? 1 : 0].props;
+#endif
 	for (auto &d : lowerFirstMembers) {
+#ifndef NDEBUG
 		bool isLast = &d == &lowerFirstMembers.back();
 		bool isFirst = &d == &lowerFirstMembers.front();
 		assert(isFirst || isLast || d.props == props);
@@ -72,7 +74,7 @@ StreamChannelWordValue StreamChannelWordValue::concat(
 		assert(props.hasSoF() == (d.sof != nullptr));
 		assert(props.hasEoF() == (d.eof != nullptr));
 		assert(props.hasError() == (d.error != nullptr));
-
+#endif
 		//	switch (streamProps.byteEnableEncoding) {
 		//			case ByteEnableEncoding::BEE_MASK:
 		//				if (!_readRes.mask && !streamProps.hasMask()
@@ -240,8 +242,10 @@ llvm::Value* StreamChannelWordValue::computeEmptyForDataInsert(
 	// for this current word.
 	size_t bytesInCurrentWord = dstDataBitOffset / byteWidth;
 	size_t bytesInWord = dstDataWidth / byteWidth;
+#ifndef NDEBUG
 	size_t bytesMissingInCurrentWord = bytesInWord - bytesInCurrentWord;
 	assert(bytesMissingInCurrentWord > 0);
+#endif
 	assert(srcDataWidth % byteWidth == 0);
 	size_t bytesInWrite = srcDataWidth / byteWidth;
 	assert(srcWidthToTake % byteWidth == 0);

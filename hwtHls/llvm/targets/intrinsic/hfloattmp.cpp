@@ -330,8 +330,8 @@ llvm::APFloat HFloatTmpConfig::bitCastHFloatTmpAPIntToAPFloat(
 	APFloat res = llvm::APFloat(0.0);
 
 	size_t offset = 0;
-	int64_t exponent;
-	uint64_t integerPart, fractionalPart, mantissa;
+	int64_t exponent = 0;
+	uint64_t integerPart = 0, fractionalPart = 0, mantissa = 0;
 	bool sign = false, isInf = false, isNaN = false, isZero = false, isOne =
 			false;
 	auto popFlag = [&offset, &v](bool condition, bool &flagValue) {

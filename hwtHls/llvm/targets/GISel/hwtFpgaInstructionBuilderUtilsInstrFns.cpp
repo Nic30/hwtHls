@@ -287,7 +287,9 @@ llvm::MachineInstrBuilder buildHWTFPGA_MERGE_VALUES(
 		llvm::MachineIRBuilder &Builder, llvm::GISelChangeObserver *Observer, llvm::Register DstReg,
 		const llvm::SmallVector<hwtHls::CImmOrRegOrUndefWithWidth> &ConcatMembers, size_t* _width
 		) {
+#ifndef NDEBUG
 	auto &MRI = *Builder.getMRI();
+#endif
 	size_t width = 0;
 	for (auto &v : ConcatMembers) {
 		width += v.width;

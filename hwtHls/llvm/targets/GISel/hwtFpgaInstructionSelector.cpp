@@ -410,7 +410,9 @@ MachineOperand HwtFpgaTargetInstructionSelector::rewrite_G_PTR_ADD_exprToIndexAD
 			assert(indexMIB->getNumExplicitOperands() == 5);
 
 			auto &IndexSliceMI = *indexMIB.getInstr();
-			assert(constrainInstRegOperands(IndexSliceMI, TII, TRI, RBI));
+			if (!constrainInstRegOperands(IndexSliceMI, TII, TRI, RBI)) {
+				llvm_unreachable("There should be nothing preventing constrain of reg");
+			}
 
 			auto p0Op = addrDefMI.getOperand(1).getReg();
 			if (p0Op != baseAddrDefiningReg) {
@@ -430,7 +432,9 @@ MachineOperand HwtFpgaTargetInstructionSelector::rewrite_G_PTR_ADD_exprToIndexAD
 				auto _indexReg = MachineOperand::CreateReg(indexReg, false);
 				selectInstrArg(MF, indexAddMIB, MRI, _indexReg);
 				selectInstrArg(MF, indexAddMIB, MRI, p0OpSelected);
-				assert(constrainInstRegOperands(*indexAddMIB.getInstr(), TII, TRI, RBI));
+				if (!constrainInstRegOperands(*indexAddMIB.getInstr(), TII, TRI, RBI)) {
+					llvm_unreachable("There should be nothing preventing constrain of reg");
+				}
 
 				indexReg = indexAddedReg;
 			} else {
@@ -469,8 +473,11 @@ MachineOperand HwtFpgaTargetInstructionSelector::rewrite_G_PTR_ADD_exprToIndexAD
 					 // convert phi operand from imm to reg format (because lowering (PHIElimination and others) of phi requires it)
 					Register indexReg = MRI.createGenericVirtualRegister(
 							LLT::scalar(indexWidth));
-					auto cImmMIB = MIRB.buildConstant(indexReg, APInt(indexWidth, ValMOSelected.getImm()));
-					assert(constrainInstRegOperands(*cImmMIB.getInstr(), TII, TRI, RBI));
+					auto cImmMIB =
+							MIRB.buildConstant(indexReg, APInt(indexWidth, ValMOSelected.getImm()));
+					if (!constrainInstRegOperands(*cImmMIB.getInstr(), TII, TRI, RBI)) {
+						llvm_unreachable("There should be nothing preventing constrain of reg");
+					}
 					ValMOSelected =  MachineOperand::CreateReg(indexReg, false);
 				} else {
 					errs() << addrDefMI << "\n";
@@ -484,7 +491,9 @@ MachineOperand HwtFpgaTargetInstructionSelector::rewrite_G_PTR_ADD_exprToIndexAD
 			//MachineOperand _MbMO  = MbMO;
 			//selectInstrArg(MF, indexPhiMIB, MRI, _MbMO);
 		}
-		assert(constrainInstRegOperands(*indexPhiMIB.getInstr(), TII, TRI, RBI));
+		if (!constrainInstRegOperands(*indexPhiMIB.getInstr(), TII, TRI, RBI)) {
+			llvm_unreachable("There should be nothing preventing constrain of reg");
+		}
 
 		return MachineOperand::CreateReg(indexReg, false);
 	}
@@ -500,7 +509,9 @@ MachineOperand HwtFpgaTargetInstructionSelector::rewrite_G_PTR_ADD_exprToIndexAD
 					"NotImplemented, extract the multiplier from the index");
 		}
 		auto cImmMIB = MIRB.buildConstant(indexReg, v);
-		assert(constrainInstRegOperands(*cImmMIB.getInstr(), TII, TRI, RBI));
+		if (!constrainInstRegOperands(*cImmMIB.getInstr(), TII, TRI, RBI)) {
+			llvm_unreachable("There should be nothing preventing constrain of reg");
+		}
 		return MachineOperand::CreateReg(indexReg, false);
 	}
 	case TargetOpcode::G_GLOBAL_VALUE:

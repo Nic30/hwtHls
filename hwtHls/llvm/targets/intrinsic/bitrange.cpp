@@ -235,6 +235,7 @@ llvm::Value* CreateBitRangeGet(llvm::IRBuilderBase *Builder, Value *bitVec,
 	}
 
 	Value *Ops[] = { bitVec, lowBitNo };
+#ifndef NDEBUG
 	for (auto O : Ops) {
 		if (auto OAsI = dyn_cast<Instruction>(O)) {
 			assert(OAsI->getParent() && "Check that the value is not erased");
@@ -243,6 +244,7 @@ llvm::Value* CreateBitRangeGet(llvm::IRBuilderBase *Builder, Value *bitVec,
 							&& "Check that the value is not erased");
 		}
 	}
+#endif
 	Type *ResT = Builder->getIntNTy(bitWidth);
 	Type *Tys[] = { bitVec->getType(), lowBitNo->getType() };
 	Type *TysForName[] = { bitVec->getType(), lowBitNo->getType(), ResT };
@@ -406,7 +408,9 @@ llvm::Value* CreateBitConcat(llvm::IRBuilderBase *Builder,
 					OpsLowFirst.push_back(UndefValue::get(Ty));
 					ArgTys.push_back(Ty);
 					continue;
-				} else if (auto OAsI = dyn_cast<Instruction>(o)) {
+				}
+#ifndef NDEBUG
+				else if (auto OAsI = dyn_cast<Instruction>(o)) {
 					assert(
 							OAsI->getParent()
 									&& "Check that the value is not erased");
@@ -414,6 +418,7 @@ llvm::Value* CreateBitConcat(llvm::IRBuilderBase *Builder,
 							OAsI->getParent()->getParent()
 									&& "Check that the value is not erased");
 				}
+#endif
 				lastWasUndef = true;
 			} else {
 				lastWasUndef = false;

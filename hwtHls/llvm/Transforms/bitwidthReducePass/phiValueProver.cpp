@@ -288,8 +288,10 @@ void PHIValueProver::knownBits_splitItem(KnownBitsIteraor knownBitsItem,
 	if (originalWidth == newWidthOfLeft)
 		return;
 
+	#ifndef NDEBUG
 	size_t knownBitsItemBitIndex = knownBitsItem - knownBits.begin();
 	assert(originalWidth > newWidthOfLeft);
+#endif
 
 	// split this item,
 	knownBitsItem->width = newWidthOfLeft;
