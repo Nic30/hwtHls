@@ -19,7 +19,7 @@ namespace hwtHls {
  * */
 bool HwtHlsSimplifyCFGPass_phiToLogicalExpr(llvm::IRBuilderBase &Builder,
 		llvm::DomTreeUpdater &DTU, const llvm::DataLayout &DL,
-		llvm::AssumptionCache *AC, llvm::BasicBlock &exitBB);
+		llvm::AssumptionCache *AC, llvm::BasicBlock &exitBB, bool & exprChanged);
 
 /*
  * :returns: null if rewrite failed else returns new rewritten value

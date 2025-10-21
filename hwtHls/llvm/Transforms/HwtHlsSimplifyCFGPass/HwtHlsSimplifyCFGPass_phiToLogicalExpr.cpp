@@ -83,7 +83,8 @@ bool HwtHlsSimplifyCFGPass_phiToLogicalExpr_hoist(
 
 bool HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 		llvm::DomTreeUpdater &DTU, const llvm::DataLayout &DL,
-		llvm::AssumptionCache *AC, llvm::BasicBlock &exitBB) {
+		llvm::AssumptionCache *AC, llvm::BasicBlock &exitBB,
+		bool &exprChanged) {
 	if (exitBB.phis().empty())
 		return false; // nothing to optimize
 
@@ -118,14 +119,16 @@ bool HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 	assert(DT.dominates(predecChain.blocks[0].BB, &exitBB));
 
 	SmallPtrSet<BasicBlock*, 16> blocksToHoistFrom;
-	bool Change = HwtHlsSimplifyCFGPass_phiToLogicalExpr_hoist(predecChain,
+	// :attention: can not "or" exprChange to CfgChange because EarlyCSEPass hoist would cause inf. loop
+	exprChanged |= HwtHlsSimplifyCFGPass_phiToLogicalExpr_hoist(predecChain,
 			blocksToHoistFrom);
+	bool CfgChange = false;
 	for (auto &BBItem : predecChain.blocks) {
 		auto Term = dyn_cast<BranchInst>(BBItem.BB->getTerminator());
 		if (Term->isConditional()) {
 			if (auto CI = dyn_cast<Instruction>(Term->getCondition())) {
 				if (blocksToHoistFrom.contains(CI->getParent())) {
-					return Change; // can not continue with extraction of PHIs because the condition was not hoisted
+					return CfgChange; // can not continue with extraction of PHIs because the condition was not hoisted
 				}
 			}
 		}
@@ -135,7 +138,7 @@ bool HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 		if (BBItem.BB == predecChain.blocks.front().BB)
 			continue; // allow some instructions in top most block
 		if (BBItem.BB->getTerminator()->getIterator() != BBItem.BB->begin()) {
-			return Change;
+			return CfgChange;
 		}
 	}
 
@@ -161,7 +164,7 @@ bool HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 			PHI.replaceAllUsesWith(V);
 			PHI.eraseFromParent();
 
-			Change = true;
+			CfgChange = true;
 		}
 	}
 
@@ -188,7 +191,7 @@ bool HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 		}
 	}
 
-	return Change;
+	return CfgChange;
 }
 
 void checkForZeroAndAllOnes(Value *V, bool &isZero, bool &isAllOnes) {
