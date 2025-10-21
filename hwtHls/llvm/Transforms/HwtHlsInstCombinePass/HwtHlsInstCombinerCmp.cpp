@@ -5,6 +5,9 @@
 #include <llvm/IR/ConstantRange.h>
 #include <llvm/Transforms/Utils/Local.h>
 
+#include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinePass.h>
+#include <hwtHls/llvm/intrinsic/metadataWithBitrange.h>
+
 using namespace llvm;
 using namespace llvm::PatternMatch;
 
@@ -300,6 +303,93 @@ bool HwtHlsInstCombiner::pruneInvertedCmpDuplicatesInBlock(BasicBlock &BB) {
 		}
 	}
 	return change;
+}
+
+llvm::Instruction* HwtHlsInstCombiner::tryReduceCmpInst_cmpOnMaskToBitGet(
+		llvm::CmpInst &I) {
+	switch (I.getPredicate()) {
+	case CmpInst::Predicate::ICMP_EQ:
+	case CmpInst::Predicate::ICMP_NE:
+		break;
+	default:
+		return nullptr;
+	}
+
+	auto rhs = dyn_cast<ConstantInt>(I.getOperand(1));
+	if (!rhs)
+		return nullptr;
+
+	auto lhs = dyn_cast<Instruction>(I.getOperand(0));
+	if (!lhs || lhs->getType()->isIntegerTy(1))
+		return nullptr;
+	if (!MetadataBitRanges::isSelected(*lhs,
+			I.getContext().getMDKindID(
+					HwtHlsInstCombinePass::metadataName_expr_maskContinuosFromLsb))) {
+		return nullptr;
+	}
+
+	auto rhsV = rhs->getValue();
+	auto oneCnt = rhsV.countTrailingOnes();
+	// [todo] other predicates with pow2, pow2-1 values
+	switch (I.getPredicate()) {
+	case CmpInst::Predicate::ICMP_NE: {
+		if (oneCnt != rhsV.popcount()) {
+			// lhs can not have value which is not mask of 1 starting from lsb as metadata specifies
+			return replaceInstUsesWith(I, Builder.getTrue());
+		} else if (oneCnt == 0) {
+			// tests that all bits != 0
+			// -> test that bit 0 is 1
+			auto r = CreateBitRangeGetConst(&Builder, lhs, 0, 1);
+			return replaceInstUsesWith(I, r);
+		} else if (oneCnt == rhsV.getBitWidth()) {
+			// test if all bits != all ones
+			// -> test if msb is 0
+			auto r = CreateBitRangeGetMsb(&Builder, lhs);
+			r = Builder.CreateNot(r);
+			return replaceInstUsesWith(I, r);
+		} else {
+			// test that mask does not have specific number of bits set
+			// -> test that the set msb is not or one bit after is set
+			auto msbOfSet = CreateBitRangeGetConst(&Builder, lhs, oneCnt - 1,
+					1);
+			auto afterMsbOfSet = CreateBitRangeGetConst(&Builder, lhs, oneCnt,
+					1);
+			auto r = Builder.CreateOr(Builder.CreateNot(msbOfSet),
+					afterMsbOfSet);
+			return replaceInstUsesWith(I, r);
+		}
+	}
+	case CmpInst::Predicate::ICMP_EQ: {
+		if (oneCnt != rhsV.popcount()) {
+			// lhs can not have value which is not mask of 1 starting from lsb as metadata specifies
+			return replaceInstUsesWith(I, Builder.getFalse());
+		} else if (oneCnt == 0) {
+			// tests that all bits are 0
+			// -> test that bit 0 is 0
+			auto r = CreateBitRangeGetConst(&Builder, lhs, 0, 1);
+			r = Builder.CreateNot(r);
+			return replaceInstUsesWith(I, r);
+		} else if (oneCnt == rhsV.getBitWidth()) {
+			// test if all bits are set
+			// -> test if msb is 1
+			auto r = CreateBitRangeGetMsb(&Builder, lhs);
+			return replaceInstUsesWith(I, r);
+		} else {
+			// test that mask have specific number of bits set
+			// -> test that the set msb is set and one bit after is not
+			auto msbOfSet = CreateBitRangeGetConst(&Builder, lhs, oneCnt - 1,
+					1);
+			auto afterMsbOfSet = CreateBitRangeGetConst(&Builder, lhs, oneCnt,
+					1);
+			auto r = Builder.CreateAnd(msbOfSet,
+					Builder.CreateNot(afterMsbOfSet));
+			return replaceInstUsesWith(I, r);
+		}
+	}
+	default:
+		break;
+	}
+	return nullptr;
 }
 
 }
