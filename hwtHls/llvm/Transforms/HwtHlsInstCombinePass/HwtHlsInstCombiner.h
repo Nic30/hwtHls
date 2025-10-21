@@ -57,12 +57,16 @@ public:
 	llvm::Instruction* _tryReduceFRemByPow2_to_HwtHlsFpCast(llvm::CallInst &I);
 	llvm::Instruction* _tryReduceFModByPow2_to_HwtHlsFpCast(llvm::CallInst &I);
 	llvm::Instruction* _tryReduceCastHFloatTmpToHFloatTmpRaw(llvm::CallInst &I);
-	llvm::Instruction* _tryReduceHwtHlsFpFAdd(llvm::CallInst &I);
+
 	// reduce casts which are no longer required after values have been specialized
 	llvm::Instruction* _tryReduceCastHFloatTmpRaw(llvm::CallInst &I);
 
 	// HwtHlsInstComibnerFpCmp.cpp
 	llvm::Instruction* _tryReduceHwtHlsFCmp(llvm::CallInst &I);
+
+	// HwtHlsInstCombinerFpSpecialized.cpp
+	llvm::Instruction* _tryReduceHwtHlsFpFAdd(llvm::CallInst &I);
+	llvm::Instruction* tryReduceHwtHlsFpSub_to_addNeg(llvm::CallInst & I /*fsub*/);
 
 	// HwtHlsInstCombinerCmp.cpp
 	llvm::Value* _rewriteCmpConstOnAddSubOpConst(llvm::BinaryOperator &BI,
@@ -72,6 +76,7 @@ public:
 	// * */
 	llvm::Instruction* tryReduceCmpInst_hoistConstICmpOnConstArithAndSel(
 			llvm::CmpInst &I);
+	llvm::Instruction* tryReduceCmpInst_cmpOnMaskToBitGet(llvm::CmpInst &I);
 	llvm::Instruction* tryReduceSelectInst_unNegate(llvm::SelectInst &SI);
 	llvm::Instruction* _tryReduceSelectInst_toAndOr_SelectOfCompares(
 			llvm::SelectInst &SI);
@@ -213,7 +218,28 @@ public:
 	bool pruneInvertedCmpDuplicatesInBlock(llvm::BasicBlock &BB);
 	bool pruneInvertedCmpDuplicatesInBlocks(llvm::Function &F);
 
-	llvm::Instruction* tryReduceMergableFunction(llvm::CallInst &I);
+	llvm::Instruction* tryReduceMergableFunctionInSequence(llvm::CallInst &I);
+	//llvm::Instruction* _tryReduceMergableFunctionInSelect_optinalToMasked(
+	//		llvm::SelectInst &SI, llvm::CallInst *T,
+	//		std::optional<llvm::CallInst*> _F);
+
+	struct MergableFunctionChainItem {
+		llvm::CallInst *mergableFnCall;
+		llvm::Value *enCondition; // if enConditionNegated==false and enCondition==true the mergableFnCall is executed
+		bool enConditionNegated;
+		MergableFunctionChainItem() :
+				mergableFnCall(nullptr), enCondition(nullptr), enConditionNegated(
+						false) {
+		}
+	};
+
+	// result[0] is a top of the tree
+	bool _tryReduceMergableFunctionInSelect_detect(llvm::SelectInst &topSI,
+			llvm::SmallVector<MergableFunctionChainItem> &result,
+			llvm::Value *&stateIn);
+
+	// if this is applied to a sequence of (fn, select)+ it reduces only the first select
+	llvm::Instruction* tryReduceMergableFunctionInSelect(llvm::SelectInst &SI);
 
 	llvm::Instruction* tryReduceAndAndWithCommon(llvm::BinaryOperator &I);
 	llvm::Instruction* tryReduceOrOnBits_toNE(llvm::BinaryOperator &I);

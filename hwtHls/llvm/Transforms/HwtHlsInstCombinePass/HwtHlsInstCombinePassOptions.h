@@ -13,6 +13,9 @@ public:
 	// specifies minimum bits of bitcount instruction for extraction
 	size_t bitcountExtractionTreshold;
 
+	// merge mergable/vectorizable functions call to wider calls
+	bool mergeMergableFunctionCalls;
+
 	// depth used when called computeKnownBits
 	size_t computeKnownBitsDepth;
 
@@ -32,16 +35,23 @@ public:
 
 	HwtHlsInstCombinePassOptions(bool extractBitcounts = true,
 			size_t bitcountExtractionTreshold = 2,
+			bool mergeMergableFunctionCalls = true,
 			size_t computeKnownBitsDepth = 8, bool streamReadEoFThreading =
 					false, bool hwtHlsFpCombining = false,
 			size_t MaxIterations = 1) :
 			extractBitcounts(extractBitcounts), bitcountExtractionTreshold(
-					bitcountExtractionTreshold), computeKnownBitsDepth(
+					bitcountExtractionTreshold), mergeMergableFunctionCalls(
+					mergeMergableFunctionCalls), computeKnownBitsDepth(
 					computeKnownBitsDepth), streamReadEoFThreading(
 					streamReadEoFThreading), hwtHlsFpCombining(
 					hwtHlsFpCombining), MaxIterations(MaxIterations) {
 	}
 
+	HwtHlsInstCombinePassOptions& setMergeMergableFunctionCalls(
+			bool streamReadEoFThreading) {
+		this->mergeMergableFunctionCalls = mergeMergableFunctionCalls;
+		return *this;
+	}
 	HwtHlsInstCombinePassOptions& setStreamReadEoFThreading(
 			bool streamReadEoFThreading) {
 		this->streamReadEoFThreading = streamReadEoFThreading;

@@ -98,7 +98,7 @@ Instruction* HwtHlsInstCombiner::runOnInstr(Instruction &I) {
 #endif
 				return r;
 			}
-		} else if (auto r = tryReduceMergableFunction(*CI)) {
+		} else if (auto r = tryReduceMergableFunctionInSequence(*CI)) {
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
 #endif
@@ -139,7 +139,14 @@ Instruction* HwtHlsInstCombiner::runOnInstr(Instruction &I) {
 #endif
 					return r;
 				}
-			} else if (IsCastHFloatTmpToHFloatTmpRaw(CI)) {
+			} else if (IsHwtHlsFpFSub(CI)) {
+			    if (auto r = tryReduceHwtHlsFpSub_to_addNeg(*CI)) {
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+					assert(!verifyFunction(F, &errs()));
+#endif
+					return r;
+			    }
+			}else if (IsCastHFloatTmpToHFloatTmpRaw(CI)) {
 				if (auto r = _tryReduceCastHFloatTmpRaw(*CI)) {
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 					assert(!verifyFunction(F, &errs()));
@@ -159,9 +166,13 @@ Instruction* HwtHlsInstCombiner::runOnInstr(Instruction &I) {
 			assert(!verifyFunction(F, &errs()));
 #endif
 			return r;
-		}
-		if (auto ICMPI = dyn_cast<ICmpInst>(&I)) {
-			if (auto r = tryReduceICmp_onTurncUMin(*ICMPI)) {
+		} else if (auto ICMPI = dyn_cast<ICmpInst>(&I)) {
+			if (auto r = tryReduceCmpInst_cmpOnMaskToBitGet(*ICMPI)) {
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+				assert(!verifyFunction(F, &errs()));
+#endif
+				return r;
+			} else if (auto r = tryReduceICmp_onTurncUMin(*ICMPI)) {
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 				assert(!verifyFunction(F, &errs()));
 #endif
@@ -173,15 +184,18 @@ Instruction* HwtHlsInstCombiner::runOnInstr(Instruction &I) {
 				return r;
 			}
 		}
-
 	} else if (auto *SI = dyn_cast<SelectInst>(&I)) {
 		if (auto r = tryReduceSelectInst_unNegate(*SI)) {
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
 #endif
 			return r;
-		}
-		if (auto r = tryReduceSelectInst_toAndOr(*SI)) {
+		} else if (auto r = tryReduceMergableFunctionInSelect(*SI)) {
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+			assert(!verifyFunction(F, &errs()));
+#endif
+			return r;
+		} else if (auto r = tryReduceSelectInst_toAndOr(*SI)) {
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
 #endif
@@ -286,7 +300,8 @@ Instruction* HwtHlsInstCombiner::runOnInstr(Instruction &I) {
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 		assert(!verifyFunction(F, &errs()));
 #endif
-		return replaceInstUsesWith(I, r, I.getName().starts_with(IMPLICATION_CACHE_INSTR_NAME_PREFIX));
+		return replaceInstUsesWith(I, r,
+				I.getName().starts_with(IMPLICATION_CACHE_INSTR_NAME_PREFIX));
 	}
 
 	return nullptr;
