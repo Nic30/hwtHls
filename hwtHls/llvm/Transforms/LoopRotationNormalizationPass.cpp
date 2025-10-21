@@ -28,6 +28,7 @@
 #include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
 
 using namespace llvm;
+
 #define DEBUG_TYPE "loop-rotation-normalization"
 // #define DEBUG_DUMP_CFG_AFTER_EACH_STEP
 // #undef LLVM_DEBUG
@@ -693,12 +694,14 @@ std::optional<LoopAnalysisResultIfDoWhile> analyzeLoopForIfDoWhile(
 			dbgs() << "PreHeaderExitCond: " << *res.PreHeaderExitCond << "\n");
 	LLVM_DEBUG(dbgs() << "ToExitCond: " << *res.ToExitCond << "\n");
 	LLVM_DEBUG(dbgs() << "valueMap\n");
+#ifndef NDEBUG
 	if (::llvm::DebugFlag && ::llvm::isCurrentDebugType(DEBUG_TYPE)) {
 		for (auto v : valueMap) {
 			dbgs() << "    " << *v.first << "\n";
 			dbgs() << "        " << *v.second << "\n";
 		}
 	}
+#endif
 	res.Guard = PreHeader;
 	res.LoopHeader = L.getHeader();
 	res.LoopExit = L.getExitBlock();
