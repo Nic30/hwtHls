@@ -1,8 +1,9 @@
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombiner.h>
+#include <map>
+
 #include <llvm/IR/PatternMatch.h>
 #include <llvm/IR/ConstantRange.h>
 #include <llvm/Transforms/Utils/Local.h>
-#include <map>
 
 using namespace llvm;
 using namespace llvm::PatternMatch;
@@ -44,35 +45,35 @@ Value* HwtHlsInstCombiner::_rewriteCmpConstOnAddSubOpConst(BinaryOperator &BI,
 					Builder.getInt(newCmpRhsVal), ICMPI.getName());
 			return newI;
 		}
-		//case Predicate::ICMP_ULT: {
-		//	// when hoisting this potentially must be split to multiple compares because of hoisting
-		//	// in this simple case we check only for cases where cmpRhsVal is in format of "1+0*" (format is regex)
-		//	/*
-		//	 * x = newLhs + c0
-		//	 * I = x < c1
-		//	 * // c1 in "1+0*" format, this checks if n lower bits are 0
-		//	 * // I checks if n lower bits of I is zero which is equivalent to Or(x != c + c0 for c in range(n))
-		//	 * */
-        //
-		//	auto zeroCnt = cmpRhsVal.countTrailingZeros();
-		//	auto oneCnt = cmpRhsVal.popcount();
-		//	if (zeroCnt + oneCnt != cmpRhsVal.getBitWidth()) {
-		//		// it is not sequence of 1 with optional trailing zeros
-		//		return nullptr;
-		//	}
-		//	SmallVector<Value*> andMembers;
-		//	// x < -1 (all ones) -> x != -1
-		//	// x < -2 (all ones except lsb, e.g. 0b1110) -> (x != -1 & x != -2)
-		//	// ...
-		//	for (int i = zeroCnt; i >= 0; --i) {
-		//		auto ne = Builder.CreateICmpNE(newLhs,
-		//				Builder.getInt(newCmpRhsVal + i));
-		//		andMembers.push_back(ne);
-		//	}
-        //
-		//	auto newI = Builder.CreateAnd(andMembers);
-		//	return newI;
-		//}
+			//case Predicate::ICMP_ULT: {
+			//	// when hoisting this potentially must be split to multiple compares because of hoisting
+			//	// in this simple case we check only for cases where cmpRhsVal is in format of "1+0*" (format is regex)
+			//	/*
+			//	 * x = newLhs + c0
+			//	 * I = x < c1
+			//	 * // c1 in "1+0*" format, this checks if n lower bits are 0
+			//	 * // I checks if n lower bits of I is zero which is equivalent to Or(x != c + c0 for c in range(n))
+			//	 * */
+			//
+			//	auto zeroCnt = cmpRhsVal.countTrailingZeros();
+			//	auto oneCnt = cmpRhsVal.popcount();
+			//	if (zeroCnt + oneCnt != cmpRhsVal.getBitWidth()) {
+			//		// it is not sequence of 1 with optional trailing zeros
+			//		return nullptr;
+			//	}
+			//	SmallVector<Value*> andMembers;
+			//	// x < -1 (all ones) -> x != -1
+			//	// x < -2 (all ones except lsb, e.g. 0b1110) -> (x != -1 & x != -2)
+			//	// ...
+			//	for (int i = zeroCnt; i >= 0; --i) {
+			//		auto ne = Builder.CreateICmpNE(newLhs,
+			//				Builder.getInt(newCmpRhsVal + i));
+			//		andMembers.push_back(ne);
+			//	}
+			//
+			//	auto newI = Builder.CreateAnd(andMembers);
+			//	return newI;
+			//}
 		default: {
 		}
 		}
@@ -108,7 +109,7 @@ Instruction* HwtHlsInstCombiner::tryReduceCmpInst_hoistConstICmpOnConstArithAndS
 	//	if (SI->getType()->getScalarSizeInBits() == 1)
 	//		return nullptr; // hoisting of users not necessary because it would not
 	//	// result in reduced bitwidth of a mux
-    //
+	//
 	//	auto VT = SI->getTrueValue();
 	//	auto VF = SI->getFalseValue();
 	//	auto VTC = dyn_cast<Constant>(VT);
@@ -118,12 +119,12 @@ Instruction* HwtHlsInstCombiner::tryReduceCmpInst_hoistConstICmpOnConstArithAndS
 	//		newCmpT->insertBefore(&I);
 	//		replaceOperand(*newCmpT, 0, VT);
 	//		Worklist.push(newCmpT);
-    //
+	//
 	//		auto newCmpF = I.clone();
 	//		newCmpF->insertBefore(&I);
 	//		replaceOperand(*newCmpF, 0, VF);
 	//		Worklist.push(newCmpF);
-    //
+	//
 	//		Builder.SetInsertPoint(&I);
 	//		auto newI = Builder.CreateSelect(SI->getCondition(), newCmpT,
 	//				newCmpF, I.getName(), /*MDFrom*/SI);
@@ -134,18 +135,18 @@ Instruction* HwtHlsInstCombiner::tryReduceCmpInst_hoistConstICmpOnConstArithAndS
 	//		// %v1 = select i1 %c, i8 %v0, i8 %v0_p1 ; or TValue-FValue swapped
 	//		// %res = icmp ne/eq/ult i8 %v1, const1 ; ult is appliable only if it check for
 	//		//   set of lower bits :see: :meth:`_rewriteICmpConstOnAddSubOpConst`
-    //
+	//
 	//		// and try to convert to select of ICMP on v0 instead
 	//		// %v0_p1 = add i8 %v0, const0
 	//		// %v1 = select i1 %c, i8 %v0, i8 %v0_p1
 	//		// %res = icmp eq i8 %v1, const1
-    //
+	//
 	//		// to:
 	//		// %res.0 = icmp eq i8 %v0, const1 - const0
 	//		// %res.1 = icmp eq i8 %v0, const1
 	//		// %v0_p1 = add i8 %v0, const0
 	//		// %res = select i1 %c, i1 %res.1, i1 %res.0
-    //
+	//
 	//		Builder.SetInsertPoint(&I);
 	//		using Predicate = CmpInst::Predicate;
 	//		switch (Pred) {
