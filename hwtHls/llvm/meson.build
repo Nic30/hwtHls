@@ -201,6 +201,7 @@ py3.extension_module(
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_normalizeLookupTableIndex.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_phiToLogicalExpr.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_rewriteMaskPatternsFromCFGToData.cpp',
+	 'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_speculatePredecessor.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_storeHoist.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_streamReadMerge.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_streamWriteMerge.cpp',
