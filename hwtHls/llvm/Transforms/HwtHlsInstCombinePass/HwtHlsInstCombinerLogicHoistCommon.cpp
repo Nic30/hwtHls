@@ -177,7 +177,7 @@ llvm::Instruction* HwtHlsInstCombiner::tryReduceOrOnBits_toNE(
 						slice0.offset, cmpNeRhs.getBitWidth());
 				Worklist.pushValue(vSlice);
 				auto r = Builder.CreateICmpNE(vSlice, Builder.getInt(cmpNeRhs));
-				return replaceInstUsesWith(I, r);
+				return replaceInstUsesWith(I, r, true); // excludeAssumeUsers because AssumptionCache would not be able to recognize this in query for bits
 			}
 			std::swap(slice0, slice1);
 			std::swap(CI0, CI1);
