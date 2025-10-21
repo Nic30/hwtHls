@@ -1,4 +1,6 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_aggresiveStoreSink.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFG_priv.h>
+
 #include <algorithm>
 
 #include <llvm/ADT/SmallVector.h>
@@ -7,8 +9,9 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
+#include <hwtHls/llvm/Transforms/utils/cfgUtils.h>
 
-#define DEBUG_TYPE "hwthls-simplifycfg"
+
 using namespace llvm;
 
 namespace hwtHls {
@@ -155,22 +158,6 @@ void overwriteBBEndSuccessor(DomTreeUpdater &DTU, llvm::BranchInst *BBEndBr,
 	}
 }
 
-// update blocks to jump to newSuc instead of curSuc
-void replaceSuccessorWith(const SetVector<BasicBlock*> &blocks,
-		DomTreeUpdater &DTU, llvm::BasicBlock *curSuc,
-		llvm::BasicBlock *newSuc) {
-	for (BasicBlock *BB : blocks) {
-		if (curSuc == newSuc)
-			continue;
-		BB->getTerminator()->replaceSuccessorWith(curSuc, newSuc);
-		DTU.applyUpdates( { { DominatorTree::Delete, BB, curSuc }, {
-				DominatorTree::Insert, BB, newSuc } });
-		for (auto &PHI: newSuc->phis()) {
-			PHI.replaceIncomingBlockWith(curSuc, BB);
-		}
-	}
-}
-
 bool tryRewritePhisToSelects(IRBuilder<> &Builder, llvm::BasicBlock &BBStart,
 		llvm::BasicBlock *BBEnd, SetVector<BasicBlock*> &BBStartTBBEndPredecs,
 		SetVector<BasicBlock*> &BBStartFBBEndPredecs, llvm::BranchInst *BR0) {
@@ -304,7 +291,7 @@ bool BasicBlock_containsMem(llvm::BasicBlock *BB) {
 
 bool HwtHlsSimplifyCFGPass_aggresiveStoreSink(DomTreeUpdater &DTU,
 		llvm::BasicBlock &BBStart) {
-
+	assert(&BBStart);
 	if (!DTU.hasDomTree())
 		return false;
 	DominatorTree &DT = DTU.getDomTree();

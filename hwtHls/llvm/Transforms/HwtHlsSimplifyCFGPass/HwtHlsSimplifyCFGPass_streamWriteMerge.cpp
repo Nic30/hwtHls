@@ -1,5 +1,5 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_streamWriteMerge.h>
-
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFG_priv.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/PatternMatch.h>
 #include <llvm/ADT/SmallSet.h>
@@ -16,19 +16,8 @@
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
 
-#define DEBUG_TYPE "hwthls-simplifycfg"
-
 using namespace llvm;
 using namespace llvm::PatternMatch;
-
-//#define DBG_VERIFY_AFTER_EVERY_MODIFICATION
-
-#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
-#include <llvm/IR/Verifier.h>
-#endif
-
-// #undef LLVM_DEBUG
-// #define LLVM_DEBUG(x) x
 
 
 namespace hwtHls {
@@ -379,3 +368,4 @@ bool HwtHlsSimplifyCFGPass_streamWriteMerge(IRBuilderBase &Builder,
 }
 
 }
+

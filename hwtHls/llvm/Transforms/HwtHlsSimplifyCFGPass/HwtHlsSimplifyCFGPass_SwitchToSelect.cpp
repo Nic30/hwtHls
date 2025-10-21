@@ -1,5 +1,5 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_SwitchToSelect.h>
-
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFG_priv.h>
 #include <algorithm>
 #include <map>
 #include <set>
@@ -13,7 +13,6 @@
 
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
 
-#define DEBUG_TYPE "hwthls-simplifycfg"
 using namespace llvm;
 
 namespace hwtHls {

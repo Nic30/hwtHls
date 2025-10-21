@@ -1,9 +1,9 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_streamWriteMerge.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFG_priv.h>
 #include <llvm/IR/IRBuilder.h>
 
 #include <llvm/Analysis/DomTreeUpdater.h>
 #include <llvm/Analysis/ValueTracking.h>
-
 #include <llvm/Analysis/InstructionSimplify.h>
 
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/cfgFragmentStreamReadUntilEoF.h>
@@ -12,12 +12,6 @@
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/StreamChannelProps.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
 
-#define DEBUG_TYPE "hwthls-simplifycfg"
-//#define DBG_VERIFY_AFTER_EVERY_MODIFICATION
-
-#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
-#include <llvm/IR/Verifier.h>
-#endif
 
 using namespace llvm;
 

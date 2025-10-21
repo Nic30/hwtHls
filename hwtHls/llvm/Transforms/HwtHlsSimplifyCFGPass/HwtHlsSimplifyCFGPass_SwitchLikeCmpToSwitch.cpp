@@ -1,4 +1,5 @@
-#include "HwtHlsSimplifyCFGPass_SwitchLikeCmpToSwitch.h"
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_SwitchLikeCmpToSwitch.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFG_priv.h>
 
 #include <llvm/IR/PatternMatch.h>
 #include <llvm/IR/IRBuilder.h>
@@ -8,10 +9,10 @@
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
-#define DEBUG_TYPE "hwthls-simplifycfg"
 
 using namespace llvm;
 using namespace llvm::PatternMatch;
+
 
 namespace hwtHls {
 

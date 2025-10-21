@@ -1,4 +1,6 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_aggresiveStoreSink.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFG_priv.h>
+
 #include <algorithm>
 
 #include <llvm/ADT/SmallVector.h>
@@ -15,7 +17,6 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/constBitPartsAnalysis.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 
-#define DEBUG_TYPE "hwthls-simplifycfg"
 using namespace llvm;
 
 namespace hwtHls {

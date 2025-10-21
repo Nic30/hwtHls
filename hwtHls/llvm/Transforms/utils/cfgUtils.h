@@ -6,6 +6,8 @@
 
 namespace hwtHls {
 // update blocks to jump to newSuc instead of curSuc
+void replaceSuccessorWith(llvm::BasicBlock &BB, llvm::DomTreeUpdater &DTU,
+		llvm::BasicBlock *curSuc, llvm::BasicBlock *newSuc);
 void replaceSuccessorWith(const llvm::SetVector<llvm::BasicBlock*> &blocks,
 		llvm::DomTreeUpdater &DTU, llvm::BasicBlock *curSuc,
 		llvm::BasicBlock *newSuc);

@@ -1,4 +1,5 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_phiToLogicalExpr.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFG_priv.h>
 
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/PatternMatch.h>
@@ -13,10 +14,6 @@
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/targets/bitMathUtils.h>
 
-#define DEBUG_TYPE "hwthls-simplifycfg"
-
-using namespace llvm;
-using namespace llvm::PatternMatch;
 
 namespace hwtHls {
 

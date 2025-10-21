@@ -1,4 +1,5 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_mergePredecessorsStore.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFG_priv.h>
 
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/Analysis/IteratedDominanceFrontier.h>
@@ -7,9 +8,8 @@
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <llvm/IR/CFG.h>
 
-#include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
+//#include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
 
-#define DEBUG_TYPE "hwthls-simplifycfg"
 using namespace llvm;
 
 namespace hwtHls {

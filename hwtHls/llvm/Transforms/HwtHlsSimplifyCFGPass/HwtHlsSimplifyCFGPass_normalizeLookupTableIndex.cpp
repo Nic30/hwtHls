@@ -1,10 +1,11 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_normalizeLookupTableIndex.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFG_priv.h>
+
 #include <llvm/IR/PatternMatch.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/GlobalVariable.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
 
-#define DEBUG_TYPE "hwthls-simplifycfg"
 
 using namespace llvm;
 
@@ -13,7 +14,7 @@ namespace hwtHls {
 bool HwtHlsSimplifyCFGPass_normalizeLookupTableIndex(llvm::BasicBlock &BB) {
 	// transform value stored in switch_ptr in order to use switch_tableidx_base as is
 	using namespace llvm::PatternMatch;
-	bool changed = false;
+	bool cfgChanged = false;
 	for (Instruction &I : BB) {
 		Value *switch_tableidx = nullptr;
 		SmallVector<Constant*> romData;
@@ -119,7 +120,7 @@ bool HwtHlsSimplifyCFGPass_normalizeLookupTableIndex(llvm::BasicBlock &BB) {
 			}
 		}
 	}
-	return changed;
+	return cfgChanged;
 }
 
 }
