@@ -20,6 +20,7 @@ HwtHlsInstCombinePass::HwtHlsInstCombinePass(HwtHlsInstCombinePassOptions Option
 }
 
 const std::string HwtHlsInstCombinePass::metadataName_mergableFunction_statePlusMaskedData = "hwtHls.mergableFunction.statePlusMaskedData";
+const std::string HwtHlsInstCombinePass::metadataName_expr_maskContinuosFromLsb = "hwtHls.expr.maskContinuosFromLsb";
 
 PreservedAnalyses HwtHlsInstCombinePass::run(llvm::Function &F,
 		llvm::FunctionAnalysisManager &AM) {
