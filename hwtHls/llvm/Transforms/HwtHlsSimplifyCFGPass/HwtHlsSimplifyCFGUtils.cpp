@@ -1,13 +1,15 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
 
+#include <llvm/Analysis/ValueTracking.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
-#include <llvm/Analysis/ValueTracking.h>
 #include <llvm/IR/IRBuilder.h>
 
+#include <hwtHls/llvm/intrinsic/metadataSideEffect.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 
 using namespace llvm;
+
 namespace hwtHls {
 
 unsigned skippedInstrFlags(Instruction *I) {
@@ -28,18 +30,21 @@ unsigned skippedInstrFlags(Instruction *I) {
 bool isSafeToHoistInstr(Instruction *I, unsigned Flags) {
 	// Don't reorder a store over a load.
 	if ((Flags & SkipReadMem) && I->mayWriteToMemory())
-		return false;
+		if (!hasMetadataSideeffectAllowHoist(*I))
+			return false;
 
 	// If we have seen an instruction with side effects, it's unsafe to reorder an
 	// instruction which reads memory or itself has side effects.
 	if ((Flags & SkipSideEffect)
 			&& (I->mayReadFromMemory() || I->mayHaveSideEffects()))
-		return false;
+		if (!hasMetadataSideeffectAllowHoist(*I))
+			return false;
 
 	// Reordering across an instruction which does not necessarily transfer
 	// control to the next instruction is speculation.
 	if ((Flags & SkipImplicitControlFlow) && !isSafeToSpeculativelyExecute(I))
-		return false;
+		if (!hasMetadataSideeffectAllowHoist(*I))
+			return false;
 
 	// Hoisting of llvm.deoptimize is only legal together with the next return
 	// instruction, which this pass is not always able to do.
@@ -60,7 +65,7 @@ bool isSafeToHoistInstr(Instruction *I, unsigned Flags) {
 }
 
 Value* CreateGlobalDataWithGEP(IRBuilder<> &builder, Module &M,
-		Value *switch_tableidx, ArrayRef<Constant *> romData,
+		Value *switch_tableidx, ArrayRef<Constant*> romData,
 		const Twine &ROMName, const Twine &IndexName, const Twine &GepName) {
 	auto *ArrayTy = ArrayType::get(romData[0]->getType(), romData.size());
 	auto *newCRom = ConstantArray::get(ArrayTy, romData);
@@ -82,9 +87,11 @@ Value* CreateGlobalDataWithGEP(IRBuilder<> &builder, Module &M,
 	return newGep;
 }
 
-
 bool IsCheapInstruction(Instruction &I) {
 	if (auto *CI = dyn_cast<CallInst>(&I)) {
+		if (isa<AssumeInst>(&I) && hasMetadataSideeffectAllowHoist(I)) {
+			return true;
+		}
 		return IsBitConcat(CI) || IsBitRangeGet(CI);
 	} else if (isa<BinaryOperator>(&I)) {
 		return true;
@@ -99,7 +106,8 @@ bool IsCheapInstruction(Instruction &I) {
 	}
 }
 
-bool tryHoistCheapInstsAtBlockBegin(BasicBlock &BB, Instruction *MovePos) {
+bool tryHoistCheapInstsAtBlockBegin(BasicBlock &BB, Instruction *MovePos,
+		std::optional<std::function<bool(llvm::Instruction&)>> extraCheck) {
 	bool Changed = false;
 	for (Instruction &I : make_early_inc_range(BB)) {
 		if (I.isTerminator())
@@ -107,6 +115,8 @@ bool tryHoistCheapInstsAtBlockBegin(BasicBlock &BB, Instruction *MovePos) {
 		if (!IsCheapInstruction(I)) {
 			return Changed;
 		}
+		if (extraCheck.has_value() && !extraCheck.value()(I))
+			return Changed;
 		I.moveBefore(MovePos);
 		Changed = true;
 	}
