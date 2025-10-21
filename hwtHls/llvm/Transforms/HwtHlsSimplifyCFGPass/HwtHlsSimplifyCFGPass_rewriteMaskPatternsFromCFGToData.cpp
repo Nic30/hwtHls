@@ -130,49 +130,49 @@ bool HwtHlsSimplifyCFGPass_rewriteMaskPatternsFromCFGToData(
 
 	ConstBitPartsAnalysisContext CBA(nullptr, CBAHandle);
 	bool Changed = false;
-	for (PHINode &Phi : BBBottom.phis()) {
-		CBA.visitValue(&Phi);
-		// create map for blocks up in diamond which maps block to a known bits of phi
-		// search the blocks where bit has opposite value on T/F branch
-		// if every other block non-dominated by this block has some specific value (same as in T/F branch)
-		// we can replace this bit with the value of branch condition leading to this block
-		// https://rd.springer.com/chapter/10.1007/3-540-48294-6_12
-		// https://dl.acm.org/doi/10.1145/207110.207154
-		auto &F = *BBBottom.getParent();
-		errs() << F << "\n";
-		errs() << Phi << "\n";
-		for (const auto& c: CBA.constraints) {
-			if (c.first->getType()->isIntegerTy() && !isa<ConstantInt>(c.first)) {
-				errs() << c.first << " " << *c.first << "\n";
-				errs() << "    " << *c.second << "\n";
-			}
-		}
-
-		writeCFGToDotFile(F, "HwtHlsSimplifyCFGPass_rewriteMaskPatternsFromCFGToData.dot", nullptr, nullptr);
-		std::map<BasicBlock*, KnownBitRangeInfo> knownBitsInEachBlock;
-		//auto getKnownBitRangeInfo = [&CBA, &knownBitsInEachBlock, &Phi, &BBBottom] (BasicBlock & Pred) {
-		//	if (&Pred == &BBBottom) {
-		//		return *CBA.constraints[Phi.getIncomingValueForBlock(&Pred)];
-		//	}
-		//	auto cur = knownBitsInEachBlock.find(&Pred);
-		//	if (cur == knownBitsInEachBlock.end()) {
-		//		if (auto* br = dyn_cast<BranchInst>(Pred.getTerminator())) {
-		//			if (br->isConditional()) {
-		//				auto* T = br->getSuccessor(0);
-		//				auto* F = br->getSuccessor(1);
-		//				llvm_unreachable("NotImplemted - merge from two branches with detecting cond pattern");
-		//			}
-		//		} else {
-		//			llvm_unreachable("NotImplemted - merge from all branches ignoring cond pattern");
-		//		}
-        //
-		//	}
-		//	return *cur->second;
-		//};
-		//auto KnownBits = getKnownBitRangeInfo(BBTop);
-		llvm_unreachable("NotImplemented use KnownBits to cut off bits which are defined"
-				" to branch conditions and create final concatenation and replace original phi");
-	}
+	//for (PHINode &Phi : BBBottom.phis()) {
+	//	CBA.visitValue(&Phi);
+	//	// create map for blocks up in diamond which maps block to a known bits of phi
+	//	// search the blocks where bit has opposite value on T/F branch
+	//	// if every other block non-dominated by this block has some specific value (same as in T/F branch)
+	//	// we can replace this bit with the value of branch condition leading to this block
+	//	// https://rd.springer.com/chapter/10.1007/3-540-48294-6_12
+	//	// https://dl.acm.org/doi/10.1145/207110.207154
+	//	auto &F = *BBBottom.getParent();
+	//	errs() << F << "\n";
+	//	errs() << Phi << "\n";
+	//	for (const auto& c: CBA.constraints) {
+	//		if (c.first->getType()->isIntegerTy() && !isa<ConstantInt>(c.first)) {
+	//			errs() << c.first << " " << *c.first << "\n";
+	//			errs() << "    " << *c.second << "\n";
+	//		}
+	//	}
+    //
+	//	writeCFGToDotFile(F, "HwtHlsSimplifyCFGPass_rewriteMaskPatternsFromCFGToData.dot", nullptr, nullptr);
+	//	std::map<BasicBlock*, KnownBitRangeInfo> knownBitsInEachBlock;
+	//	//auto getKnownBitRangeInfo = [&CBA, &knownBitsInEachBlock, &Phi, &BBBottom] (BasicBlock & Pred) {
+	//	//	if (&Pred == &BBBottom) {
+	//	//		return *CBA.constraints[Phi.getIncomingValueForBlock(&Pred)];
+	//	//	}
+	//	//	auto cur = knownBitsInEachBlock.find(&Pred);
+	//	//	if (cur == knownBitsInEachBlock.end()) {
+	//	//		if (auto* br = dyn_cast<BranchInst>(Pred.getTerminator())) {
+	//	//			if (br->isConditional()) {
+	//	//				auto* T = br->getSuccessor(0);
+	//	//				auto* F = br->getSuccessor(1);
+	//	//				llvm_unreachable("NotImplemted - merge from two branches with detecting cond pattern");
+	//	//			}
+	//	//		} else {
+	//	//			llvm_unreachable("NotImplemted - merge from all branches ignoring cond pattern");
+	//	//		}
+    //    //
+	//	//	}
+	//	//	return *cur->second;
+	//	//};
+	//	//auto KnownBits = getKnownBitRangeInfo(BBTop);
+	//	llvm_unreachable("NotImplemented use KnownBits to cut off bits which are defined"
+	//			" to branch conditions and create final concatenation and replace original phi");
+	//}
 	return Changed;
 }
 
