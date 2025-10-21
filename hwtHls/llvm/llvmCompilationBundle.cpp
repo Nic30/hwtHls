@@ -142,12 +142,14 @@ void LlvmCompilationBundle::_initPassBuilder() {
 	PB->registerFunctionAnalyses(*FAM);
 	PB->registerLoopAnalyses(*LAM);
 	PB->crossRegisterProxies(*LAM, *FAM, *CGAM, *MAM);
+#ifndef NDEBUG
 	if (main) {
 		auto &TLI = FAM->getResult<llvm::TargetLibraryAnalysis>(*main);
 		assert(
 				TLI.has(llvm::LibFunc::LibFunc_sinpi)
 						&& "Sanity check that the custom TargetLibraryAnalysis was registered correctly");
 	}
+#endif
 }
 
 
