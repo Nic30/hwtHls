@@ -13,7 +13,8 @@ inline static void setArgNames(Function &F, ArrayRef<const char*> argNames) {
 	size_t argI = 0;
 	for (auto name : argNames) {
 		assert(argI < F.arg_size());
-		F.getArg(0)->setName(name);
+		F.getArg(argI)->setName(name);
+		argI++;
 	}
 }
 const std::string StreamReadName = "hwtHls.streamRead";
