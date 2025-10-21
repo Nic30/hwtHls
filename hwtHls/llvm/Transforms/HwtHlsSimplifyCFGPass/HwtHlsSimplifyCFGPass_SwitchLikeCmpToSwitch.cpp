@@ -64,7 +64,7 @@ bool tryHoistFromCheapBlocksWithSwitchLikeCmpBrRewriteBlock(
 	return Changed;
 }
 
-bool tryHoistFromCheapBlocksWithcSwitchLikeCmpBr(llvm::BranchInst *BI,
+bool tryHoistFromCheapBlocksWithSwitchLikeCmpBr(llvm::BranchInst *BI,
 		llvm::IRBuilder<> &Builder, llvm::DomTreeUpdater *DTU, bool & exprChanged) {
 	if (!BI->isConditional())
 		return false;

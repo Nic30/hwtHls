@@ -14,7 +14,7 @@ namespace hwtHls {
  * :note: this is beneficial because it potentially allows for branches to be reduced to SwitchInst
  * :noteL SimplifyCFGOpt::simplifyCondBranch expect block to contain only branch to fold this to SwitchInst
  * */
-bool tryHoistFromCheapBlocksWithcSwitchLikeCmpBr(llvm::BranchInst *BI,
+bool tryHoistFromCheapBlocksWithSwitchLikeCmpBr(llvm::BranchInst *BI,
 		llvm::IRBuilder<> &Builder, llvm::DomTreeUpdater *DTU, bool & exprChanged);
 
 }
