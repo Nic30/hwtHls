@@ -204,6 +204,7 @@ py3.extension_module(
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_streamWriteMerge.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_SwitchLikeCmpToSwitch.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_SwitchSuccessorHoistCode.cpp',
+     'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_unswitchComplementarySequentialBlocks.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_SwitchToSelect.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass.cpp',
