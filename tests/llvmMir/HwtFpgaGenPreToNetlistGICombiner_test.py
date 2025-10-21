@@ -246,7 +246,7 @@ class HwtFpgaPreToNetlistGICombiner_TC(BaseLlvmMirTC):
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    suite = unittest.TestSuite([HwtFpgaPreToNetlistGICombiner_TC('test_mux_trivial_const_propagation_at_end')])
-    # suite = testLoader.loadTestsFromTestCase(HwtFpgaPreToNetlistGICombiner_TC)
+    # suite = unittest.TestSuite([HwtFpgaPreToNetlistGICombiner_TC('test_mux_trivial_const_propagation_at_end')])
+    suite = testLoader.loadTestsFromTestCase(HwtFpgaPreToNetlistGICombiner_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
