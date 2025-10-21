@@ -25,11 +25,13 @@ llvm::Instruction* HwtHlsInstCombiner::_tryReduceFMulDivByPow2_to_HwtHlsFpSh(
 	Value *shTrunc;
 	size_t shWidth = sh->getType()->getIntegerBitWidth();
 	if (match(sh, m_ZExt(m_Value(shTrunc)))) {
+		// sh is knonw to be >= 0
 		auto shTrimmed = Builder.CreateZExt(shTrunc,
 				Builder.getIntNTy(shWidth - 1));
 		Value *r = (*shForPosSh)(Builder, x, shTrimmed, "");
 		return replaceInstUsesWith(I, r);
 	} else {
+		// sh may be negative
 		auto shLt0 = Builder.CreateIsNeg(sh);
 		auto newShTy = Builder.getIntNTy(shWidth - 1);
 		// dividing by pow 2
@@ -194,39 +196,6 @@ llvm::Instruction* HwtHlsInstCombiner::_tryReduceCastHFloatTmpToHFloatTmpRaw(
 		auto v = srcCfg.bitCastHFloatTmpAPIntToAPFloat(srcC->getValue());
 		auto res = dstCfg.bitCastAPFloatToHFloatTmpAPInt(v);
 		return replaceInstUsesWith(I, Builder.getInt(res));
-	}
-	return nullptr;
-}
-
-llvm::Instruction* HwtHlsInstCombiner::_tryReduceHwtHlsFpFAdd(
-		llvm::CallInst &I) {
-	auto lhs = I.getArgOperand(0);
-	auto rhs = I.getArgOperand(1);
-
-	if (isa<PoisonValue>(rhs)) {
-		return replaceInstUsesWith(I, PoisonValue::get(I.getType()));
-	} else if (isa<UndefValue>(rhs)) {
-		return replaceInstUsesWith(I, UndefValue::get(I.getType()));
-	} else if (auto rhsC = dyn_cast<ConstantInt>(rhs)) {
-		auto cfg = HFloatTmpConfig::fromCallArgs(I, 2);
-		if (cfg.isInQFormat) {
-			if (rhsC->isZero()) {
-				// fadd x, 0 -> x
-				return replaceInstUsesWith(I, lhs);
-			}
-		}
-	} else {
-		auto lhsC = dyn_cast<ConstantInt>(lhs);
-		if (lhsC) {
-			auto cfg = HFloatTmpConfig::fromCallArgs(I, 2);
-			if (cfg.isInQFormat) {
-				if (lhsC->isZero()) {
-					// fadd 0, x -> x
-					return replaceInstUsesWith(I, rhs);
-				}
-			}
-
-		}
 	}
 	return nullptr;
 }
