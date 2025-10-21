@@ -42,7 +42,7 @@ llvm::CallInst* CreateStreamTmpAllocaTmpSetterPlaceholder(
 			TysForName);
 	Function *TheFn = cast<Function>(
 			M->getOrInsertFunction(name, ResT, Ops[0]->getType()).getCallee());
-	setArgNames(*TheFn, { "ioArgPtr", "chunkBitWidth", "isReliable" });
+	setArgNames(*TheFn, { "ioArgPtr" });
 	AddDefaultFunctionAttributes(*TheFn);
 	CallInst *CI = Builder->CreateCall(TheFn, Ops);
 	CI->onlyAccessesInaccessibleMemOrArgMem();
