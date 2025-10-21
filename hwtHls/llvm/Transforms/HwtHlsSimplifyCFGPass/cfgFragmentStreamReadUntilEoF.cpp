@@ -15,10 +15,49 @@ StreamReadUntilEoFCFGFragment::StreamReadUntilEoFCFGFragment() :
 }
 
 CallInst* StreamReadUntilEoFCFGFragment::mergeReads(
-		llvm::IRBuilderBase &Builder,
+		llvm::IRBuilderBase &Builder, //llvm::DomTreeUpdater &DTU,
 		const StreamChannelFormatInfo &streamProps,
 		const llvm::SmallVector<llvm::CallInst*> &reads) {
 	assert(reads.size() > 1);
+	//{
+	//	// update cfg in the case that some blocks with read have more predecessors
+	//	// (to start at the first block where the merged read will be constructed)
+	//	SmallVector<llvm::DominatorTree::UpdateType> DTUpdates;
+	//	BasicBlock *topBB = reads[0]->getParent();
+	//	BasicBlock *prevBB = nullptr;
+	//	bool topBBCheckedToBeginWithRead = false;
+	//	for (auto r : reads) {
+	//		auto BB = r->getParent();
+	//		if (prevBB) {
+	//			auto prev = BB->getUniquePredecessor();
+	//			if (prev) {
+	//				assert(prev == prevBB);
+	//			} else {
+	//				assert(&*BB->begin() == r);
+	//				if (!topBBCheckedToBeginWithRead) {
+	//					assert(&*topBB->begin() == reads[0]);
+	//					assert(topBB->phis().empty());
+	//					topBBCheckedToBeginWithRead = true;
+	//				}
+	//				assert(BB->phis().empty());
+	//				SmallVector<BasicBlock*> preds(predecessors(BB));
+	//				for (auto pred : preds) {
+	//					if (pred != prevBB) {
+	//						pred->getTerminator()->replaceSuccessorWith(BB,
+	//								topBB);
+	//						DTUpdates.push_back( { DominatorTree::Delete, pred,
+	//								BB });
+	//						DTUpdates.push_back( { DominatorTree::Insert, pred,
+	//								topBB });
+	//					}
+	//				}
+	//			}
+	//		}
+	//		prevBB = BB;
+	//	}
+	//}
+
+	auto *srcIO = streamReadGetIoArg(reads[0]);
 
 	size_t mergedDataBitWidth = 0;
 	bool mergedReadIsReliable = true;
@@ -26,7 +65,7 @@ CallInst* StreamReadUntilEoFCFGFragment::mergeReads(
 	for (auto r : reads) {
 		mergedDataBitWidth += streamReadGetOrigChunkBitWidth(r);
 		if (mergedReadIsReliable && reads[0]->getParent() == r->getParent()
-				&& streamReadGetIsReliable(r)) {
+				&& streamReadGetBehavior(r) == StreamReadBehaviorType::RELIABLE) {
 			// the merged read is reliable only if all reads were reliable and all are in the same block
 			// (if they were not in same block they are conditionally executed thus data may not be present)
 			++reliableReadsCnt;
@@ -37,9 +76,14 @@ CallInst* StreamReadUntilEoFCFGFragment::mergeReads(
 
 	assert(mergedDataBitWidth % 8 == 0);
 	Builder.SetInsertPoint(reads[0]);
-	auto streamPropsForMerged = streamProps.resize(mergedDataBitWidth);
+	std::optional<hwtHls::ByteEnableEncoding> byteEnableEncodingOverride;
+	if (mergedReadIsReliable)
+		byteEnableEncodingOverride = ByteEnableEncoding::BEE_NONE;
+	auto streamPropsForMerged = streamProps.resize(mergedDataBitWidth, { },
+			byteEnableEncodingOverride);
 	size_t returnBitWidth =
 			streamPropsForMerged.segmentTy->getIntegerBitWidth();
+
 	auto mergedRead = CreateStreamRead(&Builder, srcIO, mergedDataBitWidth,
 			returnBitWidth, mergedReadIsReliable);
 	streamPropsForMerged.CreateAssumptionForControl(Builder, mergedRead);
@@ -52,13 +96,15 @@ CallInst* StreamReadUntilEoFCFGFragment::mergeReads(
 		auto dataWidth = streamReadGetOrigChunkBitWidth(r);
 		//Builder.SetInsertPoint(r);
 		bool rIsLast = reads.back() == r;
-		bool rDataAlwaysPresent = readIndex < reliableReadsCnt - 1;
-		bool nextRDataAlwaysPresent = readIndex < reliableReadsCnt && readIndex < reliableReadsCnt - 1;
+		bool rDataAlwaysPresent = readIndex < reliableReadsCnt;
+		bool nextRDataAlwaysPresent = reliableReadsCnt
+				&& readIndex + 1 < reliableReadsCnt;
 		auto partWordForR = mergedReadWord.slice(Builder, dataBitOffset,
 				dataWidth,                                                 //
 				/*isGuaranteedToBeNotEoF*/!rIsLast && nextRDataAlwaysPresent, //
 				/*isGuarangeedToContainSomeData*/rDataAlwaysPresent       //
 				);
+		partWordForR.populateWithDummyMaskOrEmptyIfNecessary(streamProps);
 		auto newR = partWordForR.flatten(Builder, nullptr);
 		assert(newR->getType() == r->getType());
 		newR->takeName(r);
@@ -67,14 +113,37 @@ CallInst* StreamReadUntilEoFCFGFragment::mergeReads(
 		dataBitOffset += dataWidth;
 		++readIndex;
 	}
-	for (auto r : reads) {
+	BasicBlock *topBB = reads[0]->getParent();
+	BasicBlock *prevBB = nullptr;
+	bool topBBCheckedToBeginWithRead = false;
+	bool allInSameBB = all_of(reads, [topBB](CallInst *CI) {
+		return CI->getParent() == topBB;
+	});
+	for (auto *r : reads) {
+		auto BB = r->getParent();
+		if (prevBB) {
+			auto prev = BB->getUniquePredecessor();
+			if (prev) {
+				assert(prev == prevBB);
+			} else {
+				if (!allInSameBB) {
+					assert(&*BB->begin() == r);
+					if (!topBBCheckedToBeginWithRead) {
+						assert(&*topBB->begin() == reads[0]);
+						topBBCheckedToBeginWithRead = true;
+					}
+				}
+			}
+		}
+		prevBB = BB;
 		r->eraseFromParent();
 	}
 	return mergedRead;
 }
 
 std::optional<StreamReadUntilEoFCFGFragment> StreamReadUntilEoFCFGFragment::detect(
-		IRBuilderBase &Builder, BasicBlock &BlockWithRead) {
+		IRBuilderBase &Builder, BasicBlock &BlockWithRead,
+		llvm::SmallPtrSetImpl<const llvm::BasicBlock*> &LoopHeaders) {
 	StreamReadUntilEoFCFGFragment res;
 	auto *BB = &BlockWithRead;
 	llvm::SmallSet<BasicBlock*, 16> seen;
@@ -85,14 +154,16 @@ std::optional<StreamReadUntilEoFCFGFragment> StreamReadUntilEoFCFGFragment::dete
 		} else {
 			seen.insert(BB);
 		}
+		if (!res.reads.empty() && LoopHeaders.contains(BB))
+			break; // can not merge reads in some loop with reads before loop
 
 		// [todo] check that the first block dominates all others
 		for (auto &I : *BB) {
 			if (auto *CI = dyn_cast<CallInst>(&I)) {
 				if (IsStreamRead(CI)
-						&& (!res.ioPtr || CI->getArgOperand(0) == res.ioPtr)) {
+						&& (!res.ioPtr || streamReadGetIoArg(CI) == res.ioPtr)) {
 					if (!res.ioPtr) {
-						res.ioPtr = CI->getArgOperand(0);
+						res.ioPtr = streamReadGetIoArg(CI);
 					}
 					SmallVector<CallInst*> readsToMerge;
 					readsToMerge.push_back(CI);
@@ -100,7 +171,7 @@ std::optional<StreamReadUntilEoFCFGFragment> StreamReadUntilEoFCFGFragment::dete
 							I.getNextNode()->getIterator(), BB->end())) {
 						if (auto *CI2 = dyn_cast<CallInst>(&I2)) {
 							if (IsStreamRead(CI2)
-									&& CI2->getArgOperand(0) == res.ioPtr) {
+									&& streamReadGetIoArg(CI2) == res.ioPtr) {
 								readsToMerge.push_back(CI2);
 							}
 						}

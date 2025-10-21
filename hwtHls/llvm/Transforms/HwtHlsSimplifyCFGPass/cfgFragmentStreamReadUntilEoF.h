@@ -1,5 +1,6 @@
 #pragma once
 #include <llvm/IR/Instructions.h>
+//#include <llvm/Analysis/DomTreeUpdater.h>
 #include <hwtHls/llvm/targets/intrinsic/StreamChannelFormatInfo.h>
 
 namespace llvm {
@@ -26,9 +27,11 @@ public:
 	StreamReadUntilEoFCFGFragment();
 	// :attention: merges streamReads in same block into first one
 	static std::optional<StreamReadUntilEoFCFGFragment> detect(
-			llvm::IRBuilderBase &Builder, llvm::BasicBlock &BlockWithRead);
+			llvm::IRBuilderBase &Builder, llvm::BasicBlock &BlockWithRead,
+			llvm::SmallPtrSetImpl<const llvm::BasicBlock*> &LoopHeaders);
 
 	static llvm::CallInst* mergeReads(llvm::IRBuilderBase &Builder,
+			//llvm::DomTreeUpdater &DTU,
 			const StreamChannelFormatInfo &streamProps,
 			const llvm::SmallVector<llvm::CallInst*> &reads);
 };
