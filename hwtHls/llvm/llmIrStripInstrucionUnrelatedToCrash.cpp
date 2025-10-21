@@ -34,8 +34,10 @@ public:
 	void run(IRBuilderBase &Builder) {
 		if (opToReplaceWith.first) {
 			auto &I = *opToReplaceWith.first->getUser();
+#ifndef NDEBUG
 			auto ty = opToReplaceWith.first->get()->getType();
 			assert(ty->isIntegerTy());
+#endif
 			I.setOperand(opToReplaceWith.first->getOperandNo(),
 					opToReplaceWith.second);
 		} else if (IToRm) {
