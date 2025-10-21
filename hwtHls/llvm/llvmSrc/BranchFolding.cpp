@@ -1001,7 +1001,7 @@ bool BranchFolder::TailMergeBlocks(MachineFunction &MF) {
     MachineBasicBlock *IBB = &*I;
     MachineBasicBlock *PredBB = &*std::prev(I);
     MergePotentials.clear();
-    MachineLoop *ML;
+    MachineLoop *ML = nullptr;
 
     // Bail if merging after placement and IBB is the loop header because
     // -- If merging predecessors that belong to the same loop as IBB, the
