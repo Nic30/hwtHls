@@ -242,7 +242,9 @@ bool rewriteBitcounts(BitcountInstrCache &bitcountCache,
 					auto src2 = cttoI->getArgOperand(0);
 					if (srcIsNegated) {
 						Instruction *_src;
-						assert(match(src2, m_Not(m_Instruction(_src))));
+						if (!match(src2, m_Not(m_Instruction(_src)))) {
+							llvm_unreachable("Expect negated term");
+						}
 						src2 = _src;
 					}
 					ConcatMemberVector src2Bits;

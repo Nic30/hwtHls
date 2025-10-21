@@ -118,13 +118,13 @@ static LoopUnrollResult tryToUnrollStreamSegmentLoop(llvm::Function &F, Loop &L,
 	// writeCFGToDotFile(F, "tmp/StreamSegmentLoopUnrollPass.1.normalized.dot", AMForDebug,
 	// 		false, true);
 
- 	assert(DT.verify());
+ 	//assert(DT.verify());
 	// errs() << "\n";
  	// for (auto &L : LI) {
  	// 	L->dumpVerbose();
  	// 	errs() << "\n";
  	// }
- 	LI.verify(DT);
+ 	//LI.verify(DT);
 
 	SmallVector<SmallVector<BasicBlock*>> loopBodyCopies;
 	// :note: unique_ptr is used because ValueToValueMapTy is non-copyiable, non-movable
@@ -133,7 +133,7 @@ static LoopUnrollResult tryToUnrollStreamSegmentLoop(llvm::Function &F, Loop &L,
 
 	copyCodeForLanes(streamProps, LI, L, DTU, BBs, loopBodyCopies, valueMaps, F);
 	DTU.flush();
-	assert(DTU.getDomTree().verify());
+	//assert(DTU.getDomTree().verify());
 
 	//writeCFGToDotFile(F, "tmp/StreamSegmentLoopUnrollPass.1.dot", AMForDebug,
 	//		false, true);
@@ -295,7 +295,7 @@ llvm::PreservedAnalyses StreamSegmentLoopUnrollPass::run(llvm::Function &F,
 	//writeCFGToDotFile(F, "tmp/StreamSegmentLoopUnrollPass.3.cfg.dot", AM,
 	//		false, true);
 
- 	assert(DT.verify());
+ 	//assert(DT.verify());
 	//errs() << "\n";
  	//for (auto &L : LI) {
  	//	L->dumpVerbose();

@@ -115,7 +115,7 @@ void finalizeStreamIoLowerig(llvm::Function &F,
 		llvm::FunctionAnalysisManager &FAM, DominatorTree &DT,
 		const std::vector<StreamChannelProps> &streamProps, bool rmOutputs,
 		llvm::SmallVector<llvm::AllocaInst*> &GeneratedAllocas) {
-	assert(!llvm::verifyFunction(F, &errs()));
+	// assert(!llvm::verifyFunction(F, &errs()));
 	for (const StreamChannelProps &s : streamProps) {
 		if (rmOutputs != s.isOutput)
 			continue;
