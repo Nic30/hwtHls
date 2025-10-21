@@ -219,7 +219,9 @@ bool rewriteBitcounts(BitcountInstrCache &bitcountCache,
 				auto src = cttoI->getArgOperand(0);
 				if (srcIsNegated) {
 					Instruction *_src;
-					assert(match(src, m_Not(m_Instruction(_src))));
+					if (!match(src, m_Not(m_Instruction(_src)))) {
+						llvm_unreachable("It should have been checked in advance that this is negation");
+					}
 					src = _src;
 				}
 				ConcatMemberVector srcBits;
