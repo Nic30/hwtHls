@@ -14,6 +14,7 @@ from tests.llvmIr.bitWidthReductionPass_Cmp_test import BitWidthReductionPass_Cm
 from tests.llvmIr.bitWidthReductionPass_PHI_inLoopHeader_test import BitwidthReductionPass_PHI_inLoopHeader_TC
 from tests.llvmIr.bitWidthReductionPass_PHI_test import BitwidthReductionPass_PHI_TC
 from tests.llvmIr.bitWidthReduction_test import BitwidthReductionPass_TC
+from tests.llvmIr.functionMutating_test import LlvmIrFunctionMutating_TC
 from tests.llvmIr.llvmLoopUnroll_test import LlvmLoopUnroll_TC
 from tests.llvmIr.loopFlattenUsingIfPass_test import LoopFlattenUsingIfPass_TC
 from tests.llvmIr.rewriteExtractOnMergeValues_test import RewriteExtractOnMergeValuesPass_TC
@@ -25,6 +26,7 @@ from tests.testCaseUtils import testSuiteFromTCs
 
 
 llvmIr_TCs = [
+    LlvmIrFunctionMutating_TC,
     SlicesToIndependentVariablesPass_TC,
     HwtHlsSimplifyCFGPass_TC,
     HwtHlsSimplifyCFGPass_streamWrite_TC,
