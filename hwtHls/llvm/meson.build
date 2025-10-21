@@ -190,6 +190,7 @@ py3.extension_module(
      'Transforms/ReconfigureHwtFpgaTTIPass.cpp',
      'Transforms/RomExtractPass.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/cfgFragmentChainOfblocksWithSameSucc.cpp',
+     'Transforms/HwtHlsSimplifyCFGPass/cfgFragmentComplementarySequentialBlocks.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/cfgFragmentOptionaStreamWrite.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/cfgFragmentStreamReadUntilEoF.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFG.cpp',
