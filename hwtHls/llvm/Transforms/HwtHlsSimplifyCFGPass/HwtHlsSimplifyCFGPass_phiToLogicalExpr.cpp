@@ -138,7 +138,18 @@ bool HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 		if (BBItem.BB == predecChain.blocks.front().BB)
 			continue; // allow some instructions in top most block
 		if (BBItem.BB->getTerminator()->getIterator() != BBItem.BB->begin()) {
-			return CfgChange;
+			for (auto I = BBItem.BB->begin();
+					I != BBItem.BB->getTerminator()->getIterator(); I++) {
+				Value *v;
+				if (!match(&*I,
+						m_Intrinsic<Intrinsic::IndependentIntrinsics::assume>(
+								m_Value(v)))) {
+					// block contains something so even if we reduce this phi,
+					// it is not possible to remove the predecessor block
+					return CfgChange;
+				}
+			}
+			// block contains only llvm.assume which is allowed as it is expected that it will be moved later
 		}
 	}
 
