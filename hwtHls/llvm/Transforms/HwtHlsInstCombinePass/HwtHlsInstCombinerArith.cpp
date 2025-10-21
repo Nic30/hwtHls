@@ -34,10 +34,8 @@ llvm::Instruction* HwtHlsInstCombiner::tryReduceUMinNe_to_ULT(CmpInst &I) {
 						== C->getValue().zext(maxBitwidth)) {
 			Type *Ty = Builder.getIntNTy(maxBitwidth);
 			v0 = Builder.CreateZExtOrTrunc(v0, Ty);
-			Worklist.pushValue(v0);
 			C = dyn_cast<ConstantInt>(Builder.CreateZExtOrTrunc(C, Ty));
 			auto newI = Builder.CreateICmpULT(v0, C);
-			Worklist.pushValue(newI);
 			return replaceInstUsesWith(I, newI);
 		}
 	}
@@ -62,7 +60,6 @@ llvm::Instruction* HwtHlsInstCombiner::tryReduceZExt_onTurncUMin(
 			// umin truncates the value, explicit trunc-zext is not required
 			Builder.SetInsertPoint(&I);
 			auto newI = Builder.CreateZExtOrTrunc(vUMin, I.getType());
-			Worklist.pushValue(newI);
 			return replaceInstUsesWith(I, newI);
 		}
 	}
@@ -94,7 +91,6 @@ llvm::Instruction* HwtHlsInstCombiner::tryReduceICmp_onTurncUMin(
 		if (Pred == ICmpInst::Predicate::ICMP_EQ) {
 			if (C0V != CV) {
 				auto newI = Builder.CreateICmpEQ(v0, C);
-				Worklist.pushValue(newI);
 				return replaceInstUsesWith(I, newI, true);
 			}
 		} else if (Pred == ICmpInst::Predicate::ICMP_ULE) {
@@ -102,7 +98,6 @@ llvm::Instruction* HwtHlsInstCombiner::tryReduceICmp_onTurncUMin(
 				return replaceInstUsesWith(I, Builder.getInt1(true));
 			} else {
 				auto newI = Builder.CreateICmpULE(v0, C);
-				Worklist.pushValue(newI);
 				return replaceInstUsesWith(I, newI, true);
 			}
 		} else if (Pred == ICmpInst::Predicate::ICMP_ULT) {
@@ -110,7 +105,6 @@ llvm::Instruction* HwtHlsInstCombiner::tryReduceICmp_onTurncUMin(
 				return replaceInstUsesWith(I, Builder.getInt1(true));
 			} else {
 				auto newI = Builder.CreateICmpULT(v0, C);
-				Worklist.pushValue(newI);
 				return replaceInstUsesWith(I, newI, true);
 			}
 		}
@@ -243,7 +237,6 @@ llvm::Instruction* HwtHlsInstCombiner::tryReduceICmpNEonPHI_to_UGT_or_ULT(
 				if (!constrainedUlt.isEmptySet() && constrainedUlt == CR_ULT) {
 					// umin(x, c) == x -> (x != c) == (x < c)
 					auto r = Builder.CreateICmpULT(lhsPhi, rhsC);
-					Worklist.pushValue(r);
 					return replaceInstUsesWith(I, r);
 				}
 				ConstantRange CR_UGT = ConstantRange(C,
@@ -253,7 +246,6 @@ llvm::Instruction* HwtHlsInstCombiner::tryReduceICmpNEonPHI_to_UGT_or_ULT(
 				if (!constrainedUgt.isEmptySet() && constrainedUgt == CR_UGT) {
 					// umax(x, c) == x -> (x != c) == (x > c)
 					auto r = Builder.CreateICmpUGT(lhsPhi, rhsC);
-					Worklist.pushValue(r);
 					return replaceInstUsesWith(I, r);
 				}
 				if (constrainedUlt.isEmptySet()
