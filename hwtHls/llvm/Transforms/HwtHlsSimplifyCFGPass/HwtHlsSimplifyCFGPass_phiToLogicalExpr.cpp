@@ -437,7 +437,7 @@ llvm::Value* HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 			getConditions(Builder, prefixBBs, /*negate*/false, conditions);
 			if (valWidth == 1) {
 				return Builder.CreateAnd(Builder.CreateOr(conditions),
-						values.back());
+						values.front());
 			} else {
 				auto c = Builder.CreateAnd(conditions);
 				return Builder.CreateSelect(c, values.front(),
@@ -449,7 +449,7 @@ llvm::Value* HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 			//                        -> Or(x, Or(bb.c for bb in m))
 			getConditions(Builder, suffixBBs, /*negate*/true, conditions);
 			if (valWidth == 1) {
-				conditions.push_back(values.back());
+				conditions.push_back(values.front());
 				return Builder.CreateOr(conditions);
 			} else {
 				auto c = Builder.CreateAnd(conditions);
