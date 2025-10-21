@@ -883,7 +883,21 @@ CallInst* HwtHlsCodeExtractor::emitCallAndSwitchStatement(Function *newFunction,
 		auto conc = CreateBitConcat(&Builder, StructInValues.getArrayRef());
 		Builder.CreateStore(conc, AggregatedInTmp, true);
 	}
-
+	{
+		// cast addr spaces as specified in newFunction
+		size_t expectedParamAddrSpace = 1;
+		for (auto &p : params) {
+			auto t = p->getType();
+			assert(t->isPointerTy());
+			if (t->getPointerAddressSpace() != expectedParamAddrSpace) {
+				auto *aSpaceCast = new AddrSpaceCastInst(p,
+									PointerType::get(Context, expectedParamAddrSpace), "arg.ascast");
+				aSpaceCast->insertInto(codeReplacer, codeReplacer->end());
+				p = aSpaceCast;
+			}
+			expectedParamAddrSpace++;
+		}
+	}
 	// Emit the call to the function
 	call = CallInst::Create(newFunction, params,
 			NumExitBlocks > 1 ? "targetBlock" : "");
@@ -915,7 +929,7 @@ CallInst* HwtHlsCodeExtractor::emitCallAndSwitchStatement(Function *newFunction,
 			if (!AggregatedOutTmpLd) {
 				Builder.SetInsertPoint(codeReplacer);
 				AggregatedOutTmpLd = Builder.CreateLoad(
-						AggregatedOutTmp->getAllocatedType(), AggregatedOutTmp,
+						AggregatedOutTmp->getAllocatedType(), AggregatedOutTmp, true,
 						"aggregatedOut.ld");
 			}
 			size_t width = Out.getType()->getIntegerBitWidth();
@@ -1251,7 +1265,15 @@ Function* HwtHlsCodeExtractor::extractCodeRegion(
 		newFunction->setDoesNotReturn();
 
 	_finalDebugChecks(oldFunction, newFunction);
+	SmallVector<Value*> args(TheCall->args());
 	TheCall->eraseFromParent(); // because the load/store to channels of thread replaces the call
+	for (auto &a: args) {
+		if (auto ai = dyn_cast<AddrSpaceCastInst>(a)) {
+			if (ai->hasNUses(0)) {
+				ai->eraseFromParent();
+			}
+		}
+	}
 	return newFunction;
 }
 
