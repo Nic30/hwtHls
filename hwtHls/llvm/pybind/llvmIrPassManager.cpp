@@ -1,4 +1,5 @@
 #include <hwtHls/llvm/pybind/llvmIrPassManager.h>
+#include <pybind11/native_enum.h>
 
 #include <llvm/IR/PassManager.h>
 #include <llvm/Pass.h>
@@ -50,6 +51,7 @@ void bindFunctionPass(pybind11::module_ &m, FpmT &FunctionPassManager, const cha
 	FunctionPassManager
 		.def("addPass", &FunctionPassManager_addPass<PassT>);
 }
+
 void register_PassManager(pybind11::module_ &m) {
 	// :note: define passes which require some constructor arguments (which bindFunctionPass does not handle)
 	py::class_<llvm::StripDeadPrototypesPass>(m, "StripDeadPrototypesPass")
@@ -75,18 +77,27 @@ void register_PassManager(pybind11::module_ &m) {
 		.def_readwrite("hwtHlsFpCombining", &HwtHlsInstCombinePassOptions::hwtHlsFpCombining)
 		.def_readwrite("MaxIterations", &HwtHlsInstCombinePassOptions::MaxIterations)
 		.def_readwrite("extractBitcounts", &HwtHlsInstCombinePassOptions::extractBitcounts)
-		.def_readwrite("extractBitcounts", &HwtHlsInstCombinePassOptions::extractBitcounts);
+		.def_readwrite("extractBitcounts", &HwtHlsInstCombinePassOptions::extractBitcounts)
+		;
 
 	py::class_<HwtHlsInstCombinePass>(m, "HwtHlsInstCombinePass")
 		.def(py::init<>())
-		.def(py::init<HwtHlsInstCombinePassOptions>());
+		.def(py::init<HwtHlsInstCombinePassOptions>())
+		.def_readonly_static("metadataName_mergableFunction_statePlusMaskedData", &HwtHlsInstCombinePass::metadataName_mergableFunction_statePlusMaskedData)
+		.def_readonly_static("metadataName_expr_maskContinuosFromLsb", &HwtHlsInstCombinePass::metadataName_expr_maskContinuosFromLsb)
+		;
+
+	py::class_<SlicesToIndependentVariablesPass>(m, "SlicesToIndependentVariablesPass")
+		.def(py::init())
+		.def_readonly_static("metadataName_NoSplit", &SlicesToIndependentVariablesPass::metadataName_NoSplit);
 
 	py::class_<LoopRotationNormalizationPass> (m, "LoopRotationNormalizationPass")
 		.def(py::init());
 
-	py::enum_<LoopFlattenUsingIfPass::Mode> _LoopFlattenUsingIfPassMode(_LoopFlattenUsingIfPass, "Mode");
+	py::native_enum<LoopFlattenUsingIfPass::Mode> _LoopFlattenUsingIfPassMode(_LoopFlattenUsingIfPass, "Mode", "enum.Enum");
 	_LoopFlattenUsingIfPassMode.value("CHILD_LOOP_ENTRY_IN_SAME_ITERATION", LoopFlattenUsingIfPass::Mode::CHILD_LOOP_ENTRY_IN_SAME_ITERATION);
 	_LoopFlattenUsingIfPassMode.value("CHILD_LOOP_ENTRY_IN_NEXT_ITERATION", LoopFlattenUsingIfPass::Mode::CHILD_LOOP_ENTRY_IN_NEXT_ITERATION);
+	_LoopFlattenUsingIfPassMode.finalize();
 
 	py::class_<llvm::ModulePassManager, std::unique_ptr<llvm::ModulePassManager, py::nodelete>>(m, "ModulePassManager")
 		.def("addPass", &ModulePassManager_addPass<llvm::StripDeadPrototypesPass>)
@@ -97,6 +108,7 @@ void register_PassManager(pybind11::module_ &m) {
 	py::class_<llvm::FunctionPassManager, std::unique_ptr<llvm::FunctionPassManager, py::nodelete>> FunctionPassManager(m, "FunctionPassManager");
 	FunctionPassManager
 		.def("addPass", &FunctionPassManager_addPass<HwtHlsInstCombinePass>)
+		.def("addPass", &FunctionPassManager_addPass<SlicesToIndependentVariablesPass>)
 		;
 	bindFunctionPass<llvm::ADCEPass>(m, FunctionPassManager, "ADCEPass");
 	bindFunctionPass<llvm::EarlyCSEPass>(m, FunctionPassManager, "EarlyCSEPass");
@@ -104,7 +116,6 @@ void register_PassManager(pybind11::module_ &m) {
 	bindFunctionPass<BitwidthReductionPass>(m, FunctionPassManager, "BitwidthReductionPass");
 	bindFunctionPass<HFloatTmpLoweringPass>(m, FunctionPassManager, "HFloatTmpLoweringPass");
 	bindFunctionPass<SlicesMergePass>(m, FunctionPassManager, "SlicesMergePass");
-	bindFunctionPass<SlicesToIndependentVariablesPass>(m, FunctionPassManager, "SlicesToIndependentVariablesPass");
 	bindFunctionPass<PruneLoopPhiDeadIncomingValuesPass>(m, FunctionPassManager, "PruneLoopPhiDeadIncomingValuesPass");
 	bindFunctionPass<SelectPruningPass>(m, FunctionPassManager, "SelectPruningPass");
 	bindFunctionPass<StreamReadLoweringPass>(m, FunctionPassManager, "StreamReadLoweringPass");
