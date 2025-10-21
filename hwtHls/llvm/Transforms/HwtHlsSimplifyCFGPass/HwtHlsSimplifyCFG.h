@@ -47,7 +47,7 @@ class SimplifyCFGOpt2 {
 			llvm::IRBuilder<> &Builder);
 	bool PerformValueComparisonIntoPredecessorFolding(llvm::Instruction *TI,
 			llvm::Value *&CV, llvm::Instruction *PTI, llvm::IRBuilder<> &Builder);
-	bool simplifySwitch(llvm::SwitchInst *SI, llvm::IRBuilder<> &Builder);
+	bool simplifySwitch(llvm::SwitchInst *SI, llvm::IRBuilder<> &Builder, bool & exprChanged);
 	bool simplifyBr(llvm::BranchInst *BI, llvm::IRBuilder<> &Builder);
 
 public:
@@ -61,13 +61,13 @@ public:
 						&& "SimplifyCFG is not yet capable of maintaining validity of a "
 								"PostDomTree, so don't ask for it.");
 	}
-	bool simplifyOnce(llvm::BasicBlock *BB);
+	bool simplifyOnce(llvm::BasicBlock *BB, bool &exprChanged);
 	// Helper to set Resimplify and return change indication.
 	bool requestResimplify() {
 		Resimplify = true;
 		return true;
 	}
-	bool run(llvm::BasicBlock *BB) {
+	bool run(llvm::BasicBlock *BB, bool &exprChanged) {
 		bool Changed = false;
 
 		// Repeated simplify BB as long as resimplification is requested.
@@ -76,7 +76,7 @@ public:
 
 			// Perform one round of simplification. Resimplify flag will be set if
 			// another iteration is requested.
-			Changed |= simplifyOnce(BB);
+			Changed |= simplifyOnce(BB, exprChanged);
 		} while (Resimplify);
 
 		return Changed;
