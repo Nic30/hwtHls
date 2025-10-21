@@ -156,7 +156,7 @@ void register_Values_and_Use(pybind11::module_ & m) {
 	py::class_<llvm::Constant, std::unique_ptr<llvm::Constant, py::nodelete>, llvm::User> Constant(m, "Constant");
 	Constant
 	.def("__iter__", [](llvm::Constant &self) {
-		size_t numElements;
+		size_t numElements = 0;
 		if (auto ArrTy = dyn_cast<llvm::ArrayType>(self.getType())) {
 			numElements = ArrTy->getNumElements();
 		}
