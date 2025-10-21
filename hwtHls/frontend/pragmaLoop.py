@@ -154,6 +154,40 @@ class PyBytecodeStreamLoopUnroll(_PyBytecodeLoopPragma):
 
         return items
 
+
+class PyBytecodeStreamSegmentLoopUnroll(PyBytecodeStreamLoopUnroll):
+    """
+    Unrolls the loop to process multiple segments of the stream IO.
+    :note: :class:`PyBytecodeStreamLoopUnroll` unrolls to segments, this pass unrolls segments into bus word.
+    
+    :ivar allowSoFOnlyFor: optional filter for StartOfFrame which can be used to limit
+        on which segments the packet can start
+    """
+    METADATA_NAME_IO = "hwthls.loop.streamsegmentunroll.io"
+    METADATA_NAME_FOLLOWUP = "hwthls.loop.streamsegmentunroll.followup_unrolled"
+    METADATA_NAME_ALLOWSOFONLYFOR = "hwthls.loop.streamsegmentunroll.allowsofonlyfor"
+
+    def __init__(self, io_: Union[HwIO, IoProxyStream],
+                 allowSoFOnlyFor:Optional[tuple[int]]=None,
+                 followup_unrolled:Optional[_PyBytecodeLoopPragma]=None):
+        PyBytecodeStreamLoopUnroll.__init__(self, io_, followup_unrolled=followup_unrolled)
+        self.allowSoFOnlyFor = allowSoFOnlyFor
+
+    def getLlvmLoopMetadataItems(self, irTranslator:"ToLlvmIrTranslator"):
+        items = PyBytecodeStreamLoopUnroll.getLlvmLoopMetadataItems(self, irTranslator, addAlignLoopBodyBeginByPrequelExtract=False)
+        if self.allowSoFOnlyFor is not None:
+            getStr = irTranslator.mdGetStr
+            getInt = irTranslator.mdGetUInt32
+            getTuple = irTranslator.mdGetTuple
+            item = getTuple([
+                    getStr(self.METADATA_NAME_ALLOWSOFONLYFOR),
+                     getTuple([getInt(segmentNumber) for segmentNumber in  self.allowSoFOnlyFor], False)
+                ],
+                False)
+            items.append(item)
+        return items
+
+
 class PyBytecodeLoopFlattenUsingIf(_PyBytecodeLoopPragma):
     """
     Merge child loop into parent loop.
