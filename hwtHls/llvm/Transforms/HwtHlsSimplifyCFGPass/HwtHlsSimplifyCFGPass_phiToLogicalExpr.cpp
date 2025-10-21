@@ -351,15 +351,15 @@ llvm::Value* HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 	//     possibly just to concat(bb.c for bb)
 
 	// :note: bit counts are related to a vector which is a concatenation of conditions in predecessor block
-	// [7] ctlz [0, 1, 2, ... max-1]
-	//                        -> ctlz(concat(bb.c for bb in m))
-	// [8] count leading ones [max-1, max-2, ..., 0]
-	//                        -> ctlz(~concat(bb.c for bb in m))
+	// [7] cttz [0, 1, 2, ... max-1]
+	//                        -> cttz(concat(bb.c for bb in m))
+	// [8] count trailing ones [max-1, max-2, ..., 0]
+	//                        -> cttz(~concat(bb.c for bb in m))
 	Builder.SetInsertPoint(predecChain.blocks.front().BB->getTerminator());
 	std::vector<Value*> values;
 	values.reserve(predecChain.blocks.size());
 
-	size_t commonPrefixLen = 0; // [0], [1], [2], [3]
+	size_t commonPrefixLen = 0;	// [0], [1], [2], [3]
 	for (auto &BBItem : predecChain.blocks) {
 		auto *V = PHI.getIncomingValueForBlock(BBItem.BB);
 		if (values.empty()) {
@@ -479,18 +479,18 @@ llvm::Value* HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 		//                        -> fshl(zext x, 0, concat(bb.c for each bb))
 		auto *Ty = v0->getType();
 		auto getShiftOperand = [&Builder, &conditions, Ty](
-				bool negateInputsOfCtlz) {
+				bool negateInputsOfCttz) {
 			Value *_fshlShOp = CreateBitConcat(&Builder, conditions);
-			if (negateInputsOfCtlz)
+			if (negateInputsOfCttz)
 				_fshlShOp = Builder.CreateNot(_fshlShOp);
-			Value *fshlShOp = Builder.CreateIntrinsic(Intrinsic::ctlz, {
+			Value *fshlShOp = Builder.CreateIntrinsic(Intrinsic::cttz, {
 					_fshlShOp->getType() }, { _fshlShOp,
 			/*isZeroPoisonous*/Builder.getFalse() });
-			fshlShOp = Builder.CreateTrunc(fshlShOp, Ty);
+			fshlShOp = Builder.CreateZExtOrTrunc(fshlShOp, Ty);
 			return fshlShOp;
 		};
 		if (isPow2(PHI.getNumIncomingValues())) {
-			// if not isPow2 then NotImplemented guess possible initial shifts
+			// if not isPow2 then NotImplemented: guess possible initial shifts
 			// search for [5]
 			bool match = true;
 			for (size_t i = 0; i < values.size(); ++i) {
@@ -521,10 +521,10 @@ llvm::Value* HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 		}
 
 		// :note: bit counts are related to a vector which is a concatenation of conditions in predecessor block
-		// [7] ctlz [0, 1, 2, ... max-1]
-		//                        -> ctlz(concat(bb.c for bb in m))
-		// [8] count leading ones [max-1, max-2, ..., 0]
-		//                        -> ctlz(~concat(bb.c for bb in m))
+		// [7] count trailing zeros cttz([0, 1, 2, ... max-1] + offset)
+		//                        -> ctlz(concat(bb.c for bb in m)) + offset
+		// [8] count trailing ones ctto([max-1, max-2, ..., 0] + offset)
+		//                        -> cttz(~concat(bb.c for bb in m)) + offset
 		// check if all values are constant
 		for (auto v : values) {
 			if (!isa<ConstantInt>(v)) {
@@ -551,10 +551,13 @@ llvm::Value* HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 				}
 			}
 			if (hasSameStepBetweenEachValue) {
+				auto v0 = dyn_cast<ConstantInt>(values[0]);
 				if (linearStep == 1) {
-					return getShiftOperand(false); // [7]
+					auto bitCntVal = getShiftOperand(false); // [7]
+					return Builder.CreateAdd(v0, bitCntVal); // add offset
 				} else if (linearStep == -1) {
-					return getShiftOperand(true); // [8]
+					auto bitCntVal = getShiftOperand(true); // [8]
+					return Builder.CreateAdd(v0, bitCntVal); // add offset
 				}
 			}
 		}
