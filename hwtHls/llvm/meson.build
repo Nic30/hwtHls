@@ -60,6 +60,7 @@ py3.extension_module(
      'llvmSrc/CodeGenPrepare.cpp',
      'llvmSrc/CodeExtractor.cpp',
      'llvmSrc/BranchFolding.cpp',
+     'llvmSrc/LoopPeel.cpp',
      'targets/Analysis/liveVariableForEdge.cpp',
      'targets/Analysis/VRegLiveins.cpp',
      'targets/Analysis/registerBitWidth.cpp',
