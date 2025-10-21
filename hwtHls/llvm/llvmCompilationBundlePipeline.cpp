@@ -429,25 +429,27 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true, false));
 	//FPM.addPass(hwtHls::DumpAndExitPass(false, false, "tmp/StreamLoopUnrollPass.1.dot", true));
-	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(SimplifyCfgOpts));
 	//FPM.addPass(hwtHls::DumpAndExitPass(false, true, "tmp/StreamLoopUnrollPass.2.dot", true));
 	_addInstrCombinePasses(FPM, false, false, false);
-	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(SimplifyCfgOpts));
 	_addInstrCombinePasses(FPM, false, false, false);
 
 	FPM.addPass(hwtHls::StreamReadLoweringPass());
 	_addInstrCombinePasses(FPM, false, false, false);
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true, false));
-	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(SimplifyCfgOpts));
 	_addInstrCombinePasses(FPM, false, false, false, true);
 
 	FPM.addPass(hwtHls::StreamWriteLoweringPass());
 	_addInstrCombinePasses(FPM, false, false);
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true, false));
-	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(SimplifyCfgOpts));
 	_addInstrCombinePasses(FPM, false, false);
 
 	FPM.addPass(llvm::LoopSimplifyPass());
+	FPM.addPass(hwtHls::StreamSegmentLoopUnrollPass());
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
 }
 
 void LlvmCompilationBundle::_addCommonPasses(llvm::FunctionPassManager &FPM) {
