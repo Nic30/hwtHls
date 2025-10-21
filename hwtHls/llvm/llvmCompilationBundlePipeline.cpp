@@ -662,6 +662,7 @@ void LlvmCompilationBundle::_addLoopPasses(llvm::FunctionPassManager &FPM) {
 				;
 		FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(simplifyCfgOpts));
 	}
+
 	FPM.addPass(llvm::LoopSimplifyPass());
 	_addInstrCombinePassesLight(FPM);
 
