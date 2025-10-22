@@ -143,13 +143,13 @@ if __name__ == '__main__':
     from hwt.synth import to_rtl_str
     from hwtHls.platform.debugBundle import HlsDebugBundle
     from hwtHls.platform.virtual import VirtualHlsPlatform
-    m = Axi4SPacketByteCntr3()
+    m = Axi4SPacketByteCntr0()
     m.CLK_FREQ = int(1e6)
-    m.DATA_WIDTH = 48
-    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    m.DATA_WIDTH = 16
+    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([Axi4SPacketByteCntrTC("test_Axi4SPacketByteCntr3_48b")])
+    suite = unittest.TestSuite([Axi4SPacketByteCntrTC("test_Axi4SPacketByteCntr0_16b")])
     suite = testLoader.loadTestsFromTestCase(Axi4SPacketByteCntrTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
