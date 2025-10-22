@@ -7,21 +7,19 @@ from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
-from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaLoop import PyBytecodeLLVMLoopUnroll, \
     PyBytecodeStreamLoopUnroll
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInPreproc, \
     PyBytecodeBlockLabel
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
+from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4s import Axi4Stream
 
 
 class Axi4SPacketCopyByteByByteHs(HwModule):
-    """
-    Cut off Ethernet and IPv4 header.
-    """
 
     def hwConfig(self) -> None:
         self.DATA_WIDTH = HwParam(16)
@@ -76,9 +74,6 @@ class Axi4SPacketCopyByteByByteHs(HwModule):
 
 
 class Axi4SPacketCopyByteByByte(HwModule):
-    """
-    Cut off Ethernet and IPv4 header.
-    """
 
     def hwConfig(self) -> None:
         Axi4SPacketCopyByteByByteHs.hwConfig(self)
@@ -106,9 +101,7 @@ class Axi4SPacketCopyByteByByte(HwModule):
                 PyBytecodeBlockLabel("bb.dataLoop")
                 Axi4SPacketCopyByteByByteHs.doUnrolling(self)
                 d = PyBytecodeInPreproc(rx.read(HBits(8), reliable=False))  # PyBytecodeInPreproc is used because we want to access internal properties of data (_isEoF)
-                if d._isValid():
-                    PyBytecodeBlockLabel("bb.tx.write")
-                    tx.write(d.data, eof=d._isEoF())
+                tx.write(d.data, mask=d.strb, eof=d._isEoF())
                 # del d is not necessary is there to limit live of d variable which is useful during debug
                 if d._isEoF():
                     PyBytecodeBlockLabel("bb.rx.eof")
@@ -138,10 +131,11 @@ if __name__ == "__main__":
     from hwtHls.platform.debugBundle import HlsDebugBundle
 
     m = Axi4SPacketCopyByteByByte()
-    m.DATA_WIDTH = 64
+    m.OUT_DATA_WIDTH = m.DATA_WIDTH = 32
     # m.UNROLL = False
     # m.OUT_DATA_WIDTH = 16
     # m.OUT_DATA_WIDTH = 8
-    p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
+    p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE,
+                           llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED])
     print(to_rtl_str(m, target_platform=p))
 
