@@ -73,15 +73,17 @@ class Axi4SPacketCopyByteByByteTC(BaseAxi4SPktInPktOutTC):
     def test_16B_PyBytecodeStreamLoopUnroll_forRx(self):
         self._testUnrollForRx(16)
 
+    def test_64B_PyBytecodeStreamLoopUnroll_forRx(self):
+        self._testUnrollForRx(64)
+
     # :todo: unroll before stream lowering otherwise code explodes
-    @expectedFailure
     def test_2B_unroll2(self):
         PKT_CNT = 6
         self._test(2 * 8, 2 * 8, [self._rand.randint(1, 6) for _ in range(PKT_CNT)],
                    UNROLL=PyBytecodeLLVMLoopUnroll(True, 2),
                    rtlSimTimeMultiplier=3)
 
-    @expectedFailure
+
     def test_4B_unroll2(self):
         PKT_CNT = 6
         self._test(4 * 8, 4 * 8, [self._rand.randint(1, 12) for _ in range(PKT_CNT)],
