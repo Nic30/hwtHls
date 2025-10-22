@@ -7,7 +7,7 @@ from hwtLib.amba.axis_comp.frame_parser.test_types import structManyInts
 from tests.io.amba.axi4Stream.axi4sParseLinear import Axi4SParseStructManyInts0, \
     Axi4SParseStructManyInts1, Axi4SParse2fields
 from tests.io.amba.axi4Stream.axi4sParseLinear_test import Axi4SParseLinearTC
-from hwtLib.amba.axi4SSegmented import Axi4StreamSegmentedFrameUtils
+from hwtLib.amba.axi4SSegmentedSimFrameUtils import Axi4StreamSegmentedFrameUtils
 from tests.io.amba.axi4StreamSegmented.axi4ssParseLinear import Axi4SSParseStructManyInts0, \
     Axi4SSParseStructManyInts1, Axi4SSParse2fields
 

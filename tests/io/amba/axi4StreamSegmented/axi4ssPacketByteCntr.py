@@ -71,7 +71,7 @@ class Axi4SSPacketByteCntr_readByte(Axi4SSPacketByteCntr_readWord):
         wordTy = HBits(self.SEGMENT_DATA_WIDTH)
         while b1:
             # end of frame is ignored
-            word: HlsStmReadAxi4StreamSegmented = i.read(wordTy)
+            word: HlsStmReadAxi4StreamSegmented = i.read(wordTy, reliable=False)
             byte_cnt += zextToTy(word.getSize(), byte_cnt._dtype)
             hls.write(byte_cnt, self.byte_cnt)
 

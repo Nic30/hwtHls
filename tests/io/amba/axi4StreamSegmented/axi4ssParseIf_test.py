@@ -6,12 +6,12 @@ import unittest
 from tests.io.amba.axi4Stream.axi4sParseIf_test import Axi4SParseIfTC
 from tests.io.amba.axi4StreamSegmented.axi4ssParseIf import Axi4SSParse2If2B, \
     Axi4SSParse2If, Axi4SSParse2IfAndSequel
-from hwtLib.amba.axi4SSegmented import Axi4StreamSegmentedFrameUtils
+from hwtLib.amba.axi4SSegmentedSimFrameUtils import Axi4StreamSegmentedFrameUtils
 
 
 class Axi4SSParseIf_1Seg_TC(Axi4SParseIfTC):
     SEGMENT_CNT = 1
-    _Axi4StreamFrameUtils = Axi4StreamSegmentedFrameUtils
+    _Axi4StreamSimFrameUtils = Axi4StreamSegmentedFrameUtils
 
     def _test_Axi4SParse2If2B(self, DATA_WIDTH:int, freq=int(1e6), N=16):
         dut = Axi4SSParse2If2B()
@@ -36,15 +36,15 @@ class Axi4SSParseIf_1Seg_TC(Axi4SParseIfTC):
         self._run_test_Axi4SParse2IfAndSequel(dut, N, WRITE_FOOTER)
 
 
-class Axi4SSParseIf_2Seg_TC(Axi4SParseIfTC):
+class Axi4SSParseIf_2Seg_TC(Axi4SSParseIf_1Seg_TC):
     SEGMENT_CNT = 2
 
 
-class Axi4SSParseIf_3Seg_TC(Axi4SParseIfTC):
+class Axi4SSParseIf_3Seg_TC(Axi4SSParseIf_1Seg_TC):
     SEGMENT_CNT = 3
 
 
-class Axi4SSParseIf_4Seg_TC(Axi4SParseIfTC):
+class Axi4SSParseIf_4Seg_TC(Axi4SSParseIf_1Seg_TC):
     SEGMENT_CNT = 4
 
 
