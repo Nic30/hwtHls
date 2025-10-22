@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from hwt.code import If
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOBramPort_noClk, HwIODataRdVld
@@ -18,6 +19,7 @@ from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.scope import HlsScope
+from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 
 
 class BramRead2R(HwModule):
@@ -47,15 +49,18 @@ class BramRead2R(HwModule):
     def mainThread(self, hls: HlsScope, ram: IoProxyBram):
         addrT = HBits(self.ADDR_WIDTH)
         i = HBits(self.ADDR_WIDTH - 1).from_py(0)
-        while BIT.from_py(1):
+        while b1:
             iAsAddr = i._reinterpret_cast(addrT)
             d0 = hls.read(ram[iAsAddr]).data
             d1 = hls.read(ram[iAsAddr + (1 << (self.ADDR_WIDTH - 1))]).data
+            # :note: mayBecomeFlushable=False would lead to much more simple circuit, but
+            #  it would make dataOut0, dataOut1 control to depend on each other,
+            #  it would allow  dataOut0, dataOut1 only to be read togheter
             hls.write(d0, self.dataOut0)
             hls.write(d1, self.dataOut1)
             i += 1
 
-    def reduceOrdering(self, hls: HlsScope, thread: HlsThreadFromPy):
+    def reduceOrdering(self, hls: HlsScope, thread: HlsThreadFromPy, ramIo: MultiPortGroup):
         """
         Allow loop execute new loop iteration as soon as "i" is available.
         (Do not wait until the read completes)
@@ -64,19 +69,21 @@ class BramRead2R(HwModule):
         for rwNode in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT):
             if isinstance(rwNode, HlsNetNodeWrite):
                 rwNode: HlsNetNodeWrite
-                for hwIO in (self.dataOut0, self.dataOut1, self.ram0, self.ram1):
+                assert rwNode.dst not in (self.ram0, self.ram1)
+                for hwIO in (self.dataOut0, self.dataOut1, ramIo):
                     if rwNode.dst is hwIO:
                         netlistExplicitSyncDisconnectFromOrderingChain(DebugTracer(None), rwNode, None,
                                                                        disconnectPredecessors=False,
                                                                        disconnectSuccesors=True)
                         break
-    
+
     @override
     def hwImpl(self) -> None:
         hls = HlsScope(self)
-        ram = IoProxyBram(hls, MultiPortGroup((self.ram0, self.ram1)))
+        ramIo = MultiPortGroup((self.ram0, self.ram1))
+        ram = IoProxyBram(hls, ramIo)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, ram)
-        mainThread.netlistCallbacks.append(self.reduceOrdering)
+        mainThread.netlistCallbacks.append(lambda hls, thread: self.reduceOrdering(hls, thread, ramIo))
         hls.addThread(mainThread)
         hls.compile()
 
@@ -117,6 +124,8 @@ if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synth import to_rtl_str
     from hwtHls.platform.debugBundle import HlsDebugBundle
-    
-    m = BramRead2R()
-    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+
+    m = BramRead2RWithRom()
+    print(to_rtl_str(m,
+                     target_platform=VirtualHlsPlatform(llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED],
+                                                        debugFilter=HlsDebugBundle.ALL_RELIABLE)))

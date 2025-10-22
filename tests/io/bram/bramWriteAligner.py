@@ -27,7 +27,6 @@ from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.io.bram import IoProxyBram
 from hwtHls.scope import HlsScope
 from hwtLib.commonHwIO.addr_data import HwIOAddrDataRdVld
-from pyMathBitPrecise.bit_utils import byte_mask_to_bit_mask
 
 
 class HwIOAddrDataUnalignedToBram(HwModule):
