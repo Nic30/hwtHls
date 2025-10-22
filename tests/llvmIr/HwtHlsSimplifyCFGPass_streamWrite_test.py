@@ -11,6 +11,34 @@ class HwtHlsSimplifyCFGPass_streamWrite_TC(BaseLlvmIrTC):
     def _runTestOpt(self, llvm:LlvmCompilationBundle, *args, **kwargs) -> Function:
         return llvm._testHwtHlsSimplifyCFGPass(*args, **kwargs)
 
+    def _createMetadataStr(self, argParams: list[tuple[bool, bool, int, int]], mdIdOffset=0,):
+        res: list[str] = [
+            ""  # placeholder for final md tuple
+        ]
+        argMdIds: list[str] = []
+        for isOutput, isStream, addrWidth, dataWidth in argParams:
+            mdId = mdIdOffset + len(res)
+            if isStream:
+                streamMdId = f"!{mdId + 1:d}"
+                _dataWidth = dataWidth + dataWidth // 8 + 1
+            else:
+                _dataWidth = dataWidth
+                streamMdId = "ptr null"
+
+            direction = "OUT" if isOutput else "IN"
+            md = f'!{mdId:d} = !{{!"{direction}", i64 {addrWidth:d}, i64 {_dataWidth if isOutput else 0:d}, i64 {_dataWidth if not isOutput else 0:d}, ptr null, i64 0, {streamMdId:s}}}'
+            res.append(md)
+            argMdIds.append(f'!{mdId:d}')
+
+            if isStream:
+                md = f'{streamMdId:s} = !{{!"hwtHls.io.protocol", !{mdId+2:d}}}'
+                res.append(md)
+                md = f'!{mdId+2:d} = !{{!"hwtHls.io.protocol.stream", i32 {dataWidth:d}, i32 8, !"mask", i32 0, !"eof", i32 0, i32 1}}'
+                res.append(md)
+
+        res[0] = f"!{mdIdOffset:d} = distinct !{{{', '.join(argMdIds)}}}"
+        return "\n".join(res)
+
     # def test_streamWriteMerge0(self):
     #    # writesExit has a linear sequence of predecessors containing only streamWrite
     #    llvmIr = """\
@@ -26,11 +54,11 @@ class HwtHlsSimplifyCFGPass_streamWrite_TC(BaseLlvmIrTC):
     #      br i1 %m0, label %bb.w0, label %bb.writesExit
     #
     #    bb.w0:
-    #      call void @hwtHls.streamWrite.p2.i8.i1(ptr addrspace(2) %tx, i8 1, i1 %eof) #4
+    #      call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 1, i1 0, i1 %eof, ptr null) #4
     #      br i1 %m1, label %bb.w1, label %bb.writesExit
     #
     #    bb.w1:
-    #      call void @hwtHls.streamWrite.p2.i8.i1(ptr addrspace(2) %tx, i8 2, i1 %eof) #4
+    #      call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 2, i1 0, i1 %eof, ptr null) #4
     #      br label %bb.writesExit
     #
     #    bb.writesExit:
@@ -41,7 +69,7 @@ class HwtHlsSimplifyCFGPass_streamWrite_TC(BaseLlvmIrTC):
     #
     def test_streamWriteMerge1(self):
         llvmIr = """\
-        define void @streamWriteMerge1(ptr addrspace(1) %maskIn, ptr addrspace(2) %tx) {
+        define void @streamWriteMerge1(ptr addrspace(1) %maskIn, ptr addrspace(2) %tx) !hwtHls.io !0 {
         bb0:
           br label %bb.pktLoop
         
@@ -52,24 +80,24 @@ class HwtHlsSimplifyCFGPass_streamWrite_TC(BaseLlvmIrTC):
           %eof = load volatile i1, ptr addrspace(1) %maskIn, align 1
           br i1 %m0, label %bb.w0, label %bb.w0.exit
         bb.w0:
-          call void @hwtHls.streamWrite.p2.i8.i1(ptr addrspace(2) %tx, i8 1, i1 %eof) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 1, i1 0, i1 %eof, ptr null) #4
           br label %bb.w0.exit 
         bb.w0.exit:
           br i1 %m1, label %bb.w1, label %bb.writesExit
         bb.w1:
-          call void @hwtHls.streamWrite.p2.i8.i1(ptr addrspace(2) %tx, i8 2, i1 %eof) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 2, i1 0, i1 %eof, ptr null) #4
           br label %bb.writesExit
         
         bb.writesExit:
           br label %bb.pktLoop
         }
-        """
+        """ + self._createMetadataStr([(False, False, 0, 1), (True, True, 0, 16)])
         self._test_ll(llvmIr)
 
     def test_streamWriteMerge2(self):
         # same as test_streamWriteMerge1 but first write is not conditional
         llvmIr = """\
-        define void @streamWriteMerge2(ptr addrspace(1) %maskIn, ptr addrspace(2) %tx) {
+        define void @streamWriteMerge2(ptr addrspace(1) %maskIn, ptr addrspace(2) %tx) !hwtHls.io !0 {
         bb0:
           br label %bb.pktLoop
         
@@ -78,21 +106,21 @@ class HwtHlsSimplifyCFGPass_streamWrite_TC(BaseLlvmIrTC):
           %m1.0 = load volatile i1, ptr addrspace(1) %maskIn, align 1
           %m1 = and i1 %m0, %m1.0
           %eof = load volatile i1, ptr addrspace(1) %maskIn, align 1
-          call void @hwtHls.streamWrite.p2.i8.i1(ptr addrspace(2) %tx, i8 1, i1 %eof) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 1, i1 0, i1 %eof, ptr null) #4
           br i1 %m1, label %bb.w1, label %bb.writesExit
         bb.w1:
-          call void @hwtHls.streamWrite.p2.i8.i1(ptr addrspace(2) %tx, i8 2, i1 %eof) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 2, i1 0, i1 %eof, ptr null) #4
           br label %bb.writesExit
         
         bb.writesExit:
           br label %bb.pktLoop
         }
-        """
+        """ + self._createMetadataStr([(False, False, 0, 1), (True, True, 0, 16)])
         self._test_ll(llvmIr)
 
     def test_streamWriteMerge3(self):
         llvmIr = """\
-        define void @streamWriteMerge3(ptr addrspace(1) %rx, ptr addrspace(2) %tx) {
+        define void @streamWriteMerge3(ptr addrspace(1) %rx, ptr addrspace(2) %tx) !hwtHls.io !0 {
         bb0:
           br label %loop.pkt
         
@@ -141,21 +169,21 @@ class HwtHlsSimplifyCFGPass_streamWrite_TC(BaseLlvmIrTC):
           br i1 %write0.en, label %bb.write0, label %bb.write1.guard
         
         bb.write0:
-          call void @hwtHls.streamWrite.p2.i8.i1(ptr addrspace(2) %tx, i8 %20, i1 %sig_7) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %20, i1 0, i1 %sig_7, ptr null) #4
           br label %bb.write1.guard
         
         bb.write1.guard:
           br i1 %write1.en, label %bb.write1, label %bb.write2.guard
         
         bb.write1:
-          call void @hwtHls.streamWrite.p2.i8.i1(ptr addrspace(2) %tx, i8 %.2, i1 %eof.1) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %.2, i1 0, i1 %eof.1, ptr null) #4
           br label %bb.write2.guard
         
         bb.write2.guard:
           br i1 %write2.en, label %bb.write2, label %bb.writeExit
         
         bb.write2:
-          call void @hwtHls.streamWrite.p2.i8.i1(ptr addrspace(2) %tx, i8 %.230, i1 %eof.2) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %.230, i1 0, i1 %eof.2, ptr null) #4
           br label %bb.writeExit
         
         bb.writeExit:
@@ -165,21 +193,21 @@ class HwtHlsSimplifyCFGPass_streamWrite_TC(BaseLlvmIrTC):
           call void @hwtHls.streamWriteEndOfFrame.p2(ptr addrspace(2) %tx) #4
           br label %loop.pkt
         }
-        """
+        """ + self._createMetadataStr([(False, True, 0, 16), (True, True, 0, 16)])
         self._test_ll(llvmIr)
 
     def test_streamWriteMerge_onProductOf_SimplifyBranchOnICmpChain(self):
         # SimplifyBranchOnICmpChain produces specific type of switch which replaces
         # ORs in original condition and produces switch.early.test
         llvmIr = """\
-        define void @streamWriteMerge_onProductOf_SimplifyBranchOnICmpChain(ptr addrspace(1) %rx, ptr addrspace(2) %tx) {
+        define void @streamWriteMerge_onProductOf_SimplifyBranchOnICmpChain(ptr addrspace(1) %rx, ptr addrspace(2) %tx) !hwtHls.io !0 {
         bb0:
           br label %loop.pkt
         
         loop.pkt:
           %wEn = load volatile i3, ptr addrspace(1) %rx, align 4
           %wEn.0 = icmp ne i3 %wEn, 0
-          call void @hwtHls.streamWrite.p2.i8.i1(ptr addrspace(2) %tx, i8 1, i1 0) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 1, i1 0, i1 0, ptr null) #4
           br i1 %wEn.0, label %switch.early.test, label %loop.pkt.latch
         
         switch.early.test:
@@ -189,13 +217,13 @@ class HwtHlsSimplifyCFGPass_streamWrite_TC(BaseLlvmIrTC):
           ]
         
         bb.write1:
-          call void @hwtHls.streamWrite.p2.i8.i1(ptr addrspace(2) %tx, i8 2, i1 1) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 2, i1 0, i1 1, ptr null) #4
           br label %loop.pkt.latch
         
         loop.pkt.latch:
           br label %loop.pkt
         }
-        """
+        """ + self._createMetadataStr([(False, False, 0, 3), (True, True, 0, 16)])
         self._test_ll(llvmIr)
 
     def test_streamWriteMerge_implicationAssumes0(self):
@@ -203,7 +231,7 @@ class HwtHlsSimplifyCFGPass_streamWrite_TC(BaseLlvmIrTC):
         # * all 4 streamWrite should be merged into one
         # * ctpop(x) should become ctlz(~x)
         llvmIr = """\
-        define void @streamWriteMerge_implicationAssumes0(ptr addrspace(1) %rx, ptr addrspace(2) %tx) {
+        define void @streamWriteMerge_implicationAssumes0(ptr addrspace(1) %rx, ptr addrspace(2) %tx) !hwtHls.io !0 {
         bb0:
           br label %loop.pkt
         
@@ -271,28 +299,28 @@ class HwtHlsSimplifyCFGPass_streamWrite_TC(BaseLlvmIrTC):
           br i1 %2, label %bb.w0, label %bb.w1.guard
         
         bb.w0:
-          call void @hwtHls.streamWrite.p2.i8.i1(ptr addrspace(2) %tx, i8 %data.0, i1 %eof.0) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %data.0, i1 0, i1 %eof.0, ptr null) #4
           br label %bb.w1.guard
         
         bb.w1.guard:
           br i1 %writeEn3.1, label %bb.w1, label %bb.w2.guard
         
         bb.w1:
-          call void @hwtHls.streamWrite.p2.i8.i1(ptr addrspace(2) %tx, i8 %data.1, i1 %eof.1) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %data.1, i1 0, i1 %eof.1, ptr null) #4
           br label %bb.w2.guard
         
         bb.w2.guard:
           br i1 %.streamWrite.en19.2, label %bb.w2, label %bb.w3.guard
         
         bb.w2:
-          call void @hwtHls.streamWrite.p2.i8.i1(ptr addrspace(2) %tx, i8 %.230, i1 %eof.2) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %.230, i1 0, i1 %eof.2, ptr null) #4
           br label %bb.w3.guard
         
         bb.w3.guard:
           br i1 %.streamWrite.en21.2, label %bb.w3, label %loop.pkt.lastCheck
         
         bb.w3:
-          call void @hwtHls.streamWrite.p2.i8.i1(ptr addrspace(2) %tx, i8 %data.3, i1 %eof.3) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %data.3, i1 0, i1 %eof.3, ptr null) #4
           br label %loop.pkt.lastCheck
         
         loop.pkt.lastCheck:
@@ -301,7 +329,7 @@ class HwtHlsSimplifyCFGPass_streamWrite_TC(BaseLlvmIrTC):
         loop.pkt.eof:
           br label %loop.pkt
         }
-        """
+        """ + self._createMetadataStr([(False, True, 0, 32), (True, True, 0, 32)])
         self._test_ll(llvmIr)
 
     def test_streamWriteMerge_implicationAssumes1(self):
@@ -309,7 +337,7 @@ class HwtHlsSimplifyCFGPass_streamWrite_TC(BaseLlvmIrTC):
         # * all 4 streamWrite should be merged into one
         # * ctpop(x) should become ctlz(~x)
         llvmIr = """\
-        define void @streamWriteMerge_implicationAssumes1(ptr addrspace(1) %rx, ptr addrspace(2) %tx) {
+        define void @streamWriteMerge_implicationAssumes1(ptr addrspace(1) %rx, ptr addrspace(2) %tx) !hwtHls.io !0 {
         bb0:
           br label %loop.pkt
         
@@ -458,14 +486,14 @@ class HwtHlsSimplifyCFGPass_streamWrite_TC(BaseLlvmIrTC):
           br i1 %73, label %loop.pkt.write.5.streamWrite.sinked, label %81
         
         loop.pkt.write.5.streamWrite.sinked:
-          call void @hwtHls.streamWrite.masked.p2.i48.i6.i1(ptr addrspace(2) %tx, i48 %74, i6 %75, i1 %80) #4
+          call void @hwtHls.streamWrite.masked.p2.i48.i6.i1.i1.p0(ptr addrspace(2) %tx, i48 %74, i6 %75, i1 0, i1 %80, ptr null) #4
           br label %81
         
         81:
           br i1 %.streamWrite.en27.2, label %loop.pkt.write.6.streamWrite.sinked, label %loop.pkt.lastCheck.6.writesExit
         
         loop.pkt.write.6.streamWrite.sinked:
-          call void @hwtHls.streamWrite.p2.i8.i1(ptr addrspace(2) %tx, i8 %.260, i1 %.263) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %.260, i1 0, i1 %.263, ptr null) #4
           br label %loop.pkt.lastCheck.6.writesExit
         
         loop.pkt.lastCheck.6.writesExit:
@@ -474,13 +502,13 @@ class HwtHlsSimplifyCFGPass_streamWrite_TC(BaseLlvmIrTC):
         loop.pkt.eof:
           br label %loop.pkt
         }
-        """
+        """ + self._createMetadataStr([(False, False, 0, 64), (True, True, 0, 64)])
         self._test_ll(llvmIr)
 
     def test_streamWriteMerge_implicationAssumes2(self):
         # originally Axi4SPacketTrimByteByByte4 @ 4B
         llvmIr = """\
-define void @test_streamWriteMerge_implicationAssumes2(ptr addrspace(1) %rx, ptr addrspace(2) %tx) {
+define void @test_streamWriteMerge_implicationAssumes2(ptr addrspace(1) %rx, ptr addrspace(2) %tx) !hwtHls.io !0 {
 bb0:
   br label %loop.pkt
 
@@ -560,14 +588,14 @@ loop.pkt.read:
   br i1 %36, label %loop.pkt.write.1, label %loop.pkt.write.2.guard
 
 loop.pkt.write.1:
-  call void @hwtHls.streamWrite.masked.p2.i16.i2.i1(ptr addrspace(2) %tx, i16 %7, i2 %37, i1 %38) #4
+  call void @hwtHls.streamWrite.masked.p2.i16.i2.i1.i1.p0(ptr addrspace(2) %tx, i16 %7, i2 %37, i1 0, i1 %38, ptr null) #4
   br label %loop.pkt.write.2.guard
 
 loop.pkt.write.2.guard:
   br i1 %.streamWrite.en19.2, label %loop.pkt.write.2, label %loop.pkt.write.3.guard
 
 loop.pkt.write.2:
-  call void @hwtHls.streamWrite.p2.i8.i1(ptr addrspace(2) %tx, i8 %9, i1 %.233) #4
+  call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %9, i1 0, i1 %.233, ptr null) #4
   br label %loop.pkt.write.3.guard
 
 loop.pkt.write.3.guard:
@@ -576,7 +604,7 @@ loop.pkt.write.3.guard:
 
 loop.pkt.write.3:
   call void @llvm.assume(i1 %impCache)
-  call void @hwtHls.streamWrite.p2.i8.i1(ptr addrspace(2) %tx, i8 %8, i1 %.239) #4
+  call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %8, i1 0, i1 %.239, ptr null) #4
   br label %loop.pkt.lastCheck.3.writesExit
 
 loop.pkt.lastCheck.3.writesExit:
@@ -586,13 +614,13 @@ loop.pkt.eof:
   call void @hwtHls.streamWriteEndOfFrame.p2(ptr addrspace(2) %tx) #4
   br label %loop.pkt
 }
-        """
+        """ + self._createMetadataStr([(False, True, 0, 32), (True, True, 0, 32)])
         self._test_ll(llvmIr)
 
     def test_streamWriteMerge_implicationAssumes3(self):
         # originally Axi4SPacketTrimByteByByte4 @ 3B
         llvmIr = """\
-define void @test_streamWriteMerge_implicationAssumes3(ptr addrspace(1) %rx, ptr addrspace(2) %tx) {
+define void @test_streamWriteMerge_implicationAssumes3(ptr addrspace(1) %rx, ptr addrspace(2) %tx) !hwtHls.io !0 {
 bb0:
   br label %loop.pkt
 
@@ -660,7 +688,7 @@ loop.pkt.read:
   br i1 %wEn3, label %loop.pkt.write.1.streamWrite.sinked, label %33
 
 loop.pkt.write.1.streamWrite.sinked:
-  call void @hwtHls.streamWrite.masked.p2.i16.i2.i1(ptr addrspace(2) %tx, i16 %8, i2 %31, i1 %32) #4
+  call void @hwtHls.streamWrite.masked.p2.i16.i2.i1.i1.p0(ptr addrspace(2) %tx, i16 %8, i2 %31, i1 0, i1 %32, ptr null) #4
   br label %33
 
 33:
@@ -669,7 +697,7 @@ loop.pkt.write.1.streamWrite.sinked:
 
 loop.pkt.write.2.streamWrite.sinked:
   call void @llvm.assume(i1 %impCache)
-  call void @hwtHls.streamWrite.p2.i8.i1(ptr addrspace(2) %tx, i8 %9, i1 %.231) #4
+  call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %9, i1 0, i1 %.231, ptr null) #4
   br label %loop.pkt.lastCheck.2.writesExit
 
 loop.pkt.lastCheck.2.writesExit:
@@ -686,7 +714,7 @@ loop.pkt.eof:
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    #suite = unittest.TestSuite([HwtHlsSimplifyCFGPass_streamWrite_TC('test_streamWriteMerge_implicationAssumes0')])
     suite = testLoader.loadTestsFromTestCase(HwtHlsSimplifyCFGPass_streamWrite_TC)
+    # suite = unittest.TestSuite([HwtHlsSimplifyCFGPass_streamWrite_TC('test_streamWriteMerge1')])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
