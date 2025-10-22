@@ -8,12 +8,13 @@ import unittest
 from hwt.hdl.types.bits import HBits
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtLib.amba.axi4s import Axi4StreamFrameUtils
+from hwtLib.amba.axi4sSimFrameUtils import Axi4StreamSimFrameUtils
 from hwtLib.amba.axis_comp.frame_parser.test_types import structManyInts
 from hwtSimApi.constants import CLK_PERIOD
 from pyMathBitPrecise.bit_utils import int_to_int_list, mask
 from tests.io.amba.axi4Stream.axi4sParseLinear import Axi4SParseStructManyInts0, \
     Axi4SParseStructManyInts1, Axi4SParse2fields, struct_i16_i32
+# from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 
 
 class Axi4SParseLinearTC(SimTestCase):
@@ -21,16 +22,16 @@ class Axi4SParseLinearTC(SimTestCase):
     def _test_parse(self, DATA_WIDTH:int, cls=Axi4SParseStructManyInts0, N=3, T=structManyInts):
         dut = cls()
         dut.DATA_WIDTH = DATA_WIDTH
-        self._run_test_parse(dut, Axi4StreamFrameUtils, N, T)
+        self._run_test_parse(dut, Axi4StreamSimFrameUtils, N, T)
 
-    def _run_test_parse(self, dut: Axi4SParseStructManyInts0, frameUtilsCls: Type[Axi4StreamFrameUtils], N=3, T=structManyInts):
+    def _run_test_parse(self, dut: Axi4SParseStructManyInts0, frameUtilsCls: Type[Axi4StreamSimFrameUtils], N=3, T=structManyInts):
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform(
-            # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL]
+            # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED]
             ))
 
         ref = []
         first = True
-        fu: Axi4StreamFrameUtils = frameUtilsCls.from_HwIO(dut.i)
+        fu: Axi4StreamSimFrameUtils = frameUtilsCls.from_HwIO(dut.i)
         for _ in range(N):
             d = {}
             fi = 0

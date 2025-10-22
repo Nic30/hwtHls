@@ -6,7 +6,6 @@ from random import Random
 from typing import Sequence, Optional
 import unittest
 
-from hwt.hdl.commonConstants import b1, b0
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.struct import HStruct
@@ -15,14 +14,13 @@ from hwt.hwIOs.agents.bramPort import storeToRamMaskedByAddress, \
     storeToRamMaskedByIndex
 from hwt.math import log2ceil
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle, LLVMStringContext, Function, MachineFunction
-from hwtHls.ssa.analysis.llvmIrInterpret import LlvmIrInterpret
+from hwtHls.platform.debugBundle import HlsDebugBundle
 from hwtHls.ssa.analysis.llvmIrInterpretUtils import SimIoUnderflowErr
-from hwtHls.ssa.analysis.llvmMirInterpret import LlvmMirInterpret
+from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtSimApi.agents.base import NOP
-from hwtSimApi.triggers import StopSimumulation
 from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import mask, byte_mask_to_bit_mask_int
+from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.io.bram.bramSimRam import BramSimRam
 from tests.io.bram.bramWriteAligner import HwIOAddrDataUnalignedToBram
 from tests.io.testIoUtils import TestInputQueue, TestOutputIndexedQueue
@@ -206,7 +204,7 @@ class HwIOAddrDataUnalignedToBram_TC(unittest.TestCase):
     def test_unaligned_0x18f_0x192(self):
         self.test_unaligned_0_1(addresses=[(0x18f, 0b1111),
                                            (0x192, 0b1111),
-                                           #(0x2b, 0b0001)
+                                           # (0x2b, 0b0001)
                                            ],
                                 requestChannelRandomize=False, expectedTransactionCount=6)
 
@@ -225,50 +223,20 @@ class HwIOAddrDataUnalignedToBram_TC(unittest.TestCase):
 
 class HwIOAddrDataUnalignedToBram_rtl_TC(SimTestCase):
 
-    def _testLlvmIr(self, dut: HwIOAddrDataUnalignedToBram,
-                    strCtx: LLVMStringContext, F: Function, dataIn: list[HStructConstBase], refRam: dict[int, HBitsConst]):
+    def _testLlvmIrOrMir(self, platform: TestLlvmIrAndMirPlatform, toLlvm: ToLlvmIrTranslator,
+                         isMir: bool, dataIn: list[HStructConstBase], refRam: dict[int, HBitsConst]):
+        dut = toLlvm.parentHwModule
         wallTime = len(dataIn) * 1000
         ramOut = BramSimRam(dut.DATA_WIDTH, int(2 ** dut.ADDR_WIDTH), hasWeMask=True)
         dinFlatT = HBits(dataIn[0]._dtype.bit_length())
         # concat with b1 because read is non-blocking
         dataInFlat = deque(
-            b0._concat(dinFlatT.from_py(None))
+            NOP
             if d is NOP else
-            b1._concat(d._reinterpret_cast(dinFlatT))
-                            for d in dataIn)
+            d._reinterpret_cast(dinFlatT)
+            for d in dataIn)
         args = (ramOut, iter(dataInFlat))
-        try:
-            interpret = LlvmIrInterpret(F, strCtx)
-            interpret.run(args, wallTime=wallTime * interpret.timeStep)
-        except SimIoUnderflowErr:
-            pass  # all inputs consumed
-        except StopSimumulation:
-            pass
-
-        ram: dict[int, tuple[int, int]] = {k: (v.val, v.vld_mask) for k, v in ramOut.data.items()}
-        # print("")
-        # print(refRam)
-        # print(ram)
-        self.assertDictEqual(ram, refRam)
-
-    def _testLlvmMir(self, dut: HwIOAddrDataUnalignedToBram, strCtx: LLVMStringContext, MF: MachineFunction, dataIn, refRam):
-        wallTime = len(dataIn) * 1000
-        ramOut = BramSimRam(dut.DATA_WIDTH, int(2 ** dut.ADDR_WIDTH), hasWeMask=True)
-        dinFlatT = HBits(dataIn[0]._dtype.bit_length())
-        # concat with b1 because read is non-blocking
-        dataInFlat = deque(
-            b0._concat(dinFlatT.from_py(None))
-            if d is NOP else
-            b1._concat(d._reinterpret_cast(dinFlatT))
-                            for d in dataIn)
-        args = (ramOut, iter(dataInFlat))
-        try:
-            interpret = LlvmMirInterpret(MF, strCtx)
-            interpret.run(args, wallTime=wallTime * interpret.timeStep)
-        except SimIoUnderflowErr:
-            pass  # all inputs consumed
-        except StopSimumulation:
-            pass
+        BaseIrMirRtl_TC._runLlvmIrOrMir(self, platform, toLlvm, "", wallTime, isMir, args)
         ram: dict[int, tuple[int, int]] = {k: (v.val, v.vld_mask) for k, v in ramOut.data.items()}
         # print("")
         # print(refRam)
@@ -296,13 +264,14 @@ class HwIOAddrDataUnalignedToBram_rtl_TC(SimTestCase):
             requestChannelRandomize=requestChannelRandomize)
         tc = self
 
-        def testLlvmOptIr(llvm: LlvmCompilationBundle):
-            tc._testLlvmIr(dut, llvm.strCtx, llvm.main, dataIn, refRam)
+        def testLlvmOptIr(*args):
+            tc._testLlvmIrOrMir(*args, False, dataIn, refRam)
 
-        def testLlvmOptMir(llvm: LlvmCompilationBundle):
-            tc._testLlvmMir(dut, llvm.strCtx, llvm.getMachineFunction(llvm.main), dataIn, refRam)
+        def testLlvmOptMir(*args):
+            tc._testLlvmIrOrMir(*args, True, dataIn, refRam)
 
-        debugFilter = None
+        # debugFilter = None
+        debugFilter = HlsDebugBundle.ALL_RELIABLE
         platform = TestLlvmIrAndMirPlatform(
             optIrTest=testLlvmOptIr,
             optMirTest=testLlvmOptMir,
@@ -358,13 +327,13 @@ HwIOAddrDataUnalignedToBram_TCs = [
     HwIOAddrDataUnalignedToBram_TC,
     HwIOAddrDataUnalignedToBram_rtl_TC,
 ]
-    
+
 if __name__ == "__main__":
     testLoader = unittest.TestLoader()
     suite = unittest.TestSuite(testLoader.loadTestsFromTestCase(tc)
                                for tc in HwIOAddrDataUnalignedToBram_TCs)
     # suite = testLoader.loadTestsFromTestCase(HwIOAddrDataUnalignedToBram_TC)
-    # suite = unittest.TestSuite([HwIOAddrDataUnalignedToBram_TC("test_unaligned_0x18f_0x192")])
+    # suite = unittest.TestSuite([HwIOAddrDataUnalignedToBram_rtl_TC("test_aligned_sequential_firstAvail")])
     # suite = testLoader.loadTestsFromTestCase(HwIOAddrDataUnalignedToBram_rtl_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
