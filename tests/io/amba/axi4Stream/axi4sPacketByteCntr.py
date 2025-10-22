@@ -32,7 +32,7 @@ class Axi4SPacketByteCntr0(Axi4SPacketCntr):
         i.readStartOfFrame()
         while b1:
             # end of frame is ignored
-            for strbBit in i.read(self.i.data._dtype).strb:
+            for strbBit in i.read(self.i.data._dtype, reliable=False).strb:
                 if strbBit:
                     # There the problem is that we do not have the information that the sequence of 1 in mask
                     # is consistent and we have to create a circuit with len(strb) adders which will add 1 if bit
@@ -50,7 +50,7 @@ class Axi4SPacketByteCntr1(Axi4SPacketByteCntr0):
         while b1:
             wordByteCnt = HBits(log2ceil(self.i.strb._dtype.bit_length() + 1), signed=False).from_py(0)
             # this for is just MUX
-            for i, strbBit in enumerate(i.read(self.i.data._dtype).strb):
+            for i, strbBit in enumerate(i.read(self.i.data._dtype, reliable=False).strb):
                 if strbBit:
                     # There we generate ROM of len(strb) values where item is selected based on last 1 bit in srtb
                     # This would not work if the prefix of strb contains some 0 bits before first 1.
@@ -70,7 +70,7 @@ class Axi4SPacketByteCntr2(Axi4SPacketByteCntr0):
         while b1:
             wordByteCnt = wordByteCntrTy.from_py(strbWidth) # initialized to all bytes valid
             # this for is just MUX
-            for i, strbBit in enumerate(i.read(self.i.data._dtype).strb):
+            for i, strbBit in enumerate(i.read(self.i.data._dtype, reliable=False).strb):
                 # this is required because value of i would not get captured once leaving the loop
                 iHw = wordByteCntrTy.from_py(i)
                 if ~strbBit:
@@ -93,7 +93,7 @@ class Axi4SPacketByteCntr3(Axi4SPacketByteCntr1):
         while b1:
             # PyBytecodeInPreproc is used because otherwise 
             # the read object is converted to a RtlSignal because word= is a store to a word variable
-            word = PyBytecodeInPreproc(i.read(self.i.data._dtype))
+            word = PyBytecodeInPreproc(i.read(self.i.data._dtype, reliable=False))
             wordByteCnt = HBits(log2ceil(strbWidth + 1), signed=False).from_py(strbWidth)
             PyBytecodeInPreproc(f"strbCheckBefore")
             # this for is just MUX
