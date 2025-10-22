@@ -147,6 +147,51 @@ class Axi4SPacketTrimByteByByte1(Axi4SPacketTrimByteByByte0):
 
             rx.readEndOfFrame()
 
+
+class Axi4SPacketTrimByteByByte1b(Axi4SPacketTrimByteByByte0):
+    """
+    Axi4SPacketTrimByteByByte0 with shouldBreak extracted before write
+    """
+
+    @hlsBytecode
+    def mainThread(self, rx: IoProxyAxi4Stream, tx: IoProxyAxi4Stream):
+        assert self.OUT_MAX_LEN >= 0, self.OUT_MAX_LEN
+        while b1:
+            PyBytecodeBlockLabel("loop.pkt")
+            # pass rx packet to tx output with length limit
+            rx.readStartOfFrame()
+            tx.writeStartOfFrame()
+
+            curLen = HBits(log2ceil(self.OUT_MAX_LEN + 1)).from_py(0)
+            eof = b0
+            while ~eof:
+                PyBytecodeBlockLabel("loop.pkt.read")
+                Axi4SPacketCopyByteByByteHs.doUnrolling(self)
+                d = rx.read(HBits(8))
+                eof = d._isEoF()
+                shouldBreak = eof | curLen._eq(self.OUT_MAX_LEN - 1)
+                curLen = setHasNoUnsignedWrap(curLen + 1)
+                tx.write(d.data, eof=shouldBreak)
+
+                if shouldBreak:
+                    PyBytecodeBlockLabel("loop.pkt.stopWrite")
+                    del d
+                    break
+                del d
+
+            PyBytecodeBlockLabel("loop.pkt.drop.before")
+            tx.writeEndOfFrame()
+            # drop redundant rx data
+            while ~eof:
+                PyBytecodeBlockLabel("loop.pkt.drop")
+                Axi4SPacketCopyByteByByteHs.doUnrolling(self)
+                d = rx.read(HBits(8))
+                eof = d._isEoF()
+                del d
+
+            rx.readEndOfFrame()
+
+
 class Axi4SPacketTrimByteByByte2(Axi4SPacketTrimByteByByte0):
     """
     Axi4SPacketTrimByteByByte0 with a single loop
@@ -509,7 +554,7 @@ if __name__ == "__main__":
 
     sys.setrecursionlimit(int(1e6))
 
-    m = Axi4SPacketTrimByteByByte4()
+    m = Axi4SPacketTrimByteByByte1b()
     m.OUT_MAX_LEN = 2
     m.DATA_WIDTH = 1 * 8
     m.UNROLL = PyBytecodeStreamLoopUnroll

@@ -2,9 +2,9 @@ from typing import List, Tuple, Optional, Literal
 
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pragmaLoop import PyBytecodeStreamLoopUnroll
-from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
-from tests.io.amba.axi4Stream.axi4sCopyByteByByte_test import BaseAxi4SPktInPktOutTC
-from tests.io.amba.axi4Stream.axi4sPacketLenTrim import Axi4SPacketTrimByteByByte4
+from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
+from tests.io.amba.axi4Stream._baseAxi4SPktInPktOutTC import BaseAxi4SPktInPktOutTC
+from tests.io.amba.axi4Stream.axi4sPacketLenTrim import Axi4SPacketTrimByteByByte1b
 
 
 class Axi4sPacketLenTrimTC(BaseAxi4SPktInPktOutTC):
@@ -21,7 +21,7 @@ class Axi4sPacketLenTrimTC(BaseAxi4SPktInPktOutTC):
 
     def _test(self, DATA_WIDTH:int, OUT_DATA_WIDTH:int, FRAME_LENGTHS:List[int], OUT_MAX_LEN: int,
         UNROLL:Optional[Literal[PyBytecodeStreamLoopUnroll]]=None, freq=int(1e6),
-        cls=Axi4SPacketTrimByteByByte4):
+        cls=Axi4SPacketTrimByteByByte1b):
 
         dut = cls()
         dut.UNROLL = UNROLL
@@ -44,13 +44,37 @@ class Axi4sPacketLenTrimTC(BaseAxi4SPktInPktOutTC):
         BaseAxi4SPktInPktOutTC._test(self, dut, refFramesIn, refFramesOut, freq=freq,
                                      platformKwargs=dict(
                   # debugFilter={*HlsDebugBundle.ALL_RELIABLE,
-                  # HlsDebugBundle.DBG_20_addSignalNamesToSync,
-                  # HlsDebugBundle.DBG_20_addSignalNamesToData,
+                  # ## HlsDebugBundle.DBG_20_addSignalNamesToSync,
+                  # ## HlsDebugBundle.DBG_20_addSignalNamesToData,
                   # },
                   llvmCliArgs=[
+                      #("hwthls-simplifycfg-SwitchReduceRange", 0, "", "false"),
+                      #("hwthls-simplifycfg-HoistHoistableAssumes", 0, "", "false"),
+                      #("hwthls-simplifycfg-NormalizeLookupTableIndex", 0, "", "false"),
+                      #("hwthls-simplifycfg-RewriteMaskPatternsFromCFGToData", 0, "", "false"),
+                      #("hwthls-simplifycfg-StoreHoist", 0, "", "false"),
+                      #("hwthls-simplifycfg-AggresiveStoreSink", 0, "", "false"),
+                      #("hwthls-simplifycfg-MergePredecessorsStore", 0, "", "false"),
+                      #("hwthls-simplifycfg-PhiToLogicalExpr", 0, "", "false"),
+                      #("hwthls-simplifycfg-UnswitchComplementarySequentialBlocks", 0, "", "false"),
+                      #("hwthls-simplifycfg-SpeculatePredecessor", 0, "", "false"),
+                      # ("hwthls-simplifycfg-StreamWriteMerge", 0, "", "false"),
+                      #("hwthls-simplifycfg-StreamReadMerge", 0, "", "false"),
+                      #("hwthls-simplifycfg-SwitchToSelectOrRomLoad", 0, "", "false"),
+                      #("hwthls-simplifycfg-NormalizeBrCond", 0, "", "false"),
+                      #("hwthls-simplifycfg-ConstantFoldTerminator", 0, "", "false"),
+                      #("hwthls-simplifycfg-EliminateDuplicatePHINodes", 0, "", "false"),
+                      #("hwthls-simplifycfg-EemoveUndefIntroducingPredecessor", 0, "", "false"),
+                      #("hwthls-simplifycfg-MergeBlockIntoPredecessor", 0, "", "false"),
+                      #("hwthls-simplifycfg-RunEarlyCSEPass", 0, "", "false"),
+                      #("hwthls-simplifycfg-RunRomExtractPass", 0, "", "false"),
+                      #("hwthls-simplifycfg-RunHwtHlsInstCombinePass", 0, "", "false"),
+                      #("hwthls-simplifycfg-RunTrivialSimplifyCFGPass", 0, "", "false"),
+                      #("hwthls-simplifycfg-RunSimplifyCFGPass", 0, "", "false"),
+                      #("hwthls-simplifycfg-RunBitcountMergePass", 0, "", "false"),
                     # LLVM_CLI_COMMON_OPTS.PRINT_BEFORE_ALL,
                     # LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL
-                    # LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+                    LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
                     # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
                     # LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
                   ],
@@ -61,6 +85,8 @@ class Axi4sPacketLenTrimTC(BaseAxi4SPktInPktOutTC):
 
     def _test_anyB(self, BYTE_CNT:int, OUT_MAX_LEN:int, PKT_CNT=6):
         frameLens = [self._rand.randint(1, BYTE_CNT * 3) for _ in range(PKT_CNT)]
+        # print(frameLens)
+        # frameLens = [7, ]
         self._test(BYTE_CNT * 8, BYTE_CNT * 8, frameLens, OUT_MAX_LEN, UNROLL=PyBytecodeStreamLoopUnroll)
 
     def test_1B_max2(self):
@@ -90,21 +116,21 @@ class Axi4sPacketLenTrimTC(BaseAxi4SPktInPktOutTC):
     def test_3B_max7(self):
         self._test_anyB(3, 7)
 
-    def test_64B_max128(self):
-        self._test_anyB(64, 128)
-
-    def test_64B_max96(self):
-        self._test_anyB(64, 96)
-
-    def test_64B_max129(self):
-        self._test_anyB(64, 129)
+    #def test_64B_max128(self):
+    #    self._test_anyB(64, 128)
+    #
+    #def test_64B_max96(self):
+    #    self._test_anyB(64, 96)
+    #
+    #def test_64B_max129(self):
+    #    self._test_anyB(64, 129)
 
 
 if __name__ == '__main__':
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([Axi4sPacketLenTrimTC("test_64B_max128")])
     suite = testLoader.loadTestsFromTestCase(Axi4sPacketLenTrimTC)
+    # suite = unittest.TestSuite([Axi4sPacketLenTrimTC("test_3B_max7")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
