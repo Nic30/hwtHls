@@ -37,7 +37,7 @@ class Ctpop_TC(SimTestCase):
 if __name__ == '__main__':
     import sys
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.debugBundle import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
 
     sys.setrecursionlimit(int(1e6))
 
@@ -49,7 +49,7 @@ if __name__ == '__main__':
 
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
         debugFilter=HlsDebugBundle.ALL_RELIABLE,
-        # llvmCliArgs=[("print-after-all", 0, "", "true"), ]
+        #llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED ]
     )))
 
     import unittest

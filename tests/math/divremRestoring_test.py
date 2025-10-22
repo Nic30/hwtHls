@@ -18,6 +18,7 @@ from tests.math.componentGenerators._div.divRestoring import DivRemHwModule, div
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 from tests.math.componentGenerators.install import installFpComponentGenerators
 
+
 class DivRemRestoring_TC(SimTestCase):
     DATA_WIDTH = 4
     UNROLL_FACTOR = 1
@@ -69,10 +70,11 @@ class DivRemRestoring_TC(SimTestCase):
     def getCheckDataOutFn(self, REF_DATA):
         DW = self.DATA_WIDTH
 
+        dataOutRef = []
+        for (quotient, remainder) in REF_DATA:
+            dataOutRef.append((remainder << DW) | quotient)
+
         def checkDataOutFn(dataOut):
-            dataOutRef = []
-            for (quotient, remainder) in REF_DATA:
-                dataOutRef.append((remainder << DW) | quotient)
 
             self.assertValSequenceEqual(dataOut, dataOutRef, "[%s] != [%s]" % (
                 ", ".join("(q:%d, r:%d)" % (int(i) & mask(DW), int(i) >> DW) if i._is_full_valid() else repr(i) for i in dataOut),
@@ -95,14 +97,15 @@ class DivRemRestoring_TC(SimTestCase):
         REF_DATA = self._getRefData(self.INPUT_DATA)
         p = TestLlvmIrAndMirPlatform.forSimpleDataInDataOutHwModule(
             self.prepareDataInFn,
-            None,  # self.getCheckDataOutFn(REF_DATA),
+            self.getCheckDataOutFn(REF_DATA),
             None,
+            topToRunTestsOn=dut,
             # debugFilter=HlsDebugBundle.ALL_RELIABLE,
             # llvmCliArgs=[
             #    LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
             # ],
             # noOptIrTest=TestLlvmIrAndMirPlatform.TEST_NO_OPT_IR,
-            runTestAfterEachPass=runTestAfterEachPass
+            runTestAfterEachPass=runTestAfterEachPass,
         )
         self.platformSetUp(p)
         self.compileSimAndStart(dut, target_platform=p)
@@ -180,30 +183,34 @@ DivRemRestoring_TCs = [
 ]
 
 if __name__ == "__main__":
-    # from hwt.synth import to_rtl_str
-    # # from hwtHls.platform.virtual import VirtualHlsPlatform
-    # from hwtHls.platform.debugBundle import HlsDebugBundle
-    # from hwtHls.platform.xilinx.artix7 import Artix7Fast
-    # from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
-    #
-    # m = DivRemHwModule()
-    # m.T = HBits(16, False)
-    # m.FN = DivRemRestoringGen_TC.HLS_DIV_FN
-    # # m.UNROLL_FACTOR = 1
-    # m.CLK_FREQ = int(1e6)
-    # m.IN_CHANNEL_TYPE = HwIOStructRdVld
-    # print(to_rtl_str(m, target_platform=Artix7Fast(
-    #   debugFilter=HlsDebugBundle.ALL_RELIABLE,
-    #   # llvmCliArgs=[
-    #   #   LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
-    #   #   LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
-    #   # ]
-    # )))
+    from hwt.synth import to_rtl_str
+    # from hwtHls.platform.virtual import VirtualHlsPlatform
+    from hwtHls.platform.debugBundle import HlsDebugBundle
+    from hwtHls.platform.xilinx.artix7 import Artix7Fast
+    from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
+
+    m = DivRemHwModule()
+    m.T = HBits(4, False)
+    m.FN = DivRemRestoringGen_TC.HLS_DIV_FN
+    # m.UNROLL_FACTOR = 1
+    m.CLK_FREQ = int(200e6)
+    m.IN_CHANNEL_TYPE = HwIOStructRdVld
+    m.MAIN_FN_META = PyBytecodeSkipPass(["hwtHls::SlicesToIndependentVariablesPass"])
+    p = Artix7Fast(
+      debugFilter=HlsDebugBundle.ALL_RELIABLE,
+      # llvmCliArgs=[
+      #   LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+      #   LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+      # ]
+    )
+    installFpComponentGenerators(p)
+    p._componentGenerators[OP_UDIVREM].optThroughputVsArea = 0  # 2 / m.T.bit_length()
+    # print(to_rtl_str(m, target_platform=p))
 
     import unittest
 
     testLoader = unittest.TestLoader()
-    suite = unittest.TestSuite([DivRemRestoringGen_unroll2_TC('test_div_rtl')])
-    # suite = unittest.TestSuite(testLoader.loadTestsFromTestCase(cls) for cls in DivRemRestoring_TCs)
+    # suite = unittest.TestSuite([DivRemRestoringGen_TC('test_div_no_SlicesToIndependentVariablesPass')])
+    suite = unittest.TestSuite(testLoader.loadTestsFromTestCase(cls) for cls in DivRemRestoring_TCs)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
