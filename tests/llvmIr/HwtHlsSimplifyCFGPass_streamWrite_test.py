@@ -707,7 +707,195 @@ loop.pkt.eof:
   call void @hwtHls.streamWriteEndOfFrame.p2(ptr addrspace(2) %tx) #4
   br label %loop.pkt
 }
-        """
+        """ + self._createMetadataStr([(False, True, 0, 24), (True, True, 0, 24)])
+        self._test_ll(llvmIr)
+
+    def test_streamWriteMerge_variableLenWrite0(self):
+        # :note: based on Axi4SCopyWithLookahead @ 2B
+        llvmIr = """\
+        define void @test_streamWriteMerge_variableLenWrite0(ptr addrspace(1) %rx, ptr addrspace(2) %tx) !hwtHls.io !0 {
+        bb0:
+          br label %mainLoop
+        
+        mainLoop:                                         ; preds = %bb0, %bb.ret
+          call void @hwtHls.streamReadStartOfFrame.p1(ptr addrspace(1) %rx) #4
+          %rx_read1 = call i10 @hwtHls.streamRead.p1.i64.i1.i10(ptr addrspace(1) %rx, i64 8, i1 true) #4
+          %rx_read_strb = call i1 @hwtHls.bitRangeGet.i10.i5.i1.8(i10 %rx_read1, i5 8) #2
+          %rx_read_data = call i8 @hwtHls.bitRangeGet.i10.i5.i8.0(i10 %rx_read1, i5 0) #2
+          %rx_read_last = call i1 @hwtHls.bitRangeGet.i10.i5.i1.9(i10 %rx_read1, i5 9) #2
+          call void @hwtHls.streamWriteStartOfFrame.p2(ptr addrspace(2) %tx) #4
+          call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0(ptr addrspace(2) %tx, i8 %rx_read_data, i1 %rx_read_strb, i1 false, i1 %rx_read_last, ptr null) #4
+          br i1 %rx_read_last, label %bb.ret, label %copyLoop
+        
+        copyLoop:                                         ; preds = %mainLoop, %copyLoop
+          %rx_read7 = call i10 @hwtHls.streamRead.p1.i64.i1.i10(ptr addrspace(1) %rx, i64 8, i1 false) #4
+          %rx_read_last9 = call i1 @hwtHls.bitRangeGet.i10.i5.i1.9(i10 %rx_read7, i5 9) #2
+          %rx_read_data8 = call i8 @hwtHls.bitRangeGet.i10.i5.i8.0(i10 %rx_read7, i5 0) #2
+          %rx_read_strb12 = call i1 @hwtHls.bitRangeGet.i10.i5.i1.8(i10 %rx_read7, i5 8) #2
+          call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0(ptr addrspace(2) %tx, i8 %rx_read_data8, i1 %rx_read_strb12, i1 false, i1 %rx_read_last9, ptr null) #4
+          br i1 %rx_read_last9, label %bb.ret, label %copyLoop
+        
+        bb.ret:                               ; preds = %copyLoop, %mainLoop
+          call void @hwtHls.streamWriteEndOfFrame.p2(ptr addrspace(2) %tx) #4
+          call void @hwtHls.streamReadEndOfFrame.p1(ptr addrspace(1) %rx) #4
+          br label %mainLoop
+        }
+        """ + self._createMetadataStr([(False, True, 0, 16), (True, True, 0, 16)])
+        self._test_ll(llvmIr)
+
+    def test_streamWriteMerge_variableLenWrite1(self):
+        # :note: based on Axi4SCopyWithLookahead @ 3B with 2B lookahead
+        llvmIr = """\
+define void @test_streamWriteMerge_variableLenWrite1(ptr addrspace(1) %rx, ptr addrspace(2) %tx) !hwtHls.io !0 {
+bb0:
+  %txDataOffset = alloca i5, align 1
+  call void @hwtHls.streamTmpAllocaTmpSetterPlaceholder.p0(ptr %txDataOffset)
+  br label %mainLoop
+
+mainLoop:                                         ; preds = %bb0, %_forwardPacket.ret
+  %.r0 = load volatile i28, ptr addrspace(1) %rx, align 4
+  %.eof = call i1 @hwtHls.bitRangeGet.i28.i6.i1.27(i28 %.r0, i6 27) #2
+  %0 = call i1 @hwtHls.bitRangeGet.i28.i6.i1.25(i28 %.r0, i6 25) #2
+  %1 = call i1 @hwtHls.bitRangeGet.i28.i6.i1.24(i28 %.r0, i6 24) #2
+  %2 = call i1 @hwtHls.bitRangeGet.i28.i6.i1.26(i28 %.r0, i6 26) #2
+  %.mask = call i3 @hwtHls.bitRangeGet.i28.i6.i3.24(i28 %.r0, i6 24) #2
+  %3 = call i8 @hwtHls.bitRangeGet.i28.i6.i8.16(i28 %.r0, i6 16) #2
+  %4 = call i2 @hwtHls.bitRangeGet.i28.i6.i2.26(i28 %.r0, i6 26) #2
+  %5 = call i16 @hwtHls.bitRangeGet.i28.i6.i16.0(i28 %.r0, i6 0) #2
+  %.specExit64 = icmp ne i2 %4, -2
+  %prevMaskBit1Impl = icmp ule i1 %0, %1
+  call void @llvm.assume(i1 %prevMaskBit1Impl)
+  %NonEoFImplMaskBit152 = or i1 %.eof, %0
+  call void @llvm.assume(i1 %NonEoFImplMaskBit152)
+  %prevMaskBit1Impl53 = icmp ule i1 %2, %0
+  call void @llvm.assume(i1 %prevMaskBit1Impl53)
+  %prevMaskBit1Impl54 = icmp ule i1 %2, %1
+  call void @llvm.assume(i1 %prevMaskBit1Impl54)
+  %NonEoFImplMaskBit155 = icmp ne i2 %4, 0
+  call void @llvm.assume(i1 %NonEoFImplMaskBit155)
+  %6 = icmp eq i3 %.mask, -1
+  %NonEoFImplMaskAll156 = or i1 %.eof, %6
+  call void @llvm.assume(i1 %NonEoFImplMaskAll156)
+  %7 = xor i1 %2, true
+  %.specExit67 = and i1 %.eof, %7
+  call void @hwtHls.streamWriteStartOfFrame.p2(ptr addrspace(2) %tx) #4
+  %8 = call i2 @hwtHls.bitConcat.i1.i1(i1 true, i1 %0) #2
+  %9 = sext i1 %.eof to i2
+  %10 = xor i2 %9, -1
+  %.specExit = or i2 %10, %8
+  call void @hwtHls.streamWrite.masked.p2.i16.i2.i1.i1.p0(ptr addrspace(2) %tx, i16 %5, i2 %.specExit, i1 false, i1 %.specExit67, ptr null) #4
+  br i1 %.specExit67, label %_forwardPacket.ret, label %copyLoop.peel21
+
+copyLoop.peel21:                                  ; preds = %mainLoop
+  call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0(ptr addrspace(2) %tx, i8 %3, i1 %.specExit64, i1 false, i1 %.eof, ptr null) #4
+  br i1 %.eof, label %_forwardPacket.ret, label %copyLoop
+
+copyLoop:                                         ; preds = %copyLoop, %copyLoop.peel21
+  %r1 = load volatile i28, ptr addrspace(1) %rx, align 4
+  %.eof43 = call i1 @hwtHls.bitRangeGet.i28.i6.i1.27(i28 %r1, i6 27) #2
+  br i1 %.eof43, label %_forwardPacket.ret, label %copyLoop
+
+_forwardPacket.ret:                               ; preds = %copyLoop, %mainLoop, %copyLoop.peel21
+  call void @hwtHls.streamWriteEndOfFrame.p2(ptr addrspace(2) %tx) #4
+  br label %mainLoop
+}""" + self._createMetadataStr([(False, True, 0, 24), (True, True, 0, 24)])
+        self._test_ll(llvmIr)
+
+    def test_streamWriteMerge_variableLenWrite2(self):
+        # :note: based on Axi4SCopyWithLookahead @ 3B with 2B lookahead (test_streamWriteMerge_variableLenWrite1 with copyLoop)
+        llvmIr = """\
+define void @test_streamWriteMerge_variableLenWrite2(ptr addrspace(1) %rx, ptr addrspace(2) %tx) !hwtHls.io !0 {
+bb0:
+  %txDataOffset = alloca i5, align 1
+  call void @hwtHls.streamTmpAllocaTmpSetterPlaceholder.p0(ptr %txDataOffset)
+  br label %mainLoop
+
+mainLoop:                                         ; preds = %bb0, %bb.ret
+  %.r0 = load volatile i28, ptr addrspace(1) %rx, align 4
+  %.eof = call i1 @hwtHls.bitRangeGet.i28.i6.i1.27(i28 %.r0, i6 27) #2
+  %0 = call i1 @hwtHls.bitRangeGet.i28.i6.i1.25(i28 %.r0, i6 25) #2
+  %1 = call i1 @hwtHls.bitRangeGet.i28.i6.i1.24(i28 %.r0, i6 24) #2
+  %2 = call i1 @hwtHls.bitRangeGet.i28.i6.i1.26(i28 %.r0, i6 26) #2
+  %.mask = call i3 @hwtHls.bitRangeGet.i28.i6.i3.24(i28 %.r0, i6 24) #2
+  %3 = call i8 @hwtHls.bitRangeGet.i28.i6.i8.0(i28 %.r0, i6 0) #2
+  %4 = call i8 @hwtHls.bitRangeGet.i28.i6.i8.8(i28 %.r0, i6 8) #2
+  %5 = call i8 @hwtHls.bitRangeGet.i28.i6.i8.16(i28 %.r0, i6 16) #2
+  %6 = call i2 @hwtHls.bitRangeGet.i28.i6.i2.26(i28 %.r0, i6 26) #2
+  %.specExit63 = icmp ne i2 %6, -2
+  %7 = xor i1 %.eof, true
+  %.specExit = or i1 %7, %0
+  %prevMaskBit1Impl = icmp ule i1 %0, %1
+  call void @llvm.assume(i1 %prevMaskBit1Impl)
+  %NonEoFImplMaskBit151 = or i1 %.eof, %0
+  call void @llvm.assume(i1 %NonEoFImplMaskBit151)
+  %prevMaskBit1Impl52 = icmp ule i1 %2, %0
+  call void @llvm.assume(i1 %prevMaskBit1Impl52)
+  %prevMaskBit1Impl53 = icmp ule i1 %2, %1
+  call void @llvm.assume(i1 %prevMaskBit1Impl53)
+  %NonEoFImplMaskBit154 = icmp ne i2 %6, 0
+  call void @llvm.assume(i1 %NonEoFImplMaskBit154)
+  %8 = icmp eq i3 %.mask, -1
+  %NonEoFImplMaskAll155 = or i1 %.eof, %8
+  call void @llvm.assume(i1 %NonEoFImplMaskAll155)
+  %9 = xor i1 %2, true
+  %.specExit65 = and i1 %.eof, %9
+  call void @hwtHls.streamWriteStartOfFrame.p2(ptr addrspace(2) %tx) #4
+  call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0(ptr addrspace(2) %tx, i8 %3, i1 true, i1 false, i1 false, ptr null) #4
+  call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0(ptr addrspace(2) %tx, i8 %4, i1 %.specExit, i1 false, i1 %.specExit65, ptr null) #4
+  br i1 %.specExit65, label %bb.ret, label %copyLoop.peel21
+
+copyLoop.peel21:                                  ; preds = %mainLoop
+  call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0(ptr addrspace(2) %tx, i8 %5, i1 %.specExit63, i1 false, i1 %.eof, ptr null) #4
+  br i1 %.eof, label %bb.ret, label %copyLoop
+
+copyLoop:                                         ; preds = %copyLoop.2, %copyLoop.peel21
+  %cp.r = load volatile i28, ptr addrspace(1) %rx, align 4
+  %cp.eof = call i1 @hwtHls.bitRangeGet.i28.i6.i1.27(i28 %cp.r, i6 27) #2
+  %cp.mask1 = call i1 @hwtHls.bitRangeGet.i28.i6.i1.25(i28 %cp.r, i6 25) #2
+  %cp.mask0 = call i1 @hwtHls.bitRangeGet.i28.i6.i1.24(i28 %cp.r, i6 24) #2
+  %cp.mask2 = call i1 @hwtHls.bitRangeGet.i28.i6.i1.26(i28 %cp.r, i6 26) #2
+  %cp.mask = call i3 @hwtHls.bitRangeGet.i28.i6.i3.24(i28 %cp.r, i6 24) #2
+  %cp.B0 = call i8 @hwtHls.bitRangeGet.i28.i6.i8.0(i28 %cp.r, i6 0) #2
+  %cp.B1 = call i8 @hwtHls.bitRangeGet.i28.i6.i8.8(i28 %cp.r, i6 8) #2
+  %cp.B2 = call i8 @hwtHls.bitRangeGet.i28.i6.i8.16(i28 %cp.r, i6 16) #2
+  %16 = call i2 @hwtHls.bitRangeGet.i28.i6.i2.26(i28 %cp.r, i6 26) #2
+  %prevMaskBit1Impl57 = icmp ule i1 %cp.mask1, %cp.mask0
+  call void @llvm.assume(i1 %prevMaskBit1Impl57)
+  %NonEoFImplMaskBit158 = or i1 %cp.eof, %cp.mask1
+  call void @llvm.assume(i1 %NonEoFImplMaskBit158)
+  %prevMaskBit1Impl59 = icmp ule i1 %cp.mask2, %cp.mask1
+  call void @llvm.assume(i1 %prevMaskBit1Impl59)
+  %prevMaskBit1Impl60 = icmp ule i1 %cp.mask2, %cp.mask0
+  call void @llvm.assume(i1 %prevMaskBit1Impl60)
+  %NonEoFImplMaskBit161 = icmp ne i2 %16, 0
+  call void @llvm.assume(i1 %NonEoFImplMaskBit161)
+  %18 = icmp eq i3 %cp.mask, -1
+  %NonEoFImplMaskAll162 = or i1 %cp.eof, %18
+  call void @llvm.assume(i1 %NonEoFImplMaskAll162)
+  %cp.tx.mask2 = icmp ne i2 %16, -2 ; ~mask[2] & eof
+  %cp.eof_n = xor i1 %cp.eof, true ; ~eof
+  %cp.tx.mask1 = or i1 %cp.eof_n, %cp.mask1 ; ~eof | mask[1]
+  %cp.tx.mask0 = or i1 %cp.eof_n, %cp.mask0 ; ~eof | mask[0]
+  %19 = xor i1 %cp.mask1, true ; ~mask[1]
+  %cp.tx.eof0 = and i1 %cp.eof, %19  ; eof & ~mask[1]
+  %20 = xor i1 %cp.mask2, true ; ~mask[2]
+  %cp.tx.eof1 = and i1 %cp.eof, %20  ; eof & ~mask[2]
+  call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0(ptr addrspace(2) %tx, i8 %cp.B0, i1 %cp.tx.mask0, i1 false, i1 %cp.tx.eof0, ptr null) #4
+  br i1 %cp.tx.eof0, label %bb.ret, label %copyLoop.1
+
+copyLoop.1:                                       ; preds = %copyLoop
+  call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0(ptr addrspace(2) %tx, i8 %cp.B1, i1 %cp.tx.mask1, i1 false, i1 %cp.tx.eof1, ptr null) #4
+  br i1 %cp.tx.eof1, label %bb.ret, label %copyLoop.2
+
+copyLoop.2:                                       ; preds = %copyLoop.1
+  call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0(ptr addrspace(2) %tx, i8 %cp.B2, i1 %cp.tx.mask2, i1 false, i1 %cp.eof, ptr null) #4
+  br i1 %cp.eof, label %bb.ret, label %copyLoop
+
+bb.ret:                                           ; preds = %copyLoop.2, %copyLoop.1, %copyLoop, %copyLoop.peel21, %mainLoop
+  call void @hwtHls.streamWriteEndOfFrame.p2(ptr addrspace(2) %tx) #4
+  br label %mainLoop
+}
+""" + self._createMetadataStr([(False, True, 0, 24), (True, True, 0, 24)])
         self._test_ll(llvmIr)
 
 
