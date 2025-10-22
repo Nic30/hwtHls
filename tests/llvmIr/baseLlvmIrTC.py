@@ -133,21 +133,21 @@ class BaseLlvmIrTC(BaseSsaTC):
     def _runTestOpt(self, llvm:LlvmCompilationBundle, *args, **kwargs) -> Function:
         raise NotImplementedError("Override this in your implementation of this abstract class")
 
-    def _test_ll(self, irStr: str, passArgs=(), passKwArgs={}, use_generateAndAppendHwtHlsFunctionDeclarations=True):
+    def _test_ll(self, irStr: str, llvmCliArgs=[], passArgs=(), passKwArgs={}, use_generateAndAppendHwtHlsFunctionDeclarations=True):
         if use_generateAndAppendHwtHlsFunctionDeclarations:
             irStr = generateAndAppendHwtHlsFunctionDeclarations(irStr)
-        llvm = LlvmCompilationBundle("test", [])
+        llvm = LlvmCompilationBundle("test", llvmCliArgs)
         Err = SMDiagnostic()
         M = parseIR(irStr, "test", Err, llvm.ctx)
         if M is None:
             raise AssertionError(Err.str("test", True, True))
         else:
-            fns = tuple(M)
             llvm.module = M
-            llvm.main = fns[0]
+            llvm._tryToFindMain()
             name = llvm.main.getName().str()
         if verifyModule(M):
             raise AssertionError()
 
         optF = self._runTestOpt(llvm, *passArgs, **passKwArgs)
+        assert optF is not None
         self.assert_same_as_file(repr(optF), os.path.join("data", f'{self.__class__.__name__:s}.{name:s}.ll'))
