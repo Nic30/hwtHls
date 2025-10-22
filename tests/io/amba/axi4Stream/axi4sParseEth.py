@@ -7,10 +7,8 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
-from hwtHls.frontend.statementsRead import HlsStmReadStartOfFrame, \
-    HlsStmReadEndOfFrame
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.io.amba.axi4Stream.stmRead import HlsStmReadAxi4Stream
+from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4s import Axi4Stream
 from hwtLib.types.net.ethernet import Eth2Header_t, eth_mac_t
@@ -34,12 +32,13 @@ class Axi4SParseEth(HwModule):
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
+        rx = IoProxyAxi4Stream(hls, self.i)
         while b1:
-            HlsStmReadStartOfFrame(hls, self.i),
-            eth = HlsStmReadAxi4Stream(hls, self.i, Eth2Header_t, True)
-            HlsStmReadEndOfFrame(hls, self.i),
+            rx.readStartOfFrame()
+            eth = rx.read(Eth2Header_t, reliable=True)
+            rx.readEndOfFrame()
             hls.write(eth.data.dst, self.dst_mac)
-    
+
     @override
     def hwImpl(self) -> None:
         WriteOnce.hwImpl(self)

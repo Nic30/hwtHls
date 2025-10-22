@@ -134,7 +134,7 @@ if __name__ == "__main__":
     # from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 
     m = Axi4SPingResponder()
-    m.DATA_WIDTH = 512
+    m.DATA_WIDTH = 256
     m.CLK_FREQ = int(100e6)
     print(to_rtl_str(m, target_platform=Artix7Medium(debugFilter=HlsDebugBundle.ALL_RELIABLE,
                                                      # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED]

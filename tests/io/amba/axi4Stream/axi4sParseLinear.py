@@ -10,16 +10,21 @@ from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pragmaPreproc import PyBytecodeInPreproc
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInPreproc,\
+    PyBytecodeBlockLabel
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4s import Axi4Stream
 from hwtLib.amba.axis_comp.frame_parser.test_types import structManyInts
 from hwtLib.types.ctypes import uint16_t, uint32_t
+from hwtHls.frontend.pragmaLoop import PyBytecodeStreamSegmentLoopUnroll
 
 
 class Axi4SParseStructManyInts0(HwModule):
+    """
+    read structManyInts from "i" and write parts into independent channels in "o"
+    """
     AXI_CLS = Axi4Stream
 
     @override
@@ -108,12 +113,15 @@ class Axi4SParse2fields(Axi4SParseStructManyInts0):
     @hlsBytecode
     def mainThread(self, hls: HlsScope, i: IoProxyAxi4Stream) -> None:
         while b1:
+            PyBytecodeBlockLabel("bb.pktLoop")
             i.readStartOfFrame()
             v0 = i.read(uint16_t, reliable=True)
             v1 = i.read(uint32_t, reliable=True)
             i.readEndOfFrame()
             for src, dst in zip([v0, v1], self.o):
                 hls.write(src.data, dst)
+            PyBytecodeBlockLabel("bb.pktLoop.latch")
+            PyBytecodeStreamSegmentLoopUnroll(i)
 
 
 if __name__ == "__main__":

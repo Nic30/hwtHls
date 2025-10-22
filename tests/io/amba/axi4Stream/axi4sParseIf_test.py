@@ -451,7 +451,7 @@ if __name__ == '__main__':
 
     testLoader = unittest.TestLoader()
 
-    # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2IfAndSequel_16b_100MHz")])
+    # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2If_512b_100MHz")])
     suite = testLoader.loadTestsFromTestCase(Axi4SParseIfTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
