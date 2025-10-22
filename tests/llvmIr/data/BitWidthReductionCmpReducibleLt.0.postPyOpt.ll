@@ -6,9 +6,9 @@ entry:                                            ; preds = %bb0
   br label %loopHeader
 
 loopHeader:                                       ; preds = %blockL40i0_1958, %entry
-  %a_read = alloca i8, align 1, !hwtHls.tmp.alloca !20
+  %a_read = alloca i8, align 1, !hwtHls.tmp.alloca !19
   store i8 undef, ptr %a_read, align 1
-  %a1 = alloca i8, align 1, !hwtHls.tmp.alloca !20
+  %a1 = alloca i8, align 1, !hwtHls.tmp.alloca !19
   store i8 undef, ptr %a1, align 1
   %a_read2 = load volatile i8, ptr addrspace(1) %a, align 1
   store i8 %a_read2, ptr %a_read, align 1
@@ -16,9 +16,9 @@ loopHeader:                                       ; preds = %blockL40i0_1958, %e
   %0 = call i4 @hwtHls.bitRangeGet.i8.i4.i4.0(i8 %a_read3, i4 0) #1
   %1 = call i4 @hwtHls.bitRangeGet.i8.i4.i4.4(i8 %a_read3, i4 4) #1
   store i8 %a_read3, ptr %a1, align 1
-  %b_read = alloca i8, align 1, !hwtHls.tmp.alloca !20
+  %b_read = alloca i8, align 1, !hwtHls.tmp.alloca !19
   store i8 undef, ptr %b_read, align 1
-  %b1 = alloca i8, align 1, !hwtHls.tmp.alloca !20
+  %b1 = alloca i8, align 1, !hwtHls.tmp.alloca !19
   store i8 undef, ptr %b1, align 1
   %b_read2 = load volatile i8, ptr addrspace(2) %b, align 1
   store i8 %b_read2, ptr %b_read, align 1

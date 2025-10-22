@@ -3,15 +3,6 @@
   source_filename = "hwtHlsModule"
   target datalayout = "e-m:e-i8:8-i16:16-i32:32-i64:64-i128:128-i256:256-i512:512-i1024:1024-i2048:2048-i4096:4096-n8:16:32:64-S128-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
   
-  ; Function Attrs: nofree nounwind speculatable willreturn
-  declare i16 @hwtHls.bitConcat.i8.i8(i8, i8) #0
-  
-  ; Function Attrs: nofree nounwind speculatable willreturn
-  declare i4 @hwtHls.bitRangeGet.i8.i4.i4.4(i8, i4) #0
-  
-  ; Function Attrs: nofree nounwind speculatable willreturn
-  declare i4 @hwtHls.bitRangeGet.i8.i4.i4.0(i8, i4) #0
-  
   define void @"BitWidthReductionCmpReducibleEq.hwImpl.<locals>.mainThread"(ptr addrspace(1) %a, ptr addrspace(2) %b, ptr addrspace(3) %res, ptr addrspace(4) %res_prefix_0vs1, ptr addrspace(5) %res_prefix_0vsAll, ptr addrspace(6) %res_prefix_aVs0, ptr addrspace(7) %res_prefix_aVsAll, ptr addrspace(8) %res_prefix_bVs0, ptr addrspace(9) %res_prefix_bVsAll, ptr addrspace(10) %res_prefix_differentInMiddle, ptr addrspace(11) %res_prefix_same, ptr addrspace(12) %res_prefix_sameInMiddle, ptr addrspace(13) %res_prefix_same_1, ptr addrspace(14) %res_same, ptr addrspace(15) %res_suffix_0vsB, ptr addrspace(16) %res_suffix_AllVsB, ptr addrspace(17) %res_suffix_aVs0, ptr addrspace(18) %res_suffix_aVsAll) !hwtHls.io !0 {
   bb0:
     br label %loopHeader
@@ -63,6 +54,15 @@
   }
   
   ; Function Attrs: nofree nounwind speculatable willreturn
+  declare i16 @hwtHls.bitConcat.i8.i8(i8, i8) #0
+  
+  ; Function Attrs: nofree nounwind speculatable willreturn
+  declare i4 @hwtHls.bitRangeGet.i8.i4.i4.4(i8, i4) #0
+  
+  ; Function Attrs: nofree nounwind speculatable willreturn
+  declare i4 @hwtHls.bitRangeGet.i8.i4.i4.0(i8, i4) #0
+  
+  ; Function Attrs: nofree nounwind speculatable willreturn
   declare i9 @hwtHls.bitConcat.i8.i1(i8, i1) #0
   
   ; Function Attrs: nofree nounwind speculatable willreturn
@@ -74,26 +74,25 @@
   attributes #0 = { nofree nounwind speculatable willreturn }
   attributes #1 = { memory(none) }
   
-  !0 = distinct !{!0, !1}
-  !1 = !{!2, !3, !4, !5, !6, !7, !8, !9, !10, !11, !12, !13, !14, !15, !16, !17, !18, !19}
-  !2 = !{!"IN", i64 0, ptr null, i64 0}
-  !3 = !{!"IN", i64 0, ptr null, i64 1}
-  !4 = !{!"OUT", i64 0, ptr null, i64 2}
-  !5 = !{!"OUT", i64 0, ptr null, i64 3}
-  !6 = !{!"OUT", i64 0, ptr null, i64 4}
-  !7 = !{!"OUT", i64 0, ptr null, i64 5}
-  !8 = !{!"OUT", i64 0, ptr null, i64 6}
-  !9 = !{!"OUT", i64 0, ptr null, i64 7}
-  !10 = !{!"OUT", i64 0, ptr null, i64 8}
-  !11 = !{!"OUT", i64 0, ptr null, i64 9}
-  !12 = !{!"OUT", i64 0, ptr null, i64 10}
-  !13 = !{!"OUT", i64 0, ptr null, i64 11}
-  !14 = !{!"OUT", i64 0, ptr null, i64 12}
-  !15 = !{!"OUT", i64 0, ptr null, i64 13}
-  !16 = !{!"OUT", i64 0, ptr null, i64 14}
-  !17 = !{!"OUT", i64 0, ptr null, i64 15}
-  !18 = !{!"OUT", i64 0, ptr null, i64 16}
-  !19 = !{!"OUT", i64 0, ptr null, i64 17}
+  !0 = distinct !{!1, !2, !3, !4, !5, !6, !7, !8, !9, !10, !11, !12, !13, !14, !15, !16, !17, !18}
+  !1 = !{!"IN", i64 0, i64 8, i64 0, ptr null, i64 0}
+  !2 = !{!"IN", i64 0, i64 8, i64 0, ptr null, i64 1}
+  !3 = !{!"OUT", i64 0, i64 0, i64 1, ptr null, i64 2}
+  !4 = !{!"OUT", i64 0, i64 0, i64 1, ptr null, i64 3}
+  !5 = !{!"OUT", i64 0, i64 0, i64 1, ptr null, i64 4}
+  !6 = !{!"OUT", i64 0, i64 0, i64 1, ptr null, i64 5}
+  !7 = !{!"OUT", i64 0, i64 0, i64 1, ptr null, i64 6}
+  !8 = !{!"OUT", i64 0, i64 0, i64 1, ptr null, i64 7}
+  !9 = !{!"OUT", i64 0, i64 0, i64 1, ptr null, i64 8}
+  !10 = !{!"OUT", i64 0, i64 0, i64 1, ptr null, i64 9}
+  !11 = !{!"OUT", i64 0, i64 0, i64 1, ptr null, i64 10}
+  !12 = !{!"OUT", i64 0, i64 0, i64 1, ptr null, i64 11}
+  !13 = !{!"OUT", i64 0, i64 0, i64 1, ptr null, i64 12}
+  !14 = !{!"OUT", i64 0, i64 0, i64 1, ptr null, i64 13}
+  !15 = !{!"OUT", i64 0, i64 0, i64 1, ptr null, i64 14}
+  !16 = !{!"OUT", i64 0, i64 0, i64 1, ptr null, i64 15}
+  !17 = !{!"OUT", i64 0, i64 0, i64 1, ptr null, i64 16}
+  !18 = !{!"OUT", i64 0, i64 0, i64 1, ptr null, i64 17}
 
 ...
 ---
