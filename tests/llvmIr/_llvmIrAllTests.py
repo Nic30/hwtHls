@@ -23,6 +23,7 @@ from tests.llvmIr.slicesMergePass_select_test import SlicesMergePass_select_TC
 from tests.llvmIr.slicesMergePass_test import SlicesMergePass_TC
 from tests.llvmIr.slicesToIndependentVariablesPass_test import SlicesToIndependentVariablesPass_TC
 from tests.testCaseUtils import testSuiteFromTCs
+from tests.llvmIr.HwtHlsInstCombinePass_concat_test import HwtHlsInstCombinePass_concat_TC
 
 
 llvmIr_TCs = [
@@ -35,6 +36,7 @@ llvmIr_TCs = [
     PruneLoopPhiDeadIncomingValuesPass_TC,
     RewriteExtractOnMergeValuesPass_TC,
     HwtHlsInstCombinePass_TC,
+    HwtHlsInstCombinePass_concat_TC,
     HwtHlsInstCombinePass_bitcountExtract_TC,
     HwtHlsInstCombinePass_streamEoFThreading_TC,
     SlicesMergePass_TC,
