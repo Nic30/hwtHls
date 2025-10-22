@@ -8,18 +8,17 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.math import log2ceil
-from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pragmaInstruction import PyBytecodeIntrinsicAssume,\
+from hwtHls.frontend.pragmaInstruction import PyBytecodeIntrinsicAssume, \
     setHasNoUnsignedWrap
 from hwtHls.frontend.pragmaLoop import PyBytecodeStreamLoopUnroll
 from hwtHls.frontend.pragmaPreproc import PyBytecodeBlockLabel
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4s import Axi4Stream
 from pyMathBitPrecise.bit_utils import round_up_to_multiple_of
 from tests.io.amba.axi4Stream.axi4sCopyByteByByte import Axi4SPacketCopyByteByByteHs
-
 
 
 class Axi4SPacketTrimByteByByte0(HwModule):
@@ -241,7 +240,6 @@ class Axi4SPacketTrimByteByByte3(Axi4SPacketTrimByteByByte0):
             tx.writeEndOfFrame()
             rx.readEndOfFrame()
 
-
 """
 How is Axi4SPacketTrimByteByByte4 compiled:
 
@@ -339,6 +337,8 @@ How is Axi4SPacketTrimByteByByte4 compiled:
   
   
 """
+
+
 class Axi4SPacketTrimByteByByte4(Axi4SPacketTrimByteByByte0):
     """
     Axi4SPacketTrimByteByByte2 with setHasNoUnsignedWrap
@@ -510,8 +510,8 @@ if __name__ == "__main__":
     sys.setrecursionlimit(int(1e6))
 
     m = Axi4SPacketTrimByteByByte4()
-    m.OUT_MAX_LEN = 162
-    m.DATA_WIDTH = 8 * 8
+    m.OUT_MAX_LEN = 2
+    m.DATA_WIDTH = 1 * 8
     m.UNROLL = PyBytecodeStreamLoopUnroll
     # m.UNROLL = False
     # m.OUT_DATA_WIDTH = 8
@@ -519,6 +519,7 @@ if __name__ == "__main__":
         debugFilter=HlsDebugBundle.ALL_RELIABLE,
         llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
                      LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+                     #LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
                      # LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL,
                      # LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
                      # LLVM_CLI_COMMON_OPTS.printBefore("hwtHls::HwtHlsSimplifyCFGPass"),
