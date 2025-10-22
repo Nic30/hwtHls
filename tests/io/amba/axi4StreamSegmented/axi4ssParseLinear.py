@@ -77,7 +77,7 @@ if __name__ == "__main__":
     from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
 
     m = Axi4SSParse2fields()
-    m.SEGMENT_DATA_WIDTH = 8
+    m.SEGMENT_DATA_WIDTH = 64
     m.SEGMENT_CNT = 2
     p = VirtualHlsPlatform(
         debugFilter=HlsDebugBundle.ALL_RELIABLE,
