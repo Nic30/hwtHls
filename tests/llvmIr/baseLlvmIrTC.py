@@ -1,15 +1,17 @@
 from itertools import takewhile, chain
 import os
 import re
+from typing import List
 
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, SMDiagnostic, parseIR, Function, verifyModule
 from tests.baseSsaTest import BaseSsaTC
-from typing import List
+
 
 RE_HWTHLS_FN_CALL = re.compile(r'call (i[0-9]+|void|double) '  # return type
                                r'@hwtHls.('
                                    r'bitRangeGet|bitConcat|'
                                    r'streamWrite|streamWriteStartOfFrame|streamWriteEndOfFrame|streamWrite\.masked|'
+                                   r'streamTmpAllocaTmpSetterPlaceholder|'
                                    r'streamRead|streamReadStartOfFrame|streamReadEndOfFrame|'
                                    r'fp\.castToHFloatTmp|'
                                    r'fp\.castHFloatTmpToHFloatTmp|'
@@ -18,18 +20,22 @@ RE_HWTHLS_FN_CALL = re.compile(r'call (i[0-9]+|void|double) '  # return type
                                r')'  # fn name stem
                                r'((\.(i?[0-9]+|p[0-9]+|isVoid|double))+)'  # '.' separated arg types in function names
                                r'\(.*\)'  # args ignored
-                               r'( #(\d+))'  # attribute id after definition
+                               r'( #(\d+))?'  # attribute id after definition
                                )
 
 
-def _formatPointerTypeShortAsNormal(ptrType: str):
+def _formatPointerTypeShortAsNormal(ptrType: str) -> str:
     "p2 ->  ptr addrspace(2)"
     assert ptrType.startswith("p"), ptrType
-    return f"ptr addrspace({ptrType[1:]:s})"
+    addrSpace = ptrType[1:]
+    if addrSpace == "0":
+        return "ptr"
+    else:
+        return f"ptr addrspace({ptrType[1:]:s})"
 
 
 def _formatParamsForStreamFnDeclaration(argTy: List[str]):
-    return ", ".join(f"{t:s} %{i}" if i > 0 else _formatPointerTypeShortAsNormal(t) for i, t in enumerate(argTy))
+    return ", ".join(f"{t:s} %{i}" if t.startswith("i") else _formatPointerTypeShortAsNormal(t) for i, t in enumerate(argTy))
 
 
 def generateAndAppendHwtHlsFunctionDeclarations(llvmIrStr:str):
@@ -56,6 +62,12 @@ def generateAndAppendHwtHlsFunctionDeclarations(llvmIrStr:str):
             # %ret = call i10 @hwtHls.bitConcat.i8.i1.i1(i8 %1, i1 %2, i1 %3) #2
             params = ", ".join(f"{t:s} %{i}" for i, t in enumerate(argTy))
             declarations.add(f"{indent:s}declare {retTy:s} @hwtHls.bitConcat{_argTy:s}({params:s}) #1")
+        elif fnName == "streamTmpAllocaTmpSetterPlaceholder":
+            # call void @hwtHls.streamTmpAllocaTmpSetterPlaceholder.p0(ptr %txDataOffset)
+            # %ret = call i10 @hwtHls.bitConcat.i8.i1.i1(i8 %1, i1 %2, i1 %3) #2
+            assert len(argTy) == 1
+            params = _formatPointerTypeShortAsNormal(argTy[0])
+            declarations.add(f"{indent:s}declare {retTy:s} @hwtHls.streamTmpAllocaTmpSetterPlaceholder{_argTy:s}({params:s})")
         elif fnName in {"streamWrite", "streamWriteStartOfFrame", "streamWriteEndOfFrame", "streamWrite.masked",
                         "streamRead", "streamReadStartOfFrame", "streamReadEndOfFrame"}:
             # call void @hwtHls.streamWriteStartOfFrame.p2(ptr addrspace(2) %tx) #4
@@ -76,7 +88,7 @@ def generateAndAppendHwtHlsFunctionDeclarations(llvmIrStr:str):
             # declare double @hwtHls.fp.castToHFloatTmp.i5(i5, i1, i8, i8, i1, i1, i1, i1, i1, i1, i8, i8) #5
             # declare i5 @hwtHls.fp.castFromHFloatTmp.i5(double, i1, i8, i8, i1, i1, i1, i1, i1, i1, i8, i8) #5
             hasFpFns = True
-            
+
             if fnName == "fp.castToHFloatTmp":
                 assert retTy == "double", (retTy, fn)
             elif fnName == "fp.castFromHFloatTmp":
@@ -91,7 +103,7 @@ def generateAndAppendHwtHlsFunctionDeclarations(llvmIrStr:str):
                 assert argTy[0] != "double", (argTy[0], fn)
                 assert argTy[1] != "double", (argTy[1], fn)
                 argTy = [argTy[0], *hfloatTmpConfigArgTypes]
-                
+
             params = ", ".join(f"{t:s} %{i}" for i, t in enumerate(chain(argTy, hfloatTmpConfigArgTypes)))
             declarations.add(f"{indent:s}declare {retTy:s} @hwtHls.{fnName:s}{_argTy:s}({params:s}) #5")
 
