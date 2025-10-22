@@ -24,7 +24,7 @@ bb.forwardUntilEoF:
   %r2.eof = icmp ne i134 %r2, 0
   %r2.ext = zext i134 %r2 to i135
   store volatile i135 %r2.ext, ptr addrspace(2) %tx, align 32
-  br i1 %r2.eof, label %bb.consumePendingOnLast, label %bb.forwardUntilEoF, !llvm.loop !5
+  br i1 %r2.eof, label %bb.consumePendingOnLast, label %bb.forwardUntilEoF, !llvm.loop !6
 
 bb.consumePendingOnLast:
   %r.phi.ext = zext i134 %r.phi to i135
@@ -35,8 +35,9 @@ bb.consumePendingOnLast:
 
 !0 = !{!"function_entry_count", i64 1}
 !1 = distinct !{!2, !4}
-!2 = !{!"IN", i64 0, i64 268, i64 0, i1 true, ptr null, i64 0, i64 0, ptr null, ptr null, ptr null, !3, ptr null}
-!3 = !{i32 128, i32 8, !"enable+empty", i32 0, !"eof", i32 0, i32 2}
-!4 = !{!"OUT", i64 0, i64 268, i64 268, i1 true, ptr null, i64 1, i64 0, ptr null, ptr null, ptr null, !3, ptr null}
-!5 = distinct !{!5, !6}
-!6 = !{!"hwthls.loop.streamsegmentunroll.io", i32 0}
+!2 = !{!"IN", i64 0, i64 268, i64 0, ptr null, i64 0, !3}
+!3 = !{!"hwtHls.io.protocol", !4}
+!4 = !{!"hwtHls.io.protocol.stream", i32 128, i32 8, !"enable+empty", i32 0, !"eof", i32 0, i32 2}
+!5 = !{!"OUT", i64 0, i64 268, i64 268, ptr null, i64 1, !3}
+!6 = distinct !{!6, !7}
+!7 = !{!"hwthls.loop.streamsegmentunroll.io", i32 0}
