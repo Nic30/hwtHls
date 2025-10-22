@@ -3,6 +3,7 @@
 
 from hwtLib.tests.all import unittestMain
 from tests.llvmIr.HwtHlsInstCombinePass_bitcountExtract_test import HwtHlsInstCombinePass_bitcountExtract_TC
+from tests.llvmIr.HwtHlsInstCombinePass_select_test import HwtHlsInstCombinePass_select_TC
 from tests.llvmIr.HwtHlsInstCombinePass_streamEoFThreading_test import HwtHlsInstCombinePass_streamEoFThreading_TC
 from tests.llvmIr.HwtHlsInstCombinePass_test import HwtHlsInstCombinePass_TC
 from tests.llvmIr.LoopRotationNormalizationPass_test import LoopRotationNormalizationPass_TC
@@ -30,6 +31,7 @@ llvmIr_TCs = [
     LlvmIrFunctionMutating_TC,
     SlicesToIndependentVariablesPass_TC,
     HwtHlsSimplifyCFGPass_TC,
+    HwtHlsInstCombinePass_select_TC,
     HwtHlsSimplifyCFGPass_phiToLogicalExp_TC,
     HwtHlsSimplifyCFGPass_streamWrite_TC,
     LoopRotationNormalizationPass_TC,
