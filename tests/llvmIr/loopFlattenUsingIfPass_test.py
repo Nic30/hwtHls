@@ -1,14 +1,29 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function, verifyFunction
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
+from tests.llvmIr.StreamReadLoweringPass_test import StreamReadLoweringPass_TC
+
 
 class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
     __FILE__ = __file__
 
     def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
-        return llvm._testLoopFlattenUsingIfPass()
+        F = llvm._testLoopFlattenUsingIfPass()
+        if verifyFunction(F):
+            print(F)
+            raise AssertionError()
+        return F
+
+    # def _addLoopFlattenUsingIfPass(self, lpm: LoopPassManager):
+    #    lpm.addPass(LoopFlattenUsingIfPass())
+
+    # def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
+    #    F = llvm._runCustomLoopPass(self._addLoopFlattenUsingIfPass)
+
+    def _test_ir_file(self):
+        StreamReadLoweringPass_TC._test_ir_file(self)
 
     def test_notingToReduce(self):
         llvmIr0 = """
@@ -56,7 +71,7 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
         }
         
         !0 = distinct !{!0, !1}
-        !1 = !{!"hwthls.loop.flattenusingif.enable", i32 1}
+        !1 = !{!"hwthls.loop.flattenusingif.mode", !"CHILD_LOOP_ENTRY_IN_SAME_ITERATION"}
         """
         self._test_ll(llvmIr0)
 
@@ -68,7 +83,7 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
         #     v += 16;
         #     while (*c)
         #       v += 32;
-        #     *o = v; 
+        #     *o = v;
         #   *o = v;
         # }
         llvmIr0 = """
@@ -114,7 +129,7 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
         }
         
         !0 = distinct !{!0, !1}
-        !1 = !{!"hwthls.loop.flattenusingif.enable", i32 1}
+        !1 = !{!"hwthls.loop.flattenusingif.mode", !"CHILD_LOOP_ENTRY_IN_SAME_ITERATION"}
         """
         self._test_ll(llvmIr0)
 
@@ -164,7 +179,7 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
         }
         
         !0 = distinct !{!0, !1}
-        !1 = !{!"hwthls.loop.flattenusingif.enable", i32 1}
+        !1 = !{!"hwthls.loop.flattenusingif.mode", !"CHILD_LOOP_ENTRY_IN_SAME_ITERATION"}
         """
         self._test_ll(llvmIr0)
 
@@ -232,7 +247,7 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
         }
 
         !0 = distinct !{!0, !1}
-        !1 = !{!"hwthls.loop.flattenusingif.enable", i32 1}
+        !1 = !{!"hwthls.loop.flattenusingif.mode", !"CHILD_LOOP_ENTRY_IN_SAME_ITERATION"}
         """
         self._test_ll(llvmIr0)
 
@@ -321,9 +336,9 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
         }
         
         !0 = distinct !{!0, !1}
-        !1 = !{!"hwthls.loop.flattenusingif.enable", i32 1}
+        !1 = !{!"hwthls.loop.flattenusingif.mode", !"CHILD_LOOP_ENTRY_IN_SAME_ITERATION"}
         """
-        
+
         self._test_ll(llvmIr0)
 
     def test_whileGuardedWhile2xGuadNested(self):
@@ -333,7 +348,7 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
         #   if (*c) {
         #      while (*c)
         #        v += 16;
-        #   
+        #
         #      if (*c) {
         #         while (*c)
         #           v += 16;
@@ -391,7 +406,7 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
         }
 
         !0 = distinct !{!0, !1}
-        !1 = !{!"hwthls.loop.flattenusingif.enable", i32 1}
+        !1 = !{!"hwthls.loop.flattenusingif.mode", !"CHILD_LOOP_ENTRY_IN_SAME_ITERATION"}
         """
         self._test_ll(llvmIr0)
 
@@ -403,8 +418,8 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
         #     } while (childCond());
         #     fn1();
         # }
-        # 
-        
+        #
+
         llvmIr0 = """
         define void @test_whileDowhile(ptr addrspace(1) %c, ptr addrspace(2) %o) {
           entry:
@@ -436,10 +451,9 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
         }
 
         !0 = distinct !{!0, !1}
-        !1 = !{!"hwthls.loop.flattenusingif.enable", i32 1}
+        !1 = !{!"hwthls.loop.flattenusingif.mode", !"CHILD_LOOP_ENTRY_IN_SAME_ITERATION"}
         """
         self._test_ll(llvmIr0)
-       
 
     def test_dowhileWhile(self):
         # do {
@@ -448,7 +462,7 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
         #         childBody();
         #     fn1();
         # } while (parentCond());
-        
+
         llvmIr0 = """
         define void @test_dowhileWhile(ptr addrspace(1) %c, ptr addrspace(2) %o) {
           entry:
@@ -477,11 +491,10 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
         }
 
         !0 = distinct !{!0, !1}
-        !1 = !{!"hwthls.loop.flattenusingif.enable", i32 1}
+        !1 = !{!"hwthls.loop.flattenusingif.mode", !"CHILD_LOOP_ENTRY_IN_SAME_ITERATION"}
         """
         self._test_ll(llvmIr0)
-    
-    
+
     def test_dowhileDowhile(self):
         # do {
         #     fn0();
@@ -519,11 +532,10 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
         }
 
         !0 = distinct !{!0, !1}
-        !1 = !{!"hwthls.loop.flattenusingif.enable", i32 1}
+        !1 = !{!"hwthls.loop.flattenusingif.mode", !"CHILD_LOOP_ENTRY_IN_SAME_ITERATION"}
         """
         self._test_ll(llvmIr0)
-    
-    
+
     def test_whileSize(self):
         # size = 0
         # while True:
@@ -532,10 +544,10 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
         #         # hileSize
         #         *size = self.dataOut
         #         size = size - 1
-        #     
+        #
         #     # read
         #     size = *dataIn
-        # 
+        #
         llvmIr0 = """
         define void @test_whileSize(ptr addrspace(1) %dataIn, ptr addrspace(2) %dataOut) {
         entry:
@@ -565,17 +577,21 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
         }
 
         !0 = distinct !{!0, !1}
-        !1 = !{!"hwthls.loop.flattenusingif.enable", i32 1}
+        !1 = !{!"hwthls.loop.flattenusingif.mode", !"CHILD_LOOP_ENTRY_IN_SAME_ITERATION"}
         """
         self._test_ll(llvmIr0)
-    
-    
+
+        __FILE__ = __file__
+
+    def test_1loop(self):
+        self._test_ir_file()
+
 
 if __name__ == "__main__":
     import unittest
     import sys
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([LoopFlattenUsingIfPass_TC('test_dowhileDowhile')])
+    # suite = unittest.TestSuite([LoopFlattenUsingIfPass_TC('test_whileGuardedWhile2xGuadNested')])
     suite = testLoader.loadTestsFromTestCase(LoopFlattenUsingIfPass_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     sys.exit(not runner.run(suite).wasSuccessful())
