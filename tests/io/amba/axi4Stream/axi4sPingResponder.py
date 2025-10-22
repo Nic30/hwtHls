@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.hdl.types.defs import BIT
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.struct import HStruct
 from hwt.hwIOs.std import HwIOSignal
 from hwt.hwIOs.utils import addClkRstn
@@ -9,9 +9,9 @@ from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInPreproc, \
     PyBytecodePreprocHwCopy
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
 from hwtHls.platform.virtual import VirtualHlsPlatform
@@ -22,6 +22,7 @@ from hwtLib.types.net.ethernet import Eth2Header_t, ETHER_TYPE
 from hwtLib.types.net.icmp import ICMP_echo_header_t, ICMP_TYPE
 from hwtLib.types.net.ip import IPv4Header_t, ipv4_t, IP_PROTOCOL
 from pyMathBitPrecise.bit_utils import reverse_byte_order
+
 
 echoFrame_t = HStruct(
     (Eth2Header_t, "eth"),
@@ -72,7 +73,7 @@ class Axi4SPingResponder(HwModule):
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope, rx: IoProxyAxi4Stream, tx: IoProxyAxi4Stream):
-        while BIT.from_py(1):
+        while b1:
             myIp = hls.read(self.myIp).data
             rx.readStartOfFrame()
             p = PyBytecodeInPreproc(rx.read(echoFrame_t))

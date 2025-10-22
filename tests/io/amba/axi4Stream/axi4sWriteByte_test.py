@@ -5,7 +5,7 @@ import unittest
 
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtLib.amba.axi4s import axi4s_receive_bytes
+from hwtLib.amba.axi4sSimFrameUtils import axi4s_receive_bytes
 from hwtSimApi.constants import CLK_PERIOD
 from tests.io.amba.axi4Stream.axi4sWriteByte import Axi4SWriteByte
 

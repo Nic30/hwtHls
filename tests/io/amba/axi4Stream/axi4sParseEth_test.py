@@ -7,7 +7,7 @@ import unittest
 from hwt.hdl.types.bits import HBits
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtLib.amba.axi4s import axi4s_send_bytes
+from hwtLib.amba.axi4sSimFrameUtils import axi4s_send_bytes
 from hwtLib.types.net.ethernet import Eth2Header_t, ETHER_TYPE
 from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import  int_to_int_list
