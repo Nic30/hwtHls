@@ -29,7 +29,7 @@ bb.wh.wh.preheader:                               ; preds = %bb.wh.if
 
 bb.wh.wh:                                         ; preds = %bb.wh, %bb.wh.wh.preheader
   %beginTmp2.1 = phi i8 [ %beginTmp2.0, %bb.wh ], [ %beginTmp, %bb.wh.wh.preheader ]
-  %v2 = phi i8 [ %v1, %bb.wh.wh.preheader ], [ %v0, %bb.wh ]
+  %v2 = phi i8 [ %v0, %bb.wh ], [ %v1, %bb.wh.wh.preheader ]
   %c1 = load volatile i1, ptr addrspace(1) %c, align 1
   br i1 %c1, label %bb.wh.wh.body, label %bb.fn1.loopexit
 

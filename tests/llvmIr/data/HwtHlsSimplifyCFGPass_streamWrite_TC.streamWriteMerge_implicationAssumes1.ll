@@ -1,12 +1,9 @@
-define void @streamWriteMerge_implicationAssumes1(ptr addrspace(1) %rx, ptr addrspace(2) %tx) {
+define void @streamWriteMerge_implicationAssumes1(ptr addrspace(1) %rx, ptr addrspace(2) %tx) !hwtHls.io !0 {
 bb0:
-  br label %loop.pkt
-
-loop.pkt:                                         ; preds = %loop.pkt.lastCheck.6.writesExit, %bb0
   br label %loop.pkt.read
 
-loop.pkt.read:                                    ; preds = %loop.pkt.lastCheck.6.writesExit, %loop.pkt
-  %curLen.013 = phi i9 [ 0, %loop.pkt ], [ %38, %loop.pkt.lastCheck.6.writesExit ]
+loop.pkt.read:                                    ; preds = %loop.pkt.lastCheck.6.writesExit, %bb0
+  %curLen.013 = phi i9 [ 0, %bb0 ], [ %spec.select, %loop.pkt.lastCheck.6.writesExit ]
   %.w0 = load volatile i64, ptr addrspace(1) %rx, align 8
   %0 = call i6 @hwtHls.bitRangeGet.i64.i7.i6.57(i64 %.w0, i7 57) #4
   %1 = call i5 @hwtHls.bitRangeGet.i64.i7.i5.57(i64 %.w0, i7 57) #4
@@ -114,32 +111,34 @@ loop.pkt.read:                                    ; preds = %loop.pkt.lastCheck.
   %.236 = select i1 %49, i8 undef, i8 %15
   %.233 = and i1 %47, %.031
   %.2 = select i1 %22, i8 undef, i8 %14
-  %63 = or i1 %6, %writeEn3.1
-  %64 = or i1 %63, %.streamWrite.en19.2
-  %65 = or i1 %64, %.streamWrite.en21.2
-  %66 = or i1 %65, %.streamWrite.en23.2
-  %67 = or i1 %66, %.streamWrite.en25.2
-  %68 = call i48 @hwtHls.bitConcat.i8.i8.i8.i8.i8.i8(i8 %13, i8 %.2, i8 %.236, i8 %.242, i8 %.248, i8 %.254) #4
-  %69 = call i6 @hwtHls.bitConcat.i1.i1.i1.i1.i1.i1(i1 %6, i1 %writeEn3.1, i1 %.streamWrite.en19.2, i1 %.streamWrite.en21.2, i1 %.streamWrite.en23.2, i1 %.streamWrite.en25.2) #4
-  %70 = or i1 %.029, %.233
-  %71 = or i1 %70, %.239
-  %72 = or i1 %71, %.245
-  %73 = or i1 %72, %.251
-  %74 = or i1 %73, %.257
-  %75 = select i1 %67, i6 %69, i6 0
-  br i1 %67, label %loop.pkt.write.5.streamWrite.sinked, label %76
+  %impCache1 = icmp ule i1 %writeEn3.1, %6
+  call void @llvm.assume(i1 %impCache1)
+  %63 = or i1 %6, %.streamWrite.en19.2
+  %64 = or i1 %63, %.streamWrite.en21.2
+  %65 = or i1 %64, %.streamWrite.en23.2
+  %66 = or i1 %65, %.streamWrite.en25.2
+  %67 = call i48 @hwtHls.bitConcat.i8.i8.i8.i8.i8.i8(i8 %13, i8 %.2, i8 %.236, i8 %.242, i8 %.248, i8 %.254) #4
+  %68 = call i6 @hwtHls.bitConcat.i1.i1.i1.i1.i1.i1(i1 %6, i1 %writeEn3.1, i1 %.streamWrite.en19.2, i1 %.streamWrite.en21.2, i1 %.streamWrite.en23.2, i1 %.streamWrite.en25.2) #4
+  %69 = or i1 %.029, %.233
+  %70 = or i1 %69, %.239
+  %71 = or i1 %70, %.245
+  %72 = or i1 %71, %.251
+  %73 = or i1 %72, %.257
+  %74 = select i1 %66, i6 %68, i6 0
+  br i1 %66, label %loop.pkt.write.5.streamWrite.sinked, label %75
 
 loop.pkt.write.5.streamWrite.sinked:              ; preds = %loop.pkt.read
-  call void @hwtHls.streamWrite.masked.p2.i48.i6.i1(ptr addrspace(2) %tx, i48 %68, i6 %69, i1 %74) #5
-  br label %76
+  call void @hwtHls.streamWrite.masked.p2.i48.i6.i1.i1.p0(ptr addrspace(2) %tx, i48 %67, i6 %68, i1 false, i1 %73, ptr null) #5
+  br label %75
 
-76:                                               ; preds = %loop.pkt.write.5.streamWrite.sinked, %loop.pkt.read
+75:                                               ; preds = %loop.pkt.write.5.streamWrite.sinked, %loop.pkt.read
   br i1 %.streamWrite.en27.2, label %loop.pkt.write.6.streamWrite.sinked, label %loop.pkt.lastCheck.6.writesExit
 
-loop.pkt.write.6.streamWrite.sinked:              ; preds = %76
-  call void @hwtHls.streamWrite.p2.i8.i1(ptr addrspace(2) %tx, i8 %.260, i1 %.263) #5
+loop.pkt.write.6.streamWrite.sinked:              ; preds = %75
+  call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %.260, i1 false, i1 %.263, ptr null) #5
   br label %loop.pkt.lastCheck.6.writesExit
 
-loop.pkt.lastCheck.6.writesExit:                  ; preds = %loop.pkt.write.6.streamWrite.sinked, %76
-  br i1 %12, label %loop.pkt, label %loop.pkt.read
+loop.pkt.lastCheck.6.writesExit:                  ; preds = %loop.pkt.write.6.streamWrite.sinked, %75
+  %spec.select = select i1 %12, i9 0, i9 %38
+  br label %loop.pkt.read
 }

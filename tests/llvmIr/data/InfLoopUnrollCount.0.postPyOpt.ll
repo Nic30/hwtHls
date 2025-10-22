@@ -3,7 +3,7 @@ bb0:
   br label %entry
 
 entry:                                            ; preds = %bb0
-  %i = alloca i8, align 1, !hwtHls.tmp.alloca !3
+  %i = alloca i8, align 1, !hwtHls.tmp.alloca !2
   store i8 undef, ptr %i, align 1
   store i8 0, ptr %i, align 1
   br label %loopHeader
@@ -16,5 +16,5 @@ loopHeader:                                       ; preds = %blockL108i0_262, %e
   br label %blockL108i0_262
 
 blockL108i0_262:                                  ; preds = %loopHeader
-  br label %loopHeader, !llvm.loop !4
+  br label %loopHeader, !llvm.loop !3
 }

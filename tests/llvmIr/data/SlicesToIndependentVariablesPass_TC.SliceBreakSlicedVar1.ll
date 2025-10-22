@@ -3,7 +3,7 @@ bb0:
   br label %block0
 
 block0:                                           ; preds = %bb0
-  %x = alloca i32, align 4, !hwtHls.tmp.alloca !3
+  %x = alloca i32, align 4, !hwtHls.tmp.alloca !2
   store i32 undef, ptr %x, align 4
   store i32 0, ptr %x, align 4
   store i32 2, ptr %x, align 4

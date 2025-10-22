@@ -1,12 +1,9 @@
-define void @streamWriteMerge_implicationAssumes0(ptr addrspace(1) %rx, ptr addrspace(2) %tx) {
+define void @streamWriteMerge_implicationAssumes0(ptr addrspace(1) %rx, ptr addrspace(2) %tx) !hwtHls.io !0 {
 bb0:
-  br label %loop.pkt
-
-loop.pkt:                                         ; preds = %loop.pkt.lastCheck, %bb0
   br label %loop.pkt.read
 
-loop.pkt.read:                                    ; preds = %loop.pkt.lastCheck, %loop.pkt
-  %curLen.0 = phi i9 [ 0, %loop.pkt ], [ %20, %loop.pkt.lastCheck ]
+loop.pkt.read:                                    ; preds = %loop.pkt.lastCheck, %bb0
+  %curLen.0 = phi i9 [ 0, %bb0 ], [ %spec.select, %loop.pkt.lastCheck ]
   %.w0 = load volatile i37, ptr addrspace(1) %rx, align 8
   %0 = call i3 @hwtHls.bitRangeGet.i37.i7.i3.33(i37 %.w0, i7 33) #4
   %1 = call i2 @hwtHls.bitRangeGet.i37.i7.i2.33(i37 %.w0, i7 33) #4
@@ -75,19 +72,20 @@ loop.pkt.read:                                    ; preds = %loop.pkt.lastCheck,
   %35 = or i1 %eof.0, %eof.1
   %36 = or i1 %35, %eof.2
   %37 = select i1 %4, i3 %34, i3 0
-  br i1 %4, label %bb.w2, label %bb.w3.guard
+  br i1 %4, label %bb.w3.guard.streamWrMerge, label %38
 
-bb.w2:                                            ; preds = %loop.pkt.read
-  call void @hwtHls.streamWrite.masked.p2.i24.i3.i1(ptr addrspace(2) %tx, i24 %33, i3 %34, i1 %36) #5
-  br label %bb.w3.guard
+bb.w3.guard.streamWrMerge:                        ; preds = %loop.pkt.read
+  call void @hwtHls.streamWrite.masked.p2.i24.i3.i1.i1.p0(ptr addrspace(2) %tx, i24 %33, i3 %34, i1 false, i1 %36, ptr null) #5
+  br label %38
 
-bb.w3.guard:                                      ; preds = %bb.w2, %loop.pkt.read
+38:                                               ; preds = %loop.pkt.read, %bb.w3.guard.streamWrMerge
   br i1 %.streamWrite.en21.2, label %bb.w3, label %loop.pkt.lastCheck
 
-bb.w3:                                            ; preds = %bb.w3.guard
-  call void @hwtHls.streamWrite.p2.i8.i1(ptr addrspace(2) %tx, i8 %data.3, i1 %eof.3) #5
+bb.w3:                                            ; preds = %38
+  call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %data.3, i1 false, i1 %eof.3, ptr null) #5
   br label %loop.pkt.lastCheck
 
-loop.pkt.lastCheck:                               ; preds = %bb.w3, %bb.w3.guard
-  br i1 %rx.last, label %loop.pkt, label %loop.pkt.read
+loop.pkt.lastCheck:                               ; preds = %bb.w3, %38
+  %spec.select = select i1 %rx.last, i9 0, i9 %20
+  br label %loop.pkt.read
 }

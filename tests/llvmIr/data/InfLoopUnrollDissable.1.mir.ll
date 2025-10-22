@@ -11,14 +11,13 @@
     %i.0 = phi i8 [ 0, %bb0 ], [ %0, %loopHeader ]
     store volatile i8 %i.0, ptr addrspace(1) %o, align 1
     %0 = add i8 %i.0, 1
-    br label %loopHeader, !llvm.loop !3
+    br label %loopHeader, !llvm.loop !2
   }
   
-  !0 = distinct !{!0, !1}
-  !1 = !{!2}
-  !2 = !{!"OUT", i64 0, ptr null, i64 0}
-  !3 = distinct !{!3, !4}
-  !4 = !{!"llvm.loop.unroll.dissable"}
+  !0 = distinct !{!1}
+  !1 = !{!"OUT", i64 0, i64 0, i64 8, ptr null, i64 0}
+  !2 = distinct !{!2, !3}
+  !3 = !{!"llvm.loop.unroll.dissable"}
 
 ...
 ---

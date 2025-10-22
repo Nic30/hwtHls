@@ -9,7 +9,6 @@ loop.pkt.read:                                    ; preds = %bb.w.exit, %loop.pk
   %curLen.0.in = phi i2 [ 0, %loop.pkt ], [ %13, %bb.w.exit ]
   %0 = load volatile i4, ptr addrspace(1) %rx, align 1
   %1 = call i2 @hwtHls.bitRangeGet.i4.i3.i2.1(i4 %0, i3 1) #3
-  %2 = call i2 @hwtHls.bitRangeGet.i4.i3.i2.2(i4 %0, i3 2) #3
   %strb = call i3 @hwtHls.bitRangeGet.i4.i3.i3.0(i4 %0, i3 0) #3
   %strb0 = call i1 @hwtHls.bitRangeGet.i4.i3.i1.0(i4 %0, i3 0) #3
   %strb1 = call i1 @hwtHls.bitRangeGet.i4.i3.i1.1(i4 %0, i3 1) #3
@@ -21,8 +20,8 @@ loop.pkt.read:                                    ; preds = %bb.w.exit, %loop.pk
   call void @llvm.assume(i1 %maskBitNonLastImpl)
   %prevMaskBit1Impl33 = icmp ule i1 %strb2, %strb1
   call void @llvm.assume(i1 %prevMaskBit1Impl33)
-  %maskBitNonLastImpl34 = icmp ne i2 %2, 0
-  call void @llvm.assume(i1 %maskBitNonLastImpl34)
+  %2 = or i1 %last, %strb2
+  call void @llvm.assume(i1 %2)
   %3 = icmp eq i3 %strb, -1
   %maskAll1ifLastImpl = or i1 %last, %3
   call void @llvm.assume(i1 %maskAll1ifLastImpl)

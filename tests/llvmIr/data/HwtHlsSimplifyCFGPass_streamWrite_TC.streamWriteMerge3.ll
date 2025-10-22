@@ -1,4 +1,4 @@
-define void @streamWriteMerge3(ptr addrspace(1) %rx, ptr addrspace(2) %tx) {
+define void @streamWriteMerge3(ptr addrspace(1) %rx, ptr addrspace(2) %tx) !hwtHls.io !0 {
 bb0:
   br label %loop.pkt
 
@@ -6,8 +6,8 @@ loop.pkt:                                         ; preds = %bb.writeExit.1, %bb
   call void @hwtHls.streamWriteStartOfFrame.p2(ptr addrspace(2) %tx) #3
   br label %loop.pkt.read
 
-loop.pkt.read:                                    ; preds = %bb.writeExit, %loop.pkt
-  %curLen.015 = phi i11 [ 0, %loop.pkt ], [ %curLen.116.2, %bb.writeExit ]
+loop.pkt.read:                                    ; preds = %21, %loop.pkt
+  %curLen.015 = phi i11 [ 0, %loop.pkt ], [ %curLen.116.2, %21 ]
   %.w0 = load volatile i28, ptr addrspace(1) %rx, align 4
   %0 = call i8 @hwtHls.bitRangeGet.i28.i6.i8.0(i28 %.w0, i6 0) #4
   %1 = call i2 @hwtHls.bitRangeGet.i28.i6.i2.25(i28 %.w0, i6 25) #4
@@ -41,20 +41,22 @@ loop.pkt.read:                                    ; preds = %bb.writeExit, %loop
   %eof.1 = and i1 %.025, %13
   %.2 = select i1 %8, i8 undef, i8 %5
   %sig_7 = or i1 %8, %9
+  %impCache = icmp ule i1 %write1.en, %write0.en
+  call void @llvm.assume(i1 %impCache)
   %17 = or i1 %sig_7, %eof.1
-  br i1 %write0.en, label %bb.write2, label %bb.writeExit
+  br i1 %write0.en, label %bb.writeExit.streamWrMerge, label %21
 
-bb.write2:                                        ; preds = %loop.pkt.read
+bb.writeExit.streamWrMerge:                       ; preds = %loop.pkt.read
   %18 = call i24 @hwtHls.bitConcat.i8.i8.i8(i8 %0, i8 %.2, i8 %.230) #4
   %19 = call i3 @hwtHls.bitConcat.i1.i1.i1(i1 %write0.en, i1 %write1.en, i1 %write2.en) #4
   %20 = or i1 %17, %eof.2
-  call void @hwtHls.streamWrite.masked.p2.i24.i3.i1(ptr addrspace(2) %tx, i24 %18, i3 %19, i1 %20) #3
-  br label %bb.writeExit
+  call void @hwtHls.streamWrite.masked.p2.i24.i3.i1.i1.p0(ptr addrspace(2) %tx, i24 %18, i3 %19, i1 false, i1 %20, ptr null) #3
+  br label %21
 
-bb.writeExit:                                     ; preds = %bb.write2, %loop.pkt.read
+21:                                               ; preds = %loop.pkt.read, %bb.writeExit.streamWrMerge
   br i1 %2, label %bb.writeExit.1, label %loop.pkt.read
 
-bb.writeExit.1:                                   ; preds = %bb.writeExit
+bb.writeExit.1:                                   ; preds = %21
   call void @hwtHls.streamWriteEndOfFrame.p2(ptr addrspace(2) %tx) #3
   br label %loop.pkt
 }

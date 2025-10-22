@@ -24,9 +24,9 @@ bb0:
   %20 = call i1 @hwtHls.bitRangeGet.i3.i3.i1.2(i3 %18, i3 2) #1
   %21 = call i1 @hwtHls.bitRangeGet.i3.i3.i1.1(i3 %18, i3 1) #1
   %22 = xor i1 %9, %19
-  %23 = call i2 @hwtHls.bitConcat.i1.i1(i1 %10, i1 %10) #1
+  %23 = sext i1 %10 to i2
   %24 = call i2 @hwtHls.bitConcat.i1.i1(i1 %22, i1 %21) #1
-  %.opConc2 = xor i2 %23, %24
+  %.opConc2 = xor i2 %24, %23
   %25 = xor i5 %8, %7
   %26 = xor i5 %6, %25
   %27 = call i4 @hwtHls.bitRangeGet.i5.i4.i4.0(i5 %26, i4 0) #1

@@ -15,7 +15,7 @@ preheader:                                        ; preds = %mainLoop.split
   br label %whileSize
 
 whileSize:                                        ; preds = %mainLoop, %preheader
-  %size.1 = phi i8 [ %size.0, %preheader ], [ %size.0, %mainLoop ]
+  %size.1 = phi i8 [ %size.0, %mainLoop ], [ %size.0, %preheader ]
   store volatile i8 %size.1, ptr addrspace(2) %dataOut, align 1
   %size.1.sub1 = sub i8 %size.1, 1
   %"5" = icmp ne i8 %size.1.sub1, 0

@@ -19,7 +19,7 @@ bb.fn0:                                           ; preds = %bb.wh.body
   br label %bb.wh.wh
 
 bb.wh.wh:                                         ; preds = %bb.wh, %bb.fn0
-  %v2 = phi i8 [ %v1, %bb.fn0 ], [ %v0, %bb.wh ]
+  %v2 = phi i8 [ %v0, %bb.wh ], [ %v1, %bb.fn0 ]
   br label %bb.wh.wh.body
 
 bb.wh.wh.body:                                    ; preds = %bb.wh.wh

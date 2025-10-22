@@ -19,7 +19,7 @@ bb.fn0:                                           ; preds = %bb.wh.body
   br label %bb.wh.wh
 
 bb.wh.wh:                                         ; preds = %bb.wh, %bb.fn0
-  %v2 = phi i8 [ %v1, %bb.fn0 ], [ %v0, %bb.wh ]
+  %v2 = phi i8 [ %v0, %bb.wh ], [ %v1, %bb.fn0 ]
   %c1 = load volatile i1, ptr addrspace(1) %c, align 1
   br i1 %c1, label %bb.wh.wh.body, label %bb.fn1.oldLatch
 

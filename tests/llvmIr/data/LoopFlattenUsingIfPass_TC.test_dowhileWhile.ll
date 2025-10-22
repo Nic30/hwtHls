@@ -15,7 +15,7 @@ bb.fn0:                                           ; preds = %bb.wh.split
   br label %bb.wh.wh
 
 bb.wh.wh:                                         ; preds = %bb.wh, %bb.fn0
-  %v2 = phi i8 [ %v1, %bb.fn0 ], [ %v0, %bb.wh ]
+  %v2 = phi i8 [ %v0, %bb.wh ], [ %v1, %bb.fn0 ]
   %c1 = load volatile i1, ptr addrspace(1) %c, align 1
   br i1 %c1, label %bb.wh.wh.body, label %bb.fn1.oldLatch
 
@@ -30,10 +30,10 @@ bb.fn1.oldLatch:                                  ; preds = %bb.wh.wh
   br label %bb.fn1
 
 bb.fn1:                                           ; preds = %bb.wh.wh.body, %bb.fn1.oldLatch
-  %continue = phi i1 [ %c0, %bb.fn1.oldLatch ], [ true, %bb.wh.wh.body ]
+  %fusedLoopContinueFromBr = phi i1 [ true, %bb.wh.wh.body ], [ %c0, %bb.fn1.oldLatch ]
   %v2.inLatch = phi i8 [ %v3, %bb.wh.wh.body ], [ %v2.lcssa, %bb.fn1.oldLatch ]
   %isChildLoopInLatch.bb.wh.wh = phi i1 [ true, %bb.wh.wh.body ], [ false, %bb.fn1.oldLatch ]
-  br i1 %continue, label %bb.wh, label %bb.wh.exit
+  br i1 %fusedLoopContinueFromBr, label %bb.wh, label %bb.wh.exit
 
 bb.wh.exit:                                       ; preds = %bb.fn1
   ret void
