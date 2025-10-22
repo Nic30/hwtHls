@@ -2,18 +2,25 @@
 # -*- coding: utf-8 -*-
 
 from hwtLib.tests.all import unittestMain
+from tests.llvmIr.HFloatTmpLoweringPass_test import HFloatTmpLoweringPass_TC
 from tests.llvmIr.HwtHlsInstCombinePass_bitcountExtract_test import HwtHlsInstCombinePass_bitcountExtract_TC
 from tests.llvmIr.HwtHlsInstCombinePass_select_test import HwtHlsInstCombinePass_select_TC
 from tests.llvmIr.HwtHlsInstCombinePass_streamEoFThreading_test import HwtHlsInstCombinePass_streamEoFThreading_TC
 from tests.llvmIr.HwtHlsInstCombinePass_test import HwtHlsInstCombinePass_TC
-from tests.llvmIr.LoopRotationNormalizationPass_test import LoopRotationNormalizationPass_TC
+from tests.llvmIr.HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_test import HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_TC
 from tests.llvmIr.HwtHlsSimplifyCFGPass_phiToLogicalExpr_test import HwtHlsSimplifyCFGPass_phiToLogicalExp_TC
 from tests.llvmIr.HwtHlsSimplifyCFGPass_streamWrite_test import HwtHlsSimplifyCFGPass_streamWrite_TC
 from tests.llvmIr.HwtHlsSimplifyCFGPass_test import HwtHlsSimplifyCFGPass_TC
+from tests.llvmIr.HwtHlsSimplifyCFGPass_unswitchComplementarySequentialBlocks_test import HwtHlsSimplifyCFGPass_unswitchComplementarySequentialBlocks_TC
+from tests.llvmIr.LoopRotationNormalizationPass_test import LoopRotationNormalizationPass_TC
+from tests.llvmIr.PruneLoopPhiDeadIncomingValuesPass_test import PruneLoopPhiDeadIncomingValuesPass_TC
 from tests.llvmIr.StreamReadLoweringPass_test import StreamReadLoweringPass_TC
+from tests.llvmIr.ThreadExtractIoFsmPass_ir_test import ThreadExtractIoFsmPass_ir_TC
+from tests.llvmIr.ThreadExtractPass_ir_test import ThreadExtractPass_ir_TC
 from tests.llvmIr.bitWidthReductionPass_Cmp_test import BitWidthReductionPass_Cmp_TCs
 from tests.llvmIr.bitWidthReductionPass_PHI_inLoopHeader_test import BitwidthReductionPass_PHI_inLoopHeader_TC
 from tests.llvmIr.bitWidthReductionPass_PHI_test import BitwidthReductionPass_PHI_TC
+from tests.llvmIr.bitWidthReductionPass_SwitchInst_test import BitWidthReductionPass_SwitchInst_TC
 from tests.llvmIr.bitWidthReduction_test import BitwidthReductionPass_TC
 from tests.llvmIr.functionMutating_test import LlvmIrFunctionMutating_TC
 from tests.llvmIr.llvmLoopUnroll_test import LlvmLoopUnroll_TC
@@ -25,15 +32,19 @@ from tests.llvmIr.slicesMergePass_test import SlicesMergePass_TC
 from tests.llvmIr.slicesToIndependentVariablesPass_test import SlicesToIndependentVariablesPass_TC
 from tests.testCaseUtils import testSuiteFromTCs
 from tests.llvmIr.HwtHlsInstCombinePass_concat_test import HwtHlsInstCombinePass_concat_TC
+from tests.llvmIr.StreamSegmentLoopUnrollPass_test import StreamSegmentLoopUnrollPass_TC
 
 
 llvmIr_TCs = [
     LlvmIrFunctionMutating_TC,
+    HFloatTmpLoweringPass_TC,
     SlicesToIndependentVariablesPass_TC,
     HwtHlsSimplifyCFGPass_TC,
     HwtHlsInstCombinePass_select_TC,
     HwtHlsSimplifyCFGPass_phiToLogicalExp_TC,
     HwtHlsSimplifyCFGPass_streamWrite_TC,
+    HwtHlsSimplifyCFGPass_unswitchComplementarySequentialBlocks_TC,
+    HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_TC,
     LoopRotationNormalizationPass_TC,
     LoopFlattenUsingIfPass_TC,
     PruneLoopPhiDeadIncomingValuesPass_TC,
@@ -47,10 +58,14 @@ llvmIr_TCs = [
     BitwidthReductionPass_TC,
     BitwidthReductionPass_PHI_TC,
     BitwidthReductionPass_PHI_inLoopHeader_TC,
+    BitWidthReductionPass_SwitchInst_TC,
     *BitWidthReductionPass_Cmp_TCs,
     SelectPruningPass_TC,
     LlvmLoopUnroll_TC,
     StreamReadLoweringPass_TC,
+    StreamSegmentLoopUnrollPass_TC,
+    ThreadExtractPass_ir_TC,
+    ThreadExtractIoFsmPass_ir_TC,
 ]
 
 if __name__ == '__main__':
