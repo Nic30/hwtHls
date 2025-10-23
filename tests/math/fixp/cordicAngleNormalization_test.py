@@ -2,21 +2,22 @@
 # -*- coding: utf-8 -*-
 
 from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.utils import addClkRstn
-from hwtHls.llvm.llvmIr import HFloatTmpRounding, HFloatTmpSaturation
-from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from hwtHls.architecture.componentGenerators.baseALU1HwModule import _BaseALU1HwModule
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.pyBytecode import hlsBytecode
+from hwtHls.llvm.llvmIr import HFloatTmpRounding, HFloatTmpSaturation
 from tests.math.fixp.cordicAngleNormalization import anglePiRadsTo0_to_2, \
     getOctantPiRads, normalizeOctantPiradsTo0_to_0_25, \
     cordic_withNormalization0_to_0_25
+from tests.math.fixp.fixpOperatorsCommonArith_test import FixpAdd_TC
+from tests.math.fixp.fixpOperatorsTrigonometric_test import FixpSinNoLutUnroll_TC
 from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
-from tests.math.fixp.fixpOperatorsTrigonometric_test import FixpSinNoLutUnroll_TC
-from tests.math.fixp.fixpOperatorsCommonArith_test import FixpAdd_TC
 
 
 class _CordicAngleNormalizationTestModule(_BaseALU1HwModule):
@@ -58,7 +59,7 @@ class _CordicAngleNormalizationTestModule(_BaseALU1HwModule):
         swapXY, negateX, negateY, _anglePiRad0to0_25Tmp = PyBytecodeInline(normalizeOctantPiradsTo0_to_0_25)(
             octant, anglePiRad0to2)
         _anglePiRad0to0_25 = _anglePiRad0to0_25Tmp._auto_cast(octantNormTy)
-        
+
         resTmp = self._getTypeOfIo(self.data_out).from_py(None)
         resTmp.value = _anglePiRad0to0_25._auto_cast(T)._reinterpret_cast(resTmp.value._dtype)
         resTmp.swapXY = swapXY
@@ -71,13 +72,13 @@ class CordicAngleNormalization_TC(FixpSinNoLutUnroll_TC):
     FP_TY = HFixedPointQ(4, 8, rounding=HFloatTmpRounding.ROUND_FLOOR, saturation=HFloatTmpSaturation.SATURATE_NONE)
     RTL_SIM_TIME_MULTIPLIER = 1.0
     INPUT_DATA = [
-         #0.5,
+         # 0.5,
          *(0.0625 * i for i in range(int((2 / 0.0625) * 1.2))),
          *(-0.0625 * i for i in range(int((2 / 0.0625) * 1.2))),
          # 0.0,
          # 0.1, 0.2, 0.25, 0.5,
          # 1.0
-    ] 
+    ]
 
     def _model(self, a: float) -> float:
         return cordic_withNormalization0_to_0_25(a)
@@ -98,7 +99,7 @@ class CordicAngleNormalization_TC(FixpSinNoLutUnroll_TC):
             a = fpTy.from_py(a)._reinterpret_cast(bitTy)
             yield a
 
-    def getCheckDataOutFn(self, REF_DATA):
+    def getCheckDataOutFn(self, REF_DATA: list[tuple[float, bool, bool, bool]]):
         fpTy: HFixedPointQ = self.FP_TY
         bitTy = HBits(fpTy.bit_length())
         outFpTy = fpTy._createMutated(int_bit_length=2)
@@ -111,14 +112,24 @@ class CordicAngleNormalization_TC(FixpSinNoLutUnroll_TC):
         def toBool(v):
             return bool(v) if v._is_full_valid() else None
 
-        def checkDataOutFn(dataOut):
-            dataOutRef = []
-            for v, swapXY, negateX, negateY in REF_DATA:
-                ref = (int(fpTy.from_py(v)._reinterpret_cast(bitTy)),
-                       int(swapXY), int(negateX), int(negateY))
-                dataOutRef.append(ref)
-            _dataOut = [(toFloat(v[0]), toBool(v[1]), toBool(v[2]), toBool(v[3])) for v in dataOut]
-            self.assertSequenceEqual(_dataOut, REF_DATA, (self.INPUT_DATA, dataOut, "!=", dataOutRef)
+        dataOutRef = []
+        for v, swapXY, negateX, negateY in REF_DATA:
+            ref = (int(fpTy.from_py(v)._reinterpret_cast(bitTy)),
+                   int(swapXY), int(negateX), int(negateY))
+            dataOutRef.append(ref)
+
+        def checkDataOutFn(dataOut: list[HBitsConst, HBitsConst, HBitsConst, HBitsConst]):
+            if dataOut and isinstance(dataOut[0], HBitsConst):
+                # the output record is packed into wide word (ir/mir interpret)
+                w = outBitTy.bit_length()
+                _dataOut = [(toFloat(v[w:]), toBool(v[w]), toBool(v[w + 1]), toBool(v[w + 2])) for v in dataOut]
+            else:
+                # the record is provided as a tuple (rtl sim)
+                _dataOut = [(toFloat(v[0]), toBool(v[1]), toBool(v[2]), toBool(v[3])) for v in dataOut]
+
+            self.assertSequenceEqual(
+                _dataOut, REF_DATA,
+                (self.INPUT_DATA, dataOut, "!=", dataOutRef)
             )
 
         return  checkDataOutFn
