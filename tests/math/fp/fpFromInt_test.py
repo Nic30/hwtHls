@@ -5,13 +5,14 @@ from datetime import datetime
 from pathlib import Path
 
 from hwt.hdl.commonConstants import b1
+from hwt.hdl.types.bits import HBits
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import int64_t, uint64_t
@@ -84,8 +85,9 @@ class IEEE754FpFromInt_TC(SimTestCase):
 
         def prepareDataInFn():
             dataIn = []
+            b64 = HBits(64)
             for a in self.TEST_DATA:
-                dataIn.append(int64_t.from_py(a)._reinterpret_cast(uint64_t))
+                dataIn.append(int64_t.from_py(a)._reinterpret_cast(b64))
             return dataIn
 
         def checkDataOutFn(dataOut):
@@ -111,6 +113,7 @@ class IEEE754FpFromInt_TC(SimTestCase):
             prepareDataInFn,
             checkDataOutFn,
             Path(self.DEFAULT_LOG_DIR, f"{self.getTestName()}"),
+            topToRunTestsOn=dut,
             debugLogTime=TestLlvmIrAndMirPlatform.logTimeToStdout if self.LOG_TIME else None,
             # runTestAfterEachPass=True,
             # runTestAfterEachMirPass=True,
@@ -162,8 +165,8 @@ if __name__ == "__main__":
     # pr.enable()
 
     testLoader = unittest.TestLoader()
-    suite = unittest.TestSuite([IEEE754FpFromInt_TC('test_rlt')])
-    # suite = testLoader.loadTestsFromTestCase(IEEE754FpFromInt_TC)
+    # suite = unittest.TestSuite([IEEE754FpFromInt_TC('test_rlt')])
+    suite = testLoader.loadTestsFromTestCase(IEEE754FpFromInt_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
 
