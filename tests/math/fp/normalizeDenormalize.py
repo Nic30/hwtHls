@@ -3,24 +3,26 @@ from typing import Union, Optional
 from hwt.code import Concat
 from hwt.doc_markers import hwt_expr_producer
 from hwt.hdl.const import HConst
+from hwt.hdl.types.bitConstFunctions import AnyHBitsValue
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.mainBases import RtlSignalBase
 from hwtHls.code import zext, ctlz, shl, hwUMin
-from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaPreproc import PyBytecodeBlockLabel
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from pyMathBitPrecise.bit_utils import mask
 from tests.math.fp.fptypes import IEEE754Fp
 
 
 # https://github.com/sudhamshu091/32-Verilog-Mini-Projects/blob/main/Floating%20Point%20IEEE%20754%20Addition%20Subtraction/Addition_Subtraction.v
 @hwt_expr_producer
-def _denormalize(a: RtlSignalBase[IEEE754Fp], mantisaWidthIncrease=3, expWidthIncrease=1):
+def _denormalize(a: RtlSignalBase[IEEE754Fp], mantisaWidthIncrease=3, expWidthIncrease=1) -> tuple[AnyHBitsValue, AnyHBitsValue]:
     """
     Transform mantissa and exponent in format where mantissa MSB is 1
     and both mantissa and exponent have sufficient bit width to not overflow 
     
-    :note: mantissa +4 bits "MSB 1, mantissa, round, sticky", exponent still in biased form
+    :note: mantissa +4 bits "MSB 1, mantissa, round, sticky", 
+    :note: exponent is in the biased form
     :note: handles subnormal numbers (adds 1 to MSB)
     """
     # :note: contains expression only, no inlining required
@@ -42,7 +44,8 @@ def _denormalize(a: RtlSignalBase[IEEE754Fp], mantisaWidthIncrease=3, expWidthIn
 def fpNormalize(denormalMantissa: RtlSignalBase[HBits],
                 MANTISSA_WIDTH: int,
                 exponent: RtlSignalBase[HBits],
-                underflowAmount: Optional[RtlSignalBase[HBits]]=None):
+                underflowAmount: Optional[RtlSignalBase[HBits]]=None) \
+                ->tuple[AnyHBitsValue, AnyHBitsValue, AnyHBitsValue, AnyHBitsValue, AnyHBitsValue]:
     """
     shift mantissa so MSB is 1, but not if it would make the exponent less than the
     minimum (0) in this case leave the number denormalized
@@ -63,7 +66,7 @@ def fpNormalize(denormalMantissa: RtlSignalBase[HBits],
         raise NotImplementedError()
     leadingZeroCnt = ctlz(denormalMantissa)
     # :note: if underflowAmount != 0, exponent is expected to be 0
-    shiftAmount = hwUMin(exponent, leadingZeroCnt, autoExtend=True) # assert saturation at 0
+    shiftAmount = hwUMin(exponent, leadingZeroCnt, autoExtend=True)  # assert saturation at 0
     mantissa = shl(denormalMantissa, shiftAmount[leadingZeroCnt._dtype.bit_length():])
     exponent = exponent - shiftAmount
 
