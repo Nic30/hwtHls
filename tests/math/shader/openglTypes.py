@@ -26,7 +26,6 @@ from hwtHls.frontend.instructions import NULL
 from hwtHls.frontend.pyBytecodeUtils import ObjectWithHlsStoreOverride
 from hwtHls.llvm.llvmIr import BasicBlock
 from tests.math.hFloatTmp.hFloatTmpOps import sin, cos, log, log2, log10
-from hwtHls.frontend.statementsRead import HlsRead
 
 _VEC4_PROP_NAMES = ("x", "y", "z", "w")
 
@@ -233,6 +232,10 @@ class vec3(vec2):
             else:
                 self.x, self.y, self.z = a
 
+    @property
+    def rgb(self):
+        return vec3(self.x, self.y, self.z)
+
     @classmethod
     def getHType(cls, elementTy: HdlType):
         return HStruct(
@@ -290,6 +293,10 @@ class vec4(vec3):
                 self.x, self.y, self.z, self.w = (a, a, a, a)
             else:
                 self.x, self.y, self.z, self.w = a
+
+    @property
+    def a(self):
+        return self.w
 
     @classmethod
     def getHType(cls, elementTy: HdlType):
