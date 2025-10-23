@@ -72,7 +72,7 @@ OP_FDIV = HOperatorDefLlvm(fdiv, _getllvmFp2OpConstructor(lambda b: b.CreateFDiv
 # FRem "The floating-point remainder whose sign matches the sign of Operand 1."
 # FMod "The floating-point remainder whose sign matches the sign of Operand 2."
 
-# :for: mod/rem see HwtOps.SREM, HwtOps.UREM
+
 def frem(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
     return _evalFpFunction2(math.remainder, OP_FREM, op0, op1)
 
