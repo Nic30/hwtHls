@@ -2,8 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from hwtLib.tests.all import unittestMain
-#from tests.math.componentGenerators._div.divSrt2_test import DivSrt2_TC
-#from tests.math.componentGenerators._div.divSrt4_test import DivSrt4_TC
+from tests.math.addMasked_test import AddMasked_TC
 from tests.math.componentGenerators._mul.mulChained_test import PipelinedMultiplierChained_TCs
 from tests.math.componentGenerators._mul.mulSequential_test import PipelinedMultiplierSequential_TCs
 from tests.math.componentGenerators._mul.mulToom2_5_test import PipelinedMultiplierToom2_5_TCs
@@ -17,9 +16,12 @@ from tests.math.hFloatTmp.hFloatTmpConstToLlvm_test import HFloatTmpConstToLlvm_
 from tests.testCaseUtils import testSuiteFromTCs
 
 
+#from tests.math.componentGenerators._div.divSrt2_test import DivSrt2_TC
+#from tests.math.componentGenerators._div.divSrt4_test import DivSrt4_TC
 llvmMath_TCs = [
     CountBitsTC,
     Ctpop_TC,
+    AddMasked_TC,
     *PipelinedMultiplierSequential_TCs,
     *PipelinedMultiplierChained_TCs,
     *PipelinedMultiplierToom2_TCs,
