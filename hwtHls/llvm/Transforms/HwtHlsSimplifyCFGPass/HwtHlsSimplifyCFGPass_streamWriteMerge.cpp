@@ -559,6 +559,7 @@ bool HwtHlsSimplifyCFGPass_streamWriteMerge_rewrite(IRBuilderBase &Builder,
 		}
 		auto newWrBBTerm = SplitBlockAndInsertIfThen(writeEn,
 				wrLast.exit->getFirstInsertionPt(), false, nullptr, &DTU);
+		// newWrBBTerm->getParent()->setName(wrLast.exit->getName() + ".streamWrMerge");
 		Builder.SetInsertPoint(newWrBBTerm);
 	}
 	CreateStreamWriteFromParts(parts,

@@ -170,7 +170,7 @@ bool tryHoistFromCheapBlocksWithSwitchLikeCmpBr(llvm::BranchInst *BI,
 					"NotImplemented - merge current switch default with newly discovered BBDefault");
 		} else {
 			// split BBTop to block with all code ending with switch to all branches and an empty branch block BBC0
-			BBC0 = SplitBlock(BBTop, BI, DTU, nullptr, nullptr);
+			BBC0 = SplitBlock(BBTop, BI, DTU, nullptr, nullptr, ".swToBr");
 			BBTop->getTerminator()->eraseFromParent();
 			if (DTU)
 				DTU->applyUpdates( { { DominatorTree::Delete, BBTop, BBC0 } });
