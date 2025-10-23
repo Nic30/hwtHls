@@ -239,13 +239,12 @@ FixpOpTrigonometric_TCs = [
     FixpAtan2_TC,
     FixpAtan2Unroll_TC,
 ]
-
 if __name__ == "__main__":
     #from hwt.synth import to_rtl_str
     #from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
     #from hwtHls.platform.xilinx.artix7 import Artix7Fast
     #from tests.math.fixp.fixpOperatorsHwModules import _FixpUnOpTestModule
-    #from tests.math.componentGenerators.install import installFpComponentGenerators
+    #from tests.math.installMathLib import installMathLibComponentGenerators
     #
     #m = _FixpUnOpTestModule()
     #m.FN = cospi
@@ -255,7 +254,7 @@ if __name__ == "__main__":
     #   debugFilter=HlsDebugBundle.ALL_RELIABLE,
     #   #llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED, ]
     #)
-    #installFpComponentGenerators(platform, defaultOptThroughputVsArea=1.0, MAX_TABLE_ADDR_WIDTH=0)
+    #installMathLibComponentGenerators(platform, optThroughputVsArea=0.0, MAX_TABLE_ADDR_WIDTH=0)
     #print(to_rtl_str(m, target_platform=platform))
 
     import unittest

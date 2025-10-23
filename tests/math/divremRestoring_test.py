@@ -16,7 +16,7 @@ from pyMathBitPrecise.bit_utils import mask
 from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.math.componentGenerators._div.divRestoring import DivRemHwModule, divremRestoring
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
-from tests.math.componentGenerators.install import installFpComponentGenerators
+from tests.math.installMathLib import installMathLibComponentGenerators
 
 
 class DivRemRestoring_TC(SimTestCase):
@@ -84,7 +84,7 @@ class DivRemRestoring_TC(SimTestCase):
         return  checkDataOutFn
 
     def platformSetUp(self, p: TestLlvmIrAndMirPlatform):
-        installFpComponentGenerators(p)
+        installMathLibComponentGenerators(p)
 
     def test_div_rtl(self, MAIN_FN_META=None, randomizeIn=False, randomizeOut=False, runTestAfterEachPass=False):
         dut = DivRemHwModule()
@@ -161,7 +161,7 @@ class DivRemRestoringGen_TC(DivRemRestoring_TC):
         return quotient, remainder
 
     def platformSetUp(self, p:TestLlvmIrAndMirPlatform):
-        installFpComponentGenerators(p)
+        installMathLibComponentGenerators(p)
         p._componentGenerators[OP_UDIVREM].optThroughputVsArea = self.UNROLL_FACTOR / self.DATA_WIDTH
 
 
@@ -203,7 +203,7 @@ if __name__ == "__main__":
       #   LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
       # ]
     )
-    installFpComponentGenerators(p)
+    installMathLibComponentGenerators(p)
     p._componentGenerators[OP_UDIVREM].optThroughputVsArea = 0  # 2 / m.T.bit_length()
     # print(to_rtl_str(m, target_platform=p))
 

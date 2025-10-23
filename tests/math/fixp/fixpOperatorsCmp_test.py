@@ -77,7 +77,7 @@ if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
     from hwtHls.platform.xilinx.artix7 import Artix7Fast
-    from tests.math.componentGenerators.install import installFpComponentGenerators
+    from tests.math.installMathLib import installMathLibComponentGenerators
 
     m = _FixpCmpOpTestModule()
     m.FN = lambda a, b: a._eq(b)
@@ -86,7 +86,7 @@ if __name__ == "__main__":
         debugFilter=HlsDebugBundle.ALL_RELIABLE,
         # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL, ]
     )
-    installFpComponentGenerators(platform)
+    installMathLibComponentGenerators(platform)
     print(to_rtl_str(m, target_platform=platform))
 
     testLoader = unittest.TestLoader()

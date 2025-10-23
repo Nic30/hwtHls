@@ -97,7 +97,7 @@ if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
     from hwtHls.platform.xilinx.artix7 import Artix7Fast
-    from tests.math.componentGenerators.install import installFpComponentGenerators
+    from tests.math.installMathLib import installMathLibComponentGenerators
     from tests.math.fixp.fixpTypes import HFixedPointQ
 
     m = PowHwModule()
@@ -112,7 +112,7 @@ if __name__ == "__main__":
                              # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
                          ]
                          )
-    installFpComponentGenerators(platform, optThroughputVsArea=1.0, MAX_TABLE_ADDR_WIDTH=10)
+    installMathLibComponentGenerators(platform, optThroughputVsArea=1.0, MAX_TABLE_ADDR_WIDTH=10)
     print(to_rtl_str(m, target_platform=platform))
 
     # test_values = [1., 2., 3., 4., 10., 0, 0.25, 0.75, 0.125, -1., -2., -3., -10. ]

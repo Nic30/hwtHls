@@ -136,7 +136,7 @@ if __name__ == "__main__":
     # from hwtHls.platform.virtual import VirtualHlsPlatform
     # from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
     # from hwtHls.platform.xilinx.artix7 import Artix7Fast
-    # from tests.math.componentGenerators.install import installFpComponentGenerators
+    # from tests.math.installMathLib import installFpComponentGenerators
 
     # m = _CordicAngleNormalizationTestModule()
     # m.CLK_FREQ = int(1e6)

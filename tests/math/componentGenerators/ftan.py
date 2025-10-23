@@ -156,7 +156,7 @@ if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
     from hwtHls.platform.xilinx.artix7 import Artix7Fast
-    from tests.math.componentGenerators.install import installFpComponentGenerators
+    from tests.math.installMathLib import installMathLibComponentGenerators
 
     m = TanpiCordicDivHwModule()
     m.T = HFixedPointQ(3, 14, rounding=HFloatTmpRounding.ROUND_FLOOR, saturation=HFloatTmpSaturation.SATURATE_NONE)
@@ -171,5 +171,5 @@ if __name__ == "__main__":
                               LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
                           ]
                           )
-    installFpComponentGenerators(platform, optThroughputVsArea=0.0, MAX_TABLE_ADDR_WIDTH=0)
+    installMathLibComponentGenerators(platform, optThroughputVsArea=0.0, MAX_TABLE_ADDR_WIDTH=0)
     print(to_rtl_str(m, target_platform=platform))

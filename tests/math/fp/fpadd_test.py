@@ -20,12 +20,12 @@ from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
+from tests.math.installMathLib import installMathLibComponentGenerators
 from tests.math.fp.fpadd import IEEE754FpAdd
 from tests.math.fp.fpcmp_test import IEEE754FpComparator
 from tests.math.fp.fptypes import IEEE754Fp64, IEEE754Fp, IEEE754Fp16
 from tests.math.fp.fptypes_test import int64reinterpretToFloat, \
     fpPyDictToFpTuple, fpConstToFpTuple
-from tests.math.componentGenerators.install import installFpComponentGenerators
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 
@@ -83,6 +83,9 @@ class IEEE754FpAdder_TC(SimTestCase):
     @staticmethod
     def model(a: float, b: float):
         return a + b
+
+    def FP_OPERATOR_FN(self, a: IEEE754Fp64, b: IEEE754Fp64):
+        return self.model(a, b)
 
     @staticmethod
     def prepareTestDataAndRef(TEST_DATA_FORMATED: List[Tuple[IEEE754Fp64, IEEE754Fp64]], model: Callable[[float, float], float]):
@@ -155,7 +158,7 @@ class IEEE754FpAdder_TC(SimTestCase):
             # noOptIrTest=TestLlvmIrAndMirPlatform.TEST_NO_OPT_IR,
             # runTestAfterEachPass=True
         )
-        installFpComponentGenerators(platform)
+        installMathLibComponentGenerators(platform)
         self.compileSimAndStart(dut, target_platform=platform)
 
         dut.a._ag.data.extend(aDataIn)
@@ -208,7 +211,7 @@ if __name__ == "__main__":
     p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE,
         # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL, ]
     )
-    installFpComponentGenerators(p)
+    installMathLibComponentGenerators(p)
     print(to_rtl_str(m, target_platform=p))
 
     import unittest

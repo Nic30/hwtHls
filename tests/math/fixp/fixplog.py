@@ -210,7 +210,7 @@ if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
     from hwtHls.platform.xilinx.artix7 import Artix7Fast
-    from tests.math.componentGenerators.install import installFpComponentGenerators
+    from tests.math.installMathLib import installMathLibComponentGenerators
 
     m = FixpLog2TabularizedHwModule()
     m.CLK_FREQ = int(70e6)
@@ -220,7 +220,7 @@ if __name__ == "__main__":
                               # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
                           ]
                           )
-    installFpComponentGenerators(platform)
+    installMathLibComponentGenerators(platform)
     print(to_rtl_str(m, target_platform=platform))
     # debug()
 

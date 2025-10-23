@@ -129,8 +129,8 @@ if __name__ == "__main__":
     # from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
     # from hwtHls.platform.xilinx.artix7 import Artix7Fast
     # from tests.math.fixp.fixpOperatorsHwModules import _FixpUnOpTestModule
-    # from tests.math.componentGenerators.install import installFpComponentGenerators
-
+    # from tests.math.installMathLib import installFpComponentGenerators
+    # 
     #m = _FixpUnOpTestModule()
     #m.FN = exp
     #m.T = HFixedPointQ(8, 8, rounding=HFloatTmpRounding.ROUND_FLOOR, saturation=HFloatTmpSaturation.SATURATE_NONE)
@@ -138,9 +138,9 @@ if __name__ == "__main__":
     #platform = Artix7Fast(
     #   debugFilter=HlsDebugBundle.ALL_RELIABLE,
     #   # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED, ]
-    #)
-    #installFpComponentGenerators(platform, defaultOptThroughputVsArea=1.0, MAX_TABLE_ADDR_WIDTH=7)
-    #print(to_rtl_str(m, target_platform=platform))
+    # )
+    # installFpComponentGenerators(platform, optThroughputVsArea=1.0, MAX_TABLE_ADDR_WIDTH=10)
+    # print(to_rtl_str(m, target_platform=platform))
 
     import unittest
 

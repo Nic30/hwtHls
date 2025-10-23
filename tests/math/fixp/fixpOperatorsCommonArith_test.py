@@ -8,11 +8,11 @@ from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.simulator.simTestCase import SimTestCase
 from hwtSimApi.utils import freq_to_period
+from tests.math.installMathLib import installMathLibComponentGenerators
 from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.math.fixp.fixpOperatorsHwModules import _FixpBinOpTestModule, \
     _FixpUnOpTestModule
 from tests.math.fixp.fixpdivrem import fixpDivremRestoring
-from tests.math.componentGenerators.install import installFpComponentGenerators
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
 
@@ -284,7 +284,7 @@ if __name__ == "__main__":
     #    debugFilter=HlsDebugBundle.ALL_RELIABLE,
     #    # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL, ]
     # )
-    # installFpComponentGenerators(platform)
+   #  installMathLibComponentGenerators(platform)
     # print(to_rtl_str(m, target_platform=platform))
 
     import unittest
