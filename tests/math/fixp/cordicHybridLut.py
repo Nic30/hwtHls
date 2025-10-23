@@ -38,6 +38,7 @@ class CORDIC_COORDINATE_MODE:
 """ 
 https://eprints.soton.ac.uk/267873/1/tcas1_cordic_review.pdf
 https://www.mathworks.com/help/fixedpoint/ref/cordiccexp.html
+Efficient Hardware Design of Transcendental Functions for FPGA https://people.inf.ethz.ch/omutlu/pub/TransPIMLib_ispass23.pdf
 
 .. table:: CORDIC function configuration overview
     
