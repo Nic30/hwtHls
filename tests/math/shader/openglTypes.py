@@ -11,6 +11,7 @@ fragCoord.xy is in rectangle (0, 0), (width, height) with (0,0) in bottom left c
 
 from dataclasses import dataclass
 from dis import Instruction
+# from itertools import islice
 import operator
 from typing import Self
 
@@ -28,6 +29,14 @@ from tests.math.hFloatTmp.hFloatTmpOps import sin, cos, log, log2, log10
 from hwtHls.frontend.statementsRead import HlsRead
 
 _VEC4_PROP_NAMES = ("x", "y", "z", "w")
+
+# def max_vec_itemwise(*vectors):
+#    itemCnt = len(vectors[0])
+#    for v in islice(vectors, 1, NULL):
+#        assert len(v) == itemCnt, (itemCnt, v)
+#    return vectors[0].__class__(
+#        *(max)
+#    )
 
 
 @dataclass
@@ -362,3 +371,38 @@ class mat2():
 
     def __getitem__(self, key):
         return self.__data[key]
+
+
+class mat3():
+
+    def __init__(self, *args):
+        """
+        mat3(
+          vec3,    // 1. column
+          vec3,    // 2. column
+          vec3);   // 3. column
+        """
+        if len(args) == 3:
+            assert len(args[0]) == 3, args[0]
+            assert len(args[1]) == 3, args[1]
+            assert len(args[2]) == 3, args[1]
+
+            self.__data = [vec3(args[0]),
+                           vec3(args[1]),
+                           vec3(args[2])
+                           ]
+        else:
+            assert len(args) == 1, "expects 3 items or 1 scalar"
+            a = args[0]
+            assert isinstance(a, float) or isinstance(a, (HConst, RtlSignalBase)) and a._dtype.isScalar(), a
+            zero = 0.
+            if not isinstance(a, float):
+                zero = a._dtype.from_py(zero)
+            self.__data = [
+                vec2(a, zero),
+                vec2(zero, a),
+            ]
+
+    def __getitem__(self, key):
+        return self.__data[key]
+
