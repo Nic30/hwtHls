@@ -227,7 +227,7 @@ void formDedicatedUniqueLoopExitingAndLatchBB(IRBuilder<> &Builder,
 						dstV = getDstBlockNumberVal(dstBlockNumber, DstIndexTy,
 								srcBr->getSuccessor(0));
 					}
-				} else if (auto srcSwitchInst = dyn_cast<SwitchInst>(srcTer)) {
+				} else if (isa<SwitchInst>(srcTer)) {
 					llvm_unreachable(
 							"[todo] set dst target val based on SwitchInst");
 				} else {
