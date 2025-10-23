@@ -165,6 +165,8 @@ class IEEE754FpAdd_TC(SimTestCase):
 
         dut.a._ag.data.extend(aDataIn)
         dut.b._ag.data.extend(bDataIn)
+        dut.a._ag.presetBeforeClk = True
+        dut.b._ag.presetBeforeClk = True
 
         CLK_PERIOD = freq_to_period(dut.clk.FREQ)
         self.runSim((len(self.TEST_DATA_FORMATED) + 1) * int(CLK_PERIOD))
