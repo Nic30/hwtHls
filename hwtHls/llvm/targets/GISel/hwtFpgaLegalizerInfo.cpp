@@ -163,6 +163,7 @@ bool HwtFpgaLegalizerInfo::legalizeCustomBitcount(LegalizerHelper &Helper,
 	if (newBitWidth == dataWidth) {
 		// e.g. for dataWidth=2
 		auto MIB = MIRBuilder.buildInstr(NewOpc, { Dst }, { });
+		MRI.setRegClass(Dst, &HwtFpga::anyregclsRegClass);
 		hwtHls::HwtFpgaInstructionSelector::selectInstrArg(MF, MIB, MRI, SrcMO);
 
 	} else {
