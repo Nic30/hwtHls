@@ -2,7 +2,6 @@ from hwt.code import Concat
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsCastUtils import fitTo
 from hwt.hdl.types.defs import BIT
-from hwt.mainBases import RtlSignalBase
 from hwt.math import log2ceil
 from hwtHls.code import lshr, ctlz, hwUMin, shl
 from hwtHls.frontend.pyBytecode import hlsBytecode
@@ -167,22 +166,26 @@ def IEEE754FpAdd(a: IEEE754FpValue, b: IEEE754FpValue, isSim=False):
             _shAmount = shAmount[log2ceil(mantissaTmp._dtype.bit_length() + 1):]
             mantissaTmp = shl(Concat(mantissaTmp[:1], guard_bit), _shAmount)
             PyBytecodeNoSplitSlices(mantissaTmp)
-            exponetTmp -= shAmount
             round_bit &= shAmount._eq(0)
+
             # while ~mantissaTmp.getMsb() & (exponetTmp > 1):
             #    exponetTmp -= 1
             #    mantissaTmp = Concat(mantissaTmp[:1], guard_bit)
             #    round_bit = round_bit._dtype.from_py(0)
 
-            PyBytecodeBlockLabel("IEEE754FpAdd.normalize_2")
-            # (original normalise_2)
-            if exponetTmp._eq(0):
-                # zero and subnormals
-                exponetTmp += 1
-                exponetTmp = exponetTmp._dtype.from_py(1)
-                mantissaTmp >>= 1
-                guard_bit = mantissaTmp[0]
-                sticky_bit |= round_bit
+            if sumTmp._eq(0):
+                # the value has become 0
+                exponetTmp = exponetTmp._dtype.from_py(0)
+            else:
+                exponetTmp -= shAmount
+                PyBytecodeBlockLabel("IEEE754FpAdd.normalize_2")
+                # (original normalise_2)
+                if exponetTmp._eq(0):
+                    # subnormals
+                    exponetTmp = exponetTmp._dtype.from_py(1)
+                    mantissaTmp >>= 1
+                    guard_bit = mantissaTmp[0]
+                    sticky_bit |= round_bit
 
             PyBytecodeBlockLabel("IEEE754FpAdd.round")
             # round (original round)
