@@ -16,6 +16,7 @@ from tests.math._mathAllTests import llvmMath_TCs
 from tests.syntehesisChecks_test import HlsSynthesisChecksTC
 from tests.testCaseUtils import testSuiteFromTCs
 
+
 suite = testSuiteFromTCs(
     *bitOpt_TCs,
     *frontend_TCs,
