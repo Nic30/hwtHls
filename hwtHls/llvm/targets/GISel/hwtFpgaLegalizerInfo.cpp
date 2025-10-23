@@ -60,7 +60,9 @@ HwtFpgaLegalizerInfo::HwtFpgaLegalizerInfo(const HwtFpgaTargetSubtarget &ST) :
 
 	//LLI.computeTables();
 	getLegacyLegalizerInfo().computeTables();
+#ifndef NDEBUG
 	verify(*ST.getInstrInfo());
+#endif
 }
 
 bool HwtFpgaLegalizerInfo::customLowerLoad(LegalizerHelper &Helper,
