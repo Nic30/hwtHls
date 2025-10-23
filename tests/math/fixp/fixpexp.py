@@ -37,10 +37,7 @@ def fixp_exp_generateTable(t: HFixedPointQ, maxTableAddrWidth: int, width: int, 
         assert width - tableI * maxTableAddrWidth >= 0
         tableAddrWidth = min(maxTableAddrWidth, width - tableI * maxTableAddrWidth)
         for i in range(2 ** tableAddrWidth):
-            try:
-                v = fn(i * tableScale)
-            except:
-                raise
+            v = fn(i * tableScale)
             v = min(v, maxVal)  # v may actually be > max value because
             # the boundary from results start to always overflow does not need to be 2**x
             table.append(v)
