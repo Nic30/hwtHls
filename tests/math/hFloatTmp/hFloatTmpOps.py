@@ -72,7 +72,7 @@ OP_FDIV = HOperatorDefLlvm(fdiv, _getllvmFp2OpConstructor(lambda b: b.CreateFDiv
 # FRem "The floating-point remainder whose sign matches the sign of Operand 1."
 # FMod "The floating-point remainder whose sign matches the sign of Operand 2."
 
-
+# :for: mod/rem see HwtOps.SREM, HwtOps.UREM
 def frem(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
     return _evalFpFunction2(math.remainder, OP_FREM, op0, op1)
 
@@ -450,9 +450,13 @@ def sqrt(op0: RtlSignalBase[Union[HFloatTmp, HBits]]) -> RtlSignalBase[Union[HFl
     """
     if isinstance(op0, _F_CONST_CLS):
         try:
-            return HFloatTmp.from_py(math.sqrt(float(op0)))
+            if isinstance(op0, HBitsConst):
+                return op0._dtype.from_py(math.sqrt(int(op0)))
+            else:
+                return HFloatTmp.from_py(math.sqrt(float(op0)))
         except ValidityError:
             return HFloatTmp.from_py(None)
+
     elif isinstance(op0._dtype, HBits):
         t = op0._dtype
         assert not t.signed
@@ -470,10 +474,12 @@ def sqrt(op0: RtlSignalBase[Union[HFloatTmp, HBits]]) -> RtlSignalBase[Union[HFl
         else:
             if isinstance(op0, HwIOBase):
                 op0 = op0._sig
+
+            # reuse HFixedPointQ sqrt
             fixPTy = HFixedPointQ(w, 0, False)
-            op0 = op0._reinterpret_cast(fixPTy)._reinterpret_cast(HFloatTmp)
+            op0 = op0._reinterpret_cast(fixPTy)._auto_cast(HFloatTmp)
             res = HOperatorNode.withRes(OP_FSQRT, (op0,), HFloatTmp)
-            return res._reinterpret_cast(fixPTy)._reinterpret_cast(resTy)
+            return res._auto_cast(fixPTy)._reinterpret_cast(resTy)
 
     valSpecificFn = getattr(op0, "sqrt", None)
     if valSpecificFn is not None:
