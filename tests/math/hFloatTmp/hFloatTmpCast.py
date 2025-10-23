@@ -1,4 +1,4 @@
-from typing import Union, Optional
+from typing import Union
 
 from hwt.code import Concat
 from hwt.hdl.const import HConst
@@ -6,8 +6,10 @@ from hwt.hdl.operator import HOperatorNode
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.struct import HStruct
 from hwt.mainBases import RtlSignalBase, HwIOBase
+from hwt.pyUtils.setList import SetList
 from hwt.synthesizer.rtlLevel.exceptions import SignalDriverErr
 from hwtHls.llvm.llvmIr import IRBuilder, Value, Twine, HFloatTmpConfig, LlvmCompilationBundle
+from hwtHls.netlist.builder import _replaceOutPortWith
 from hwtHls.ssa.translation.toLlvm import HOperatorDefLlvm
 from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.math.fp.fptypes import IEEE754Fp
@@ -123,4 +125,13 @@ def castHFloatTmpToHFloatTmp(op: RtlSignalBase[Union[IEEE754Fp, HFixedPointQ, HB
 
 
 # cast HFloatTmp to HFloatTmp with possibly different configuration of precision and bitwidth
-OP_CAST_HFLOATTMP_TO_HFLOATTMP = HOperatorDefLlvm(castHFloatTmpToHFloatTmp, _llvmCastHFloatTmpToHFloatTmp, False, idStr="OP_CAST_HFLOATTMP_TO_HFLOATTMP")
+def _OP_CAST_HFLOATTMP_TO_HFLOATTMP_runSimplifyRules(n: "HlsNetNodeOperator", worklist: SetList["HlsNetNode"]):
+    cfgIn, cfgOut = n.operatorSpecialization
+    if cfgIn == cfgOut:
+        _replaceOutPortWith(n._outputs[0], n.dependsOn[0], worklist)
+        return True
+    return False
+
+
+OP_CAST_HFLOATTMP_TO_HFLOATTMP = HOperatorDefLlvm(castHFloatTmpToHFloatTmp, _llvmCastHFloatTmpToHFloatTmp, False, idStr="OP_CAST_HFLOATTMP_TO_HFLOATTMP",
+                                                  runSimplifyRules=_OP_CAST_HFLOATTMP_TO_HFLOATTMP_runSimplifyRules)
