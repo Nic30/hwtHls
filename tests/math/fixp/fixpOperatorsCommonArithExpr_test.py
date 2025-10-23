@@ -1,18 +1,33 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from hwt.serializer.mode import serializeParamsUniq
 from tests.math.fixp.fixpOperatorsCommonArith_test import FixpUnary_TC
+from tests.math.fixp.fixpOperatorsHwModules import _FixpUnOpTestModule
 from tests.math.fixp.fixpTypes import HFixedPointQ
+
+
+@serializeParamsUniq
+class TestModuleFixpDiv2(_FixpUnOpTestModule):
+
+    @staticmethod
+    def HLS_OP_FN(a):
+        return a / 2
 
 
 class FixpDiv2_TC(FixpUnary_TC):
     INPUT_DATA = [
         -3, -2, -1, 0, 1, 2, 3, 4, 5
     ]
+    MODULE_CLS = TestModuleFixpDiv2
+
+
+@serializeParamsUniq
+class TestModuleFixpDiv_m2(_FixpUnOpTestModule):
 
     @staticmethod
     def HLS_OP_FN(a):
-        return a / 2
+        return a / -2
 
 
 class FixpDiv_m2_TC(FixpUnary_TC):
@@ -20,53 +35,73 @@ class FixpDiv_m2_TC(FixpUnary_TC):
         -3, -2, -1, 0, 1, 2, 3, 4, 5
     ]
 
-    @staticmethod
-    def HLS_OP_FN(a):
-        return a / -2
+    MODULE_CLS = TestModuleFixpDiv_m2
 
 
-class FixpDiv4_TC(FixpDiv2_TC):
+@serializeParamsUniq
+class TestModuleFixpDiv4(_FixpUnOpTestModule):
 
     @staticmethod
     def HLS_OP_FN(a):
         return a / 4
 
 
-class FixpDiv_m4_TC(FixpDiv2_TC):
+class FixpDiv4_TC(FixpDiv2_TC):
+
+    MODULE_CLS = TestModuleFixpDiv4
+
+
+@serializeParamsUniq
+class TestModuleFixpDiv_m4(_FixpUnOpTestModule):
 
     @staticmethod
     def HLS_OP_FN(a):
         return a / -4
 
 
-class FixpDiv0_5_TC(FixpDiv2_TC):
+class FixpDiv_m4_TC(FixpDiv2_TC):
+    MODULE_CLS = TestModuleFixpDiv_m4
 
-    FP_TY = HFixedPointQ(5, 8)
+
+@serializeParamsUniq
+class TestModuleFixpDiv_0_5(_FixpUnOpTestModule):
 
     @staticmethod
     def HLS_OP_FN(a):
         return a / 0.5
 
 
-class FixpDiv_m0_5_TC(FixpDiv2_TC):
+class FixpDiv_0_5_TC(FixpDiv2_TC):
 
     FP_TY = HFixedPointQ(5, 8)
+
+    MODULE_CLS = TestModuleFixpDiv_0_5
+
+
+@serializeParamsUniq
+class TestModuleFixpDiv_m0_5(_FixpUnOpTestModule):
 
     @staticmethod
     def HLS_OP_FN(a):
         return a / -0.5
 
 
+class FixpDiv_m0_5_TC(FixpDiv2_TC):
+
+    FP_TY = HFixedPointQ(5, 8)
+    MODULE_CLS = TestModuleFixpDiv_m0_5
+
+
 FixpOpCommonArithExpr_TCs = [
     FixpDiv2_TC,
     FixpDiv4_TC,
-    FixpDiv0_5_TC,
+    FixpDiv_0_5_TC,
     FixpDiv_m2_TC,
     FixpDiv_m4_TC,
     FixpDiv_m0_5_TC,
 ]
 
-# [todo] 
+# [todo]
 #   x* c where c is constant and has few 1 bits to add
 #   x*-1 to -x
 #   0-x to -x

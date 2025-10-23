@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from tests.math.fixp.fixpTypes import HFixedPointQ
+from tests.math.fixp._fixpUnary_TC import FixpUnary_TC
 from tests.math.fixp.fixpOperatorsHwModules import _FixpCastOpTestModule
 from tests.math.fixp.fixpResize import fixp_resize, fixp_resize_py
-from tests.math.fixp.fixpOperatorsCommonArith_test import FixpAdd_TC, \
-    FixpUnary_TC
+from tests.math.fixp.fixpTypes import HFixedPointQ
 
 
 class FixpResizeRoundHalfEvenSaturateSigned_3_2_to_3_1_TC(FixpUnary_TC):
@@ -31,7 +30,7 @@ class FixpResizeRoundHalfEvenSaturateSigned_3_2_to_3_1_TC(FixpUnary_TC):
         return res
 
     def getCheckDataOutFn(self, REF_DATA):
-        return FixpAdd_TC.getCheckDataOutFn(self, REF_DATA, fpTy=self.FP_TY_OUT)
+        return FixpUnary_TC.getCheckDataOutFn(self, REF_DATA, fpTy=self.FP_TY_OUT)
 
     def test_rtl(self, runTestAfterEachPass=False, freq=int(1e6)):
         dut = _FixpCastOpTestModule()

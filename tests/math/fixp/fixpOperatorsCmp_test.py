@@ -4,16 +4,23 @@
 from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.math.fixp.fixpOperatorsCommonArith_test import FixpAdd_TC
 from tests.math.fixp.fixpOperatorsHwModules import _FixpCmpOpTestModule
+from hwt.serializer.mode import serializeParamsUniq
+
+
+@serializeParamsUniq
+class TestModuleFixpCmp_OLT(_FixpCmpOpTestModule):
+
+    @staticmethod
+    def HLS_OP_FN(a, b):
+        return a < b
 
 
 class FixpCmp_OLT_TC(FixpAdd_TC):
     FP_TY = HFixedPointQ(3, 4)
-
-    def HLS_OP_FN(self, a, b):
-        return a < b
+    MODULE_CLS = TestModuleFixpCmp_OLT
 
     def _model(self, a: float, b: float) -> bool:
-        return int(self.HLS_OP_FN(a, b))  # int to have visually shorter output
+        return int(self.MODULE_CLS.HLS_OP_FN(a, b))  # int to have visually shorter output
 
     def getCheckDataOutFn(self, REF_DATA):
 
@@ -22,45 +29,68 @@ class FixpCmp_OLT_TC(FixpAdd_TC):
 
         return  checkDataOutFn
 
-    def test_rtl(self, runTestAfterEachPass=False, freq=int(1e6)):
-        dut = _FixpCmpOpTestModule()
-        dut.T = self.FP_TY
-        dut.CLK_FREQ = freq
-        dut.FN = self.HLS_OP_FN
-        FixpAdd_TC.test_rtl(self, runTestAfterEachPass, freq, dut=dut)
 
+@serializeParamsUniq
+class TestModuleFixpCmp_OLE(_FixpCmpOpTestModule):
 
-class FixpCmp_OLE_TC(FixpCmp_OLT_TC):
-
-    def HLS_OP_FN(self, a, b):
+    @staticmethod
+    def HLS_OP_FN(a, b):
         return a <= b
 
 
-class FixpCmp_OEQ_TC(FixpCmp_OLT_TC):
+class FixpCmp_OLE_TC(FixpCmp_OLT_TC):
+    MODULE_CLS = TestModuleFixpCmp_OLE
 
-    def HLS_OP_FN(self, a, b):
+
+@serializeParamsUniq
+class TestModuleFixpCmp_OEQ(_FixpCmpOpTestModule):
+
+    @staticmethod
+    def HLS_OP_FN(a, b):
         return a._eq(b)
+
+
+class FixpCmp_OEQ_TC(FixpCmp_OLT_TC):
+    MODULE_CLS = TestModuleFixpCmp_OEQ
 
     def _model(self, a: float, b: float) -> bool:
         return int(a == b)  # int to have visually shorter output
 
 
-class FixpCmp_ONE_TC(FixpCmp_OLT_TC):
+@serializeParamsUniq
+class TestModuleFixpCmp_ONE(_FixpCmpOpTestModule):
 
-    def HLS_OP_FN(self, a, b):
+    @staticmethod
+    def HLS_OP_FN(a, b):
         return a != b
 
 
-class FixpCmp_OGT_TC(FixpCmp_OLT_TC):
+class FixpCmp_ONE_TC(FixpCmp_OLT_TC):
+    MODULE_CLS = TestModuleFixpCmp_ONE
 
-    def HLS_OP_FN(self, a, b):
+
+@serializeParamsUniq
+class TestModuleFixpCmp_OGT(_FixpCmpOpTestModule):
+
+    @staticmethod
+    def HLS_OP_FN(a, b):
         return a > b
 
 
-class FixpCmp_OGE_TC(FixpCmp_OLT_TC):
+class FixpCmp_OGT_TC(FixpCmp_OLT_TC):
+    MODULE_CLS = TestModuleFixpCmp_OGT
 
-    def HLS_OP_FN(self, a, b):
+
+@serializeParamsUniq
+class TestModuleFixpCmp_OGE(_FixpCmpOpTestModule):
+
+    @staticmethod
+    def HLS_OP_FN(a, b):
         return a >= b
+
+
+class FixpCmp_OGE_TC(FixpCmp_OLT_TC):
+    MODULE_CLS = TestModuleFixpCmp_OGE
 
 
 FixpOpCmp_TCs = [
@@ -79,8 +109,7 @@ if __name__ == "__main__":
     from hwtHls.platform.xilinx.artix7 import Artix7Fast
     from tests.math.installMathLib import installMathLibComponentGenerators
 
-    m = _FixpCmpOpTestModule()
-    m.FN = lambda a, b: a._eq(b)
+    m = TestModuleFixpCmp_OEQ()
     m.CLK_FREQ = int(1e6)
     platform = Artix7Fast(
         debugFilter=HlsDebugBundle.ALL_RELIABLE,

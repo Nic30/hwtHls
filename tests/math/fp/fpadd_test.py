@@ -16,8 +16,8 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
 from tests.math.installMathLib import installMathLibComponentGenerators
@@ -56,9 +56,10 @@ class _Test_IEEE754FpAlu(HwModule):
         IEEE754FpComparator.hwImpl(self)
 
 
-class IEEE754FpAdder_TC(SimTestCase):
+class IEEE754FpAdd_TC(SimTestCase):
     TEST_DATA = [
         (1.0, 1.0),
+        (1.0, -1.0),
         (1.125, 1.0),
         (1.25, 1.0),
         (1.0, 2.0),
@@ -77,8 +78,8 @@ class IEEE754FpAdder_TC(SimTestCase):
     # :note: staticmethod must be used otherwise function is bounded as instance method to this class
     #  and it add "self" parameter
     FP_FUNCTION = staticmethod(IEEE754FpAdd)
-    FP_OPERATOR_FN = staticmethod(lambda a, b: a + b)
-    FP_FUNCTION_ADD_IS_SIM_ARG = True
+
+    FP_FUNCTION_HAS_SIM_ARG = True
 
     @staticmethod
     def model(a: float, b: float):
@@ -122,7 +123,7 @@ class IEEE754FpAdder_TC(SimTestCase):
         t: IEEE754Fp = self.TEST_DATA_FORMATED[0][0]._dtype
         for (a, b), (aRaw, bRaw) in zip(self.TEST_DATA_FORMATED, self.TEST_DATA):
             resRef = self.model(aRaw, bRaw)
-            if self.FP_FUNCTION_ADD_IS_SIM_ARG:
+            if self.FP_FUNCTION_HAS_SIM_ARG:
                 res = fpFn(a, b, isSim=True)
             else:
                 res = fpFn(a, b)
@@ -156,7 +157,8 @@ class IEEE754FpAdder_TC(SimTestCase):
             topToRunTestsOn=dut,
             inputCnt=2,
             # noOptIrTest=TestLlvmIrAndMirPlatform.TEST_NO_OPT_IR,
-            # runTestAfterEachPass=True
+            # runTestAfterEachPass=True,
+            # debugFilter=HlsDebugBundle.ALL_RELIABLE,
         )
         installMathLibComponentGenerators(platform)
         self.compileSimAndStart(dut, target_platform=platform)
@@ -207,17 +209,21 @@ if __name__ == "__main__":
     m = _Test_IEEE754FpAlu()
     m.CLK_FREQ = int(100e3)
     m.T = IEEE754Fp16
-    m.FP_FUNCTION = lambda a, b: a + b
+    # def FP_OPERATOR_FN(a, b):
+    #    T = a._dtype
+    #    return (a._auto_cast(HFloatTmp) + b._auto_cast(HFloatTmp))._auto_cast(T)
+    # m.FP_FUNCTION = FP_OPERATOR_FN
+    m.FP_FUNCTION = lambda a, b: a - b
     p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE,
         # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL, ]
     )
     installMathLibComponentGenerators(p)
-    print(to_rtl_str(m, target_platform=p))
+    #print(to_rtl_str(m, target_platform=p))
 
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([IEEE754FpAdder_TC('test_op_ir_mir_rtl')])
-    suite = testLoader.loadTestsFromTestCase(IEEE754FpAdder_TC)
+    # suite = unittest.TestSuite([IEEE754FpAdd_TC('test_py')])
+    suite = testLoader.loadTestsFromTestCase(IEEE754FpSub_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

@@ -3,31 +3,38 @@
 
 import math
 
+from hwt.serializer.mode import serializeParamsUniq
 from hwtHls.llvm.llvmIr import HFloatTmpSaturation, HFloatTmpRounding
+from tests.math.fixp.cordicAtan2 import CordicAtan2
 from tests.math.fixp.fixpOperatorsCommonArith_test import FixpUnary_TC, \
     FixpAdd_TC
+from tests.math.fixp.fixpOperatorsHwModules import _FixpUnOpTestModule, _FixpBinOpTestModule
 from tests.math.fixp.fixpTypes import HFixedPointQ
+from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 from tests.math.hFloatTmp.hFloatTmpOps import sin, cos, sinpi, cospi, tan, sqrt, \
     atan2
-from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
-from tests.math.fixp.cordicAtan2 import CordicAtan2
+
+
+@serializeParamsUniq
+class TestModuleFixpSin(_FixpUnOpTestModule):
+
+    @staticmethod
+    def HLS_OP_FN(a):
+        return sin(a)
 
 
 class FixpSinNoLut_TC(FixpUnary_TC):
     FP_TY = HFixedPointQ(4, 10, rounding=HFloatTmpRounding.ROUND_FLOOR, saturation=HFloatTmpSaturation.SATURATE_NONE)
     RTL_SIM_TIME_MULTIPLIER = 10
     MAX_TABLE_ADDR_WIDTH = 0
-    defaultOptThroughputVsArea = 0.0
+    optThroughputVsArea = 0.0
     INPUT_DATA = [
          0.0,
          0.1,
          0.2, 0.25, 0.5,
          1.0
     ]
-
-    @staticmethod
-    def HLS_OP_FN(a):
-        return sin(a)
+    MODULE_CLS = TestModuleFixpSin
 
     def _model(self, a: float) -> float:
         return math.sin(a)
@@ -39,14 +46,20 @@ class FixpSinLut7_TC(FixpSinNoLut_TC):
 
 
 class FixpSinNoLutUnroll_TC(FixpSinNoLut_TC):
-    defaultOptThroughputVsArea = 1.0
+    optThroughputVsArea = 1.0
 
 
-class FixpCosNoLut_TC(FixpSinNoLut_TC):
+@serializeParamsUniq
+class TestModuleFixpCos(_FixpUnOpTestModule):
 
     @staticmethod
     def HLS_OP_FN(a):
         return cos(a)
+
+
+class FixpCosNoLut_TC(FixpSinNoLut_TC):
+
+    MODULE_CLS = TestModuleFixpCos
 
     def _model(self, a: float) -> float:
         return math.cos(a)
@@ -58,14 +71,20 @@ class FixpCosLut7_TC(FixpCosNoLut_TC):
 
 
 class FixpCosNoLutUnroll_TC(FixpCosNoLut_TC):
-    defaultOptThroughputVsArea = 1.0
+    optThroughputVsArea = 1.0
 
 
-class FixpTanNoLut_TC(FixpSinNoLut_TC):
+@serializeParamsUniq
+class TestModuleFixpTan(_FixpUnOpTestModule):
 
     @staticmethod
     def HLS_OP_FN(a):
         return tan(a)
+
+
+class FixpTanNoLut_TC(FixpSinNoLut_TC):
+    MODULE_CLS = TestModuleFixpTan
+    RTL_SIM_TIME_MULTIPLIER = 64
 
     def _model(self, a: float) -> float:
         return math.tan(a)
@@ -77,20 +96,26 @@ class FixpTanLut7_TC(FixpTanNoLut_TC):
 
 
 class FixpTanNoLutUnroll_TC(FixpTanNoLut_TC):
-    defaultOptThroughputVsArea = 1.0
+    optThroughputVsArea = 1.0
 
 
 class FixpTanLut7Unroll_TC(FixpTanNoLut_TC):
-    defaultOptThroughputVsArea = 1.0
+    optThroughputVsArea = 1.0
     RTL_SIM_TIME_MULTIPLIER = 1.2
     MAX_TABLE_ADDR_WIDTH = 7
 
 
-class FixpSinPiNoLut_TC(FixpSinNoLut_TC):
+@serializeParamsUniq
+class TestModuleFixpSinpi(_FixpUnOpTestModule):
 
     @staticmethod
     def HLS_OP_FN(a):
         return sinpi(a)
+
+
+class FixpSinPiNoLut_TC(FixpSinNoLut_TC):
+
+    MODULE_CLS = TestModuleFixpSinpi
 
     def _model(self, a: float) -> float:
         return math.sin(a * math.pi)
@@ -101,14 +126,20 @@ class FixpSinPiLut7_TC(FixpSinPiNoLut_TC):
 
 
 class FixpSinPiNoLutUnroll_TC(FixpSinPiNoLut_TC):
-    defaultOptThroughputVsArea = 1.0
+    optThroughputVsArea = 1.0
 
 
-class FixpCosPiNoLut_TC(FixpSinNoLut_TC):
+@serializeParamsUniq
+class TestModuleFixpCospi(_FixpUnOpTestModule):
 
     @staticmethod
     def HLS_OP_FN(a):
         return cospi(a)
+
+
+class FixpCosPiNoLut_TC(FixpSinNoLut_TC):
+
+    MODULE_CLS = TestModuleFixpCospi
 
     def _model(self, a: float) -> float:
         return math.cos(a * math.pi)
@@ -120,23 +151,29 @@ class FixpCosPiLut7_TC(FixpCosPiNoLut_TC):
 
 
 class FixpCosPiNoLutUnroll_TC(FixpCosPiNoLut_TC):
-    defaultOptThroughputVsArea = 1.0
+    optThroughputVsArea = 1.0
+
+
+@serializeParamsUniq
+class TestModuleFixpSqrt(_FixpUnOpTestModule):
+
+    @staticmethod
+    def HLS_OP_FN(a):
+        return sqrt(a)
 
 
 class FixpSqrt_TC(FixpSinNoLut_TC):
     FP_TY = HFixedPointQ(4, 20, signed=False, rounding=HFloatTmpRounding.ROUND_FLOOR, saturation=HFloatTmpSaturation.SATURATE_NONE)
     RTL_SIM_TIME_MULTIPLIER = 20.0
 
-    @staticmethod
-    def HLS_OP_FN(a):
-        return sqrt(a)
+    MODULE_CLS = TestModuleFixpSqrt
 
     def _model(self, a: float) -> float:
         return math.sqrt(a)
 
 
 class FixpSqrtUnroll_TC(FixpSqrt_TC):
-    defaultOptThroughputVsArea = 1.0
+    optThroughputVsArea = 1.0
 
 
 class FixpSqrt_int_TC(FixpSqrt_TC):
@@ -154,6 +191,14 @@ class FixpSqrt_int_TC(FixpSqrt_TC):
         12.0,
         15.0,
     ]
+
+
+@serializeParamsUniq
+class TestModuleFixpAtan2(_FixpBinOpTestModule):
+
+    @staticmethod
+    def HLS_OP_FN(y, x):
+        return atan2(y, x)
 
 
 class FixpAtan2_TC(FixpAdd_TC):
@@ -186,6 +231,7 @@ class FixpAtan2_TC(FixpAdd_TC):
         (10.0, 5.0),
         (5.0, 10.0),
     ]
+    MODULE_CLS = TestModuleFixpAtan2
 
     def _model(self, y:float, x:float) -> float:
         return math.atan2(y, x)
@@ -201,13 +247,9 @@ class FixpAtan2_TC(FixpAdd_TC):
             resF = float(res[0])
             self.assertAlmostEqual(resF, ref, delta=2 ** -10, msg=(_y, _x))
 
-    @staticmethod
-    def HLS_OP_FN(y, x):
-        return atan2(y, x)
-
 
 class FixpAtan2Unroll_TC(FixpAtan2_TC):
-    defaultOptThroughputVsArea = 1.0
+    optThroughputVsArea = 1.0
     RTL_SIM_TIME_MULTIPLIER = 1.0
 
 
@@ -217,52 +259,53 @@ FixpOpTrigonometric_TCs = [
     FixpTanNoLutUnroll_TC,
     FixpSinPiNoLutUnroll_TC,
     FixpCosPiNoLutUnroll_TC,
-    
+
     FixpSinNoLut_TC,
     FixpCosNoLut_TC,
-    FixpTanNoLut_TC, # [fixme] tan does not recognize that sin/cos/div are not unrolled and 
+    FixpTanNoLut_TC,  # [fixme] tan does not recognize that sin/cos/div are not unrolled and
                      #  _BaseALU1HwModule then incorerectly resolves sync
     FixpSinPiNoLut_TC,
     FixpCosPiNoLut_TC,
-    
+
     FixpSinLut7_TC,
     FixpCosLut7_TC,
     FixpTanLut7_TC,
+    FixpTanLut7Unroll_TC,
     FixpSinPiLut7_TC,
     FixpCosPiLut7_TC,
-    
-    FixpTanLut7Unroll_TC,
-    
+
     FixpSqrt_TC,
     FixpSqrtUnroll_TC,
     FixpSqrt_int_TC,
     FixpAtan2_TC,
     FixpAtan2Unroll_TC,
 ]
+
 if __name__ == "__main__":
-    #from hwt.synth import to_rtl_str
-    #from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
-    #from hwtHls.platform.xilinx.artix7 import Artix7Fast
-    #from tests.math.fixp.fixpOperatorsHwModules import _FixpUnOpTestModule
-    #from tests.math.installMathLib import installMathLibComponentGenerators
-    #
-    #m = _FixpUnOpTestModule()
-    #m.FN = cospi
-    #m.T = HFixedPointQ(4, 10, rounding=HFloatTmpRounding.ROUND_FLOOR, saturation=HFloatTmpSaturation.SATURATE_NONE)
-    #m.CLK_FREQ = int(1e6)
-    #platform = Artix7Fast(
-    #   debugFilter=HlsDebugBundle.ALL_RELIABLE,
-    #   #llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED, ]
-    #)
-    #installMathLibComponentGenerators(platform, optThroughputVsArea=0.0, MAX_TABLE_ADDR_WIDTH=0)
-    #print(to_rtl_str(m, target_platform=platform))
+    from hwt.synth import to_rtl_str
+    from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
+    from hwtHls.platform.xilinx.artix7 import Artix7Fast
+    from tests.math.fixp.fixpOperatorsHwModules import _FixpUnOpTestModule
+    from tests.math.installMathLib import installMathLibComponentGenerators
+    from hwt.serializer.verilog import VerilogSerializer
+
+    m = _FixpUnOpTestModule()
+    m.FN = sin
+    m.T = HFixedPointQ(4, 10, rounding=HFloatTmpRounding.ROUND_FLOOR, saturation=HFloatTmpSaturation.SATURATE_NONE)
+    m.CLK_FREQ = int(1e6)
+    platform = Artix7Fast(
+       debugFilter=HlsDebugBundle.ALL_RELIABLE,
+       # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED, ]
+    )
+    installMathLibComponentGenerators(platform, optThroughputVsArea=0.0, MAX_TABLE_ADDR_WIDTH=0)
+    # print(to_rtl_str(m, serializer_cls=VerilogSerializer, target_platform=platform))
 
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([FixpTanNoLutUnroll_TC('test_rtl')])
     suite = unittest.TestSuite([testLoader.loadTestsFromTestCase(tc) for tc in FixpOpTrigonometric_TCs])
-    # suite = testLoader.loadTestsFromTestCase(FixpDiv_TC)
+    # suite = testLoader.loadTestsFromTestCase(FixpSinNoLut_TC)
+    # suite = unittest.TestSuite([FixpTanNoLut_TC('test_rtl')])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
 
