@@ -200,6 +200,22 @@ class IEEE754FpAdd_TC(SimTestCase):
         self._test_ir_mir_rtl(dut)
 
 
+class IEEE754FpSub_TC(IEEE754FpAdd_TC):
+
+    # :note: this should also test OP_FNEG
+    @staticmethod
+    def model(a: float, b: float):
+        return a - b
+
+    FP_OPERATOR_FN = staticmethod(model)
+
+    def test_py(self):
+        pass  # dissable this test because there is no  FP_FUNCTION like IEEE754FpSub and operation is lowered to IEEE754FpAdd
+
+    def test_ir_mir_rtl(self):
+        pass  # :see: IEEE754FpSub_TC.test_py
+
+
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
