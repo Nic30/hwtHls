@@ -27,6 +27,7 @@ LoopUnrollResult tryAliginLoopBeginByPeeling(DominatorTree &DT, LoopInfo *LI,
 	// resolve amount of bits taken/added from/to stream per iteration and from possible offsets of loop header resolve
 	// how many times to peel and how many times to unroll to achieve desired throughput
 	TargetTransformInfo::PeelingPreferences PP;
+	PP.PeelProfiledIterations = false;
 	if (_minNumberOfBitsProcessedPerIteration.size() != 1) {
 		LLVM_DEBUG(
 				dbgs() << "PEELING loop %" << L->getHeader()->getName()
