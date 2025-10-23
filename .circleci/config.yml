@@ -38,8 +38,9 @@ jobs:
             meson --version
 
       # - python/load-cache
+      # https://mesonbuild.com/meson-python/how-to-guides/debug-builds.html -Csetup-args=-Dbuildtype=debug
       - py/install-setup-py:
-          build-args: "--verbose --progress-bar off"
+          build-args: "--verbose --progress-bar off -Csetup-args=-Dbuildtype=debug"
          #no_output_timeout: 30m
       # - python/save-cache
       - py/test-and-coverage
