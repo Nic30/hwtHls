@@ -545,30 +545,25 @@ class PyBytecodeToSsaLowLevelOpcodes():
             return curBlock
         else:
             _src = src.data if srcIsRead else src
-            if isinstance(dst._dtype, HArray):
-                # inlined part of visit_Assignment
-                # src is now of scalar type
-                #
-
-                # inlined part of visit_Assignment
-                # src is now of scalar type
-
-                # this may result in:
-                # * store instruction
-                # * just the registration of the variable for the symbol
-                #   * only a segment in bit vector can be assigned, this result in the assignment of the concatenation of previous and new value
-                if isinstance(dst, HwIOArray):
-                    # this is assing of array to array
-                    # in this case we have to first load all values from src
-                    # and then store it to dst
-                    # because the dst may contain refernces used in src and we have to perform the store atomically
-                    # with original values, not the partially updated src because of src references in dst
-                    block, src = self._storeToHwSignalArrayLoad(curBlock, src)
-                    self._storeToHwSignalArrayStore(block, dst, src)
-                else:
-                    # this is assign of array which is represented by scalar
-                    block, src = toLlvm._translateExprToLlvm(curBlock, src)
-                    toLlvm._variableInBlock_insertRedef(curBlock, dst, (), src)
+            # inlined part of visit_Assignment
+            # src is now of scalar type
+            # this may result in:
+            # * store instruction
+            # * just the registration of the variable for the symbol
+            #   * only a segment in bit vector can be assigned, this result in the assignment of the concatenation of previous and new value
+            if isinstance(dst, HwIOArray):
+                # this is assing of array to array
+                # in this case we have to first load all values from src
+                # and then store it to dst
+                # because the dst may contain refernces used in src and we have to perform the store atomically
+                # with original values, not the partially updated src because of src references in dst
+                block, src = self._storeToHwSignalArrayLoad(curBlock, src)
+                self._storeToHwSignalArrayStore(block, dst, src)
+                return block
+            elif isinstance(dst._dtype, HArray):
+                # this is assign of array which is represented by scalar
+                block, src = toLlvm._translateExprToLlvm(curBlock, src)
+                toLlvm._variableInBlock_insertRedef(curBlock, dst, (), src)
                 return block
             else:
                 stm = dst(_src)
