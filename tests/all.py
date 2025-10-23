@@ -22,7 +22,7 @@ suite = testSuiteFromTCs(
     *io_TCs,
     *llvmIr_TCs,
     *llvmMir_TCs,
-    llvmMath_TCs,
+    *llvmMath_TCs,
     HlsSynthesisChecksTC,
     Md5_TC,
     HashTable_TC,
