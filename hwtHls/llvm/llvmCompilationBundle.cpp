@@ -68,7 +68,8 @@ LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName,
 				new llvm::Module(strCtx.addStringRef(moduleName), ctx)), builder(
 				ctx), main(nullptr), MMIWP(nullptr), VerifyEachPass(VerifyEach), DebugPM(
 				DebugPMCliOpt.getValue()), llvmCliOpts(
-				llvmCliOpts) {
+				llvmCliOpts), _llvmCliOpts(llvm::cl::getRegisteredOptions()) {
+	// :attention: llvm::cl::getRegisteredOptions reinitializes CLI options
 	// clear all current CLI options
 	_llvmCliOpts_clear();
 	Target = &getTheHwtFpgaTarget(); //llvm::TargetRegistry::targets()[0];
@@ -174,8 +175,7 @@ void LlvmCompilationBundle::_llvmCliOpts_apply() {
 }
 
 void LlvmCompilationBundle::_llvmCliOpts_clear() {
-	llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
-	for (auto &Opt : Map) {
+	for (auto &Opt : _llvmCliOpts) {
 		Opt.second->reset();
 	}
 }
@@ -183,9 +183,8 @@ void LlvmCompilationBundle::_llvmCliOpts_clear() {
 void LlvmCompilationBundle::_llvmCliOption_add(
 		const std::string &OptionName, unsigned pos, const std::string &ArgName,
 		const std::string &ArgValue) {
-	llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
-	auto o = Map.find(OptionName);
-	if (o == Map.end()) {
+	auto o = _llvmCliOpts.find(OptionName);
+	if (o == _llvmCliOpts.end()) {
 		if (OptionName == "debug-only") {
 			throw std::runtime_error(
 					"debug-only LLVM cli option is available only in LLVM debug build");

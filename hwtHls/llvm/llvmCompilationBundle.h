@@ -61,6 +61,7 @@ public:
 	// llvm cli options are stored there because they are global to whole program and when this object is currently
 	// using llvm it must set its own llvm cli options first
 	std::vector<LlvmCliOptionTuple> llvmCliOpts;
+	llvm::StringMap<llvm::cl::Option*> &_llvmCliOpts; // reference to LLVM internal CLI opts
 
 	LlvmCompilationBundle(const std::string &moduleName,
 			const std::vector<LlvmCliOptionTuple> &llvmCliOpts);

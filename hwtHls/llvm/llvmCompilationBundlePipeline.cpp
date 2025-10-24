@@ -77,6 +77,7 @@
 #include <llvm/Transforms/Utils/AssumeBundleBuilder.h>
 #include <llvm/Transforms/Utils/UnifyFunctionExitNodes.h>
 #include <llvm/Transforms/Utils.h>
+#include <llvm/Transforms/Utils/CountVisits.h>
 #include <llvm/Transforms/Utils/Local.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Target/TargetMachine.h>
@@ -184,6 +185,8 @@ void LlvmCompilationBundle::runOpt(
 	// @see PassBuilder::buildFunctionSimplificationPipeline
 	llvm::ModulePassManager MPM;
 	llvm::FunctionPassManager FPM_initial;
+	if (llvm::AreStatisticsEnabled())
+		FPM_initial.addPass(llvm::CountVisitsPass());
 	_addInitialNormalizationPasses(FPM_initial);
 	_addStreamOperationLoweringPasses(FPM_initial);
 
@@ -192,6 +195,8 @@ void LlvmCompilationBundle::runOpt(
 	MPM.addPass(hwtHls::ThreadExtractIoFsmPass());
 
 	llvm::FunctionPassManager FPM;
+	if (llvm::AreStatisticsEnabled()) // based on PassBuilder::buildFunctionSimplificationPipeline
+		FPM.addPass(llvm::CountVisitsPass());
 	// Hoisting of scalars and load expressions.
 	if (EnableGVNHoist)
 		FPM.addPass(llvm::GVNHoistPass());
@@ -314,14 +319,15 @@ void LlvmCompilationBundle::runOpt(
 	//if (StatsFile)
 	//  PrintStatisticsJSON(StatsFile->os());
 	//else
-	if (llvm::AreStatisticsEnabled())
+	if (llvm::AreStatisticsEnabled()) {
 		llvm::PrintStatistics();
-
-	llvm::reportAndResetTimings();
+	}
 	if (RemarksFile) {
 		RemarksFile->keep();
 		RemarksFile->os().flush();
 	}
+	SI.reset(); // to force dump of stats and timings new PassManager (IR)
+	llvm::reportAndResetTimings(); // :note: only for legacy PassManger (MIR)
 }
 
 void LlvmCompilationBundle::_tryToFindMain() {
