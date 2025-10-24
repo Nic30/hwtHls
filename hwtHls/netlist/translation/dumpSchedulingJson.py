@@ -388,7 +388,7 @@ class HlsNetlistAnalysisPassDumpSchedulingJson(HlsNetlistAnalysisPass):
             nodes = (n for n in nodes if not isinstance(n, HlsNetNodeConst))
         to_timeline.construct(list(nodes))
         if self.outStreamGetter is not None:
-            out, doClose = self.outStreamGetter(netlist.label)
+            out, doClose = self.outStreamGetter(netlist.dbgSubdir)
             try:
                 to_timeline.saveJson(out)
             finally:

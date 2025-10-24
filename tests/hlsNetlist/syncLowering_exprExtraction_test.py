@@ -32,7 +32,7 @@ class RtlArchPassSyncLowering_exprExtraction_1Pipeline_TC(BaseSerializationTC):
 
     @staticmethod
     def _createNetlistWithPipe():
-        netlist = HlsNetlistCtx(None, int(100e6), "test", {}, platform=VirtualHlsPlatform())
+        netlist = HlsNetlistCtx(None, int(100e6), "test", "test", {}, platform=VirtualHlsPlatform())
         pipeElm = ArchElementPipeline(netlist, "p0", "p0_")
         pipeElm.resolveRealization()
         pipeElm._setScheduleZeroTimeSingleClock(0)

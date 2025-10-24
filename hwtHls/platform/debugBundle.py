@@ -113,6 +113,14 @@ class NameScopeForDebugFiles(NameScope):
 
 class HlsDebugBundle():
     """
+    This class specifies common debug options which may be used on Platform.
+    
+    Debug outputs are stored in folder DEFAULT_DEBUG_DIR / parentHwModule._name + HlsScope._label (dbgRootDir)
+    Each HlsThread in scope then generates its own subdir (for DBG_0_* to DBG_1_*)
+    In this subdir the subdir for MIR function (thread) is generated (for DBG_2_*)
+    Independent compilation phases for netlist (untill DBG_4_0_addSignalNamesToSync) aso store to this directory.
+    DBG_4_* and following produce results in dbgRootDir as those steps are running on aggregated netlist from all threads.
+    
     :note: if the number N in DBG_N_* is the same it means that these debug options are working with the same input
     
     :ivar nameScope: name scope for debug files to prevent name collisions if the module/thread of the same name
@@ -126,10 +134,9 @@ class HlsDebugBundle():
     DBG_0_0_pyFrontedBeginCfg = (None, "00.00.cfg.begin.{0}.dot")  # initial CFG after parsing of bytecode
     DBG_0_0_pyFrontedPreprocCfg = (None, "00.00.cfg.{0}.dot")  # step by step CFG during preprocessor evaluation
     DBG_0_1_pyFrontedFinalCfg = (None, "00.01.cfg.final.{0}.dot")  # final CFG after preprocessor execution
-
     # ssa
-    DBG_1_0_preLlvm = (SsaPassDumpIR, "01.02.preLlvm.ll")  # translated to LLVM IR
     # :note: you can use platform._llvmCliArgs to add LLVM debug options
+    DBG_1_0_preLlvm = (SsaPassDumpIR, "01.02.preLlvm.ll")  # translated to LLVM IR
     # mir
     DBG_2_0_mir = (SsaPassDumpMIR, "02.00.mir.ll")  # translated and optimized to LLVM MIR by LLVM
     DBG_2_0_mirCfg = (SsaPassDumpMirCfg, "02.00.mirCfg.dot")  # Control Flow Graph of MIR

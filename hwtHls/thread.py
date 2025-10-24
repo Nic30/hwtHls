@@ -45,6 +45,9 @@ class HlsThread():
         self._label = ns.checked_name(f"t{i:d}", self)
         return self._label
 
+    def getDbgSubdir(self):
+        return self.hls.parentHwModule._getDefaultName() + ("_" + self.hls.label if self.hls.label else "") + "/" + self.getLabel()
+
     def getNamePrefix(self):
         namePrefix = self.hls.namePrefix
         if len(self.hls._threads) > 1:
@@ -59,7 +62,7 @@ class HlsThread():
         hls = self.hls
 
         self.netlist = HlsNetlistCtx(
-            hls.parentHwModule, hls.freq, self.hls.parentHwModule._getDefaultName() + "_" + self.getLabel(),
+            hls.parentHwModule, hls.freq, self.getLabel(), self.getDbgSubdir(),
             self.resourceConstraints,
             namePrefix=self.getNamePrefix(),
             platform=hls.parentHwModule._target_platform)

@@ -668,12 +668,13 @@ class HlsNetlistAnalysisPassDumpNodesDot(HlsNetlistAnalysisPass):
         return not HdlType_isVoid(src._dtype)
 
     @override
-    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
-        name = netlist.label
-        out, doClose = self.outStreamGetter(name)
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx, dbgSubdir:Optional[str]=None):
+        if dbgSubdir is None:
+            dbgSubdir = netlist.dbgSubdir
+        out, doClose = self.outStreamGetter(dbgSubdir)
         try:
             toGraphviz = HwtHlsNetlistToGraphviz(
-                name, self._getNodes(netlist), self.expandAggregates, self.addLegend, self.addOrderingNodes,
+                netlist.label, self._getNodes(netlist), self.expandAggregates, self.addLegend, self.addOrderingNodes,
                 showArchElementLinks=self.showArchElementLinks,
                 colorOverride=self.colorOverride)
             if not self.showVoid:

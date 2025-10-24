@@ -29,7 +29,7 @@ class BitwiseOpsScheduling_TC(SimTestCase):
 
     def _test_3not(self, freq:float):
         platform = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
-        net = HlsNetlistCtx(None, freq, f"3not{int(freq//1e6)}Mhz", {}, platform=platform)
+        net = HlsNetlistCtx(None, freq, f"3not{int(freq//1e6)}Mhz", "test", {}, platform=platform)
         net.builder = HlsNetlistBuilder(net)
         t = HBits(8)
         r = HlsNetNodeRead(net, HwIOVectSignal(8), t, name="r0")
@@ -60,7 +60,7 @@ class BitwiseOpsScheduling_TC(SimTestCase):
 
     def _test_2not1and(self, freq:float):
         platform = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
-        net = HlsNetlistCtx(None, freq, f"2not1and{int(freq//1e6)}Mhz", {}, platform=platform)
+        net = HlsNetlistCtx(None, freq, f"2not1and{int(freq//1e6)}Mhz", "test", {}, platform=platform)
         net.builder = HlsNetlistBuilder(net)
         t = HBits(8)
         r0 = HlsNetNodeRead(net, HwIOVectSignal(8), t, name="r0")

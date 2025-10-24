@@ -21,7 +21,6 @@ from hwtHls.netlist.observableList import ObservableList, ObservableListRm
 from hwtHls.netlist.scheduler.resourceList import SchedulingResourceConstraints
 from hwtHls.ssa.analysisCache import AnalysisCache
 
-
 DEFAULT_SCHEDULER_RESOLUTION = 0.01e-9
 
 
@@ -31,6 +30,7 @@ class HlsNetlistCtx(AnalysisCache):
     Convert sequential code without data dependency cycles to RTL.
 
     :ivar label: a name of this scope
+    :ivar dbgSubdir: directory where debug outputs from this netlist should be stored :see: :class:`HlsDebugBundle`
     :ivar namePrefix: name prefix which should be used for child object names
     :ivar parentHwModule: parent unit where RTL should be instantiated
     :ivar platform: platform with configuration of this HLS context
@@ -50,7 +50,7 @@ class HlsNetlistCtx(AnalysisCache):
 
     def __init__(self, parentHwModule: HwModule,
                  freq: Union[float, int],
-                 label: str,
+                 label: str, dbgSubdir:Optional[str],
                  resourceConstraints:SchedulingResourceConstraints,
                  namePrefix:str="",
                  schedulerResolution:float=DEFAULT_SCHEDULER_RESOLUTION,
@@ -60,6 +60,7 @@ class HlsNetlistCtx(AnalysisCache):
         :ivar schedulerResolution: The time resolution for time in scheduler specified in seconds (1e-9 is 1ns).
         """
         self.label = label
+        self.dbgSubdir = dbgSubdir
         self.namePrefix = namePrefix
         self.parentHwModule = parentHwModule
         self.platform = platform if platform is not None else parentHwModule._target_platform

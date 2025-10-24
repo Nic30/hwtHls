@@ -37,7 +37,7 @@ class BaseHlsNetlistReduceTC(unittest.TestCase):
 
     @staticmethod
     def _createNetlist() -> Tuple[HlsNetlistCtx, HlsNetlistBuilder]:
-        netlist = HlsNetlistCtx(None, int(100e6), "test", {}, platform=VirtualHlsPlatform())
+        netlist = HlsNetlistCtx(None, int(100e6), "test", "test", {}, platform=VirtualHlsPlatform())
         return netlist, netlist.builder
 
     def _r(self, netlist: HlsNetlistCtx, dtype=BIT):

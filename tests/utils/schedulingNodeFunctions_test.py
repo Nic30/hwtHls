@@ -18,7 +18,7 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 class SchedulingNodeFunctions_TC(unittest.TestCase):
 
     def test_delay(self):
-        netlist = HlsNetlistCtx(None, int(1e6), "test", {}, platform=VirtualHlsPlatform())
+        netlist = HlsNetlistCtx(None, int(1e6), "test", "test", {}, platform=VirtualHlsPlatform())
         clkPeriod = netlist.normalizedClkPeriod
         epsilon = netlist.scheduler.epsilon
         ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
@@ -70,7 +70,7 @@ class SchedulingNodeFunctions_TC(unittest.TestCase):
         self.assertEqual(n.scheduledOut[0], clkPeriod * 3)
 
     def test_HlsNetNodeWriteBackedge_full(self):
-        netlist = HlsNetlistCtx(None, int(1e6), "test", {}, platform=VirtualHlsPlatform())
+        netlist = HlsNetlistCtx(None, int(1e6), "test", "test", {}, platform=VirtualHlsPlatform())
         clkPeriod = netlist.normalizedClkPeriod
         epsilon = netlist.scheduler.epsilon
 
@@ -103,7 +103,7 @@ class SchedulingNodeFunctions_TC(unittest.TestCase):
         self.assertEqual(w.scheduledOut[full.out_i], 2 * clkPeriod + epsilon)
 
     def test_HlsNetNodeAggregate_time_afterPortAdd(self):
-        netlist = HlsNetlistCtx(None, int(100e6), "test", {}, platform=VirtualHlsPlatform())
+        netlist = HlsNetlistCtx(None, int(100e6), "test", "test", {}, platform=VirtualHlsPlatform())
         clkPeriod = netlist.normalizedClkPeriod
         self.assertEqual(clkPeriod, 1001)
         epsilon = netlist.scheduler.epsilon

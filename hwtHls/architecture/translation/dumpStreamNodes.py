@@ -25,7 +25,7 @@ class HlsAndRtlNetlistPassDumpStreamNodes(HlsAndRtlNetlistAnalysisPass):
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
         stateEncodingA: HlsAndRtlNetlistAnalysisPassFsmStateEncoding = netlist.getAnalysisIfAvailable(HlsAndRtlNetlistAnalysisPassFsmStateEncoding)
-        out, doClose = self.outStreamGetter(netlist.label)
+        out, doClose = self.outStreamGetter(netlist.dbgSubdir)
         try:
             for elem_i, elm in enumerate(netlist.subNodes):
                 elm: ArchElement

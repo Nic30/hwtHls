@@ -1,6 +1,6 @@
 import html
 import pydot
-from typing import Dict, Set
+from typing import Dict, Set, Optional
 
 from hwt.hwIO import HwIO
 from hwt.pyUtils.typingFuture import override
@@ -149,10 +149,12 @@ class HlsNetlistAnalysisPassDumpBlockSync(HlsNetlistAnalysisPass):
         return P
 
     @override
-    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
+    def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx, dbgSubdir:Optional[str]=None):
         from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
         toNetlist: HlsNetlistAnalysisPassMirToNetlist = netlist.getAnalysis(HlsNetlistAnalysisPassMirToNetlist)
-        out, doClose = self.outStreamGetter(netlist.label)
+        if dbgSubdir is None:
+            dbgSubdir = netlist.dbgSubdir
+        out, doClose = self.outStreamGetter(dbgSubdir)
 
         try:
             P = self.dumpBlockSyncToDot(toNetlist.mf, toNetlist.blockMeta,

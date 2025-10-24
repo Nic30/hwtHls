@@ -33,7 +33,6 @@ from hwtHls.platform.platform import DefaultHlsPlatform
 from hwtHls.thread import HlsThread, HlsThreadDoesNotUseSsa
 from hwtLib.amba.axi_common import Axi_hs
 
-
 # type representing HwIO and alike classes which are natively supported by HlsScope read/write
 ANY_HLS_COMPATIBLE_IO = Union[HwIODataRdVld, HwIOStructRdVld,
                               HwIORdVldSync, Axi_hs,
@@ -49,6 +48,8 @@ class HlsScope():
     * code -> LLVM IR SSA -> LLVM MIR non-SSA -> HLS netlist -> RTL netlist
 
     :ivar parentHwModule: A RTL object where this HLS thread are being synthetized in.
+    :ivar namePrefix: name prefix for generated RTL objects
+    :ivar label: name of scope for debugging purposes
     :ivar freq: Default target frequency for circuit synthesis
     :ivar ctx: a RTL context for a signals used in input code
     :ivar ssaCtx: context for building of SSA
@@ -60,12 +61,14 @@ class HlsScope():
 
     def __init__(self, parentHwModule: HwModule,
                  freq: Optional[Union[int, float]]=None,
+                 label:str="",
                  namePrefix:str="hls_"):
         """
         :param freq: override of the clock frequency, if None the frequency of clock associated with parent is used
         """
         self.parentHwModule = parentHwModule
         self.namePrefix = namePrefix
+        self.label = label
         self._private_hwIOs = parentHwModule._private_hwIOs if parentHwModule else []
         if freq is None:
             freq = parentHwModule.clk.FREQ
@@ -180,11 +183,11 @@ class HlsScope():
         isThread0 = True
         for t in self._threads:
             t: HlsThread
-            # we have to wait with compilation until here
-            # because we need all IO and sharing constraints specified
             self._currentThread = t
             useSsa = True
             p.beforeThreadToSsa(t)
+            # :note: 1 HlsThread may generate multiple MIR thread
+            # :note: Multiple MIR functions may compile into the same HlsNetlistCtx if they come from the same thread
             try:
                 t.compileToSsa()
             except HlsThreadDoesNotUseSsa:
@@ -194,7 +197,6 @@ class HlsScope():
                 p.runSsaPasses(self, t.toLlvm)
 
             t.compileToNetlist(p)
-            # assert t.netlist.subNodes, ("Thread produced empty netlist", t)
 
         for t in self._threads:
             t: HlsThread
@@ -225,6 +227,8 @@ class HlsScope():
 
         self._currentThread = None  # things after this point are no longer directly associated with a specific thread
         netlist: "HlsNetlistCtx" = self._mergeNetlists(self._threads)
+        # update netlist dbgSubdir after netlist instance is shared for all threads
+        netlist.dbgSubdir = self.parentHwModule._getDefaultName() + ("_" + self.label if self.label else "")
         if len(self._threads) > 1:
             channels.assertAllResolved()
 

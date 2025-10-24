@@ -193,10 +193,9 @@ class RtlArchAnalysisPassDumpHsSCCsDot(HlsArchAnalysisPass):
 
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
-        name = netlist.label
-        out, doClose = self.outStreamGetter(name)
+        out, doClose = self.outStreamGetter(netlist.dbgSubdir)
         try:
-            toGraphviz = HsSCCsToGraphviz(name)
+            toGraphviz = HsSCCsToGraphviz(netlist.label)
             chanels = netlist.getAnalysis(HlsAndRtlNetlistAnalysisPassChannelGraph)
             syncGraph = netlist.getAnalysis(HlsAndRtlNetlistAnalysisPassSyncNodeGraph)
             stalling = netlist.getAnalysis(HlsAndRtlNetlistAnalysisPassSyncNodeStallling)

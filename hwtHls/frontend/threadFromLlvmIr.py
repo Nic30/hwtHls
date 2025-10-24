@@ -43,7 +43,7 @@ class HlsThreadFromLlvmIr(HlsThread):
         if debugDir is not None:
             debugHierarchyPath = d.isActivated(HlsDebugBundle.DBG_0_0_hierachyPath)
             self.toLlvm._dbgRootDir = Path(debugDir)
-            self.toLlvm._dbgSubDir = self.hls.parentHwModule._getDefaultName() + "_" + self.getLabel()
+            self.toLlvm._dbgSubDir = self.getDbgSubdir()
             self.dbgTracer, self._doCloseTrace = p._getDebugTracer(
                 self.toLlvm._dbgSubDir, HlsDebugBundle.DBG_0_0_pyFrontedBytecodeTrace)
 

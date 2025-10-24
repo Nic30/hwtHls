@@ -1,4 +1,5 @@
 from io import StringIO
+import os
 from pathlib import Path
 import sys
 from typing import Optional, Union, Type
@@ -46,9 +47,9 @@ from hwtHls.platform.fileUtils import outputFileGetter
 from hwtHls.ssa.analysis.consistencyCheck import SsaPassConsistencyCheck
 from hwtHls.ssa.translation.llvmMirToNetlist.datapath import BlockLiveInMuxSyncDict
 from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
+from hwtHls.ssa.translation.mirThreadFromHwtComponent import mirThreadFromHwtComponentMetadata
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtHls.ssa.translation.toLlvmUtils import getIoNodeConstructors
-from hwtHls.ssa.translation.mirThreadFromHwtComponent import mirThreadFromHwtComponentMetadata
 
 
 def _runOnSsaModuleGetter(p):
@@ -139,17 +140,22 @@ class DefaultHlsPlatform(DummyPlatform):
                            loops: MachineLoopInfo):
         """
         :attention: This function is called from c++ at the end of llvm pipeline.
-          It is implemented in this way to allow access to analysis in llvm pass manager.
-        :note: this function may be called multipletimes for single llvm::Module if it contains mutiple function. 
+                    It is implemented in this way to allow access to analysis in llvm pass manager.
+        :note: This function may be called multipletimes for single llvm::Module and HlsNetlistCtx
+               if the module contains mutiple function.
+               This is the case for example if the HlsThread generate multiple MachineFunctions.
         """
         assert isinstance(toLlvm, ToLlvmIrTranslator), toLlvm
         DBG = self._debug.runDebugIfEnabled
         D = HlsDebugBundle
         DBG(D.DBG_2_0_mir, (toLlvm, mf), applyFnGetter=_runOnSsaModuleGetter)
         DBG(D.DBG_2_0_mirCfg, (toLlvm, mf), applyFnGetter=_runOnSsaModuleGetter)
-
-        dbgTracer, doCloseTrace = self._getDebugTracer(netlist.label, D.DBG_2_1_netlistConstructionTrace)
-        netlist.dbgSubmoduleBuidTracer, submoduleBuildDbgTracerDoClose = self._getDebugTracer(netlist.label, D.DBG_2_1_submoduleBuildLogMir)
+        # :note: netlist.dbgSubdir is shared for all MIR functions generated from HlsThread
+        dbgSubdir = netlist.dbgSubdir
+        if dbgSubdir is not None:
+            dbgSubdir = os.path.join(dbgSubdir, mf.getName().str())
+        dbgTracer, doCloseTrace = self._getDebugTracer(dbgSubdir, D.DBG_2_1_netlistConstructionTrace)
+        netlist.dbgSubmoduleBuidTracer, submoduleBuildDbgTracerDoClose = self._getDebugTracer(dbgSubdir, D.DBG_2_1_submoduleBuildLogMir)
 
         toNetlist = HlsNetlistAnalysisPassMirToNetlist(
             hls, toLlvm, mf, backedges, liveness, ioRegs, registerTypes,
@@ -162,20 +168,20 @@ class DefaultHlsPlatform(DummyPlatform):
             hwtCompMd = MetadataThreadHwtComponent.get(F)
             if hwtCompMd is None:
                 toNetlist.translateDatapathInBlocks(mf)
-                DBG(D.DBG_2_1_blockSync, (netlist,))
+                DBG(D.DBG_2_1_blockSync, (netlist, dbgSubdir))
 
                 blockLiveInMuxInputSync: BlockLiveInMuxSyncDict = toNetlist.constructLiveInMuxes(mf)
-                DBG(D.DBG_2_2_preSync, (netlist,))
+                DBG(D.DBG_2_2_preSync, (netlist, dbgSubdir))
 
                 toNetlist.extractRstValues(mf)
-                DBG(D.DBG_2_3_postRst, (netlist,))
+                DBG(D.DBG_2_3_postRst, (netlist, dbgSubdir))
 
                 toNetlist.resolveControlForBlockWithChannelLivein(mf, blockLiveInMuxInputSync)
-                DBG(D.DBG_2_4_postLoop, (netlist,))
+                DBG(D.DBG_2_4_postLoop, (netlist, dbgSubdir))
 
                 toNetlist.resolveBlockEn(mf)
                 toNetlist.connectOrderingPorts(mf)
-                DBG(D.DBG_2_5_postSync, (netlist,))
+                DBG(D.DBG_2_5_postSync, (netlist, dbgSubdir))
             else:
                 mirThreadFromHwtComponentMetadata(hwtCompMd, toLlvm, toNetlist, F)
         finally:
@@ -204,11 +210,11 @@ class DefaultHlsPlatform(DummyPlatform):
 
         HlsNetlistPassReadSyncToAckOfIoNodes().runOnHlsNetlist(netlist)
 
-        dbgTracer, doCloseTrace = self._getDebugTracer(netlist.label, D.DBG_3_1_netlistSimplifyTrace)
+        dbgTracer, doCloseTrace = self._getDebugTracer(netlist.dbgSubdir, D.DBG_3_1_netlistSimplifyTrace)
         DBG(HlsNetlistPassConsistencyCheck, (netlist,))
 
         assert netlist.dbgSubmoduleBuidTracer is None
-        netlist.dbgSubmoduleBuidTracer, submoduleBuildDbgTracerDoClose = self._getDebugTracer(netlist.label, D.DBG_3_4_submoduleBuildLogPreSchedule)
+        netlist.dbgSubmoduleBuidTracer, submoduleBuildDbgTracerDoClose = self._getDebugTracer(netlist.dbgSubdir, D.DBG_3_4_submoduleBuildLogPreSchedule)
         try:  # try-except for closing of dbgTracer
 
             with dbgTracer.scoped(HlsNetlistPassTrivialSimplifyExplicitSync, None):
@@ -319,7 +325,7 @@ class DefaultHlsPlatform(DummyPlatform):
         try:
             HlsNetlistPassArchElementStageInit().runOnHlsNetlist(netlist)
             assert netlist.dbgSubmoduleBuidTracer is None
-            netlist.dbgSubmoduleBuidTracer, doCloseTrace = self._getDebugTracer(netlist.label, D.DBG_4_0_submoduleBuildLogPostSchedule)
+            netlist.dbgSubmoduleBuidTracer, doCloseTrace = self._getDebugTracer(netlist.dbgSubdir, D.DBG_4_0_submoduleBuildLogPostSchedule)
             try:
                 HlsNetlistPassOperatorToHwtLowering(isScheduled=True, debugTracer=netlist.dbgSubmoduleBuidTracer).runOnHlsNetlist(netlist)
             finally:
@@ -355,7 +361,7 @@ class DefaultHlsPlatform(DummyPlatform):
             HlsArchPassArchStructureSimplify().runOnHlsNetlist(netlist)
             DBG(lambda: HlsNetlistPassConsistencyCheck(checkCycleFree=False), (netlist,))
 
-            dbgTracer, doCloseTrace = self._getDebugTracer(netlist.label, D.DBG_4_2_netlistChannelMergeTrace)
+            dbgTracer, doCloseTrace = self._getDebugTracer(netlist.dbgSubdir, D.DBG_4_2_netlistChannelMergeTrace)
             try:
                 RtlArchPassChannelMerge(dbgTracer).runOnHlsNetlist(netlist)
             finally:

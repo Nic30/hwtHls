@@ -25,7 +25,7 @@ class HlsNetlistAnalysisPassDumpNodesTxt(HlsNetlistAnalysisPass):
 
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
-        out, doClose = self.outStreamGetter(netlist.label)
+        out, doClose = self.outStreamGetter(netlist.dbgSubdir)
         try:
             self._printNodes("", netlist.iterAllNodes(), out)
             out.write("\n")

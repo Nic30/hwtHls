@@ -63,10 +63,9 @@ class HlsNetlistAnalysisPassDumpSyncDomainsDot(HlsNetlistAnalysisPass):
 
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
-        name = netlist.label
-        out, doClose = self.outStreamGetter(name)
+        out, doClose = self.outStreamGetter(netlist.dbgSubdir)
         try:
-            toGraphviz = HwtHlsNetlistSyncDomainsToGraphviz(name, netlist.iterAllNodes(), addLegend=self.addLegend)
+            toGraphviz = HwtHlsNetlistSyncDomainsToGraphviz(netlist.label, netlist.iterAllNodes(), addLegend=self.addLegend)
             syncDomains = netlist.getAnalysis(HlsNetlistAnalysisPassSyncDomains)
             toGraphviz.construct(syncDomains)
             out.write(toGraphviz.dumps())

@@ -89,7 +89,7 @@ class HlsThreadFromPy(HlsThread):
 
             toSsa = self.bytecodeToSsa
             toSsa.toLlvm._dbgRootDir = Path(debugDir)
-            toSsa.toLlvm._dbgSubDir = self.hls.parentHwModule._getDefaultName() + "_" + self.getLabel()
+            toSsa.toLlvm._dbgSubDir = self.getDbgSubdir()
             self.dbgTracer, self._doCloseTrace = p._getDebugTracer(
                 toSsa.toLlvm._dbgSubDir, HlsDebugBundle.DBG_0_0_pyFrontedBytecodeTrace)
             toSsa.dbgTracer = self.dbgTracer

@@ -38,7 +38,7 @@ class HlsThreadFromNetlist(HlsThread):
             i = self.hls._threads.index(self)
             namePrefix = f"{self.hls.namePrefix}t{i:d}_"
         netlist = self.netlist = HlsNetlistCtx(hls.parentHwModule, hls.freq,
-                                            self.hls.parentHwModule._getDefaultName() + "_" + self.getLabel(),
+                                            self.getLabel(), self.getDbgSubdir(),
                                             self.resourceConstraints,
                                             namePrefix=namePrefix)
         self.builder: HlsNetlistBuilder = netlist.builder

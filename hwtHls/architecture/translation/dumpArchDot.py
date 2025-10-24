@@ -596,10 +596,9 @@ class RtlArchAnalysisPassDumpArchDot(HlsArchAnalysisPass):
 
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx):
-        name = netlist.label
         fsmStateEncoding = netlist.getAnalysisIfAvailable(HlsAndRtlNetlistAnalysisPassFsmStateEncoding)
-        toGraphviz = RtlArchToGraphviz(name, netlist, netlist.parentHwModule, fsmStateEncoding, self.hideSyncLogic, self.hideFunctionalUnits)
-        out, doClose = self.outStreamGetter(name)
+        toGraphviz = RtlArchToGraphviz(netlist.label, netlist, netlist.parentHwModule, fsmStateEncoding, self.hideSyncLogic, self.hideFunctionalUnits)
+        out, doClose = self.outStreamGetter(netlist.dbgSubdir)
         try:
             toGraphviz.construct()
             out.write(toGraphviz.dumps())
