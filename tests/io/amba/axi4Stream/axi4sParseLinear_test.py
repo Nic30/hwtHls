@@ -65,9 +65,11 @@ class Axi4SParseLinearTC(SimTestCase):
                 ", ".join("0x%x" % int(i) if i._is_full_valid() else repr(i) for i in o._ag.data),
                 ", ".join("0x%x" % i for i in _ref)
             ))
-
-    def test_Axi4SParseStructManyInts0_8b(self):
-        self._test_parse(8)
+    
+    
+    # dissabled because the exmple is too large for circleci
+    # def test_Axi4SParseStructManyInts0_8b(self):
+    #     self._test_parse(8)
 
     def test_Axi4SParseStructManyInts0_16b(self):
         self._test_parse(16)
