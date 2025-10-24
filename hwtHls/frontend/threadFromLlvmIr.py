@@ -6,10 +6,12 @@ from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy, _dumpModuleParams
 from hwtHls.netlist.debugTracer import DebugTracer
+from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 from hwtHls.platform.platform import DefaultHlsPlatform, HlsDebugBundle
 from hwtHls.scope import HlsThread, HlsScope
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from ipCorePackager.constants import DIRECTION
+from hwtHls.platform.hwtHlsInstrumentations import HwtHlsInstrumentations
 
 
 class HlsThreadFromLlvmIr(HlsThread):
@@ -34,7 +36,15 @@ class HlsThreadFromLlvmIr(HlsThread):
 
     @override
     def prepareLlvmTranslator(self):
-        self.toLlvm = ToLlvmIrTranslator(self.hls.parentHwModule, None, self.hls.parentHwModule._target_platform._llvmCliArgs)
+        platform = self.hls.getPlatform()
+        dbg: HlsDebugBundle = platform._debug
+        llvmCliOpts = self.hls.parentHwModule._target_platform._llvmCliArgs
+        if dbg.isActivated(HlsDebugBundle.DBG_2_6_llvmStats):
+            llvmCliOpts = llvmCliOpts + [
+                LLVM_CLI_COMMON_OPTS.infoOutputFile((dbg.dir / self.getDbgSubdir() / HlsDebugBundle.DBG_2_6_llvmStats[1]).as_posix())
+            ]
+        self.toLlvm = ToLlvmIrTranslator(self.hls.parentHwModule, llvmCliOpts)
+        self.toLlvm.instrumentations = HwtHlsInstrumentations(platform, self.toLlvm)
 
     @override
     def debugCopyConfig(self, p: DefaultHlsPlatform):

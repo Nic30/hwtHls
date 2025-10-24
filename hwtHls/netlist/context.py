@@ -48,22 +48,25 @@ class HlsNetlistCtx(AnalysisCache):
         and is alwailable once netlist is constructed from MIR
     """
 
-    def __init__(self, parentHwModule: HwModule,
+    def __init__(self,
+                 platform: "VirtualHlsPlatform",
+                 parentHwModule: HwModule,
                  freq: Union[float, int],
-                 label: str, dbgSubdir:Optional[str],
+                 label: str,
+                 dbgSubdir:Optional[str],
                  resourceConstraints:SchedulingResourceConstraints,
-                 namePrefix:str="",
-                 schedulerResolution:float=DEFAULT_SCHEDULER_RESOLUTION,
-                 platform: Optional["VirtualHlsPlatform"]=None):
+                 namePrefix:str,
+                 schedulerResolution:float=DEFAULT_SCHEDULER_RESOLUTION):
         """
         :see: For parameter meaning see doc of this class.
         :ivar schedulerResolution: The time resolution for time in scheduler specified in seconds (1e-9 is 1ns).
         """
+        AnalysisCache.__init__(self)
         self.label = label
         self.dbgSubdir = dbgSubdir
         self.namePrefix = namePrefix
         self.parentHwModule = parentHwModule
-        self.platform = platform if platform is not None else parentHwModule._target_platform
+        self.platform = platform
         self.builder: Optional["HlsNetlistBuilder"] = None
         self._uniqNodeCntr = 0
 
@@ -77,16 +80,12 @@ class HlsNetlistCtx(AnalysisCache):
         self._channelsBetweenLlvmThreads: dict[HwIODataRdVld, tuple[HlsNetNodeRead, HlsNetNodeWrite]] = {}
 
         self.ctx = RtlNetlist()
-        AnalysisCache.__init__(self)
         self.scheduler: "HlsScheduler" = self.platform.schedulerCls(self, schedulerResolution, resourceConstraints)
         self._dbgAddSignalNamesToSync = False
         self._dbgAddSignalNamesToData = False
-        self._dbgLogPassExec:Optional[StringIO] = None
         self.dbgSubmoduleBuidTracer: Optional[DebugTracer] = None
-        if platform is not None:
-            self._dbgLogPassExec = platform.getPassManagerDebugLogFile()
 
-        from hwtHls.netlist.builder import HlsNetlistBuilder
+        from hwtHls.netlist.builder import HlsNetlistBuilder  # can not import directly because of cyclical dependency
         self.builder = HlsNetlistBuilder(self)
 
     def getHlsNetlistBuilder(self) -> "HlsNetlistBuilder":

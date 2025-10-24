@@ -84,12 +84,6 @@ class DefaultHlsPlatform(DummyPlatform):
         self._llvmCliArgs: list[LlvmCliArgTuple] = llvmCliArgs
         self._llvmIoLowerPasses: list["ModulePass"] = []
 
-    def getPassManagerDebugLogFile(self) -> Optional[StringIO]:
-        for llvmArg in self._llvmCliArgs:
-            if llvmArg[0] == "debug-pass-manager":
-                return sys.stderr
-        return None
-
     def _getDebugTracer(self, scopeName: str, dbgId: DebugId):
         dbgDir = self._debug.dir
         if dbgDir and self._debug.isActivated(dbgId):

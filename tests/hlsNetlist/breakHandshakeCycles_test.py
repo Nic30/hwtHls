@@ -59,7 +59,7 @@ class BreakHandshakeCycles_TC(BaseSerializationTC):
         return nodeName, nodeType, channelType, channelId, initValueCnt, hasSw, hasEc
 
     def _test_graph(self, graph: List[Tuple[str, List[List[HlsNetNode]]]]):
-        netlist = HlsNetlistCtx(None, int(1e6), "test", "test", {}, platform=VirtualHlsPlatform())
+        netlist = HlsNetlistCtx(VirtualHlsPlatform(), None, int(1e6), "test", "test", {})
         clkPeriod: SchedTime = netlist.normalizedClkPeriod
         channels: Dict[int, Tuple[Optional[HlsNetNodeWriteAnyChannel], Optional[HlsNetNodeReadAnyChannel]]] = {}
         nameToNode: Dict[str, HlsNetNode] = {}

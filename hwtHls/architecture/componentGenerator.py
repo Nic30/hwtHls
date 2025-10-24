@@ -255,6 +255,7 @@ class ComponentGenerator():
         #  and there is a second problem that the output products will not be placed where they should be
         buff = StringIO()
         store_manager = SaveToStream(parentHwModule._store_manager.serializer_cls, buff)
+        ns: "NameScopeForDebugFiles" = self.platform._debug.nameScope
         debugTracer.log(("building for scheduling ", cacheKey))
         with debugTracer.scoped(hwModule.__class__.__name__, None):
             for p in hwModule._hwParams:
@@ -262,7 +263,7 @@ class ComponentGenerator():
                 debugTracer.log((p._name, "=", p.get_value()))
 
         # store_manager = netlist.parentHwModule._store_manager
-        to_rtl(hwModule, store_manager, target_platform=self.platform)
+        to_rtl(hwModule, store_manager, name=ns.checked_name(hwModule._getDefaultName(), hwModule), target_platform=self.platform)
         rSeenFromIn, rSeenFromOut = hwModule.getHlsOpRealizationMeta()
         if cacheKey is not None:
             if extraCacheValueItems:

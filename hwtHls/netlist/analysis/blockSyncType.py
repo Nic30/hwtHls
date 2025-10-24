@@ -4,6 +4,7 @@ from typing import List, Dict, Optional, Tuple, Set, Sequence
 from hwt.hdl.types.defs import BIT
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
+from hwtHls.architecture.componentGenerator import ComponentGenerator
 from hwtHls.llvm.llvmIr import MachineBasicBlock, MachineLoopInfo, \
     MachineLoop, MachineInstr, Register, TargetOpcode, MachineFunction, MachineRegisterInfo, MachineOperand
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
@@ -12,14 +13,13 @@ from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutLazy
 from hwtHls.netlist.scheduler.resourceList import SchedulingResourceConstraints, \
     SchedulingResourceType
+from hwtHls.platform.opRealizationMeta import ComponentRealizationMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import \
     MachineEdgeMeta, MachineEdge, MACHINE_EDGE_TYPE, MachineLoopId
 from hwtHls.ssa.translation.llvmMirToNetlist.utils import _regIsValidLiveIn
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from ipCorePackager.constants import DIRECTION
-from hwtHls.architecture.componentGenerator import ComponentGenerator
-from hwtHls.platform.opRealizationMeta import ComponentRealizationMeta
 
 
 class HlsNetlistAnalysisPassBlockSyncType(HlsNetlistAnalysisPass):

@@ -32,7 +32,7 @@ class RtlArchPassSyncLowering_exprExtraction_1Pipeline_TC(BaseSerializationTC):
 
     @staticmethod
     def _createNetlistWithPipe():
-        netlist = HlsNetlistCtx(None, int(100e6), "test", "test", {}, platform=VirtualHlsPlatform())
+        netlist = HlsNetlistCtx(VirtualHlsPlatform(), None, int(100e6), "test", "test", {})
         pipeElm = ArchElementPipeline(netlist, "p0", "p0_")
         pipeElm.resolveRealization()
         pipeElm._setScheduleZeroTimeSingleClock(0)
@@ -40,8 +40,6 @@ class RtlArchPassSyncLowering_exprExtraction_1Pipeline_TC(BaseSerializationTC):
         return netlist, pipeElm
 
     def _assertNetlistMatchesRefFile(self, netlist: HlsNetlistCtx, runPredicatePruning=True, debugDumpEnable=False):
-        if debugDumpEnable:
-            netlist._dbgLogPassExec = sys.stderr
         HlsNetlistPassArchElementStageInit().runOnHlsNetlist(netlist)
         if runPredicatePruning:
             HlsArchPassSyncPredicatePruning().runOnHlsNetlist(netlist)

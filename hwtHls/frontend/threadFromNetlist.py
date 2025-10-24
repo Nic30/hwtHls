@@ -10,6 +10,7 @@ from hwtHls.netlist.scheduler.resourceList import SchedulingResourceConstraints,
 from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from hwtHls.platform.hwtHlsInstrumentations import HwtHlsInstrumentations
 
 
 class HlsThreadFromNetlist(HlsThread):
@@ -37,10 +38,15 @@ class HlsThreadFromNetlist(HlsThread):
         if len(self.hls._threads) > 1:
             i = self.hls._threads.index(self)
             namePrefix = f"{self.hls.namePrefix}t{i:d}_"
-        netlist = self.netlist = HlsNetlistCtx(hls.parentHwModule, hls.freq,
-                                            self.getLabel(), self.getDbgSubdir(),
-                                            self.resourceConstraints,
-                                            namePrefix=namePrefix)
+        netlist = self.netlist = HlsNetlistCtx(
+            self.hls.getPlatform(),
+            hls.parentHwModule,
+            hls.freq,
+            self.getLabel(),
+            self.getDbgSubdir(),
+            self.resourceConstraints,
+            namePrefix)
+        netlist.instrumentations = HwtHlsInstrumentations(self.hls.getPlatform(), netlist)
         self.builder: HlsNetlistBuilder = netlist.builder
         self.netlistConstructor(netlist)
         ioResources = []

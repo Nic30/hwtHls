@@ -224,11 +224,14 @@ class HlsScope():
                 p.runHlsNetlistToArchNetlist(self, t.netlist)
             for callback in t.archNetlistCallbacks:
                 callback(self, t)
+            t.netlist.instrumentations.finalizeInstrumentationCallbacks()
 
         self._currentThread = None  # things after this point are no longer directly associated with a specific thread
         netlist: "HlsNetlistCtx" = self._mergeNetlists(self._threads)
         # update netlist dbgSubdir after netlist instance is shared for all threads
-        netlist.dbgSubdir = self.parentHwModule._getDefaultName() + ("_" + self.label if self.label else "")
+        m = self.parentHwModule
+        netlist.dbgSubdir = (m._getDefaultName() if m._name is None else m._name) + ("_" + self.label if self.label else "")
+        netlist.instrumentations.installInstrumentationCallbacks()  # now with new paths and clean counters
         if len(self._threads) > 1:
             channels.assertAllResolved()
 
@@ -241,3 +244,4 @@ class HlsScope():
             p.runArchNetlistToRtlNetlist(self, netlist)
             p.runHlsAndRtlNetlistPasses(self, netlist)
 
+        netlist.instrumentations.finalizeInstrumentationCallbacks()

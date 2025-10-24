@@ -10,7 +10,10 @@ from hwt.mainBases import HwIOBase
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.fromPython import PyBytecodeToSsa
+from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.debugTracer import DebugTracer
+from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
+from hwtHls.platform.hwtHlsInstrumentations import HwtHlsInstrumentations
 from hwtHls.platform.platform import DefaultHlsPlatform, HlsDebugBundle
 from hwtHls.scope import HlsThread, HlsScope
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
@@ -69,7 +72,15 @@ class HlsThreadFromPy(HlsThread):
 
     @override
     def prepareLlvmTranslator(self):
-        self.toLlvm = ToLlvmIrTranslator(self.hls.parentHwModule, None, self.hls.parentHwModule._target_platform._llvmCliArgs)
+        platform = self.hls.getPlatform()
+        dbg: HlsDebugBundle = platform._debug
+        llvmCliOpts = self.hls.parentHwModule._target_platform._llvmCliArgs
+        if dbg.isActivated(HlsDebugBundle.DBG_2_6_llvmStats):
+            llvmCliOpts = llvmCliOpts + [
+                LLVM_CLI_COMMON_OPTS.infoOutputFile((dbg.dir / self.getDbgSubdir() / HlsDebugBundle.DBG_2_6_llvmStats[1]).as_posix())
+            ]
+        self.toLlvm = ToLlvmIrTranslator(self.hls.parentHwModule, llvmCliOpts)
+        self.toLlvm.instrumentations = HwtHlsInstrumentations(platform, self.toLlvm)
         self.bytecodeToSsa = PyBytecodeToSsa(self.hls, self.toLlvm, self.dbgTracer, self.getLabel(), self.getNamePrefix())
 
     @override
@@ -126,3 +137,21 @@ class HlsThreadFromPy(HlsThread):
             if self.dbgTracer is not None and self._doCloseTrace:
                 self.dbgTracer._out.close()
 
+    @override
+    def compileToNetlist(self, platform: DefaultHlsPlatform):
+        hls = self.hls
+        self.netlist = HlsNetlistCtx(
+            hls.getPlatform(),
+            hls.parentHwModule,
+            hls.freq,
+            self.getLabel(),
+            self.getDbgSubdir(),
+            self.resourceConstraints,
+            self.getNamePrefix())
+        # worward statistics to netlist
+        instrumentations = self.bytecodeToSsa.toLlvm.instrumentations
+        self.netlist.instrumentations = instrumentations
+        instrumentations.ac = self.netlist
+        instrumentations.installInstrumentationCallbacks()
+        platform.runSsaToNetlist(self.hls, self.toLlvm, self.netlist)
+        return self.netlist

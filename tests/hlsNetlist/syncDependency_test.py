@@ -15,7 +15,7 @@ class SyncDependencyTC(unittest.TestCase):
 
     @staticmethod
     def _createNetlist():
-        netlist = HlsNetlistCtx(None, int(100e6), "test", "test", {}, platform=VirtualHlsPlatform())
+        netlist = HlsNetlistCtx(VirtualHlsPlatform(), None, int(100e6), "test", "test", {})
         return netlist, netlist.builder
 
     def test_linear0(self):

@@ -40,17 +40,19 @@ from hwtHls.llvm.llvmIr import Value, Type, FunctionType, Function, VectorOfType
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.platform.debugBundleTypes import LlvmCliArgTuple
+from hwtHls.ssa.analysis.ssaAnalysisPass import SsaAnalysisPass
+from hwtHls.ssa.analysisCache import AnalysisCache
+from hwtHls.ssa.transformation.ssaPass import SsaPass
 from hwtHls.ssa.translation.toLlvmUtils import addHwtHlsFunctionIoMetadata, \
     ToLlvmIrTranslator_createOperatorConstructorDictionaries, \
     llvmFunctionSortArgsByName, ToLlvmIoRecordTuple, applyLateLoopPragma
 from pyMathBitPrecise.bit_utils import iter_bits_sequences, get_bit_range
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 
-
 PyObjectPlaceholderList = list[_PyBytecodeIntrinsic]
 
 
-class ToLlvmIrTranslator():
+class ToLlvmIrTranslator(AnalysisCache[SsaAnalysisPass, SsaPass]):
     """
     A container class which contains all necessary objects for LLVM.
     It can also translate between hwtHls SSA and LLVM SSA (in booth directions).
@@ -77,9 +79,9 @@ class ToLlvmIrTranslator():
     """
 
     def __init__(self, parentHwModule: HwModule,
-                 dbgLogPassExec:Optional[StringIO],
                  llvmCliOptions:list[LlvmCliArgTuple],
                  llvmModuleName:str="hwtHlsModule"):
+        AnalysisCache.__init__(self)
         self.llvm = LlvmCompilationBundle(llvmModuleName, llvmCliOptions)
         self.ctx: LLVMContext = self.llvm.ctx
         self.strCtx: LLVMStringContext = self.llvm.strCtx
@@ -105,8 +107,6 @@ class ToLlvmIrTranslator():
         self._variableInBlock: dict[BasicBlock, dict[RtlSignal, Value]] = {}
 
         self._loop_stack: list[tuple[BasicBlock, list[BasicBlock]]] = []
-        self._dbgLogPassExec:Optional[StringIO] = dbgLogPassExec
-
         (self._opConstructorMap,
          self._opConstructorMap2,
          self._opConstructorMapCmp) = \

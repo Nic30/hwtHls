@@ -31,7 +31,7 @@ class LLVM_CLI_COMMON_OPTS:
     #     "vreg-if-converter"
     #     "loop-simplify"
     # :note: LLVM MIR GISel combiners have options to disable/allow rules like
-    #   "hwtfpgapreregallocgicombiner-disable-rule"/"hwtfpgapreregallocgicombiner-only-enable-rule" 
+    #   "hwtfpgapreregallocgicombiner-disable-rule"/"hwtfpgapreregallocgicombiner-only-enable-rule"
     DEBUG_PASS_MANAGER = ("debug-pass-manager", 0, "", "")  # print used passes until machinemoduleinfo
     DEBUG_PASS_ARGUMENTS = ("debug-pass", 0, "", "Arguments")  # print used passes starting from machinemoduleinfo
     DEBUG_PASS_STRUCTURE = ("debug-pass", 0, "", "Structure")  # same as Arguments but pretty formated
@@ -77,8 +77,14 @@ class LLVM_CLI_COMMON_OPTS:
         """
         return ("pass-remarks-output", 0, "", filename)
 
-    TIME_PASSES = ("time-passes", 0, "", "true")  # profile times of passes and analysis
+    STATS_JSON = ("stats-json", 0, "", "true")  # specifies that stats/time output is in json format
+    TIME_PASSES = ("time-passes", 0, "", "true")  # profile times of passes and analysis, for new PassManager use time-trace
     TIME_PHASES = ("time-phases", 0, "", "")  # [todo] rm
+    # TIME_TRACE = ("time-trace", 0, "", "true") # log time of each pass (for new PassManager)
+
+    @classmethod
+    def infoOutputFile(cls, filename:str):  # specify filename for time-passes and alike
+        return ("info-output-file", 0, "", filename)
 
     @classmethod
     def debugOnly(cls, passName: str):
@@ -147,6 +153,8 @@ class HlsDebugBundle():
     DBG_2_3_postRst = (HlsNetlistAnalysisPassDumpNodesDot, "02.03.postRst.dot")  # basic block io after implementation of reset value extraction
     DBG_2_4_postLoop = (HlsNetlistAnalysisPassDumpNodesDot, "02.04.postLoop.dot")  # basic block io after implementation of loops
     DBG_2_5_postSync = (HlsNetlistAnalysisPassDumpBlockSync, "02.05.postSync.dot")  # basic block io after implementation of complete control flow sync
+    DBG_2_6_llvmStats = (None, "02.06.llvmStats.txt")  # specify the statistics and timer reports file for LLVM reports
+    #                                                    (== you also need LLVM_CLI_COMMON_OPTS.TIME_PASSES or similar to produce any reports)
     # hls netlist
     DBG_3_0_netlist = (HlsNetlistAnalysisPassDumpNodesDot, "03.00.netlist.dot")  # basic blocks dissolved to netlist
     DBG_3_0_netlistTxt = (HlsNetlistAnalysisPassDumpNodesTxt, "03.00.netlist.txt")  # same as DBG_3_0_netlist just in txt
@@ -181,20 +189,39 @@ class HlsDebugBundle():
     DBG_4_4_archDetail = (RtlArchAnalysisPassDumpArchDot, "04.04.archDetail.dot")  # graf of arch elements connections in generated architecture
     DBG_4_5_sync = (HlsAndRtlNetlistPassDumpStreamNodes, "04.05.sync.txt")  # control expressions of IO, FSMs and pipelines
     DBG_4_5_regFileHierarchy = (RtlArchPassTransplantArchElementsToSubunits, None)  # extract registers in pipeline stage or fsm to separate component
+    DBG_5_0_hwtHlsStats = (None, "05.06.hwtHlsStats.txt")  # equivalent of DBG_2_6_llvmStats for HwtHls non-llvm passes
 
     ALL = None
     NONE = {}
-    # all without DBG_4_0_addSignalNamesToSync, DBG_24_regFileHierarchy because it changes optimization behavior
-
+    ALL_RELIABLE_FAST = {
+        DBG_0_0_hierachyPath,
+        DBG_0_0_pyFrontedBytecode,
+        DBG_0_0_pyFrontedBytecodeTrace,
+        DBG_0_0_pyFrontedBeginCfg,
+        DBG_0_1_pyFrontedFinalCfg,
+        DBG_1_0_preLlvm,
+        DBG_2_0_mir,
+        DBG_2_0_mirCfg,
+        DBG_2_1_netlistConstructionTrace,
+        DBG_2_1_blockSync,
+        DBG_2_1_submoduleBuildLogMir,
+        DBG_2_6_llvmStats,
+        DBG_3_1_netlistSimplifiedErr,
+        DBG_3_4_submoduleBuildLogPreSchedule,
+        DBG_4_0_hwscheduleErr,
+        DBG_4_0_submoduleBuildLogPostSchedule,
+        DBG_4_2_netlistChannelMergeTrace,
+        DBG_4_3_handshakeSCCs,
+        DBG_4_4_archBasic,
+        DBG_4_5_sync,
+        DBG_5_0_hwtHlsStats,
+    }
     # :note: ALL_RELIABLE refers to passes which do not require intense circuit analysis.
     #        Passes which do require intense circuit analysis often fails on a broken circuit.
     #        Reliable debug options do not contain expensive debug options and
     #        are meant for detection of the bugs. While the expensive debug options
     #        are used for deeper circuit analysis or circuit rewrites for improving readability.
-
-    # :note: reliable refers to a passes which do not require intense circuit analysis which often fails on broken circuit
-    #        that said reliable debug options are meant for detection of the bugs and does not contain expensive debug options
-    #        which are used for deeper circuit analysis or circuit rewrites for improving of readability
+    # :note: all without DBG_4_0_addSignalNamesToSync, DBG_24_regFileHierarchy because it changes optimization behavior
     ALL_RELIABLE = {
         DBG_0_0_hierachyPath,
         DBG_0_0_pyFrontedBytecode,
@@ -211,6 +238,7 @@ class HlsDebugBundle():
         DBG_2_3_postRst,
         DBG_2_4_postLoop,
         DBG_2_5_postSync,
+        DBG_2_6_llvmStats,
         DBG_3_0_netlist,
         DBG_3_0_netlistTxt,
         DBG_3_0_netlistIoClusters,
@@ -236,6 +264,7 @@ class HlsDebugBundle():
         DBG_4_4_archCoarse,
         DBG_4_4_archDetail,
         DBG_4_5_sync,
+        DBG_5_0_hwtHlsStats,
     }
     DEFAULT = NONE
 

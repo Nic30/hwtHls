@@ -1,10 +1,11 @@
 from typing import Optional, Callable, List
 
+from hdlConvertorAst.translate.common.name_scope import NameScope
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.scheduler.resourceList import SchedulingResourceConstraints
+from hwtHls.platform.hwtHlsInstrumentations import HwtHlsInstrumentations
 from hwtHls.platform.platform import DefaultHlsPlatform
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
-from hdlConvertorAst.translate.common.name_scope import NameScope
 
 
 class HlsThreadDoesNotUseSsa(Exception):
@@ -41,12 +42,15 @@ class HlsThread():
         if self._label is not None:
             return self._label
         i = self.hls._threads.index(self)
-        ns: NameScope = self.hls.parentHwModule._target_platform._debug.nameScope
+        ns: NameScope = self.hls.getPlatform()._debug.nameScope
         self._label = ns.checked_name(f"t{i:d}", self)
         return self._label
 
     def getDbgSubdir(self):
-        return self.hls.parentHwModule._getDefaultName() + ("_" + self.hls.label if self.hls.label else "") + "/" + self.getLabel()
+        hls = self.hls
+        m = hls.parentHwModule
+        # ns: NameScope = hls.getPlatform()._debug.nameScope
+        return (m._getDefaultName() if m._name is None else m._name) + ("_" + self.hls.label if self.hls.label else "") + "/" + self.getLabel()
 
     def getNamePrefix(self):
         namePrefix = self.hls.namePrefix
@@ -60,11 +64,14 @@ class HlsThread():
 
     def compileToNetlist(self, platform: DefaultHlsPlatform):
         hls = self.hls
-
         self.netlist = HlsNetlistCtx(
-            hls.parentHwModule, hls.freq, self.getLabel(), self.getDbgSubdir(),
+            hls.getPlatform(),
+            hls.parentHwModule,
+            hls.freq,
+            self.getLabel(),
+            self.getDbgSubdir(),
             self.resourceConstraints,
-            namePrefix=self.getNamePrefix(),
-            platform=hls.parentHwModule._target_platform)
+            self.getNamePrefix())
+        self.netlist.instrumentations = HwtHlsInstrumentations(hls.getPlatform(), self.netlist)
         platform.runSsaToNetlist(self.hls, self.toLlvm, self.netlist)
         return self.netlist

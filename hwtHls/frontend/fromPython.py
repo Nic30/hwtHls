@@ -88,12 +88,11 @@ class PyBytecodeToSsa(PyBytecodeToSsaLowLevel):
                 dis(fn, file=f)
 
         with self.dbgTracer.scoped("translateFunction", fnName):
-            platform = self.hls.parentHwModule._target_platform
+            # platform = self.hls.parentHwModule._target_platform
             toLlvm = self.toLlvm
             assert toLlvm.llvm.main is None
             # create an empty main function, parameters are added once discovered from HwIO
             toLlvm.llvm.main = toLlvm.createFunctionPrototype(fnName, (), Type.getVoidTy(toLlvm.ctx))
-            toLlvm._dbgLogPassExec = platform.getPassManagerDebugLogFile()
 
             entryBlockLabel = BlockLabel(-1)
             entryBlock = BasicBlock.Create(toLlvm.ctx, toLlvm.strCtx.addTwine("bb0"), toLlvm.llvm.main, None)
