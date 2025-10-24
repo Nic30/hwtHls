@@ -104,7 +104,7 @@ class HlsAndRtlNetlistAnalysisPassSyncNodeStallling(HlsArchAnalysisPass):
                         inputCanStall = True
                         break
                     elif (isinstance(w, HlsNetNodeWriteBackedge) and
-                                r.getParentSyncNode() != w.getParentSyncNode()):
+                          r.getParentSyncNode() != w.getParentSyncNode()):
                         inputCanStall = True
                         break
                     elif isinstance(w.parent, ArchElementFsm):

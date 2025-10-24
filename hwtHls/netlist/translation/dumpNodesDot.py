@@ -35,6 +35,7 @@ from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod, \
     offsetInClockCycle, timeUntilClkEnd
 from hwtHls.platform.fileUtils import OutputStreamGetter
 
+
 COLOR_INPUT_READ = "LightGreen"
 COLOR_OUTPUT_WRITE = "LightBlue"
 COLOR_SYNC_INTERNAL = "Chartreuse"  # bright type of green

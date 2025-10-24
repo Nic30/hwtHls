@@ -8,6 +8,8 @@ from hwt.hdl.types.defs import BIT
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
+from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregateTmpForScheduling, \
+    HlsNetNodeAggregate
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.archElementNoImplicitSync import ArchElementNoImplicitSync
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
@@ -19,8 +21,6 @@ from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod, \
     offsetInClockCycle
 from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import iterAllHierachies
-from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregateTmpForScheduling, \
-    HlsNetNodeAggregate
 
 
 class HlsNetlistPassConsistencyCheck(HlsNetlistAnalysisPass):
@@ -64,7 +64,7 @@ class HlsNetlistPassConsistencyCheck(HlsNetlistAnalysisPass):
                 assert isinstance(o, HlsNetNodeOut), (n, o)
                 o: HlsNetNode
                 assert o.obj is n, ("Output parent check", n, o)
-                assert o.out_i == out_i, ( "Output index must be equal to index in node outputs", o.out_i, out_i, o)
+                assert o.out_i == out_i, ("Output index must be equal to index in node outputs", o.out_i, out_i, o)
                 seen = set()
                 for u in usedBy:
                     assert u not in seen, (o, "usedBy list should have unique items", usedBy, u)
