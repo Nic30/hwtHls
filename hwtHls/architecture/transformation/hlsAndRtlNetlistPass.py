@@ -13,4 +13,4 @@ class HlsAndRtlNetlistPass():
         return HlsNetlistPass.runOnHlsNetlist(self, netlist, *args, **kwargs)
 
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
-        pass
+        return HlsNetlistPass.runOnHlsNetlistImpl(self, netlist)
