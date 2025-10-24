@@ -72,20 +72,20 @@ loop.pkt.read:                                    ; preds = %loop.pkt.lastCheck,
   %35 = or i1 %eof.0, %eof.1
   %36 = or i1 %35, %eof.2
   %37 = select i1 %4, i3 %34, i3 0
-  br i1 %4, label %bb.w3.guard.streamWrMerge, label %38
+  br i1 %4, label %38, label %39
 
-bb.w3.guard.streamWrMerge:                        ; preds = %loop.pkt.read
+38:                                               ; preds = %loop.pkt.read
   call void @hwtHls.streamWrite.masked.p2.i24.i3.i1.i1.p0(ptr addrspace(2) %tx, i24 %33, i3 %34, i1 false, i1 %36, ptr null) #5
-  br label %38
+  br label %39
 
-38:                                               ; preds = %loop.pkt.read, %bb.w3.guard.streamWrMerge
+39:                                               ; preds = %loop.pkt.read, %38
   br i1 %.streamWrite.en21.2, label %bb.w3, label %loop.pkt.lastCheck
 
-bb.w3:                                            ; preds = %38
+bb.w3:                                            ; preds = %39
   call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %data.3, i1 false, i1 %eof.3, ptr null) #5
   br label %loop.pkt.lastCheck
 
-loop.pkt.lastCheck:                               ; preds = %bb.w3, %38
+loop.pkt.lastCheck:                               ; preds = %bb.w3, %39
   %spec.select = select i1 %rx.last, i9 0, i9 %20
   br label %loop.pkt.read
 }
