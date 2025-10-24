@@ -32,7 +32,7 @@ class BinToBcd_TC(HwtLibBinToBcdTC):
     def test_MIR(self):
         # :attention: MIR is loaded to file to test MIR loading, in other tests mir object should be used directly
         # and dump to file is not required
-        with open(Path(self.DEFAULT_LOG_DIR) / "BinToBcd" / "BinToBcd.mainThread" / "BinToBcd.mainThread" / "02.00.mir.ll") as f:
+        with open(Path(self.DEFAULT_LOG_DIR) / "BinToBcd_TC__BinToBcd" / "BinToBcd.mainThread" / "BinToBcd.mainThread" / "02.00.mir.ll") as f:
             refData = [0, 1, 2, 3, 4, 5, 6, 7, 99, 127, 255]
             args = [iter(refData), []]
             nameOfMain = "BinToBcd.mainThread"
