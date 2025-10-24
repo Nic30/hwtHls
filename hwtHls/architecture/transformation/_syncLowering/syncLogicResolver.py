@@ -632,7 +632,7 @@ class SyncLogicResolver(HlsNetlistToAbcAig):
         net = self.toAbc.net
         netlist = self.scc[0][0].netlist
         if self._dbgDumpAbc:
-            dumpFileNamePrefix = os.path.join("tmp", netlist.label, f"SyncLowering.{self.sccIndex:d}.")
+            dumpFileNamePrefix = os.path.join("tmp", netlist.dbgSubdir, f"SyncLowering.{self.sccIndex:d}.")
             net.Io_Write(dumpFileNamePrefix + "1.abc-init.dot", Io_FileType_t.IO_FILE_DOT)
             net.Io_Write(dumpFileNamePrefix + "1.abc-init.v", Io_FileType_t.IO_FILE_VERILOG)
 
