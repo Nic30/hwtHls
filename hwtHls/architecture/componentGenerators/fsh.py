@@ -5,9 +5,8 @@ from hwtHls.architecture.componentGeneratorUtils import replaceHlsNetNodeWithExp
 from hwtHls.code import OP_ROL, OP_SHL, OP_ROR, OP_LSHR, OP_ASHR
 from hwtHls.netlist.builder import HlsNetlistBuilder, \
     HlsNetlistBuilderWithWorklist
-from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator, OP_INDEX_CONST
 
 
 class ComponentGeneratorFshl(ComponentGenerator):
@@ -37,6 +36,7 @@ class ComponentGeneratorFshl(ComponentGenerator):
     def _assertIsConcatAnyShiftOrIndex(n: HlsNetNode):
         assert isinstance(n, HlsNetNodeOperator) and n.operator in (HwtOps.CONCAT,
                                                                     HwtOps.INDEX,
+                                                                    OP_INDEX_CONST,
                                                                     OP_LSHR,
                                                                     OP_ASHR,
                                                                     OP_SHL,
