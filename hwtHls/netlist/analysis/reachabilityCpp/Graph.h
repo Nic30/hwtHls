@@ -13,6 +13,7 @@ namespace hwtHls::reachability {
 /**
  * DAG graph
  * * owns the Vertex objects, vertexes are deleted after remove from graph
+ * * based on https://github.com/zakimjz/dagger-index.git
  * */
 class DAGGraph {
 public:

@@ -11,6 +11,9 @@ from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabil
 
 
 class HlsNetlistAnalysisPassReachabilityCpp(HlsNetlistAnalysisPassReachability):
+    """
+    Based on https://github.com/zakimjz/dagger-index.git
+    """
 
     def __init__(self, removed: Optional[Set[HlsNetNode]]=None):
         super(HlsNetlistAnalysisPassReachabilityCpp, self).__init__()
