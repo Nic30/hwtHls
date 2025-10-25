@@ -569,8 +569,9 @@ class HwtHlsNetlistToGraphviz():
             name = ""
             if obj.name is not None:
                 name = f" \"{html.escape(obj.name)}\""
-            label = (f"{obj.operator.id if isinstance(obj.operator, HOperatorDef) else str(obj.operator)}"
-                     f" {obj._id:d} {self._formatNodeScheduleTime(obj)}{name:s} {t}")
+            label = (f"{obj.operator.id if isinstance(obj.operator, HOperatorDef) else str(obj.operator)} {obj._id:d}"
+                     f"{'' if obj.operatorSpecialization is None else ' ' + html.escape(repr(obj.operatorSpecialization))}"
+                     f" {self._formatNodeScheduleTime(obj)}{name:s} {t}")
         elif isinstance(obj, (HlsNetNodeRead, HlsNetNodeWrite, HlsNetNodeLoopStatus)):
             label = f"{_reprMinify(obj):s}{self._formatNodeScheduleTime(obj)}"
         elif isinstance(obj, HlsNetNodeAggregatePortIn):

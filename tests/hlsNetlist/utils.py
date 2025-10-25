@@ -14,7 +14,6 @@ from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.platform.virtual import VirtualHlsPlatform
 
-
 TestExprTy = Union[int, HlsNetNodeOut, Tuple["TestExprTy", HOperatorDef, "TestExprTy"]]
 
 
@@ -28,7 +27,11 @@ def exprToTestExprTy(e: HlsNetNodeOut):
         else:
             return v
     elif isinstance(e.obj, HlsNetNodeOperator):
-        return (e.obj.operator, *(exprToTestExprTy(op) for op in e.obj.dependsOn))
+        ops = (exprToTestExprTy(op) for op in e.obj.dependsOn)
+        if e.obj.operatorSpecialization is None:
+            return (e.obj.operator, *ops)
+        else:
+            return (e.obj.operator, *ops, e.obj.operatorSpecialization)
     else:
         return e
 

@@ -8,21 +8,24 @@ from hwt.hdl.operatorDefs import HwtOps, HOperatorDef
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF, \
     ResourceRAM
 from hwtHls.architecture.componentGenerators.componentGeneratorMemory import ComponentGeneratorMemory
+from hwtHls.architecture.componentGenerators.countBits import ComponentGeneratorCTLZ, \
+    ComponentGeneratorCTTZ, ComponentGeneratorCTPOP
 from hwtHls.architecture.componentGenerators.ext import ComponentGeneratorZExt, ComponentGeneratorSExt
 from hwtHls.architecture.componentGenerators.fsh import ComponentGeneratorFshl, \
     ComponentGeneratorFshr
 from hwtHls.architecture.componentGenerators.icmpNeEq import ComponentGeneratorICMP_EQ_NE
+from hwtHls.architecture.componentGenerators.indexConst import ComponentGeneratorOP_INDEX_CONST
 from hwtHls.architecture.componentGenerators.mul_hl import ComponentGeneratorMUL_HL
 from hwtHls.code import OP_ASHR, OP_SHL, OP_LSHR, OP_CTLZ, OP_CTPOP, OP_CTTZ, \
     OP_BITREVERSE, OP_FSHR, OP_FSHL, OP_ROL, OP_ROR
 from hwtHls.llvm.llvmIr import HFloatTmpConfig, TargetOpcode
 from hwtHls.netlist.extraOps import OP_MUL_HL
 from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
+from hwtHls.netlist.nodes.ops import OP_INDEX_CONST
 from hwtHls.platform.debugBundleTypes import LlvmCliArgTuple
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.platform.platform import DefaultHlsPlatform, DebugId, HlsDebugBundle
-from hwtHls.architecture.componentGenerators.countBits import ComponentGeneratorCTLZ, \
-    ComponentGeneratorCTTZ, ComponentGeneratorCTPOP
+
 
 _OPS_T_GROWING_EXP = {
     HwtOps.POW,
@@ -183,8 +186,8 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
         _componentGenerators[TargetOpcode.HWTFPGA_CTLZ] = \
         _componentGenerators[TargetOpcode.HWTFPGA_CTLZ_ZERO_UNDEF] = \
         _componentGenerators[OP_CTLZ] = ComponentGeneratorCTLZ(self, genNamePrefix, "ctlz")
-        _componentGenerators[TargetOpcode.G_CTTZ] =\
-        _componentGenerators[TargetOpcode.G_CTTZ_ZERO_UNDEF] =\
+        _componentGenerators[TargetOpcode.G_CTTZ] = \
+        _componentGenerators[TargetOpcode.G_CTTZ_ZERO_UNDEF] = \
         _componentGenerators[TargetOpcode.HWTFPGA_CTTZ] = \
         _componentGenerators[TargetOpcode.HWTFPGA_CTTZ_ZERO_UNDEF] = \
         _componentGenerators[OP_CTTZ] = ComponentGeneratorCTTZ(self, genNamePrefix, "cttz")
@@ -193,6 +196,7 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
         _componentGenerators[OP_CTPOP] = ComponentGeneratorCTPOP(self, genNamePrefix, "ctpop")
         _componentGenerators[OP_FSHL] = ComponentGeneratorFshl(self, genNamePrefix, "fshl")
         _componentGenerators[OP_FSHR] = ComponentGeneratorFshr(self, genNamePrefix, "fshr")
+        _componentGenerators[OP_INDEX_CONST] = ComponentGeneratorOP_INDEX_CONST(self, genNamePrefix, "slice")
 
     @lru_cache()
     def get_op_realization(self, op: HOperatorDef, opSpecialization: Optional[HFloatTmpConfig], bit_width: int,

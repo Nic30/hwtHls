@@ -10,7 +10,7 @@ from hwt.hdl.const import HConst
 from hwt.hdl.operatorDefs import HOperatorDef, HwtOps, CAST_OPS
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
-from hwt.hdl.types.defs import BIT, SLICE, INT
+from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.arrayQuery import grouper, balanced_reduce
 from hwt.pyUtils.setList import SetList
@@ -21,7 +21,7 @@ from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator, OP_INDEX_CONST
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, \
     HlsNetNodeIn, HlsNetNodeOutLazy, HlsNetNodeOutAny
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
@@ -30,8 +30,10 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.simplifyUtils import getConstOfOutput
 from pyMathBitPrecise.bit_utils import mask
 
+
 HlsNetlistBuilderOperatorCacheKey_t = Tuple[Union[HOperatorDef, Type[HlsNetNode]],
-                                              Tuple[Union[HlsNetNodeOut, HConst], ...]]
+                                            object,  # operator specialization
+                                            Tuple[Union[HlsNetNodeOut, HConst], ...]]
 # :note: value in HlsNetlistBuilderOperatorCache_t is HlsNetNodeOperator only if node has multiple outputs
 HlsNetlistBuilderOperatorCache_t = Dict[HlsNetlistBuilderOperatorCacheKey_t, Union[HlsNetNodeOut, HlsNetNodeOperator]]
 
@@ -170,7 +172,7 @@ class HlsNetlistBuilder():
             return res
 
         operandsWithOutputsOnly = tuple(self._toNodeOut(o) for o in operands)
-        if  operator is HwtOps.INDEX:
+        if  operator is HwtOps.INDEX or operator is OP_INDEX_CONST:
             assert operands[0]._dtype.bit_length() > 1, operands
         n = operatorNodeCls(self.netlist, operator, len(operands), resT, name=name, operatorSpecialization=operatorSpecialization)
         self._addNode(n)
@@ -638,7 +640,7 @@ class HlsNetlistBuilder():
         else:
             resBits = []  # msb first
             for i in reversed(range(v._dtype.bit_length())):
-                b = self.buildIndexConst(BIT, v, i + 1, i)
+                b = self.buildIndexConst(v, i)
                 resBits.append(b)
 
             return self.buildConcat(*resBits, operatorSpecialization=operatorSpecialization, name=name)
@@ -685,7 +687,7 @@ class HlsNetlistBuilder():
         if newWidth == curWidth:
             return a
         assert newWidth < curWidth, (a, curWidth, newWidth)
-        return self.buildIndexConst(HBits(newWidth), a, newWidth, 0, name=name)
+        return self.buildIndexConstSlice(HBits(newWidth), a, newWidth, 0, name=name)
 
     def buildTruncOrZExt(self, a: Union[HlsNetNodeOut, HConst], newWidth: int, name:Optional[str]=None):
         curWidth = a._dtype.bit_length()
@@ -713,40 +715,40 @@ class HlsNetlistBuilder():
         msb = self.buildGetMsb(a)
         return self.buildConcat(a, *(msb for _ in range(newWidth - w)), operatorSpecialization=operatorSpecialization)
 
-    def buildIndexConst(self, resT: HdlType, a: HlsNetNodeOut, high: int, low: Optional[int],
+    def buildIndexConst(self, a: HlsNetNodeOut, i: int,
                         operatorSpecialization:Optional[HFloatTmpConfig]=None, name:Optional[str]=None):
-        if resT == a._dtype:
+        assert operatorSpecialization is None
+        if i == 0 and a._dtype.bit_length() == 1:
             return a
-        elif high == low + 1:
-            high = low
-            low = None
-        return self.buildIndexConstSlice(resT, a, high, low, operatorSpecialization=operatorSpecialization, name=name)
+
+        return self.buildOp(OP_INDEX_CONST, i, BIT, a, name=name)
 
     def buildIndexConstSlice(self, resT: HdlType, a: HlsNetNodeOut, high: int, low: Optional[int],
                              operatorSpecialization:Optional[HFloatTmpConfig]=None,
                              name:Optional[str]=None):
-        assert isinstance(a, HlsNetNodeOut), a
+        assert operatorSpecialization is None
         w = a._dtype.bit_length()
         if w == 1:
-            assert high == 1 and low == 0, (a, high, low)
+            assert (high == 0 and low is None) or (high == 1 and low == 0), (a, high, low)
             return a
-        if low is None:
+        elif low is None:
             assert resT == BIT, resT
             assert high <= w and high >= 0, (high, w)
-            i = self.buildConst(INT.from_py(high), name=name)
+            i = high
         else:
             assert high > low, (high, low)
             assert high <= w, (high, w)
             assert low >= 0, low
-            i = self.buildConst(SLICE.from_py(slice(high, low, -1)), name=name)
+            i = slice(high, low, -1)
 
-        return self.buildOp(HwtOps.INDEX, operatorSpecialization, resT, a, i, name=name)
+        return self.buildOp(OP_INDEX_CONST, i, resT, a, name=name)
 
     def buildGetMsb(self, a: HlsNetNodeOut,
                     operatorSpecialization:Optional[HFloatTmpConfig]=None,
                     name:Optional[str]=None):
-        i = self.buildConst(INT.from_py(a._dtype.bit_length() - 1), name=name)
-        return self.buildOp(HwtOps.INDEX, operatorSpecialization, BIT, a, i, name=name)
+        assert operatorSpecialization is None
+        i = a._dtype.bit_length() - 1
+        return self.buildOp(OP_INDEX_CONST, i, BIT, a, name=name)
 
     def buildShlConst(self, op0: HlsNetNodeOut, shAmount: int):
         if shAmount == 0:

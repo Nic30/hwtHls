@@ -2,7 +2,7 @@ from hwt.hdl.operatorDefs import HwtOps, COMPARE_OPS
 from hwtHls.architecture.analysis.nodeParentSyncNode import ArchSyncNodeTy
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator, OP_INDEX_CONST
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
@@ -19,6 +19,7 @@ _OPERATOS_POTENTIALLY_GENERATED_DURING_SYNC_OPT = {
     HwtOps.NOT,
     HwtOps.TERNARY,
     HwtOps.INDEX,
+    OP_INDEX_CONST,
     HwtOps.CONCAT}
 
 

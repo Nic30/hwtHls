@@ -38,7 +38,7 @@ from hwtHls.llvm.llvmIr import Value, Type, FunctionType, Function, VectorOfType
     GlobalVariable, GlobalValue, Align, AllocaInst, ValueToInstruction, ValueToAllocaInst, \
     TypeToArrayType, MaybeAlign, ValueToGlobalValue
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator, OP_INDEX_CONST
 from hwtHls.platform.debugBundleTypes import LlvmCliArgTuple
 from hwtHls.ssa.analysis.ssaAnalysisPass import SsaAnalysisPass
 from hwtHls.ssa.analysisCache import AnalysisCache
@@ -633,6 +633,10 @@ class ToLlvmIrTranslator(AnalysisCache[SsaAnalysisPass, SsaPass]):
                 and op.operands[0]._dtype.bit_length() == 1):
                 # skip indexing on 1b vectors/ 1b bits
                 return self._translateExprToLlvm(block, op.operands[0])
+            elif op.operator == OP_INDEX_CONST and var._dtype.bit_length() == 1 and (
+                op.operatorSpecialization == 0 or op.operatorSpecialization == slice(1, 0, -1)):
+                # skip indexing on 1b vectors/ 1b bits
+                return self._translateExprToLlvm(block, op.operands[0])
 
             ops: list[Union[Value, HConst]] = []
 
@@ -746,6 +750,15 @@ class ToLlvmIrTranslator(AnalysisCache[SsaAnalysisPass, SsaPass]):
         elif operator == HwtOps.INDEX:
             op0, op1 = operands
             return self._translateExprSubscript(block, op0, op1, instrName, resTy)
+
+        elif operator == OP_INDEX_CONST:
+            op1 = instr.operatorSpecialization
+            if isinstance(op1._dtype, slice):
+                op1 = op1.stop
+            else:
+                assert isinstance(op1, int), instr
+            name = self.strCtx.addTwine(instrName)
+            return block, b.CreateBitRangeGetConst(op0, op1, resTy.bit_length(), name)
 
         else:
             block, args = self._translateExprsToLlvm(block, operands)

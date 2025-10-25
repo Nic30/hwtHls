@@ -1,0 +1,39 @@
+from typing import Union
+
+from hwt.pyUtils.typingFuture import override
+from hwtHls.architecture.componentGenerator import ComponentGenerator
+from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResourceItem
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.netlist.scheduler.clk_math import epsilon
+from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+
+
+class ComponentGeneratorOP_INDEX_CONST(ComponentGenerator):
+    """
+    A generator for OP_INDEX_CONST
+    """
+
+    @override
+    def resolveRealizationOfNode(self, node: HlsNetNodeOperator) -> None:
+        assert len(node.dependsOn) == 1, node
+        return OpRealizationMeta(outputWireDelay=epsilon)
+
+    @override
+    def toRtlForNode(self, node: HlsNetNodeOperator, allocator: "ArchElement") -> None:
+        assert not node._isMarkedRemoved, node
+        assert not node._isRtlAllocated, node
+        dep = node.dependsOn[0]
+        assert dep is not None, ("All inputs must be connected", node, node.dependsOn)
+        _o = allocator.rtlAllocHlsNetNodeOutInTime(dep, node.scheduledIn[0])
+        assert isinstance(_o, TimeIndependentRtlResourceItem), (dep, _o)
+        out = node._outputs[0]
+        i: Union[int, slice] = node.operatorSpecialization
+        res = _o.data[i]
+
+        # register output of Crc for others to connect
+        assert len(node._outputs) == 1
+        res = allocator.rtlRegisterOutputRtlSignal(
+            out, res, False, False, False)
+
+        node._isRtlAllocated = True
+        return res

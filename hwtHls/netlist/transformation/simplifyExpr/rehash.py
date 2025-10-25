@@ -99,7 +99,7 @@ class _ExprRehasher():
                 _ops = sorted(_ops, key=lambda x: (int(not isinstance(x[2], HConst)), x[0]))
 
             # ops = [o[1] for o in _ops]
-            cacheKey = (n.operator, tuple(o[2] for o in _ops))
+            cacheKey = (n.operator, n.operatorSpecialization, tuple(o[2] for o in _ops))
             cur = self.operatorCache.get(cacheKey)
             if cur is None or cur.obj._isMarkedRemoved:
                 # there is no equivalent known node yet, use this as a value

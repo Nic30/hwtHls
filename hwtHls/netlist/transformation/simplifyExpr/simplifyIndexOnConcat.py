@@ -1,30 +1,28 @@
-from typing import Union
-
 from hwt.hdl.operatorDefs import HwtOps
-from hwt.hdl.types.bitsConst import HBitsConst
-from hwt.hdl.types.sliceConst import HSliceConst
 from hwt.pyUtils.setList import SetList
-from hwtHls.netlist.builder import HlsNetlistBuilder,\
+from hwtHls.netlist.builder import HlsNetlistBuilder, \
     HlsNetlistBuilderWithWorklist
-from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator, OP_INDEX_CONST
 from hwtHls.netlist.transformation.simplifyExpr.simplifyIndexOnMuxOfConcats import sliceOutValueFromConcatOrConst, \
-    sliceOrIndexToHighLowBitNo, _buildConcatFromSliceTuples
+    _buildConcatFromSliceTuples
 from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOperatorNodeWith
 
 
 def netlistReduceIndexOnConcat(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
-    v, i = n.dependsOn
+    assert n.operator == OP_INDEX_CONST, n
+    v, = n.dependsOn
     if not (isinstance(v.obj, HlsNetNodeOperator) and v.obj.operator == HwtOps.CONCAT):
         return False
+    i = n.operatorSpecialization
+    if isinstance(i, int):
+        highBitNo = i + 1
+        lowBitNo = i
+    else:
+        assert i.step == -1
+        highBitNo = i.start
+        lowBitNo = i.stop
 
-    if not isinstance(i.obj, HlsNetNodeConst):
-        return False
-
-    i: Union[HSliceConst, HBitsConst] = i.obj.val
-
-    highBitNo, lowBitNo = sliceOrIndexToHighLowBitNo(i)
     _extracted, _ = sliceOutValueFromConcatOrConst(v, lowBitNo, highBitNo, False)
     builder: HlsNetlistBuilder = n.getHlsNetlistBuilder()
     builder = HlsNetlistBuilderWithWorklist(builder, worklist)

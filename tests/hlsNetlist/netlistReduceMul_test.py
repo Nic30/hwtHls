@@ -5,6 +5,7 @@ import unittest
 
 from hwt.hdl.operatorDefs import HwtOps
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.ops import OP_INDEX_CONST
 from hwtHls.netlist.transformation.simplifyExpr.simplifyMul import netlistReduceMulConst
 from tests.hlsNetlist.netlistReduceCmpUsingLlvm_test import b8_t
 from tests.hlsNetlist.netlistReduceMux_test import HlsNetlistReduceMuxTC
@@ -45,8 +46,8 @@ class HlsNetlistReduceMulTC(BaseHlsNetlistReduceTC):
 
         self.assertEqual(
             exprToTestExprTy(write.dependsOn[0]),
-           (HwtOps.ADD, (HwtOps.ADD, v0, (HwtOps.CONCAT, 0, (HwtOps.INDEX, v0, slice(7, 0, -1)))),
-                   (HwtOps.CONCAT, 0, (HwtOps.INDEX, v0, slice(6, 0, -1))))
+           (HwtOps.ADD, (HwtOps.ADD, v0, (HwtOps.CONCAT, 0, (OP_INDEX_CONST, v0, slice(7, 0, -1)))),
+                   (HwtOps.CONCAT, 0, (OP_INDEX_CONST, v0, slice(6, 0, -1))))
 
         )
 

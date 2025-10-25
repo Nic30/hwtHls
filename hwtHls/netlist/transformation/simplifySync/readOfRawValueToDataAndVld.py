@@ -3,7 +3,7 @@ from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.builder import _replaceOutPortWith
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator, OP_INDEX_CONST
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.transformation.simplifyUtils import getConstDriverOf
@@ -33,70 +33,67 @@ def netlistReadOfRawValueToDataAndVld(n: HlsNetNodeRead, worklist: SetList[HlsNe
     for u in tuple(rawUses):
         u: HlsNetNodeIn
         uObj: HlsNetNode = u.obj
-        if isinstance(uObj, HlsNetNodeOperator) and uObj.operator == HwtOps.INDEX and rawValueO is uObj.dependsOn[0]:
-            i = getConstDriverOf(uObj._inputs[1])
-            if i is not None:
-                iVal = i.val  # index of selected bit
-                # reachDb.addAllUsersToInDepChange(uObj)
-                if isinstance(iVal, (HBitsConst, int)):
-                    iVal = int(iVal)
-                    if dataWidth == iVal:
-                        # is selecting _valid port
-                        if n._isBlocking:
-                            vld = n.getValid()
-                        else:
-                            vld = n.getValidNB()
-
-                        replaceOperatorNodeWith(uObj, vld, worklist)
-
-                    elif dataWidth + 1 == iVal:
-                        # is selecting _validNB port
-                        replaceOperatorNodeWith(uObj, n._validNB, worklist)
-
+        if isinstance(uObj, HlsNetNodeOperator) and uObj.operator == OP_INDEX_CONST and rawValueO is uObj.dependsOn[0]:
+            i = uObj.operatorSpecialization  # index of selected bit
+            # reachDb.addAllUsersToInDepChange(uObj)
+            if isinstance(i, int):
+                if dataWidth == i:
+                    # is selecting _valid port
+                    if n._isBlocking:
+                        vld = n.getValid()
                     else:
-                        # is selecting data port
-                        if dataWidth == 1:
-                            assert iVal == 0
-                            # remove index because it is just 1b
-                            replaceOperatorNodeWith(uObj, dataValueO, worklist)
-                        else:
-                            assert iVal < dataWidth
-                            # keep index operator but reconnect to data port
-                            u.disconnectFromHlsOut(rawValueO)
-                            dataValueO.connectHlsIn(u)
+                        vld = n.getValidNB()
+
+                    replaceOperatorNodeWith(uObj, vld, worklist)
+
+                elif dataWidth + 1 == i:
+                    # is selecting _validNB port
+                    replaceOperatorNodeWith(uObj, n._validNB, worklist)
+
                 else:
-                    assert isinstance(iVal, slice), iVal
-                    assert int(iVal.step) == -1, iVal
-                    highBitNo = int(iVal.start)
-                    lowBitNo = int(iVal.stop)
-                    if highBitNo <= dataWidth:
-                        if lowBitNo == 0 and highBitNo == dataWidth:
-                            # exactly selecting data port
-                            replaceOperatorNodeWith(uObj, n._portDataOut, worklist)
-                        else:
-                            # indexing on data part
-                            # keep index operator but reconnect to data port
-                            u.disconnectFromHlsOut(rawValueO)
-                            dataValueO.connectHlsIn(u)
-
-                    elif lowBitNo == dataWidth and highBitNo == dataWidth + 1:
-                        # exactly selecting _valid port
-                        if n._isBlocking:
-                            vld = n.getValid()
-                        else:
-                            vld = n.getValidNB()
-                        replaceOperatorNodeWith(uObj, vld, worklist)
-
-                    elif lowBitNo == dataWidth + 1 and highBitNo == dataWidth + 2:
-                        # exactly selecting _validNB port
-                        replaceOperatorNodeWith(uObj, n._validNB, worklist)
-
+                    # is selecting data port
+                    if dataWidth == 1:
+                        assert i == 0
+                        # remove index because it is just 1b
+                        replaceOperatorNodeWith(uObj, dataValueO, worklist)
                     else:
-                        raise NotImplementedError("Index overlaps data, _valid, _validNB port boundary in rawValue, split to 2x index + concat")
+                        assert i < dataWidth
+                        # keep index operator but reconnect to data port
+                        u.disconnectFromHlsOut(rawValueO)
+                        dataValueO.connectHlsIn(u)
+            else:
+                assert isinstance(i, slice), uObj
+                assert i.step == -1, uObj
+                highBitNo = i.start
+                lowBitNo = i.stop
+                if highBitNo <= dataWidth:
+                    if lowBitNo == 0 and highBitNo == dataWidth:
+                        # exactly selecting data port
+                        replaceOperatorNodeWith(uObj, n._portDataOut, worklist)
+                    else:
+                        # indexing on data part
+                        # keep index operator but reconnect to data port
+                        u.disconnectFromHlsOut(rawValueO)
+                        dataValueO.connectHlsIn(u)
 
-                modified = True
-                # reachDb.addOutUseChange(uObj)
-                # reachDb.addOutUseChange(n)
+                elif lowBitNo == dataWidth and highBitNo == dataWidth + 1:
+                    # exactly selecting _valid port
+                    if n._isBlocking:
+                        vld = n.getValid()
+                    else:
+                        vld = n.getValidNB()
+                    replaceOperatorNodeWith(uObj, vld, worklist)
+
+                elif lowBitNo == dataWidth + 1 and highBitNo == dataWidth + 2:
+                    # exactly selecting _validNB port
+                    replaceOperatorNodeWith(uObj, n._validNB, worklist)
+
+                else:
+                    raise NotImplementedError("Index overlaps data, _valid, _validNB port boundary in rawValue, split to 2x index + concat")
+
+            modified = True
+            # reachDb.addOutUseChange(uObj)
+            # reachDb.addOutUseChange(n)
     if not rawUses:
         n._removeOutput(n._rawValue.out_i)
     # if modified:

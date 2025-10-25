@@ -506,11 +506,10 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 else:
                     if width == 1:
                         # to prefer more simple notation
-                        index = INT.from_py(offset)
+                        res = builder.buildIndexConst(src, offset, name=name)
                     else:
-                        index = SLICE.from_py(slice(offset + width, offset, -1))
+                        res = builder.buildIndexConstSlice(HBits(width), src, offset + width, offset, name=name)
 
-                    res = builder.buildOp(HwtOps.INDEX, None, HBits(width), src, index)
                     res.obj.name = name
 
                 valCache.add(mb, dst, res, True)

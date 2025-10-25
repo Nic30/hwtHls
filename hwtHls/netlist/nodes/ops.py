@@ -20,6 +20,8 @@ from hwtHls.netlist.scheduler.errors import TimeConstraintError
 from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
+OP_INDEX_CONST = HOperatorDef(None, False, "OP_INDEX_CONST")
+
 
 class HlsNetNodeOperator(HlsNetNode):
     """
@@ -39,6 +41,7 @@ class HlsNetNodeOperator(HlsNetNode):
         OP_ROL,
         OP_ROR,
         HwtOps.INDEX,
+        OP_INDEX_CONST,
     }
 
     def __init__(self, netlist: "HlsNetlistCtx",

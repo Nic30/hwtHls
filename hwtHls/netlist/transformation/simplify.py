@@ -17,7 +17,7 @@ from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator, OP_INDEX_CONST
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
@@ -33,7 +33,7 @@ from hwtHls.netlist.transformation.simplifyExpr.rehash import HlsNetlistPassReha
 from hwtHls.netlist.transformation.simplifyExpr.simplifyAbc import runAbcControlpathOpt
 from hwtHls.netlist.transformation.simplifyExpr.simplifyBitwise import netlistReduceNot, netlistReduceAndOrXor
 from hwtHls.netlist.transformation.simplifyExpr.simplifyIndex import netlistReduceIndexOnIndex, \
-    netlistReduceIndexSelectAll
+    netlistReduceIndexSelectAll, netlistReduceIndexToConstIndex
 from hwtHls.netlist.transformation.simplifyExpr.simplifyIndexOnConcat import netlistReduceIndexOnConcat
 from hwtHls.netlist.transformation.simplifyExpr.simplifyIndexOnMuxOfConcats import netlistReduceIndexOnMuxOfConcats
 from hwtHls.netlist.transformation.simplifyExpr.simplifyIo import netlistReduceReadReadSyncWithReadOfValidNB
@@ -61,7 +61,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
     :var REST_OF_EVALUABLE_OPS: set of operators which can evaluated and are not a specific case
     """
     REST_OF_EVALUABLE_OPS = {HwtOps.CONCAT, HwtOps.ADD, HwtOps.SUB, HwtOps.UDIV, HwtOps.SDIV,
-                             HwtOps.MUL, HwtOps.INDEX, *COMPARE_OPS, *CAST_OPS}
+                             HwtOps.MUL, HwtOps.INDEX, OP_INDEX_CONST, *COMPARE_OPS, *CAST_OPS}
     OPS_AND_OR_XOR = (HwtOps.AND, HwtOps.OR, HwtOps.XOR)
     OPT_ITERATION_LIMIT = 20
 
@@ -183,6 +183,9 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                     if netlistReduceCmpConstAfterConstAddSub(n, worklist):
                         return True
                 elif o is HwtOps.INDEX:
+                    if netlistReduceIndexToConstIndex(n, worklist):
+                        return True
+                elif o is OP_INDEX_CONST:
                     if netlistReduceIndexSelectAll(n, worklist):
                         return True
                     elif netlistReduceIndexOnIndex(n, worklist):
@@ -199,7 +202,10 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
 
             if len(n._inputs) == 1:
                 # operand with a single const input
-                v = o._evalFn(c0)
+                if o == OP_INDEX_CONST:
+                    v = c0[n.operatorSpecialization]
+                else:
+                    v = o._evalFn(c0)
             else:
                 c1 = getConstDriverOf(n._inputs[1])
                 if c1 is None:
