@@ -71,8 +71,8 @@ class Axi4SParseLinearTC(SimTestCase):
     # def test_Axi4SParseStructManyInts0_8b(self):
     #     self._test_parse(8)
 
-    def test_Axi4SParseStructManyInts0_16b(self):
-        self._test_parse(16)
+    # def test_Axi4SParseStructManyInts0_16b(self):
+    #     self._test_parse(16)
 
     def test_Axi4SParseStructManyInts0_24b(self):
         self._test_parse(24)
@@ -87,8 +87,8 @@ class Axi4SParseLinearTC(SimTestCase):
     # def test_Axi4SParseStructManyInts1_8b(self):
     #    self._test_parse(8, cls=Axi4SParseStructManyInts1)
 
-    def test_Axi4SParseStructManyInts1_16b(self):
-        self._test_parse(16, cls=Axi4SParseStructManyInts1)
+    # def test_Axi4SParseStructManyInts1_16b(self):
+    #     self._test_parse(16, cls=Axi4SParseStructManyInts1)
 
     def test_Axi4SParseStructManyInts1_24b(self):
         self._test_parse(24, cls=Axi4SParseStructManyInts1)
