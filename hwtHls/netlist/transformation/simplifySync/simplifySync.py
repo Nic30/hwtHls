@@ -1,4 +1,4 @@
-from typing import Set, Optional
+from typing import Optional
 
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
@@ -9,7 +9,6 @@ from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
     HlsNetNodeReadBackedge
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
@@ -39,7 +38,7 @@ class HlsNetlistPassSimplifySync(HlsNetlistPass):
 
     @override
     def runOnHlsNetlistImpl(self, netlist:HlsNetlistCtx,
-              parentWorklist: Optional[SetList[HlsNetNode]]=None) -> PreservedAnalysisSet:
+                            parentWorklist: Optional[SetList[HlsNetNode]]=None) -> PreservedAnalysisSet:
         dbgTrace = self._dbgTrace
         with dbgTrace.scoped(HlsNetlistPassSimplifySync, None):
             dbgEn = dbgTrace._out is not None
@@ -96,7 +95,7 @@ class HlsNetlistPassSimplifySync(HlsNetlistPass):
                                         HlsNetlistPassConsistencyCheck._checkCycleFree(n.netlist)
                                         HlsNetlistPassConsistencyCheck._checkSyncNodes(netlist)
 
-                                elif isBackedge and  netlistBackedgeStraightening(dbgTrace, n, worklistTmp, reachDb):
+                                elif isBackedge and netlistBackedgeStraightening(dbgTrace, n, worklistTmp, reachDb):
                                     if dbgEn:
                                         HlsNetlistPassConsistencyCheck._checkCycleFree(n.netlist)
                                         HlsNetlistPassConsistencyCheck._checkSyncNodes(netlist)
