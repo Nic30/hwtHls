@@ -22,12 +22,16 @@ jobs:
             echo "Info: last ABC version is $ABC_VERSION_LATEST"
             echo "export ABC_VERSION_LATEST=$ABC_VERSION_LATEST" >> "$BASH_ENV"
             source "$BASH_ENV"
+            echo $ABC_VERSION_LATEST > abc.version
+            ABC_BUILD_CACHE_KEY=$(cksum --base64 --untagged --quiet -a sha256 abc.version | cut -d ' ' -f 1) # same as checksum "abc.version"
+            echo "export ABC_BUILD_CACHE_KEY=$ABC_BUILD_CACHE_KEY" >> "$BASH_ENV"
             # https://support.circleci.com/hc/en-us/articles/10816400480411-How-to-pass-environment-variables-between-jobs
             cp $BASH_ENV bash.env
       - persist_to_workspace:
           root: .
           paths:
             - bash.env
+            - abc.version
   berkeley-abc-prebuild:
     resource_class: large
     docker:
@@ -40,15 +44,13 @@ jobs:
           cat bash.env >> $BASH_ENV
           source "$BASH_ENV"
           rm bash.env
-          echo $ABC_VERSION_LATEST > abc.version
 
       - restore_cache:
           name: Restore libabc-dev Package Cache
           keys:
-            - libabc-dev-{{ checksum "abc.version" }}-v2 # must use checksum of checksum because circleci does not allow access to generated variables using {{ .Environment.var }}
+            - libabc-dev-{{ checksum "abc.version" }}-v3 # must use checksum of checksum because circleci does not allow access to generated variables using {{ .Environment.var }}
       - run:
           command: |
-            ABC_BUILD_CACHE_KEY=$(cksum --base64 --untagged --quiet -a sha256 abc.version | cut -d ' ' -f 1) # same as checksum "abc.version"
             echo "expected ABC_BUILD_CACHE_KEY=$ABC_BUILD_CACHE_KEY"
             DEB_dir=$CIRCLE_WORKING_DIRECTORY/subprojects/DEB
             echo "DEB_dir=$DEB_dir"
@@ -64,7 +66,7 @@ jobs:
             fi
       - save_cache:
          name: Save libabc-dev Package Cache
-         key: libabc-dev-{{ checksum "abc.version" }}-v2
+         key: libabc-dev-{{ checksum "abc.version" }}-v3
          paths:
            - subprojects/DEB
       
@@ -83,17 +85,16 @@ jobs:
           cat bash.env >> $BASH_ENV
           source "$BASH_ENV"
           rm bash.env
-          echo $ABC_VERSION_LATEST > abc.version
 
       - restore_cache:
           name: Restore libabc-dev Package Cache
           keys:
-            - libabc-dev-{{ checksum "abc.version" }}-v2
+            - libabc-dev-{{ checksum "abc.version" }}-v3
       - run:
           command: |
             apt update
             apt install build-essential python3-dev llvm-21-dev python3 python3-pip python3-venv git ninja-build cmake libreadline8 libreadline-dev -y
-            dpkg -i subprojects/DEB/libabc-dev-$ABC_VERSION_LATEST-Linux.deb
+            dpkg -i subprojects/DEB/libabc-dev-$ABC_BUILD_CACHE_KEY-Linux.deb
             python3 -m venv --system-site-packages /opt/circleci/.pyenv3
             echo 'source /opt/circleci/.pyenv3/bin/activate' >> $BASH_ENV
             source /opt/circleci/.pyenv3/bin/activate
