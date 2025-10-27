@@ -18,7 +18,7 @@ fi
 # append CPack related if not already appended
 last_line=$(tail -n 1 "CMakeLists.txt")
 if [ "$last_line" != "include(\${CMAKE_CURRENT_SOURCE_DIR}/abc_cpack.cmake)" ]; then
-   echo "include(\${CMAKE_CURRENT_SOURCE_DIR}/abc_cpack.cmake)" >> CMakeLists.txt
+   echo -e "\ninclude(\${CMAKE_CURRENT_SOURCE_DIR}/abc_cpack.cmake)" >> CMakeLists.txt
 fi
 cp ../abc_cpack.cmake .
 cp ../abc_pkgconfig.pc.in .
