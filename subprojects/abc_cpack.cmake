@@ -24,12 +24,13 @@ endforeach()
 
 # pkg-config related
 # based on https://www.kaizou.org/2014/11/typical-cmake-project.html#exporting-dependencies-towards-external-packages
-SET(PKG_CONFIG_REQUIRES glib-2.0)
+#          https://github.com/p-ranav/argparse/blob/master/CMakeLists.txt
+SET(PKG_CONFIG_REQUIRES libreadline-dev)
 SET(PKG_CONFIG_LIBDIR
     "\${prefix}/lib"
 )
 SET(PKG_CONFIG_INCLUDEDIR
-    "\${prefix}/include/"
+    "\${prefix}/include/abc"
 )
 SET(PKG_CONFIG_LIBS
     "-L\${libdir} -labc"
@@ -39,9 +40,6 @@ SET(PKG_CONFIG_CFLAGS
 )
 set(PKG_CONFIG_FILE_NAME "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc")
 configure_file("${CMAKE_SOURCE_DIR}/abc_pkgconfig.pc.in" "${PKG_CONFIG_FILE_NAME}" @ONLY)
-#install(FILES "${PKG_CONFIG_FILE_NAME}"
-#      DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig"
-#)
 INSTALL(FILES "${PKG_CONFIG_FILE_NAME}"
         DESTINATION lib/pkgconfig)
 
