@@ -60,7 +60,7 @@ jobs:
             export DEBIAN_FRONTEND=noninteractive
             export TZ=America/USA
             apt install build-essential python3-dev llvm-18-dev python3 python3-pip python3-venv git ninja-build cmake libreadline8 libreadline-dev -y
-			dpkg -i subprojects/DEB/libabc-dev-{{ echo $ABC_VERSION_LATEST }}-Linux.deb
+            dpkg -i subprojects/DEB/libabc-dev-{{ echo $ABC_VERSION_LATEST }}-Linux.deb
             python3 -m venv --system-site-packages /opt/circleci/.pyenv3
             echo 'source /opt/circleci/.pyenv3/bin/activate' >> $BASH_ENV
             source /opt/circleci/.pyenv3/bin/activate
