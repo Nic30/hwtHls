@@ -21,6 +21,8 @@ if [ "$last_line" != "include(CPack)" ]; then
    cat "$SUBPROJECTS_DIR/abc_cpack.cmake" >> CMakeLists.txt
 fi
 
+cp ../abc_pkgconfig.pc.in .
+
 # https://cmake.org/cmake/help/book/mastering-cmake/chapter/Packaging%20With%20CPack.html
 cd "build"
 VERSION=$(git rev-parse --short HEAD)
@@ -43,5 +45,4 @@ cpack -G DEB
 if [ ! -d "$SUBPROJECTS_DIR/DEB" ] ; then
     mkdir "$SUBPROJECTS_DIR/DEB"
 fi
-$PROJECTS_DIR=$SUBPROJECTS_DIR/../DEB
 cp $ABC_ROOT/build/libabc-dev-$VERSION-Linux.deb $SUBPROJECTS_DIR/DEB

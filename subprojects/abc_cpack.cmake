@@ -1,3 +1,6 @@
+
+# begin onf abc_cpack.cmake
+
 file(GLOB_RECURSE LIBABC_INCLUDE_FILES "src/*.h*")
 # https://stackoverflow.com/a/59257505
 #set_target_properties(libabc-pic  # this method does not preserve include folder hierarchy
@@ -18,5 +21,27 @@ foreach(header ${LIBABC_INCLUDE_FILES})
     # Install the header to the appropriate directory under 'include/abc'
     install(FILES ${header} DESTINATION include/abc${relative_dir})
 endforeach()
+
+# pkg-config related
+SET(PKG_CONFIG_REQUIRES glib-2.0)
+SET(PKG_CONFIG_LIBDIR
+    "\${prefix}/lib"
+)
+SET(PKG_CONFIG_INCLUDEDIR
+    "\${prefix}/include/"
+)
+SET(PKG_CONFIG_LIBS
+    "-L\${libdir} -labc"
+)
+SET(PKG_CONFIG_CFLAGS
+    "-I\${includedir}"
+)
+set(PKG_CONFIG_FILE_NAME "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc")
+configure_file("${CMAKE_SOURCE_DIR}/abc_pkgconfig.pc.in" "${PKG_CONFIG_FILE_NAME}" @ONLY)
+#install(FILES "${PKG_CONFIG_FILE_NAME}"
+#      DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig"
+#)
+INSTALL(FILES "${PKG_CONFIG_FILE_NAME}"
+        DESTINATION lib/pkgconfig)
 
 include(CPack)
