@@ -9,9 +9,6 @@ jobs:
     resource_class: large
     docker:
       - image: ubuntu:rolling
-    executor:
-       name: python/default
-       tag: "3.13.7"
     steps:
       - checkout
       - run:
@@ -21,23 +18,23 @@ jobs:
           name: Restore libabc-dev Package Cache
           keys:
             - libabc-dev-{{ echo $ABC_VERSION_LATEST }}
-       - run:
-           command: |
-             if [ ! -f "hwtHls/subprojects/DEB/libabc-dev-{{ echo $ABC_VERSION_LATEST }}-Linux.deb" ]; then
-               cd subprojects
-               apt update
-               # because of tzdata
-               export DEBIAN_FRONTEND=noninteractive
-               export TZ=America/USA
-               apt install build-essential git ninja-build cmake libreadline8 libreadline-dev -y
-               ./build_debs.sh
-             fi
-       - save_cache:
-          name: Save libabc-dev Package Cache
-          key: libabc-dev-{{ echo $ABC_VERSION_LATEST }}
-          paths:
-            - hwtHls/subprojects/DEB/libabc-dev-{{ echo $ABC_VERSION_LATEST }}-Linux.deb
-
+      - run:
+          command: |
+            if [ ! -f "hwtHls/subprojects/DEB/libabc-dev-{{ echo $ABC_VERSION_LATEST }}-Linux.deb" ]; then
+              cd subprojects
+              apt update
+              # because of tzdata
+              export DEBIAN_FRONTEND=noninteractive
+              export TZ=America/USA
+              apt install build-essential git ninja-build cmake libreadline8 libreadline-dev -y
+              ./build_debs.sh
+            fi
+      - save_cache:
+         name: Save libabc-dev Package Cache
+         key: libabc-dev-{{ echo $ABC_VERSION_LATEST }}
+         paths:
+           - hwtHls/subprojects/DEB/libabc-dev-{{ echo $ABC_VERSION_LATEST }}-Linux.deb
+      
   install-test-deploy:
     depends_on:
       - berkeley-abc-prebuild
