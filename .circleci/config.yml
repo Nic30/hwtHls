@@ -8,7 +8,7 @@ jobs:
   install-test-deploy:
     resource_class: large
     docker:
-      - image: ubuntu:latest
+      - image: ubuntu:rolling
     executor:
        name: python/default
        tag: "3.13"
