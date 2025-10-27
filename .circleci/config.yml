@@ -56,15 +56,15 @@ jobs:
               apt update
               apt install build-essential git ninja-build cmake libreadline8 libreadline-dev -y
               ./build_debs.sh
-              cd $CIRCLE_WORKING_DIRECTORY/hwtHls/subprojects/DEB
+              cd $CIRCLE_WORKING_DIRECTORY/subprojects/DEB
               mv libabc-dev-$ABC_VERSION_LATEST-Linux.deb libabc-dev-$ABC_BUILD_CACHE_KEY-Linux.deb 
-              ls -l $CIRCLE_WORKING_DIRECTORY/hwtHls/subprojects/DEB
+              ls -l $CIRCLE_WORKING_DIRECTORY/subprojects/DEB
             fi
       - save_cache:
          name: Save libabc-dev Package Cache
          key: libabc-dev-{{ checksum "abc.version" }}
          paths:
-           - hwtHls/subprojects/DEB/libabc-dev-{{ checksum "abc.version" }}-Linux.deb
+           - subprojects/DEB/libabc-dev-{{ checksum "abc.version" }}-Linux.deb
       
   install-test-deploy:
     resource_class: large
