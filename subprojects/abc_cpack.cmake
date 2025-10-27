@@ -36,7 +36,7 @@ SET(PKG_CONFIG_LIBS
     "-L\${libdir} -labc"
 )
 SET(PKG_CONFIG_CFLAGS
-    "-I\${includedir}"
+    "-I\${includedir}/abc"
 )
 set(PKG_CONFIG_FILE_NAME "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc")
 configure_file("${CMAKE_SOURCE_DIR}/abc_pkgconfig.pc.in" "${PKG_CONFIG_FILE_NAME}" @ONLY)
