@@ -22,6 +22,7 @@ jobs:
       - run:
           command: |
             if [ ! -f "subprojects/DEB/libabc-dev-$ABC_VERSION_LATEST-Linux.deb" ]; then
+			  echo "Building subprojects/DEB/libabc-dev-$ABC_VERSION_LATEST-Linux.deb because it was not found in cache"
               cd subprojects
               apt update
               # because of tzdata
