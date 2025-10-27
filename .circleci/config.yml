@@ -92,7 +92,7 @@ workflows:
     jobs:
       - berkeley-abc-prebuild
       - install-test-deploy:
-          depends_on:
+          requires:
             - berkeley-abc-prebuild
           context:
               - pypi
