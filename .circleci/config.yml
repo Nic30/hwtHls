@@ -5,7 +5,7 @@ orbs:
   py: nic30/python-all-in-1@0.3.1
 
 jobs:
-  berkeley-abc-prebuild:
+  prepare-workspace:
     resource_class: large
     docker:
       - image: ubuntu:rolling
@@ -13,10 +13,32 @@ jobs:
       - checkout
       - run:
           command: |
+            apt update
+            # because of tzdata
+			echo "export DEBIAN_FRONTEND=noninteractive" >> "$BASH_ENV"
+            echo "export TZ=America/USA" >> "$BASH_ENV"
+			source "$BASH_ENV"
+            apt install git
             export ABC_VERSION_LATEST=$(git ls-remote https://github.com/berkeley-abc/abc.git HEAD | awk '{ print $1}' | xargs git rev-parse --short)
             echo "Info: last ABC version is $ABC_VERSION_LATEST"
             echo "export ABC_VERSION_LATEST=$ABC_VERSION_LATEST" >> "$BASH_ENV"
             source "$BASH_ENV"
+            # https://support.circleci.com/hc/en-us/articles/10816400480411-How-to-pass-environment-variables-between-jobs
+            cp $BASH_ENV bash.env
+      - persist_to_workspace:
+          root: .
+          paths:
+            - bash.env
+  berkeley-abc-prebuild:
+    resource_class: large
+    docker:
+      - image: ubuntu:rolling
+    steps:
+      - attach_workspace:
+         at: .    
+      - run: |
+          cat bash.env >> $BASH_ENV
+      - checkout
       - restore_cache:
           name: Restore libabc-dev Package Cache
           keys:
@@ -27,9 +49,6 @@ jobs:
               echo "Building subprojects/DEB/libabc-dev-$ABC_VERSION_LATEST-Linux.deb because it was not found in cache"
               cd subprojects
               apt update
-              # because of tzdata
-              export DEBIAN_FRONTEND=noninteractive
-              export TZ=America/USA
               apt install build-essential git ninja-build cmake libreadline8 libreadline-dev -y
               ./build_debs.sh
             fi
@@ -48,12 +67,10 @@ jobs:
        tag: "3.13.7"
     steps:
       - checkout
-      - run:
-          command: |
-            export ABC_VERSION_LATEST=$(git ls-remote https://github.com/berkeley-abc/abc.git HEAD | awk '{ print $1}' | xargs git rev-parse --short)
-            echo "Info: last ABC version is $ABC_VERSION_LATEST"
-            echo "export ABC_VERSION_LATEST=$ABC_VERSION_LATEST" >> "$BASH_ENV"
-            source "$BASH_ENV"
+      - attach_workspace:
+         at: .    
+      - run: |
+          cat bash.env >> $BASH_ENV
       - restore_cache:
           name: Restore libabc-dev Package Cache
           keys:
