@@ -1,5 +1,5 @@
 digraph "HlsAstExprTree3_example.mainThread" {
-bb0 [fillcolor=white, label=<
+bb0 [fillcolor=white, style=filled, shape=plaintext, label=<
         <table border="0" cellborder="1" cellspacing="0">
             <tr><td>bb0.bb0</td></tr>
             <tr><td></td></tr>
@@ -10,10 +10,10 @@ bb0 [fillcolor=white, label=<
             <tr><td>orderingOut=&lt;HlsNetNodeOutLazy 1 bb0_orderingIn&gt;</td></tr>
             <tr><td>constLiveOuts=[]</td></tr>
         </table>
->, shape=plaintext, style=filled];
-bb1 [fillcolor=white, label=<
+>];
+bb1 [fillcolor=white, style=filled, shape=plaintext, label=<
         <table border="0" cellborder="1" cellspacing="0">
-            <tr><td>bb1.blockL64i0_64</td></tr>
+            <tr><td>bb1.blockL74i0_74</td></tr>
             <tr><td>rstPredeccessor=bb0, isLoopHeader, isLoopHeaderOfFreeRunning</td></tr>
             <tr><td>IO in=[(1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (8, 'w'), (9, 'x'), (10, 'y'), (11, 'z')]</td></tr>
             <tr><td>IO out=[(5, 'f1'), (6, 'f2'), (7, 'f3')]</td></tr>
@@ -22,18 +22,18 @@ bb1 [fillcolor=white, label=<
             <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeWrite 23 &lt;&gt; f3&gt; [0-orderingOut]&gt;</td></tr>
             <tr><td>constLiveOuts=[]</td></tr>
         </table>
->, shape=plaintext, style=filled];
-e0to1 [color=orange, fillcolor=white, label=<
+>];
+e0to1 [fillcolor=white, style=filled, shape=plaintext, color=orange, label=<
         <table border="0" cellborder="1" cellspacing="0">
             <tr><td>inlineRstDataToEdge=(1, 1)</td></tr>
             <tr><td>enteringLoops=[bb1.l1]</td></tr>
-        </table>>, shape=plaintext, style=filled];
-bb0 -> e0to1  [color=orange];
-e0to1 -> bb1  [color=orange];
-e1to1 [color=red, fillcolor=white, label=<
+        </table>>];
+bb0 -> e0to1 [color=orange];
+e0to1 -> bb1 [color=orange];
+e1to1 [fillcolor=white, style=filled, shape=plaintext, color=red, label=<
         <table border="0" cellborder="1" cellspacing="0">
             <tr><td>reenteringLoops=[bb1.l1]</td></tr>
-        </table>>, shape=plaintext, style=filled];
-bb1 -> e1to1  [color=red];
-e1to1 -> bb1  [color=red];
+        </table>>];
+bb1 -> e1to1 [color=red];
+e1to1 -> bb1 [color=red];
 }

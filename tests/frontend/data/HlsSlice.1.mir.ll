@@ -5,13 +5,13 @@
   
   define void @HlsSlice.mainThread(ptr addrspace(1) %a, ptr addrspace(2) %b) !hwtHls.io !0 {
   bb0:
-    br label %blockL14i0_14
+    br label %blockL24i0_24
   
-  blockL14i0_14:                                    ; preds = %bb0, %blockL14i0_14
+  blockL24i0_24:                                    ; preds = %bb0, %blockL24i0_24
     %a_read1 = load volatile i32, ptr addrspace(1) %a, align 4
     %0 = call i16 @hwtHls.bitRangeGet.i32.i6.i16.0(i32 %a_read1, i6 0) #1
     store volatile i16 %0, ptr addrspace(2) %b, align 2
-    br label %blockL14i0_14
+    br label %blockL24i0_24
   }
   
   ; Function Attrs: nofree nounwind speculatable willreturn
@@ -86,7 +86,7 @@ body:             |
     %0:anyregcls = HWTFPGA_ARG_GET 0
     %1:anyregcls = HWTFPGA_ARG_GET 1
   
-  bb.1.blockL14i0_14:
+  bb.1.blockL24i0_24:
     successors: %bb.1(0x80000000)
   
     %2:anyregcls(s32) = HWTFPGA_CLOAD %0, 0, 32, 1 :: (volatile load (s32) from %ir.a, addrspace 1)

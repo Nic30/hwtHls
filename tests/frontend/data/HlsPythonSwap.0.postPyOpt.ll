@@ -3,9 +3,9 @@ bb0:
   br label %block0
 
 block0:                                           ; preds = %bb0
-  br label %blockL14i0_14
+  br label %blockL24i0_24
 
-blockL14i0_14:                                    ; preds = %blockL14i0_408, %block0
+blockL24i0_24:                                    ; preds = %blockL24i0_432, %block0
   %swap_read = alloca i1, align 1, !hwtHls.tmp.alloca !6
   store i1 undef, ptr %swap_read, align 1
   %swap1 = alloca i1, align 1, !hwtHls.tmp.alloca !6
@@ -30,22 +30,22 @@ blockL14i0_14:                                    ; preds = %blockL14i0_408, %bl
   store i8 %i1_read2, ptr %i1_read, align 1
   %i1_read3 = load i8, ptr %i1_read, align 1
   store i8 %i1_read3, ptr %i11, align 1
-  br i1 %swap_read3, label %blockL14i0_240, label %blockL14i0_284
+  br i1 %swap_read3, label %blockL24i0_260, label %blockL24i0_302
 
-blockL14i0_240:                                   ; preds = %blockL14i0_14
+blockL24i0_260:                                   ; preds = %blockL24i0_24
   %i04 = load i8, ptr %i01, align 1
   %i15 = load i8, ptr %i11, align 1
   store i8 %i15, ptr %i01, align 1
   store i8 %i04, ptr %i11, align 1
-  br label %blockL14i0_284
+  br label %blockL24i0_302
 
-blockL14i0_284:                                   ; preds = %blockL14i0_14, %blockL14i0_240
+blockL24i0_302:                                   ; preds = %blockL24i0_24, %blockL24i0_260
   %i06 = load i8, ptr %i01, align 1
   store volatile i8 %i06, ptr addrspace(3) %o0, align 1
   %i12 = load i8, ptr %i11, align 1
   store volatile i8 %i12, ptr addrspace(4) %o1, align 1
-  br label %blockL14i0_408
+  br label %blockL24i0_432
 
-blockL14i0_408:                                   ; preds = %blockL14i0_284
-  br label %blockL14i0_14
+blockL24i0_432:                                   ; preds = %blockL24i0_302
+  br label %blockL24i0_24
 }

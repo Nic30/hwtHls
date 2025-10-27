@@ -5,10 +5,10 @@
   
   define void @HlsPythonTupleAssign.mainThread(ptr addrspace(1) %o0, ptr addrspace(2) %o1) !hwtHls.io !0 {
   bb0:
-    br label %blockL98i0_98
+    br label %blockL112i0_112
   
-  blockL98i0_98:                                    ; preds = %bb0, %blockL98i0_98
-    %i.shiftPhi1 = phi i2 [ 1, %bb0 ], [ %4, %blockL98i0_98 ]
+  blockL112i0_112:                                  ; preds = %bb0, %blockL112i0_112
+    %i.shiftPhi1 = phi i2 [ 1, %bb0 ], [ %4, %blockL112i0_112 ]
     %0 = call i1 @hwtHls.bitRangeGet.i2.i2.i1.0(i2 %i.shiftPhi1, i2 0) #1
     %1 = call i1 @hwtHls.bitRangeGet.i2.i2.i1.1(i2 %i.shiftPhi1, i2 1) #1
     %2 = zext i1 %1 to i8
@@ -16,7 +16,7 @@
     %3 = zext i1 %0 to i8
     store volatile i8 %3, ptr addrspace(2) %o1, align 1
     %4 = call i2 @hwtHls.bitConcat.i1.i1(i1 %1, i1 %0) #1
-    br label %blockL98i0_98
+    br label %blockL112i0_112
   }
   
   ; Function Attrs: nofree nounwind speculatable willreturn
@@ -104,7 +104,7 @@ body:             |
     %1:anyregcls = HWTFPGA_ARG_GET 1
     %10:anyregcls(s2) = HWTFPGA_MUX i2 1
   
-  bb.1.blockL98i0_98:
+  bb.1.blockL112i0_112:
     successors: %bb.1(0x80000000)
   
     %3:anyregcls(s1) = HWTFPGA_EXTRACT %10(s2), 2, 0, 1

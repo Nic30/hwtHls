@@ -5,14 +5,14 @@
   
   define void @TwoTimesA0.mainThread(ptr addrspace(1) %a, ptr addrspace(2) %b) !hwtHls.io !0 {
   bb0:
-    br label %blockL14i0_14
+    br label %blockL24i0_24
   
-  blockL14i0_14:                                    ; preds = %bb0, %blockL14i0_14
+  blockL24i0_24:                                    ; preds = %bb0, %blockL24i0_24
     %a_read2 = load volatile i8, ptr addrspace(1) %a, align 1
     %0 = call i7 @hwtHls.bitRangeGet.i8.i4.i7.0(i8 %a_read2, i4 0) #1
     %1 = call i8 @hwtHls.bitConcat.i1.i7(i1 false, i7 %0) #1
     store volatile i8 %1, ptr addrspace(2) %b, align 1
-    br label %blockL14i0_14
+    br label %blockL24i0_24
   }
   
   ; Function Attrs: nofree nounwind speculatable willreturn
@@ -92,7 +92,7 @@ body:             |
     %0:anyregcls = HWTFPGA_ARG_GET 0
     %1:anyregcls = HWTFPGA_ARG_GET 1
   
-  bb.1.blockL14i0_14:
+  bb.1.blockL24i0_24:
     successors: %bb.1(0x80000000)
   
     %2:anyregcls(s8) = HWTFPGA_CLOAD %0, 0, 8, 1 :: (volatile load (s8) from %ir.a, addrspace 1)

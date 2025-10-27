@@ -7,15 +7,15 @@
   
   define void @ExampleRomHwArray.mainThread(ptr addrspace(1) %i, ptr addrspace(2) %o) !hwtHls.io !0 {
   bb0:
-    br label %blockL146i0_146
+    br label %blockL162i0_162
   
-  blockL146i0_146:                                  ; preds = %bb0, %blockL146i0_146
+  blockL162i0_162:                                  ; preds = %bb0, %blockL162i0_162
     %i_read1 = load volatile i2, ptr addrspace(1) %i, align 1
     %0 = zext i2 %i_read1 to i64
     %1 = getelementptr inbounds [4 x i32], ptr @mem, i64 0, i64 %0
     %o3 = load i32, ptr %1, align 4
     store volatile i32 %o3, ptr addrspace(2) %o, align 4
-    br label %blockL146i0_146
+    br label %blockL162i0_162
   }
   
   !0 = distinct !{!1, !2}
@@ -94,7 +94,7 @@ body:             |
     %1:anyregcls = HWTFPGA_ARG_GET 1
     %4:anyregcls(p0) = HWTFPGA_GLOBAL_VALUE @mem
   
-  bb.1.blockL146i0_146:
+  bb.1.blockL162i0_162:
     successors: %bb.1(0x80000000)
   
     %2:anyregcls(s2) = HWTFPGA_CLOAD %0, 0, 2, 1 :: (volatile load (s2) from %ir.i, addrspace 1)

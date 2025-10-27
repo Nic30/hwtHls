@@ -36,9 +36,10 @@ from tests.frontend.variableChain_test import VariableChain_TC
 from tests.frontend.whileIf_test import HlsAstWhileIf_TC
 from tests.frontend.whileTrue_test import HlsAstWhileTrue_TC
 from tests.testCaseUtils import testSuiteFromTCs
-
+from tests.frontend.opcode_LOAD_FAST_LOAD_FAST__STORE_FAST_STORE_FAST import TestOpcode_LOAD_FAST_LOAD_FAST__STORE_FAST_STORE_FAST_TC
 
 frontend_TCs = [
+    TestOpcode_LOAD_FAST_LOAD_FAST__STORE_FAST_STORE_FAST_TC ,
     FnCall_TC,
     HlsSlicingTC,
     HlsPythonTupleAssign_TC,

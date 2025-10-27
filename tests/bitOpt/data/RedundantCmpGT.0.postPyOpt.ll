@@ -3,9 +3,9 @@ bb0:
   br label %block0
 
 block0:                                           ; preds = %bb0
-  br label %blockL14i0_14
+  br label %blockL24i0_24
 
-blockL14i0_14:                                    ; preds = %blockL14i0_174, %block0
+blockL24i0_24:                                    ; preds = %blockL24i0_194, %block0
   %i0_read = alloca i8, align 1, !hwtHls.tmp.alloca !3
   store i8 undef, ptr %i0_read, align 1
   %i01 = alloca i8, align 1, !hwtHls.tmp.alloca !3
@@ -18,8 +18,8 @@ blockL14i0_14:                                    ; preds = %blockL14i0_174, %bl
   %1 = icmp ugt i8 %i0_read3, 2
   %2 = or i1 %0, %1
   store volatile i1 %2, ptr addrspace(2) %o, align 1
-  br label %blockL14i0_174
+  br label %blockL24i0_194
 
-blockL14i0_174:                                   ; preds = %blockL14i0_14
-  br label %blockL14i0_14
+blockL24i0_194:                                   ; preds = %blockL24i0_24
+  br label %blockL24i0_24
 }

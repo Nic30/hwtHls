@@ -3,81 +3,81 @@ bb0:
   br label %block0
 
 block0:                                           ; preds = %bb0
-  br label %blockL52i0_52
+  br label %blockL54i0_54
 
-blockL52i0_52:                                    ; preds = %block0
-  br label %blockL52i0_56
+blockL54i0_54:                                    ; preds = %block0
+  br label %blockL54i0_58
 
-blockL52i0_56:                                    ; preds = %blockL52i0_52
+blockL54i0_58:                                    ; preds = %blockL54i0_54
   %v0 = alloca i16, align 2, !hwtHls.tmp.alloca !4
   store i16 undef, ptr %v0, align 2
-  br label %blockL52i1_52
+  br label %blockL54i1_54
 
-blockL52i1_52:                                    ; preds = %blockL52i0_56
-  br label %blockL52i1_56
+blockL54i1_54:                                    ; preds = %blockL54i0_58
+  br label %blockL54i1_58
 
-blockL52i1_56:                                    ; preds = %blockL52i1_52
+blockL54i1_58:                                    ; preds = %blockL54i1_54
   %v1 = alloca i16, align 2, !hwtHls.tmp.alloca !4
   store i16 undef, ptr %v1, align 2
-  br label %blockL52i2_52
+  br label %blockL54i2_54
 
-blockL52i2_52:                                    ; preds = %blockL52i1_56
-  br label %blockL52i2_56
+blockL54i2_54:                                    ; preds = %blockL54i1_58
+  br label %blockL54i2_58
 
-blockL52i2_56:                                    ; preds = %blockL52i2_52
+blockL54i2_58:                                    ; preds = %blockL54i2_54
   %v2 = alloca i16, align 2, !hwtHls.tmp.alloca !4
   store i16 undef, ptr %v2, align 2
-  br label %blockL52i3_52
+  br label %blockL54i3_54
 
-blockL52i3_52:                                    ; preds = %blockL52i2_56
-  br label %blockL52i3_56
+blockL54i3_54:                                    ; preds = %blockL54i2_58
+  br label %blockL54i3_58
 
-blockL52i3_56:                                    ; preds = %blockL52i3_52
+blockL54i3_58:                                    ; preds = %blockL54i3_54
   %v3 = alloca i16, align 2, !hwtHls.tmp.alloca !4
   store i16 undef, ptr %v3, align 2
-  br label %blockL52i4_52
+  br label %blockL54i4_54
 
-blockL52i4_52:                                    ; preds = %blockL52i3_56
-  br label %block144
+blockL54i4_54:                                    ; preds = %blockL54i3_58
+  br label %block146
 
-block144:                                         ; preds = %blockL52i4_52
-  br label %blockL154i0_154
+block146:                                         ; preds = %blockL54i4_54
+  br label %blockL158i0_158
 
-blockL154i0_154:                                  ; preds = %block144
-  br label %blockL154i0_158
+blockL158i0_158:                                  ; preds = %block146
+  br label %blockL158i0_162
 
-blockL154i0_158:                                  ; preds = %blockL154i0_154
+blockL158i0_162:                                  ; preds = %blockL158i0_158
   store i16 0, ptr %v0, align 2
-  br label %blockL154i1_154
+  br label %blockL158i1_158
 
-blockL154i1_154:                                  ; preds = %blockL154i0_158
-  br label %blockL154i1_158
+blockL158i1_158:                                  ; preds = %blockL158i0_162
+  br label %blockL158i1_162
 
-blockL154i1_158:                                  ; preds = %blockL154i1_154
+blockL158i1_162:                                  ; preds = %blockL158i1_158
   store i16 0, ptr %v1, align 2
-  br label %blockL154i2_154
+  br label %blockL158i2_158
 
-blockL154i2_154:                                  ; preds = %blockL154i1_158
-  br label %blockL154i2_158
+blockL158i2_158:                                  ; preds = %blockL158i1_162
+  br label %blockL158i2_162
 
-blockL154i2_158:                                  ; preds = %blockL154i2_154
+blockL158i2_162:                                  ; preds = %blockL158i2_158
   store i16 0, ptr %v2, align 2
-  br label %blockL154i3_154
+  br label %blockL158i3_158
 
-blockL154i3_154:                                  ; preds = %blockL154i2_158
-  br label %blockL154i3_158
+blockL158i3_158:                                  ; preds = %blockL158i2_162
+  br label %blockL158i3_162
 
-blockL154i3_158:                                  ; preds = %blockL154i3_154
+blockL158i3_162:                                  ; preds = %blockL158i3_158
   store i16 0, ptr %v3, align 2
-  br label %blockL154i4_154
+  br label %blockL158i4_158
 
-blockL154i4_154:                                  ; preds = %blockL154i3_158
-  br label %block178
+blockL158i4_158:                                  ; preds = %blockL158i3_162
+  br label %block184
 
-block178:                                         ; preds = %blockL154i4_154
-  br label %blockL192i0_192
+block184:                                         ; preds = %blockL158i4_158
+  br label %blockL210i0_210
 
-blockL192i0_192:                                  ; preds = %blockL192i0_444, %block178
+blockL210i0_210:                                  ; preds = %blockL210i0_460, %block184
   %o_addr_read = alloca i2, align 1, !hwtHls.tmp.alloca !4
   store i2 undef, ptr %o_addr_read, align 1
   %o1 = alloca i16, align 2, !hwtHls.tmp.alloca !4
@@ -102,17 +102,17 @@ blockL192i0_192:                                  ; preds = %blockL192i0_444, %b
   %i_read1 = load volatile i2, ptr addrspace(1) %i, align 1
   store i2 %i_read1, ptr %i_read, align 1
   %i_read2 = load i2, ptr %i_read, align 1
-  switch i2 %i_read2, label %blockL192i0_192_428_setSwEnd [
-    i2 0, label %blockL192i0_192_428_c0
-    i2 1, label %blockL192i0_192_428_c1
-    i2 -2, label %blockL192i0_192_428_c2
-    i2 -1, label %blockL192i0_192_428_c3
+  switch i2 %i_read2, label %blockL210i0_210_434_setSwEnd [
+    i2 0, label %blockL210i0_210_434_c0
+    i2 1, label %blockL210i0_210_434_c1
+    i2 -2, label %blockL210i0_210_434_c2
+    i2 -1, label %blockL210i0_210_434_c3
   ]
 
-blockL192i0_192_428_setSwEnd:                     ; preds = %blockL192i0_192_428_c3, %blockL192i0_192_428_c2, %blockL192i0_192_428_c1, %blockL192i0_192_428_c0, %blockL192i0_192
-  br label %blockL192i0_444
+blockL210i0_210_434_setSwEnd:                     ; preds = %blockL210i0_210_434_c3, %blockL210i0_210_434_c2, %blockL210i0_210_434_c1, %blockL210i0_210_434_c0, %blockL210i0_210
+  br label %blockL210i0_460
 
-blockL192i0_192_428_c0:                           ; preds = %blockL192i0_192
+blockL210i0_210_434_c0:                           ; preds = %blockL210i0_210
   %i_read3 = load i2, ptr %i_read, align 1
   %5 = icmp eq i2 %i_read3, 0
   %v04 = load i16, ptr %v0, align 2
@@ -126,9 +126,9 @@ blockL192i0_192_428_c0:                           ; preds = %blockL192i0_192
   %10 = select i1 %5, i16 %v04, i16 %9
   %11 = add i16 %10, 1
   store i16 %11, ptr %v0, align 2
-  br label %blockL192i0_192_428_setSwEnd
+  br label %blockL210i0_210_434_setSwEnd
 
-blockL192i0_192_428_c1:                           ; preds = %blockL192i0_192
+blockL210i0_210_434_c1:                           ; preds = %blockL210i0_210
   %i_read8 = load i2, ptr %i_read, align 1
   %12 = icmp eq i2 %i_read8, 0
   %v09 = load i16, ptr %v0, align 2
@@ -142,9 +142,9 @@ blockL192i0_192_428_c1:                           ; preds = %blockL192i0_192
   %17 = select i1 %12, i16 %v09, i16 %16
   %18 = add i16 %17, 1
   store i16 %18, ptr %v1, align 2
-  br label %blockL192i0_192_428_setSwEnd
+  br label %blockL210i0_210_434_setSwEnd
 
-blockL192i0_192_428_c2:                           ; preds = %blockL192i0_192
+blockL210i0_210_434_c2:                           ; preds = %blockL210i0_210
   %i_read13 = load i2, ptr %i_read, align 1
   %19 = icmp eq i2 %i_read13, 0
   %v014 = load i16, ptr %v0, align 2
@@ -158,9 +158,9 @@ blockL192i0_192_428_c2:                           ; preds = %blockL192i0_192
   %24 = select i1 %19, i16 %v014, i16 %23
   %25 = add i16 %24, 1
   store i16 %25, ptr %v2, align 2
-  br label %blockL192i0_192_428_setSwEnd
+  br label %blockL210i0_210_434_setSwEnd
 
-blockL192i0_192_428_c3:                           ; preds = %blockL192i0_192
+blockL210i0_210_434_c3:                           ; preds = %blockL210i0_210
   %i_read18 = load i2, ptr %i_read, align 1
   %26 = icmp eq i2 %i_read18, 0
   %v019 = load i16, ptr %v0, align 2
@@ -174,8 +174,8 @@ blockL192i0_192_428_c3:                           ; preds = %blockL192i0_192
   %31 = select i1 %26, i16 %v019, i16 %30
   %32 = add i16 %31, 1
   store i16 %32, ptr %v3, align 2
-  br label %blockL192i0_192_428_setSwEnd
+  br label %blockL210i0_210_434_setSwEnd
 
-blockL192i0_444:                                  ; preds = %blockL192i0_192_428_setSwEnd
-  br label %blockL192i0_192
+blockL210i0_460:                                  ; preds = %blockL210i0_210_434_setSwEnd
+  br label %blockL210i0_210
 }

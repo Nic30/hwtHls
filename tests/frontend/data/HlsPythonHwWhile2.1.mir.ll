@@ -7,24 +7,24 @@
   bb0:
     br label %wh0
   
-  wh0:                                              ; preds = %bb0, %blockL56i0_182
-    %i.0 = phi i8 [ 0, %bb0 ], [ %2, %blockL56i0_182 ]
+  wh0:                                              ; preds = %bb0, %blockL68i0_204
+    %i.0 = phi i8 [ 0, %bb0 ], [ %2, %blockL68i0_204 ]
     %0 = icmp ult i8 %i.0, 5
     %1 = icmp eq i8 %i.0, 10
-    br i1 %0, label %blockL56i0_88, label %blockL56i0_146
+    br i1 %0, label %blockL68i0_102, label %blockL68i0_158
   
-  blockL56i0_88:                                    ; preds = %wh0
+  blockL68i0_102:                                   ; preds = %wh0
     store volatile i8 %i.0, ptr addrspace(1) %o, align 1
-    br label %blockL56i0_182
+    br label %blockL68i0_204
   
-  blockL56i0_182:                                   ; preds = %blockL56i0_146, %blockL56i0_88
+  blockL68i0_204:                                   ; preds = %blockL68i0_158, %blockL68i0_102
     %2 = add i8 %i.0, 1
     br label %wh0
   
-  blockL56i0_146:                                   ; preds = %wh0
-    br i1 %1, label %wh1.preheader, label %blockL56i0_182
+  blockL68i0_158:                                   ; preds = %wh0
+    br i1 %1, label %wh1.preheader, label %blockL68i0_204
   
-  wh1.preheader:                                    ; preds = %blockL56i0_146
+  wh1.preheader:                                    ; preds = %blockL68i0_158
     br label %wh1
   
   wh1:                                              ; preds = %wh1.preheader, %wh1

@@ -5,16 +5,16 @@
   
   define void @ReadIfOtherEqual.mainThread(ptr addrspace(1) %a, ptr addrspace(2) %b) !hwtHls.io !0 {
   bb0:
-    br label %blockL14i0_14
+    br label %blockL24i0_24
   
-  blockL14i0_14:                                    ; preds = %blockL14i0_14, %blockL14i0_118, %bb0
+  blockL24i0_24:                                    ; preds = %blockL24i0_24, %blockL24i0_138, %bb0
     %a_read1 = load volatile i8, ptr addrspace(1) %a, align 1
     %0 = icmp eq i8 %a_read1, 3
-    br i1 %0, label %blockL14i0_118, label %blockL14i0_14
+    br i1 %0, label %blockL24i0_138, label %blockL24i0_24
   
-  blockL14i0_118:                                   ; preds = %blockL14i0_14
+  blockL24i0_138:                                   ; preds = %blockL24i0_24
     %b_read1 = load volatile i8, ptr addrspace(2) %b, align 1
-    br label %blockL14i0_14
+    br label %blockL24i0_24
   }
   
   !0 = distinct !{!1, !2}
@@ -88,7 +88,7 @@ body:             |
     %0:anyregcls = HWTFPGA_ARG_GET 0
     %1:anyregcls = HWTFPGA_ARG_GET 1
   
-  bb.1.blockL14i0_14:
+  bb.1.blockL24i0_24:
     successors: %bb.1(0x80000000)
   
     %2:anyregcls(s8) = HWTFPGA_CLOAD %0, 0, 8, 1 :: (volatile load (s8) from %ir.a, addrspace 1)

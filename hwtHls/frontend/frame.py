@@ -1,5 +1,6 @@
 from copy import copy
-from dis import Instruction, _get_instructions_bytes, findlinestarts
+from dis import Instruction, _get_instructions_bytes, findlinestarts, \
+    _make_labels_map, ArgResolver, _parse_exception_table, get_instructions
 import inspect
 from types import FunctionType
 from typing import Dict, Set, Tuple, List, Optional
@@ -87,7 +88,7 @@ class PyBytecodeFrame():
         """
         :note: based on cpython/Python/ceval.c/_PyEvalFramePushAndInit
         """
-        
+
         if isinstance(fn, staticmethod):
             fn = fn.__func__
 
@@ -95,9 +96,9 @@ class PyBytecodeFrame():
         co = fn.__code__
         # anyArgCnt = co.co_argcount + co.co_kwonlyargcount
         # trueLocalsCnt = anyArgCnt + co.co_nlocals
-        argAndLocalVarCnt = len(co.co_varnames) # args and directly used locals
-        plainCellVarCnt = sum(1 for n in co.co_cellvars if n not in co.co_varnames) # to child closures
-        freeVarCnt = len(co.co_freevars) # from parent closure
+        argAndLocalVarCnt = len(co.co_varnames)  # args and directly used locals
+        plainCellVarCnt = sum(1 for n in co.co_cellvars if n not in co.co_varnames)  # to child closures
+        freeVarCnt = len(co.co_freevars)  # from parent closure
         localsplus = [NULL for _ in range(argAndLocalVarCnt + plainCellVarCnt + freeVarCnt)]
         if inspect.ismethod(fn):
             fnArgs = list((fn.__self__, *fnArgs))
@@ -121,17 +122,11 @@ class PyBytecodeFrame():
 
         for i, argVal in enumerate(fnArgs):
             localsplus[i] = argVal
-
-        linestarts = dict(findlinestarts(co))
-        instructions = tuple(_get_instructions_bytes(co.co_code,
-            varname_from_oparg=co._varname_from_oparg,
-            names=co.co_names, co_consts=co.co_consts,
-            linestarts=linestarts,
-            co_positions=co.co_positions()))
         
+        instructions = tuple(get_instructions(fn))
         bytecodeBlocks, fnCfg = extractBytecodeBlocks(instructions)
         loops = PyBytecodeLoop.collectLoopsPerBlock(fnCfg)
-        
+
         frame = PyBytecodeFrame(fn, callSiteAddress, instructions, bytecodeBlocks,
                                loops, localsplus, [])
 

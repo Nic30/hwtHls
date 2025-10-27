@@ -5,11 +5,11 @@
   
   define void @HlsPythonPreprocForPreprocWhile.mainThread(ptr addrspace(1) %o) !hwtHls.io !0 {
   bb0:
-    br label %blockL24i0_L42i0_42
+    br label %blockL24i0_L46i0_46
   
-  blockL24i0_L42i0_42:                              ; preds = %bb0, %blockL24i0_L42i0_42
+  blockL24i0_L46i0_46:                              ; preds = %bb0, %blockL24i0_L46i0_46
     store volatile i8 0, ptr addrspace(1) %o, align 1
-    br label %blockL24i0_L42i0_42
+    br label %blockL24i0_L46i0_46
   }
   
   !0 = distinct !{!1}
@@ -73,7 +73,7 @@ body:             |
   
     %0:anyregcls = HWTFPGA_ARG_GET 0
   
-  bb.1.blockL24i0_L42i0_42:
+  bb.1.blockL24i0_L46i0_46:
     successors: %bb.1(0x80000000)
   
     HWTFPGA_CSTORE i8 0, %0, 0, 8, 1 :: (volatile store (s8) into %ir.o, addrspace 1)

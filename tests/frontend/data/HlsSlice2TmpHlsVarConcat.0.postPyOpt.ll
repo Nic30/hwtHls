@@ -3,9 +3,9 @@ bb0:
   br label %block0
 
 block0:                                           ; preds = %bb0
-  br label %blockL14i0_14
+  br label %blockL24i0_24
 
-blockL14i0_14:                                    ; preds = %blockL14i0_224, %block0
+blockL24i0_24:                                    ; preds = %blockL24i0_242, %block0
   %a_read = alloca i16, align 2, !hwtHls.tmp.alloca !3
   store i16 undef, ptr %a_read, align 2
   %tmp = alloca i32, align 4, !hwtHls.tmp.alloca !3
@@ -16,8 +16,8 @@ blockL14i0_14:                                    ; preds = %blockL14i0_224, %bl
   %tmp3 = call i32 @hwtHls.bitConcat.i16.i16(i16 %a_read2, i16 16) #1
   store i32 %tmp3, ptr %tmp, align 4
   store volatile i32 %tmp3, ptr addrspace(2) %b, align 4
-  br label %blockL14i0_224
+  br label %blockL24i0_242
 
-blockL14i0_224:                                   ; preds = %blockL14i0_14
-  br label %blockL14i0_14
+blockL24i0_242:                                   ; preds = %blockL24i0_24
+  br label %blockL24i0_24
 }

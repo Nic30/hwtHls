@@ -29,8 +29,8 @@ In eclipse.ini allow more memory for JVM by appending
 * Eclipse CDT can not find pybind11 files
   To fix that add include paths
   Project Properties --> C/C++ General --> Paths and Symbols --> Includes
-  /usr/local/lib/python3.12
-  /usr/local/lib/python3.12/dist-packages/pybind11/include
+  /usr/local/lib/python3.13
+  /usr/local/lib/python3.13/dist-packages/pybind11/include
   (update name of your python)
 
 * Eclipse CDT does not recognize some STL containers like unordered_set and unordered_map.

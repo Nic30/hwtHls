@@ -5,13 +5,13 @@
   
   define void @RedundantCmpGT.mainThread(ptr addrspace(1) %i0, ptr addrspace(2) %o) !hwtHls.io !0 {
   bb0:
-    br label %blockL14i0_14
+    br label %blockL24i0_24
   
-  blockL14i0_14:                                    ; preds = %bb0, %blockL14i0_14
+  blockL24i0_24:                                    ; preds = %bb0, %blockL24i0_24
     %i0_read2 = load volatile i8, ptr addrspace(1) %i0, align 1
     %0 = icmp ugt i8 %i0_read2, 1
     store volatile i1 %0, ptr addrspace(2) %o, align 1
-    br label %blockL14i0_14
+    br label %blockL24i0_24
   }
   
   !0 = distinct !{!1, !2}
@@ -80,7 +80,7 @@ body:             |
     %0:anyregcls = HWTFPGA_ARG_GET 0
     %1:anyregcls = HWTFPGA_ARG_GET 1
   
-  bb.1.blockL14i0_14:
+  bb.1.blockL24i0_24:
     successors: %bb.1(0x80000000)
   
     %2:anyregcls(s8) = HWTFPGA_CLOAD %0, 0, 8, 1 :: (volatile load (s8) from %ir.i0, addrspace 1)

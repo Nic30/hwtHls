@@ -11,7 +11,7 @@ jobs:
       - image: ubuntu:latest
     executor:
        name: python/default
-       tag: “3.12”
+       tag: “3.13”
     steps:
       - checkout
       - run:

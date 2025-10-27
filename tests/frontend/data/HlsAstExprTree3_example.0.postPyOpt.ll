@@ -3,9 +3,9 @@ bb0:
   br label %block0
 
 block0:                                           ; preds = %bb0
-  br label %blockL64i0_64
+  br label %blockL74i0_74
 
-blockL64i0_64:                                    ; preds = %blockL64i0_724, %block0
+blockL74i0_74:                                    ; preds = %blockL74i0_728, %block0
   %a_read = alloca i32, align 4, !hwtHls.tmp.alloca !12
   store i32 undef, ptr %a_read, align 4
   %b_read = alloca i32, align 4, !hwtHls.tmp.alloca !12
@@ -87,8 +87,8 @@ blockL64i0_64:                                    ; preds = %blockL64i0_724, %bl
   store volatile i32 %f18, ptr addrspace(5) %f1, align 4
   store volatile i32 %f210, ptr addrspace(6) %f2, align 4
   store volatile i32 %f311, ptr addrspace(7) %f3, align 4
-  br label %blockL64i0_724
+  br label %blockL74i0_728
 
-blockL64i0_724:                                   ; preds = %blockL64i0_64
-  br label %blockL64i0_64
+blockL74i0_728:                                   ; preds = %blockL74i0_74
+  br label %blockL74i0_74
 }

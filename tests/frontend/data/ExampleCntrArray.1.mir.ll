@@ -5,28 +5,28 @@
   
   define void @ExampleCntrArray.mainThread(ptr addrspace(1) %i, ptr addrspace(2) %o, ptr addrspace(3) %o_addr) !hwtHls.io !0 {
   bb0:
-    br label %blockL192i0_192.outer
+    br label %blockL210i0_210.outer
   
-  blockL192i0_192.outer:                            ; preds = %blockL192i0_192_428_c3, %bb0
-    %v3.0.ph = phi i16 [ %11, %blockL192i0_192_428_c3 ], [ 0, %bb0 ]
-    %v2.0.ph = phi i16 [ %v2.0.ph8, %blockL192i0_192_428_c3 ], [ 0, %bb0 ]
-    %v1.0.ph = phi i16 [ %v1.0.ph12, %blockL192i0_192_428_c3 ], [ 0, %bb0 ]
-    %v0.0.ph = phi i16 [ %v0.0, %blockL192i0_192_428_c3 ], [ 0, %bb0 ]
-    br label %blockL192i0_192.outer7
+  blockL210i0_210.outer:                            ; preds = %blockL210i0_210_434_c3, %bb0
+    %v3.0.ph = phi i16 [ %11, %blockL210i0_210_434_c3 ], [ 0, %bb0 ]
+    %v2.0.ph = phi i16 [ %v2.0.ph8, %blockL210i0_210_434_c3 ], [ 0, %bb0 ]
+    %v1.0.ph = phi i16 [ %v1.0.ph12, %blockL210i0_210_434_c3 ], [ 0, %bb0 ]
+    %v0.0.ph = phi i16 [ %v0.0, %blockL210i0_210_434_c3 ], [ 0, %bb0 ]
+    br label %blockL210i0_210.outer7
   
-  blockL192i0_192.outer7:                           ; preds = %blockL192i0_192.outer, %blockL192i0_192_428_c2
-    %v2.0.ph8 = phi i16 [ %v2.0.ph, %blockL192i0_192.outer ], [ %11, %blockL192i0_192_428_c2 ]
-    %v1.0.ph9 = phi i16 [ %v1.0.ph, %blockL192i0_192.outer ], [ %v1.0.ph12, %blockL192i0_192_428_c2 ]
-    %v0.0.ph10 = phi i16 [ %v0.0.ph, %blockL192i0_192.outer ], [ %v0.0, %blockL192i0_192_428_c2 ]
-    br label %blockL192i0_192.outer11
+  blockL210i0_210.outer7:                           ; preds = %blockL210i0_210.outer, %blockL210i0_210_434_c2
+    %v2.0.ph8 = phi i16 [ %v2.0.ph, %blockL210i0_210.outer ], [ %11, %blockL210i0_210_434_c2 ]
+    %v1.0.ph9 = phi i16 [ %v1.0.ph, %blockL210i0_210.outer ], [ %v1.0.ph12, %blockL210i0_210_434_c2 ]
+    %v0.0.ph10 = phi i16 [ %v0.0.ph, %blockL210i0_210.outer ], [ %v0.0, %blockL210i0_210_434_c2 ]
+    br label %blockL210i0_210.outer11
   
-  blockL192i0_192.outer11:                          ; preds = %blockL192i0_192.outer7, %blockL192i0_192_428_c1
-    %v1.0.ph12 = phi i16 [ %v1.0.ph9, %blockL192i0_192.outer7 ], [ %11, %blockL192i0_192_428_c1 ]
-    %v0.0.ph13 = phi i16 [ %v0.0.ph10, %blockL192i0_192.outer7 ], [ %v0.0, %blockL192i0_192_428_c1 ]
-    br label %blockL192i0_192
+  blockL210i0_210.outer11:                          ; preds = %blockL210i0_210.outer7, %blockL210i0_210_434_c1
+    %v1.0.ph12 = phi i16 [ %v1.0.ph9, %blockL210i0_210.outer7 ], [ %11, %blockL210i0_210_434_c1 ]
+    %v0.0.ph13 = phi i16 [ %v0.0.ph10, %blockL210i0_210.outer7 ], [ %v0.0, %blockL210i0_210_434_c1 ]
+    br label %blockL210i0_210
   
-  blockL192i0_192:                                  ; preds = %blockL192i0_192.outer11, %blockL192i0_192
-    %v0.0 = phi i16 [ %11, %blockL192i0_192 ], [ %v0.0.ph13, %blockL192i0_192.outer11 ]
+  blockL210i0_210:                                  ; preds = %blockL210i0_210.outer11, %blockL210i0_210
+    %v0.0 = phi i16 [ %11, %blockL210i0_210 ], [ %v0.0.ph13, %blockL210i0_210.outer11 ]
     %o_addr_read1 = load volatile i2, ptr addrspace(3) %o_addr, align 1
     %0 = icmp eq i2 %o_addr_read1, 0
     %1 = icmp eq i2 %o_addr_read1, 1
@@ -43,24 +43,24 @@
     %9 = select i1 %6, i16 %v1.0.ph12, i16 %8
     %10 = select i1 %5, i16 %v0.0, i16 %9
     %11 = add i16 %10, 1
-    switch i2 %i_read1, label %blockL192i0_192.unreachabledefault [
-      i2 0, label %blockL192i0_192
-      i2 1, label %blockL192i0_192_428_c1
-      i2 -2, label %blockL192i0_192_428_c2
-      i2 -1, label %blockL192i0_192_428_c3
+    switch i2 %i_read1, label %blockL210i0_210.unreachabledefault [
+      i2 0, label %blockL210i0_210
+      i2 1, label %blockL210i0_210_434_c1
+      i2 -2, label %blockL210i0_210_434_c2
+      i2 -1, label %blockL210i0_210_434_c3
     ]
   
-  blockL192i0_192.unreachabledefault:               ; preds = %blockL192i0_192
+  blockL210i0_210.unreachabledefault:               ; preds = %blockL210i0_210
     unreachable
   
-  blockL192i0_192_428_c1:                           ; preds = %blockL192i0_192
-    br label %blockL192i0_192.outer11
+  blockL210i0_210_434_c1:                           ; preds = %blockL210i0_210
+    br label %blockL210i0_210.outer11
   
-  blockL192i0_192_428_c2:                           ; preds = %blockL192i0_192
-    br label %blockL192i0_192.outer7
+  blockL210i0_210_434_c2:                           ; preds = %blockL210i0_210
+    br label %blockL210i0_210.outer7
   
-  blockL192i0_192_428_c3:                           ; preds = %blockL192i0_192
-    br label %blockL192i0_192.outer
+  blockL210i0_210_434_c3:                           ; preds = %blockL210i0_210
+    br label %blockL210i0_210.outer
   }
   
   !0 = distinct !{!1, !2, !3}
@@ -200,7 +200,7 @@ body:             |
     %12:anyregcls(s16) = HWTFPGA_MUX i16 0
     %67:anyregcls(s64) = HWTFPGA_MERGE_VALUES %3(s16), %7(s16), %12(s16), %44(s16), 16, 16, 16, 16
   
-  bb.1.blockL192i0_192:
+  bb.1.blockL210i0_210:
     successors: %bb.2(0x80000000)
   
     %3:anyregcls(s16) = HWTFPGA_EXTRACT %67(s64), 64, 0, 16
@@ -211,7 +211,7 @@ body:             |
     %46:anyregcls(s16) = HWTFPGA_MUX %12(s16)
     %68:anyregcls(s64) = HWTFPGA_MERGE_VALUES %3(s16), %7(s16), %10(s16), %46(s16), 16, 16, 16, 16
   
-  bb.2.blockL192i0_192:
+  bb.2.blockL210i0_210:
     successors: %bb.2(0x78e38e39), %bb.1(0x071c71c7)
   
     %3:anyregcls(s16) = HWTFPGA_EXTRACT %68(s64), 64, 0, 16

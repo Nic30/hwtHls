@@ -5,9 +5,9 @@
   
   define void @HlsPythonSwap.mainThread(ptr addrspace(1) %i0, ptr addrspace(2) %i1, ptr addrspace(3) %o0, ptr addrspace(4) %o1, ptr addrspace(5) %swap) !hwtHls.io !0 {
   bb0:
-    br label %blockL14i0_14
+    br label %blockL24i0_24
   
-  blockL14i0_14:                                    ; preds = %bb0, %blockL14i0_14
+  blockL24i0_24:                                    ; preds = %bb0, %blockL24i0_24
     %swap_read2 = load volatile i1, ptr addrspace(5) %swap, align 1
     %i0_read2 = load volatile i8, ptr addrspace(1) %i0, align 1
     %i1_read2 = load volatile i8, ptr addrspace(2) %i1, align 1
@@ -15,7 +15,7 @@
     %i11.0 = select i1 %swap_read2, i8 %i0_read2, i8 %i1_read2
     store volatile i8 %i01.0, ptr addrspace(3) %o0, align 1
     store volatile i8 %i11.0, ptr addrspace(4) %o1, align 1
-    br label %blockL14i0_14
+    br label %blockL24i0_24
   }
   
   !0 = distinct !{!1, !2, !3, !4, !5}
@@ -95,7 +95,7 @@ body:             |
     %3:anyregcls = HWTFPGA_ARG_GET 3
     %4:anyregcls = HWTFPGA_ARG_GET 4
   
-  bb.1.blockL14i0_14:
+  bb.1.blockL24i0_24:
     successors: %bb.1(0x80000000)
   
     %5:anyregcls(s1) = HWTFPGA_CLOAD %4, 0, 1, 1 :: (volatile load (s1) from %ir.swap, addrspace 5)

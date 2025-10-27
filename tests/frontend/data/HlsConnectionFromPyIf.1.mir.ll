@@ -7,13 +7,13 @@
   bb0:
     %i_read1 = load volatile i8, ptr addrspace(1) %i, align 1
     %0 = icmp eq i8 %i_read1, 2
-    br i1 %0, label %block110, label %UnifiedReturnBlock
+    br i1 %0, label %block120, label %UnifiedReturnBlock
   
-  block110:                                         ; preds = %bb0
+  block120:                                         ; preds = %bb0
     store volatile i8 3, ptr addrspace(2) %o, align 1
     br label %UnifiedReturnBlock
   
-  UnifiedReturnBlock:                               ; preds = %bb0, %block110
+  UnifiedReturnBlock:                               ; preds = %bb0, %block120
     ret void
   }
   

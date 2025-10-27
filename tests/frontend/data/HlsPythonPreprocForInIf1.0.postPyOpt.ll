@@ -9,42 +9,42 @@ begin:                                            ; preds = %bb0
   br label %if.true
 
 if.true:                                          ; preds = %begin
-  br label %blockL168i0_168
+  br label %blockL178i0_178
 
-blockL168i0_168:                                  ; preds = %if.true
+blockL178i0_178:                                  ; preds = %if.true
   br label %for.head
 
-for.head:                                         ; preds = %blockL168i0_168
+for.head:                                         ; preds = %blockL178i0_178
   %cntr1 = load i8, ptr %cntr, align 1
   store volatile i8 %cntr1, ptr addrspace(1) %o, align 1
   %0 = icmp eq i8 %cntr1, 2
-  br i1 %0, label %for.break, label %blockL168i0_286
+  br i1 %0, label %for.break, label %blockL178i0_304
 
-blockL168i0_286:                                  ; preds = %for.head
-  br label %blockL168i1_168
+blockL178i0_304:                                  ; preds = %for.head
+  br label %blockL178i1_178
 
-blockL168i1_168:                                  ; preds = %blockL168i0_286
+blockL178i1_178:                                  ; preds = %blockL178i0_304
   br label %for.head2
 
 for.break:                                        ; preds = %for.head2, %for.head
   br label %exit
 
-for.head2:                                        ; preds = %blockL168i1_168
+for.head2:                                        ; preds = %blockL178i1_178
   %cntr3 = load i8, ptr %cntr, align 1
   store volatile i8 %cntr3, ptr addrspace(1) %o, align 1
   %1 = icmp eq i8 %cntr3, 2
-  br i1 %1, label %for.break, label %blockL168i1_286
+  br i1 %1, label %for.break, label %blockL178i1_304
 
-blockL168i1_286:                                  ; preds = %for.head2
-  br label %blockL168i2_168
+blockL178i1_304:                                  ; preds = %for.head2
+  br label %blockL178i2_178
 
-blockL168i2_168:                                  ; preds = %blockL168i1_286
-  br label %block314
+blockL178i2_178:                                  ; preds = %blockL178i1_304
+  br label %block334
 
-block314:                                         ; preds = %blockL168i2_168
+block334:                                         ; preds = %blockL178i2_178
   br label %exit
 
-exit:                                             ; preds = %block314, %for.break
+exit:                                             ; preds = %block334, %for.break
   %cntr5 = load i8, ptr %cntr, align 1
   store volatile i8 %cntr5, ptr addrspace(1) %o, align 1
   ret void

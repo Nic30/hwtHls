@@ -3,9 +3,9 @@ bb0:
   br label %block0
 
 block0:                                           ; preds = %bb0
-  br label %blockL14i0_14
+  br label %blockL24i0_24
 
-blockL14i0_14:                                    ; preds = %blockL14i0_294, %block0
+blockL24i0_24:                                    ; preds = %blockL24i0_312, %block0
   %tmp = alloca i32, align 4, !hwtHls.tmp.alloca !3
   store i32 undef, ptr %tmp, align 4
   store i32 undef, ptr %tmp, align 4
@@ -22,8 +22,8 @@ blockL14i0_14:                                    ; preds = %blockL14i0_294, %bl
   store i32 %tmp4, ptr %tmp, align 4
   %tmp5 = load i32, ptr %tmp, align 4
   store volatile i32 %tmp5, ptr addrspace(2) %b, align 4
-  br label %blockL14i0_294
+  br label %blockL24i0_312
 
-blockL14i0_294:                                   ; preds = %blockL14i0_14
-  br label %blockL14i0_14
+blockL24i0_312:                                   ; preds = %blockL24i0_24
+  br label %blockL24i0_24
 }

@@ -3,42 +3,42 @@ bb0:
   br label %block0
 
 block0:                                           ; preds = %bb0
-  br label %blockL140i0_140
+  br label %blockL142i0_142
 
-blockL140i0_140:                                  ; preds = %block0
-  br label %blockL140i0_144
+blockL142i0_142:                                  ; preds = %block0
+  br label %blockL142i0_146
 
-blockL140i0_144:                                  ; preds = %blockL140i0_140
-  br label %blockL140i1_140
+blockL142i0_146:                                  ; preds = %blockL142i0_142
+  br label %blockL142i1_142
 
-blockL140i1_140:                                  ; preds = %blockL140i0_144
-  br label %blockL140i1_144
+blockL142i1_142:                                  ; preds = %blockL142i0_146
+  br label %blockL142i1_146
 
-blockL140i1_144:                                  ; preds = %blockL140i1_140
-  br label %blockL140i2_140
+blockL142i1_146:                                  ; preds = %blockL142i1_142
+  br label %blockL142i2_142
 
-blockL140i2_140:                                  ; preds = %blockL140i1_144
-  br label %blockL140i2_144
+blockL142i2_142:                                  ; preds = %blockL142i1_146
+  br label %blockL142i2_146
 
-blockL140i2_144:                                  ; preds = %blockL140i2_140
-  br label %blockL140i3_140
+blockL142i2_146:                                  ; preds = %blockL142i2_142
+  br label %blockL142i3_142
 
-blockL140i3_140:                                  ; preds = %blockL140i2_144
-  br label %blockL140i3_144
+blockL142i3_142:                                  ; preds = %blockL142i2_146
+  br label %blockL142i3_146
 
-blockL140i3_144:                                  ; preds = %blockL140i3_140
-  br label %blockL140i4_140
+blockL142i3_146:                                  ; preds = %blockL142i3_142
+  br label %blockL142i4_142
 
-blockL140i4_140:                                  ; preds = %blockL140i3_144
-  br label %block152
+blockL142i4_142:                                  ; preds = %blockL142i3_146
+  br label %block156
 
-block152:                                         ; preds = %blockL140i4_140
+block156:                                         ; preds = %blockL142i4_142
   %mem = alloca [4 x i16], align 2, !hwtHls.tmp.alloca !4
   store [4 x i16] undef, ptr %mem, align 2
   call void @llvm.memcpy.p0.p0.i64(ptr align 1 %mem, ptr align 1 @0, i64 8, i1 false)
-  br label %blockL180i0_180
+  br label %blockL196i0_196
 
-blockL180i0_180:                                  ; preds = %blockL180i0_428, %block152
+blockL196i0_196:                                  ; preds = %blockL196i0_448, %block156
   %o_addr_read = alloca i2, align 1, !hwtHls.tmp.alloca !4
   store i2 undef, ptr %o_addr_read, align 1
   %o1 = alloca i16, align 2, !hwtHls.tmp.alloca !4
@@ -66,8 +66,8 @@ blockL180i0_180:                                  ; preds = %blockL180i0_428, %b
   %6 = zext i2 %i_read3 to i64
   %7 = getelementptr inbounds [4 x i16], ptr %mem, i64 0, i64 %6
   store i16 %5, ptr %7, align 2
-  br label %blockL180i0_428
+  br label %blockL196i0_448
 
-blockL180i0_428:                                  ; preds = %blockL180i0_180
-  br label %blockL180i0_180
+blockL196i0_448:                                  ; preds = %blockL196i0_196
+  br label %blockL196i0_196
 }

@@ -5,16 +5,16 @@
   
   define void @WhileAndIf2.mainThread(ptr addrspace(1) %dataIn, ptr addrspace(2) %dataOut) !hwtHls.io !0 {
   bb0:
-    br label %blockL14i0_L94i0_94
+    br label %blockL24i0_L108i0_108
   
-  blockL14i0_L94i0_94:                              ; preds = %blockL14i0_L94i0_94, %bb0
-    %x.0 = phi i8 [ 10, %bb0 ], [ %spec.select, %blockL14i0_L94i0_94 ]
+  blockL24i0_L108i0_108:                            ; preds = %blockL24i0_L108i0_108, %bb0
+    %x.0 = phi i8 [ 10, %bb0 ], [ %spec.select, %blockL24i0_L108i0_108 ]
     %dataIn_read1 = load volatile i8, ptr addrspace(1) %dataIn, align 1
     %0 = sub i8 %x.0, %dataIn_read1
     store volatile i8 %0, ptr addrspace(2) %dataOut, align 1
     %.not = icmp eq i8 %x.0, %dataIn_read1
     %spec.select = select i1 %.not, i8 10, i8 %0
-    br label %blockL14i0_L94i0_94
+    br label %blockL24i0_L108i0_108
   }
   
   !0 = distinct !{!1, !2}
@@ -88,7 +88,7 @@ body:             |
     %1:anyregcls = HWTFPGA_ARG_GET 1
     %8:anyregcls(s8) = HWTFPGA_MUX i8 10
   
-  bb.1.blockL14i0_L94i0_94:
+  bb.1.blockL24i0_L108i0_108:
     successors: %bb.1(0x80000000)
   
     %3:anyregcls(s8) = HWTFPGA_CLOAD %0, 0, 8, 1 :: (volatile load (s8) from %ir.dataIn, addrspace 1)

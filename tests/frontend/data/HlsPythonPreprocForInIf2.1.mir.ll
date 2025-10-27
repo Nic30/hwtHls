@@ -5,22 +5,22 @@
   
   define void @HlsPythonPreprocForInIf2.mainThread(ptr addrspace(1) %o) !hwtHls.io !0 {
   bb0:
-    br label %blockL110i0_110
+    br label %blockL120i0_120
   
-  blockL110i0_110:                                  ; preds = %bb0, %exit
+  blockL120i0_120:                                  ; preds = %bb0, %exit
     %cntr.0 = phi i8 [ 0, %bb0 ], [ %1, %exit ]
     store volatile i8 %cntr.0, ptr addrspace(1) %o, align 1
     %0 = icmp eq i8 %cntr.0, 2
     br i1 %0, label %exit, label %for.head2
   
-  for.head2:                                        ; preds = %blockL110i0_110
+  for.head2:                                        ; preds = %blockL120i0_120
     store volatile i8 %cntr.0, ptr addrspace(1) %o, align 1
     br label %exit
   
-  exit:                                             ; preds = %for.head2, %blockL110i0_110
+  exit:                                             ; preds = %for.head2, %blockL120i0_120
     store volatile i8 %cntr.0, ptr addrspace(1) %o, align 1
     %1 = add i8 %cntr.0, 1
-    br label %blockL110i0_110
+    br label %blockL120i0_120
   }
   
   !0 = distinct !{!1}
@@ -93,7 +93,7 @@ body:             |
     %0:anyregcls = HWTFPGA_ARG_GET 0
     %9:anyregcls(s8) = HWTFPGA_MUX i8 0
   
-  bb.1.blockL110i0_110:
+  bb.1.blockL120i0_120:
     successors: %bb.1(0x80000000)
   
     HWTFPGA_CSTORE %9(s8), %0, 0, 8, 1 :: (volatile store (s8) into %ir.o, addrspace 1)

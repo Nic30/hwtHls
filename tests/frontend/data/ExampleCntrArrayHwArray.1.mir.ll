@@ -5,13 +5,13 @@
   
   define void @ExampleCntrArrayHwArray.mainThread(ptr addrspace(1) %i, ptr addrspace(2) %o, ptr addrspace(3) %o_addr) !hwtHls.io !0 {
   bb0:
-    br label %blockL180i0_180
+    br label %blockL196i0_196
   
-  blockL180i0_180:                                  ; preds = %bb0, %blockL180i0_180
+  blockL196i0_196:                                  ; preds = %bb0, %blockL196i0_196
     %o_addr_read1 = load volatile i2, ptr addrspace(3) %o_addr, align 1
     %i_read2 = load volatile i2, ptr addrspace(1) %i, align 1
     store volatile i16 0, ptr addrspace(2) %o, align 2
-    br label %blockL180i0_180
+    br label %blockL196i0_196
   }
   
   !0 = distinct !{!1, !2, !3}
@@ -83,7 +83,7 @@ body:             |
     %1:anyregcls = HWTFPGA_ARG_GET 1
     %2:anyregcls = HWTFPGA_ARG_GET 2
   
-  bb.1.blockL180i0_180:
+  bb.1.blockL196i0_196:
     successors: %bb.1(0x80000000)
   
     dead %3:anyregcls(s2) = HWTFPGA_CLOAD %2, 0, 2, 1 :: (volatile load (s2) from %ir.o_addr, addrspace 3)

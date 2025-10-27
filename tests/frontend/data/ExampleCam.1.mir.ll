@@ -5,13 +5,13 @@
   
   define void @ExampleCam.updateThread(ptr addrspace(1) %keyForMatchThread_0, ptr addrspace(2) %keyForMatchThread_1, ptr addrspace(3) %keyForMatchThread_2, ptr addrspace(4) %keyForMatchThread_3, ptr addrspace(5) %write) !hwtHls.io !0 {
   bb0:
-    br label %blockL192i0_192
+    br label %blockL210i0_210
   
-  blockL192i0_192:                                  ; preds = %bb0, %blockL192i0_192
-    %.phiConc = phi i17 [ 0, %bb0 ], [ %.selConc, %blockL192i0_192 ]
-    %.phiConc39 = phi i17 [ 0, %bb0 ], [ %.selConc40, %blockL192i0_192 ]
-    %.phiConc41 = phi i17 [ 0, %bb0 ], [ %.selConc42, %blockL192i0_192 ]
-    %.phiConc43 = phi i17 [ 0, %bb0 ], [ %.selConc44, %blockL192i0_192 ]
+  blockL210i0_210:                                  ; preds = %bb0, %blockL210i0_210
+    %.phiConc = phi i17 [ 0, %bb0 ], [ %.selConc, %blockL210i0_210 ]
+    %.phiConc39 = phi i17 [ 0, %bb0 ], [ %.selConc40, %blockL210i0_210 ]
+    %.phiConc41 = phi i17 [ 0, %bb0 ], [ %.selConc42, %blockL210i0_210 ]
+    %.phiConc43 = phi i17 [ 0, %bb0 ], [ %.selConc44, %blockL210i0_210 ]
     store volatile i17 %.phiConc, ptr addrspace(1) %keyForMatchThread_0, align 4
     store volatile i17 %.phiConc39, ptr addrspace(2) %keyForMatchThread_1, align 4
     store volatile i17 %.phiConc41, ptr addrspace(3) %keyForMatchThread_2, align 4
@@ -27,7 +27,7 @@
     %.selConc42 = select i1 %3, i17 %0, i17 %.phiConc41
     %4 = icmp eq i2 %write_read_addr3, -1
     %.selConc44 = select i1 %4, i17 %0, i17 %.phiConc43
-    br label %blockL192i0_192
+    br label %blockL210i0_210
   }
   
   ; Function Attrs: nofree nounwind speculatable willreturn
@@ -143,7 +143,7 @@ body:             |
     %30:anyregcls(s17) = HWTFPGA_MUX i17 0
     %31:anyregcls(s68) = HWTFPGA_MERGE_VALUES %27(s17), %28(s17), %29(s17), %30(s17), 17, 17, 17, 17
   
-  bb.1.blockL192i0_192:
+  bb.1.blockL210i0_210:
     successors: %bb.1(0x80000000)
   
     %27:anyregcls(s17) = HWTFPGA_EXTRACT %31(s68), 68, 0, 17
@@ -176,9 +176,9 @@ body:             |
   
   define void @ExampleCam.matchThread(ptr addrspace(1) %keyForMatchThread_0, ptr addrspace(2) %keyForMatchThread_1, ptr addrspace(3) %keyForMatchThread_2, ptr addrspace(4) %keyForMatchThread_3, ptr addrspace(5) %match, ptr addrspace(6) %out) !hwtHls.io !0 {
   bb0:
-    br label %blockL14i0_14
+    br label %blockL24i0_24
   
-  blockL14i0_14:                                    ; preds = %bb0, %blockL14i0_14
+  blockL24i0_24:                                    ; preds = %bb0, %blockL24i0_24
     %match_read1 = load volatile i16, ptr addrspace(5) %match, align 2
     %keyForMatchThread_0_read1 = load volatile i17, ptr addrspace(1) %keyForMatchThread_0, align 4
     %keyForMatchThread_0_read_vld4 = call i1 @hwtHls.bitRangeGet.i17.i6.i1.16(i17 %keyForMatchThread_0_read1, i6 16) #1
@@ -200,7 +200,7 @@ body:             |
     %5 = call i4 @hwtHls.bitConcat.i1.i1.i1.i1(i1 %3, i1 %2, i1 %1, i1 %0) #1
     %.opConc = and i4 %4, %5
     store volatile i4 %.opConc, ptr addrspace(6) %out, align 1
-    br label %blockL14i0_14
+    br label %blockL24i0_24
   }
   
   ; Function Attrs: nofree nounwind speculatable willreturn
@@ -312,7 +312,7 @@ body:             |
     %4:anyregcls = HWTFPGA_ARG_GET 4
     %5:anyregcls = HWTFPGA_ARG_GET 5
   
-  bb.1.blockL14i0_14:
+  bb.1.blockL24i0_24:
     successors: %bb.1(0x80000000)
   
     %6:anyregcls(s16) = HWTFPGA_CLOAD %4, 0, 16, 1 :: (volatile load (s16) from %ir.match, addrspace 5)

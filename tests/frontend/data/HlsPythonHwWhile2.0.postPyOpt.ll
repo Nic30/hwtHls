@@ -8,40 +8,40 @@ block0:                                           ; preds = %bb0
   store i8 0, ptr %i, align 1
   br label %wh0
 
-wh0:                                              ; preds = %blockL56i0_204, %block0
+wh0:                                              ; preds = %blockL68i0_236, %block0
   %i1 = load i8, ptr %i, align 1
   %0 = icmp ule i8 %i1, 4
-  br i1 %0, label %blockL56i0_88, label %blockL56i0_146
+  br i1 %0, label %blockL68i0_102, label %blockL68i0_158
 
-blockL56i0_88:                                    ; preds = %wh0
+blockL68i0_102:                                   ; preds = %wh0
   %i2 = load i8, ptr %i, align 1
   store volatile i8 %i2, ptr addrspace(1) %o, align 1
-  br label %blockL56i0_182
+  br label %blockL68i0_204
 
-blockL56i0_182:                                   ; preds = %blockL56i0_146, %blockL56i0_88
+blockL68i0_204:                                   ; preds = %blockL68i0_158, %blockL68i0_102
   %i3 = load i8, ptr %i, align 1
   %1 = add i8 %i3, 1
   store i8 %1, ptr %i, align 1
-  br label %blockL56i0_204
+  br label %blockL68i0_236
 
-blockL56i0_204:                                   ; preds = %blockL56i0_182
+blockL68i0_236:                                   ; preds = %blockL68i0_204
   br label %wh0
 
-blockL56i0_146:                                   ; preds = %wh0
+blockL68i0_158:                                   ; preds = %wh0
   %i4 = load i8, ptr %i, align 1
   %2 = icmp eq i8 %i4, 10
-  br i1 %2, label %block180, label %blockL56i0_182
+  br i1 %2, label %block202, label %blockL68i0_204
 
-block180:                                         ; preds = %blockL56i0_146
-  br label %block206
+block202:                                         ; preds = %blockL68i0_158
+  br label %block240
 
-block206:                                         ; preds = %block180
+block240:                                         ; preds = %block202
   br label %wh1
 
-wh1:                                              ; preds = %blockL218i0_308, %block206
+wh1:                                              ; preds = %blockL262i0_362, %block240
   store volatile i8 0, ptr addrspace(1) %o, align 1
-  br label %blockL218i0_308
+  br label %blockL262i0_362
 
-blockL218i0_308:                                  ; preds = %wh1
+blockL262i0_362:                                  ; preds = %wh1
   br label %wh1
 }

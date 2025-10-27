@@ -25,13 +25,15 @@ from hwtHls.frontend.hwIterator import HwIterator
 from hwtHls.frontend.indexExpansion import expandBeforeUse, \
     PyObjectHwSubscriptRef, expandBeforeUseSequence
 from hwtHls.frontend.instructions import CMP_OPS, BINARY_OPS, UN_OPS, BUILD_OPS, BINARY_OP, NOP, \
-    POP_TOP, COPY, SWAP, LOAD_DEREF, LOAD_ATTR, LOAD_FAST, LOAD_CONST, LOAD_GLOBAL, \
+    POP_TOP, COPY, SWAP, LOAD_DEREF, LOAD_ATTR, LOAD_FAST, LOAD_SUPER_ATTR, LOAD_CONST, LOAD_GLOBAL, \
     LOAD_METHOD, LOAD_CLOSURE, STORE_ATTR, STORE_FAST, STORE_DEREF, CALL, CALL_FUNCTION_EX, CALL_INTRINSIC_1, \
     COMPARE_OP, GET_ITER, UNPACK_SEQUENCE, MAKE_FUNCTION, STORE_SUBSCR, EXTENDED_ARG, DELETE_DEREF, DELETE_FAST, \
-    FORMAT_VALUE, IS_OP, RAISE_VARARGS, LOAD_ASSERTION_ERROR, \
-    RESUME, MAKE_CELL, KW_NAMES, NULL, PUSH_NULL, BINARY_SUBSCR, COPY_FREE_VARS, \
+    LOAD_FAST_LOAD_FAST, STORE_FAST_STORE_FAST, IS_OP, RAISE_VARARGS, LOAD_ASSERTION_ERROR, \
+    RESUME, MAKE_CELL, NULL, PUSH_NULL, BINARY_SUBSCR, COPY_FREE_VARS, \
     CONTAINS_OP, INPLACE_UPDATE_OPS, LOAD_BUILD_CLASS, BINARY_SLICE, STORE_SLICE, \
-    LOAD_FAST_CHECK, LOAD_FAST_AND_CLEAR, END_FOR, CALL_INTRINSIC_1_FUNCTIONS
+    LOAD_FAST_CHECK, LOAD_FAST_AND_CLEAR, END_FOR, CALL_INTRINSIC_1_FUNCTIONS, \
+    CONVERT_VALUE, FORMAT_SIMPLE, STORE_FAST_LOAD_FAST, CALL_KW, \
+    SET_FUNCTION_ATTRIBUTE, FORMAT_WITH_SPEC, TO_BOOL
 from hwtHls.frontend.ioProxyAddressed import IoProxyAddressed
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInPreproc, \
     PyBytecodeInline, _PyBytecodePragma, PyBytecodePreprocHwCopy
@@ -83,14 +85,19 @@ class PyBytecodeToSsaLowLevelOpcodes():
             LOAD_FAST: self.opcode_LOAD_FAST,
             LOAD_FAST_CHECK: self.opcode_LOAD_FAST_CHECK,
             LOAD_FAST_AND_CLEAR: self.opcode_LOAD_FAST_AND_CLEAR,
+            LOAD_FAST_LOAD_FAST: self.opcode_LOAD_FAST_LOAD_FAST,
             LOAD_CONST: self.opcode_LOAD_CONST,
             LOAD_GLOBAL: self.opcode_LOAD_GLOBAL,
             LOAD_METHOD: self.opcode_LOAD_METHOD,
+            LOAD_SUPER_ATTR: self.opcode_LOAD_SUPER_ATTR,
             STORE_ATTR: self.opcode_STORE_ATTR,
             STORE_FAST: self.opcode_STORE_FAST,
+            STORE_FAST_STORE_FAST: self.opcode_STORE_FAST_STORE_FAST,
+            STORE_FAST_LOAD_FAST: self.opcode_STORE_FAST_LOAD_FAST,
             COPY_FREE_VARS: self.opcode_COPY_FREE_VARS,
             RESUME: self.opcode_RESUME,
             CALL: self.opcode_CALL,
+            CALL_KW: self.opcode_CALL_KW,
             CALL_FUNCTION_EX: self.opcode_CALL_FUNCTION_EX,
             CALL_INTRINSIC_1: self.opcode_CALL_INTRINSIC_1,
             COMPARE_OP: self.opcode_COMPARE_OP,
@@ -98,16 +105,19 @@ class PyBytecodeToSsaLowLevelOpcodes():
             EXTENDED_ARG: self.opcode_EXTENDED_ARG,
             UNPACK_SEQUENCE: self.opcode_UNPACK_SEQUENCE,
             MAKE_FUNCTION: self.opcode_MAKE_FUNCTION,
+            SET_FUNCTION_ATTRIBUTE: self.opcode_SET_FUNCTION_ATTRIBUTE,
             STORE_SUBSCR: self.opcode_STORE_SUBSCR,
             STORE_SLICE: self.opcode_STORE_SLICE,
-            FORMAT_VALUE: self.opcode_FORMAT_VALUE,
+            CONVERT_VALUE: self.opcode_CONVERT_VALUE,
+            FORMAT_SIMPLE: self.opcode_FORMAT_SIMPLE,
+            FORMAT_WITH_SPEC: self.opcode_FORMAT_WITH_SPEC,
             IS_OP: self.opcode_IS_OP,
             RAISE_VARARGS: self.opcode_RAISE_VARARGS,
             PUSH_NULL: self.opcode_PUSH_NULL,
             LOAD_ASSERTION_ERROR: self.opcode_LOAD_ASSERTION_ERROR,
             LOAD_BUILD_CLASS: self.opcode_LOAD_BUILD_CLASS,
             MAKE_CELL: self.opcode_MAKE_CELL,
-            KW_NAMES: self.opcodeMakeStoreForLater("_last_KW_NAMES"),
+            TO_BOOL: self.opcode_TO_BOOL,
         }
         opD = self.opcodeDispatch
         for createFn, opcodes in [
@@ -117,8 +127,6 @@ class PyBytecodeToSsaLowLevelOpcodes():
             ]:
             for opcode, op in opcodes.items():
                 opD[opcode] = createFn(op)
-
-        self._last_KW_NAMES: Optional[Instruction] = None
 
     def _stackIndex(self, stack: list, index: int):
         # in C:
@@ -186,7 +194,6 @@ class PyBytecodeToSsaLowLevelOpcodes():
         Added in version 3.12.
         """
         curBlock = self.opcode_POP_TOP(frame, curBlock, instr)
-        curBlock = self.opcode_POP_TOP(frame, curBlock, instr)  # [todo] maybe a doc inconsistency in python3.12
         # https://github.com/python/cpython/issues/121399
         return curBlock
 
@@ -361,19 +368,22 @@ class PyBytecodeToSsaLowLevelOpcodes():
     def opcode_LOAD_ATTR(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
         """
         LOAD_ATTR(namei)
-    
+
         If the low bit of namei is not set, this replaces STACK[-1] with getattr(STACK[-1], co_names[namei>>1]).
-        If the low bit of namei is set, this will attempt to load a method named co_names[namei>>1] from the STACK[-1] object. STACK[-1] is popped.
-        This bytecode distinguishes two cases: if STACK[-1] has a method with the correct name, the bytecode pushes the unbound method and STACK[-1].
-        STACK[-1] will be used as the first argument (self) by CALL when calling the unbound method. Otherwise, NULL and the object returned by the attribute lookup are pushed.
-        Changed in version 3.12: If the low bit of namei is set, then a NULL or self is pushed to the stack before the attribute or unbound method respectively.
-        """
+
+        If the low bit of namei is set, this will attempt to load a method named co_names[namei>>1] from the STACK[-1] object.
+        STACK[-1] is popped. This bytecode distinguishes two cases: if STACK[-1] has a method with the correct name,
+        the bytecode pushes the unbound method and STACK[-1]. STACK[-1] will be used as the first argument (self) by
+        CALL or CALL_KW when calling the unbound method. Otherwise, the object returned by the attribute lookup and NULL are pushed (in that order).
+        
+        Changed in version 3.13: The push order changed to keep the callable at a fixed stack position for CALL:
+        the attribute or unbound method is now pushed before the NULL/self marker (previously the marker was pushed first).
+         """
         stack = frame.stack
-        selfOrNull = instr.arg & 1
+        pushSelfOrNull = instr.arg & 1
         v = stack[-1]
         v = getattr(v, instr.argval)
-        stack[-1] = v
-        if selfOrNull:
+        if pushSelfOrNull:
             if ismethod(v):
                 stack[-1] = v.__func__
                 stack.append(v.__self__)
@@ -385,9 +395,21 @@ class PyBytecodeToSsaLowLevelOpcodes():
                     stack.append(call.__self__)
                 else:
                     # case for normal function without self
-                    stack[-1] = NULL
-                    stack.append(v)
+                    stack[-1] = v
+                    stack.append(NULL)
+        else:
+            stack[-1] = v
 
+        return curBlock
+
+    def _LOAD_FAST(self, frame: PyBytecodeFrame, curBlock: BasicBlock, arg: int, argval:str, check=False, clear=False) -> BasicBlock:
+        v = frame.localsplus[arg]
+        if check:
+            if v is NULL:
+                raise UnboundLocalError(argval, "used before defined")
+        if clear:
+            frame.localsplus[arg] = NULL
+        frame.stack.append(v)
         return curBlock
 
     def opcode_LOAD_FAST(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction, check=False, clear=False) -> BasicBlock:
@@ -398,13 +420,17 @@ class PyBytecodeToSsaLowLevelOpcodes():
         to be initialized. It cannot raise UnboundLocalError.
 
         """
-        v = frame.localsplus[instr.arg]
-        if check:
-            if v is NULL:
-                raise UnboundLocalError(instr.argval, "used before defined")
-        if clear:
-            frame.localsplus[instr.arg] = NULL
-        frame.stack.append(v)
+        return self._LOAD_FAST(frame, curBlock, instr.arg, instr.argval, check, clear)
+
+    def opcode_LOAD_FAST_LOAD_FAST(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction, check=False, clear=False) -> BasicBlock:
+        """
+        Pushes references to co_varnames[var_nums >> 4] and co_varnames[var_nums & 15] onto the stack.
+
+        Added in version 3.13.
+        :note: TOS is the first argument
+        """
+        curBlock = self._LOAD_FAST(frame, curBlock, instr.arg >> 4, instr.argval[1], check, clear)
+        curBlock = self._LOAD_FAST(frame, curBlock, instr.arg & 0xF, instr.argval[0], check, clear)
         return curBlock
 
     def opcode_LOAD_FAST_CHECK(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
@@ -420,10 +446,9 @@ class PyBytecodeToSsaLowLevelOpcodes():
     def opcode_LOAD_GLOBAL(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
         """
         Loads the global named co_names[namei>>1] onto the stack.
-        Changed in version 3.11: If the low bit of namei is set, then a NULL is pushed to the stack before the global variable
+        Changed in version 3.13: The push order changed to keep the callable at a fixed stack position for CALL: 
+        the global is now pushed before the NULL marker (previously the marker was pushed first).
         """
-        if instr.arg & 0b1:
-            frame.stack.append(NULL)
 
         if instr.argval in frame.fn.__globals__:
             v = frame.fn.__globals__[instr.argval]
@@ -433,6 +458,9 @@ class PyBytecodeToSsaLowLevelOpcodes():
 
         assert v is not NULL, (instr.argval, "used before defined")
         frame.stack.append(v)
+        if instr.arg & 0b1:
+            frame.stack.append(NULL)
+
         return curBlock
 
     def opcode_LOAD_METHOD(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
@@ -445,16 +473,41 @@ class PyBytecodeToSsaLowLevelOpcodes():
         New in version 3.7.
         """
         stack = frame.stack
-        TOS = stack.pop()
+        TOS = stack[-1]
         m = getattr(TOS, instr.argval)
         if isinstance(m, MethodType) and m.__self__ is None:
             # is unbound method
             stack.append(TOS)
         else:
             stack.append(NULL)
-        stack.append(m)
 
         return curBlock
+
+    def opcode_LOAD_SUPER_ATTR(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
+        """
+        
+        LOAD_SUPER_ATTR(namei)
+    
+        This opcode implements super(), both in its zero-argument and two-argument forms (e.g. super().method(), super().attr and
+        super(cls, self).method(), super(cls, self).attr).
+    
+        It pops three values from the stack (from top of stack down):
+    
+            self: the first argument to the current method
+            cls: the class within which the current method was defined
+                the global super
+    
+        With respect to its argument, it works similarly to LOAD_ATTR, except that namei is shifted left by 2 bits instead of 1.
+        The low bit of namei signals to attempt a method load, as with LOAD_ATTR, which results in pushing the loaded method and
+        NULL (in that order). When it is unset a single value is pushed to the stack.
+        The second-low bit of namei, if set, means that this was a two-argument call to super() (unset means zero-argument).
+    
+        Added in version 3.12.
+    
+        Changed in version 3.13: The push order for method loads changed to keep the callable at a fixed stack position for CALL:
+        the loaded method is now pushed before the NULL marker (previously the marker was pushed first).
+        """
+        raise NotImplementedError(instr)
 
     def _initializeStorageCellForHwSignal(self, name: Optional[str],
                                           vVal: Union[RtlSignal, HwIOBase,
@@ -585,13 +638,13 @@ class PyBytecodeToSsaLowLevelOpcodes():
             setattr(dstParent, instr.argval, src)
             return curBlock
 
-    def opcode_STORE_FAST(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
+    def _STORE_FAST(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction, arg: int, argval: str) -> BasicBlock:
         stack = frame.stack
         localsplus = frame.localsplus
         vVal = stack.pop()
         curBlock, vVal = expandBeforeUse(self, instr.offset, frame, vVal, curBlock)
-        v = localsplus[instr.arg]
-        varIndex = instr.arg
+        varIndex = arg
+        v = localsplus[varIndex]
         if varIndex not in frame.preprocVars:
             # if it is new definition of HW variable
             if v is NULL:
@@ -602,13 +655,13 @@ class PyBytecodeToSsaLowLevelOpcodes():
                     #     variable directly to represent this variable
                     if not isInitialStore:
                         # only if it is a value which generates HW variable
-                        v = self._initializeStorageCellForHwSignal(instr.argval, vVal)
+                        v = self._initializeStorageCellForHwSignal(argval, vVal)
                         localsplus[varIndex] = v
 
             if isinstance(v, (RtlSignal, HwIO, ObjectWithHlsStoreOverride)):
                 # only if it is a hw variable, create assignment to HW variable
                 if isinstance(v, RtlSignal) and v._hasGenericName:
-                    v._name = instr.argval
+                    v._name = argval
                     v._hasGenericName = False
 
                 return self._storeToHwSignal(curBlock, v, vVal)
@@ -621,6 +674,32 @@ class PyBytecodeToSsaLowLevelOpcodes():
             self.toLlvm.visit_Read(curBlock, vVal)
 
         localsplus[varIndex] = vVal
+        return curBlock
+
+    def opcode_STORE_FAST(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
+        """
+        Stores STACK.pop() into the local co_varnames[var_num].
+        """
+        return self._STORE_FAST(frame, curBlock, instr, instr.arg, instr.argval)
+
+    def opcode_STORE_FAST_STORE_FAST(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
+        """
+        Stores STACK[-1] into co_varnames[var_nums >> 4] and STACK[-2] into co_varnames[var_nums & 15].
+
+        Added in version 3.13.
+        """
+        curBlock = self._STORE_FAST(frame, curBlock, instr, instr.arg >> 4, instr.argval[0])
+        curBlock = self._STORE_FAST(frame, curBlock, instr, instr.arg & 0xF, instr.argval[1])
+        return curBlock
+
+    def opcode_STORE_FAST_LOAD_FAST(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
+        """
+        Stores STACK.pop() into the local co_varnames[var_nums >> 4] and pushes a reference to the local co_varnames[var_nums & 15] onto the stack.
+
+        Added in version 3.13.
+        """
+        curBlock = self._STORE_FAST(frame, curBlock, instr, instr.arg >> 4, instr.argval[0])
+        curBlock = self._LOAD_FAST(frame, curBlock, instr.arg & 0xF, instr.argval[1])
         return curBlock
 
     def opcode_COPY_FREE_VARS(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
@@ -717,102 +796,116 @@ class PyBytecodeToSsaLowLevelOpcodes():
     def opcode_RESUME(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
         """
         A no-op. Performs internal tracing, debugging and optimization checks.
-        The where operand marks where the RESUME occurs:
+        The context oparand consists of two parts. The lowest two bits indicate where the RESUME occurs:
+    
             0 The start of a function, which is neither a generator, coroutine nor an async generator
             1 After a yield expression
             2 After a yield from expression
             3 After an await expression
+    
+        The next bit is 1 if the RESUME is at except-depth 1, and 0 otherwise.
+        Changed in version 3.13: The oparg value changed to include information about except-depth
         """
         if instr.arg != 0:
             raise NotImplementedError(instr.arg)
         return curBlock
 
-    def opcode_CALL(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
-        """
-        CALL(argc)
-        Calls a callable object with the number of arguments specified by argc,
-        including the named arguments specified by the preceding KW_NAMES, if any.
-        On the stack are (in ascending order), either:
-            NULL
-            The callable
-            The positional arguments
-            The named arguments
-        or:
-            The callable
-            self
-            The remaining positional arguments
-            The named arguments
-    
-        argc is the total of the positional and named arguments, excluding self when a NULL is not present.
-        CALL pops all arguments and the callable object off the stack, calls the callable object with those arguments,
-        and pushes the return value returned by the callable object.
-        New in version 3.11.
-        """
+    def _CALL(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction, kwnames: Optional[tuple[str]]) -> BasicBlock:
         stack = frame.stack
-
         argCnt = instr.arg
         if argCnt == 0:
             args = []
         else:
             args = stack[-argCnt:]
-
-        for _ in range(argCnt):
-            stack.pop()
+            for _ in range(argCnt):
+                stack.pop()
 
         _self = stack.pop()
-        assert _self is not NULL, ("callable/self must be initialized")
-        m = stack.pop()
-        if m is NULL:
-            m = _self
-            _self = NULL
-        expandArgs = self._shouldExpandArgsOfFn(m)
+        callableV = stack.pop()
+        assert callableV is not NULL, instr
 
-        kwNames = self._last_KW_NAMES
         kwargs = {}
-        if kwNames is not None:
-            self._last_KW_NAMES = None
-            kwNamesVal = frame.fn.__code__.co_consts[kwNames.arg]
-            kwArgCnt = len(kwNamesVal)  # kwargs are stored behind args
-            for kwName, a in zip(kwNamesVal, args[-kwArgCnt:]):
+        if kwnames is not None:
+            expandArgs = self._shouldExpandArgsOfFn(callableV)
+            kwArgCnt = len(kwnames)  # kwargs are stored behind args
+            for kwName, a in zip(kwnames, args[-kwArgCnt:]):
                 if expandArgs:
                     curBlock, a = expandBeforeUse(self, instr.offset, frame, a, curBlock)
                 kwargs[kwName] = a
             del args[-kwArgCnt:]
 
-        if isinstance(_self, PyBytecodeInline) and m == _self.__call__.__func__:
+        if isinstance(_self, PyBytecodeInline) and callableV == _self.__call__.__func__:
             return self._translateCallInlined(frame, curBlock, _self.ref, instr.offset, args, kwargs)
-        elif isinstance(m, PyBytecodeInline):
-            return self._translateCallInlined(frame, curBlock, m.ref, instr.offset, args, kwargs)
-        elif m is PyBytecodePreprocHwCopy:
+        elif isinstance(callableV, PyBytecodeInline):
+            return self._translateCallInlined(frame, curBlock, callableV.ref, instr.offset, args, kwargs)
+        elif callableV is PyBytecodePreprocHwCopy:
             assert len(args) == 1, args
-            assert not kwargs, (m, kwargs)
             curBlock, res = self.toLlvm._translateExprToLlvm(curBlock, args[0])
         else:
-            hlsCallOverride = getattr(m, "hlsCallOverride", None)
-            if getattr(m, "__hlsIsLowLevelFn", False):
+            hlsCallOverride = getattr(callableV, "hlsCallOverride", None)
+            if getattr(callableV, "__hlsIsLowLevelFn", False):
                 if hlsCallOverride is not None:
                     # call override function instead original method
-                    res = hlsCallOverride(self, frame, curBlock, instr, _self, m, args, kwargs)
+                    res = hlsCallOverride(self, frame, curBlock, instr, _self, callableV, args, kwargs)
                 else:
                     # low level function will get raw arguments with any expansion
                     if _self is NULL:
-                        res = m(*args, **kwargs)
+                        res = callableV(*args, **kwargs)
                     else:
-                        res = m(_self, *args, **kwargs)
+                        res = callableV(_self, *args, **kwargs)
             else:
                 curBlock, expandedArgs = expandBeforeUseSequence(self, instr.offset, frame, args, curBlock)
                 if hlsCallOverride is not None:
                     # call override function instead original method
-                    res = hlsCallOverride(self, frame, curBlock, instr, _self, m, expandedArgs, kwargs)
+                    res = hlsCallOverride(self, frame, curBlock, instr, _self, callableV, expandedArgs, kwargs)
                 else:
                     # call function with args expanded
                     if _self is NULL:
-                        res = m(*expandedArgs, **kwargs)
+                        res = callableV(*expandedArgs, **kwargs)
                     else:
-                        res = m(_self, *expandedArgs, **kwargs)
+                        res = callableV(_self, *expandedArgs, **kwargs)
 
         stack.append(res)
         return curBlock
+
+    def opcode_CALL(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
+        """
+        Calls a callable object with the number of arguments specified by argc. On the stack are (in ascending order):
+    
+            The callable
+            self or NULL
+            The remaining positional arguments
+    
+        argc is the total of the positional arguments, excluding self.
+        CALL pops all arguments and the callable object off the stack, calls the callable object with those arguments,
+        and pushes the return value returned by the callable object.
+        Changed in version 3.13: The callable now always appears at the same position on the stack.
+        Changed in version 3.13: Calls with keyword arguments are now handled by CALL_KW.
+
+        """
+        return self._CALL(frame, curBlock, instr, None)
+
+    def opcode_CALL_KW(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
+        """
+        Calls a callable object with the number of arguments specified by argc, including one or more named arguments.
+        On the stack are (in ascending order):
+    
+            The callable
+            self or NULL
+            The remaining positional arguments
+            The named arguments
+            A tuple of keyword argument names
+    
+        argc is the total of the positional and named arguments, excluding self. The length of
+        the tuple of keyword argument names is the number of named arguments.
+    
+        CALL_KW pops all arguments, the keyword names, and the callable object off the stack,
+        calls the callable object with those arguments, and pushes the return value returned by the callable object.
+    
+        Added in version 3.13.
+        """
+        kwnames = frame.stack.pop()
+        return self._CALL(frame, curBlock, instr, kwnames)
 
     def opcode_CALL_FUNCTION_EX(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
         """
@@ -834,11 +927,8 @@ class PyBytecodeToSsaLowLevelOpcodes():
         args = stack.pop()
 
         _self = stack.pop()
-        assert _self is not NULL, ("callable/self must be initialized")
         m = stack.pop()
-        if m is NULL:
-            m = _self
-            _self = NULL
+        assert m is not NULL, ("callable must be initialized")
         expandArgs = self._shouldExpandArgsOfFn(m)
         if expandArgs:
             curBlock, args = expandBeforeUseSequence(self, instr.offset, frame, args, curBlock)
@@ -880,14 +970,25 @@ class PyBytecodeToSsaLowLevelOpcodes():
             not getattr(fn, "__hlsIsLowLevelFn", False)
 
     def opcode_COMPARE_OP(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
+        """
+        Performs a Boolean operation. The operation name can be found in cmp_op[opname >> 5].
+        If the fifth-lowest bit of opname is set (opname & 16), the result should be coerced to bool.
+
+        Changed in version 3.13: The fifth-lowest bit of the oparg now indicates a forced conversion to bool.
+        """
+
         stack = frame.stack
         # https://github.com/python/cpython/issues/117270
-        binOp = CMP_OPS[instr.arg >> 4]
+        binOp = CMP_OPS[instr.arg >> 5]
         b = stack.pop()
         a = stack.pop()
         curBlock, a = expandBeforeUse(self, instr.offset, frame, a, curBlock)
         curBlock, b = expandBeforeUse(self, instr.offset, frame, b, curBlock)
-        stack.append(binOp(a, b))
+        res = binOp(a, b)
+        toBool = instr.arg & 16
+        if toBool and not isinstance(res, self.ANY_HWVALUE_CLASS):
+            res = bool(res)
+        stack.append(res)
         return curBlock
 
     def opcode_GET_ITER(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
@@ -913,57 +1014,69 @@ class PyBytecodeToSsaLowLevelOpcodes():
 
     def opcode_MAKE_FUNCTION(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
         """
-        MAKE_FUNCTION (flags)
-        Pushes a new function object on the stack.  From bottom to top, the consumed
-        stack must consist of values if the argument carries a specified flag value
-        
-        * ``0x01`` a tuple of default values for positional-only and
-          positional-or-keyword parameters in positional order
-        * ``0x02`` a dictionary of keyword-only parameters' default values
-        * ``0x04`` a tuple of strings containing parameters' annotations
-        * ``0x08`` a tuple containing cells for free variables, making a closure
-        * the code associated with the function (at TOS)
-        
-        .. versionchanged:: 3.10
-           Flag value ``0x04`` is a tuple of strings instead of dictionary
-        
-        .. versionchanged:: 3.11
-           Qualified name at TOS was removed in favor of co_qualname usage
+        MAKE_FUNCTION
+    
+        Pushes a new function object on the stack built from the code object at STACK[-1].
+    
+        Changed in version 3.13: Extra function attributes on the stack, signaled by oparg flags, were removed.
+            They now use SET_FUNCTION_ATTRIBUTE.
         """
-        # MAKE_FUNCTION_FLAGS = ('defaults', 'kwdefaults', 'annotations', 'closure')
         stack = frame.stack
-        # name = stack.pop()
-        # assert isinstance(name, str), name
         code = stack.pop()
 
-        if instr.arg & 1:
-            # a tuple of default values for positional-only and positional-or-keyword parameters in positional order
-            defaults = stack.pop()
+        if code.co_freevars:
+            # https://github.com/python/cpython/blob/3.13/Objects/funcobject.c#L945
+            closure = stack[-1]  # :attention: the closure is required for FunctionType() but doc does not specify how to get it
+            # it seems that the check is deprecated,
+            # for now assme that this instr is followed by SET_FUNCTION_ATTRIBUTE closure
+            assert len(closure) == len(code.co_freevars) and isinstance(closure[0], CellType), (instr, closure)
         else:
-            defaults = ()
-
-        if instr.arg & (1 << 1):
-            # a dictionary of keyword-only parameters’ default values
-            raise NotImplementedError()
-
-        if instr.arg & (1 << 3):
-            closure = stack.pop()
-        else:
-            closure = ()
-
-        if instr.arg & (1 << 2):
-            # a tuple of strings containing parameters’ annotations
-            # Changed in version 3.10: Flag value 0x04 is a tuple of strings instead of dictionary
-            annotations = stack.pop()
-        else:
-            annotations = None
-
+            closure = None
+        # https://github.com/keras-team/keras/blob/c2bc6cfcc79d958d2e5a9bc0c829486d5a7fd0ac/keras/src/utils/python_utils.py#L104
         # PyCodeObject *code, PyObject *globals,
         # PyObject *name, PyObject *defaults, PyObject *closure
-        newFn = FunctionType(code, frame.fn.__globals__, code.co_qualname, defaults, closure)
-        if annotations is not None:
-            newFn.__dict__["__annotations__"] = annotations
+        # https://github.com/python/cpython/blob/main/Objects/clinic/funcobject.c.h#L209
+        # https://github.com/python/cpython/blob/00026d19c272d1cf3527027bd6f9de910ff45070/Objects/clinic/funcobject.c.h#L204
+        newFn = FunctionType(code, frame.fn.__globals__, name=code.co_name, closure=closure)
+
         stack.append(newFn)
+        return curBlock
+
+    def opcode_SET_FUNCTION_ATTRIBUTE(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
+        """
+        SET_FUNCTION_ATTRIBUTE(flag)
+    
+        Sets an attribute on a function object. Expects the function at STACK[-1] and the attribute value to set at STACK[-2];
+        consumes both and leaves the function at STACK[-1]. The flag determines which attribute to set:
+    
+            * 0x01 a tuple of default values for positional-only and positional-or-keyword parameters in positional order
+            * 0x02 a dictionary of keyword-only parameters’ default values
+            * 0x04 a tuple of strings containing parameters’ annotations
+            * 0x08 a tuple containing cells for free variables, making a closure
+    
+        Added in version 3.13.
+        """
+        flag = instr.arg
+        stack = frame.stack
+        fn = stack.pop()
+        attr = stack.pop()
+
+        if flag & 1:
+            # a tuple of default values for positional-only and positional-or-keyword parameters in positional order
+            fn.__dict__["__defaults__"] = attr
+        elif flag & 2:
+            # a dictionary of keyword-only parameters’ default values
+            fn.__dict__["__kwdefaults__"] = attr
+        elif flag & 4:
+            fn.__dict__["__closure__"] = attr
+        elif flag & 8:
+            # a tuple of strings containing parameters’ annotations
+            # Changed in version 3.10: Flag value 0x04 is a tuple of strings instead of dictionary
+            fn.__dict__["__annotations__"] = attr
+        else:
+            raise AssertionError(instr)
+
+        stack.append(fn)
         return curBlock
 
     def opcode_STORE_SUBSCR(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction, key=NULL) -> BasicBlock:
@@ -1077,14 +1190,6 @@ class PyBytecodeToSsaLowLevelOpcodes():
 
         return opcode_UN_OP
 
-    def opcodeMakeStoreForLater(self, attribName: str):
-
-        def opcode_StoreForLater(frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
-            setattr(self, attribName, instr)
-            return curBlock
-
-        return opcode_StoreForLater
-
     def opcodeMakeBuildOp(self, buildOp: Callable[[Instruction, list], None]):
 
         def opcode_BUILD_OP(frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
@@ -1093,33 +1198,78 @@ class PyBytecodeToSsaLowLevelOpcodes():
 
         return opcode_BUILD_OP
 
-    def opcode_FORMAT_VALUE(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
-        """
-        Used for implementing formatted literal strings (f-strings). Pops an optional fmt_spec from the stack, then a required value. flags is interpreted as follows:
-            (flags & 0x03) == 0x00: value is formatted as-is.
-            (flags & 0x03) == 0x01: call str() on value before formatting it.
-            (flags & 0x03) == 0x02: call repr() on value before formatting it.
-            (flags & 0x03) == 0x03: call ascii() on value before formatting it.
-            (flags & 0x04) == 0x04: pop fmt_spec from the stack and use it, else use an empty fmt_spec.
+    def opcode_TO_BOOL(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
+        stack = frame.stack
+        a = stack[-1]
+        if not isinstance(a, self.ANY_HWVALUE_CLASS):
+            a = stack.pop()
+            curBlock, a = expandBeforeUse(self, instr.offset, frame, a, curBlock)
+            stack.append(bool(a))
+        return curBlock
 
-        Formatting is performed using PyObject_Format(). The result is pushed on the stack.
-        New in version 3.6.
+    def opcode_CONVERT_VALUE(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
         """
-        flags = instr.arg
-        frmt = frame.stack.pop()
-        v = frame.stack.pop()
-        if (flags & 0x03) == 0x00:
-            pass
-        elif (flags & 0x03) == 0x01:
-            v = str(v)
-        elif (flags & 0x03) == 0x02:
-            v = repr(v)
-        elif (flags & 0x03) == 0x03:
-            v = ascii(v)
+        Convert value to a string, depending on oparg:
+
+        value = STACK.pop()
+        result = func(value)
+        STACK.append(result)
+        
+            oparg == 1: call str() on value
+            oparg == 2: call repr() on value
+            oparg == 3: call ascii() on value
+        
+        Used for implementing formatted string literals (f-strings).
+        """
+        oparg = instr.arg
+        if oparg == 1:
+            func = str
+        elif oparg == 2:
+            func = repr
         else:
-            raise NotImplementedError(instr)
+            assert oparg == 3
+            func = ascii
+        value = frame.stack.pop()
+        result = func(value)
+        frame.stack.append(result)
+        return curBlock
 
-        frame.stack.append(format(v, frmt))
+    def opcode_FORMAT_SIMPLE(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
+        """
+        Formats the value on top of stack:
+    
+            value = STACK.pop()
+            result = value.__format__("")
+            STACK.append(result)
+    
+        Used for implementing formatted string literals (f-strings).
+    
+        Added in version 3.13.
+        """
+        v = frame.stack.pop()
+        res = v.__format__("")
+        frame.stack.append(res)
+        return curBlock
+
+    def opcode_FORMAT_WITH_SPEC(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:
+        """
+        FORMAT_WITH_SPEC
+    
+        Formats the given value with the given format spec:
+    
+            spec = STACK.pop()
+            value = STACK.pop()
+            result = value.__format__(spec)
+            STACK.append(result)
+    
+        Used for implementing formatted string literals (f-strings).
+    
+        Added in version 3.13.
+        """
+        spec = frame.stack.pop()
+        v = frame.stack.pop()
+        res = v.__format__(spec)
+        frame.stack.append(res)
         return curBlock
 
     def opcode_RAISE_VARARGS(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction) -> BasicBlock:

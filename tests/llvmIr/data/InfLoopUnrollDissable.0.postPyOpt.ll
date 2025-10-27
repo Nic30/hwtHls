@@ -8,13 +8,13 @@ entry:                                            ; preds = %bb0
   store i8 0, ptr %i, align 1
   br label %loopHeader
 
-loopHeader:                                       ; preds = %blockL108i0_262, %entry
+loopHeader:                                       ; preds = %blockL122i0_286, %entry
   %i1 = load i8, ptr %i, align 1
   store volatile i8 %i1, ptr addrspace(1) %o, align 1
   %0 = add i8 %i1, 1
   store i8 %0, ptr %i, align 1
-  br label %blockL108i0_262
+  br label %blockL122i0_286
 
-blockL108i0_262:                                  ; preds = %loopHeader
+blockL122i0_286:                                  ; preds = %loopHeader
   br label %loopHeader, !llvm.loop !3
 }

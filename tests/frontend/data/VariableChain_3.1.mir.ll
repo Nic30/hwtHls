@@ -5,12 +5,12 @@
   
   define void @VariableChain.mainThread(ptr addrspace(1) %i, ptr addrspace(2) %o) !hwtHls.io !0 {
   bb0:
-    br label %blockL162i0_L184i0_206
+    br label %blockL176i0_L198i0_220
   
-  blockL162i0_L184i0_206:                           ; preds = %bb0, %blockL162i0_L184i0_206
+  blockL176i0_L198i0_220:                           ; preds = %bb0, %blockL176i0_L198i0_220
     %i_read1 = load volatile i8, ptr addrspace(1) %i, align 1
     store volatile i8 %i_read1, ptr addrspace(2) %o, align 1
-    br label %blockL162i0_L184i0_206
+    br label %blockL176i0_L198i0_220
   }
   
   !0 = distinct !{!1, !2}
@@ -77,7 +77,7 @@ body:             |
     %0:anyregcls = HWTFPGA_ARG_GET 0
     %1:anyregcls = HWTFPGA_ARG_GET 1
   
-  bb.1.blockL162i0_L184i0_206:
+  bb.1.blockL176i0_L198i0_220:
     successors: %bb.1(0x80000000)
   
     %2:anyregcls(s8) = HWTFPGA_CLOAD %0, 0, 8, 1 :: (volatile load (s8) from %ir.i, addrspace 1)

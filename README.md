@@ -101,19 +101,22 @@ A typical project where you would use this project is a hash table in HBM2 memor
 
 ### Installation
 
-Linux (Ubuntu 24.04):
+Linux (Ubuntu 25.10):
 ```
-apt install build-essential python3-dev python3-pip llvm-18-dev
-pip3 install -r https://raw.githubusercontent.com/Nic30/hwtHls/master/doc/requirements.txt # [optional]
-# if you do not run previous command you will install dependencies from pip which may outdated
-pip3 install git+https://github.com/Nic30/hwtHls.git # install this library from git
-```
-For python3.11+ it is recommended to use virtualenv to separate local python package installation from the system.
-```
+# For python3.13+ it is recommended to use virtualenv to separate local python package installation from the system.
 apt install python3-venv
 python3 -m venv venv # create a venv directory where local instalation of python will be placed
 source venv/bin/activate # modifies current shell to use previously generate python environment
 ```
+
+```
+apt install build-essential python3-dev python3-pip llvm-18-dev libreadline-dev 
+pip3 install -r https://raw.githubusercontent.com/Nic30/hwtHls/master/doc/requirements.txt # [optional]
+# if you do not run previous command you will install dependencies from pip which may outdated
+pip3 install git+https://github.com/Nic30/hwtHls.git # install this library from git
+# for building and running without install see doc/README-dev.rst
+```
+
 
 
 ## Related open-source

@@ -33,7 +33,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
     """
     def __init__(self, hls: HlsScope, toLlvm: ToLlvmIrTranslator, dbgTracer: DebugTracer, label: str, namePrefix:str):
         super(PyBytecodeToSsaLowLevel, self).__init__()
-        assert sys.version_info >= (3, 12, 0), ("Python3.12 is minimum requirement", sys.version_info)
+        assert sys.version_info >= (3, 13, 0), ("Python3.13 is minimum requirement", sys.version_info)
         self.hls = hls
         self.label = label
         self.namePrefix = namePrefix
@@ -96,6 +96,8 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
             if op is None:
                 raise NotImplementedError(instr)
             else:
+                # print("stack:", frame.stack)
+                # print("instr: ", instr)
                 return op(frame, curBlock, instr)
 
         except HlsSyntaxError:

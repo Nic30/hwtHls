@@ -1,5 +1,5 @@
 digraph "HlsPythonPreprocForInIf0.mainThread" {
-bb0 [fillcolor=white, label=<
+bb0 [fillcolor=white, style=filled, shape=plaintext, label=<
         <table border="0" cellborder="1" cellspacing="0">
             <tr><td>bb0.bb0</td></tr>
             <tr><td>needsStarter, needsControl, fsm=[0]</td></tr>
@@ -10,5 +10,5 @@ bb0 [fillcolor=white, label=<
             <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeWrite 13 &lt;&gt; o&gt; [0-orderingOut]&gt;</td></tr>
             <tr><td>constLiveOuts=[]</td></tr>
         </table>
->, shape=plaintext, style=filled];
+>];
 }

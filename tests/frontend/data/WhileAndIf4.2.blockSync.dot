@@ -1,5 +1,5 @@
 digraph "WhileAndIf4.mainThread" {
-bb0 [fillcolor=white, label=<
+bb0 [fillcolor=white, style=filled, shape=plaintext, label=<
         <table border="0" cellborder="1" cellspacing="0">
             <tr><td>bb0.bb0</td></tr>
             <tr><td></td></tr>
@@ -10,10 +10,10 @@ bb0 [fillcolor=white, label=<
             <tr><td>orderingOut=&lt;HlsNetNodeOutLazy 1 bb0_orderingIn&gt;</td></tr>
             <tr><td>constLiveOuts=[12]</td></tr>
         </table>
->, shape=plaintext, style=filled];
-bb1 [fillcolor=white, label=<
+>];
+bb1 [fillcolor=white, style=filled, shape=plaintext, label=<
         <table border="0" cellborder="1" cellspacing="0">
-            <tr><td>bb1.blockL14i0_L102i0_102</td></tr>
+            <tr><td>bb1.blockL24i0_L116i0_116</td></tr>
             <tr><td>needsControl, rstPredeccessor=bb0, isLoopHeader</td></tr>
             <tr><td>IO in=[(1, 'dataIn')]</td></tr>
             <tr><td>IO out=[(2, 'dataOut')]</td></tr>
@@ -22,21 +22,21 @@ bb1 [fillcolor=white, label=<
             <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeWrite 17 &lt;r, v&gt; dataOut&gt; [0-orderingOut]&gt;</td></tr>
             <tr><td>constLiveOuts=[]</td></tr>
         </table>
->, shape=plaintext, style=filled];
-e0to1 [color=orange, fillcolor=white, label=<
+>];
+e0to1 [fillcolor=white, style=filled, shape=plaintext, color=orange, label=<
         <table border="0" cellborder="1" cellspacing="0">
             <tr><td>liveRegs=[12]</td></tr>
             <tr><td>inlineRstDataToEdge=(1, 1)</td></tr>
             <tr><td>enteringLoops=[bb1.l1]</td></tr>
-        </table>>, shape=plaintext, style=filled];
-bb0 -> e0to1  [color=orange];
-e0to1 -> bb1  [color=orange];
-e1to1 [color=blue, fillcolor=white, label=<
+        </table>>];
+bb0 -> e0to1 [color=orange];
+e0to1 -> bb1 [color=orange];
+e1to1 [fillcolor=white, style=filled, shape=plaintext, color=blue, label=<
         <table border="0" cellborder="1" cellspacing="0">
             <tr><td>liveRegs=[12]</td></tr>
             <tr><td>reuseDataAsControl=12</td></tr>
             <tr><td>reenteringLoops=[bb1.l1]</td></tr>
-        </table>>, shape=plaintext, style=filled];
-bb1 -> e1to1  [color=blue];
-e1to1 -> bb1  [color=blue];
+        </table>>];
+bb1 -> e1to1 [color=blue];
+e1to1 -> bb1 [color=blue];
 }

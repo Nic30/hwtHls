@@ -5,15 +5,15 @@
   
   define void @HlsPythonHwWhile0a.mainThread(ptr addrspace(1) %i, ptr addrspace(2) %o) !hwtHls.io !0 {
   bb0:
-    br label %blockL56i0_56
+    br label %blockL68i0_68
   
-  blockL56i0_56:                                    ; preds = %bb0, %blockL56i0_56
-    %i1.0 = phi i8 [ 0, %bb0 ], [ %i1.1, %blockL56i0_56 ]
+  blockL68i0_68:                                    ; preds = %bb0, %blockL68i0_68
+    %i1.0 = phi i8 [ 0, %bb0 ], [ %i1.1, %blockL68i0_68 ]
     %0 = add i8 %i1.0, 1
     store volatile i8 %0, ptr addrspace(2) %o, align 1
     %i_read3 = load volatile i1, ptr addrspace(1) %i, align 1
     %i1.1 = select i1 %i_read3, i8 0, i8 %0
-    br label %blockL56i0_56
+    br label %blockL68i0_68
   }
   
   !0 = distinct !{!1, !2}
@@ -87,7 +87,7 @@ body:             |
     %1:anyregcls = HWTFPGA_ARG_GET 1
     %8:anyregcls(s8) = HWTFPGA_MUX i8 0
   
-  bb.1.blockL56i0_56:
+  bb.1.blockL68i0_68:
     successors: %bb.1(0x80000000)
   
     %4:anyregcls(s8) = HWTFPGA_ADD %8(s8), i8 1

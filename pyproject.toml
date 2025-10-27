@@ -31,19 +31,23 @@ classifiers = [
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
   "Topic :: System :: Hardware",
   "Topic :: System :: Emulators",
   "Topic :: Utilities"
 ]
-requires-python = '==3.12.*' # python frontend works directly with bytecode, python 3.11 or 3.13 will not work
+requires-python = '==3.13.*' # python frontend works directly with bytecode, any other version will not work
 dependencies  = [
   'hwtLib>=2.9', # primitive hardware components
   'hwtBuildsystem>=0.1', # info about target chips
   'scipy>=1.10.1', # interpolations and other complex math
   'networkx>=3.1', # graph algorithms
-  'pydot>=1.4.2' # debug graphviz graphs
+  'pydot>=1.4.2', # debug graphviz graphs
+  
+  'matplotlib>=3.10.1', # font loading in shader examples 
+  'pillow>=10.4.0', # shader examples
+  'cairosvg>=2.7.1' # svg shader examples
 ]
 
 [project.urls]

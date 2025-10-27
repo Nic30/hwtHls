@@ -12,22 +12,22 @@ block0:                                           ; preds = %bb0
   %i_read2 = load i8, ptr %i_read, align 1
   store i8 %i_read2, ptr %v, align 1
   %0 = icmp eq i8 %i_read2, 2
-  br i1 %0, label %block110, label %block168
+  br i1 %0, label %block120, label %block178
 
-block110:                                         ; preds = %block0
+block120:                                         ; preds = %block0
   store volatile i8 3, ptr addrspace(2) %o, align 1
   ret void
 
-block168:                                         ; preds = %block0
+block178:                                         ; preds = %block0
   %v1 = load i8, ptr %v, align 1
   %1 = icmp eq i8 %v1, 10
-  br i1 %1, label %block202, label %block260
+  br i1 %1, label %block222, label %block280
 
-block202:                                         ; preds = %block168
+block222:                                         ; preds = %block178
   store volatile i8 11, ptr addrspace(2) %o, align 1
   ret void
 
-block260:                                         ; preds = %block168
+block280:                                         ; preds = %block178
   store volatile i8 10, ptr addrspace(2) %o, align 1
   ret void
 }

@@ -3,12 +3,12 @@ bb0:
   br label %block0
 
 block0:                                           ; preds = %bb0
-  br label %blockL20i0_20
+  br label %blockL30i0_30
 
-blockL20i0_20:                                    ; preds = %blockL20i0_98, %block0
+blockL30i0_30:                                    ; preds = %blockL30i0_118, %block0
   store volatile i8 10, ptr addrspace(1) %o, align 1
-  br label %blockL20i0_98
+  br label %blockL30i0_118
 
-blockL20i0_98:                                    ; preds = %blockL20i0_20
-  br label %blockL20i0_20
+blockL30i0_118:                                   ; preds = %blockL30i0_30
+  br label %blockL30i0_30
 }

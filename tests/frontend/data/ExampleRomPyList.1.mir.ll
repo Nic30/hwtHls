@@ -7,15 +7,15 @@
   
   define void @ExampleRomPyList.mainThread(ptr addrspace(1) %i, ptr addrspace(2) %o) !hwtHls.io !0 {
   bb0:
-    br label %blockL142i0_142
+    br label %blockL156i0_156
   
-  blockL142i0_142:                                  ; preds = %bb0, %blockL142i0_142
+  blockL156i0_156:                                  ; preds = %bb0, %blockL156i0_156
     %i_read1 = load volatile i2, ptr addrspace(1) %i, align 1
     %0 = zext i2 %i_read1 to i64
     %select.rom.index = getelementptr inbounds [4 x i32], ptr @select.rom.table, i64 0, i64 %0
     %select.table.valo3 = load volatile i32, ptr %select.rom.index, align 4
     store volatile i32 %select.table.valo3, ptr addrspace(2) %o, align 4
-    br label %blockL142i0_142
+    br label %blockL156i0_156
   }
   
   !0 = distinct !{!1, !2}
@@ -94,7 +94,7 @@ body:             |
     %1:anyregcls = HWTFPGA_ARG_GET 1
     %4:anyregcls(p0) = HWTFPGA_GLOBAL_VALUE @select.rom.table
   
-  bb.1.blockL142i0_142:
+  bb.1.blockL156i0_156:
     successors: %bb.1(0x80000000)
   
     %2:anyregcls(s2) = HWTFPGA_CLOAD %0, 0, 2, 1 :: (volatile load (s2) from %ir.i, addrspace 1)

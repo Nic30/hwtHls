@@ -5,18 +5,18 @@
   
   define void @WhileAndIf4.mainThread(ptr addrspace(1) %dataIn, ptr addrspace(2) %dataOut) !hwtHls.io !0 {
   bb0:
-    br label %blockL14i0_L102i0_102
+    br label %blockL24i0_L116i0_116
   
-  blockL14i0_L102i0_102:                            ; preds = %blockL14i0_L102i0_102, %blockL14i0_L102i0_192, %bb0
-    %x.0 = phi i8 [ 10, %bb0 ], [ %0, %blockL14i0_L102i0_192 ], [ %0, %blockL14i0_L102i0_102 ]
+  blockL24i0_L116i0_116:                            ; preds = %blockL24i0_L116i0_116, %blockL24i0_L116i0_206, %bb0
+    %x.0 = phi i8 [ 10, %bb0 ], [ %0, %blockL24i0_L116i0_206 ], [ %0, %blockL24i0_L116i0_116 ]
     %dataIn_read1 = load volatile i8, ptr addrspace(1) %dataIn, align 1
     %0 = sub i8 %x.0, %dataIn_read1
     %1 = icmp ult i8 %0, 5
-    br i1 %1, label %blockL14i0_L102i0_192, label %blockL14i0_L102i0_102
+    br i1 %1, label %blockL24i0_L116i0_206, label %blockL24i0_L116i0_116
   
-  blockL14i0_L102i0_192:                            ; preds = %blockL14i0_L102i0_102
+  blockL24i0_L116i0_206:                            ; preds = %blockL24i0_L116i0_116
     store volatile i8 %0, ptr addrspace(2) %dataOut, align 1
-    br label %blockL14i0_L102i0_102
+    br label %blockL24i0_L116i0_116
   }
   
   !0 = distinct !{!1, !2}
@@ -94,7 +94,7 @@ body:             |
     %1:anyregcls = HWTFPGA_ARG_GET 1
     %12:anyregcls(s8) = HWTFPGA_MUX i8 10
   
-  bb.1.blockL14i0_L102i0_102:
+  bb.1.blockL24i0_L116i0_116:
     successors: %bb.1(0x80000000)
   
     %3:anyregcls(s8) = HWTFPGA_CLOAD %0, 0, 8, 1 :: (volatile load (s8) from %ir.dataIn, addrspace 1)

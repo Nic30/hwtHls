@@ -5,9 +5,9 @@
   
   define void @HlsAstExprTree3_example.mainThread(ptr addrspace(1) %a, ptr addrspace(2) %b, ptr addrspace(3) %c, ptr addrspace(4) %d, ptr addrspace(5) %f1, ptr addrspace(6) %f2, ptr addrspace(7) %f3, ptr addrspace(8) %w, ptr addrspace(9) %x, ptr addrspace(10) %y, ptr addrspace(11) %z) !hwtHls.io !0 {
   bb0:
-    br label %blockL64i0_64
+    br label %blockL74i0_74
   
-  blockL64i0_64:                                    ; preds = %bb0, %blockL64i0_64
+  blockL74i0_74:                                    ; preds = %bb0, %blockL74i0_74
     %a_read1 = load volatile i32, ptr addrspace(1) %a, align 4
     %b_read1 = load volatile i32, ptr addrspace(2) %b, align 4
     %c_read1 = load volatile i32, ptr addrspace(3) %c, align 4
@@ -25,7 +25,7 @@
     store volatile i32 %f18, ptr addrspace(5) %f1, align 4
     store volatile i32 %f210, ptr addrspace(6) %f2, align 4
     store volatile i32 %f311, ptr addrspace(7) %f3, align 4
-    br label %blockL64i0_64
+    br label %blockL74i0_74
   }
   
   !0 = distinct !{!1, !2, !3, !4, !5, !6, !7, !8, !9, !10, !11}
@@ -132,7 +132,7 @@ body:             |
     %9:anyregcls = HWTFPGA_ARG_GET 9
     %10:anyregcls = HWTFPGA_ARG_GET 10
   
-  bb.1.blockL64i0_64:
+  bb.1.blockL74i0_74:
     successors: %bb.1(0x80000000)
   
     %11:anyregcls(s32) = HWTFPGA_CLOAD %0, 0, 32, 1 :: (volatile load (s32) from %ir.a, addrspace 1)

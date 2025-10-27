@@ -3,12 +3,12 @@ bb0:
   br label %block0
 
 block0:                                           ; preds = %bb0
-  br label %block176
+  br label %block190
 
-block176:                                         ; preds = %block0
-  br label %blockL188i0_188
+block190:                                         ; preds = %block0
+  br label %blockL212i0_212
 
-blockL188i0_188:                                  ; preds = %blockL188i0_350, %block176
+blockL212i0_212:                                  ; preds = %blockL212i0_376, %block190
   %data_in_read = alloca i4, align 1, !hwtHls.tmp.alloca !3
   store i4 undef, ptr %data_in_read, align 1
   %inp = alloca i4, align 1, !hwtHls.tmp.alloca !3
@@ -17,12 +17,12 @@ blockL188i0_188:                                  ; preds = %blockL188i0_350, %b
   store i4 %data_in_read1, ptr %data_in_read, align 1
   %data_in_read2 = load i4, ptr %data_in_read, align 1
   store i4 %data_in_read2, ptr %inp, align 1
-  br label %"blockL188i0_(CountLeadingZeros.aluFn, 268)_0"
+  br label %"blockL212i0_(CountLeadingZeros.aluFn, 292)_0"
 
-"blockL188i0_(CountLeadingZeros.aluFn, 268)_0":   ; preds = %blockL188i0_188
-  br label %blockL188i0_188_afterCall
+"blockL212i0_(CountLeadingZeros.aluFn, 292)_0":   ; preds = %blockL212i0_212
+  br label %blockL212i0_212_afterCall
 
-blockL188i0_188_afterCall:                        ; preds = %"blockL188i0_(CountLeadingZeros.aluFn, 268)_0"
+blockL212i0_212_afterCall:                        ; preds = %"blockL212i0_(CountLeadingZeros.aluFn, 292)_0"
   %resTmp = alloca i3, align 1, !hwtHls.tmp.alloca !3
   store i3 undef, ptr %resTmp, align 1
   %inp3 = load i4, ptr %inp, align 1
@@ -39,8 +39,8 @@ blockL188i0_188_afterCall:                        ; preds = %"blockL188i0_(Count
   %8 = call i3 @hwtHls.bitConcat.i2.i1(i2 %resTmp41, i1 %resTmp42) #1
   store i3 %8, ptr %resTmp, align 1
   store volatile i3 %8, ptr addrspace(2) %data_out, align 1
-  br label %blockL188i0_350
+  br label %blockL212i0_376
 
-blockL188i0_350:                                  ; preds = %blockL188i0_188_afterCall
-  br label %blockL188i0_188
+blockL212i0_376:                                  ; preds = %blockL212i0_212_afterCall
+  br label %blockL212i0_212
 }

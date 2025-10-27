@@ -11,13 +11,13 @@ def _getInstAndLineByOffset(instructions: list[Instruction], offset: int):
     thisInstrIndex = bisect_left(instructions, offset, key=lambda i: i.offset)
     assert thisInstrIndex >= 0, offset
     instr = instructions[thisInstrIndex]
-    if instr.starts_line is not None:
-        instrLine = instr.starts_line
+    if instr.line_number is not None:
+        instrLine = instr.line_number
     else:
         instrLine = -1
         for i in reversed(instructions[:thisInstrIndex]):
-            if i.starts_line is not None:
-                instrLine = i.starts_line
+            if i.line_number is not None:
+                instrLine = i.line_number
                 break
     return instrLine, instr
 
@@ -57,8 +57,8 @@ def createInstructionException(e: Exception, callStack: list[PyBytecodeFrame], f
                 msgBuff.append(f"File \"{pFn.__globals__['__file__']}\", line {instrLine}, in {pFn.__name__}\n    {callOfThisFrameInstr}\n")
 
             if last:
-                if instr.starts_line is not None:
-                    instrLine = instr.starts_line
+                if instr.line_number is not None:
+                    instrLine = instr.line_number
                 else:
                     instrLine = -1
                     thisInstrIndex = bisect_left(frame.instructions, instr.offset, key=lambda i: i.offset)

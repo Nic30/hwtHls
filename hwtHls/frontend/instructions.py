@@ -9,8 +9,8 @@ import importlib
 import typing
 
 # https://docs.python.org/3/library/dis.html
-assert (sys.version_info[0], sys.version_info[1]) == (3, 12), (
-    "This module is for python3.11 only (3.11 or 3.13 will not work due to bytecode changes)", sys.version_info)
+assert (sys.version_info[0], sys.version_info[1]) == (3, 13), (
+    "This module is for python3.13 only (other version will not work due to bytecode changes)", sys.version_info)
 
 
 class _NULLMeta(type):
@@ -34,6 +34,7 @@ UNARY_NEGATIVE = opmap['UNARY_NEGATIVE']
 UNARY_NOT = opmap['UNARY_NOT']
 
 UNARY_INVERT = opmap['UNARY_INVERT']
+TO_BOOL = opmap["TO_BOOL"]
 
 BINARY_SUBSCR = opmap['BINARY_SUBSCR']
 BINARY_SLICE = opmap['BINARY_SLICE']
@@ -102,11 +103,16 @@ SEND = opmap['SEND']
 LOAD_FAST = opmap['LOAD_FAST']
 LOAD_FAST_CHECK = opmap['LOAD_FAST_CHECK']
 LOAD_FAST_AND_CLEAR = opmap['LOAD_FAST_AND_CLEAR']
+LOAD_FAST_LOAD_FAST = opmap['LOAD_FAST_LOAD_FAST']
+LOAD_SUPER_ATTR = opmap['LOAD_SUPER_ATTR']
 STORE_FAST = opmap['STORE_FAST']
+STORE_FAST_STORE_FAST = opmap['STORE_FAST_STORE_FAST']
+STORE_FAST_LOAD_FAST = opmap['STORE_FAST_LOAD_FAST']
 DELETE_FAST = opmap['DELETE_FAST']
 RAISE_VARARGS = opmap['RAISE_VARARGS']
 
 MAKE_FUNCTION = opmap['MAKE_FUNCTION']
+SET_FUNCTION_ATTRIBUTE = opmap['SET_FUNCTION_ATTRIBUTE']
 BUILD_SLICE = opmap['BUILD_SLICE']
 JUMP_BACKWARD_NO_INTERRUPT = opmap['JUMP_BACKWARD_NO_INTERRUPT']
 MAKE_CELL = opmap['MAKE_CELL']
@@ -127,8 +133,9 @@ COPY_FREE_VARS = opmap['COPY_FREE_VARS']
 
 RESUME = opmap['RESUME']
 MATCH_CLASS = opmap['MATCH_CLASS']
-
-FORMAT_VALUE = opmap['FORMAT_VALUE']
+CONVERT_VALUE = opmap['CONVERT_VALUE']
+FORMAT_SIMPLE = opmap['FORMAT_SIMPLE']
+FORMAT_WITH_SPEC = opmap['FORMAT_WITH_SPEC']
 BUILD_CONST_KEY_MAP = opmap["BUILD_CONST_KEY_MAP"]
 BUILD_STRING = opmap['BUILD_STRING']
 
@@ -140,7 +147,7 @@ DICT_MERGE = opmap['DICT_MERGE']
 DICT_UPDATE = opmap['DICT_UPDATE']
 
 CALL = opmap['CALL']
-KW_NAMES = opmap['KW_NAMES']
+CALL_KW = opmap['CALL_KW']
 CALL_INTRINSIC_1 = opmap['CALL_INTRINSIC_1']
 CALL_INTRINSIC_2 = opmap['CALL_INTRINSIC_2']
 
