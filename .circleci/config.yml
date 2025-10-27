@@ -45,7 +45,7 @@ jobs:
       - restore_cache:
           name: Restore libabc-dev Package Cache
           keys:
-            - libabc-dev-{{ checksum "abc.version" }}-v1 # must use checksum of checksum because circleci does not allow access to generated variables using {{ .Environment.var }}
+            - libabc-dev-{{ checksum "abc.version" }}-v2 # must use checksum of checksum because circleci does not allow access to generated variables using {{ .Environment.var }}
       - run:
           command: |
             ABC_BUILD_CACHE_KEY=$(cksum --base64 --untagged --quiet -a sha256 abc.version | cut -d ' ' -f 1) # same as checksum "abc.version"
@@ -64,7 +64,7 @@ jobs:
             fi
       - save_cache:
          name: Save libabc-dev Package Cache
-         key: libabc-dev-{{ checksum "abc.version" }}-v1
+         key: libabc-dev-{{ checksum "abc.version" }}-v2
          paths:
            - subprojects/DEB
       
@@ -88,11 +88,11 @@ jobs:
       - restore_cache:
           name: Restore libabc-dev Package Cache
           keys:
-            - libabc-dev-{{ checksum "abc.version" }}-v1
+            - libabc-dev-{{ checksum "abc.version" }}-v2
       - run:
           command: |
             apt update
-            apt install build-essential python3-dev llvm-18-dev python3 python3-pip python3-venv git ninja-build cmake libreadline8 libreadline-dev -y
+            apt install build-essential python3-dev llvm-21-dev python3 python3-pip python3-venv git ninja-build cmake libreadline8 libreadline-dev -y
             dpkg -i subprojects/DEB/libabc-dev-$ABC_VERSION_LATEST-Linux.deb
             python3 -m venv --system-site-packages /opt/circleci/.pyenv3
             echo 'source /opt/circleci/.pyenv3/bin/activate' >> $BASH_ENV

@@ -39,7 +39,7 @@ set(CPACK_RESOURCE_FILE_README "${CMAKE_SOURCE_DIR}/README.md")
 SET(PKG_CONFIG_REQUIRES readline)
 SET(PKG_CONFIG_LIBDIR     "\${prefix}/lib")
 SET(PKG_CONFIG_INCLUDEDIR "\${prefix}/include/abc")
-SET(PKG_CONFIG_LIBS       "-L\${libdir} -labc")
+SET(PKG_CONFIG_LIBS       "-L\${libdir} -labc-pic")
 
 # https://stackoverflow.com/questions/56104607/how-to-print-current-compilation-flags-that-are-set-with-target-compile-options
 # Convert the list of CXX flags into a space-separated string
