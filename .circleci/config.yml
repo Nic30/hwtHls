@@ -13,7 +13,7 @@ jobs:
       - checkout
       - run:
           command: |
-             export ABC_VERSION_LATEST=$(git ls-remote $https://github.com/berkeley-abc/abc.git HEAD | awk '{ print $1}' | xargs git rev-parse --short)
+             echo "ABC_VERSION_LATEST=$(git ls-remote $https://github.com/berkeley-abc/abc.git HEAD | awk '{ print $1}' | xargs git rev-parse --short)"
       - restore_cache:
           name: Restore libabc-dev Package Cache
           keys:
@@ -46,7 +46,7 @@ jobs:
       - checkout
       - run:
           command: |
-             export ABC_VERSION_LATEST=$(git ls-remote $https://github.com/berkeley-abc/abc.git HEAD | awk '{ print $1}' | xargs git rev-parse --short)
+             echo "ABC_VERSION_LATEST=$(git ls-remote $https://github.com/berkeley-abc/abc.git HEAD | awk '{ print $1}' | xargs git rev-parse --short)"
       - restore_cache:
           name: Restore libabc-dev Package Cache
           keys:
