@@ -44,7 +44,7 @@ jobs:
       - restore_cache:
           name: Restore libabc-dev Package Cache
           keys:
-            - libabc-dev-{{ .Environment.ABC_VERSION_LATEST }}
+            - libabc-dev-{{ $ABC_VERSION_LATEST }}
       - run:
           command: |
             if [ ! -f "subprojects/DEB/libabc-dev-$ABC_VERSION_LATEST-Linux.deb" ]; then
@@ -53,12 +53,13 @@ jobs:
               apt update
               apt install build-essential git ninja-build cmake libreadline8 libreadline-dev -y
               ./build_debs.sh
+			  ls -l $CIRCLE_WORKING_DIRECTORY/hwtHls/subprojects/DEB
             fi
       - save_cache:
          name: Save libabc-dev Package Cache
-         key: libabc-dev-{{ .Environment.ABC_VERSION_LATEST }}
+         key: libabc-dev-{{ $ABC_VERSION_LATEST }}
          paths:
-           - hwtHls/subprojects/DEB/libabc-dev-{{ .Environment.ABC_VERSION_LATEST }}-Linux.deb
+           - hwtHls/subprojects/DEB/libabc-dev-{{ $ABC_VERSION_LATEST }}-Linux.deb
       
   install-test-deploy:
     resource_class: large
@@ -78,7 +79,7 @@ jobs:
       - restore_cache:
           name: Restore libabc-dev Package Cache
           keys:
-            - libabc-dev-{{ .Environment.ABC_VERSION_LATEST }}
+            - libabc-dev-{{ $ABC_VERSION_LATEST }}
       - run:
           command: |
             apt update
