@@ -56,7 +56,7 @@ jobs:
               apt update
               apt install build-essential git ninja-build cmake libreadline8 libreadline-dev -y
               ./build_debs.sh
-			  cd $CIRCLE_WORKING_DIRECTORY/hwtHls/subprojects/DEB
+              cd $CIRCLE_WORKING_DIRECTORY/hwtHls/subprojects/DEB
               mv libabc-dev-$ABC_VERSION_LATEST-Linux.deb libabc-dev-$ABC_BUILD_CACHE_KEY-Linux.deb 
               ls -l $CIRCLE_WORKING_DIRECTORY/hwtHls/subprojects/DEB
             fi
