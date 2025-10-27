@@ -22,23 +22,31 @@ foreach(header ${LIBABC_INCLUDE_FILES})
     install(FILES ${header} DESTINATION include/abc${relative_dir})
 endforeach()
 
+
 # pkg-config related
 # based on https://www.kaizou.org/2014/11/typical-cmake-project.html#exporting-dependencies-towards-external-packages
 #          https://github.com/p-ranav/argparse/blob/master/CMakeLists.txt
+set(CPACK_PACKAGING_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}") # to make sure it is the same in abc.pc and deb
+
+set(CPACK_PACKAGE_NAME "libabc-dev")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "ABC System for Sequential Logic Synthesis and Formal Verification (build for hwtHls)")
+set(CPACK_PACKAGE_VENDOR "nic30")
+set(CPACK_PACKAGE_CONTACT "Nic30original@gmail.com")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libreadline-dev")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/copyright.txt")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_SOURCE_DIR}/README.md")
+
 SET(PKG_CONFIG_REQUIRES readline)
-SET(PKG_CONFIG_LIBDIR
-    "\${prefix}/lib"
-)
-SET(PKG_CONFIG_INCLUDEDIR
-    "\${prefix}/include/abc"
-)
-SET(PKG_CONFIG_LIBS
-    "-L\${libdir} -labc"
-)
-SET(PKG_CONFIG_CFLAGS
-    "-I\${includedir}"
-)
+SET(PKG_CONFIG_LIBDIR     "\${prefix}/lib")
+SET(PKG_CONFIG_INCLUDEDIR "\${prefix}/include/abc")
+SET(PKG_CONFIG_LIBS       "-L\${libdir} -labc")
+
+# https://stackoverflow.com/questions/56104607/how-to-print-current-compilation-flags-that-are-set-with-target-compile-options
+# Convert the list of CXX flags into a space-separated string
+string(REPLACE ";" " " LIBABC_PIC_FLAGS_STR "${ABC_CFLAGS} ${ABC_CXXFLAGS}")
+SET(PKG_CONFIG_CFLAGS     "-I\${includedir} ${LIBABC_PIC_FLAGS_STR}")
 set(PKG_CONFIG_FILE_NAME "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc")
+
 configure_file("${CMAKE_SOURCE_DIR}/abc_pkgconfig.pc.in" "${PKG_CONFIG_FILE_NAME}" @ONLY)
 INSTALL(FILES "${PKG_CONFIG_FILE_NAME}"
         DESTINATION lib/pkgconfig)

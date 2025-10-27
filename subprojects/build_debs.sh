@@ -17,10 +17,10 @@ fi
 
 # append CPack related if not already appended
 last_line=$(tail -n 1 "CMakeLists.txt")
-if [ "$last_line" != "include(CPack)" ]; then
-   cat "$SUBPROJECTS_DIR/abc_cpack.cmake" >> CMakeLists.txt
+if [ "$last_line" != "include(\${CMAKE_CURRENT_SOURCE_DIR}/abc_cpack.cmake)" ]; then
+   echo "include(\${CMAKE_CURRENT_SOURCE_DIR}/abc_cpack.cmake)" >> CMakeLists.txt
 fi
-
+cp ../abc_cpack.cmake .
 cp ../abc_pkgconfig.pc.in .
 
 # https://cmake.org/cmake/help/book/mastering-cmake/chapter/Packaging%20With%20CPack.html
@@ -28,14 +28,7 @@ cd "build"
 VERSION=$(git rev-parse --short HEAD)
 cmake -G Ninja \
  -DABC_SKIP_TESTS=1 \
- -DCPACK_PACKAGE_NAME="libabc-dev" \
- -DCPACK_PACKAGE_DESCRIPTION_SUMMARY="ABC System for Sequential Logic Synthesis and Formal Verification (build for hwtHls)" \
- -DCPACK_PACKAGE_VENDOR="nic30" \
- -DCPACK_PACKAGE_CONTACT="Nic30original@gmail.com" \
  -DCPACK_PACKAGE_VERSION="$VERSION" \
- -DCPACK_DEBIAN_PACKAGE_DEPENDS=libreadline-dev \
- -DCPACK_RESOURCE_FILE_LICENSE="$ABC_ROOT/copyright.txt" \
- -DCPACK_RESOURCE_FILE_README="$ABC_ROOT/README.md" \
  .. 
 
 ninja libabc-pic
