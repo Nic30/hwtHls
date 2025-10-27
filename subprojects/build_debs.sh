@@ -29,7 +29,7 @@ VERSION=$(git rev-parse --short HEAD)
 cmake -G Ninja \
  -DABC_SKIP_TESTS=1 \
  -DCPACK_PACKAGE_NAME="libabc-dev" \
- -DCPACK_PACKAGE_DESCRIPTION_SUMMARY="ABC: System for Sequential Logic Synthesis and Formal Verification (build for hwtHls)" \
+ -DCPACK_PACKAGE_DESCRIPTION_SUMMARY="ABC System for Sequential Logic Synthesis and Formal Verification (build for hwtHls)" \
  -DCPACK_PACKAGE_VENDOR="nic30" \
  -DCPACK_PACKAGE_CONTACT="Nic30original@gmail.com" \
  -DCPACK_PACKAGE_VERSION="$VERSION" \
