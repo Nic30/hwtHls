@@ -50,8 +50,8 @@ jobs:
           command: |
             ABC_BUILD_CACHE_KEY=$(cksum --base64 --untagged --quiet -a sha256 abc.version | cut -d ' ' -f 1) # same as checksum "abc.version"
             echo "expected ABC_BUILD_CACHE_KEY=$ABC_BUILD_CACHE_KEY"
-			DEB_dir=$CIRCLE_WORKING_DIRECTORY/subprojects/DEB
-			echo "DEB_dir=$DEB_dir"
+            DEB_dir=$CIRCLE_WORKING_DIRECTORY/subprojects/DEB
+            echo "DEB_dir=$DEB_dir"
             if [ ! -f "$DEB_dir/libabc-dev-$ABC_BUILD_CACHE_KEY-Linux.deb" ]; then
               echo "Building libabc-dev deb because it was not found in cache (ABC_VERSION_LATEST=$ABC_VERSION_LATEST, ABC_BUILD_CACHE_KEY=$ABC_BUILD_CACHE_KEY)"
               cd subprojects
