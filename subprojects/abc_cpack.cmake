@@ -25,7 +25,7 @@ endforeach()
 # pkg-config related
 # based on https://www.kaizou.org/2014/11/typical-cmake-project.html#exporting-dependencies-towards-external-packages
 #          https://github.com/p-ranav/argparse/blob/master/CMakeLists.txt
-SET(PKG_CONFIG_REQUIRES libreadline-dev)
+SET(PKG_CONFIG_REQUIRES readline)
 SET(PKG_CONFIG_LIBDIR
     "\${prefix}/lib"
 )
