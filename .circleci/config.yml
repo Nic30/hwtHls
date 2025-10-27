@@ -51,14 +51,16 @@ jobs:
             ABC_BUILD_CACHE_KEY=$(cksum --base64 --untagged --quiet -a sha256 abc.version | cut -d ' ' -f 1) # same as checksum "abc.version"
             echo "expected ABC_BUILD_CACHE_KEY=$ABC_BUILD_CACHE_KEY"
             if [ ! -f "subprojects/DEB/libabc-dev-$ABC_BUILD_CACHE_KEY-Linux.deb" ]; then
-              echo "Building libabc-dev deb because it was not found in cache (ABC_VERSION_LATEST=$ABC_VERSION_LATEST, cache_hash=$ABC_BUILD_CACHE_KEY)"
+              echo "Building libabc-dev deb because it was not found in cache (ABC_VERSION_LATEST=$ABC_VERSION_LATEST, ABC_BUILD_CACHE_KEY=$ABC_BUILD_CACHE_KEY)"
               cd subprojects
               apt update
               apt install build-essential git ninja-build cmake libreadline8 libreadline-dev -y
               ./build_debs.sh
-              cd $CIRCLE_WORKING_DIRECTORY/subprojects/DEB
+              DEB_dir=$CIRCLE_WORKING_DIRECTORY/subprojects/DEB
+              echo "DEB_dir=$DEB_dir"
+              cd $DEB_dir
               mv libabc-dev-$ABC_VERSION_LATEST-Linux.deb libabc-dev-$ABC_BUILD_CACHE_KEY-Linux.deb 
-              ls -l $CIRCLE_WORKING_DIRECTORY/subprojects/DEB
+              ls -l $DEB_dir
             fi
       - save_cache:
          name: Save libabc-dev Package Cache
