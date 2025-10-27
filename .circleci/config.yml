@@ -36,8 +36,6 @@ jobs:
            - hwtHls/subprojects/DEB/libabc-dev-{{ echo $ABC_VERSION_LATEST }}-Linux.deb
       
   install-test-deploy:
-    depends_on:
-      - berkeley-abc-prebuild
     resource_class: large
     docker:
       - image: ubuntu:rolling
@@ -92,8 +90,11 @@ jobs:
 workflows:
   main:
     jobs:
+      - berkeley-abc-prebuild
       - install-test-deploy:
-          context:
+        depends_on:
+          - berkeley-abc-prebuild
+        context:
             - pypi
           filters:
             tags:
