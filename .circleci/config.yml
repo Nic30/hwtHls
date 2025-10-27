@@ -11,7 +11,7 @@ jobs:
       - image: ubuntu:rolling
     executor:
        name: python/default
-       tag: "3.13"
+       tag: "3.13.7"
     steps:
       - checkout
       - run:
