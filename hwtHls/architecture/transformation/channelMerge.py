@@ -197,14 +197,9 @@ class RtlArchPassChannelMerge(HlsArchPass):
     def _optionallyScheduleSliceNodes(newV: HlsNetNodeOut, elm: ArchElement):
         sliceNode: HlsNetNode = newV.obj
         if sliceNode.scheduledZero is None:
-            subscript: HlsNetNode = sliceNode.dependsOn[1].obj
-            subscriptIsNewNode = subscript.scheduledZero is None
             sliceNode.scheduleAsap(None, 0, None)
             _clkI = indexOfClkPeriod(sliceNode.scheduledZero, sliceNode.netlist.normalizedClkPeriod)
             elm.getStageForClock(_clkI).append(sliceNode)
-            if subscriptIsNewNode:
-                subscript._setScheduleZeroTimeSingleClock(sliceNode.scheduledZero - 1)
-                elm.getStageForClock(_clkI).append(subscript)
 
     def _removeIoNodesAfterTheyWereMergedToFirstOne(self, r0: HlsNetNodeReadAnyChannel,
                                                     w0: HlsNetNodeWriteAnyChannel,
