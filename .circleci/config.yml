@@ -18,7 +18,7 @@ jobs:
             echo "export TZ=America/USA" >> "$BASH_ENV"
             source "$BASH_ENV"
             apt install git -y
-            export ABC_VERSION_LATEST=$(git ls-remote https://github.com/berkeley-abc/abc.git HEAD | awk '{ print $1}' | xargs git rev-parse --short)
+            export ABC_VERSION_LATEST=$(git ls-remote https://github.com/berkeley-abc/abc.git HEAD | awk '{ print $1}')
             echo "Info: last ABC version is $ABC_VERSION_LATEST"
             echo "export ABC_VERSION_LATEST=$ABC_VERSION_LATEST" >> "$BASH_ENV"
             source "$BASH_ENV"

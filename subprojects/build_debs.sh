@@ -5,7 +5,6 @@ ABC_ROOT="$SUBPROJECTS_DIR/berkeley-abc"
 
 ABC_REPO_URL="https://github.com/berkeley-abc/abc.git"
 #ABC_LATEST_VER=$(git ls-remote $ABC_REPO_URL HEAD | awk '{ print $1}')
-#ABC_LATEST_VER=$(git rev-parse --short $ABC_LATEST_VER)
 if [ ! -d "$ABC_ROOT" ] ; then
     git clone "$ABC_REPO_URL" "$ABC_ROOT"
 fi
@@ -25,7 +24,7 @@ cp ../abc_pkgconfig.pc.in .
 
 # https://cmake.org/cmake/help/book/mastering-cmake/chapter/Packaging%20With%20CPack.html
 cd "build"
-VERSION=$(git rev-parse --short HEAD)
+VERSION=$(git rev-parse HEAD)
 cmake -G Ninja \
  -DABC_SKIP_TESTS=1 \
  -DCPACK_PACKAGE_VERSION="$VERSION" \
