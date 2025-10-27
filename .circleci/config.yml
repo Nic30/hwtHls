@@ -114,6 +114,7 @@ jobs:
 workflows:
   main:
     jobs:
+      - prepare-workspace
       - berkeley-abc-prebuild:
           requires:
             - prepare-workspace
