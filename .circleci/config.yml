@@ -20,7 +20,7 @@ jobs:
             - libabc-dev-{{ .Environment.ABC_VERSION_LATEST }}
       - run:
           command: |
-            if [ ! -f "hwtHls/subprojects/DEB/libabc-dev-$ABC_VERSION_LATEST-Linux.deb" ]; then
+            if [ ! -f "subprojects/DEB/libabc-dev-$ABC_VERSION_LATEST-Linux.deb" ]; then
               cd subprojects
               apt update
               # because of tzdata
