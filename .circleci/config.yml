@@ -5,7 +5,7 @@ orbs:
   py: nic30/python-all-in-1@0.3.1
 
 jobs:
-  install-test-deploy:
+  berkeley-abc-prebuild:
     resource_class: large
     docker:
       - image: ubuntu:rolling
@@ -16,11 +16,54 @@ jobs:
       - checkout
       - run:
           command: |
+             export ABC_VERSION_LATEST=$(git ls-remote $https://github.com/berkeley-abc/abc.git HEAD | awk '{ print $1}' | xargs git rev-parse --short)
+      - restore_cache:
+          name: Restore libabc-dev Package Cache
+          keys:
+            - libabc-dev-{{ echo $ABC_VERSION_LATEST }}
+       - run:
+           command: |
+             if [ ! -f "hwtHls/subprojects/DEB/libabc-dev-{{ echo $ABC_VERSION_LATEST }}-Linux.deb" ]; then
+               cd subprojects
+               apt update
+               # because of tzdata
+               export DEBIAN_FRONTEND=noninteractive
+               export TZ=America/USA
+               apt install build-essential git ninja-build cmake libreadline8 libreadline-dev -y
+               ./build_debs.sh
+             fi
+       - save_cache:
+          name: Save libabc-dev Package Cache
+          key: libabc-dev-{{ echo $ABC_VERSION_LATEST }}
+          paths:
+            - hwtHls/subprojects/DEB/libabc-dev-{{ echo $ABC_VERSION_LATEST }}-Linux.deb
+
+  install-test-deploy:
+    depends_on:
+      - berkeley-abc-prebuild
+    resource_class: large
+    docker:
+      - image: ubuntu:rolling
+    executor:
+       name: python/default
+       tag: "3.13.7"
+    steps:
+      - checkout
+      - run:
+          command: |
+             export ABC_VERSION_LATEST=$(git ls-remote $https://github.com/berkeley-abc/abc.git HEAD | awk '{ print $1}' | xargs git rev-parse --short)
+      - restore_cache:
+          name: Restore libabc-dev Package Cache
+          keys:
+            - libabc-dev-{{ echo $ABC_VERSION_LATEST }}
+      - run:
+          command: |
             apt update
             # because of tzdata
             export DEBIAN_FRONTEND=noninteractive
             export TZ=America/USA
             apt install build-essential python3-dev llvm-18-dev python3 python3-pip python3-venv git ninja-build cmake libreadline8 libreadline-dev -y
+			dpkg -i subprojects/DEB/libabc-dev-{{ echo $ABC_VERSION_LATEST }}-Linux.deb
             python3 -m venv --system-site-packages /opt/circleci/.pyenv3
             echo 'source /opt/circleci/.pyenv3/bin/activate' >> $BASH_ENV
             source /opt/circleci/.pyenv3/bin/activate
