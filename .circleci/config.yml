@@ -13,7 +13,9 @@ jobs:
       - checkout
       - run:
           command: |
-            echo "export ABC_VERSION_LATEST=$(git ls-remote https://github.com/berkeley-abc/abc.git HEAD | awk '{ print $1}' | xargs git rev-parse --short)" >> "$BASH_ENV"
+            export ABC_VERSION_LATEST=$(git ls-remote https://github.com/berkeley-abc/abc.git HEAD | awk '{ print $1}' | xargs git rev-parse --short)
+            echo "Info: last ABC version is $ABC_VERSION_LATEST"
+            echo "export ABC_VERSION_LATEST=$ABC_VERSION_LATEST" >> "$BASH_ENV"
             source "$BASH_ENV"
       - restore_cache:
           name: Restore libabc-dev Package Cache
@@ -48,7 +50,9 @@ jobs:
       - checkout
       - run:
           command: |
-            echo "export ABC_VERSION_LATEST=$(git ls-remote https://github.com/berkeley-abc/abc.git HEAD | awk '{ print $1}' | xargs git rev-parse --short)" >> "$BASH_ENV"
+            export ABC_VERSION_LATEST=$(git ls-remote https://github.com/berkeley-abc/abc.git HEAD | awk '{ print $1}' | xargs git rev-parse --short)
+            echo "Info: last ABC version is $ABC_VERSION_LATEST"
+            echo "export ABC_VERSION_LATEST=$ABC_VERSION_LATEST" >> "$BASH_ENV"
             source "$BASH_ENV"
       - restore_cache:
           name: Restore libabc-dev Package Cache
