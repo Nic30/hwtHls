@@ -73,9 +73,13 @@ class HlsNetNodeOperator(HlsNetNode):
         gen = netlist.platform._componentGenerators.get(self.operator)
         if gen is not None:
             gen: ComponentGenerator
-            with netlist.dbgSubmoduleBuidTracer.scoped(gen, self):
+            if netlist.dbgSubmoduleBuidTracer is not None:
+                with netlist.dbgSubmoduleBuidTracer.scoped(gen, self):
+                    r = gen.resolveRealizationOfNode(self)
+            else:
                 r = gen.resolveRealizationOfNode(self)
-                assert isinstance(r, OpRealizationMeta), ("ComponentGenerator.resolveRealizationOfNode must return OpRealizationMeta", self, r, gen)
+
+            assert isinstance(r, OpRealizationMeta), ("ComponentGenerator.resolveRealizationOfNode must return OpRealizationMeta", self, r, gen)
         else:
             try:
                 r = netlist.platform.get_op_realization(
