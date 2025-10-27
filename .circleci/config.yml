@@ -15,9 +15,9 @@ jobs:
           command: |
             apt update
             # because of tzdata
-			echo "export DEBIAN_FRONTEND=noninteractive" >> "$BASH_ENV"
+            echo "export DEBIAN_FRONTEND=noninteractive" >> "$BASH_ENV"
             echo "export TZ=America/USA" >> "$BASH_ENV"
-			source "$BASH_ENV"
+            source "$BASH_ENV"
             apt install git
             export ABC_VERSION_LATEST=$(git ls-remote https://github.com/berkeley-abc/abc.git HEAD | awk '{ print $1}' | xargs git rev-parse --short)
             echo "Info: last ABC version is $ABC_VERSION_LATEST"
