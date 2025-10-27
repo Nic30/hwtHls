@@ -45,10 +45,10 @@ jobs:
       - restore_cache:
           name: Restore libabc-dev Package Cache
           keys:
-            - libabc-dev-{{ checksum abc.version }} # must use checksum of checksum because circleci does not allow access to generated variables using {{ .Environment.var }}
+            - libabc-dev-{{ checksum "abc.version" }} # must use checksum of checksum because circleci does not allow access to generated variables using {{ .Environment.var }}
       - run:
           command: |
-            BUILD_CACHE_KEY={{ checksum abc.version }})
+            BUILD_CACHE_KEY={{ checksum "abc.version" }})
             if [ ! -f "subprojects/DEB/libabc-dev-$BUILD_CACHE_KEY-Linux.deb" ]; then
               echo "Building libabc-dev deb because it was not found in cache (ABC_VERSION_LATEST=$ABC_VERSION_LATEST, cache_hash=$BUILD_CACHE_KEY)"
               cd subprojects
@@ -61,9 +61,9 @@ jobs:
             fi
       - save_cache:
          name: Save libabc-dev Package Cache
-         key: libabc-dev-{{ checksum abc.version }}
+         key: libabc-dev-{{ checksum "abc.version" }}
          paths:
-           - hwtHls/subprojects/DEB/libabc-dev-{{ checksum abc.version }}-Linux.deb
+           - hwtHls/subprojects/DEB/libabc-dev-{{ checksum "abc.version" }}-Linux.deb
       
   install-test-deploy:
     resource_class: large
@@ -85,7 +85,7 @@ jobs:
       - restore_cache:
           name: Restore libabc-dev Package Cache
           keys:
-            - libabc-dev-{{ checksum abc.version }}
+            - libabc-dev-{{ checksum "abc.version" }}
       - run:
           command: |
             apt update
