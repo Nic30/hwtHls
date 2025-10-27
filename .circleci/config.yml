@@ -10,7 +10,6 @@ jobs:
     docker:
       - image: ubuntu:rolling
     steps:
-      - checkout
       - run:
           command: |
             apt update
