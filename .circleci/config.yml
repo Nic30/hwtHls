@@ -48,7 +48,8 @@ jobs:
             - libabc-dev-{{ checksum "abc.version" }} # must use checksum of checksum because circleci does not allow access to generated variables using {{ .Environment.var }}
       - run:
           command: |
-            BUILD_CACHE_KEY=$(sha256sum abc.version | cut -d ' ' -f 1 | xxd -r -p | base64) # same as checksum "abc.version" 
+		    apt install xxd
+            BUILD_CACHE_KEY=$(cksum --base64 --untagged --quiet -a sha256 abc.version | cut -d ' ' -f 1) # same as checksum "abc.version" 
             if [ ! -f "subprojects/DEB/libabc-dev-$BUILD_CACHE_KEY-Linux.deb" ]; then
               echo "Building libabc-dev deb because it was not found in cache (ABC_VERSION_LATEST=$ABC_VERSION_LATEST, cache_hash=$BUILD_CACHE_KEY)"
               cd subprojects
