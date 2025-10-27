@@ -45,7 +45,7 @@ jobs:
       - restore_cache:
           name: Restore libabc-dev Package Cache
           keys:
-            - libabc-dev-{{ checksum "abc.version" }} # must use checksum of checksum because circleci does not allow access to generated variables using {{ .Environment.var }}
+            - libabc-dev-{{ checksum "abc.version" }}-v0 # must use checksum of checksum because circleci does not allow access to generated variables using {{ .Environment.var }}
       - run:
           command: |
             ABC_BUILD_CACHE_KEY=$(cksum --base64 --untagged --quiet -a sha256 abc.version | cut -d ' ' -f 1) # same as checksum "abc.version"
@@ -64,7 +64,7 @@ jobs:
             fi
       - save_cache:
          name: Save libabc-dev Package Cache
-         key: libabc-dev-{{ checksum "abc.version" }}
+         key: libabc-dev-{{ checksum "abc.version" }}-v0
          paths:
            - subprojects/DEB/libabc-dev-{{ checksum "abc.version" }}-Linux.deb
       
@@ -88,7 +88,7 @@ jobs:
       - restore_cache:
           name: Restore libabc-dev Package Cache
           keys:
-            - libabc-dev-{{ checksum "abc.version" }}
+            - libabc-dev-{{ checksum "abc.version" }}-v0
       - run:
           command: |
             apt update
