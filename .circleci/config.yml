@@ -96,6 +96,6 @@ workflows:
           - berkeley-abc-prebuild
         context:
             - pypi
-          filters:
-            tags:
-              only: /.*/
+        filters:
+          tags:
+            only: /.*/
