@@ -14,7 +14,7 @@ from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.transformation.hlsArchPass import HlsArchPass
 from hwtHls.architecture.transformation.simplify import ArchElementValuePropagation
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabilityDataOnlySingleClock
-from hwtHls.netlist.builder import HlsNetlistBuilder,\
+from hwtHls.netlist.builder import HlsNetlistBuilder, \
     HlsNetlistBuilderWithWorklist
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.debugTracer import DebugTracer
@@ -35,7 +35,6 @@ from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistE
 from hwtHls.netlist.transformation.simplifyUtils import hasInputSameDriverOrAndOfIt, \
     addAllUsersToWorklist, addAllDepsToWorklist
 from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
-
 
 AnyChannelIo = Union[HlsNetNodeRead, HlsNetNodeWrite]
 
@@ -379,7 +378,7 @@ class RtlArchPassChannelMerge(HlsArchPass):
         for u in r0Users:
             uObj: HlsNetNode = u.obj
             if uObj not in seenR0Users:
-                # if user was already in seenR0Users it means that it was already unregistered  
+                # if user was already in seenR0Users it means that it was already unregistered
                 uObj.getHlsNetlistBuilder().unregisterNode(uObj)
                 worklist.append(uObj)
                 seenR0Users.add(uObj)
