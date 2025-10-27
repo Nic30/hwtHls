@@ -92,10 +92,11 @@ workflows:
     jobs:
       - berkeley-abc-prebuild
       - install-test-deploy:
-        depends_on:
-          - berkeley-abc-prebuild
-        context:
-            - pypi
-        filters:
-          tags:
-            only: /.*/
+          depends_on:
+            - berkeley-abc-prebuild
+          context:
+              - pypi
+          filters:
+            tags:
+              only: /.*/
+          
