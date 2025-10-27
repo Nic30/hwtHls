@@ -53,7 +53,7 @@ jobs:
               apt update
               apt install build-essential git ninja-build cmake libreadline8 libreadline-dev -y
               ./build_debs.sh
-			  ls -l $CIRCLE_WORKING_DIRECTORY/hwtHls/subprojects/DEB
+              ls -l $CIRCLE_WORKING_DIRECTORY/hwtHls/subprojects/DEB
             fi
       - save_cache:
          name: Save libabc-dev Package Cache
