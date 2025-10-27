@@ -16,6 +16,7 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from tests.hlsNetlist.wire_test import HlsNetlistWireTC
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 
 
 class ReadSplitCntrlAndDataTo2ChannelsWriteOutHwModule(HwModule):
@@ -37,14 +38,14 @@ class ReadSplitCntrlAndDataTo2ChannelsWriteOutHwModule(HwModule):
         """
         elm = ArchElementPipeline(netlist, "p0", "p0_")
         netlist.addNode(elm)
-        builder: HlsNetlistBuilder = elm.builder 
-        r = HlsNetNodeRead(netlist, self.dataIn)
+        builder: HlsNetlistBuilder = elm.builder
+        r = HlsNetNodeRead(netlist, IoProxyScalar(None, self.dataIn), self.dataIn)
         elm.addNode(r)
         cW, cR, cRout = HlsNetNodeWriteForwardedge.createPredSucPair(netlist, elm, elm, "c", r.getValidNB())
         dW, dR, dRout = HlsNetNodeWriteForwardedge.createPredSucPair(netlist, elm, elm, "d", r._portDataOut)
         dW.addControlSerialSkipWhen
-        
-        w = HlsNetNodeWrite(netlist, self.dataOut)
+
+        w = HlsNetNodeWrite(netlist, IoProxyScalar(None, self.dataOut), self.dataOut)
         elm.addNode(w)
 
         dRout.connectHlsIn(w._portSrc)
@@ -58,7 +59,7 @@ class ReadSplitCntrlAndDataTo2ChannelsWriteOutHwModule(HwModule):
         hls.compile()
 
 
-class BreakHandshakeCyccles_channelCond_TC(SimTestCase):
+class BreakHandshakeCycles_channelCond_TC(SimTestCase):
 
     def test_ReadSplitCntrlAndDataTo2ChannelsWriteOutHwModule(self):
         HlsNetlistWireTC.test_HlsNetlistWireHwModule(self, ReadSplitCntrlAndDataTo2ChannelsWriteOutHwModule, extraTime=1)
@@ -74,7 +75,7 @@ if __name__ == "__main__":
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([BreakHandshakeCyccles_channelCond_TC("test_NetlistWireHwModuleRdSynced")])
-    suite = testLoader.loadTestsFromTestCase(BreakHandshakeCyccles_channelCond_TC)
+    # suite = unittest.TestSuite([BreakHandshakeCycles_channelCond_TC("test_NetlistWireHwModuleRdSynced")])
+    suite = testLoader.loadTestsFromTestCase(BreakHandshakeCycles_channelCond_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
