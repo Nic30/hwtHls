@@ -115,6 +115,8 @@ workflows:
   main:
     jobs:
       - berkeley-abc-prebuild
+          requires:
+            - prepare-workspace
       - install-test-deploy:
           requires:
             - berkeley-abc-prebuild
