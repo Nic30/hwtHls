@@ -23,6 +23,7 @@ foreach(header ${LIBABC_INCLUDE_FILES})
 endforeach()
 
 # pkg-config related
+# based on https://www.kaizou.org/2014/11/typical-cmake-project.html#exporting-dependencies-towards-external-packages
 SET(PKG_CONFIG_REQUIRES glib-2.0)
 SET(PKG_CONFIG_LIBDIR
     "\${prefix}/lib"

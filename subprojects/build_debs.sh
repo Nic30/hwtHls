@@ -37,7 +37,6 @@ cmake -G Ninja \
  -DCPACK_RESOURCE_FILE_LICENSE="$ABC_ROOT/copyright.txt" \
  -DCPACK_RESOURCE_FILE_README="$ABC_ROOT/README.md" \
  .. 
-#               -DCPACK_DEBIAN_PACKAGE_NAME=berkeley-abc\
 
 ninja libabc-pic
 cpack -G DEB
