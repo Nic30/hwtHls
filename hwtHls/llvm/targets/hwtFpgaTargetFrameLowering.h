@@ -16,7 +16,7 @@ public:
 			llvm::MachineBasicBlock &MBB) const override {
 	}
 
-	bool hasFP(const llvm::MachineFunction &MF) const override {
+	bool hasFPImpl(const llvm::MachineFunction &MF) const override {
 		return false;
 	}
 	virtual bool isStackIdSafeForLocalArea(unsigned StackId) const override {

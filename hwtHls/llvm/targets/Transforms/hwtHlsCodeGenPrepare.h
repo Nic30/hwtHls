@@ -7,7 +7,7 @@ class HwtHlsCodeGenPrepare: public llvmSrc::CodeGenPrepare {
 	friend class HwtHlsCodeGenPrepareLegacyPass;
 public:
 	using llvmSrc::CodeGenPrepare::CodeGenPrepare;
-	virtual bool optimizeSwitchType(SwitchInst *SI) override;
+	virtual bool optimizeSwitchType(llvm::SwitchInst *SI) override;
 	//virtual bool optimizeSwitchInst(llvm::SwitchInst *SI) override;
 	virtual bool optimizeLoadExt(llvm::LoadInst *Load)override;
 	virtual ~HwtHlsCodeGenPrepare() {}
@@ -23,9 +23,9 @@ public:
   HwtHlsCodeGenPrepareLegacyPass();
   bool runOnFunction(llvm::Function &F) override;
 
-  StringRef getPassName() const override { return "hwtHls CodeGen Prepare"; }
+  llvm::StringRef getPassName() const override { return "hwtHls CodeGen Prepare"; }
 
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     // FIXME: When we can selectively preserve passes, preserve the domtree.
     AU.addRequired<llvm::ProfileSummaryInfoWrapperPass>();
     AU.addRequired<llvm::TargetLibraryInfoWrapperPass>();

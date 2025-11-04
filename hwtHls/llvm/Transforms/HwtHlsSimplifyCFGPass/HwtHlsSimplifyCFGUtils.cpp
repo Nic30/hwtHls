@@ -3,6 +3,7 @@
 #include <llvm/Analysis/ValueTracking.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
+#include <llvm/IR/Module.h>
 #include <llvm/IR/IRBuilder.h>
 
 #include <hwtHls/llvm/intrinsic/metadataSideEffect.h>
@@ -25,9 +26,10 @@ unsigned skippedInstrFlags(Instruction *I) {
 	return Flags;
 }
 
+// based on isSafeToHoistInstr from llvm-21.1.2 SimplifyCFG.cpp
 // Returns true if it is safe to reorder an instruction across preceding
 // instructions in a basic block.
-bool isSafeToHoistInstr(Instruction *I, unsigned Flags) {
+bool isSafeToHoistInstr(Instruction *I, unsigned Flags, bool checkOperands) {
 	// Don't reorder a store over a load.
 	if ((Flags & SkipReadMem) && I->mayWriteToMemory())
 		if (!hasMetadataSideeffectAllowHoist(*I))
@@ -36,7 +38,12 @@ bool isSafeToHoistInstr(Instruction *I, unsigned Flags) {
 	// If we have seen an instruction with side effects, it's unsafe to reorder an
 	// instruction which reads memory or itself has side effects.
 	if ((Flags & SkipSideEffect)
-			&& (I->mayReadFromMemory() || I->mayHaveSideEffects()))
+			&& (I->mayReadFromMemory() || I->mayHaveSideEffects()
+					|| isa<AllocaInst>(I))) {
+		if (!hasMetadataSideeffectAllowHoist(*I))
+			return false;
+	}
+	if ((Flags & SkipSideEffect) && I->isIntDivRem())
 		if (!hasMetadataSideeffectAllowHoist(*I))
 			return false;
 
@@ -52,15 +59,16 @@ bool isSafeToHoistInstr(Instruction *I, unsigned Flags) {
 		if (CB->getIntrinsicID() == Intrinsic::experimental_deoptimize)
 			return false;
 
-	// It's also unsafe/illegal to hoist an instruction above its instruction
-	// operands
-	BasicBlock *BB = I->getParent();
-	for (Value *Op : I->operands()) {
-		if (auto *J = dyn_cast<Instruction>(Op))
-			if (J->getParent() == BB)
-				return false;
+	if (checkOperands) {
+		// It's also unsafe/illegal to hoist an instruction above its instruction
+		// operands
+		BasicBlock *BB = I->getParent();
+		for (Value *Op : I->operands()) {
+			if (auto *J = dyn_cast<Instruction>(Op))
+				if (J->getParent() == BB)
+					return false;
+		}
 	}
-
 	return true;
 }
 
@@ -88,12 +96,17 @@ Value* CreateGlobalDataWithGEP(IRBuilder<> &builder, Module &M,
 }
 
 bool IsCheapInstruction(Instruction &I) {
-	if (auto *CI = dyn_cast<CallInst>(&I)) {
-		if (isa<AssumeInst>(&I) && hasMetadataSideeffectAllowHoist(I)) {
+	if (I.mayHaveSideEffects() && !hasMetadataSideeffectAllowHoist(I)) {
+		return false;
+	} else if (auto *CI = dyn_cast<CallInst>(&I)) {
+		if (isa<AssumeInst>(&I)) {
+			assert(hasMetadataSideeffectAllowHoist(I)); // because otherwise the fist branch should have been taken
 			return true;
 		}
 		return IsBitConcat(CI) || IsBitRangeGet(CI);
 	} else if (isa<BinaryOperator>(&I)) {
+		if (I.isIntDivRem() || I.isFPDivRem())
+			return false;
 		return true;
 	} else if (isa<CmpInst>(&I)) {
 		return true;
@@ -106,7 +119,8 @@ bool IsCheapInstruction(Instruction &I) {
 	}
 }
 
-bool tryHoistCheapInstsAtBlockBegin(BasicBlock &BB, Instruction *MovePos,
+bool tryHoistCheapInstsAtBlockBegin(BasicBlock &BB,
+		BasicBlock::iterator MovePos,
 		std::optional<std::function<bool(llvm::Instruction&)>> extraCheck) {
 	bool Changed = false;
 	for (Instruction &I : make_early_inc_range(BB)) {

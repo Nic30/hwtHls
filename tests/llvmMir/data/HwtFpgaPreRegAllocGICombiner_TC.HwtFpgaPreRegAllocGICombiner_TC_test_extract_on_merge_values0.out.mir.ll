@@ -1,4 +1,4 @@
-# Machine code for function HwtFpgaPreRegAllocGICombiner_TC_test_extract_on_merge_values0: IsSSA, NoPHIs, TracksLiveness, Legalized, RegBankSelected, Selected
+# Machine code for function HwtFpgaPreRegAllocGICombiner_TC_test_extract_on_merge_values0: NoPHIs, TracksLiveness, Legalized, RegBankSelected, Selected
 
 bb.0.HwtFpgaPreRegAllocGICombiner_TC_test_extract_on_merge_values0:
   successors: %bb.1(0x80000000); %bb.1(100.00%)

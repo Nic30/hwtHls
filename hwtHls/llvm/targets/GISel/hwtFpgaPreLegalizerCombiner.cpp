@@ -11,7 +11,7 @@
 #include <llvm/CodeGen/GlobalISel/Combiner.h>
 #include <llvm/CodeGen/GlobalISel/CombinerInfo.h>
 #include <llvm/CodeGen/GlobalISel/GIMatchTableExecutorImpl.h>
-#include <llvm/CodeGen/GlobalISel/GISelKnownBits.h>
+#include <llvm/CodeGen/GlobalISel/GISelValueTracking.h>
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
 #include <llvm/CodeGen/MachineDominators.h>
 #include <llvm/CodeGen/MachineFunction.h>
@@ -45,7 +45,7 @@ protected:
 public:
 	HwtFpgaPreLegalizerGICombinerImpl(
 			MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC,
-	      GISelKnownBits &KB, GISelCSEInfo *CSEInfo,
+			GISelValueTracking *VT, GISelCSEInfo *CSEInfo,
 	      const HwtFpgaPreLegalizerGICombinerImplRuleConfig &RuleConfig,
 	      const HwtFpgaTargetSubtarget &STI, MachineDominatorTree *MDT,
 	      const LegalizerInfo *LI);
@@ -64,12 +64,12 @@ private:
 
 HwtFpgaPreLegalizerGICombinerImpl::HwtFpgaPreLegalizerGICombinerImpl(
     MachineFunction &MF, CombinerInfo &CInfo, const TargetPassConfig *TPC,
-    GISelKnownBits &KB, GISelCSEInfo *CSEInfo,
+    GISelValueTracking *VT, GISelCSEInfo *CSEInfo,
     const HwtFpgaPreLegalizerGICombinerImplRuleConfig &RuleConfig,
     const HwtFpgaTargetSubtarget &STI, MachineDominatorTree *MDT,
     const LegalizerInfo *LI)
-    : Combiner(MF, CInfo, TPC, &KB, CSEInfo),
-      Helper(Observer, B, /*IsPreLegalize*/ false, &KB, MDT, LI),
+    : Combiner(MF, CInfo, TPC, VT, CSEInfo),
+      Helper(Observer, B, /*IsPreLegalize*/ false, VT, MDT, LI),
       RuleConfig(RuleConfig), STI(STI),
 #define GET_GICOMBINER_CONSTRUCTOR_INITS
 #include "HwtFpgaGenPreLegalizerGICombiner.inc"
@@ -102,10 +102,10 @@ void HwtFpgaPreLegalizerCombiner::getAnalysisUsage(
 	AU.addRequired<TargetPassConfig>();
 	AU.setPreservesCFG();
 	getSelectionDAGFallbackAnalysisUsage(AU);
-	AU.addRequired<GISelKnownBitsAnalysis>();
-	AU.addPreserved<GISelKnownBitsAnalysis>();
-	AU.addRequired<MachineDominatorTree>();
-	AU.addPreserved<MachineDominatorTree>();
+	AU.addRequired<GISelValueTrackingAnalysisLegacy>();
+	AU.addPreserved<GISelValueTrackingAnalysisLegacy>();
+	AU.addRequired<MachineDominatorTreeWrapperPass>();
+	AU.addPreserved<MachineDominatorTreeWrapperPass>();
 	AU.addRequired<GISelCSEAnalysisWrapperPass>();
 	AU.addPreserved<GISelCSEAnalysisWrapperPass>();
 	MachineFunctionPass::getAnalysisUsage(AU);
@@ -135,8 +135,9 @@ bool HwtFpgaPreLegalizerCombiner::runOnMachineFunction(
 	const HwtFpgaTargetSubtarget &ST = MF.getSubtarget<HwtFpgaTargetSubtarget>();
 	const auto *LI = ST.getLegalizerInfo();
 
-	GISelKnownBits *KB = &getAnalysis<GISelKnownBitsAnalysis>().get(MF);
-	MachineDominatorTree *MDT = &getAnalysis<MachineDominatorTree>();
+    GISelValueTracking *VT =
+        &getAnalysis<GISelValueTrackingAnalysisLegacy>().get(MF);
+	MachineDominatorTree *MDT = &getAnalysis<MachineDominatorTreeWrapperPass>().getDomTree();
 	GISelCSEAnalysisWrapper &Wrapper =
 	    getAnalysis<GISelCSEAnalysisWrapperPass>().getCSEWrapper();
 	auto *CSEInfo = &Wrapper.get(TPC->getCSEConfig());
@@ -144,7 +145,7 @@ bool HwtFpgaPreLegalizerCombiner::runOnMachineFunction(
 	CombinerInfo CInfo(/*AllowIllegalOps*/ true, /*ShouldLegalizeIllegal*/ false,
 	                   /*LegalizerInfo*/ nullptr, EnableOpt, F.hasOptSize(),
 	                   F.hasMinSize());
-	HwtFpgaPreLegalizerGICombinerImpl Impl(MF, CInfo, TPC, *KB, CSEInfo,
+	HwtFpgaPreLegalizerGICombinerImpl Impl(MF, CInfo, TPC, VT, CSEInfo,
 	                                      RuleConfig, ST, MDT, LI);
 	return Impl.combineMachineInstrs();
 }
@@ -154,7 +155,8 @@ INITIALIZE_PASS_BEGIN(HwtFpgaPreLegalizerCombiner, DEBUG_TYPE,
 		"Combine HwtFpga machine instrs before legalization",
 		false, false)
 	INITIALIZE_PASS_DEPENDENCY(TargetPassConfig)
-	INITIALIZE_PASS_DEPENDENCY(GISelKnownBitsAnalysis)
+	INITIALIZE_PASS_DEPENDENCY(GISelValueTrackingAnalysisLegacy)
+	INITIALIZE_PASS_DEPENDENCY(MachineDominatorTreeWrapperPass)
 	INITIALIZE_PASS_DEPENDENCY(GISelCSEAnalysisWrapperPass)
 	INITIALIZE_PASS_END(HwtFpgaPreLegalizerCombiner, DEBUG_TYPE,
 			"Combine HwtFpga machine instrs before legalization", false,

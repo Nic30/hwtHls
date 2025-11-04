@@ -3,8 +3,7 @@
 #include <llvm/Analysis/OptimizationRemarkEmitter.h>
 #include <llvm/Analysis/DomTreeUpdater.h>
 #include <llvm/Transforms/Utils/LoopSimplify.h>
-
-#include <hwtHls/llvm/llvmSrc/LoopPeel.h>
+#include <llvm/Transforms/Utils/LoopPeel.h>
 
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 
@@ -16,6 +15,39 @@ using namespace llvm;
 
 namespace hwtHls {
 
+
+// :note: same as llvm::peelLoop but it also exports peeled headers and disabled simplifyLoop
+//     at the end.
+//     Original intent when copying was to add additional predecessors to peeled loop headers
+//     and simplifyLoop is disabled because it may modify header phis.
+// :note: this implies that you should call simplifyLoop as in original after finishing updates.
+bool hwtHls_peelLoop(llvm::Loop *L, unsigned PeelCount, bool PeelLast, llvm::LoopInfo *LI,
+		llvm::ScalarEvolution *SE, llvm::DominatorTree &DT,
+		llvm::AssumptionCache *AC, bool PreserveLCSSA,
+		llvm::ValueToValueMapTy &VMap,
+		llvm::SmallVector<llvm::BasicBlock*> &peeledHeaders) {
+	IRBuilder<> Builder(&*L->getHeader()->getParent()->getEntryBlock().getFirstNonPHIOrDbg());
+	auto tmpAlloca = Builder.CreateAlloca(Builder.getInt1Ty(), 0, "hwtHls_peelLoop_tmp");
+	Builder.SetInsertPoint(&*L->getHeader()->getFirstNonPHIOrDbg());
+	Builder.CreateLoad(Builder.getInt1Ty(), tmpAlloca, true);
+	bool res = peelLoop(L, PeelCount, PeelLast, LI, SE, DT, AC, PreserveLCSSA, VMap);
+	SmallVector<User*> tmpAllocaUsers(tmpAlloca->users());
+	for (auto u: tmpAllocaUsers) {
+		auto UI = dyn_cast<LoadInst>(u);
+		assert(UI);
+		if (UI->getParent() != L->getHeader()) {
+			peeledHeaders.push_back(UI->getParent());
+		}
+		UI->eraseFromParent();
+	}
+	assert(peeledHeaders.size());
+	sort(peeledHeaders, [&DT](BasicBlock *BB0, BasicBlock *BB1) {
+		return DT.dominates(BB0, BB1);
+	});
+	tmpAlloca->eraseFromParent();
+	return res;
+}
+
 LoopUnrollResult tryAliginLoopBeginByPeeling(DominatorTree &DT, LoopInfo *LI,
 		ScalarEvolution &SE, const TargetLibraryInfo &TLI,
 		const TargetTransformInfo &TTI, AssumptionCache &AC,
@@ -26,8 +58,7 @@ LoopUnrollResult tryAliginLoopBeginByPeeling(DominatorTree &DT, LoopInfo *LI,
 		const llvm::SetVector<size_t> &_minNumberOfBitsProcessedPerIteration) {
 	// resolve amount of bits taken/added from/to stream per iteration and from possible offsets of loop header resolve
 	// how many times to peel and how many times to unroll to achieve desired throughput
-	TargetTransformInfo::PeelingPreferences PP;
-	PP.PeelProfiledIterations = false;
+
 	if (_minNumberOfBitsProcessedPerIteration.size() != 1) {
 		LLVM_DEBUG(
 				dbgs() << "PEELING loop %" << L->getHeader()->getName()
@@ -66,6 +97,13 @@ LoopUnrollResult tryAliginLoopBeginByPeeling(DominatorTree &DT, LoopInfo *LI,
 	} else if (entryOffsets.size() == 1 && entryOffsets[0] == 0) {
 		// no peeling required because loop can already start only on bit 0
 	} else {
+		TargetTransformInfo::PeelingPreferences PP;
+		// Set the default values.
+		PP.PeelCount = 0;
+		PP.AllowPeeling = true;
+		PP.AllowLoopNestsPeeling = false;
+		PP.PeelLast = false;
+		PP.PeelProfiledIterations = true;
 		// can peel if the loop consumes fixed number of bits and if this number
 		// of bits can be used to slice of unaligned prefix of processed data
 		PP.PeelCount = 0;
@@ -108,7 +146,7 @@ LoopUnrollResult tryAliginLoopBeginByPeeling(DominatorTree &DT, LoopInfo *LI,
 		//   This algorithm uses method 2.
 		SmallVector<BasicBlock*> peeledHeaders;
 		ValueToValueMapTy VMap;
-		if (hwtHls_peelLoop(L, PP.PeelCount, LI, &SE, DT, &AC, PreserveLCSSA,
+		if (hwtHls_peelLoop(L, PP.PeelCount, PP.PeelLast, LI, &SE, DT, &AC, PreserveLCSSA,
 				VMap, peeledHeaders)) {
 			assert(peeledHeaders.size() == PP.PeelCount);
 			IRBuilder<> Builder(&F.getEntryBlock().front());

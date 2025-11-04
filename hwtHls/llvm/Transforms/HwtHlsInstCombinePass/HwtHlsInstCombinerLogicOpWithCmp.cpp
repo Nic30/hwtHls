@@ -17,7 +17,7 @@ llvm::Instruction* HwtHlsInstCombiner::tryReduceAndWithEq_to_widerEq(
 		return nullptr;
 	Value * V0, *V1;
 	size_t offset0, width0, offset1, width1;
-	CmpInst::Predicate Pred0;
+	CmpPredicate Pred0;
 	ConstantInt * C0;
 	if (match(&I, m_And(m_ICmp(Pred0, m_BitrangeGet(m_Value(V0), offset0, width0), m_ConstantInt(C0)),
 				        m_BitrangeGet(m_Value(V1), offset1, width1)

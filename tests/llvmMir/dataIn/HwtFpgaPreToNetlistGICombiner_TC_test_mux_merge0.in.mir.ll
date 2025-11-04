@@ -118,9 +118,13 @@ selected:        true
 failedISel:      false
 tracksRegLiveness: true
 hasWinCFI:       false
+noPhis:          true
+isSSA:           false
+noVRegs:         false
+hasFakeUses:     false
 callsEHReturn:   false
 callsUnwindInit: false
-hasEHCatchret:   false
+hasEHContTarget: false
 hasEHScopes:     false
 hasEHFunclets:   false
 isOutlined:      false
@@ -128,83 +132,83 @@ debugInstrRef:   false
 failsVerification: false
 tracksDebugUserValues: false
 registers:
-  - { id: 0, class: anyregcls, preferred-register: '' }
-  - { id: 1, class: anyregcls, preferred-register: '' }
-  - { id: 2, class: anyregcls, preferred-register: '' }
-  - { id: 3, class: anyregcls, preferred-register: '' }
-  - { id: 4, class: anyregcls, preferred-register: '' }
-  - { id: 5, class: anyregcls, preferred-register: '' }
-  - { id: 6, class: anyregcls, preferred-register: '' }
-  - { id: 7, class: anyregcls, preferred-register: '' }
-  - { id: 8, class: anyregcls, preferred-register: '' }
-  - { id: 9, class: _, preferred-register: '' }
-  - { id: 10, class: anyregcls, preferred-register: '' }
-  - { id: 11, class: _, preferred-register: '' }
-  - { id: 12, class: anyregcls, preferred-register: '' }
-  - { id: 13, class: anyregcls, preferred-register: '' }
-  - { id: 14, class: anyregcls, preferred-register: '' }
-  - { id: 15, class: anyregbank, preferred-register: '' }
-  - { id: 16, class: anyregcls, preferred-register: '' }
-  - { id: 17, class: anyregbank, preferred-register: '' }
-  - { id: 18, class: anyregcls, preferred-register: '' }
-  - { id: 19, class: anyregcls, preferred-register: '' }
-  - { id: 20, class: anyregcls, preferred-register: '' }
-  - { id: 21, class: anyregcls, preferred-register: '' }
-  - { id: 22, class: _, preferred-register: '' }
-  - { id: 23, class: anyregcls, preferred-register: '' }
-  - { id: 24, class: anyregcls, preferred-register: '' }
-  - { id: 25, class: anyregcls, preferred-register: '' }
-  - { id: 26, class: anyregcls, preferred-register: '' }
-  - { id: 27, class: anyregcls, preferred-register: '' }
-  - { id: 28, class: anyregcls, preferred-register: '' }
-  - { id: 29, class: anyregcls, preferred-register: '' }
-  - { id: 30, class: anyregcls, preferred-register: '' }
-  - { id: 31, class: anyregcls, preferred-register: '' }
-  - { id: 32, class: anyregcls, preferred-register: '' }
-  - { id: 33, class: anyregcls, preferred-register: '' }
-  - { id: 34, class: anyregcls, preferred-register: '' }
-  - { id: 35, class: anyregcls, preferred-register: '' }
-  - { id: 36, class: anyregcls, preferred-register: '' }
-  - { id: 37, class: anyregcls, preferred-register: '' }
-  - { id: 38, class: anyregcls, preferred-register: '' }
-  - { id: 39, class: anyregcls, preferred-register: '' }
-  - { id: 40, class: anyregcls, preferred-register: '' }
-  - { id: 41, class: anyregcls, preferred-register: '' }
-  - { id: 42, class: anyregcls, preferred-register: '' }
-  - { id: 43, class: anyregcls, preferred-register: '' }
-  - { id: 44, class: anyregcls, preferred-register: '' }
-  - { id: 45, class: anyregcls, preferred-register: '' }
-  - { id: 46, class: anyregcls, preferred-register: '' }
-  - { id: 47, class: anyregcls, preferred-register: '' }
-  - { id: 48, class: anyregcls, preferred-register: '' }
-  - { id: 49, class: anyregcls, preferred-register: '' }
-  - { id: 50, class: anyregcls, preferred-register: '' }
-  - { id: 51, class: anyregcls, preferred-register: '' }
-  - { id: 52, class: anyregcls, preferred-register: '' }
-  - { id: 53, class: anyregcls, preferred-register: '' }
-  - { id: 54, class: anyregcls, preferred-register: '' }
-  - { id: 55, class: anyregcls, preferred-register: '' }
-  - { id: 56, class: anyregcls, preferred-register: '' }
-  - { id: 57, class: anyregcls, preferred-register: '' }
-  - { id: 58, class: anyregcls, preferred-register: '' }
-  - { id: 59, class: anyregcls, preferred-register: '' }
-  - { id: 60, class: anyregcls, preferred-register: '' }
-  - { id: 61, class: anyregcls, preferred-register: '' }
-  - { id: 62, class: anyregcls, preferred-register: '' }
-  - { id: 63, class: anyregcls, preferred-register: '' }
-  - { id: 64, class: anyregcls, preferred-register: '' }
-  - { id: 65, class: anyregcls, preferred-register: '' }
-  - { id: 66, class: anyregcls, preferred-register: '' }
-  - { id: 67, class: anyregcls, preferred-register: '' }
-  - { id: 68, class: anyregcls, preferred-register: '' }
-  - { id: 69, class: anyregcls, preferred-register: '' }
-  - { id: 70, class: anyregcls, preferred-register: '' }
-  - { id: 71, class: anyregcls, preferred-register: '' }
-  - { id: 72, class: anyregcls, preferred-register: '' }
-  - { id: 73, class: anyregcls, preferred-register: '' }
-  - { id: 74, class: anyregcls, preferred-register: '' }
-  - { id: 75, class: anyregcls, preferred-register: '' }
-  - { id: 76, class: anyregcls, preferred-register: '' }
+  - { id: 0, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 1, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 2, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 3, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 4, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 5, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 6, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 7, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 8, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 9, class: _, preferred-register: '', flags: [  ] }
+  - { id: 10, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 11, class: _, preferred-register: '', flags: [  ] }
+  - { id: 12, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 13, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 14, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 15, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 16, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 17, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 18, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 19, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 20, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 21, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 22, class: _, preferred-register: '', flags: [  ] }
+  - { id: 23, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 24, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 25, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 26, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 27, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 28, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 29, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 30, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 31, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 32, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 33, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 34, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 35, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 36, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 37, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 38, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 39, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 40, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 41, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 42, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 43, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 44, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 45, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 46, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 47, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 48, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 49, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 50, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 51, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 52, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 53, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 54, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 55, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 56, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 57, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 58, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 59, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 60, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 61, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 62, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 63, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 64, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 65, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 66, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 67, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 68, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 69, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 70, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 71, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 72, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 73, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 74, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 75, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 76, class: anyregcls, preferred-register: '', flags: [  ] }
 liveins:         []
 frameInfo:
   isFrameAddressTaken: false

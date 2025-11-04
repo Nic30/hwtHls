@@ -192,7 +192,7 @@ std::optional<bool> isImpliedConditionByAssume(const Value *LHS,
 		 * 1 1  1
 		 * */
 		using Predicate = ICmpInst::Predicate;
-		Predicate Pred;
+		CmpPredicate Pred;
 		// :note: llvm::findAffectedValues does not update cache for ULE
 		if (match(Arg, m_ICmp(Pred, m_Specific(LHS), m_Specific(RHS)))
 				&& Pred == Predicate::ICMP_ULE) {
@@ -212,7 +212,7 @@ std::optional<bool> isImpliedConditionByAssume(const Value *LHS,
 		if (!RHS_slice.isIdentity()) {
 			// check for LHS ==> more bits from RHS src bitvector at once
 			// implemented as LHS ==> RHS.src[n:m] == C
-			Predicate Pred2;
+			CmpPredicate Pred2;
 			ConstantInt *CI;
 			Value *RHS_src;
 			if (match(Arg,
@@ -450,7 +450,7 @@ std::optional<bool> isImpliedConditionAndOrTree(IRBuilderBase &Builder,
 	ConstantInt *LHS_C;
 	Value *v0, *x;
 	using Predicate= ICmpInst::Predicate;
-	Predicate RHS_Pred, LHS_Pred;
+	CmpPredicate RHS_Pred, LHS_Pred;
 	auto getConstants = [&RHS_C, &LHS_C]() -> std::pair<APInt, APInt> {
 		size_t width = std::max(LHS_C->getType()->getIntegerBitWidth(),
 				RHS_C->getType()->getIntegerBitWidth());
@@ -468,7 +468,7 @@ std::optional<bool> isImpliedConditionAndOrTree(IRBuilderBase &Builder,
 				m_ICmp(LHS_Pred,
 						m_c_Add(m_ZExtOrSelf(m_Specific(v0)), m_Value(x)),
 						m_ConstantInt(LHS_C))) && addSubHasNoUnsignedWrap()) {
-			if (RHS_Pred == LHS_Pred
+			if (CmpPredicate::getMatching(RHS_Pred, LHS_Pred).has_value()
 					&& (RHS_Pred == Predicate::ICMP_ULT
 							|| RHS_Pred == Predicate::ICMP_ULE)) {
 				// if LHS_C <= RHS_C, RHS is always 1 if LHS is 1, LHS ==> RHS
@@ -486,7 +486,7 @@ std::optional<bool> isImpliedConditionAndOrTree(IRBuilderBase &Builder,
 						m_Sub(m_ZExtOrSelf(m_Specific(v0)), m_Value(x)),
 						m_ConstantInt(LHS_C))) && addSubHasNoUnsignedWrap()) {
 			// same thing just for >, >=
-			if (RHS_Pred == LHS_Pred
+			if (CmpPredicate::getMatching(RHS_Pred, LHS_Pred).has_value()
 					&& (RHS_Pred == Predicate::ICMP_UGT
 							|| RHS_Pred == Predicate::ICMP_UGE)) {
 				// if LHS_C >= RHS_C it is more constraining thus LHS ==> RHS

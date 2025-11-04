@@ -12,7 +12,7 @@ using namespace llvm::MIPatternMatch;
 
 namespace hwtHls {
 
-MachineOperand* getRegisterNegationIfExits(MachineRegisterInfo &MRI,
+MachineOperand* getRegisterNegationIfExits(MachineRegisterInfo &MRI, const TargetRegisterInfo * TRI,
 		llvm::MachineBasicBlock &TargetMBB,
 		llvm::MachineBasicBlock::iterator TargetIp, Register reg,
 		bool &wasOriginallyKillOrDead) {
@@ -27,7 +27,7 @@ MachineOperand* getRegisterNegationIfExits(MachineRegisterInfo &MRI,
 			if (Op1.isReg()) {
 				if (MRI.isSSA()
 						|| (I.getParent() == &TargetMBB
-								&& !RegisterIsDefinedWithinRange(Op1.getReg(),
+								&& !RegisterIsDefinedWithinRange(TRI, Op1.getReg(),
 										++I.getIterator(), TargetIp))) {
 					Op1CanBeUsed = true;
 				}
@@ -93,7 +93,7 @@ MachineOperand* getRegisterNegationIfExits(MachineRegisterInfo &MRI,
 			}
 			if (FoundExistingNegationOfTargetReg) {
 				auto &Op0 = predInstr.getOperand(0);
-				if (Register_isRedefinedInLinearBlockSequenceEndToBegin(
+				if (Register_isRedefinedInLinearBlockSequenceEndToBegin(TRI,
 						Op0.getReg(), predInstr.getIterator(), TargetMBB,
 						TargetIp)) {
 					return nullptr;
@@ -105,7 +105,7 @@ MachineOperand* getRegisterNegationIfExits(MachineRegisterInfo &MRI,
 			if (TargetRegIsDefinedByNegation
 					&& predInstr.getOperand(1).isReg()) {
 				auto &Op1 = predInstr.getOperand(1);
-				if (Register_isRedefinedInLinearBlockSequenceEndToBegin(
+				if (Register_isRedefinedInLinearBlockSequenceEndToBegin(TRI,
 						Op1.getReg(), predInstr.getIterator(), TargetMBB,
 						TargetIp)) {
 					return nullptr;
@@ -114,7 +114,7 @@ MachineOperand* getRegisterNegationIfExits(MachineRegisterInfo &MRI,
 				Op1.setIsKill(false);
 				return &Op1;
 			}
-			if (predInstr.definesRegister(reg))
+			if (predInstr.definesRegister(reg, TRI))
 				return nullptr;
 		}
 		if (_TargetMBB->pred_size() != 1) {
@@ -149,10 +149,10 @@ MachineOperand& _negateRegister(MachineRegisterInfo &MRI,
 	return MIB.getInstr()->getOperand(0);
 }
 
-Register negateRegister(MachineRegisterInfo &MRI, MachineIRBuilder &Builder,
+Register negateRegister(MachineRegisterInfo &MRI, const TargetRegisterInfo * TRI, MachineIRBuilder &Builder,
 		Register reg, bool isKill) {
 	bool wasKillOrDead;
-	auto existingN = getRegisterNegationIfExits(MRI, Builder.getMBB(),
+	auto existingN = getRegisterNegationIfExits(MRI, TRI, Builder.getMBB(),
 			Builder.getInsertPt(), reg, wasKillOrDead);
 	if (existingN) {
 		return existingN->getReg();
@@ -166,8 +166,9 @@ std::pair<llvm::MachineIRBuilder, Register> negateRegisterForInstr(
 	assert(MBB);
 	MachineFunction &MF = *MBB->getParent();
 	MachineRegisterInfo &MRI = MF.getRegInfo();
+	const TargetRegisterInfo * TRI = MF.getSubtarget().getRegisterInfo();
 	MachineIRBuilder Builder(*MBB, MI);
-	Register reg_n = hwtHls::negateRegister(MRI, Builder, reg, isKill);
+	Register reg_n = hwtHls::negateRegister(MRI, TRI, Builder, reg, isKill);
 	return {Builder, reg_n};
 }
 
@@ -233,9 +234,17 @@ void predicateInstructionUsingDefRegRename(llvm::MachineRegisterInfo &MRI,
 		bimap<llvm::Register, llvm::Register> &regReplaces) {
 	if (MI.isReturn())
 		return;
-	if (MI.hasUnmodeledSideEffects()) {
-		errs() << MI << "\n";
-		llvm_unreachable("Unexpected instruction with side effects");
+	switch (MI.getOpcode()) {
+	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER_WITH_SIDEEFFECT:
+	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE_WITH_SIDEEFECT:
+		// :note: has predicate added, now we predicate dst store
+		break;
+	default: {
+		if (MI.hasUnmodeledSideEffects()) {
+			errs() << MI << "\n";
+			llvm_unreachable("Unexpected instruction with side effects");
+		}
+	}
 	}
 	if (MRI.isSSA()) {
 		// for SSA this is not required, because there can not be any use
@@ -391,19 +400,19 @@ void createSpeculationMergeMuxes(llvm::MachineBasicBlock &insertPointBlock,
 	}
 }
 
-void Condition_and(llvm::MachineIRBuilder &Builder,
+void Condition_and(const TargetRegisterInfo * TRI, llvm::MachineIRBuilder &Builder,
 		llvm::SmallVectorImpl<llvm::MachineOperand> &Op0,
 		llvm::SmallVectorImpl<llvm::MachineOperand> &Op1AndDst) {
-	return Condition_and_or(TargetOpcode::G_AND, Builder, Op0, Op1AndDst);
+	return Condition_and_or(TRI, TargetOpcode::G_AND, Builder, Op0, Op1AndDst);
 }
 
-void Condition_or(llvm::MachineIRBuilder &Builder,
+void Condition_or(const TargetRegisterInfo * TRI, llvm::MachineIRBuilder &Builder,
 		llvm::SmallVectorImpl<llvm::MachineOperand> &Op0,
 		llvm::SmallVectorImpl<llvm::MachineOperand> &Op1AndDst) {
-	return Condition_and_or(TargetOpcode::G_OR, Builder, Op0, Op1AndDst);
+	return Condition_and_or(TRI, TargetOpcode::G_OR, Builder, Op0, Op1AndDst);
 }
 
-void Condition_and_or(unsigned opcode_and_or, llvm::MachineIRBuilder &Builder,
+void Condition_and_or(const TargetRegisterInfo * TRI, unsigned opcode_and_or, llvm::MachineIRBuilder &Builder,
 		llvm::SmallVectorImpl<llvm::MachineOperand> &Op0,
 		llvm::SmallVectorImpl<llvm::MachineOperand> &Op1AndDst) {
 	auto &TII = Builder.getTII();
@@ -419,12 +428,12 @@ void Condition_and_or(unsigned opcode_and_or, llvm::MachineIRBuilder &Builder,
 		auto Src0 = Op0[0].getReg();
 		if (Op0[1].getImm()) {
 			// if is negated
-			Src0 = hwtHls::negateRegister(MRI, Builder, Src0, Op0[0].isKill());
+			Src0 = hwtHls::negateRegister(MRI, TRI, Builder, Src0, Op0[0].isKill());
 		}
 		auto Src1 = Op1AndDst[0].getReg();
 		if (Op1AndDst[1].getImm()) {
 			// if is negated
-			Src1 = hwtHls::negateRegister(MRI, Builder, Src1,
+			Src1 = hwtHls::negateRegister(MRI, TRI, Builder, Src1,
 					Op1AndDst[0].isKill());
 		}
 		for (auto R: {Src0, Src1}) {
@@ -520,6 +529,7 @@ void PHIsToSelectAfterIfCvt(HwtHlsVRegLiveins &VRegLiveins,
 	std::optional<Register> CondReg;
 	MachineFunction &MF = *TopMBB.getParent();
 	MachineRegisterInfo &MRI = MF.getRegInfo();
+	const TargetRegisterInfo * TRI = MF.getSubtarget().getRegisterInfo();
 	MachineOperand *lastUseOfCond = nullptr;
 
 	SmallVector<PhiPruningItem> toPrune;
@@ -553,7 +563,7 @@ void PHIsToSelectAfterIfCvt(HwtHlsVRegLiveins &VRegLiveins,
 			bool isNegated = Cond[1].getImm();
 
 			if (isNegated) {
-				MachineOperand *_Br_n = hwtHls::getRegisterNegationIfExits(MRI,
+				MachineOperand *_Br_n = hwtHls::getRegisterNegationIfExits(MRI, TRI,
 						TopMBB, TopMBB.terminators().begin(), Br_cond.getReg(),
 						CondWasOriginallyUnused);
 				if (_Br_n) {

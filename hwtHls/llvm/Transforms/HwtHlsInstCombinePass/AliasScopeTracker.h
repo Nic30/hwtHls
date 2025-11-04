@@ -4,7 +4,7 @@
 
 namespace hwtHls {
 
-// copied from llvm-18 (not modified)
+// :note: copied from llvm-llvm-21.1.2 (not modified)
 // Track the scopes used by !alias.scope and !noalias. In a function, a
 // @llvm.experimental.noalias.scope.decl is only useful if that scope is used
 // by both sets. If not, the declaration of the scope can be safely omitted.

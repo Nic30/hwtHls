@@ -112,9 +112,13 @@ selected:        true
 failedISel:      false
 tracksRegLiveness: true
 hasWinCFI:       false
+noPhis:          true
+isSSA:           false
+noVRegs:         false
+hasFakeUses:     false
 callsEHReturn:   false
 callsUnwindInit: false
-hasEHCatchret:   false
+hasEHContTarget: false
 hasEHScopes:     false
 hasEHFunclets:   false
 isOutlined:      false
@@ -125,7 +129,7 @@ registers:
 """)
     for reg in regs:
         out.write(f"""\
-  - {{ id: {reg:d}, class: anyregcls, preferred-register: '' }}
+  - {{ id: {reg:d}, class: anyregcls, preferred-register: '', flags: [  ] }}
 """)
     out.write("""
 liveins:         []

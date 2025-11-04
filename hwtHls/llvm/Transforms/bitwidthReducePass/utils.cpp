@@ -105,7 +105,7 @@ bool KnownBitRangeInfo::isNegationOf(const KnownBitRangeInfo &rhs) const {
 		}
 
 		Value *LHS0, *RHS0;
-		CmpInst::Predicate P0, P1;
+		CmpPredicate P0, P1;
 		if (width == 1 && match(src0, m_Cmp(P0, m_Value(LHS0), m_Value(RHS0)))) {
 			Value *LHS1, *RHS1;
 			if (match(src1, m_Cmp(P1, m_Value(LHS1), m_Value(RHS1)))) {

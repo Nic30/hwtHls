@@ -1,5 +1,6 @@
 #include <hwtHls/llvm/targets/intrinsic/threadSplit.h>
 #include <llvm/ADT/StringExtras.h>
+#include <llvm/IR/Module.h>
 
 #include <llvm/Analysis/AssumptionCache.h>
 #include <llvm/Analysis/AliasAnalysis.h>
@@ -153,12 +154,11 @@ ThreadSplitSectionMetadata ThreadSplitGetSeparatedSection(DomTreeUpdater &DTU,
 
 	if (firstThreadSplit.getParent()->begin()
 			!= firstThreadSplit.getIterator()) {
-		DTU.flush();
 		// split block so it starts with ThreadSplit
 		auto BBName = firstThreadSplit.getParent()->getName()
 				+ ".threadSplit.begin" + SectionName;
-		SplitBlock(firstThreadSplit.getParent(), firstThreadSplit.getIterator(),
-				&DTU, &LI, /*MSSAU*/nullptr, BBName, /*Before*/true);
+		splitBlockBefore(firstThreadSplit.getParent(), firstThreadSplit.getIterator(),
+				&DTU, &LI, /*MSSAU*/nullptr, BBName);
 	}
 	auto sectionMetadata = firstThreadSplit.getMetadata(
 			ThreadSplitSectionMetadata::METADATA_NAME);
@@ -186,6 +186,8 @@ ThreadSplitSectionMetadata ThreadSplitGetSeparatedSection(DomTreeUpdater &DTU,
 	std::set<BasicBlock*> seen;
 	SmallVector<BasicBlock*> toSearch = { BB };
 	SmallVector<BasicBlock*> ExitingBBs;
+	if (DTU.hasPendingUpdates())
+		DTU.flush();
 	//bool LatchReached = false;
 	while (toSearch.size()) {
 		auto *_BB = toSearch.back();
@@ -193,18 +195,19 @@ ThreadSplitSectionMetadata ThreadSplitGetSeparatedSection(DomTreeUpdater &DTU,
 		if (seen.contains(_BB))
 			continue;
 		bool threadSplitFound = false;
-		for (auto &I : *_BB) {
+		for (auto &I : make_early_inc_range(*_BB)) {
 			auto fnName = getNameOfCalledFunction(I);
 			if (fnName.has_value() && fnName.value() == EndName) {
 				assert(
 						I.getMetadata(ThreadSplitSectionMetadata::METADATA_NAME)
 								== sectionMetadata);
-				DTU.flush();
+
 				// split block so it starts with ThreadSplit
 				auto BBName = _BB->getName() + ".threadSplit.end."
 						+ SectionName;
 				SplitBlock(_BB, I.getIterator(), &DTU, &LI, /*MSSAU*/nullptr,
 						BBName, /*Before*/false);
+				DTU.flush();
 				//Blocks.push_back(_BB); // predecessor bb contains selected instructions
 				// I is now in block which is not in section
 				I.eraseFromParent();
@@ -234,19 +237,6 @@ ThreadSplitSectionMetadata ThreadSplitGetSeparatedSection(DomTreeUpdater &DTU,
 	//Blocks.push_back(Latch);
 	firstThreadSplit.eraseFromParent();
 
-	for (auto *BB : Blocks) {
-		for (auto &I : *BB) {
-			if (auto CI = dyn_cast<CallInst>(&I)) {
-				if (IsThreadSplitBegin(CI)) {
-					llvm_unreachable(
-							"Section should not contain ThreadSplitBegin because we were extracting inner most section");
-				} else if (IsThreadSplitEnd(CI)) {
-					llvm_unreachable(
-							"Section should not contain ThreadSplitEnd because we were extracting inner most section");
-				}
-			}
-		}
-	}
 	return ThreadSplitSectionMetadata::fromMetadata(*sectionMetadata);
 }
 

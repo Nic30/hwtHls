@@ -114,11 +114,11 @@ void buildSegmentValueTmpVars(const StreamChannelProps &streamProps,
 		Argument &IoArg) {
 	auto segmentTy = IntegerType::get(F.getContext(),
 			streamProps.getWidthOfBusWord() / streamProps.segmentCnt);
-	const DataLayout &DL = F.getParent()->getDataLayout();
+	const DataLayout &DL = F.getDataLayout();
 	for (size_t laneI = 0; laneI < streamProps.segmentCnt; laneI++) {
 		auto a = new AllocaInst(segmentTy, DL.getAllocaAddrSpace(), nullptr,
 				IoArg.getName() + "." + std::to_string(laneI) + "segment",
-				&F.getEntryBlock().front());
+				F.getEntryBlock().front().getIterator());
 		segmentValueTmps.push_back(a);
 	}
 }

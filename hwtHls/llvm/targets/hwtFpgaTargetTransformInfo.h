@@ -30,7 +30,7 @@ public:
 
 	explicit HwtFpgaTTIImpl(const HwtFpgaTargetMachine *TM,
 			const llvm::Function &F) :
-			BaseT(F.getParent()->getDataLayout()), TM(TM), ST(
+			BaseT(F.getDataLayout()), TM(TM), ST(
 					TM->getSubtargetImpl(F)) {
 	}
 
@@ -46,47 +46,48 @@ public:
 	llvm::InstructionCost getIntImmCostInst(unsigned Opcode, unsigned Idx,
 			const llvm::APInt &Imm, llvm::Type *Ty,
 			TTI::TargetCostKind CostKind,
-			llvm::Instruction *Inst = nullptr) const;
+			llvm::Instruction *Inst = nullptr) const override;
 	llvm::InstructionCost getInstructionCost(const llvm::User *U,
-			llvm::ArrayRef<const llvm::Value*> Operands, TTI::TargetCostKind CostKind);
+			llvm::ArrayRef<const llvm::Value*> Operands, TTI::TargetCostKind CostKind) const override;
 	unsigned getNumberOfRegisters(unsigned ClassID) const;
-	bool hasBranchDivergence(const Function *F = nullptr);
-	bool isSourceOfDivergence(const llvm::Value *V);
+	bool hasBranchDivergence(const Function *F = nullptr) const override;
+	bool isSourceOfDivergence(const llvm::Value *V) const override;
 	void getUnrollingPreferences(llvm::Loop *, llvm::ScalarEvolution &,
 	                               llvm::TTI::UnrollingPreferences &,
 	                               llvm::OptimizationRemarkEmitter *) const;
-	bool isLegalAddImmediate(int64_t Imm) const;
-	bool isLegalICmpImmediate(int64_t Imm) const;
-	bool isLegalMaskedStore(llvm::Type *DataType, llvm::Align Alignment) const;
-	bool isLegalMaskedLoad(llvm::Type *DataType, llvm::Align Alignment) const;
-	bool isTruncateFree(llvm::Type *Ty1, llvm::Type *Ty2) const;
-	bool isTypeLegal(llvm::Type *Ty) const;
-	bool shouldBuildLookupTables() const;
-	bool shouldBuildLookupTablesForConstant(Constant *C) const;
-	TTI::PopcntSupportKind getPopcntSupport(unsigned IntTyWidthInBit);
-	llvm::TypeSize getRegisterBitWidth(bool Vector) const;
+	bool isLegalAddImmediate(int64_t Imm) const override;
+	bool isLegalICmpImmediate(int64_t Imm) const override;
+	bool isLegalMaskedStore(llvm::Type *DataType, llvm::Align Alignment, unsigned AddressSpace) const override;
+	bool isLegalMaskedLoad(llvm::Type *DataType, llvm::Align Alignment, unsigned AddressSpace) const override;
+	bool isTruncateFree(llvm::Type *Ty1, llvm::Type *Ty2) const override;
+	bool isTypeLegal(llvm::Type *Ty) const override;
+	bool shouldBuildLookupTables() const override;
+	bool shouldBuildLookupTablesForConstant(Constant *C) const override;
+	TTI::PopcntSupportKind getPopcntSupport(unsigned IntTyWidthInBit) const;
 
-	llvm::InstructionCost getShuffleCost(TTI::ShuffleKind Kind, llvm::VectorType *Ty, llvm::ArrayRef<int> Mask,
-            TTI::TargetCostKind CostKind, int Index, llvm::VectorType *SubTp,
-            llvm::ArrayRef<const llvm::Value *> Args = std::nullopt) const;
+	llvm::TypeSize getRegisterBitWidth(TargetTransformInfo::RegisterKind K) const override;
+
+	llvm::InstructionCost getShuffleCost(TTI::ShuffleKind Kind, VectorType *DstTy, VectorType *SrcTy,
+            ArrayRef<int> Mask, TTI::TargetCostKind CostKind, int Index,
+            VectorType *SubTp, ArrayRef<const Value *> Args = {},
+            const Instruction *CxtI = nullptr) const override;
 	llvm::InstructionCost getCastInstrCost(unsigned Opcode, llvm::Type *Dst,
 			llvm::Type *Src, TTI::CastContextHint CCH,
-			TTI::TargetCostKind CostKind, const llvm::Instruction *I) const;
+			TTI::TargetCostKind CostKind, const llvm::Instruction *I) const override;
+
 	llvm::InstructionCost getExtractWithExtendCost(unsigned Opcode,
-			llvm::Type *Dst, llvm::VectorType *VecTy, unsigned Index) const;
-	llvm::InstructionCost getVectorInstrCost(unsigned Opcode, Type *Val,
-			TTI::TargetCostKind CostKind, unsigned Index, llvm::Value *Op0,
-			llvm::Value *Op1) const;
+			llvm::Type *Dst, llvm::VectorType *VecTy, unsigned Index, TTI::TargetCostKind CostKind) const override;
 	llvm::InstructionCost getVectorInstrCost(const Instruction &I, Type *Val,
-			TTI::TargetCostKind CostKind, unsigned Index) const;
-	llvm::Type* getMemcpyLoopLoweringType(llvm::LLVMContext &Context,
-			llvm::Value *Length, unsigned SrcAddrSpace, unsigned DestAddrSpace,
-			unsigned SrcAlign, unsigned DestAlign, std::optional<uint32_t> AtomicElementSize) const;
-	unsigned getLoadStoreVecRegBitWidth(unsigned AddrSpace) const;
+			TTI::TargetCostKind CostKind, unsigned Index) const override;
+	llvm::Type* getMemcpyLoopLoweringType(LLVMContext &Context, Value *Length,
+            unsigned SrcAddrSpace, unsigned DestAddrSpace,
+            Align SrcAlign, Align DestAlign,
+            std::optional<uint32_t> AtomicElementSize) const override;
+	unsigned getLoadStoreVecRegBitWidth(unsigned AddrSpace) const override;
 	bool isLegalToVectorizeLoadChain(unsigned ChainSizeInBytes,
-			llvm::Align Alignment, unsigned AddrSpace) const;
+			llvm::Align Alignment, unsigned AddrSpace) const override;
 	bool isLegalToVectorizeStoreChain(unsigned ChainSizeInBytes,
-			llvm::Align Alignment, unsigned AddrSpace) const;
+			llvm::Align Alignment, unsigned AddrSpace) const override;
 };
 
 }

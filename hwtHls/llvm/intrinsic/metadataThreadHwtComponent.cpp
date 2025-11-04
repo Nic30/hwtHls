@@ -74,10 +74,10 @@ IntStringTupleOrObjectPath IntStringTupleOrObjectPath::fromMetadata(
 						&& "MDTuple in IntStringTupleOrObjectPath may be only 2 item tuple with \"pyobj\" or \"tuple\" as first operand and tuple as second");
 		auto tupleVals = dyn_cast<MDTuple>(tuple->getOperand(1).get());
 		assert(tupleVals);
-		if (tupleTy->getString().equals(METADATA_NAME_PYOBJPATH)) {
+		if (tupleTy->getString() == METADATA_NAME_PYOBJPATH) {
 			return IntStringTupleOrObjectPath(
 					MetadataPyObjectPath::parse(tupleVals));
-		} else if (tupleTy->getString().equals(METADATA_NAME_TUPLE)) {
+		} else if (tupleTy->getString() == METADATA_NAME_TUPLE) {
 			auto parsedTuple = std::vector<IntStringTupleOrObjectPath>();
 			// Recursively parse the elements of the tuple
 			for (auto &operand : tuple->operands()) {

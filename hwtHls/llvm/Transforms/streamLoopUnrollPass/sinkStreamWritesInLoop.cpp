@@ -24,7 +24,7 @@ void sinkMergableSequenceOfWritesMoveWrites(llvm::Loop &L, llvm::LoopInfo &LI,
 		IRBuilder<> &Builder, BasicBlock *writesEntry, BasicBlock *writesExit) {
 	DTU.flush();
 	// prepare preheader for tmp variables which will be used for write data and conditions
-	auto headerFirstNonPhi = L.getHeader()->getFirstNonPHI();
+	auto headerFirstNonPhi = L.getHeader()->getFirstNonPHIIt();
 	SmallVector<AllocaInst*> tmpAllocas;
 	auto *curBB = writesEntry;
 	for (const OptionalStreamWriteCFGFragment &wr : mergableWriteSeqeunce) {
@@ -161,7 +161,7 @@ void sinkMergableSequenceOfWrites(llvm::Loop &L, llvm::LoopInfo &LI,
 	nullptr, latch0->getName() + ".latch1");
 	DomTreeUpdater DTU(&DT, DomTreeUpdater::UpdateStrategy::Lazy);
 	BasicBlock *exit1 = exit0;
-	exit0 = splitBlockBefore(exit0, exit0->getFirstNonPHI(), &DTU, &LI, /*MSSAU*/
+	exit0 = splitBlockBefore(exit0, exit0->getFirstNonPHIIt(), &DTU, &LI, /*MSSAU*/
 	nullptr, exit0->getName() + ".exit1");
 
 	BasicBlock *writesEntry = SplitEdge(exit0, exit1, &DT, &LI, /*MSSAU*/
@@ -192,7 +192,7 @@ void sinkMergableSequenceOfWrites(llvm::Loop &L, llvm::LoopInfo &LI,
 	latch0->getTerminator()->replaceSuccessorWith(latch1, writesEntry);
 
 	writesExit->getTerminator()->eraseFromParent();
-	Builder.SetInsertPoint(writesEntry->getFirstNonPHI());
+	Builder.SetInsertPoint(writesEntry->getFirstNonPHIIt());
 	auto *loopExitCond = Builder.CreatePHI(Builder.getInt1Ty(), 0,
 			"loopExitCond");
 	loopExitCond->addIncoming(Builder.getInt1(1), exit0);

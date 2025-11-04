@@ -127,7 +127,7 @@ llvm::Instruction* HwtHlsInstCombiner::tryReduceOrOnBits_toNE(
 		return nullptr;
 	Instruction *v0;
 	Instruction *v1;
-	ICmpInst::Predicate Pred;
+	CmpPredicate Pred;
 	ConstantInt *CI0 = nullptr;
 	ConstantInt *CI1 = nullptr;
 	NegatedSliceInfo slice0;

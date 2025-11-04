@@ -20,7 +20,7 @@ bool VRegIfConverter::normalizeBranchCondition(VRegIfConverter::BBInfo &BBI) {
 		auto &c = br.getOperand(0);
 		assert(c.isReg());
 		bool wasKill;
-		reverse = getRegisterNegationIfExits(*MRI, MBB, MBB.end(), c.getReg(), wasKill) != nullptr;
+		reverse = getRegisterNegationIfExits(*MRI, TRI, MBB, MBB.end(), c.getReg(), wasKill) != nullptr;
 	}
 	if (reverse) {
 		reverse &= reverseBranchCondition(BBI);

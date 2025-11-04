@@ -100,7 +100,7 @@ void LlvmCompilationBundle::_testMachineFunctionPass(
 	PM.add(MMIWP);
 
 	TPC =
-			static_cast<llvm::HwtFpgaTargetPassConfig*>(static_cast<llvm::LLVMTargetMachine&>(*TM).createPassConfig(
+			static_cast<llvm::HwtFpgaTargetPassConfig*>(static_cast<llvm::TargetMachine&>(*TM).createPassConfig(
 					PM));
 	if (TPC->hasLimitedCodeGenPipeline()) {
 		llvm::errs() << "run-pass cannot be used with "
@@ -224,7 +224,7 @@ llvm::Function& LlvmCompilationBundle::_testRewriteExtractOnMergeValues() {
 void LlvmCompilationBundle::_testEarlyIfConverter() {
 	_testMachineFunctionPass([](llvm::HwtFpgaTargetPassConfig &TPC) {
 		TPC._testAddPass(&llvm::EarlyIfPredicatorID);
-		TPC._testAddPass(&llvm::EarlyIfConverterID);
+		TPC._testAddPass(&llvm::EarlyIfConverterLegacyID);
 	});
 }
 

@@ -23,7 +23,6 @@
   !0 = distinct !{!1, !2}
   !1 = !{!"IN", i64 0, i64 32, i64 0, ptr null, i64 0}
   !2 = !{!"OUT", i64 0, i64 0, i64 16, ptr null, i64 1}
-
 ...
 ---
 name:            HlsSlice.mainThread
@@ -35,9 +34,13 @@ selected:        true
 failedISel:      false
 tracksRegLiveness: true
 hasWinCFI:       false
+noPhis:          true
+isSSA:           false
+noVRegs:         false
+hasFakeUses:     false
 callsEHReturn:   false
 callsUnwindInit: false
-hasEHCatchret:   false
+hasEHContTarget: false
 hasEHScopes:     false
 hasEHFunclets:   false
 isOutlined:      false
@@ -45,11 +48,11 @@ debugInstrRef:   false
 failsVerification: false
 tracksDebugUserValues: false
 registers:
-  - { id: 0, class: anyregcls, preferred-register: '' }
-  - { id: 1, class: anyregcls, preferred-register: '' }
-  - { id: 2, class: anyregcls, preferred-register: '' }
-  - { id: 3, class: anyregcls, preferred-register: '' }
-  - { id: 4, class: _, preferred-register: '' }
+  - { id: 0, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 1, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 2, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 3, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 4, class: _, preferred-register: '', flags: [  ] }
 liveins:         []
 frameInfo:
   isFrameAddressTaken: false
@@ -69,6 +72,7 @@ frameInfo:
   hasVAStart:      false
   hasMustTailInVarArgFunc: false
   hasTailCall:     false
+  isCalleeSavedInfoValid: false
   localFrameSize:  0
   savePoint:       ''
   restorePoint:    ''
@@ -93,5 +97,4 @@ body:             |
     %3:anyregcls(s16) = HWTFPGA_EXTRACT %2(s32), 32, 0, 16
     HWTFPGA_CSTORE %3(s16), %1, 0, 16, 1 :: (volatile store (s16) into %ir.b, addrspace 2)
     HWTFPGA_BR %bb.1
-
 ...

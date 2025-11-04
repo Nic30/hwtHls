@@ -8,12 +8,12 @@ bb0:
 
 bb.mainLoop.threadSplit.begint1:                  ; preds = %bb0, %bb.mainLoop.threadSplit.end.t1
   store volatile i8 0, ptr addrspace(1) %dataOut0, align 1
-  br label %threadSplitCodeRepl
+  br label %codeRepl
 
-threadSplitCodeRepl:                              ; preds = %bb.mainLoop.threadSplit.begint1
+codeRepl:                                         ; preds = %bb.mainLoop.threadSplit.begint1
   br label %bb.mainLoop.threadSplit.end.t1
 
-bb.mainLoop.threadSplit.end.t1:                   ; preds = %threadSplitCodeRepl
+bb.mainLoop.threadSplit.end.t1:                   ; preds = %codeRepl
   br label %bb.mainLoop.threadSplit.begint1
 }
 

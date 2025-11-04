@@ -1,5 +1,6 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_storeHoist.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFG_priv.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Constants.h>
 
@@ -36,9 +37,8 @@ bool HwtHlsSimplifyCFGPass_storeHoist(llvm::BasicBlock &BB) {
 				toHoist.push_back( { suc, st });
 				break;
 			}
-			if (I.isTerminator() || I.mayHaveSideEffects() || I.isVolatile()) {
-				if (!hasMetadataSideeffectAllowHoist(I))
-					return false; // something with side-effect or store not found
+			if (!isSafeToHoistInstr(&I, SkipFlags::NONE, false)) {
+				return false; // something with side-effect or store not found
 			}
 			if (auto CI = dyn_cast<CallInst>(&I)) {
 				if (!CI->getCalledFunction()->hasFnAttribute(
@@ -69,9 +69,9 @@ bool HwtHlsSimplifyCFGPass_storeHoist(llvm::BasicBlock &BB) {
 								&& "If this br is not conditional there can not be multiple values");
 				auto c = BBBr->getCondition();
 				if (BBBr->getSuccessor(0) == suc) {
-					srcVal = SelectInst::Create(c, v, srcVal, "", &*BBTer);
+					srcVal = SelectInst::Create(c, v, srcVal, "", BBTer);
 				} else {
-					srcVal = SelectInst::Create(c, srcVal, v, "", &*BBTer);
+					srcVal = SelectInst::Create(c, srcVal, v, "", BBTer);
 				}
 
 			} else if (BBSw) {
@@ -84,8 +84,8 @@ bool HwtHlsSimplifyCFGPass_storeHoist(llvm::BasicBlock &BB) {
 					if (case_.getCaseSuccessor() == suc) {
 						assert(!srcVal && "[todo] Expect default successor to be the first");
 						Value * cv = case_.getCaseValue();
-						auto c = new ICmpInst(&*BBTer, CmpInst::Predicate::ICMP_EQ, caseC, cv, "");
-						srcVal = SelectInst::Create(c, v, srcVal, "", &*BBTer);
+						auto c = new ICmpInst(BBTer, CmpInst::Predicate::ICMP_EQ, caseC, cv, "");
+						srcVal = SelectInst::Create(c, v, srcVal, "", BBTer);
 						sucFound = true;
 						break;
 					}
@@ -103,7 +103,7 @@ bool HwtHlsSimplifyCFGPass_storeHoist(llvm::BasicBlock &BB) {
 	auto isFirstSuc = true;
 	for (const auto& [suc, st] : toHoist) {
 		if (isFirstSuc) {
-			st->moveBefore(&*BBTer);
+			st->moveBefore(BBTer);
 			st->setOperand(0, srcVal);
 			isFirstSuc = false;
 		} else {

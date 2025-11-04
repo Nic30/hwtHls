@@ -271,7 +271,7 @@ llvm::PreservedAnalyses StreamWriteLoweringPass::run(llvm::Function &F,
 		if (LVI)
 			LVI->clear();
 
-		IRBuilder<> builder(F.getEntryBlock().getFirstNonPHI());
+		IRBuilder<> builder(&F.getEntryBlock(), F.getEntryBlock().getFirstNonPHIIt());
 		s.createCommonVars(builder);
 		s.createWDataPendingVar(builder);
 		// writeCFGToDotFile(F, "tmp/StreamWriteLoweringPass.before.dot", FAM);

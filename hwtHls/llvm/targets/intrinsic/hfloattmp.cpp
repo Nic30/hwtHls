@@ -1,4 +1,5 @@
 #include <hwtHls/llvm/targets/intrinsic/hfloattmp.h>
+#include <llvm/IR/Module.h>
 #include <llvm/ADT/StringExtras.h>
 #include <llvm/CodeGen/MachineInstr.h>
 

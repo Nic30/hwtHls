@@ -328,6 +328,8 @@ void mutateFunctionShuffleArgs_updateStreamTmpAllocaMDs(llvm::Function *NewF,
 	auto &Ctx = NewF->getContext();
 	auto StreamChannelPropsMdId = Ctx.getMDKindID(
 			StreamChannelProps::METADATA_NAME_TMP_VAR_DATA_OFFSET);
+	if (NewF->empty())
+		return; // no need to update AllocaInst metadata because there are not any
 	for (llvm::Instruction &I : *NewF->begin()) {
 		if (llvm::isa<llvm::AllocaInst>(&I)) {
 			if (auto md = I.getMetadata(StreamChannelPropsMdId)) {

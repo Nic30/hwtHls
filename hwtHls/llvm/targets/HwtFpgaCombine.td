@@ -472,31 +472,37 @@ def const_eval_combines : GICombineGroup<[
 // perform all known combinations to simplify the code as much as possible before next step
 def HwtFpgaPreLegalizerGICombiner: GICombiner<
   "HwtFpgaPreLegalizerGICombinerImpl", [
-  	// all_combines except commented out
-    trivial_combines, //insert_vec_elt_combines,
-    // extract_vec_elt_combines, combines_for_extload, combine_extracted_vector_load,
-    undef_combines, identity_combines, phi_combines, 
+  	// all_combines from llvm/Target/GlobalISel/Combine.td except commented out
+    integer_reassoc_combines, trivial_combines,
+    vector_ops_combines, freeze_combines, cast_combines,
+    // insert_vec_elt_combines, extract_vec_elt_combines, combines_for_extload,
+    combine_extracted_vector_load,
+    undef_combines, identity_combines, phi_combines,
     simplify_add_to_sub, hoist_logic_op_with_same_opcode_hands, shifts_too_big,
-    reassocs, ptr_add_immed_chain,
-    shl_ashr_to_sext_inreg, sext_inreg_of_load,
+    reassocs, ptr_add_immed_chain, cmp_combines,
+    shl_ashr_to_sext_inreg, neg_and_one_to_sext_inreg, sext_inreg_of_load,
     width_reduction_combines, select_combines,
-    known_bits_simplifications, ext_ext_fold,
+    known_bits_simplifications, trunc_shift,
     not_cmp_fold, opt_brcond_by_inverting_cond,
-    unmerge_merge, unmerge_cst, unmerge_dead_to_trunc,
-    unmerge_zext_to_zext, merge_unmerge, trunc_ext_fold, trunc_shift,
     const_combines, xor_of_and_with_same_reg, ptr_add_with_zero,
     shift_immed_chain, shift_of_shifted_logic_chain, load_or_combine,
-    div_rem_to_divrem, funnel_shift_combines, commute_shift,
+    div_rem_to_divrem, funnel_shift_combines, bitreverse_shift, commute_shift,
     form_bitfield_extract, constant_fold_binops, constant_fold_fma,
     constant_fold_cast_op, fabs_fneg_fold,
-    intdiv_combines, mulh_combines, redundant_neg_operands,
+    mulh_combines, redundant_neg_operands,
     and_or_disjoint_mask, fma_combines, fold_binop_into_select,
-    sub_add_reg, select_to_minmax, redundant_binop_in_equality,
-    // fsub_to_fneg,
-    commute_constant_to_rhs,
+    intrem_combines, intdiv_combines, sub_add_reg, select_to_minmax,
+    fsub_to_fneg, commute_constant_to_rhs, match_ands, match_ors,
+    simplify_neg_minmax, combine_concat_vector,
+    sext_trunc, zext_trunc, prefer_sign_combines, shuffle_combines,
+    combine_use_vector_truncate, merge_combines, overflow_combines,
+    // hwtHls specifics
     sin_cos_to_sincos
-  ]> {
+]> {
 }
+
+
+
 
 def G_CONSTANT_to_HWTFPGA_MUX: GICombineRule<
   (defs root:$d),

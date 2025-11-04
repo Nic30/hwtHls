@@ -190,12 +190,14 @@ class EarlyMachineCopyPropagation : public MachineFunctionPass {
   const TargetRegisterInfo *TRI;
   const TargetInstrInfo *TII;
   const MachineRegisterInfo *MRI;
-
+  // Return true if this is a copy instruction and false otherwise.
+  bool UseCopyInstr;
 public:
   static char ID; // Pass identification, replacement for typeid
 
-  EarlyMachineCopyPropagation() : MachineFunctionPass(ID) {
+  EarlyMachineCopyPropagation(bool CopyInstr = false) : MachineFunctionPass(ID) {
     initializeEarlyMachineCopyPropagationPass(*PassRegistry::getPassRegistry());
+    this->UseCopyInstr = CopyInstr;
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
@@ -330,72 +332,84 @@ bool EarlyMachineCopyPropagation::isBackwardPropagatableRegClassCopy(
   return false;
 }
 
+static std::optional<DestSourcePair> isCopyInstr(const MachineInstr &MI,
+                                                 const TargetInstrInfo &TII,
+                                                 bool UseCopyInstr) {
+  if (UseCopyInstr)
+    return TII.isCopyInstr(MI);
+
+  if (MI.isCopy())
+    return std::optional<DestSourcePair>(
+        DestSourcePair{MI.getOperand(0), MI.getOperand(1)});
+
+  return std::nullopt;
+}
+
 /// Decide whether we should forward the source of \param Copy to its use in
 /// \param UseI based on the physical register class constraints of the opcode
 /// and avoiding introducing more cross-class COPYs.
 bool EarlyMachineCopyPropagation::isForwardableRegClassCopy(const MachineInstr &Copy,
                                                        const MachineInstr &UseI,
                                                        unsigned UseIdx) {
+	std::optional<DestSourcePair> CopyOperands = isCopyInstr(Copy, *TII,
+			UseCopyInstr);
+	Register CopySrcReg = CopyOperands->Source->getReg();
 
-  Register CopySrcReg = Copy.getOperand(1).getReg();
+	// If the new register meets the opcode register constraints, then allow
+	// forwarding.
+	if (const TargetRegisterClass *URC = UseI.getRegClassConstraint(UseIdx, TII,
+			TRI))
+		return URC->contains(CopySrcReg);
 
-  // If the new register meets the opcode register constraints, then allow
-  // forwarding.
-  if (const TargetRegisterClass *URC =
-          UseI.getRegClassConstraint(UseIdx, TII, TRI))
-    return URC->contains(CopySrcReg);
+	auto UseICopyOperands = isCopyInstr(UseI, *TII, UseCopyInstr);
+	if (!UseICopyOperands)
+		return false;
 
-  if (!UseI.isCopy())
-    return false;
+	/// COPYs don't have register class constraints, so if the user instruction
+	/// is a COPY, we just try to avoid introducing additional cross-class
+	/// COPYs.  For example:
+	///
+	///   RegClassA = COPY RegClassB  // Copy parameter
+	///   ...
+	///   RegClassB = COPY RegClassA  // UseI parameter
+	///
+	/// which after forwarding becomes
+	///
+	///   RegClassA = COPY RegClassB
+	///   ...
+	///   RegClassB = COPY RegClassB
+	///
+	/// so we have reduced the number of cross-class COPYs and potentially
+	/// introduced a nop COPY that can be removed.
 
-  const TargetRegisterClass *CopySrcRC =
-      TRI->getMinimalPhysRegClass(CopySrcReg);
-  const TargetRegisterClass *UseDstRC =
-      TRI->getMinimalPhysRegClass(UseI.getOperand(0).getReg());
-  const TargetRegisterClass *CrossCopyRC = TRI->getCrossCopyRegClass(CopySrcRC);
-
-  // If cross copy register class is not the same as copy source register class
-  // then it is not possible to copy the register directly and requires a cross
-  // register class copy. Fowarding this copy without checking register class of
-  // UseDst may create additional cross register copies when expanding the copy
-  // instruction in later passes.
-  if (CopySrcRC != CrossCopyRC) {
-    const TargetRegisterClass *CopyDstRC =
-        TRI->getMinimalPhysRegClass(Copy.getOperand(0).getReg());
-
-    // Check if UseDstRC matches the necessary register class to copy from
-    // CopySrc's register class. If so then forwarding the copy will not
-    // introduce any cross-class copys. Else if CopyDstRC matches then keep the
-    // copy and do not forward. If neither UseDstRC or CopyDstRC matches then
-    // we may need a cross register copy later but we do not worry about it
-    // here.
-    if (UseDstRC != CrossCopyRC && CopyDstRC == CrossCopyRC)
-      return false;
-  }
-
-  /// COPYs don't have register class constraints, so if the user instruction
-  /// is a COPY, we just try to avoid introducing additional cross-class
-  /// COPYs.  For example:
-  ///
-  ///   RegClassA = COPY RegClassB  // Copy parameter
-  ///   ...
-  ///   RegClassB = COPY RegClassA  // UseI parameter
-  ///
-  /// which after forwarding becomes
-  ///
-  ///   RegClassA = COPY RegClassB
-  ///   ...
-  ///   RegClassB = COPY RegClassB
-  ///
-  /// so we have reduced the number of cross-class COPYs and potentially
-  /// introduced a nop COPY that can be removed.
-  const TargetRegisterClass *SuperRC = UseDstRC;
-  for (TargetRegisterClass::sc_iterator SuperRCI = UseDstRC->getSuperClasses();
-       SuperRC; SuperRC = *SuperRCI++)
-    if (SuperRC->contains(CopySrcReg))
-      return true;
-
-  return false;
+	// Allow forwarding if src and dst belong to any common class, so long as they
+	// don't belong to any (possibly smaller) common class that requires copies to
+	// go via a different class.
+	Register UseDstReg = UseICopyOperands->Destination->getReg();
+	bool Found = false;
+	bool IsCrossClass = false;
+	for (const TargetRegisterClass *RC : TRI->regclasses()) {
+		if (RC->contains(CopySrcReg) && RC->contains(UseDstReg)) {
+			Found = true;
+			if (TRI->getCrossCopyRegClass(RC) != RC) {
+				IsCrossClass = true;
+				break;
+			}
+		}
+	}
+	if (!Found)
+		return false;
+	if (!IsCrossClass)
+		return true;
+	// The forwarded copy would be cross-class. Only do this if the original copy
+	// was also cross-class.
+	Register CopyDstReg = CopyOperands->Destination->getReg();
+	for (const TargetRegisterClass *RC : TRI->regclasses()) {
+		if (RC->contains(CopySrcReg) && RC->contains(CopyDstReg)
+				&& TRI->getCrossCopyRegClass(RC) != RC)
+			return true;
+	}
+	return false;
 }
 
 /// Check that \p MI does not have implicit uses that overlap with it's \p Use
@@ -482,7 +496,7 @@ void EarlyMachineCopyPropagation::forwardUses(MachineInstr &MI) {
     // original copy source that we are about to use. The tracker mechanism
     // cannot cope with that.
     if (MI.isCopy() && MI.modifiesRegister(CopySrcReg, TRI) &&
-        !MI.definesRegister(CopySrcReg)) {
+        !MI.definesRegister(CopySrcReg, TRI)) {
       LLVM_DEBUG(dbgs() << "EarlyMCP: Copy source overlap with dest in " << MI);
       continue;
     }

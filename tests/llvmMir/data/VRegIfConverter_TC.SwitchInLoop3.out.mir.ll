@@ -13,12 +13,12 @@ bb.1.bb0:
   successors: %bb.1(0x80000000); %bb.1(100.00%)
 
   %2:anyregcls = HWTFPGA_CLOAD %0:anyregcls, 0, 16, 1 :: (volatile load (s16) from %ir.i, addrspace 1)
-  %4:anyregcls = G_SUB killed %2:anyregcls, i16 3
+  %4:anyregcls = G_ADD killed %2:anyregcls, i16 -3
   %6:anyregcls(s1) = G_ICMP intpred(ugt), killed %4:anyregcls, i16 1
-  %12:anyregcls = COPY %8:anyregcls
-  %15:anyregcls = COPY %9:anyregcls
-  %12:anyregcls = HWTFPGA_MUX killed %12:anyregcls, killed %6:anyregcls(s1), killed %15:anyregcls
-  %7:anyregcls = COPY killed %12:anyregcls
+  %13:anyregcls = COPY %8:anyregcls
+  %16:anyregcls = COPY %9:anyregcls
+  %13:anyregcls = HWTFPGA_MUX killed %13:anyregcls, killed %6:anyregcls(s1), killed %16:anyregcls
+  %7:anyregcls = COPY killed %13:anyregcls
   HWTFPGA_CSTORE killed %7:anyregcls, %1:anyregcls, 0, 8, 1 :: (volatile store (s8) into %ir.o, align 4, addrspace 2)
   G_BR %bb.1
 

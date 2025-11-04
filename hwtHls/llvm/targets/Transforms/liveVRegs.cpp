@@ -269,11 +269,12 @@ void recomputeVRegLivenessFlags(HwtHlsVRegLiveins& VRegLiveins, MachineBasicBloc
       // Special-case return instructions for cases when a return is not
       // the last instruction in the block.
       if (MI.isReturn() && MFI.isCalleeSavedInfoValid()) {
-        for (const CalleeSavedInfo &Info : MFI.getCalleeSavedInfo()) {
-          if (Info.getReg() == Reg) {
-            IsNotLive = !Info.isRestored();
-            break;
-          }
+        for (const CalleeSavedInfo &_ : MFI.getCalleeSavedInfo()) {
+          llvm_unreachable("NotImplemented currently there should be no such a instruction in HwtFpga target and MCRegister should not be used");
+          //if (Info.getReg() == Reg) {
+          //  IsNotLive = !Info.isRestored();
+          //  break;
+          //}
         }
       }
       MO->setIsDead(IsNotLive);

@@ -1,7 +1,7 @@
 #include <hwtHls/llvm/targets/GISel/hwtFpgaCombinerHelper.h>
 
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
-#include <llvm/CodeGen/GlobalISel/GISelKnownBits.h>
+#include <llvm/CodeGen/GlobalISel/GISelValueTracking.h>
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/SmallSet.h>
 
@@ -14,9 +14,9 @@ namespace llvm {
 
 MachineInstrBuilder HwtFpgaCombinerHelper::buildHwtFpgaCopy(
 		MachineOperand opDst, MachineOperand opSrc) {
-	auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX, { opDst }, { });
+	MachineInstrBuilder MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX, { opDst }, { });
 	Observer.changingInstr(*MIB.getInstr());
-	if (opSrc.isReg() && opSrc.isReg()) {
+	if (opSrc.isReg() && opSrc.isDef()) {
 		MIB.addUse(opSrc.getReg());
 	} else {
 		MIB.add(opSrc);
@@ -30,9 +30,9 @@ MachineInstrBuilder HwtFpgaCombinerHelper::buildHwtFpgaCopy(
 	assert(opSrc.isReg());
 	Register dstReg = MRI.cloneVirtualRegister(opSrc.getReg());
 	//MRI.setType(memberReg, LLT::scalar(src.widthOfUse));
-	auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX, { dstReg }, { });
+	MachineInstrBuilder MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX, { dstReg }, { });
 	Observer.changingInstr(*MIB.getInstr());
-	if (opSrc.isReg() && opSrc.isReg()) {
+	if (opSrc.isReg() && opSrc.isDef()) {
 		MIB.addUse(opSrc.getReg());
 	} else {
 		MIB.add(opSrc);
@@ -224,7 +224,7 @@ bool HwtFpgaCombinerHelper::matchNestedMux(MachineInstr &MI,
 		if (!c1->isReg()) {
 			return false;// wait with the extraction for removal of constant conditions
 		}
-		KnownBits KnownC1 = KB->getKnownBits(c1->getReg());
+		KnownBits KnownC1 = VT->getKnownBits(c1->getReg());
 		for (auto NestedValO = MI.operands_begin() + 1;
 				NestedValO != MI.operands_end();) {
 
@@ -236,7 +236,7 @@ bool HwtFpgaCombinerHelper::matchNestedMux(MachineInstr &MI,
 				// wait with the extraction for removal of constant conditions
 				return false;
 			}
-			KnownBits KnownNestedC = KB->getKnownBits(NestedCondO->getReg());
+			KnownBits KnownNestedC = VT->getKnownBits(NestedCondO->getReg());
 			// c1 is always 1 if NestedCond is 1 (NestedCond implies c1)
 			std::optional<bool> CanMergeOperands = KnownBits::uge(KnownC1,
 					KnownNestedC);
@@ -255,7 +255,7 @@ void HwtFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
 	auto DstRegNo = MI.getOperand(0).getReg();
 	assert(
 			(MRI.hasOneDef(DstRegNo)
-					|| MI.findRegisterUseOperandIdx(DstRegNo) < 0)
+					|| MI.findRegisterUseOperandIdx(DstRegNo, TRI) < 0)
 					&& "Dst must have just this def or previous def must not be operand");
 	MachineOperand *parentUse = nullptr;
 	if (MRI.hasOneUse(DstRegNo)) {
@@ -266,7 +266,7 @@ void HwtFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
 				getNextUseOfRegInBlock(MI, DstRegNo)->getParent();
 		assert(NextInstr && "Should be already checked in matchNestedMux");
 		assert(NextInstr->getOpcode() == HwtFpga::HWTFPGA_MUX);
-		auto UseOpIndx = NextInstr->findRegisterUseOperandIdx(DstRegNo, false);
+		auto UseOpIndx = NextInstr->findRegisterUseOperandIdx(DstRegNo, TRI, false);
 		assert(UseOpIndx > 0);
 		parentUse = &NextInstr->getOperand(UseOpIndx);
 		assert(parentUse->getReg() == DstRegNo);

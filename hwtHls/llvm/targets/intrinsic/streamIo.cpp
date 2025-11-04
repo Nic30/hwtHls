@@ -1,10 +1,10 @@
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 
 #include <llvm/ADT/StringExtras.h>
+#include <llvm/IR/Module.h>
 
 #include <hwtHls/llvm/targets/intrinsic/utils.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
-
 using namespace llvm;
 
 namespace hwtHls {

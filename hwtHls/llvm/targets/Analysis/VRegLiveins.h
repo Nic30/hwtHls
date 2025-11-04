@@ -17,6 +17,7 @@ public:
 	static char ID;
 	std::map<llvm::MachineBasicBlock*, llvm::SetVector<llvm::Register>> _liveins;
 	llvm::MachineFunction *MF;
+	const llvm::TargetRegisterInfo * TRI;
 
 	HwtHlsVRegLiveins();
 	void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;

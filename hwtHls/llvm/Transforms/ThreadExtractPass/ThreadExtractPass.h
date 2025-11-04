@@ -74,7 +74,7 @@ public:
 	llvm::PreservedAnalyses run(llvm::Module &M,
 			llvm::ModuleAnalysisManager &AM);
 
-	bool extractSectionAsHwHlsThread(llvm::Function &Func, llvm::LoopInfo &LI,
+	llvm::Function* extractSectionAsHwHlsThread(llvm::Function &Func, llvm::LoopInfo &LI,
 			llvm::DomTreeUpdater &DTU, llvm::AssumptionCache *AC,
 			const ThreadSplitSectionMetadata &cfg,
 			const llvm::SmallVector<llvm::BasicBlock*> &Blocks,

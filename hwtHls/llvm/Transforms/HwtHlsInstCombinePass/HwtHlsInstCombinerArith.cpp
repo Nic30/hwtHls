@@ -23,7 +23,7 @@ llvm::Instruction* HwtHlsInstCombiner::tryReduceUMinNe_to_ULT(CmpInst &I) {
 	// :note: C and C0 hold same value, but have different bitwidth
 	ConstantInt *C;
 	ConstantInt *C0;
-	CmpInst::Predicate Pred;
+	CmpPredicate Pred;
 	if (match(&I,
 			m_ICmp(Pred, m_TruncOrSelf(m_UMin(m_Value(v0), m_ConstantInt(C0))),
 					m_ConstantInt(C)))) {
@@ -76,7 +76,7 @@ llvm::Instruction* HwtHlsInstCombiner::tryReduceICmp_onTurncUMin(
 	// %3 = icmp eq i2 %0, 0
 
 	Value *v0;
-	ICmpInst::Predicate Pred;
+	CmpPredicate Pred;
 	ConstantInt *C0, *C;
 	if (match(&I,
 			m_ICmp(Pred, m_TruncOrSelf(m_UMin(m_Value(v0), m_ConstantInt(C0))),

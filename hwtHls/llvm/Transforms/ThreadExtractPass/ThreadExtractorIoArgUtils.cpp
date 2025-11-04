@@ -1,6 +1,7 @@
 #include <hwtHls/llvm/Transforms/ThreadExtractPass/ThreadExtractorIoArgUtils.h>
 #include <hwtHls/llvm/Transforms/utils/functionMutating.h>
 #include <llvm/ADT/SetVector.h>
+#include <llvm/IR/Module.h>
 
 using namespace llvm;
 

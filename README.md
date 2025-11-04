@@ -110,7 +110,7 @@ source venv/bin/activate # modifies current shell to use previously generate pyt
 ```
 
 ```
-apt install build-essential python3-dev python3-pip llvm-18-dev libreadline-dev 
+apt install build-essential python3-dev python3-pip llvm-21-dev libreadline-dev 
 pip3 install -r https://raw.githubusercontent.com/Nic30/hwtHls/master/doc/requirements.txt # [optional]
 # if you do not run previous command you will install dependencies from pip which may outdated
 pip3 install git+https://github.com/Nic30/hwtHls.git # install this library from git

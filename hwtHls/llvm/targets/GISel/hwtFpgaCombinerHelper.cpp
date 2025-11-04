@@ -1,7 +1,7 @@
 #include <hwtHls/llvm/targets/GISel/hwtFpgaCombinerHelper.h>
 
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
-#include <llvm/CodeGen/GlobalISel/GISelKnownBits.h>
+#include <llvm/CodeGen/GlobalISel/GISelValueTracking.h>
 #include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionSelectorUtils.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtilsInstrFns.h>
@@ -653,7 +653,7 @@ bool HwtFpgaCombinerHelper::matchTrivialInstrDuplication(
 	}
 	for (auto def : MI.defs()) {
 		auto r = def.getReg();
-		if (NextInst->findRegisterUseOperand(r))
+		if (NextInst->findRegisterUseOperand(r, TRI))
 			return false; // next instr uses result of this
 	}
 	// check def operands
@@ -665,7 +665,7 @@ bool HwtFpgaCombinerHelper::matchTrivialInstrDuplication(
 				return false; // result register used on multiple places, the check for liveness would be required
 			} else if (def.isDead()) {
 				continue; // this is subject to DCE, skip this
-			} else if (I1->readsRegister(def.getReg())) {
+			} else if (I1->readsRegister(def.getReg(), TRI)) {
 				return false; // The instruction is using the result of other
 			}
 			allDefsDead = false;
@@ -765,7 +765,7 @@ MachineOperand* HwtFpgaCombinerHelper::getNextUseOfRegInBlock(MachineInstr &MI,
 		for (MachineInstr *NextInstr = MI.getNextNode(); NextInstr != nullptr;
 				NextInstr = NextInstr->getNextNode()) {
 			// :note: redefs checked later in checkAnyOperandRedefined
-			auto UseOpIndx = NextInstr->findRegisterUseOperandIdx(DstRegNo,
+			auto UseOpIndx = NextInstr->findRegisterUseOperandIdx(DstRegNo, TRI,
 					false);
 			if (UseOpIndx > 0) {
 				return &NextInstr->getOperand(UseOpIndx);
@@ -790,7 +790,7 @@ bool HwtFpgaCombinerHelper::checkAnyOperandRedefined(MachineInstr &MI,
 		}
 		for (auto &O : MI.operands()) {
 			if (O.isReg()) {
-				if (it->definesRegister(O.getReg())) {
+				if (it->definesRegister(O.getReg(), TRI)) {
 					// the operand register was redefined and we do not have value for operand which we want to inline
 					return true;
 				}
@@ -804,7 +804,7 @@ bool HwtFpgaCombinerHelper::checkAnyOperandRedefined(MachineInstr &MI,
 MachineOperand* HwtFpgaCombinerHelper::getNextUseOfRegAfterInstructionExceptMI(
 		Register DstRegNo, MachineInstr &MI) {
 	if (!MRI.hasOneDef(DstRegNo)
-			&& MI.findRegisterUseOperandIdx(DstRegNo) > 0) {
+			&& MI.findRegisterUseOperandIdx(DstRegNo, TRI) > 0) {
 		// Dst must have just this def or previous def must not be operand
 		return nullptr;
 	}

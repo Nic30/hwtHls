@@ -20,8 +20,8 @@ namespace hwtHls {
 char ConcatBlockLiveins::ID = 0;
 
 void ConcatBlockLiveins::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-	AU.addRequired<MachineLoopInfo>();
-	AU.addPreserved<MachineLoopInfo>();
+	AU.addRequired<MachineLoopInfoWrapperPass>();
+	AU.addPreserved<MachineLoopInfoWrapperPass>();
 	MachineFunctionPass::getAnalysisUsage(AU);
 }
 
@@ -35,7 +35,7 @@ bool ConcatBlockLiveins::runOnMachineFunction(llvm::MachineFunction &MF) {
 	EdgeLivenessDict livenessPredSuc = hwtHls::getLiveVariablesForBlockEdge(MRI,
 			MF);
 
-	MachineLoopInfo &Loops = getAnalysis<MachineLoopInfo>();
+	MachineLoopInfo &Loops = getAnalysis<MachineLoopInfoWrapperPass>().getLI();
 	MachineIRBuilder Builder(MF);
 	for (MachineBasicBlock &BB : MF) {
 		if (!Loops.isLoopHeader(&BB))
@@ -98,7 +98,7 @@ bool ConcatBlockLiveins::runOnMachineFunction(llvm::MachineFunction &MF) {
 
 INITIALIZE_PASS_BEGIN(ConcatBlockLiveins, DEBUG_TYPE, "ConcatBlockLiveins", false,
 		false)
-	INITIALIZE_PASS_DEPENDENCY(MachineLoopInfo)
+	INITIALIZE_PASS_DEPENDENCY(MachineLoopInfoWrapperPass)
 	INITIALIZE_PASS_DEPENDENCY(TargetPassConfig)
 	//INITIALIZE_PASS_END expanded
 	PassInfo *PI =
@@ -108,7 +108,6 @@ INITIALIZE_PASS_BEGIN(ConcatBlockLiveins, DEBUG_TYPE, "ConcatBlockLiveins", fals
 					PassInfo::NormalCtor_t(callDefaultCtor<ConcatBlockLiveins>),
 					false, false);
 	Registry.registerPass(*PI, true);
-	return PI;
 }
 static llvm::once_flag InitializeConcatBlockLiveinsFlag;
 

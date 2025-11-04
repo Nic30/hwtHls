@@ -108,10 +108,11 @@ void removeMachineBasicBlockWithSingleSuccessor(MachineBasicBlock &MBB,
 	while (!MBB.succ_empty())
 		MBB.removeSuccessor(MBB.succ_end() - 1);
 
-	// Update call site info.
+	// Update call info.
 	for (const MachineInstr &MI : MBB)
-		if (MI.shouldUpdateCallSiteInfo())
-			MF->eraseCallSiteInfo(&MI);
+	  if (MI.shouldUpdateAdditionalCallInfo())
+	    MF->eraseAdditionalCallInfo(&MI);
+
 
 	// Remove the block.
 	MF->erase(&MBB);

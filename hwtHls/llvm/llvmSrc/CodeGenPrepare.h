@@ -1,6 +1,6 @@
 #pragma once
-
-#include <llvm/CodeGen/CodeGenPrepare.h>
+// llvm-21.1.2
+//#include <llvm/CodeGen/CodeGenPrepare.h>
 #include <llvm/ADT/APInt.h>
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/DenseMap.h>
@@ -12,9 +12,11 @@
 #include <llvm/ADT/Statistic.h>
 #include <llvm/Analysis/BlockFrequencyInfo.h>
 #include <llvm/Analysis/BranchProbabilityInfo.h>
+#include <llvm/Analysis/FloatingPointPredicateUtils.h>
 #include <llvm/Analysis/InstructionSimplify.h>
 #include <llvm/Analysis/LoopInfo.h>
 #include <llvm/Analysis/ProfileSummaryInfo.h>
+#include <llvm/Analysis/ScalarEvolutionExpressions.h>
 #include <llvm/Analysis/TargetLibraryInfo.h>
 #include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/Analysis/ValueTracking.h>
@@ -22,12 +24,12 @@
 #include <llvm/CodeGen/Analysis.h>
 #include <llvm/CodeGen/BasicBlockSectionsProfileReader.h>
 #include <llvm/CodeGen/ISDOpcodes.h>
-#include <llvm/CodeGen/MachineValueType.h>
 #include <llvm/CodeGen/SelectionDAGNodes.h>
 #include <llvm/CodeGen/TargetLowering.h>
 #include <llvm/CodeGen/TargetPassConfig.h>
 #include <llvm/CodeGen/TargetSubtargetInfo.h>
 #include <llvm/CodeGen/ValueTypes.h>
+#include <llvm/CodeGenTypes/MachineValueType.h>
 #include <llvm/Config/llvm-config.h>
 #include <llvm/IR/Argument.h>
 #include <llvm/IR/Attributes.h>
@@ -72,7 +74,6 @@
 #include <llvm/Support/Compiler.h>
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/ErrorHandling.h>
-#include <llvm/Support/MathExtras.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
@@ -95,12 +96,12 @@ namespace hwtHls {
 namespace llvmSrc {
 
 enum ExtType {
-  ZeroExtension,   // Zero extension has been seen.
-  SignExtension,   // Sign extension has been seen.
-  BothExtension    // This extension type is used if we saw sext after
-                   // ZeroExtension had been set, or if we saw zext after
-                   // SignExtension had been set. It makes the type
-                   // information of a promoted instruction invalid.
+  ZeroExtension, // Zero extension has been seen.
+  SignExtension, // Sign extension has been seen.
+  BothExtension  // This extension type is used if we saw sext after
+                 // ZeroExtension had been set, or if we saw zext after
+                 // SignExtension had been set. It makes the type
+                 // information of a promoted instruction invalid.
 };
 
 enum ModifyDT {
@@ -120,8 +121,6 @@ using ValueToSExts = llvm::MapVector<llvm::Value *, SExts>;
 
 class TypePromotionTransaction;
 
-/// Transform the code to expose more pattern
-/// matching during instruction selection.
 class CodeGenPrepare {
   friend class CodeGenPrepareLegacyPass;
 protected:
@@ -146,7 +145,7 @@ protected:
   /// multiple load/stores of the same address. The usage of WeakTrackingVH
   /// enables SunkAddrs to be treated as a cache whose entries can be
   /// invalidated if a sunken address computation has been erased.
-  llvm::ValueMap<llvm::Value*, llvm::WeakTrackingVH> SunkAddrs;
+  llvm::ValueMap<llvm::Value *, llvm::WeakTrackingVH> SunkAddrs;
 
   /// Keeps track of all instructions inserted for the current function.
   SetOfInstrs InsertedInsts;
@@ -164,9 +163,8 @@ protected:
   /// Keep track of GEPs accessing the same data structures such as structs or
   /// arrays that are candidates to be split later because of their large
   /// size.
-  llvm::MapVector<
-      llvm::AssertingVH<llvm::Value>,
-      llvm::SmallVector<std::pair<llvm::AssertingVH<llvm::GetElementPtrInst>, int64_t>, 32>>
+  llvm::MapVector<llvm::AssertingVH<llvm::Value>,
+            llvm::SmallVector<std::pair<llvm::AssertingVH<llvm::GetElementPtrInst>, int64_t>, 32>>
       LargeOffsetGEPMap;
 
   /// Keep track of new GEP base after splitting the GEPs having large offset.
@@ -190,7 +188,7 @@ protected:
 
 public:
   CodeGenPrepare(){};
-  CodeGenPrepare(const TargetMachine *TM) : TM(TM){};
+  CodeGenPrepare(const llvm::TargetMachine *TM) : TM(TM){};
   /// If encounter huge function, we need to limit the build time.
   bool IsHugeFunc = false;
 
@@ -198,7 +196,7 @@ public:
   /// to be optimized again.
   /// Note: Consider building time in this pass, when a BB updated, we need
   /// to insert such BB into FreshBBs for huge function.
-  SmallSet<BasicBlock *, 32> FreshBBs;
+  llvm::SmallSet<llvm::BasicBlock *, 32> FreshBBs;
 
   void releaseMemory() {
     // Clear per function information.
@@ -209,9 +207,9 @@ public:
     BFI.reset();
   }
 
-  bool run(Function &F, FunctionAnalysisManager &AM);
+  bool run(llvm::Function &F, llvm::FunctionAnalysisManager &AM);
 
-protected:
+private:
   template <typename F>
   void resetIteratorIfInvalidatedWhileCalling(llvm::BasicBlock *BB, F f) {
     // Substituting can cause recursive simplifications, which can invalidate
@@ -236,9 +234,10 @@ protected:
       DT = std::make_unique<llvm::DominatorTree>(F);
     return *DT;
   }
+
   void removeAllAssertingVHReferences(llvm::Value *V);
   bool eliminateAssumptions(llvm::Function &F);
-  bool eliminateFallThrough(Function &F, DominatorTree *DT = nullptr);
+  bool eliminateFallThrough(llvm::Function &F, llvm::DominatorTree *DT = nullptr);
   bool eliminateMostlyEmptyBlocks(llvm::Function &F);
   llvm::BasicBlock *findDestBlockOfMergeableEmptyBlock(llvm::BasicBlock *BB);
   bool canMergeBlocks(const llvm::BasicBlock *BB, const llvm::BasicBlock *DestBB) const;
@@ -248,8 +247,8 @@ protected:
   bool makeBitReverse(llvm::Instruction &I);
   bool optimizeBlock(llvm::BasicBlock &BB, ModifyDT &ModifiedDT);
   bool optimizeInst(llvm::Instruction *I, ModifyDT &ModifiedDT);
-  bool optimizeMemoryInst(llvm::Instruction *MemoryInst, llvm::Value *Addr,
-  		llvm::Type *AccessTy, unsigned AddrSpace);
+  bool optimizeMemoryInst(llvm::Instruction *MemoryInst, llvm::Value *Addr, llvm::Type *AccessTy,
+                          unsigned AddrSpace);
   bool optimizeGatherScatterInst(llvm::Instruction *MemoryInst, llvm::Value *Ptr);
   bool optimizeInlineAsmInst(llvm::CallInst *CS);
   bool optimizeCallInst(llvm::CallInst *CI, ModifyDT &ModifiedDT);
@@ -266,15 +265,15 @@ protected:
   bool optimizeExtractElementInst(llvm::Instruction *Inst);
   bool dupRetToEnableTailCallOpts(llvm::BasicBlock *BB, ModifyDT &ModifiedDT);
   bool fixupDbgValue(llvm::Instruction *I);
-  bool fixupDPValue(DPValue &I);
-  bool fixupDPValuesOnInst(Instruction &I);
+  bool fixupDbgVariableRecord(llvm::DbgVariableRecord &I);
+  bool fixupDbgVariableRecordsOnInst(llvm::Instruction &I);
   bool placeDbgValues(llvm::Function &F);
   bool placePseudoProbes(llvm::Function &F);
   bool canFormExtLd(const llvm::SmallVectorImpl<llvm::Instruction *> &MovedExts,
-  		llvm::LoadInst *&LI, llvm::Instruction *&Inst, bool HasPromoted);
+                    llvm::LoadInst *&LI, llvm::Instruction *&Inst, bool HasPromoted);
   bool tryToPromoteExts(TypePromotionTransaction &TPT,
                         const llvm::SmallVectorImpl<llvm::Instruction *> &Exts,
-					  llvm::SmallVectorImpl<llvm::Instruction *> &ProfitablyMovedExts,
+                        llvm::SmallVectorImpl<llvm::Instruction *> &ProfitablyMovedExts,
                         unsigned CreatedInstsCost = 0);
   bool mergeSExts(llvm::Function &F);
   bool splitLargeGEPOffsets();
@@ -282,22 +281,23 @@ protected:
                        llvm::SmallPtrSetImpl<llvm::Instruction *> &DeletedInstrs);
   bool optimizePhiTypes(llvm::Function &F);
   bool performAddressTypePromotion(
-  		llvm::Instruction *&Inst,
-      bool AllowPromotionWithoutCommonHeader,
+      llvm::Instruction *&Inst, bool AllowPromotionWithoutCommonHeader,
       bool HasPromoted, TypePromotionTransaction &TPT,
-	llvm::SmallVectorImpl<llvm::Instruction *> &SpeculativelyMovedExts);
+      llvm::SmallVectorImpl<llvm::Instruction *> &SpeculativelyMovedExts);
   bool splitBranchCondition(llvm::Function &F, ModifyDT &ModifiedDT);
   bool simplifyOffsetableRelocate(llvm::GCStatepointInst &I);
 
   bool tryToSinkFreeOperands(llvm::Instruction *I);
-  bool replaceMathCmpWithIntrinsic(llvm::BinaryOperator *BO, llvm::Value *Arg0,
-  		llvm::Value *Arg1, llvm::CmpInst *Cmp,
-		llvm::Intrinsic::ID IID);
+  bool replaceMathCmpWithIntrinsic(llvm::BinaryOperator *BO, llvm::Value *Arg0, llvm::Value *Arg1,
+                                   llvm::CmpInst *Cmp, llvm::Intrinsic::ID IID);
   bool optimizeCmp(llvm::CmpInst *Cmp, ModifyDT &ModifiedDT);
+  bool optimizeURem(llvm::Instruction *Rem);
   bool combineToUSubWithOverflow(llvm::CmpInst *Cmp, ModifyDT &ModifiedDT);
   bool combineToUAddWithOverflow(llvm::CmpInst *Cmp, ModifyDT &ModifiedDT);
+  bool unfoldPowerOf2Test(llvm::CmpInst *Cmp);
   void verifyBFIUpdates(llvm::Function &F);
-  bool _run(Function &F);
+protected:
+  bool _run(llvm::Function &F);
 };
 
 

@@ -73,7 +73,7 @@ static PHINode* createIsChildLoopPhiInHeader(
 	auto int1Ty = IntegerType::getInt1Ty(Ctx);
 	auto *isChildLoop = PHINode::Create(int1Ty,
 			pred_size(header) + pred_size(childHeader),
-			"isChildLoop." + childHeader->getName(), &*header->begin());
+			"isChildLoop." + childHeader->getName(), header->begin());
 	for (auto pred : predecessors(header)) {
 		if (!LParent.contains(pred))
 			isChildLoop->addIncoming(ConstantInt::get(int1Ty, 0), pred);
@@ -173,7 +173,7 @@ static std::pair<BasicBlock*, BasicBlock*> prepareNewLatchBlock(
 	if (auto BR = dyn_cast<BranchInst>(Term)) {
 		if (BR->isConditional()) {
 			phiInLatchDrivingBranch = PHINode::Create(int1Ty, phiArgCnt,
-					"fusedLoopContinueFromBr", &*newLatchBlock->begin());
+					"fusedLoopContinueFromBr", newLatchBlock->begin());
 			phiInLatchDrivingBranch->addIncoming(BR->getCondition(),
 					oldLatchBlock);
 
@@ -196,7 +196,7 @@ static std::pair<BasicBlock*, BasicBlock*> prepareNewLatchBlock(
 	} else if (SwitchInst *SW = dyn_cast<SwitchInst>(Term)) {
 		auto Cond = SW->getCondition();
 		phiInLatchDrivingBranch = PHINode::Create(Cond->getType(), 2,
-				"fusedLoopContinueFromSw", &*newLatchBlock->begin());
+				"fusedLoopContinueFromSw", newLatchBlock->begin());
 		phiInLatchDrivingBranch->addIncoming(Cond, oldLatchBlock);
 		BR->setCondition(phiInLatchDrivingBranch);
 		for (auto &SwCase : SW->cases()) {
@@ -316,7 +316,7 @@ static bool LoopFlattenUsingIfPass_flatten(const LoopFlattenUsingIfPass::Mode mo
 	auto *isChildLoop = createIsChildLoopPhiInHeader(AR, DTU, MSSAU, LParent,
 			LChild, header, childHeader);
 
-	Instruction *headerPhisEnd = header->getFirstNonPHI();
+	auto headerPhisEnd = header->getFirstNonPHIIt();
 	//IRBuilder<> Builder(headerPhisEnd);
 	// create if (!isChildLoop) sectionFromParentHeaderToChildHeader();
 	BasicBlock *loopBegin = SplitBlock(header, headerPhisEnd, &DTU, &AR.LI,

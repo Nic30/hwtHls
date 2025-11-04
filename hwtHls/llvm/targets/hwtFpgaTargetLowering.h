@@ -44,8 +44,9 @@ public:
 			bool LegalOnly) const override {
 		return false;
 	}
-	virtual bool shouldReduceLoadWidth(SDNode *Load, ISD::LoadExtType ExtTy,
-			EVT NewVT) const override {
+	  virtual bool shouldReduceLoadWidth(
+	      SDNode *Load, ISD::LoadExtType ExtTy, EVT NewVT,
+	      std::optional<unsigned> ByteOffset = std::nullopt) const {
 		return false;
 	}
 	virtual bool allowsMisalignedMemoryAccesses(EVT, unsigned AddrSpace = 0,
@@ -67,9 +68,8 @@ public:
 			unsigned *Fast = nullptr) const override {
 		return true;
 	}
-	virtual bool getAddrModeArguments(IntrinsicInst* /*I*/,
-			SmallVectorImpl<Value*>&/*Ops*/, Type*&/*AccessTy*/) const
-					override {
+	virtual bool getAddrModeArguments(const IntrinsicInst* /*I*/,
+			SmallVectorImpl<Value*>& /*Ops*/, Type*& /*AccessTy*/) const {
 		return true;
 	}
 	virtual bool isLegalStoreImmediate(int64_t Value) const override {
@@ -88,16 +88,16 @@ public:
 	virtual bool isZExtFree(EVT FromTy, EVT ToTy) const override {
 		return true;
 	}
-	virtual bool isNarrowingProfitable(EVT /*VT1*/, EVT /*VT2*/) const
+	virtual bool isNarrowingProfitable(SDNode *N, EVT SrcVT, EVT DestVT) const
 			override {
 		return true;
 	}
-    virtual void computeKnownBitsForTargetInstr(GISelKnownBits &Analysis,
+    virtual void computeKnownBitsForTargetInstr(GISelValueTracking &Analysis,
                                                 Register R, KnownBits &Known,
                                                 const APInt &DemandedElts,
                                                 const MachineRegisterInfo &MRI,
                                                 unsigned Depth = 0) const override;
-    // virtual Align computeKnownAlignForTargetInstr(GISelKnownBits &Analysis,
+    // virtual Align computeKnownAlignForTargetInstr(GISelValueTracking &Analysis,
     //                                               Register R,
     //                                               const MachineRegisterInfo &MRI,
     //                                               unsigned Depth = 0) const override;

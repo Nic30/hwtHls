@@ -1,4 +1,4 @@
-//===- BranchFolding.h - Fold machine code branch instructions --*- C++ -*-===//
+//===- BranchFolding.h llvm-21.1.2 - Fold machine code branch instructions --*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,16 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#pragma once
+#ifndef LLVM_LIB_CODEGEN_BRANCHFOLDING_H
+#define LLVM_LIB_CODEGEN_BRANCHFOLDING_H
 
-#include <llvm/ADT/DenseMap.h>
-#include <llvm/ADT/SmallPtrSet.h>
-#include <llvm/CodeGen/LivePhysRegs.h>
-#include <llvm/CodeGen/MachineBasicBlock.h>
-#include <llvm/Support/Compiler.h>
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/CodeGen/LivePhysRegs.h"
+#include "llvm/CodeGen/MachineBasicBlock.h"
+#include "llvm/Support/Compiler.h"
 #include <vector>
 
 namespace llvm {
+
 class BasicBlock;
 class MachineBranchProbabilityInfo;
 class MachineFunction;
@@ -25,14 +27,8 @@ class MBFIWrapper;
 class ProfileSummaryInfo;
 class TargetInstrInfo;
 class TargetRegisterInfo;
-}
 
-namespace hwtHls {
-
-using namespace llvm;
-
-
-  class BranchFolder {
+  class LLVM_LIBRARY_VISIBILITY BranchFolder {
   public:
     explicit BranchFolder(bool DefaultEnableTailMerge, bool CommonHoist,
                           MBFIWrapper &FreqInfo,
@@ -54,10 +50,11 @@ using namespace llvm;
     class MergePotentialsElt {
       unsigned Hash;
       MachineBasicBlock *Block;
+      DebugLoc BranchDebugLoc;
 
     public:
-      MergePotentialsElt(unsigned h, MachineBasicBlock *b)
-        : Hash(h), Block(b) {}
+      MergePotentialsElt(unsigned h, MachineBasicBlock *b, DebugLoc bdl)
+          : Hash(h), Block(b), BranchDebugLoc(std::move(bdl)) {}
 
       unsigned getHash() const { return Hash; }
       MachineBasicBlock *getBlock() const { return Block; }
@@ -65,6 +62,8 @@ using namespace llvm;
       void setBlock(MachineBasicBlock *MBB) {
         Block = MBB;
       }
+
+      const DebugLoc &getBranchDebugLoc() { return BranchDebugLoc; }
 
       bool operator<(const MergePotentialsElt &) const;
     };
@@ -117,15 +116,15 @@ using namespace llvm;
     };
     std::vector<SameTailElt> SameTails;
 
-    bool AfterBlockPlacement;
-    bool EnableTailMerge;
-    bool EnableHoistCommonCode;
-    bool UpdateLiveIns;
+    bool AfterBlockPlacement = false;
+    bool EnableTailMerge = false;
+    bool EnableHoistCommonCode = false;
+    bool UpdateLiveIns = false;
     unsigned MinCommonTailLength;
-    const TargetInstrInfo *TII;
-    const MachineRegisterInfo *MRI;
-    const TargetRegisterInfo *TRI;
-    MachineLoopInfo *MLI;
+    const TargetInstrInfo *TII = nullptr;
+    const MachineRegisterInfo *MRI = nullptr;
+    const TargetRegisterInfo *TRI = nullptr;
+    MachineLoopInfo *MLI = nullptr;
     LivePhysRegs LiveRegs;
 
   private:
@@ -166,8 +165,9 @@ using namespace llvm;
 
     /// Remove all blocks with hash CurHash from MergePotentials, restoring
     /// branches at ends of blocks as appropriate.
-    void RemoveBlocksWithHash(unsigned CurHash, MachineBasicBlock* SuccBB,
-                                                MachineBasicBlock* PredBB);
+    void RemoveBlocksWithHash(unsigned CurHash, MachineBasicBlock *SuccBB,
+                              MachineBasicBlock *PredBB,
+                              const DebugLoc &BranchDL);
 
     /// None of the blocks to be tail-merged consist only of the common tail.
     /// Create a block that does by splitting one.
@@ -199,4 +199,6 @@ using namespace llvm;
     bool HoistCommonCodeInSuccs(MachineBasicBlock *MBB);
   };
 
-}
+} // end namespace llvm
+
+#endif // LLVM_LIB_CODEGEN_BRANCHFOLDING_H

@@ -32,25 +32,31 @@ bb.0:
   %7 = xor i1 %1, true
   %8 = and i1 %.eof51, %7
   %9 = icmp eq i3 %.mask, -1
-  %10 = xor i1 %9, true
   %NonEoFImplMaskAll1 = or i1 %.eof51, %9
   %prevMaskBit1Impl38 = icmp ule i1 %4, %1
-  %11 = xor i1 %3, true
-  %12 = and i1 %.eof51, %11
-  %13 = xor i1 %4, true
-  %14 = and i1 %.eof51, %13
-  %.017 = and i1 %1, %12
-  %.023 = and i1 %3, %14
+  %10 = xor i1 %3, true
+  %11 = and i1 %.eof51, %10
+  %12 = xor i1 %4, true
+  %13 = and i1 %.eof51, %12
+  %.017 = and i1 %1, %11
+  %.023 = and i1 %3, %13
   %.029 = and i1 %4, %.eof51
-  %15 = icmp ne i2 %0, -1
-  %16 = and i1 %.eof51, %15
-  %17 = xor i1 %16, true
-  %18 = and i1 %.eof51, %10
+  %14 = xor i1 %8, true
+  %15 = xor i1 %11, true
+  %16 = xor i1 %13, true
+  %17 = icmp ne i2 %0, -1
+  %18 = and i1 %.eof51, %17
   %19 = xor i1 %18, true
   %phi0 = and i1 %19, %4
+  %impCache2 = icmp ule i1 %.029, %16
+  call void @llvm.assume(i1 %impCache2)
   %phi1 = and i1 %19, %.029
-  %phi2 = and i1 %17, %3
-  %phi3 = and i1 %17, %.023
+  %phi2 = and i1 %14, %3
+  %impCache5 = icmp ule i1 %.023, %15
+  call void @llvm.assume(i1 %impCache5)
+  %phi3 = and i1 %14, %.023
+  %impCache8 = icmp ule i1 %.017, %14
+  call void @llvm.assume(i1 %impCache8)
   br i1 %8, label %bb.sink, label %bb.1
 
 bb.1:                                             ; preds = %bb.0

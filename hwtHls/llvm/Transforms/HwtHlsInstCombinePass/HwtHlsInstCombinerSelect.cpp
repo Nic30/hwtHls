@@ -35,8 +35,7 @@ bool matchUniqueCmpTreeMatchAndOr(Value *Op,
 bool matchUniqueCmpTree(Value *Op, SmallPtrSet<ConstantInt*, 16> &seenConstants,
 		CmpInst::Predicate Pred, Value *&v0) {
 	SmallPtrSet<ConstantInt*, 16> seenConstantsTmp = seenConstants; // copy because we can not update if match fails
-	using Predicate = CmpInst::Predicate;
-	Predicate _Pred;
+	CmpPredicate _Pred;
 	ConstantInt *cmpRhs;
 	auto PredInv = CmpInst::getInversePredicate(Pred);
 	Value *v0n = nullptr;

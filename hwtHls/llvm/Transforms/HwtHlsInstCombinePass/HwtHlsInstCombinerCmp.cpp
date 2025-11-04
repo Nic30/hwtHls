@@ -225,7 +225,7 @@ bool HwtHlsInstCombiner::pruneInvertedCmpDuplicatesInBlock(BasicBlock &BB) {
 	for (auto &I : BB) {
 		Instruction *lhs;
 		const APInt *C;
-		CmpInst::Predicate Pred;
+		CmpPredicate Pred;
 		bool matched = false;
 		bool inversed = false;
 		if (match(&I, m_ICmp(Pred, m_Instruction(lhs), m_APInt(C)))) {

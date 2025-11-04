@@ -1,5 +1,6 @@
 #include <hwtHls/llvm/Transforms/ThreadExtractIoFsmPass/formDedicatedLatchUniqueExitingBlock.h>
 
+#include <llvm/IR/Module.h>
 #include <llvm/ADT/SmallPtrSet.h>
 #include <llvm/Analysis/ValueTracking.h>
 #include <llvm/Analysis/SimplifyQuery.h>

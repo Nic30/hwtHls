@@ -57,12 +57,15 @@ CImmOrRegOrUndefWithWidth::CImmOrRegOrUndefWithWidth(size_t _width,
 	assert(width > 0);
 }
 
-void CImmOrRegOrUndefWithWidth::addAsUse(MachineInstrBuilder &MIB) const {
+void CImmOrRegOrUndefWithWidth::addAsUse(llvm::MachineIRBuilder &Builder, MachineInstrBuilder &MIB) const {
 	MachineRegisterInfo &MRI = MIB.getInstr()->getMF()->getRegInfo();
 	assert(width > 0);
 	if (isUndef) {
+		MachineFunction& MF = Builder.getMF();
+		MachineInsertPointGuard(Builder, *MF.begin(), MF.begin()->begin());
 		Register res = MRI.createVirtualRegister(&HwtFpga::anyregclsRegClass);
 		MRI.setType(res, LLT::scalar(width));
+		Builder.buildInstr(HwtFpga::HWTFPGA_IMPLICIT_DEF, {res}, {width});
 		MIB.addUse(res, RegState::Undef);
 	} else if (c) {
 		assert(c->getType()->getIntegerBitWidth() == width);
@@ -130,30 +133,30 @@ size_t hwtFpgaMuxFindValueWidth(const llvm::MachineInstr &MI,
 	return 0;
 }
 
-bool RegisterIsDefinedWithinRangeExclusive(llvm::Register r,
+bool RegisterIsDefinedWithinRangeExclusive(const llvm::TargetRegisterInfo * TRI, llvm::Register r,
 		llvm::MachineBasicBlock::iterator begin,
 		llvm::MachineBasicBlock::iterator end) {
 	if (begin == end)
 		return false;
 	begin++;
-	return RegisterIsDefinedWithinRange(r, begin, end);
+	return RegisterIsDefinedWithinRange(TRI, r, begin, end);
 }
 
-bool RegisterIsDefinedWithinRange(llvm::Register r,
+bool RegisterIsDefinedWithinRange(const llvm::TargetRegisterInfo * TRI, llvm::Register r,
 		llvm::MachineBasicBlock::iterator begin,
 		llvm::MachineBasicBlock::iterator end) {
 	for (auto &I : make_range(begin, end)) {
-		if (I.definesRegister(r))
+		if (I.definesRegister(r, TRI))
 			return true;
 	}
 	return false;
 }
 
-bool RegisterIsDefinedWithinRange(llvm::Register r,
+bool RegisterIsDefinedWithinRange(const llvm::TargetRegisterInfo * TRI, llvm::Register r,
 		llvm::MachineBasicBlock::const_iterator begin,
 		llvm::MachineBasicBlock::const_iterator end) {
 	for (auto &I : make_range(begin, end)) {
-		if (I.definesRegister(r))
+		if (I.definesRegister(r, TRI))
 			return true;
 	}
 	return false;
@@ -177,7 +180,7 @@ bool match_OperandIs1(MachineRegisterInfo &MRI, const MachineOperand &Op) {
 	return false;
 }
 
-bool Register_isRedefinedInLinearBlockSequenceEndToBegin(Register reg,
+bool Register_isRedefinedInLinearBlockSequenceEndToBegin(const llvm::TargetRegisterInfo * TRI, Register reg,
 		MachineBasicBlock::iterator begin, llvm::MachineBasicBlock &EndMBB,
 		llvm::MachineBasicBlock::iterator EndIp) {
 	llvm::MachineBasicBlock *_EndMBB = &EndMBB;
@@ -188,7 +191,7 @@ bool Register_isRedefinedInLinearBlockSequenceEndToBegin(Register reg,
 			if (prevInstr == begin)
 				return false;
 
-			if (prevInstr.definesRegister(reg))
+			if (prevInstr.definesRegister(reg, TRI))
 				return true;
 		}
 		assert(_EndMBB->pred_size() == 1);

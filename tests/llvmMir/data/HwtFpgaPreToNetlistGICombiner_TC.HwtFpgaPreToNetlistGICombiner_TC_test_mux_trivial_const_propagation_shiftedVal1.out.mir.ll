@@ -1,4 +1,4 @@
-# Machine code for function HwtFpgaPreToNetlistGICombiner_TC_test_mux_trivial_const_propagation_shiftedVal1: IsSSA, NoPHIs, TracksLiveness, Legalized, RegBankSelected, Selected
+# Machine code for function HwtFpgaPreToNetlistGICombiner_TC_test_mux_trivial_const_propagation_shiftedVal1: NoPHIs, TracksLiveness, Legalized, RegBankSelected, Selected
 
 bb.0.HwtFpgaPreToNetlistGICombiner_TC_test_mux_trivial_const_propagation_shiftedVal1:
   successors: %bb.1(0x80000000); %bb.1(100.00%)

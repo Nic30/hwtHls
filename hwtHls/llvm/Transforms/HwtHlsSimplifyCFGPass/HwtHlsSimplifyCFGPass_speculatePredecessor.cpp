@@ -124,7 +124,7 @@ bool HwtHlsSimplifyCFGPass_speculatePredecessor(llvm::DomTreeUpdater &DTU,
 #endif
 	// sink non phi/terminal instructions from BB to sucBB
 	sucBB->splice(sucBB->getFirstInsertionPt(), &BB,
-			BB.getFirstNonPHI()->getIterator(),
+			BB.getFirstNonPHIIt(),
 			BB.getTerminator()->getIterator());
 
 	// sink phis which are arguments of phi in sucBB

@@ -273,10 +273,11 @@ unsigned HwtFpgaInstrInfo::insertBranch(MachineBasicBlock &MBB,
 	bool isNegated = Cond[1].getImm();
 	MachineFunction &MF = *MBB.getParent();
 	MachineRegisterInfo &MRI = MF.getRegInfo();
+	auto *TRI = MF.getSubtarget().getRegisterInfo();
 	auto CondMutable = reinterpret_cast<MutableArrayRef<MachineOperand>&>(Cond);
 	bool CondWasKill = Cond[0].isKill();
 	if (isNegated) {
-		MachineOperand *_Br_n = hwtHls::getRegisterNegationIfExits(MRI, MBB,
+		MachineOperand *_Br_n = hwtHls::getRegisterNegationIfExits(MRI, TRI, MBB,
 				MBB.end(), Br_cond.getReg(), CondWasKill);
 		if (_Br_n) {
 			// use existing negation of register
@@ -343,7 +344,9 @@ void HwtFpgaInstrInfo::insertSelect(MachineBasicBlock &MBB,
 	if (Cond.size() != 2) {
 		llvm_unreachable("NotImplemented");
 	}
-	MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
+	auto &MF = *MBB.getParent();
+	MachineRegisterInfo &MRI = MF.getRegInfo();
+	auto *TRI = MF.getSubtarget().getRegisterInfo();
 	const TargetRegisterClass *RC = &HwtFpga::anyregclsRegClass;
 
 	// Pull all virtual register into the appropriate class.
@@ -356,7 +359,7 @@ void HwtFpgaInstrInfo::insertSelect(MachineBasicBlock &MBB,
 		MachineFunction &MF = *MBB.getParent();
 		MachineRegisterInfo &MRI = MF.getRegInfo();
 		MachineIRBuilder Builder(MBB, I);
-		Cond_n = hwtHls::negateRegister(MRI, Builder, Cond[0].getReg());
+		Cond_n = hwtHls::negateRegister(MRI, TRI, Builder, Cond[0].getReg());
 	}
 
 	// Insert the csel.

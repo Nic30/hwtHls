@@ -2,6 +2,8 @@
 
 #include <llvm/IR/PassManager.h>
 #include <llvm/ADT/APInt.h>
+#include <llvm/IR/Metadata.h>
+
 
 namespace hwtHls {
 

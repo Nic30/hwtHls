@@ -1,17 +1,18 @@
 #include <hwtHls/llvm/targets/GISel/hwtFpgaCombinerHelper.h>
 
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
-#include <llvm/CodeGen/GlobalISel/GISelKnownBits.h>
+#include <llvm/CodeGen/GlobalISel/GISelValueTracking.h>
 
 #include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionSelectorUtils.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtils.h>
 
 namespace llvm {
 
 bool HwtFpgaCombinerHelper::matchIsExtractOnMergeValues(llvm::MachineInstr &MI,
 		std::vector<ConcatMember> &concatMembers) {
 	concatMembers.clear();
-	auto& _src = MI.getOperand(1);
+	auto &_src = MI.getOperand(1);
 	if (!_src.isReg())
 		return false;
 	auto *src = MRI.getOneDef(MI.getOperand(1).getReg());
@@ -31,6 +32,8 @@ bool HwtFpgaCombinerHelper::matchIsExtractOnMergeValues(llvm::MachineInstr &MI,
 		return false;
 	if (concatMembers.size() == 1) {
 		auto newSrc = concatMembers.back();
+		if (newSrc.existingSlice == &MI)
+			return false;
 		if (matchEqualDefs(newSrc.op, *src)) {
 			return false; // this was resolved to same instruction
 		}
@@ -70,11 +73,23 @@ void HwtFpgaCombinerHelper::rewriteExtractOnMergeValues(llvm::MachineInstr &MI,
 	if (concatMembers.size() == 1) {
 		auto &src = concatMembers.back();
 		// we may be able to use item directly of we may build an EXTRACT
-		if (src.offsetOfUse == 0 && src.width == src.widthOfUse) {
+		if (src.existingSlice) {
+			Builder.setInstr(MI);
+			auto sliceDstOp = src.existingSlice->getOperand(0);
+			if (!MRI.hasOneDef(sliceDstOp.getReg())) {
+				// in the case that there are multiple defs we create backup copy after slice instruction
+				hwtHls::MachineInsertPointGuard(Builder,
+						*src.existingSlice->getParent(),
+						src.existingSlice->getNextNode());
+				auto cpMIB = buildHwtFpgaCopy(sliceDstOp);
+				sliceDstOp = cpMIB.getInstr()->getOperand(0);
+			}
+			buildHwtFpgaCopy(DstMO, sliceDstOp);
+		} else if (src.offsetOfUse == 0 && src.width == src.widthOfUse) {
 			// whole value of src is used, use it directly
 			if (src.op.isReg()) {
-				assert(!src.existingSlice && "If this is an existing slice, this not have been matched for rewrite");
-				Builder.setInstr(*const_cast<MachineInstr*>(src.op.getParent())->getNextNode());
+				Builder.setInstr(
+						*const_cast<MachineInstr*>(src.op.getParent())->getNextNode());
 				bool dstHasOneDef = MRI.getOneDef(DstMO.getReg());
 				if (dstHasOneDef) {
 					buildHwtFpgaCopy(DstMO, src.op);
@@ -102,12 +117,11 @@ void HwtFpgaCombinerHelper::rewriteExtractOnMergeValues(llvm::MachineInstr &MI,
 				//
 				//	}
 
-
 			} else if (src.op.isCImm()) {
 				Builder.setInstrAndDebugLoc(MI);
 				Register srcReg = MRI.createVirtualRegister(
 						&HwtFpga::anyregclsRegClass);
-				const ConstantInt* C =  src.constOverride;
+				const ConstantInt *C = src.constOverride;
 				if (!C) {
 					C = src.op.getCImm();
 				}
@@ -124,31 +138,27 @@ void HwtFpgaCombinerHelper::rewriteExtractOnMergeValues(llvm::MachineInstr &MI,
 			// branch should have been taken if this is const
 			// :attention: HWTFPGA_EXTRACT must be constructed in the place where
 			//   src.op was originally used, because it can be redefined on the way to MI
-			if (src.existingSlice) {
-				Builder.setInstr(MI);
-				buildHwtFpgaCopy(DstMO, src.existingSlice->getOperand(0));
-			} else {
-				Builder.setInstr(*const_cast<MachineInstr*>(src.op.getParent())->getNextNode());
-				// auto *srcDef = MRI.getOneDef(src.op.getReg());
-				auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_EXTRACT);
-				auto &newMI = *MIB.getInstr();
-				Observer.changingInstr(newMI);
-				// $dst $src $srcWidth $offset $dstWidth
-				MIB.addDef(DstMO.getReg());
-				// this would break CSEInfo llvm-18
-				// MRI.setType(DstMO.getReg(), LLT::scalar(src.widthOfUse));
-				addSrcOperand(MIB, src);
-				//if (src.op.isReg()) {
-				//  // this would result in broken CSEMap llvm-18
-				//	MRI.setType(src.op.getReg(), LLT::scalar(src.width));
-				//}
-				assert(src.width >= src.offsetOfUse + src.widthOfUse);
-				MIB.addImm(src.width);
-				MIB.addImm(src.offsetOfUse);
-				MIB.addImm(src.widthOfUse);
-				assert(newMI.getNumExplicitOperands() == 5);
-				Observer.changedInstr(newMI);
-			}
+			Builder.setInstr(
+					*const_cast<MachineInstr*>(src.op.getParent())->getNextNode());
+			// auto *srcDef = MRI.getOneDef(src.op.getReg());
+			MachineInstrBuilder MIB = Builder.buildInstr(HwtFpga::HWTFPGA_EXTRACT);
+			auto &newMI = *MIB.getInstr();
+			Observer.changingInstr(newMI);
+			// $dst $src $srcWidth $offset $dstWidth
+			MIB.addDef(DstMO.getReg());
+			// this would break CSEInfo llvm-18
+			// MRI.setType(DstMO.getReg(), LLT::scalar(src.widthOfUse));
+			addSrcOperand(MIB, src);
+			//if (src.op.isReg()) {
+			//  // this would result in broken CSEMap llvm-18
+			//	MRI.setType(src.op.getReg(), LLT::scalar(src.width));
+			//}
+			assert(src.width >= src.offsetOfUse + src.widthOfUse);
+			MIB.addImm(src.width);
+			MIB.addImm(src.offsetOfUse);
+			MIB.addImm(src.widthOfUse);
+			assert(newMI.getNumExplicitOperands() == 5);
+			Observer.changedInstr(newMI);
 		}
 	} else {
 		// we must build HWTFPGA_MERGE_VALUE for members
@@ -174,7 +184,8 @@ void HwtFpgaCombinerHelper::rewriteExtractOnMergeValues(llvm::MachineInstr &MI,
 #endif
 				} else {
 					if (src.constOverride) {
-						concatOps.push_back(MachineOperand::CreateCImm(src.constOverride));
+						concatOps.push_back(
+								MachineOperand::CreateCImm(src.constOverride));
 					} else {
 						concatOps.push_back(src.op);
 					}
@@ -185,8 +196,10 @@ void HwtFpgaCombinerHelper::rewriteExtractOnMergeValues(llvm::MachineInstr &MI,
 					concatOps.push_back(src.existingSlice->getOperand(0));
 				} else {
 					// slice the member using HWTFPGA_EXTRACT
-					Builder.setInstr(*const_cast<MachineInstr*>(src.op.getParent())->getNextNode());
-					auto memberMIB = Builder.buildInstr(HwtFpga::HWTFPGA_EXTRACT);
+					Builder.setInstr(
+							*const_cast<MachineInstr*>(src.op.getParent())->getNextNode());
+					MachineInstrBuilder memberMIB = Builder.buildInstr(
+							HwtFpga::HWTFPGA_EXTRACT);
 					Observer.changingInstr(*memberMIB.getInstr());
 
 					// $dst $src $offset $dstWidth
@@ -208,7 +221,7 @@ void HwtFpgaCombinerHelper::rewriteExtractOnMergeValues(llvm::MachineInstr &MI,
 		}
 
 		Builder.setInstrAndDebugLoc(MI);
-		auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MERGE_VALUES);
+		MachineInstrBuilder MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MERGE_VALUES);
 		Observer.changingInstr(*MIB.getInstr());
 		MIB.addDef(DstMO.getReg());
 		assert(concatOps.size() == concatMembers.size());
@@ -263,7 +276,7 @@ void HwtFpgaCombinerHelper::rewriteExtractOnConstShift(llvm::MachineInstr &MI) {
 		assert(offset >= shAmount);
 		offset -= shAmount;
 		Builder.setInstrAndDebugLoc(MI);
-		auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_EXTRACT);
+		MachineInstrBuilder MIB = Builder.buildInstr(HwtFpga::HWTFPGA_EXTRACT);
 		Observer.changingInstr(*MIB.getInstr());
 
 		MIB.addDef(MI.getOperand(0).getReg());

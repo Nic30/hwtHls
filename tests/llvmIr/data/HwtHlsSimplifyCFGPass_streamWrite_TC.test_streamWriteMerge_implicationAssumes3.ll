@@ -56,31 +56,29 @@ loop.pkt.read:                                    ; preds = %loop.pkt.lastCheck.
   %29 = or i1 %7, %26
   %wEn3.2 = and i1 %4, %28
   %.029 = and i1 %wEn3.2, %29
-  %30 = xor i1 %13, true
-  %31 = icmp ne i2 %0, -1
-  %32 = and i1 %7, %31
-  %33 = xor i1 %32, true
-  %.streamWrite.en19.2 = and i1 %33, %wEn3.2
-  %.231 = and i1 %33, %.029
-  %.225 = and i1 %30, %.023
-  %34 = call i2 @hwtHls.bitConcat.i1.i1(i1 true, i1 %wEn3.1) #5
-  %35 = or i1 %.021, %.225
-  br i1 %wEn3, label %loop.pkt.write.1.streamWrite.sinked, label %36
+  %30 = icmp ne i2 %0, -1
+  %31 = and i1 %7, %30
+  %32 = xor i1 %31, true
+  %.streamWrite.en19.2 = and i1 %32, %wEn3.2
+  %.231 = and i1 %32, %.029
+  %33 = call i2 @hwtHls.bitConcat.i1.i1(i1 true, i1 %wEn3.1) #5
+  %34 = or i1 %.021, %.023
+  br i1 %wEn3, label %loop.pkt.write.1.streamWrite.sinked, label %35
 
 loop.pkt.write.1.streamWrite.sinked:              ; preds = %loop.pkt.read
-  call void @hwtHls.streamWrite.masked.p2.i16.i2.i1.i1.p0(ptr addrspace(2) %tx, i16 %2, i2 %34, i1 false, i1 %35, ptr null) #4
-  br label %36
+  call void @hwtHls.streamWrite.masked.p2.i16.i2.i1.i1.p0(ptr addrspace(2) %tx, i16 %2, i2 %33, i1 false, i1 %34, ptr null) #4
+  br label %35
 
-36:                                               ; preds = %loop.pkt.write.1.streamWrite.sinked, %loop.pkt.read
+35:                                               ; preds = %loop.pkt.write.1.streamWrite.sinked, %loop.pkt.read
   %impCache = icmp ule i1 %wEn3.1, %wEn3
   br i1 %.streamWrite.en19.2, label %loop.pkt.write.2.streamWrite.sinked, label %loop.pkt.lastCheck.2.writesExit
 
-loop.pkt.write.2.streamWrite.sinked:              ; preds = %36
+loop.pkt.write.2.streamWrite.sinked:              ; preds = %35
   call void @llvm.assume(i1 %impCache)
   call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %1, i1 false, i1 %.231, ptr null) #4
   br label %loop.pkt.lastCheck.2.writesExit
 
-loop.pkt.lastCheck.2.writesExit:                  ; preds = %loop.pkt.write.2.streamWrite.sinked, %36
+loop.pkt.lastCheck.2.writesExit:                  ; preds = %loop.pkt.write.2.streamWrite.sinked, %35
   br i1 %7, label %loop.pkt.eof, label %loop.pkt.read
 
 loop.pkt.eof:                                     ; preds = %loop.pkt.lastCheck.2.writesExit

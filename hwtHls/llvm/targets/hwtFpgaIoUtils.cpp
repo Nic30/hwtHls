@@ -73,6 +73,14 @@ std::tuple<Type*, size_t, MachineInstr*> getLoadOrStoreElementType(
 		default:
 			break;
 		}
+		bool isLoad = false;
+		switch (MI.getOpcode()) {
+		case HwtFpga::HWTFPGA_CLOAD:
+		case TargetOpcode::G_LOAD:
+			isLoad = true;
+		default:
+			break;
+		}
 		//MachineOperand &addrMO = MI.getOperand(1);
 		for (auto MO : MI.memoperands()) {
 			auto t = MO->getValue()->getType();
@@ -115,7 +123,9 @@ std::tuple<Type*, size_t, MachineInstr*> getLoadOrStoreElementType(
 			} else {
 				addressWidth = hwtHlsIO.value().addrWidth;
 				resT = IntegerType::getIntNTy(F.getContext(),
-						MO->getSizeInBits());
+						isLoad ?
+								hwtHlsIO.value().readWordWidth :
+								hwtHlsIO.value().writeWordWidth);
 				if (expectedResWidth.has_value())
 					assert(MO->getSizeInBits() == expectedResWidth);
 			}

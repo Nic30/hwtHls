@@ -1,4 +1,11 @@
 #pragma once
+/**
+ * Common hard-to-guess pitfalls during development of SimplifyCFG
+ * * block replaced by UnreachableInst from no obvious reason
+ *   * if llvm removeUndefIntroducingPredecessor sees any incoming value which may cause undefined behavior later
+ *     (using passingValueIsAlwaysUndefined) it removes predecessor
+ *     * bugs of this type are commonly caused by too aggressive code hoisting or phi operand swaps
+ * */
 
 #include <llvm/IR/Function.h>
 #include <llvm/IR/PassManager.h>

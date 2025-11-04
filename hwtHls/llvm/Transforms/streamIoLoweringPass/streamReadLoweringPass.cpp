@@ -805,7 +805,7 @@ llvm::PreservedAnalyses StreamReadLoweringPass::run(llvm::Function &F,
 	bool changed = false;
 	llvm::SmallVector<llvm::AllocaInst*> GeneratedAllocas;
 	auto streamProps = getStreamIoProps(F, GeneratedAllocas);
-	auto &DL = F.getParent()->getDataLayout();
+	auto &DL = F.getDataLayout();
 
 	// :note: copied from llvm-18 combineInstructionsOverFunction
 	IRBuilder<TargetFolder, IRBuilderCallbackInserter> Builder(F.getContext(),
@@ -831,7 +831,7 @@ llvm::PreservedAnalyses StreamReadLoweringPass::run(llvm::Function &F,
 		//if (LVI)
 		//	LVI->clear();
 
-		Builder.SetInsertPoint(F.getEntryBlock().getFirstNonPHI());
+		Builder.SetInsertPoint(F.getEntryBlock().getFirstNonPHIIt());
 		s.createCommonVars(Builder);
 		StreamReadRewriter srr(cfg, s, Builder, &DTU, nullptr);
 		srr.rewriteAdtAccessToWordAccess(F.getEntryBlock());

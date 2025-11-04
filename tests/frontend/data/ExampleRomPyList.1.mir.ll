@@ -12,7 +12,7 @@
   blockL156i0_156:                                  ; preds = %bb0, %blockL156i0_156
     %i_read1 = load volatile i2, ptr addrspace(1) %i, align 1
     %0 = zext i2 %i_read1 to i64
-    %select.rom.index = getelementptr inbounds [4 x i32], ptr @select.rom.table, i64 0, i64 %0
+    %select.rom.index = getelementptr inbounds nuw [4 x i32], ptr @select.rom.table, i64 0, i64 %0
     %select.table.valo3 = load volatile i32, ptr %select.rom.index, align 4
     store volatile i32 %select.table.valo3, ptr addrspace(2) %o, align 4
     br label %blockL156i0_156
@@ -21,7 +21,6 @@
   !0 = distinct !{!1, !2}
   !1 = !{!"IN", i64 0, i64 2, i64 0, ptr null, i64 0}
   !2 = !{!"OUT", i64 0, i64 0, i64 32, ptr null, i64 1}
-
 ...
 ---
 name:            ExampleRomPyList.mainThread
@@ -33,9 +32,13 @@ selected:        true
 failedISel:      false
 tracksRegLiveness: true
 hasWinCFI:       false
+noPhis:          true
+isSSA:           false
+noVRegs:         false
+hasFakeUses:     false
 callsEHReturn:   false
 callsUnwindInit: false
-hasEHCatchret:   false
+hasEHContTarget: false
 hasEHScopes:     false
 hasEHFunclets:   false
 isOutlined:      false
@@ -43,20 +46,20 @@ debugInstrRef:   false
 failsVerification: false
 tracksDebugUserValues: false
 registers:
-  - { id: 0, class: anyregcls, preferred-register: '' }
-  - { id: 1, class: anyregcls, preferred-register: '' }
-  - { id: 2, class: anyregcls, preferred-register: '' }
-  - { id: 3, class: anyregcls, preferred-register: '' }
-  - { id: 4, class: anyregcls, preferred-register: '' }
-  - { id: 5, class: _, preferred-register: '' }
-  - { id: 6, class: anyregcls, preferred-register: '' }
-  - { id: 7, class: anyregbank, preferred-register: '' }
-  - { id: 8, class: _, preferred-register: '' }
-  - { id: 9, class: anyregcls, preferred-register: '' }
-  - { id: 10, class: _, preferred-register: '' }
-  - { id: 11, class: anyregcls, preferred-register: '' }
-  - { id: 12, class: anyregcls, preferred-register: '' }
-  - { id: 13, class: anyregcls, preferred-register: '' }
+  - { id: 0, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 1, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 2, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 3, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 4, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 5, class: _, preferred-register: '', flags: [  ] }
+  - { id: 6, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 7, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 8, class: _, preferred-register: '', flags: [  ] }
+  - { id: 9, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 10, class: _, preferred-register: '', flags: [  ] }
+  - { id: 11, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 12, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 13, class: anyregcls, preferred-register: '', flags: [  ] }
 liveins:         []
 frameInfo:
   isFrameAddressTaken: false
@@ -76,6 +79,7 @@ frameInfo:
   hasVAStart:      false
   hasMustTailInVarArgFunc: false
   hasTailCall:     false
+  isCalleeSavedInfoValid: false
   localFrameSize:  0
   savePoint:       ''
   restorePoint:    ''
@@ -101,5 +105,4 @@ body:             |
     %9:anyregcls(s32) = HWTFPGA_CLOAD %4(p0), %2(s2), 32, 1 :: (volatile invariant load (s32) from %ir.select.rom.index)
     HWTFPGA_CSTORE %9(s32), %1, 0, 32, 1 :: (volatile store (s32) into %ir.o, addrspace 2)
     HWTFPGA_BR %bb.1
-
 ...

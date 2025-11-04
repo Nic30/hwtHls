@@ -14,6 +14,7 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/MDBuilder.h>
+#include <llvm/IR/PassInstrumentation.h>
 #include <llvm/Support/Debug.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <llvm/Transforms/Utils/Local.h>
@@ -325,7 +326,7 @@ llvm::PreservedAnalyses HwtHlsSimplifyCFGPass::run(llvm::Function &F,
 	bool RequireAndPreserveDomTree = true;
 
 	auto &TTI = AM.getResult<TargetIRAnalysis>(F);
-	auto &DL = F.getParent()->getDataLayout();
+	auto &DL = F.getDataLayout();
 	llvm::StringMap<llvm::cl::Option*> &Map = llvm::cl::getRegisteredOptions();
 	auto _LlvmHoistCommonSkipLimit = Map.find(
 			"simplifycfg-hoist-common-skip-limit");

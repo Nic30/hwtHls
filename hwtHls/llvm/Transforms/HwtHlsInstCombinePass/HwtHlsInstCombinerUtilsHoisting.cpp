@@ -1,4 +1,5 @@
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinerUtilsHoisting.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
 #include <hwtHls/llvm/intrinsic/metadataSideEffect.h>
 #include <llvm/Analysis/ValueTracking.h>
 
@@ -12,17 +13,15 @@ bool hoistIntoDominatingBlock(Value &V, Instruction &insertPoint,
 		if (DT.dominates(I, &insertPoint)) {
 			return true;
 		}
-		if (I->mayWriteToMemory() || I->mayReadFromMemory()
-				|| I->mayHaveSideEffects() || !isSafeToSpeculativelyExecute(I))
-			if (!hasMetadataSideeffectAllowHoist(*I))
-				return false;
+		if (!isSafeToHoistInstr(I, SkipFlags::NONE, false))
+			return false;
 
 		for (auto &O : I->operands()) {
 			if (!hoistIntoDominatingBlock(*O.get(), insertPoint, DT)) {
 				return false;
 			}
 		}
-		I->moveBefore(&insertPoint);
+		I->moveBefore(insertPoint.getIterator());
 	}
 	return true;
 }

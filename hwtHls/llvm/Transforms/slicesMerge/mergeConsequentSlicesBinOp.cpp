@@ -10,7 +10,7 @@ using namespace llvm;
 
 namespace hwtHls {
 
-llvm::Instruction* SlicesMergeCombiner::mergeConsequentSlicesBinOp(BinaryOperator &I) {
+bool SlicesMergeCombiner::mergeConsequentSlicesBinOp(BinaryOperator &I) {
 	bool modified;
 	Value *widerOp0;
 	Value *widerOp1;
@@ -22,6 +22,7 @@ llvm::Instruction* SlicesMergeCombiner::mergeConsequentSlicesBinOp(BinaryOperato
 	std::tie(modified, widerOp0, widerOp1) =
 			mergeConsequentSlicesExtractWiderOperads(parallelInstrOnSameVec, I, noPredicate, true, 0,
 					1);
+
 	if (widerOp0 && widerOp1) {
 		Value *res;
 		switch (I.getOpcode()) {
@@ -47,10 +48,10 @@ llvm::Instruction* SlicesMergeCombiner::mergeConsequentSlicesBinOp(BinaryOperato
 		//}
 		replaceMergedInstructions(parallelInstrOnSameVec,
 				res);
-		return &I; // return I to mark that it was replaced
+		return true;
 
 	}
-	return nullptr;
+	return false;
 }
 
 }

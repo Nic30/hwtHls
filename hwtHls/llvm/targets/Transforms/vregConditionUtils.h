@@ -9,7 +9,7 @@ namespace hwtHls {
 
 // try to find the register with a negation of specified register for a place defined by TargetMBB and TargetIp
 // :returns: defining machine operand
-llvm::MachineOperand* getRegisterNegationIfExits(llvm::MachineRegisterInfo &MRI,
+llvm::MachineOperand* getRegisterNegationIfExits(llvm::MachineRegisterInfo &MRI, const llvm::TargetRegisterInfo * TRI,
 		llvm::MachineBasicBlock &TargetMBB,
 		llvm::MachineBasicBlock::iterator TargetIp, llvm::Register reg, bool& wasOriginallyKill);
 
@@ -20,7 +20,7 @@ llvm::MachineOperand& _negateRegister(llvm::MachineRegisterInfo &MRI,
 
 // return existing register with negation if negation of register exits
 // or create register with a negation of the register
-llvm::Register negateRegister(llvm::MachineRegisterInfo &MRI,
+llvm::Register negateRegister(llvm::MachineRegisterInfo &MRI, const llvm::TargetRegisterInfo * TRI,
 		llvm::MachineIRBuilder &Builder, llvm::Register reg,
 		bool isKill = false);
 
@@ -63,17 +63,17 @@ void createSpeculationMergeMuxes(llvm::MachineBasicBlock &insertPointBlock,
  * If not TII.SubsumesPredicate then
  * Create an AND of two conditions and place the result in second condition
  * */
-void Condition_and(llvm::MachineIRBuilder &Builder,
+void Condition_and(const llvm::TargetRegisterInfo * TRI, llvm::MachineIRBuilder &Builder,
 		llvm::SmallVectorImpl<llvm::MachineOperand> &Op0,
 		llvm::SmallVectorImpl<llvm::MachineOperand> &Op1AndDst);
-void Condition_or(llvm::MachineIRBuilder &Builder,
+void Condition_or(const llvm::TargetRegisterInfo * TRI, llvm::MachineIRBuilder &Builder,
 		llvm::SmallVectorImpl<llvm::MachineOperand> &Op0,
 		llvm::SmallVectorImpl<llvm::MachineOperand> &Op1AndDst);
 
 /*
  * Op0, Op1AndDst are in KNF, in form of tuples (reg, isNegated flag)
  * */
-void Condition_and_or(unsigned opcode_and_or, llvm::MachineIRBuilder &Builder,
+void Condition_and_or(const llvm::TargetRegisterInfo * TRI, unsigned opcode_and_or, llvm::MachineIRBuilder &Builder,
 		llvm::SmallVectorImpl<llvm::MachineOperand> &Op0,
 		llvm::SmallVectorImpl<llvm::MachineOperand> &Op1AndDst);
 /*

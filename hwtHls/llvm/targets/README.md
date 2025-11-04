@@ -2,7 +2,7 @@
 https://releases.llvm.org/14.0.0/docs/WritingAnLLVMBackend.html
 
 LLVM target is composed of several components
-* LLVMTargetMachine
+* TargetMachine
 * TargetSubtargetInfo
 * TargetTransformInfoImplBase
 

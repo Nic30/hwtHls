@@ -800,7 +800,7 @@ bool SimplifyCFGOpt2::simplifyOnce(BasicBlock *BB, bool &exprChanged) {
 		if (PredBB && PredBB != BB) {
 			exprChanged |= DBG_SimplifyCFGOpt2_check(
 					tryHoistCheapInstsAtBlockBegin(*BB,
-							PredBB->getTerminator()));
+							PredBB->getTerminator()->getIterator()));
 		}
 	}
 	// Check to see if we can constant propagate this terminator instruction

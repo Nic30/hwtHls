@@ -15,6 +15,8 @@ void verifyUsesList(const llvm::Function &F) {
 						assert(OpVasI->getParent()->getParent() == &F);
 					}
 				}
+				if (!OpV->hasUseList())
+					continue; // case for ConstantData which do not use uses
 				bool found = false;
 				for (auto &U : OpV->uses()) {
 					found |= U.getUser() == &I

@@ -5,6 +5,7 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/IR/IntrinsicInst.h>
+#include <llvm/IR/DataLayout.h>
 
 using namespace llvm;
 
@@ -238,7 +239,7 @@ void rewriteAllocaToGlobalValue(const DataLayout &DL, BasicBlock::iterator &Iit,
 // [todo] this should be ModulePass because it produces GlobalValue
 llvm::PreservedAnalyses PromoteAllocaToGlobalPass::run(llvm::Function &F,
 		llvm::FunctionAnalysisManager &AM) {
-	const DataLayout &DL = F.getParent()->getDataLayout();
+	const DataLayout &DL = F.getDataLayout();
 	for (auto &BB : F) {
 		for (auto Iit = BB.begin(); Iit != BB.end();) {
 			Instruction &I = *Iit;

@@ -18,7 +18,7 @@ class ThreadExtractPass_ir_TC(BaseLlvmIrTC):
     def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
         M = llvm._runCustomModulePass(_addThreadExtractPass)
         if verifyModule(M):
-            raise AssertionError()
+            raise AssertionError("See previous erros from verifyModule()")
         return M
 
     def _test_ir_file(self):
@@ -33,6 +33,12 @@ class ThreadExtractPass_ir_TC(BaseLlvmIrTC):
     def test_inDepsSyncBeginEnd(self):
         self._test_ir_file()
 
+    def test_inDepsSyncBeginEnd2xNested(self):
+        self._test_ir_file()
+
+    def test_inDepsSyncBeginEnd2xSerial(self):
+        self._test_ir_file()
+
     def test_outDepsSyncBeginEnd(self):
         self._test_ir_file()
 
@@ -41,7 +47,7 @@ if __name__ == "__main__":
     import unittest
     import sys
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([ThreadExtractPass_ir_TC('test_outDepsSyncBeginEnd')])
+    # suite = unittest.TestSuite([ThreadExtractPass_ir_TC('test_inDepsSyncBeginEnd2x')])
     suite = testLoader.loadTestsFromTestCase(ThreadExtractPass_ir_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     sys.exit(not runner.run(suite).wasSuccessful())

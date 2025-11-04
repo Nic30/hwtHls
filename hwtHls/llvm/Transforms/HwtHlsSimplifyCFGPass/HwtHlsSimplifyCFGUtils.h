@@ -6,11 +6,12 @@
 namespace hwtHls {
 
 enum SkipFlags {
-	SkipReadMem = 1, SkipSideEffect = 2, SkipImplicitControlFlow = 4
+	SkipReadMem = 1, SkipSideEffect = 2, SkipImplicitControlFlow = 4,
+	NONE = SkipReadMem | SkipSideEffect | SkipImplicitControlFlow,
 };
 
 unsigned skippedInstrFlags(llvm::Instruction *I);
-bool isSafeToHoistInstr(llvm::Instruction *I, unsigned Flags);
+bool isSafeToHoistInstr(llvm::Instruction *I, unsigned Flags, bool checkOperands=true);
 
 llvm::Value* CreateGlobalDataWithGEP(llvm::IRBuilder<> &builder,
 		llvm::Module &M, llvm::Value *switch_tableidx,
@@ -19,7 +20,7 @@ llvm::Value* CreateGlobalDataWithGEP(llvm::IRBuilder<> &builder,
 
 bool IsCheapInstruction(llvm::Instruction &I);
 bool tryHoistCheapInstsAtBlockBegin(llvm::BasicBlock &BB,
-		llvm::Instruction *MovePos,
+		llvm::BasicBlock::iterator MovePos,
 		std::optional<std::function<bool(llvm::Instruction&)>> extraCheck = { });
 bool simplifyBranchToSameDst(llvm::BasicBlock *BB);
 void sortPhiOperands(llvm::BasicBlock &BB);

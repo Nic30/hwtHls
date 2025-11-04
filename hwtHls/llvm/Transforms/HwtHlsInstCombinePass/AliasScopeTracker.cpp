@@ -3,7 +3,7 @@
 #include <llvm/IR/Metadata.h>
 #include <llvm/IR/IntrinsicInst.h>
 
-// copied from llvm-18 (not modified)
+// :note: copied from llvm-21.1.2 (not modified)
 using namespace llvm;
 
 namespace hwtHls {

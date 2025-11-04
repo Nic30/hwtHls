@@ -1,4 +1,4 @@
-//===- Transform/Utils/CodeExtractor.h - Code extraction util ---*- C++ -*-===//
+//===- Transform/Utils/CodeExtractor.h llvm-21.1.2 - Code extraction util ---*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -12,10 +12,11 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/ADT/SetVector.h>
-#include <llvm/Transforms/Utils/CodeExtractor.h>
+#include <llvm/Support/Compiler.h>
 #include <limits>
 
 namespace llvm {
@@ -31,47 +32,13 @@ class CallInst;
 class DominatorTree;
 class Function;
 class Instruction;
-class Loop;
 class Module;
 class Type;
 class Value;
+class StructType;
+class CodeExtractorAnalysisCache;
 }
-
-namespace hwtHls {
-
-using namespace llvm;
-
-/// A cache for the CodeExtractor analysis. The operation \ref
-/// CodeExtractor::extractCodeRegion is guaranteed not to invalidate this
-/// object. This object should conservatively be considered invalid if any
-/// other mutating operations on the IR occur.
-///
-/// Constructing this object is O(n) in the size of the function.
-class CodeExtractorAnalysisCache {
-  /// The allocas in the function.
-  SmallVector<AllocaInst *, 16> Allocas;
-
-  /// Base memory addresses of load/store instructions, grouped by block.
-  DenseMap<BasicBlock *, DenseSet<Value *>> BaseMemAddrs;
-
-  /// Blocks which contain instructions which may have unknown side-effects
-  /// on memory.
-  DenseSet<BasicBlock *> SideEffectingBlocks;
-
-  void findSideEffectInfoForBlock(BasicBlock &BB);
-
-public:
-  CodeExtractorAnalysisCache(Function &F);
-
-  /// Get the allocas in the function at the time the analysis was created.
-  /// Note that some of these allocas may no longer be present in the function,
-  /// due to \ref CodeExtractor::extractCodeRegion.
-  ArrayRef<AllocaInst *> getAllocas() const { return Allocas; }
-
-  /// Check whether \p BB contains an instruction thought to load from, store
-  /// to, or otherwise clobber the alloca \p Addr.
-  bool doesBlockContainClobberOfAddr(BasicBlock &BB, AllocaInst *Addr) const;
-};
+namespace hwtHls::llvmSrc {
 
   /// Utility class for extracting code into a new function.
   ///
@@ -88,31 +55,45 @@ public:
   ///    as arguments, and inserting stores to the arguments for any scalars.
   class CodeExtractor {
   public:
-    using ValueSet = SetVector<Value *>;
+	  using ValueSet = llvm::SetVector<llvm::Value *>;
+  protected:
 
     // Various bits of state computed on construction.
-    DominatorTree *const DT;
+    llvm::DominatorTree *const DT;
     const bool AggregateArgs;
-    BlockFrequencyInfo *BFI;
-    BranchProbabilityInfo *BPI;
-    AssumptionCache *AC;
+    llvm::BlockFrequencyInfo *BFI;
+    llvm::BranchProbabilityInfo *BPI;
+    llvm::AssumptionCache *AC;
 
     // A block outside of the extraction set where any intermediate
     // allocations will be placed inside. If this is null, allocations
     // will be placed in the entry block of the function.
-    BasicBlock *AllocationBlock;
+    llvm::BasicBlock *AllocationBlock;
 
     // If true, varargs functions can be extracted.
     bool AllowVarArgs;
 
     // Bits of intermediate state computed at various phases of extraction.
-    SetVector<BasicBlock *> Blocks;
-    unsigned NumExitBlocks = std::numeric_limits<unsigned>::max();
-    Type *RetTy;
+    llvm::SetVector<llvm::BasicBlock *> Blocks;
 
-    // Mapping from the original exit blocks, to the new blocks inside
-    // the function.
-    SmallVector<BasicBlock *, 4> OldTargets;
+    /// Lists of blocks that are branched from the code region to be extracted,
+    /// also called the exit blocks. Each block is contained at most once. Its
+    /// order defines the return value of the extracted function.
+    ///
+    /// When there is just one (or no) exit block, the return value is
+    /// irrelevant.
+    ///
+    /// When there are exactly two exit blocks, the extracted function returns a
+    /// boolean. For ExtractedFuncRetVals[0], it returns 'true'. For
+    /// ExtractedFuncRetVals[1] it returns 'false'.
+    /// NOTE: Since a boolean is represented by i1, ExtractedFuncRetVals[0]
+    ///       returns 1 and ExtractedFuncRetVals[1] returns 0, which opposite
+    ///       of the regular pattern below.
+    ///
+    /// When there are 3 or more exit blocks, leaving the extracted function via
+    /// the first block it returns 0. When leaving via the second entry it
+    /// returns 1, etc.
+    llvm::SmallVector<llvm::BasicBlock *> ExtractedFuncRetVals;
 
     // Suffix to use when creating extracted function (appended to the original
     // function name + "."). If empty, the default is to use the entry block
@@ -140,30 +121,26 @@ public:
     /// If ArgsInZeroAddressSpace param is set to true, then the aggregate
     /// param pointer of the outlined function is declared in zero address
     /// space.
-    CodeExtractor(ArrayRef<BasicBlock *> BBs, DominatorTree *DT = nullptr,
-                  bool AggregateArgs = false, BlockFrequencyInfo *BFI = nullptr,
-                  BranchProbabilityInfo *BPI = nullptr,
-                  AssumptionCache *AC = nullptr, bool AllowVarArgs = false,
+    LLVM_ABI
+    CodeExtractor(llvm::ArrayRef<llvm::BasicBlock *> BBs, llvm::DominatorTree *DT = nullptr,
+                  bool AggregateArgs = false, llvm::BlockFrequencyInfo *BFI = nullptr,
+                  llvm::BranchProbabilityInfo *BPI = nullptr,
+                  llvm::AssumptionCache *AC = nullptr, bool AllowVarArgs = false,
                   bool AllowAlloca = false,
-                  BasicBlock *AllocationBlock = nullptr,
+                  llvm::BasicBlock *AllocationBlock = nullptr,
                   std::string Suffix = "", bool ArgsInZeroAddressSpace = false);
-
-    /// Create a code extractor for a loop body.
-    ///
-    /// Behaves just like the generic code sequence constructor, but uses the
-    /// block sequence of the loop.
-    CodeExtractor(DominatorTree &DT, Loop &L, bool AggregateArgs = false,
-                  BlockFrequencyInfo *BFI = nullptr,
-                  BranchProbabilityInfo *BPI = nullptr,
-                  AssumptionCache *AC = nullptr,
-                  std::string Suffix = "");
 
     /// Perform the extraction, returning the new function.
     ///
     /// Returns zero when called on a CodeExtractor instance where isEligible
     /// returns false.
-    Function *extractCodeRegion(const CodeExtractorAnalysisCache &CEAC);
-
+    LLVM_ABI llvm::Function *
+    extractCodeRegion(const llvm::CodeExtractorAnalysisCache &CEAC);
+    // :note: extracted for hwtHls
+    void extractCodeRegion_discardIncompatibleAssumes();
+    // :note: extracted for hwtHls
+    llvm::BlockFrequency extractCodeRegion_calculateEntryFreq(llvm::BasicBlock* header,
+    		llvm::DenseMap<llvm::BasicBlock *, llvm::BlockFrequency>& ExitWeights);
     /// Perform the extraction, returning the new function and providing an
     /// interface to see what was categorized as inputs and outputs.
     ///
@@ -175,15 +152,15 @@ public:
     /// newly outlined function.
     /// \returns zero when called on a CodeExtractor instance where isEligible
     /// returns false.
-    Function *extractCodeRegion(const CodeExtractorAnalysisCache &CEAC,
-                                ValueSet &Inputs, ValueSet &Outputs);
+    LLVM_ABI virtual llvm::Function *extractCodeRegion(const llvm::CodeExtractorAnalysisCache &CEAC,
+                                         ValueSet &Inputs, ValueSet &Outputs);
 
     /// Verify that assumption cache isn't stale after a region is extracted.
     /// Returns true when verifier finds errors. AssumptionCache is passed as
     /// parameter to make this function stateless.
-    static bool verifyAssumptionCache(const Function &OldFunc,
-                                      const Function &NewFunc,
-                                      AssumptionCache *AC);
+    LLVM_ABI static bool verifyAssumptionCache(const llvm::Function &OldFunc,
+                                               const llvm::Function &NewFunc,
+                                               llvm::AssumptionCache *AC);
 
     /// Test whether this code extractor is eligible.
     ///
@@ -192,7 +169,7 @@ public:
     ///
     /// Checks that varargs handling (with vastart and vaend) is only done in
     /// the outlined blocks.
-    bool isEligible() const;
+    LLVM_ABI bool isEligible() const;
 
     /// Compute the set of input values and output values for the code.
     ///
@@ -202,16 +179,17 @@ public:
     /// a code sequence, that sequence is modified, including changing these
     /// sets, before extraction occurs. These modifications won't have any
     /// significant impact on the cost however.
-    void findInputsOutputs(ValueSet &Inputs, ValueSet &Outputs,
-                           const ValueSet &Allocas) const;
+    LLVM_ABI virtual void findInputsOutputs(ValueSet &Inputs, ValueSet &Outputs,
+                                    const ValueSet &Allocas,
+                                    bool CollectGlobalInputs = false) const;
 
     /// Check if life time marker nodes can be hoisted/sunk into the outline
     /// region.
     ///
     /// Returns true if it is safe to do the code motion.
-    bool
-    isLegalToShrinkwrapLifetimeMarkers(const CodeExtractorAnalysisCache &CEAC,
-                                       Instruction *AllocaAddr) const;
+    LLVM_ABI bool
+    isLegalToShrinkwrapLifetimeMarkers(const llvm::CodeExtractorAnalysisCache &CEAC,
+                                       llvm::Instruction *AllocaAddr) const;
 
     /// Find the set of allocas whose life ranges are contained within the
     /// outlined region.
@@ -221,9 +199,9 @@ public:
     /// are used by the lifetime markers are also candidates for shrink-
     /// wrapping. The instructions that need to be sunk are collected in
     /// 'Allocas'.
-    void findAllocas(const CodeExtractorAnalysisCache &CEAC,
-                     ValueSet &SinkCands, ValueSet &HoistCands,
-                     BasicBlock *&ExitBlock) const;
+    LLVM_ABI void findAllocas(const llvm::CodeExtractorAnalysisCache &CEAC,
+                              ValueSet &SinkCands, ValueSet &HoistCands,
+                              llvm::BasicBlock *&ExitBlock) const;
 
     /// Find or create a block within the outline region for placing hoisted
     /// code.
@@ -233,55 +211,97 @@ public:
     /// inside the region that is the predecessor of CommonExitBlock, that block
     /// will be returned. Otherwise CommonExitBlock will be split and the
     /// original block will be added to the outline region.
-    BasicBlock *findOrCreateBlockForHoisting(BasicBlock *CommonExitBlock);
+    LLVM_ABI llvm::BasicBlock *
+    findOrCreateBlockForHoisting(llvm::BasicBlock *CommonExitBlock);
 
     /// Exclude a value from aggregate argument passing when extracting a code
     /// region, passing it instead as a scalar.
-    void excludeArgFromAggregate(Value *Arg);
+    LLVM_ABI void excludeArgFromAggregate(llvm::Value *Arg);
 
-  public:
+	virtual ~CodeExtractor() {}
+  protected:
     struct LifetimeMarkerInfo {
       bool SinkLifeStart = false;
       bool HoistLifeEnd = false;
-      Instruction *LifeStart = nullptr;
-      Instruction *LifeEnd = nullptr;
+      llvm::Instruction *LifeStart = nullptr;
+      llvm::Instruction *LifeEnd = nullptr;
     };
 
     ValueSet ExcludeArgsFromAggregate;
 
     LifetimeMarkerInfo
-    getLifetimeMarkers(const CodeExtractorAnalysisCache &CEAC,
-                       Instruction *Addr, BasicBlock *ExitBlock) const;
+    getLifetimeMarkers(const llvm::CodeExtractorAnalysisCache &CEAC,
+    		llvm::Instruction *Addr, llvm::BasicBlock *ExitBlock) const;
 
-    void severSplitPHINodesOfEntry(BasicBlock *&Header);
-    void severSplitPHINodesOfExits(const SmallPtrSetImpl<BasicBlock *> &Exits);
+    /// Updates the list of SwitchCases (corresponding to exit blocks) after
+    /// changes of the control flow or the Blocks list.
+    void computeExtractedFuncRetVals();
+
+    /// Return the type used for the return code of the extracted function to
+    /// indicate which exit block to jump to.
+    llvm::Type *getSwitchType();
+
+    void severSplitPHINodesOfEntry(llvm::BasicBlock *&Header);
+    void severSplitPHINodesOfExits();
     void splitReturnBlocks();
+    // :note: extracted for hwtHls
+    void constructFunctionDeclaration_inheritAttributes(llvm::Function *oldFunction,
+    		llvm::Function *newFunction);
 
-    void constructFunctionInheritAttributes(Function * oldFunction, Function * newFunction);
-    Function *constructFunction(const ValueSet &inputs,
-                                const ValueSet &outputs,
-                                BasicBlock *header,
-                                BasicBlock *newRootNode, BasicBlock *newHeader,
-                                Function *oldFunction, Module *M);
-
-    void moveCodeToFunction(Function *newFunction);
+    void moveCodeToFunction(llvm::Function *newFunction);
 
     void calculateNewCallTerminatorWeights(
-        BasicBlock *CodeReplacer,
-        DenseMap<BasicBlock *, BlockFrequency> &ExitWeights,
-        BranchProbabilityInfo *BPI);
+        llvm::BasicBlock *CodeReplacer,
+        const llvm::DenseMap<llvm::BasicBlock *, llvm::BlockFrequency> &ExitWeights,
+        llvm::BranchProbabilityInfo *BPI);
 
-    CallInst *emitCallAndSwitchStatement(Function *newFunction,
-                                         BasicBlock *newHeader,
-                                         ValueSet &inputs, ValueSet &outputs);
+    /// Normalizes the control flow of the extracted regions, such as ensuring
+    /// that the extracted region does not contain a return instruction.
+    void normalizeCFGForExtraction(llvm::BasicBlock *&header);
+
+    // :note: extracted for hwtHls
+    void constructFunctionDeclaration_updateNewEntryFreq(llvm::BlockFrequency EntryFreq,
+    		llvm::Function *newFunction, llvm::BasicBlock *codeReplacer);
+    /// Generates the function declaration for the function containing the
+    /// extracted code.
+    virtual llvm::Function *constructFunctionDeclaration(const ValueSet &inputs,
+                                           const ValueSet &outputs,
+                                           llvm::BlockFrequency EntryFreq,
+                                           const llvm::Twine &Name,
+                                           ValueSet &StructValues,
+                                           llvm::StructType *&StructTy);
+	void _emitFunctionBody_replaceUsesOfInputs(const ValueSet &inputs,
+			const llvm::SmallVectorImpl<llvm::Value*> &NewValues);
+	void _emitFunctionBody_sink(const ValueSet &SinkingCands,
+			llvm::BasicBlock *newFuncRoot);
+	void _emitFunctionBody_return(llvm::Function * newFunction, llvm::BasicBlock * header,
+			llvm::BasicBlock * newFuncRoot);
+    /// Generates the code for the extracted function. That is: a prolog, the
+    /// moved or copied code from the original function, and epilogs for each
+    /// exit.
+    virtual void emitFunctionBody(const ValueSet &inputs, const ValueSet &outputs,
+                          const ValueSet &StructValues, llvm::Function *newFunction,
+                          llvm::StructType *StructArgTy, llvm::BasicBlock *header,
+                          const ValueSet &SinkingCands,
+                          llvm::SmallVectorImpl<llvm::Value *> &NewValues);
+    void _emitReplacerCall_constructSwitch(llvm::Function * newFunction,
+    		llvm::BasicBlock* codeReplacer, llvm::CallInst * call);
+    /// Generates a Basic Block that calls the extracted function.
+    virtual llvm::CallInst *emitReplacerCall(const ValueSet &inputs, const ValueSet &outputs,
+                               const ValueSet &StructValues,
+                               llvm::Function *newFunction, llvm::StructType *StructArgTy,
+                               llvm::Function *oldFunction, llvm::BasicBlock *ReplIP,
+                               llvm::BlockFrequency EntryFreq,
+                               llvm::ArrayRef<llvm::Value *> LifetimesStart,
+                               std::vector<llvm::Value *> &Reloads);
+
+    /// Connects the basic block containing the call to the extracted function
+    /// into the original function's control flow.
+    virtual void insertReplacerCall(
+        llvm::Function *oldFunction, llvm::BasicBlock *header, llvm::BasicBlock *codeReplacer,
+        const ValueSet &outputs, llvm::ArrayRef<llvm::Value *> Reloads,
+        const llvm::DenseMap<llvm::BasicBlock *, llvm::BlockFrequency> &ExitWeights);
   };
-  void eraseLifetimeMarkersOnInputs(const SetVector<BasicBlock *> &Blocks,
-                                    const SetVector<Value *> &SunkAllocas,
-                                    SetVector<Value *> &LifetimesStart);
-  void fixupDebugInfoPostExtraction(Function &OldFunc, Function &NewFunc,
-                                           CallInst &TheCall);
-  void insertLifetimeMarkersSurroundingCall(
-      Module *M, ArrayRef<Value *> LifetimesStart, ArrayRef<Value *> LifetimesEnd,
-      CallInst *TheCall);
 
-} // end namespace
+}
+

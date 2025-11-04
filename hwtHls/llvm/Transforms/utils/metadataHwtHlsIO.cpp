@@ -1,6 +1,7 @@
 #include <hwtHls/llvm/Transforms/utils/metadataHwtHlsIO.h>
 
 #include <llvm/IR/Metadata.h>
+#include <llvm/IR/Module.h>
 #include <llvm/ADT/SmallPtrSet.h>
 
 using namespace llvm;
@@ -122,11 +123,11 @@ HwtHlsIoMetadata HwtHlsIoMetadata::fromMetadata(llvm::Metadata &hwtHlsIOItem) {
 	assert(aMD->getNumOperands() >= 6);
 	HwtHlsIoMetadata aMd;
 	auto dir = cast<MDString>(aMD->getOperand(0).get())->getString();
-	if (dir.equals("UNRESOLVED")) {
+	if (dir == "UNRESOLVED") {
 		aMd.direction = IO_DIR_UNRESOLVED;
-	} else if (dir.equals("IN")) {
+	} else if (dir == "IN") {
 		aMd.direction = IO_DIR_IN;
-	} else if (dir.equals("OUT")) {
+	} else if (dir == "OUT") {
 		aMd.direction = IO_DIR_OUT;
 	} else {
 		throw std::runtime_error(

@@ -1,7 +1,7 @@
 #include <hwtHls/llvm/targets/GISel/hwtFpgaCombinerHelper.h>
 
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
-#include <llvm/CodeGen/GlobalISel/GISelKnownBits.h>
+#include <llvm/CodeGen/GlobalISel/GISelValueTracking.h>
 #include <llvm/ADT/STLExtras.h>
 
 #include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
@@ -12,7 +12,7 @@
 
 namespace llvm {
 
-MachineInstr* tryGetDominatingDef(MachineRegisterInfo &MRI,
+MachineInstr* tryGetDominatingDef(MachineRegisterInfo &MRI, const TargetRegisterInfo *TRI,
 		MachineInstr &UserMI, Register reg) {
 	auto *oneDef = MRI.getOneDef(reg);
 	if (oneDef) {
@@ -27,7 +27,7 @@ MachineInstr* tryGetDominatingDef(MachineRegisterInfo &MRI,
 						++MI) {
 					if (&*MI == &UserMI)
 						return defMI; // the register is not redefined between defMI and UserMI
-					if (MI->definesRegister(reg))
+					if (MI->definesRegister(reg, TRI))
 						defMI = &*MI; // store last def
 				}
 				// this def was after useMi,
@@ -40,9 +40,9 @@ MachineInstr* tryGetDominatingDef(MachineRegisterInfo &MRI,
 }
 
 // check if operandReg is defined by sext/zext in a form of HWTFPGA_MERGE_VALUES, HWTFPGA_EXTRACT
-bool MatchMulHLOperand_matchReg(MachineRegisterInfo &MRI, MachineInstr &MI,
+bool MatchMulHLOperand_matchReg(MachineRegisterInfo &MRI, const TargetRegisterInfo *TRI, MachineInstr &MI,
 		Register operandReg, MatchMulHLOperand &opMatch) {
-	auto *defMI = tryGetDominatingDef(MRI, MI, operandReg);
+	auto *defMI = tryGetDominatingDef(MRI, TRI, MI, operandReg);
 	if (!defMI || defMI->getOpcode() != HwtFpga::HWTFPGA_MERGE_VALUES)
 		return false;
 	opMatch.def = defMI;
@@ -135,7 +135,7 @@ bool MatchMulHLOperand_matchReg(MachineRegisterInfo &MRI, MachineInstr &MI,
 					if (!topPart.isReg())
 						return false; // can not be sext by msb if operand is not reg
 
-					auto *rDefMI = tryGetDominatingDef(MRI, *defMI, r);
+					auto *rDefMI = tryGetDominatingDef(MRI, TRI, *defMI, r);
 					if (!rDefMI
 							|| rDefMI->getOpcode() != HwtFpga::HWTFPGA_EXTRACT)
 						return false;
@@ -152,7 +152,7 @@ bool MatchMulHLOperand_matchReg(MachineRegisterInfo &MRI, MachineInstr &MI,
 
 					// it may still be that case that this is msb of operand, but the operand itself may be a slice
 					assert(opMatch.opParts.back().isReg());
-					auto *opTopBitsDefMI = tryGetDominatingDef(MRI, *defMI,
+					auto *opTopBitsDefMI = tryGetDominatingDef(MRI, TRI, *defMI,
 							opMatch.opParts.back().reg);
 					if (!opTopBitsDefMI
 							|| opTopBitsDefMI->getOpcode()
@@ -218,7 +218,7 @@ bool HwtFpgaCombinerHelper::matchMulHL(llvm::MachineInstr &MI,
 				return false; // the constant is not zero/sign extended to double width
 
 		} else if (op.isReg()) {
-			if (!MatchMulHLOperand_matchReg(MRI, MI, op.getReg(), opMatch))
+			if (!MatchMulHLOperand_matchReg(MRI, TRI, MI, op.getReg(), opMatch))
 				return false;
 		} else {
 			llvm_unreachable(
@@ -284,8 +284,8 @@ void HwtFpgaCombinerHelper::rewriteMulToMulHL(llvm::MachineInstr &MI,
 	Observer.changingInstr(*MIB.getInstr());
 
 	copyOperand(MIB, MRI, MF, MI.getOperand(0));
-	newOps[0].addAsUse(MIB);
-	newOps[1].addAsUse(MIB);
+	newOps[0].addAsUse(Builder, MIB);
+	newOps[1].addAsUse(Builder, MIB);
 	// $isSigned0, $width0, $isSigned1, $width1, $resultWidth
 	for (unsigned i = 0; i < 2; i++) {
 		const MatchMulHLOperand &opMatch = matchinfo.ops[i];

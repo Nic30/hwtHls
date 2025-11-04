@@ -48,7 +48,7 @@ PHINode *getStoreValuePHIOperand(BasicBlock &BB, ArrayRef<StoreInst*> stores) {
   if (allSame)
 	  return nullptr;
 
-  auto *NewPN = PHINode::Create(Opd0->getType(), 2, Opd0->getName() + ".sink", &BB.front());
+  auto *NewPN = PHINode::Create(Opd0->getType(), 2, Opd0->getName() + ".sink", BB.begin());
   for (auto *S: stores) {
 	  NewPN->applyMergedLocation(NewPN->getDebugLoc(), S->getDebugLoc());
 	  NewPN->addIncoming(S->getValueOperand(), S->getParent());
@@ -78,7 +78,7 @@ static void sinkStores(ArrayRef<StoreInst*> stores, BasicBlock &TargetBB) {
 	}
 	// Create the new store to be inserted at the join point.
 	StoreInst *SNew = cast<StoreInst>(S0->clone());
-	SNew->insertBefore(&*InsertPt);
+	SNew->insertBefore(InsertPt);
 	// New PHI operand? Use it.
 	if (PHINode *NewPN = getStoreValuePHIOperand(TargetBB, stores))
 		SNew->setOperand(0, NewPN); // (if NewPN == nullptr the original remains)

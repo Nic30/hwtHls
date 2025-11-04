@@ -1,7 +1,7 @@
 #include <hwtHls/llvm/targets/GISel/hwtFpgaCombinerHelper.h>
 
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
-#include <llvm/CodeGen/GlobalISel/GISelKnownBits.h>
+#include <llvm/CodeGen/GlobalISel/GISelValueTracking.h>
 
 #include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionSelectorUtils.h>
@@ -270,7 +270,7 @@ bool HwtFpgaCombinerHelper::rewriteMuxConstPropagation(llvm::MachineInstr &MI,
 			MIB.addDef(MI.getOperand(0).getReg());
 		}
 		for (auto &o : newMuxOperands) {
-			o.addAsUse(MIB);
+			o.addAsUse(Builder, MIB);
 		}
 		Observer.changedInstr(*MIB.getInstr());
 

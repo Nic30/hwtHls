@@ -24,7 +24,6 @@
   !3 = !{!"OUT", i64 0, i64 0, i64 8, ptr null, i64 2}
   !4 = !{!"OUT", i64 0, i64 0, i64 8, ptr null, i64 3}
   !5 = !{!"IN", i64 0, i64 1, i64 0, ptr null, i64 4}
-
 ...
 ---
 name:            HlsPythonSwap.mainThread
@@ -36,9 +35,13 @@ selected:        true
 failedISel:      false
 tracksRegLiveness: true
 hasWinCFI:       false
+noPhis:          true
+isSSA:           false
+noVRegs:         false
+hasFakeUses:     false
 callsEHReturn:   false
 callsUnwindInit: false
-hasEHCatchret:   false
+hasEHContTarget: false
 hasEHScopes:     false
 hasEHFunclets:   false
 isOutlined:      false
@@ -46,16 +49,16 @@ debugInstrRef:   false
 failsVerification: false
 tracksDebugUserValues: false
 registers:
-  - { id: 0, class: anyregcls, preferred-register: '' }
-  - { id: 1, class: anyregcls, preferred-register: '' }
-  - { id: 2, class: anyregcls, preferred-register: '' }
-  - { id: 3, class: anyregcls, preferred-register: '' }
-  - { id: 4, class: anyregcls, preferred-register: '' }
-  - { id: 5, class: anyregcls, preferred-register: '' }
-  - { id: 6, class: anyregcls, preferred-register: '' }
-  - { id: 7, class: anyregcls, preferred-register: '' }
-  - { id: 8, class: anyregcls, preferred-register: '' }
-  - { id: 9, class: anyregcls, preferred-register: '' }
+  - { id: 0, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 1, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 2, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 3, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 4, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 5, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 6, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 7, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 8, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 9, class: anyregcls, preferred-register: '', flags: [  ] }
 liveins:         []
 frameInfo:
   isFrameAddressTaken: false
@@ -75,6 +78,7 @@ frameInfo:
   hasVAStart:      false
   hasMustTailInVarArgFunc: false
   hasTailCall:     false
+  isCalleeSavedInfoValid: false
   localFrameSize:  0
   savePoint:       ''
   restorePoint:    ''
@@ -106,5 +110,4 @@ body:             |
     HWTFPGA_CSTORE %8(s8), %2, 0, 8, 1 :: (volatile store (s8) into %ir.o0, addrspace 3)
     HWTFPGA_CSTORE %9(s8), %3, 0, 8, 1 :: (volatile store (s8) into %ir.o1, addrspace 4)
     HWTFPGA_BR %bb.1
-
 ...

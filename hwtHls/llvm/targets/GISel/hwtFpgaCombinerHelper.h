@@ -107,7 +107,7 @@ public:
 
 	MachineOperand* getNextUseOfRegInBlock(MachineInstr &MI,
 			Register &DstRegNo);
-	static bool checkAnyOperandRedefined(MachineInstr &MI, MachineInstr &MIEnd);
+	bool checkAnyOperandRedefined(MachineInstr &MI, MachineInstr &MIEnd);
 	MachineOperand* getNextUseOfRegAfterInstructionExceptMI(Register DstRegNo,
 			MachineInstr &MI);
 
@@ -168,6 +168,7 @@ public:
 	MachineInstrBuilder buildHwtFpgaCopy(MachineOperand opDst,
 			MachineOperand opSrc);
 	MachineInstrBuilder buildHwtFpgaCopy(MachineOperand opSrc);
+
 	void copyOperand(MachineInstrBuilder &MIB, MachineRegisterInfo &MRI,
 			MachineFunction &MF, MachineOperand &MO);
 	void copyOperandsForHFloatTmpAndPredicate(MachineInstrBuilder &MIB,

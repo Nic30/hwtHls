@@ -63,7 +63,6 @@ void register_Types(pybind11::module_ & m) {
 		.def("getIntegerBitWidth", &llvm::Type::getIntegerBitWidth)
 		.def("getPrimitiveSizeInBits", &llvm::Type::getPrimitiveSizeInBits)
 		.def("getScalarSizeInBits", &llvm::Type::getScalarSizeInBits)
-		.def("getPointerTo", &llvm::Type::getPointerTo, py::return_value_policy::reference)
 		.def("getDoubleTy", &llvm::Type::getDoubleTy, py::return_value_policy::reference)
 		.def("__repr__",  &printToStr<llvm::Type>)
 		.def("__eq__", [](llvm::Type * self, llvm::Type * other) {

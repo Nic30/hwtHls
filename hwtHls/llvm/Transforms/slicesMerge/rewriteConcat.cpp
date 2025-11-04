@@ -72,6 +72,7 @@ static bool mergeInstructionsInVector(SlicesMergeCombiner &IC,
 				IC.verifyAfterUpdate("mergeInstructionsInVector - before replace of part", I);
 #endif
 				IC.replaceInstUsesWith(*I, slice);
+				IC.Worklist.add(I); // for later DCE
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 				IC.assertSlicesConsistency();
 				IC.verifyAfterUpdate("mergeInstructionsInVector - after replace of part", I);
@@ -260,10 +261,12 @@ bool SlicesMergeCombiner::mergeInstructionSequenceInPlace(
 	}
 	return false;
 }
+
 void SlicesMergeCombiner::replaceInstUsesWithBefore(llvm::Instruction &I, llvm::Value *V,
 		bool excludeAssumeUsers) {
 	updateSlicesBeforeReplace(I, *V);
 }
+
 Instruction* SlicesMergeCombiner::rewriteConcat(CallInst *I, bool flatten) {
 	ConcatMemberVector values;
 	for (auto &A : I->args()) {

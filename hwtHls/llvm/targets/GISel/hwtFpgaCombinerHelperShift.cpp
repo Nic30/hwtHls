@@ -1,7 +1,7 @@
 #include <hwtHls/llvm/targets/GISel/hwtFpgaCombinerHelper.h>
 
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
-#include <llvm/CodeGen/GlobalISel/GISelKnownBits.h>
+#include <llvm/CodeGen/GlobalISel/GISelValueTracking.h>
 #include <llvm/CodeGen/GlobalISel/CSEInfo.h>
 
 #include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>

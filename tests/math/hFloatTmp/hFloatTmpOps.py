@@ -526,35 +526,35 @@ def asin(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
     return _evalFpFunction1ValSpecific(math.asin, OP_FASIN, "asin", op0)
 
 
-OP_FASIN = HOperatorDefLlvm(asin, _getllvmFp1LibFuncConstructor(LibFunc.LibFunc_asin), False, idStr="OP_FASIN")
+OP_FASIN = HOperatorDefLlvm(asin, _getllvmFp1IntrinsicConstructor(Intrinsic.asin), False, idStr="OP_FASIN")
 
 
 def sinh(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
     return _evalFpFunction1ValSpecific(math.sinh, OP_FSINH, "sinh", op0)
 
 
-OP_FSINH = HOperatorDefLlvm(sinh, _getllvmFp1LibFuncConstructor(LibFunc.LibFunc_sinh), False, idStr="OP_FSINH")
+OP_FSINH = HOperatorDefLlvm(sinh, _getllvmFp1IntrinsicConstructor(Intrinsic.sinh), False, idStr="OP_FSINH")
 
 
 def acos(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
     return _evalFpFunction1ValSpecific(math.acos, OP_FACOS, "acos", op0)
 
 
-OP_FACOS = HOperatorDefLlvm(acos, _getllvmFp1LibFuncConstructor(LibFunc.LibFunc_acos), False, idStr="OP_FACOS")
+OP_FACOS = HOperatorDefLlvm(acos, _getllvmFp1IntrinsicConstructor(Intrinsic.acos), False, idStr="OP_FACOS")
 
 
 def cosh(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
     return _evalFpFunction1ValSpecific(math.cosh, OP_FCOSH, "cosh", op0)
 
 
-OP_FCOSH = HOperatorDefLlvm(cosh, _getllvmFp1LibFuncConstructor(LibFunc.LibFunc_cosh), False, idStr="OP_FCOSH")
+OP_FCOSH = HOperatorDefLlvm(cosh, _getllvmFp1IntrinsicConstructor(Intrinsic.cosh), False, idStr="OP_FCOSH")
 
 
 def tan(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
     return _evalFpFunction1ValSpecific(math.tan, OP_FTAN, "tan", op0)
 
 
-OP_FTAN = HOperatorDefLlvm(tan, _getllvmFp1LibFuncConstructor(LibFunc.LibFunc_tan), False, idStr="OP_FTAN")
+OP_FTAN = HOperatorDefLlvm(tan, _getllvmFp1IntrinsicConstructor(Intrinsic.tan), False, idStr="OP_FTAN")
 
 
 def tanpi(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
@@ -563,7 +563,7 @@ def tanpi(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
 
 
 def _tanpiLLVM(*args):
-    raise AssertionError("This operator should be used only by backend, llvm-18 does not have tanpi function and tan(x*pi) should be used instead")
+    raise AssertionError("This operator should be used only by backend, llvm-21 does not have tanpi function and tan(x*pi) should be used instead")
 
 
 OP_FTANPI = HOperatorDefLlvm(tanpi, _tanpiLLVM, False, idStr="OP_FTANPI")
@@ -573,18 +573,18 @@ def atan(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
     return _evalFpFunction1ValSpecific(math.atan, OP_FATAN, "atan", op0)
 
 
-OP_FATAN = HOperatorDefLlvm(atan, _getllvmFp1LibFuncConstructor(LibFunc.LibFunc_atan), False, idStr="OP_FATAN")
+OP_FATAN = HOperatorDefLlvm(atan, _getllvmFp1IntrinsicConstructor(Intrinsic.atan), False, idStr="OP_FATAN")
 
 
 def tanh(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
     return _evalFpFunction1ValSpecific(math.tanh, OP_FTANH, "tanh", op0)
 
 
-OP_FTANH = HOperatorDefLlvm(tanh, _getllvmFp1LibFuncConstructor(LibFunc.LibFunc_tanh), False, idStr="OP_FTANH")
+OP_FTANH = HOperatorDefLlvm(tanh, _getllvmFp1IntrinsicConstructor(Intrinsic.tanh), False, idStr="OP_FTANH")
 
 
 def atan2(y: RtlSignalBase[HFloatTmp], x: RtlSignalBase[HFloatTmp]):
     return _evalFpFunction2ValSpecific(math.atan2, OP_FATAN2, "atan2", y, x)
 
 
-OP_FATAN2 = HOperatorDefLlvm(atan2, _getllvmFp2LibFuncConstructor(LibFunc.LibFunc_atan2), False, idStr="OP_FATAN2")
+OP_FATAN2 = HOperatorDefLlvm(atan2, _getllvmFp2IntrinsicConstructor(Intrinsic.atan2), False, idStr="OP_FATAN2")

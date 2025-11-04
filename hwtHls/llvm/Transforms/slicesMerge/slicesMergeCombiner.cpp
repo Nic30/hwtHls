@@ -240,14 +240,17 @@ llvm::Instruction* SlicesMergeCombiner::runOnInstr(llvm::Instruction &I) {
 	//	}
 	if (!slices.empty()) {
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+		verifyUsesList(F);
 		verifyAfterUpdate("mergeConsequentSlices received corrupted function",
 				&I);
 #endif
-		if (auto r = mergeConsequentSlices(I)) {
+		bool merged = false;
+		if (auto r = mergeConsequentSlices(I, merged)) {
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
-			verifyAfterUpdate("mergeConsequentSlices corrupted function", r);
+			verifyUsesList(F);
+			verifyAfterUpdate("mergeConsequentSlices corrupted function", nullptr);
 #endif
-			return r;
+			return r; // user replacing etc. already done in mergeConsequentSlices
 		}
 	}
 	return nullptr;

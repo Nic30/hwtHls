@@ -52,23 +52,23 @@ bool IsBitwiseInstruction(const Instruction &I) {
 	return false;
 }
 
-
-
-Instruction* SlicesMergeCombiner::mergeConsequentSlices(Instruction &I) {
+Instruction* SlicesMergeCombiner::mergeConsequentSlices(Instruction &I, bool & merged) {
 	if (I.getType()->isIntegerTy()) {
 		if (auto *BO = dyn_cast<BinaryOperator>(&I)) {
 			assert(!I.use_empty());
 			if (auto o0c = dyn_cast<Constant>(I.getOperand(0))) {
 				if (auto o1c = dyn_cast<Constant>(I.getOperand(1))) {
-					// cover the case with constant operands
+					// cover the case with constant operands first
 					auto replacement = ConstantFoldBinaryInstruction(
 							I.getOpcode(), o0c, o1c);
 					updateSlicesBeforeReplace(I, *replacement);
 					return replaceInstUsesWith(I, replacement);
 				}
 			}
-			if (IsBitwiseOperator(*BO))
-				return mergeConsequentSlicesBinOp(*BO);
+			if (IsBitwiseOperator(*BO)) {
+				merged = mergeConsequentSlicesBinOp(*BO);
+				return nullptr;
+			}
 
 		// } else if (auto *C = dyn_cast<CallInst>(&I)) {
 		//	if (IsBitConcat(C)) {
@@ -83,7 +83,8 @@ Instruction* SlicesMergeCombiner::mergeConsequentSlices(Instruction &I) {
 		//
 		} else if (auto *SI = dyn_cast<SelectInst>(&I)) {
 			assert(!I.use_empty());
-			return mergeConsequentSlicesSelect(*SI);
+			merged = mergeConsequentSlicesSelect(*SI);
+			return nullptr;
 		}
 	}
 	return nullptr;
@@ -94,17 +95,16 @@ struct ParallelInstVecItemNameGetter {
 		return I.I->getName();
 	}
 };
+
 void SlicesMergeCombiner::replaceMergedInstructions(const ParallelInstVec &parallelInstrOnSameVec,
 		Value *res) {
-	uint64_t offset = 0;
-
-	for (const ParallelInstVecItem &_partI : parallelInstrOnSameVec) {
-		Instruction *partI = _partI.I;
-		auto w = partI->getType()->getIntegerBitWidth();
-
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 		verifyUsesList(F);
 #endif
+	uint64_t offset = 0;
+	for (const ParallelInstVecItem &_partI : parallelInstrOnSameVec) {
+		Instruction *partI = _partI.I;
+		auto w = partI->getType()->getIntegerBitWidth();
 		// :note: builder insert point is expected to be on res or after
 		auto repl = createSlice(res, offset, w);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
@@ -119,6 +119,8 @@ void SlicesMergeCombiner::replaceMergedInstructions(const ParallelInstVec &paral
 		verifyUsesList(F);
 		verifyAfterUpdate("replaceMergedInstructions - createSlice", partI);
 #endif
+		assert(partI);
+		assert(partI->getParent()->getParent() == &F);
 		if (repl != partI) {
 			replaceInstUsesWith(*partI, repl);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
@@ -128,6 +130,9 @@ void SlicesMergeCombiner::replaceMergedInstructions(const ParallelInstVec &paral
 					partI);
 #endif
 		}
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+		verifyUsesList(F);
+#endif
 		offset += w;
 		Worklist.addValue(partI); // add for later DCE
 	}
@@ -153,7 +158,7 @@ bool SlicesMergeCombiner::collectParallelInstructionOnSameVectorFindFollowingIns
 		bool requireWidthToMatch,
 		SlicesMergeCombiner::SliceDict::iterator op1SucSlices) {
 	assert(!I.use_empty());
-	if (op1BitVec->use_empty())
+	if (op1BitVec->use_empty() && isa<Instruction>(op1BitVec))
 		return false; // this will be removed later
 	// for every successor slice of the operand 0 we check if there is an instruction of same type
 	// on a successor slice of the the operand 1
@@ -436,7 +441,7 @@ bool condensateInstructionGroup(BasicBlock &ParentBB,
 			} else {
 				// hoist
 				assert(&I2 != firstParInstr);
-				I2.moveBefore(firstParInstr);
+				I2.moveBefore(firstParInstr->getIterator());
 			}
 		}
 	}
@@ -509,6 +514,9 @@ bool SlicesMergeCombiner::extractWiderOperandsFromParallelInstructions(
 			// for (auto &I : parallelInstrOnSameVec) {
 			// 	errs() << "    " << *I.I << "\n";
 			// }
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+			verifyUsesList(F);
+#endif
 			return false; // there is something non removable between instructions
 		}
 		// :note: if any instruction was sinked the insert point is the most early sinked instruction
@@ -547,7 +555,10 @@ bool SlicesMergeCombiner::extractWiderOperandsFromParallelInstructions(
 	//Builder.GetInsertBlock()->dump();
 	//Builder.GetInsertPoint()->dump();
 	modified |= _modified;
+
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+	verifyUsesList(F);
+	verifyAfterUpdate("mergeConsequentSlicesExtractWiderOperads  broken", nullptr);
 	assertSlicesConsistency();
 #endif
 	// errs() << "extractWiderOperandsFromParallelInstructions finish:\n";
@@ -581,11 +592,16 @@ std::tuple<bool, Value*, Value*> SlicesMergeCombiner::mergeConsequentSlicesExtra
 	parallelInstrOnSameVec.insertSorted(&I, false);
 	auto op0width = op0->getType()->getIntegerBitWidth();
 	auto op1width = op1->getType()->getIntegerBitWidth();
-
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+		verifyUsesList(F);
+#endif
 	if (collectParallelInstructionOnSameVector(
 			parallelInstrOnSameVec, I, extraCheck, commutative, op0BitVec,
 			op0Offset, op0width, op0Index, op1BitVec, op1Offset, op1width,
 			op1Index)) {
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+		verifyUsesList(F);
+#endif
 		//auto *lastMemberI =
 		//	const_cast<Instruction*>(parallelInstrOnSameVec.getInstructionClosesToBlockEnd());
 		//assert(lastMemberI);
@@ -596,10 +612,17 @@ std::tuple<bool, Value*, Value*> SlicesMergeCombiner::mergeConsequentSlicesExtra
 				parallelInstrOnSameVec,  *I.getParent(),
 				op0Index, op1Index, widerOp0, widerOp1, modified)) {
 			// can not extract because there is something non movable between instructions
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+			verifyUsesList(F);
+#endif
 			return {false, nullptr, nullptr};
 		}
 		modified = true;
 	}
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+	verifyUsesList(F);
+	verifyAfterUpdate("getInstructionClosesToBlockEnd broken", &I);
+#endif
 	return {modified, widerOp0, widerOp1};
 }
 

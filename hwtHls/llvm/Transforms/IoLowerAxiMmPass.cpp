@@ -243,8 +243,8 @@ bool canReadModifyWriteSectionBeExtractedAsThread(DomTreeUpdater &DTU,
 		LoopInfo &LI, const SetVector<BasicBlock*> &selectedBlocks,
 		const SmallVector<LoadInst*> &loadsInCurrentLoop,
 		const SmallVector<StoreInst*> &storesInCurrentLoop,
-		SmallVector<Instruction*> &sectionBeginInsertPoints,
-		SmallVector<Instruction*> &sectionEndInsertPoints) {
+		SmallVector<BasicBlock::iterator> &sectionBeginInsertPoints,
+		SmallVector<BasicBlock::iterator> &sectionEndInsertPoints) {
 	if (loadsInCurrentLoop.size() != 1)
 		return false;
 	else if (storesInCurrentLoop.empty())
@@ -264,7 +264,7 @@ bool canReadModifyWriteSectionBeExtractedAsThread(DomTreeUpdater &DTU,
 			}
 		}
 		if (firstLdOfThisBlock) {
-			sectionBeginInsertPoints.push_back(firstLdOfThisBlock);
+			sectionBeginInsertPoints.push_back(firstLdOfThisBlock->getIterator());
 		} else {
 			for (auto *pred : predecessors(selectedBB)) {
 				if (!selectedBlocks.contains(pred)) {
@@ -278,14 +278,14 @@ bool canReadModifyWriteSectionBeExtractedAsThread(DomTreeUpdater &DTU,
 					break;
 				}
 				sectionBeginInsertPoints.push_back(
-						selectedBB->getFirstNonPHI());
+						selectedBB->getFirstNonPHIIt());
 			}
 		}
 		// search for potential end of extracted section in this BB
 		bool bbHasStore = false;
 		for (auto st : storesInCurrentLoop) {
 			if (st->getParent() == selectedBB) {
-				sectionEndInsertPoints.push_back(st->getNextNode());
+				sectionEndInsertPoints.push_back(st->getNextNode()->getIterator());
 				bbHasStore = true;
 				break;
 			}
@@ -301,7 +301,7 @@ bool canReadModifyWriteSectionBeExtractedAsThread(DomTreeUpdater &DTU,
 			}
 			if (allSuccessorsOutsideOfSection) {
 				auto TI = selectedBB->getTerminator();
-				sectionEndInsertPoints.push_back(TI);
+				sectionEndInsertPoints.push_back(TI->getIterator());
 			} else {
 				for (auto *succ : successors(selectedBB)) {
 					if (!selectedBlocks.contains(succ)) {
@@ -312,7 +312,7 @@ bool canReadModifyWriteSectionBeExtractedAsThread(DomTreeUpdater &DTU,
 							succ = SplitCriticalEdge(selectedBB, succ, opts);
 						}
 						sectionEndInsertPoints.push_back(
-								succ->getFirstNonPHI());
+								succ->getFirstNonPHIIt());
 					}
 				}
 			}
@@ -362,19 +362,17 @@ void markReadModifyWriteSectionsAsThread(Function &F, Argument &axiMM,
 
 		SetVector<BasicBlock*> selectedBlocks = searchReadModifySection(LI, DTU,
 				L, axiMM, loads, stores, storesInCurrentLoop);
-		SmallVector<Instruction*> sectionBeginInsertPoints;
-		SmallVector<Instruction*> sectionEndInsertPoints;
+		SmallVector<BasicBlock::iterator> sectionBeginInsertPoints;
+		SmallVector<BasicBlock::iterator> sectionEndInsertPoints;
 		if (canReadModifyWriteSectionBeExtractedAsThread(DTU, LI,
 				selectedBlocks, loadsInCurrentLoop, storesInCurrentLoop,
 				sectionBeginInsertPoints, sectionEndInsertPoints)) {
 			auto md = threadMdObj.toMetadata(F.getContext());
 			for (auto ip : sectionBeginInsertPoints) {
-				assert(ip);
 				builder.SetInsertPoint(ip);
 				CreateThreadSplitBegin(builder, threadMdObj.name, md);
 			}
 			for (auto ip : sectionEndInsertPoints) {
-				assert(ip);
 				builder.SetInsertPoint(ip);
 				CreateThreadSplitEnd(builder, threadMdObj.name, md);
 			}
@@ -435,7 +433,7 @@ void markReadConsummerSection(Function &F, Argument &axiMM,
 		}
 		auto _I = I;
 		I++;
-		_I->moveBefore(&*sinkIP);
+		_I->moveBefore(sinkIP);
 	}
 
 }
@@ -692,7 +690,6 @@ llvm::PreservedAnalyses IoLowerAxiMMPass::run(llvm::Module &M,
 				} else {
 					continue; // not an access pattern of the interest
 				}
-
 				// create tmp allocas for AXI channels and add them to argsToAddToParentFn so
 				// later they are promoted to arguments of this function
 				AllocaInst *axiArTmpAlloca = nullptr, *axiRTmpAlloca = nullptr,
@@ -700,15 +697,12 @@ llvm::PreservedAnalyses IoLowerAxiMMPass::run(llvm::Module &M,
 						*axiBTmpAlloca = nullptr;
 				builder.SetInsertPoint(F.getEntryBlock().begin());
 
-				auto mkTmpAlloca = [&builder, ioArg, & ioArgMd,
+				auto mkTmpAlloca = [&builder, ioArg, &ioArgMd,
 						&argsToAddToParentFn, &axiMMIoMd](std::string name,
 						IODirection dir, APInt &defVal) {
 					size_t w = defVal.getBitWidth();
 					auto alloca = builder.CreateAlloca(builder.getIntNTy(w),
 							nullptr, ioArg->getName() + "." + name);
-					if (ioArgMd.direction == IODirection::IO_DIR_IN) {
-						dir = IODirection_reverse(dir);
-					}
 					bool isIn = dir == IODirection::IO_DIR_IN;
 
 					HwtHlsIoMetadata md(dir, 0, isIn ? w : 0, isIn ? 0 : w,
@@ -755,6 +749,7 @@ llvm::PreservedAnalyses IoLowerAxiMMPass::run(llvm::Module &M,
 			++ioArg;
 		}
 		updateArgsOfParentFunction(builder, F, argsToAddToParentFn);
+		AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager().invalidate(F, PreservedAnalyses::none());
 	}
 	if (changed) {
 		// return getLoopPassPreservedAnalyses();

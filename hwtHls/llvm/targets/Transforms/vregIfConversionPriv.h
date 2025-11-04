@@ -68,7 +68,11 @@ class VRegIfConverter: public llvm::MachineFunctionPass {
 	/// IsAnalyzed      - True if BB has been analyzed (info is still valid).
 	/// IsEnqueued      - True if BB has been enqueued to be ifcvt'ed.
 	/// IsBrAnalyzable  - True if analyzeBranch() returns false.
-	/// HasFallThrough  - True if BB may fallthrough to the following BB.
+    /// HasFallThrough  - True if BB has fallthrough to the following BB.
+    ///                   Note that BB may have a fallthrough if both
+    ///                   !HasFallThrough and !IsBrAnalyzable is true. Also note
+    ///                   that blockNeverFallThrough() can be used to prove that
+    ///                   there is no fall through.
 	/// IsUnpredicable  - True if BB is known to be unpredicable.
 	/// ClobbersPred    - True if BB could modify predicates (e.g. has
 	///                   cmp, call, etc.)
@@ -76,7 +80,10 @@ class VRegIfConverter: public llvm::MachineFunctionPass {
 	/// ExtraCost       - Extra cost for multi-cycle instructions.
 	/// ExtraCost2      - Some instructions are slower when predicated
 	/// BB              - Corresponding MachineBasicBlock.
-	/// TrueBB / FalseBB- See analyzeBranch().
+    /// TrueBB / FalseBB- See analyzeBranch(), but note that FalseBB can be set
+    ///                   by AnalyzeBranches even if there is a fallthrough. So
+    ///                   it doesn't correspond exactly to the result from
+    ///                   TTI::analyzeBranch.
 	/// BrCond          - Conditions for end of block conditional branches.
 	/// Predicate       - Predicate used in the BB.
 	struct BBInfo {
@@ -206,7 +213,7 @@ private:
 	void AnalyzeBlocks(llvm::MachineFunction &MF,
 			std::vector<std::unique_ptr<IfcvtToken>> &Tokens);
 	void InvalidatePreds(llvm::MachineBasicBlock &MBB, bool resetDone=false);
-	void InvalidateSuccs(MachineBasicBlock &MBB, bool resetDone=false);
+	void InvalidateSuccs(llvm::MachineBasicBlock &MBB, bool resetDone=false);
 	bool IfConvertSimple(BBInfo &BBI, IfcvtKind Kind);
 	bool IfConvertTriangle(BBInfo &BBI, IfcvtKind Kind);
 	bool IfConvertDiamondCommon(BBInfo &BBI, BBInfo &TrueBBI, BBInfo &FalseBBI,
@@ -239,26 +246,29 @@ private:
 	/// Returns true if Block ends without a terminator.
 	bool blockAlwaysFallThrough(BBInfo &BBI) const;
 
+    /// Returns true if Block is known not to fallthrough to the following BB.
+	bool blockNeverFallThrough(BBInfo &BBI) const;
+
 	/// Used to sort if-conversion candidates.
 	static bool IfcvtTokenCmp(const std::unique_ptr<IfcvtToken> &C1,
 			const std::unique_ptr<IfcvtToken> &C2);
 
 	// try to swap branch operands to eliminate negation from the branch condition
 	bool normalizeBranchCondition(BBInfo & BBI);
-	bool normalizeBranchConditions(MachineFunction & MF);
+	bool normalizeBranchConditions(llvm::MachineFunction & MF);
 
 	// replace all blocks with just return instruction with a single block
-	bool returnBlockMerge(MachineFunction & MF);
+	bool returnBlockMerge(llvm::MachineFunction & MF);
 	/// Inserts an unconditional branch from \p MBB to \p ToMBB.
-	inline void InsertUncondBranch(MachineBasicBlock &MBB, MachineBasicBlock &ToMBB,
-	                               const TargetInstrInfo *TII) {
-	  DebugLoc dl;  // FIXME: this is nowhere
-	  SmallVector<MachineOperand, 0> NoCond;
+	inline void InsertUncondBranch(llvm::MachineBasicBlock &MBB, llvm::MachineBasicBlock &ToMBB,
+	                               const llvm::TargetInstrInfo *TII) {
+		llvm::DebugLoc dl;  // FIXME: this is nowhere
+		llvm::SmallVector<llvm::MachineOperand, 0> NoCond;
 	  TII->insertBranch(MBB, &ToMBB, nullptr, NoCond, dl);
 	}
-	static MachineBasicBlock* findFalseBlock(MachineBasicBlock *BB,
-	    MachineBasicBlock *TrueBB);
-	void consistencyCheck(MachineBasicBlock & MBB) const;
+	static llvm::MachineBasicBlock* findFalseBlock(llvm::MachineBasicBlock *BB,
+			llvm::MachineBasicBlock *TrueBB);
+	void consistencyCheck(llvm::MachineBasicBlock & MBB) const;
 };
 
 

@@ -31,7 +31,7 @@ struct CImmOrRegOrUndefWithWidth {
 	CImmOrRegOrUndefWithWidth(size_t width);
 	CImmOrRegOrUndefWithWidth(size_t width, llvm::Register reg);
 	// :param Builder: builder used to build HWTFPGA_IMPLICIT_DEF for undefs at the beginning of the entry block
-	void addAsUse(llvm::MachineInstrBuilder &MIB) const;
+	void addAsUse(llvm::MachineIRBuilder &Builder, llvm::MachineInstrBuilder &MIB) const;
 	bool isReg() const {
 		return c == nullptr && !isUndef;
 	}
@@ -59,17 +59,17 @@ size_t hwtFpgaMuxFindValueWidth(const llvm::MachineInstr &MI,
 		llvm::MachineRegisterInfo &MRI);
 
 // like RegisterIsDefinedWithinRange but begin is not tested
-bool RegisterIsDefinedWithinRangeExclusive(llvm::Register r,
+bool RegisterIsDefinedWithinRangeExclusive(const llvm::TargetRegisterInfo * TRI, llvm::Register r,
 		llvm::MachineBasicBlock::iterator begin,
 		llvm::MachineBasicBlock::iterator end);
 // test if the r is defined by begin or instructions before end
-bool RegisterIsDefinedWithinRange(llvm::Register r,
+bool RegisterIsDefinedWithinRange(const llvm::TargetRegisterInfo * TRI, llvm::Register r,
 		llvm::MachineBasicBlock::iterator begin,
 		llvm::MachineBasicBlock::iterator end);
-bool RegisterIsDefinedWithinRange(llvm::Register r,
+bool RegisterIsDefinedWithinRange(const llvm::TargetRegisterInfo * TRI, llvm::Register r,
 		llvm::MachineBasicBlock::const_iterator begin,
 		llvm::MachineBasicBlock::const_iterator end);
-bool Register_isRedefinedInLinearBlockSequenceEndToBegin(llvm::Register reg,
+bool Register_isRedefinedInLinearBlockSequenceEndToBegin(const llvm::TargetRegisterInfo * TRI, llvm::Register reg,
 		llvm::MachineBasicBlock::iterator begin,
 		llvm::MachineBasicBlock &EndMBB,
 		llvm::MachineBasicBlock::iterator EndIp);

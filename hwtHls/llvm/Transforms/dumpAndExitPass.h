@@ -2,6 +2,7 @@
 
 #include <llvm/IR/Function.h>
 #include <llvm/IR/PassManager.h>
+#include <llvm/IR/Module.h>
 #include <llvm/Analysis/AliasAnalysis.h>
 #include <llvm/Analysis/BasicAliasAnalysis.h>
 #include <llvm/Analysis/GlobalsModRef.h>

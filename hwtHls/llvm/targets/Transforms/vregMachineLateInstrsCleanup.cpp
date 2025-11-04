@@ -67,9 +67,10 @@ public:
 	  return *this;
 	}
 };
-
+class VRegMachineLateInstrsCleanup;
 class UniqueMachineInstrNoProfileDef: public FoldingSetNode {
 public:
+	friend class GISelCSEInfo;
 	const MachineInstr *MI;
 	explicit UniqueMachineInstrNoProfileDef(const MachineInstr *MI) : MI(MI) {}
 	void Profile(FoldingSetNodeID &ID) {
@@ -89,8 +90,7 @@ class VRegMachineLateInstrsCleanup: public MachineFunctionPass {
 	// same as GISelCSEInfo::getUniqueInstrForMI
 	UniqueMachineInstrNoProfileDef* getUniqueInstrForMI(
 			const MachineInstr *MI) {
-		auto *Node = new (UniqueInstrAllocator) UniqueMachineInstrNoProfileDef(
-				MI);
+		auto *Node = new (UniqueInstrAllocator) UniqueMachineInstrNoProfileDef(MI);
 		return Node;
 	}
 
@@ -125,6 +125,7 @@ public:
 
 	bool runOnMachineFunction(MachineFunction &MF) override;
 
+	void releaseMemory();;
 };
 
 llvm::FunctionPass*
@@ -162,6 +163,12 @@ bool VRegMachineLateInstrsCleanup::runOnMachineFunction(MachineFunction &MF) {
 	return Changed;
 }
 
+void VRegMachineLateInstrsCleanup::releaseMemory() {
+	UniqueInstrAllocator.Reset();
+	CSEOpt.reset();
+	MRI = nullptr;
+}
+
 // Clear any previous kill flag on Reg found before I in MBB.
 bool VRegMachineLateInstrsCleanup::clearKillsForDef(Register Reg,
 		std::map<Register, MachineInstr*>& lastKillInstr) {
@@ -188,7 +195,7 @@ bool VRegMachineLateInstrsCleanup::isCandidate(const MachineInstr *MI,
 
 	DefedReg = MCRegister::NoRegister;
 	bool SawStore = true;
-	if (!MI->isSafeToMove(nullptr, SawStore) || MI->isImplicitDef()
+	if (!MI->isSafeToMove(SawStore) || MI->isImplicitDef()
 			|| MI->isInlineAsm() || MI->hasUnmodeledSideEffects())
 		return false;
 	for (unsigned i = 0, e = MI->getNumOperands(); i != e; ++i) {
@@ -212,7 +219,7 @@ bool VRegMachineLateInstrsCleanup::normalizeConstOperands(
 		MachineIRBuilder &Builder, MachineInstr &MI) {
 	// implements g_constant_to_imm combiner
 	switch (MI.getOpcode()) {
-	// :attenton: rewrite operands of G_* opcodes would damage MIR and many (e.g. GISelKnownBitsAnalysis) LLVM passes would fail
+	// :attenton: rewrite operands of G_* opcodes would damage MIR and many (e.g. GISelValueTrackingAnalysis) LLVM passes would fail
 	case HwtFpga::HWTFPGA_ADD:
 	case HwtFpga::HWTFPGA_AND:
 	case HwtFpga::HWTFPGA_BR:

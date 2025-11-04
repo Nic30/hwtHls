@@ -12,14 +12,15 @@ bool regenerateSsaInMachineFunctionBlocks(llvm::MachineFunction &MF) {
 	if (isSSA)
 		return false;
 	auto &MRI = MF.getRegInfo();
+	const auto *TRI = MF.getSubtarget().getRegisterInfo();
 	bool changed = false;
 	for (auto &MBB : MF) {
-		changed |= regenerateSsaInBasicBlock(MRI, MBB);
+		changed |= regenerateSsaInBasicBlock(MRI, TRI, MBB);
 	}
 	return changed;
 }
 
-bool regenerateSsaInBasicBlock(llvm::MachineRegisterInfo &MRI,
+bool regenerateSsaInBasicBlock(llvm::MachineRegisterInfo &MRI, const llvm::TargetRegisterInfo * TRI,
 		llvm::MachineBasicBlock &MBB) {
 	bool changed = false;
 	for (auto &MI : MBB) {
@@ -43,7 +44,7 @@ bool regenerateSsaInBasicBlock(llvm::MachineRegisterInfo &MRI,
 							usesToUpdate.push_back(&op);
 						}
 					}
-					if (MI2->definesRegister(r)) {
+					if (MI2->definesRegister(r, TRI)) {
 						// replace only if this MI def is not last in the block
 						auto bbLocalR = MRI.cloneVirtualRegister(r);
 						defMo.setReg(bbLocalR);

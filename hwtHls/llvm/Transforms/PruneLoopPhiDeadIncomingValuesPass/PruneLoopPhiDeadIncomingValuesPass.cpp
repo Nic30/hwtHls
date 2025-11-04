@@ -172,7 +172,7 @@ void collectReachableBlocks(InBlockValuesStack &frameStack, LoopInfo &LI,
 				reachedBlocks, reachedBlocksWithAllChildrenReached, reachedEdges);
 	};
 	assert(frameStack.size());
-	for (auto IIt = BB.getFirstNonPHI()->getIterator(); IIt != BB.end();
+	for (auto IIt = BB.getFirstNonPHIOrDbg()->getIterator(); IIt != BB.end();
 			++IIt) {
 		auto *I = &*IIt;
 		if (I->isTerminator()) {

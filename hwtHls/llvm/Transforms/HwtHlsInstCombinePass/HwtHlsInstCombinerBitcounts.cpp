@@ -17,7 +17,7 @@ CallInst* HwtHlsInstCombiner::_createPopcntIntrinsic(IRBuilderBase &IRBuilder,
 	Type *Tys[] = { Val->getType() };
 
 	Module *M = IRBuilder.GetInsertBlock()->getParent()->getParent();
-	Function *Func = Intrinsic::getDeclaration(M, Intrinsic::ctpop, Tys);
+	Function *Func = Intrinsic::getOrInsertDeclaration(M, Intrinsic::ctpop, Tys);
 	CallInst *CI = IRBuilder.CreateCall(Func, Ops);
 
 	return CI;

@@ -490,7 +490,7 @@ class ToLlvmIrTranslator(AnalysisCache[SsaAnalysisPass, SsaPass]):
             return fn
 
         elif HdlType_isVoid(vTy):
-            return ConstantInt.get(Type.getIntNTy(self.ctx, 1), APInt(1, 1, 16))
+            return ConstantInt.get(Type.getIntNTy(self.ctx, 1), APInt(1, 1, False))
 
         elif isinstance(vTy, HArray):
             # :see: CreateGlobalDataWithGEP
@@ -513,7 +513,6 @@ class ToLlvmIrTranslator(AnalysisCache[SsaAnalysisPass, SsaPass]):
                                       isConstant, GlobalVariable.LinkageTypes.PrivateLinkage,
                                       newCRom)
             newArray.setUnnamedAddr(GlobalValue.UnnamedAddr.Global)
-            newArray.setAlignment(Align(1))
             return newArray
 
         elif isinstance(vTy, HString):
@@ -776,7 +775,7 @@ class ToLlvmIrTranslator(AnalysisCache[SsaAnalysisPass, SsaPass]):
 
             elif operator == HwtOps.MINUS_UNARY:
                 op0, = args
-                return block, b.CreateNeg(op0, name, False, False)
+                return block, b.CreateNeg(op0, name, False)
             elif operator == HwtOps.TERNARY:
                 if len(operands) == 1:
                     return self._translateExprToLlvm(block, args[0])

@@ -3,7 +3,7 @@ entry:
   br label %bb.wh
 
 bb.wh:                                            ; preds = %bb.fn1, %entry
-  %beginTmp2.0 = phi i8 [ undef, %entry ], [ %beginTmp2.3, %bb.fn1 ]
+  %beginTmp2.0 = phi i8 [ undef, %entry ], [ %beginTmp2.1, %bb.fn1 ]
   %isChildLoop.bb.wh.wh = phi i1 [ false, %entry ], [ %isChildLoopInLatch.bb.wh.wh, %bb.fn1 ]
   %v0 = phi i8 [ 0, %entry ], [ %v2.inLatch, %bb.fn1 ]
   br i1 %isChildLoop.bb.wh.wh, label %bb.wh.wh, label %bb.wh.split
@@ -28,7 +28,7 @@ bb.wh.wh.preheader:                               ; preds = %bb.wh.if
   br label %bb.wh.wh
 
 bb.wh.wh:                                         ; preds = %bb.wh, %bb.wh.wh.preheader
-  %beginTmp2.1 = phi i8 [ %beginTmp2.0, %bb.wh ], [ %beginTmp, %bb.wh.wh.preheader ]
+  %beginTmp2.2 = phi i8 [ %beginTmp2.0, %bb.wh ], [ %beginTmp, %bb.wh.wh.preheader ]
   %v2 = phi i8 [ %v0, %bb.wh ], [ %v1, %bb.wh.wh.preheader ]
   %c1 = load volatile i1, ptr addrspace(1) %c, align 1
   br i1 %c1, label %bb.wh.wh.body, label %bb.fn1.loopexit
@@ -42,14 +42,14 @@ bb.fn1.loopexit:                                  ; preds = %bb.wh.wh
   br label %bb.fn1.oldLatch
 
 bb.fn1.oldLatch:                                  ; preds = %bb.wh.if, %bb.fn1.loopexit
-  %beginTmp2.2 = phi i8 [ %beginTmp2.1, %bb.fn1.loopexit ], [ %beginTmp, %bb.wh.if ]
+  %beginTmp2.3 = phi i8 [ %beginTmp2.2, %bb.fn1.loopexit ], [ %beginTmp, %bb.wh.if ]
   %v4 = phi i8 [ %v1, %bb.wh.if ], [ %v2.lcssa, %bb.fn1.loopexit ]
   store volatile i8 %v4, ptr addrspace(2) %o, align 1
-  store volatile i8 %beginTmp2.2, ptr addrspace(2) %o, align 1
+  store volatile i8 %beginTmp2.3, ptr addrspace(2) %o, align 1
   br label %bb.fn1
 
 bb.fn1:                                           ; preds = %bb.wh.wh.body, %bb.fn1.oldLatch
-  %beginTmp2.3 = phi i8 [ %beginTmp2.1, %bb.wh.wh.body ], [ %beginTmp2.2, %bb.fn1.oldLatch ]
+  %beginTmp2.1 = phi i8 [ %beginTmp2.2, %bb.wh.wh.body ], [ %beginTmp2.3, %bb.fn1.oldLatch ]
   %v2.inLatch = phi i8 [ %v3, %bb.wh.wh.body ], [ %v4, %bb.fn1.oldLatch ]
   %isChildLoopInLatch.bb.wh.wh = phi i1 [ true, %bb.wh.wh.body ], [ false, %bb.fn1.oldLatch ]
   br label %bb.wh

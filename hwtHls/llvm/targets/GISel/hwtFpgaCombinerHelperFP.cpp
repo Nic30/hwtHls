@@ -2,7 +2,7 @@
 
 #include <math.h>
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
-#include <llvm/CodeGen/GlobalISel/GISelKnownBits.h>
+#include <llvm/CodeGen/GlobalISel/GISelValueTracking.h>
 
 #include <hwtHls/llvm/bitMath.h>
 #include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
@@ -128,7 +128,7 @@ bool HwtFpgaCombinerHelper::matchFDivByPowi(llvm::MachineInstr &MI,
 		return true;
 	} else if (baseD == 2.0) {
 		// x / (2.0 ** sh)
-		auto shKB = KB->getKnownBits(sh.getReg());
+		auto shKB = VT->getKnownBits(sh.getReg());
 		shValue.shWidth = shKB.One.getBitWidth();
 		auto shMsbKB = shKB.extractBits(1, shKB.getBitWidth() - 1);
 		if (shMsbKB.isAllOnes()) {
@@ -141,6 +141,7 @@ bool HwtFpgaCombinerHelper::matchFDivByPowi(llvm::MachineInstr &MI,
 
 	return false;
 }
+
 void HwtFpgaCombinerHelper::rewriteFDivByPowi(llvm::MachineInstr &MI, MatchFDivByPowiMatchInfo shValue) {
 	const auto *V1Def = MRI.getOneDef(MI.getOperand(2).getReg());
 	const auto& miFPowi = * V1Def->getParent();
@@ -171,7 +172,7 @@ void HwtFpgaCombinerHelper::rewriteFDivByPowi(llvm::MachineInstr &MI, MatchFDivB
 			Observer.changingInstr(*MIB0.getInstr());
 			MIB0.addDef(dst.getReg());
 			MIB0.add(x);
-			shTrunc.addAsUse(MIB0);
+			shTrunc.addAsUse(Builder, MIB0);
 			copyOperandsForHFloatTmpAndPredicate(MIB0, 3, MI);
 			Observer.changedInstr(*MIB0.getInstr());
 		}

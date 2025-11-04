@@ -86,10 +86,10 @@ LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName,
 
 	TPC = nullptr;
 	auto RM = std::optional<llvm::Reloc::Model>();
-	TM = Target->createTargetMachine(TargetTriple, CPU, Features, opt, RM);
+	TM = Target->createTargetMachine(llvm::Triple(TargetTriple), CPU, Features, opt, RM);
 	TM->setOptLevel(llvm::CodeGenOptLevel::Aggressive);
 	PTO = llvm::PipelineTuningOptions();
-	llvm::LLVMTargetMachine &LLVMTM = static_cast<llvm::LLVMTargetMachine&>(*TM);
+	llvm::TargetMachine &LLVMTM = static_cast<llvm::TargetMachine&>(*TM);
 	MMIWP = new llvm::MachineModuleInfoWrapperPass(&LLVMTM);
 	_registerHwtHlsPasses();
 	_updateDebugPM();

@@ -2,45 +2,45 @@
 source_filename = "hwtHlsModule"
 target datalayout = "e-m:e-i8:8-i16:16-i32:32-i64:64-i128:128-i256:256-i512:512-i1024:1024-i2048:2048-i4096:4096-n8:16:32:64-S128-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 
-define void @outDepsSyncBeginEnd(ptr addrspace(1) %dataOut0, ptr addrspace(2) %threadBeginSync.outDepsSyncBeginEnd.t1, ptr addrspace(3) %AggregatedOutTmp) !prof !0 !hwtHls.io !1 {
+define void @outDepsSyncBeginEnd(ptr addrspace(1) %dataOut0, ptr addrspace(2) %t1.threadBeginSync1, ptr addrspace(3) %AggregatedOutTmp) !prof !0 !hwtHls.io !1 {
 bb0:
   br label %bb.mainLoop.threadSplit.begint1
 
 bb.mainLoop.threadSplit.begint1:                  ; preds = %bb0, %bb.mainLoop.threadSplit.end.t1
   store volatile i8 0, ptr addrspace(1) %dataOut0, align 1
-  br label %threadSplitCodeRepl
+  br label %codeRepl
 
-threadSplitCodeRepl:                              ; preds = %bb.mainLoop.threadSplit.begint1
-  store volatile i1 true, ptr addrspace(2) %threadBeginSync.outDepsSyncBeginEnd.t1, align 1
+codeRepl:                                         ; preds = %bb.mainLoop.threadSplit.begint1
+  store volatile i1 true, ptr addrspace(2) %t1.threadBeginSync1, align 1
   %aggregatedOut.ld = load volatile i16, ptr addrspace(3) %AggregatedOutTmp, align 2
   %v0.reload = call i8 @hwtHls.bitRangeGet.i16.i5.i8.0(i16 %aggregatedOut.ld, i5 0) #2
   %v1.reload = call i8 @hwtHls.bitRangeGet.i16.i5.i8.8(i16 %aggregatedOut.ld, i5 8) #2
   br label %bb.mainLoop.threadSplit.end.t1
 
-bb.mainLoop.threadSplit.end.t1:                   ; preds = %threadSplitCodeRepl
+bb.mainLoop.threadSplit.end.t1:                   ; preds = %codeRepl
   store volatile i8 %v0.reload, ptr addrspace(1) %dataOut0, align 1
   store volatile i8 %v1.reload, ptr addrspace(1) %dataOut0, align 1
   br label %bb.mainLoop.threadSplit.begint1
 }
 
 ; Function Attrs: noreturn
-define internal void @outDepsSyncBeginEnd.t1(ptr addrspace(1) %dataOut1, ptr addrspace(2) %threadBeginSync.outDepsSyncBeginEnd.t1.i, ptr addrspace(3) %0) #0 !hwtHls.io !5 {
+define internal void @outDepsSyncBeginEnd.t1(ptr addrspace(1) %dataOut1, ptr addrspace(2) %t1.threadBeginSync.i, ptr addrspace(3) %0) #0 !hwtHls.io !5 {
 threadEntry:
   br label %newFuncRoot
 
 newFuncRoot:                                      ; preds = %bb.mainLoop.threadSplit.end.t1.exitStub, %threadEntry
+  %t1.threadBeginSync = load volatile i1, ptr addrspace(2) %t1.threadBeginSync.i, align 1
   br label %bb.mainLoop
 
 bb.mainLoop:                                      ; preds = %newFuncRoot
-  %1 = load volatile i1, ptr addrspace(2) %threadBeginSync.outDepsSyncBeginEnd.t1.i, align 1
   store volatile i8 1, ptr addrspace(1) %dataOut1, align 1
   %v0 = freeze i8 99
   %v1 = freeze i8 100
-  %AggregatedOut.val = call i16 @hwtHls.bitConcat.i8.i8(i8 %v0, i8 %v1) #2
-  store volatile i16 %AggregatedOut.val, ptr addrspace(3) %0, align 2
   br label %bb.mainLoop.threadSplit.end.t1.exitStub
 
 bb.mainLoop.threadSplit.end.t1.exitStub:          ; preds = %bb.mainLoop
+  %AggregatedOut.val = call i16 @hwtHls.bitConcat.i8.i8(i8 %v0, i8 %v1) #2
+  store volatile i16 %AggregatedOut.val, ptr addrspace(3) %0, align 2
   br label %newFuncRoot
 }
 

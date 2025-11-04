@@ -181,9 +181,9 @@ SmallVector<AllocaInst*> makeSectionOfLoopConditionalyReexecuted(
 	SmallVector<AllocaInst*> Allocas;
 	SmallVector<BasicBlock*> ExitBlocks;
 	parentLoop.getUniqueExitBlocks(ExitBlocks);
-	SmallVector<Instruction*> ExitBlockAfterPhi;
+	SmallVector<BasicBlock::iterator> ExitBlockAfterPhi;
 	for (auto BB : ExitBlocks) {
-		ExitBlockAfterPhi.push_back(BB->getFirstNonPHI());
+		ExitBlockAfterPhi.push_back(BB->getFirstNonPHIIt());
 	}
 	for (auto &p : inSectionDefProps) {
 		if (p.usedOutsideOfSection) {
@@ -210,7 +210,7 @@ SmallVector<AllocaInst*> makeSectionOfLoopConditionalyReexecuted(
 				LoadInst *newV;
 				auto curReplacement = tmpDefs.find(BB);
 				if (curReplacement == tmpDefs.end()) {
-					Builder.SetInsertPoint(BB->getFirstNonPHI());
+					Builder.SetInsertPoint(BB->getFirstNonPHIIt());
 					newV = Builder.CreateLoad(Ty, Alloca, Name + ".reload");
 					//MSSAUpdates.push_back({p.def, newV});
 					MSSAU_addNewLoad(MSSAU, p.def, newV);

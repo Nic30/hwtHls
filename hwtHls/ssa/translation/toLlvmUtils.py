@@ -88,7 +88,10 @@ def addHwtHlsFunctionIoMetadata(toLlvm: "ToLlvmIrTranslator"):
                 hasBlockingRead &= proxy.hasBlockingRead
 
             t = proxy.getDataTypeOfNativeRead()
-            readWidth = max(1, t.bit_length())
+            readWidth = t.bit_length()
+            if proxy.hasBlockingRead is not None and not proxy.hasBlockingRead:
+                readWidth += 1
+            readWidth = max(1, readWidth)
 
         if writes:
             if proxy.hasBlockingWrite is not None:

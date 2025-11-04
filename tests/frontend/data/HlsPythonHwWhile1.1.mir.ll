@@ -19,7 +19,6 @@
   !0 = distinct !{!1, !2}
   !1 = !{!"IN", i64 0, i64 1, i64 0, ptr null, i64 0}
   !2 = !{!"OUT", i64 0, i64 0, i64 8, ptr null, i64 1}
-
 ...
 ---
 name:            HlsPythonHwWhile1.mainThread
@@ -31,9 +30,13 @@ selected:        true
 failedISel:      false
 tracksRegLiveness: true
 hasWinCFI:       false
+noPhis:          true
+isSSA:           false
+noVRegs:         false
+hasFakeUses:     false
 callsEHReturn:   false
 callsUnwindInit: false
-hasEHCatchret:   false
+hasEHContTarget: false
 hasEHScopes:     false
 hasEHFunclets:   false
 isOutlined:      false
@@ -41,16 +44,16 @@ debugInstrRef:   false
 failsVerification: false
 tracksDebugUserValues: false
 registers:
-  - { id: 0, class: anyregcls, preferred-register: '' }
-  - { id: 1, class: anyregcls, preferred-register: '' }
-  - { id: 2, class: anyregcls, preferred-register: '' }
-  - { id: 3, class: anyregcls, preferred-register: '' }
-  - { id: 4, class: anyregbank, preferred-register: '' }
-  - { id: 5, class: anyregcls, preferred-register: '' }
-  - { id: 6, class: anyregcls, preferred-register: '' }
-  - { id: 7, class: anyregbank, preferred-register: '' }
-  - { id: 8, class: anyregcls, preferred-register: '' }
-  - { id: 9, class: anyregcls, preferred-register: '' }
+  - { id: 0, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 1, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 2, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 3, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 4, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 5, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 6, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 7, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 8, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 9, class: anyregcls, preferred-register: '', flags: [  ] }
 liveins:         []
 frameInfo:
   isFrameAddressTaken: false
@@ -70,6 +73,7 @@ frameInfo:
   hasVAStart:      false
   hasMustTailInVarArgFunc: false
   hasTailCall:     false
+  isCalleeSavedInfoValid: false
   localFrameSize:  0
   savePoint:       ''
   restorePoint:    ''
@@ -96,5 +100,4 @@ body:             |
     %5:anyregcls(s8) = HWTFPGA_ADD %9(s8), i8 1
     %9:anyregcls(s8) = HWTFPGA_MUX i8 0, %3(s1), %5(s8)
     HWTFPGA_BR %bb.1
-
 ...

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <llvm/IR/PassInstrumentation.h>
 #include <llvm/CodeGen/TargetPassConfig.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetMachine.h>
 #include <hwtHls/llvm/targets/Transforms/hwtFpgaToNetlist.h>

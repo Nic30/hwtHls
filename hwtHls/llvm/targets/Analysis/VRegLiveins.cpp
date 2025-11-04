@@ -14,7 +14,7 @@ namespace hwtHls {
 char HwtHlsVRegLiveins::ID = 0;
 
 HwtHlsVRegLiveins::HwtHlsVRegLiveins() :
-		MachineFunctionPass(ID), MF(nullptr) {
+		MachineFunctionPass(ID), MF(nullptr), TRI(nullptr) {
 	initializeHwtHlsVRegLiveinsPass(*PassRegistry::getPassRegistry());
 }
 
@@ -44,8 +44,11 @@ void AddLiveinRecursively(
 bool HwtHlsVRegLiveins::runOnMachineFunction(llvm::MachineFunction &MF) {
 	if (skipFunction(MF.getFunction()))
 		return false;
+
 	this->MF = &MF;
 	auto &MRI = MF.getRegInfo();
+	this->TRI = MF.getSubtarget().getRegisterInfo();
+
 	_liveins.clear(); // the same object is used for analysis of all MFs
 	// assert(_liveins.empty());
 
@@ -173,8 +176,8 @@ void HwtHlsVRegLiveins::_addToLivenessRecursively(
 	auto &liveins = liveinsMutable(CurMBB);
 	if (liveins.contains(RegToAdd))
 		return;
-	if (any_of(CurMBB.instrs(), [RegToAdd](const llvm::MachineInstr &MI) {
-		return MI.definesRegister(RegToAdd);
+	if (any_of(CurMBB.instrs(), [RegToAdd, this](const llvm::MachineInstr &MI) {
+		return MI.definesRegister(RegToAdd, TRI);
 	})
 		)
 		return;

@@ -34,9 +34,9 @@ extern "C" void LLVMInitializeHwtFpgaTarget() {
 	// Initialize target specific passes
 	llvm::PassRegistry &PR = *llvm::PassRegistry::getPassRegistry();
 	llvm::initializeGlobalISel(PR);
-	llvm::initializeBranchFolderPassPass(PR);
+	llvm::initializeBranchFolderLegacyPass(PR);
 	llvm::initializeBranchProbabilityInfoWrapperPassPass(PR);
-	llvm::initializeBranchRelaxationPass(PR);
+	llvm::initializeBranchRelaxationLegacyPass(PR);
 	llvm::initializeRegAllocFastPass(PR);
 	llvm::initializeHwtFpgaPreLegalizerCombinerPass(PR);
 	hwtHls::initializeHwtHlsCodeGenPrepareLegacyPassPass(PR);
@@ -60,17 +60,13 @@ static std::string computeDataLayout(const Triple &TT) {
 			"v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024";
 }
 
-static Reloc::Model getEffectiveRelocModel(const Triple &TT,
-		std::optional<Reloc::Model> RM) {
-	return Reloc::Static;
-}
-
 HwtFpgaTargetMachine::HwtFpgaTargetMachine(const Target &T,
 		const Triple &TT, StringRef CPU, StringRef TuneCPU,
 		const TargetOptions &Options, std::optional<Reloc::Model> RM,
 		std::optional<CodeModel::Model> CM, CodeGenOptLevel OL, bool JIT) :
-		LLVMTargetMachine(T, computeDataLayout(TT), TT, CPU, TuneCPU, Options,
-				getEffectiveRelocModel(TT, RM), CodeModel::Large, OL), allowVolatileMemOpDuplication(false) {
+		CodeGenTargetMachineImpl(T, computeDataLayout(TT), TT, CPU, TuneCPU, Options,
+				Reloc::Static,
+				CodeModel::Large, OL), allowVolatileMemOpDuplication(false) {
 	AsmInfo.reset(new llvm::MCAsmInfo());
 }
 
@@ -118,7 +114,7 @@ HwtFpgaTargetMachine::getSubtargetImpl(const Function &F) const {
 
 TargetTransformInfo HwtFpgaTargetMachine::getTargetTransformInfo(
 		const Function &F) const {
-	return TargetTransformInfo(HwtFpgaTTIImpl(this, F));
+	return TargetTransformInfo(std::make_unique<HwtFpgaTTIImpl>(this, F));
 }
 
 TargetPassConfig* HwtFpgaTargetMachine::createPassConfig(

@@ -32,7 +32,7 @@ using namespace llvm;
 
 namespace llvm {
 
-bool HwtFpgaTTIImpl::hasBranchDivergence(const Function *F) {
+bool HwtFpgaTTIImpl::hasBranchDivergence(const Function *F) const {
 	return true;
 }
 
@@ -49,7 +49,7 @@ static bool isPureFunction(const IntrinsicInst *II) {
 	}
 }
 
-bool HwtFpgaTTIImpl::isSourceOfDivergence(const Value *V) {
+bool HwtFpgaTTIImpl::isSourceOfDivergence(const Value *V) const {
 	// Without inter-procedural analysis, we conservatively assume that arguments
 	// to spir_func functions are divergent.
 	if (const Argument *Arg = dyn_cast<Argument>(V))
@@ -142,10 +142,10 @@ bool HwtFpgaTTIImpl::isLegalICmpImmediate(int64_t Imm) const {
 }
 
 // Masked memory operations are free
-bool HwtFpgaTTIImpl::isLegalMaskedStore(Type *DataType, Align Alignment) const {
+bool HwtFpgaTTIImpl::isLegalMaskedStore(Type *DataType, Align Alignment, unsigned AddressSpace) const {
 	return true;
 }
-bool HwtFpgaTTIImpl::isLegalMaskedLoad(Type *DataType, Align Alignment) const {
+bool HwtFpgaTTIImpl::isLegalMaskedLoad(Type *DataType, Align Alignment, unsigned AddressSpace) const {
 	return true;
 }
 
@@ -174,7 +174,7 @@ bool HwtFpgaTTIImpl::shouldBuildLookupTablesForConstant(Constant * C) const {
 }
 
 TargetTransformInfo::PopcntSupportKind HwtFpgaTTIImpl::getPopcntSupport(
-		unsigned IntTyWidthInBit) {
+		unsigned IntTyWidthInBit) const {
 	return TTI::PSK_FastHardware;
 }
 
@@ -182,13 +182,14 @@ unsigned HwtFpgaTTIImpl::getNumberOfRegisters(unsigned ClassID) const {
 	return std::numeric_limits<unsigned>::max() >> 2;
 }
 
-TypeSize HwtFpgaTTIImpl::getRegisterBitWidth(bool Vector) const {
-	return TypeSize::getScalable(std::numeric_limits<unsigned>::max() >> 2);
+TypeSize HwtFpgaTTIImpl::getRegisterBitWidth(TargetTransformInfo::RegisterKind K) const {
+	return TypeSize::getFixed(std::numeric_limits<unsigned>::max() >> 2);
 }
 
-InstructionCost HwtFpgaTTIImpl::getShuffleCost(TTI::ShuffleKind Kind, VectorType *Ty, ArrayRef<int> Mask,
-        TTI::TargetCostKind CostKind, int Index, VectorType *SubTp,
-        ArrayRef<const Value *> Args) const {
+InstructionCost HwtFpgaTTIImpl::getShuffleCost(TTI::ShuffleKind Kind, VectorType *DstTy, VectorType *SrcTy,
+        ArrayRef<int> Mask, TTI::TargetCostKind CostKind, int Index,
+        VectorType *SubTp, ArrayRef<const Value *> Args,
+        const Instruction *CxtI) const {
 	return TTI::TCC_Free;
 }
 
@@ -199,20 +200,13 @@ InstructionCost HwtFpgaTTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
 }
 
 InstructionCost HwtFpgaTTIImpl::getExtractWithExtendCost(unsigned Opcode,
-		Type *Dst, VectorType *VecTy, unsigned Index) const {
-	return TTI::TCC_Free;
-}
-
-InstructionCost HwtFpgaTTIImpl::getVectorInstrCost(unsigned Opcode, Type *Val,
-        TTI::TargetCostKind CostKind,
-        unsigned Index, Value *Op0,
-        Value *Op1) const {
+		Type *Dst, VectorType *VecTy, unsigned Index, TTI::TargetCostKind CostKind) const {
 	return TTI::TCC_Free;
 }
 
 InstructionCost HwtFpgaTTIImpl::getVectorInstrCost(const Instruction &I, Type *Val,
-                                   TTI::TargetCostKind CostKind,
-                                   unsigned Index) const {
+        TTI::TargetCostKind CostKind,
+        unsigned Index) const {
 	return TTI::TCC_Free;
 }
 
@@ -256,7 +250,7 @@ static bool IsFreeOperator(const User *U) {
 
 InstructionCost HwtFpgaTTIImpl::getInstructionCost(const User *U,
                                    ArrayRef<const Value *> Operands,
-                                   TTI::TargetCostKind CostKind) {
+                                   TTI::TargetCostKind CostKind) const {
 	if (IsFreeOperator(U))
 		return TTI::TCC_Free;
 	if (!TM->getAllowVolatileMemOpDuplication()) {
@@ -290,10 +284,11 @@ void HwtFpgaTTIImpl::getUnrollingPreferences(Loop*, ScalarEvolution&,
 	UP.AllowRemainder = true;
 }
 
-Type* HwtFpgaTTIImpl::getMemcpyLoopLoweringType(LLVMContext &Context,
-		Value *Length, unsigned SrcAddrSpace, unsigned DestAddrSpace,
-		unsigned SrcAlign, unsigned DestAlign, std::optional<uint32_t> AtomicElementSize) const {
-	uint64_t Min = MinAlign(SrcAlign, DestAlign);
+Type* HwtFpgaTTIImpl::getMemcpyLoopLoweringType(LLVMContext &Context, Value *Length,
+        unsigned SrcAddrSpace, unsigned DestAddrSpace,
+        Align SrcAlign, Align DestAlign,
+        std::optional<uint32_t> AtomicElementSize) const {
+	uint64_t Min = MinAlign(SrcAlign.value(), DestAlign.value());
 	KnownBits KB = computeKnownBits(Length, getDataLayout());
 	Min = MinAlign(Min, 1 << KB.countMinTrailingZeros());
 	return IntegerType::get(Context, 8 * Min);

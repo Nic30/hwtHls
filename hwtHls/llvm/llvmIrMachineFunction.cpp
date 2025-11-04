@@ -48,11 +48,11 @@ void register_MachineFunction(pybind11::module_ &m) {
 		.def("__hash__",[](llvm::MachineFunction * self) {
 			return reinterpret_cast<intptr_t>(self);
 		})
-		.def("serialize", [](llvm::MachineFunction &MF) {
+		.def("serialize", [](llvm::MachineFunction &MF, const llvm::MachineModuleInfo &MMI) {
 				std::string tmp;
 				llvm::raw_string_ostream ss(tmp);
-				llvm::printMIR(ss, *MF.getFunction().getParent());
-				llvm::printMIR(ss, MF);
+				llvm::printMIR(ss, *MF.getFunction().getParent()); // :note: this prints just the module without MIR for functions
+				llvm::printMIR(ss, MMI, MF);
 				return ss.str();
 		})
 		.def("__iter__", [](llvm::MachineFunction &F) {
@@ -141,8 +141,8 @@ void register_MachineFunction(pybind11::module_ &m) {
 			return static_cast<TargetOpcode>(I.getOpcode());
 		})
 		.def("__repr__",  &printToStr<llvm::MachineInstr>)
-		.def("definesRegister",  [] (llvm::MachineInstr* MI, llvm::Register Reg)  {
-			return MI->definesRegister(Reg);
+		.def("definesRegister",  [] (llvm::MachineInstr* MI, llvm::Register Reg, const llvm::TargetRegisterInfo *TRI)  {
+			return MI->definesRegister(Reg, TRI);
 		 })
 		.def("operands", [](llvm::MachineInstr & I) {
 						return py::make_iterator(I.operands_begin(), I.operands_end());

@@ -7,6 +7,7 @@
 #include <llvm/Analysis/DomTreeUpdater.h>
 #include <llvm/IR/Dominators.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/Module.h>
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <llvm/Transforms/Utils/CodeExtractor.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>

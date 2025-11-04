@@ -78,67 +78,63 @@ loop.pkt.read:                                    ; preds = %loop.pkt.lastCheck.
   %46 = or i1 %12, %39
   %writeEn3.6 = and i1 %11, %41
   %.061 = and i1 %writeEn3.6, %46
-  %47 = xor i1 %22, true
-  %48 = icmp ne i2 %4, -1
-  %49 = and i1 %12, %48
-  %50 = xor i1 %49, true
-  %51 = icmp ne i3 %3, -1
-  %52 = and i1 %12, %51
-  %53 = xor i1 %52, true
-  %54 = icmp ne i4 %2, -1
-  %55 = and i1 %12, %54
-  %56 = xor i1 %55, true
-  %57 = icmp ne i5 %1, -1
-  %58 = and i1 %12, %57
-  %59 = xor i1 %58, true
-  %60 = icmp ne i6 %0, -1
-  %61 = and i1 %12, %60
-  %62 = xor i1 %61, true
-  %.streamWrite.en27.2 = and i1 %62, %writeEn3.6
-  %.263 = and i1 %62, %.061
-  %.260 = select i1 %61, i8 undef, i8 %19
-  %.streamWrite.en25.2 = and i1 %59, %writeEn3.5
-  %.257 = and i1 %59, %.055
-  %.254 = select i1 %58, i8 undef, i8 %18
-  %.streamWrite.en23.2 = and i1 %56, %writeEn3.4
-  %.251 = and i1 %56, %.049
-  %.248 = select i1 %55, i8 undef, i8 %17
-  %.streamWrite.en21.2 = and i1 %53, %writeEn3.3
-  %.245 = and i1 %53, %.043
-  %.242 = select i1 %52, i8 undef, i8 %16
-  %.streamWrite.en19.2 = and i1 %50, %writeEn3.2
-  %.239 = and i1 %50, %.037
-  %.236 = select i1 %49, i8 undef, i8 %15
-  %.233 = and i1 %47, %.031
+  %47 = icmp ne i2 %4, -1
+  %48 = and i1 %12, %47
+  %49 = xor i1 %48, true
+  %50 = icmp ne i3 %3, -1
+  %51 = and i1 %12, %50
+  %52 = xor i1 %51, true
+  %53 = icmp ne i4 %2, -1
+  %54 = and i1 %12, %53
+  %55 = xor i1 %54, true
+  %56 = icmp ne i5 %1, -1
+  %57 = and i1 %12, %56
+  %58 = xor i1 %57, true
+  %59 = icmp ne i6 %0, -1
+  %60 = and i1 %12, %59
+  %61 = xor i1 %60, true
+  %.streamWrite.en27.2 = and i1 %61, %writeEn3.6
+  %.263 = and i1 %61, %.061
+  %.260 = select i1 %60, i8 undef, i8 %19
+  %.streamWrite.en25.2 = and i1 %58, %writeEn3.5
+  %.257 = and i1 %58, %.055
+  %.254 = select i1 %57, i8 undef, i8 %18
+  %.streamWrite.en23.2 = and i1 %55, %writeEn3.4
+  %.251 = and i1 %55, %.049
+  %.248 = select i1 %54, i8 undef, i8 %17
+  %.streamWrite.en21.2 = and i1 %52, %writeEn3.3
+  %.245 = and i1 %52, %.043
+  %.242 = select i1 %51, i8 undef, i8 %16
+  %.streamWrite.en19.2 = and i1 %49, %writeEn3.2
+  %.239 = and i1 %49, %.037
+  %.236 = select i1 %48, i8 undef, i8 %15
   %.2 = select i1 %22, i8 undef, i8 %14
-  %impCache1 = icmp ule i1 %writeEn3.1, %6
-  call void @llvm.assume(i1 %impCache1)
-  %63 = or i1 %6, %.streamWrite.en19.2
-  %64 = or i1 %63, %.streamWrite.en21.2
-  %65 = or i1 %64, %.streamWrite.en23.2
-  %66 = or i1 %65, %.streamWrite.en25.2
-  %67 = call i48 @hwtHls.bitConcat.i8.i8.i8.i8.i8.i8(i8 %13, i8 %.2, i8 %.236, i8 %.242, i8 %.248, i8 %.254) #4
-  %68 = call i6 @hwtHls.bitConcat.i1.i1.i1.i1.i1.i1(i1 %6, i1 %writeEn3.1, i1 %.streamWrite.en19.2, i1 %.streamWrite.en21.2, i1 %.streamWrite.en23.2, i1 %.streamWrite.en25.2) #4
-  %69 = or i1 %.029, %.233
-  %70 = or i1 %69, %.239
-  %71 = or i1 %70, %.245
-  %72 = or i1 %71, %.251
-  %73 = or i1 %72, %.257
-  %74 = select i1 %66, i6 %68, i6 0
-  br i1 %66, label %loop.pkt.write.5.streamWrite.sinked, label %75
+  %62 = or i1 %6, %.streamWrite.en19.2
+  %63 = or i1 %62, %.streamWrite.en21.2
+  %64 = or i1 %63, %.streamWrite.en23.2
+  %65 = or i1 %64, %.streamWrite.en25.2
+  %66 = call i48 @hwtHls.bitConcat.i8.i8.i8.i8.i8.i8(i8 %13, i8 %.2, i8 %.236, i8 %.242, i8 %.248, i8 %.254) #4
+  %67 = call i6 @hwtHls.bitConcat.i1.i1.i1.i1.i1.i1(i1 %6, i1 %writeEn3.1, i1 %.streamWrite.en19.2, i1 %.streamWrite.en21.2, i1 %.streamWrite.en23.2, i1 %.streamWrite.en25.2) #4
+  %68 = or i1 %.029, %.031
+  %69 = or i1 %68, %.239
+  %70 = or i1 %69, %.245
+  %71 = or i1 %70, %.251
+  %72 = or i1 %71, %.257
+  %73 = select i1 %65, i6 %67, i6 0
+  br i1 %65, label %loop.pkt.write.5.streamWrite.sinked, label %74
 
 loop.pkt.write.5.streamWrite.sinked:              ; preds = %loop.pkt.read
-  call void @hwtHls.streamWrite.masked.p2.i48.i6.i1.i1.p0(ptr addrspace(2) %tx, i48 %67, i6 %68, i1 false, i1 %73, ptr null) #5
-  br label %75
+  call void @hwtHls.streamWrite.masked.p2.i48.i6.i1.i1.p0(ptr addrspace(2) %tx, i48 %66, i6 %67, i1 false, i1 %72, ptr null) #5
+  br label %74
 
-75:                                               ; preds = %loop.pkt.write.5.streamWrite.sinked, %loop.pkt.read
+74:                                               ; preds = %loop.pkt.write.5.streamWrite.sinked, %loop.pkt.read
   br i1 %.streamWrite.en27.2, label %loop.pkt.write.6.streamWrite.sinked, label %loop.pkt.lastCheck.6.writesExit
 
-loop.pkt.write.6.streamWrite.sinked:              ; preds = %75
+loop.pkt.write.6.streamWrite.sinked:              ; preds = %74
   call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %.260, i1 false, i1 %.263, ptr null) #5
   br label %loop.pkt.lastCheck.6.writesExit
 
-loop.pkt.lastCheck.6.writesExit:                  ; preds = %loop.pkt.write.6.streamWrite.sinked, %75
+loop.pkt.lastCheck.6.writesExit:                  ; preds = %loop.pkt.write.6.streamWrite.sinked, %74
   %spec.select = select i1 %12, i9 0, i9 %38
   br label %loop.pkt.read
 }

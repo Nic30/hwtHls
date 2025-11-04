@@ -15,7 +15,7 @@ using namespace llvm::PatternMatch;
 
 namespace hwtHls {
 
-bool isValueEqualityComparation(Value *Expr, ICmpInst::Predicate &pred,
+bool isValueEqualityComparation(Value *Expr, CmpPredicate &pred,
 		Value *&comparedVal, ConstantInt *&caseVal) {
 	return match(Expr,
 			m_ICmp(pred, m_Value(comparedVal), m_ConstantInt(caseVal)));
@@ -23,7 +23,7 @@ bool isValueEqualityComparation(Value *Expr, ICmpInst::Predicate &pred,
 
 struct CmpBrInfo {
 	BasicBlock &parentBlock;
-	ICmpInst::Predicate predicate;
+	CmpPredicate predicate;
 	ConstantInt *caseVal;
 	BasicBlock *TSucc;
 	BasicBlock *FSucc;
@@ -35,7 +35,7 @@ struct CmpBrInfo {
 };
 
 bool tryHoistFromCheapBlocksWithSwitchLikeCmpBrRewriteBlock(
-		Instruction *MovePos, Value *CmpCond, BasicBlock &BB,
+		BasicBlock::iterator MovePos, Value *CmpCond, BasicBlock &BB,
 		SmallVectorImpl<CmpBrInfo> &branchInfo) {
 	bool Changed = tryHoistCheapInstsAtBlockBegin(BB, MovePos);
 	if (BB.begin() != BB.getTerminator()->getIterator()) {
@@ -82,7 +82,7 @@ bool tryHoistFromCheapBlocksWithSwitchLikeCmpBr(llvm::BranchInst *BI,
 			potentialSwitchCond, brInfo.caseVal)) {
 		if (auto *Pred = BBTop->getSinglePredecessor()) {
 			if (auto *PredBr = dyn_cast<BranchInst>(Pred->getTerminator())) {
-				ICmpInst::Predicate pred1;
+				CmpPredicate pred1;
 				Value *c;
 				ConstantInt *case1Val;
 				if (isValueEqualityComparation(PredBr->getCondition(), pred1, c,
@@ -96,14 +96,14 @@ bool tryHoistFromCheapBlocksWithSwitchLikeCmpBr(llvm::BranchInst *BI,
 		bool usingParentSwitch = false;
 
 		auto BBTopPred = BBTop->getUniquePredecessor();
-		Instruction *MoveBeforePoint = BI;
+		BasicBlock::iterator MoveBeforePoint = BI->getIterator();
 		if (BBTopPred) {
 			if (auto *BBTopPredSw = dyn_cast<SwitchInst>(
 					BBTopPred->getTerminator())) {
 				if (BBTopPredSw->getCondition() == potentialSwitchCond) {
 					usingParentSwitch = true;
 					MainSwitch = BBTopPredSw;
-					MoveBeforePoint = BBTopPredSw;
+					MoveBeforePoint = BBTopPredSw->getIterator();
 				}
 			}
 		}

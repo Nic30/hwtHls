@@ -172,7 +172,7 @@ void HwtHlsInstCombiner::_duplicateExprForEoFandNotEoFVariant(
 			});
 		if (!nonSpec) {
 			auto _nonSpec = I->clone();
-			_nonSpec->insertBefore(I);
+			_nonSpec->insertBefore(I->getIterator());
 			nonSpec = _nonSpec;
 		}
 		Worklist.pushValue(nonSpec);

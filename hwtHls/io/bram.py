@@ -372,8 +372,8 @@ class IoProxyBram(IoProxyAddressed):
     def getDataTypeOfNativeWrite(self) -> HdlType:
         dtype = self._nativeWriteTy
         if dtype is None:
-            i = getFirstInterfaceInstance(self.interface)
-            if not i.HAS_W:
+            i = getFirstInterfaceInstance(self.interface, instanceFilter=lambda hwio: hwio.HAS_W)
+            if i is None:
                 dtype = HVoidData
             else:
                 dtype = i.din._dtype
@@ -390,8 +390,8 @@ class IoProxyBram(IoProxyAddressed):
     def getDataTypeOfNativeRead(self) -> HdlType:
         dtype = self._nativeReadTy
         if dtype is None:
-            i = getFirstInterfaceInstance(self.interface)
-            if not i.HAS_R:
+            i = getFirstInterfaceInstance(self.interface, instanceFilter=lambda hwio: hwio.HAS_R)
+            if i is None:
                 dtype = HVoidData
             else:
                 dtype = i.dout._dtype

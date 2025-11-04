@@ -23,10 +23,12 @@ public:
 	size_t otherArgIndex; // index of argument in other thread or at top where this IO is connected
 
 	// optional members:
-	bool hasBlockingLoad;
-	//  non-blocking load have extra 1 bit (msb) which specifies
+
+	// non-blocking load have extra 1 bit (msb) which specifies
 	// if the read data is valid or not
-	bool hasBlockingStore;
+	// :note: if hasBlockingLoad then readWordWidth = data width + 1
+	bool hasBlockingLoad;
+	bool hasBlockingStore; // hasBlockingLoad equivalent for store
 	size_t bufferCapacity; // size of FIFO buffer for scalar io
 	// :note: if two HwtHlsIoMetadata are connected together using otherThreadFn/otherArgIndex the total buffer size is the sum from both
 	llvm::MDTuple *ioPropertyPath; // optional property path specifying where exactly is this io connected on io object

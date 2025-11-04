@@ -48,44 +48,40 @@ loop.pkt.read:                                    ; preds = %loop.pkt.lastCheck,
   %25 = or i1 %rx.last, %21
   %writeEn3.3 = and i1 %2, %23
   %.037 = and i1 %writeEn3.3, %25
-  %26 = xor i1 %10, true
-  %27 = icmp ne i2 %1, -1
-  %28 = and i1 %rx.last, %27
-  %29 = xor i1 %28, true
-  %30 = icmp ne i3 %0, -1
-  %31 = and i1 %rx.last, %30
-  %32 = xor i1 %31, true
-  %.streamWrite.en21.2 = and i1 %32, %writeEn3.3
-  %eof.3 = and i1 %32, %.037
-  %data.3 = select i1 %31, i8 undef, i8 %data.3.0
-  %.streamWrite.en19.2 = and i1 %29, %writeEn3.2
-  %eof.2 = and i1 %29, %.031
-  %.230 = select i1 %28, i8 undef, i8 %7
-  %eof.1 = and i1 %26, %.025
+  %26 = icmp ne i2 %1, -1
+  %27 = and i1 %rx.last, %26
+  %28 = xor i1 %27, true
+  %29 = icmp ne i3 %0, -1
+  %30 = and i1 %rx.last, %29
+  %31 = xor i1 %30, true
+  %.streamWrite.en21.2 = and i1 %31, %writeEn3.3
+  %eof.3 = and i1 %31, %.037
+  %data.3 = select i1 %30, i8 undef, i8 %data.3.0
+  %.streamWrite.en19.2 = and i1 %28, %writeEn3.2
+  %eof.2 = and i1 %28, %.031
+  %.230 = select i1 %27, i8 undef, i8 %7
   %data.1 = select i1 %10, i8 undef, i8 %8
-  %impCache = icmp ule i1 %writeEn3.1, %4
-  call void @llvm.assume(i1 %impCache)
   %impCache1 = icmp ule i1 %.streamWrite.en19.2, %writeEn3.1
   call void @llvm.assume(i1 %impCache1)
-  %33 = call i24 @hwtHls.bitConcat.i8.i8.i8(i8 %data.0, i8 %data.1, i8 %.230) #4
-  %34 = call i3 @hwtHls.bitConcat.i1.i1.i1(i1 %4, i1 %writeEn3.1, i1 %.streamWrite.en19.2) #4
-  %35 = or i1 %eof.0, %eof.1
-  %36 = or i1 %35, %eof.2
-  %37 = select i1 %4, i3 %34, i3 0
-  br i1 %4, label %38, label %39
+  %32 = call i24 @hwtHls.bitConcat.i8.i8.i8(i8 %data.0, i8 %data.1, i8 %.230) #4
+  %33 = call i3 @hwtHls.bitConcat.i1.i1.i1(i1 %4, i1 %writeEn3.1, i1 %.streamWrite.en19.2) #4
+  %34 = or i1 %eof.0, %.025
+  %35 = or i1 %34, %eof.2
+  %36 = select i1 %4, i3 %33, i3 0
+  br i1 %4, label %37, label %38
 
-38:                                               ; preds = %loop.pkt.read
-  call void @hwtHls.streamWrite.masked.p2.i24.i3.i1.i1.p0(ptr addrspace(2) %tx, i24 %33, i3 %34, i1 false, i1 %36, ptr null) #5
-  br label %39
+37:                                               ; preds = %loop.pkt.read
+  call void @hwtHls.streamWrite.masked.p2.i24.i3.i1.i1.p0(ptr addrspace(2) %tx, i24 %32, i3 %33, i1 false, i1 %35, ptr null) #5
+  br label %38
 
-39:                                               ; preds = %loop.pkt.read, %38
+38:                                               ; preds = %loop.pkt.read, %37
   br i1 %.streamWrite.en21.2, label %bb.w3, label %loop.pkt.lastCheck
 
-bb.w3:                                            ; preds = %39
+bb.w3:                                            ; preds = %38
   call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %data.3, i1 false, i1 %eof.3, ptr null) #5
   br label %loop.pkt.lastCheck
 
-loop.pkt.lastCheck:                               ; preds = %bb.w3, %39
+loop.pkt.lastCheck:                               ; preds = %bb.w3, %38
   %spec.select = select i1 %rx.last, i9 0, i9 %20
   br label %loop.pkt.read
 }

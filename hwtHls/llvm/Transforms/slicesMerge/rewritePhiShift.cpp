@@ -131,8 +131,13 @@ bool SlicesMergeCombiner::phiShiftPatternRewrite(BasicBlock &BB) {
 		collectAllChainedPhisInBlock(phi, phiGroups);
 	}
 	SetVector<PHINode*> toRm;
-	for (auto &phi : BB.phis()) {
-		if (toRm.count(&phi))
+	SmallVector<PHINode*> phis;
+	for (auto &phi: BB.phis()) {
+		phis.push_back(&phi);
+	}
+	for (auto *_phi : phis) {
+		auto &phi = *_phi;
+		if (toRm.contains(&phi))
 			continue; // already converted PHI
 
 		auto group = phiGroups.find(&phi);
@@ -143,10 +148,14 @@ bool SlicesMergeCombiner::phiShiftPatternRewrite(BasicBlock &BB) {
 
 		auto phigroup = sortPhiGroup(BB, *group->second);
 		toRm.insert(phigroup.begin(), phigroup.end());
-		auto widerPhi = mergePhisToWiderPhi(Builder, ".shiftPhi", phigroup);
 
-		Builder.SetInsertPoint(&*BB.begin());
-		IRBuilder_setInsertPointBehindPhi(Builder, &*BB.begin());
+		auto widerPhi = mergePhisToWiderPhi(Builder, ".shiftPhi", phigroup);
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+		verifyUsesList(F);
+		verifyAfterUpdate("mergeConsequentSlicesExtractWiderOperads  broken", widerPhi);
+		assertSlicesConsistency();
+#endif
+		Builder.SetInsertPoint(BB.getFirstInsertionPt());
 		size_t lowBitNo = 0;
 		for (auto _phi : phigroup) {
 			size_t bitWidth = _phi->getType()->getIntegerBitWidth();
@@ -156,11 +165,14 @@ bool SlicesMergeCombiner::phiShiftPatternRewrite(BasicBlock &BB) {
 		}
 	}
 
-	for (auto phi : toRm) {
-		for (Use& v: phi->incoming_values())
-			if (auto ii = dyn_cast<Instruction>(v.get()))
-				Worklist.add(ii);
+	for (auto phi: toRm) {
+		Worklist.pushUsersToWorkList(*phi);
 	}
+
+	for (auto phi: toRm) {
+		Worklist.push(phi);
+	}
+
 	return toRm.size() != 0;
 }
 

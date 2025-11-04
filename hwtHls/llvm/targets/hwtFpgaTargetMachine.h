@@ -3,7 +3,7 @@
 #include <optional>
 #include <llvm/Support/CodeGen.h>
 #include <llvm/Analysis/TargetTransformInfo.h>
-#include <llvm/Target/TargetMachine.h>
+#include <llvm/CodeGen/CodeGenTargetMachineImpl.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetSubtarget.h>
 
 namespace llvm {
@@ -13,7 +13,7 @@ class StringRef;
 /**
  * An LLVM representation of the target for an HwtFpga
  * */
-class HwtFpgaTargetMachine final : public llvm::LLVMTargetMachine {
+class HwtFpgaTargetMachine : public llvm::CodeGenTargetMachineImpl {
 	mutable llvm::StringMap<std::unique_ptr<HwtFpgaTargetSubtarget>> SubtargetMap;
 	bool allowVolatileMemOpDuplication;
 public:

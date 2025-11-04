@@ -10,6 +10,7 @@
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinerUtilsImplication.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
 
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/targets/bitMathUtils.h>
@@ -63,7 +64,7 @@ bool HwtHlsSimplifyCFGPass_phiToLogicalExpr_hoist(
 			assert(
 					!isa<PHINode>(&I)
 							&& "This can not be phi because all non-first blocks should have just 1 predecessor");
-			if (I.mayHaveSideEffects() || I.isVolatile() || I.isTerminator()) {
+			if (!isSafeToHoistInstr(&I, SkipFlags::NONE, false)) {
 				continue; // can not move
 			} else if (any_of(I.operands(), [&blocksToHoistFrom](Use &op) {
 				if (auto OpI = dyn_cast<Instruction>(op.get())) {

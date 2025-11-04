@@ -13,10 +13,6 @@ void register_GlobalVariable(pybind11::module_ &m) {
 	py::class_<llvm::GlobalObject,
 			std::unique_ptr<llvm::GlobalObject, py::nodelete>, llvm::GlobalValue> GlobalObject(
 			m, "GlobalObject");
-	GlobalObject.def("setAlignment",
-			[](llvm::GlobalObject *self, llvm::Align Align) {
-				self->setAlignment(Align);
-			});
 
 	py::class_<llvm::GlobalVariable,
 			std::unique_ptr<llvm::GlobalVariable, py::nodelete>,

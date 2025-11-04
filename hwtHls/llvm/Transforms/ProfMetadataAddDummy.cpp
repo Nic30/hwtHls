@@ -1,4 +1,8 @@
 #include <hwtHls/llvm/Transforms/ProfMetadataAddDummy.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/Module.h>
+#include <llvm/IR/Metadata.h>
+
 
 using namespace llvm;
 

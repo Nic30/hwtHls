@@ -78,7 +78,7 @@ static bool hoistValue(Value *V, Instruction *HoistPoint,
 			}
 		}
 		changed = true;
-		I->moveBefore(HoistPoint);
+		I->moveBefore(HoistPoint->getIterator());
 		HoistedSet.insert(I);
 		LLVM_DEBUG(dbgs() << "hoistValue " << *I << "\n");
 	}

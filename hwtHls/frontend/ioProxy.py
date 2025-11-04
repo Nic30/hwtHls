@@ -63,11 +63,12 @@ class IoProxy(object):
         Get llvm pointer and item type to represent this this IO in argument os functions
         and load/gep/store and alike instructions.
         """
-        width = max(self.getDataTypeOfNativeRead().bit_length(), 1)
+        width = self.getDataTypeOfNativeRead().bit_length()
         if self.hasBlockingRead is not None and not self.hasBlockingRead:
             width += 1
 
         width = max(width, self.getDataTypeOfNativeWrite().bit_length())
+        width = max(width, 1)
 
         ptrT = PointerType.get(toLlvm.ctx, ioIndex + 1)
         elmT = Type.getIntNTy(toLlvm.ctx, width)
@@ -136,4 +137,6 @@ class IoProxy(object):
     @classmethod
     def _getRtlSyncTuple(cls, hwIO: Union[HwIO, ValidReadyTuple]):
         return cls._getRtlSyncSignals(hwIO, formatAsValidReadyTuple=True)
-
+    
+    def __repr__(self)->str:
+        return f"<{self.__class__.__name__:s} for {self.interface}>"

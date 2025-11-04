@@ -1,7 +1,7 @@
 #include <hwtHls/llvm/targets/GISel/hwtFpgaCombinerHelper.h>
 
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
-#include <llvm/CodeGen/GlobalISel/GISelKnownBits.h>
+#include <llvm/CodeGen/GlobalISel/GISelValueTracking.h>
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/SmallSet.h>
 
@@ -39,7 +39,7 @@ void HwtFpgaCombinerHelper::rewriteNestedMERGE_VALUES(MachineInstr &MI) {
 	auto DstRegNo = MI.getOperand(0).getReg();
 	assert(
 			(MRI.hasOneDef(DstRegNo)
-					|| MI.findRegisterUseOperandIdx(DstRegNo) < 0)
+					|| MI.findRegisterUseOperandIdx(DstRegNo, TRI) < 0)
 					&& "Dst must have just this def or previous def must not be operand");
 	MachineOperand *parentUse = nullptr;
 	if (MRI.hasOneUse(DstRegNo)) {
@@ -50,7 +50,7 @@ void HwtFpgaCombinerHelper::rewriteNestedMERGE_VALUES(MachineInstr &MI) {
 				getNextUseOfRegInBlock(MI, DstRegNo)->getParent();
 		assert(NextInstr && "Should be already checked in matchNestedMux");
 		assert(NextInstr->getOpcode() == HwtFpga::HWTFPGA_MERGE_VALUES);
-		auto UseOpIndx = NextInstr->findRegisterUseOperandIdx(DstRegNo, false);
+		auto UseOpIndx = NextInstr->findRegisterUseOperandIdx(DstRegNo, TRI, false);
 		assert(UseOpIndx > 0);
 		parentUse = &NextInstr->getOperand(UseOpIndx);
 		assert(parentUse->getReg() == DstRegNo);

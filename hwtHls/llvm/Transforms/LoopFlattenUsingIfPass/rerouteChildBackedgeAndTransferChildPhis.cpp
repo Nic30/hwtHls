@@ -37,7 +37,7 @@ static std::pair<PHINode*, bool> createPhiInHeaderForChild(PHINode &childPhi,
 	} else {
 		assert(!Ty->isPointerTy());
 		headerPhi = PHINode::Create(Ty, headerPredCnt,
-				childPhi.getName() + ".inChildHeader", firstNonPhiOfHeader);
+				childPhi.getName() + ".inChildHeader", firstNonPhiOfHeader->getIterator());
 	}
 	return {headerPhi, reusingParentPhi};
 }
@@ -65,7 +65,7 @@ static std::pair<PHINode*, bool> createPhiInNewLatch(
 								== LoopFlattenUsingIfPass::Mode::CHILD_LOOP_ENTRY_IN_NEXT_ITERATION);
 		assert(!Ty->isPointerTy());
 		latchPhi = PHINode::Create(Ty, phiArgCnt,
-				childHeaderPhi.getName() + ".inLatch", firstNonPhiOfNewLatch);
+				childHeaderPhi.getName() + ".inLatch", firstNonPhiOfNewLatch->getIterator());
 		latchPhi->addIncoming(childBackedgeVal, childLatch);
 	}
 	if (mode
@@ -89,7 +89,7 @@ static void createNewLatchPhis(const LoopFlattenUsingIfPass::Mode mode, llvm::Ba
 	if (MSSAU) {
 		MSSAU->applyUpdates(Updates, DTU.getDomTree());
 	}
-	IRBuilder<> Builder(newLatchBlock->getFirstNonPHI());
+	IRBuilder<> Builder(newLatchBlock, newLatchBlock->getFirstNonPHIIt());
 	auto &DT = DTU.getDomTree();
 	for (auto &phi : header->phis()) {
 		if (&phi == &isChildLoopSwitchPhi)
@@ -129,7 +129,7 @@ static void createPhiForSwitchBetweenParentAndChildLoopInLatch(
 	auto int1Ty = IntegerType::getInt1Ty(Ctx);
 	auto *isChildLoopInLatch = PHINode::Create(int1Ty, pred_size(newLatchBlock),
 			"isChildLoopInLatch." + childHeader->getName(),
-			newLatchBlock->getFirstNonPHI());
+			newLatchBlock->getFirstNonPHIIt());
 	isChildLoop.addIncoming(isChildLoopInLatch, newLatchBlock);
 	bool allAreFromChildLoop = true;
 	bool allAreFromParentLoop = true;
@@ -198,9 +198,9 @@ void rerouteChildBackedgeAndTransferChildPhis(
 
 	// for each child phi
 	auto headerPredCnt = llvm::pred_size(newLatchBlock);
-	auto *firstNonPhiOfParentHeader = &*parentHeader->getFirstNonPHI();
-	auto *firstNonPhiOfNewLatch = &*newLatchBlock->getFirstNonPHI();
-	auto *childHeaderFirstNonPhi = childHeader->getFirstNonPHI();
+	auto firstNonPhiOfParentHeader = &*parentHeader->getFirstNonPHIIt();
+	auto firstNonPhiOfNewLatch = &*newLatchBlock->getFirstNonPHIIt();
+	auto childHeaderFirstNonPhi = childHeader->getFirstNonPHIIt();
 	auto parentPreheader = LParent.getLoopPreheader();
 	assert(
 			parentPreheader

@@ -19,7 +19,7 @@ class SsaPassDumpMIR(SsaAnalysisPass):
             dumpFilename = os.path.join(toLlvm._dbgSubDir, dumpFilename)
         out, doClose = self.outStreamGetter(dumpFilename)
         try:
-            out.write(mf.serialize())
+            out.write(mf.serialize(toLlvm.llvm.getMachineModuleInfo()))
         finally:
             if doClose:
                 out.close()

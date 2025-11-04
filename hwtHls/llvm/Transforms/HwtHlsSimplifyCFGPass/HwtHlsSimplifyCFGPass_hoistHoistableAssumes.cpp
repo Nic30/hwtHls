@@ -18,7 +18,7 @@ bool HwtHlsSimplifyCFGPass_hoistHoistableAssumes(llvm::BasicBlock &BB) {
 		if (!a)
 			break;
 		if (hasMetadataSideeffectAllowHoist(I)) {
-			a->moveBefore(predTerm);
+			a->moveBefore(predTerm->getIterator());
 			exprChanged = true;
 		}
 	}

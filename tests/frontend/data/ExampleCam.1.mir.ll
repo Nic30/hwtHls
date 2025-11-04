@@ -45,7 +45,6 @@
   !3 = !{!"OUT", i64 0, i64 0, i64 17, ptr null, i64 2}
   !4 = !{!"OUT", i64 0, i64 0, i64 17, ptr null, i64 3}
   !5 = !{!"IN", i64 0, i64 19, i64 0, ptr null, i64 4}
-
 ...
 ---
 name:            ExampleCam.updateThread
@@ -57,9 +56,13 @@ selected:        true
 failedISel:      false
 tracksRegLiveness: true
 hasWinCFI:       false
+noPhis:          true
+isSSA:           false
+noVRegs:         false
+hasFakeUses:     false
 callsEHReturn:   false
 callsUnwindInit: false
-hasEHCatchret:   false
+hasEHContTarget: false
 hasEHScopes:     false
 hasEHFunclets:   false
 isOutlined:      false
@@ -67,38 +70,38 @@ debugInstrRef:   false
 failsVerification: false
 tracksDebugUserValues: false
 registers:
-  - { id: 0, class: anyregcls, preferred-register: '' }
-  - { id: 1, class: anyregcls, preferred-register: '' }
-  - { id: 2, class: anyregcls, preferred-register: '' }
-  - { id: 3, class: anyregcls, preferred-register: '' }
-  - { id: 4, class: anyregcls, preferred-register: '' }
-  - { id: 5, class: anyregcls, preferred-register: '' }
-  - { id: 6, class: anyregcls, preferred-register: '' }
-  - { id: 7, class: anyregcls, preferred-register: '' }
-  - { id: 8, class: anyregcls, preferred-register: '' }
-  - { id: 9, class: anyregcls, preferred-register: '' }
-  - { id: 10, class: anyregcls, preferred-register: '' }
-  - { id: 11, class: _, preferred-register: '' }
-  - { id: 12, class: anyregcls, preferred-register: '' }
-  - { id: 13, class: _, preferred-register: '' }
-  - { id: 14, class: anyregbank, preferred-register: '' }
-  - { id: 15, class: anyregcls, preferred-register: '' }
-  - { id: 16, class: anyregcls, preferred-register: '' }
-  - { id: 17, class: anyregbank, preferred-register: '' }
-  - { id: 18, class: anyregcls, preferred-register: '' }
-  - { id: 19, class: anyregcls, preferred-register: '' }
-  - { id: 20, class: anyregbank, preferred-register: '' }
-  - { id: 21, class: anyregcls, preferred-register: '' }
-  - { id: 22, class: anyregcls, preferred-register: '' }
-  - { id: 23, class: anyregbank, preferred-register: '' }
-  - { id: 24, class: anyregcls, preferred-register: '' }
-  - { id: 25, class: anyregcls, preferred-register: '' }
-  - { id: 26, class: anyregcls, preferred-register: '' }
-  - { id: 27, class: anyregcls, preferred-register: '' }
-  - { id: 28, class: anyregcls, preferred-register: '' }
-  - { id: 29, class: anyregcls, preferred-register: '' }
-  - { id: 30, class: anyregcls, preferred-register: '' }
-  - { id: 31, class: anyregcls, preferred-register: '' }
+  - { id: 0, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 1, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 2, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 3, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 4, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 5, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 6, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 7, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 8, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 9, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 10, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 11, class: _, preferred-register: '', flags: [  ] }
+  - { id: 12, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 13, class: _, preferred-register: '', flags: [  ] }
+  - { id: 14, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 15, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 16, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 17, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 18, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 19, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 20, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 21, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 22, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 23, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 24, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 25, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 26, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 27, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 28, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 29, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 30, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 31, class: anyregcls, preferred-register: '', flags: [  ] }
 liveins:         []
 frameInfo:
   isFrameAddressTaken: false
@@ -118,6 +121,7 @@ frameInfo:
   hasVAStart:      false
   hasMustTailInVarArgFunc: false
   hasTailCall:     false
+  isCalleeSavedInfoValid: false
   localFrameSize:  0
   savePoint:       ''
   restorePoint:    ''
@@ -167,7 +171,6 @@ body:             |
     %30:anyregcls(s17) = HWTFPGA_MUX %10(s17), %24(s1), %30(s17)
     %31:anyregcls(s68) = HWTFPGA_MERGE_VALUES %27(s17), %28(s17), %29(s17), %30(s17), 17, 17, 17, 17
     HWTFPGA_BR %bb.1
-
 ...
 --- |
   ; ModuleID = 'hwtHlsModule'
@@ -222,7 +225,6 @@ body:             |
   !4 = !{!"IN", i64 0, i64 17, i64 0, ptr null, i64 3}
   !5 = !{!"IN", i64 0, i64 16, i64 0, ptr null, i64 4}
   !6 = !{!"OUT", i64 0, i64 0, i64 4, ptr null, i64 5}
-
 ...
 ---
 name:            ExampleCam.matchThread
@@ -234,9 +236,13 @@ selected:        true
 failedISel:      false
 tracksRegLiveness: true
 hasWinCFI:       false
+noPhis:          true
+isSSA:           false
+noVRegs:         false
+hasFakeUses:     false
 callsEHReturn:   false
 callsUnwindInit: false
-hasEHCatchret:   false
+hasEHContTarget: false
 hasEHScopes:     false
 hasEHFunclets:   false
 isOutlined:      false
@@ -244,34 +250,34 @@ debugInstrRef:   false
 failsVerification: false
 tracksDebugUserValues: false
 registers:
-  - { id: 0, class: anyregcls, preferred-register: '' }
-  - { id: 1, class: anyregcls, preferred-register: '' }
-  - { id: 2, class: anyregcls, preferred-register: '' }
-  - { id: 3, class: anyregcls, preferred-register: '' }
-  - { id: 4, class: anyregcls, preferred-register: '' }
-  - { id: 5, class: anyregcls, preferred-register: '' }
-  - { id: 6, class: anyregcls, preferred-register: '' }
-  - { id: 7, class: anyregcls, preferred-register: '' }
-  - { id: 8, class: anyregcls, preferred-register: '' }
-  - { id: 9, class: _, preferred-register: '' }
-  - { id: 10, class: anyregcls, preferred-register: '' }
-  - { id: 11, class: _, preferred-register: '' }
-  - { id: 12, class: anyregcls, preferred-register: '' }
-  - { id: 13, class: anyregcls, preferred-register: '' }
-  - { id: 14, class: anyregcls, preferred-register: '' }
-  - { id: 15, class: anyregcls, preferred-register: '' }
-  - { id: 16, class: anyregcls, preferred-register: '' }
-  - { id: 17, class: anyregcls, preferred-register: '' }
-  - { id: 18, class: anyregcls, preferred-register: '' }
-  - { id: 19, class: anyregcls, preferred-register: '' }
-  - { id: 20, class: anyregcls, preferred-register: '' }
-  - { id: 21, class: anyregcls, preferred-register: '' }
-  - { id: 22, class: anyregcls, preferred-register: '' }
-  - { id: 23, class: anyregcls, preferred-register: '' }
-  - { id: 24, class: anyregcls, preferred-register: '' }
-  - { id: 25, class: anyregcls, preferred-register: '' }
-  - { id: 26, class: anyregcls, preferred-register: '' }
-  - { id: 27, class: anyregcls, preferred-register: '' }
+  - { id: 0, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 1, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 2, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 3, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 4, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 5, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 6, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 7, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 8, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 9, class: _, preferred-register: '', flags: [  ] }
+  - { id: 10, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 11, class: _, preferred-register: '', flags: [  ] }
+  - { id: 12, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 13, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 14, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 15, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 16, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 17, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 18, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 19, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 20, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 21, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 22, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 23, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 24, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 25, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 26, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 27, class: anyregcls, preferred-register: '', flags: [  ] }
 liveins:         []
 frameInfo:
   isFrameAddressTaken: false
@@ -291,6 +297,7 @@ frameInfo:
   hasVAStart:      false
   hasMustTailInVarArgFunc: false
   hasTailCall:     false
+  isCalleeSavedInfoValid: false
   localFrameSize:  0
   savePoint:       ''
   restorePoint:    ''
@@ -337,5 +344,4 @@ body:             |
     %27:anyregcls(s4) = HWTFPGA_AND %25(s4), %26(s4)
     HWTFPGA_CSTORE %27(s4), %5, 0, 4, 1 :: (volatile store (s4) into %ir.out, addrspace 6)
     HWTFPGA_BR %bb.1
-
 ...

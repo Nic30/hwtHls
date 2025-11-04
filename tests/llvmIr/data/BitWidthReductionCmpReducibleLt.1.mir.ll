@@ -101,7 +101,6 @@
   !16 = !{!"OUT", i64 0, i64 0, i64 1, ptr null, i64 15}
   !17 = !{!"OUT", i64 0, i64 0, i64 1, ptr null, i64 16}
   !18 = !{!"OUT", i64 0, i64 0, i64 1, ptr null, i64 17}
-
 ...
 ---
 name:            'BitWidthReductionCmpReducibleEq.hwImpl.<locals>.mainThread'
@@ -113,9 +112,13 @@ selected:        true
 failedISel:      false
 tracksRegLiveness: true
 hasWinCFI:       false
+noPhis:          true
+isSSA:           false
+noVRegs:         false
+hasFakeUses:     false
 callsEHReturn:   false
 callsUnwindInit: false
-hasEHCatchret:   false
+hasEHContTarget: false
 hasEHScopes:     false
 hasEHFunclets:   false
 isOutlined:      false
@@ -123,66 +126,66 @@ debugInstrRef:   false
 failsVerification: false
 tracksDebugUserValues: false
 registers:
-  - { id: 0, class: anyregcls, preferred-register: '' }
-  - { id: 1, class: anyregcls, preferred-register: '' }
-  - { id: 2, class: anyregcls, preferred-register: '' }
-  - { id: 3, class: anyregcls, preferred-register: '' }
-  - { id: 4, class: anyregcls, preferred-register: '' }
-  - { id: 5, class: anyregcls, preferred-register: '' }
-  - { id: 6, class: anyregcls, preferred-register: '' }
-  - { id: 7, class: anyregcls, preferred-register: '' }
-  - { id: 8, class: anyregcls, preferred-register: '' }
-  - { id: 9, class: anyregcls, preferred-register: '' }
-  - { id: 10, class: anyregcls, preferred-register: '' }
-  - { id: 11, class: anyregcls, preferred-register: '' }
-  - { id: 12, class: anyregcls, preferred-register: '' }
-  - { id: 13, class: anyregcls, preferred-register: '' }
-  - { id: 14, class: anyregcls, preferred-register: '' }
-  - { id: 15, class: anyregcls, preferred-register: '' }
-  - { id: 16, class: anyregcls, preferred-register: '' }
-  - { id: 17, class: anyregcls, preferred-register: '' }
-  - { id: 18, class: anyregcls, preferred-register: '' }
-  - { id: 19, class: anyregcls, preferred-register: '' }
-  - { id: 20, class: _, preferred-register: '' }
-  - { id: 21, class: anyregcls, preferred-register: '' }
-  - { id: 22, class: _, preferred-register: '' }
-  - { id: 23, class: anyregcls, preferred-register: '' }
-  - { id: 24, class: anyregcls, preferred-register: '' }
-  - { id: 25, class: anyregcls, preferred-register: '' }
-  - { id: 26, class: anyregcls, preferred-register: '' }
-  - { id: 27, class: anyregbank, preferred-register: '' }
-  - { id: 28, class: anyregcls, preferred-register: '' }
-  - { id: 29, class: _, preferred-register: '' }
-  - { id: 30, class: _, preferred-register: '' }
-  - { id: 31, class: anyregbank, preferred-register: '' }
-  - { id: 32, class: anyregcls, preferred-register: '' }
-  - { id: 33, class: anyregcls, preferred-register: '' }
-  - { id: 34, class: _, preferred-register: '' }
-  - { id: 35, class: _, preferred-register: '' }
-  - { id: 36, class: anyregcls, preferred-register: '' }
-  - { id: 37, class: anyregcls, preferred-register: '' }
-  - { id: 38, class: anyregcls, preferred-register: '' }
-  - { id: 39, class: anyregcls, preferred-register: '' }
-  - { id: 40, class: anyregcls, preferred-register: '' }
-  - { id: 41, class: anyregcls, preferred-register: '' }
-  - { id: 42, class: anyregcls, preferred-register: '' }
-  - { id: 43, class: anyregcls, preferred-register: '' }
-  - { id: 44, class: anyregcls, preferred-register: '' }
-  - { id: 45, class: anyregcls, preferred-register: '' }
-  - { id: 46, class: anyregcls, preferred-register: '' }
-  - { id: 47, class: anyregcls, preferred-register: '' }
-  - { id: 48, class: anyregcls, preferred-register: '' }
-  - { id: 49, class: anyregcls, preferred-register: '' }
-  - { id: 50, class: anyregcls, preferred-register: '' }
-  - { id: 51, class: anyregcls, preferred-register: '' }
-  - { id: 52, class: anyregcls, preferred-register: '' }
-  - { id: 53, class: anyregcls, preferred-register: '' }
-  - { id: 54, class: anyregcls, preferred-register: '' }
-  - { id: 55, class: anyregcls, preferred-register: '' }
-  - { id: 56, class: anyregcls, preferred-register: '' }
-  - { id: 57, class: anyregcls, preferred-register: '' }
-  - { id: 58, class: anyregcls, preferred-register: '' }
-  - { id: 59, class: anyregcls, preferred-register: '' }
+  - { id: 0, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 1, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 2, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 3, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 4, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 5, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 6, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 7, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 8, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 9, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 10, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 11, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 12, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 13, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 14, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 15, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 16, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 17, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 18, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 19, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 20, class: _, preferred-register: '', flags: [  ] }
+  - { id: 21, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 22, class: _, preferred-register: '', flags: [  ] }
+  - { id: 23, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 24, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 25, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 26, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 27, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 28, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 29, class: _, preferred-register: '', flags: [  ] }
+  - { id: 30, class: _, preferred-register: '', flags: [  ] }
+  - { id: 31, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 32, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 33, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 34, class: _, preferred-register: '', flags: [  ] }
+  - { id: 35, class: _, preferred-register: '', flags: [  ] }
+  - { id: 36, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 37, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 38, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 39, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 40, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 41, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 42, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 43, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 44, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 45, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 46, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 47, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 48, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 49, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 50, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 51, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 52, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 53, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 54, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 55, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 56, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 57, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 58, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 59, class: anyregcls, preferred-register: '', flags: [  ] }
 liveins:         []
 frameInfo:
   isFrameAddressTaken: false
@@ -202,6 +205,7 @@ frameInfo:
   hasVAStart:      false
   hasMustTailInVarArgFunc: false
   hasTailCall:     false
+  isCalleeSavedInfoValid: false
   localFrameSize:  0
   savePoint:       ''
   restorePoint:    ''
@@ -283,5 +287,4 @@ body:             |
     %59:anyregcls(s1) = HWTFPGA_ICMP intpred(ult), %56(s13), %58
     HWTFPGA_CSTORE %59(s1), %9, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_differentInMiddle, addrspace 10)
     HWTFPGA_BR %bb.1
-
 ...

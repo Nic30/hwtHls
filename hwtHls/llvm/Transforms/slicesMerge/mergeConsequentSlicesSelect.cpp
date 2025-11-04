@@ -13,7 +13,7 @@ using namespace llvm;
 
 namespace hwtHls {
 
-llvm::Instruction* SlicesMergeCombiner::mergeConsequentSlicesSelect(SelectInst &I) {
+bool SlicesMergeCombiner::mergeConsequentSlicesSelect(SelectInst &I) {
 	// translate operands then build a new operand with new operands if required
 	Value *opCond = I.getCondition();
 	Value *widerOp0;
@@ -50,8 +50,8 @@ llvm::Instruction* SlicesMergeCombiner::mergeConsequentSlicesSelect(SelectInst &
 		verifyUsesList(F);
 #endif
 
-		return &I; // return I to mark that it was replaced
+		return true; // return non null to mark that the instruction was replaced
 	}
-	return nullptr;
+	return false;
 }
 }

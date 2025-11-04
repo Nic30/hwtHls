@@ -1,7 +1,9 @@
 #include <hwtHls/llvm/targets/Transforms/hwtHlsCodeGenPrepare.h>
 
-namespace hwtHls {
+using namespace llvm;
 #define DEBUG_TYPE "hwtHls-code-gen-prepare"
+
+namespace hwtHls {
 
 bool HwtHlsCodeGenPrepare::optimizeSwitchType(SwitchInst *SI) {
   //Value *Cond = SI->getCondition();
@@ -59,7 +61,6 @@ INITIALIZE_PASS_DEPENDENCY(TargetTransformInfoWrapperPass)
   	  "Optimize for code generation", DEBUG_TYPE, &HwtHlsCodeGenPrepareLegacyPass::ID,
       PassInfo::NormalCtor_t(callDefaultCtor<HwtHlsCodeGenPrepareLegacyPass>), false, false);
   Registry.registerPass(*PI, true);
-  return PI;
 }
 static llvm::once_flag InitializeHwtHlsCodeGenPrepareLegacyPassPassFlag;
 

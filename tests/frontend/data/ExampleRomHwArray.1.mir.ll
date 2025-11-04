@@ -3,7 +3,7 @@
   source_filename = "hwtHlsModule"
   target datalayout = "e-m:e-i8:8-i16:16-i32:32-i64:64-i128:128-i256:256-i512:512-i1024:1024-i2048:2048-i4096:4096-n8:16:32:64-S128-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
   
-  @mem = private unnamed_addr constant [4 x i32] [i32 1, i32 2, i32 4, i32 8], align 1
+  @mem = private unnamed_addr constant [4 x i32] [i32 1, i32 2, i32 4, i32 8]
   
   define void @ExampleRomHwArray.mainThread(ptr addrspace(1) %i, ptr addrspace(2) %o) !hwtHls.io !0 {
   bb0:
@@ -12,7 +12,7 @@
   blockL162i0_162:                                  ; preds = %bb0, %blockL162i0_162
     %i_read1 = load volatile i2, ptr addrspace(1) %i, align 1
     %0 = zext i2 %i_read1 to i64
-    %1 = getelementptr inbounds [4 x i32], ptr @mem, i64 0, i64 %0
+    %1 = getelementptr inbounds nuw [4 x i32], ptr @mem, i64 0, i64 %0
     %o3 = load i32, ptr %1, align 4
     store volatile i32 %o3, ptr addrspace(2) %o, align 4
     br label %blockL162i0_162
@@ -21,7 +21,6 @@
   !0 = distinct !{!1, !2}
   !1 = !{!"IN", i64 0, i64 2, i64 0, ptr null, i64 0}
   !2 = !{!"OUT", i64 0, i64 0, i64 32, ptr null, i64 1}
-
 ...
 ---
 name:            ExampleRomHwArray.mainThread
@@ -33,9 +32,13 @@ selected:        true
 failedISel:      false
 tracksRegLiveness: true
 hasWinCFI:       false
+noPhis:          true
+isSSA:           false
+noVRegs:         false
+hasFakeUses:     false
 callsEHReturn:   false
 callsUnwindInit: false
-hasEHCatchret:   false
+hasEHContTarget: false
 hasEHScopes:     false
 hasEHFunclets:   false
 isOutlined:      false
@@ -43,20 +46,20 @@ debugInstrRef:   false
 failsVerification: false
 tracksDebugUserValues: false
 registers:
-  - { id: 0, class: anyregcls, preferred-register: '' }
-  - { id: 1, class: anyregcls, preferred-register: '' }
-  - { id: 2, class: anyregcls, preferred-register: '' }
-  - { id: 3, class: anyregcls, preferred-register: '' }
-  - { id: 4, class: anyregcls, preferred-register: '' }
-  - { id: 5, class: _, preferred-register: '' }
-  - { id: 6, class: anyregcls, preferred-register: '' }
-  - { id: 7, class: anyregbank, preferred-register: '' }
-  - { id: 8, class: _, preferred-register: '' }
-  - { id: 9, class: anyregcls, preferred-register: '' }
-  - { id: 10, class: _, preferred-register: '' }
-  - { id: 11, class: anyregcls, preferred-register: '' }
-  - { id: 12, class: anyregcls, preferred-register: '' }
-  - { id: 13, class: anyregcls, preferred-register: '' }
+  - { id: 0, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 1, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 2, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 3, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 4, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 5, class: _, preferred-register: '', flags: [  ] }
+  - { id: 6, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 7, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 8, class: _, preferred-register: '', flags: [  ] }
+  - { id: 9, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 10, class: _, preferred-register: '', flags: [  ] }
+  - { id: 11, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 12, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 13, class: anyregcls, preferred-register: '', flags: [  ] }
 liveins:         []
 frameInfo:
   isFrameAddressTaken: false
@@ -76,6 +79,7 @@ frameInfo:
   hasVAStart:      false
   hasMustTailInVarArgFunc: false
   hasTailCall:     false
+  isCalleeSavedInfoValid: false
   localFrameSize:  0
   savePoint:       ''
   restorePoint:    ''
@@ -101,5 +105,4 @@ body:             |
     %9:anyregcls(s32) = HWTFPGA_CLOAD %4(p0), %2(s2), 32, 1 :: (invariant load (s32) from %ir.1)
     HWTFPGA_CSTORE %9(s32), %1, 0, 32, 1 :: (volatile store (s32) into %ir.o, addrspace 2)
     HWTFPGA_BR %bb.1
-
 ...

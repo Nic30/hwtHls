@@ -49,6 +49,13 @@ namespace hwtHls {
 
 
 void register_IRBuilder(pybind11::module_ & m) {
+	py::class_<llvm::AAMDNodes>(m, "AAMDNodes")
+		.def_readwrite("TBAA", &llvm::AAMDNodes::TBAA, "The tag for type-based alias analysis.")
+		.def_readwrite("TBAAStruct", &llvm::AAMDNodes::TBAAStruct, "The tag for type-based alias analysis (tbaa struct).")
+		.def_readwrite("Scope", &llvm::AAMDNodes::Scope, "The tag for alias scope specification (used with noalias).")
+		.def_readwrite("NoAlias", &llvm::AAMDNodes::NoAlias, "The tag specifying the noalias scope.")
+	;
+
 	/*
 	 * :attention: pybind11 does does not know that llvm::IRBuilderBase and other llvm::IRBuilder<> variants
 	 *             are compatible with IRBuilder, the builder must be manually casted
@@ -114,21 +121,16 @@ void register_IRBuilder(pybind11::module_ & m) {
 				return self.CreateStore(Val, Ptr, isVolatile);
 			}, py::arg("Val"), py::arg("Ptr"), py::arg("isVolatile") = false,
 			py::return_value_policy::reference)
-		.def("CreateMemCpy", [](llvm::IRBuilder<> &self,
-				llvm::Value *Dst, llvm::MaybeAlign DstAlign, llvm::Value *Src,
-                llvm::MaybeAlign SrcAlign, uint64_t Size,
-                bool isVolatile = false, MDNodeWithDeletedDelete *TBAATag = nullptr,
-                MDNodeWithDeletedDelete *TBAAStructTag = nullptr,
-                MDNodeWithDeletedDelete *ScopeTag = nullptr,
-                MDNodeWithDeletedDelete *NoAliasTag = nullptr) {
-			return self.CreateMemCpy(Dst, DstAlign, Src, SrcAlign, Size, isVolatile, TBAATag, TBAAStructTag, ScopeTag, NoAliasTag);
-		},
+		.def("CreateMemCpy", [](llvm::IRBuilder<> &self, llvm::Value *Dst, llvm::MaybeAlign DstAlign, llvm::Value *Src,
+					llvm::MaybeAlign SrcAlign, uint64_t Size,
+					bool isVolatile = false,
+					const llvm::AAMDNodes &AAInfo) {
+				return self.CreateMemCpy(Dst, DstAlign, Src, SrcAlign, Size, isVolatile, AAInfo);
+			},
 			py::arg("Dst"), py::arg("DstAlign"), py::arg("Src"),
 			py::arg("SrcAlign"), py::arg("Size"),
-			py::arg("isVolatile") = false, py::arg("TBAATag") = static_cast<MDNodeWithDeletedDelete*>(nullptr),
-		    py::arg("TBAAStructTag") = static_cast<MDNodeWithDeletedDelete*>(nullptr),
-		    py::arg("ScopeTag") = static_cast<MDNodeWithDeletedDelete*>(nullptr),
-		    py::arg("NoAliasTag") = static_cast<MDNodeWithDeletedDelete*>(nullptr),
+			py::arg("isVolatile") = false,
+		    py::arg("AAInfo") = llvm::AAMDNodes(),
 			py::return_value_policy::reference
 		)
 		.def("CreateLoad", [](llvm::IRBuilder<> * self, llvm::Type *Ty, llvm::Value *Ptr, bool isVolatile,

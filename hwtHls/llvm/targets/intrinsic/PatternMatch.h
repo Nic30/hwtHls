@@ -20,7 +20,7 @@ struct m_BitrangeGet {
 			src(src), offset(offset), width(width) {
 	}
 
-	template<typename OpTy> inline bool match(OpTy *V) {
+	template<typename OpTy> inline bool match(OpTy *V) const {
 		if (auto C = dyn_cast<llvm::CallInst>(V)) {
 			if (IsBitRangeGet(C)) {
 				offset = BitRangeGetOffset(C);
@@ -45,7 +45,7 @@ struct m_BitrangeGetSpecificConst {
 			src(src), offset(offset), width(width) {
 	}
 
-	template<typename OpTy> inline bool match(OpTy *V) {
+	template<typename OpTy> inline bool match(OpTy *V) const {
 		if (auto C = dyn_cast<llvm::CallInst>(V)) {
 			if (IsBitRangeGet(C)) {
 				if (offset != BitRangeGetOffset(C))

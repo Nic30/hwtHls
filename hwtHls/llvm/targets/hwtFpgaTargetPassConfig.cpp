@@ -126,10 +126,10 @@ bool HwtFpgaTargetPassConfig::addGlobalInstructionSelect() {
 
 bool HwtFpgaTargetPassConfig::addILPOpts() {
 	// selection of X86PassConfig::addILPOpts()
-	addPass(&MachineCSEID); // hwtHls specific
+	addPass(&MachineCSELegacyID); // hwtHls specific
 	addPass(&EarlyIfPredicatorID);
-	addPass(&EarlyIfConverterID);
-	addPass(&MachineCSEID); // hwtHls specific
+	addPass(&EarlyIfConverterLegacyID);
+	addPass(&MachineCSELegacyID); // hwtHls specific
 	return false;
 }
 
@@ -155,8 +155,8 @@ void HwtFpgaTargetPassConfig::addOptimizedRegAlloc() {
 
 	// Edge splitting is smarter with machine loop info.
 	addPass(&MachineLoopInfoID);
-	addPass(&OptimizePHIsID);
-	addPass(&PeepholeOptimizerID);
+	addPass(&OptimizePHIsLegacyID);
+	addPass(&PeepholeOptimizerLegacyID);
 	//addPass(&MIRCanonicalizerID); // from some reason generates corrupted PHIs with non-existing blocks
 	addPass(&PHIEliminationID); // now it becomes NonSSA
 

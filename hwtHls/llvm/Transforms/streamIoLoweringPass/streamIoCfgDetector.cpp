@@ -127,7 +127,8 @@ void StreamIoDetector::_detectIoAccessGraphs(const HlsReadOrWrite *predecessor,
 					const_cast<BasicBlock*>(&block),
 					const_cast<BasicBlock*>(suc),
 					const_cast<Instruction*>(&*suc->begin()));
-			if (lviGuess == LazyValueInfo::False) {
+			auto *lviGuessCI = dyn_cast_or_null<ConstantInt>(lviGuess);
+			if (lviGuessCI && lviGuessCI->isZero()) {
 				// offsetVar the edge is known to not have this (predEndOffset) value
 				// errs() << "Skipping " << block.getName() << " -> " << suc->getName() << " for offset: " << predEndOffset << "\n";
 				continue;

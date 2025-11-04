@@ -4,7 +4,7 @@
 #include <hwtHls/llvm/bitMath.h>
 #include <llvm/Analysis/ValueTracking.h>
 #include <llvm/Support/KnownBits.h>
-#include <llvm/CodeGen/GlobalISel/GISelKnownBits.h>
+#include <llvm/CodeGen/GlobalISel/GISelValueTracking.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtilsInstrFns.h>
 
 namespace llvm {
@@ -39,14 +39,14 @@ HwtFpgaTargetLowering::HwtFpgaTargetLowering(const llvm::TargetMachine &TM,
 	setHasMultipleConditionRegisters(true);
 }
 
-void computeKnownBitsImpl(const MachineRegisterInfo &MRI, GISelKnownBits &Analysis, const MachineOperand &MO,
+void computeKnownBitsImpl(const MachineRegisterInfo &MRI, GISelValueTracking &Analysis, const MachineOperand &MO,
 		KnownBits &Known, const APInt &DemandedElts, unsigned Depth = 0) {
 	if (MO.isReg()) {
 		assert(MO.isUse());
 		if (MRI.hasOneDef(MO.getReg())) {
 			Analysis.computeKnownBitsImpl(MO.getReg(), Known, DemandedElts, Depth);
 		} else {
-			// GISelKnownBits is only for SSA because it uses getVRegDef
+			// GISelValueTracking is only for SSA because it uses getVRegDef
 			Known.resetAll();
 		}
 	} else {
@@ -69,15 +69,15 @@ std::optional<size_t> getBitwidthOfOperand(const MachineRegisterInfo &MRI,
 	return {};
 }
 
-class GISelKnownBitsWithExposedMaxDepth: public GISelKnownBits {
+class GISelValueTrackingWithExposedMaxDepth: public GISelValueTracking {
 public:
-	  unsigned getMaxDepth() const { return GISelKnownBits::getMaxDepth(); }
+	  unsigned getMaxDepth() const { return GISelValueTracking::getMaxDepth(); }
 };
 
-// based on GISelKnownBits::computeKnownBitsImpl
+// based on GISelValueTracking::computeKnownBitsImpl
 // :attention: any KnownBits may be returned with a 1 bitwidth if type of some register was unknown
 void HwtFpgaTargetLowering::computeKnownBitsForTargetInstr(
-		GISelKnownBits &Analysis, Register R, KnownBits &Known,
+		GISelValueTracking &Analysis, Register R, KnownBits &Known,
 		const APInt &DemandedElts, const MachineRegisterInfo &MRI,
 		unsigned Depth) const {
 	if (!MRI.hasOneDef(R)) { // getVRegDef expects SSA
@@ -96,7 +96,7 @@ void HwtFpgaTargetLowering::computeKnownBitsForTargetInstr(
 	unsigned BitWidth = DstTy.getScalarSizeInBits();
 	Known = KnownBits(BitWidth); // Don't know anything
 
-	if (Depth >= reinterpret_cast<GISelKnownBitsWithExposedMaxDepth&>(Analysis).getMaxDepth())
+	if (Depth >= reinterpret_cast<GISelValueTrackingWithExposedMaxDepth&>(Analysis).getMaxDepth())
 		return;
 
 	if (!DemandedElts)
@@ -207,7 +207,7 @@ void HwtFpgaTargetLowering::computeKnownBitsForTargetInstr(
 	}
 	case HwtFpga::HWTFPGA_SUB: {
 		prepareKnownForBinOp();
-		Known = KnownBits::computeForAddSub(/*Add*/false, /*NSW*/false, Known,
+		Known = KnownBits::computeForAddSub(/*Add*/false, /*NSW*/false, /*NUW*/false, Known,
 				Known2);
 		break;
 	}
@@ -218,7 +218,7 @@ void HwtFpgaTargetLowering::computeKnownBitsForTargetInstr(
 	}
 	case HwtFpga::HWTFPGA_ADD: {
 		prepareKnownForBinOp();
-		Known = KnownBits::computeForAddSub(/*Add*/true, /*NSW*/false, Known,
+		Known = KnownBits::computeForAddSub(/*Add*/true, /*NSW*/false, /*NUW*/false, Known,
 					Known2);
 		break;
 	}

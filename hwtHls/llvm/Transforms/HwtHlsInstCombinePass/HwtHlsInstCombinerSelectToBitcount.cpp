@@ -80,7 +80,7 @@ std::optional<std::pair<ICmpInst::Predicate, Value*>> HwtHlsInstCombiner::_findL
 		auto v0 = lvl.getInputVal();
 		auto C = lvl.getCondition().first;
 		Value *limitVal, *realCond;
-		ICmpInst::Predicate Pred;
+		CmpPredicate Pred;
 		if (match(C,
 				m_And(m_Value(realCond),
 						m_ICmp(Pred, m_Specific(v0), m_Value(limitVal))))) {
@@ -347,7 +347,7 @@ void HwtHlsInstCombiner::_rewriteAllUsesOfIntermediateValuesInBitcount_CTPOP_ext
 		const Use *U) {
 	assert(topMostBitcountRes);
 	using Predicate = CmpInst::Predicate;
-	Predicate Pred;
+	CmpPredicate Pred;
 	Value *RHS;
 	auto lvl = adderLevels.begin() + lvlIndex;
 	if (match(U->getUser(),

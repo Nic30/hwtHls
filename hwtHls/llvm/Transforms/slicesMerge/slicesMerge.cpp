@@ -115,6 +115,13 @@ PreservedAnalyses SlicesMergePass::run(Function &F,
 			IC.assertSlicesConsistency();
 #endif
 		}
+		//errs() << "SlicesMergePass " << Iteration << " after phiShiftPatternRewrite: " << "\n";
+		//for (auto& BB: F) {
+		//	errs() << BB.getName() << ": ";
+		//	for (auto &I: BB) {
+		//		errs() << "  " << &I << " " << I<< "\n";
+		//	}
+		//}
 
 		bool MadeChangeInThisIteration = IC.prepareWorklist(RPOT);
 		MadeChangeInThisIteration |= IC.run();

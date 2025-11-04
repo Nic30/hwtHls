@@ -295,6 +295,7 @@ llvm::MachineInstrBuilder buildHWTFPGA_MERGE_VALUES(
 		width += v.width;
 	}
 	auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MERGE_VALUES);
+	assert(Builder.getObserver() == Observer);
 	if (Observer)
 		Observer->changingInstr(*MIB.getInstr());
 	MIB.addDef(DstReg);
@@ -308,7 +309,7 @@ llvm::MachineInstrBuilder buildHWTFPGA_MERGE_VALUES(
 			}
 		}
 #endif
-		v.addAsUse(MIB);
+		v.addAsUse(Builder, MIB);
 	}
 	for (auto &v : ConcatMembers) {
 		assert(v.width > 0);

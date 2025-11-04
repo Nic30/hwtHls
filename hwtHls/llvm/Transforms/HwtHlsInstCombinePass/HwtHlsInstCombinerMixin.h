@@ -97,10 +97,17 @@ public:
 			llvm::Instruction &src);
 };
 
-// copied llvm-18  InstCombinerImpl::prepareWorklist
+// copied llvm-21.1.2  llvm::InstCombinerImpl::prepareWorklist
 template<typename DerivedT>
 bool HwtHlsInstCombinerMixin<DerivedT>::prepareWorklist(
 		llvm::ReversePostOrderTraversal<llvm::BasicBlock*> &RPOT) {
+	// clean worklist because prepareWorklist may erase unused instructions
+	// which would resuilt in deleted item being inside of worklist
+	while (Worklist.popDeferred())
+		;
+	while (Worklist.removeOne())
+		;
+
 	bool MadeIRChange = false;
 	llvm::SmallPtrSet<llvm::BasicBlock*, 32> LiveBlocks;
 	llvm::SmallVector<llvm::Instruction*, 128> InstrsForInstructionWorklist;
@@ -217,11 +224,9 @@ bool HwtHlsInstCombinerMixin<DerivedT>::prepareWorklist(
 			continue;
 
 		unsigned NumDeadInstInBB;
-		unsigned NumDeadDbgInstInBB;
-		std::tie(NumDeadInstInBB, NumDeadDbgInstInBB) =
-				removeAllNonTerminatorAndEHPadInstructions(&BB);
+		NumDeadInstInBB = removeAllNonTerminatorAndEHPadInstructions(&BB);
 
-		MadeIRChange |= NumDeadInstInBB + NumDeadDbgInstInBB > 0;
+		MadeIRChange |= NumDeadInstInBB != 0;
 		NumDeadInst += NumDeadInstInBB;
 	}
 
@@ -234,10 +239,14 @@ bool HwtHlsInstCombinerMixin<DerivedT>::prepareWorklist(
 	for (llvm::Instruction *Inst : llvm::reverse(InstrsForInstructionWorklist)) {
 		// DCE instruction if trivially dead. As we iterate in reverse program
 		// order here, we will clean up whole chains of dead instructions.
-		if (llvm::isInstructionTriviallyDead(Inst, &TLI)
+		if (isInstructionTriviallyDead(Inst, &TLI)
 				|| SeenAliasScopes.isNoAliasScopeDeclDead(Inst)) {
 			++NumDeadInst;
-			static_cast<DerivedT*>(this)->eraseInstFromFunction(*Inst);
+			LLVM_DEBUG(
+					llvm::dbgs() << DEBUG_TYPE_SHORT ": DCE: " << *Inst << '\n');
+			salvageDebugInfo(*Inst);
+			Inst->eraseFromParent();
+			MadeIRChange = true;
 			continue;
 		}
 
@@ -342,6 +351,7 @@ llvm::Instruction* HwtHlsInstCombinerMixin<DerivedT>::replaceOperand(
 template<typename DerivedT>
 llvm::Instruction* HwtHlsInstCombinerMixin<DerivedT>::eraseInstFromFunction(
 		llvm::Instruction &I) {
+	assert(I.getParent()->getParent() == &F);
 	LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE_SHORT ": ERASE " << I << '\n');
 	assert(I.use_empty() && "Cannot erase instruction that is used!");
 	llvm::salvageDebugInfo(I);
@@ -372,7 +382,6 @@ void HwtHlsInstCombinerMixin<DerivedT>::eraseInstrRecursivelyIfTriviallyDead(
 		}
 	}
 }
-;
 
 template<typename DerivedT>
 bool HwtHlsInstCombinerMixin<DerivedT>::run() {
@@ -381,6 +390,7 @@ bool HwtHlsInstCombinerMixin<DerivedT>::run() {
 		// Walk deferred instructions in reverse order, and push them to the
 		// worklist, which means they'll end up popped from the worklist in-order.
 		while (llvm::Instruction *I = Worklist.popDeferred()) {
+			assert(I->getParent()->getParent() == &F);
 			// Check to see if we can DCE the instruction. We do this already here to
 			// reduce the number of uses and thus allow other folds to trigger.
 			// Note that eraseInstFromFunction() may push additional instructions on
@@ -398,6 +408,7 @@ bool HwtHlsInstCombinerMixin<DerivedT>::run() {
 		if (I == nullptr)
 			continue;  // skip null values.
 
+		assert(I->getParent()->getParent() == &F);
 		// Check to see if we can DCE the instruction.
 		if (llvm::isInstructionTriviallyDead(I, &TLI)) {
 			static_cast<DerivedT*>(this)->eraseInstFromFunction(*I);
@@ -429,8 +440,12 @@ bool HwtHlsInstCombinerMixin<DerivedT>::run() {
 				LLVM_DEBUG(
 						llvm::dbgs() << DEBUG_TYPE_SHORT ": Old = " << *I << '\n' << "    New = " << *Result << '\n');
 
-				Result->copyMetadata(*I, { llvm::LLVMContext::MD_dbg,
-						llvm::LLVMContext::MD_annotation });
+		        // We copy the old instruction's DebugLoc to the new instruction, unless
+		        // InstCombine already assigned a DebugLoc to it, in which case we
+		        // should trust the more specifically selected DebugLoc.
+		        Result->setDebugLoc(Result->getDebugLoc().orElse(I->getDebugLoc()));
+		        // We also copy annotation metadata to the new instruction.
+		        Result->copyMetadata(*I, llvm::LLVMContext::MD_annotation);
 				// Everything uses the new instruction now.
 				I->replaceAllUsesWith(Result);
 
@@ -445,11 +460,12 @@ bool HwtHlsInstCombinerMixin<DerivedT>::run() {
 				if (llvm::isa<llvm::PHINode>(Result)
 						!= llvm::isa<llvm::PHINode>(I)) {
 					// We need to fix up the insertion point.
-					if (llvm::isa<llvm::PHINode>(I)) // PHI -> Non-PHI
+					if (llvm::isa<llvm::PHINode>(I)) { // PHI -> Non-PHI
 						InsertPos = InstParent->getFirstInsertionPt();
-					else
+					} else {
 						// Non-PHI -> PHI
 						InsertPos = InstParent->getFirstNonPHIIt();
+					}
 				}
 
 				Result->insertInto(InstParent, InsertPos);
@@ -475,6 +491,7 @@ bool HwtHlsInstCombinerMixin<DerivedT>::run() {
 			MadeIRChange = true;
 		}
 	}
+
 	Worklist.zap();
 	return MadeIRChange;
 }
@@ -500,8 +517,8 @@ bool HwtHlsInstCombinerMixin<DerivedT>::_moveIntoSliceSuccessorsOf(
 		}
 	}
 	if (llvm::isa<llvm::PHINode>(&src)) {
-		auto * firstNonPhi = src.getParent()->getFirstNonPHI();
-		if (firstNonPhi)
+		auto firstNonPhi = src.getParent()->getFirstNonPHIIt();
+		if (firstNonPhi != src.getParent()->end())
 			IToMoveAfterSrc.moveBefore(firstNonPhi);
 		else
 			IToMoveAfterSrc.moveAfter(&src.getParent()->back());

@@ -27,8 +27,8 @@ void HwtFpgaToNetlist::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 	//AU.setPreservesCFG();
 	AU.addRequired<TargetPassConfig>();
 	AU.addPreserved<TargetPassConfig>();
-	AU.addRequired<MachineLoopInfo>();
-	AU.addPreserved<MachineLoopInfo>();
+	AU.addRequired<MachineLoopInfoWrapperPass>();
+	AU.addPreserved<MachineLoopInfoWrapperPass>();
 	//AU.addRequired<MachineTraceMetrics>();
 	//AU.addPreserved<MachineTraceMetrics>();
 	// LiveVariables supports only SSA
@@ -69,7 +69,7 @@ bool HwtFpgaToNetlist::runOnMachineFunction(llvm::MachineFunction &MF) {
 	//SchedModel = STI.getSchedModel();
 	MachineRegisterInfo *MRI = &MF.getRegInfo();
 	//DomTree = &getAnalysis<MachineDominatorTree>();
-	MachineLoopInfo &Loops = getAnalysis<MachineLoopInfo>();
+	MachineLoopInfo &Loops = getAnalysis<MachineLoopInfoWrapperPass>().getLI();
 	//Traces = &getAnalysis<MachineTraceMetrics>();
 	std::set<MachineBasicBlockEdge> backedges;
 	for (auto loop : Loops) {
@@ -113,7 +113,7 @@ bool HwtFpgaToNetlist::runOnMachineFunction(llvm::MachineFunction &MF) {
 
 INITIALIZE_PASS_BEGIN(HwtFpgaToNetlist, DEBUG_TYPE, "HwtFpgaToNetlist", false,
 		false)
-	INITIALIZE_PASS_DEPENDENCY(MachineLoopInfo)
+	INITIALIZE_PASS_DEPENDENCY(MachineLoopInfoWrapperPass)
 	INITIALIZE_PASS_DEPENDENCY(TargetPassConfig)
 //INITIALIZE_PASS_END expanded
 	PassInfo *PI = new PassInfo(
@@ -122,7 +122,6 @@ INITIALIZE_PASS_BEGIN(HwtFpgaToNetlist, DEBUG_TYPE, "HwtFpgaToNetlist", false,
 			PassInfo::NormalCtor_t(callDefaultCtor<HwtFpgaToNetlist>), false,
 			false);
 	Registry.registerPass(*PI, true);
-	return PI;
 }
 static llvm::once_flag InitializeHwtFpgaToNetlistFlag;
 

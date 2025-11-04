@@ -123,8 +123,8 @@ VRegIfConverter::VRegIfConverter(std::function<bool(const llvm::MachineFunction&
 }
 
 void VRegIfConverter::getAnalysisUsage(AnalysisUsage &AU) const  {
-  AU.addRequired<MachineBlockFrequencyInfo>();
-  AU.addRequired<MachineBranchProbabilityInfo>();
+  AU.addRequired<MachineBlockFrequencyInfoWrapperPass>();
+  AU.addRequired<MachineBranchProbabilityInfoWrapperPass>();
   AU.addRequired<ProfileSummaryInfoWrapperPass>();
   AU.addRequired<hwtHls::HwtHlsVRegLiveins>();
   MachineFunctionPass::getAnalysisUsage(AU);
@@ -257,7 +257,20 @@ bool VRegIfConverter::MeetIfcvtSizeLimit(BBInfo &TBBInfo, BBInfo &FBBInfo,
 bool VRegIfConverter::blockAlwaysFallThrough(BBInfo &BBI) const {
   return BBI.IsBrAnalyzable && BBI.TrueBB == nullptr;
 }
-
+/// Returns true if Block is known not to fallthrough to the following BB.
+bool VRegIfConverter::blockNeverFallThrough(BBInfo &BBI) const {
+  // Trust "HasFallThrough" if we could analyze branches.
+  if (BBI.IsBrAnalyzable)
+    return !BBI.HasFallThrough;
+  // If this is the last MBB in the function, or if the textual successor
+  // isn't in the successor list, then there is no fallthrough.
+  MachineFunction::iterator PI = BBI.BB->getIterator();
+  MachineFunction::iterator I = std::next(PI);
+  if (I == BBI.BB->getParent()->end() || !PI->isSuccessor(&*I))
+    return true;
+  // Could not prove that there is no fallthrough.
+  return false;
+}
 /// Used to sort if-conversion candidates.
 bool VRegIfConverter::IfcvtTokenCmp(const std::unique_ptr<IfcvtToken> &C1,
     const std::unique_ptr<IfcvtToken> &C2) {
@@ -289,7 +302,7 @@ char VRegIfConverter::ID = 0;
 }
 
 INITIALIZE_PASS_BEGIN(VRegIfConverter, DEBUG_TYPE, "VReg If Converter", false, false)
-INITIALIZE_PASS_DEPENDENCY(MachineBranchProbabilityInfo)
+INITIALIZE_PASS_DEPENDENCY(MachineBranchProbabilityInfoWrapperPass)
 INITIALIZE_PASS_DEPENDENCY(ProfileSummaryInfoWrapperPass)
 INITIALIZE_PASS_END(VRegIfConverter, DEBUG_TYPE, "VReg If Converter", false, false)
 
@@ -303,8 +316,9 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
   TLI = ST.getTargetLowering();
   TII = ST.getInstrInfo();
   TRI = ST.getRegisterInfo();
-  MBFIWrapper MBFI(getAnalysis<MachineBlockFrequencyInfo>());
-  MBPI = &getAnalysis<MachineBranchProbabilityInfo>();
+  MBFIWrapper MBFI(
+      getAnalysis<MachineBlockFrequencyInfoWrapperPass>().getMBFI());
+  MBPI = &getAnalysis<MachineBranchProbabilityInfoWrapperPass>().getMBPI();
   ProfileSummaryInfo *PSI =
       &getAnalysis<ProfileSummaryInfoWrapperPass>().getPSI();
   MRI = &MF.getRegInfo();
@@ -1928,7 +1942,7 @@ bool VRegIfConverter::IfConvertTriangle(BBInfo &BBI, IfcvtKind Kind) {
     auto NewFalse = BBCvt * CvtFalse;
 
     MachineIRBuilder Builder(*BBI.BB, BBI.BB->end());
-    Condition_and(Builder, Cond, RevCond);
+    Condition_and(TRI, Builder, Cond, RevCond);
     // build jump which represents the exit from triangle
     TII->insertBranch(*BBI.BB, CvtBBI->FalseBB, nullptr, RevCond, dl);
     BBI.BB->addSuccessor(CvtBBI->FalseBB, NewFalse);
@@ -1947,9 +1961,8 @@ bool VRegIfConverter::IfConvertTriangle(BBInfo &BBI, IfcvtKind Kind) {
     // Only merge them if the true block does not fallthrough to the false
     // block. By not merging them, we make it possible to iteratively
     // ifcvt the blocks.
-    if (!HasEarlyExit &&
-        NextMBB.pred_size() == 1 && !NextBBI->HasFallThrough &&
-        !NextMBB.hasAddressTaken()) {
+	if (!HasEarlyExit && NextMBB.pred_size() == 1 &&
+	    blockNeverFallThrough(*NextBBI) && !NextMBB.hasAddressTaken()) {
       MergeBlocks(BBI, *NextBBI, nullptr, Cond);
       FalseBBDead = true;
     } else {
@@ -2063,9 +2076,9 @@ bool VRegIfConverter::IfConvertDiamondCommon(
   }
   while (NumDups1 != 0) {
     // Since this instruction is going to be deleted, update call
-    // site info state if the instruction is call instruction.
-    if (DI2->shouldUpdateCallSiteInfo())
-      MBB2.getParent()->eraseCallSiteInfo(&*DI2);
+	// info state if the instruction is call instruction.
+	if (DI2->shouldUpdateAdditionalCallInfo())
+	  MBB2.getParent()->eraseAdditionalCallInfo(&*DI2);
 
     ++DI2;
     if (DI2 == MBB2.end())
@@ -2112,9 +2125,9 @@ bool VRegIfConverter::IfConvertDiamondCommon(
     --DI1;
 
     // Since this instruction is going to be deleted, update call
-    // site info state if the instruction is call instruction.
-    if (DI1->shouldUpdateCallSiteInfo())
-      MBB1.getParent()->eraseCallSiteInfo(&*DI1);
+    // info state if the instruction is call instruction.
+    if (DI1->shouldUpdateAdditionalCallInfo())
+      MBB1.getParent()->eraseAdditionalCallInfo(&*DI1);
 
     // skip dbg_value instructions
     if (!DI1->isDebugInstr())
@@ -2173,18 +2186,13 @@ bool VRegIfConverter::IfConvertDiamondCommon(
         } else if (!RedefsByFalse.count(Reg)) {
           // These are defined before ctrl flow reach the 'false' instructions.
           // They cannot be modified by the 'true' instructions.
-          for (MCSubRegIterator SubRegs(Reg, TRI, /*IncludeSelf=*/true);
-               SubRegs.isValid(); ++SubRegs)
-            ExtUses.insert(*SubRegs);
+          ExtUses.insert_range(TRI->subregs_inclusive(Reg));
         }
       }
 
       for (Register Reg : Defs) {
-        if (!ExtUses.count(Reg)) {
-          for (MCSubRegIterator SubRegs(Reg, TRI, /*IncludeSelf=*/true);
-               SubRegs.isValid(); ++SubRegs)
-            RedefsByFalse.insert(*SubRegs);
-        }
+    	  if (!ExtUses.contains(Reg))
+    	    RedefsByFalse.insert_range(TRI->subregs_inclusive(Reg));
       }
     }
   }
@@ -2303,7 +2311,7 @@ bool VRegIfConverter::IfConvertDiamond(BBInfo &BBI, IfcvtKind Kind,
   // fold the tail block in as well. Otherwise, unless it falls through to the
   // tail, add a unconditional branch to it.
   if (TailBB) {
-	for (auto & PHI: TailBB->phis()) {
+	for (auto & _: TailBB->phis()) {
 		llvm_unreachable("NotImplemented");
 	}
     // We need to remove the edges to the true and false blocks manually since
@@ -2312,8 +2320,8 @@ bool VRegIfConverter::IfConvertDiamond(BBInfo &BBI, IfcvtKind Kind,
     BBI.BB->removeSuccessor(FalseBBI.BB, true);
 
     BBInfo &TailBBI = BBAnalysis[TailBB->getNumber()];
-    bool CanMergeTail = !TailBBI.HasFallThrough &&
-      !TailBBI.BB->hasAddressTaken();
+    bool CanMergeTail =
+        blockNeverFallThrough(TailBBI) && !TailBBI.BB->hasAddressTaken();
     // The if-converted block can still have a predicated terminator
     // (e.g. a predicated return). If that is the case, we cannot merge
     // it with the tail block.
@@ -2355,7 +2363,7 @@ bool VRegIfConverter::IfConvertDiamond(BBInfo &BBI, IfcvtKind Kind,
 static bool MaySpeculate(const MachineInstr &MI,
                          SmallSet<Register, 4> &LaterRedefs) {
   bool SawStore = true;
-  if (!MI.isSafeToMove(nullptr, SawStore))
+  if (!MI.isSafeToMove(SawStore))
     return false;
 
   for (const MachineOperand &MO : MI.operands()) {
@@ -2426,9 +2434,9 @@ void VRegIfConverter::CopyAndPredicateBlock(BBInfo &ToBBI, BBInfo &FromBBI,
       break;
 
     MachineInstr *MI = MF.CloneMachineInstr(&I);
-    // Make a copy of the call site info.
-    if (I.isCandidateForCallSiteEntry())
-      MF.copyCallSiteInfo(&I, MI);
+    // Make a copy of the call info.
+    if (I.isCandidateForAdditionalCallInfo())
+      MF.copyAdditionalCallInfo(&I, MI);
     if (MI->isPHI()) {
     	llvm_unreachable("NotImplemented - replace with copy of value for FromBBI");
     }

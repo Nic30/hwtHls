@@ -245,9 +245,13 @@ selected:        true
 failedISel:      false
 tracksRegLiveness: true
 hasWinCFI:       false
+noPhis:          true
+isSSA:           false
+noVRegs:         false
+hasFakeUses:     false
 callsEHReturn:   false
 callsUnwindInit: false
-hasEHCatchret:   false
+hasEHContTarget: false
 hasEHScopes:     false
 hasEHFunclets:   false
 isOutlined:      false
@@ -255,137 +259,137 @@ debugInstrRef:   false
 failsVerification: false
 tracksDebugUserValues: false
 registers:
-  - { id: 0, class: anyregcls, preferred-register: '' }
-  - { id: 1, class: anyregcls, preferred-register: '' }
-  - { id: 2, class: anyregcls, preferred-register: '' }
-  - { id: 3, class: anyregcls, preferred-register: '' }
-  - { id: 4, class: anyregcls, preferred-register: '' }
-  - { id: 5, class: anyregcls, preferred-register: '' }
-  - { id: 6, class: _, preferred-register: '' }
-  - { id: 7, class: anyregcls, preferred-register: '' }
-  - { id: 8, class: anyregcls, preferred-register: '' }
-  - { id: 9, class: anyregcls, preferred-register: '' }
-  - { id: 10, class: anyregcls, preferred-register: '' }
-  - { id: 11, class: anyregcls, preferred-register: '' }
-  - { id: 12, class: anyregcls, preferred-register: '' }
-  - { id: 13, class: anyregcls, preferred-register: '' }
-  - { id: 14, class: anyregcls, preferred-register: '' }
-  - { id: 15, class: anyregcls, preferred-register: '' }
-  - { id: 16, class: anyregcls, preferred-register: '' }
-  - { id: 17, class: anyregcls, preferred-register: '' }
-  - { id: 18, class: anyregcls, preferred-register: '' }
-  - { id: 19, class: anyregcls, preferred-register: '' }
-  - { id: 20, class: anyregcls, preferred-register: '' }
-  - { id: 21, class: anyregcls, preferred-register: '' }
-  - { id: 22, class: anyregcls, preferred-register: '' }
-  - { id: 23, class: anyregcls, preferred-register: '' }
-  - { id: 24, class: anyregcls, preferred-register: '' }
-  - { id: 25, class: anyregcls, preferred-register: '' }
-  - { id: 26, class: _, preferred-register: '' }
-  - { id: 27, class: anyregcls, preferred-register: '' }
-  - { id: 28, class: anyregcls, preferred-register: '' }
-  - { id: 29, class: anyregcls, preferred-register: '' }
-  - { id: 30, class: anyregcls, preferred-register: '' }
-  - { id: 31, class: anyregbank, preferred-register: '' }
-  - { id: 32, class: anyregcls, preferred-register: '' }
-  - { id: 33, class: anyregcls, preferred-register: '' }
-  - { id: 34, class: anyregcls, preferred-register: '' }
-  - { id: 35, class: anyregcls, preferred-register: '' }
-  - { id: 36, class: anyregcls, preferred-register: '' }
-  - { id: 37, class: _, preferred-register: '' }
-  - { id: 38, class: anyregcls, preferred-register: '' }
-  - { id: 39, class: anyregcls, preferred-register: '' }
-  - { id: 40, class: anyregcls, preferred-register: '' }
-  - { id: 41, class: anyregcls, preferred-register: '' }
-  - { id: 42, class: anyregcls, preferred-register: '' }
-  - { id: 43, class: anyregcls, preferred-register: '' }
-  - { id: 44, class: _, preferred-register: '' }
-  - { id: 45, class: anyregbank, preferred-register: '' }
-  - { id: 46, class: anyregcls, preferred-register: '' }
-  - { id: 47, class: anyregcls, preferred-register: '' }
-  - { id: 48, class: anyregcls, preferred-register: '' }
-  - { id: 49, class: anyregbank, preferred-register: '' }
-  - { id: 50, class: anyregcls, preferred-register: '' }
-  - { id: 51, class: anyregcls, preferred-register: '' }
-  - { id: 52, class: anyregbank, preferred-register: '' }
-  - { id: 53, class: anyregcls, preferred-register: '' }
-  - { id: 54, class: anyregbank, preferred-register: '' }
-  - { id: 55, class: anyregcls, preferred-register: '' }
-  - { id: 56, class: anyregbank, preferred-register: '' }
-  - { id: 57, class: anyregcls, preferred-register: '' }
-  - { id: 58, class: anyregbank, preferred-register: '' }
-  - { id: 59, class: anyregcls, preferred-register: '' }
-  - { id: 60, class: anyregbank, preferred-register: '' }
-  - { id: 61, class: anyregcls, preferred-register: '' }
-  - { id: 62, class: anyregbank, preferred-register: '' }
-  - { id: 63, class: anyregcls, preferred-register: '' }
-  - { id: 64, class: anyregbank, preferred-register: '' }
-  - { id: 65, class: anyregcls, preferred-register: '' }
-  - { id: 66, class: anyregbank, preferred-register: '' }
-  - { id: 67, class: anyregcls, preferred-register: '' }
-  - { id: 68, class: anyregbank, preferred-register: '' }
-  - { id: 69, class: anyregcls, preferred-register: '' }
-  - { id: 70, class: anyregbank, preferred-register: '' }
-  - { id: 71, class: anyregcls, preferred-register: '' }
-  - { id: 72, class: anyregbank, preferred-register: '' }
-  - { id: 73, class: anyregcls, preferred-register: '' }
-  - { id: 74, class: anyregcls, preferred-register: '' }
-  - { id: 75, class: anyregbank, preferred-register: '' }
-  - { id: 76, class: anyregcls, preferred-register: '' }
-  - { id: 77, class: anyregbank, preferred-register: '' }
-  - { id: 78, class: anyregcls, preferred-register: '' }
-  - { id: 79, class: anyregbank, preferred-register: '' }
-  - { id: 80, class: anyregcls, preferred-register: '' }
-  - { id: 81, class: anyregcls, preferred-register: '' }
-  - { id: 82, class: anyregcls, preferred-register: '' }
-  - { id: 83, class: anyregcls, preferred-register: '' }
-  - { id: 84, class: anyregcls, preferred-register: '' }
-  - { id: 85, class: anyregcls, preferred-register: '' }
-  - { id: 86, class: anyregcls, preferred-register: '' }
-  - { id: 87, class: anyregcls, preferred-register: '' }
-  - { id: 88, class: anyregcls, preferred-register: '' }
-  - { id: 89, class: anyregcls, preferred-register: '' }
-  - { id: 90, class: anyregcls, preferred-register: '' }
-  - { id: 91, class: anyregcls, preferred-register: '' }
-  - { id: 92, class: anyregcls, preferred-register: '' }
-  - { id: 93, class: anyregcls, preferred-register: '' }
-  - { id: 94, class: anyregcls, preferred-register: '' }
-  - { id: 95, class: anyregcls, preferred-register: '' }
-  - { id: 96, class: anyregcls, preferred-register: '' }
-  - { id: 97, class: anyregcls, preferred-register: '' }
-  - { id: 98, class: anyregcls, preferred-register: '' }
-  - { id: 99, class: anyregcls, preferred-register: '' }
-  - { id: 100, class: anyregcls, preferred-register: '' }
-  - { id: 101, class: anyregcls, preferred-register: '' }
-  - { id: 102, class: anyregcls, preferred-register: '' }
-  - { id: 103, class: anyregcls, preferred-register: '' }
-  - { id: 104, class: anyregcls, preferred-register: '' }
-  - { id: 105, class: anyregcls, preferred-register: '' }
-  - { id: 106, class: anyregcls, preferred-register: '' }
-  - { id: 107, class: anyregcls, preferred-register: '' }
-  - { id: 108, class: anyregcls, preferred-register: '' }
-  - { id: 109, class: anyregcls, preferred-register: '' }
-  - { id: 110, class: anyregcls, preferred-register: '' }
-  - { id: 111, class: anyregcls, preferred-register: '' }
-  - { id: 112, class: anyregcls, preferred-register: '' }
-  - { id: 113, class: anyregcls, preferred-register: '' }
-  - { id: 114, class: anyregcls, preferred-register: '' }
-  - { id: 115, class: anyregcls, preferred-register: '' }
-  - { id: 116, class: anyregcls, preferred-register: '' }
-  - { id: 117, class: anyregcls, preferred-register: '' }
-  - { id: 118, class: anyregcls, preferred-register: '' }
-  - { id: 119, class: anyregcls, preferred-register: '' }
-  - { id: 120, class: anyregcls, preferred-register: '' }
-  - { id: 121, class: anyregcls, preferred-register: '' }
-  - { id: 122, class: anyregcls, preferred-register: '' }
-  - { id: 123, class: anyregcls, preferred-register: '' }
-  - { id: 124, class: anyregcls, preferred-register: '' }
-  - { id: 125, class: anyregcls, preferred-register: '' }
-  - { id: 126, class: anyregcls, preferred-register: '' }
-  - { id: 127, class: _, preferred-register: '' }
-  - { id: 128, class: _, preferred-register: '' }
-  - { id: 129, class: anyregcls, preferred-register: '' }
-  - { id: 130, class: anyregcls, preferred-register: '' }
+  - { id: 0, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 1, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 2, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 3, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 4, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 5, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 6, class: _, preferred-register: '', flags: [  ] }
+  - { id: 7, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 8, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 9, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 10, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 11, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 12, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 13, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 14, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 15, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 16, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 17, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 18, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 19, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 20, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 21, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 22, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 23, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 24, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 25, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 26, class: _, preferred-register: '', flags: [  ] }
+  - { id: 27, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 28, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 29, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 30, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 31, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 32, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 33, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 34, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 35, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 36, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 37, class: _, preferred-register: '', flags: [  ] }
+  - { id: 38, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 39, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 40, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 41, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 42, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 43, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 44, class: _, preferred-register: '', flags: [  ] }
+  - { id: 45, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 46, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 47, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 48, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 49, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 50, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 51, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 52, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 53, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 54, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 55, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 56, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 57, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 58, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 59, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 60, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 61, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 62, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 63, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 64, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 65, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 66, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 67, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 68, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 69, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 70, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 71, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 72, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 73, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 74, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 75, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 76, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 77, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 78, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 79, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 80, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 81, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 82, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 83, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 84, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 85, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 86, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 87, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 88, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 89, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 90, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 91, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 92, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 93, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 94, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 95, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 96, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 97, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 98, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 99, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 100, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 101, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 102, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 103, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 104, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 105, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 106, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 107, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 108, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 109, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 110, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 111, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 112, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 113, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 114, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 115, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 116, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 117, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 118, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 119, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 120, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 121, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 122, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 123, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 124, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 125, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 126, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 127, class: _, preferred-register: '', flags: [  ] }
+  - { id: 128, class: _, preferred-register: '', flags: [  ] }
+  - { id: 129, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 130, class: anyregcls, preferred-register: '', flags: [  ] }
 liveins:         []
 frameInfo:
   isFrameAddressTaken: false

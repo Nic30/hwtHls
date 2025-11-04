@@ -107,7 +107,7 @@ Value* ICmpToOnlyEqLtLePass::_tryRewriteRangeCheckTo2xCmp(
 PreservedAnalyses ICmpToOnlyEqLtLePass::run(llvm::Function &F,
 		llvm::FunctionAnalysisManager &AM) {
 	std::vector<Instruction*> toRemove;
-	auto &DL = F.getParent()->getDataLayout();
+	auto &DL = F.getDataLayout();
 	IRBuilder<InstSimplifyFolder> Builder(F.getContext(),
 			InstSimplifyFolder(DL));
 	for (BasicBlock &BB : F) {

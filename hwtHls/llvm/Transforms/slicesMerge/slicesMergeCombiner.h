@@ -109,12 +109,12 @@ public:
 	/*
 	 * Merge instructions which are parallel to instruction I and are performed on a consequent slice of same bit vector
 	 * */
-	llvm::Instruction* mergeConsequentSlices(llvm::Instruction &I);
+	llvm::Instruction* mergeConsequentSlices(llvm::Instruction &I, bool & merged);
 	void replaceMergedInstructions(
 			const ParallelInstVec &parallelInstrOnSameVec, llvm::Value *res);
 
-	llvm::Instruction* mergeConsequentSlicesBinOp(llvm::BinaryOperator &I);
-	llvm::Instruction* mergeConsequentSlicesSelect(llvm::SelectInst &I);
+	bool mergeConsequentSlicesBinOp(llvm::BinaryOperator &I);
+	bool mergeConsequentSlicesSelect(llvm::SelectInst &I);
 
 	/*
 	 * Rewrite chained PHIs as a phi of shifted values

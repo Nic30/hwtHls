@@ -26,7 +26,7 @@ std::optional<IndexCmpMatchInfo> matchIndexCmp(const Value *V) {
 	using namespace llvm::PatternMatch;
 	uint64_t cmpVal;
 	Value *index;
-	ICmpInst::Predicate pred;
+	CmpPredicate pred;
 	if (match(V, m_ICmp(pred, m_Value(index), m_ConstantInt(cmpVal)))
 			&& pred == ICmpInst::Predicate::ICMP_EQ) {
 		return IndexCmpMatchInfo {index, cmpVal};

@@ -45,7 +45,7 @@ bool HwtHlsSimplifyCFGPass_unswitchComplementarySequentialBlocks_tryHoistFromBB1
 					break;
 				} else {
 					exprChanged |= tryHoistCheapInstsAtBlockBegin(*cfgFrag.bbC0,
-							bb0Term);
+							bb0Term->getIterator());
 					bbC0hoistAttempted = true;
 					if (bbC0i->getParent() == cfgFrag.bbC0) {
 						bb1HoistSuccess = false;
@@ -70,13 +70,13 @@ bool HwtHlsSimplifyCFGPass_unswitchComplementarySequentialBlocks_tryHoistFromBB1
 		auto instrNotInBBC0 = [&cfgFrag](Instruction &I) {
 			return I.getParent() != cfgFrag.bbC0;
 		};
-		exprChanged |= tryHoistCheapInstsAtBlockBegin(*cfgFrag.bb1, bb0Term,
+		exprChanged |= tryHoistCheapInstsAtBlockBegin(*cfgFrag.bb1, bb0Term->getIterator(),
 				instrNotInBBC0);
 		if (cfgFrag.bb1->size() != 1 && !bbC0hoistAttempted) {
 			exprChanged |= tryHoistCheapInstsAtBlockBegin(*cfgFrag.bbC0,
-					bb0Term);
+					bb0Term->getIterator());
 			bbC0hoistAttempted = true;
-			exprChanged |= tryHoistCheapInstsAtBlockBegin(*cfgFrag.bb1, bb0Term,
+			exprChanged |= tryHoistCheapInstsAtBlockBegin(*cfgFrag.bb1, bb0Term->getIterator(),
 					instrNotInBBC0);
 		}
 		bb1HoistSuccess = cfgFrag.bb1->size() == 1;

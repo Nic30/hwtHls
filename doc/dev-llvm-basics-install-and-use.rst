@@ -11,7 +11,7 @@ LLVM/clang is useful when debugging something LLVM related which does not necess
 Installation linux
 ------------------
 .. code-block:: bash
-   apt install llvm-18-dev
+   apt install llvm-21-dev
 
 Using local llvm build
 ----------------------
@@ -25,7 +25,7 @@ This is useful when debugging issues which are happening in LLVM code.
 	git clone https://github.com/llvm/llvm-project.git
 	mkdir llvm_install
 	cd llvm-project/llvm
-	git checkout llvmorg-18.1.3 
+	git checkout llvmorg-21.1.2
 	cmake -B build -DCMAKE_BUILD_TYPE=Debug -G Ninja\
 	    -DLLVM_TARGETS_TO_BUILD=X86\
 		-DLLVM_ENABLE_ASSERTIONS=ON\
@@ -48,7 +48,7 @@ This is useful when debugging issues which are happening in LLVM code.
 .. code-block:: bash
 
 	cd hwtHls # cd to this project root directory
-	meson setup build/ --native-file utils/custom-llvm.ini
+	meson setup build/ --native-file utils/custom-llvm.ini # :note: this is an example file, you want to specify your own path
 
 * When executing you need to use `LD_PRELOAD=$PWD/../llvm_install/lib/libLLVM.so` in order to actually use the custom build otherwise a system wide installed library will be used.
 * Note that once executed it takes >4m for gdb-11.1 and requires >16G of RAM to start because of the LLVM debug meta size.

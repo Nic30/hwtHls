@@ -349,8 +349,14 @@ Value* HFloatTmplRewriter::createSpecializedInstruction(Instruction &I) {
 				case Intrinsic::ceil:
 					unOpConstructor = &CreateHwtHlsFpCeil;
 					break;
+				case Intrinsic::acos:
+					unOpConstructor = &CreateHwtHlsFpAcos;
+					break;
 				case Intrinsic::cos:
 					unOpConstructor = &CreateHwtHlsFpCos;
+					break;
+				case Intrinsic::cosh:
+					unOpConstructor = &CreateHwtHlsFpCosh;
 					break;
 				case Intrinsic::exp:
 					unOpConstructor = &CreateHwtHlsFpExp;
@@ -388,8 +394,26 @@ Value* HFloatTmplRewriter::createSpecializedInstruction(Instruction &I) {
 				case Intrinsic::roundeven:
 					unOpConstructor = &CreateHwtHlsFpRoundeven;
 					break;
+				case Intrinsic::asin:
+					unOpConstructor = &CreateHwtHlsFpAsin;
+					break;
 				case Intrinsic::sin:
 					unOpConstructor = &CreateHwtHlsFpSin;
+					break;
+				case Intrinsic::sinh:
+					unOpConstructor = &CreateHwtHlsFpSinh;
+					break;
+				case Intrinsic::tan:
+					unOpConstructor = &CreateHwtHlsFpTan;
+					break;
+				case Intrinsic::atan:
+					unOpConstructor = &CreateHwtHlsFpAtan;
+					break;
+				case Intrinsic::tanh:
+					unOpConstructor = &CreateHwtHlsFpTanh;
+					break;
+				case Intrinsic::atan2:
+					binOpConstructor = &CreateHwtHlsFpAtan2;
 					break;
 				case Intrinsic::sqrt:
 					unOpConstructor = &CreateHwtHlsFpSqrt;

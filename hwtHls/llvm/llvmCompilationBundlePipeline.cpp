@@ -70,6 +70,7 @@
 #include <llvm/Transforms/Scalar/WarnMissedTransforms.h>
 #include <llvm/Transforms/Scalar/LoopLoadElimination.h>
 #include <llvm/Transforms/Scalar/AlignmentFromAssumptions.h>
+#include <llvm/Transforms/Scalar/EarlyCSE.h>
 #include <llvm/Transforms/Scalar/MergeICmps.h>
 #include <llvm/Transforms/Vectorize/LoopVectorize.h>
 #include <llvm/Transforms/Vectorize/SLPVectorizer.h>
@@ -680,6 +681,7 @@ void LlvmCompilationBundle::_addLoopPasses(llvm::FunctionPassManager &FPM) {
 	false));
 }
 
+// :note: based on  llvm::PassBuilder::addVectorPasses
 void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 		llvm::FunctionPassManager &FPM, bool IsFullLTO) {
 	// based on PassBuilder::addVectorPasses
@@ -731,7 +733,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 	_addInstrCombinePassesLight(FPM);
 
 	if (Level.getSpeedupLevel() > 1) { //  && ExtraVectorizerPasses
-		llvm::ExtraVectorPassManager ExtraPasses;
+		llvm::ExtraFunctionPassManager<llvm::ShouldRunExtraVectorPasses> ExtraPasses;
 		// At higher optimization levels, try to clean up any runtime overlap and
 		// alignment checks inserted by the vectorizer. We want to track correlated
 		// runtime checks for two inner loops in the same outer loop, fold any
@@ -882,7 +884,7 @@ void LlvmCompilationBundle::_addMachineCodegenPasses(
 
 	// check for incompatible passes
 	TPC =
-			static_cast<llvm::HwtFpgaTargetPassConfig*>(static_cast<llvm::LLVMTargetMachine&>(*TM).createPassConfig(
+			static_cast<llvm::HwtFpgaTargetPassConfig*>(static_cast<llvm::TargetMachine&>(*TM).createPassConfig(
 					PM));
 	// if PIC used in new pass manager is used there is a segfault in callbacks added into PIC using print-after-all and many others
 	TPC->setPassInstrumentationCallbacks(&PICForLegacyPM);

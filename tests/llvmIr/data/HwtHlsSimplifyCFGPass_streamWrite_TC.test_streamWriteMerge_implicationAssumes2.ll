@@ -64,26 +64,24 @@ loop.pkt.read:                                    ; preds = %loop.pkt.lastCheck.
   %33 = or i1 %9, %29
   %wEn3.3 = and i1 %5, %31
   %.037 = and i1 %wEn3.3, %33
-  %34 = xor i1 %14, true
-  %35 = icmp ne i2 %1, -1
-  %36 = and i1 %9, %35
-  %37 = xor i1 %36, true
-  %38 = icmp ne i3 %0, -1
-  %39 = and i1 %9, %38
-  %40 = xor i1 %39, true
-  %.streamWrite.en21.2 = and i1 %40, %wEn3.3
-  %.239 = and i1 %40, %.037
-  %.streamWrite.en19.2 = and i1 %37, %wEn3.2
-  %.233 = and i1 %37, %.031
-  %.227 = and i1 %34, %.025
+  %34 = icmp ne i2 %1, -1
+  %35 = and i1 %9, %34
+  %36 = xor i1 %35, true
+  %37 = icmp ne i3 %0, -1
+  %38 = and i1 %9, %37
+  %39 = xor i1 %38, true
+  %.streamWrite.en21.2 = and i1 %39, %wEn3.3
+  %.239 = and i1 %39, %.037
+  %.streamWrite.en19.2 = and i1 %36, %wEn3.2
+  %.233 = and i1 %36, %.031
   %impCache1 = icmp ule i1 %wEn3.1, %wEn3
   call void @llvm.assume(i1 %impCache1)
-  %41 = call i2 @hwtHls.bitConcat.i1.i1(i1 %wEn3, i1 %wEn3.1) #5
-  %42 = or i1 %.023, %.227
+  %40 = call i2 @hwtHls.bitConcat.i1.i1(i1 %wEn3, i1 %wEn3.1) #5
+  %41 = or i1 %.023, %.025
   br i1 %wEn3, label %loop.pkt.write.1, label %loop.pkt.write.2.guard
 
 loop.pkt.write.1:                                 ; preds = %loop.pkt.read
-  call void @hwtHls.streamWrite.masked.p2.i16.i2.i1.i1.p0(ptr addrspace(2) %tx, i16 %4, i2 %41, i1 false, i1 %42, ptr null) #4
+  call void @hwtHls.streamWrite.masked.p2.i16.i2.i1.i1.p0(ptr addrspace(2) %tx, i16 %4, i2 %40, i1 false, i1 %41, ptr null) #4
   br label %loop.pkt.write.2.guard
 
 loop.pkt.write.2.guard:                           ; preds = %loop.pkt.write.1, %loop.pkt.read
