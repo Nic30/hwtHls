@@ -30,7 +30,7 @@ class HlsNetlistReduceMulTC(BaseHlsNetlistReduceTC):
 
         self.assertEqual(
             exprToTestExprTy(write.dependsOn[0]),
-            (HwtOps.ADD, v0, (HwtOps.CONCAT, 0, (HwtOps.INDEX, v0, slice(6, 0, -1))))
+            (HwtOps.ADD, v0, (HwtOps.CONCAT, 0, (OP_INDEX_CONST, v0, slice(6, 0, -1))))
         )
 
     def test_netlistReduceMulConst_mul7(self):
