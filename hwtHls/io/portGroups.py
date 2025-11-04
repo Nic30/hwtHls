@@ -1,4 +1,4 @@
-from typing import TypeVar, Union, Type
+from typing import TypeVar, Union, Type, Callable
 
 from hwt.hwIO import HwIO
 from hwt.hwIOs.hwIOArray import HwIOArray
@@ -49,10 +49,27 @@ def iterAllPortGroupVariants(hwIO:Union[HwIO, MultiPortGroup, BankedPortGroup]):
             yield from iterAllPortGroupVariants(g)
 
 
-def getFirstInterfaceInstance(hwIO:Union[HwIO, MultiPortGroup, BankedPortGroup]) -> Union[HwIO, RtlSignalBase]:
+def getFirstInterfaceInstance(hwIO:Union[HwIO, MultiPortGroup, BankedPortGroup],
+                              instanceFilter: Callable[Union[HwIO, RtlSignalBase], bool]=None)\
+        ->Union[HwIO, RtlSignalBase, MultiPortGroup, BankedPortGroup]:
     while isinstance(hwIO, (MultiPortGroup, BankedPortGroup)):
-        hwIO = hwIO[0]
-    return hwIO
+        if instanceFilter is not None:
+            # try to seach for first object satisfying instanceFilter predicate
+            for _hwIO in hwIO:
+                _hwIO = getFirstInterfaceInstance(_hwIO, instanceFilter)
+                if _hwIO is not None:
+                    return _hwIO
+            return None
+        else:
+            # take first instance because there is no predicate
+            hwIO = hwIO[0]
+    if instanceFilter is not None:
+        if instanceFilter(hwIO):
+            return hwIO
+        else:
+            return None
+    else:
+        return hwIO
 
 
 def isInstanceOfInterfacePort(hwIO:Union[HwIO, MultiPortGroup, BankedPortGroup], class_: Type[HwIO]) -> bool:
