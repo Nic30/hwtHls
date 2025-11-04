@@ -70,7 +70,7 @@ class HlsNetNodeWriteForwardedge(HlsNetNodeWrite):
     @override
     def _getBufferCapacity(self) -> int:
         if self._bufferCapacity is not None:
-            assert self.associatedRead is not None
+            assert self.associatedRead is not None, self
             if self.allocationType == CHANNEL_ALLOCATION_TYPE.IMMEDIATE:
                 assert self._bufferCapacity == 0, self
             return self._bufferCapacity

@@ -30,6 +30,8 @@ class LLVM_CLI_COMMON_OPTS:
     #     "hwtfpga-pretonetlist-combiner"
     #     "vreg-if-converter"
     #     "loop-simplify"
+    #     "simplifycfg"
+    #     "hwtHls::HwtHlsSimplifyCFGPass"
     # :note: LLVM MIR GISel combiners have options to disable/allow rules like
     #   "hwtfpgapreregallocgicombiner-disable-rule"/"hwtfpgapreregallocgicombiner-only-enable-rule"
     DEBUG_PASS_MANAGER = ("debug-pass-manager", 0, "", "")  # print used passes until machinemoduleinfo
