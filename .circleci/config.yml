@@ -23,9 +23,7 @@ jobs:
             echo "export ABC_VERSION_LATEST=$ABC_VERSION_LATEST" >> "$BASH_ENV"
             source "$BASH_ENV"
             echo $ABC_VERSION_LATEST > abc.version
-      - run:
-         command: |
-            ABC_BUILD_CACHE_KEY={{ checksum "abc.version" }}
+            ABC_BUILD_CACHE_KEY=$(shasum -a 256 abc.version | cut -d ' ' -f 1)
             echo "export ABC_BUILD_CACHE_KEY=$ABC_BUILD_CACHE_KEY" >> "$BASH_ENV"
             # https://support.circleci.com/hc/en-us/articles/10816400480411-How-to-pass-environment-variables-between-jobs
             cp $BASH_ENV bash.env
