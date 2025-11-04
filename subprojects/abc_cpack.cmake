@@ -45,6 +45,7 @@ SET(PKG_CONFIG_LIBS       "-L\${libdir} -labc-pic")
 # Convert the list of CXX flags into a space-separated string
 string(REPLACE ";" " " LIBABC_PIC_FLAGS_STR "${ABC_CFLAGS} ${ABC_CXXFLAGS}")
 string(REPLACE "-std=c++17 -fno-exceptions" "" LIBABC_PIC_FLAGS_STR "${LIBABC_PIC_FLAGS_STR}")
+string(REPLACE "-Wall -Wno-unused-function -Wno-write-strings -Wno-sign-compare" "" LIBABC_PIC_FLAGS_STR "${LIBABC_PIC_FLAGS_STR}")
 
 SET(PKG_CONFIG_CFLAGS     "-I\${includedir} ${LIBABC_PIC_FLAGS_STR}")
 set(PKG_CONFIG_FILE_NAME "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc")
