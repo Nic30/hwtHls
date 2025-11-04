@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 from hwt.hdl.commonConstants import b1
-from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
@@ -13,6 +12,7 @@ from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.io.amba.axi4Lite import IoProxyAxi4Lite
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4Lite import Axi4Lite
+from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 
 
 class Axi4LiteRead(HwModule):
@@ -57,4 +57,10 @@ if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.debugBundle import HlsDebugBundle
     m = Axi4LiteRead()
-    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
+        debugFilter=HlsDebugBundle.ALL_RELIABLE,
+        llvmCliArgs=[
+            # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+            # LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+        ]
+        )))

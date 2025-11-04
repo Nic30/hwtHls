@@ -8,15 +8,15 @@ from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaFunction import PyBytecodeSkipPass
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.netlist.extraOps import OP_UDIVREM
 from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import mask
 from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.math.componentGenerators._div.divRestoring import DivRemHwModule, divremRestoring
-from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 from tests.math.installMathLib import installMathLibComponentGenerators
+from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 
 class DivRemRestoring_TC(SimTestCase):
@@ -198,14 +198,22 @@ if __name__ == "__main__":
     m.MAIN_FN_META = PyBytecodeSkipPass(["hwtHls::SlicesToIndependentVariablesPass"])
     p = Artix7Fast(
       debugFilter=HlsDebugBundle.ALL_RELIABLE,
-      # llvmCliArgs=[
-      #   LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
-      #   LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
-      # ]
+      llvmCliArgs=[
+        # LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+        # LLVM_CLI_COMMON_OPTS.PRINT_BEFORE_ALL,
+        # LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL,
+        # LLVM_CLI_COMMON_OPTS.printBefore("hwtHls::TrivialSimplifyCFGPass"),
+        # LLVM_CLI_COMMON_OPTS.printAfter("hwtHls::TrivialSimplifyCFGPass"),
+        # LLVM_CLI_COMMON_OPTS.printBefore("hwtHls::HwtHlsInstCombinePass"),
+        # LLVM_CLI_COMMON_OPTS.printAfter("hwtHls::HwtHlsInstCombinePass"),
+        # LLVM_CLI_COMMON_OPTS.printBefore("simplifycfg"),
+        # LLVM_CLI_COMMON_OPTS.printAfter("simplifycfg"),
+        # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+      ]
     )
     installMathLibComponentGenerators(p)
     p._componentGenerators[OP_UDIVREM].optThroughputVsArea = 0  # 2 / m.T.bit_length()
-    # print(to_rtl_str(m, target_platform=p))
+    print(to_rtl_str(m, target_platform=p))
 
     import unittest
 

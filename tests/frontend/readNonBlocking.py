@@ -10,6 +10,7 @@ from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import int8_t
+from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 
 
 class HlsPythonReadNonBlocking(HwModule):
@@ -46,4 +47,6 @@ if __name__ == "__main__":
     from hwtHls.platform.debugBundle import HlsDebugBundle
 
     m = HlsPythonReadNonBlocking()
-    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE,
+                                                           llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED
+                                                                        ])))

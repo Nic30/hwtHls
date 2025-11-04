@@ -4,7 +4,6 @@
 from hwt.code import If
 from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
-from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOBramPort_noClk, HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn, propagateClkRstn
 from hwt.hwModule import HwModule

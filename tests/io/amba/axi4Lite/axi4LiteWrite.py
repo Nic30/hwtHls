@@ -10,8 +10,8 @@ from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.io.amba.axi4Lite import IoProxyAxi4Lite
-from hwtHls.scope import HlsScope
 from hwtHls.llvm.llvmIr import MemoryOrdering
+from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4Lite import Axi4Lite
 from pyMathBitPrecise.bit_utils import mask
 

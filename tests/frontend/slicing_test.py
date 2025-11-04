@@ -10,11 +10,11 @@ from hwt.hwModule import HwModule
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
+from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from pyMathBitPrecise.bit_utils import mask
 from tests.baseSsaTest import BaseSsaTC
-from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 
 
 # [todo] duplication with WhileTrueReadWrite
@@ -146,7 +146,7 @@ if __name__ == "__main__":
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
 
-    #from hwt.synth import to_rtl_str
-    #from hwtHls.platform.debugBundle import HlsDebugBundle
-    #m = HlsSlice2TmpHlsVarSlice()
-    #print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    # from hwt.synth import to_rtl_str
+    # from hwtHls.platform.debugBundle import HlsDebugBundle
+    # m = HlsSlice2TmpHlsVarConcat()
+    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))

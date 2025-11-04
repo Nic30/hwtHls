@@ -58,7 +58,7 @@ class BinToBcd(HwModule):
 
         while b1:
             bcd_digits = [
-                hls.var(f"bcd_digit_{i:d}", HBits(4, signed=False))
+                hls.var(f"bcd_digit_{i:d}", bcdDigit_t)
                 for i in range(BCD_DIGITS)
             ]
             # reset before first iteration

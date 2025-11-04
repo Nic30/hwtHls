@@ -127,9 +127,12 @@ class Axi4SParse2fields(Axi4SParseStructManyInts0):
 if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.debugBundle import HlsDebugBundle
+    from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
 
-    m = Axi4SParse2fields()
-    m.DATA_WIDTH = 48
-    p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
+    m = Axi4SParseStructManyInts0()
+    m.DATA_WIDTH = 32
+    p = VirtualHlsPlatform(
+        debugFilter=HlsDebugBundle.ALL_RELIABLE,
+        # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER]
+        )
     print(to_rtl_str(m, target_platform=p))
