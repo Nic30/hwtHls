@@ -58,6 +58,16 @@ Debug build
 	Map["debug-only"]->addOccurrence(0, "", "early-ifcvt"); // early-ifcvt is a name of some pass to debug (attention, option available only in LLVM debug build)
 	Map["print-before"]->addOccurrence(0, "", "early-ifcvt"); // you can use this to dump input to specified pass
 
+* It is offten practial to have 2 build forlders 1 for non-debug version of LLVM and 2. for debug version of LLVM
+  the debugger for debug version of hwtHls with non-debug version of LLVM starts nearly immediately
+  while for debug version of LLVM it takes ~20s to start so during normal deveolopement the first variant is most practical,
+  but it does not support debugging inside of LLVM library functions.
+
+.. code-block:: bash
+    mv build build_ndbg && mv build_dbg build && ninja -C build
+    mv build build_dbg && mv build_ndbg build && ninja -C build
+     
+
 
 Doc generator
 -------------

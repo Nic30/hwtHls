@@ -46,3 +46,4 @@ In eclipse.ini allow more memory for JVM by appending
 * Expected debugger spin-up time until first breakpoint:
   Debug build of LLVM + Debug build of hwtHls = 70s
   Release build of LLVM + Debug build of hwtHls = 2s
+
