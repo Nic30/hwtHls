@@ -16,6 +16,7 @@
 #include <base/main/main.h>
 #include <map/mio/mio.h>
 #include <aig/aig/aig.h>
+#include <opt/dar/dar.h>
 
 #include <hwtHls/netlist/abc/expandExternalCombLoops.h>
 #include <hwtHls/netlist/abc/patternRecognize.h>
@@ -28,6 +29,13 @@ PYBIND11_MAKE_OPAQUE(std::map<Abc_Obj_t*, Abc_Obj_t*>);
 PYBIND11_MAKE_OPAQUE(std::map<Abc_Obj_t*, std::unordered_set<Abc_Obj_t*>>);
 
 // PYBIND11_MAKE_OPAQUE(std::unordered_set<Abc_Obj_t*>);
+
+
+
+ABC_NAMESPACE_HEADER_START
+extern Abc_Ntk_t * Abc_NtkDRewrite( Abc_Ntk_t * pNtk, Dar_RwrPar_t * pPars );
+extern Abc_Ntk_t * Abc_NtkDRefactor( Abc_Ntk_t * pNtk, Dar_RefPar_t * pPars );
+ABC_NAMESPACE_HEADER_END
 
 
 namespace hwtHls {
@@ -342,6 +350,67 @@ void register_Abc_Ntk_t(py::module_ &m) {
 			py::arg("fVerbose")=false,
 			py::arg("fVeryVerbose")=false,
 			py::arg("fPlaceEnable")=false)
+	.def("DRewrite" /*"drw"*/, [](Abc_Ntk_t * pNtk,
+				int nCutsMax,       // the maximum number of cuts to try
+				int nSubgMax,       // the maximum number of subgraphs to try
+				int nMinSaved,      // the minumum number of nodes saved
+				bool fFanout,        // support fanout representation
+				bool fUpdateLevel,   // update level
+				bool fUseZeros,      // performs zero-cost replacement
+				bool fPower,         // enables power-aware rewriting
+				bool fRecycle,       // enables cut recycling
+				bool fVerbose,       // enables verbose output
+				bool fVeryVerbose    // enables very verbose output
+			) {
+			Dar_RwrPar_t Pars;
+			Pars.nCutsMax       = nCutsMax;
+			Pars.nSubgMax       = nSubgMax;
+			Pars.nMinSaved      = nMinSaved;
+			Pars.fFanout        = fFanout;
+			Pars.fUpdateLevel   = fUpdateLevel;
+			Pars.fUseZeros      = fUseZeros;
+			Pars.fPower         = fPower;
+			Pars.fRecycle       = fRecycle;
+			Pars.fVerbose       = fVerbose;
+			Pars.fVeryVerbose   = fVeryVerbose;
+			Dar_RwrPar_t * pPars = &Pars;
+			// Abc_CommandDRewrite
+			if (nCutsMax < 0)
+				throw std::runtime_error("nCutsMax must be >= 0");
+			if (nSubgMax < 0)
+				throw std::runtime_error("nSubgMax must be >= 0");
+			if (nMinSaved < 0)
+				throw std::runtime_error("nMinSaved must be >= 0");
+			if ( pPars->fUseZeros )
+				pPars->nMinSaved = 0;
+			if ( pPars->nMinSaved == 0 )
+				pPars->fUseZeros = 1;
+			if ( pNtk == NULL ) {
+				throw std::runtime_error("Empty network." );
+			}
+			if ( !Abc_NtkIsStrash(pNtk) ) {
+				throw std::runtime_error("This command works only for strashed networks." );
+			}
+			auto pNtkRes = Abc_NtkDRewrite( pNtk, pPars );
+			if ( pNtkRes == NULL ) {
+				throw std::runtime_error("Command has failed.");
+			}
+			// replace the current network
+			// Abc_FrameReplaceCurrentNetwork( pAbc, pNtkRes );
+			return pNtkRes;
+		},
+		// Dar_ManDefaultRwrParams
+	    py::arg("nCutsMax")     =  8,
+	    py::arg("nSubgMax")     =  5, // 5 is a "magic number"
+	    py::arg("nMinSaved")    =  1,
+	    py::arg("fFanout")      =  true,
+	    py::arg("fUpdateLevel") =  false,
+	    py::arg("fUseZeros")    =  false,
+	    py::arg("fPower")       =  false,
+	    py::arg("fRecycle")     =  true,
+	    py::arg("fVerbose")     =  false,
+	    py::arg("fVeryVerbose") =  false
+	)
 	.def("Refactor", returnCodeToException("Abc_NtkRefactor has failed", &Abc_NtkRefactor),
 			/* defaults are from Abc_CommandRefactor */
 			py::arg("nNodeSizeMax")=10,
@@ -351,6 +420,59 @@ void register_Abc_Ntk_t(py::module_ &m) {
 			py::arg("fUseZeros")=false,
 			py::arg("fUseDcs")=false,
 			py::arg("fVerbose")=false)
+	.def("DRefactor"/*"drf"*/, [](Abc_Ntk_t * pNtk,
+				int nMffcMin,       // the min MFFC size for which refactoring is used
+				int nLeafMax,       // the max number of leaves of a cut
+				int nCutsMax,       // the max number of cuts to consider
+				bool fExtend,        // extends the cut below MFFC
+				bool fUpdateLevel,   // updates the level after each move
+				bool fUseZeros,      // perform zero-cost replacements
+				bool fVerbose,       // verbosity level
+				bool fVeryVerbose   // enables very verbose output
+		) {
+			Dar_RefPar_t Pars;
+			Pars.nMffcMin = nMffcMin;
+			Pars.nLeafMax = nLeafMax;
+			Pars.nCutsMax = nCutsMax;
+			Pars.fExtend = fExtend;
+			Pars.fUpdateLevel = fUpdateLevel;
+			Pars.fUseZeros = fUseZeros;
+			Pars.fVerbose = fVerbose;
+			Pars.fVeryVerbose = fVeryVerbose;
+			Dar_RefPar_t * pPars = &Pars;
+			if (nMffcMin < 0)
+				throw std::runtime_error("nMffcMin must be >= 0");
+			if (nLeafMax < 0)
+				throw std::runtime_error("nLeafMax must be >= 0");
+			if (nCutsMax < 0)
+				throw std::runtime_error("nCutsMax must be >= 0");
+			if ( pNtk == NULL ) {
+				throw std::runtime_error("Empty network.");
+			}
+			if ( !Abc_NtkIsStrash(pNtk) ) {
+				throw std::runtime_error("This command works only for strashed networks.");
+			}
+			if ( pPars->nLeafMax < 4 || pPars->nLeafMax > 15 ) {
+				throw std::runtime_error("This command only works for cut sizes 4 <= K <= 15.");
+			}
+			auto pNtkRes = Abc_NtkDRefactor( pNtk, pPars );
+			if ( pNtkRes == NULL ) {
+				throw std::runtime_error("Command has failed.");
+			}
+			// replace the current network
+			//Abc_FrameReplaceCurrentNetwork( pAbc, pNtkRes );
+			return pNtkRes;
+		},
+		// Dar_ManDefaultRefParams
+		py::arg("nMffcMin") = 2,
+		py::arg("nLeafMax") = 12,
+		py::arg("nCutsMax") = 5,
+		py::arg("fExtend") = false,
+		py::arg("fUpdateLevel") = false,
+		py::arg("fUseZeros") = false,
+		py::arg("fVerbose") = false,
+		py::arg("fVeryVerbose")= false
+	)
 	.def("Check", &Abc_NtkCheck)
 	.def("Io_Write", [](Abc_Ntk_t * pNtk, char *pFileName, Io_FileType_t FileType) {
 		if (FileType == Io_FileType_t::IO_FILE_VERILOG && Abc_NtkName(pNtk) == nullptr) {

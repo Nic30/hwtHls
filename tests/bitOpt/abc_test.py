@@ -61,7 +61,7 @@ class AbcTC(unittest.TestCase):
         c4 = hwtNet.sig("c4")
         n1, n2, n3, n4, n5, n6, n7, n8, n9 = (hwtNet.sig(f"n{i}") for i in range(1, 10))
 
-        d = a ^ b & a & a ^ 1
+        d = (a ^ ((b & a) & a)) ^ 1
         e = a._ternary(b, d)
 
         def testOpt0and1(n1, n2, n3, n4, n5, n6, n7, n8, n9):
@@ -89,20 +89,20 @@ class AbcTC(unittest.TestCase):
            a & ~a,  # 5
            ~a & ~b,  # 6
            a | ~a,  # 7
-           ~(a | b | c),  # 8
-           ~(a | b | c | c1),  # 9
-           ~(a & b & c),  # 10
-           ~(a & b & c & c1),  # 11
-           a._eq(1),  # 12
-           a._eq(0),  # 13
-           a != 1,  # 14
-           a != 0,  # 15
-           (~a & (~b & ~c))._eq(0),  # 16
-           ~((~a & ~b) & ~c),  # 17
-           a | (~b | c),  # 18
-           a & ~b,  # 19
-           ~a & b,  # 20
-           a & (~b | c),  # 21
+          ~(a | b | c),  # 8
+          ~(a | b | c | c1),  # 9
+          ~(a & b & c),  # 10
+          ~(a & b & c & c1),  # 11
+          a._eq(1),  # 12
+          a._eq(0),  # 13
+          a != 1,  # 14
+          a != 0,  # 15
+          (~a & (~b & ~c))._eq(0),  # 16
+          ~((~a & ~b) & ~c),  # 17
+          a | (~b | c),  # 18
+          a & ~b,  # 19
+          ~a & b,  # 20
+          a & (~b | c),  # 21
         ]
         exampleExpr1 = [
             (a & b) | (c & ~b),  # 0
@@ -145,16 +145,16 @@ class AbcTC(unittest.TestCase):
             BIT.from_py(0),  # 5
             ~(a | b),  # 6
             BIT.from_py(1),  # 7
-            ~(c | a | b),  # 8
-            ~(c1 | c | a | b),  # 9
-            ~(c & a & b),  # 10
-            ~(c1 & c & a & b),  # 11
+            ~(b | a | c),  # 8
+            ~(c1 | b | a | c),  # 9
+            ~(a & b & c),  # 10
+            ~(c1 & a & b & c),  # 11
             a,  # 12
             ~a,  # 13
             a ^ 1,  # 14
             a ^ 0,  # 15
-            a | b | c,  # 16
-            c | a | b,  # 17
+            b | a | c,  # 16
+            b | a | c,  # 17
             a | ~b | c,  # 18 :attention: order of terms may reorder
             a & ~b,  # 19
             ~a & b,  # 20
@@ -174,9 +174,9 @@ class AbcTC(unittest.TestCase):
             c._ternary(~b, a)  # 10
         ]
         ref2 = [
-            ~n5 | n1 | ~n4,  # 0
-            (~n1 | ~(n3 | n4) | n4 & ~n5) & ((~n5 | n6) & (n4 & n7)),   # 1
-            ~n4._ternary(n5, n3) & ((~n5 | n6) & (n4 & n7)),  # 2 :note: abc is not able to achieve if used in other expr  n7 & (n4 & ~n5),
+            n1 | ~n4 | ~n5,  # 0
+            ~(n1 & n4 & n5) & (n4 & n7 & (~n5 | n6)),   # 1
+            ~n5 & (n4 & n7),  # 2
         ]
         off = 0
         w = len(ref0)
@@ -587,15 +587,16 @@ class AbcTC(unittest.TestCase):
         toAig = RtlNetlistToAbcAig()
         f, net, aig, ioMap = toAig.translate(inputs, exampleExpr)
         # net.Io_Write("abc-directly.0.dot", Io_FileType_t.IO_FILE_DOT)
-        net = abcCmd_resyn2(net)
-        net = abcCmd_compress2(net)
+        for _ in range(2):
+            net = abcCmd_resyn2(net)
+            net = abcCmd_compress2(net)
         # net.Io_Write("abc-directly.1.dot", Io_FileType_t.IO_FILE_DOT)
         toRtl = AbcAigToRtlNetlist(f, net, aig, ioMap)
         res = tuple(newO for _, newO in toRtl.translate())
         f.DeleteAllNetworks()
 
         self.assertSequenceEqual(res, [
-            (c | d) & ~c._ternary(v0, v1),
+            ~c._ternary(v0, v1) & (d | ~v0 & c), # (c | d) & ~c._ternary(v0, v1), # limitations of abc drf/drw
             c,
             ~c._ternary(v0, v1),
         ])
@@ -695,7 +696,7 @@ class AbcTC(unittest.TestCase):
 
 if __name__ == "__main__":
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([AbcTC('testFromRtlNetlistAndBack')])
+    # suite = unittest.TestSuite([AbcTC('test_mux0')])
     suite = testLoader.loadTestsFromTestCase(AbcTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

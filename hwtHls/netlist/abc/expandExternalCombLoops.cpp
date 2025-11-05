@@ -182,7 +182,8 @@ Abc_Ntk_t* Abc_NtkExpandExternalCombLoops(Abc_Ntk_t *pNtk, Abc_Aig_t *pMan,
 	{
 		auto _trueOutput = trueOutputs.find(pPo);
 		if (_trueOutput == trueOutputs.end()) {
-			Abc_ObjPatchFanin(pPo, Abc_ObjFanin0(pPo), Abc_AigConst1(pNtk));
+			if (Abc_ObjFanin0(pPo) != Abc_AigConst1(pNtk))
+				Abc_ObjPatchFanin(pPo, Abc_ObjFanin0(pPo), Abc_AigConst1(pNtk));
 			if (Abc_ObjFaninC0(pPo)) {
 				Abc_ObjXorFaninC(pPo, 0/*index of fanin*/); // this is there because Abc_ObjPatchFanin does not handle complements
 			}
