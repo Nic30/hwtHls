@@ -6,7 +6,6 @@ orbs:
 
 jobs:
   prepare-workspace:
-    resource_class: large
     docker:
       - image: ubuntu:rolling
     steps:
