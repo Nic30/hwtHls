@@ -39,7 +39,10 @@ set(CPACK_RESOURCE_FILE_README "${CMAKE_SOURCE_DIR}/README.md")
 SET(PKG_CONFIG_REQUIRES readline)
 SET(PKG_CONFIG_LIBDIR     "\${prefix}/lib")
 SET(PKG_CONFIG_INCLUDEDIR "\${prefix}/include/abc")
-SET(PKG_CONFIG_LIBS       "-L\${libdir} -labc-pic")
+# https://discourse.cmake.org/t/how-to-create-pkgconfig-file/10337/13
+get_target_property(LIBABC_LINK_LIBRARIES libabc-pic INTERFACE_LINK_LIBRARIES)
+string(REPLACE ";" " " LIBABC_LINK_LIBRARIES "${LIBABC_LINK_LIBRARIES}")
+SET(PKG_CONFIG_LIBS       "-L\${libdir} -labc-pic ${LIBABC_LINK_LIBRARIES}")
 
 # https://stackoverflow.com/questions/56104607/how-to-print-current-compilation-flags-that-are-set-with-target-compile-options
 # Convert the list of CXX flags into a space-separated string
@@ -47,7 +50,7 @@ string(REPLACE ";" " " LIBABC_PIC_FLAGS_STR "${ABC_CFLAGS} ${ABC_CXXFLAGS}")
 string(REPLACE "-std=c++17 -fno-exceptions" "" LIBABC_PIC_FLAGS_STR "${LIBABC_PIC_FLAGS_STR}")
 string(REPLACE "-Wall -Wno-unused-function -Wno-write-strings -Wno-sign-compare" "" LIBABC_PIC_FLAGS_STR "${LIBABC_PIC_FLAGS_STR}")
 
-SET(PKG_CONFIG_CFLAGS     "-I\${includedir} ${LIBABC_PIC_FLAGS_STR}")
+SET(PKG_CONFIG_CFLAGS     "-I\${includedir} ${LIBABC_PIC_FLAGS_STR} -D_DEFAULT_SOURCE -D_XOPEN_SOURCE=600")
 set(PKG_CONFIG_FILE_NAME "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.pc")
 
 configure_file("${CMAKE_SOURCE_DIR}/abc_pkgconfig.pc.in" "${PKG_CONFIG_FILE_NAME}" @ONLY)
