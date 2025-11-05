@@ -27,7 +27,7 @@ class SyncLogicHlsNetlistToAbc(HlsNetlistToAbcAig):
         net = Abc_Ntk_t(Abc_NtkType_t.ABC_NTK_STRASH, Abc_NtkFunc_t.ABC_FUNC_AIG, 64)
         net.setName(name)
         self.net: Abc_Ntk_t = net
-        f.SetCurrentNetwork(net)
+        # f.SetCurrentNetwork(net)
         # aig: Abc_Aig_t = net.pManFunc
         self.c1 = net.Const1()
         self.syncLogicNodes: SetList[Tuple[Union[HlsNetNodeOperator, HlsNetNodeAggregatePortIn, HlsNetNodeAggregatePortOut], int]] = None

@@ -587,7 +587,7 @@ class SyncLogicResolver(HlsNetlistToAbcAig):
         """
         toAbc = self.toAbc
         net = toAbc.net
-        toAbc.abcFrame.SetCurrentNetwork(net)
+        # toAbc.abcFrame.SetCurrentNetwork(net)
         aig: Abc_Aig_t = net.pManFunc
         scc = self.scc
         syncLogicSearch = self.syncLogicSearch

@@ -63,7 +63,7 @@ class RtlNetlistToAbcAig():
             ->Tuple[Abc_Frame_t, Abc_Ntk_t, Abc_Aig_t, Dict[str, Tuple[Abc_Obj_t, RtlSignal]]]:
         net = self.net
         aig = self.aig
-        self.abcFrame.SetCurrentNetwork(net)
+        # self.abcFrame.SetCurrentNetwork(net)
         # :note: we can not store Abc_Obj_t because the object could be discarded after first operation with network
         #        we can not use index because IO may reorder and we can not use Id because it also changes
         ioMap: Dict[str, RtlSignal] = {}
@@ -84,5 +84,6 @@ class RtlNetlistToAbcAig():
 
         aig.Cleanup()  # removes dangling nodes
         net.Check()
+        # self.abcFrame.SetCurrentNetwork(None)
         # net.Io_Write("abc-directly.0.dot", Io_FileType_t.IO_FILE_DOT)
         return self.abcFrame, net, aig, ioMap

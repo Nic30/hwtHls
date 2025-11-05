@@ -289,8 +289,13 @@ Abc_Obj_t * Abc_AigOrOptional(Abc_Aig_t * pMan, Abc_Obj_t * a, Abc_Obj_t * b) {
     return Abc_AigOr(pMan, a, b);
 }
 
+struct Abc_NtkDeleteer {
+  void operator()(Abc_Ntk_t* net) {
+	  Abc_NtkDelete(net);
+  }
+};
 void register_Abc_Ntk_t(py::module_ &m) {
-	py::class_<Abc_Ntk_t, std::unique_ptr<Abc_Ntk_t, py::nodelete>>(m, "Abc_Ntk_t")
+	py::class_<Abc_Ntk_t, std::unique_ptr<Abc_Ntk_t, Abc_NtkDeleteer>>(m, "Abc_Ntk_t")
 	.def(py::init(&Abc_NtkAlloc))
 	.def_property("pManFunc",
 			[](Abc_Ntk_t * self) {
@@ -310,10 +315,10 @@ void register_Abc_Ntk_t(py::module_ &m) {
 	.def("Po", &Abc_NtkPo, py::return_value_policy::reference_internal)
 	.def("IterPo", [](Abc_Ntk_t &self) {
 		return py::make_iterator(Abc_Ntk_PoIterator(self), Abc_Ntk_PoIterator(self, Abc_NtkPoNum(&self)));
-	 }, py::keep_alive<0, 1>()) /* Keep vector alive while iterator is used */
+	 }, py::keep_alive<0, 1>()) /* Keep self alive while iterator is used */
 	 .def("IterPi", [](Abc_Ntk_t &self) {
 	 	 return py::make_iterator(Abc_Ntk_PiIterator(self), Abc_Ntk_PiIterator(self, Abc_NtkPiNum(&self)));
-	 }, py::keep_alive<0, 1>()) /* Keep vector alive while iterator is used */
+	 }, py::keep_alive<0, 1>()) /* Keep self alive while iterator is used */
 
 	.def("PiNum", &Abc_NtkPiNum)
 	.def("PoNum", &Abc_NtkPoNum)
@@ -342,7 +347,7 @@ void register_Abc_Ntk_t(py::module_ &m) {
 	.def("Balance", &Abc_NtkBalance,
 			py::arg("fDuplicate")=false,
 			py::arg("fSelective")=false,
-			py::arg("fUpdateLevel")=true, py::return_value_policy::reference)
+			py::arg("fUpdateLevel")=true)
 	.def("Rewrite", returnCodeToException("Abc_NtkRewrite has failed", &Abc_NtkRewrite),
 			/* defaults are from Abc_CommandRewrite */
 			py::arg("fUpdateLevel")=true,
@@ -648,7 +653,7 @@ void _module(py::module_ & m) {
 	py::bind_map<std::map<Abc_Obj_t*, Abc_Obj_t*>>(m, "MapAbc_Obj_tToAbc_Obj_t");
 	py::bind_map<std::map<Abc_Obj_t*, std::unordered_set<Abc_Obj_t*>>>(m, "MapAbc_Obj_tToSetOfAbc_Obj_t");
 
-	py::class_<Abc_Frame_t_pybind11_wrap, std::unique_ptr<Abc_Frame_t_pybind11_wrap, py::nodelete>>(m, "Abc_Frame_t")
+	py::class_<Abc_Frame_t_pybind11_wrap, std::unique_ptr<Abc_Frame_t_pybind11_wrap>>(m, "Abc_Frame_t")
 		.def_static("GetGlobalFrame", []() {
 				return (Abc_Frame_t_pybind11_wrap*)Abc_FrameGetGlobalFrame();
 			}, py::return_value_policy::reference)
@@ -661,7 +666,6 @@ void _module(py::module_ & m) {
 		.def("DeleteAllNetworks", [](Abc_Frame_t_pybind11_wrap * pAbc) {
 			Abc_FrameDeleteAllNetworks((Abc_Frame_t*)pAbc); // [todo] decr_ref for all Abc_Obj_t data
 		});
-
 	register_Abc_Ntk_t(m);
 	register_Abc_Obj_t(m);
 	m.def("Abc_NtkExpandExternalCombLoops",
@@ -671,7 +675,7 @@ void _module(py::module_ & m) {
 			   std::map<Abc_Obj_t*, Abc_Obj_t*> inToOutConnections,
 			   std::unordered_set<Abc_Obj_t*> trueOutputs) {
 			return hwtHls::Abc_NtkExpandExternalCombLoops(pNtk, (Abc_Aig_t*)pMan, impliedValues, inToOutConnections, trueOutputs);
-		}, py::return_value_policy::reference_internal);
+		});
 
 
 	py::class_<AbcPatternMux2>(m, "AbcPatternMux2")

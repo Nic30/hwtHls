@@ -24,8 +24,8 @@ class AbcAigToRtlNetlist():
 
     """
 
-    def __init__(self, f: Abc_Frame_t, net: Abc_Ntk_t, aig: Abc_Aig_t, ioMap: Dict[str, RtlSignal]):
-        self.f = f
+    def __init__(self, frame: Abc_Frame_t, net: Abc_Ntk_t, aig: Abc_Aig_t, ioMap: Dict[str, RtlSignal]):
+        self.frame = frame
         self.net = net
         self.aig = aig
         self.ioMap = ioMap
