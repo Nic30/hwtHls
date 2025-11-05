@@ -18,15 +18,14 @@ ENV USER ${NB_USER}
 ENV NB_UID ${NB_UID}
 ENV HOME /home/${NB_USER}
 
-RUN adduser --disabled-password \
-    --gecos "Default user" \
+RUN useradd --non-unique  \
     --uid ${NB_UID} \
     ${NB_USER}
 
 USER root
 RUN apt update && \
 	DEBIAN_FRONTEND="noninteractive" apt install python3 python3-pip python3-dev llvm-21-dev libreadline-dev npm -y
-RUN pip3 install jupyterlab jupyterlab-lsp 'python-lsp-server[all]' jupyterlab-system-monitor
+RUN pip3 install --break-system-packages jupyterlab jupyterlab-lsp 'python-lsp-server[all]' jupyterlab-system-monitor
 RUN jupyter labextension install @deathbeds/jupyterlab_graphviz
 
 # debug print versions
@@ -43,12 +42,12 @@ USER ${NB_USER}
 #USER root
 WORKDIR ${HOME}
 
-RUN pip3 install git+https://github.com/dnicolodi/pip.git@debian-scheme
+RUN pip3 install --break-system-packages git+https://github.com/dnicolodi/pip.git@debian-scheme
 ENV PATH /home/${NB_USER}/.local/bin/:$PATH
 # install fresh dependencies from git (not required, there are pip packages)
-RUN pip3 install -r doc/requirements.txt
+RUN pip3 install --break-system-packages -r doc/requirements.txt
 # install this library
-RUN pip3 install .
+RUN pip3 install --break-system-packages .
 # rm main package folder so it does not interfere with the installation
 RUN rm hwtHls/ -r
 
