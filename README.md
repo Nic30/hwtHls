@@ -2,60 +2,38 @@
 
 [![CircleCI](https://circleci.com/gh/Nic30/hwtHls/tree/master.svg?style=svg)](https://circleci.com/gh/Nic30/hwtHls/tree/master)[![PyPI version](https://badge.fury.io/py/hwtHls.svg)](http://badge.fury.io/py/hwtHls)[![Coverage Status](https://coveralls.io/repos/github/Nic30/hwtHls/badge.svg?branch=master)](https://coveralls.io/github/Nic30/hwtHls?branch=master)
 
-
-A library for an automatic translation of algorithmic code to a hardware realization
-based on [hwt](https://github.com/Nic30/hwt) (hwt is a library for circuit construction) and
-[LLVM](https://llvm.org/) (a compiler infrastructure).
+A library for an automatic translation of algorithmic code to a hardware realization.
 
 ![hwtHls_overview](./doc/_static/hwtHls_overview.png)
 
 This library is a tool which lets you write code transformations for fast and efficient hardware architecture generators.
 
-* Modular compiler build as a sequence of powerful optimization passes for LLVM IR/MIR/ABC
-* Fully compatible with LLVM/HWT/ABC/Z3
-* Powerful debugging features on every level
-* Target specification for common FPGAs with possiblity for user to specify any custom target
+* Modular compiler build as a sequence of optimization passes for LLVM IR/MIR/ABC
+* Strong focus on debuging, testing and verification on every level.
+* Typical usecase: high-speed network processing/AI/DSP/graphic/superscalar apps.
+* Fully compatible with LLVM/HWT/ABC/Z3 upstream
+* Native support for common FPGAs with possiblity for user to specify any custom target.
 
 
 ![hwtHls_overview](./doc/_static/hwtHls_overview_debug.png)
-
-A typical project where you would use this project is a hash table in HBM2 memory with cache.
-* HBM2 may have 32 AXI4 ports, you need to use eta 64*32 transactions at once to saturate memory throughput.
-* All transactions must assert consistency.
-* Due to timing, everything needs to be pipelined and the hash table must support multiple operations in a single clock.
-
-* How you write it?
-  * Construct a hdl wrapper and declare control registers (using HWT, e.g. for AXI4-lite, 0.5MH)
-  * Pick a hash table alg., e.g. robing hood hashing, write naive variant with 1 memory port (represented as an array, 0.5MH)
-  * Test python code (0.5MH)
-  * Translate it to a single pipeline (automatically, with disastrous performance, 0MH)
-  * Add pragma to merge loops to achieve II=1 (semi manually, 0.2MH)
-  * Add pragma to use 64 AXI4 threads, duplicate it 32x, construct LSU (automatically, 1MH)
-  * Use HWT UVM-like test environment to build sim enviroment, (30MH)
-  * If everything was automatically translated, the functionality is already formaly verified
-    but things like deadlock from external cause may still happen. 
-  * Write a AXI4 cache (10MH, or use existing e.g. from hwtLib)
-  * Tune up size of AXI out-of-order windows, LSU, write forward history length
-    and cache for your app and synthesis in vendor tool and frequency (40MH, semi manually)
 
 
 ### Current state
 
 * This library is in an alpha phase.
-* You can try it online at [![Binder](https://mybinder.org/badge_logo.svg)](https://notebooks.gesis.org/binder/v2/gh/Nic30/hwtHls/HEAD) (From jupyterlab you can also run examples in tests.)
+* You can try it online at [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/nic30/hwtHls/llvm_mir_integration) (From jupyterlab you can also run examples in tests. But be aware of limited RAM/CPU on Binder.)
+
 
 * Features
   * frontends:
-    * Python bytecode
-	    * Bytecode of any Python can be translated to hardware
-	       * Bytecode is symbolically executed and the code which does not depend on HW evaluated value is executed immediately.
-	         This means that the python runs as a preprocessors and it generates HW code.
-	       * As this part translates bytecode to SSA, the input syntax does not matter.
-	
-	    * No exception handling in HW code, function calls must be explicitly marked to be translated to HW otherwise calls are evaluated compile time
-	    * Only static typing for HW code
-	    * (Meant to be used for simple things, for the rest you should construct AST or SSA directly.)
-    * hwtHls AST (Python statement-like objects)
+    * Python Bytecode is symbolically executed and the code which does not depend
+      on HW evaluated value is executed immediately.
+      This means that the python runs as a preprocessors and it generates HW code.
+    * As this part translates bytecode to SSA, the input syntax does not matter.
+
+    * No exception handling in HW code, function calls must be explicitly marked to be translated to HW otherwise calls are evaluated compile time
+    * Only static typing for HW code
+    * Direct access to llvm IRBuilder for custom frontends
 
   * Kernel superoptimization framewors:
     * Hierarchical, backtracking list scheduler with operation chaining and retiming
@@ -79,7 +57,7 @@ A typical project where you would use this project is a hash table in HBM2 memor
       (e.g. xgmii)
     * explicit blocking, explicit dropping, explicit skipping
       (e.g. conditional read/write of data, read without consummer)
-    * Packet FMS inference from read/write of ADT, SoF, EoF
+    * Packet FSM inference from read/write of ADT, SoF, EoF
 	  * Program may contain arbitrary number of packet IO with arbitrary access.
       * Incremental packet parsing/deparsing, read/write chunk:
         * may not be alligned to word
@@ -87,10 +65,7 @@ A typical project where you would use this project is a hash table in HBM2 memor
         * may be required to be end of stream or not
       * Optional check of input packet format
         (or synchronized by the input packet format which significantly reduce circuit complexity)
-
-* Not done yet:
-  * Complex operation reducing (DSP)
-  * All platforms
+     * support for segmented buses
 
 
 ## How it works?
@@ -116,7 +91,6 @@ pip3 install -r https://raw.githubusercontent.com/Nic30/hwtHls/master/doc/requir
 pip3 install git+https://github.com/Nic30/hwtHls.git # install this library from git
 # for building and running without install see doc/README-dev.rst
 ```
-
 
 
 ## Related open-source
