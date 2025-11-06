@@ -21,6 +21,7 @@ from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
 OP_INDEX_CONST = HOperatorDef(None, False, "OP_INDEX_CONST")
+OpSpecialization_t = Optional[HFloatTmpConfig]
 
 
 class HlsNetNodeOperator(HlsNetNode):
@@ -49,7 +50,7 @@ class HlsNetNodeOperator(HlsNetNode):
                  operandCnt: int,
                  dtype: HBits,
                  name=None,
-                 operatorSpecialization:Optional[HFloatTmpConfig]=None):
+                 operatorSpecialization:OpSpecialization_t=None):
         """
         :param _dtype: RTL data type of output
         """

@@ -4,7 +4,6 @@ from typing import Dict, Callable, Tuple, Optional, Union
 
 from hwt.hdl.operatorDefs import HOperatorDef, HwtOps
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
-from hwtHls.llvm.llvmIr import HFloatTmpConfig
 from hwtHls.platform.debugBundleTypes import LlvmCliArgTuple
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.platform.platform import DefaultHlsPlatform, DebugId, HlsDebugBundle
@@ -43,9 +42,9 @@ class AbstractXilinxPlatform(DefaultHlsPlatform):
         raise NotImplementedError(
             "Override this in your implementation of platform")
         self._OP_DELAYS: Dict[str, Callable[[int, int, int, float], Tuple[int, float]]] = {}
-        
+
     @lru_cache()
-    def get_op_realization(self, op: HOperatorDef, opSpecialization: Optional[HFloatTmpConfig], bit_width: int,
+    def get_op_realization(self, op: HOperatorDef, opSpecialization: "OpSpecialization_t", bit_width: int,
                            input_cnt: int, clkPeriod: float) -> OpRealizationMeta:
         if op in _OPS_T_ZERO_LATENCY:
             return OpRealizationMeta()

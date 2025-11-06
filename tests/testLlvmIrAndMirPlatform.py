@@ -215,7 +215,7 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
                     interpret = LlvmMirInterpret(toLlvm.llvm, toLlvm.placeholderObjectSlots, platform._componentGenerators, args)
                     waveLogFileName = str(logFileNameStem) + ".llvmMirWave.vcd"
                 else:
-                    interpret = LlvmIrInterpret(toLlvm.llvm, toLlvm.placeholderObjectSlots, platform._componentGenerators, args)
+                    interpret = LlvmIrInterpret(toLlvm.llvm, toLlvm.placeholderObjectSlots, platform._componentGenerators, platform._getHFloatType, args)
                     waveLogFileName = str(logFileNameStem) + ".llvmIrWave.vcd"
           
                 try:

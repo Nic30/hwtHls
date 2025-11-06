@@ -67,7 +67,7 @@ class BaseIrMirRtl_TC(SimTestCase):
                 if isMir:
                     interpret = LlvmMirInterpret(toLlvm.llvm, toLlvm.placeholderObjectSlots, platform._componentGenerators, args)
                 else:
-                    interpret = LlvmIrInterpret(toLlvm.llvm, toLlvm.placeholderObjectSlots, platform._componentGenerators, args)
+                    interpret = LlvmIrInterpret(toLlvm.llvm, toLlvm.placeholderObjectSlots, platform._componentGenerators, platform._getHFloatType, args)
                 interpret.installWaveLog(waveLog)
                 # gdbLlvmIrHandler = GdbCmdHandlerLllvmIr(interpret, args)
                 # gdbServer = GDBServerStub(gdbLlvmIrHandler)

@@ -6,6 +6,7 @@ from hwt.hdl.commonConstants import b1
 from hwt.hdl.const import HConst
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
+from hwt.hdl.types.hdlType import HdlType
 from hwtHls.code import ctlz, zext, hwUMax, hwUMin, hwSMax, hwSMin, fshl, fshr, \
     cttz, ctpop
 from hwtHls.llvm.llvmIr import Function, BasicBlock, InstructionToCallInst, \
@@ -16,7 +17,7 @@ from hwtHls.llvm.llvmIr import Function, BasicBlock, InstructionToCallInst, \
     LLVMStringContext, ValueToUndefValue, TypeToArrayType, ArrayType, \
     Intrinsic, ValueToAllocaInst, ValueToConstantArray, ValueToConstantDataArray, IsStreamIo, Value, PHINode, \
     Module, Argument, InstructionToGetElementPtrInst, HwtHlsIoMetadata, HwtHlsIoMetadata_get, \
-    AllocaInst, StreamChannelProps, LlvmCompilationBundle, TargetOpcode
+    AllocaInst, StreamChannelProps, LlvmCompilationBundle, TargetOpcode, Type
 from hwtHls.platform.platform import ComponentGeneratorDict
 from hwtHls.ssa.analysis.llvmIrInterpretCall import _decodeOpcode_CallInst
 from hwtHls.ssa.analysis.llvmIrInterpretInt import _decodeOpcode_ICmpInst, \
@@ -45,8 +46,6 @@ from pyDigitalWaveTools.vcd.common import VCD_SIG_TYPE
 from pyDigitalWaveTools.vcd.value_format import VcdBitsFormatter
 from pyDigitalWaveTools.vcd.writer import VcdWriter
 from pyMathBitPrecise.bit_utils import to_unsigned
-from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
-from tests.math.hFloatTmp.hFloatTmpConst import HFloatTmpConst
 
 
 class LlvmIrInterpret():
@@ -114,6 +113,7 @@ class LlvmIrInterpret():
     def __init__(self, llvm: LlvmCompilationBundle,
                  placeholderObjectSlots: PyObjectPlaceholderList,
                  componentGenerators: ComponentGeneratorDict,
+                 _getHFloatType: Callable[Optional[Type], HdlType],
                  fnArgs: LlvmIrInterpretArgs,
                  timeStep: int=CLK_PERIOD):
         assert llvm.main
@@ -126,6 +126,7 @@ class LlvmIrInterpret():
         self.ioMetadata: list[HwtHlsIoMetadata] = HwtHlsIoMetadata_get(self.F)
         self.streamIoHandler = LlvmIrInterpretStreamIo(self)
         self.placeholderObjectSlots = placeholderObjectSlots
+        self._getHFloatType = _getHFloatType
         self.componentGenerators = componentGenerators
         self.fnArgs = fnArgs
         # instructions with special handling of operands
@@ -143,7 +144,7 @@ class LlvmIrInterpret():
         self._decodedBlocks: dict[BasicBlock, list[tuple[Instruction, LlvmIrInstrFunction]]] = {}
         # dictionary (src, dst block) -> tuples (phi, new value)
         self._decodedBlockPhis: dict[tuple[BasicBlock, BasicBlock],
-                                     list[tuple[PHINode, Union[HBitsConst, HFloatTmpConst, Instruction]]]
+                                     list[tuple[PHINode, Union[HBitsConst, "HFloatTmpConst", Instruction]]]
                                      ] = {}
         # object used as a key for current block value in wave logger
         self._simBlockLabel: Optional[object] = None
@@ -222,7 +223,7 @@ class LlvmIrInterpret():
 
         vvConstFP = ValueToConstantFP(v)
         if vvConstFP is not None:
-            return HFloatTmp.from_py(float(vvConstFP.getValue()))
+            return self._getHFloatTmp().from_py(float(vvConstFP.getValue()))
 
         raise NotImplementedError("NotImplemented type of value", phi, v)
 
@@ -248,7 +249,7 @@ class LlvmIrInterpret():
             # regs[phi] = v
 
     def _storeInstrResult(self, waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst],
-                     instr: Instruction, res: Union[HBitsConst, HFloatTmpConst]):
+                     instr: Instruction, res: Union[HBitsConst, "HFloatTmpConst"]):
         if waveLog is not None:
             if isinstance(res, HConst):
                 waveLog.logChange(nowTime, instr, res, None)
@@ -281,7 +282,7 @@ class LlvmIrInterpret():
 
             vAsConstFP = ValueToConstantFP(v)
             if vAsConstFP:
-                ops.append(HFloatTmp.from_py(float(vAsConstFP.getValue())))
+                ops.append(self._getHFloatTmp().from_py(float(vAsConstFP.getValue())))
                 continue
 
             vAsBB = ValueToBasicBlock(v)
@@ -396,7 +397,7 @@ class LlvmIrInterpret():
         else:
             vAsConstFP = ValueToConstantFP(_v)
             if vAsConstFP:
-                _v = HFloatTmp.from_py(float(vAsConstFP.getValue()))
+                _v = self._getHFloatTmp().from_py(float(vAsConstFP.getValue()))
             else:
                 vIsConst = False
 

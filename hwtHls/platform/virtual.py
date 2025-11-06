@@ -18,7 +18,7 @@ from hwtHls.architecture.componentGenerators.indexConst import ComponentGenerato
 from hwtHls.architecture.componentGenerators.mul_hl import ComponentGeneratorMUL_HL
 from hwtHls.code import OP_ASHR, OP_SHL, OP_LSHR, OP_CTLZ, OP_CTPOP, OP_CTTZ, \
     OP_BITREVERSE, OP_FSHR, OP_FSHL, OP_ROL, OP_ROR
-from hwtHls.llvm.llvmIr import HFloatTmpConfig, TargetOpcode
+from hwtHls.llvm.llvmIr import TargetOpcode
 from hwtHls.netlist.extraOps import OP_MUL_HL
 from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
 from hwtHls.netlist.nodes.ops import OP_INDEX_CONST
@@ -199,7 +199,7 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
         _componentGenerators[OP_INDEX_CONST] = ComponentGeneratorOP_INDEX_CONST(self, genNamePrefix, "slice")
 
     @lru_cache()
-    def get_op_realization(self, op: HOperatorDef, opSpecialization: Optional[HFloatTmpConfig], bit_width: int,
+    def get_op_realization(self, op: HOperatorDef, opSpecialization: "OpSpecialization_t", bit_width: int,
                            input_cnt: int, clkPeriod: float) -> OpRealizationMeta:
         if opSpecialization is not None:
             raise NotImplementedError(op, opSpecialization)

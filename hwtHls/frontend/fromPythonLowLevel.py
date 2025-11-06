@@ -18,11 +18,10 @@ from hwtHls.frontend.instructions import FOR_ITER, JUMP_OPS, \
 from hwtHls.frontend.loopMeta import BranchTargetPlaceholder, \
     LoopExitJumpInfo
 from hwtHls.frontend.loopsDetect import PreprocLoopScope
-from hwtHls.llvm.llvmIr import Value, BasicBlock
+from hwtHls.llvm.llvmIr import Value, BasicBlock, Type
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.scope import HlsScope
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
-
 
 JumpCondition = Union[None, HConst, RtlSignal, Value, Literal[False]]
 
@@ -31,10 +30,16 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
     """
     :note: for meaning of debug* options see :class:`HlsDebugBundle`
     """
-    def __init__(self, hls: HlsScope, toLlvm: ToLlvmIrTranslator, dbgTracer: DebugTracer, label: str, namePrefix:str):
+
+    def __init__(self, hls: HlsScope,
+                 toLlvm: ToLlvmIrTranslator,
+                 dbgTracer: DebugTracer,
+                 label: str,
+                 namePrefix:str,):
         super(PyBytecodeToSsaLowLevel, self).__init__()
         assert sys.version_info >= (3, 13, 0), ("Python3.13 is minimum requirement", sys.version_info)
         self.hls = hls
+        self._getHFloatType = hls.getPlatform()._getHFloatType
         self.label = label
         self.namePrefix = namePrefix
         self.toLlvm = toLlvm

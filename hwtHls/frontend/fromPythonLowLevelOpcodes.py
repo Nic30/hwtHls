@@ -42,7 +42,6 @@ from hwtHls.frontend.statementsRead import HlsRead
 from hwtHls.frontend.statementsWrite import HlsWrite
 from hwtHls.llvm.llvmIr import Value, BasicBlock, IRBuilder
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
-from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 
 
 def _isSameOrIsSameTuple(a, b):
@@ -522,7 +521,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
         if isinstance(vVal, Value):
             _t = vVal.getType()
             if _t.isDoubleTy():
-                t = HFloatTmp
+                t = self._getHFloatType()
             else:
                 t = HBits(_t.getScalarSizeInBits())
         elif isinstance(vVal, ObjectWithHlsStoreOverride):

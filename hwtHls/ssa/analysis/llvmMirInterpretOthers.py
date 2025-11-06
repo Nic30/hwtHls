@@ -1,10 +1,7 @@
-from hwt.hdl.const import HConst
 from hwt.hdl.operatorDefs import HOperatorDef, HwtOps
-from hwt.hdl.types.bits import HBits
 from hwtHls.code import OP_SHL, OP_ASHR, \
     OP_LSHR, OP_FSHL, OP_FSHR
-from hwtHls.llvm.llvmIr import TargetOpcode, MachineRegisterInfo, MachineInstr, HFloatTmpConfig, \
-    APInt, APFloat
+from hwtHls.llvm.llvmIr import TargetOpcode, MachineRegisterInfo, MachineInstr
 from hwtHls.ssa.analysis.llvmMirInterpretInt import \
     _makeDecode_G_shift, _makeDecode_shift, \
     makeDecode_funel_shift, makeDecode_G_funel_shift, \

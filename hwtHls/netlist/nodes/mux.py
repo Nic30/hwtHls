@@ -1,4 +1,4 @@
-from typing import Generator, Optional
+from typing import Generator
 
 from hwt.code import If
 from hwt.hdl.const import HConst
@@ -7,8 +7,7 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.arrayQuery import grouper
 from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
-from hwtHls.llvm.llvmIr import HFloatTmpConfig
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator, OpSpecialization_t
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.transformation.simplifyUtils import getConstOfOutput
 
@@ -21,7 +20,7 @@ class HlsNetNodeMux(HlsNetNodeOperator):
     """
 
     def __init__(self, netlist: "HlsNetlistCtx", dtype: HdlType, name: str=None,
-                 operatorSpecialization:Optional[HFloatTmpConfig]=None):
+                 operatorSpecialization:OpSpecialization_t=None):
         super(HlsNetNodeMux, self).__init__(
             netlist, HwtOps.TERNARY, 0, dtype, name=name, operatorSpecialization=operatorSpecialization)
         self._rtlAddName = True  # True by default because there is named RtlSignal implementing this node in RTL

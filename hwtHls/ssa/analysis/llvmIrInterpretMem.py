@@ -12,7 +12,6 @@ from hwtHls.ssa.analysis.llvmIrInterpretUtils import PtrAddrTuple, \
     LlvmIrInstrFunction
 from hwtLib.abstract.sim_ram import SimRam
 from pyDigitalWaveTools.vcd.writer import VcdWriter
-from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 
 
 def _decodeOpcode_Alloca(interpret: "LlvmIrInterpret", instr: Instruction) -> LlvmIrInstrFunction:
@@ -24,7 +23,7 @@ def _decodeOpcode_Alloca(interpret: "LlvmIrInterpret", instr: Instruction) -> Ll
     if intTy is not None:
         v = HBits(intTy.getIntegerBitWidth()).from_py(None)
     elif Ty.isDoubleTy():
-        v = HFloatTmp.from_py(None)
+        v = interpret._getHFloatTmp().from_py(None)
     else:
         raise NotImplementedError(instr)
 

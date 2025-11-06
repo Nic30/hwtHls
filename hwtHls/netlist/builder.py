@@ -14,14 +14,14 @@ from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.arrayQuery import grouper, balanced_reduce
 from hwt.pyUtils.setList import SetList
-from hwtHls.llvm.llvmIr import HFloatTmpConfig
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator, OP_INDEX_CONST
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator, OP_INDEX_CONST, \
+    OpSpecialization_t
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, \
     HlsNetNodeIn, HlsNetNodeOutLazy, HlsNetNodeOutAny
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
@@ -111,7 +111,7 @@ class HlsNetlistBuilder():
         return cls.buildScheduledConst(parent, clkIndex, dtype.from_py(v))
 
     def _tryToFindInUseList(self, operator: HOperatorDef,
-                            operatorSpecialization:Optional[HFloatTmpConfig],
+                            operatorSpecialization:OpSpecialization_t,
                             operands: Tuple[HlsNetNodeOut, ...]):
         """
         find operator nodes in usedBy lists of operands
@@ -126,7 +126,7 @@ class HlsNetlistBuilder():
                         useNode.dependsOn == operands:
                     yield useNode._outputs[0]
 
-    def _tryToFindInCache(self, operator: HOperatorDef, operatorSpecialization:Optional[HFloatTmpConfig],
+    def _tryToFindInCache(self, operator: HOperatorDef, operatorSpecialization:OpSpecialization_t,
                           operands: Tuple[Union[HlsNetNodeOut, HConst], ...]):
         key = (operator, operatorSpecialization, operands)
         opCache = self.operatorCache
@@ -152,7 +152,7 @@ class HlsNetlistBuilder():
 
     def buildOp(self,
                 operator: HOperatorDef,
-                operatorSpecialization:Optional[HFloatTmpConfig],
+                operatorSpecialization:OpSpecialization_t,
                 resT: HdlType,
                 *operands: Tuple[Union[HlsNetNodeOut, HConst], ...],
                 operatorNodeCls:Type[HlsNetNodeOperator]=HlsNetNodeOperator,
@@ -189,7 +189,7 @@ class HlsNetlistBuilder():
 
     def buildOpManyDst(self,
                 operator: HOperatorDef,
-                operatorSpecialization:Optional[HFloatTmpConfig],
+                operatorSpecialization:OpSpecialization_t,
                 resT: Tuple[HdlType, ...],
                 *operands: Tuple[Union[HlsNetNodeOut, HConst], ...],
                 operatorNodeCls:Type[HlsNetNodeOperator]=HlsNetNodeOperator,
@@ -224,7 +224,7 @@ class HlsNetlistBuilder():
         return n
 
     def buildOpWithOpt(self, operator: HOperatorDef,
-                       operatorSpecialization:Optional[HFloatTmpConfig],
+                       operatorSpecialization:OpSpecialization_t,
                        resT: HdlType,
                        *operands: Tuple[Union[HlsNetNodeOut, HConst], ...],
                        ) -> HlsNetNodeOut:
@@ -278,64 +278,64 @@ class HlsNetlistBuilder():
         else:
             return self.buildOp(operator, operatorSpecialization, resT, *operands)
 
-    def buildEq(self, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:Optional[HFloatTmpConfig]=None):
+    def buildEq(self, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:OpSpecialization_t=None):
         assert a._dtype == b._dtype, (a, b)
         if a is b:
             return self.buildConstBit(1)
         return self.buildOp(HwtOps.EQ, operatorSpecialization, BIT, a, b)
 
-    def buildNe(self, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:Optional[HFloatTmpConfig]=None):
+    def buildNe(self, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:OpSpecialization_t=None):
         assert a._dtype == b._dtype, (a, b)
         if a is b:
             return self.buildConstBit(0)
         return self.buildOp(HwtOps.NE, operatorSpecialization, BIT, a, b)
 
-    def buildULt(self, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:Optional[HFloatTmpConfig]=None):
+    def buildULt(self, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:OpSpecialization_t=None):
         return self.buildLt(HwtOps.ULT, a, b, operatorSpecialization=operatorSpecialization)
 
-    def buildSLt(self, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:Optional[HFloatTmpConfig]=None):
+    def buildSLt(self, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:OpSpecialization_t=None):
         return self.buildLt(HwtOps.SLT, a, b, operatorSpecialization=operatorSpecialization)
 
-    def buildLt(self, op: HOperatorDef, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:Optional[HFloatTmpConfig]=None):
+    def buildLt(self, op: HOperatorDef, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:OpSpecialization_t=None):
         assert a._dtype == b._dtype, (a, b)
         assert op in (HwtOps.ULT, HwtOps.SLT)
         if a is b:
             return self.buildConstBit(0)
         return self.buildOp(op, operatorSpecialization, BIT, a, b)
 
-    def buildULe(self, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:Optional[HFloatTmpConfig]=None):
+    def buildULe(self, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:OpSpecialization_t=None):
         return self.buildLe(HwtOps.ULE, a, b, operatorSpecialization=operatorSpecialization)
 
-    def buildSLe(self, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:Optional[HFloatTmpConfig]=None):
+    def buildSLe(self, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:OpSpecialization_t=None):
         return self.buildLe(HwtOps.SLE, a, b, operatorSpecialization=operatorSpecialization)
 
-    def buildLe(self, op: HOperatorDef, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:Optional[HFloatTmpConfig]=None):
+    def buildLe(self, op: HOperatorDef, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:OpSpecialization_t=None):
         assert a._dtype == b._dtype, (a, b)
         assert op in (HwtOps.ULE, HwtOps.SLE)
         if a is b:
             return self.buildConstBit(1)
         return self.buildOp(op, operatorSpecialization, BIT, a, b)
 
-    def buildUGt(self, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:Optional[HFloatTmpConfig]=None):
+    def buildUGt(self, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:OpSpecialization_t=None):
         return self.buildGt(HwtOps.UGT, a, b, operatorSpecialization=operatorSpecialization)
 
-    def buildSGt(self, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:Optional[HFloatTmpConfig]=None):
+    def buildSGt(self, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:OpSpecialization_t=None):
         return self.buildGt(HwtOps.SGT, a, b, operatorSpecialization=operatorSpecialization)
 
-    def buildGt(self, op: HOperatorDef, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:Optional[HFloatTmpConfig]=None):
+    def buildGt(self, op: HOperatorDef, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:OpSpecialization_t=None):
         assert a._dtype == b._dtype, (a, b)
         assert op in (HwtOps.UGT, HwtOps.SGT)
         if a is b:
             return self.buildConstBit(0)
         return self.buildOp(op, operatorSpecialization, BIT, a, b)
 
-    def buildUGe(self, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:Optional[HFloatTmpConfig]=None):
+    def buildUGe(self, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:OpSpecialization_t=None):
         return self.buildGe(HwtOps.UGE, a, b, operatorSpecialization=operatorSpecialization)
 
-    def buildSGe(self, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:Optional[HFloatTmpConfig]=None):
+    def buildSGe(self, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:OpSpecialization_t=None):
         return self.buildGe(HwtOps.SGE, a, b, operatorSpecialization=operatorSpecialization)
 
-    def buildGe(self, op: HOperatorDef, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:Optional[HFloatTmpConfig]=None):
+    def buildGe(self, op: HOperatorDef, a: HlsNetNodeOut, b: HlsNetNodeOut, operatorSpecialization:OpSpecialization_t=None):
         assert a._dtype == b._dtype, (a, b)
         assert op in (HwtOps.UGE, HwtOps.SGE)
         if a is b:
@@ -344,7 +344,7 @@ class HlsNetlistBuilder():
 
     def buildAdd(self, a: HlsNetNodeOut, b: HlsNetNodeOut,
                  name:Optional[str]=None,
-                 operatorSpecialization:Optional[HFloatTmpConfig]=None):
+                 operatorSpecialization:OpSpecialization_t=None):
         assert a._dtype == b._dtype, (a, b)
         if a is b:
             w = a._dtype.bit_length()
@@ -382,7 +382,7 @@ class HlsNetlistBuilder():
 
     def buildSub(self, a: HlsNetNodeOut, b: HlsNetNodeOut,
                  name:Optional[str]=None,
-                 operatorSpecialization:Optional[HFloatTmpConfig]=None):
+                 operatorSpecialization:OpSpecialization_t=None):
         assert a._dtype == b._dtype, (a, b)
         if a is b:
             # a-a = 0
@@ -390,7 +390,7 @@ class HlsNetlistBuilder():
         return self.buildOp(HwtOps.SUB, operatorSpecialization, a._dtype, a, b, name=name)
 
     def buildRom(self, data: Union[Dict[int, HConst], List[HConst], Tuple[HConst]], index: HlsNetNodeOut,
-                 operatorSpecialization:Optional[HFloatTmpConfig]=None):
+                 operatorSpecialization:OpSpecialization_t=None):
         assert data, ("ROM array should not be of zero size", data)
         itemCnt = 2 ** index._dtype.bit_length()
 
@@ -408,20 +408,20 @@ class HlsNetlistBuilder():
 
     def buildAndVariadic(self, ops: Tuple[Union[HlsNetNodeOut, HConst], ...],
                          name:Optional[str]=None,
-                         operatorSpecialization:Optional[HFloatTmpConfig]=None):
+                         operatorSpecialization:OpSpecialization_t=None):
         return balanced_reduce(ops, lambda a, b: self.buildAnd(a, b,
                                                                name=name,
                                                                operatorSpecialization=operatorSpecialization))
 
     def buildOrVariadic(self, ops: Tuple[Union[HlsNetNodeOut, HConst], ...],
                         name:Optional[str]=None,
-                        operatorSpecialization:Optional[HFloatTmpConfig]=None):
+                        operatorSpecialization:OpSpecialization_t=None):
         return balanced_reduce(ops, lambda a, b: self.buildOr(a, b,
                                                               name=name,
                                                               operatorSpecialization=operatorSpecialization))
 
     def buildAnd(self, a: Union[HlsNetNodeOut, HConst], b:Union[HlsNetNodeOut, HConst],
-                 name:Optional[str]=None, operatorSpecialization:Optional[HFloatTmpConfig]=None) -> HlsNetNodeOut:
+                 name:Optional[str]=None, operatorSpecialization:OpSpecialization_t=None) -> HlsNetNodeOut:
         assert a._dtype == b._dtype, (a, b, a._dtype, b._dtype)
         if a is b or isinstance(a, HlsNetNodeOut) and\
                 isinstance(a.obj, HlsNetNodeOperator) and\
@@ -450,7 +450,7 @@ class HlsNetlistBuilder():
         return self.buildOp(HwtOps.AND, operatorSpecialization, a._dtype, a, b, name=name)
 
     def buildAndOptional(self, a: Optional[Union[HlsNetNodeOut, HConst]], b: Optional[Union[HlsNetNodeOut, HConst]],
-                         name:Optional[str]=None, operatorSpecialization:Optional[HFloatTmpConfig]=None)\
+                         name:Optional[str]=None, operatorSpecialization:OpSpecialization_t=None)\
             ->Union[HlsNetNodeOut, HConst, None]:
         if a is None:
             return b
@@ -460,7 +460,7 @@ class HlsNetlistBuilder():
             return self.buildAnd(a, b, name=name, operatorSpecialization=operatorSpecialization)
 
     def buildOr(self, a: Union[HlsNetNodeOut, HConst], b:Union[HlsNetNodeOut, HConst],
-                name:Optional[str]=None, operatorSpecialization:Optional[HFloatTmpConfig]=None) -> HlsNetNodeOut:
+                name:Optional[str]=None, operatorSpecialization:OpSpecialization_t=None) -> HlsNetNodeOut:
         assert a._dtype == b._dtype, (a, b, a._dtype, b._dtype)
         if isinstance(a, HlsNetNodeOut) and\
                 isinstance(a.obj, HlsNetNodeOperator) and\
@@ -492,7 +492,7 @@ class HlsNetlistBuilder():
         return self.buildOp(HwtOps.OR, operatorSpecialization, a._dtype, a, b, name=name)
 
     def buildOrOptional(self, a: Optional[Union[HlsNetNodeOut, HConst]], b: Optional[Union[HlsNetNodeOut, HConst]],
-                        name:Optional[str]=None, operatorSpecialization:Optional[HFloatTmpConfig]=None)\
+                        name:Optional[str]=None, operatorSpecialization:OpSpecialization_t=None)\
             ->Union[HlsNetNodeOut, HConst, None]:
         if a is None:
             if b is None:
@@ -506,7 +506,7 @@ class HlsNetlistBuilder():
                 return self.buildOr(a, b, name=name, operatorSpecialization=operatorSpecialization)
 
     def buildXor(self, a: Union[HlsNetNodeOut, HConst], b:Union[HlsNetNodeOut, HConst],
-                name:Optional[str]=None, operatorSpecialization:Optional[HFloatTmpConfig]=None) -> HlsNetNodeOut:
+                name:Optional[str]=None, operatorSpecialization:OpSpecialization_t=None) -> HlsNetNodeOut:
         assert a._dtype == b._dtype, (a, b, a._dtype, b._dtype)
         for op0, other in ((a, b), (b, a)):
             if isinstance(op0, HlsNetNodeConst):
@@ -530,7 +530,7 @@ class HlsNetlistBuilder():
         return self.buildOp(HwtOps.XOR, operatorSpecialization, a._dtype, a, b, name=name)
 
     def buildNot(self, a: Union[HlsNetNodeOut, HConst], name:Optional[str]=None,
-                 operatorSpecialization:Optional[HFloatTmpConfig]=None, opt=True) -> HlsNetNodeOut:
+                 operatorSpecialization:OpSpecialization_t=None, opt=True) -> HlsNetNodeOut:
         if opt:
             if isinstance(a, HlsNetNodeOut):
                 aObj = a.obj
@@ -545,7 +545,7 @@ class HlsNetlistBuilder():
 
     def buildMux(self, resT: HdlType, operands: Tuple[Union[HlsNetNodeOut, HConst]],
                  name:Optional[str]=None,
-                 operatorSpecialization:Optional[HFloatTmpConfig]=None,
+                 operatorSpecialization:OpSpecialization_t=None,
                  opt=True) -> HlsNetNodeOut:
         """
         :param operands: operands in format of val0, (condN, valN)*
@@ -634,7 +634,7 @@ class HlsNetlistBuilder():
 
     def buildBitReverse(self, v: Union[HlsNetNodeOut, HConst],
                         name:Optional[str]=None,
-                        operatorSpecialization:Optional[HFloatTmpConfig]=None):
+                        operatorSpecialization:OpSpecialization_t=None):
         if isinstance(v, HConst):
             raise NotImplementedError(v)
         else:
@@ -646,7 +646,7 @@ class HlsNetlistBuilder():
             return self.buildConcat(*resBits, operatorSpecialization=operatorSpecialization, name=name)
 
     def buildConcat(self, *lsbToMsbOps: Union[HlsNetNodeOut, HConst],
-                    operatorSpecialization:Optional[HFloatTmpConfig]=None,
+                    operatorSpecialization:OpSpecialization_t=None,
                     name:Optional[str]=None) -> HlsNetNodeOut:
         """
         :param lsbToMsbOps: operands to concatenate, lower bits first
@@ -697,7 +697,7 @@ class HlsNetlistBuilder():
             return self.buildTrunc(a, newWidth, name)
 
     def buildZExt(self, a:Union[HlsNetNodeOut, HConst], newWidth: int,
-                  operatorSpecialization:Optional[HFloatTmpConfig]=None):
+                  operatorSpecialization:OpSpecialization_t=None):
         w = a._dtype.bit_length()
         if w == newWidth:
             return a
@@ -706,7 +706,7 @@ class HlsNetlistBuilder():
         return self.buildConcat(a, HBits(newWidth - w).from_py(0), operatorSpecialization=operatorSpecialization)
 
     def buildSExt(self, a:Union[HlsNetNodeOut, HConst], newWidth: int,
-                  operatorSpecialization:Optional[HFloatTmpConfig]=None):
+                  operatorSpecialization:OpSpecialization_t=None):
         w = a._dtype.bit_length()
         if w == newWidth:
             return a
@@ -716,7 +716,7 @@ class HlsNetlistBuilder():
         return self.buildConcat(a, *(msb for _ in range(newWidth - w)), operatorSpecialization=operatorSpecialization)
 
     def buildIndexConst(self, a: HlsNetNodeOut, i: int,
-                        operatorSpecialization:Optional[HFloatTmpConfig]=None, name:Optional[str]=None):
+                        operatorSpecialization:OpSpecialization_t=None, name:Optional[str]=None):
         assert operatorSpecialization is None
         if i == 0 and a._dtype.bit_length() == 1:
             return a
@@ -724,7 +724,7 @@ class HlsNetlistBuilder():
         return self.buildOp(OP_INDEX_CONST, i, BIT, a, name=name)
 
     def buildIndexConstSlice(self, resT: HdlType, a: HlsNetNodeOut, high: int, low: Optional[int],
-                             operatorSpecialization:Optional[HFloatTmpConfig]=None,
+                             operatorSpecialization:OpSpecialization_t=None,
                              name:Optional[str]=None):
         assert operatorSpecialization is None
         w = a._dtype.bit_length()
@@ -744,7 +744,7 @@ class HlsNetlistBuilder():
         return self.buildOp(OP_INDEX_CONST, i, resT, a, name=name)
 
     def buildGetMsb(self, a: HlsNetNodeOut,
-                    operatorSpecialization:Optional[HFloatTmpConfig]=None,
+                    operatorSpecialization:OpSpecialization_t=None,
                     name:Optional[str]=None):
         assert operatorSpecialization is None
         i = a._dtype.bit_length() - 1

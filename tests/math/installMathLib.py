@@ -1,5 +1,7 @@
+from typing import Optional
+
 from hwt.hdl.operatorDefs import HwtOps
-from hwtHls.llvm.llvmIr import TargetOpcode, CmpInst, Instruction, FCmpInst, Intrinsic
+from hwtHls.llvm.llvmIr import TargetOpcode, CmpInst, Instruction, FCmpInst, Intrinsic, Type
 from hwtHls.netlist.extraOps import OP_UDIVREM, OP_SDIVREM, OP_MUL_HL
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.ssa.analysis.llvmIrInterpretUtils import HwtHlsFpIntrisicName
@@ -55,6 +57,7 @@ from tests.math.componentGenerators.ftan import ComponentGeneratorFTAN, \
     ComponentGeneratorFTANPI_hwtHlsFpIntrinsic
 from tests.math.componentGenerators.mul import ComponentGeneratorMUL
 from tests.math.componentGenerators.mul_hl import ComponentGeneratorMUL_HL
+from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 from tests.math.hFloatTmp.hFloatTmpCast import OP_CAST_HFLOATTMP_TO_HFLOATTMP
 from tests.math.hFloatTmp.hFloatTmpOps import OP_FADD, OP_FSUB, OP_FMUL, \
     OP_FCMP_OEQ, OP_FCMP_OGT, OP_FCMP_OGE, OP_FCMP_OLT, OP_FCMP_OLE, OP_FCMP_ONE, \
@@ -72,6 +75,11 @@ def installMathLibComponentGenerators(p: VirtualHlsPlatform, optThroughputVsArea
         This function installs code generators which implements components with 0.5 ulp error if not configured otherwise.
     """
     g = p._componentGenerators
+
+    def _getHFloatType(llvmTy: Optional[Type]=None) -> HFloatTmp:
+        return HFloatTmp
+
+    p._getHFloatType = _getHFloatType
     # _FP_UNARY_OPCODES = {
     #    TargetOpcode.HWTFPGA_FP_CEIL,
     #    HwtHlsFpIntrisicName("hwtHls.fp.ceil."): _decodeIntrinsic_fp_unOp(math.ceil),

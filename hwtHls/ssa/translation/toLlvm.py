@@ -47,7 +47,6 @@ from hwtHls.ssa.translation.toLlvmUtils import addHwtHlsFunctionIoMetadata, \
     ToLlvmIrTranslator_createOperatorConstructorDictionaries, \
     llvmFunctionSortArgsByName, ToLlvmIoRecordTuple, applyLateLoopPragma
 from pyMathBitPrecise.bit_utils import iter_bits_sequences, get_bit_range
-from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 
 PyObjectPlaceholderList = list[_PyBytecodeIntrinsic]
 
@@ -114,8 +113,11 @@ class ToLlvmIrTranslator(AnalysisCache[SsaAnalysisPass, SsaPass]):
         self._dbgRootDir: Optional[Path] = None
         self._dbgSubDir: Optional[Path] = None
 
+    def _getHFloatType(self, t: Optional[Type]=None) -> HdlType:
+        return self.parentHwModule._target_platform._getHFloatType(t)
+
     def _getOrCreateAllocaForTmpVariable(self, var: RtlSignal,
-                                         allocaKnownToBeMissing: bool):
+                                         allocaKnownToBeMissing: bool) -> AllocaInst:
         assert isinstance(var, RtlSignal), var
         alloca = None if allocaKnownToBeMissing else self._allocaForVariable.get(var)
         builder: IRBuilder = self.b
@@ -496,7 +498,7 @@ class ToLlvmIrTranslator(AnalysisCache[SsaAnalysisPass, SsaPass]):
             # :see: CreateGlobalDataWithGEP
             vTy: HArray
 
-            if not isinstance(vTy.element_t, HBits) and vTy.element_t != HFloatTmp:
+            if not isinstance(vTy.element_t, HBits) and vTy.element_t != self._getHFloatType():
                 # the type is some non scalar value, reinterpret it to raw bits
                 flatElementT = HBits(vTy.element_t.bit_length())
                 vTyFlat = flatElementT[vTy.size]

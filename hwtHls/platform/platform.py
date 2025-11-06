@@ -1,7 +1,5 @@
-from io import StringIO
 import os
 from pathlib import Path
-import sys
 from typing import Optional, Union, Type
 
 from hwt.hdl.operatorDefs import HOperatorDef
@@ -50,6 +48,7 @@ from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnaly
 from hwtHls.ssa.translation.mirThreadFromHwtComponent import mirThreadFromHwtComponentMetadata
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtHls.ssa.translation.toLlvmUtils import getIoNodeConstructors
+from hwt.hdl.types.hdlType import HdlType
 
 
 def _runOnSsaModuleGetter(p):
@@ -73,7 +72,8 @@ class DefaultHlsPlatform(DummyPlatform):
     :ivar _llvmCliArgs: llvm CLI arguments which are passed to compilation of main functions
     """
 
-    def __init__(self, debugDir:Optional[Union[str, Path]]=HlsDebugBundle.DEFAULT_DEBUG_DIR,
+    def __init__(self,
+                 debugDir:Optional[Union[str, Path]]=HlsDebugBundle.DEFAULT_DEBUG_DIR,
                  debugFilter: Optional[set[DebugId]]=HlsDebugBundle.DEFAULT,
                  llvmCliArgs: list[LlvmCliArgTuple]=[]):
         DummyPlatform.__init__(self)
@@ -83,6 +83,9 @@ class DefaultHlsPlatform(DummyPlatform):
         self._debugExpandCompositeNodes = False
         self._llvmCliArgs: list[LlvmCliArgTuple] = llvmCliArgs
         self._llvmIoLowerPasses: list["ModulePass"] = []
+
+    def _getHFloatType(self, llvmTy: Optional[Type]=None) -> HdlType:
+        raise NotImplementedError("This platform does not have support for floating point and alike", self)
 
     def _getDebugTracer(self, scopeName: str, dbgId: DebugId):
         dbgDir = self._debug.dir
