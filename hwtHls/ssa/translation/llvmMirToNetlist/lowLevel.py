@@ -403,6 +403,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
 
     def _translateRegister(self, block: MachineBasicBlock, r: Register):
         bw = self.registerTypes.get(r, None)
+        assert bw is not None, (r, block)
         res = self.valCache.get(block, r, HBits(bw))
         assert isinstance(res, (HlsNetNodeOut, HlsNetNodeOutLazy)), res
         return res
