@@ -36,7 +36,6 @@ ENV PATH="/opt/venv/bin:/home/${NB_USER}/.local/bin/:$PATH"
 
 # [mybinder specific]
 # Make sure the contents of our repo are in ${HOME}
-COPY --chown=${NB_UID} . ${HOME}
 USER ${NB_USER}
 WORKDIR ${HOME}
 
@@ -52,10 +51,11 @@ RUN jupyter labextension install @deathbeds/jupyterlab_graphviz
 RUN	jupyter --version &&\
 	node --version
 
+COPY --chown=${NB_UID} . ${HOME}
 # install fresh dependencies from git (not required, there are pip packages)
 RUN pip install -r doc/requirements.txt
 # install this library
-RUN pip install .
+RUN pip install . --verbose --verbose
 # rm main package folder so it does not interfere with the installation
 RUN rm hwtHls/ -r
 
