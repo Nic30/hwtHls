@@ -29,10 +29,10 @@ RUN DEBIAN_FRONTEND="noninteractive"\
 	apt install build-essential python3-dev llvm-21-dev python3 python3-pip python3-venv\
 				git ninja-build cmake libreadline8 libreadline-dev pkg-config npm -y
 
-RUN python3 -m venv /opt/venv
-RUN chown -R ${NB_UID} /opt/venv
+RUN python3 -m venv /home/${NB_USER}/venv
+RUN chown -R ${NB_UID} /home/${NB_USER}/venv
 # Docker equivalent to source venv/bin/asctivate
-ENV PATH="/opt/venv/bin:/home/${NB_USER}/.local/bin/:$PATH"
+ENV PATH="/home/${NB_USER}/venv/bin:/home/${NB_USER}/.local/bin/:$PATH"
 
 # [mybinder specific]
 # Make sure the contents of our repo are in ${HOME}
