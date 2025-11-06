@@ -30,7 +30,7 @@ RUN DEBIAN_FRONTEND="noninteractive"\
 				git ninja-build cmake libreadline8 libreadline-dev pkg-config npm -y
 
 RUN python3 -m venv /home/${NB_USER}/venv
-RUN chown -R ${NB_UID} /home/${NB_USER}/venv
+RUN chown -R ${NB_UID} /home/${NB_USER}
 # Docker equivalent to source venv/bin/asctivate
 ENV PATH="/home/${NB_USER}/venv/bin:/home/${NB_USER}/.local/bin/:$PATH"
 
