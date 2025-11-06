@@ -3,9 +3,9 @@
 # https://mybinder.readthedocs.io/en/latest/tutorials/dockerfile.html#preparing-your-dockerfile
 #
 # # How to use localy:
-# # * note that if you use sudo you are running program as a superuser an not as an actual user
+# # * note that if you use sudo $USER=root
 # NB_USER=$USER
-# docker build  --build-arg NB_USER=$NB_USER  --build-arg NB_UID=`id -u $NB_USER` -t nic30/hwthls .
+# DOCKER_BUILDKIT=1 BUILDKIT_PROGRESS=plain docker build  --build-arg NB_USER=$NB_USER  --build-arg NB_UID=`id -u $NB_USER` -t nic30/hwthls .
 # docker run -it --rm -p 8888:8888 nic30/hwthls jupyter-lab --port=8888 --ip=0.0.0.0
 
 FROM ubuntu:rolling
@@ -23,31 +23,39 @@ RUN useradd --non-unique  \
     ${NB_USER}
 
 USER root
-RUN apt update && \
-	DEBIAN_FRONTEND="noninteractive" apt install python3 python3-pip python3-dev llvm-21-dev libreadline-dev npm -y
-RUN pip3 install --break-system-packages jupyterlab jupyterlab-lsp 'python-lsp-server[all]' jupyterlab-system-monitor
-RUN jupyter labextension install @deathbeds/jupyterlab_graphviz
+RUN DEBIAN_FRONTEND="noninteractive"\
+	apt update && \
+	apt upgrade -y && \
+	apt install build-essential python3-dev llvm-21-dev python3 python3-pip python3-venv\
+				git ninja-build cmake libreadline8 libreadline-dev pkg-config npm -y
 
-# debug print versions
-RUN python3 --version
-RUN jupyter --version
-RUN node --version
-RUN free
+RUN python3 -m venv /opt/venv
+RUN chown -R ${NB_UID} /opt/venv
+# Docker equivalent to source venv/bin/asctivate
+ENV PATH="/opt/venv/bin:/home/${NB_USER}/.local/bin/:$PATH"
 
 # [mybinder specific]
 # Make sure the contents of our repo are in ${HOME}
-COPY . ${HOME}
-RUN chown -R ${NB_UID} ${HOME}
+COPY --chown=${NB_UID} . ${HOME}
 USER ${NB_USER}
-#USER root
 WORKDIR ${HOME}
 
-RUN pip3 install --break-system-packages git+https://github.com/dnicolodi/pip.git@debian-scheme
-ENV PATH /home/${NB_USER}/.local/bin/:$PATH
+RUN pip install --upgrade pip
+RUN python --version  &&\
+	pip --version     &&\
+    free
+
+RUN pip install jupyterlab jupyterlab-lsp 'python-lsp-server[all]' jupyterlab-system-monitor
+RUN jupyter labextension install @deathbeds/jupyterlab_graphviz
+
+# debug print versions
+RUN	jupyter --version &&\
+	node --version
+
 # install fresh dependencies from git (not required, there are pip packages)
-RUN pip3 install --break-system-packages -r doc/requirements.txt
+RUN pip install -r doc/requirements.txt
 # install this library
-RUN pip3 install --break-system-packages .
+RUN pip install .
 # rm main package folder so it does not interfere with the installation
 RUN rm hwtHls/ -r
 
