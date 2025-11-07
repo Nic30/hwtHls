@@ -380,17 +380,19 @@ bool resolveTypes(MachineInstr &MI) {
 			totalWidth += width;
 		}
 		duplicateRegsForUndefValues(undefsToDuplicate, MRI, MI);
-		assert(
-				MachineOperand_checkOrSetWidth(MRI, MI.getOperand(0),
-						totalWidth, nullptr));
+
+		if (!MachineOperand_checkOrSetWidth(MRI, MI.getOperand(0),
+						totalWidth, nullptr)) {
+			llvm_unreachable("Width of HWTFPGA_MERGE_VALUES dst operand is not what is expected");
+		}
 		return true;
 	}
 	case HwtFpga::HWTFPGA_EXTRACT: {
 		auto subSlice = hwtHls::HWTFPGA_EXTRACTOptions::get(MI);
-
-		assert(
-				MachineOperand_checkOrSetWidth(MRI, MI.getOperand(0),
-						subSlice.dstWidth, nullptr));
+		if (!MachineOperand_checkOrSetWidth(MRI, MI.getOperand(0),
+								subSlice.dstWidth, nullptr)) {
+			llvm_unreachable("Width of HWTFPGA_EXTRACT dst operand is not what is expected");
+		}
 		auto &src = MI.getOperand(1);
 		if (src.isUndef()) {
 			MF.dump();
@@ -545,9 +547,10 @@ bool resolveTypes(MachineInstr &MI) {
 	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE_WITH_SIDEEFECT: {
 		// $dst, $objId, $dstWidt, $src[n], $srcWidth[n], $enCond
 		auto dstWidth = MI.getOperand(2).getImm();
-		assert(
-				MachineOperand_checkOrSetWidth(MRI, MI.getOperand(0), dstWidth,
-						nullptr));
+		if (!MachineOperand_checkOrSetWidth(MRI, MI.getOperand(0), dstWidth,
+						nullptr)) {
+			llvm_unreachable("Width of HWTFPGA_PYOBJECT_PLACEHOLDER* dst operand is not what is expected");
+		}
 
 		unsigned srcCnt = (MI.getNumExplicitOperands() - 3) / 2;
 		llvm::SmallVector<std::pair<unsigned, uint64_t>> undefsToDuplicate;
