@@ -3,12 +3,14 @@ from typing import Tuple, Dict, List, Set, Optional, Union, Sequence
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.constants import WRITE, READ
-from hwt.hdl.operatorDefs import HwtOps, HOperatorDef
+from hwt.hdl.operatorDefs import HOperatorDef
 from hwt.hdl.types.bits import HBits
-from hwt.hdl.types.defs import BIT, SLICE, INT
+from hwt.hdl.types.defs import BIT
+from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
 from hwt.mainBases import RtlSignalBase
 from hwt.pyUtils.setList import SetList
+from hwtHls.architecture.componentGenerator import ComponentGenerator
 from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.io.bram import IoProxyBram
 from hwtHls.io.portGroups import BankedPortGroup, MultiPortGroup
@@ -35,6 +37,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     HlsNetNodeOutAny
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from hwtHls.platform.opRealizationMeta import ComponentRealizationMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.branchOutLabel import BranchOutLabel
 from hwtHls.ssa.translation.llvmMirToNetlist.lowLevel import HlsNetlistAnalysisPassMirToNetlistLowLevel
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
@@ -44,9 +47,7 @@ from hwtHls.ssa.translation.llvmMirToNetlist.utils import LiveInMuxMeta, \
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from hwtHls.ssa.translation.toLlvmUtils import _USE_DEFAULT_IO_NODE_CONSTRUCTOR, \
     NetlistIoConstructorDictT
-from hwt.hdl.types.hdlType import HdlType
-from hwtHls.platform.opRealizationMeta import ComponentRealizationMeta
-from hwtHls.architecture.componentGenerator import ComponentGenerator
+
 
 BlockLiveInMuxSyncDict = Dict[Tuple[MachineBasicBlock, MachineBasicBlock, Register], HlsNetNodeExplicitSync]
 
