@@ -110,6 +110,7 @@ void register_MachineFunction(pybind11::module_ &m) {
 		.def("getPredicate", &llvm::MachineOperand::getPredicate)
 		.def("getGlobal", &llvm::MachineOperand::getGlobal, py::return_value_policy::reference_internal)
 		.def("isReg", &llvm::MachineOperand::isReg)
+		.def("isDead", &llvm::MachineOperand::isDead)
 		.def("isDef", &llvm::MachineOperand::isDef)
 		.def("isUndef", &llvm::MachineOperand::isUndef)
 		.def("isMBB", &llvm::MachineOperand::isMBB)
