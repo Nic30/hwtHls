@@ -346,17 +346,17 @@ class SyncLogicSearcher():
                     rd = ioNode._ready
                     if isChannel:
                         readyValidComputedBySyncLogic.append((rdNB, clkI))
-                    if ioNode._getBufferCapacity() > 0:
-                        if ioNode._shouldUseReadValidNBInsteadOfFullPort():
-                            r = ioNode.associatedRead
-                            rSyncNode = r.getParentSyncNode()
-                            rValidNB = r.getValidNB()
-                            # :note: must not search for uses of rValidNB because rSyncNode may not be in this SCC
-                            if self.primaryInputs.append((rValidNB, rSyncNode)):
-                                self._onPrimaryInputFound(rValidNB, rSyncNode)
-                        else:
-                            self.collectFromOutput(syncNode, ioNode.getFullPort())
-
+                        if ioNode._getBufferCapacity() > 0:
+                            if ioNode._shouldUseReadValidNBInsteadOfFullPort():
+                                r = ioNode.associatedRead
+                                rSyncNode = r.getParentSyncNode()
+                                rValidNB = r.getValidNB()
+                                # :note: must not search for uses of rValidNB because rSyncNode may not be in this SCC
+                                if self.primaryInputs.append((rValidNB, rSyncNode)):
+                                    self._onPrimaryInputFound(rValidNB, rSyncNode)
+                            else:
+                                self.collectFromOutput(syncNode, ioNode.getFullPort())
+    
                     if rd is not None:
                         self.collectFromOutput(syncNode, rd)
                     if rdNB is not None:
