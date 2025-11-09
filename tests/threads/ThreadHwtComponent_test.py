@@ -15,6 +15,7 @@ from hwtHls.frontend.threadFromLlvmIr import HlsThreadFromLlvmIr
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, \
     parseIR, SMDiagnostic, verifyModule, HwtHlsIoMetadata, IODirection, HwtHlsIoMetadataSmallVector, \
     HwtHlsIoMetadata_set, Module
+from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtLib.handshaked.reg_test import HandshakedRegL1D0TC
@@ -240,7 +241,6 @@ class ThreadHwtComponentReg_rtl_TC(SimTestCase):
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
-    from hwtHls.platform.virtual import VirtualHlsPlatform
 
     m = ExampleThreadHwtComponent_regThreadToThread()
     print(to_rtl_str(m,
