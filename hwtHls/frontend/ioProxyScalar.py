@@ -1,6 +1,7 @@
 from typing import Optional, Union, Type as TypingType, Sequence, Literal
 
 from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.defs import BIT
 from hwt.hwIO import HwIO
 from hwt.hwIOs.hwIOArray import HwIOArray
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld, HwIO_to_HdlType, HwIOStruct
@@ -181,9 +182,11 @@ class IoProxyScalar(IoProxy):
 
         mirExpectedWidth = mirToNetlist.mf.getRegInfo().getType(instrDstReg).getScalarSizeInBits()
         if isBlocking:
-            assert mirExpectedWidth == max(1, dtype.bit_length()), ("Width of physical signals of IO must be what is expected from LLVM MIR", instrDstReg, mirExpectedWidth, dtype)
+            assert mirExpectedWidth == max(1, dtype.bit_length()), (
+                "Width of physical signals of IO must be what is expected from LLVM MIR", instrDstReg, mirExpectedWidth, dtype)
         else:
-            assert mirExpectedWidth == max(1, dtype.bit_length()) + 1, ("Width of physical signals of IO must be what is expected from LLVM MIR", instrDstReg, mirExpectedWidth, dtype)
+            assert mirExpectedWidth == max(1, dtype.bit_length() + 1), (
+                "Width of physical signals of IO must be what is expected from LLVM MIR", instrDstReg, mirExpectedWidth, dtype)
         n: HlsNetNodeRead = readNodeCls(netlist,
                            self,
                            srcIo,
@@ -199,17 +202,22 @@ class IoProxyScalar(IoProxy):
         mbMeta.addOrderedNode(n)
         if isBlocking:
             o = n._portDataOut
+            if dtype.bit_length() == 0:
+                assert instr.getOperand(0).isDead(), (
+                "This is read of void, i1 is used for compatibility with LLVM, there should not be any actual use of read data", instr)
+        
         else:
             o = n.getRawValue()
-            if dtype.bit_length() == 0:
-                # must extend because MIR represented void with 1b int and in HlsNetlist there is void
-                b: HlsNetlistBuilder = n.getHlsNetlistBuilder()
-                o = b.buildConcat(o, o)
-
-        assert not isinstance(o._dtype, HBits) or not o._dtype.signed, (
-            "At this stage all values of HBits type should have signed=None", o)  # can potentially be of void type
-        valCache.add(mbMeta.block, instrDstReg, o, True)
-
+            #if dtype.bit_length() == 0:
+            #    assert n._portDataOut is None, n
+            # if dtype.bit_length() == 0:
+            #    # must extend because MIR represented void with 1b int and in HlsNetlist there is void
+            #    #b: HlsNetlistBuilder = n.getHlsNetlistBuilder()
+            #    #o = b.buildConcat(o, o)
+        if not isBlocking or dtype.bit_length() != 0:
+            assert not isinstance(o._dtype, HBits) or not o._dtype.signed, (
+                "At this stage all values of HBits type should have signed=None", o, instr)  # can potentially be of void type
+            valCache.add(mbMeta.block, instrDstReg, o, True)
         return [n, ]
 
     @override
