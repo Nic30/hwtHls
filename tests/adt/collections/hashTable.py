@@ -137,8 +137,8 @@ if __name__ == "__main__":
     m = HashTable()
     print(to_rtl_str(m, target_platform=Artix7Slow(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
-    from sphinx_hwt.debugUtils import hwt_HwModule_to_html
-    hwt_HwModule_to_html(m, "tmp/HashTable.scheme.html")
+    # from sphinx_hwt.debugUtils import hwt_HwModule_to_html
+    # hwt_HwModule_to_html(m, "tmp/HashTable.scheme.html")
     # import sqlite3
     # import datetime
     # from hwtBuildsystem.vivado.executor import VivadoExecutor
