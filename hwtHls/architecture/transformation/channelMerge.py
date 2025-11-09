@@ -187,13 +187,6 @@ class RtlArchPassChannelMerge(HlsArchPass):
                 w0.dst = hwIO
 
     @staticmethod
-    def _assertNodeIsDisconnected(n: HlsNetNode):
-        for dep, i in zip(n.dependsOn, n._inputs):
-            assert dep is None, ("Expected disconnected input", i, dep)
-        for uses, o in zip(n.usedBy, n._outputs):
-            assert not uses, ("Expected unused output", o, uses)
-
-    @staticmethod
     def _optionallyScheduleSliceNodes(newV: HlsNetNodeOut, elm: ArchElement):
         sliceNode: HlsNetNode = newV.obj
         if sliceNode.scheduledZero is None:
@@ -257,26 +250,16 @@ class RtlArchPassChannelMerge(HlsArchPass):
                 w._portSrc.disconnectFromHlsOut()
                 unlink_hls_node_input_if_exists(w.extraCond)
                 unlink_hls_node_input_if_exists(w.skipWhen)
-                if w._dataVoidOut is not None:
-                    builder.replaceOutput(w._dataVoidOut, w0.getDataVoidOutPort(), True)
-                if r._valid is not None:
-                    builder.replaceOutput(w._ready, w0.getReady(), True)
-                if r._validNB is not None:
-                    builder.replaceOutput(w._readyNB, w0.getReadyNB(), True)
-                self._assertNodeIsDisconnected(w)
+                builder.replaceOutputsOfHlsNetNodeWrite(w, w0, replaceOrderingPorts=False)
+                builder._assertNodeIsDisconnected(w)
                 w.markAsRemoved()
 
                 addAllDepsToWorklist(worklist, r)
                 addAllUsersToWorklist(worklist, r)
                 unlink_hls_node_input_if_exists(r.extraCond)
                 unlink_hls_node_input_if_exists(r.skipWhen)
-                if r._dataVoidOut is not None:
-                    builder.replaceOutput(r._dataVoidOut, r0.getDataVoidOutPort(), True)
-                if r._valid is not None:
-                    builder.replaceOutput(r._valid, r0.getValid(), True)
-                if r._validNB is not None:
-                    builder.replaceOutput(r._validNB, r0.getValidNB(), True)
-                self._assertNodeIsDisconnected(r)
+                builder.replaceOutputsOfHlsNetNodeRead(r, r0, replaceDataPorts=False, replaceOrderingPorts=False)
+                builder._assertNodeIsDisconnected(r)
                 r.markAsRemoved()
 
             offset += rO0T.bit_length()

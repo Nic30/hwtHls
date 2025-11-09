@@ -23,13 +23,13 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator, OP_INDEX_CONST, \
     OpSpecialization_t
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, \
-    HlsNetNodeIn, HlsNetNodeOutLazy, HlsNetNodeOutAny
+    HlsNetNodeIn, HlsNetNodeOutLazy, HlsNetNodeOutAny, \
+    unlink_hls_node_input_if_exists
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.simplifyUtils import getConstOfOutput
 from pyMathBitPrecise.bit_utils import mask
-
 
 HlsNetlistBuilderOperatorCacheKey_t = Tuple[Union[HOperatorDef, Type[HlsNetNode]],
                                             object,  # operator specialization
@@ -813,6 +813,44 @@ class HlsNetlistBuilder():
 
         return c
 
+    def replaceInput(self, i: HlsNetNodeIn, newI: HlsNetNodeIn) -> Optional[HlsNetNodeOut]:
+        """
+        replace input connected to output
+        :attention: if new node is operator it should be inserted into cache by user 
+        """
+        isInOpCache = isinstance(i.obj, HlsNetNodeOperator)
+        if isInOpCache:
+            self.unregisterOperatorNode(i.obj)
+
+        dep = unlink_hls_node_input_if_exists(i)
+        if dep is not None:
+            dep: HlsNetNodeOutAny
+            dep.connectHlsIn(newI)
+        return dep
+
+    def replaceInputsOfHlsNetNodeExplicitSync(self, es: HlsNetNodeExplicitSync, newEs: HlsNetNodeExplicitSync):
+        dep = unlink_hls_node_input_if_exists(es.extraCond)
+        if dep is not None:
+            newEs.addControlSerialExtraCond(dep)
+        dep = unlink_hls_node_input_if_exists(es.skipWhen)
+        if dep is not None:
+            newEs.addControlSerialSkipWhen(dep)
+        dep = unlink_hls_node_input_if_exists(es._forceEnPort)
+        if dep is not None:
+            dep.connectHlsIn(newEs.getForceEnPort())
+        for oi in es.iterOrderingInputs():
+            dep = unlink_hls_node_input_if_exists(oi)
+            newOi = newEs._addInput(oi.name)
+            dep.connectHlsIn(newOi)
+
+    def replaceInputsOfHlsNetNodeRead(self, r: HlsNetNodeRead, newR: HlsNetNodeRead):
+        self.replaceInputsOfHlsNetNodeExplicitSync(r, newR)
+
+    def replaceInputsOfHlsNetNodeWrite(self, w: HlsNetNodeWrite, newW: HlsNetNodeWrite):
+        self.replaceInputsOfHlsNetNodeExplicitSync(w, newW)
+        if w._portSrc:
+            self.replaceInput(w._portSrc, newW._portSrc)
+
     def replaceInputDriver(self, i: HlsNetNodeIn, newO: HlsNetNodeOutAny):
         """
         Replace output connected to specified input.
@@ -920,6 +958,37 @@ class HlsNetlistBuilder():
 
         return True
 
+    def replaceOutputsOfHlsNetNodeRead(self, r: HlsNetNodeRead, newR: HlsNetNodeRead, replaceDataPorts:bool=True, replaceOrderingPorts: bool=True):
+        if r._dataVoidOut is not None:
+            self.replaceOutput(r._dataVoidOut, newR.getDataVoidOutPort(), True)
+
+        if replaceDataPorts:
+            if r._portDataOut:
+                self.replaceOutput(r._portDataOut, newR._portDataOut, True)
+            if r._rawValue is not None:
+                self.replaceOutput(r._rawValue, newR.getRawValue(), True)
+
+        if r._valid is not None:
+            self.replaceOutput(r._valid, newR.getValid(), True)
+        if r._validNB is not None:
+            self.replaceOutput(r._validNB, newR.getValidNB(), True)
+
+        if replaceOrderingPorts and r._orderingOut is not None:
+            self.replaceOutput(r._orderingOut, newR.getOrderingOutPort(), True)
+
+    def replaceOutputsOfHlsNetNodeWrite(self, w: HlsNetNodeWrite, newW: HlsNetNodeWrite, replaceOrderingPorts: bool=True):
+        if w._dataVoidOut is not None:
+            self.replaceOutput(w._dataVoidOut, newW.getDataVoidOutPort(), True)
+        if w._ready is not None:
+            self.replaceOutput(w._ready, newW.getReady(), True)
+        if w._readyNB is not None:
+            self.replaceOutput(w._readyNB, newW.getReadyNB(), True)
+        if w._fullPort is not None:
+            self.replaceOutput(w._fullPort, newW.getFullPort(), True)
+
+        if replaceOrderingPorts and w._orderingOut is not None:
+            self.replaceOutput(w._orderingOut, newW.getOrderingOutPort(), True)
+
     def moveSimpleSubgraph(self, i: HlsNetNodeIn, o: HlsNetNodeOut, insertO: HlsNetNodeOut, insertI: HlsNetNodeIn):
         """
         | ....x0| -> |i o| -> |x1 ... insertO| -> |insertI ...|
@@ -967,6 +1036,13 @@ class HlsNetlistBuilder():
                 self.operatorCache[k] = n._outputs[0]
             else:
                 self.operatorCache[k] = n
+
+    @staticmethod
+    def _assertNodeIsDisconnected(n: HlsNetNode):
+        for dep, i in zip(n.dependsOn, n._inputs):
+            assert dep is None, ("Expected disconnected input", i, dep)
+        for uses, o in zip(n.usedBy, n._outputs):
+            assert not uses, ("Expected unused output", o, uses)
 
 
 class HlsNetlistBuilderWithWorklist(HlsNetlistBuilder):
