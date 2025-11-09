@@ -143,7 +143,7 @@ class SyncLogicResolver(HlsNetlistToAbcAig):
         if ack is not None:
             forceEn = ioNode._forceEnPort
             if isinstance(ioNode, HlsNetNodeWrite):
-                if ioNode._getBufferCapacity() > 0:
+                if ioNode.associatedRead is not None and ioNode._getBufferCapacity() > 0:
                     if ioNode._shouldUseReadValidNBInsteadOfFullPort():
                         syncNode = ioNode.associatedRead.getParentSyncNode()
                         _full = ioNode.associatedRead.getValidNB()
@@ -314,7 +314,7 @@ class SyncLogicResolver(HlsNetlistToAbcAig):
     def _containsIORequiringStageAck(self, c: ArchSyncNodeTy):
         _, writes = self.nodeIo[c]
         for w in writes:
-            if w._isFlushable or w._getBufferCapacity() > 0:
+            if w._isFlushable or (w.associatedRead is not None and w._getBufferCapacity() > 0):
                 return True
         neighbors = self.neighborDict.get(c, False)
         if neighbors:
