@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import sys
-from unittest import TestLoader, TextTestRunner, TestSuite
 
 from hwtLib.tests.all import unittestMain
 from tests.adt.collections.hashTable_test import HashTable_TC
