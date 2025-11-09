@@ -57,6 +57,25 @@ Instruction* HwtHlsInstCombiner::runOnInstr(Instruction &I) {
 #endif
 					return r;
 				}
+				break;
+			}
+			case Intrinsic::fshl: {
+				if (auto r = tryReduceIntrinsicInst_fshlConstSh(*II)) {
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+					assert(!verifyFunction(F, &errs()));
+#endif
+					return r;
+				}
+				break;
+			}
+			case Intrinsic::fshr: {
+				if (auto r = tryReduceIntrinsicInst_fshrConstSh(*II)) {
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+					assert(!verifyFunction(F, &errs()));
+#endif
+					return r;
+				}
+				break;
 			}
 			}
 		} else if (IsBitConcat(CI)) {

@@ -218,6 +218,9 @@ public:
 	bool pruneInvertedCmpDuplicatesInBlock(llvm::BasicBlock &BB);
 	bool pruneInvertedCmpDuplicatesInBlocks(llvm::Function &F);
 
+	llvm::Instruction* tryReduceIntrinsicInst_fshlConstSh(llvm::IntrinsicInst &I);
+	llvm::Instruction* tryReduceIntrinsicInst_fshrConstSh(llvm::IntrinsicInst &I);
+
 	llvm::Instruction* tryReduceMergableFunctionInSequence(llvm::CallInst &I);
 	//llvm::Instruction* _tryReduceMergableFunctionInSelect_optinalToMasked(
 	//		llvm::SelectInst &SI, llvm::CallInst *T,

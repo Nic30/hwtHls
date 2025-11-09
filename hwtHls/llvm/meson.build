@@ -162,6 +162,7 @@ py3.extension_module(
      'Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinerLogicOpWithCmp.cpp',
      'Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinerSelect.cpp',
      'Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinerSelectToBitcount.cpp',
+     'Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinerShift.cpp',
      'Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinerStreamEoFThreading.cpp',
      'Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinerUtilsHoisting.cpp',
      'Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinerUtilsImplication.cpp',
