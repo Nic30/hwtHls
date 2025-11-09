@@ -1,7 +1,7 @@
 from typing import Union, Dict, Tuple
 
 from hwt.hdl.types.hdlType import HdlType
-from hwtHls.llvm.llvmIr import MachineBasicBlock, Register
+from hwtHls.llvm.llvmIr import MachineBasicBlock, Register, MachineFunction
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
@@ -25,10 +25,11 @@ class MirToHwtHlsNetlistValueCache():
         and needs to be replaced once the value is resolved in the predecessor block
     """
 
-    def __init__(self, netlist: HlsNetlistCtx):
+    def __init__(self, netlist: HlsNetlistCtx, mfForDebug: MachineFunction):
         self._netlist = netlist
         self._toHlsCache: Dict[object, Union[HlsNetNodeOut, HlsNetNodeOutLazy]] = {}
         self._unresolvedBlockInputs: Dict[MachineBasicBlock, Dict[object, HlsNetNodeOutLazy]] = {}
+        self._mfForDebug = mfForDebug
 
     def __contains__(self, k: Tuple[MachineBasicBlock, MirValue]):
         return k in self._toHlsCache
@@ -79,7 +80,7 @@ class MirToHwtHlsNetlistValueCache():
 
         searchForSyncRead = False
         if isinstance(v, HlsNetNodeOut) and isinstance(v.obj, HlsNetNodeExplicitSync):
-            assert v.obj._associatedReadSync is None
+            assert v.obj._associatedReadSync is None, (v.obj, self._mfForDebug)
             searchForSyncRead = True
 
         if ubi is not None:
@@ -93,10 +94,10 @@ class MirToHwtHlsNetlistValueCache():
             HlsNetNodeOutLazy_replace(ubi, v)
             self._unresolvedBlockInputs[block].pop(reg)  # rm ubi
         else:
-            assert isinstance(cur, HlsNetNodeOutLazy), ("redefining already defined", k, cur, v)
+            assert isinstance(cur, HlsNetNodeOutLazy), ("redefining already defined", k, cur, v, self._mfForDebug)
             # however it is possible to redefine variable if the variable was live on input of the block and
             # it comes from body of this block
-            assert cur is not v, ("redefining to the same", k, v)
+            assert cur is not v, ("redefining to the same", k, v, self._mfForDebug)
             if searchForSyncRead:
                 for user in cur.dependent_inputs:
                     if isinstance(user.obj, HlsNetNodeReadSync):
@@ -115,7 +116,7 @@ class MirToHwtHlsNetlistValueCache():
         try:
             _v: HlsNetNodeOutAny = self._toHlsCache[k]
             assert not isinstance(_v, HlsNetNodeOutLazy) or _v.replaced_by is None, (k, v)
-            assert _v._dtype == dtype or _v._dtype.bit_length() == dtype.bit_length(), ("Datatype is not what was expected", v, _v._dtype, dtype, _v)
+            assert _v._dtype == dtype or _v._dtype.bit_length() == dtype.bit_length(), ("Datatype is not what was expected", v, _v._dtype, dtype, _v, self._mfForDebug)
             return _v
 
         except KeyError:

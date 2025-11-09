@@ -159,7 +159,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         self.componentGenerators = hls.getPlatform()._componentGenerators
         self.netlist = netlist
         # :note: value of a block in block0 means that the control flow was passed to block0 from block
-        self.valCache = MirToHwtHlsNetlistValueCache(netlist)
+        self.valCache = MirToHwtHlsNetlistValueCache(netlist, mf)
         self._valueCopiedIntoElement: dict[tuple[HlsNetNodeAggregate, MachineBasicBlock, Register]] = {}
         self._argIToIo: dict[int, HwIO] = {i: io for io, i in toLlvm.ioToArgIndex.items()}
         self.placeholderObjectSlots = [obj for (obj, _) in toLlvm.placeholderObjectSlots]
