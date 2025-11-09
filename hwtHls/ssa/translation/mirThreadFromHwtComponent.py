@@ -1,12 +1,19 @@
+from hdlConvertorAst.translate.common.name_scope import NameScope
 from hwt.hwModule import HwModule
 from hwtHls.llvm.llvmIr import MetadataThreadHwtComponent, IntStringTupleOrObjectPath, Function, \
     HwtHlsIoMetadata, HwtHlsIoMetadata_get, Argument, IODirection
-from hdlConvertorAst.translate.common.name_scope import NameScope
-from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
-from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
-from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
+from hwtHls.netlist.builder import HlsNetlistBuilder
+from hwtHls.netlist.context import HlsNetlistChannels
+from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
+    HlsNetNodeReadBackedge
+from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge, \
+    HlsNetNodeReadForwardedge
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
+from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
+from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
 
 
 def _importByPath(name: list[str]):
@@ -46,10 +53,12 @@ def IntStringTupleOrObjectPath_toPy(v: IntStringTupleOrObjectPath):
         raise AssertionError("Unknown type of IntStringTupleOrObjectPath", VT)
 
 
-def mirThreadFromHwtComponentMetadata(hwtCompMd: MetadataThreadHwtComponent,
-                                      toLlvm: ToLlvmIrTranslator,
-                                      toNetlist: HlsNetlistAnalysisPassMirToNetlist,
-                                      F: Function):
+def mirThreadFromHwtComponentMetadata(
+        channels: HlsNetlistChannels,
+        hwtCompMd: MetadataThreadHwtComponent,
+        toLlvm: ToLlvmIrTranslator,
+        toNetlist: HlsNetlistAnalysisPassMirToNetlist,
+        F: Function):
 
     m = _importByPath(hwtCompMd.constructor.value)
     args = tuple(IntStringTupleOrObjectPath_toPy(a) for a in hwtCompMd.constructorArgs)
@@ -63,7 +72,7 @@ def mirThreadFromHwtComponentMetadata(hwtCompMd: MetadataThreadHwtComponent,
         p = IntStringTupleOrObjectPath_toPy(p)
         assert hasattr(mInstance, pName), ("Assert that the instance truppy have this parameter before setting it", mInstance, pName)
         setattr(mInstance, pName, p)
-    
+
     netlist = toNetlist.netlist
     parentHwModule: HwModule = netlist.parentHwModule
     instanceName = NameScope.RE_NON_ID_CHAR.sub("_", F.getName().str())
@@ -87,28 +96,57 @@ def mirThreadFromHwtComponentMetadata(hwtCompMd: MetadataThreadHwtComponent,
                 channelKey = (ioMd.otherThreadFn, ioMd.otherArgIndex, F, argI)
             else:
                 channelKey = (F, argI, ioMd.otherThreadFn, ioMd.otherArgIndex)
-            c = netlist._channelsBetweenLlvmThreadsMir.get(channelKey)
+            c = channels._channelsBetweenLlvmThreadsMir.get(channelKey)
             if c is None:
                 # add new record about channel if this is first seen access to the channel
-                netlist._channelsBetweenLlvmThreadsMir[channelKey] = ioInside
-                netlist._channelsBetweenLlvmThreads[ioInside] = (None, None)
+                channels._channelsBetweenLlvmThreadsMir[channelKey] = ioInside
+                channels._channelsBetweenLlvmThreads[ioInside] = (None, None)
                 continue  # no connection required as ioInside will be directly used
             else:
                 if c._parent is None:
                     # c current channel HwIo is just placeholder,
                     # replace it with this
-                    r, w = netlist._channelsBetweenLlvmThreads.pop(c)
+                    r, w = channels._channelsBetweenLlvmThreads.pop(c)
                     if r is not None:
                         r: HlsNetNodeRead
                         assert r.src is None
-                        r.src = ioInside
+                        assert isinstance(r, (HlsNetNodeReadForwardedge, HlsNetNodeReadBackedge)), r
+                        assert w.scheduledZero is None, r
+                        netlist = r.netlist
+                        # convert HlsNetNodeReadForwardedge, HlsNetNodeReadBackedge -> HlsNetNodeRead
+                        newR = HlsNetNodeRead(netlist, r.ioProxy, ioInside, r._portDataOut._dtype,
+                                              r.name, r.channelInitValues)
+                        if not r._isBlocking:
+                            newR.setNonBlocking()
+                        builder: HlsNetlistBuilder = netlist.getHlsNetlistBuilder()
+                        builder._addNode(newR)
+
+                        builder.replaceOutputsOfHlsNetNodeRead(r, newR)
+                        builder.replaceInputsOfHlsNetNodeRead(r, newR)
+                        builder._assertNodeIsDisconnected(r)
+                        r.markAsRemoved()
 
                     if w is not None:
                         w: HlsNetNodeWrite
                         assert w.dst is None
-                        w.dst = ioInside
-                    netlist._channelsBetweenLlvmThreads[ioInside] = (r, w)
-                    netlist._channelsBetweenLlvmThreadsMir[channelKey] = ioInside
+                        assert isinstance(w, (HlsNetNodeWriteForwardedge, HlsNetNodeWriteBackedge)), w
+                        assert w.scheduledZero is None, w
+                        netlist = w.netlist
+
+                        # convert HlsNetNodeWriteForwardedge, HlsNetNodeWriteBackedge -> HlsNetNodeWrite
+                        newW = HlsNetNodeWrite(netlist, w.ioProxy, ioInside, w._mayBecomeFlushable, w.name, bufferCapacity=w._bufferCapacity)
+                        if not w._isBlocking:
+                            newW.setNonBlocking()
+                        builder: HlsNetlistBuilder = w.getHlsNetlistBuilder()
+                        builder._addNode(newW)
+
+                        builder.replaceOutputsOfHlsNetNodeWrite(w, newW)
+                        builder.replaceInputsOfHlsNetNodeWrite(w, newW)
+                        builder._assertNodeIsDisconnected(w)
+                        w.markAsRemoved()
+
+                    channels._channelsBetweenLlvmThreads[ioInside] = (r, w)
+                    channels._channelsBetweenLlvmThreadsMir[channelKey] = ioInside
                     continue  # no connection required as ioInside would be directly used
                 else:
                     # the interface is phisycally constructed and we should connect to it
