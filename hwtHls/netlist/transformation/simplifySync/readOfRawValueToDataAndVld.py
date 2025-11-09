@@ -1,12 +1,9 @@
-from hwt.hdl.operatorDefs import HwtOps
-from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.builder import _replaceOutPortWith
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator, OP_INDEX_CONST
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
-from hwtHls.netlist.transformation.simplifyUtils import getConstDriverOf
 from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOperatorNodeWith
 
 
