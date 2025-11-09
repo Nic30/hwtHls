@@ -103,12 +103,15 @@ class HlsAndRtlNetlistAnalysisPassChannelGraph(HlsArchAnalysisPass):
                 for n in nodes:
                     if isinstance(n, HlsNetNodeWrite):
                         if n.associatedRead is not None:
+                            assert n.associatedRead.associatedWrite is n, n
                             allChannelWrites.append(n)
                         else:
                             outputList.append(n)
                     elif isinstance(n, HlsNetNodeRead):
                         if n.associatedWrite is None:
                             inputList.append(n)
+                        else:
+                            assert n.associatedWrite.associatedRead is n, n
 
         self._collectNodeChannels(allNodes, allChannelWrites, self.nodeChannels)
         self._collectNeighborDict(allChannelWrites, self.neighborDict)
