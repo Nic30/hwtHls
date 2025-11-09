@@ -76,6 +76,8 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
         assert not isinstance(dtype, HBits) or dtype.signed is None, dtype
         assert dtype.isScalar(), dtype
         if addPortDataOut:
+            # :note: _portDataOut should be present even if its type is void
+            #        because it greatly simplifies any analysis/transformation
             self._portDataOut = self._addOutput(dtype, "dataOut")
 
     def getAssociatedWrite(self) -> Optional["HlsNetNodeWrite"]:
@@ -473,6 +475,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
                 res._name = name
 
         if self._portDataOut is not None:
+            assert res is not None, self
             outTy = self._portDataOut._dtype
             resTy = res._dtype
             assert outTy == resTy or outTy.bit_length() == resTy.bit_length(), (self._portDataOut, outTy, resTy)
