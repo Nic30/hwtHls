@@ -58,7 +58,11 @@ llvm::Value* StreamChannelProps::deparseNativeWord(
 	llvm::SmallVector<Value*, 6> parts;
 	for (auto *v : partVars) {
 		if (v != nullptr) { // dataMaskVar can be nullptr
-			auto *_v = getVarValue(builder, v);
+			Value *_v = getVarValue(builder, v);
+			if (v == dataEmptyVar) {
+				auto emptyT = IntegerType::get(builder.getContext(),  getWidthOfEmpty());
+				_v = builder.CreateTrunc(_v, emptyT);
+			}
 			parts.push_back(_v);
 		}
 	}
