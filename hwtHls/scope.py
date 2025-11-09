@@ -78,6 +78,7 @@ class HlsScope():
         self._currentThread: Optional[HlsThread] = None
         self._ioProxyForIo: dict[ANY_HLS_COMPATIBLE_IO, IoProxyScalar] = {}
         self.hwIOMeta: Dict[ANY_HLS_COMPATIBLE_IO, HwIOMeta] = {}
+        self.channels = HlsNetlistChannels(self.hwIOMeta)
 
     @hlsLowLevel
     def _sig(self, name: str,
@@ -179,7 +180,7 @@ class HlsScope():
 
     def compile(self):
         p = self.getPlatform()
-        channels = HlsNetlistChannels(self.hwIOMeta)
+        channels = self.channels
         isThread0 = True
         for t in self._threads:
             t: HlsThread

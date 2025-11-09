@@ -123,7 +123,7 @@ class DefaultHlsPlatform(DummyPlatform):
         """
         assert isinstance(toLlvm, ToLlvmIrTranslator), toLlvm
         toLlvm.llvm.runOpt(self.runMirToHlsNetlist, self.addExtraModulePasses, hls, toLlvm, netlist)
-        netlist._channelsBetweenLlvmThreads = None  # delete because MachineFunctions are deallocated
+        hls.channels._channelsBetweenLlvmThreadsMir = {}  # delete because MachineFunctions are deallocated
 
     def runMirToHlsNetlist(self,
                            hls: "HlsScope",
@@ -180,7 +180,7 @@ class DefaultHlsPlatform(DummyPlatform):
                 toNetlist.connectOrderingPorts(mf)
                 DBG(D.DBG_2_5_postSync, (netlist, dbgSubdir))
             else:
-                mirThreadFromHwtComponentMetadata(hwtCompMd, toLlvm, toNetlist, F)
+                mirThreadFromHwtComponentMetadata(hls.channels, hwtCompMd, toLlvm, toNetlist, F)
         finally:
             if submoduleBuildDbgTracerDoClose:
                 netlist.dbgSubmoduleBuidTracer._out.close()

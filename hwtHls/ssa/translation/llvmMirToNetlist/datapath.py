@@ -48,7 +48,6 @@ from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlis
 from hwtHls.ssa.translation.toLlvmUtils import _USE_DEFAULT_IO_NODE_CONSTRUCTOR, \
     NetlistIoConstructorDictT
 
-
 BlockLiveInMuxSyncDict = Dict[Tuple[MachineBasicBlock, MachineBasicBlock, Register], HlsNetNodeExplicitSync]
 
 
@@ -207,20 +206,26 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 raise NotImplementedError(srcIo)
 
             if constructor is _USE_DEFAULT_IO_NODE_CONSTRUCTOR:
-                (r, w) = netlist._channelsBetweenLlvmThreads[srcIo]
+                channels = self.channels
+                (r, w) = channels._channelsBetweenLlvmThreads[srcIo]
                 assert r is None, srcIo
                 isBackedge = False
                 isBlocking = True
-                rCls = HlsNetNodeReadBackedge if isBackedge else HlsNetNodeReadForwardedge
+                isPhysicallyExisting = srcIo._parent is not None
+
+                rCls = HlsNetNodeRead if isPhysicallyExisting else \
+                       HlsNetNodeReadBackedge._constructorAsHlsNetNodeRead if isBackedge else \
+                       HlsNetNodeReadForwardedge._constructorAsHlsNetNodeRead
                 (r,) = IoProxyScalar(None, srcIo)._translateMirToNetlist_HWTFPGA_CLOAD(
                     self, mbMeta, instr,
-                    srcIo, srcIoMd, index, _cond, dst, readNodeCls=rCls._constructorAsHlsNetNodeRead)
-                r.src = None  # delete to let HlsNetNodeWriteForwardedge/HlsNetNodeWriteBackedge
-                # allocate its own
+                    srcIo, srcIoMd, index, _cond, dst, readNodeCls=rCls)
+                if not isPhysicallyExisting:
+                    r.src = None  # delete to let HlsNetNodeWriteForwardedge/HlsNetNodeWriteBackedge
+                    # allocate its own
 
                 if w is not None:
                     w.associateRead(r)
-                netlist._channelsBetweenLlvmThreads[srcIo] = (r, w)
+                channels._channelsBetweenLlvmThreads[srcIo] = (r, w)
                 nodes = [r, ]
             else:
                 if constructor is None:
@@ -286,16 +291,23 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
             dstIo = applyHwIOPropertySelectrorFromMetadata(dstIo, dstIoMd)
             _cond = builder.buildAndOptional(allBlockingLoadAck, cond)
             if constructor is _USE_DEFAULT_IO_NODE_CONSTRUCTOR:
-                (r, w) = netlist._channelsBetweenLlvmThreads[dstIo]
+                channels = self.channels
+                (r, w) = channels._channelsBetweenLlvmThreads[dstIo]
                 assert w is None, dstIo
                 isBackedge = False
-                wCls = HlsNetNodeWriteBackedge if isBackedge else HlsNetNodeWriteForwardedge
+                isPhysicallyExisting = dstIo._parent is not None
+
+                wCls = HlsNetNodeWrite if isPhysicallyExisting else \
+                       HlsNetNodeWriteBackedge._constructorAsHlsNetNodeWrite if isBackedge else\
+                       HlsNetNodeWriteForwardedge._constructorAsHlsNetNodeWrite
                 (w,) = IoProxyScalar(None, dstIo)._translateMirToNetlist_HWTFPGA_CSTORE(
                     self, mbMeta, instr, srcVal, dstIo, dstIoMd, index, _cond,
                     dstIoMd.bufferCapacity,
-                    writeNodeCls=wCls._constructorAsHlsNetNodeWrite)
-                w.dst = None  # delete to let HlsNetNodeWriteForwardedge/HlsNetNodeWriteBackedge
-                # allocate its own
+                    writeNodeCls=wCls)
+
+                if not isPhysicallyExisting:
+                    w.dst = None  # delete to let HlsNetNodeWriteForwardedge/HlsNetNodeWriteBackedge
+                    # allocate its own
 
                 w: HlsNetNodeWriteBackedge
                 w.name = f"{dstIo._name:s}_src"
@@ -303,7 +315,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 # w.dst = dstIo
                 if r is not None:
                     w.associateRead(r)
-                netlist._channelsBetweenLlvmThreads[dstIo] = (r, w)
+                channels._channelsBetweenLlvmThreads[dstIo] = (r, w)
             else:
                 if constructor is None:
                     raise AssertionError("The io without any write somehow requires write", dstIo, instr)

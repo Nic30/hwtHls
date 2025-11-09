@@ -15,7 +15,7 @@ from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, MachineInstr,
     TargetOpcode, CmpInst, ConstantInt, TypeToIntegerType, TypeToArrayType, IntegerType, Type as LlvmType, ArrayType, \
     MachineLoopInfo, GlobalValue, ValueToConstantArray, ValueToConstantInt, ValueToConstantDataArray, ConstantArray, \
     ValueToUndefValue, ValueToConstantAggregateZero, ConstantAggregateZero, HwtHlsIoMetadata_get, HwtHlsIoMetadata, \
-    IODirection, MDNode
+    IODirection, MDNode, Function
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -166,6 +166,7 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         self.blockMeta: dict[MachineBasicBlock, MachineBasicBlockMeta] = {}
         self.edgeMeta: dict[MachineEdge, MachineEdgeMeta] = {}
         self.mf = mf
+        F = self.F = mf.getFunction()
         self.MRI: MachineRegisterInfo = mf.getRegInfo()
         self.backedges = backedges
         self.liveness = liveness
@@ -174,6 +175,8 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         hwHlsIoMetadata = HwtHlsIoMetadata_get(mf.getFunction())
         self.regToIo: dict[Register, tuple[HwIO, MDNode]] = {}
         regToIo = self.regToIo
+        self.channels = hls.channels
+        channels = self.channels
         # ioRegs[ai]: io for (ai, io) in _argIToIo.items()
         assert len(ioRegs) == len(hwHlsIoMetadata)
         for ioIndex, (ioReg, ioMd) in enumerate(zip(ioRegs, hwHlsIoMetadata)):
@@ -184,7 +187,6 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
             else:
                 # channel between 2 threads
                 # dw: Optional[int] = None
-                F = mf.getFunction()
                 md = HwtHlsIoMetadata_get(F, ioIndex)
                 FArg = F.getArg(ioIndex)
                 # for u in FArg.users():
@@ -206,21 +208,16 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
                 #
                 # if dw is None:
                 #    raise AssertionError("Unused channel IO (this should have been already removed)")
-
-                if ioMd.direction == IODirection.IO_DIR_IN:
-                    channelKey = (ioMd.otherThreadFn, ioMd.otherArgIndex, F, ioIndex)
-                else:
-                    channelKey = (F, ioIndex, ioMd.otherThreadFn, ioMd.otherArgIndex)
-
-                c = netlist._channelsBetweenLlvmThreadsMir.get(channelKey)
+                channelKey = self._getChanneCacheKey(F, ioMd, ioIndex)
+                c = channels._channelsBetweenLlvmThreadsMir.get(channelKey)
                 if c is None:
                     # add new record about channel if this is first seen access to the channel
                     c = HwIODataRdVld()
                     c._name = FArg.getName().str()
                     c.DATA_WIDTH = md.readWordWidth if md.direction == IODirection.IO_DIR_IN else md.writeWordWidth
                     # print((channelKey[0].getName().str(), channelKey[1], channelKey[2].getName().str(), channelKey[3]))
-                    netlist._channelsBetweenLlvmThreadsMir[channelKey] = c
-                    netlist._channelsBetweenLlvmThreads[c] = (None, None)
+                    channels._channelsBetweenLlvmThreadsMir[channelKey] = c
+                    channels._channelsBetweenLlvmThreads[c] = (None, None)
 
                 self.ioProxyForHwIo[c] = _USE_DEFAULT_IO_NODE_CONSTRUCTOR
                 regToIo[ioReg] = (c, ioMd)
@@ -230,6 +227,13 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         # register self in netlist analysis cache
         netlist._analysis_cache[self.__class__] = self
         self.dbgTracer: Optional[DebugTracer] = dbgTracer
+
+    def _getChanneCacheKey(self, F: Function, ioMd: HwtHlsIoMetadata, ioIndex):
+        if ioMd.direction == IODirection.IO_DIR_IN:
+            channelKey = (ioMd.otherThreadFn, ioMd.otherArgIndex, F, ioIndex)
+        else:
+            channelKey = (F, ioIndex, ioMd.otherThreadFn, ioMd.otherArgIndex)
+        return channelKey
 
     def _getSchedulingResourceForInstruction(self, MRI: MachineRegisterInfo, instr: MachineInstr):
         opc = instr.getOpcode()

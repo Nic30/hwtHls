@@ -41,10 +41,6 @@ class HlsNetlistCtx(AnalysisCache):
         template which must be translated
     :ivar _dbgAddSignalNamesToSync: add names to synchronization signals in order to improve readability,
         disabled by default as it goes against optimizations
-    :ivar _channelsBetweenLlvmThreadsMir: a dictionary used during conversion of LLVM MIR to HlsNetlist
-        and deleted immediately after, (because MachineFunctions are deallocated)
-    :ivar _channelsBetweenLlvmThreadsMir: same information as _channelsBetweenLlvmThreadsMir but using HlsNetNodes
-        and is alwailable once netlist is constructed from MIR
     """
 
     def __init__(self,
@@ -75,8 +71,6 @@ class HlsNetlistCtx(AnalysisCache):
         self.realTimeClkPeriod = 1 / int(freq)
         self.normalizedClkPeriod = int(ceil(self.realTimeClkPeriod / schedulerResolution))
         self.subNodes: ObservableList[HlsNetNode] = ObservableList()
-        self._channelsBetweenLlvmThreadsMir: dict[tuple[MachineFunction, int, MachineFunction, int], HwIODataRdVld] = {}
-        self._channelsBetweenLlvmThreads: dict[HwIODataRdVld, tuple[HlsNetNodeRead, HlsNetNodeWrite]] = {}
 
         self.ctx = RtlNetlist()
         self.scheduler: "HlsScheduler" = self.platform.schedulerCls(self, schedulerResolution, resourceConstraints)
@@ -349,12 +343,20 @@ class HlsNetlistCtx(AnalysisCache):
 
 
 class HlsNetlistChannels():
-
+    """
+    :ivar _channelsBetweenLlvmThreadsMir: a dictionary used during conversion of LLVM MIR to HlsNetlist
+        and deleted immediately after, (because MachineFunctions are deallocated)
+    :ivar _channelsBetweenLlvmThreads: same information as _channelsBetweenLlvmThreadsMir but using HlsNetNodes
+        and is alwailable once netlist is constructed from MIR
+    """
     def __init__(self, hwIOMeta: Dict[HwIO, HwIOMeta]):
         self.hwIOMeta = hwIOMeta
         self.nodesPerIO: OrderedDict[HwIO, List[Union[HlsNetNodeRead, HlsNetNodeWrite]]] = {}
         self.hwIoUserNetlists: Dict[HwIO, List[HlsNetlistCtx]] = {}
         self.alreadyAssociated: Set[Union[HlsNetNodeRead, HlsNetNodeWrite]] = set()
+        self._channelsBetweenLlvmThreadsMir: dict[tuple[MachineFunction, int, MachineFunction, int], HwIODataRdVld] = {}
+        self._channelsBetweenLlvmThreads: dict[HwIODataRdVld, tuple[HlsNetNodeRead, HlsNetNodeWrite]] = {}
+
 
     def propagateChannelTimingConstraints(self, netlist: HlsNetlistCtx):
         hwIoUserNetlists = self.hwIoUserNetlists
