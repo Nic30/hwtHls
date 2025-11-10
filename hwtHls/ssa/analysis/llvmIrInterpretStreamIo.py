@@ -183,7 +183,7 @@ class LlvmIrInterpretStreamIo():
                 # data is discarded and any streamRead should check for eof to prevent reading further
                 newTmpWord = None
 
-            elif hasEmpty and eof & int(empty) >= ((actualWidth - w) // byteWidth):
+            elif hasEmpty and eof & (int(empty) >= ((actualWidth - w) // byteWidth)):
                 # rest of the word is empty we can discard it
                 newTmpWord = None
 
