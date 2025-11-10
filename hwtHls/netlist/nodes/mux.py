@@ -30,7 +30,7 @@ class HlsNetNodeMux(HlsNetNodeOperator):
         netlist = self.netlist
         input_cnt = len(self.dependsOn)
         bit_length = self.getInputDtype(0).bit_length()
-        if input_cnt == 3 and getConstOfOutput(self.dependsOn[0]) is not None or getConstOfOutput(self.dependsOn[2]) is not None:
+        if input_cnt == 3 and (getConstOfOutput(self.dependsOn[0]) is not None or getConstOfOutput(self.dependsOn[2]) is not None):
             # this will be just AND/OR with the mask
             input_cnt = 2
             operator = HwtOps.AND
