@@ -65,7 +65,8 @@ def offsetAndSizeToRanges(offset: HBitsConst, size: HBitsConst):
             yield (low, high - 1)
         else:
             # Wrap around case, from start to cMax and from cMin to high
-            yield (cMin, high - 1)
+            if (cMin != high):
+                yield (cMin, high - 1)
             yield (low, cMax)
 
 

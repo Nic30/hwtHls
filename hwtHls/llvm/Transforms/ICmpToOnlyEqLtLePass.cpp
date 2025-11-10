@@ -21,6 +21,9 @@ SmallVector<ConstantRange, 2> offsetAndSizeToRanges(APInt offset, APInt size) {
 	// x + c0 < c1  ; c1 is range size; c0 is range offset
 	//  < c1 selects the range <0, c0)
 	//  + c0 shifts this range to <0-c0, -c0+c1) however the range may wrap around max or min val c0, c1
+
+	// e.g. i8 x + 1 < 1 specifies range <255, 256)
+
 	//  For the left side of the selected range:
 	SmallVector<ConstantRange, 2> ranges;
 	if (size.isZero()) {
@@ -42,8 +45,9 @@ SmallVector<ConstantRange, 2> offsetAndSizeToRanges(APInt offset, APInt size) {
 			ranges.push_back(ConstantRange(low, high - 1));
 		} else {
 			// Wrap around case, from start to cMax and from cMin to high
+			if (cMin != high)
+				ranges.push_back(ConstantRange(cMin, high - 1));
 			ranges.push_back(ConstantRange(low, cMax));
-			ranges.push_back(ConstantRange(cMin, high - 1));
 		}
 	}
 	return ranges;
