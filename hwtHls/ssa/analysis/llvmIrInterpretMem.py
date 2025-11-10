@@ -36,7 +36,7 @@ def _decodeOpcode_Alloca(interpret: "LlvmIrInterpret", instr: Instruction) -> Ll
 def _decodeOpcode_Freeze(interpret: "LlvmIrInterpret", instr: Instruction) -> LlvmIrInstrFunction:
     freeze = InstructionToFreezeInst(instr)
     assert freeze is not None, instr
-    ops = interpret._decodeInstArguments(instr.iterOperandValue())
+    ops = interpret._decodeInstArguments(instr.iterOperandValues())
     _src0, = ops
     op0IsConst = isinstance(_src0, HConst)
 
