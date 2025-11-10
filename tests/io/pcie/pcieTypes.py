@@ -201,7 +201,7 @@ PcieTlpByteLengthDecoded_t = HBits(PcieTlpLength_t.bit_length() + 1 + 2) # :note
 # Figure 2-5: Fields Present in All TLP Headers
 PcieTlpCommonHdrFields_t = HStruct(
     # pcie byte 3 + byte 2 [2:0]
-    (PcieTlpLength_t, "length"),
+    (PcieTlpLength_t, "length"), # 1== 1DW word, 0 == max DWs (1024)
     (HBits(2), "at"),  # :see: PcieAddressType
     (HBits(2), "attr0_2"),  # ([1]=relaxedOrdering, [0]=no Snoop) # Table 2-10: Ordering Attributes
     (BIT, "ep"),  # indicates the TLP is poisoned
