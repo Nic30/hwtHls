@@ -6,6 +6,7 @@
 #include <llvm/Analysis/MemorySSAUpdater.h>
 #include <llvm/Analysis/ValueTracking.h>
 #include <llvm/Analysis/InstructionSimplify.h>
+#include <llvm/Analysis/InstSimplifyFolder.h>
 #include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/Analysis/TargetFolder.h>
 #include <llvm/Analysis/AssumptionCache.h>
@@ -285,6 +286,10 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 				&& isa<SwitchInst>(BBIt->getTerminator()) && HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit(
 						Builder, DTU, *cast<SwitchInst>(BBIt->getTerminator()), exprChanged)) {
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+			// writeCFGToDotFile(F, "tmp/SimplifyCFG2.after.dot", AM);
+			DTU.flush();
+			auto& DT = DTU.getDomTree();
+			assert(DT.verify());
 			assert(!verifyFunction(F, &errs()));
 #endif
 			_changed1 = true;
@@ -334,6 +339,7 @@ llvm::PreservedAnalyses HwtHlsSimplifyCFGPass::run(llvm::Function &F,
 	unsigned LlvmHoistCommonSkipLimit =
 			dynamic_cast<cl::opt<unsigned>*>(_LlvmHoistCommonSkipLimit->second)->getValue();
 	bool changed = false;
+	// InstSimplifyFolder, TargetFolder
 	IRBuilder<TargetFolder, IRBuilderCallbackInserter> Builder(F.getContext(),
 			TargetFolder(DL), IRBuilderCallbackInserter([&AC](Instruction *I) {
 				if (auto *Assume = dyn_cast<AssumeInst>(I))
@@ -479,7 +485,7 @@ llvm::PreservedAnalyses HwtHlsSimplifyCFGPass::run(llvm::Function &F,
 			lastIterationWithCfgChange = itCntr;
 		}
 		itCntr++;
-		assert(itCntr < Options.ITERATION_LIMIT && "SimplifyCFGPass2 did not converge");
+		assert(itCntr < Options.ITERATION_LIMIT && "HwtHlsSimplifyCFGPass did not converge");
 	}
 
 	if (changed) {

@@ -2,15 +2,15 @@ define void @loopHeaderPhisNotExtended(ptr addrspace(1) %keyForMatchThread_0, pt
 bb0:
   br label %bb.header
 
-bb.header:                                        ; preds = %bb.sw_setSwEnd, %bb0
-  %k3_key.0 = phi i16 [ undef, %bb0 ], [ %k3_key.1, %bb.sw_setSwEnd ]
-  %k2_key.0 = phi i16 [ undef, %bb0 ], [ %k2_key.1, %bb.sw_setSwEnd ]
-  %k1_key.0 = phi i16 [ undef, %bb0 ], [ %k1_key.1, %bb.sw_setSwEnd ]
-  %k0_key.0 = phi i16 [ undef, %bb0 ], [ %k0_key.1, %bb.sw_setSwEnd ]
-  %k0_vld.018 = phi i1 [ false, %bb0 ], [ %k0_vld.119, %bb.sw_setSwEnd ]
-  %k1_vld.020 = phi i1 [ false, %bb0 ], [ %k1_vld.121, %bb.sw_setSwEnd ]
-  %k2_vld.022 = phi i1 [ false, %bb0 ], [ %k2_vld.123, %bb.sw_setSwEnd ]
-  %k3_vld.024 = phi i1 [ false, %bb0 ], [ %k3_vld.125, %bb.sw_setSwEnd ]
+bb.header:                                        ; preds = %bb.header, %bb0
+  %k3_key.0 = phi i16 [ undef, %bb0 ], [ %k3_key.1, %bb.header ]
+  %k2_key.0 = phi i16 [ undef, %bb0 ], [ %k2_key.1, %bb.header ]
+  %k1_key.0 = phi i16 [ undef, %bb0 ], [ %k1_key.1, %bb.header ]
+  %k0_key.0 = phi i16 [ undef, %bb0 ], [ %k0_key.1, %bb.header ]
+  %k0_vld.018 = phi i1 [ false, %bb0 ], [ %k0_vld.119, %bb.header ]
+  %k1_vld.020 = phi i1 [ false, %bb0 ], [ %k1_vld.121, %bb.header ]
+  %k2_vld.022 = phi i1 [ false, %bb0 ], [ %k2_vld.123, %bb.header ]
+  %k3_vld.024 = phi i1 [ false, %bb0 ], [ %k3_vld.125, %bb.header ]
   %0 = call i17 @hwtHls.bitConcat.i16.i1(i16 %k0_key.0, i1 %k0_vld.018) #1
   store volatile i17 %0, ptr addrspace(1) %keyForMatchThread_0, align 4
   %1 = call i17 @hwtHls.bitConcat.i16.i1(i16 %k1_key.0, i1 %k1_vld.020) #1
@@ -23,33 +23,35 @@ bb.header:                                        ; preds = %bb.sw_setSwEnd, %bb
   %4 = call i1 @hwtHls.bitRangeGet.i19.i6.i1.18(i19 %write_read, i6 18) #1
   %5 = call i16 @hwtHls.bitRangeGet.i19.i6.i16.2(i19 %write_read, i6 2) #1
   %6 = call i2 @hwtHls.bitRangeGet.i19.i6.i2.0(i19 %write_read, i6 0) #1
-  switch i2 %6, label %bb.header.unreachabledefault [
-    i2 0, label %bb.sw_setSwEnd
-    i2 1, label %bb.sw_c1
-    i2 -2, label %bb.sw_c2
-    i2 -1, label %bb.sw_c3
-  ]
-
-bb.header.unreachabledefault:                     ; preds = %bb.header
-  unreachable
-
-bb.sw_c1:                                         ; preds = %bb.header
-  br label %bb.sw_setSwEnd
-
-bb.sw_c2:                                         ; preds = %bb.header
-  br label %bb.sw_setSwEnd
-
-bb.sw_c3:                                         ; preds = %bb.header
-  br label %bb.sw_setSwEnd
-
-bb.sw_setSwEnd:                                   ; preds = %bb.sw_c3, %bb.sw_c2, %bb.sw_c1, %bb.header
-  %k3_key.1 = phi i16 [ %5, %bb.sw_c3 ], [ %k3_key.0, %bb.sw_c2 ], [ %k3_key.0, %bb.sw_c1 ], [ %k3_key.0, %bb.header ]
-  %k2_key.1 = phi i16 [ %k2_key.0, %bb.sw_c3 ], [ %5, %bb.sw_c2 ], [ %k2_key.0, %bb.sw_c1 ], [ %k2_key.0, %bb.header ]
-  %k1_key.1 = phi i16 [ %k1_key.0, %bb.sw_c3 ], [ %k1_key.0, %bb.sw_c2 ], [ %5, %bb.sw_c1 ], [ %k1_key.0, %bb.header ]
-  %k0_key.1 = phi i16 [ %k0_key.0, %bb.sw_c3 ], [ %k0_key.0, %bb.sw_c2 ], [ %k0_key.0, %bb.sw_c1 ], [ %5, %bb.header ]
-  %k0_vld.119 = phi i1 [ %k0_vld.018, %bb.sw_c3 ], [ %k0_vld.018, %bb.sw_c2 ], [ %k0_vld.018, %bb.sw_c1 ], [ %4, %bb.header ]
-  %k1_vld.121 = phi i1 [ %k1_vld.020, %bb.sw_c3 ], [ %k1_vld.020, %bb.sw_c2 ], [ %4, %bb.sw_c1 ], [ %k1_vld.020, %bb.header ]
-  %k2_vld.123 = phi i1 [ %k2_vld.022, %bb.sw_c3 ], [ %4, %bb.sw_c2 ], [ %k2_vld.022, %bb.sw_c1 ], [ %k2_vld.022, %bb.header ]
-  %k3_vld.125 = phi i1 [ %4, %bb.sw_c3 ], [ %k3_vld.024, %bb.sw_c2 ], [ %k3_vld.024, %bb.sw_c1 ], [ %k3_vld.024, %bb.header ]
+  %7 = icmp eq i2 %6, 0
+  %8 = icmp eq i2 %6, 1
+  %9 = icmp eq i2 %6, -2
+  %10 = icmp eq i2 %6, -1
+  %11 = select i1 %10, i16 %5, i16 %k3_key.0
+  %12 = select i1 %10, i16 %k0_key.0, i16 %5
+  %13 = select i1 %10, i1 %k0_vld.018, i1 %4
+  %14 = select i1 %10, i1 %4, i1 %k3_vld.024
+  %15 = select i1 %9, i16 %k3_key.0, i16 %11
+  %16 = select i1 %9, i16 %5, i16 %k2_key.0
+  %17 = select i1 %9, i16 %k0_key.0, i16 %12
+  %18 = select i1 %9, i1 %k0_vld.018, i1 %13
+  %19 = select i1 %9, i1 %4, i1 %k2_vld.022
+  %20 = select i1 %9, i1 %k3_vld.024, i1 %14
+  %21 = select i1 %8, i16 %k3_key.0, i16 %15
+  %22 = select i1 %8, i16 %k2_key.0, i16 %16
+  %23 = select i1 %8, i16 %5, i16 %k1_key.0
+  %24 = select i1 %8, i16 %k0_key.0, i16 %17
+  %25 = select i1 %8, i1 %k0_vld.018, i1 %18
+  %26 = select i1 %8, i1 %4, i1 %k1_vld.020
+  %27 = select i1 %8, i1 %k2_vld.022, i1 %19
+  %28 = select i1 %8, i1 %k3_vld.024, i1 %20
+  %k3_key.1 = select i1 %7, i16 %k3_key.0, i16 %21
+  %k2_key.1 = select i1 %7, i16 %k2_key.0, i16 %22
+  %k1_key.1 = select i1 %7, i16 %k1_key.0, i16 %23
+  %k0_key.1 = select i1 %7, i16 %5, i16 %24
+  %k0_vld.119 = select i1 %7, i1 %4, i1 %25
+  %k1_vld.121 = select i1 %7, i1 %k1_vld.020, i1 %26
+  %k2_vld.123 = select i1 %7, i1 %k2_vld.022, i1 %27
+  %k3_vld.125 = select i1 %7, i1 %k3_vld.024, i1 %28
   br label %bb.header
 }
