@@ -6,7 +6,6 @@ from typing import Union
 from hwt.code import Concat
 from hwt.hdl.commonConstants import b1
 from hwt.hdl.const import HConst
-from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.std import HwIOVectSignal, HwIOSignal
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
@@ -33,7 +32,7 @@ class BitWidthReductionCmp2Values(HwModule):
         @hlsBytecode
         def mainThread():
             PyBytecodeBlockLabel("entry")
-            while BIT.from_py(1):
+            while b1:
                 PyBytecodeBlockLabel("loopHeader")
                 i = hls.read(self.i).data
                 # 1. only bits [5:0] should be compared

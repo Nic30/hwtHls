@@ -5,7 +5,7 @@ bb0:
 entry:                                            ; preds = %bb0
   br label %loopHeader
 
-loopHeader:                                       ; preds = %blockL80i0_556, %entry
+loopHeader:                                       ; preds = %blockL48i0_492, %entry
   %i_read = alloca i16, align 2, !hwtHls.tmp.alloca !3
   store i16 undef, ptr %i_read, align 2
   %i1 = alloca i16, align 2, !hwtHls.tmp.alloca !3
@@ -15,28 +15,28 @@ loopHeader:                                       ; preds = %blockL80i0_556, %en
   %i_read3 = load i16, ptr %i_read, align 2
   store i16 %i_read3, ptr %i1, align 2
   %0 = icmp eq i16 %i_read3, 10
-  br i1 %0, label %case10, label %blockL80i0_300
+  br i1 %0, label %case10, label %blockL48i0_268
 
 case10:                                           ; preds = %loopHeader
   store volatile i16 20, ptr addrspace(2) %o, align 2
-  br label %blockL80i0_502
+  br label %blockL48i0_470
 
-blockL80i0_502:                                   ; preds = %caseElse, %case11, %case10
-  br label %blockL80i0_556
+blockL48i0_470:                                   ; preds = %caseElse, %case11, %case10
+  br label %blockL48i0_492
 
-blockL80i0_556:                                   ; preds = %blockL80i0_502
+blockL48i0_492:                                   ; preds = %blockL48i0_470
   br label %loopHeader
 
-blockL80i0_300:                                   ; preds = %loopHeader
+blockL48i0_268:                                   ; preds = %loopHeader
   %i2 = load i16, ptr %i1, align 2
   %1 = icmp eq i16 %i2, 11
   br i1 %1, label %case11, label %caseElse
 
-case11:                                           ; preds = %blockL80i0_300
+case11:                                           ; preds = %blockL48i0_268
   store volatile i16 25, ptr addrspace(2) %o, align 2
-  br label %blockL80i0_502
+  br label %blockL48i0_470
 
-caseElse:                                         ; preds = %blockL80i0_300
+caseElse:                                         ; preds = %blockL48i0_268
   store volatile i16 26, ptr addrspace(2) %o, align 2
-  br label %blockL80i0_502
+  br label %blockL48i0_470
 }
