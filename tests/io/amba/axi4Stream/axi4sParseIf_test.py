@@ -44,7 +44,7 @@ class Axi4SParseIfTC(SimTestCase):
         dut.CLK_FREQ = freq
         self._run_test_Axi4SParse2If2B(dut, N)
 
-    def _run_test_Axi4SParse2If2B(self, dut: Axi4SParse2If2B, N:int):
+    def _run_test_Axi4SParse2If2B(self, dut: Axi4SParse2If2B, N:int, platformKwargs={}):
         T1 = HStruct(
             (HBits(8), "v0"),
         )
@@ -86,7 +86,8 @@ class Axi4SParseIfTC(SimTestCase):
             tc._testLlvmIrOrMir(*args, True, inputFrames, outputRef)
 
         self.compileSimAndStart(dut, target_platform=TestLlvmIrAndMirPlatform(
-            optIrTest=testLlvmOptIr, optMirTest=testLlvmOptMir))
+            optIrTest=testLlvmOptIr, optMirTest=testLlvmOptMir,
+            **platformKwargs))
 
         fu = self._Axi4StreamSimFrameUtils.from_HwIO(dut.i)
         for f in inputFrames:
@@ -451,7 +452,7 @@ if __name__ == '__main__':
 
     testLoader = unittest.TestLoader()
 
-    # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2If_512b_100MHz")])
+    # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2If_512b_40MHz")])
     suite = testLoader.loadTestsFromTestCase(Axi4SParseIfTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

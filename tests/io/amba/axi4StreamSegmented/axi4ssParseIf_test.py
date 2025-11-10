@@ -18,7 +18,12 @@ class Axi4SSParseIf_1Seg_TC(Axi4SParseIfTC):
         dut.SEGMENT_DATA_WIDTH = DATA_WIDTH
         dut.SEGMENT_CNT = self.SEGMENT_CNT
         dut.CLK_FREQ = freq
-        self._run_test_Axi4SParse2If2B(dut, N)
+        self._run_test_Axi4SParse2If2B(dut, N, platformKwargs=dict(
+                        #debugFilter=HlsDebugBundle.ALL_RELIABLE,
+                        #llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED],
+                        #runTestAfterEachPass=True,
+                        #runTestAfterEachMirPass=True,
+                      ),)
 
     def _test_Axi4SParse2If(self, DATA_WIDTH:int, freq=int(1e6), N=16):
         dut = Axi4SSParse2If()
