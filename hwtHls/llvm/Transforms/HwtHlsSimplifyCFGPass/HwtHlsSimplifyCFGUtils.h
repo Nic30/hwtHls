@@ -23,5 +23,5 @@ bool tryHoistCheapInstsAtBlockBegin(llvm::BasicBlock &BB,
 		llvm::BasicBlock::iterator MovePos,
 		std::optional<std::function<bool(llvm::Instruction&)>> extraCheck = { });
 bool simplifyBranchToSameDst(llvm::BasicBlock *BB);
-void sortPhiOperands(llvm::BasicBlock &BB);
+void sortPhiOperands(llvm::BasicBlock &BB, bool removeRedundantOperands=false);
 }

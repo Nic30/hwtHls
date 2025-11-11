@@ -151,25 +151,42 @@ bool simplifyBranchToSameDst(BasicBlock *BB) {
 	return false;
 }
 
-void sortPhiOperands(BasicBlock &BB) {
+void sortPhiOperands(BasicBlock &BB, bool removeRedundantOperands) {
 	for (auto &phi : BB.phis()) {
-		int predI = 0;
+		// :note: phi may have block as IncomingBlock multiple times
+		// this may happen because of SwitchInst e.g.
+		//  switch i8 %c, label %bb.dafault [
+		//    i8 0, label %bb.0
+		//    i8 1, label %bb.0
+		//  ]
+		if (removeRedundantOperands) {
+			assert(phi.getNumIncomingValues() >= pred_size(&BB));
+		} else {
+			assert(phi.getNumIncomingValues() == pred_size(&BB));
+		}
+		SmallVector<Value*> values;
+		size_t predCnt = pred_size(&BB);
+		values.reserve(predCnt);
 		for (auto pred : predecessors(&BB)) {
 			auto curPredI = phi.getBasicBlockIndex(pred);
 			if (curPredI < 0) {
 				llvm_unreachable(
 						"PHINode should have one entry for each predecessor of its parent basic block!");
-			} else if (predI != curPredI) {
-				// if the incoming block is not on its place swap it with the current bb to put it in its place
+			} else {
 				auto curV = phi.getIncomingValue(curPredI);
-				auto _v = phi.getIncomingValue(predI);
-				auto _bb = phi.getIncomingBlock(predI);
-				phi.setIncomingBlock(predI, pred);
-				phi.setIncomingValue(predI, curV);
-				phi.setIncomingBlock(curPredI, _bb);
-				phi.setIncomingValue(curPredI, _v);
+				values.push_back(curV);
 			}
-			predI++;
+		}
+		size_t phiBlockI = 0;
+		for (const auto& [pred, v] : zip(predecessors(&BB), values)) {
+			phi.setIncomingBlock(phiBlockI, pred);
+			phi.setIncomingValue(phiBlockI, v);
+			phiBlockI++;
+		}
+		if (removeRedundantOperands) {
+			size_t toRmCnt = phi.getNumIncomingValues() - predCnt;
+			for (size_t i = 0; i < toRmCnt; i++)
+				phi.removeIncomingValue(predCnt);
 		}
 	}
 }
