@@ -69,7 +69,10 @@ size_t StreamChannelFormatInfo::getReadReturnWidth(size_t readDataWidth,
 	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY:
 		// Axi4StreamSegmented (data[n], (enable?, sof?, eof?, err?, empty)[n])
 		return readDataWidth += int(hasEnable())
-				+ (isReliable ? 0: getWidthOfEmptyForData(readDataWidth, byteWidth, !isReliable));
+				+ (isReliable ?
+						0 :
+						getWidthOfEmptyForData(readDataWidth, byteWidth,
+								!isReliable));
 	default:
 		llvm_unreachable("Invalid value for byte enable encoding of a stream");
 	}
@@ -288,7 +291,8 @@ void StreamChannelFormatInfo::CreateAssumptionForMask(
 		mask = CreateBitRangeGetConst(&Builder, segmentValue, maskOffset,
 				maskWidth);
 	if (auto maskI = dyn_cast<Instruction>(mask)) {
-		auto maskMdKing = Builder.getContext().getMDKindID(HwtHlsInstCombinePass::metadataName_expr_maskContinuosFromLsb);
+		auto maskMdKing = Builder.getContext().getMDKindID(
+				HwtHlsInstCombinePass::metadataName_expr_maskContinuosFromLsb);
 		MetadataBitRanges::BitRanges bitR;
 		MetadataBitRanges::setAndPropagateBiDir(*maskI, maskMdKing, bitR);
 	}
@@ -311,22 +315,18 @@ void StreamChannelFormatInfo::CreateAssumptionForEmpty(
 			empty = CreateBitRangeGetConst(&Builder, segmentValue,
 					getOffsetOfEmpty(), getWidthOfEmpty());
 
-		if (!supportZLP) {
-			if (!isPow2(bytesPerSegment)) {
-				auto a = Builder.CreateAssumption(
-						Builder.CreateICmpULT(empty,
-								ConstantInt::get(empty->getType(),
-										bytesPerSegment - 1)));
-				setMetadataSideeffectAllowHoist(*a);
+		if (!isPow2(bytesPerSegment)) {
+			size_t maxEmpty;
+			if (supportZLP) {
+				maxEmpty = bytesPerSegment;
+			} else {
+				maxEmpty = bytesPerSegment - 1;
 			}
-		} else {
-			if (!isPow2(bytesPerSegment)) {
-				auto a = Builder.CreateAssumption(
-						Builder.CreateICmpULT(empty,
-								ConstantInt::get(empty->getType(),
-										bytesPerSegment)));
-				setMetadataSideeffectAllowHoist(*a);
-			}
+			auto a = Builder.CreateAssumption(
+					Builder.CreateICmpULE(empty,
+							ConstantInt::get(empty->getType(),
+									maxEmpty)));
+			setMetadataSideeffectAllowHoist(*a);
 		}
 		if (hasEoF()) {
 			if (!eof)
