@@ -20,7 +20,7 @@ llvm::Value* CreateGlobalDataWithGEP(llvm::IRBuilder<> &builder,
 
 bool IsCheapInstruction(llvm::Instruction &I);
 bool tryHoistCheapInstsAtBlockBegin(llvm::BasicBlock &BB,
-		llvm::BasicBlock::iterator MovePos,
+		llvm::BasicBlock::iterator MoveBeforePos,
 		std::optional<std::function<bool(llvm::Instruction&)>> extraCheck = { });
 bool simplifyBranchToSameDst(llvm::BasicBlock *BB);
 void sortPhiOperands(llvm::BasicBlock &BB, bool removeRedundantOperands=false);

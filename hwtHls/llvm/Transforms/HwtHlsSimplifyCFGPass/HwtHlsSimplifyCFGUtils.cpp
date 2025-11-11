@@ -120,7 +120,7 @@ bool IsCheapInstruction(Instruction &I) {
 }
 
 bool tryHoistCheapInstsAtBlockBegin(BasicBlock &BB,
-		BasicBlock::iterator MovePos,
+		BasicBlock::iterator MoveBeforePos,
 		std::optional<std::function<bool(llvm::Instruction&)>> extraCheck) {
 	bool Changed = false;
 	for (Instruction &I : make_early_inc_range(BB)) {
@@ -131,7 +131,7 @@ bool tryHoistCheapInstsAtBlockBegin(BasicBlock &BB,
 		}
 		if (extraCheck.has_value() && !extraCheck.value()(I))
 			return Changed;
-		I.moveBefore(MovePos);
+		I.moveBefore(MoveBeforePos);
 		Changed = true;
 	}
 	return Changed;
