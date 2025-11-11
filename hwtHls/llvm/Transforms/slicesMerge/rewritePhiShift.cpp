@@ -96,7 +96,7 @@ PHINode* mergePhisToWiderPhi(IRBuilderBase& builder, const Twine& nameStem, cons
 	auto *resTy = Type::getIntNTy(builder.getContext(), resWidth);
 	PHINode *widerPhi = builder.CreatePHI(resTy, phis[0]->getNumIncomingValues(), name);
 
-	// for each predecessor block construct a concatenation of incomming values
+	// for each predecessor block construct a concatenation of incoming values
 	for (size_t i = 0; i < (unsigned) valCnt; ++i) {
 		BasicBlock *srcBB = nullptr;
 		ConcatMemberVector values;

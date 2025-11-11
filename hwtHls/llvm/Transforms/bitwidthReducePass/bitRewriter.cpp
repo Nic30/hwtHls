@@ -104,7 +104,7 @@ llvm::Value* BitPartsRewriter::rewritePHINode(llvm::PHINode &I,
 		const VarBitConstraint &vbc) {
 	assert(
 			!vbc.useMask.isAllOnes()
-					&& "If this was the case it should not be required to rewrite this PHINode (only its incomming values)");
+					&& "If this was the case it should not be required to rewrite this PHINode (only its incoming values)");
 	IRBuilder<> b(&I);
 	auto *newTy = b.getIntNTy(vbc.useMask.popcount());
 	auto *res = b.CreatePHI(newTy, I.getNumOperands(), I.getName());
