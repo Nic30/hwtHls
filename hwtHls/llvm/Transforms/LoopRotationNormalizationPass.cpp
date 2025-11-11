@@ -809,7 +809,7 @@ llvm::PreservedAnalyses LoopRotationNormalizationPass::run(llvm::Loop &L,
 		L0->verifyLoop();
 	}
 	DTU.flush();
-	AR.DT.verify();
+	assert(AR.DT.verify());
 
 	//AR.LI.verify(AR.DT);
 	//AR.SE.verify();
