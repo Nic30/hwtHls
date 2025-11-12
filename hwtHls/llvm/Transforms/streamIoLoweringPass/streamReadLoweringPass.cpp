@@ -385,8 +385,8 @@ void StreamReadRewriter::_prepareStaticPrevWordVars(StreamReadChunk &readInfo,
 		if (i == 0 && skipDisabledSegments) {
 			_createLoopForEmptySegmentSkip(ioWordLd);
 		}
-		StreamChannelWordValue w = StreamChannelWordValue::parseNativeWord(streamProps, Builder,
-				ioWordLd);
+		StreamChannelWordValue w = StreamChannelWordValue::parseNativeWord(
+				streamProps, Builder, ioWordLd);
 		readInfo.inWords.push_back(w);
 		if (!readInfo.isReliable()) {
 			streamProps.setAllData(Builder, readInfo.inWords.back());
@@ -589,10 +589,12 @@ void StreamReadRewriter::_consumeReadWordsAndCreateResultData(
 					// = empty < bytesInWord - size
 					size_t bytesInWord = streamProps.dataWidth
 							/ streamProps.byteWidth;
+					size_t emptyLimit = bytesInWord
+							- newOffset / streamProps.byteWidth;
 					isFollowedByMoreValidDataInLastWord = Builder.CreateICmpULT(
 							emptyOfLastWord,
 							ConstantInt::get(emptyOfLastWord->getType(),
-									bytesInWord - newOffset));
+									emptyLimit));
 				}
 				break;
 			}
@@ -624,7 +626,10 @@ void StreamReadRewriter::_consumeReadWordsAndCreateResultData(
 				llvm_unreachable("invalid ByteEnableEncoding value");
 			}
 		}
-		//_readRes.populateWithDummyMaskOrEmptyIfNecessary(streamProps);
+		// cover the case for unreliable reads on 1B io where io does not have empty/mask but the read return has
+		//	auto streamPropsForResult = streamProps.resize(readInfo.chunkWidth,
+		//			streamProps.supportZLP || !readInfo.isReliable());
+		_readRes.populateWithDummyMaskOrEmptyIfNecessary(Builder);
 
 		llvm::Value *readRes = _readRes.flatten(Builder,
 				isFollowedByMoreValidDataInLastWord);
@@ -714,6 +719,7 @@ void StreamReadRewriter::_createLoopForEmptySegmentSkip(LoadInst *ld) {
 	}
 	Builder.SetInsertPoint(suc->begin());
 }
+
 void StreamReadRewriter::_rewriteAdtAccessToWordAccessInstruction(
 		StreamIoDetector::HlsReadOrWrite *read) {
 	bool readIsMarker = read == nullptr || IsStreamReadStartOfFrame(read)
@@ -784,7 +790,8 @@ void StreamReadRewriter::_rewriteAdtAccessToWordAccessInstruction(
 			}
 			}
 			if (staticWordCnt)
-				_prepareStaticPrevWordVars(readInfo, staticWordCnt, _mayLoadDisabledSegment(read));
+				_prepareStaticPrevWordVars(readInfo, staticWordCnt,
+						_mayLoadDisabledSegment(read));
 
 			// * collect/construct all reads common for every successor branch
 			// * replace original read of ADT with a result composed of word reads

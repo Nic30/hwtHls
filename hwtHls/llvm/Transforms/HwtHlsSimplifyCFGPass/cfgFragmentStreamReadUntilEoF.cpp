@@ -61,17 +61,24 @@ CallInst* StreamReadUntilEoFCFGFragment::mergeReads(
 
 	size_t mergedDataBitWidth = 0;
 	bool mergedReadIsReliable = true;
-	size_t reliableReadsCnt = 0;
+	size_t reliableReadsCntInMerged = 0;
+	bool unrealiabeReadSeen = false;
 	for (auto r : reads) {
 		mergedDataBitWidth += streamReadGetOrigChunkBitWidth(r);
-		if (mergedReadIsReliable && reads[0]->getParent() == r->getParent()
-				&& streamReadGetBehavior(r) == StreamReadBehaviorType::RELIABLE) {
+		//mergedReadIsReliable && reads[0]->getParent() == r->getParent() &&
+		if (!unrealiabeReadSeen
+				&& streamReadGetBehavior(r)
+						== StreamReadBehaviorType::RELIABLE) {
 			// the merged read is reliable only if all reads were reliable and all are in the same block
 			// (if they were not in same block they are conditionally executed thus data may not be present)
-			++reliableReadsCnt;
+			if (reads[0]->getParent() != r->getParent())
+				mergedReadIsReliable = false; // we need byte enable to implement jumps if data not valid
 		} else {
 			mergedReadIsReliable = false;
+			unrealiabeReadSeen = true;
 		}
+		if (mergedReadIsReliable)
+			reliableReadsCntInMerged++;
 	}
 
 	assert(mergedDataBitWidth % 8 == 0);
@@ -79,7 +86,8 @@ CallInst* StreamReadUntilEoFCFGFragment::mergeReads(
 	std::optional<hwtHls::ByteEnableEncoding> byteEnableEncodingOverride;
 	if (mergedReadIsReliable)
 		byteEnableEncodingOverride = ByteEnableEncoding::BEE_NONE;
-	auto streamPropsForMerged = streamProps.resize(mergedDataBitWidth, { },
+	auto streamPropsForMerged = streamProps.resize(mergedDataBitWidth,
+			streamProps.supportZLP || !mergedReadIsReliable,
 			byteEnableEncodingOverride);
 	size_t returnBitWidth =
 			streamPropsForMerged.segmentTy->getIntegerBitWidth();
@@ -96,15 +104,19 @@ CallInst* StreamReadUntilEoFCFGFragment::mergeReads(
 		auto dataWidth = streamReadGetOrigChunkBitWidth(r);
 		//Builder.SetInsertPoint(r);
 		bool rIsLast = reads.back() == r;
-		bool rDataAlwaysPresent = readIndex < reliableReadsCnt;
-		bool nextRDataAlwaysPresent = reliableReadsCnt
-				&& readIndex + 1 < reliableReadsCnt;
+		bool rDataAlwaysPresent = readIndex < reliableReadsCntInMerged;
+		bool nextRDataAlwaysPresent = reliableReadsCntInMerged
+				&& readIndex + 1 < reliableReadsCntInMerged;
 		auto partWordForR = mergedReadWord.slice(Builder, dataBitOffset,
 				dataWidth,                                                 //
 				/*isGuaranteedToBeNotEoF*/!rIsLast && nextRDataAlwaysPresent, //
 				/*isGuarangeedToContainSomeData*/rDataAlwaysPresent       //
 				);
-		partWordForR.populateWithDummyMaskOrEmptyIfNecessary(streamProps);
+		partWordForR.populateWithDummyMaskOrEmptyIfNecessary(Builder);
+		if (streamReadGetBehavior(r)
+				== StreamReadBehaviorType::RELIABLE) {
+			partWordForR.stripByteEnableEncoding();
+		}
 		auto newR = partWordForR.flatten(Builder, nullptr);
 		assert(newR->getType() == r->getType());
 		newR->takeName(r);

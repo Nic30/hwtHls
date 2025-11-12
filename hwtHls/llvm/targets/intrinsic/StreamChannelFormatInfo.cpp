@@ -68,10 +68,10 @@ size_t StreamChannelFormatInfo::getReadReturnWidth(size_t readDataWidth,
 		break;
 	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY:
 		// Axi4StreamSegmented (data[n], (enable?, sof?, eof?, err?, empty)[n])
-		return readDataWidth += int(hasEnable())
+		return readDataWidth +=
 				+ (isReliable ?
 						0 :
-						getWidthOfEmptyForData(readDataWidth, byteWidth,
+						int(hasEnable()) + getWidthOfEmptyForData(readDataWidth, byteWidth,
 								!isReliable));
 	default:
 		llvm_unreachable("Invalid value for byte enable encoding of a stream");

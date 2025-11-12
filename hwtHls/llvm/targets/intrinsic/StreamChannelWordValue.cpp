@@ -105,14 +105,13 @@ StreamChannelWordValue StreamChannelWordValue::concat(
 	Value *_data = CreateBitConcat(&builder, data);
 	auto &item0 = lowerFirstMembers[0];
 
-	std::optional<bool> newSupportZLP;
-	if (item0.props.byteEnableEncoding
-			== ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY)
-		newSupportZLP = false;
+	bool newSupportZLP;
 	std::optional<ByteEnableEncoding> byteEnableEncodingOverride;
 	if (resultIsReliable) {
 		newSupportZLP = false;
 		byteEnableEncodingOverride = ByteEnableEncoding::BEE_NONE;
+	} else {
+		newSupportZLP = true;
 	}
 	auto newStreamProps = item0.props.resize(
 			_data->getType()->getIntegerBitWidth(), newSupportZLP,
@@ -152,11 +151,15 @@ StreamChannelWordValue StreamChannelWordValue::concat(
 	if (!error.empty()) {
 		_error = CreateBitConcat(&builder, error);
 	}
+	Value *_enable = item0.enable;
+	if (!newStreamProps.hasEnable()) {
+		_enable = nullptr;
+	}
 	return {
 		newStreamProps,
 		_data,
 		_mask,
-		item0.enable,
+		_enable,
 		_empty,
 		item0.sof,
 		_eof,
@@ -165,25 +168,34 @@ StreamChannelWordValue StreamChannelWordValue::concat(
 }
 
 void StreamChannelWordValue::populateWithDummyMaskOrEmptyIfNecessary(
-		const StreamChannelFormatInfo &streamProps) {
+		llvm::IRBuilderBase &Builder) {
 	auto &C = data->getContext();
 	auto DW = data->getType()->getIntegerBitWidth();
 	switch (props.byteEnableEncoding) {
 	case ByteEnableEncoding::BEE_NONE:
 		break;
 	case ByteEnableEncoding::BEE_MASK: {
-		if (streamProps.hasMask() && !mask) {
+		if (props.hasMask() && !mask) {
 			mask = ConstantInt::getAllOnesValue(
-					IntegerType::get(C, streamProps.getWidthOfMaskForData(DW)));
+					IntegerType::get(C, props.getWidthOfMaskForData(DW)));
 		}
 		break;
 	}
 	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY: {
-		if (streamProps.hasEmpty() && !empty) {
-			IntegerType *emptyT = IntegerType::get(C,
-					streamProps.getWidthOfEmptyForData(DW,
-							streamProps.byteWidth, streamProps.supportZLP));
-			empty = ConstantInt::get(emptyT, 0);
+		if (props.hasEmpty()) {
+			size_t emptyWidth = props.getWidthOfEmptyForData(DW,
+					props.byteWidth, props.supportZLP);
+			IntegerType *emptyT = IntegerType::get(C, emptyWidth);
+			if (!empty) {
+				empty = ConstantInt::get(emptyT, 0);
+			} else if (empty->getType()->getIntegerBitWidth() != emptyWidth) {
+				// case where the word always contain atleast 1B but the consumer expects
+				// that there can be case also with 0B
+				assert(
+						empty->getType()->getIntegerBitWidth()
+								== emptyWidth - 1);
+				empty = Builder.CreateZExt(empty, emptyT);
+			}
 		}
 		break;
 	}
@@ -319,11 +331,23 @@ StreamChannelWordValue StreamChannelWordValue::slice(
 			_sof = ConstantInt::get(_sof->getType(), 0);
 		}
 	}
-	Value *readIsFollowedByMoreData = nullptr;
+	Value *readNotFloowedByMoreData = nullptr;
 	bool endsOnEndOfThisWord = dataLowBitIndex + bitsToTake == dataWidth;
+	bool eofNeedsSuccessorByteEnableCheck = (newProps.hasEoF() ||      //
+			newProps.hasError())      //
+			&& (props.byteEnableEncoding != ByteEnableEncoding::BEE_NONE
+					&& !(!props.supportZLP &&                      //
+							dataLowBitIndex == 0 &&                //
+							props.byteWidth == props.dataWidth     //
+					));//
+
 	if (isGuaranteedToBeNotEoF) {
 		if (_enable) {
-			_enable = ConstantInt::get(_enable->getType(), 1);
+			if (newProps.hasEnable()) {
+				_enable = ConstantInt::get(_enable->getType(), 1);
+			} else {
+				_enable = nullptr;
+			}
 		}
 		if (_eof) {
 			_eof = ConstantInt::get(_eof->getType(), 0);
@@ -336,8 +360,12 @@ StreamChannelWordValue StreamChannelWordValue::slice(
 		case ByteEnableEncoding::BEE_NONE: {
 			if (!endsOnEndOfThisWord && _eof) {
 				// never last
+				assert(!eofNeedsSuccessorByteEnableCheck);
 				_eof = ConstantInt::getFalse(builder.getContext());
 			}
+			_enable = nullptr;
+			_mask = nullptr;
+			_empty = nullptr;
 			break;
 		}
 		case ByteEnableEncoding::BEE_MASK: {
@@ -346,11 +374,12 @@ StreamChannelWordValue StreamChannelWordValue::slice(
 			// to verify this is really the end and not just some middle byte in last word
 			// nextMaskBit
 			if (props.hasMask()) {
-				if (!endsOnEndOfThisWord) {
-					if (newProps.hasEoF() || newProps.hasError())
-						readIsFollowedByMoreData = CreateBitRangeGetConst(
-								&builder, mask,
-								(dataLowBitIndex + bitsToTake) / byteWidth, 1);
+				if (eofNeedsSuccessorByteEnableCheck) {
+					size_t nextMaskBitIndex = (dataLowBitIndex + bitsToTake)
+							/ byteWidth;
+					readNotFloowedByMoreData = builder.CreateNot(
+							CreateBitRangeGetConst(&builder, mask,
+									nextMaskBitIndex, 1));
 				}
 				if (newProps.hasMask()) {
 					_mask = CreateBitRangeGetConst(&builder, mask,
@@ -361,16 +390,19 @@ StreamChannelWordValue StreamChannelWordValue::slice(
 			break;
 		}
 		case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY: {
+			if (!newProps.hasEnable())
+				_enable = nullptr;
 			if (props.hasEmpty()) {
+				// :note: max number of empty bytes in this to still have all bytes
+				//        valid for selected result
 				size_t maxValueOfEmptyToHaveAllRBytesStillOccupied = (dataWidth
 						- (dataLowBitIndex + bitsToTake)) / byteWidth;
 				auto emptyT = empty->getType();
-				if (!endsOnEndOfThisWord) {
-					if (newProps.hasEoF() || newProps.hasError())
-						readIsFollowedByMoreData =
-								builder.CreateICmpULT(empty,
-										ConstantInt::get(emptyT,
-												maxValueOfEmptyToHaveAllRBytesStillOccupied));
+				if (eofNeedsSuccessorByteEnableCheck) {
+					readNotFloowedByMoreData =
+							builder.CreateICmpUGE(empty,
+									ConstantInt::get(emptyT,
+											maxValueOfEmptyToHaveAllRBytesStillOccupied));
 				}
 				if (newProps.hasEmpty()) {
 					_empty = computeEmptyForDataExtract(builder, byteWidth,
@@ -392,15 +424,14 @@ StreamChannelWordValue StreamChannelWordValue::slice(
 		}
 	}
 
-	if (readIsFollowedByMoreData) {
-		// set eof and error only if this is last part of the data
+	if (readNotFloowedByMoreData) {
+		// set eof and error only if this may be the last part of the data
 		if (eof) {
-			_eof = builder.CreateAnd(eof,
-					builder.CreateNot(readIsFollowedByMoreData));
+			_eof = builder.CreateAnd(eof, readNotFloowedByMoreData);
 		}
 		if (error) {
-			_error = builder.CreateSelect(readIsFollowedByMoreData,
-					ConstantInt::get(error->getType(), 0), error);
+			_error = builder.CreateSelect(readNotFloowedByMoreData, error,
+					ConstantInt::get(error->getType(), 0));
 		}
 	}
 
@@ -466,6 +497,13 @@ llvm::Instruction* StreamChannelWordValue::flatten(llvm::IRBuilderBase &builder,
 		llvm_unreachable("Invalid value for byte enable encoding of a stream");
 	}
 	return dyn_cast<llvm::Instruction>(CreateBitConcat(&builder, res));
+}
+
+void StreamChannelWordValue::stripByteEnableEncoding() {
+	props = props.resize(props.dataWidth, { }, ByteEnableEncoding::BEE_NONE);
+	mask = nullptr;
+	enable = nullptr;
+	empty = nullptr;
 }
 
 StreamChannelWordValue StreamChannelWordValue::parseNativeWord(
@@ -539,10 +577,13 @@ StreamChannelWordValue StreamChannelWordValue::parseNativeWord(
 llvm::Value* StreamChannelWordValue::CreateMaskToEmpty(
 		llvm::IRBuilderBase &builder, llvm::Value *mask) const {
 	// empty = ctlz(mask)
-	Value* v = builder.CreateIntrinsic(Intrinsic::ctlz, { mask->getType() }, {
+	Value *v = builder.CreateIntrinsic(Intrinsic::ctlz, { mask->getType() }, {
 			mask, /*isZeroPoisonous*/
 			builder.getFalse() });
-	auto truncT = builder.getIntNTy(log2ceil(mask->getType()->getIntegerBitWidth() + int(props.supportZLP)));
+	auto truncT = builder.getIntNTy(
+			log2ceil(
+					mask->getType()->getIntegerBitWidth()
+							+ int(props.supportZLP)));
 	return builder.CreateTrunc(v, truncT);
 }
 
@@ -560,7 +601,8 @@ llvm::Value* StreamChannelWordValue::CreateEmptyToMask(
 	//auto m1 = ConstantInt::get(maskT, 1);
 	//auto m = builder.CreateShl(m1, builder.CreateZExt(validByteCnt, maskT));
 	//return builder.CreateSub(m, m1);
-	return builder.CreateLShr(ConstantInt::getAllOnesValue(maskT), builder.CreateZExt(empty, maskT));
+	return builder.CreateLShr(ConstantInt::getAllOnesValue(maskT),
+			builder.CreateZExt(empty, maskT));
 }
 
 }

@@ -35,7 +35,7 @@ public:
 	// In cases where the word does not have any variable encoding byte enable (mask/empty/...)
 	// because it is guaranteed that the data will be present but the IO itself has some byte enable
 	// it is required to add all enable value. This is done by this function.
-	void populateWithDummyMaskOrEmptyIfNecessary(const StreamChannelFormatInfo &streamProps);
+	void populateWithDummyMaskOrEmptyIfNecessary(llvm::IRBuilderBase &Builder);
 
 	/* This function computes a new value for "empty" (number of unused bytes in word)
 	 * for extracted slice of data from src.
@@ -83,9 +83,12 @@ public:
 	llvm::Instruction* flatten(llvm::IRBuilderBase &builder,
 			llvm::Value *lastWordHasAdditionalData) const;
 
+	void stripByteEnableEncoding();
+
 	static StreamChannelWordValue parseNativeWord(
 			const StreamChannelFormatInfo &props, llvm::IRBuilderBase &Builder,
 			llvm::Instruction *nativeWord);
+
 
 	llvm::Value * CreateMaskToEmpty(llvm::IRBuilderBase &builder, llvm::Value * mask) const;
 	llvm::Value * CreateEmptyToMask(llvm::IRBuilderBase &builder, llvm::Value * empty) const;
