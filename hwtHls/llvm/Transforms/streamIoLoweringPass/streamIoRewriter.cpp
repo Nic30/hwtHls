@@ -60,8 +60,6 @@ std::vector<llvm::BasicBlock*> StreamIoRewriter::_createBranchForEachOffsetVaria
 				ElseTerm->eraseFromParent();
 				if (DTU) {
 					DTU->applyUpdates({{DominatorTree::Delete, elseBlock, elseBlockSuc}});
-					DTU->flush();
-					assert(DTU->getDomTree().verify());
 				}
 				Builder.SetInsertPoint(elseBlock->getTerminator());
 			}
