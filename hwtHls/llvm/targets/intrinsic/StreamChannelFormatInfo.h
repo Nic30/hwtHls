@@ -96,14 +96,17 @@ public:
 	bool hasEmpty() const; // has empty to signalize number of unused bytes in last word
 	bool hasMask() const; // has mask to signalize valid bytes in last word
 	bool hasError() const; // returns true if channel supports signaling of the error
-
-	size_t getOffsetOfData() const;
-	size_t getOffsetOfError() const;
-	size_t getOffsetOfSoF() const;
-	size_t getOffsetOfEoF() const;
-	size_t getOffsetOfEmpty() const;
-	size_t getOffsetOfMask() const;
-	size_t getOffsetOfEnable() const;
+	// :note: the segmentIndex is optional to cover the case where the bus word itself has multiple
+	//        segments but we want to get offset inside of a single segment value formated as (data, signaling bits)
+	//        instead of (data{n}, signaling bits{n})
+	size_t getOffsetOfData(std::optional<unsigned> segmentIndex={}) const;
+	size_t getOffsetOfSignalingBits(std::optional<unsigned> segmentIndex={}) const;
+	size_t getOffsetOfError(std::optional<unsigned> segmentIndex={}) const;
+	size_t getOffsetOfSoF(std::optional<unsigned> segmentIndex={}) const;
+	size_t getOffsetOfEoF(std::optional<unsigned> segmentIndex={}) const;
+	size_t getOffsetOfEmpty(std::optional<unsigned> segmentIndex={}) const;
+	size_t getOffsetOfMask(std::optional<unsigned> segmentIndex={}) const;
+	size_t getOffsetOfEnable(std::optional<unsigned> segmentIndex={}) const;
 	size_t getWidthOfEmpty() const;
 	static size_t getWidthOfEmptyForData(size_t dataWidth, size_t byteWidth,
 			bool supportZLP);
@@ -111,6 +114,7 @@ public:
 	size_t getWidthOfMaskForData(size_t dataWidth) const;
 	size_t getWidthOfFramingEncoding() const;
 	size_t getWidthOfBusWord() const;
+	size_t getWidthSignalingBits() const;
 
 	std::pair<size_t, size_t> _resolveMinMaxSegmentCount(
 			const std::vector<size_t> &possibleOffsets,
