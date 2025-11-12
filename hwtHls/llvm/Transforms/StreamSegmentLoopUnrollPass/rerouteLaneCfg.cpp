@@ -7,6 +7,7 @@ namespace hwtHls {
 
 void rerouteLaneCfgAndSegmentValue(IRBuilder<> &Builder, Function &F,
 		DomTreeUpdater &DTU,
+		LoopInfo & LI,
 		const StreamChannelProps &streamProps,
 		std::vector<AllocaInst*> &tmpAllocas,
 		const SmallVector<Instruction*> &IoInstructions,
@@ -71,6 +72,7 @@ void rerouteLaneCfgAndSegmentValue(IRBuilder<> &Builder, Function &F,
 			// rerouteJumpsBetweenLanesToFollowSegmentIndexing
 			// * start at header of last segment
 			// * always jump to next lane before read
+			// * if Load is in IoInstructionsForNotEnableSkip create a jump if not enable to the same read in next segment
 			// * backedge from original loop always jumps to head in the same segment
 			// :note: I is nearly on the top of block but tmp loads is constructed before it
 			for (size_t laneI = 0; laneI < streamProps.segmentCnt; laneI++) {
@@ -87,8 +89,7 @@ void rerouteLaneCfgAndSegmentValue(IRBuilder<> &Builder, Function &F,
 
 				// :note: can not replace immediately because getSinglePredecessor() would stop working
 				newRouting.push_back(
-						{ thisLaneSrc, thisLaneDst, nextLaneDst });
-
+					{ thisLaneSrc, thisLaneDst, nextLaneDst });
 				// if BB is in BBsWhichAreSegmentEnableCheck and the allowSoFOnlyFor specifies that
 				// the next lane can not have SoF then jump to lane which can have sof instead
 				// int the branch for segment.enable==0

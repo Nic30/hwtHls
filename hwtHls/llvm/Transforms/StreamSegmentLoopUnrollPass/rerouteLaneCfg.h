@@ -2,14 +2,18 @@
 
 #include <map>
 #include <llvm/Analysis/DomTreeUpdater.h>
+#include <llvm/Analysis/LoopInfo.h>
 #include <llvm/IR/IRBuilder.h>
 
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/StreamChannelProps.h>
 #include <llvm/Transforms/Utils/ValueMapper.h>
 
 namespace hwtHls {
+
+// :attention: invalidates LI
 void rerouteLaneCfgAndSegmentValue(llvm::IRBuilder<> &Builder, llvm::Function &F,
 		llvm::DomTreeUpdater &DTU,
+		llvm::LoopInfo & LI,
 		const StreamChannelProps &streamProps,
 		std::vector<llvm::AllocaInst*> &tmpAllocas,
 		const llvm::SmallVector<llvm::Instruction*> &IoInstructions,

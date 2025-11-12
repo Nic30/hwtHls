@@ -29,6 +29,7 @@
 #include <hwtHls/llvm/Transforms/StreamSegmentLoopUnrollPass/rerouteLaneCfg.h>
 #include <hwtHls/llvm/Transforms/StreamSegmentLoopUnrollPass/demoteAllLiveVarsOnLaneCrossingToTmpAlloca.h>
 
+// #include <llvm/IR/Verifier.h>
 // #include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
 
 #define DEBUG_TYPE "StreamSegmentLoopUnroll"
@@ -40,6 +41,7 @@ using namespace llvm;
 namespace hwtHls {
 
 // based on llvm LoopUnrollPass.cpp tryToUnrollLoop(), StreamLoopUnrollPass
+// :attention: invalidates LI, SE
 static LoopUnrollResult tryToUnrollStreamSegmentLoop(llvm::Function &F, Loop &L,
 		DominatorTree &DT, LoopInfo &LI, ScalarEvolution &SE,
 		const TargetTransformInfo &TTI, AssumptionCache &AC,
@@ -86,6 +88,21 @@ static LoopUnrollResult tryToUnrollStreamSegmentLoop(llvm::Function &F, Loop &L,
 	if (streamProps.segmentCnt == 1)
 		return LoopUnrollResult::Unmodified; // no unrolling required
 
+	std::string errTmp =
+			"StreamSegmentLoopUnrollPass requires all accesses to IO to be present inside of the loop, users outside of loop:\n";
+	llvm::raw_string_ostream errSS(errTmp);
+	bool hasUserOutsideOfLoop= false;
+	for (auto U: IoArg.users()) {
+		if (auto UI = dyn_cast<Instruction>(U)) {
+			if (!L.contains(UI)) {
+				errSS << *UI << "\n";
+				hasUserOutsideOfLoop = true;
+			}
+		}
+	}
+	if (hasUserOutsideOfLoop)
+		throw std::runtime_error(errSS.str());
+	SE.forgetLoop(&L);
 	{
 		// :note: the PHIs are known to be only in header, other split point do not have PHIs
 		//  because the split was just created using SplitBlock on the place where Load/Store inst
@@ -107,7 +124,9 @@ static LoopUnrollResult tryToUnrollStreamSegmentLoop(llvm::Function &F, Loop &L,
 	SmallVector<Instruction*> IoInstructions;
 	splitBBsOnIOAccess(DTU, LI, L, IoArg, ioIsInput, BBs, IoInstructions);
 	DTU.flush();
-
+#ifndef NDEBUG
+	LI.verify(DT);
+#endif
 	/// Get computed DJ-graph of the control flow graph.
 	DJGraph djGraph = computeDJGraph(F, DT);
 	MergeSets mergeSets = completeTopDownMergeSetComputation(djGraph, F, DT);
@@ -115,6 +134,10 @@ static LoopUnrollResult tryToUnrollStreamSegmentLoop(llvm::Function &F, Loop &L,
 	IRBuilder<> Builder(F.getContext());
 	demoteAllLiveVarsOnLaneCrossingToTmpAlloca(Builder, F, ioIsInput,
 			allLiveins, BBs, IoInstructions, tmpAllocas);
+#ifndef NDEBUG
+	LI.verify(DT);
+#endif
+
 	// writeCFGToDotFile(F, "tmp/StreamSegmentLoopUnrollPass.1.normalized.dot", AMForDebug,
 	// 		false, true);
 
@@ -172,10 +195,9 @@ static LoopUnrollResult tryToUnrollStreamSegmentLoop(llvm::Function &F, Loop &L,
 	// * the edge always leads to next lane instead of continuing in current one
 	// * the edges from last lane will lead to first lane
 	// * backedges of on-last lane will be rerouted to first lane head bb
-	rerouteLaneCfgAndSegmentValue(Builder, F, DTU, streamProps, tmpAllocas,
+	rerouteLaneCfgAndSegmentValue(Builder, F, DTU, LI, streamProps, tmpAllocas,
 			IoInstructions, valueMaps, BBToLaneIndex, BBToIndexInloopBodyCopies,
 			loopBodyCopies, allowSoFOnlyFor);
-
 	//F.dump();
 	//writeCFGToDotFile(F, "tmp/StreamSegmentLoopUnrollPass.2.dot", AMForDebug,
 	//		false, true);
@@ -272,7 +294,8 @@ llvm::PreservedAnalyses StreamSegmentLoopUnrollPass::run(llvm::Function &F,
 				UnrollOpts.FullUnrollMaxCount, tmpAllocas, AM);
 		// DT.verify(DominatorTree::VerificationLevel::Full);
 		if (Result != LoopUnrollResult::Unmodified) {
-			SE.forgetLoop(&L);
+			// SE.forgetLoop(&L);
+			SE.forgetAllLoops();
 			Changed = true;
 		}
 
@@ -289,28 +312,41 @@ llvm::PreservedAnalyses StreamSegmentLoopUnrollPass::run(llvm::Function &F,
 
 	if (!Changed)
 		return PreservedAnalyses::all();
-	//writeCFGToDotFile(F, "tmp/StreamSegmentLoopUnrollPass.3.beforeReg2Mem.dot", AM,
-	//			false, false);
+	// writeCFGToDotFile(F, "tmp/StreamSegmentLoopUnrollPass.3.beforeReg2Mem.dot", AM,
+	// 			false, false);
+	// writeCFGToDotFile(F, "tmp/StreamSegmentLoopUnrollPass.3.cfg.dot", AM,
+	// 		false, true);
  	llvm::PromoteMemToReg(tmpAllocas, DT, &AC);
-	//writeCFGToDotFile(F, "tmp/StreamSegmentLoopUnrollPass.3.cfg.dot", AM,
-	//		false, true);
 
- 	//assert(DT.verify());
+ 	assert(DT.verify());
 	//errs() << "\n";
- 	//for (auto &L : LI) {
- 	//	L->dumpVerbose();
- 	//	errs() << "\n";
- 	//}
- 	LI.verify(DT);
 
-	for (const auto &L : LI) {
-		simplifyLoop(L, &DT, &LI, &SE, &AC, nullptr,
-				false /* PreserveLCSSA */);
-		formLCSSARecursively(*L, DT, &LI, &SE);
-	}
-
+ 	// must recompute because rerouteLaneCfgAndSegmentValue currently does not update LI
+ 	// the LI may become invalid if L contains sub loops which are rerouted, they can be potentially
+ 	// merged together or with parent loop or they may become cycle
 	PreservedAnalyses PA;
 	PA.preserve<DominatorTreeAnalysis>();
+	//PA.preserve<LoopAnalysis>();
+	//PA.preserve<LoopAnalysisManagerFunctionProxy>();
+	//PA.preserve<ScalarEvolutionAnalysis>();
+ 	AM.invalidate(F, PA);
+	auto &LI2 = AM.getResult<LoopAnalysis>(F);
+	auto &SE2 = AM.getResult<ScalarEvolutionAnalysis>(F);
+
+	// assert(!verifyFunction(F, &errs()));
+	//for (auto &L : LI2) {
+ 	//	L->dump();
+ 	//	errs() << "\n";
+ 	//}
+//#ifndef NDEBUG
+//	LI2.verify(DT);
+//#endif
+	for (const auto &L : LI2) {
+		simplifyLoop(L, &DT, &LI2, &SE2, &AC, nullptr,
+				false /* PreserveLCSSA */);
+		formLCSSARecursively(*L, DT, &LI2, &SE2);
+	}
+
 	PA.preserve<LoopAnalysis>();
 	PA.preserve<LoopAnalysisManagerFunctionProxy>();
 	PA.preserve<ScalarEvolutionAnalysis>();
