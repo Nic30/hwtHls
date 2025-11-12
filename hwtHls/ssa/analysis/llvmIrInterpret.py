@@ -125,6 +125,7 @@ class LlvmIrInterpret():
         self.fnArgs: Optional[LlvmIrInterpretArgs] = None
         self.ioMetadata: list[HwtHlsIoMetadata] = HwtHlsIoMetadata_get(self.F)
         self.streamIoHandler = LlvmIrInterpretStreamIo(self)
+        self.streamIoHandler._loadStreamChannelFormatInfo(self.F)
         self.placeholderObjectSlots = placeholderObjectSlots
         self._getHFloatType = _getHFloatType
         self.componentGenerators = componentGenerators
@@ -347,6 +348,15 @@ class LlvmIrInterpret():
             if not isBlocking:
                 w = instr.getType().getScalarSizeInBits()
                 nopVal = HBits(w).from_py(0, 1 << (w - 1))  # only vld=0 valid
+            streamProps: Optional[StreamChannelProps] = self.streamIoHandler._streamProps.get(srcPtrAsArg, None)
+            if streamProps is not None:
+                busWordWidth = streamProps.getWidthOfBusWord()
+                ldWidth = instr.getType().getIntegerBitWidth()
+                if ldWidth != busWordWidth:
+                    # this is load of just 1 segment from segmented bus
+                    assert ldWidth < busWordWidth, instr
+                    assert ldWidth == busWordWidth // streamProps.segmentCnt, instr
+                    return self.streamIoHandler._decodeLlvmIrLoadOfSingleSegmentFromSegmentedBus(self, instr, srcPtrAsArg, streamProps)
 
             def _opcode_Load(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
                 try:
