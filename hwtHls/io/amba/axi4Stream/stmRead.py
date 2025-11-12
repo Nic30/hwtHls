@@ -186,14 +186,14 @@ class HlsStmReadAxi4StreamSegmented(HlsStmReadAxi4Stream):
         :see: :meth:`~.HlsStmReadAxi4Stream._constructTypeOfInterfaceData`
         """
         dataWidth = dtype.bit_length()
-
-        hasEmpty = not self._isReliable and src._hasEmpty(dataWidth, src.BYTE_WIDTH, src.SUPPORT_ZLP)
+        isReliable = self._isReliable
+        hasEmpty = not isReliable and src._hasEmpty(dataWidth, src.BYTE_WIDTH, src.SUPPORT_ZLP or not isReliable)
         if hasEmpty:
-            emptyWidth = src._getWidthOfEmpty(dtype.bit_length(), src.BYTE_WIDTH, src.SUPPORT_ZLP)
+            emptyWidth = src._getWidthOfEmpty(dtype.bit_length(), src.BYTE_WIDTH, src.SUPPORT_ZLP or not isReliable)
 
         trueDtype = HStruct(
             (dtype, "data"),
-            *(((BIT, "enable"),) if src._hasEnable(src.SEGMENT_CNT) else ()),
+            *(((BIT, "enable"),) if not isReliable and src._hasEnable(src.SEGMENT_CNT) else ()),
             *(((BIT, "sof"),) if src.USE_SOF else ()),
             (BIT, "eof"),  # we do not know how many words this read could be,
                            # the eof is disjunction of eof signals from each word
@@ -229,7 +229,7 @@ class HlsStmReadAxi4StreamSegmented(HlsStmReadAxi4Stream):
         dataT = self.data._dtype
         dataBytesCnt = dataT.bit_length() // src.BYTE_WIDTH
         if src._hasEmpty(src.SEGMENT_DATA_WIDTH, src.BYTE_WIDTH, src.SUPPORT_ZLP):
-            if dataT.bit_length() ==  src.BYTE_WIDTH and not src.SUPPORT_ZLP:
+            if dataT.bit_length() ==  src.BYTE_WIDTH and not (src.SUPPORT_ZLP or not self._isReliable):
                 assert not hasattr(self, "empty"), self
                 if src._hasEnable(src.SEGMENT_CNT):
                     return self.enable
