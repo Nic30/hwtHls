@@ -23,10 +23,16 @@ class _Axi4SPacketByteCntrTC(SimTestCase):
         dataIn = []
         fu = self._Axi4StreamSimFrameUtils.from_HwIO(dut.i)
         for LEN in LENS:
-            frameBeats = []
-            fu.send_bytes(list(range(LEN)), frameBeats)
-            dataIn.extend(fu.concatWordBits(frameBeats))
+            fu.send_bytes(list(range(LEN)), dataIn)
 
+        dataIn = list(fu.concatWordBits(dataIn))
+        # print("\n")
+        # print(LENS)
+        # BYTE_CNT = dut.i.SEGMENT_DATA_WIDTH // dut.i.BYTE_WIDTH
+        # for din in dataIn:
+        #     d = din._reinterpret_cast(dut.i.WORD_T)
+        #     print(d.data[0], d.data[1])
+        #     print([BYTE_CNT - int(_d.empty) if bool(_d.enable) else 0 for _d in d.user])
         return dataIn
 
     def _checkResults(self, SUM_ONLY:bool, LENS: List[int], dataOut: List[HBitsConst]):
@@ -48,7 +54,13 @@ class _Axi4SPacketByteCntrTC(SimTestCase):
         self._checkResults(SUM_ONLY, LENS, dataOut)
 
     def _run_test_byte_cnt(self, dut: Axi4SPacketByteCntr0, LENS=[1, 2, 3, 4], T_MUL=1, CLK_FREQ=int(1e6),
-                       SUM_ONLY:bool=True, TEST_IR:bool=False, TEST_MIR:bool=False):
+                       SUM_ONLY:bool=True, TEST_IR:bool=False, TEST_MIR:bool=False, platformKwargs=dict(
+                           # debugFilter={ #*HlsDebugBundle.ALL_RELIABLE,
+                           #              # HlsDebugBundle.DBG_20_addSignalNamesToSync,
+                           #              # HlsDebugBundle.DBG_20_addSignalNamesToData,
+                           #              },
+                           # runTestAfterEachPass=True
+                           )):
         tc = self
 
         def testLlvmOptIr(*args):
@@ -58,12 +70,9 @@ class _Axi4SPacketByteCntrTC(SimTestCase):
             tc._testLlvmIrOrMir(*args, True, SUM_ONLY, LENS)
 
         platform = TestLlvmIrAndMirPlatform(dut,
-                                            optIrTest=testLlvmOptIr if TEST_IR else None, optMirTest=testLlvmOptMir if TEST_MIR else None,
-                                            # debugFilter={ #*HlsDebugBundle.ALL_RELIABLE,
-                                            #              # HlsDebugBundle.DBG_20_addSignalNamesToSync,
-                                            #              # HlsDebugBundle.DBG_20_addSignalNamesToData,
-                                            #              },
-                                            # runTestAfterEachPass=True
+                                            optIrTest=testLlvmOptIr if TEST_IR else None,
+                                            optMirTest=testLlvmOptMir if TEST_MIR else None,
+                                            **platformKwargs
                                             )
         # platform = VirtualHlsPlatform()
         self.compileSimAndStart(dut, target_platform=platform)
