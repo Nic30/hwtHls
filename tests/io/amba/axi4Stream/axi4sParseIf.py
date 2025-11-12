@@ -7,9 +7,10 @@ from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
-from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pragmaPreproc import PyBytecodeInPreproc,\
+from hwtHls.frontend.pragmaLoop import PyBytecodeStreamSegmentLoopUnroll
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInPreproc, \
     PyBytecodeBlockLabel
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
 from hwtHls.scope import HlsScope
 from tests.io.amba.axi4Stream.axi4sParseLinear import Axi4SParse2fields
@@ -33,6 +34,7 @@ class Axi4SParse2If2B(Axi4SParse2fields):
     def mainThread(self, hls: HlsScope, i: IoProxyAxi4Stream):
         o = PyBytecodeInPreproc(self.o)
         while b1:
+            PyBytecodeStreamSegmentLoopUnroll(i.interface)
             i.readStartOfFrame()
             v0 = i.read(HBits(8), reliable=True)
             if  v0.data._eq(2):
@@ -63,6 +65,7 @@ class Axi4SParse2IfLess(Axi4SParse2fields):
     def mainThread(self, hls: HlsScope, i: IoProxyAxi4Stream):
         o = PyBytecodeInPreproc(self.o)
         while b1:
+            PyBytecodeStreamSegmentLoopUnroll(i.interface)
             i.readStartOfFrame()
             v0 = i.read(HBits(8), reliable=True)
             if v0.data < 128:
@@ -90,6 +93,7 @@ class Axi4SParse2If(Axi4SParse2fields):
     def mainThread(self, hls: HlsScope, i: IoProxyAxi4Stream):
         o = PyBytecodeInPreproc(self.o)
         while b1:
+            PyBytecodeStreamSegmentLoopUnroll(i.interface)
             i.readStartOfFrame()
             v0 = i.read(HBits(16), reliable=True)
             if v0.data._eq(2):
@@ -130,6 +134,7 @@ class Axi4SParse2IfAndSequel(Axi4SParse2fields):
         o = PyBytecodeInPreproc(self.o)
 
         while b1:
+            PyBytecodeStreamSegmentLoopUnroll(i.interface)
             i.readStartOfFrame()
             PyBytecodeBlockLabel("sof")
             v0 = i.read(HBits(16))
@@ -142,7 +147,7 @@ class Axi4SParse2IfAndSequel(Axi4SParse2fields):
                 PyBytecodeBlockLabel("case4B")
                 v1b = PyBytecodeInPreproc(i.read(HBits(32)))
                 hls.write(v1b.data._reinterpret_cast(o.T), o),
- 
+
             PyBytecodeBlockLabel("final1B")
             v2 = i.read(HBits(8))
             if self.WRITE_FOOTER:
