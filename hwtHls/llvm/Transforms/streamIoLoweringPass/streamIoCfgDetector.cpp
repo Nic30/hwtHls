@@ -180,8 +180,9 @@ void StreamIoDetector::resolvePossibleOffset() {
 bool StreamIoDetector::isDirectlyAfterSoF(const HlsReadOrWrite *op) const {
 	auto preds = predecessors.find(op);
 	assert(preds != predecessors.end());
-	return (preds->second.size() == 1
-			and IsStreamIoStartOfFrame(preds->second[0]));
+	return any_of(preds->second, [](const HlsReadOrWrite *I) {
+		return IsStreamIoStartOfFrame(I);
+	});
 }
 
 llvm::raw_ostream& StreamIoDetector::print(llvm::raw_ostream &OS) const {
