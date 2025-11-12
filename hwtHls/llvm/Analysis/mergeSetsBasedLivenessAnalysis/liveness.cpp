@@ -45,7 +45,7 @@ bool isLiveInUsingMergeSet(BasicBlock &root, BasicBlock *block, Instruction *var
 		return false;
 	}
 	auto t = dominators.getNode(block)->getIDom()->getBlock();
-	if (t == block) {
+	if (t == block || t == &root) {
 		return true; // bb without predecessor
 	}
 	for (;;) {
