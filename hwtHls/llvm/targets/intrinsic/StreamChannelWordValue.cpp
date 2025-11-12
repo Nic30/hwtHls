@@ -333,8 +333,9 @@ StreamChannelWordValue StreamChannelWordValue::slice(
 	}
 	Value *readNotFloowedByMoreData = nullptr;
 	bool endsOnEndOfThisWord = dataLowBitIndex + bitsToTake == dataWidth;
-	bool eofNeedsSuccessorByteEnableCheck = (newProps.hasEoF() ||      //
-			newProps.hasError())      //
+	bool eofNeedsSuccessorByteEnableCheck = !endsOnEndOfThisWord
+			&& //
+			(newProps.hasEoF() || newProps.hasError())      //
 			&& (props.byteEnableEncoding != ByteEnableEncoding::BEE_NONE
 					&& !(!props.supportZLP &&                      //
 							dataLowBitIndex == 0 &&                //
