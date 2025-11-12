@@ -117,6 +117,22 @@ class Axi4SSPacketByteCntr_readSegmentWord(Axi4SSPacketByteCntr_readBusWord):
 
 class Axi4SSPacketByteCntr_readByte(Axi4SSPacketByteCntr_readSegmentWord):
 
+    #@override
+    #def mainThread(self, hls: HlsScope, i: IoProxyAxi4StreamSegmented):
+    #    byteTy = HBits(self.i.BYTE_WIDTH)
+    #    byte_cnt = uint16_t.from_py(0)
+    #    while b1:
+    #        i.readStartOfFrame()
+    #        while b1:
+    #            word: HlsStmReadAxi4StreamSegmented = i.read(byteTy, reliable=False)
+    #            byte_cnt += zextToTy(word.getSize(), byte_cnt._dtype)
+    #            PyBytecodeStreamLoopUnroll(i.interface)
+    #            if word._isEoF():
+    #                break
+    #        hls.write(byte_cnt, self.byte_cnt)
+    #        i.readEndOfFrame()
+    #        PyBytecodeStreamSegmentLoopUnroll(i.interface)
+    #
     @override
     def mainThread(self, hls: HlsScope, i: IoProxyAxi4StreamSegmented):
         byteTy = HBits(self.i.BYTE_WIDTH)
@@ -124,12 +140,12 @@ class Axi4SSPacketByteCntr_readByte(Axi4SSPacketByteCntr_readSegmentWord):
         while b1:
             i.readStartOfFrame()
             while b1:
-                word: HlsStmReadAxi4StreamSegmented = i.read(byteTy, reliable=False)
-                byte_cnt += zextToTy(word.getSize(), byte_cnt._dtype)
-                hls.write(byte_cnt, self.byte_cnt)
+                word: HlsStmReadAxi4StreamSegmented = i.read(byteTy)
+                byte_cnt += 1
                 PyBytecodeStreamLoopUnroll(i.interface)
                 if word._isEoF():
                     break
+            hls.write(byte_cnt, self.byte_cnt)
             i.readEndOfFrame()
             PyBytecodeStreamSegmentLoopUnroll(i.interface)
 
