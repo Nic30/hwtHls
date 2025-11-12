@@ -126,7 +126,7 @@ class LlvmIrInterpretStreamIo():
             # parse members of stream word concatenated value
             assert isinstance(streamWord, HBitsConst), (instr, streamWord)
             assert streamWord._dtype.bit_length() == streamProps.getWidthOfBusWord(), (instr, streamWord._dtype.bit_length(), streamProps.getWidthOfBusWord())
-            if segmentCnt == 0:
+            if segmentCnt <= 1:
                 leftoverSegments = None
             else:
                 leftoverSegments = []
@@ -177,7 +177,8 @@ class LlvmIrInterpretStreamIo():
 
                     elif byteEnableEncoding == ByteEnableEncoding.BEE_ENABLE_PLUS_EMPTY:
                         # data, enable, sof?, eof?, err?, empty?
-                        newTmpWord.append(enable)
+                        if hasEnable:
+                            newTmpWord.append(enable)
                         if hasSoF:
                             newTmpWord.append(sof)
                         if hasEoF:
@@ -342,6 +343,11 @@ class LlvmIrInterpretStreamIo():
             # all segments were empty
             raise SimIoUnderflowErr()
 
+        if hasEmpty:
+            newEmptyWidth = streamProps.getWidthOfEmptyForData(w, byteWidth, supportZLP or isUnreliable)
+            if empty is not None and isUnreliable:
+                empty = empty._zext(newEmptyWidth)
+
         # truncate data and optionaly store leftover to tmp word
         actualWidth = data._dtype.bit_length()
         if actualWidth == w:
@@ -357,7 +363,6 @@ class LlvmIrInterpretStreamIo():
             if hasMask:
                 mask = Concat(HBits(padByteCnt).from_py(0), mask)
             if hasEmpty:
-                newEmptyWidth = streamProps.getWidthOfEmptyForData(w)
                 empty = HBits(newEmptyWidth).from_py(int(empty) + padByteCnt)
         else:
             # the read ends somewhere in the middle of the stream word
@@ -371,7 +376,6 @@ class LlvmIrInterpretStreamIo():
             elif hasEmpty and eof & (int(empty) >= ((actualWidth - w) // byteWidth)):
                 # rest of the word is empty we can discard it
                 newTmpWord = None
-
             else:
                 # there is a leftover data in stream word, store if for later
                 dataTmp = data[:w]
@@ -393,7 +397,8 @@ class LlvmIrInterpretStreamIo():
 
                 elif bee == ByteEnableEncoding.BEE_ENABLE_PLUS_EMPTY:
                     # data, enable, sof?, eof?, err?, empty?
-                    newTmpWord.append(enable)
+                    if hasEnable:
+                        newTmpWord.append(enable)
                     if hasSoF:
                         newTmpWord.append(sof)  # this is leftover and thus it can not contain first byte with sof
                     if hasEoF:
@@ -401,7 +406,6 @@ class LlvmIrInterpretStreamIo():
                     if hasError:
                         newTmpWord.append(error)
                     if hasEmpty:
-                        newEmptyWidth = streamProps.getWidthOfEmptyForData(w, byteWidth, supportZLP or isUnreliable)
                         leftoverByteCnt = (actualWidth - w) // byteWidth
                         empty = int(empty)
                         # compute new empty for remaining bytes
@@ -437,6 +441,14 @@ class LlvmIrInterpretStreamIo():
                 assert curTmpWord is None, instr
 
         self._streamIoTmpWords[ioArg] = curTmpWord
+
+        if not isUnreliable:
+            mask = None
+            enable = None
+            empty = None
+            hasMask = False
+            hasEmpty = False
+            hasEnable = False
 
         return self._runLlvmIrFunctionInstrStreamRead_buildReturnVal(
             instr, bee, hasMask, hasEnable, hasEmpty, hasError, hasSoF, hasEoF, isUnreliable,
