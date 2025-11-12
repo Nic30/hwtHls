@@ -81,20 +81,22 @@ void StreamIoRewriter::rewriteAdtAccessToWordAccess(BasicBlock &_curBlock) {
 
 	for (auto curBlockPos = curBlock->begin(); curBlockPos != curBlock->end();
 			++curBlockPos) {
-		if (curBlockPos->getParent() != curBlock) {
-			curBlock = curBlockPos->getParent();
-		}
 		if (auto *CI = dyn_cast<CallInst>(&*curBlockPos)) {
 			if (streamProps.ios.count(CI)
 					&& cfg.resolvedStms.find(CI) == cfg.resolvedStms.end()) {
 				cfg.resolvedStms.insert(CI);
 				_rewriteAdtAccessToWordAccessInstruction(CI);
+				if (curBlockPos->getParent() != curBlock) {
+					// in the case that the block was split continue processing on new block begin
+					curBlock = curBlockPos->getParent();
+				}
 			}
 		}
 	}
 
 	// :note: curBlock may be a different than the original from arguments, because the block may be split etc.
-	for (auto *sucBb : llvm::successors(curBlock)) {
+	SmallVector<BasicBlock*> originalSuccessors(llvm::successors(curBlock));
+	for (auto *sucBb : originalSuccessors) {
 		auto seenPredecessors = cfg.seenPredecessors.find(sucBb);
 		bool thisBlockWasSeen = false;
 		if (seenPredecessors == cfg.seenPredecessors.end()) {
