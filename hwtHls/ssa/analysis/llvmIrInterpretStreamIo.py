@@ -635,7 +635,10 @@ class LlvmIrInterpretStreamIo():
 
             def _intrinsic_StreamReadEndOfFrame(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
                 curTmp = self._streamIoTmpWords.get(ioArg, None)
-                if streamProps.byteEnableEncoding == ByteEnableEncoding.BEE_NONE or streamProps.segmentCnt > 1:
+                if streamProps.byteEnableEncoding == ByteEnableEncoding.BEE_NONE:
+                    if curTmp is not None:
+                        self._streamIoTmpWords.pop(ioArg)
+                elif streamProps.segmentCnt > 1:
                     pass
                 else:
                     assert curTmp is None, ("The frame does not end when expected", instr, curTmp)
