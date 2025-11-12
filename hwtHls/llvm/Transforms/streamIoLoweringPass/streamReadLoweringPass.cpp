@@ -235,7 +235,7 @@ protected:
 			StreamIoDetector::HlsReadOrWrite *read) override;
 	// create loads from IO which will always happen for every combination of offset
 	void _prepareStaticPrevWordVars(StreamReadChunk &readInfo,
-			size_t staticWordCnt);
+			size_t staticWordCnt, bool skipDisabledSegments);
 	void _consumeReadWordsAndCreateResultData(StreamReadChunk &readInfo);
 	void _handleOptionalReadsDependingOnCurrentOffset(
 			const std::vector<size_t> &possibleOffsets,
@@ -314,7 +314,7 @@ llvm::BasicBlock* StreamReadRewriter::_resetOffsetIfLast(llvm::StringRef name,
 }
 
 void StreamReadRewriter::_prepareStaticPrevWordVars(StreamReadChunk &readInfo,
-		size_t staticWordCnt) {
+		size_t staticWordCnt, bool skipDisabledSegments) {
 	assert(staticWordCnt);
 	assert(
 			staticWordCnt <= (1ul << 32)
@@ -382,7 +382,10 @@ void StreamReadRewriter::_prepareStaticPrevWordVars(StreamReadChunk &readInfo,
 		auto *ioWordLd = Builder.CreateLoad(streamProps.segmentTy,
 				streamProps.ioArg, /*isVolatile*/true,
 				readInfo.read->getName() + ".r" + std::to_string(i));
-		auto w = StreamChannelWordValue::parseNativeWord(streamProps, Builder,
+		if (i == 0 && skipDisabledSegments) {
+			_createLoopForEmptySegmentSkip(ioWordLd);
+		}
+		StreamChannelWordValue w = StreamChannelWordValue::parseNativeWord(streamProps, Builder,
 				ioWordLd);
 		readInfo.inWords.push_back(w);
 		if (!readInfo.isReliable()) {
@@ -781,7 +784,7 @@ void StreamReadRewriter::_rewriteAdtAccessToWordAccessInstruction(
 			}
 			}
 			if (staticWordCnt)
-				_prepareStaticPrevWordVars(readInfo, staticWordCnt);
+				_prepareStaticPrevWordVars(readInfo, staticWordCnt, _mayLoadDisabledSegment(read));
 
 			// * collect/construct all reads common for every successor branch
 			// * replace original read of ADT with a result composed of word reads
@@ -839,6 +842,7 @@ llvm::PreservedAnalyses StreamReadLoweringPass::run(llvm::Function &F,
 		DTU.flush();
 	}
 	if (changed) {
+#ifndef NDEBUG
 		// errs() << "StreamReadLoweringPass.afer:\n" << F << "\n";
 		std::string errTmp =
 				"hwtHls::StreamReadLoweringPass corrupted function ";
@@ -848,9 +852,10 @@ llvm::PreservedAnalyses StreamReadLoweringPass::run(llvm::Function &F,
 		if (verifyModule(*F.getParent(), &errSS)) {
 			throw std::runtime_error(errSS.str());
 		}
-		//writeCFGToDotFile(F, "tmp/StreamReadLoweringPass.after.no-reg2mem.dot",
-		//		FAM);
-
+		// writeCFGToDotFile(F, "tmp/StreamReadLoweringPass.after.no-reg2mem.dot",
+		// 		FAM);
+		assert(DT.verify());
+#endif
 		finalizeStreamIoLowerig(F, FAM, DT, streamProps, false,
 				GeneratedAllocas);
 		llvm::PreservedAnalyses PA;
