@@ -116,7 +116,7 @@ def ioDataIsMixedInControlInThisClk(ioNode: HlsNetNodeExplicitSync, ackPort: Hls
             for u in uses:
                 u: HlsNetNodeIn
                 uObj: HlsNetNodeAggregate = u.obj
-                assert isinstance(uObj, HlsNetNodeAggregate)
+                assert isinstance(uObj, HlsNetNodeAggregate), (n, uObj)
                 uTime = uObj.scheduledIn[u.in_i]
                 # Connections between arch elements are allowed to cross clock boundaries
                 # freely without any register
