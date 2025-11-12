@@ -2,7 +2,6 @@
 
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 
-
 using namespace llvm;
 
 namespace hwtHls {
@@ -49,9 +48,9 @@ void splitBBsOnIOAccess(DomTreeUpdater &DTU, LoopInfo &LI, Loop &L,
 					assert(
 							BBIt == BB->begin()
 									&& "This should be the original LoadInst");
-				    if (Loop *L = LI.getLoopFor(BB)) {
-				    	if (L->getHeader() == BB)
-				    		L->moveToHeader(BBTmp); // the new block which was cut off from BB by SplitBlock is not new header
+					if (Loop *L = LI.getLoopFor(BB)) {
+						if (L->getHeader() == BB)
+							L->moveToHeader(BBTmp); // the new block which was cut off from BB by SplitBlock is not new header
 					}
 				} else {
 					BB = BBTmp;
