@@ -146,6 +146,7 @@ class IoProxyScalar(IoProxy):
         return HlsWrite(self, src, dst, dtype, isVolatile, mayBecomeFlushable=mayBecomeFlushable)
 
     def read(self, blocking=True, isVolatile=True):
+        assert isinstance(blocking, bool), blocking
         if isinstance(self.interface, HwIO):
             assert self.interface._direction != INTF_DIRECTION.SLAVE, (self.interface, "Can not read from output")
 
