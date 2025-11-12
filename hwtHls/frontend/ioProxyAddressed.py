@@ -1,7 +1,6 @@
 from typing import Union, Optional, Sequence, Type as TypingType
 
 from hwt.constants import NOT_SPECIFIED
-from hwt.hdl.types.array import HArray
 from hwt.hdl.types.bitConstFunctions import AnyHBitsValue
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.hdlType import HdlType
@@ -13,8 +12,7 @@ from hwtHls.frontend.ioProxy import IoProxy
 from hwtHls.frontend.pyBytecode import hlsLowLevel
 from hwtHls.frontend.statementsRead import HlsReadAddressed
 from hwtHls.frontend.statementsWrite import HlsWriteAddressed
-from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup, \
-    getFirstInterfaceInstance
+from hwtHls.io.portGroups import getFirstInterfaceInstance
 from hwtHls.llvm.llvmIr import Register, MachineInstr, Type, PointerType, \
     HwtHlsIoMetadata
 from hwtHls.netlist.context import HlsNetlistCtx
@@ -40,14 +38,17 @@ class IoProxyAddressed(IoProxy):
         raise AssertionError("This should never be called, instead a frontend should translate this operation")
 
     @hlsLowLevel
-    def read(self, index: Union[AnyHBitsValue], dtype: HdlType, isVolatile:bool=True) -> HlsReadAddressed:
-        if dtype.bit_length() != self.rWordT.bit_length():
+    def read(self, index: Union[AnyHBitsValue], dtype: HdlType=None, isVolatile:bool=True) -> HlsReadAddressed:
+        rWordT = self.getDataTypeOfNativeRead()
+        if dtype is None:
+            dtype = rWordT
+        elif dtype.bit_length() != rWordT.bit_length():
             raise NotImplementedError()
 
         return self.READ_CLS(self,
                               self.interface,
                               index,
-                              self.rWordT,
+                              rWordT,
                               isBlocking=True,
                               isVolatile=isVolatile,
                               )
