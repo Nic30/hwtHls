@@ -57,7 +57,7 @@ public:
 		// original read should be moved to sequel
 		// because now we are just preparing the data for it
 		Instruction *thenTerm = llvm::SplitBlockAndInsertIfThen(condition,
-				&*Builder.GetInsertPoint(), false, nullptr, DTU);
+				&*Builder.GetInsertPoint(), false, nullptr, DTU, LI);
 		auto *thenBb = thenTerm->getParent();
 		thenBb->setName(BlockLabel);
 		Builder.SetInsertPoint(thenTerm);

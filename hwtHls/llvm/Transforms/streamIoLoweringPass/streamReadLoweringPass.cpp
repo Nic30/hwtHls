@@ -296,7 +296,7 @@ llvm::BasicBlock* StreamReadRewriter::_resetOffsetIfLast(llvm::StringRef name,
 	Instruction *ThenTerm;
 	Instruction *ElseTerm;
 	llvm::SplitBlockAndInsertIfThenElse(isLast, &*Builder.GetInsertPoint(),
-			&ThenTerm, &ElseTerm, nullptr, DTU);
+			&ThenTerm, &ElseTerm, nullptr, DTU, LI);
 
 	ThenTerm->getParent()->setName(name + "Last");
 	Builder.SetInsertPoint(ThenTerm->getParent()->getTerminator());

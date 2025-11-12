@@ -45,7 +45,7 @@ std::vector<llvm::BasicBlock*> StreamIoRewriter::_createBranchForEachOffsetVaria
 			llvm::Instruction *ThenTerm = nullptr;
 			llvm::Instruction *ElseTerm = nullptr;
 			llvm::SplitBlockAndInsertIfThenElse(offEn, SplitBefore, &ThenTerm,
-					&ElseTerm, (llvm::MDNode*) nullptr, DTU);
+					&ElseTerm, (llvm::MDNode*) nullptr, DTU, LI);
 			offsetVariantBlock = dyn_cast<BasicBlock>(ThenTerm->getParent());
 			assert(offsetVariantBlock != nullptr);
 
