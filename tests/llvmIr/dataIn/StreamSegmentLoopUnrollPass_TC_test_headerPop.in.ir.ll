@@ -11,9 +11,6 @@ bb1:
   %r0.eof = icmp ne i134 %r0, 0
   br i1 %r0.eof, label %bb1.backedge, label %bb1.segmentEnCheck.after
 
-bb1.backedge:
-  br label %bb1
-
 bb1.segmentEnCheck.after:
   %r1 = load volatile i134, ptr addrspace(1) %rx, align 32
   br label %bb.forwardUntilEoF
@@ -24,12 +21,15 @@ bb.forwardUntilEoF:
   %r2.eof = icmp ne i134 %r2, 0
   %r2.ext = zext i134 %r2 to i135
   store volatile i135 %r2.ext, ptr addrspace(2) %tx, align 32
-  br i1 %r2.eof, label %bb.consumePendingOnLast, label %bb.forwardUntilEoF, !llvm.loop !6
+  br i1 %r2.eof, label %bb.consumePendingOnLast, label %bb.forwardUntilEoF
 
 bb.consumePendingOnLast:
   %r.phi.ext = zext i134 %r.phi to i135
   store volatile i135 %r.phi.ext, ptr addrspace(2) %tx, align 32
   br label %bb1.backedge
+
+bb1.backedge:
+  br label %bb1, !llvm.loop !6
 }
 
 
