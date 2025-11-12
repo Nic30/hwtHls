@@ -66,7 +66,7 @@ void mergeOverlapedIntervals(BitRanges &arr, BitRanges &res) {
 void intervalsApplySlice(const BitRanges &arr, size_t offset, size_t width,
 		BitRanges &res) {
 	for (auto r : arr) {
-		if (r.second < offset) {
+		if (r.second <= offset) {
 			continue; // before selected range
 		} else if (r.first >= width) {
 			continue; // after selected range
@@ -76,12 +76,15 @@ void intervalsApplySlice(const BitRanges &arr, size_t offset, size_t width,
 		} else {
 			r.first -= offset;
 		}
+		assert(r.second > offset);
 		r.second -= offset;
 		if (r.second >= width) {
 			r.second = width;
+			assert(r.first < r.second);
 			res.push_back(r);
 			break;
 		}
+		assert(r.first < r.second);
 		res.push_back(r);
 	}
 }
@@ -148,6 +151,7 @@ void propagateUseToDefBitwidthReducing(OffsetWidthValue src, Instruction &srcI,
 	// translate ranges to original bit vector bit indexing
 	BitRanges OpIbitRanges;
 	if (bitRanges.empty()) {
+		assert(src.width > 0);
 		if (!src.isIdentity())
 			OpIbitRanges.push_back( { src.offset, src.offset + src.width });
 	} else {
