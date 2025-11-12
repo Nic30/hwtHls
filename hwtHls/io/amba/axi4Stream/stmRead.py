@@ -225,12 +225,19 @@ class HlsStmReadAxi4StreamSegmented(HlsStmReadAxi4Stream):
                 setattr(self, n, fieldHwIO)
 
     def getSize(self) -> Union[int, RtlSignalBase[HBits]]:
-        dataT = self.data._dtype
-        dataBytesCnt = dataT.bit_length() // self._src.BYTE_WIDTH
         src: Axi4StreamSegmented = self._src
+        dataT = self.data._dtype
+        dataBytesCnt = dataT.bit_length() // src.BYTE_WIDTH
         if src._hasEmpty(src.SEGMENT_DATA_WIDTH, src.BYTE_WIDTH, src.SUPPORT_ZLP):
-            sizeT = HBits(self.empty._dtype.bit_length() + 1)
-            # setHasNoUnsignedWrap
-            return sizeT.from_py(dataBytesCnt) - zextToTy(self.empty, sizeT)
+            if dataT.bit_length() ==  src.BYTE_WIDTH and not src.SUPPORT_ZLP:
+                assert not hasattr(self, "empty"), self
+                if src._hasEnable(src.SEGMENT_CNT):
+                    return self.enable
+                else:
+                    return b1
+            else:
+                sizeT = HBits(self.empty._dtype.bit_length() + 1)
+                # setHasNoUnsignedWrap
+                return sizeT.from_py(dataBytesCnt) - zextToTy(self.empty, sizeT)
         else:
             return dataBytesCnt
