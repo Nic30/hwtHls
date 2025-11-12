@@ -12,13 +12,17 @@ class Axi4SSPacketByteCntrTC(_Axi4SPacketByteCntrTC):
     _Axi4StreamSimFrameUtils = Axi4StreamSegmentedFrameUtils
 
     def _test_byte_cnt(self, DATA_WIDTH:int, SEGMENT_CNT:int=1, cls=Axi4SSPacketByteCntr_readByte,
-                       LENS=[1, 2, 3, 4], T_MUL=1, CLK_FREQ=int(1e6),
-                       SUM_ONLY:bool=True, TEST_IR:bool=True, TEST_MIR:bool=False, platformKwargs=dict(
+                       LENS=[1, 2, 3, 4],
+                       T_MUL=1, CLK_FREQ=int(1e6),
+                       SUM_ONLY:bool=True, TEST_IR:bool=True, TEST_MIR:bool=True, platformKwargs=dict(
                            # debugFilter={ *HlsDebugBundle.ALL_RELIABLE,
                            #              # HlsDebugBundle.DBG_20_addSignalNamesToSync,
                            #              # HlsDebugBundle.DBG_20_addSignalNamesToData,
                            #              },
-                           llvmCliArgs=[LLVM_CLI_COMMON_OPTS.VERIFY_EACH, ],
+                           llvmCliArgs=[LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+                                        # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+                                        
+                                         ],
                            # runTestAfterEachPass=True
                            )):
         dut = cls()
