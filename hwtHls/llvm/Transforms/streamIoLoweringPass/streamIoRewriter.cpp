@@ -54,8 +54,16 @@ std::vector<llvm::BasicBlock*> StreamIoRewriter::_createBranchForEachOffsetVaria
 			Builder.SetInsertPoint(elseBlock->getTerminator());
 
 			if (last) {
+				assert(ElseTerm->getNumSuccessors() == 1);
+				auto elseBlockSuc = ElseTerm->getSuccessor(0);
 				Builder.CreateUnreachable();
 				ElseTerm->eraseFromParent();
+				if (DTU) {
+					DTU->applyUpdates({{DominatorTree::Delete, elseBlock, elseBlockSuc}});
+					DTU->flush();
+					assert(DTU->getDomTree().verify());
+				}
+				Builder.SetInsertPoint(elseBlock->getTerminator());
 			}
 
 			offsetVariantBlock->setName(
