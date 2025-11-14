@@ -31,12 +31,16 @@ def fixp_resize_py(x: float, signed:bool,
         if roundingMode == HFloatTmpRounding.ROUND_HALF_EVEN:
             roundedValue = round(shiftedValue)
         elif roundingMode == HFloatTmpRounding.ROUND_HALF_UP:
-            if shiftedValue > 0:
-                roundedValue = math.ceil(shiftedValue - 0.5)
+            # https://stackoverflow.com/a/79758374
+            if shiftedValue >= 0:
+                roundedValue = int(shiftedValue + 0.5)
             else:
-                roundedValue = math.floor(shiftedValue + 0.5)
+                roundedValue = int(shiftedValue - 0.5)
         elif roundingMode == HFloatTmpRounding.ROUND_DOWN:
-            roundedValue = math.floor(shiftedValue)
+            if shiftedValue > 0:
+                roundedValue = math.floor(shiftedValue)
+            else:
+                roundedValue = math.ceil(shiftedValue)
         elif roundingMode == HFloatTmpRounding.ROUND_CEILING:
             roundedValue = math.ceil(shiftedValue)
         elif roundingMode == HFloatTmpRounding.ROUND_FLOOR:
