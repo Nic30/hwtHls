@@ -139,15 +139,15 @@ bool splitPointPropagate_BinaryOperator(bool updated,
 		}
 		break;
 	}
-	case Instruction::BinaryOps::Shl: // Shift left  (logical)
-	case Instruction::BinaryOps::LShr: // Shift right (logical)
-	case Instruction::BinaryOps::AShr: // Shift right (arithmetic)
-	{
-		BO->dump();
-		llvm_unreachable(
-				"Shifts should be converted to concatenations or have hwtHls.slicesToIndependentVariables.noSplit attribute before running this pass");
-		break;
-	}
+	//case Instruction::BinaryOps::Shl: // Shift left  (logical)
+	//case Instruction::BinaryOps::LShr: // Shift right (logical)
+	//case Instruction::BinaryOps::AShr: // Shift right (arithmetic)
+	//{
+	//	BO->dump();
+	//	llvm_unreachable(
+	//			"Shifts should be converted to concatenations or have hwtHls.slicesToIndependentVariables.noSplit attribute before running this pass");
+	//	break;
+	//}
 	default:
 		break;
 	}
