@@ -435,7 +435,7 @@ def shArray(arr: list[AnyHValue], shiftAmount: AnyHBitsValue,
         else:
             assert itemWidth > 0
             # padding because we will shift only with granularity of the item
-            shiftAmountPadded = Concat(shiftAmount, HBits(hwt_log2ceil(itemWidth)))
+            shiftAmountPadded = Concat(shiftAmount, HBits(hwt_log2ceil(itemWidth)).from_py(0))
 
         res = shFn(Concat(*reversed(arr)), shiftAmountPadded)
         resArray = split_to_segments(res, itemWidth)
@@ -444,7 +444,7 @@ def shArray(arr: list[AnyHValue], shiftAmount: AnyHBitsValue,
         assert itemWidth > 1
         newItemWidth = next_power_of_2_int(itemWidth)
         arr = [item._zext(newItemWidth) for item in arr]
-        shiftAmountPadded = Concat(shiftAmount, HBits(hwt_log2ceil(newItemWidth)))
+        shiftAmountPadded = Concat(shiftAmount, HBits(hwt_log2ceil(newItemWidth)).from_py(0))
         res = shFn(Concat(*reversed(arr)), shiftAmountPadded)
         resArray = split_to_segments(res, newItemWidth)
         resArray = [item._trunc(itemWidth) for item in resArray]
@@ -467,7 +467,7 @@ def shArray(arr: list[AnyHValue], shiftAmount: AnyHBitsValue,
                 else:
                     assert w > 0
                     # padding because we will shift only with granularity of the item
-                    shiftAmountPadded = Concat(shiftAmount, HBits(hwt_log2ceil(w)))
+                    shiftAmountPadded = Concat(shiftAmount, HBits(hwt_log2ceil(w)).from_py(0))
 
                 res = shFn(Concat(*reversed(arr)), shiftAmountPadded)
                 resArray = split_to_segments(res, newItemWidth)
@@ -484,7 +484,7 @@ def shArray(arr: list[AnyHValue], shiftAmount: AnyHBitsValue,
         ]
 
     if not isinstance(itemT, HBits):
-        resArray = [item._reinterpret_cast(itemT) for item in arr]
+        resArray = [item._reinterpret_cast(itemT) for item in resArray]
 
     return resArray
 
@@ -799,3 +799,7 @@ def incrSat(x: AnyHBitsValue, en:Optional[AnyHBitsValue]=None) -> AnyHBitsValue:
 
     return isNotMaxVal._ternary(x + 1, x)
 
+
+@hwt_expr_producer
+def subSat0(v0: AnyHBitsValue, v1: AnyHBitsValue):
+    return (v0 < v1)._ternary(v0._dtype.from_py(0), v0 - v1)
