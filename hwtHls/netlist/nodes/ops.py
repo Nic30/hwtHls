@@ -19,9 +19,20 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
 from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+from hwtHls.netlist.nodes.const import HlsNetNodeConst
 
 OP_INDEX_CONST = HOperatorDef(None, False, "OP_INDEX_CONST")
 OpSpecialization_t = Optional[HFloatTmpConfig]
+
+
+def getNumberOfConstBitsInDriver(o: HlsNetNodeOut):
+    n = o.obj
+    if isinstance(n, HlsNetNodeOperator) and n.operator == HwtOps.CONCAT:
+        return sum(getNumberOfConstBitsInDriver(dep) for dep in n.dependsOn)
+    elif isinstance(n, HlsNetNodeConst):
+        return n._outputs[0]._dtype.bit_length()
+    else:
+        return 0
 
 
 class HlsNetNodeOperator(HlsNetNode):
@@ -69,7 +80,10 @@ class HlsNetNodeOperator(HlsNetNode):
         netlist = self.netlist
         input_cnt = len(self.dependsOn)
 
-        bit_length = self.getInputDtype(0).bit_length()
+        if self.operator in (OP_SHL, OP_ASHR, OP_LSHR, OP_ROL, OP_ROR):
+            bit_length = self.getInputDtype(1).bit_length() - getNumberOfConstBitsInDriver(self.dependsOn[1])
+        else:
+            bit_length = self.getInputDtype(0).bit_length()
         assert self.operator is not (HwtOps.TERNARY, "Mux has own class HlsNetNodeMux")
         gen = netlist.platform._componentGenerators.get(self.operator)
         if gen is not None:
