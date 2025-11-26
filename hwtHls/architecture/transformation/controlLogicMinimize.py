@@ -1,5 +1,4 @@
 
-from itertools import chain
 from typing import Union, Set, Generator, Callable, Sequence
 
 from hwt.hdl.const import HConst
