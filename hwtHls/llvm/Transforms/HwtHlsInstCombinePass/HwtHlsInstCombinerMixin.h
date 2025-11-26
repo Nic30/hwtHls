@@ -102,12 +102,12 @@ template<typename DerivedT>
 bool HwtHlsInstCombinerMixin<DerivedT>::prepareWorklist(
 		llvm::ReversePostOrderTraversal<llvm::BasicBlock*> &RPOT) {
 	// clean worklist because prepareWorklist may erase unused instructions
-	// which would resuilt in deleted item being inside of worklist
+	// which would result in deleted item being inside of worklist
 	while (Worklist.popDeferred())
 		;
 	while (Worklist.removeOne())
 		;
-
+	Worklist.zap();
 	bool MadeIRChange = false;
 	llvm::SmallPtrSet<llvm::BasicBlock*, 32> LiveBlocks;
 	llvm::SmallVector<llvm::Instruction*, 128> InstrsForInstructionWorklist;
@@ -245,6 +245,7 @@ bool HwtHlsInstCombinerMixin<DerivedT>::prepareWorklist(
 			LLVM_DEBUG(
 					llvm::dbgs() << DEBUG_TYPE_SHORT ": DCE: " << *Inst << '\n');
 			salvageDebugInfo(*Inst);
+			Worklist.remove(Inst);
 			Inst->eraseFromParent();
 			MadeIRChange = true;
 			continue;
@@ -407,8 +408,8 @@ bool HwtHlsInstCombinerMixin<DerivedT>::run() {
 		llvm::Instruction *I = Worklist.removeOne();
 		if (I == nullptr)
 			continue;  // skip null values.
-
 		assert(I->getParent()->getParent() == &F);
+
 		// Check to see if we can DCE the instruction.
 		if (llvm::isInstructionTriviallyDead(I, &TLI)) {
 			static_cast<DerivedT*>(this)->eraseInstFromFunction(*I);
