@@ -232,7 +232,8 @@ class IoProxyScalar(IoProxy):
             index: Union[int, HlsNetNodeOutAny],
             cond: Optional[HlsNetNodeOutAny],
             bufferCapacity: Optional[int],
-            writeNodeCls: TypingType[HlsNetNodeWrite]=HlsNetNodeWrite) -> Sequence[HlsNetNode]:
+            writeNodeCls: TypingType[HlsNetNodeWrite]=HlsNetNodeWrite,
+            writeNodeConstructorKwArgs={}) -> Sequence[HlsNetNode]:
         """
         :see: :meth:`~.IoProxy._translateMirToNetlist_HWTFPGA_CLOAD`
         """
@@ -242,7 +243,8 @@ class IoProxyScalar(IoProxy):
         assert isinstance(index, int) and index == 0, (instr, index, "Because this read is not addressed there should not be any index")
         n = writeNodeCls(netlist, self, dstIo,
                          mayBecomeFlushable=self.mayBecomeFlushable,
-                         bufferCapacity=bufferCapacity)
+                         bufferCapacity=bufferCapacity,
+                         **writeNodeConstructorKwArgs)
         assert n.ioProxy is self, n
         mbMeta.parentElement.addNode(n)
         srcVal.connectHlsIn(n._inputs[0])
