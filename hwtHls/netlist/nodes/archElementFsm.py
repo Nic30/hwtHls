@@ -206,7 +206,7 @@ class ArchElementFsm(ArchElement):
     # @override
     # def rtlAllocDatapathWrite(self, node: HlsNetNodeWrite, con: ConnectionsOfStage, rtl: List[HdlStatement],
     #                          validHasCustomDriver:bool=False, readyHasCustomDriver:bool=False):
-    #    if isinstance(node, (HlsNetNodeWriteForwardedge, HlsNetNodeWriteBackedge)) and\
+    #    if isinstance(node, HlsNetNodeWrite) and node.isChannel() and\
     #            node.allocationType != CHANNEL_ALLOCATION_TYPE.BUFFER:
     #        con.stateChangeDependentDrives.extend(rtl)
     #        # nodes of this type are just registers and do not have any IO

@@ -31,7 +31,7 @@ n6 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
 n6:o0 -> n5:i1 [weight=100001];
 n7 [shape=plaintext, bgcolor=LightBlue, color=black, fontcolor=black, label=<
         <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeWriteForwardedge NB 2 wf0 &lt;&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeWrite NB 2 wf0 forwardedge &lt;&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
             <tr><td port='i0'>src  0clk+0</td><td></td></tr>
         </table>>];
 n9 [shape=plaintext, bgcolor=MediumSpringGreen, color=black, fontcolor=black, label=<
@@ -65,7 +65,7 @@ subgraph cluster_n1_0 {
 label="0";
 n8 [shape=plaintext, bgcolor=LightGreen, color=black, fontcolor=black, label=<
         <table bgcolor="LightGreen" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeReadForwardedge NB 6 rf0 &lt;&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeRead NB 6 rf0 &lt;&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
             <tr><td></td><td port='o0'>dataOut  0clk+0</td></tr>
         </table>>];
 n13 [shape=plaintext, bgcolor=LightGreen, color=black, fontcolor=black, label=<
@@ -144,14 +144,14 @@ n24 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
         </table>>];
 n25 [shape=plaintext, bgcolor=LightGreen, color=black, fontcolor=black, label=<
         <table bgcolor="LightGreen" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeReadBackedge NB 23 n1_flushToken_dst &lt;r, v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeRead NB 23 n1_flushToken_dst &lt;r, v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
             <tr><td port='i0'>extraCond  0clk+0</td><td port='o0'>dataOut  0clk+0</td></tr>
             <tr><td></td><td port='o1'>orderingOut  0clk+0</td></tr>
             <tr><td></td><td port='o2'>validNB  0clk+0</td></tr>
         </table>>];
 n26 [shape=plaintext, bgcolor=LightGreen, color=black, fontcolor=black, label=<
         <table bgcolor="LightGreen" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeReadBackedge NB 40 n1_flushToken_acquire_dst &lt;v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeRead NB 40 n1_flushToken_acquire_dst &lt;v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
             <tr><td></td><td port='o0'>dataOut  0clk+0</td></tr>
             <tr><td></td><td port='o1'>orderingOut  0clk+0</td></tr>
             <tr><td></td><td port='o2'>validNB  0clk+0</td></tr>
@@ -159,7 +159,7 @@ n26 [shape=plaintext, bgcolor=LightGreen, color=black, fontcolor=black, label=<
 n26:o2 -> n25:i0 [weight=100001];
 n27 [shape=plaintext, bgcolor=LightBlue, color=black, fontcolor=black, label=<
         <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeWriteBackedge NB 24 n1_flushToken_src &lt;r, v&gt; &lt;None&gt;&gt; 0clk+99999</td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeWrite NB 24 n1_flushToken_src backedge &lt;r, v&gt; &lt;None&gt;&gt; 0clk+99999</td></tr>
             <tr><td colspan="2">buffCap=1, init:((),)</td></tr>
             <tr><td port='i0'>src  0clk+99999 = &lt;void&gt; 25</td><td></td></tr>
             <tr><td port='i1'>orderingIn  0clk+99999</td><td></td></tr>
@@ -216,14 +216,14 @@ n34 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         </table>>];
 n35 [shape=plaintext, bgcolor=LightGreen, color=black, fontcolor=black, label=<
         <table bgcolor="LightGreen" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeReadBackedge NB 26 n5_flushToken_dst &lt;r, v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeRead NB 26 n5_flushToken_dst &lt;r, v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
             <tr><td port='i0'>extraCond  0clk+0</td><td port='o0'>dataOut  0clk+0</td></tr>
             <tr><td></td><td port='o1'>orderingOut  0clk+0</td></tr>
             <tr><td></td><td port='o2'>validNB  0clk+0</td></tr>
         </table>>];
 n36 [shape=plaintext, bgcolor=LightGreen, color=black, fontcolor=black, label=<
         <table bgcolor="LightGreen" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeReadBackedge NB 44 n5_flushToken_acquire_dst &lt;v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeRead NB 44 n5_flushToken_acquire_dst &lt;v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
             <tr><td></td><td port='o0'>dataOut  0clk+0</td></tr>
             <tr><td></td><td port='o1'>orderingOut  0clk+0</td></tr>
             <tr><td></td><td port='o2'>validNB  0clk+0</td></tr>
@@ -236,7 +236,7 @@ n32:o0 -> n28:i1 [weight=100001];
 n28:o0 -> n27:i2 [weight=2];
 n37 [shape=plaintext, bgcolor=LightBlue, color=black, fontcolor=black, label=<
         <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeWriteBackedge NB 27 n5_flushToken_src &lt;r, v&gt; &lt;None&gt;&gt; 0clk+99999</td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeWrite NB 27 n5_flushToken_src backedge &lt;r, v&gt; &lt;None&gt;&gt; 0clk+99999</td></tr>
             <tr><td colspan="2">buffCap=1, init:((),)</td></tr>
             <tr><td port='i0'>src  0clk+99999 = &lt;void&gt; 28</td><td></td></tr>
             <tr><td port='i1'>orderingIn  0clk+99999</td><td></td></tr>
@@ -260,7 +260,7 @@ n22:o0 -> n39:i0 [weight=100001];
 n25:o2 -> n39:i1 [weight=100001];
 n40 [shape=plaintext, bgcolor=LightBlue, color=black, fontcolor=black, label=<
         <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeWriteBackedge NB 41 n1_flushToken_acquire_src IMMEDIATE &lt;r, v&gt; &lt;None&gt;&gt; 0clk+99999</td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeWrite NB 41 n1_flushToken_acquire_src IMMEDIATE backedge &lt;r, v&gt; &lt;None&gt;&gt; 0clk+99999</td></tr>
             <tr><td port='i0'>src  0clk+99999 = &lt;void&gt; 42</td><td></td></tr>
             <tr><td port='i1'>orderingIn  0clk+99999</td><td></td></tr>
             <tr><td port='i2'>extraCond  0clk+99999</td><td></td></tr>
@@ -277,7 +277,7 @@ n24:o0 -> n41:i0 [weight=100001];
 n35:o2 -> n41:i1 [weight=100001];
 n42 [shape=plaintext, bgcolor=LightBlue, color=black, fontcolor=black, label=<
         <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeWriteBackedge NB 45 n5_flushToken_acquire_src IMMEDIATE &lt;r, v&gt; &lt;None&gt;&gt; 0clk+99999</td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeWrite NB 45 n5_flushToken_acquire_src IMMEDIATE backedge &lt;r, v&gt; &lt;None&gt;&gt; 0clk+99999</td></tr>
             <tr><td port='i0'>src  0clk+99999 = &lt;void&gt; 46</td><td></td></tr>
             <tr><td port='i1'>orderingIn  0clk+99999</td><td></td></tr>
             <tr><td port='i2'>extraCond  0clk+99999</td><td></td></tr>

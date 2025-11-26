@@ -1,6 +1,6 @@
 from typing import Union, Optional, List, Generator, Tuple, Callable
 
-from hwt.code import Concat
+from hwt.code import Concat, If
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
@@ -35,7 +35,8 @@ from ipCorePackager.constants import INTF_DIRECTION_asDirecton, \
 
 class HlsNetNodeRead(HlsNetNodeExplicitSync):
     """
-    Hls plan to read from interface
+    Hls plan to read from interface or read from HLS pipeline which is binded to a buffer
+    for data/sync on forward/backward edge in dataflow graph.
 
     :ivar _sig: RTL signal in HLS context used for HLS code description
     :ivar src: original interface from which read should be performed
@@ -45,6 +46,11 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
     :ivar _rawValue: A port is used only during optimization phase, its value is Concat(\\_validNB, \\_valid, dataOut)
     :ivar channelInitValues: Optional tuple for value initialization.
         (used only if this node is connected to internal channel)
+    
+    :ivar _rtlDataVldReg: a rtl signal or register holding data and validity signal
+    :ivar _rtlFullReg: for allocationType == CHANNEL_ALLOCATION_TYPE.REG with full port this holds a register
+        which is 1 if data was written (or there is init value) and not yet read
+        
     """
     _PORT_ATTR_NAMES = HlsNetNodeExplicitSync._PORT_ATTR_NAMES + ["_rawValue", "_portDataOut"]
 
@@ -80,6 +86,9 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             #        because it greatly simplifies any analysis/transformation
             self._portDataOut = self._addOutput(dtype, "dataOut")
 
+        self._rtlDataVldReg:Optional[Union[RtlSignal, HwIO]] = None
+        self._rtlFullReg:Optional[Union[RtlSignal, HwIO]] = None
+
     def getAssociatedWrite(self) -> Optional["HlsNetNodeWrite"]:
         return self.associatedWrite
 
@@ -90,6 +99,15 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
         if self._rawValue is None:
             self._rawValue = self._addOutput(HBits(self._portDataOut._dtype.bit_length() + 1), "rawValue")
         return self._rawValue
+
+    def isChannel(self):
+        return self.associatedWrite is not None
+
+    def isBackedge(self):
+        return self.associatedWrite is not None and self.associatedWrite._isBackedge
+
+    def isForwardedge(self):
+        return self.associatedWrite is not None and not self.associatedWrite._isBackedge
 
     @override
     def clone(self, memo:dict, keepTopPortsConnected: bool):
@@ -126,59 +144,116 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             if i not in nonOrderingInputs:
                 yield i
 
+    def _mayHappenConcurrentlyWithWrite(self) -> bool:
+        w = self.associatedWrite
+        assert w is not None, self
+        rParent, rClkI = self.getParentSyncNode()
+        rParent: "ArchElement"
+        wParent, wClkI = w.getParentSyncNode()
+        if rParent is wParent:
+            return rClkI == wClkI or rParent.rtlStatesMayHappenConcurrently(rClkI, wClkI)
+        else:
+            return True
+
     def _rtlAllocDatapathIo(self):
         """
         Load declaration of the interface and construct its RTL signals.
         """
-        if self.src is None:
-            hasValid = self._rtlUseValid
-            hasReady = self._rtlUseReady
-            # if (isinstance(self, HlsNetNodeRead) and self.associatedWrite._getBufferCapacity() == 0) or \
-            #        (isinstance(self, HlsNetNodeWrite) and self._getBufferCapacity() == 0):
-            #        hasValid &= self._rtlUseReady
-            #        hasReady &= self._rtlUseValid
+        if self.src and self.src._parent is not None:
+            return
+        hasValid = self._rtlUseValid
+        hasReady = self._rtlUseReady
+        # if (isinstance(self, HlsNetNodeRead) and self.associatedWrite._getBufferCapacity() == 0) or \
+        #        (isinstance(self, HlsNetNodeWrite) and self._getBufferCapacity() == 0):
+        #        hasValid &= self._rtlUseReady
+        #        hasReady &= self._rtlUseValid
 
-            u:HwModule = self.netlist.parentHwModule
-            assert self.src is None, (
-                "Src interface must not be yet instantiated on parent HwModule", self, self.src)
-            w = self.associatedWrite
-            assert w is not None, ("if src is None this is a channel and associatedWrite must be set", self)
-            assert w.dst is None, (w, w.dst)
-            dtype = self._portDataOut._dtype
-            if HdlType_isVoid(dtype):
-                if hasValid and hasReady:
-                    src = HwIORdVldSync()
-                elif hasValid:
-                    src = HwIOVldSync()
-                elif hasReady:
-                    src = HwIORdSync()
-                else:
-                    src = None
-
+        u:HwModule = self.netlist.parentHwModule
+        w = self.associatedWrite
+        name = None
+        if self.src is not None:
+            name = self.src._name
+        # assert self.src is None, (
+        #    "Src interface must not be yet instantiated on parent HwModule", self, self.src)
+        assert w is not None, ("if src is None this is a channel and associatedWrite must be set", self)
+        assert w.dst is None or self.src, (w, w.dst)
+        dtype = self._portDataOut._dtype
+        if HdlType_isVoid(dtype):
+            if hasValid and hasReady:
+                src = HwIORdVldSync()
+            elif hasValid:
+                src = HwIOVldSync()
+            elif hasReady:
+                src = HwIORdSync()
             else:
-                if hasValid and hasReady:
-                    src = HwIOStructRdVld()
-                    src.T = dtype
-                elif hasValid:
-                    src = HwIOStructVld()
-                    src.T = dtype
-                elif hasReady:
-                    src = HwIOStructRd()
-                    src.T = dtype
-                else:
-                    src = HdlType_to_HwIO().apply(dtype)
+                src = None
 
-            if src is not None:
-                src._name = self.netlist.namePrefix + (self.name if self.name is not None else f"n{self._id}")
-                self.src = HwIO_without_registration(u, src, src._name)
-
-            allocTy = w.allocationType
-            if allocTy == CHANNEL_ALLOCATION_TYPE.IMMEDIATE:
-                w.dst = self.src
-            elif src is None:
-                w.dst = None
+        else:
+            if hasValid and hasReady:
+                src = HwIOStructRdVld()
+                src.T = dtype
+            elif hasValid:
+                src = HwIOStructVld()
+                src.T = dtype
+            elif hasReady:
+                src = HwIOStructRd()
+                src.T = dtype
             else:
-                w.dst = HwIO_without_registration(u, self.src.__copy__(), self.netlist.namePrefix + (w.name if w.name is not None else f"n{w._id}"))
+                src = HdlType_to_HwIO().apply(dtype)
+
+        if src is not None:
+            src._name = name if name is not None else self.netlist.namePrefix + (self.name if self.name is not None else f"n{self._id}")
+            self.src = HwIO_without_registration(u, src, src._name)
+
+        allocTy = w.allocationType
+        if allocTy == CHANNEL_ALLOCATION_TYPE.IMMEDIATE:
+            w.dst = self.src
+        elif src is None:
+            w.dst = None
+        else:
+            wName = name if name is not None else self.netlist.namePrefix + (w.name if w.name is not None else f"n{w._id}")
+            w.dst = HwIO_without_registration(u, self.src.__copy__(), wName)
+
+    def rtlAllocChannelDataVldAndFullReg(self, allocator:"ArchElement") -> Tuple[Optional[Union[RtlSignal, HwIO]], Optional[Union[RtlSignal, HwIO]]]:
+        # check if this was already allocated to support re-entrability
+        if self._rtlDataVldReg is not None or self._rtlFullReg is not None:
+            return self._rtlDataVldReg, self._rtlFullReg
+
+        # for vldOut in (self._valid, self._validNB):
+        #    if vldOut is None:
+        #        continue
+        #    cur = allocator.netNodeToRtl.get(vldOut)
+        #    assert cur is None, (vldOut, "port should not be allocated because _rtlDataVldReg was not set yet")
+        hasVld = self.hasAnyFormOfValidPort()
+        hasFull = self.associatedWrite is not None and self.associatedWrite._fullPort is not None
+        dataVldReg: Optional[Union[RtlSignal, HwIO]] = None
+        fullReg: Optional[Union[RtlSignal, HwIO]] = None
+        srcWrite = self.associatedWrite
+        dataRegName = f"{allocator.namePrefix:s}{self.name:s}"
+        capacity = srcWrite._getBufferCapacity()
+        if srcWrite.allocationType == CHANNEL_ALLOCATION_TYPE.REG and capacity == 1:
+            hadInit = bool(self.channelInitValues)
+            if hasVld:
+                dataVldReg = allocator._reg(f"{dataRegName:s}_vld", BIT, def_val=int(hadInit))
+                dataVldReg._isUnnamedExpr = False
+            if hasFull:
+                fullReg = allocator._reg(f"{dataRegName:s}_full", BIT, def_val=int(hadInit))
+                fullReg._isUnnamedExpr = False
+        elif srcWrite.allocationType == CHANNEL_ALLOCATION_TYPE.IMMEDIATE or capacity == 0:
+            dataVldReg = allocator._sig(f"{dataRegName:s}_vld", BIT)
+            assert not hasFull, self
+        else:
+            raise NotImplementedError(self)
+
+        for vldOut in (self._valid, self._validNB):
+            if vldOut is None:
+                continue
+            allocator.rtlRegisterOutputRtlSignal(vldOut, dataVldReg, False, False, True)
+
+        self._rtlDataVldReg = dataVldReg
+        self._rtlFullReg = fullReg
+
+        return dataVldReg, fullReg
 
     def _rtlAllocValidPorts(self, allocator: "ArchElement"):
         netNodeToRtl = allocator.netNodeToRtl
@@ -213,7 +288,96 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
         return self.ioProxy._getRtlSyncSignals(self.src)
 
     @override
-    def rtlAlloc(self, allocator: "ArchElement") -> Union[TimeIndependentRtlResource, List[HdlStatement]]:
+    def rtlAllocAsChannel(self, allocator:"ArchElement") -> TimeIndependentRtlResource:
+        """
+        :note: For doc see :meth:`HlsNetNodeWriteBackedge.rtlAlloc`
+        """
+        assert not self._isRtlAllocated, self
+        assert self._rawValue is None, ("access to a _rawValue should be already lowered and this port should be removed", self)
+        dataOut = self._portDataOut
+        hasNoSpecialControl = self._isBlocking and not self.hasValidNB() and not self.hasValid()
+        self._rtlAllocDatapathIo()
+
+        srcWrite = self.associatedWrite
+        if srcWrite.allocationType == CHANNEL_ALLOCATION_TYPE.BUFFER:
+            # allocate as a read from buffer output interface
+            return self.rtlAllocAsIO(allocator)
+        else:
+            assert not self._isRtlAllocated, self
+            # allocate as a register
+            if self._dataVoidOut is not None:
+                self._rtlAllocDataVoidOut(self, allocator)
+
+            init = self.channelInitValues
+            assert self.name is not None, self
+            dataRegName = f"{allocator.namePrefix:s}{self.name:s}"
+            dtype = dataOut._dtype
+            if not HdlType_isVoid(dtype):
+                dtype = self.getRtlDataSig()._dtype
+            if srcWrite.allocationType == CHANNEL_ALLOCATION_TYPE.REG and srcWrite._getBufferCapacity() > 0:
+                if init:
+                    if len(init) > 1:
+                        raise NotImplementedError(self, init)
+                else:
+                    init = ((0,),)
+
+                if HdlType_isVoid(dtype):
+                    # assert not self.usedBy[0], self
+                    dataReg = []
+                else:
+                    _init = init[0][0]
+                    dataReg = allocator._reg(dataRegName, dtype, def_val=_init)
+                    dataReg._isUnnamedExpr = False
+            else:
+                assert srcWrite.allocationType in (CHANNEL_ALLOCATION_TYPE.IMMEDIATE,
+                                                   CHANNEL_ALLOCATION_TYPE.REG), srcWrite.allocationType
+                assert not init, ("Immediate channels can not have init value", srcWrite, init)
+                dataReg = allocator._sig(dataRegName, dtype)
+
+            dataVldReg, fullReg = self.rtlAllocChannelDataVldAndFullReg(allocator)
+
+            dstRead = self
+            clkPeriod = self.netlist.normalizedClkPeriod
+            rClkI = indexOfClkPeriod(dstRead.scheduledOut[0], clkPeriod)
+            rStageCon = allocator.connections[rClkI]
+            res = []
+            if fullReg is not None or dataVldReg is not None:
+                if srcWrite.allocationType == CHANNEL_ALLOCATION_TYPE.REG:
+                    rwMayHappenAtOnce = self._mayHappenConcurrentlyWithWrite()
+                    if rwMayHappenAtOnce:
+                        # if this may happen concurrently this is handled in rtlAlloc of write
+                        pass
+                    else:
+                        # resolve "ready"
+                        if fullReg is not None:
+                            res = [fullReg(0), ]
+                        else:
+                            res = [dataVldReg(0), ]
+                        # en = allocator._rtlAllocDatapathGetIoAck(self, allocator.namePrefix)
+                        en = allocator.rtlAllocHlsNetNodeInDriverIfExists(self.extraCond)
+                        if en is not None:
+                            res = [If(en.data, res), ]
+                        # rStageCon.stateChangeDependentDrives.append(res)
+
+            if  dataVldReg is not None:
+                if self._rtlUseValid:
+                    assert not self.src.vld._sig._rtlDrivers, (self, self.src.vld._sig._rtlDrivers)
+                    self.src.vld(dataVldReg)
+
+            # create RTL signal expression base on operator type
+            if HdlType_isVoid(dtype):
+                # assert not self.usedBy[0], self
+                dataRegTir = allocator.netNodeToRtl[dataOut] = []
+            else:
+                isReg = srcWrite.allocationType == CHANNEL_ALLOCATION_TYPE.REG
+                dataRegTir = allocator.rtlRegisterOutputRtlSignal(dataOut, dataReg, isReg, False, True)
+
+            allocator.rtlAllocDatapathRead(self, None, rStageCon, res)  # , validHasCustomDriver=True, readyHasCustomDriver=True
+            self._isRtlAllocated = True
+            return dataRegTir if hasNoSpecialControl else []
+
+    @override
+    def rtlAllocAsIO(self, allocator: "ArchElement") -> Union[TimeIndependentRtlResource, List[HdlStatement]]:
         """
         Instantiate read operation on RTL level
         """
@@ -269,9 +433,18 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
         self._isRtlAllocated = True
         return _data if hasNoSpecialControl else []
 
+    @override
+    def rtlAlloc(self, allocator: "ArchElement") -> Union[TimeIndependentRtlResource, List[HdlStatement]]:
+        if self.isChannel():
+            return self.rtlAllocAsChannel(allocator)
+        else:
+            return self.rtlAllocAsIO(allocator)
+
     def getSchedulingResourceType(self):
         resourceType = self.src
         # assert resourceType is not None, self
+        if resourceType is None:
+            return self
         return resourceType
 
     @override
@@ -391,6 +564,10 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
         originalClkI = indexOfClkPeriod(originalTimeZero, clkPeriod)
         epsilon = scheduler.epsilon
         ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, scheduler.resolution)
+
+        if self.isBackedge() and not self._inputs and not any(self.usedBy):
+            # use time from backedge because this node is not connected to anything and floating freely in time
+            raise AssertionError("The node must have at least ordering connection to write, it can not just freely float in time", self)
 
         maxTime = None
         if not isRead:

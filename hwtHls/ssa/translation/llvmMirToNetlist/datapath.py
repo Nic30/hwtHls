@@ -24,13 +24,9 @@ from hwtHls.netlist.hdlTypeVoid import HVoidData
 from hwtHls.netlist.nodes.aggregatedLoop import HlsNetNodeAggregateLoop
 from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
-    HlsNetNodeReadBackedge
 from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge, \
-    HlsNetNodeReadForwardedge
 from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
 from hwtHls.netlist.nodes.memoryAllocationMetaNode import HlsNetNodeWriteMemoryAllocationCmd
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
@@ -213,12 +209,9 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 isBlocking = True
                 isPhysicallyExisting = srcIo._parent is not None
 
-                rCls = HlsNetNodeRead if isPhysicallyExisting else \
-                       HlsNetNodeReadBackedge._constructorAsHlsNetNodeRead if isBackedge else \
-                       HlsNetNodeReadForwardedge._constructorAsHlsNetNodeRead
                 (r,) = IoProxyScalar(None, srcIo)._translateMirToNetlist_HWTFPGA_CLOAD(
                     self, mbMeta, instr,
-                    srcIo, srcIoMd, index, _cond, dst, readNodeCls=rCls)
+                    srcIo, srcIoMd, index, _cond, dst)
                 if not isPhysicallyExisting:
                     r.src = None  # delete to let HlsNetNodeWriteForwardedge/HlsNetNodeWriteBackedge
                     # allocate its own
@@ -296,20 +289,19 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                 assert w is None, dstIo
                 isBackedge = False
                 isPhysicallyExisting = dstIo._parent is not None
-
-                wCls = HlsNetNodeWrite if isPhysicallyExisting else \
-                       HlsNetNodeWriteBackedge._constructorAsHlsNetNodeWrite if isBackedge else\
-                       HlsNetNodeWriteForwardedge._constructorAsHlsNetNodeWrite
+                if isBackedge:
+                    writeNodeConstructorKwArgs = dict(isBackedge=True)
+                else:
+                    writeNodeConstructorKwArgs = {}
                 (w,) = IoProxyScalar(None, dstIo)._translateMirToNetlist_HWTFPGA_CSTORE(
                     self, mbMeta, instr, srcVal, dstIo, dstIoMd, index, _cond,
-                    dstIoMd.bufferCapacity,
-                    writeNodeCls=wCls)
+                    dstIoMd.bufferCapacity, writeNodeConstructorKwArgs=writeNodeConstructorKwArgs)
 
                 if not isPhysicallyExisting:
                     w.dst = None  # delete to let HlsNetNodeWriteForwardedge/HlsNetNodeWriteBackedge
                     # allocate its own
 
-                w: HlsNetNodeWriteBackedge
+                w: HlsNetNodeWrite
                 w.name = f"{dstIo._name:s}_src"
                 w.buffName = f"{dstIo._name:s}_buff"
                 # w.dst = dstIo
@@ -338,10 +330,12 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                             opSpecialization,
                             inNames: Optional[Sequence[str]],
                             outNames: Optional[Sequence[str]],
+                            resT: Optional[HBits]=None,
                             ) -> Optional[HlsNetNodeOutAny]:
         assert opDef is not None, instr
         assert allBlockingLoadAck is not None, instr
-        resT = ops[0]._dtype
+        if resT is None:
+            resT = ops[0]._dtype
         mb = mbMeta.block
         valCache = mirToNetlist.valCache
         if isinstance(dst, Register):
@@ -391,7 +385,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
         else:
             outNames = (None for _ in res._outputs)
 
-        for isLast, (dstReg, nodeOut, outName) in iter_with_last(zip(dst, res._outputs, outNames)):
+        for (dstReg, nodeOut, outName) in zip(dst, res._outputs, outNames):
             nodeOut: HlsNetNodeOut
             if outName is not None:
                 nodeOut.name = outName

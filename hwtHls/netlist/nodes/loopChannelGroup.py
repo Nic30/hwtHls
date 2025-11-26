@@ -3,23 +3,19 @@ from enum import Enum
 from typing import Tuple, List, Union, Self, Optional
 
 from hwt.pyUtils.setList import SetList
-from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
-    HlsNetNodeWriteBackedge
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge, \
-    HlsNetNodeWriteForwardedge
+
 from hwtHls.netlist.nodes.node import _HlsNetNodeDeepcopyNil
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 
-HlsNetNodeReadAnyChannel = Union[HlsNetNodeReadForwardedge, HlsNetNodeReadBackedge]
-HlsNetNodeWriteAnyChannel = Union[HlsNetNodeWriteForwardedge, HlsNetNodeWriteBackedge]
+HlsNetNodeReadAnyChannel = HlsNetNodeRead
+HlsNetNodeWriteAnyChannel = HlsNetNodeWrite
 
 HlsNetNodeReadOrWriteToAnyChannel = Union[
-    HlsNetNodeReadForwardedge,
-    HlsNetNodeWriteForwardedge,
-    HlsNetNodeReadBackedge,
-    HlsNetNodeWriteBackedge]
+    HlsNetNodeRead,
+    HlsNetNodeWrite, ]
 
 
 class LOOP_CHANEL_GROUP_ROLE(Enum):

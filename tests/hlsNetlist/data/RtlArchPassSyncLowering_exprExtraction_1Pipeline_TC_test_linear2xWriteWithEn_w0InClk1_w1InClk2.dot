@@ -30,7 +30,7 @@ n7 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
 n7:o0 -> n6:i0 [weight=1002];
 n12 [shape=plaintext, bgcolor=LightBlue, color=black, fontcolor=black, label=<
         <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeWriteForwardedge NB 9 p0_stSync_0_to_1_atSrc &lt;r, v&gt; &lt;None&gt;&gt; 0clk+880</td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeWrite NB 9 p0_stSync_0_to_1_atSrc forwardedge &lt;r, v&gt; &lt;None&gt;&gt; 0clk+880</td></tr>
             <tr><td colspan="2">buffCap=1</td></tr>
             <tr><td port='i0'>src  0clk+880 = &lt;void&gt; 8</td><td port='o0'>readyNB  0clk+880</td></tr>
             <tr><td port='i1'>extraCond  0clk+880</td><td></td></tr>
@@ -98,7 +98,7 @@ n9 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
 n9:o0 -> n8:i1 [weight=987];
 n14 [shape=plaintext, bgcolor=LightGreen, color=black, fontcolor=black, label=<
         <table bgcolor="LightGreen" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeReadForwardedge NB 10 p0_stSync_0_to_1_atDst &lt;r, v&gt; &lt;None&gt;&gt; 1clk+1</td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeRead NB 10 p0_stSync_0_to_1_atDst &lt;r, v&gt; &lt;None&gt;&gt; 1clk+1</td></tr>
             <tr><td port='i0'>extraCond  1clk+1</td><td port='o0'>dataOut  1clk+1</td></tr>
             <tr><td></td><td port='o1'>validNB  1clk+1</td></tr>
         </table>>];
@@ -110,7 +110,7 @@ n15 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
 n15:o0 -> n14:i0 [weight=1001];
 n16 [shape=plaintext, bgcolor=LightBlue, color=black, fontcolor=black, label=<
         <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeWriteForwardedge NB 12 p0_stSync_1_to_2_atSrc &lt;r, v&gt; &lt;None&gt;&gt; 1clk+880</td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeWrite NB 12 p0_stSync_1_to_2_atSrc forwardedge &lt;r, v&gt; &lt;None&gt;&gt; 1clk+880</td></tr>
             <tr><td colspan="2">buffCap=1</td></tr>
             <tr><td port='i0'>src  1clk+880 = &lt;void&gt; 11</td><td port='o0'>readyNB  1clk+880</td></tr>
             <tr><td port='i1'>extraCond  1clk+880</td><td></td></tr>
@@ -177,7 +177,7 @@ n11 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
 n11:o0 -> n10:i1 [weight=987];
 n18 [shape=plaintext, bgcolor=LightGreen, color=black, fontcolor=black, label=<
         <table bgcolor="LightGreen" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeReadForwardedge NB 13 p0_stSync_1_to_2_atDst &lt;r, v&gt; &lt;None&gt;&gt; 2clk+1</td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeRead NB 13 p0_stSync_1_to_2_atDst &lt;r, v&gt; &lt;None&gt;&gt; 2clk+1</td></tr>
             <tr><td port='i0'>extraCond  2clk+1</td><td port='o0'>dataOut  2clk+1</td></tr>
             <tr><td></td><td port='o1'>validNB  2clk+1</td></tr>
         </table>>];
@@ -286,8 +286,8 @@ n48 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
             <tr><td port='i0'>i0  0clk+880</td><td port='o0'>o0  0clk+880</td></tr>
             <tr><td port='i1'>i1  0clk+880</td><td></td></tr>
         </table>>];
-n47:o0 -> n48:i0 [weight=123];
-n45:o0 -> n48:i1 [weight=1002];
+n45:o0 -> n48:i0 [weight=1002];
+n47:o0 -> n48:i1 [weight=123];
 n49 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">AND 30  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
@@ -398,8 +398,8 @@ n65 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
             <tr><td port='i0'>i0  0clk+880</td><td port='o0'>o0  0clk+880</td></tr>
             <tr><td port='i1'>i1  0clk+880</td><td></td></tr>
         </table>>];
-n62:o0 -> n65:i0 [weight=123];
-n64:o0 -> n65:i1 [weight=1002];
+n64:o0 -> n65:i0 [weight=1002];
+n62:o0 -> n65:i1 [weight=123];
 n66 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 58  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
@@ -462,8 +462,8 @@ n75 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
             <tr><td port='i0'>i0  0clk+880</td><td port='o0'>o0  0clk+880</td></tr>
             <tr><td port='i1'>i1  0clk+880</td><td></td></tr>
         </table>>];
-n74:o0 -> n75:i0 [weight=123];
-n58:o0 -> n75:i1 [weight=1002];
+n58:o0 -> n75:i0 [weight=1002];
+n74:o0 -> n75:i1 [weight=123];
 n76 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">OR 69  0clk+15 &lt;HBits, 1bit&gt;</td></tr>

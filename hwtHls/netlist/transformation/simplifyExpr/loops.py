@@ -2,13 +2,13 @@ from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.builder import HlsNetlistBuilder, _replaceOutPortWith1
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
-from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
-    HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup, \
     LOOP_CHANEL_GROUP_ROLE, HlsNetNodeReadAnyChannel
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
 
 
@@ -72,10 +72,10 @@ def netlistReduceLoopWithoutEnterAndExit(dbgTracer: DebugTracer, n: HlsNetNodeLo
                 exitG: LoopChanelGroup = n.fromExitToHeaderNotify[0]
                 exitG.connectedLoopsAndBlocks.remove((n, LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER))
                 # avoid wait on reenter when exit
-                exitW: HlsNetNodeWriteBackedge = exitG.getChannelUsedAsControl()
+                exitW: HlsNetNodeWrite = exitG.getChannelUsedAsControl()
                 # promote to a regular channel with an init
                 exitW.allocationType = CHANNEL_ALLOCATION_TYPE.BUFFER 
-                exitR: HlsNetNodeReadBackedge = exitW.associatedRead
+                exitR: HlsNetNodeRead = exitW.associatedRead
                 assert not exitR.channelInitValues, ("EXIT_NOTIFY_TO_HEADER should never have init value", exitW, exitR.channelInitValues)
                 assert HdlType_isVoid(exitW._portDataOut._dtype), exitW
                 exitR.channelInitValues = (tuple(),) # add one token to start the loop 

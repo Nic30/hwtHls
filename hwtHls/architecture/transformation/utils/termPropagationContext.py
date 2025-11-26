@@ -7,12 +7,12 @@ from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate, \
     HlsNetNodeAggregatePortOut, HlsNetNodeAggregatePortIn
 from hwtHls.netlist.nodes.archElement import ArchElement
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
-    HlsNetNodeReadBackedge
 from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod, \
     offsetInClockCycle
 
@@ -87,8 +87,8 @@ class ArchElementTermPropagationCtx():
             # the dependency time is not at the begin of clk
             # try to search for already existing backedge to clk begin
             for u in dep.obj.usedBy[dep.out_i]:
-                if u.in_i == 0 and u.obj.scheduledIn[0] == depTime and isinstance(u.obj, HlsNetNodeWriteBackedge):
-                    w: HlsNetNodeWriteBackedge = u.obj
+                if u.in_i == 0 and u.obj.scheduledIn[0] == depTime and isinstance(u.obj, HlsNetNodeWrite) and u.obj.isBackedge():
+                    w: HlsNetNodeWrite = u.obj
                     r = w.associatedRead
                     if not w._isBlocking and w.allocationType == CHANNEL_ALLOCATION_TYPE.IMMEDIATE and\
                             not r._isBlocking and r.scheduledOut[r._portDataOut.out_i] == clkBeginTime:
@@ -96,8 +96,8 @@ class ArchElementTermPropagationCtx():
 
             ioProxy = IoProxyScalar(None, None, dep._dtype)
             # else create a new backedge to clk begin
-            r = HlsNetNodeReadBackedge(
-                elm.netlist, ioProxy,
+            r = HlsNetNodeRead(
+                elm.netlist, ioProxy, ioProxy.interface,
                 dep._dtype,
                 name=f"{dep.getPrettyName():s}_dst",
             )
@@ -106,8 +106,9 @@ class ArchElementTermPropagationCtx():
             r.setNonBlocking()
             elm._addNodeIntoScheduled(clkI, r)
 
-            w = HlsNetNodeWriteBackedge(
-                elm.netlist, ioProxy,
+            w = HlsNetNodeWrite(
+                elm.netlist, ioProxy, ioProxy.interface,
+                isBackedge=True,
                 name=f"{dep.getPrettyName():s}_src")
             w.allocationType = CHANNEL_ALLOCATION_TYPE.IMMEDIATE
             w.resolveRealization()

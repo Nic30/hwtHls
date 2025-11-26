@@ -23,11 +23,7 @@ from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.extraOps import OP_MUL_HL
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
-from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
-    HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge, \
-    HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     HlsNetNodeOutAny
@@ -264,10 +260,9 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
                          isControl: bool=False,
                          addWriteToOrderingChain=True) -> HlsNetNodeOut:
         namePrefix = f"bb{srcBlock.getNumber():d}_to_bb{dstBlock.getNumber():d}_{name:s}"
-        rCls = HlsNetNodeReadBackedge if isBackedge else HlsNetNodeReadForwardedge
         ioProxy = IoProxyScalar(None, None, val._dtype)
-        rFromIn = rCls(
-            self.netlist, ioProxy,
+        rFromIn = HlsNetNodeRead(
+            self.netlist, ioProxy, ioProxy.interface,
             val._dtype,
             name=f"{namePrefix:s}_dst",
         )
@@ -291,9 +286,9 @@ class HlsNetlistAnalysisPassMirToNetlistLowLevel(HlsNetlistAnalysisPass):
         if cacheKey is not None:
             self.valCache.add(dstBlock, cacheKey, rFromIn, False)
 
-        wCls = HlsNetNodeWriteBackedge if isBackedge else HlsNetNodeWriteForwardedge
-        wToOut = wCls(
-            self.netlist, ioProxy,
+        wToOut = HlsNetNodeWrite(
+            self.netlist, ioProxy, ioProxy.interface,
+            isBackedge=isBackedge,
             name=f"{namePrefix:s}_src")
         srcBlockMeta = self.blockMeta[srcBlock]
         srcBlockMeta.parentElement.addNode(wToOut)

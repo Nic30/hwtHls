@@ -16,7 +16,6 @@ from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering, HVoidExternData
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
@@ -250,7 +249,7 @@ class HwtHlsNetlistToTimelineJson():
             else:
                 label = f"{name:s}.write()  {obj._id:d}"
 
-            if isinstance(obj, HlsNetNodeWriteBackedge):
+            if isinstance(obj, HlsNetNodeWrite) and obj.isBackedge():
                 representativeIo = obj.associatedRead.src if obj.associatedRead is not None else obj.dst
                 if obj.associatedRead.channelInitValues:
                     label = f"{label:s} init:{obj.associatedRead.channelInitValues}"

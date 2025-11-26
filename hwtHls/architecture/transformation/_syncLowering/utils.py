@@ -10,7 +10,6 @@ from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t, MapAbc_Obj_tToSetOfAbc_Obj_t, \
 from hwtHls.netlist.hdlTypeVoid import HdlType_isNonData
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.aggregatePorts import HlsNetNodeAggregatePortOut
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel, \
     HlsNetNodeWriteAnyChannel
@@ -131,7 +130,7 @@ def ioDataIsMixedInControlInThisClk(ioNode: HlsNetNodeExplicitSync, ackPort: Hls
 
                 toSearch.append((uObj._inputsInside[u.in_i], _timeLimitBegin, _timeLimitEnd))
 
-        elif isinstance(n, HlsNetNodeWriteBackedge) and n.associatedRead is not None and n._getBufferCapacity() == 0:
+        elif isinstance(n, HlsNetNodeWrite) and n.isBackedge() and n.associatedRead is not None and n._getBufferCapacity() == 0:
             # if channel has 0 capacity and is crossing clock window boundaries the time must be updated
             # when following value to read port of channel
             r = n.associatedRead

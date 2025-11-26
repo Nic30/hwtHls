@@ -6,17 +6,17 @@ from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachabil
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.hdlTypeVoid import HVoidData, HdlType_isVoid
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, \
     HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.transformation.simplifySync.reduceChannelGroup import netlistTryRemoveChannelGroup
 from hwtHls.netlist.transformation.simplifyUtils import addAllUsersToWorklist
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 
 
 def netlistBackedgeStraightening(dbgTracer: DebugTracer,
-                                 w: HlsNetNodeWriteBackedge,
+                                 w: HlsNetNodeWrite,
                                  worklist: SetList[HlsNetNode],
                                  reachDb: HlsNetlistAnalysisPassReachability):
     """
@@ -27,7 +27,7 @@ def netlistBackedgeStraightening(dbgTracer: DebugTracer,
     """
     # r is ordered before w because this is backedge
     # if w does not depend on r and none of them
-
+    assert w.isBackedge(), w
     r = w.associatedRead
     if r is None:
         return False
@@ -99,7 +99,7 @@ def netlistBackedgeStraightening(dbgTracer: DebugTracer,
 
         # replace this read-write pair with a straight connection
         data = w.dependsOn[w._portSrc.in_i]
-        w._portSrc.disconnectFromHlsOut(data, )
+        w._portSrc.disconnectFromHlsOut(data,)
         rData = r._portDataOut
         b: HlsNetlistBuilder = r.getHlsNetlistBuilder()
         dbgTracer.log(("replace", rData, data))

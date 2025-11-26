@@ -8,9 +8,9 @@ from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
 from hwtHls.netlist.nodes.archElementNoImplicitSync import ArchElementNoImplicitSync
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
-    HlsNetNodeReadBackedge
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import start_clk
 from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
@@ -32,7 +32,7 @@ class HlsArchPassLoopControlPrivatization(HlsArchPass):
     """
 
     @staticmethod
-    def _removeOrderingInputsViolatingScheduling(w: HlsNetNodeWriteBackedge):
+    def _removeOrderingInputsViolatingScheduling(w: HlsNetNodeWrite):
         portsToRemove = []
         for inp, inpTime, dep in zip(w._inputs, w.scheduledIn, w.dependsOn):
             if dep._dtype is HVoidOrdering:
@@ -47,9 +47,9 @@ class HlsArchPassLoopControlPrivatization(HlsArchPass):
 
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
-        ownerOfControl: Dict[Union[HlsNetNodeWriteBackedge, HlsNetNodeReadBackedge],
+        ownerOfControl: Dict[Union[HlsNetNodeWrite, HlsNetNodeRead],
                              Tuple[ArchElement, int]] = {}
-        toSearch: HlsNetNodeWriteBackedge = []
+        toSearch: HlsNetNodeWrite = []
         for elm in netlist.iterAllNodes():
             elm: ArchElement
             assert isinstance(elm, ArchElement), elm
@@ -66,11 +66,11 @@ class HlsArchPassLoopControlPrivatization(HlsArchPass):
 
             for stI, st in enumerate(states):
                 for n in st:
-                    if isinstance(n, HlsNetNodeReadBackedge):
+                    if isinstance(n, HlsNetNodeRead) and n.isBackedge():
                         assert n not in ownerOfControl, (n, ownerOfControl[n], (elm, stI))
                         ownerOfControl[n] = (elm, stI)
 
-                    elif isinstance(n, HlsNetNodeWriteBackedge):
+                    elif isinstance(n, HlsNetNodeWrite) and n.isBackedge():
                         assert n not in ownerOfControl, (n, ownerOfControl[n], (elm, stI))
                         ownerOfControl[n] = (elm, stI)
                         toSearch.append(n)
@@ -82,8 +82,8 @@ class HlsArchPassLoopControlPrivatization(HlsArchPass):
         changed = False
         for w in toSearch:
             # because it is instance of HlsNetNodeWriteBackedge we know it is some form of jump from loop body to loop header.
-            w: HlsNetNodeWriteBackedge
-            r: HlsNetNodeReadBackedge = w.associatedRead
+            w: HlsNetNodeWrite
+            r: HlsNetNodeRead = w.associatedRead
             jumpSrcVal: HlsNetNodeOut = w.dependsOn[0]
             jumpSrcValT: int = jumpSrcVal.obj.scheduledOut[jumpSrcVal.out_i]
             if jumpSrcValT < w.scheduledIn[0] - epsilon:

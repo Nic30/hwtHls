@@ -5,7 +5,6 @@ from hwtHls.architecture.analysis.channelGraph import HlsAndRtlNetlistAnalysisPa
     ArchSyncNodeIoDict, ArchSyncNodeTy
 from hwtHls.architecture.analysis.hlsArchAnalysisPass import HlsArchAnalysisPass
 from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeWriteAnyChannel, \
     HlsNetNodeReadAnyChannel
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
@@ -103,7 +102,7 @@ class HlsAndRtlNetlistAnalysisPassSyncNodeStallling(HlsArchAnalysisPass):
                     elif len(r.channelInitValues) < w._getBufferCapacity():
                         inputCanStall = True
                         break
-                    elif (isinstance(w, HlsNetNodeWriteBackedge) and
+                    elif (isinstance(w, HlsNetNodeWrite) and w.isBackedge() and
                           r.getParentSyncNode() != w.getParentSyncNode()):
                         inputCanStall = True
                         break
@@ -120,7 +119,7 @@ class HlsAndRtlNetlistAnalysisPassSyncNodeStallling(HlsArchAnalysisPass):
                     elif len(r.channelInitValues) > w._getBufferCapacity():
                         outputCanStall = True
                         break
-                    elif (isinstance(w, HlsNetNodeWriteBackedge) and
+                    elif (isinstance(w, HlsNetNodeWrite) and w.isBackedge() and
                             r.getParentSyncNode() != w.getParentSyncNode()):
                         outputCanStall = True
                         break

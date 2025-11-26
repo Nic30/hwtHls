@@ -2,14 +2,15 @@ from typing import Tuple, Dict, Set
 
 from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.transformation.hlsArchPass import HlsArchPass
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering, HdlType_isVoid
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge, \
-    HlsNetNodeReadForwardedge
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import start_clk
 from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
@@ -100,13 +101,14 @@ class HlsArchPassAddImplicitSyncChannels(HlsArchPass):
             srcElm._addNodeIntoScheduled(clkIndex, dummyC)
 
             name = f"{netlist.namePrefix:s}sync_clk{clkIndex}_{srcBaseName:s}_to_{dstBaseName:s}"
-            wNode = HlsNetNodeWriteForwardedge(srcElm.netlist, name=f"{name:s}_atSrc")
+            ioProxy = IoProxyScalar(None, None, HVoidOrdering)
+            wNode = HlsNetNodeWrite(srcElm.netlist, ioProxy, ioProxy.interface, name=f"{name:s}_atSrc")
             dummyC._outputs[0].connectHlsIn(wNode._portSrc)
             wNode.resolveRealization()
             wNode._setScheduleZeroTimeSingleClock(time)
             srcElm._addNodeIntoScheduled(clkIndex, wNode)
 
-            rNode = HlsNetNodeReadForwardedge(dstElm.netlist, dtype=HVoidOrdering, name=f"{name:s}_atDst")
+            rNode = HlsNetNodeRead(dstElm.netlist, ioProxy, ioProxy.interface, dtype=HVoidOrdering, name=f"{name:s}_atDst")
             rNode.resolveRealization()
             rNode._setScheduleZeroTimeSingleClock(time)
             wNode.associateRead(rNode)

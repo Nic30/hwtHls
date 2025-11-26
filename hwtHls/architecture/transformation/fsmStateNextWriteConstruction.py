@@ -11,9 +11,6 @@ from hwtHls.architecture.transformation.utils.dummyScheduling import scheduleUns
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
-from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
-    HlsNetNodeWriteBackedge
-from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.fsmStateWrite import HlsNetNodeFsmStateWrite
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel, \
     HlsNetNodeWriteAnyChannel, LOOP_CHANEL_GROUP_ROLE
@@ -29,6 +26,7 @@ from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.architecture.transformation.dce import ArchElementDCE
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 
 FsmTransitionTable = Dict[int, Dict[int, Optional[HlsNetNodeOut]]]
 
@@ -71,8 +69,8 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
                 node: HlsNetNode
                 assert not isinstance(node, HlsNetNodeLoopStatus), ("HlsNetNodeLoopStatus should be already lowered", node)
                 if isinstance(node, HlsNetNodeRead) and node.associatedWrite is not None:
-                    node: HlsNetNodeReadBackedge
-                    wr: HlsNetNodeWriteBackedge = node.associatedWrite
+                    node: HlsNetNodeRead
+                    wr: HlsNetNodeWrite = node.associatedWrite
                     if wr not in fsmElm.subNodes:
                         continue
                     channelGroup = wr._loopChannelGroup
@@ -160,8 +158,8 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
 
     @classmethod
     def _loadFsmTransitionsFromControllChannels(cls,
-                localControlReads: SetList[HlsNetNodeReadBackedge],
-                controlToStateI: Dict[Union[HlsNetNodeReadBackedge, HlsNetNodeWriteBackedge], int],
+                localControlReads: SetList[HlsNetNodeRead],
+                controlToStateI: Dict[Union[HlsNetNodeRead, HlsNetNodeWrite], int],
                 nonSkipableStateI: Set[int],
                 fsmElm: ArchElementFsm,
                 transitionTable: FsmTransitionTable,
@@ -169,8 +167,8 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
         builder = fsmElm.builder
         # for every loop reenter backedge create a jump back to state where loop header is
         for r in localControlReads:
-            r: HlsNetNodeReadBackedge
-            w: HlsNetNodeWriteBackedge = r.associatedWrite
+            r: HlsNetNodeRead
+            w: HlsNetNodeWrite = r.associatedWrite
             assert w in fsmElm.subNodes, r
             srcStI = controlToStateI[w]
             dstStI = controlToStateI[r]
@@ -272,8 +270,8 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
 
     @classmethod
     def _resolveTranstitionTableFromLoopControlChannels(cls,
-                localControlReads: SetList[HlsNetNodeReadBackedge],
-                controlToStateI: Dict[Union[HlsNetNodeReadBackedge, HlsNetNodeWriteBackedge], int],
+                localControlReads: SetList[HlsNetNodeRead],
+                controlToStateI: Dict[Union[HlsNetNodeRead, HlsNetNodeWrite], int],
                 nonSkipableStateI: Set[int],
                 fsmElm: ArchElementFsm,
                 usedStates:List[int]):

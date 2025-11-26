@@ -12,7 +12,7 @@ n4 [shape=plaintext, bgcolor=LightGreen, color=black, fontcolor=black, label=<
         </table>>];
 n5 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortIn 35 (3:i1)  0clk+0&quot;n0_en&quot;</td></tr>
+            <tr><td colspan="2">HlsNetNodeAggregatePortIn 41 (3:i1)  0clk+0&quot;n0_en&quot;</td></tr>
             <tr><td port='i0'>8:o1</td><td port='o0'>inside  0clk+0</td></tr>
         </table>>];
 n5:o0 -> n4:i0 [weight=100001];
@@ -25,20 +25,20 @@ n6 [shape=plaintext, bgcolor=LightBlue, color=black, fontcolor=black, label=<
         </table>>];
 n7 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortIn 37 (3:i2)  0clk+0&quot;n1_en&quot;</td></tr>
+            <tr><td colspan="2">HlsNetNodeAggregatePortIn 43 (3:i2)  0clk+0&quot;n1_en&quot;</td></tr>
             <tr><td port='i0'>8:o2</td><td port='o0'>inside  0clk+0</td></tr>
         </table>>];
 n7:o0 -> n6:i1 [weight=100001];
 n8 [shape=plaintext, bgcolor=LightBlue, color=black, fontcolor=black, label=<
         <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeWriteBackedge NB 2 wb0 &lt;r, v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeWrite NB 2 wb0 backedge &lt;r, v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
             <tr><td colspan="2">buffCap=1, init:((),)</td></tr>
             <tr><td port='i0'>src  0clk+0</td><td port='o0'>readyNB  0clk+0</td></tr>
             <tr><td port='i1'>extraCond  0clk+0</td><td></td></tr>
         </table>>];
 n9 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortIn 39 (3:i3)  0clk+0&quot;n2_en&quot;</td></tr>
+            <tr><td colspan="2">HlsNetNodeAggregatePortIn 46 (3:i3)  0clk+0&quot;n2_en&quot;</td></tr>
             <tr><td port='i0'>8:o3</td><td port='o0'>inside  0clk+0</td></tr>
         </table>>];
 n9:o0 -> n8:i1 [weight=100001];
@@ -49,7 +49,7 @@ n12 [shape=plaintext, bgcolor=MediumSpringGreen, color=black, fontcolor=black, l
         </table>>];
 n13 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortIn 28 (3:i0)  0clk+0&quot;n9_ackIn&quot;</td></tr>
+            <tr><td colspan="2">HlsNetNodeAggregatePortIn 30 (3:i0)  0clk+0&quot;n9_ackIn&quot;</td></tr>
             <tr><td port='i0'>8:o0</td><td port='o0'>inside  0clk+0</td></tr>
         </table>>];
 n13:o0 -> n12:i0 [weight=2];
@@ -67,7 +67,7 @@ n15 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
 n6:o0 -> n15:i0 [weight=100001];
 n16 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortOut 16 (3:o2)  0clk+0&quot;n2_readyNB&quot;</td></tr>
+            <tr><td colspan="2">HlsNetNodeAggregatePortOut 14 (3:o2)  0clk+0&quot;n2_readyNB&quot;</td></tr>
             <tr><td port='i0'>inside  0clk+0</td><td port='o0'></td></tr>
         </table>>];
 n8:o0 -> n16:i0 [weight=100001];
@@ -79,14 +79,14 @@ subgraph cluster_n1_0 {
 label="0";
 n10 [shape=plaintext, bgcolor=LightGreen, color=black, fontcolor=black, label=<
         <table bgcolor="LightGreen" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeReadBackedge NB 6 rb0 &lt;r, v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeRead NB 6 rb0 &lt;r, v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
             <tr><td port='i0'>extraCond  0clk+0</td><td port='o0'>dataOut  0clk+0</td></tr>
             <tr><td></td><td port='o1'>validNB  0clk+0</td></tr>
         </table>>];
 n11 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortIn 66 (7:i3)  0clk+0&quot;n6_en&quot;</td></tr>
-            <tr><td port='i0'>40:o3</td><td port='o0'>inside  0clk+0</td></tr>
+            <tr><td colspan="2">HlsNetNodeAggregatePortIn 73 (7:i3)  0clk+0&quot;n6_en&quot;</td></tr>
+            <tr><td port='i0'>47:o3</td><td port='o0'>inside  0clk+0</td></tr>
         </table>>];
 n11:o0 -> n10:i0 [weight=100001];
 n17 [shape=plaintext, bgcolor=LightGreen, color=black, fontcolor=black, label=<
@@ -97,8 +97,8 @@ n17 [shape=plaintext, bgcolor=LightGreen, color=black, fontcolor=black, label=<
         </table>>];
 n18 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortIn 62 (7:i1)  0clk+0&quot;n4_en&quot;</td></tr>
-            <tr><td port='i0'>40:o1</td><td port='o0'>inside  0clk+0</td></tr>
+            <tr><td colspan="2">HlsNetNodeAggregatePortIn 69 (7:i1)  0clk+0&quot;n4_en&quot;</td></tr>
+            <tr><td port='i0'>47:o1</td><td port='o0'>inside  0clk+0</td></tr>
         </table>>];
 n18:o0 -> n17:i0 [weight=100001];
 n19 [shape=plaintext, bgcolor=LightBlue, color=black, fontcolor=black, label=<
@@ -110,36 +110,36 @@ n19 [shape=plaintext, bgcolor=LightBlue, color=black, fontcolor=black, label=<
         </table>>];
 n20 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortIn 64 (7:i2)  0clk+0&quot;n5_en&quot;</td></tr>
-            <tr><td port='i0'>40:o2</td><td port='o0'>inside  0clk+0</td></tr>
+            <tr><td colspan="2">HlsNetNodeAggregatePortIn 71 (7:i2)  0clk+0&quot;n5_en&quot;</td></tr>
+            <tr><td port='i0'>47:o2</td><td port='o0'>inside  0clk+0</td></tr>
         </table>>];
 n20:o0 -> n19:i1 [weight=100001];
 n21 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortOut 14 (7:o0)  0clk+0&quot;n6_validNB&quot;</td></tr>
+            <tr><td colspan="2">HlsNetNodeAggregatePortOut 19 (7:o0)  0clk+0&quot;n6_validNB&quot;</td></tr>
             <tr><td port='i0'>inside  0clk+0</td><td port='o0'></td></tr>
         </table>>];
 n10:o1 -> n21:i0 [weight=100001];
 n22 [shape=plaintext, bgcolor=MediumSpringGreen, color=black, fontcolor=black, label=<
         <table bgcolor="MediumSpringGreen" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeStageAck 41 0clk+99999</td></tr>
+            <tr><td colspan="2">HlsNetNodeStageAck 48 0clk+99999</td></tr>
             <tr><td port='i0'>ackIn  0clk+99999</td><td></td></tr>
         </table>>];
 n23 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortIn 55 (7:i0)  0clk+0&quot;n41_ackIn&quot;</td></tr>
-            <tr><td port='i0'>40:o0</td><td port='o0'>inside  0clk+0</td></tr>
+            <tr><td colspan="2">HlsNetNodeAggregatePortIn 62 (7:i0)  0clk+0&quot;n48_ackIn&quot;</td></tr>
+            <tr><td port='i0'>47:o0</td><td port='o0'>inside  0clk+0</td></tr>
         </table>>];
 n23:o0 -> n22:i0 [weight=2];
 n24 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortOut 42 (7:o1)  0clk+0&quot;n4_validNB&quot;</td></tr>
+            <tr><td colspan="2">HlsNetNodeAggregatePortOut 49 (7:o1)  0clk+0&quot;n4_validNB&quot;</td></tr>
             <tr><td port='i0'>inside  0clk+0</td><td port='o0'></td></tr>
         </table>>];
 n17:o1 -> n24:i0 [weight=100001];
 n25 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortOut 44 (7:o2)  0clk+0&quot;n5_readyNB&quot;</td></tr>
+            <tr><td colspan="2">HlsNetNodeAggregatePortOut 51 (7:o2)  0clk+0&quot;n5_readyNB&quot;</td></tr>
             <tr><td port='i0'>inside  0clk+0</td><td port='o0'></td></tr>
         </table>>];
 n19:o0 -> n25:i0 [weight=100001];
@@ -161,47 +161,47 @@ n27 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
         </table>>];
 n28 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortIn 15 (8:i2)  0clk+0&quot;n6_validNB&quot;</td></tr>
-            <tr><td port='i0'>7:o0</td><td port='o0'>inside  0clk+0</td></tr>
-        </table>>];
-n29 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
-        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortIn 17 (8:i3)  0clk+0&quot;n2_readyNB&quot;</td></tr>
+            <tr><td colspan="2">HlsNetNodeAggregatePortIn 15 (8:i2)  0clk+0&quot;n2_readyNB&quot;</td></tr>
             <tr><td port='i0'>3:o2</td><td port='o0'>inside  0clk+0</td></tr>
         </table>>];
-n30 [shape=plaintext, bgcolor=LightGreen, color=black, fontcolor=black, label=<
+n29 [shape=plaintext, bgcolor=LightGreen, color=black, fontcolor=black, label=<
         <table bgcolor="LightGreen" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeReadBackedge NB 18 n1_flushToken_dst &lt;r, v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeRead NB 16 n1_flushToken_dst &lt;r, v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
             <tr><td port='i0'>extraCond  0clk+0</td><td port='o0'>dataOut  0clk+0</td></tr>
             <tr><td></td><td port='o1'>orderingOut  0clk+0</td></tr>
             <tr><td></td><td port='o2'>validNB  0clk+0</td></tr>
         </table>>];
-n31 [shape=plaintext, bgcolor=LightGreen, color=black, fontcolor=black, label=<
+n30 [shape=plaintext, bgcolor=LightGreen, color=black, fontcolor=black, label=<
         <table bgcolor="LightGreen" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeReadBackedge NB 30 n1_flushToken_acquire_dst &lt;v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeRead NB 32 n1_flushToken_acquire_dst &lt;v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
             <tr><td></td><td port='o0'>dataOut  0clk+0</td></tr>
             <tr><td></td><td port='o1'>orderingOut  0clk+0</td></tr>
             <tr><td></td><td port='o2'>validNB  0clk+0</td></tr>
         </table>>];
-n31:o2 -> n30:i0 [weight=100001];
-n32 [shape=plaintext, bgcolor=LightBlue, color=black, fontcolor=black, label=<
+n30:o2 -> n29:i0 [weight=100001];
+n31 [shape=plaintext, bgcolor=LightBlue, color=black, fontcolor=black, label=<
         <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeWriteBackedge NB 19 n1_flushToken_src &lt;r, v&gt; &lt;None&gt;&gt; 0clk+99999</td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeWrite NB 17 n1_flushToken_src backedge &lt;r, v&gt; &lt;None&gt;&gt; 0clk+99999</td></tr>
             <tr><td colspan="2">buffCap=1, init:((),)</td></tr>
-            <tr><td port='i0'>src  0clk+99999 = &lt;void&gt; 20</td><td></td></tr>
+            <tr><td port='i0'>src  0clk+99999 = &lt;void&gt; 18</td><td></td></tr>
             <tr><td port='i1'>orderingIn  0clk+99999</td><td></td></tr>
             <tr><td port='i2'>extraCond  0clk+99999</td><td></td></tr>
         </table>>];
-n30:o1 -> n32:i1 [style=dotted, weight=2];
+n29:o1 -> n31:i1 [style=dotted, weight=2];
+n32 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
+            <tr><td colspan="2">NOT 28  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
+            <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
+        </table>>];
 n33 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">AND 26  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
+            <tr><td colspan="2">OR 27  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
             <tr><td port='i1'>i1  0clk+0</td><td></td></tr>
         </table>>];
 n34 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">OR 22  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
+            <tr><td colspan="2">OR 26  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
             <tr><td port='i1'>i1  0clk+0</td><td></td></tr>
         </table>>];
@@ -210,213 +210,261 @@ n35 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
             <tr><td colspan="2">NOT 21  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
         </table>>];
-n28:o0 -> n35:i0 [weight=100001];
+n26:o0 -> n35:i0 [weight=100001];
 n35:o0 -> n34:i0 [weight=100001];
-n29:o0 -> n34:i1 [weight=100001];
-n34:o0 -> n33:i0 [weight=100001];
 n36 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
+            <tr><td colspan="2">AND 23  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
+            <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
+            <tr><td port='i1'>i1  0clk+0</td><td></td></tr>
+        </table>>];
+n37 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
+            <tr><td colspan="2">NOT 22  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
+            <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
+        </table>>];
+n28:o0 -> n37:i0 [weight=100001];
+n37:o0 -> n36:i0 [weight=100001];
+n38 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
+        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
+            <tr><td colspan="2">HlsNetNodeAggregatePortIn 20 (8:i3)  0clk+0&quot;n6_validNB&quot;</td></tr>
+            <tr><td port='i0'>7:o0</td><td port='o0'>inside  0clk+0</td></tr>
+        </table>>];
+n38:o0 -> n36:i1 [weight=100001];
+n36:o0 -> n34:i1 [weight=100001];
+n34:o0 -> n33:i0 [weight=100001];
+n39 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">AND 25  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
             <tr><td port='i1'>i1  0clk+0</td><td></td></tr>
         </table>>];
-n26:o0 -> n36:i0 [weight=100001];
-n37 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
-        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">OR 24  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
-            <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
-            <tr><td port='i1'>i1  0clk+0</td><td></td></tr>
-        </table>>];
-n27:o0 -> n37:i0 [weight=100001];
-n38 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
-        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">NOT 23  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
-            <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
-        </table>>];
-n30:o2 -> n38:i0 [weight=100001];
-n38:o0 -> n37:i1 [weight=100001];
-n37:o0 -> n36:i1 [weight=100001];
-n36:o0 -> n33:i1 [weight=100001];
-n33:o0 -> n32:i2 [weight=2];
-n39 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
-        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortOut 27 (8:o0)  0clk+0&quot;n9_ackIn&quot;</td></tr>
-            <tr><td port='i0'>inside  0clk+0</td><td port='o0'></td></tr>
-        </table>>];
-n33:o0 -> n39:i0 [weight=100001];
 n40 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">AND 29  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
+            <tr><td colspan="2">NOT 24  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
+            <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
+        </table>>];
+n27:o0 -> n40:i0 [weight=100001];
+n40:o0 -> n39:i0 [weight=100001];
+n29:o2 -> n39:i1 [weight=100001];
+n39:o0 -> n33:i1 [weight=100001];
+n33:o0 -> n32:i0 [weight=100001];
+n32:o0 -> n31:i2 [weight=2];
+n41 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
+        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
+            <tr><td colspan="2">HlsNetNodeAggregatePortOut 29 (8:o0)  0clk+0&quot;n9_ackIn&quot;</td></tr>
+            <tr><td port='i0'>inside  0clk+0</td><td port='o0'></td></tr>
+        </table>>];
+n32:o0 -> n41:i0 [weight=100001];
+n42 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
+            <tr><td colspan="2">AND 31  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
             <tr><td port='i1'>i1  0clk+0</td><td></td></tr>
         </table>>];
-n27:o0 -> n40:i0 [weight=100001];
-n30:o2 -> n40:i1 [weight=100001];
-n41 [shape=plaintext, bgcolor=LightBlue, color=black, fontcolor=black, label=<
+n27:o0 -> n42:i0 [weight=100001];
+n29:o2 -> n42:i1 [weight=100001];
+n43 [shape=plaintext, bgcolor=LightBlue, color=black, fontcolor=black, label=<
         <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeWriteBackedge NB 31 n1_flushToken_acquire_src IMMEDIATE &lt;r, v&gt; &lt;None&gt;&gt; 0clk+99999</td></tr>
-            <tr><td port='i0'>src  0clk+99999 = &lt;void&gt; 32</td><td></td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeWrite NB 33 n1_flushToken_acquire_src IMMEDIATE backedge &lt;r, v&gt; &lt;None&gt;&gt; 0clk+99999</td></tr>
+            <tr><td port='i0'>src  0clk+99999 = &lt;void&gt; 34</td><td></td></tr>
             <tr><td port='i1'>orderingIn  0clk+99999</td><td></td></tr>
             <tr><td port='i2'>extraCond  0clk+99999</td><td></td></tr>
         </table>>];
-n31:o1 -> n41:i1 [style=dotted, weight=2];
-n40:o0 -> n41:i2 [weight=2];
-n42 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n30:o1 -> n43:i1 [style=dotted, weight=2];
+n42:o0 -> n43:i2 [weight=2];
+n44 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">AND 33  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
+            <tr><td colspan="2">NOT 35  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
+            <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
+        </table>>];
+n38:o0 -> n44:i0 [weight=100001];
+n45 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
+            <tr><td colspan="2">OR 36  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
             <tr><td port='i1'>i1  0clk+0</td><td></td></tr>
         </table>>];
-n34:o0 -> n42:i0 [weight=100001];
-n37:o0 -> n42:i1 [weight=100001];
-n43 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
+n28:o0 -> n45:i0 [weight=100001];
+n44:o0 -> n45:i1 [weight=100001];
+n46 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortOut 34 (8:o1)  0clk+0&quot;n0_en&quot;</td></tr>
+            <tr><td colspan="2">NOT 37  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
+            <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
+        </table>>];
+n29:o2 -> n46:i0 [weight=100001];
+n47 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
+            <tr><td colspan="2">OR 38  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
+            <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
+            <tr><td port='i1'>i1  0clk+0</td><td></td></tr>
+        </table>>];
+n27:o0 -> n47:i0 [weight=100001];
+n46:o0 -> n47:i1 [weight=100001];
+n48 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
+            <tr><td colspan="2">AND 39  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
+            <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
+            <tr><td port='i1'>i1  0clk+0</td><td></td></tr>
+        </table>>];
+n45:o0 -> n48:i0 [weight=100001];
+n47:o0 -> n48:i1 [weight=100001];
+n49 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
+        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
+            <tr><td colspan="2">HlsNetNodeAggregatePortOut 40 (8:o1)  0clk+0&quot;n0_en&quot;</td></tr>
             <tr><td port='i0'>inside  0clk+0</td><td port='o0'></td></tr>
         </table>>];
-n42:o0 -> n43:i0 [weight=100001];
-n44 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
+n48:o0 -> n49:i0 [weight=100001];
+n50 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortOut 36 (8:o2)  0clk+0&quot;n1_en&quot;</td></tr>
+            <tr><td colspan="2">HlsNetNodeAggregatePortOut 42 (8:o2)  0clk+0&quot;n1_en&quot;</td></tr>
             <tr><td port='i0'>inside  0clk+0</td><td port='o0'></td></tr>
         </table>>];
-n30:o2 -> n44:i0 [weight=100001];
-n45 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
+n29:o2 -> n50:i0 [weight=100001];
+n51 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortOut 38 (8:o3)  0clk+0&quot;n2_en&quot;</td></tr>
+            <tr><td colspan="2">AND 44  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
+            <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
+            <tr><td port='i1'>i1  0clk+0</td><td></td></tr>
+        </table>>];
+n26:o0 -> n51:i0 [weight=100001];
+n47:o0 -> n51:i1 [weight=100001];
+n52 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
+        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
+            <tr><td colspan="2">HlsNetNodeAggregatePortOut 45 (8:o3)  0clk+0&quot;n2_en&quot;</td></tr>
             <tr><td port='i0'>inside  0clk+0</td><td port='o0'></td></tr>
         </table>>];
-n36:o0 -> n45:i0 [weight=100001];
+n51:o0 -> n52:i0 [weight=100001];
 }
 }
 subgraph cluster_n3 {
-label="ArchElementNoImplicitSync 40  0clk+0 hsSccSync1";
+label="ArchElementNoImplicitSync 47  0clk+0 hsSccSync1";
 subgraph cluster_n3_0 {
 label="0";
-n46 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
+n53 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortIn 43 (40:i0)  0clk+0&quot;n4_validNB&quot;</td></tr>
+            <tr><td colspan="2">HlsNetNodeAggregatePortIn 50 (47:i0)  0clk+0&quot;n4_validNB&quot;</td></tr>
             <tr><td port='i0'>7:o1</td><td port='o0'>inside  0clk+0</td></tr>
         </table>>];
-n47 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
+n54 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortIn 45 (40:i1)  0clk+0&quot;n5_readyNB&quot;</td></tr>
+            <tr><td colspan="2">HlsNetNodeAggregatePortIn 52 (47:i1)  0clk+0&quot;n5_readyNB&quot;</td></tr>
             <tr><td port='i0'>7:o2</td><td port='o0'>inside  0clk+0</td></tr>
         </table>>];
-n48 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
+n55 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortIn 46 (40:i2)  0clk+0&quot;n6_validNB&quot;</td></tr>
+            <tr><td colspan="2">HlsNetNodeAggregatePortIn 53 (47:i2)  0clk+0&quot;n6_validNB&quot;</td></tr>
             <tr><td port='i0'>7:o0</td><td port='o0'>inside  0clk+0</td></tr>
         </table>>];
-n49 [shape=plaintext, bgcolor=LightGreen, color=black, fontcolor=black, label=<
+n56 [shape=plaintext, bgcolor=LightGreen, color=black, fontcolor=black, label=<
         <table bgcolor="LightGreen" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeReadBackedge NB 47 n5_flushToken_dst &lt;r, v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeRead NB 54 n5_flushToken_dst &lt;r, v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
             <tr><td port='i0'>extraCond  0clk+0</td><td port='o0'>dataOut  0clk+0</td></tr>
             <tr><td></td><td port='o1'>orderingOut  0clk+0</td></tr>
             <tr><td></td><td port='o2'>validNB  0clk+0</td></tr>
         </table>>];
-n50 [shape=plaintext, bgcolor=LightGreen, color=black, fontcolor=black, label=<
+n57 [shape=plaintext, bgcolor=LightGreen, color=black, fontcolor=black, label=<
         <table bgcolor="LightGreen" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeReadBackedge NB 57 n5_flushToken_acquire_dst &lt;v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeRead NB 64 n5_flushToken_acquire_dst &lt;v&gt; &lt;None&gt;&gt; 0clk+0</td></tr>
             <tr><td></td><td port='o0'>dataOut  0clk+0</td></tr>
             <tr><td></td><td port='o1'>orderingOut  0clk+0</td></tr>
             <tr><td></td><td port='o2'>validNB  0clk+0</td></tr>
         </table>>];
-n50:o2 -> n49:i0 [weight=100001];
-n51 [shape=plaintext, bgcolor=LightBlue, color=black, fontcolor=black, label=<
-        <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeWriteBackedge NB 48 n5_flushToken_src &lt;r, v&gt; &lt;None&gt;&gt; 0clk+99999</td></tr>
-            <tr><td colspan="2">buffCap=1, init:((),)</td></tr>
-            <tr><td port='i0'>src  0clk+99999 = &lt;void&gt; 49</td><td></td></tr>
-            <tr><td port='i1'>orderingIn  0clk+99999</td><td></td></tr>
-            <tr><td port='i2'>extraCond  0clk+99999</td><td></td></tr>
-        </table>>];
-n49:o1 -> n51:i1 [style=dotted, weight=2];
-n52 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
-        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">AND 53  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
-            <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
-            <tr><td port='i1'>i1  0clk+0</td><td></td></tr>
-        </table>>];
-n48:o0 -> n52:i0 [weight=100001];
-n53 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
-        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">AND 52  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
-            <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
-            <tr><td port='i1'>i1  0clk+0</td><td></td></tr>
-        </table>>];
-n46:o0 -> n53:i0 [weight=100001];
-n54 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
-        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">OR 51  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
-            <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
-            <tr><td port='i1'>i1  0clk+0</td><td></td></tr>
-        </table>>];
-n47:o0 -> n54:i0 [weight=100001];
-n55 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
-        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">NOT 50  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
-            <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
-        </table>>];
-n49:o2 -> n55:i0 [weight=100001];
-n55:o0 -> n54:i1 [weight=100001];
-n54:o0 -> n53:i1 [weight=100001];
-n53:o0 -> n52:i1 [weight=100001];
-n52:o0 -> n51:i2 [weight=2];
-n56 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
-        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortOut 54 (40:o0)  0clk+0&quot;n41_ackIn&quot;</td></tr>
-            <tr><td port='i0'>inside  0clk+0</td><td port='o0'></td></tr>
-        </table>>];
-n52:o0 -> n56:i0 [weight=100001];
-n57 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
-        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">AND 56  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
-            <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
-            <tr><td port='i1'>i1  0clk+0</td><td></td></tr>
-        </table>>];
-n47:o0 -> n57:i0 [weight=100001];
-n49:o2 -> n57:i1 [weight=100001];
+n57:o2 -> n56:i0 [weight=100001];
 n58 [shape=plaintext, bgcolor=LightBlue, color=black, fontcolor=black, label=<
         <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeWriteBackedge NB 58 n5_flushToken_acquire_src IMMEDIATE &lt;r, v&gt; &lt;None&gt;&gt; 0clk+99999</td></tr>
-            <tr><td port='i0'>src  0clk+99999 = &lt;void&gt; 59</td><td></td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeWrite NB 55 n5_flushToken_src backedge &lt;r, v&gt; &lt;None&gt;&gt; 0clk+99999</td></tr>
+            <tr><td colspan="2">buffCap=1, init:((),)</td></tr>
+            <tr><td port='i0'>src  0clk+99999 = &lt;void&gt; 56</td><td></td></tr>
             <tr><td port='i1'>orderingIn  0clk+99999</td><td></td></tr>
             <tr><td port='i2'>extraCond  0clk+99999</td><td></td></tr>
         </table>>];
-n50:o1 -> n58:i1 [style=dotted, weight=2];
-n57:o0 -> n58:i2 [weight=2];
+n56:o1 -> n58:i1 [style=dotted, weight=2];
 n59 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">AND 60  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
             <tr><td port='i1'>i1  0clk+0</td><td></td></tr>
         </table>>];
-n48:o0 -> n59:i0 [weight=100001];
-n54:o0 -> n59:i1 [weight=100001];
-n60 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
+n55:o0 -> n59:i0 [weight=100001];
+n60 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortOut 61 (40:o1)  0clk+0&quot;n4_en&quot;</td></tr>
+            <tr><td colspan="2">AND 59  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
+            <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
+            <tr><td port='i1'>i1  0clk+0</td><td></td></tr>
+        </table>>];
+n53:o0 -> n60:i0 [weight=100001];
+n61 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
+            <tr><td colspan="2">OR 58  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
+            <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
+            <tr><td port='i1'>i1  0clk+0</td><td></td></tr>
+        </table>>];
+n54:o0 -> n61:i0 [weight=100001];
+n62 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
+            <tr><td colspan="2">NOT 57  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
+            <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
+        </table>>];
+n56:o2 -> n62:i0 [weight=100001];
+n62:o0 -> n61:i1 [weight=100001];
+n61:o0 -> n60:i1 [weight=100001];
+n60:o0 -> n59:i1 [weight=100001];
+n59:o0 -> n58:i2 [weight=2];
+n63 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
+        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
+            <tr><td colspan="2">HlsNetNodeAggregatePortOut 61 (47:o0)  0clk+0&quot;n48_ackIn&quot;</td></tr>
             <tr><td port='i0'>inside  0clk+0</td><td port='o0'></td></tr>
         </table>>];
-n59:o0 -> n60:i0 [weight=100001];
-n61 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
+n59:o0 -> n63:i0 [weight=100001];
+n64 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortOut 63 (40:o2)  0clk+0&quot;n5_en&quot;</td></tr>
+            <tr><td colspan="2">AND 63  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
+            <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
+            <tr><td port='i1'>i1  0clk+0</td><td></td></tr>
+        </table>>];
+n54:o0 -> n64:i0 [weight=100001];
+n56:o2 -> n64:i1 [weight=100001];
+n65 [shape=plaintext, bgcolor=LightBlue, color=black, fontcolor=black, label=<
+        <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
+            <tr><td colspan="2">&lt;HlsNetNodeWrite NB 65 n5_flushToken_acquire_src IMMEDIATE backedge &lt;r, v&gt; &lt;None&gt;&gt; 0clk+99999</td></tr>
+            <tr><td port='i0'>src  0clk+99999 = &lt;void&gt; 66</td><td></td></tr>
+            <tr><td port='i1'>orderingIn  0clk+99999</td><td></td></tr>
+            <tr><td port='i2'>extraCond  0clk+99999</td><td></td></tr>
+        </table>>];
+n57:o1 -> n65:i1 [style=dotted, weight=2];
+n64:o0 -> n65:i2 [weight=2];
+n66 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
+            <tr><td colspan="2">AND 67  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
+            <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
+            <tr><td port='i1'>i1  0clk+0</td><td></td></tr>
+        </table>>];
+n55:o0 -> n66:i0 [weight=100001];
+n61:o0 -> n66:i1 [weight=100001];
+n67 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
+        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
+            <tr><td colspan="2">HlsNetNodeAggregatePortOut 68 (47:o1)  0clk+0&quot;n4_en&quot;</td></tr>
             <tr><td port='i0'>inside  0clk+0</td><td port='o0'></td></tr>
         </table>>];
-n49:o2 -> n61:i0 [weight=100001];
-n62 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
+n66:o0 -> n67:i0 [weight=100001];
+n68 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">HlsNetNodeAggregatePortOut 65 (40:o3)  0clk+0&quot;n6_en&quot;</td></tr>
+            <tr><td colspan="2">HlsNetNodeAggregatePortOut 70 (47:o2)  0clk+0&quot;n5_en&quot;</td></tr>
             <tr><td port='i0'>inside  0clk+0</td><td port='o0'></td></tr>
         </table>>];
-n53:o0 -> n62:i0 [weight=100001];
+n56:o2 -> n68:i0 [weight=100001];
+n69 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
+        <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
+            <tr><td colspan="2">HlsNetNodeAggregatePortOut 72 (47:o3)  0clk+0&quot;n6_en&quot;</td></tr>
+            <tr><td port='i0'>inside  0clk+0</td><td port='o0'></td></tr>
+        </table>>];
+n60:o0 -> n69:i0 [weight=100001];
 }
 }
 n10 -> n8 [style=dashed, color=gray, dir=back, weigh=100001];
-n30 -> n32 [style=dashed, color=gray, dir=back, weigh=2];
-n31 -> n41 [style=dashed, color=gray, dir=back, weigh=2];
-n49 -> n51 [style=dashed, color=gray, dir=back, weigh=2];
-n50 -> n58 [style=dashed, color=gray, dir=back, weigh=2];
+n29 -> n31 [style=dashed, color=gray, dir=back, weigh=2];
+n30 -> n43 [style=dashed, color=gray, dir=back, weigh=2];
+n56 -> n58 [style=dashed, color=gray, dir=back, weigh=2];
+n57 -> n65 [style=dashed, color=gray, dir=back, weigh=2];
 }

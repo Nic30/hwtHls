@@ -13,11 +13,9 @@ from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregatePortOut, \
     HlsNetNodeAggregatePortIn, HlsNetNodeAggregate
 from hwtHls.netlist.nodes.archElement import ArchElement
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.fsmStateEn import HlsNetNodeFsmStateEn, \
     HlsNetNodeStageAck
 from hwtHls.netlist.nodes.fsmStateWrite import HlsNetNodeFsmStateWrite
@@ -587,7 +585,7 @@ class HwtHlsNetlistToGraphviz():
 
         buff.append(f'            <tr><td colspan="2">{html.escape(label):s}</td></tr>\n')
         if isinstance(obj, HlsNetNodeWrite):
-            if isinstance(obj, (HlsNetNodeWriteForwardedge, HlsNetNodeWriteBackedge)):
+            if obj.isChannel():
                 if obj._loopChannelGroup is not None:
                     buff.append(f'            <tr><td colspan="2">{html.escape(repr(obj._loopChannelGroup))}</td></tr>\n')
 

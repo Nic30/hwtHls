@@ -15,12 +15,8 @@ from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering, HdlType_isVoid
 from hwtHls.netlist.nodes.archElement import ArchElement
-from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
-    HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge, \
-    HlsNetNodeReadForwardedge
 from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
@@ -117,16 +113,17 @@ class ArchElementPipeline(ArchElement):
 
                 name = f"{self.namePrefix:s}stSync_{previousClkI:d}_to_{clkI:d}"
                 ioProxy = IoProxyScalar(None, None)
-                wNode = HlsNetNodeWriteForwardedge(netlist, ioProxy,
-                                                   mayBecomeFlushable=False,
-                                                   name=f"{name}_atSrc")
+                wNode = HlsNetNodeWrite(netlist, ioProxy, ioProxy.interface,
+                                        mayBecomeFlushable=False,
+                                        name=f"{name}_atSrc")
                 wNode.resolveRealization()
                 wNode._setScheduleZeroTimeSingleClock(wTime)  # at the end of previousClkI
                 self._addNodeIntoScheduled(previousClkI, wNode, allowNewClockWindow=True)
                 dummyC._outputs[0].connectHlsIn(wNode._portSrc)
 
-                rNode = HlsNetNodeReadForwardedge(netlist, ioProxy, dtype=HVoidOrdering,
-                                                  name=f"{name:s}_atDst")
+                rNode = HlsNetNodeRead(netlist, ioProxy, ioProxy.interface,
+                                       dtype=HVoidOrdering,
+                                       name=f"{name:s}_atDst")
                 assert clkI >= 1, clkI
                 rNode.resolveRealization()
                 rNode._setScheduleZeroTimeSingleClock((clkI * clkPeriod) + epsilon)  # at the beginning of ClkI
@@ -210,7 +207,7 @@ class ArchElementPipeline(ArchElement):
 
         for stI, nodes in self.iterStages():
             for node in nodes:
-                if isinstance(node, HlsNetNodeReadBackedge):
+                if isinstance(node, HlsNetNodeRead) and node.isBackedge():
                     w = node.associatedWrite
                     if w.allocationType == CHANNEL_ALLOCATION_TYPE.BUFFER and w in self.subNodes and w.scheduledIn[0] // clkPeriod == stI:
                         # allocate as a register because this is connect just this stage with itself
@@ -252,7 +249,7 @@ class ArchElementPipeline(ArchElement):
                 node.rtlAlloc(self)
 
                 if isinstance(node, HlsNetNodeRead):
-                    if isinstance(node, HlsNetNodeReadBackedge):
+                    if node.isBackedge():
                         if node.associatedWrite.allocationType != CHANNEL_ALLOCATION_TYPE.BUFFER:
                             # only buffer has an explicit IO from pipeline
                             continue
@@ -260,7 +257,7 @@ class ArchElementPipeline(ArchElement):
                     if node.src is None:
                         # local only channel
                         assert isinstance(node, HlsProgramStarter) or\
-                            (isinstance(node, (HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge)) and
+                            (node.isChannel() and
                                 node.associatedWrite in self.subNodes
                             ) or (
                                 not node._rtlUseReady and
@@ -274,14 +271,13 @@ class ArchElementPipeline(ArchElement):
                         rToCon[node.src] = con
 
                 elif isinstance(node, HlsNetNodeWrite):
-                    if isinstance(node, HlsNetNodeWriteBackedge):
-                        if node.allocationType != CHANNEL_ALLOCATION_TYPE.BUFFER:
-                            # only buffer has an explicit IO from pipeline
-                            continue
+                    if node.isBackedge() and node.allocationType != CHANNEL_ALLOCATION_TYPE.BUFFER:
+                        # only buffer has an explicit IO from pipeline
+                        continue
 
-                    if node.dst is None:
+                    if not node.rtlPortPhysicallyExits():
                         # local only channel
-                        assert (isinstance(node, (HlsNetNodeWriteBackedge, HlsNetNodeWriteForwardedge)) and
+                        assert (isinstance(node, HlsNetNodeWrite) and node.isChannel() and
                                 node.associatedRead in self.subNodes
                                 ) or (
                                       not node._rtlUseReady and

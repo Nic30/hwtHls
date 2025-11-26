@@ -1,7 +1,6 @@
 from typing import List, Tuple
 
 from hwt.pyUtils.setList import SetList
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup, LOOP_CHANEL_GROUP_ROLE
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode

@@ -11,8 +11,6 @@ from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.archElementUtils import ArchElement_merge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge, \
-    HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, unlink_hls_node_input_if_exists
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
@@ -104,9 +102,9 @@ class HlsArchPassArchStructureSimplify(HlsArchPass):
 
         for nodes in src.stages:
             for node in nodes:
-                if isinstance(node, HlsNetNodeReadForwardedge) and node.associatedWrite in dst.subNodes:
+                if isinstance(node, HlsNetNodeRead) and node.isForwardedge() and node.associatedWrite in dst.subNodes:
                     return False
-                elif isinstance(node, HlsNetNodeWriteForwardedge) and node.associatedRead in dst.subNodes:
+                elif isinstance(node, HlsNetNodeWrite) and node.isForwardedge() and node.associatedRead in dst.subNodes:
                     return False
         return True
 

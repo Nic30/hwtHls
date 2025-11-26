@@ -6,8 +6,6 @@ from hwtHls.netlist.analysis.consistencyCheck import HlsNetlistPassConsistencyCh
 from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.debugTracer import DebugTracer
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
-    HlsNetNodeReadBackedge
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
@@ -80,14 +78,14 @@ class HlsNetlistPassSimplifySync(HlsNetlistPass):
                             assert n.__class__ is not HlsNetNodeExplicitSync, (n, "Nodes of this type should not exist at this stage")
 
                             if isinstance(n, HlsNetNodeRead):
-                                if isinstance(n, HlsNetNodeReadBackedge):
+                                if n.isBackedge():
                                     if netlistReduceUnusedBackedgeBuffer(dbgTrace, n, worklistTmp):
                                         if dbgEn:
                                             HlsNetlistPassConsistencyCheck._checkCycleFree(n.netlist)
                                             # HlsNetlistPassConsistencyCheck().runOnHlsNetlist(n.netlist, removed=removed)
 
                             elif isinstance(n, HlsNetNodeWrite) and n.associatedRead is not None:
-                                isBackedge = isinstance(n, HlsNetNodeWriteBackedge)
+                                isBackedge = n.isBackedge()
                                 if simplifyChannelValPropagationForNeverWritten(dbgTrace, n, worklistTmp):
                                     pass
                                 elif netlistEdgeWritePropagation(dbgTrace, n, worklistTmp):

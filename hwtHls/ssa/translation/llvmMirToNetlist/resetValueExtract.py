@@ -4,14 +4,13 @@ from hwt.hwIO import HwIO
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineRegisterInfo, MDNode
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
-from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge
 from hwtHls.netlist.nodes.mux import HlsNetNodeMux
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, HlsNetNodeOutLazy, \
     HlsNetNodeOut, unlink_hls_node_input_if_exists, HlsNetNodeIn
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdge, MachineEdgeMeta
@@ -81,14 +80,14 @@ class ResetValueExtractor():
         # find backedge buffer on value from loop body
         while (isinstance(v0, HlsNetNodeOut) and
                isinstance(v0.obj, HlsNetNodeExplicitSync) and
-               not isinstance(v0.obj, HlsNetNodeReadBackedge)):
+               (not isinstance(v0.obj, HlsNetNodeRead) or not v0.obj.isBackedge())):
             v0 = v0.obj.dependsOn[0]
 
-        assert isinstance(v0, HlsNetNodeOut) and isinstance(v0.obj, HlsNetNodeReadBackedge), (
+        assert isinstance(v0, HlsNetNodeOut) and (isinstance(v0.obj, HlsNetNodeRead) and v0.obj.isBackedge()), (
             "Expected channel for livein initialization from reset", mb, v0, mux)
-        backedgeBuffRead: HlsNetNodeReadBackedge = v0.obj
+        backedgeBuffRead: HlsNetNodeRead = v0.obj
         assert backedgeBuffRead is not None
-        backedgeBuffRead: HlsNetNodeReadBackedge
+        backedgeBuffRead: HlsNetNodeRead
         assert not isinstance(vRst, HlsNetNodeOutLazy), (
             "This transformation should be performed only after all links were resolved and def must be always before use", vRst)
 
@@ -171,7 +170,7 @@ class ResetValueExtractor():
 
                 rstValObj = vRst.obj
                 while True:
-                    if isinstance(rstValObj, HlsNetNodeReadForwardedge):
+                    if isinstance(rstValObj, HlsNetNodeRead) and rstValObj.isForwardedge():
                         wr = rstValObj.associatedWrite
                         for n in (rstValObj, wr):
                             netlistExplicitSyncDisconnectFromOrderingChain(dbgTracer, n, None)

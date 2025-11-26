@@ -22,8 +22,6 @@ from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregatePortIn, \
     HlsNetNodeAggregatePortOut
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.archElementNoImplicitSync import ArchElementNoImplicitSync
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
-    HlsNetNodeReadBackedge
 from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
@@ -108,9 +106,9 @@ class SyncLogicAbcToHlsNetlist():
     def _scheduleDefault(syncNode: ArchSyncNodeTy, out: HlsNetNodeOut) -> SchedTime:
         return scheduleUnscheduledControlLogic(syncNode, out)
 
-    def translateFromAbcToHlsNetlistWriteFlushTokenAcquire(self, writeFlushTokens: Dict[HlsNetNodeWrite, HlsNetNodeWriteBackedge],
+    def translateFromAbcToHlsNetlistWriteFlushTokenAcquire(self, writeFlushTokens: Dict[HlsNetNodeWrite, HlsNetNodeWrite],
                                                            termPropagationCtx: ArchElementTermPropagationCtx,
-                                                           ioObj: Tuple[HlsNetNodeWriteBackedge, Literal[FLAG_FLUSH_TOKEN_ACQUIRE]],
+                                                           ioObj: Tuple[HlsNetNodeWrite, Literal[FLAG_FLUSH_TOKEN_ACQUIRE]],
                                                            driver: HlsNetNodeOut):
         """
         Translate an expression which activates flush token acquire from ABC to HlsNetlist.
@@ -126,7 +124,7 @@ class SyncLogicAbcToHlsNetlist():
         if tokenWrite is None:
             assert driverC is not None and not driverC, ("If token was resolved useless it must have been because it is never acquired", driver)
         else:
-            tokenR: HlsNetNodeReadBackedge = tokenWrite.associatedRead
+            tokenR: HlsNetNodeRead = tokenWrite.associatedRead
             assert tokenR.extraCond is None, (tokenR, "extraCond port for flush tokens reads should be created only on this place")
             # if tokenR.scheduledZero <= driver.obj.scheduledOut[driver.out_i]:
             #    raise NotImplementedError()
@@ -267,7 +265,7 @@ class SyncLogicAbcToHlsNetlist():
         flushTokenReleases = extractor._stageAckToAllWriteFlushTokens.get(ioObj, None)
         if flushTokenReleases is not None:
             for tokenW in flushTokenReleases:
-                tokenW: HlsNetNodeWriteBackedge
+                tokenW: HlsNetNodeWrite
                 # add release of flush tokens
                 tokenW.addControlSerialExtraCond(driver, addDefaultScheduling=True)
 

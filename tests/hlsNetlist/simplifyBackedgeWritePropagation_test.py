@@ -9,9 +9,8 @@ from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.frontend.threadFromNetlist import HlsThreadFromNetlist
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
-from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
-    HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
@@ -38,10 +37,11 @@ class CycleDelayHwModule(HwModule):
         netlist.addNode(elm)
         b = elm.builder
         T = self.dataOut.data._dtype
-        br = HlsNetNodeReadBackedge(netlist, IoProxyScalar(None, None), T)
+        ioProxy = IoProxyScalar(None, None)
+        br = HlsNetNodeRead(netlist, ioProxy, ioProxy.interface, T)
         elm.addNode(br)
 
-        bw = HlsNetNodeWriteBackedge(netlist, IoProxyScalar(None, None))
+        bw = HlsNetNodeWrite(netlist, ioProxy, ioProxy.interface, isBackedge=True)
         elm.addNode(bw)
         c9 = b.buildConst(T.from_py(9))
         c9.connectHlsIn(bw._portSrc)

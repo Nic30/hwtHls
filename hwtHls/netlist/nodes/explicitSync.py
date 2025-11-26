@@ -15,7 +15,6 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
 from hwtHls.netlist.scheduler.clk_math import epsilon
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
-
 IO_COMB_REALIZATION = OpRealizationMeta(outputWireDelay=epsilon)
 
 
@@ -81,16 +80,16 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
 
         self.extraCond: Optional[HlsNetNodeIn] = None
         self.skipWhen: Optional[HlsNetNodeIn] = None
-        self._forceEnPort: Optional[HlsNetNodeOut] = None
+        self._forceEnPort: Optional[HlsNetNodeIn] = None
         self._orderingOut: Optional[HlsNetNodeOut] = None
         self._dataVoidOut: Optional[HlsNetNodeOut] = None
         self._rtlUseReady = io is None or isinstance(io, (HwIORdVldSync, HwIODataRd))
         self._rtlUseValid = io is None or isinstance(io, (HwIORdVldSync, HwIODataVld))
-    
+
     @override
     def hasSideeffect(self):
         return True
-    
+
     def setRtlUseValid(self, rtlUseValid: bool):
         if not rtlUseValid:
             for valid in (self._valid, self._validNB):
@@ -125,6 +124,13 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
             if i not in nonOrderingInputs:
                 assert HdlType_isVoid(self.dependsOn[i.in_i]._dtype), i
                 yield i
+
+    def isControlInput(self, inp: HlsNetNodeIn) -> bool:
+        return (
+            inp is self.extraCond or
+            inp is self.skipWhen or
+            inp is self._forceEnPort
+         )
 
     def _addValid(self):
         assert self._valid is None, (self, "Already present")
@@ -336,7 +342,6 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
             return (f"<{self.__class__.__name__:s} {self._id:d}{name:s} in={HlsNetNodeOut._reprMinified(dep)}, "
                     f"extraCond={HlsNetNodeOut._reprMinified(ec)}, "
                     f"skipWhen={HlsNetNodeOut._reprMinified(sw)}>")
-
 
 
 def createOrderingLink(predNode: HlsNetNodeExplicitSync, sucNode: HlsNetNodeExplicitSync):

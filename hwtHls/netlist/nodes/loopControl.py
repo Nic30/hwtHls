@@ -7,11 +7,8 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.hdlTypeVoid import HVoidData, HVoidOrdering
-from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
-    HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.explicitSync import IO_COMB_REALIZATION
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.loopChannelGroup import \
     LoopChanelGroup, LOOP_CHANEL_GROUP_ROLE, HlsNetNodeReadOrWriteToAnyChannel
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -171,7 +168,7 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         name = f"enterFrom_bb{srcBlockNumber:}"
         # fromStatusOut = self._addOutput(BIT, name)
         w = lcg.getChannelUsedAsControl()
-        r: HlsNetNodeReadBackedge = w.associatedRead
+        r: HlsNetNodeRead = w.associatedRead
         busy = self.getBusyOutPort()
         busy_n = self.getHlsNetlistBuilder().buildNot(busy)
         LoopChanelGroup.appendToListOfPriorityEncodedReads(self.fromEnter, busy_n, busy, lcg, name)
@@ -203,8 +200,8 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         lcg.associateWithLoop(self, LOOP_CHANEL_GROUP_ROLE.REENTER)
         name = f"reenterFrom_bb{srcBlockNumber}"
         # fromStatusOut = self._addOutput(BIT, name)
-        r: HlsNetNodeReadBackedge = lcg.getChannelUsedAsControl().associatedRead
-        assert isinstance(r, HlsNetNodeReadBackedge), r
+        r: HlsNetNodeRead = lcg.getChannelUsedAsControl().associatedRead
+        assert isinstance(r, HlsNetNodeRead) and r.isBackedge(), r
         busy = self.getBusyOutPort()
         busy_n = self.getHlsNetlistBuilder().buildNot(busy)
         LoopChanelGroup.appendToListOfPriorityEncodedReads(self.fromReenter, busy, busy_n, lcg, name)
@@ -234,11 +231,11 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         :note: the loop may not end this implies that this may not be used at all.
         """
         lcg.associateWithLoop(self, LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER)
-        w: HlsNetNodeWriteBackedge = lcg.getChannelUsedAsControl()
+        w: HlsNetNodeWrite = lcg.getChannelUsedAsControl()
         assert w.allocationType == CHANNEL_ALLOCATION_TYPE.IMMEDIATE, (
             "Must be IMMEDIATE because this information modifies busy flag immediately",
             w, w.allocationType)
-        assert isinstance(w, HlsNetNodeWriteBackedge), w
+        assert isinstance(w, HlsNetNodeWrite) and w.isBackedge(), w
         r = w.associatedRead
         assert not r._isBlocking, ("Must be non-blocking because busy flag must be reset without blocking to prevent deadlock", r)
         exitIn = self._addInput(f"exit_from_bb{srcBlockNumber:d}_to_bb{dstBlockNumber:d}", True)
@@ -253,8 +250,8 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         Register connection which is executing code behind the loop.
         """
         lcg.associateWithLoop(self, LOOP_CHANEL_GROUP_ROLE.EXIT_TO_SUCCESSOR)
-        w: HlsNetNodeWriteBackedge = lcg.getChannelUsedAsControl()
-        assert isinstance(w, (HlsNetNodeWriteBackedge, HlsNetNodeWriteForwardedge)), w
+        w: HlsNetNodeWrite = lcg.getChannelUsedAsControl()
+        assert isinstance(w, HlsNetNodeWrite) and w.isChannel(), w
         self.fromExitToSuccessor.append(lcg)
         return w
 

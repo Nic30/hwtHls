@@ -18,7 +18,7 @@ n4 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
 n4:o0 -> n3:i0 [weight=1002];
 n7 [shape=plaintext, bgcolor=LightBlue, color=black, fontcolor=black, label=<
         <table bgcolor="LightBlue" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeWriteForwardedge NB 8 p0_stSync_0_to_1_atSrc &lt;r, v&gt; &lt;None&gt;&gt; 0clk+880</td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeWrite NB 8 p0_stSync_0_to_1_atSrc forwardedge &lt;r, v&gt; &lt;None&gt;&gt; 0clk+880</td></tr>
             <tr><td colspan="2">buffCap=1</td></tr>
             <tr><td port='i0'>src  0clk+880 = &lt;void&gt; 7</td><td port='o0'>readyNB  0clk+880</td></tr>
             <tr><td port='i1'>extraCond  0clk+880</td><td></td></tr>
@@ -88,7 +88,7 @@ n6 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
 n6:o0 -> n5:i1 [weight=987];
 n8 [shape=plaintext, bgcolor=LightGreen, color=black, fontcolor=black, label=<
         <table bgcolor="LightGreen" border="0" cellborder="1" cellspacing="0">
-            <tr><td colspan="2">&lt;HlsNetNodeReadForwardedge NB 9 p0_stSync_0_to_1_atDst &lt;r, v&gt; &lt;None&gt;&gt; 1clk+1</td></tr>
+            <tr><td colspan="2">&lt;HlsNetNodeRead NB 9 p0_stSync_0_to_1_atDst &lt;r, v&gt; &lt;None&gt;&gt; 1clk+1</td></tr>
             <tr><td port='i0'>extraCond  1clk+1</td><td port='o0'>dataOut  1clk+1</td></tr>
             <tr><td></td><td port='o1'>validNB  1clk+1</td></tr>
         </table>>];
@@ -181,8 +181,8 @@ n30 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
             <tr><td port='i0'>i0  0clk+880</td><td port='o0'>o0  0clk+880</td></tr>
             <tr><td port='i1'>i1  0clk+880</td><td></td></tr>
         </table>>];
-n29:o0 -> n30:i0 [weight=123];
-n27:o0 -> n30:i1 [weight=1002];
+n27:o0 -> n30:i0 [weight=1002];
+n29:o0 -> n30:i1 [weight=123];
 n31 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">AND 24  0clk+880 &lt;HBits, 1bit&gt;</td></tr>

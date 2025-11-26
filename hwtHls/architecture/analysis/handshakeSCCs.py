@@ -15,8 +15,6 @@ from hwtHls.architecture.analysis.syncNodeGraph import HlsAndRtlNetlistAnalysisP
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
-from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
-    HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadOrWriteToAnyChannel
@@ -118,14 +116,14 @@ def HlsNetNodePreceCmp(a: HlsNetNode, b: HlsNetNode):
         if dep is not None and dep.obj is n1:
             return 1
 
-    if isinstance(n0, HlsNetNodeReadBackedge):
+    if isinstance(n0, HlsNetNodeRead) and n0.isBackedge():
         if n0.associatedWrite is n1:
             return -1  # read before write
     if isinstance(n0, HlsNetNodeRead):
         if n0.associatedWrite is n1:
             return 1  # read after write
 
-    if isinstance(n0, HlsNetNodeWriteBackedge):
+    if isinstance(n0, HlsNetNodeWrite) and n0.isBackedge():
         if n0.associatedRead is n1:
             return 1  # read before write
     if isinstance(n0, HlsNetNodeWrite):

@@ -4,10 +4,6 @@ from hwtHls.llvm.llvmIr import MetadataThreadHwtComponent, IntStringTupleOrObjec
     HwtHlsIoMetadata, HwtHlsIoMetadata_get, Argument, IODirection
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistChannels
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
-    HlsNetNodeReadBackedge
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge, \
-    HlsNetNodeReadForwardedge
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
@@ -109,7 +105,7 @@ def mirThreadFromHwtComponentMetadata(
                     if r is not None:
                         r: HlsNetNodeRead
                         assert r.src is None
-                        assert isinstance(r, (HlsNetNodeReadForwardedge, HlsNetNodeReadBackedge)), r
+                        assert isinstance(r, HlsNetNodeRead) and r.isChannel(), r
                         assert w.scheduledZero is None, r
                         netlist = r.netlist
                         # convert HlsNetNodeReadForwardedge, HlsNetNodeReadBackedge -> HlsNetNodeRead
@@ -127,8 +123,8 @@ def mirThreadFromHwtComponentMetadata(
 
                     if w is not None:
                         w: HlsNetNodeWrite
-                        assert w.dst is None
-                        assert isinstance(w, (HlsNetNodeWriteForwardedge, HlsNetNodeWriteBackedge)), w
+                        assert w.dst is None, w
+                        assert isinstance(w, HlsNetNodeWrite) and not w.isChannel(), w
                         assert w.scheduledZero is None, w
                         netlist = w.netlist
 

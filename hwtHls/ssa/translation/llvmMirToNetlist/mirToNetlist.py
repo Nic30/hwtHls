@@ -6,9 +6,7 @@ from hwt.pyUtils.typingFuture import override
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, \
     MachineLoop
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel, \
     LoopChanelGroup, LOOP_CHANEL_GROUP_ROLE, HlsNetNodeReadOrWriteToAnyChannel
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
@@ -17,6 +15,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeIn, \
 from hwtHls.netlist.nodes.portsUtils import HlsNetNodeOutLazy_replace, \
     HlsNetNodeOut_connectHlsIn_crossingHierarchy
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.ssa.translation.llvmMirToNetlist.blockEn import resolveBlockEn
 from hwtHls.ssa.translation.llvmMirToNetlist.branchOutLabel import BranchOutLabel
 from hwtHls.ssa.translation.llvmMirToNetlist.datapath import HlsNetlistAnalysisPassMirToNetlistDatapath, \
@@ -295,7 +294,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
         # [todo] add exits also for parent loops
         # edgeMeta.buffersForLoopExit.append(exitForHeaderR) # :note: buffersForLoopExit is not for EXIT_NOTIFY_TO_HEADER
         exitForHeaderR.obj.setNonBlocking()
-        exitForHeaderW: HlsNetNodeWriteBackedge = exitForHeaderR.obj.associatedWrite
+        exitForHeaderW: HlsNetNodeWrite = exitForHeaderR.obj.associatedWrite
         # this channel will asynchronously notify loop header, it is not required
         # to have ready sync signal
         exitForHeaderW._isBlocking = False
@@ -355,7 +354,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                 # make read from exit channel the first read in successor block
                 self.blockMeta[exitSucBlock].addOrderedNode(eRead, ADD_ORDERING_PREPEND)
                 eWrite = eRead.associatedWrite
-                assert isinstance(eWrite, (HlsNetNodeWriteForwardedge, HlsNetNodeWriteBackedge)), eWrite
+                assert isinstance(eWrite, HlsNetNodeWrite) and eWrite.isChannel(), eWrite
 
             # register and optionally construct EXIT_NOTIFY_TO_HEADER port
             controlOrig = valCache.get(exitBlock, BranchOutLabel(exitSucBlock), BIT)

@@ -5,11 +5,10 @@ from hwt.hdl.types.hdlType import HdlType
 from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering, HdlType_isVoid
 from hwtHls.netlist.nodes.archElement import ArchElement
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
-    HlsNetNodeReadBackedge
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import createOrderingLink
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadOrWriteToAnyChannel
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod, beginOfClkWindow
@@ -38,7 +37,7 @@ def insertDummyWriteToImplementSync(parentElm: ArchElement,
 
 
 def createBackedgeInClkWindow(parent: ArchElement, clkIndex: int, name: str, dtype: HdlType, channelInitValue=NOT_SPECIFIED)\
-        ->Tuple[HlsNetNodeReadBackedge, HlsNetNodeWriteBackedge]:
+        ->Tuple[HlsNetNodeRead, HlsNetNodeWrite]:
     netlist = parent.netlist
     # busy if is executed at 0 time
     if channelInitValue is NOT_SPECIFIED:
@@ -46,9 +45,9 @@ def createBackedgeInClkWindow(parent: ArchElement, clkIndex: int, name: str, dty
     else:
         channelInitValues = (channelInitValue,)
     ioProxy = IoProxyScalar(None, None, dtype=dtype)
-    regR = HlsNetNodeReadBackedge(netlist, ioProxy, dtype, name=name + "_dst", channelInitValues=channelInitValues)
+    regR = HlsNetNodeRead(netlist, ioProxy, ioProxy.interface, dtype, name=name + "_dst", channelInitValues=channelInitValues)
 
-    regW = HlsNetNodeWriteBackedge(netlist, ioProxy, name=name + "_src")
+    regW = HlsNetNodeWrite(netlist, ioProxy, ioProxy.interface, isBackedge=True, name=name + "_src")
     clkPeriod = netlist.normalizedClkPeriod
     clkBegin = beginOfClkWindow(clkIndex, clkPeriod)
     clkEnd = clkBegin + clkPeriod - 1

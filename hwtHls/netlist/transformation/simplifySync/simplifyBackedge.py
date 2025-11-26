@@ -1,9 +1,8 @@
-from typing import Set
 
 from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.debugTracer import DebugTracer
-from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge
 from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.transformation.simplifySync.reduceChannelGroup import netlistTryRemoveChannelGroup
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import disconnectAllInputs
@@ -11,11 +10,12 @@ from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import disconnect
 
 def netlistReduceUnusedBackedgeBuffer(
         dbgTracer: DebugTracer,
-        n: HlsNetNodeReadBackedge,
+        n: HlsNetNodeRead,
         worklist: SetList[HlsNetNode]):
     """
     If read data and control is never used it means that this channel is unused at all and it is removed by this function.
     """
+    assert n.isBackedge(), n
     for uses in n.usedBy:
         for _ in uses:
             # has some use and thus it is not removed

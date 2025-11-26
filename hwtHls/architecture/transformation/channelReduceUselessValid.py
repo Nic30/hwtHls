@@ -10,7 +10,6 @@ from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.simplifySync.simplifyNonBlockingIo import isAndedToExpression
@@ -22,7 +21,7 @@ from hwtHls.architecture.analysis.fsmStateEncoding import HlsAndRtlNetlistAnalys
 class HlsArchPassChannelReduceUselessValid(HlsArchPass):
 
     @staticmethod
-    def _reduceBackedgeValid(w: HlsNetNodeWriteBackedge,
+    def _reduceBackedgeValid(w: HlsNetNodeWrite,
                              worklist: SetList[HlsNetNode]):
         """
         If backedge write.extraCond=And(read.valid, ...) and write.skipWhen=And(~read.valid, ...)

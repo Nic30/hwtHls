@@ -15,7 +15,6 @@ from hwtHls.netlist.hdlTypeVoid import HVoidData
 from hwtHls.netlist.nodes.aggregatePorts import HlsNetNodeAggregatePortIn, \
     HlsNetNodeAggregatePortOut
 from hwtHls.netlist.nodes.archElementNoImplicitSync import ArchElementNoImplicitSync
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.fsmStateEn import HlsNetNodeStageAck
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
@@ -68,8 +67,8 @@ class SyncLogicExtractor():
         self.clkPeriod = clkPeriod
         self._newPrimaryOutputs: list[HlsNetNodeIn] = []
         self._primaryOutUpdateDict: dict[HlsNetNodeOut, HlsNetNodeOut] = {}
-        self._writeFlushTokens: dict[HlsNetNodeWrite, HlsNetNodeWriteBackedge] = {}
-        self._stageAckToAllWriteFlushTokens: dict[HlsNetNodeStageAck, list[HlsNetNodeWriteBackedge]] = {}
+        self._writeFlushTokens: dict[HlsNetNodeWrite, HlsNetNodeWrite] = {}
+        self._stageAckToAllWriteFlushTokens: dict[HlsNetNodeStageAck, list[HlsNetNodeWrite]] = {}
         self._scheduleDefault = scheduleDefault
 
     def _replaceAllExtractedUsesInClkWindow(self,

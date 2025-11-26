@@ -6,19 +6,18 @@ from hwt.hdl.types.defs import BIT
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, \
     MachineInstr, TargetOpcode, Register
 from hwtHls.netlist.builder import HlsNetlistBuilder
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
-    HlsNetNodeReadBackedge
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, HlsNetNodeOutLazy, \
     HlsNetNodeIn, HlsNetNodeOut
+from hwtHls.netlist.nodes.portsUtils import HlsNetNodeOutLazy_replace
 from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
+from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.ssa.translation.llvmMirToNetlist.branchOutLabel import BranchOutLabel
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.machineEdgeMeta import MachineEdgeMeta, \
     MACHINE_EDGE_TYPE
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
-from hwtHls.netlist.nodes.portsUtils import HlsNetNodeOutLazy_replace
 
 
 def _mergeBrachOutConditions(builder: HlsNetlistBuilder,
@@ -151,7 +150,7 @@ def _resolveBranchEnFromPredecessor(self: "HlsNetlistAnalysisPassMirToNetlist",
             assert fromPredBrCondInPred is not None, fromPredBrCondInPred
             fromPredBrCondInMb = edgeMeta.getBufferForReg((pred, mb))
             fromPredBrCondInMb = fromPredBrCondInMb.obj.getValidNB()
-            wn: HlsNetNodeWriteBackedge = fromPredBrCondInMb.obj.associatedWrite
+            wn: HlsNetNodeWrite = fromPredBrCondInMb.obj.associatedWrite
             predEn = self.blockMeta[pred].blockEn
             self._addExtraCond(wn, fromPredBrCondInPred, predEn)
             self._addSkipWhen_n(wn, fromPredBrCondInPred, predEn)
@@ -219,16 +218,16 @@ def _resolveEnFromPredecessors(self: "HlsNetlistAnalysisPassMirToNetlist", mb: M
 
         # dataUsedAsControl = edgeMeta.reuseDataAsControl
         for _, srcVal in edgeMeta.buffers:
-            srcValObj: HlsNetNodeReadBackedge = srcVal.obj
+            srcValObj: HlsNetNodeRead = srcVal.obj
             # if dataUsedAsControl is not None and liveIn == dataUsedAsControl:
             #    # avoid synchronizing channel with itself
             #    continue
-            w: HlsNetNodeWriteBackedge = srcValObj.associatedWrite
+            w: HlsNetNodeWrite = srcValObj.associatedWrite
             self._addExtraCond(w, None, fromPredBrCondInPred)
             self._addSkipWhen_n(w, None, fromPredBrCondInPred)
 
         for rVal in edgeMeta.buffersForLoopExit:
-            w: HlsNetNodeWriteBackedge = rVal.obj.associatedWrite
+            w: HlsNetNodeWrite = rVal.obj.associatedWrite
             self._addExtraCond(w, None, fromPredBrCondInPred)
             self._addSkipWhen_n(w, None, fromPredBrCondInPred)
 

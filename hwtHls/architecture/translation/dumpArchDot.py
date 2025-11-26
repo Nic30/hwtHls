@@ -20,9 +20,7 @@ from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
 from hwtHls.netlist.nodes.archElementNoImplicitSync import ArchElementNoImplicitSync
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
-from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge
 from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeWriteAnyChannel
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
@@ -246,12 +244,12 @@ class RtlArchToGraphviz():
     #    bufferInfo: Dict[HwIOBase, Tuple[int, HwIOBase]] = {}
     #
     #    for n in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT):
-    #        if isinstance(n, (HlsNetNodeWriteBackedge, HlsNetNodeWriteForwardedge)):
+    #        if isinstance(n, HlsNetNodeWrite) and n.isChannel():
     #            n: HlsNetNodeWriteBackedge
     #            if n.dst is None:
     #                continue
     #            if n.allocationType == CHANNEL_ALLOCATION_TYPE.BUFFER:
-    #                breaksReadyChain = isinstance(n, HlsNetNodeWriteBackedge)
+    #                breaksReadyChain = n.isBackedge()
     #                bufferInfo[n.dst] = (n._getBufferCapacity(), breaksReadyChain)
     #            elif n.allocationType == CHANNEL_ALLOCATION_TYPE.REG:
     #                bufferInfo[n.dst] = (1, True)
@@ -278,7 +276,7 @@ class RtlArchToGraphviz():
             return hwIO
         hwIO = rNode.src
         if hwIO is None:
-            if isinstance(rNode, (HlsNetNodeReadBackedge, HlsNetNodeReadForwardedge)):
+            if rNode.isChannel():
                 hwIO = rNode.associatedWrite
             else:
                 hwIO = rNode
@@ -558,7 +556,7 @@ class RtlArchToGraphviz():
 
     # def _connectWriteToReadForChannels(self, g: Dot):
     #    for n in self.netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT):
-    #        if isinstance(n, (HlsNetNodeWriteBackedge, HlsNetNodeWriteForwardedge)):
+    #        if isinstance(n, HlsNetNodeWrite) and n.isChannel():
     #            n: HlsNetNodeWriteBackedge
     #            wHwIO = self._getWriteHwIO(n.dst, n)
     #            wN = self.interfaceToNodes.get(wHwIO)

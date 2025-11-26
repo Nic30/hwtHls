@@ -8,10 +8,6 @@ from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidData
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
-from hwtHls.netlist.nodes.backedge import HlsNetNodeReadBackedge, \
-    HlsNetNodeWriteBackedge
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeReadForwardedge, \
-    HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeWriteAnyChannel, \
     HlsNetNodeReadAnyChannel
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -23,7 +19,7 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.examples.base_serialization_TC import BaseSerializationTC
 
 
-#from hwtHls.architecture.transformation._syncLowering.syncLogicResolver import ChannelDeadlockError
+# from hwtHls.architecture.transformation._syncLowering.syncLogicResolver import ChannelDeadlockError
 class BreakHandshakeCycles_TC(BaseSerializationTC):
     __FILE__ = __file__
 
@@ -71,11 +67,8 @@ class BreakHandshakeCycles_TC(BaseSerializationTC):
                     nodeName, nodeTy, cTy, cId, initValueCnt, hasSw, hasEc = self._parseChannelSpec(nodeName)
                     if nodeTy == "r":
                         cur = channels.get(cId, None)
-                        if cTy == 'b':
-                            r = HlsNetNodeReadBackedge(netlist, IoProxyScalar(None, None, HVoidData), HVoidData, nodeName)
-                        else:
-                            assert cTy == 'f'
-                            r = HlsNetNodeReadForwardedge(netlist, IoProxyScalar(None, None, HVoidData), HVoidData, nodeName)
+                        ioProxy = IoProxyScalar(None, None, HVoidData)
+                        r = HlsNetNodeRead(netlist, ioProxy, ioProxy.interface, HVoidData, nodeName)
                         if initValueCnt:
                             r.channelInitValues = tuple(() for _ in range(initValueCnt))
 
@@ -90,11 +83,10 @@ class BreakHandshakeCycles_TC(BaseSerializationTC):
 
                     elif nodeTy == 'w':
                         cur = channels.get(cId, None)
-                        if cTy == 'b':
-                            w = HlsNetNodeWriteBackedge(netlist, IoProxyScalar(None, None, HVoidData), name=nodeName)
-                        else:
-                            assert cTy == 'f'
-                            w = HlsNetNodeWriteForwardedge(netlist, IoProxyScalar(None, None, HVoidData), name=nodeName)
+                        isBackedge = cTy == 'b'
+                        if not isBackedge:
+                            assert cTy == 'f', cTy
+                        w = HlsNetNodeWrite(netlist, IoProxyScalar(None, None, HVoidData), None, isBackedge=isBackedge, name=nodeName)
                         assert initValueCnt == 0, "Only read may have init values"
                         if cur is not None:
                             assert cur[0] is None, ("This channel must not have write already", cId, cur)
@@ -146,7 +138,7 @@ class BreakHandshakeCycles_TC(BaseSerializationTC):
         HlsArchPassSyncLowering(
             # dbgDumpNodes=True,
             dbgAllowDisconnectedInputs=True,
-            #dbgDetectDeadlockedChannels=True,
+            # dbgDetectDeadlockedChannels=True,
         ).runOnHlsNetlist(netlist)
         buff = StringIO()
         HlsNetlistAnalysisPassDumpNodesDot(lambda name: (buff, False), expandAggregates=True, addLegend=False, addOrderingNodes=False).runOnHlsNetlist(netlist)

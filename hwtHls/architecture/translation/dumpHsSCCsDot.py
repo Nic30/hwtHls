@@ -11,9 +11,7 @@ from hwtHls.architecture.analysis.hlsArchAnalysisPass import HlsArchAnalysisPass
 from hwtHls.architecture.analysis.syncNodeGraph import HlsAndRtlNetlistAnalysisPassSyncNodeGraph
 from hwtHls.architecture.analysis.syncNodeStalling import HlsAndRtlNetlistAnalysisPassSyncNodeStallling
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeWriteAnyChannel
 from hwtHls.platform.fileUtils import OutputStreamGetter
 
@@ -124,9 +122,9 @@ class HsSCCsToGraphviz():
                     continue
                     
                 for chTy, chWrite in sucChannels:
-                    if isinstance(chWrite, HlsNetNodeWriteForwardedge):
+                    if chWrite.isForwardedge():
                         chDir = "F"
-                    elif isinstance(chWrite, HlsNetNodeWriteBackedge):
+                    elif chWrite.isBackedge():
                         chDir = "B"
                     else:
                         chDir = ""

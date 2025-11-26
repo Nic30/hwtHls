@@ -6,17 +6,36 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.simulator.simTestCase import SimTestCase
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.frontend.threadFromNetlist import HlsThreadFromNetlist
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
+from hwtHls.netlist.nodes.explicitSync import createOrderingLink
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from tests.hlsNetlist.wire_test import HlsNetlistWireTC
-from hwtHls.frontend.ioProxyScalar import IoProxyScalar
+
+
+def createPredSucPair(netlist: HlsNetlistCtx,
+                                 parentForWrite:ArchElement,
+                                 parentForRead: ArchElement,
+                                 name: str, srcV: HlsNetNodeOut)\
+        ->tuple[HlsNetNodeWrite, HlsNetNodeRead, HlsNetNodeOut]:
+    ioProxy = IoProxyScalar(None, None, dtype=srcV._dtype)
+    r = HlsNetNodeRead(netlist, ioProxy, ioProxy.interface, srcV._dtype, name=name + "_dst")
+    w = HlsNetNodeWrite(netlist, ioProxy, ioProxy.interface, name=name + "_src")
+    parentForRead.addNode(r)
+    parentForWrite.addNode(w)
+    srcV.connectHlsIn(w._portSrc)
+    w.associateRead(r)
+    createOrderingLink(w, r)
+
+    return w, r, r._portDataOut
 
 
 class ReadSplitCntrlAndDataTo2ChannelsWriteOutHwModule(HwModule):
@@ -41,8 +60,8 @@ class ReadSplitCntrlAndDataTo2ChannelsWriteOutHwModule(HwModule):
         builder: HlsNetlistBuilder = elm.builder
         r = HlsNetNodeRead(netlist, IoProxyScalar(None, self.dataIn), self.dataIn)
         elm.addNode(r)
-        cW, cR, cRout = HlsNetNodeWriteForwardedge.createPredSucPair(netlist, elm, elm, "c", r.getValidNB())
-        dW, dR, dRout = HlsNetNodeWriteForwardedge.createPredSucPair(netlist, elm, elm, "d", r._portDataOut)
+        cW, cR, cRout = createPredSucPair(netlist, elm, elm, "c", r.getValidNB())
+        dW, dR, dRout = createPredSucPair(netlist, elm, elm, "d", r._portDataOut)
         dW.addControlSerialSkipWhen
 
         w = HlsNetNodeWrite(netlist, IoProxyScalar(None, self.dataOut), self.dataOut)

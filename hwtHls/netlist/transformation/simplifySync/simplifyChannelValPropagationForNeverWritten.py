@@ -2,13 +2,13 @@ from hwt.hdl.types.typeCast import toHVal
 from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.debugTracer import DebugTracer
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.transformation.simplifyUtils import getConstDriverOf
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 
 
 def simplifyChannelValPropagationForNeverWritten(dbgTracer: DebugTracer,
-                       w: HlsNetNodeWriteBackedge,
+                       w: HlsNetNodeWrite,
                        worklist: SetList[HlsNetNode]):
     """
     If non void channel is never written and has 1 or 0 init values this value may be propagated

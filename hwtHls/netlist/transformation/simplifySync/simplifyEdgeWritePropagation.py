@@ -3,7 +3,6 @@ from hwt.hwIOs.std import HwIORdVldSync
 from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.debugTracer import DebugTracer
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel, \
     HlsNetNodeWriteAnyChannel, LoopChanelGroup
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -122,7 +121,7 @@ def netlistEdgeWriteVoidWithoudDeps(
         worklist: SetList[HlsNetNode]) -> bool:
     if len(writeNode._inputs) != 1:
         return False
-    if isinstance(writeNode, HlsNetNodeWriteBackedge) and writeNode.channelInitValues:
+    if writeNode.associatedRead is not None and writeNode.associatedRead.channelInitValues:
         return False
     d = getConstDriverOf(writeNode._inputs[0])
     if d is None:
