@@ -498,12 +498,18 @@ class ToLlvmIrTranslator(AnalysisCache[SsaAnalysisPass, SsaPass]):
             # :see: CreateGlobalDataWithGEP
             vTy: HArray
 
-            if not isinstance(vTy.element_t, HBits) and vTy.element_t != self._getHFloatType():
-                # the type is some non scalar value, reinterpret it to raw bits
-                flatElementT = HBits(vTy.element_t.bit_length())
-                vTyFlat = flatElementT[vTy.size]
-                v = v._reinterpret_cast(vTyFlat)
-                vTy = vTyFlat
+            if not isinstance(vTy.element_t, HBits):
+                #try:
+                floatTy = self._getHFloatType()
+                #except NotImplementedError:
+                #    floatTy = None
+
+                if vTy.element_t != floatTy:
+                    # the type is some non scalar value, reinterpret it to raw bits
+                    flatElementT = HBits(vTy.element_t.bit_length())
+                    vTyFlat = flatElementT[vTy.size]
+                    v = v._reinterpret_cast(vTyFlat)
+                    vTy = vTyFlat
 
             arrayTy = self._translateArrayType(vTy)
             _block, items = self._translateExprsToLlvm(block, v)
