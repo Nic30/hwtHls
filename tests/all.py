@@ -15,6 +15,7 @@ from tests.math._mathAllTests import llvmMath_TCs
 from tests.syntehesisChecks_test import HlsSynthesisChecksTC
 from tests.testCaseUtils import testSuiteFromTCs
 from tests.threads._threadsAllTests import threads_TCs
+from tests.utils._utilsAllTests import utils_TCs
 
 
 suite = testSuiteFromTCs(
@@ -25,6 +26,7 @@ suite = testSuiteFromTCs(
     *llvmMir_TCs,
     *llvmMath_TCs,
     *threads_TCs,
+    utils_TCs,
     HlsSynthesisChecksTC,
     Md5_TC,
     HashTable_TC,
