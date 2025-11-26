@@ -534,6 +534,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
                 for i, vItem in enumerate(vVal)
             )
             v._dtype = HwIOArray_getHdlType(vVal)
+            v._name = name
             return v
         else:
             t = HwIOArray_getHdlType(vVal)
@@ -662,6 +663,8 @@ class PyBytecodeToSsaLowLevelOpcodes():
                 if isinstance(v, RtlSignal) and v._hasGenericName:
                     v._name = argval
                     v._hasGenericName = False
+                elif isinstance(v, HwIO) and v._name is None:
+                    v._name = argval
 
                 return self._storeToHwSignal(curBlock, v, vVal)
 
