@@ -1,4 +1,4 @@
-from typing import Dict, List, Union, Set
+from typing import Dict, List
 
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
@@ -12,8 +12,7 @@ from hwtHls.architecture.analysis.syncNodeGraph import ChannelSyncType, \
     HlsAndRtlNetlistAnalysisPassSyncNodeGraph
 from hwtHls.architecture.transformation._syncLowering.syncLogicAbcToHlsNetlist import SyncLogicAbcToHlsNetlist
 from hwtHls.architecture.transformation._syncLowering.syncLogicResolver import SyncLogicResolver
-from hwtHls.architecture.transformation._syncLowering.utils import hasNotAnySyncOrFlag, \
-    _moveNonSccChannelPortsToIO
+from hwtHls.architecture.transformation._syncLowering.utils import _moveNonSccChannelPortsToIO
 from hwtHls.architecture.transformation.dce import ArchElementDCE
 from hwtHls.architecture.transformation.hlsArchPass import HlsArchPass
 from hwtHls.architecture.transformation.simplify import ArchElementValuePropagation
@@ -22,11 +21,8 @@ from hwtHls.architecture.transformation.utils.termPropagationContext import Arch
     ArchSyncNodeTerm
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.debugTracer import DebugTracer
-from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.archElementNoImplicitSync import ArchElementNoImplicitSync
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge
-from hwtHls.netlist.nodes.forwardedge import HlsNetNodeWriteForwardedge
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeWriteAnyChannel, \
     HlsNetNodeReadAnyChannel
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -196,39 +192,39 @@ class HlsArchPassSyncLowering(HlsArchPass):
                 if syncFlag is not None and not ioNode.usedBy[syncFlag.out_i]:
                     ioNode._removeOutput(syncFlag.out_i)
 
-    @classmethod
-    def _removeChannelsWithoutAnyDataSyncOrFlag(cls, nodes: List[ArchSyncNodeTy],
-                                                successors:ArchSyncSuccDiGraphDict):
-        """
-        :attention: The read/write nodes are moved from ArchElement but the successors dictionary is not updated.
-        """
-        nodesToRemove: Set[Union[HlsNetNodeReadAnyChannel, HlsNetNodeWriteAnyChannel]] = set()
-        modifiedElements:SetList[ArchElement] = []
-        for n in nodes:
-            sucDict = successors.get(n, None)
-            if not sucDict:
-                continue
-            for suc, w in sucDict.items():
-                if not isinstance(w, (HlsNetNodeWriteForwardedge, HlsNetNodeWriteBackedge)):
-                    continue
-                w: HlsNetNodeWriteAnyChannel
-                r: HlsNetNodeReadAnyChannel = w.associatedRead
-                if hasNotAnySyncOrFlag(w) and\
-                        len(r.channelInitValues) == 0 and\
-                        HdlType_isVoid(r._portDataOut._dtype) and\
-                        hasNotAnySyncOrFlag(r):
-                    nodesToRemove.add(w)
-                    nodesToRemove.add(r)
-                modifiedElements.append(n[0])
-                modifiedElements.append(suc[0])
-
-        if modifiedElements:
-            for elm in modifiedElements:
-                elm: ArchElement
-                elm.filterNodesUsingSet(nodesToRemove, recursive=True)
-        else:
-            assert not nodesToRemove
-
+    #@classmethod
+    #def _removeChannelsWithoutAnyDataSyncOrFlag(cls, nodes: List[ArchSyncNodeTy],
+    #                                            successors:ArchSyncSuccDiGraphDict):
+    #    """
+    #    :attention: The read/write nodes are moved from ArchElement but the successors dictionary is not updated.
+    #    """
+    #    nodesToRemove: Set[Union[HlsNetNodeReadAnyChannel, HlsNetNodeWriteAnyChannel]] = set()
+    #    modifiedElements:SetList[ArchElement] = []
+    #    for n in nodes:
+    #        sucDict = successors.get(n, None)
+    #        if not sucDict:
+    #            continue
+    #        for suc, channels in sucDict.items():
+    #            for (_, w) in channels:
+    #                assert w.isChannel(), w
+    #                w: HlsNetNodeWriteAnyChannel
+    #                r: HlsNetNodeReadAnyChannel = w.associatedRead
+    #                if hasNotAnySyncOrFlag(w) and\
+    #                        len(r.channelInitValues) == 0 and\
+    #                        HdlType_isVoid(r._portDataOut._dtype) and\
+    #                        hasNotAnySyncOrFlag(r):
+    #                    nodesToRemove.add(w)
+    #                    nodesToRemove.add(r)
+    #                modifiedElements.append(n[0])
+    #                modifiedElements.append(suc[0])
+    #
+    #    if modifiedElements:
+    #        for elm in modifiedElements:
+    #            elm: ArchElement
+    #            elm.filterNodesUsingSet(nodesToRemove, recursive=True)
+    #    else:
+    #        assert not nodesToRemove
+    #
     @classmethod
     def _runSimplify(cls, dbgTracer: DebugTracer, netlist: HlsNetlistCtx,
                      scc: SetList[ArchSyncNodeTy],
@@ -239,7 +235,7 @@ class HlsArchPassSyncLowering(HlsArchPass):
         for elm in modifiedArchElements:
             valPropagationWorklist.extend(elm.subNodes)
         ArchElementValuePropagation(dbgTracer, modifiedArchElements, valPropagationWorklist, termPropagationCtx)
-        #ArchElementDCE(netlist, modifiedArchElements)
+        # ArchElementDCE(netlist, modifiedArchElements)
 
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
@@ -290,6 +286,7 @@ class HlsArchPassSyncLowering(HlsArchPass):
                 neighborDict,
                 allSccIOs,
                 self._dbgDumpAbc)
+
             combLoopSolver.translateToAbc()
             combLoopSolver.expandSyncExprToRmCombinationalLoops()
 
@@ -315,7 +312,7 @@ class HlsArchPassSyncLowering(HlsArchPass):
             # io to non blocking and other SCC may use this to prove that the ready/valid must be always 1 if this SCC is executed
             self._discardSyncCausingLoop(successors, scc, allSccIOs)
 
-        self._removeChannelsWithoutAnyDataSyncOrFlag(channels.nodes, successors)
+        # self._removeChannelsWithoutAnyDataSyncOrFlag(channels.nodes, successors)
 
         # :attention: successors become invalid
         successors = None
