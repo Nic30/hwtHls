@@ -1,9 +1,9 @@
 from itertools import islice
-from typing import List, Dict, Any, Sequence
+from typing import Any, Sequence
 from hwtHls.io.portGroups import BankedPortGroup, MultiPortGroup
 
 SchedulingResourceType = Any
-SchedulingResourceConstraints = Dict[SchedulingResourceType, int]
+SchedulingResourceConstraints = dict[SchedulingResourceType, int]
 
 
 def initSchedulingResourceConstraintsFromIO(resourceConstraints: SchedulingResourceConstraints,
@@ -20,7 +20,7 @@ def initSchedulingResourceConstraintsFromIO(resourceConstraints: SchedulingResou
             resourceConstraints[schedResT] = maxIosPerClk
 
 
-class HlsSchedulerResourceUseList(List[Dict[object, int]]):
+class HlsSchedulerResourceUseList(list[dict[object, int]]):
     """
     A list of dictionaries with resource usage info which automatically extends itself on both sides.
     The index in this list is an index of the clock period.
