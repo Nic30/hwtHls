@@ -7,18 +7,18 @@ from hwt.hdl.types.defs import BIT
 from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
-from hwtHls.netlist.nodes.backedge import HlsNetNodeWriteBackedge, \
-    HlsNetNodeReadBackedge
 from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.platform.opRealizationMeta import EMPTY_OP_REALIZATION
 from hwtHls.platform.virtual import VirtualHlsPlatform
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
+from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 
 
 class SchedulingNodeFunctions_TC(unittest.TestCase):
 
     def test_delay(self):
-        netlist = HlsNetlistCtx(VirtualHlsPlatform(), None, int(1e6), "test", "test", {})
+        netlist = HlsNetlistCtx(VirtualHlsPlatform(), None, int(1e6), "test", "test", {}, "test")
         clkPeriod = netlist.normalizedClkPeriod
         epsilon = netlist.scheduler.epsilon
         ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
@@ -70,12 +70,13 @@ class SchedulingNodeFunctions_TC(unittest.TestCase):
         self.assertEqual(n.scheduledOut[0], clkPeriod * 3)
 
     def test_HlsNetNodeWriteBackedge_full(self):
-        netlist = HlsNetlistCtx(VirtualHlsPlatform(), None, int(1e6), "test", "test", {})
+        netlist = HlsNetlistCtx(VirtualHlsPlatform(), None, int(1e6), "test", "test", {}, "test")
         clkPeriod = netlist.normalizedClkPeriod
         epsilon = netlist.scheduler.epsilon
 
-        w = HlsNetNodeWriteBackedge(netlist)
-        r = HlsNetNodeReadBackedge(netlist, BIT)
+        ioProxy = IoProxyScalar(None, None)
+        w = HlsNetNodeWrite(netlist, ioProxy, ioProxy.interface, isBackedge=True)
+        r = HlsNetNodeRead(netlist, ioProxy, ioProxy.interface, BIT)
 
         w.resolveRealization()
         w.associateRead(r)
@@ -103,13 +104,14 @@ class SchedulingNodeFunctions_TC(unittest.TestCase):
         self.assertEqual(w.scheduledOut[full.out_i], 2 * clkPeriod + epsilon)
 
     def test_HlsNetNodeAggregate_time_afterPortAdd(self):
-        netlist = HlsNetlistCtx(VirtualHlsPlatform(), None, int(100e6), "test", "test", {})
+        netlist = HlsNetlistCtx(VirtualHlsPlatform(), None, int(100e6), "test", "test", {}, "test")
         clkPeriod = netlist.normalizedClkPeriod
         self.assertEqual(clkPeriod, 1001)
         epsilon = netlist.scheduler.epsilon
         self.assertEqual(epsilon, 1)
 
-        r = HlsNetNodeRead(netlist, None, BIT)
+        ioProxy = IoProxyScalar(None, None)
+        r = HlsNetNodeRead(netlist, ioProxy, ioProxy.interface, BIT)
         r.resolveRealization()
         r._setScheduleZeroTimeSingleClock(881)
         self.assertEqual(r.scheduledOut[0], 881)

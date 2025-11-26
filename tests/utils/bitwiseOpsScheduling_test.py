@@ -17,6 +17,7 @@ from hwtHls.netlist.translation.dumpSchedulingJson import HlsNetlistAnalysisPass
 from hwtHls.platform.fileUtils import outputFileGetter
 from hwtHls.platform.debugBundle import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 
 
 class BitwiseOpsScheduling_TC(SimTestCase):
@@ -29,17 +30,21 @@ class BitwiseOpsScheduling_TC(SimTestCase):
 
     def _test_3not(self, freq:float):
         platform = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
-        net = HlsNetlistCtx(platform, None, freq, f"3not{int(freq//1e6)}Mhz", "test", {})
+        net = HlsNetlistCtx(platform, None, freq, f"3not{int(freq//1e6)}Mhz", "test", {}, "test")
         net.builder = HlsNetlistBuilder(net)
         t = HBits(8)
-        r = HlsNetNodeRead(net, HwIOVectSignal(8), t, name="r0")
+        
+        ioProxy0 = IoProxyScalar(None, HwIOVectSignal(8))
+        r = HlsNetNodeRead(net, ioProxy0, ioProxy0.interface, t, name="r0")
         net.addNode(r)
         n0 = HlsNetNodeOperator(net, HwtOps.NOT, 1, t, "n0")
         n1 = HlsNetNodeOperator(net, HwtOps.NOT, 1, t, "n1")
         n2 = HlsNetNodeOperator(net, HwtOps.NOT, 1, t, "n2")
         net.addNodes((n0, n1, n2))
 
-        w = HlsNetNodeWrite(net, HwIOVectSignal(8), name="w0")
+
+        ioProxy1 = IoProxyScalar(None, HwIOVectSignal(8))
+        w = HlsNetNodeWrite(net, ioProxy1, ioProxy1.interface, name="w0")
         net.addNode(w)
 
         prev = r
@@ -60,18 +65,22 @@ class BitwiseOpsScheduling_TC(SimTestCase):
 
     def _test_2not1and(self, freq:float):
         platform = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
-        net = HlsNetlistCtx(platform, None, freq, f"2not1and{int(freq//1e6)}Mhz", "test", {})
+        net = HlsNetlistCtx(platform, None, freq, f"2not1and{int(freq//1e6)}Mhz", "test", {}, "test")
         net.builder = HlsNetlistBuilder(net)
         t = HBits(8)
-        r0 = HlsNetNodeRead(net, HwIOVectSignal(8), t, name="r0")
-        r1 = HlsNetNodeRead(net, HwIOVectSignal(8), t, name="r1")
+        ioProxy0 = IoProxyScalar(None, HwIOVectSignal(8))
+        ioProxy1 = IoProxyScalar(None, HwIOVectSignal(8))
+        r0 = HlsNetNodeRead(net, ioProxy0, ioProxy0.interface, t, name="r0")
+        r1 = HlsNetNodeRead(net, ioProxy1, ioProxy1.interface, t, name="r1")
         net.addNodes((r0, r1))
         n0 = HlsNetNodeOperator(net, HwtOps.NOT, 1, t, "n0")
         n1 = HlsNetNodeOperator(net, HwtOps.NOT, 1, t, "n1")
         n2 = HlsNetNodeOperator(net, HwtOps.AND, 2, t, "n2")
         net.addNodes((n0, n1, n2))
 
-        w = HlsNetNodeWrite(net, HwIOVectSignal(8), name="w0")
+
+        ioProxy2 = IoProxyScalar(None, HwIOVectSignal(8))
+        w = HlsNetNodeWrite(net, ioProxy2, ioProxy2.interface, name="w0")
         net.addNode(w)
 
         prev = r0
