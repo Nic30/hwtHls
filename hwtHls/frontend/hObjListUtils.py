@@ -1,5 +1,4 @@
 from hwt.hwIOs.hwIOArray import HwIOArray
-from hwtHls.llvm.llvmIr import Value
 
 
 def HwIOArray_getHdlType(vVal):
