@@ -235,6 +235,7 @@ class HlsNetlistCtx(AnalysisCache):
         # maxOpsForIO: Dict[HwIO, int] = {}
         hwIoUserNetlists: Dict[HwIO, List[HlsNetlistCtx]] = {}
 
+        # init hwIoUserNetlists, nodesPerIO from self
         for n in self.iterAllNodesFlat(NODE_ITERATION_TYPE.PREORDER):
             if isinstance(n, HlsNetNodeWrite):
                 hwio = n.dst
@@ -317,18 +318,18 @@ class HlsNetlistCtx(AnalysisCache):
                     ioList = nodesPerIO[hwio]
                     # n.maxIosPerClk = maxOpsForIO[hwio]
                     ioList.append(n)
-
+                meta: Optional[HwIOMeta] = hwIOMeta.get(hwio, None)
+                mayBecomeBackedge = meta is not None and meta.mayBecomeBackedge
                 # [todo] association of backedges
                 if isRead:
                     for _n in ioList:
-                        if isinstance(_n, HlsNetNodeWrite) and _n.associatedRead is None and _n.scheduledZero <= n.scheduledZero:
+                        if isinstance(_n, HlsNetNodeWrite) and _n.associatedRead is None and (mayBecomeBackedge or _n.scheduledZero <= n.scheduledZero):
                             _n.associateRead(n)
                             break
 
                 else:
-                    meta: Optional[HwIOMeta] = hwIOMeta.get(hwio, None)
                     for _n in ioList:
-                        if isinstance(_n, HlsNetNodeRead) and _n.associatedWrite is None and _n.scheduledZero >= n.scheduledZero:
+                        if isinstance(_n, HlsNetNodeRead) and _n.associatedWrite is None and (mayBecomeBackedge or _n.scheduledZero >= n.scheduledZero):
                             n.associateRead(_n)
                             if meta is not None:
                                 _n.channelInitValues = meta.channelInit
@@ -385,7 +386,7 @@ class HlsNetlistChannels():
                 hwIoUserNetlists[hwio] = [self, ]
                 hwiosSeenInThisNetlist.add(hwio)
             elif hwio not in hwiosSeenInThisNetlist:
-                hwioUsers.append(hwio)
+                hwioUsers.append(self)
                 hwiosSeenInThisNetlist.add(hwio)
 
             ioList = nodesPerIO.get(hwio, None)
@@ -393,9 +394,9 @@ class HlsNetlistChannels():
                 ioList = nodesPerIO[hwio] = []
 
             meta: Optional[HwIOMeta] = self.hwIOMeta.get(hwio, None)
-            if meta is not None:
-                if meta.mayBecomeBackedge:
-                    continue  # it is not required to constrain scheduling
+            if meta is not None and meta.mayBecomeBackedge:
+                ioList.append(n)
+                continue  # it is not required to constrain scheduling
 
             # propagate scheduling constraints
             isScheduled = n.scheduledZero is not None
