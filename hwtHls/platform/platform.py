@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Optional, Union, Type
 
 from hwt.hdl.operatorDefs import HOperatorDef
+from hwt.hdl.types.hdlType import HdlType
 from hwt.serializer.resourceAnalyzer.resourceTypes import RtlResourceType
 from hwt.synthesizer.dummyPlatform import DummyPlatform
 from hwtHls.architecture.componentGenerator import ComponentGenerator
@@ -48,7 +49,6 @@ from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnaly
 from hwtHls.ssa.translation.mirThreadFromHwtComponent import mirThreadFromHwtComponentMetadata
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtHls.ssa.translation.toLlvmUtils import getIoNodeConstructors
-from hwt.hdl.types.hdlType import HdlType
 
 
 def _runOnSsaModuleGetter(p):
@@ -391,8 +391,8 @@ class DefaultHlsPlatform(DummyPlatform):
             DBG(D.DBG_4_3_netlistBeforSyncLoweingDot, (netlist,), constructorKwargs=dict(showVoid=True))
             DBG(D.DBG_4_3_netlistBeforSyncLoweingTxt, (netlist,))
             # DBG(D.DBG_23_finalNetlist, (netlist,), constructorKwargs=dict(showVoid=True))
-            HlsArchPassSyncLowering(dbgDumpNodes=self._debug.isActivated((HlsArchPassSyncLowering, "nodes")),
-                                    dbgDumpAbc=self._debug.isActivated((HlsArchPassSyncLowering, "abc"))
+            HlsArchPassSyncLowering(dbgDumpNodes=self._debug.isActivated(D.DBG_4_4_syncLoweringAbc),
+                                    dbgDumpAbc=self._debug.isActivated(D.DBG_4_4_syncLoweringNodes)
                                     ).runOnHlsNetlist(netlist)
             DBG(lambda: HlsNetlistPassConsistencyCheck(checkCycleFree=False,
                                                        checkAllArchElementPortsInSameClockCycle=False),
