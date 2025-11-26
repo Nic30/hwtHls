@@ -45,6 +45,7 @@ class _FpBinOpAluHwModule(_FpUnOpAluHwModule):
         addClkRstn(self)
 
         t = self.T
+        assert t is not None, self
         if isinstance(t, HFixedPointQ):
             # HFixedPointQ not currently supported for io
             t = HBits(t.bit_length())

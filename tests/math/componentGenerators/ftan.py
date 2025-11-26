@@ -35,8 +35,6 @@ class TanCordicDivHwModule(_BaseALU1HwModule):
     def hwDeclr(self) -> None:
         addClkRstn(self)
         T = self.T
-        assert T.rounding == HFloatTmpRounding.ROUND_FLOOR, (T.rounding, "rounding on input should be disabled (only output is rounded)")
-        assert T.saturation == HFloatTmpSaturation.SATURATE_NONE, T.rounding
 
         t = HBits(T.bit_length())
         _BaseALU1HwModule._addDataInDataOut(self, t, t)

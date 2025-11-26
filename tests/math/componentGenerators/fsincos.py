@@ -22,7 +22,6 @@ from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.llvm.llvmIr import HFloatTmpConfig, HFloatTmpRounding, HFloatTmpSaturation
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta, \
     ComponentRealizationMeta
 from hwtHls.platform.platform import DefaultHlsPlatform
@@ -59,9 +58,6 @@ class FixpSinCosCordic(_BaseALU1HwModule):
     def hwDeclr(self) -> None:
         addClkRstn(self)
         T = self.T
-        assert T.rounding == HFloatTmpRounding.ROUND_FLOOR, (T.rounding, "rounding on input should be disabled (only output is rounded)")
-        assert T.saturation == HFloatTmpSaturation.SATURATE_NONE, T.rounding
-
         t = HBits(T.bit_length())
         _BaseALU1HwModule._addDataInDataOut(self, t, HStruct(
             (t, "sin"),
@@ -248,8 +244,8 @@ class FixpSinCosCordicPi(FixpSinCosCordic):
         inp = _inp._reinterpret_cast(T)
         res = PyBytecodeInline(cordic.cosSinPi)(inp)
         resTmp = _BaseALU1HwModule._getTypeOfIo(self.data_out).from_py(None)
-        resTmp.cos = res[0]._reinterpret_cast(resTmp.cos._dtype)
-        resTmp.sin = res[1]._reinterpret_cast(resTmp.sin._dtype)
+        resTmp.cos = res[0]._auto_cast(T)._reinterpret_cast(resTmp.cos._dtype)
+        resTmp.sin = res[1]._auto_cast(T)._reinterpret_cast(resTmp.sin._dtype)
         return resTmp
 
 
