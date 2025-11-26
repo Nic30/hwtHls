@@ -7,7 +7,7 @@ from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.observableList import ObservableList
 from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod, start_clk, \
-    offsetInClockCycle
+    offsetInClockCycle, endOfClk, beginOfNextClk
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
@@ -240,19 +240,26 @@ class SchedulableNode():
                     # now we have times when the value is available on input
                     # and we must resolve the minimal time so each input timing constraints are satisfied
                     nodeZeroTime = beginOfFirstClk
+                    mayBeInFFStoreTime = self.realization.mayBeInFFStoreTime
+                    offsetDueOutputTime = 0 if self.isMulticlock or not self.outputWireDelay else max(self.outputWireDelay)
                     for (availableInTime, inWireLatency, inputClkTickOffset) in zip(inputTimes,
                                                                                     self.inputWireDelay,
                                                                                     self.inputClkTickOffset):
-                        if inWireLatency >= clkPeriod:
+                        if inWireLatency + offsetDueOutputTime >= clkPeriod:
                             raise TimeConstraintError(
                                 "Impossible scheduling, clkPeriod too low for ",
                                 self.inputWireDelay, self.outputWireDelay, "clkPeriod:", self)
                         normalizedTime = self._schedulerGetNormalizedTimeForInput(
                             availableInTime, inWireLatency, inputClkTickOffset, clkPeriod, ffdelay,
-                            self.realization.mayBeInFFStoreTime)
+                            mayBeInFFStoreTime)
 
                         if normalizedTime >= nodeZeroTime:
                             nodeZeroTime = normalizedTime
+
+                    if not self.isMulticlock and nodeZeroTime + offsetDueOutputTime > endOfClk(nodeZeroTime, clkPeriod) - (0 if mayBeInFFStoreTime else ffdelay):
+                        # if the output delay does not fit to current clock, move this node to next clock
+                        nodeZeroTime = beginOfNextClk(nodeZeroTime, clkPeriod) + max(self.inputWireDelay)
+
                 finally:
                     if pathForDebug is not None:
                         pathForDebug.pop()
@@ -356,7 +363,7 @@ class SchedulableNode():
             if self.scheduledZero is not None and self.scheduledZero > nodeZeroTime:
                 if clkPeriod - offsetInClockCycle(self.scheduledZero, clkPeriod) < ffdelay + maxOutputLatency:
                     raise TimeConstraintError("Node was already scheduled on wrong time, end overlaps to ffstore time",
-                                              clkPeriod - offsetInClockCycle(self.scheduledZero, clkPeriod), ffdelay, maxOutputLatency)
+                                              clkPeriod - offsetInClockCycle(self.scheduledZero, clkPeriod), ffdelay, maxOutputLatency, self)
                 # this can happen if successor nodes were packed inefficiently in previous cycles and it moved this node.
                 # We can not move this node because it would potentially move whole circuit which would eventually result
                 # in an endless cycle in scheduling
