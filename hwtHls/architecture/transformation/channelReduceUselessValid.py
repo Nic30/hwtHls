@@ -36,11 +36,10 @@ class HlsArchPassChannelReduceUselessValid(HlsArchPass):
 
         if r.parent is not w.parent:
             return False
-        
-        
+
         if not w._isBlocking:
             return False
-        
+
         clkPeriod = w.netlist.normalizedClkPeriod
         if w.scheduledZero // clkPeriod != r.scheduledZero // clkPeriod:
             if not isinstance(r.parent, ArchElementFsm):
@@ -55,7 +54,7 @@ class HlsArchPassChannelReduceUselessValid(HlsArchPass):
         for valid in anyValid:
             valid_n, _ = builder._tryToFindInCache(HwtOps.NOT, None, (valid,))
             if valid_n is None:
-                for _valid_n in builder._tryToFindInUseList(HwtOps.NOT, None, (valid, )):
+                for _valid_n in builder._tryToFindInUseList(HwtOps.NOT, None, (valid,)):
                     anyValid_n.append(_valid_n)
             else:
                 anyValid_n.append(valid_n)
