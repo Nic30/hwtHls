@@ -128,7 +128,7 @@ class SyncLogicSearcher():
                 # continue search on outputs of current output user
                 for useOutPort, useOutTime in zip(useObj._outputs, useObj.scheduledOut):
                     if useOutTime > endTime:
-                        continue # [todo] it is not clear if this case should happen in valid circuit
+                        continue  # [todo] it is not clear if this case should happen in valid circuit
                     assert useOutTime >= beginTime, (useOutPort, useOutTime, beginTime, endTime)
                     toSearchDefToUse.append(useOutPort)
 
@@ -297,7 +297,7 @@ class SyncLogicSearcher():
         toSearchDefToUse: SetList[HlsNetNodeOut] = SetList((out,))
         self._collectAnyDir(toSearchUseToDef, toSearchDefToUse, syncNode, beginTime, endTime)
 
-    def collectFlagDefsFromIONodes(self, allSccIOs: AllIOsOfSyncNode):
+    def collectFlagDefsFromIONodes(self, allSccIOs: AllIOsOfSyncNode) -> List[Tuple[HlsNetNodeOut, int]]:
         """
         Collect sync logic expressions into syncLogicSearch and readyNB/validNB computed by sync logic 
         """
@@ -356,7 +356,7 @@ class SyncLogicSearcher():
                                     self._onPrimaryInputFound(rValidNB, rSyncNode)
                             else:
                                 self.collectFromOutput(syncNode, ioNode.getFullPort())
-    
+
                     if rd is not None:
                         self.collectFromOutput(syncNode, rd)
                     if rdNB is not None:
