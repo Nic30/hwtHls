@@ -651,6 +651,7 @@ def netlistReduceMuxSinkIncommingValueArithOperators(n: HlsNetNodeMux,
     """
     assert len(n.dependsOn) >= 3, (n, "minimum of 3 operands should be checked before this function is called")
     assert SUPPORTED_OPS
+    assert n.scheduledZero is None, n
     candidate: Optional[HlsNetNodeOut] = None
     candidateCommonOperand: Optional[HlsNetNodeOut] = None
     candidateCommonOperandIndex: Optional[int] = None
@@ -760,7 +761,7 @@ def netlistReduceMux(n: HlsNetNodeMux, worklist: SetList[HlsNetNode]):
         if inpCnt > 2:
             # if netlistReduceMuxToShift(builder, n, worklist):
             #    return True
-            if netlistReduceMuxSinkIncommingValueArithOperators(n, worklist):
+            if n.scheduledZero is None and netlistReduceMuxSinkIncommingValueArithOperators(n, worklist):
                 return True
 
     return False
