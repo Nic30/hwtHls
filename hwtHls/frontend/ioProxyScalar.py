@@ -1,7 +1,6 @@
 from typing import Optional, Union, Type as TypingType, Sequence, Literal
 
 from hwt.hdl.types.bits import HBits
-from hwt.hdl.types.defs import BIT
 from hwt.hwIO import HwIO
 from hwt.hwIOs.hwIOArray import HwIOArray
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld, HwIO_to_HdlType, HwIOStruct
@@ -17,7 +16,6 @@ from hwtHls.frontend.statementsWrite import HlsWrite
 from hwtHls.io.portGroups import getFirstInterfaceInstance, MultiPortGroup, \
     BankedPortGroup
 from hwtHls.llvm.llvmIr import MachineInstr, Register, HwtHlsIoMetadata
-from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidExternData
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -45,12 +43,14 @@ class IoProxyScalar(IoProxy):
         if isinstance(src, MultiPortGroup):
             return self.getNativeTypeOfHwIoWithoutSyncSignals(src[0])
 
+        if type(src) is HwIORdVldSync:
+            return HVoidExternData
         dtype = getattr(src, "_dtype", None)
         if dtype is not None:
             return dtype
         dtype = getattr(src, "T", None)
         if dtype is not None:
-            raise dtype
+            return dtype
         if isinstance(src, (HwIODataRdVld, HwIOStructRdVld, HwIORdVldSync, Axi_hs)):
             if hasattr(src, "data") and len(src._hwIOs) == 3:
                 dtype = HwIO_to_HdlType().apply(src.data, exclude=(src.vld,))
@@ -107,7 +107,7 @@ class IoProxyScalar(IoProxy):
         if self._nativeReadTy is not None:
             return self._nativeReadTy
 
-        src = self.interface
+        src = getFirstInterfaceInstance(self.interface)
         dtype = self.getNativeTypeOfHwIoWithoutSyncSignals(src)
         self._nativeReadTy = dtype
         return dtype
@@ -115,6 +115,7 @@ class IoProxyScalar(IoProxy):
     def getDataTypeOfNativeWrite(self):
         if self._nativeWriteTy is not None:
             return self._nativeWriteTy
+
         dst = getFirstInterfaceInstance(self.interface)
         dtype = self.getNativeTypeOfHwIoWithoutSyncSignals(dst)
         self._nativeWriteTy = dtype
@@ -206,10 +207,10 @@ class IoProxyScalar(IoProxy):
             if dtype.bit_length() == 0:
                 assert instr.getOperand(0).isDead(), (
                 "This is read of void, i1 is used for compatibility with LLVM, there should not be any actual use of read data", instr)
-        
+
         else:
             o = n.getRawValue()
-            #if dtype.bit_length() == 0:
+            # if dtype.bit_length() == 0:
             #    assert n._portDataOut is None, n
             # if dtype.bit_length() == 0:
             #    # must extend because MIR represented void with 1b int and in HlsNetlist there is void
