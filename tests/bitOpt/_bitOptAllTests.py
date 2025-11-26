@@ -26,5 +26,5 @@ bitOpt_TCs = [
 
 if __name__ == '__main__':
     sys.setrecursionlimit(int(1e5)) # CmpConstWithConcat_TC has very wide concatenations which are analyzed in recursion
-    unittestMain(testSuiteFromTCs(*bitOpt_TCs))
+    unittestMain(testSuiteFromTCs(*bitOpt_TCs), printTopLongest=3)
 

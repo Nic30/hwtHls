@@ -11,5 +11,5 @@ crypto_TCs = [
 ]
 
 if __name__ == '__main__':
-    unittestMain(testSuiteFromTCs(*crypto_TCs))
+    unittestMain(testSuiteFromTCs(*crypto_TCs), printTopLongest=3)
 

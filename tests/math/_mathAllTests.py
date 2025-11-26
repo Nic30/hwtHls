@@ -35,4 +35,4 @@ llvmMath_TCs = [
 ]
 
 if __name__ == '__main__':
-    unittestMain(testSuiteFromTCs(*llvmMath_TCs))
+    unittestMain(testSuiteFromTCs(*llvmMath_TCs, printTopLongest=3))

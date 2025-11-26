@@ -69,4 +69,4 @@ llvmIr_TCs = [
 ]
 
 if __name__ == '__main__':
-    unittestMain(testSuiteFromTCs(*llvmIr_TCs))
+    unittestMain(testSuiteFromTCs(*llvmIr_TCs), printTopLongest=3)

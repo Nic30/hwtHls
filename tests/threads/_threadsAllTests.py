@@ -11,4 +11,4 @@ threads_TCs = [
 ]
 
 if __name__ == '__main__':
-    unittestMain(testSuiteFromTCs(*threads_TCs))
+    unittestMain(testSuiteFromTCs(*threads_TCs, printTopLongest=3))

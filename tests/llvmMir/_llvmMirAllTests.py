@@ -16,4 +16,4 @@ llvmMir_TCs = [
 ]
 
 if __name__ == '__main__':
-    unittestMain(testSuiteFromTCs(*llvmMir_TCs))
+    unittestMain(testSuiteFromTCs(*llvmMir_TCs), printTopLongest=3)

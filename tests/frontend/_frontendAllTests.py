@@ -77,5 +77,5 @@ frontend_TCs = [
 ]
 
 if __name__ == '__main__':
-    unittestMain(testSuiteFromTCs(*frontend_TCs))
+    unittestMain(testSuiteFromTCs(*frontend_TCs), printTopLongest=3)
 

@@ -34,5 +34,5 @@ hlsNetlistAllTests_TCs = [
 ]
 
 if __name__ == '__main__':
-    unittestMain(testSuiteFromTCs(*hlsNetlistAllTests_TCs))
+    unittestMain(testSuiteFromTCs(*hlsNetlistAllTests_TCs), printTopLongest=3)
 

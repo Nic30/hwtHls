@@ -14,4 +14,4 @@ utils_TCs = [
 ]
 
 if __name__ == '__main__':
-    unittestMain(testSuiteFromTCs(*utils_TCs))
+    unittestMain(testSuiteFromTCs(*utils_TCs, printTopLongest=3))

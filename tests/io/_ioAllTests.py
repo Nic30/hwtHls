@@ -76,5 +76,5 @@ io_TCs = [
 ]
 
 if __name__ == '__main__':
-    unittestMain(testSuiteFromTCs(*io_TCs))
+    unittestMain(testSuiteFromTCs(*io_TCs), printTopLongest=3)
 
