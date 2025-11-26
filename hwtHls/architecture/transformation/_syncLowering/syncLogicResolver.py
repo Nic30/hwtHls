@@ -19,15 +19,19 @@ from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t, Abc_Aig_t, Abc_Obj_t, Abc_NtkEx
     MapAbc_Obj_tToAbc_Obj_t, MapAbc_Obj_tToSetOfAbc_Obj_t, Io_FileType_t
 from hwtHls.netlist.abc.hlsNetlistToAbcAig import HlsNetlistToAbcAig
 from hwtHls.netlist.abc.optScripts import abcCmd_resyn2, abcCmd_compress2
+from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.fsmStateEn import HlsNetNodeStageAck
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut, unlink_hls_node_input_if_exists
+from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut, unlink_hls_node_input_if_exists, \
+    HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from hwtHls.netlist.scheduler.clk_math import beginOfNextClk
 
 
 # class ChannelDeadlockError(AssertionError):
@@ -88,6 +92,9 @@ class SyncLogicResolver(HlsNetlistToAbcAig):
         self.nodeIo = nodeIo
         self.neighborDict = neighborDict
         self.allSccIOs = allSccIOs
+        self._ioWithCombLoopInControll: set[ArchSyncNodeTy, Union[tuple[HlsNetNodeRead, HlsNetNodeWrite]]] = set()
+        self._IOEnExprCache: dict[tuple[ArchSyncNodeTy, Union[HlsNetNodeRead, HlsNetNodeWrite], bool],
+                                  Abc_Obj_t] = {}
 
         self.toAbc = SyncLogicHlsNetlistToAbc(clkPeriod, f"hsscc{self.sccIndex}")
         self.syncLogicSearch = SyncLogicSearcher(clkPeriod, scc, self._onAbcAddPrimaryInput)
@@ -164,6 +171,48 @@ class SyncLogicResolver(HlsNetlistToAbcAig):
 
         return ack
 
+    @classmethod
+    def _doesReachToControl_addToSearch(cls, toSearch: SetList[HlsNetNode],
+                                        timeLimit: SchedTime,
+                                        o: HlsNetNodeOut,
+                                        uses: list[HlsNetNodeIn]):
+        if HdlType_isVoid(o._dtype):
+            return False
+
+        for u in uses:
+            u: HlsNetNodeIn
+            n: HlsNetNode = u.obj
+            useT = n.scheduledIn[u.in_i]
+            if useT >= timeLimit:
+                continue
+            if isinstance(n, HlsNetNodeExplicitSync):
+                if n.isControlInput(u):
+                    return True
+                if isinstance(n, HlsNetNodeWrite) and n.associatedRead:
+                    rn = n.associatedRead
+                    for o, uses in zip(rn._outputs, rn.usedBy):
+                        o: HlsNetNodeOut
+                        if o is rn._valid or o is rn._validNB:
+                            continue
+                        if cls._doesReachToControl_addToSearch(toSearch, timeLimit, o, uses):
+                            return True
+                continue  # do not continue search after HlsNetNodeExplicitSync
+            toSearch.append(u.obj)
+        return False
+
+    @classmethod
+    def _doesReachToControl(cls, toSearch: SetList[HlsNetNode], seen: set[HlsNetNode, HlsNetNodeOut], timeLimit: SchedTime):
+        while toSearch:
+            n = toSearch.pop()
+            if n in seen:
+                continue
+            seen.add(n)
+            for o, uses in zip(n._outputs, n.usedBy):
+                o: HlsNetNodeOut
+                if cls._doesReachToControl_addToSearch(toSearch, timeLimit, o, uses):
+                    return True
+        return False
+
     def _translateIOEnExpr(self, aig: Abc_Aig_t,
                            parentSyncNode: ArchSyncNodeTy,
                            ioNode: Union[HlsNetNodeRead, HlsNetNodeWrite],
@@ -171,6 +220,12 @@ class SyncLogicResolver(HlsNetlistToAbcAig):
         """
         Generate a logical expression allows IO node to perform its function.
         """
+        cacheKey = (parentSyncNode, ioNode, andWithParentEn)
+        try:
+            return self._IOEnExprCache[cacheKey]
+        except KeyError:
+            pass
+
         toAbc = self.toAbc
         clkI = parentSyncNode[1]
         en = None
@@ -203,6 +258,33 @@ class SyncLogicResolver(HlsNetlistToAbcAig):
             if forceEn is not None:
                 en = aig.Or(en, toAbc._translate(aig, (ioNode.dependsOn[forceEn.in_i], clkI)))
 
+        if ioNode._rtlUseValid and ioNode._isBlocking and isinstance(ioNode, HlsNetNodeRead) and ioNode.associatedWrite is None:  #  and not (ioNode.associatedWrite is not None and ioNode.associatedWrite.isBackedge())
+            nodeK = (parentSyncNode, ioNode)
+            dataDrivesAnyOtherEnInSameClk = False
+            if nodeK in self._ioWithCombLoopInControll:
+                dataDrivesAnyOtherEnInSameClk = True
+            else:
+                toSearch: SetList[HlsNetNodeOut] = SetList()
+                timeLimit = beginOfNextClk(ioNode.scheduledZero, ioNode.netlist.normalizedClkPeriod)
+                seen: set[HlsNetNode] = set()
+                for o, uses in zip(ioNode._outputs, ioNode.usedBy):
+                    o: HlsNetNodeOut
+                    if o is ioNode._valid or o is ioNode._validNB or HdlType_isVoid(o._dtype):
+                        continue
+                    dataDrivesAnyOtherEnInSameClk = self._doesReachToControl_addToSearch(toSearch, timeLimit, o, uses)
+                    if dataDrivesAnyOtherEnInSameClk:
+                        break
+                if not dataDrivesAnyOtherEnInSameClk:
+                    dataDrivesAnyOtherEnInSameClk = self._doesReachToControl(toSearch, seen, timeLimit)
+
+                if dataDrivesAnyOtherEnInSameClk:
+                    self._ioWithCombLoopInControll.add((parentSyncNode, ioNode))
+
+            if dataDrivesAnyOtherEnInSameClk:
+                vld = toAbc._translate(aig, (ioNode.getValidNB(), clkI))
+                en = aig.AndOptional(en, vld)
+
+        self._IOEnExprCache[cacheKey] = en
         return en
 
     def _getRtlAckForReadChannel(self, aig: Abc_Aig_t, w: HlsNetNodeWrite, writeClkIndex: int, readSyncNode: ArchSyncNodeTy):
@@ -523,9 +605,10 @@ class SyncLogicResolver(HlsNetlistToAbcAig):
             ioTy: ReadOrWriteType
             if not self._buildEnableForEveryIO_requiresEn(scc, ioNode, ioTy):
                 continue
-            
+
             # build en for io node
             en = self._translateIOEnExpr(aig, syncNode, ioNode)
+            hasCombLoopValidToReady = (syncNode, ioNode) in self._ioWithCombLoopInControll
             abcO: Abc_Obj_t = net.CreatePo()
             abcO.AssignName(f"po{abcO.Id:d}_n{ioNode._id}_en", "")
             abcO.AddFanin(en)
@@ -542,7 +625,8 @@ class SyncLogicResolver(HlsNetlistToAbcAig):
                 if rtlAck is not None and not ioDataIsMixedInControlInThisClk(ioNode, rtlAck):
                     clkI = syncNode[1]
                     _rtlAck = toAbc._translate(aig, (rtlAck, clkI))
-                    impliedValues[abcO] = {_rtlAck}
+                    if not hasCombLoopValidToReady:
+                        impliedValues[abcO] = {_rtlAck}
 
             if ioTy.isChannel():
                 if ioTy.isRead():
@@ -576,7 +660,7 @@ class SyncLogicResolver(HlsNetlistToAbcAig):
                     unlink_hls_node_input_if_exists(ioNode.extraCond)
                     ioNode._removeInput(ioNode.extraCond.in_i)
                 ioMap[abcO.Name()] = None
-    
+
     def translateToAbc(self):
         """
         Translate HsSCC handshake logic to ABC AIG
@@ -595,7 +679,7 @@ class SyncLogicResolver(HlsNetlistToAbcAig):
         readyValidComputedBySyncLogic = syncLogicSearch.collectFlagDefsFromIONodes(self.allSccIOs)
         syncLogicSearch.collectFromSCCEnable(scc)
         syncLogicSearch.collectFromFsmStateNextWrite(scc)
-    
+
         self.syncLogicFlushing.abcDeclareInputsForFlushTokens(self)
         # :note: now all primary inputs from io nodes should be declared
         abcPruneNegatedPrimaryInputs(toAbc, syncLogicSearch)
