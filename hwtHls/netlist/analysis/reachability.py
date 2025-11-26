@@ -6,10 +6,8 @@ from hwt.pyUtils.typingFuture import override
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
 from hwtHls.netlist.hdlTypeVoid import HdlType_isNonData
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
-from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
-from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.observableList import ObservableList, ObservableListRm
 from hwtHls.netlist.scheduler.clk_math import beginOfNextClk, beginOfClk
 
