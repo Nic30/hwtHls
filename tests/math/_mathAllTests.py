@@ -14,6 +14,7 @@ from tests.math.fixp._mathFixpAllTests import llvmMathFixp_TCs
 from tests.math.fp._mathFpAllTests import llvmMathFp_TCs
 from tests.math.hFloatTmp.hFloatTmpConstToLlvm_test import HFloatTmpConstToLlvm_TC
 from tests.testCaseUtils import testSuiteFromTCs
+from tests.math.prefixSum_test import PrefixSumTC
 
 
 #from tests.math.componentGenerators._div.divSrt2_test import DivSrt2_TC
@@ -32,6 +33,7 @@ llvmMath_TCs = [
     *DivRemRestoring_TCs,
     #DivSrt2_TC,
     #DivSrt4_TC,
+    PrefixSumTC,
 ]
 
 if __name__ == '__main__':
