@@ -13,7 +13,8 @@ from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
 from hwt.serializer.mode import serializeParamsUniq
 from hwtHls.architecture.componentGenerator import ComponentGenerator
-from hwtHls.architecture.componentGeneratorUtils import replaceHlsNetNodeOperatorWithHwModule
+from hwtHls.architecture.componentGeneratorUtils import replaceHlsNetNodeOperatorWithHwModule, \
+    ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule
 from hwtHls.architecture.componentGenerators.baseALU1HwModule import _BaseALU1HwModule
 from hwtHls.architecture.componentGenerators.ctpop import Ctpop
 from hwtHls.code import OP_CTTZ, zext, OP_CTLZ, OP_CTPOP
@@ -75,8 +76,8 @@ class ComponentGeneratorBitcount(ComponentGenerator):
         super().__init__(platform, genNamePrefix, moduleName)
         assert self._operatorModuleCls is not None, self
         assert self._opDef is not None
-        self.schedulingCache: dict[int, tuple[ComponentRealizationMeta,# seen from inside
-                                              ComponentRealizationMeta # seen from outside
+        self.schedulingCache: dict[int, tuple[ComponentRealizationMeta,  # seen from inside
+                                              ComponentRealizationMeta  # seen from outside
                                               ]] = {}
         self.llvmMirInterpretDecode = makeDecode_bitcounts(self._opDef)
 
@@ -90,31 +91,14 @@ class ComponentGeneratorBitcount(ComponentGenerator):
                         instr: MachineInstr,
                         dst: Union[Register, tuple[Register]],
                         ops: MirToHlsNetlistTranslatedInstrOpsT) -> Optional[HlsNetNodeOutAny]:
-        resT = HBits(log2ceil(ops[0]._dtype.bit_length() + 1))
-        assert allBlockingLoadAck is not None, instr
-        # mirToNetlist._translateOperator(
-        #    builder, mirToNetlist.valCache, mbMeta.block,
-        #    name, self.opDef, opSpecialization, resT, dst, ops)
-        mb = mbMeta.block
-        opDef = self._opDef
-        valCache = mirToNetlist.valCache
-        assert isinstance(dst, Register), instr
-        # res = builder.buildOp(opDef, opSpecialization, resT, *ops, name=name)
-        # valCache.add(mb, dst, res, True)
-        resT = (resT, BIT)
-        ops.append(allBlockingLoadAck)
+        enCond = ops[-1]
         opSpecialization = None
-        res = builder.buildOpManyDst(opDef, opSpecialization, resT, *ops, name=name)
-        res._inputs[1].name = "reqEn"
-        for dstReg, nodeOut, outName in zip((dst, None), res._outputs, ["cnt", "reqDone"]):
-            nodeOut: HlsNetNodeOut
-            nodeOut.name = outName
-            if dstReg is not None:
-                valCache.add(mb, dstReg, nodeOut, True)
-            else:
-                allBlockingLoadAck = builder.buildAnd(allBlockingLoadAck, nodeOut)
-
-        return allBlockingLoadAck
+        r = self.resolveRealizationOfLlvmMirMachineInstr(mirToNetlist.MRI, builder.netlist, instr)
+        resT = HBits(log2ceil(ops[0]._dtype.bit_length() + 1))
+        return mirToNetlist._translateOperatorFromComponent(mirToNetlist, builder, mbMeta, allBlockingLoadAck, enCond, name, instr,
+                                                            dst, ops, r, self._opDef, opSpecialization,
+                                                            None, None,
+                                                            resT=resT)
 
     def _getConfiguredHwModule(self, realTimeClkPeriod:float, ty:HBits, realization:ComponentRealizationMeta):
         hwModule = self._operatorModuleCls()
@@ -156,11 +140,7 @@ class ComponentGeneratorBitcount(ComponentGenerator):
         T = node.dependsOn[0]._dtype
         realizationSeenFromIn, realizationSeenFromOut = self.schedulingCache[T.bit_length()]
         hwModule = self._getConfiguredHwModule(freq, T, realizationSeenFromIn)
-        compBuilder = self.getComponentBuilder(node)
-        replaceHlsNetNodeOperatorWithHwModule(
-            compBuilder, node, hwModule,
-            worklist
-        )
+        ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule(self, node, hwModule, worklist)
         if realizationSeenFromOut.fitsIntoSingleClockWindow():
             assert hwModule.getHlsOpRealizationMeta()[1].fitsIntoSingleClockWindow(), (hwModule, realizationSeenFromOut, hwModule.hlsOpRealizationMeta)
         return True
