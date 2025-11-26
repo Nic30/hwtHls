@@ -15,8 +15,7 @@ from hwtHls.llvm.llvmIr import HFloatTmpConfig
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.platform.opRealizationMeta import OpRealizationMeta,\
-    ComponentRealizationMeta
+from hwtHls.platform.opRealizationMeta import ComponentRealizationMeta
 from hwtHls.platform.platform import DefaultHlsPlatform
 from tests.math.componentGenerators._componentGeneratorFp import ComponentGeneratorFp
 from tests.math.componentGenerators._genericHwModules import _FpUnOpAluHwModule
