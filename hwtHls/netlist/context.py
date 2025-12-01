@@ -320,11 +320,12 @@ class HlsNetlistCtx(AnalysisCache):
                     ioList.append(n)
                 meta: Optional[HwIOMeta] = hwIOMeta.get(hwio, None)
                 mayBecomeBackedge = meta is not None and meta.mayBecomeBackedge
-                # [todo] association of backedges
                 if isRead:
                     for _n in ioList:
                         if isinstance(_n, HlsNetNodeWrite) and _n.associatedRead is None and (mayBecomeBackedge or _n.scheduledZero <= n.scheduledZero):
                             _n.associateRead(n)
+                            if mayBecomeBackedge and _n.scheduledZero > n.scheduledZero:
+                                _n._isBackedge = True
                             break
 
                 else:
@@ -333,6 +334,8 @@ class HlsNetlistCtx(AnalysisCache):
                             n.associateRead(_n)
                             if meta is not None:
                                 _n.channelInitValues = meta.channelInit
+                            if mayBecomeBackedge and n.scheduledZero > _n.scheduledZero:
+                                n._isBackedge = True
                             break
             self.subNodes.extend(other.subNodes)
             self._uniqNodeCntr += other._uniqNodeCntr
@@ -350,6 +353,7 @@ class HlsNetlistChannels():
     :ivar _channelsBetweenLlvmThreads: same information as _channelsBetweenLlvmThreadsMir but using HlsNetNodes
         and is alwailable once netlist is constructed from MIR
     """
+
     def __init__(self, hwIOMeta: Dict[HwIO, HwIOMeta]):
         self.hwIOMeta = hwIOMeta
         self.nodesPerIO: OrderedDict[HwIO, List[Union[HlsNetNodeRead, HlsNetNodeWrite]]] = {}
@@ -357,7 +361,6 @@ class HlsNetlistChannels():
         self.alreadyAssociated: Set[Union[HlsNetNodeRead, HlsNetNodeWrite]] = set()
         self._channelsBetweenLlvmThreadsMir: dict[tuple[MachineFunction, int, MachineFunction, int], HwIODataRdVld] = {}
         self._channelsBetweenLlvmThreads: dict[HwIODataRdVld, tuple[HlsNetNodeRead, HlsNetNodeWrite]] = {}
-
 
     def propagateChannelTimingConstraints(self, netlist: HlsNetlistCtx):
         hwIoUserNetlists = self.hwIoUserNetlists
