@@ -29,7 +29,7 @@ public:
 	// :note: if hasBlockingLoad then readWordWidth = data width + 1
 	bool hasBlockingLoad;
 	bool hasBlockingStore; // hasBlockingLoad equivalent for store
-	size_t bufferCapacity; // size of FIFO buffer for scalar io
+	size_t bufferCapacity; // size of FIFO buffer for scalar io (0 means the size is infered automatically)
 	// :note: if two HwtHlsIoMetadata are connected together using otherThreadFn/otherArgIndex the total buffer size is the sum from both
 	llvm::MDTuple *ioPropertyPath; // optional property path specifying where exactly is this io connected on io object
 	// (which is specified by otherThreadFn, otherArgIndex)
