@@ -311,9 +311,10 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
             else:
                 if constructor is None:
                     raise AssertionError("The io without any write somehow requires write", dstIo, instr)
+                buffCapacity = dstIoMd.bufferCapacity
                 constructor._translateMirToNetlist_HWTFPGA_CSTORE(
                     self, mbMeta, instr, srcVal, dstIo, dstIoMd, index, _cond,
-                    dstIoMd.bufferCapacity)
+                    None if buffCapacity == 0 else buffCapacity)
 
     def _translateOperatorFromComponent(self,
                             mirToNetlist: "HlsNetlistAnalysisPassMirToNetlist",
