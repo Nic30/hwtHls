@@ -79,6 +79,7 @@ void register_Instruction(pybind11::module_ & m) {
 		.def("getIterator", [](llvm::Instruction * I) {
 			return I->getIterator();
 		}, py::return_value_policy::reference_internal)
+		.def("getContext",  &llvm::Instruction::getContext)
 		.def("printAsOperand", [](const llvm::Instruction & I) {
 			std::string tmp;
 			llvm::raw_string_ostream ss(tmp);
