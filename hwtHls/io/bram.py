@@ -9,6 +9,7 @@ from hwt.hdl.types.bitConstFunctions import AnyHBitsValue
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.struct import HStruct
+from hwt.hdl.types.typeCast import toHVal
 from hwt.hwIOs.std import HwIOBramPort_noClk, HwIOSignal
 from hwt.math import log2ceil
 from hwt.pyUtils.typingFuture import override
@@ -343,15 +344,19 @@ class IoProxyBram(IoProxyAddressed):
     @override
     @hlsLowLevel
     def write(self, index: Union[AnyHBitsValue], data: AnyHBitsValue, mask=NOT_SPECIFIED, isVolatile:bool=True, mayBecomeFlushable=True) -> HlsWriteAddressed:
+        t = self.getDataTypeOfNativeWrite()
         if self.interface.HAS_BE:
             assert mask is not None
             data = mask._concat(data)
+        else:
+            data = toHVal(data, t)
+        assert data._dtype.bit_length() == t.bit_length(), (data, data._dtype, t)
 
         return self.WRITE_CLS(self,
                               data,
                               self.interface,
                               index,
-                              self.getDataTypeOfNativeWrite(),
+                              t,
                               isVolatile=isVolatile,
                               mayBecomeFlushable=mayBecomeFlushable
                               )
