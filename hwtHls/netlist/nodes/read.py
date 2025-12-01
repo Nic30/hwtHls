@@ -56,6 +56,9 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
 
     def __init__(self, netlist: "HlsNetlistCtx", ioProxy: "IoProxy", src: Union[RtlSignal, HwIO, None],
                  dtype: Optional[HdlType]=None, name:Optional[str]=None, channelInitValues=(), addPortDataOut=True):
+        if name is None and isinstance(src, HwIO) and src._name is not None:
+            name = src._name
+
         HlsNetNode.__init__(self, netlist, name=name)
         self.src = src
         self.ioProxy = ioProxy
@@ -243,7 +246,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             dataVldReg = allocator._sig(f"{dataRegName:s}_vld", BIT)
             assert not hasFull, self
         else:
-            raise NotImplementedError(self)
+            raise NotImplementedError(self, srcWrite.allocationType, capacity)
 
         for vldOut in (self._valid, self._validNB):
             if vldOut is None:

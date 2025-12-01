@@ -74,6 +74,8 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
                  isBlocking:bool=True,
                  isBackedge:bool=False,
                  addSrcPort=True):
+        if name is None and isinstance(dst, HwIO) and dst._name is not None:
+            name = dst._name
         HlsNetNode.__init__(self, netlist, name=name)
         self.ioProxy = ioProxy
         self._associatedReadSync: Optional["HlsNetNodeReadSync"] = None
@@ -113,6 +115,8 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
 
     def associateRead(self, read: HlsNetNodeRead):
         assert isinstance(read, HlsNetNodeRead), ("Can associate only with read of compatible type", read, self)
+        assert not self.rtlPortPhysicallyExits(), self
+        assert self.dst is read.src, (self, read)
         read.associatedWrite = self
         self.associatedRead = read
 
@@ -347,8 +351,8 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         """
         srcWrite = self
         dst = srcWrite.dst
+        assert self.isChannel(), self
         res = self.rtlAllocAsIO(allocator)
-        assert dstRead is not None
         regCnt = self._getBufferCapacity()
         assert dst is not dstRead.src or (dst is None), (srcWrite, dstRead)
         hasValid = self._rtlUseValid
@@ -582,8 +586,8 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         _o = allocator.rtlAllocHlsNetNodeOutInTime(dep, self.scheduledIn[0])
 
         dst = self.dst
-        if dst is None or dst._parent is None:
-            assert self.associatedRead is not None, self
+        if not self.rtlPortPhysicallyExits():
+            assert self.isChannel(), self
             self.associatedRead._rtlAllocDatapathIo()
             dst = self.dst
 
@@ -646,7 +650,6 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         if dstRead is None:
             res = self.rtlAllocAsIO(allocator)
         else:
-            assert dstRead is not None, self
             dstRead._rtlAllocDatapathIo()
 
             if self.allocationType == CHANNEL_ALLOCATION_TYPE.BUFFER:
