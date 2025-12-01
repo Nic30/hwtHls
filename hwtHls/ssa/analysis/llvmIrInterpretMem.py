@@ -6,7 +6,7 @@ from hwt.hdl.types.arrayConst import HArrayConst
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwtHls.llvm.llvmIr import Instruction, InstructionToGetElementPtrInst, \
-    TypeToArrayType, InstructionToFreezeInst, InstructionToAllocaInst, TypeToIntegerType, \
+    IntegerType, TypeToArrayType, InstructionToFreezeInst, InstructionToAllocaInst, TypeToIntegerType, \
     ValueToAllocaInst, AllocaInst, Value, ArrayType, InstructionToExtractValueInst, ExtractValueInst
 from hwtHls.ssa.analysis.llvmIrInterpretUtils import PtrAddrTuple, \
     LlvmIrInstrFunction
@@ -14,14 +14,46 @@ from hwtLib.abstract.sim_ram import SimRam
 from pyDigitalWaveTools.vcd.writer import VcdWriter
 
 
+def _opcode_Intrinsic_memcpy(interpret: "LlvmIrInterpret", instr: Instruction, ops: tuple[object, ...]):
+    dst, src, length, isVolatile = ops
+    length = int(length)
+    if isinstance(dst, HArrayConst) and isinstance(src, HArrayConst):
+        DL = interpret.F.getParent().getDataLayout()
+        if dst._dtype.element_t != src._dtype.element_t:
+            raise NotImplementedError(dst._dtype.element_t, src._dtype.element_t)
+        elmTy = IntegerType.getIntNTy(instr.getContext(), dst._dtype.element_t.bit_length())
+        # arrTy = TypeToArrayType(instr.getOperand(0).getType())
+        # assert arrTy is not None
+        # size = DL.getTypeAllocSize(arrTy).getFixedValue()
+        # sizeOfWord = size // arrTy.getNumElements()
+        sizeOfWord = DL.getTypeAllocSize(elmTy).getFixedValue()
+        if length % sizeOfWord != 0:
+            raise NotImplementedError(instr)
+        for wordI in range(length // sizeOfWord):
+            dst[wordI] = src[wordI]
+
+    else:
+        raise NotImplementedError(dst.__class__, src.__class__)
+
+
 def _decodeOpcode_Alloca(interpret: "LlvmIrInterpret", instr: Instruction) -> LlvmIrInstrFunction:
     alloca: AllocaInst = InstructionToAllocaInst(instr)
     assert alloca is not None, instr
-    assert alloca.getNumOperands() == 1  # alignment value
+    assert alloca.getNumOperands() == 1, alloca  # expects only alignment value
     Ty = alloca.getAllocatedType()
     intTy = TypeToIntegerType(Ty)
+    arrTy = TypeToArrayType(Ty)
     if intTy is not None:
         v = HBits(intTy.getIntegerBitWidth()).from_py(None)
+    elif arrTy is not None:
+        arrTy: ArrayType
+        pyT = HBits(arrTy.getElementType().getScalarSizeInBits())[arrTy.getNumElements()]
+
+        def _opcode_AllocaArray(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
+            regs[instr] = pyT.from_py(None)
+
+        return _opcode_AllocaArray
+
     elif Ty.isDoubleTy():
         v = interpret._getHFloatTmp().from_py(None)
     else:

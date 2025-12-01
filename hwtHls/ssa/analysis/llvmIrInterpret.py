@@ -31,7 +31,7 @@ from hwtHls.ssa.analysis.llvmIrInterpretJump import _decodeOpcode_Br, \
     _decodeOpcode_Switch, _decodeOpcode_RetInst
 from hwtHls.ssa.analysis.llvmIrInterpretMem import _decodeOpcode_GetElementPtr, \
     _decodeOpcode_Freeze, _decodeOpcode_Alloca, _getItemFromLocalPointer, \
-    _decodeOpcode_ExtractValueInst
+    _decodeOpcode_ExtractValueInst, _opcode_Intrinsic_memcpy
 from hwtHls.ssa.analysis.llvmIrInterpretStreamIo import LlvmIrInterpretStreamIo
 from hwtHls.ssa.analysis.llvmIrInterpretUtils import BINARY_OPS_TO_FN, \
     _prepareWaveWriterTopIo, VcdLlvmIrCodelineFormatter, \
@@ -68,15 +68,15 @@ class LlvmIrInterpret():
         **{i.value: i for i in Instruction.CastOps},
     }
     INTRINSIC_ID_TO_FN = {
-        Intrinsic.ctlz: lambda ops: zext(ctlz(*ops), ops[0]._dtype.bit_length()),
-        Intrinsic.cttz: lambda ops: zext(cttz(*ops), ops[0]._dtype.bit_length()),
-        Intrinsic.ctpop: lambda ops: zext(ctpop(*ops), ops[0]._dtype.bit_length()),
-        Intrinsic.umax: lambda ops: hwUMax(*ops),
-        Intrinsic.umin: lambda ops: hwUMin(*ops),
-        Intrinsic.smax: lambda ops: hwSMax(*ops),
-        Intrinsic.smin: lambda ops: hwSMin(*ops),
-        Intrinsic.fshl: lambda ops: fshl(*ops),
-        Intrinsic.fshr: lambda ops: fshr(*ops),
+        Intrinsic.ctlz: lambda interpret, instr, ops: zext(ctlz(*ops), ops[0]._dtype.bit_length()),
+        Intrinsic.cttz: lambda interpret, instr, ops: zext(cttz(*ops), ops[0]._dtype.bit_length()),
+        Intrinsic.ctpop: lambda interpret, instr, ops: zext(ctpop(*ops), ops[0]._dtype.bit_length()),
+        Intrinsic.umax: lambda interpret, instr, ops: hwUMax(*ops),
+        Intrinsic.umin: lambda interpret, instr, ops: hwUMin(*ops),
+        Intrinsic.smax: lambda interpret, instr, ops: hwSMax(*ops),
+        Intrinsic.smin: lambda interpret, instr, ops: hwSMin(*ops),
+        Intrinsic.fshl: lambda interpret, instr, ops: fshl(*ops),
+        Intrinsic.fshr: lambda interpret, instr, ops: fshr(*ops),
         Intrinsic.usub_sat: _opcode_Intrinsic_usub_sat,
         Intrinsic.uadd_sat: _opcode_Intrinsic_uadd_sat,
         Intrinsic.sadd_sat: _opcode_Intrinsic_sadd_sat,
@@ -85,6 +85,7 @@ class LlvmIrInterpret():
         Intrinsic.usub_with_overflow: _opcode_Intrinsic_usub_with_overflow,
         Intrinsic.sadd_with_overflow: _opcode_Intrinsic_sadd_with_overflow,
         Intrinsic.ssub_with_overflow: _opcode_Intrinsic_ssub_with_overflow,
+        Intrinsic.memcpy: _opcode_Intrinsic_memcpy,
     }
     RE_FP_INTRINSIC_ID = re.compile(r"(hwtHls\.fp\.(unspecialized\.)?([a-zA-Z_0-9]+)\.)")
     # instruction with common handling of operands
@@ -402,7 +403,12 @@ class LlvmIrInterpret():
                 _v = pyT.all_mask() + _v + 1
             _v = pyT.from_py(_v)
         elif ValueToUndefValue(_v) is not None:  # :note: class PoisonValue final : public UndefValue
-            pyT = HBits(_v.getType().getScalarSizeInBits())
+            Ty = _v.getType()
+            arrTy = TypeToArrayType(Ty)
+            if arrTy is not None:
+                pyT = HBits(arrTy.getElementType().getScalarSizeInBits())[arrTy.getNumElements()]
+            else:
+                pyT = HBits(_v.getType().getScalarSizeInBits())
             _v = pyT.from_py(None)
         else:
             vAsConstFP = ValueToConstantFP(_v)

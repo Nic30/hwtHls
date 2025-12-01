@@ -20,12 +20,13 @@ def _decodeOpcode_CallInst(interpret: "LlvmIrInterpret", instr: Instruction) -> 
         iiFn = interpret.INTRINSIC_ID_TO_FN.get(inId, None)
     else:
         iiFn = None
+
     if iiFn is not None:
         _ops = interpret._decodeInstArguments(a.get() for a in call.args())
 
         def _opcode_CallInst_intrinsic(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
             ops = interpret._prepareInstrArguments(_ops, regs)
-            res = iiFn(ops)
+            res = iiFn(interpret, instr, ops)
             interpret._storeInstrResult(waveLog, nowTime, regs, instr, res)
 
         return _opcode_CallInst_intrinsic

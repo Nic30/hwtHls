@@ -188,7 +188,7 @@ def _makeDecodeOpcodeFunction_BinaryOperator(fn: Callable[[HConst, HConst], HCon
     return _decodeOpcode_BinaryOperator
 
 
-def _opcode_Intrinsic_uadd_sat(ops: tuple[HBitsConst, HBitsConst]):
+def _opcode_Intrinsic_uadd_sat(interpret: "LlvmIrInterpret", instr: Instruction, ops: tuple[HBitsConst, HBitsConst]):
     a, b = ops
     s = a + b
     if s < a:
@@ -197,7 +197,7 @@ def _opcode_Intrinsic_uadd_sat(ops: tuple[HBitsConst, HBitsConst]):
         return s
 
 
-def _opcode_Intrinsic_usub_sat(ops: tuple[HBitsConst, HBitsConst]):
+def _opcode_Intrinsic_usub_sat(interpret: "LlvmIrInterpret", instr: Instruction, ops: tuple[HBitsConst, HBitsConst]):
     a, b = ops
     if a < b:
         return a._dtype.from_py(0)
@@ -205,7 +205,7 @@ def _opcode_Intrinsic_usub_sat(ops: tuple[HBitsConst, HBitsConst]):
         return a - b
 
 
-def _opcode_Intrinsic_sadd_sat(ops: tuple[HBitsConst, HBitsConst]):
+def _opcode_Intrinsic_sadd_sat(interpret: "LlvmIrInterpret", instr: Instruction, ops: tuple[HBitsConst, HBitsConst]):
     a, b = ops
     a = a._signed()
     b = b._signed()
@@ -223,7 +223,7 @@ def _opcode_Intrinsic_sadd_sat(ops: tuple[HBitsConst, HBitsConst]):
     return (a + b)._vec()
 
 
-def _opcode_Intrinsic_ssub_sat(ops: tuple[HBitsConst, HBitsConst]):
+def _opcode_Intrinsic_ssub_sat(interpret: "LlvmIrInterpret", instr: Instruction, ops: tuple[HBitsConst, HBitsConst]):
     a, b = ops
     a = a._signed()
     b = b._signed()
@@ -239,7 +239,7 @@ def _opcode_Intrinsic_ssub_sat(ops: tuple[HBitsConst, HBitsConst]):
     return res._vec()
 
 
-def _opcode_Intrinsic_uadd_with_overflow(ops: tuple[HBitsConst, HBitsConst]):
+def _opcode_Intrinsic_uadd_with_overflow(interpret: "LlvmIrInterpret", instr: Instruction, ops: tuple[HBitsConst, HBitsConst]):
         a, b = ops
         w = a._dtype.bit_length()
         a = a._zext(w + 1)
@@ -248,7 +248,7 @@ def _opcode_Intrinsic_uadd_with_overflow(ops: tuple[HBitsConst, HBitsConst]):
         return (c[w:], c[w])
 
 
-def _opcode_Intrinsic_usub_with_overflow(ops: tuple[HBitsConst, HBitsConst]):
+def _opcode_Intrinsic_usub_with_overflow(interpret: "LlvmIrInterpret", instr: Instruction, ops: tuple[HBitsConst, HBitsConst]):
         a, b = ops
         w = a._dtype.bit_length()
         a = a._zext(w + 1)
@@ -257,7 +257,7 @@ def _opcode_Intrinsic_usub_with_overflow(ops: tuple[HBitsConst, HBitsConst]):
         return (c[w:], c[w])
 
 
-def _opcode_Intrinsic_sadd_with_overflow(ops: tuple[HBitsConst, HBitsConst]):
+def _opcode_Intrinsic_sadd_with_overflow(interpret: "LlvmIrInterpret", instr: Instruction, ops: tuple[HBitsConst, HBitsConst]):
         a, b = ops
         w = a._dtype.bit_length()
         a = a._sext(w + 1)
@@ -266,7 +266,7 @@ def _opcode_Intrinsic_sadd_with_overflow(ops: tuple[HBitsConst, HBitsConst]):
         return (c[w:], c[w])
 
 
-def _opcode_Intrinsic_ssub_with_overflow(ops: tuple[HBitsConst, HBitsConst]):
+def _opcode_Intrinsic_ssub_with_overflow(interpret: "LlvmIrInterpret", instr: Instruction, ops: tuple[HBitsConst, HBitsConst]):
         a, b = ops
         w = a._dtype.bit_length()
         a = a._sext(w + 1)
