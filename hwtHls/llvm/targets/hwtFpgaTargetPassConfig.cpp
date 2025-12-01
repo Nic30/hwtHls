@@ -350,53 +350,7 @@ public:
 std::unique_ptr<CSEConfigBase> HwtFpgaTargetPassConfig::getCSEConfig() const {
 	return std::make_unique<HwtFpgaCSEConfig>();
 }
-void HwtFpgaTargetPassConfig::setPassInstrumentationCallbacks(
-		llvm::PassInstrumentationCallbacks *PIC) {
-	PI = PassInstrumentation(PIC);
-}
 
-void HwtFpgaTargetPassConfig::addPassCallbackFromPI(Pass *P) {
-	std::string passName = "<unknown pass>";
-	if (P) {
-		passName = P->getPassName();
-	}
-	if (dynamic_cast<llvm::MachineFunctionPass*>(P)) {
-		llvm::TargetPassConfig::addPass(
-				new hwtHls::HwtHlsRunPassInstrumentationCallbacksMachineFunctionPass(
-						PI, passName));
-	} else if (dynamic_cast<llvm::FunctionPass*>(P)) {
-		llvm::TargetPassConfig::addPass(
-				new hwtHls::HwtHlsRunPassInstrumentationCallbacksFunctionPass(
-						PI, passName));
-	} else if (dynamic_cast<llvm::LoopPass*>(P)) {
-		llvm::TargetPassConfig::addPass(
-				new hwtHls::HwtHlsRunPassInstrumentationCallbacksLoopPass(PI,
-						passName));
-	} else {
-		errs() << passName << "\n";
-		llvm_unreachable("Unknown type of pass");
-	}
-
-}
-AnalysisID HwtFpgaTargetPassConfig::addPass(AnalysisID PassID) {
-	auto FinalID = llvm::TargetPassConfig::addPass(PassID);
-	IdentifyingPassPtr TargetID = getPassSubstitution(FinalID);
-	if (!TargetID.isValid())
-		return nullptr;
-
-	Pass *P;
-	if (TargetID.isInstance())
-		P = TargetID.getInstance();
-	else {
-		P = Pass::createPass(TargetID.getID());
-	}
-	addPassCallbackFromPI(P);
-	return FinalID;
-}
-void HwtFpgaTargetPassConfig::addPass(Pass *P) {
-	llvm::TargetPassConfig::addPass(P);
-	addPassCallbackFromPI(P);
-}
 AnalysisID HwtFpgaTargetPassConfig::_testAddPass(AnalysisID PassID) {
 	return addPass(PassID);
 }

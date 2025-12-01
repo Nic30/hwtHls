@@ -66,8 +66,8 @@ LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName,
 		const std::vector<LlvmCliOptionTuple> &llvmCliOpts) :
 		ctx(), strCtx(), module(
 				new llvm::Module(strCtx.addStringRef(moduleName), ctx)), builder(
-				ctx), main(nullptr), MMIWP(nullptr), VerifyEachPass(VerifyEach), DebugPM(
-				DebugPMCliOpt.getValue()), llvmCliOpts(
+				ctx), main(nullptr),  PM(PICForLegacyPM), MMIWP(nullptr), VerifyEachPass(
+				VerifyEach), DebugPM(DebugPMCliOpt.getValue()), llvmCliOpts(
 				llvmCliOpts), _llvmCliOpts(llvm::cl::getRegisteredOptions()) {
 	// :attention: llvm::cl::getRegisteredOptions reinitializes CLI options
 	// clear all current CLI options

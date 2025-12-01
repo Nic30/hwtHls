@@ -12,6 +12,7 @@
 #include <hwtHls/llvm/llvmIrStrings.h>
 #include <hwtHls/llvm/targets/Transforms/hwtFpgaToNetlist.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetPassConfig.h>
+#include <hwtHls/llvm/LegacyPassManagerWithPI.h>
 
 namespace hwtHls {
 
@@ -31,8 +32,10 @@ public:
 	llvm::Module *module;
 	llvm::IRBuilder<> builder;
 	llvm::Function *main;
+	llvm::PassInstrumentationCallbacks PIC;
+	llvm::PassInstrumentationCallbacks PICForLegacyPM;
 	std::unique_ptr<llvm::PassBuilder> PB; // for IR passes
-	llvm::legacy::PassManager PM; // for machine code generator
+	LegacyPassManagerWithPI PM; // for machine code generator
 	const llvm::Target *Target;
 	llvm::HwtFpgaTargetPassConfig *TPC;
 	llvm::OptimizationLevel Level;
@@ -47,8 +50,6 @@ public:
 		None, Normal, Verbose, Quiet
 	};
 	DebugLogging DebugPM;
-	llvm::PassInstrumentationCallbacks PIC;
-	llvm::PassInstrumentationCallbacks PICForLegacyPM;
 	llvm::PrintPassOptions PrintPassOpts;
 	static const std::string TargetTriple;
 	static const std::string CPU;

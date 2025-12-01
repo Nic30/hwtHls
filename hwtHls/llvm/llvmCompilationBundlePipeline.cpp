@@ -886,8 +886,7 @@ void LlvmCompilationBundle::_addMachineCodegenPasses(
 	TPC =
 			static_cast<llvm::HwtFpgaTargetPassConfig*>(static_cast<llvm::TargetMachine&>(*TM).createPassConfig(
 					PM));
-	// if PIC used in new pass manager is used there is a segfault in callbacks added into PIC using print-after-all and many others
-	TPC->setPassInstrumentationCallbacks(&PICForLegacyPM);
+	// if PIC used in new pass manager is used there, it results in a segfault in callbacks added into PIC using print-after-all and many others
 	// :note: we can not use pass constructor to pass toNetlistConversionFn because
 	//        because constructor must be callable without arguments because of INITIALIZE_PASS macros
 	// :note: we can not call pass explicitly after PM.run() because addRequired/getAnalysis will not work

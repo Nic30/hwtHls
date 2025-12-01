@@ -34,6 +34,7 @@ py3.extension_module(
     'llvmIr',
     [
      'bitMath.cpp',
+     'LegacyPassManagerWithPI.cpp',
      'llvmIrStripInstrucionUnrelatedToCrash.cpp',
      'llvmCompilationBundle.cpp',
      'llvmCompilationBundlePipeline.cpp',

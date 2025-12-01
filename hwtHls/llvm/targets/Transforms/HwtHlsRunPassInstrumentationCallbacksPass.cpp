@@ -43,4 +43,14 @@ bool HwtHlsRunPassInstrumentationCallbacksMachineFunctionPass::runOnMachineFunct
 
 char HwtHlsRunPassInstrumentationCallbacksMachineFunctionPass::ID = 0;
 
+
+bool HwtHlsRunPassInstrumentationCallbacksModulePass::runOnModule(llvm::Module &M) {
+	auto PA = llvm::PreservedAnalyses::all();
+	PassMockup Pass(PreviousPassName);
+	PI.runAfterPass(Pass, M, PA);
+	return false;
+}
+
+char HwtHlsRunPassInstrumentationCallbacksModulePass::ID = 0;
+
 }

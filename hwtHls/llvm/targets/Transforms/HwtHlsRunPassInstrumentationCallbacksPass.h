@@ -17,7 +17,7 @@ public:
 	}
 	bool runOnFunction(llvm::Function &F) override;
 	llvm::StringRef getPassName() const override {
-		return "HwtHls run PassInstrumentationCallbacks pass";
+		return "HwtHls run PassInstrumentationCallbacks pass for FunctionPass";
 	}
 };
 
@@ -34,7 +34,7 @@ public:
 	bool runOnLoop(llvm::Loop *L, llvm::LPPassManager &LPM) override;
 
 	llvm::StringRef getPassName() const override {
-		return "HwtHls run PassInstrumentationCallbacks pass";
+		return "HwtHls run PassInstrumentationCallbacks pass for LoopPass";
 	}
 };
 
@@ -52,7 +52,24 @@ public:
 	bool runOnMachineFunction(llvm::MachineFunction &MF) override;
 
 	llvm::StringRef getPassName() const override {
-		return "HwtHls run PassInstrumentationCallbacks pass";
+		return "HwtHls run PassInstrumentationCallbacks pass for MachineFunctionPass";
+	}
+};
+
+class HwtHlsRunPassInstrumentationCallbacksModulePass: public llvm::ModulePass {
+public:
+	static char ID; // Pass identification, replacement for typeid
+	llvm::PassInstrumentation &PI;
+	std::string PreviousPassName;
+
+	HwtHlsRunPassInstrumentationCallbacksModulePass(
+			llvm::PassInstrumentation &PI, std::string PreviousPassName) :
+			llvm::ModulePass(ID), PI(PI), PreviousPassName(PreviousPassName) {
+	}
+	bool runOnModule(llvm::Module &M) override;
+
+	llvm::StringRef getPassName() const override {
+		return "HwtHls run PassInstrumentationCallbacks pass for ModulePass";
 	}
 };
 
