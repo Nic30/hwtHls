@@ -42,6 +42,7 @@ from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlis
 from hwtLib.handshaked.streamNode import ValidReadyTuple
 from ipCorePackager.constants import INTF_DIRECTION
 
+
 AnyBramPort = Union[HwIOBramPort_noClk, BankedPortGroup[HwIOBramPort_noClk], MultiPortGroup[HwIOBramPort_noClk], MemoryAllocationMeta]
 
 
@@ -413,7 +414,9 @@ class IoProxyBram(IoProxyAddressed):
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         assert isinstance(srcIo, HwIOBramPort_noClk) or (isinstance(srcIo, MultiPortGroup) and isinstance(srcIo[0], HwIOBramPort_noClk)), srcIo
         if isinstance(index, int):
-            raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", srcIo, instr)
+            indexNode = HlsNetNodeConst(netlist, self.indexT.from_py(index))
+            mbMeta.parentElement.addNode(indexNode)
+            index = indexNode._outputs[0]
 
         n = HlsNetNodeWriteBramCmd(netlist, self, srcIo, READ)
         mbMeta.parentElement.addNode(n)
@@ -450,7 +453,9 @@ class IoProxyBram(IoProxyAddressed):
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         isInstanceOfInterfacePort(dstIo, HwIOBramPort_noClk)
         if isinstance(index, int):
-            raise AssertionError("If the index is constant it should be an output of a constant node but it is an integer", dstIo, instr)
+            indexNode = HlsNetNodeConst(netlist, self.indexT.from_py(index))
+            mbMeta.parentElement.addNode(indexNode)
+            index = indexNode._outputs[0]
 
         n = HlsNetNodeWriteBramCmd(netlist, self, dstIo, WRITE)
         mbMeta.parentElement.addNode(n)
