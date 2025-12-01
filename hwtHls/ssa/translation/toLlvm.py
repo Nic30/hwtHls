@@ -294,7 +294,7 @@ class ToLlvmIrTranslator(AnalysisCache[SsaAnalysisPass, SsaPass]):
                 assert arrTy is not None, alloca
                 DL = self.llvm.module.getDataLayout()
                 size = DL.getTypeAllocSize(arrTy).getFixedValue()
-                # :note: if size is not correct the DSEPass will remove memcopy
+                # :note: if size is not correct the DSEPass will remove memcpy
                 builder.CreateMemCpy(alloca, MaybeAlign(1), value, MaybeAlign(1), size)
                 storeCreated = True
             else:
