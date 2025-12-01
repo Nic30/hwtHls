@@ -506,7 +506,7 @@ bb0:
 }
         """
 
-        # llmIrStripInstrucionUnrelatedToCrash(ir, lambda llvm: llvm._testSlicesMergePass())
+        # llvmIrStripInstrucionUnrelatedToCrash(ir, lambda llvm: llvm._testSlicesMergePass())
         self._test_ll(ir)
 
 

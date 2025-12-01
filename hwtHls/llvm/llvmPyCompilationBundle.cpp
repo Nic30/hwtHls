@@ -2,7 +2,7 @@
 
 #include <hwtHls/llvm/llvmCompilationBundle.h>
 #include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
-#include <hwtHls/llvm/llmIrStripInstrucionUnrelatedToCrash.h>
+#include <hwtHls/llvm/llvmIrStripInstrucionUnrelatedToCrash.h>
 
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/DerivedTypes.h>
@@ -92,7 +92,7 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 				try {
 				 callbackFn.operator() <py::return_value_policy::reference, llvm::StringRef&, llvm::Any&>(PassName, IR);
 				} catch (py::error_already_set & e) {
-					throw e; // this is usefull if you want to use debuger to break on exception raised in python callback
+					throw e; // this is useful if you want to use debugger to break on exception raised in python callback
 				}
 			});
 		})
@@ -139,7 +139,7 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 		.def("_testVRegIfConverter", &hwtHls::LlvmCompilationBundle::_testVRegIfConverter, py::return_value_policy::reference_internal)
 		.def("_testVRegIfConverterForIr", &hwtHls::LlvmCompilationBundle::_testVRegIfConverterForIr, py::return_value_policy::reference_internal)
 		.def("_testStripInstrucionUnrelatedToCrash", [](hwtHls::LlvmCompilationBundle &ctx, size_t nprocs, py::function testFunction) {
-			llmIrStripInstrucionUnrelatedToCrash(ctx, nprocs, [&testFunction](hwtHls::LlvmCompilationBundle &ctx) {
+			llvmIrStripInstrucionUnrelatedToCrash(ctx, nprocs, [&testFunction](hwtHls::LlvmCompilationBundle &ctx) {
 				testFunction(ctx);
 			});
 	    })
