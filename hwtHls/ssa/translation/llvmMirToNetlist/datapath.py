@@ -167,7 +167,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                            instr: MachineInstr,
                            dst: Register, ops: MirToHlsNetlistTranslatedInstrOpsT):
         # load from data channel
-        srcIo, index, width, cond = ops  # [todo] implicit operands
+        srcIo, index, width, cond = ops
         newlyGeneratedRead: Optional[HlsNetNodeRead] = None
         if isinstance(cond, int):
             assert cond == 1, instr
@@ -817,7 +817,7 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                     # :note: this should be done in ResetValueExtractor._rewriteControlOfInfLoopWithReset
                     # if edgeMeta.inlineRstDataFromEdge is not None:
                     #     v.obj.channelInitValues = (tuple(),)
-                    wn: HlsNetNodeWriteBackedge = v.obj.associatedWrite
+                    wn: HlsNetNodeWrite = v.obj.associatedWrite
                     if fsm and predMb in fsm:
                         # allocate as a register because this is just local control channel
                         wn.allocationType = CHANNEL_ALLOCATION_TYPE.REG
