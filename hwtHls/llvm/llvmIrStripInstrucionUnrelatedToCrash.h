@@ -9,7 +9,7 @@ namespace hwtHls {
  * 		  Forking child processes for every code modification makes this function very slow.
  * :param nprocs: max number of processes to use at once
  * */
-void llmIrStripInstrucionUnrelatedToCrash(LlvmCompilationBundle &ctx,
+void llvmIrStripInstrucionUnrelatedToCrash(LlvmCompilationBundle &ctx,
 		size_t nprocs, std::function<void(LlvmCompilationBundle&)> testFn);
 
 }

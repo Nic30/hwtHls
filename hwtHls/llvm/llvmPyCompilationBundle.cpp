@@ -2,8 +2,6 @@
 
 #include <hwtHls/llvm/llvmCompilationBundle.h>
 #include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
-#include <hwtHls/llvm/llvmIrStripInstrucionUnrelatedToCrash.h>
-
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/LLVMContext.h>
@@ -18,6 +16,7 @@
 // :note: this is important to automatically cast runOpt callback arguments (in runtime)
 #include <pybind11/stl.h>
 #include <pybind11/stl_bind.h>
+#include <hwtHls/llvm/llvmIrStripInstrucionUnrelatedToCrash.h>
 
 namespace py = pybind11;
 
@@ -97,6 +96,7 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 			});
 		})
 		.def("registerAfterPassCallbackForMir", [](hwtHls::LlvmCompilationBundle * self, py::function & callbackFn) {
+			llvm::errs() << "registerAfterPassCallbackForMir: " << self << "\n";
 			self->PICForLegacyPM.registerAfterPassCallback([callbackFn](llvm::StringRef PassName, llvm::Any IR, const llvm::PreservedAnalyses& PA) {
 				 callbackFn.operator() <py::return_value_policy::reference, llvm::StringRef&, llvm::Any&>(PassName, IR);
 			});
