@@ -128,7 +128,7 @@ class BaseIrMirRtl_TC(SimTestCase):
 
         def testLlvmMir(platform: TestLlvmIrAndMirPlatform, toLlvm: ToLlvmIrTranslator):
             args = prepareIrAndMirArgs()
-            tc._runLlvmIrOrMir(platform, toLlvm, "", wallTimeOptMir, False, args)
+            tc._runLlvmIrOrMir(platform, toLlvm, "", wallTimeOptMir, True, args)
             checkIrAndMirArgs(args)
 
         self.compileSimAndStart(dut, target_platform=TestLlvmIrAndMirPlatform(
