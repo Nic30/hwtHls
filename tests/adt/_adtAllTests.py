@@ -3,9 +3,11 @@
 
 from hwtLib.tests.all import unittestMain
 from tests.testCaseUtils import testSuiteFromTCs
+from tests.adt.collections.binarySearchTreePointerLess_test import BinaryTreePointerLessArraySearch_TC
 from tests.adt.collections.hashTable_test import HashTable_TC
 
 adt_TCs = [
+    BinaryTreePointerLessArraySearch_TC,
     HashTable_TC,
 ]
 
