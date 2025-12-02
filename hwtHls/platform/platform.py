@@ -124,7 +124,7 @@ class DefaultHlsPlatform(DummyPlatform):
         assert isinstance(toLlvm, ToLlvmIrTranslator), toLlvm
         toLlvm.llvm.runOpt(self.runMirToHlsNetlist, self.addExtraModulePasses, hls, toLlvm, netlist)
         hls.channels._channelsBetweenLlvmThreadsMir = {}  # delete because MachineFunctions are deallocated
-
+       
     def runMirToHlsNetlist(self,
                            hls: "HlsScope",
                            toLlvm: ToLlvmIrTranslator,
