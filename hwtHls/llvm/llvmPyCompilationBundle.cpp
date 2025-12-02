@@ -89,14 +89,13 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 		.def("registerAfterPassCallbackForIr", [](hwtHls::LlvmCompilationBundle * self, py::function & callbackFn) {
 			self->PIC.registerAfterPassCallback([callbackFn](llvm::StringRef PassName, llvm::Any IR, const llvm::PreservedAnalyses& PA) {
 				try {
-				 callbackFn.operator() <py::return_value_policy::reference, llvm::StringRef&, llvm::Any&>(PassName, IR);
+				    callbackFn.operator() <py::return_value_policy::reference, llvm::StringRef&, llvm::Any&>(PassName, IR);
 				} catch (py::error_already_set & e) {
 					throw e; // this is useful if you want to use debugger to break on exception raised in python callback
 				}
 			});
 		})
 		.def("registerAfterPassCallbackForMir", [](hwtHls::LlvmCompilationBundle * self, py::function & callbackFn) {
-			llvm::errs() << "registerAfterPassCallbackForMir: " << self << "\n";
 			self->PICForLegacyPM.registerAfterPassCallback([callbackFn](llvm::StringRef PassName, llvm::Any IR, const llvm::PreservedAnalyses& PA) {
 				 callbackFn.operator() <py::return_value_policy::reference, llvm::StringRef&, llvm::Any&>(PassName, IR);
 			});

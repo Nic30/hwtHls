@@ -13,7 +13,6 @@ void LegacyPassManagerWithPI::addPassCallbackFromPI(llvm::Pass *P) {
 	if (P) {
 		passName = P->getPassName();
 	}
-	llvm::errs() << "addPassCallbackFromPI " << &PI << "  " << passName << "\n";
 	if (dynamic_cast<llvm::MachineFunctionPass*>(P)) {
 		llvm::legacy::PassManager::add(
 				new hwtHls::HwtHlsRunPassInstrumentationCallbacksMachineFunctionPass(
