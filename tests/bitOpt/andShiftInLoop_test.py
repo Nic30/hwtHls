@@ -7,16 +7,15 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
-from hwt.serializer.combLoopAnalyzer import CombLoopAnalyzer
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
-from hwtLib.examples.errors.combLoops import freeze_set_of_sets
 from hwtLib.types.ctypes import uint8_t
 from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import mask
+from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 
 
 class AndShiftInLoop2(HwModule):
@@ -88,18 +87,6 @@ class AndShiftInLoop3(HwModule):
 
 class AndShiftInLoop_TC(SimTestCase):
 
-    def _test_no_comb_loops(self):
-        s = CombLoopAnalyzer()
-        s.visit_HwModule(self.dut)
-        comb_loops = freeze_set_of_sets(s.report())
-        msg_buff = []
-        for loop in comb_loops:
-            msg_buff.append(10 * "-")
-            for s in loop:
-                msg_buff.append(str(s.resolve()[1:]))
-
-        self.assertEqual(comb_loops, frozenset(), msg="\n".join(msg_buff))
-
     def test_AndShiftInLoop2(self):
         dut = AndShiftInLoop2()
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
@@ -127,7 +114,7 @@ class AndShiftInLoop_TC(SimTestCase):
 
         dut.i._ag.data.extend(inputs)
         self.runSim((CLK + 1) * CLK_PERIOD)
-        self._test_no_comb_loops()
+        BaseIrMirRtl_TC._test_no_comb_loops(self)
 
         self.assertValSequenceEqual(dut.o._ag.data, expected)
 
@@ -160,7 +147,7 @@ class AndShiftInLoop_TC(SimTestCase):
 
         dut.i._ag.data.extend(inputs)
         self.runSim((CLK + 1) * CLK_PERIOD)
-        self._test_no_comb_loops()
+        BaseIrMirRtl_TC._test_no_comb_loops(self)
 
         self.assertValSequenceEqual(dut.o._ag.data, expected)
 

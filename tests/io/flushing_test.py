@@ -15,7 +15,7 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtSimApi.constants import CLK_PERIOD
 from hwtSimApi.triggers import Timer
-from tests.frontend.trivial_test import HlsAstTrivial_TC
+from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 
 
 class ExampleFlushing0(HwModule):
@@ -66,7 +66,7 @@ class ExampleFlushing1OptionalLoop(ExampleFlushing0):
 class Flushing_TC(SimTestCase):
 
     def _test_no_comb_loops(self):
-        HlsAstTrivial_TC._test_no_comb_loops(self)
+        BaseIrMirRtl_TC._test_no_comb_loops(self)
 
     def _test_ExampleFlushing0(self, enableO1=True,
                                randomizeI0=False, randomizeO0=False, randomizeO1=False,
