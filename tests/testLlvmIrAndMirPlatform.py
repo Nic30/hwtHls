@@ -61,7 +61,7 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
         self._runTestAfterEachIrPass = runTestAfterEachIrPass or runTestAfterEachPass
         self._runTestAfterEachMirPass = runTestAfterEachMirPass or runTestAfterEachPass
         self._lastWorkingIr: Optional[str] = None
-        self.llvm: Optional[LlvmCompilationBundle] = None
+        self._compilationBundleStack: list[ToLlvmIrTranslator] = []
 
     def _runWithTimeLog(self, stage: TIME_LOG_STAGE, fn: Callable[[LlvmCompilationBundle, ], None], *args, **kwargs):
         if self._debugLogTime:
@@ -86,7 +86,7 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
                     if MF is not None:
                         if self._runTestAfterEachMirPass:
                             try:
-                                self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_MIR, self._optMirTest, self, self.toLlvm)
+                                self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_MIR, self._optMirTest, self, self._compilationBundleStack[-1])
                             except:
                                 raise AssertionError(f"Broken after {passName.str():s}, lastWorking:\n{self._lastWorkingIr}\n broken:\n{str(MF):s}")
                         self._lastWorkingIr = str(MF)
@@ -105,7 +105,7 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
                 assert F is not None
         if self._runTestAfterEachIrPass:
             try:
-                self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_IR, self._optIrTest, self, self.toLlvm)
+                self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_IR, self._optIrTest, self, self._compilationBundleStack[-1])
             except:
                 raise AssertionError(f"Broken after {passName.str():s} lastWorking:\n{self._lastWorkingIr}\n broken:\n{str(F):s}")
         self._lastWorkingIr = str(F)
@@ -117,7 +117,7 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
     @override
     def runSsaPasses(self, hls: "HlsScope", toLlvm: ToLlvmIrTranslator):
         res = super(TestLlvmIrAndMirPlatform, self).runSsaPasses(hls, toLlvm)
-        self.toLlvm = toLlvm
+        self._compilationBundleStack.append(toLlvm)
         isTop = self._isCurrentlyCompilingTop(hls, toLlvm)
         if isTop:
             # [todo] launch tests only on top function
@@ -143,7 +143,8 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
                 # execute IR tests for debugging purposes
                 self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_IR, self._optIrTest, self, toLlvm)
             raise
-
+        finally:
+            self._compilationBundleStack.pop()
     @override
     def runMirToHlsNetlist(self,
                       hls: "HlsScope", toLlvm: ToLlvmIrTranslator,
@@ -217,7 +218,7 @@ class TestLlvmIrAndMirPlatform(VirtualHlsPlatform):
                 else:
                     interpret = LlvmIrInterpret(toLlvm.llvm, toLlvm.placeholderObjectSlots, platform._componentGenerators, platform._getHFloatType, args)
                     waveLogFileName = str(logFileNameStem) + ".llvmIrWave.vcd"
-          
+
                 try:
                     if logFileNameStem is not None:
                         with open(waveLogFileName, "w") as vcdFile:
