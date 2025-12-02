@@ -4,7 +4,7 @@
 import sys
 
 from hwtLib.tests.all import unittestMain
-from tests.adt.collections.hashTable_test import HashTable_TC
+from tests.adt._adtAllTests import adt_TCs
 from tests.bitOpt._bitOptAllTests import bitOpt_TCs
 from tests.crypto.md5_test import Md5_TC
 from tests.frontend._frontendAllTests import frontend_TCs
@@ -29,7 +29,7 @@ suite = testSuiteFromTCs(
     utils_TCs,
     HlsSynthesisChecksTC,
     Md5_TC,
-    HashTable_TC,
+    *adt_TCs,
 )
 
 if __name__ == '__main__':
