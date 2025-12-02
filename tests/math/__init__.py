@@ -33,4 +33,6 @@ Math libraries with definitions of elementary math functions:
 * [gmp](https://github.com/Halliburton-Landmark/gmp/tree/master/mpn/generic)
 * [libtom/tomsfastmath](https://github.com/libtom/tomsfastmath) [libtom/libtommath](https://github.com/libtom/libtommath)
 
+Math focused compilers
+* https://github.com/diku-dk/futhark
 """
