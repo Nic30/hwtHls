@@ -213,7 +213,7 @@ class BaseIrMirRtl_TC(SimTestCase):
             model(iter(dataIn), dataOutRef)
         except StopIteration:
             pass
-        dataOutRef = [int(d) for d in dataOutRef]
+        dataOutRef = [d.to_py() for d in dataOutRef]
 
         if prepareIrAndMirArgs is None:
 
