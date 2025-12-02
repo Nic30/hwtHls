@@ -33,6 +33,8 @@ public:
 	llvm::IRBuilder<> builder;
 	llvm::Function *main;
 	llvm::PassInstrumentationCallbacks PIC;
+	// if PIC used in new pass manager is used there,
+	// it results in a segfault in callbacks added into PIC using print-after-all and many others
 	llvm::PassInstrumentationCallbacks PICForLegacyPM;
 	std::unique_ptr<llvm::PassBuilder> PB; // for IR passes
 	LegacyPassManagerWithPI PM; // for machine code generator

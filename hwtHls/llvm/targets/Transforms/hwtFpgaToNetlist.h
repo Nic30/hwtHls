@@ -37,7 +37,6 @@ public:
 	llvm::StringRef getPassName() const override {
 		return "HwtFpgaToNetlist";
 	}
-
 };
 
 void initializeHwtFpgaToNetlist(llvm::PassRegistry &Registry);
