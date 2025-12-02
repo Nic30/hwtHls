@@ -8,14 +8,14 @@ from hwt.simulator.simTestCase import SimTestCase
 from hwt.simulator.utils import Bits3valToInt
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.constants import CLK_PERIOD
-from tests.frontend.trivial_test import HlsAstTrivial_TC
+from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.io.readAtleastOne import ReadAtleastOneOf2, ReadAtleastOneOf3
 
 
 class ReadAtleastOne_TC(SimTestCase):
 
     def _test_no_comb_loops(self):
-        HlsAstTrivial_TC._test_no_comb_loops(self)
+        BaseIrMirRtl_TC._test_no_comb_loops(self)
 
     def _test_ReadAtleastOne(self, cls: Type[HwModule], N: int, inputCnt:int):
         assert N % inputCnt == 0, (N, inputCnt)

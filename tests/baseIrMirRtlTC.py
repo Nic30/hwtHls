@@ -4,6 +4,7 @@ from typing import Iterable, Tuple, Union, Callable, Optional, Any, Set, \
     Generator, List, Sequence
 
 from hwt.hdl.const import HConst
+from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hwModule import HwModule
 from hwt.serializer.combLoopAnalyzer import CombLoopAnalyzer
 from hwt.simulator.simTestCase import SimTestCase
@@ -17,6 +18,7 @@ from hwtSimApi.triggers import StopSimumulation
 from hwtSimApi.utils import freq_to_period
 from pyDigitalWaveTools.vcd.writer import VcdWriter
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
+
 
 LlvmSimFunctionArgT = Union[list, deque]
 
@@ -54,8 +56,8 @@ class BaseIrMirRtl_TC(SimTestCase):
         self.assertEqual(comb_loops, frozenset(), msg="\n".join(msg_buff))
 
     def _runLlvmIrOrMir(self, platform: TestLlvmIrAndMirPlatform, toLlvm: ToLlvmIrTranslator,
-                         variantName: str, wallTime:Optional[int],
-                         isMir: bool, args: tuple[LlvmSimFunctionArgT, ...]):
+                        variantName: str, wallTime:Optional[int],
+                        isMir: bool, args: tuple[LlvmSimFunctionArgT, ...]):
         try:
             if isMir:
                 vcdFileName = f"{self.getTestName()}{variantName:s}.llvmMirWave.vcd"

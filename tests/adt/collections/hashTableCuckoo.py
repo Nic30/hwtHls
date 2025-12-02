@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from typing import List
-
 from hwt.code import In, Concat, Or, And
 from hwt.constants import WRITE, READ
 from hwt.hObjList import HObjList
@@ -80,7 +78,7 @@ class HashTableCuckoo(HwModule):
         """
         :attention: This methods should be overridden in implementation of this abstract component
         """
-        res(key[res._dtype.bit_length():])
+        res(key._trunc(res._dtype.bit_length()))
 
     @PyBytecodeInline
     @staticmethod
@@ -104,7 +102,7 @@ class HashTableCuckoo(HwModule):
         return ~occupiedFlags[index] & (occupiedFlags[index:]._eq(mask(index)) if index > 0 else BIT.from_py(1))
 
     @hlsBytecode
-    def mainThread(self, hls: HlsScope, rams: List[IoProxyAddressed]):
+    def mainThread(self, hls: HlsScope, rams: list[IoProxyAddressed]):
         item_t = self.item_t
         item_flat_t = HBits(item_t.bit_length())
         res_t = HwIO_to_HdlType().apply(self.cmdRes, exclude=(self.cmdRes.rd, self.cmdRes.vld))
