@@ -216,7 +216,7 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
             inputWireDelay = base_delay * max(1, log2(log2(input_cnt)))
 
         elif op in _OPS_T_GROWING_LOG:
-            inputWireDelay = base_delay * max(1, log2(log2(bit_width)))
+            inputWireDelay = base_delay * (1 if bit_width == 1 else max(1, log2(log2(bit_width))))
 
         elif op in _OPS_T_GROWING_LIN:
             inputWireDelay = base_delay * max(1, log2(bit_width))
