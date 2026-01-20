@@ -2,27 +2,28 @@
 #include <llvm/ADT/SmallSet.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 
-#include <hwtHls/llvm/targets/intrinsic/streamIo.h>
-#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/targets/intrinsic/StreamChannelWordValue.h>
+#include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 
 using namespace llvm;
 
 namespace hwtHls {
 
 StreamReadUntilEoFCFGFragment::StreamReadUntilEoFCFGFragment() :
-		ioPtr(nullptr), exit(nullptr) {
-}
+	ioPtr(nullptr), exit(nullptr) {}
 
-CallInst* StreamReadUntilEoFCFGFragment::mergeReads(
-		llvm::IRBuilderBase &Builder, //llvm::DomTreeUpdater &DTU,
-		const StreamChannelFormatInfo &streamProps,
-		const llvm::SmallVector<llvm::CallInst*> &reads) {
+
+CallInst *StreamReadUntilEoFCFGFragment::mergeReads(
+	llvm::IRBuilderBase &Builder, // llvm::DomTreeUpdater &DTU,
+	const StreamChannelFormatInfo &streamProps,
+	const llvm::SmallVector<llvm::CallInst *> &reads) {
 	assert(reads.size() > 1);
 	//{
-	//	// update cfg in the case that some blocks with read have more predecessors
-	//	// (to start at the first block where the merged read will be constructed)
-	//	SmallVector<llvm::DominatorTree::UpdateType> DTUpdates;
+	//	// update cfg in the case that some blocks with read have more
+	//predecessors
+	//	// (to start at the first block where the merged read will be
+	//constructed) 	SmallVector<llvm::DominatorTree::UpdateType> DTUpdates;
 	//	BasicBlock *topBB = reads[0]->getParent();
 	//	BasicBlock *prevBB = nullptr;
 	//	bool topBBCheckedToBeginWithRead = false;
@@ -65,14 +66,16 @@ CallInst* StreamReadUntilEoFCFGFragment::mergeReads(
 	bool unrealiabeReadSeen = false;
 	for (auto r : reads) {
 		mergedDataBitWidth += streamReadGetOrigChunkBitWidth(r);
-		//mergedReadIsReliable && reads[0]->getParent() == r->getParent() &&
-		if (!unrealiabeReadSeen
-				&& streamReadGetBehavior(r)
-						== StreamReadBehaviorType::RELIABLE) {
-			// the merged read is reliable only if all reads were reliable and all are in the same block
-			// (if they were not in same block they are conditionally executed thus data may not be present)
+		// mergedReadIsReliable && reads[0]->getParent() == r->getParent() &&
+		if (!unrealiabeReadSeen &&
+			streamReadGetBehavior(r) == StreamReadBehaviorType::RELIABLE) {
+			// the merged read is reliable only if all reads were reliable and
+			// all are in the same block (if they were not in same block they
+			// are conditionally executed thus data may not be present)
 			if (reads[0]->getParent() != r->getParent())
-				mergedReadIsReliable = false; // we need byte enable to implement jumps if data not valid
+				mergedReadIsReliable =
+					false; // we need byte enable to implement jumps if data not
+						   // valid
 		} else {
 			mergedReadIsReliable = false;
 			unrealiabeReadSeen = true;
@@ -86,35 +89,35 @@ CallInst* StreamReadUntilEoFCFGFragment::mergeReads(
 	std::optional<hwtHls::ByteEnableEncoding> byteEnableEncodingOverride;
 	if (mergedReadIsReliable)
 		byteEnableEncodingOverride = ByteEnableEncoding::BEE_NONE;
-	auto streamPropsForMerged = streamProps.resize(mergedDataBitWidth,
-			streamProps.supportZLP || !mergedReadIsReliable,
-			byteEnableEncodingOverride);
+	auto streamPropsForMerged = streamProps.resize(
+		mergedDataBitWidth, streamProps.supportZLP || !mergedReadIsReliable,
+		byteEnableEncodingOverride);
 	size_t returnBitWidth =
-			streamPropsForMerged.segmentTy->getIntegerBitWidth();
+		streamPropsForMerged.segmentTy->getIntegerBitWidth();
 
 	auto mergedRead = CreateStreamRead(&Builder, srcIO, mergedDataBitWidth,
-			returnBitWidth, mergedReadIsReliable);
+									   returnBitWidth, mergedReadIsReliable);
 	streamPropsForMerged.CreateAssumptionForControl(Builder, mergedRead);
 	auto mergedReadWord = StreamChannelWordValue::parseNativeWord(
-			streamPropsForMerged, Builder, mergedRead);
+		streamPropsForMerged, Builder, mergedRead);
 
 	size_t dataBitOffset = 0;
 	size_t readIndex = 0;
 	for (auto *r : reads) {
 		auto dataWidth = streamReadGetOrigChunkBitWidth(r);
-		//Builder.SetInsertPoint(r);
+		// Builder.SetInsertPoint(r);
 		bool rIsLast = reads.back() == r;
 		bool rDataAlwaysPresent = readIndex < reliableReadsCntInMerged;
-		bool nextRDataAlwaysPresent = reliableReadsCntInMerged
-				&& readIndex + 1 < reliableReadsCntInMerged;
-		auto partWordForR = mergedReadWord.slice(Builder, dataBitOffset,
-				dataWidth,                                                 //
-				/*isGuaranteedToBeNotEoF*/!rIsLast && nextRDataAlwaysPresent, //
-				/*isGuarangeedToContainSomeData*/rDataAlwaysPresent       //
-				);
+		bool nextRDataAlwaysPresent = reliableReadsCntInMerged &&
+									  readIndex + 1 < reliableReadsCntInMerged;
+		auto partWordForR = mergedReadWord.slice(
+			Builder, dataBitOffset,
+			dataWidth,													   //
+			/*isGuaranteedToBeNotEoF*/ !rIsLast && nextRDataAlwaysPresent, //
+			/*isGuarangeedToContainSomeData*/ rDataAlwaysPresent		   //
+		);
 		partWordForR.populateWithDummyMaskOrEmptyIfNecessary(Builder);
-		if (streamReadGetBehavior(r)
-				== StreamReadBehaviorType::RELIABLE) {
+		if (streamReadGetBehavior(r) == StreamReadBehaviorType::RELIABLE) {
 			partWordForR.stripByteEnableEncoding();
 		}
 		auto newR = partWordForR.flatten(Builder, nullptr);
@@ -128,9 +131,8 @@ CallInst* StreamReadUntilEoFCFGFragment::mergeReads(
 	BasicBlock *topBB = reads[0]->getParent();
 	BasicBlock *prevBB = nullptr;
 	bool topBBCheckedToBeginWithRead = false;
-	bool allInSameBB = all_of(reads, [topBB](CallInst *CI) {
-		return CI->getParent() == topBB;
-	});
+	bool allInSameBB = all_of(
+		reads, [topBB](CallInst *CI) { return CI->getParent() == topBB; });
 	for (auto *r : reads) {
 		auto BB = r->getParent();
 		if (prevBB) {
@@ -153,12 +155,13 @@ CallInst* StreamReadUntilEoFCFGFragment::mergeReads(
 	return mergedRead;
 }
 
-std::optional<StreamReadUntilEoFCFGFragment> StreamReadUntilEoFCFGFragment::detect(
-		IRBuilderBase &Builder, BasicBlock &BlockWithRead,
-		llvm::SmallPtrSetImpl<const llvm::BasicBlock*> &LoopHeaders) {
+std::optional<StreamReadUntilEoFCFGFragment>
+StreamReadUntilEoFCFGFragment::detect(
+	IRBuilderBase &Builder, BasicBlock &BlockWithRead,
+	llvm::SmallPtrSetImpl<const llvm::BasicBlock *> &LoopHeaders) {
 	StreamReadUntilEoFCFGFragment res;
 	auto *BB = &BlockWithRead;
-	llvm::SmallSet<BasicBlock*, 16> seen;
+	llvm::SmallSet<BasicBlock *, 16> seen;
 
 	for (;;) {
 		if (seen.contains(BB)) {
@@ -172,18 +175,18 @@ std::optional<StreamReadUntilEoFCFGFragment> StreamReadUntilEoFCFGFragment::dete
 		// [todo] check that the first block dominates all others
 		for (auto &I : *BB) {
 			if (auto *CI = dyn_cast<CallInst>(&I)) {
-				if (IsStreamRead(CI)
-						&& (!res.ioPtr || streamReadGetIoArg(CI) == res.ioPtr)) {
+				if (IsStreamRead(CI) &&
+					(!res.ioPtr || streamReadGetIoArg(CI) == res.ioPtr)) {
 					if (!res.ioPtr) {
 						res.ioPtr = streamReadGetIoArg(CI);
 					}
-					SmallVector<CallInst*> readsToMerge;
+					SmallVector<CallInst *> readsToMerge;
 					readsToMerge.push_back(CI);
 					for (Instruction &I2 : make_range(
-							I.getNextNode()->getIterator(), BB->end())) {
+							 I.getNextNode()->getIterator(), BB->end())) {
 						if (auto *CI2 = dyn_cast<CallInst>(&I2)) {
-							if (IsStreamRead(CI2)
-									&& streamReadGetIoArg(CI2) == res.ioPtr) {
+							if (IsStreamRead(CI2) &&
+								streamReadGetIoArg(CI2) == res.ioPtr) {
 								readsToMerge.push_back(CI2);
 							}
 						}
@@ -195,11 +198,11 @@ std::optional<StreamReadUntilEoFCFGFragment> StreamReadUntilEoFCFGFragment::dete
 						if (!res.streamProps.has_value()) {
 							assert(isa<Argument>(res.ioPtr));
 							res.streamProps =
-									StreamChannelFormatInfo::findInMetadata(
-											*cast<Argument>(res.ioPtr));
+								StreamChannelFormatInfo::findInMetadata(
+									*cast<Argument>(res.ioPtr));
 						}
 						CI = mergeReads(Builder, res.streamProps.value(),
-								readsToMerge);
+										readsToMerge);
 						assert(CI);
 					}
 					res.reads.push_back(CI);
@@ -210,12 +213,12 @@ std::optional<StreamReadUntilEoFCFGFragment> StreamReadUntilEoFCFGFragment::dete
 		if (!res.reads.empty() && !res.streamProps.has_value()) {
 			assert(isa<Argument>(res.ioPtr));
 			res.streamProps = StreamChannelFormatInfo::findInMetadata(
-					*cast<Argument>(res.ioPtr));
+				*cast<Argument>(res.ioPtr));
 		}
 		auto Term = dyn_cast<BranchInst>(BB->getTerminator());
-		if (res.reads.empty() || !Term || !Term->isConditional()
-				|| !res.streamProps.value().isStreamReadEoF(res.reads.back(),
-						Term->getCondition())) {
+		if (res.reads.empty() || !Term || !Term->isConditional() ||
+			!res.streamProps.value().isStreamReadEoF(res.reads.back(),
+													 Term->getCondition())) {
 			break;
 		} else {
 			if (res.exit) {
@@ -227,13 +230,13 @@ std::optional<StreamReadUntilEoFCFGFragment> StreamReadUntilEoFCFGFragment::dete
 			}
 			BB = Term->getSuccessor(1);
 		}
-
 	}
-	// exit is verified to be present, res.reads which are in sequence of blocks which are juped if to each other if not last
+	// exit is verified to be present, res.reads which are in sequence of blocks
+	// which are juped if to each other if not last
 
 	if (res.reads.size() < 2)
 		return {};
 
 	return res;
 }
-}
+} // namespace hwtHls
