@@ -126,6 +126,7 @@ class HlsScheduler():
         self.epsilon = 1
         self.resourceUsage = HlsSchedulerResourceUseList(resourceConstraints)
         self.debug = False
+        self._dbgPrintPhaseBoundaries = False
 
     def _checkAllNodesScheduled(self):
         """
@@ -269,8 +270,12 @@ class HlsScheduler():
         if self.debug and dbgDir:
             from hwtHls.netlist.translation.dumpSchedulingJson import HlsNetlistAnalysisPassDumpSchedulingJson
             from hwtHls.platform.fileUtils import outputFileGetter
-
+        dbgPrintPhaseBoundaries = self._dbgPrintPhaseBoundaries
+        if dbgPrintPhaseBoundaries:
+            print("asap0 begin")
         self._scheduleAsap()
+        if dbgPrintPhaseBoundaries:
+            print("asap0 end")
         self._checkAllNodesScheduled()
 
         if self.debug and dbgDir is not None:
@@ -280,23 +285,33 @@ class HlsScheduler():
 
         if self._scheduleIsMulticlock():
             # if circuit schedule spans over multiple clock periods
+            if dbgPrintPhaseBoundaries:
+                print("alap0 begin")
             self._scheduleAlapCompaction(False)
+            if dbgPrintPhaseBoundaries:
+                print("alap0 end")
             if self.debug:
                 self._checkAllNodesScheduled()
                 if dbgDir is not None:
                     HlsNetlistAnalysisPassDumpSchedulingJson(
                         outputFileGetter(dbgDir, "schedulingDbg.1.alap0.hwschedule.json"),
                         expandCompositeNodes=True).runOnHlsNetlist(self.netlist)
-
+            if dbgPrintPhaseBoundaries:
+                print("asap1 begin")
             self._scheduleAsapCompaction()
+            if dbgPrintPhaseBoundaries:
+                print("asap1 end")
             if self.debug:
                 self._checkAllNodesScheduled()
                 if dbgDir is not None:
                     HlsNetlistAnalysisPassDumpSchedulingJson(
                         outputFileGetter(dbgDir, "schedulingDbg.2.asap1.hwschedule.json"),
                         expandCompositeNodes=True).runOnHlsNetlist(self.netlist)
-
+            if dbgPrintPhaseBoundaries:
+                print("alap1 begin")
             self._scheduleAlapCompaction(True)
+            if dbgPrintPhaseBoundaries:
+                print("alap1 end")
             if self.debug:
                 self._checkAllNodesScheduled()
                 if dbgDir is not None:
