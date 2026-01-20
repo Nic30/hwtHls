@@ -327,11 +327,69 @@ class BitwidthReductionPass_PHI_TC(BaseLlvmIrTC):
 
         self._test_ll(llvmIr)
 
+    def test_phiRmRight1(self):
+        # :note: based on Axi4SSParse2If2B.mainThread 2seg 8b segment width 
+        llvmIr = """\
+        define void @test_phiRmRight1(ptr addrspace(1) %i, ptr addrspace(2) %o) {
+        bb0:
+          br label %bb3.streamSegSplit.1lane
+        
+        bb3.streamSegSplit.1lane:                         ; preds = %bb3.backedge.1lane, %bb0
+          %0 = load volatile i20, ptr addrspace(1) %i, align 4
+          %i_read1.r0.enable.0lane = call i1 @hwtHls.bitRangeGet.i20.i6.i1.16(i20 %0, i6 16) #2
+          %1 = call i2 @hwtHls.bitRangeGet.i20.i6.i2.18(i20 %0, i6 18) #2
+          %2 = call i8 @hwtHls.bitRangeGet.i20.i6.i8.8(i20 %0, i6 8) #2
+          %3 = call i8 @hwtHls.bitRangeGet.i20.i6.i8.0(i20 %0, i6 0) #2
+          %ld.s1 = call i10 @hwtHls.bitConcat.i8.i2(i8 %2, i2 %1) #2
+          %4 = icmp eq i8 %3, 2
+          %brmerge.not = and i1 %i_read1.r0.enable.0lane, %4
+          %i_read1.r0.enable.0lane.not = xor i1 %i_read1.r0.enable.0lane, true
+          br i1 %brmerge.not, label %bb5.sink.split.1lane, label %irr.guard
+        
+        bb3.backedge.0lane:                               ; preds = %irr.guard
+          br i1 %i_read1.r0.enable.1lane, label %bb3.segmentEnCheckAfter.1lane, label %bb3.backedge.1lane
+        
+        bb3.backedge.1lane:                               ; preds = %bb3.backedge.0lane, %bb5.sink.split.1lane
+          br label %bb3.streamSegSplit.1lane
+        
+        bb3.segmentEnCheckAfter.1lane:                    ; preds = %bb3.backedge.0lane
+          br i1 %9, label %bb4.streamSegSplit.1lane, label %bb5.sink.split.1lane
+        
+        bb4.streamSegSplit.1lane:                         ; preds = %bb3.segmentEnCheckAfter.1lane
+          %5 = load volatile i20, ptr addrspace(1) %i, align 4
+          %6 = call i2 @hwtHls.bitRangeGet.i20.i6.i2.18(i20 %5, i6 18) #2
+          %7 = call i8 @hwtHls.bitRangeGet.i20.i6.i8.8(i20 %5, i6 8) #2
+          %8 = call i8 @hwtHls.bitRangeGet.i20.i6.i8.0(i20 %5, i6 0) #2
+          %ld.s19 = call i10 @hwtHls.bitConcat.i8.i2(i8 %7, i2 %6) #2
+          br label %bb5.sink.split.0lane
+        
+        bb5.sink.split.0lane:                             ; preds = %irr.guard, %bb4.streamSegSplit.1lane
+          %i.1segment.0 = phi i10 [ %ld.s19, %bb4.streamSegSplit.1lane ], [ %ld.s1, %irr.guard ]
+          %i_read_data.sink.0lane = phi i8 [ %8, %bb4.streamSegSplit.1lane ], [ %3, %irr.guard ]
+          store volatile i8 %i_read_data.sink.0lane, ptr addrspace(2) %o, align 1
+          br label %irr.guard
+        
+        bb5.sink.split.1lane:                             ; preds = %bb3.segmentEnCheckAfter.1lane, %bb3.streamSegSplit.1lane
+          %i_read_data.sink.1lane = phi i8 [ %i_read1.r0.data.1lane, %bb3.segmentEnCheckAfter.1lane ], [ %2, %bb3.streamSegSplit.1lane ]
+          store volatile i8 %i_read_data.sink.1lane, ptr addrspace(2) %o, align 1
+          br label %bb3.backedge.1lane
+        
+        irr.guard:                                        ; preds = %bb3.streamSegSplit.1lane, %bb5.sink.split.0lane
+          %i.1segment.1.moved = phi i10 [ %ld.s1, %bb3.streamSegSplit.1lane ], [ %i.1segment.0, %bb5.sink.split.0lane ]
+          %Guard.bb3.backedge.0lane = phi i1 [ %i_read1.r0.enable.0lane.not, %bb3.streamSegSplit.1lane ], [ true, %bb5.sink.split.0lane ]
+          %i_read1.r0.enable.1lane = call i1 @hwtHls.bitRangeGet.i10.i5.i1.8(i10 %i.1segment.1.moved, i5 8) #2
+          %i_read1.r0.data.1lane = call i8 @hwtHls.bitRangeGet.i10.i5.i8.0(i10 %i.1segment.1.moved, i5 0) #2
+          %9 = icmp eq i8 %i_read1.r0.data.1lane, 2
+          br i1 %Guard.bb3.backedge.0lane, label %bb3.backedge.0lane, label %bb5.sink.split.0lane
+        }
+        """
+        self._test_ll(llvmIr)
+
 
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([BitwidthReductionPass_PHI_TC('test_rmInTheMiddle2')])
     suite = testLoader.loadTestsFromTestCase(BitwidthReductionPass_PHI_TC)
+    # suite = unittest.TestSuite([BitwidthReductionPass_PHI_TC('test_phiRmRight1')])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
