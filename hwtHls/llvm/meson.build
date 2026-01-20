@@ -259,7 +259,7 @@ py3.extension_module(
      'Transforms/streamLoopUnrollPass/streamLoopUnrollPass.cpp',
      'Transforms/StreamSegmentLoopUnrollPass/constructCodeLanesForSegments.cpp',
      'Transforms/StreamSegmentLoopUnrollPass/demoteAllLiveVarsOnLaneCrossingToTmpAlloca.cpp',
-     'Transforms/StreamSegmentLoopUnrollPass/rerouteLaneCfg.cpp',
+     'Transforms/StreamSegmentLoopUnrollPass/chainedRerouteLaneCfg.cpp',
      'Transforms/StreamSegmentLoopUnrollPass/splitBBsOnIOAccess.cpp',
      'Transforms/StreamSegmentLoopUnrollPass/StreamSegmentLoopUnrollPass.cpp',
      ] + all_llvm_backend_gen_files,

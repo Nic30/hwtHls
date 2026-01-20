@@ -1,4 +1,4 @@
-#include <hwtHls/llvm/Transforms/StreamSegmentLoopUnrollPass/rerouteLaneCfg.h>
+#include <hwtHls/llvm/Transforms/StreamSegmentLoopUnrollPass/chainedRerouteLaneCfg.h>
 #include <hwtHls/llvm/Transforms/StreamSegmentLoopUnrollPass/constructCodeLanesForSegments.h>
 
 using namespace llvm;

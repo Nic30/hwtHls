@@ -26,7 +26,7 @@
 #include <hwtHls/llvm/Analysis/mergeSetsBasedLivenessAnalysis/mergeSets.h>
 #include <hwtHls/llvm/Transforms/StreamSegmentLoopUnrollPass/splitBBsOnIOAccess.h>
 #include <hwtHls/llvm/Transforms/StreamSegmentLoopUnrollPass/constructCodeLanesForSegments.h>
-#include <hwtHls/llvm/Transforms/StreamSegmentLoopUnrollPass/rerouteLaneCfg.h>
+#include <hwtHls/llvm/Transforms/StreamSegmentLoopUnrollPass/chainedRerouteLaneCfg.h>
 #include <hwtHls/llvm/Transforms/StreamSegmentLoopUnrollPass/demoteAllLiveVarsOnLaneCrossingToTmpAlloca.h>
 
 // #include <llvm/IR/Verifier.h>
