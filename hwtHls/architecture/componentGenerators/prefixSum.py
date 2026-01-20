@@ -91,7 +91,7 @@ def prefixSum1bFenwickTree(vec: list[AnyHBitsValue]) -> list[AnyHBitsValue]:
 
 
 @hwt_expr_producer
-def prefixSum1bPerResultBinTreeBased(vec: list[AnyHBitsValue]) -> list[AnyHBitsValue]:
+def prefixSum1bPerResultBinTreeBased(vec: list[AnyHBitsValue], inclusive=True) -> list[AnyHBitsValue]:
     """
     Latency optimized variant, large resource consumption for large vec sizes
     """
@@ -101,7 +101,13 @@ def prefixSum1bPerResultBinTreeBased(vec: list[AnyHBitsValue]) -> list[AnyHBitsV
     indexWidth = log2ceil(width + 1)
     prefixSumArray = []
     for i in range(width):
-        resSum = ctpop(num[i + 1:])  # ctpop_fn(num[i + 1:], bitsToLookupInROM=bitsToLookupInROM)
+        if inclusive:
+            resSum = ctpop(num[i + 1:])  # ctpop_fn(num[i + 1:], bitsToLookupInROM=bitsToLookupInROM)
+        else:
+            if i == 0:
+                resSum = HBits(indexWidth).from_py(0)
+            else:
+                resSum = ctpop(num[i:])
         resSum = resSum._zext(indexWidth)
         prefixSumArray.append(resSum)
 
