@@ -17,7 +17,8 @@ from pyDigitalWaveTools.vcd.writer import VcdWriter
 def _opcode_Intrinsic_memcpy(interpret: "LlvmIrInterpret", instr: Instruction, ops: tuple[object, ...]):
     dst, src, length, isVolatile = ops
     length = int(length)
-    if isinstance(dst, HArrayConst) and isinstance(src, HArrayConst):
+    if isinstance(dst, AllocaInstCell) and isinstance(dst.v, HArrayConst) and isinstance(src, HArrayConst):
+        dst = dst.v
         DL = interpret.F.getParent().getDataLayout()
         if dst._dtype.element_t != src._dtype.element_t:
             raise NotImplementedError(dst._dtype.element_t, src._dtype.element_t)
@@ -36,6 +37,20 @@ def _opcode_Intrinsic_memcpy(interpret: "LlvmIrInterpret", instr: Instruction, o
         raise NotImplementedError(dst.__class__, src.__class__)
 
 
+class AllocaInstCell():
+
+    def __init__(self, waveLog: Optional[VcdWriter], inst: AllocaInst, v: HConst):
+        self.v = v
+        self.inst = inst
+        self.waveLog = waveLog
+
+    def setValue(self, v: HConst, nowTime: int):
+        waveLog = self.waveLog
+        if waveLog and self.inst in waveLog._idScope:
+            waveLog.logChange(nowTime, self.inst, v, None)
+        self.v = v
+
+
 def _decodeOpcode_Alloca(interpret: "LlvmIrInterpret", instr: Instruction) -> LlvmIrInstrFunction:
     alloca: AllocaInst = InstructionToAllocaInst(instr)
     assert alloca is not None, instr
@@ -50,7 +65,7 @@ def _decodeOpcode_Alloca(interpret: "LlvmIrInterpret", instr: Instruction) -> Ll
         pyT = HBits(arrTy.getElementType().getScalarSizeInBits())[arrTy.getNumElements()]
 
         def _opcode_AllocaArray(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
-            regs[instr] = pyT.from_py(None)
+            regs[instr] = AllocaInstCell(waveLog, instr, pyT.from_py(None))
 
         return _opcode_AllocaArray
 
@@ -60,7 +75,7 @@ def _decodeOpcode_Alloca(interpret: "LlvmIrInterpret", instr: Instruction) -> Ll
         raise NotImplementedError(instr)
 
     def _opcode_Alloca(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
-        regs[instr] = v
+        regs[instr] = AllocaInstCell(waveLog, instr, v)
 
     return _opcode_Alloca
 
@@ -105,7 +120,10 @@ def _decodeOpcode_GetElementPtr(interpret: "LlvmIrInterpret", instr: Instruction
                 i0 = _i0._dtype.from_py(0)
 
             if int(_i0) != 0:
-                if isinstance(base, HConst):
+                if isinstance(base, AllocaInstCell):
+                    baseArrayTy = base.v._dtype
+                    baseArrayTyIsLlvm = False
+                elif isinstance(base, HConst):
                     baseArrayTy = base._dtype
                     baseArrayTyIsLlvm = False
                 elif isinstance(base, SimRam):
@@ -152,9 +170,9 @@ def _getItemFromLocalPointer(regs: dict[Instruction, HBitsConst], srcPtr: Instru
     else:
         alloca = ValueToAllocaInst(srcPtr)
         if alloca is not None:
-            res = regs[srcPtr]
-            assert res._dtype.bit_length() == width, (debugScope, srcPtr)
-            return res
+            res: AllocaInstCell = regs[srcPtr]
+            assert res.v._dtype.bit_length() == width, (debugScope, srcPtr)
+            return res.v
 
         base = regs[srcPtr]
 
@@ -170,9 +188,13 @@ def _getItemFromLocalPointer(regs: dict[Instruction, HBitsConst], srcPtr: Instru
 
     if i0 is None:
         return HBits(width).from_py(None)
+    elif isinstance(base, AllocaInstCell):
+        assert isinstance(base.v, HArrayConst), base
+        return base.v[i0]
     else:
         assert isinstance(base, HArrayConst), base
         return base[i0]
+
 #        if isinstance(base, GlobalValue):
 #            base = base.getOperand(0)  # extract data
 #

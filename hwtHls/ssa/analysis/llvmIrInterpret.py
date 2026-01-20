@@ -12,7 +12,7 @@ from hwtHls.code import ctlz, zext, hwUMax, hwUMin, hwSMax, hwSMin, fshl, fshr, 
 from hwtHls.llvm.llvmIr import Function, BasicBlock, InstructionToCallInst, \
     InstructionToPHINode, ValueToBasicBlock, \
     ValueToConstantInt, ValueToFunction, ValueToInstruction, Instruction, \
-    InstructionToLoadInst, InstructionToStoreInst, ValueToArgument, ValueToGlobalValue, \
+    InstructionToLoadInst, InstructionToStoreInst, InstructionToAllocaInst, ValueToArgument, ValueToGlobalValue, \
     ValueToConstantFP, TypeToPointerType, TypeToIntegerType, IntegerType, \
     LLVMStringContext, ValueToUndefValue, TypeToArrayType, ArrayType, \
     Intrinsic, ValueToAllocaInst, ValueToConstantArray, ValueToConstantDataArray, IsStreamIo, Value, PHINode, \
@@ -31,7 +31,7 @@ from hwtHls.ssa.analysis.llvmIrInterpretJump import _decodeOpcode_Br, \
     _decodeOpcode_Switch, _decodeOpcode_RetInst
 from hwtHls.ssa.analysis.llvmIrInterpretMem import _decodeOpcode_GetElementPtr, \
     _decodeOpcode_Freeze, _decodeOpcode_Alloca, _getItemFromLocalPointer, \
-    _decodeOpcode_ExtractValueInst, _opcode_Intrinsic_memcpy
+    _decodeOpcode_ExtractValueInst, _opcode_Intrinsic_memcpy, AllocaInstCell
 from hwtHls.ssa.analysis.llvmIrInterpretStreamIo import LlvmIrInterpretStreamIo
 from hwtHls.ssa.analysis.llvmIrInterpretUtils import BINARY_OPS_TO_FN, \
     _prepareWaveWriterTopIo, VcdLlvmIrCodelineFormatter, \
@@ -183,7 +183,14 @@ class LlvmIrInterpret():
                     codelineOffset += 1
                     t = TypeToIntegerType(instr.getType())
                     if t is None:
-                        continue
+                        # :note: treating alloca of int as a scalar value in wave
+                        alloca = InstructionToAllocaInst(instr)
+                        if alloca is None:
+                            continue
+                        t = TypeToIntegerType(alloca.getAllocatedType())
+                        if t is None:
+                            continue
+
                     name = " ".join(instr.printAsOperand().split(" ")[1:]).strip()
                     name = RE_NON_ID.sub("_", name)
                     name = name.lstrip("_")
@@ -469,13 +476,13 @@ class LlvmIrInterpret():
                         v = _v
                     else:
                         v = regs[_v]
-                    curV = regs[alloca]
-                    allocatedWidth = curV._dtype.bit_length()
+                    curV: AllocaInstCell = regs[alloca]
+                    allocatedWidth = curV.v._dtype.bit_length()
                     storeWidth = v._dtype.bit_length()
                     if allocatedWidth == storeWidth:
-                        regs[alloca] = v
+                        curV.setValue(v, nowTime)
                     else:
-                        regs[alloca] = curV[allocatedWidth: storeWidth]._concat(v)
+                        curV.setValue(curV.v[allocatedWidth: storeWidth]._concat(v), nowTime)
 
                 return _opcode_Store
 
