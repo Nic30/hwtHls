@@ -49,12 +49,12 @@ public:
 			llvm::Instruction *Inst = nullptr) const override;
 	llvm::InstructionCost getInstructionCost(const llvm::User *U,
 			llvm::ArrayRef<const llvm::Value*> Operands, TTI::TargetCostKind CostKind) const override;
-	unsigned getNumberOfRegisters(unsigned ClassID) const;
+	unsigned getNumberOfRegisters(unsigned ClassID) const override;
 	bool hasBranchDivergence(const Function *F = nullptr) const override;
 	bool isSourceOfDivergence(const llvm::Value *V) const override;
 	void getUnrollingPreferences(llvm::Loop *, llvm::ScalarEvolution &,
 	                               llvm::TTI::UnrollingPreferences &,
-	                               llvm::OptimizationRemarkEmitter *) const;
+	                               llvm::OptimizationRemarkEmitter *) const override;
 	bool isLegalAddImmediate(int64_t Imm) const override;
 	bool isLegalICmpImmediate(int64_t Imm) const override;
 	bool isLegalMaskedStore(llvm::Type *DataType, llvm::Align Alignment, unsigned AddressSpace) const override;
@@ -63,7 +63,7 @@ public:
 	bool isTypeLegal(llvm::Type *Ty) const override;
 	bool shouldBuildLookupTables() const override;
 	bool shouldBuildLookupTablesForConstant(Constant *C) const override;
-	TTI::PopcntSupportKind getPopcntSupport(unsigned IntTyWidthInBit) const;
+	TTI::PopcntSupportKind getPopcntSupport(unsigned IntTyWidthInBit) const override;
 
 	llvm::TypeSize getRegisterBitWidth(TargetTransformInfo::RegisterKind K) const override;
 
