@@ -5,7 +5,7 @@ project(
   version: '0.0', # FIXME: git hash (see URL above).
   license: 'MIT',
   meson_version: '>= 1.4.0',
-  default_options: ['cpp_std=c++20'],
+  default_options: ['cpp_std=c++26'],  # because of std::generator
 )
 
 py3_mod = import('python')

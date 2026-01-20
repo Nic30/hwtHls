@@ -145,7 +145,7 @@ void register_BasicBlock(pybind11::module_ & m) {
 				return py::make_iterator(BB.begin(), BB.end());
 			}, py::keep_alive<0, 1>()) /* Keep vector alive while iterator is used */
 	    .def("__repr__", [](llvm::BasicBlock &BB) {
-			return (std::string("<BasicBlock ") + BB.getName() + ">").str();
+			return (llvm::StringRef("<BasicBlock ") + BB.getName() + ">").str();
 		});
 	py::class_<llvm::BasicBlock::iterator>(m, "BasicBlockIterator");
 	py::class_<llvm::SymbolTableList<llvm::BasicBlock>::iterator>(m, "SymbolTableListBasicBlockIterator");

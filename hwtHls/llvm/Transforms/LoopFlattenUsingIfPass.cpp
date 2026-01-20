@@ -60,7 +60,7 @@ LoopFlattenUsingIfPass::Mode LoopFlattenUsingIfPass::modeStringToMode(
 		return CHILD_LOOP_ENTRY_IN_NEXT_ITERATION;
 	else {
 		llvm_unreachable(
-				(std::string("unsupported value for LoopFlattenUsingIfPass::Mode: ") + mode).str().c_str());
+				(std::string("unsupported value for LoopFlattenUsingIfPass::Mode: ") + mode).c_str());
 	}
 	return CHILD_LOOP_ENTRY_IN_SAME_ITERATION;
 }
