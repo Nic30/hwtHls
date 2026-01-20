@@ -44,7 +44,6 @@ class LLVM_CLI_COMMON_OPTS:
     PRINT_CHANGED = ("print-changed", 0, "", "")
     PRINT_CHANGED_DOT_CFG = ("print-changed", 0, "", "dot-cfg")  # :attention: blocks without name will cause crash https://github.com/llvm/llvm-project/pull/148582
 
-    PRINT_MODULE_SCOPE = ("print-module-scope", 0, "", "")  # instead of just function, print whole module
     STATS = ("stats", 0, "", "")  # print values of llvm statistics defined by STATISTIC(<id>, <string>)
 
     @classmethod
@@ -169,7 +168,7 @@ class HlsDebugBundle():
     DBG_3_2_netlistSyncDomains = (HlsNetlistAnalysisPassDumpSyncDomainsDot, "03.02.netlistSyncDomains.dot")  # dump association of IO to individual logic node clouds
     DBG_3_3_netlistAggregated = (HlsNetlistAnalysisPassDumpNodesDot, "03.03.netlistAggregated.dot")  # dump netlist after selected nodes were aggregated to scheduling primitives
     DBG_3_4_submoduleBuildLogPreSchedule = (None, "03.03.submoduleBuildLogPreSchedule.txt")  # log which direct children submodules are build to resolve scheduling
-    DBG_4_0_hwscheduleErr = (HlsNetlistAnalysisPassDumpSchedulingJson, "04.00.hwschedule.err.json")  # try dump scheduling if scheduler failed
+    DBG_4_0_hwscheduleErr = (HlsNetlistAnalysisPassDumpSchedulingJson, "04.00.err.hwschedule.json")  # try dump scheduling if scheduler failed
     DBG_4_0_hwschedule = (HlsNetlistAnalysisPassDumpSchedulingJson, "04.00.hwschedule.json")  # node scheduling after first scheduling attempt
     DBG_4_0_submoduleBuildLogPostSchedule = (None, "04.00.submoduleBuildLogPostSchedule.txt")  # log which direct children submodules are build
     # arch gen
