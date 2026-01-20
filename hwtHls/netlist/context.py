@@ -17,8 +17,10 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.observableList import ObservableList, ObservableListRm
+from hwtHls.netlist.scheduler.clk_math import clkWindowBeginOfNext, clkWindowBeginForTime
 from hwtHls.netlist.scheduler.resourceList import SchedulingResourceConstraints
 from hwtHls.ssa.analysisCache import AnalysisCache
+
 
 DEFAULT_SCHEDULER_RESOLUTION = 0.01e-9
 
@@ -397,31 +399,57 @@ class HlsNetlistChannels():
                 ioList = nodesPerIO[hwio] = []
 
             meta: Optional[HwIOMeta] = self.hwIOMeta.get(hwio, None)
-            if meta is not None and meta.mayBecomeBackedge:
-                ioList.append(n)
-                continue  # it is not required to constrain scheduling
+            minBufferCapacity = None
+            if meta is not None:
+                if not isRead and meta.minBufferCapacity:
+                    if n._bufferCapacity is None or n._bufferCapacity < meta.minBufferCapacity:
+                        n._bufferCapacity = meta.minBufferCapacity
+                minBufferCapacity = meta.minBufferCapacity
+                if meta.mayBecomeBackedge:
+                    ioList.append(n)
+                    continue  # it is not required to constrain scheduling
 
+            clkPeriod = n.netlist.normalizedClkPeriod
+            epsilon = n.netlist.scheduler.epsilon
             # propagate scheduling constraints
             isScheduled = n.scheduledZero is not None
             if isRead:
                 for _n in ioList:
                     if isinstance(_n, HlsNetNodeWrite):
+                        _n: HlsNetNodeWrite
                         assert  _n.associatedRead is None, _n
                         if isScheduled and _n.scheduledZero is None:
-                            _n.scheduledZeroMax = n.scheduledZero
+                            # schedule write to be before read
+                            if minBufferCapacity:
+                                _n.scheduledZeroMax = clkWindowBeginForTime(n.scheduledZero, clkPeriod) - epsilon
+                            else:
+                                _n.scheduledZeroMax = n.scheduledZero
                             break
                         elif not isScheduled and _n.scheduledZero is not None:
-                            n.scheduledZeroMin = _n.scheduledZero
+                            # schedule read to be after write
+                            if minBufferCapacity:
+                                n.scheduledZeroMin = clkWindowBeginOfNext(_n.scheduledZero, clkPeriod)
+                            else:
+                                n.scheduledZeroMin = _n.scheduledZero
                             break
             else:
                 for _n in ioList:
                     if isinstance(_n, HlsNetNodeRead):
+                        _n: HlsNetNodeRead
                         assert  _n.associatedWrite is None, _n
                         if isScheduled and _n.scheduledZero is None:
-                            _n.scheduledZeroMin = n.scheduledZero
+                            # schedule read to be after write
+                            if minBufferCapacity:
+                                _n.scheduledZeroMin = clkWindowBeginOfNext(n.scheduledZero, clkPeriod)
+                            else:
+                                _n.scheduledZeroMin = n.scheduledZero
                             break
                         elif not isScheduled and _n.scheduledZero is not None:
-                            n.scheduledZeroMax = _n.scheduledZero
+                            # schedule write to be before read
+                            if minBufferCapacity:
+                                n.scheduledZeroMax = clkWindowBeginForTime(_n.scheduledZero, clkPeriod) - epsilon
+                            else:
+                                n.scheduledZeroMax = _n.scheduledZero
                             break
 
             ioList.append(n)
