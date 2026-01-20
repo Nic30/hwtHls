@@ -459,7 +459,7 @@ class LlvmMirInterpret():
         if waveLog is not None:
 
             def logToWave(_:List[HConst], i: int, v: HConst):
-                if not isinstance(v, HConst):
+                if not isinstance(v, HBitsConst):
                     return  # case of HWTFPGA_ARG_GET and similar
 
                 if i in waveLog._idScope:
