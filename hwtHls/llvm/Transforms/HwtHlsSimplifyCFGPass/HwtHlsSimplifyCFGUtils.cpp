@@ -1,10 +1,10 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
 
 #include <llvm/Analysis/ValueTracking.h>
+#include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/IR/Module.h>
-#include <llvm/IR/IRBuilder.h>
 
 #include <hwtHls/llvm/intrinsic/metadataSideEffect.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
@@ -35,11 +35,11 @@ bool isSafeToHoistInstr(Instruction *I, unsigned Flags, bool checkOperands) {
 		if (!hasMetadataSideeffectAllowHoist(*I))
 			return false;
 
-	// If we have seen an instruction with side effects, it's unsafe to reorder an
-	// instruction which reads memory or itself has side effects.
-	if ((Flags & SkipSideEffect)
-			&& (I->mayReadFromMemory() || I->mayHaveSideEffects()
-					|| isa<AllocaInst>(I))) {
+	// If we have seen an instruction with side effects, it's unsafe to reorder
+	// an instruction which reads memory or itself has side effects.
+	if ((Flags & SkipSideEffect) &&
+		(I->mayReadFromMemory() || I->mayHaveSideEffects() ||
+		 isa<AllocaInst>(I))) {
 		if (!hasMetadataSideeffectAllowHoist(*I))
 			return false;
 	}
@@ -60,8 +60,8 @@ bool isSafeToHoistInstr(Instruction *I, unsigned Flags, bool checkOperands) {
 			return false;
 
 	if (checkOperands) {
-		// It's also unsafe/illegal to hoist an instruction above its instruction
-		// operands
+		// It's also unsafe/illegal to hoist an instruction above its
+		// instruction operands
 		BasicBlock *BB = I->getParent();
 		for (Value *Op : I->operands()) {
 			if (auto *J = dyn_cast<Instruction>(Op))
@@ -72,26 +72,30 @@ bool isSafeToHoistInstr(Instruction *I, unsigned Flags, bool checkOperands) {
 	return true;
 }
 
-Value* CreateGlobalDataWithGEP(IRBuilder<> &builder, Module &M,
-		Value *switch_tableidx, ArrayRef<Constant*> romData,
-		const Twine &ROMName, const Twine &IndexName, const Twine &GepName) {
+Value *CreateGlobalDataWithGEP(IRBuilder<> &builder, Module &M,
+							   Value *switch_tableidx,
+							   ArrayRef<Constant *> romData,
+							   const Twine &ROMName, const Twine &IndexName,
+							   const Twine &GepName) {
 	auto *ArrayTy = ArrayType::get(romData[0]->getType(), romData.size());
 	auto *newCRom = ConstantArray::get(ArrayTy, romData);
 	auto *newArray = new GlobalVariable(M, ArrayTy, /*isConstant=*/
-	true, GlobalVariable::PrivateLinkage, newCRom, ROMName);
+										true, GlobalVariable::PrivateLinkage,
+										newCRom, ROMName);
 	newArray->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
 	// Set the alignment to that of an array items. We will be only loading one
 	// value out of it.
 	newArray->setAlignment(Align(1));
 	// zext to assert the value is non negative
-	auto *indexZext = builder.CreateZExt(switch_tableidx,
-			Type::getIntNTy(M.getContext(),
-					switch_tableidx->getType()->getIntegerBitWidth() + 1),
-			IndexName);
+	auto *indexZext = builder.CreateZExt(
+		switch_tableidx,
+		Type::getIntNTy(M.getContext(),
+						switch_tableidx->getType()->getIntegerBitWidth() + 1),
+		IndexName);
 
-	Value *GEPIndices[] = { builder.getInt32(0), indexZext };
+	Value *GEPIndices[] = {builder.getInt32(0), indexZext};
 	Value *newGep = builder.CreateInBoundsGEP(newArray->getValueType(),
-			newArray, GEPIndices, GepName);
+											  newArray, GEPIndices, GepName);
 	return newGep;
 }
 
@@ -100,7 +104,8 @@ bool IsCheapInstruction(Instruction &I) {
 		return false;
 	} else if (auto *CI = dyn_cast<CallInst>(&I)) {
 		if (isa<AssumeInst>(&I)) {
-			assert(hasMetadataSideeffectAllowHoist(I)); // because otherwise the fist branch should have been taken
+			assert(hasMetadataSideeffectAllowHoist(
+				I)); // because otherwise the fist branch should have been taken
 			return true;
 		}
 		return IsBitConcat(CI) || IsBitRangeGet(CI);
@@ -119,9 +124,9 @@ bool IsCheapInstruction(Instruction &I) {
 	}
 }
 
-bool tryHoistCheapInstsAtBlockBegin(BasicBlock &BB,
-		BasicBlock::iterator MoveBeforePos,
-		std::optional<std::function<bool(llvm::Instruction&)>> extraCheck) {
+bool tryHoistCheapInstsAtBlockBegin(
+	BasicBlock &BB, BasicBlock::iterator MoveBeforePos,
+	std::optional<std::function<bool(llvm::Instruction &)>> extraCheck) {
 	bool Changed = false;
 	for (Instruction &I : make_early_inc_range(BB)) {
 		if (I.isTerminator())
@@ -159,36 +164,43 @@ void sortPhiOperands(BasicBlock &BB, bool removeRedundantOperands) {
 		//    i8 0, label %bb.0
 		//    i8 1, label %bb.0
 		//  ]
-		if (removeRedundantOperands) {
-			assert(phi.getNumIncomingValues() >= pred_size(&BB));
-		} else {
-			assert(phi.getNumIncomingValues() == pred_size(&BB));
-		}
-		SmallVector<Value*> values;
+
+		// collect current values
+		SmallVector<Value *> values;
 		size_t predCnt = pred_size(&BB);
 		values.reserve(predCnt);
+
+		if (removeRedundantOperands) {
+			assert(phi.getNumIncomingValues() >= predCnt);
+		} else {
+			assert(phi.getNumIncomingValues() == predCnt);
+		}
 		for (auto pred : predecessors(&BB)) {
 			auto curPredI = phi.getBasicBlockIndex(pred);
 			if (curPredI < 0) {
-				llvm_unreachable(
-						"PHINode should have one entry for each predecessor of its parent basic block!");
+				llvm_unreachable("PHINode should have one entry for each "
+								 "predecessor of its parent basic block!");
 			} else {
 				auto curV = phi.getIncomingValue(curPredI);
 				values.push_back(curV);
 			}
 		}
+		// set original values with order
 		size_t phiBlockI = 0;
-		for (const auto& [pred, v] : zip(predecessors(&BB), values)) {
+		for (const auto &[pred, v] : zip(predecessors(&BB), values)) {
 			phi.setIncomingBlock(phiBlockI, pred);
 			phi.setIncomingValue(phiBlockI, v);
 			phiBlockI++;
 		}
 		if (removeRedundantOperands) {
+			assert(phiBlockI >= predCnt);
 			size_t toRmCnt = phi.getNumIncomingValues() - predCnt;
 			for (size_t i = 0; i < toRmCnt; i++)
 				phi.removeIncomingValue(predCnt);
+		} else {
+			assert(phiBlockI == predCnt);
 		}
 	}
 }
 
-}
+} // namespace hwtHls
