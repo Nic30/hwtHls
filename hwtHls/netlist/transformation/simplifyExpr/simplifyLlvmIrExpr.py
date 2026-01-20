@@ -4,7 +4,8 @@ from hwt.hdl.operatorDefs import BITWISE_OPS, COMPARE_OPS, HwtOps
 from hwt.hdl.const import HConst
 from hwt.pyUtils.setList import SetList
 from hwtHls.llvm.llvmIr import InstructionToIntrinsicInst, Intrinsic
-from hwtHls.netlist.builder import HlsNetlistBuilder
+from hwtHls.netlist.builder import HlsNetlistBuilder, \
+    HlsNetlistBuilderWithWorklist
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
@@ -91,6 +92,7 @@ def runLlvmCmpOpt(builder: HlsNetlistBuilder, worklist: SetList[HlsNetNode],
         toLlvmIr.translate(inputs, outputs)
         toLlvmIr.llvm.runExprOpt()
 
+        builder = HlsNetlistBuilderWithWorklist(builder, worklist)
         toHlsNetlist = LlvmIrExprToHlsNetlist(builder)
         toHlsNetlist.fillInConstantNodesFromToLlvmIrExpr(toLlvmIr)
         newOutputs = toHlsNetlist.translate(toLlvmIr.llvm.main, inputs, outputs)
@@ -128,7 +130,7 @@ def runLlvmCmpOpt(builder: HlsNetlistBuilder, worklist: SetList[HlsNetNode],
 
 
 def runLlvmMuxCondOpt(builder: HlsNetlistBuilder, worklist: SetList[HlsNetNode],
-                  allNodeIt: Sequence[HlsNetNode]):
+                      allNodeIt: Sequence[HlsNetNode]):
     """
     Use (~prevC | C) & (prevC | C) for each condition of MUX to prune duplicated checks
     in MUX conditions. Because check for previous conditions in later condition inputs are useless.

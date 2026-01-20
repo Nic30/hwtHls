@@ -1,7 +1,7 @@
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.pyUtils.setList import SetList
-from hwtHls.netlist.builder import HlsNetlistBuilder,\
+from hwtHls.netlist.builder import HlsNetlistBuilder, \
     HlsNetlistBuilderWithWorklist
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -19,7 +19,7 @@ def netlistReduceEqNe(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
     o0n, _, o0 = popNotFromExpr(o0)
     o1n, _, o1 = popNotFromExpr(o1)
     if o0 is o1:
-        b = n.getHlsNetlistBuilder()
+        b = HlsNetlistBuilderWithWorklist(n.getHlsNetlistBuilder(), worklist)
         if op is HwtOps.EQ:
             if o0n == o1n:
                 v = 1
@@ -129,6 +129,41 @@ def netlistReduceCmpConstAfterConstAddSub(n: HlsNetNodeOperator, worklist: SetLi
 
                     replaceOperatorNodeWith(n, replacement, worklist)
                     return True
+
+    return False
+
+
+def netlistReduceCmpToBitSlice(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
+    op = n.operator
+    o0, o1 = n.dependsOn
+    if not isinstance(o1.obj, HlsNetNodeConst) or not o1.obj.val._is_full_valid():
+        return False
+
+    op1 = int(o1.obj.val)
+    b = HlsNetlistBuilderWithWorklist(n.getHlsNetlistBuilder(), worklist)
+    replacement = None
+    if op1 == 0:
+        if op == HwtOps.SLT:
+            # x < 0 => x.msb
+            replacement = b.buildGetMsb(o0)
+
+        elif op == HwtOps.SGE:
+            # x >= 0 => ~x.msb
+            replacement = b.buildNot(b.buildGetMsb(o0))
+
+    elif op1 == 1:
+        if op == HwtOps.SGE:
+            # x >= 1 => x.msb
+            replacement = b.buildNot(b.buildGetMsb(o0))
+
+    elif op1 == mask(o1._dtype.bit_length()):
+        if op == HwtOps.SLE:
+            # x <= -1 => x.msb
+            replacement = b.buildGetMsb(o0)
+
+    if replacement is not None:
+        replaceOperatorNodeWith(n, replacement, worklist)
+        return True
 
     return False
 
