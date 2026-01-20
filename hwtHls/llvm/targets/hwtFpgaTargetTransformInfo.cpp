@@ -19,6 +19,7 @@
 #include <llvm/Support/MathExtras.h>
 #include <llvm/Transforms/Utils/UnrollLoop.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 
 using namespace llvm;
 
@@ -107,6 +108,8 @@ bool HwtFpgaTTIImpl::isSourceOfDivergence(const Value *V) const {
 InstructionCost HwtFpgaTTIImpl::getIntImmCostInst(unsigned Opcode,
 		unsigned Idx, const APInt &Imm, Type *Ty, TTI::TargetCostKind CostKind,
 		Instruction *Inst) const {
+	// :note: ConstantHoistingPass is using this to decide if the constant should be
+	//  hoisted from instruction as bitcast or if it should be kept as constant operand
 	switch (Opcode) {
 	// Bit functions are free
 	case Instruction::BitCast:
@@ -116,20 +119,35 @@ InstructionCost HwtFpgaTTIImpl::getIntImmCostInst(unsigned Opcode,
 		return TTI::TCC_Free;
 	case Instruction::Load:
 	case Instruction::Store:
-		return TTI::TCC_Expensive;
+		return TTI::TCC_Expensive; // :note: minimize number of load/store instructions
 	case Instruction::Call:
 		if (auto CI = dyn_cast<CallInst>(Inst)) {
 			if (hwtHls::IsBitRangeGet(CI) || hwtHls::IsBitConcat(CI))
 				return TTI::TCC_Free;
+			if (Idx != 0 && hwtHls::IsStreamWrite(CI)) {
+				// :note: minimize the number of stream write instructions
+				return TTI::TCC_Expensive;
+			}
 		}
-		return TTI::TCC_Expensive;
-	case Instruction::ICmp:
-		if (Ty->getIntegerBitWidth() > 1)
-			return TTI::TCC_Basic;
-		else
-			return TTI::TCC_Free;
-	default:
 		return TTI::TCC_Basic;
+	case Instruction::ICmp:
+	case Instruction::Add:
+	case Instruction::Sub:
+	case Instruction::Mul:
+	case Instruction::UDiv:
+	case Instruction::SDiv:
+	case Instruction::FCmp:
+	case Instruction::FAdd:
+	case Instruction::FSub:
+	case Instruction::FMul:
+		if (Idx == 1 && Ty->getIntegerBitWidth() > 1) {
+			// prefer muxing of multiple compare values instead of multiple instructions 
+			return TTI::TCC_Basic;
+		} else {
+			return TTI::TCC_Free;
+		}
+	default:
+		return TTI::TCC_Free;
 	}
 }
 
