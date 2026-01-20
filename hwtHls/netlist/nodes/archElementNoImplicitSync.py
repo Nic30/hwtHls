@@ -17,7 +17,7 @@ from hwtHls.netlist.nodes.fsmStateEn import HlsNetNodeStageAck
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
-from hwtHls.netlist.scheduler.clk_math import offsetInClockCycle
+from hwtHls.netlist.scheduler.clk_math import clkWindowOffsetFromWindowBegin
 
 
 class ArchElementNoImplicitSync(ArchElement):
@@ -70,7 +70,7 @@ class ArchElementNoImplicitSync(ArchElement):
             assert _internIObj is internI.obj, (_internIObj, internI.obj)
             self.stages[0].append(_internIObj)
 
-            _internIObj._setScheduleZero(offsetInClockCycle(time, clkPeriod))
+            _internIObj._setScheduleZero(clkWindowOffsetFromWindowBegin(time, clkPeriod))
 
         return i, internI
 

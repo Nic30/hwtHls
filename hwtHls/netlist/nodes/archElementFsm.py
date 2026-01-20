@@ -27,7 +27,7 @@ from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
 from hwtHls.netlist.nodes.read import  HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.scheduler.clk_math import start_clk
+from hwtHls.netlist.scheduler.clk_math import clkWindowIndex
 from hwtLib.logic.rtlSignalBuilder import RtlSignalBuilder
 from ipCorePackager.constants import INTF_DIRECTION
 
@@ -150,7 +150,7 @@ class ArchElementFsm(ArchElement):
                         peristentFromThisClk = True
 
             # value for the first clock behind this clock period and the rest is persistent in this register
-            persistentFromClkI = start_clk(tir.timeOffset, clkPeriod)
+            persistentFromClkI = clkWindowIndex(tir.timeOffset, clkPeriod)
             if not peristentFromThisClk:
                 persistentFromClkI += 1
             if persistentFromClkI <= _endClkI:

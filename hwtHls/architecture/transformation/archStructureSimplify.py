@@ -14,7 +14,7 @@ from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, unlink_hls_node_input_if_exists
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
+from hwtHls.netlist.scheduler.clk_math import clkWindowIndex
 from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
 
@@ -129,7 +129,7 @@ class HlsArchPassArchStructureSimplify(HlsArchPass):
                         srcUsers[0].disconnectFromHlsOut(src)  # [todo] src may not be the direct driver of u
                         # move constant nodes between arch elements
                         if src.obj.scheduledIn is not None:
-                            clkI = indexOfClkPeriod(src.obj.scheduledZero, clkPeriod)
+                            clkI = clkWindowIndex(src.obj.scheduledZero, clkPeriod)
                             userElm._addNodeIntoScheduled(clkI, src.obj)
                         else:
                             userElm.subNodes.append(src.obj)

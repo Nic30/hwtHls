@@ -9,7 +9,7 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, OutputTimeGetter, \
     OutputMinUseTimeGetter, SchedTime
-from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
+from hwtHls.netlist.scheduler.clk_math import clkWindowIndex
 
 
 class HlsNetNodeIoSyncScc(HlsNetNodeAggregateTmpForScheduling):
@@ -28,7 +28,7 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregateTmpForScheduling):
 
         # get time for all inputs
         # pick the latest clock cycle to start scheduling of this cluster (which must be scheduled in a single clock cycle window).
-        if self.scheduledOut is None:
+        if self.scheduledZero is None:
             if pathForDebug is not None:
                 if self in pathForDebug:
                     raise AssertionError("Cycle in graph", self, [n._id for n in pathForDebug[pathForDebug.index(self):]])
@@ -50,7 +50,7 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregateTmpForScheduling):
             epsilon = self.netlist.scheduler.epsilon
             moveTried = False
             while True:
-                beginOfClkWhereLastInputIs = indexOfClkPeriod(inMaxT, clkPeriod) * clkPeriod
+                beginOfClkWhereLastInputIs = clkWindowIndex(inMaxT, clkPeriod) * clkPeriod
                 endOfClkWhereLastInputIs = beginOfClkWhereLastInputIs + clkPeriod - epsilon
 
                 def _outputTimeGetter(out: HlsNetNodeOut, pathForDebug: Optional[SetList["HlsNetNode"]], beginOfFirstClk: int):
@@ -107,7 +107,7 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregateTmpForScheduling):
     def checkScheduling(self):
         HlsNetNodeAggregateTmpForScheduling.checkScheduling(self)
         clkPeriod = self.netlist.normalizedClkPeriod
-        beginOfClk = indexOfClkPeriod(self.scheduledZero, clkPeriod) * clkPeriod
+        beginOfClk = clkWindowIndex(self.scheduledZero, clkPeriod) * clkPeriod
         endOfClk = beginOfClk + clkPeriod
         for t in self.scheduledIn:
             assert t >= beginOfClk and t < endOfClk, (self, (beginOfClk, endOfClk), self.scheduledIn)
@@ -132,7 +132,7 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregateTmpForScheduling):
             oPort: HlsNetNodeAggregatePortOut
             oPort.resetScheduling()
             assert not any(oPort.scheduleAlapCompaction(endOfLastClk, outputMinUseTimeGetter, excludeNode))
-            minClkI = min(minClkI, indexOfClkPeriod(oPort.scheduledIn[0], clkPeriod))
+            minClkI = min(minClkI, clkWindowIndex(oPort.scheduledIn[0], clkPeriod))
         
         self.copySchedulingFromChildren()
         #self.checkScheduling()
@@ -162,7 +162,7 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregateTmpForScheduling):
             for node0 in self.subNodes:
                 t = node0.scheduledZero
                 if curClkBegin is None:
-                    curClkBegin = indexOfClkPeriod(t, clkPeriod) * clkPeriod
+                    curClkBegin = clkWindowIndex(t, clkPeriod) * clkPeriod
                     curClkEnd = curClkBegin + clkPeriod - epsilon
                 elif t < curClkBegin or curClkEnd < t:
                     fail = True

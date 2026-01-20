@@ -35,8 +35,8 @@ from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readIndexed import HlsNetNodeReadIndexed
 from hwtHls.netlist.nodes.schedulableNode import OutputMinUseTimeGetter
 from hwtHls.netlist.nodes.writeIndexed import HlsNetNodeWriteIndexed
-from hwtHls.netlist.scheduler.clk_math import epsilon, indexOfClkPeriod, \
-    beginOfNextClk
+from hwtHls.netlist.scheduler.clk_math import epsilon, clkWindowIndex, \
+    clkWindowBeginOfNext
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
@@ -151,13 +151,13 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
         dTime = self.scheduledOut[dOut.out_i]
         dNode._setScheduleZeroTimeSingleClock(dTime)
         self.parent.addNode(dNode)
-        clkIndex = indexOfClkPeriod(dTime, self.netlist.normalizedClkPeriod)
+        clkIndex = clkWindowIndex(dTime, self.netlist.normalizedClkPeriod)
         self.parent._addNodeIntoScheduled(clkIndex, dNode, allowNewClockWindow=True)
 
         builder: HlsNetlistBuilder = self.getHlsNetlistBuilder()
         builder.replaceOutput(dOut, dNode._portDataOut, True)
         self._removeOutput(dOut.out_i)
-        nextClkBegin = beginOfNextClk(self.scheduledZero, self.netlist.normalizedClkPeriod)
+        nextClkBegin = clkWindowBeginOfNext(self.scheduledZero, self.netlist.normalizedClkPeriod)
         for i, t in zip(self._inputs, self.scheduledIn):
             assert t < nextClkBegin, i
         for o, t in zip(self._outputs, self.scheduledOut):
@@ -226,7 +226,7 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
             assert ram.HAS_R, self
             allocator.rtlRegisterOutputRtlSignal(self._portDataOut, ram.dout, False, False, False)
 
-        clkI = indexOfClkPeriod(self.scheduledIn[addrInPort.in_i], allocator.netlist.normalizedClkPeriod)
+        clkI = clkWindowIndex(self.scheduledIn[addrInPort.in_i], allocator.netlist.normalizedClkPeriod)
         allocator._rtlAllocDatapathIo(ram, self, ram.en, allocator.connections[clkI], rtlObj)
         self._isRtlAllocated = True
 

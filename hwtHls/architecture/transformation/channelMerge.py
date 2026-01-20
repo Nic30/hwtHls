@@ -29,7 +29,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, \
     unlink_hls_node_input_if_exists, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
+from hwtHls.netlist.scheduler.clk_math import clkWindowIndex
 from hwtHls.netlist.scheduler.scheduler import asapSchedulePartlyScheduled
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.netlist.transformation.simplifyUtils import hasInputSameDriverOrAndOfIt, \
@@ -191,7 +191,7 @@ class RtlArchPassChannelMerge(HlsArchPass):
         sliceNode: HlsNetNode = newV.obj
         if sliceNode.scheduledZero is None:
             sliceNode.scheduleAsap(None, 0, None)
-            _clkI = indexOfClkPeriod(sliceNode.scheduledZero, sliceNode.netlist.normalizedClkPeriod)
+            _clkI = clkWindowIndex(sliceNode.scheduledZero, sliceNode.netlist.normalizedClkPeriod)
             elm.getStageForClock(_clkI).append(sliceNode)
 
     def _removeIoNodesAfterTheyWereMergedToFirstOne(self, r0: HlsNetNodeReadAnyChannel,
@@ -326,7 +326,7 @@ class RtlArchPassChannelMerge(HlsArchPass):
 
         clkPeriod = w0.netlist.normalizedClkPeriod
         for n in newlyScheduledNodes:
-            clkI = indexOfClkPeriod(n.scheduledZero, clkPeriod)
+            clkI = clkWindowIndex(n.scheduledZero, clkPeriod)
             assert clkI <= srcClkI, (clkI, srcClkI, [io._id for io in selectedForRewrite])
             srcElm.getStageForClock(clkI).append(n)
 

@@ -248,7 +248,7 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
 
                 for ioNode in sorted(ioNodes, key=lambda n: n.scheduledZero):
                     ioNode: Union[HlsNetNodeRead, HlsNetNodeWrite]
-                    # clkIndex = indexOfClkPeriod(ioNode, ioNode.scheduledZero)
+                    # clkIndex = clkWindowIndex(ioNode, ioNode.scheduledZero)
                     isRead = isinstance(ioNode, HlsNetNodeRead)
                     if not isRead:
                         assert isinstance(ioNode, HlsNetNodeWrite), ioNode

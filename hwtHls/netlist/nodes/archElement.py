@@ -25,7 +25,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.scheduler.clk_math import start_clk, indexOfClkPeriod
+from hwtHls.netlist.scheduler.clk_math import clkWindowIndex
 from hwtHls.platform.opRealizationMeta import EMPTY_OP_REALIZATION
 from hwtHls.netlist.nodes.fsmStateWrite import HlsNetNodeFsmStateWrite
 
@@ -117,7 +117,7 @@ class ArchElement(HlsNetNodeAggregate):
     def _addOutput(self, t:HdlType, name:Optional[str], time:Optional[SchedTime]=None) -> tuple[HlsNetNodeOut, HlsNetNodeIn]:
         outerO, internI = super(ArchElement, self)._addOutput(t, name, time=time)
         if time is not None:
-            clkIndex = indexOfClkPeriod(time, self.netlist.normalizedClkPeriod)
+            clkIndex = clkWindowIndex(time, self.netlist.normalizedClkPeriod)
             self._addNodeIntoScheduled(clkIndex, internI.obj, allowNewClockWindow=True)
         return outerO, internI
 
@@ -125,7 +125,7 @@ class ArchElement(HlsNetNodeAggregate):
     def _addInput(self, t:HdlType, name:Optional[str], time:Optional[SchedTime]=None) -> tuple[HlsNetNodeIn, HlsNetNodeOut]:
         outerI, internO = super(ArchElement, self)._addInput(t, name, time=time)
         if time is not None:
-            clkIndex = indexOfClkPeriod(time, self.netlist.normalizedClkPeriod)
+            clkIndex = clkWindowIndex(time, self.netlist.normalizedClkPeriod)
             self._addNodeIntoScheduled(clkIndex, internO.obj, allowNewClockWindow=True)
         return outerI, internO
 
@@ -313,7 +313,7 @@ class ArchElement(HlsNetNodeAggregate):
                 "This error could be also a sign of node being allocated/used directly in other element (without port on this element)", o)
 
             assert oObj.scheduledOut is not None, ("Node must be scheduled", oObj)
-            clkI = start_clk(oObj.scheduledOut[o.out_i], self.netlist.normalizedClkPeriod)
+            clkI = clkWindowIndex(oObj.scheduledOut[o.out_i], self.netlist.normalizedClkPeriod)
             if len(self.connections) <= clkI or self.connections[clkI] is None:
                 raise AssertionError("Asking for node output which should have forward declaration but it is missing", self, o, clkI)
             # new allocation, use registered automatically

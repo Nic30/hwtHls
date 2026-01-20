@@ -13,8 +13,8 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod, \
-    offsetInClockCycle
+from hwtHls.netlist.scheduler.clk_math import clkWindowIndex, \
+    clkWindowOffsetFromWindowBegin
 
 
 class ArchSyncNodeTerm():
@@ -229,7 +229,7 @@ def importPortToArchElement(out: HlsNetNodeOut, name: str,
     assert isinstance(srcArchElm, ArchElement), ("Only ports of ArchElement instances should be imported", out)
     clkPeriod = srcArchElm.netlist.normalizedClkPeriod
     assert srcArchElm._outputs[out.out_i] is out, out
-    srcClkI = indexOfClkPeriod(srcArchElm.scheduledOut[out.out_i], clkPeriod)
+    srcClkI = clkWindowIndex(srcArchElm.scheduledOut[out.out_i], clkPeriod)
 
     time = srcArchElm.scheduledOut[out.out_i]
     if (srcArchElm, srcClkI) is dstSyncNode:
@@ -242,7 +242,7 @@ def importPortToArchElement(out: HlsNetNodeOut, name: str,
 
     # propagate port value to inside of syncNode
     dstClkIndex: int = dstSyncNode[1]
-    dstTime: int = dstClkIndex * clkPeriod + offsetInClockCycle(time, clkPeriod)
+    dstTime: int = dstClkIndex * clkPeriod + clkWindowOffsetFromWindowBegin(time, clkPeriod)
     outer, intern = dstSyncNode[0]._addInput(out._dtype, name, time=dstTime)
     out.connectHlsIn(outer, checkCycleFree=False)
     return intern, dstTime

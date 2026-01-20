@@ -17,7 +17,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.scheduler.clk_math import beginOfClk, beginOfNextClk
+from hwtHls.netlist.scheduler.clk_math import clkWindowBeginForTime, clkWindowBeginOfNext
 from hwtHls.netlist.nodes.fsmStateWrite import HlsNetNodeFsmStateWrite
 from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 
@@ -269,8 +269,8 @@ class SyncLogicSearcher():
     def collectFromInput(self, syncNode: ArchSyncNodeTy, inp: HlsNetNodeIn):
         time = inp.obj.scheduledIn[inp.in_i]
         clkPeriod = self.clkPeriod
-        beginTime: SchedTime = beginOfClk(time, clkPeriod)
-        endTime: SchedTime = beginOfNextClk(time, clkPeriod)
+        beginTime: SchedTime = clkWindowBeginForTime(time, clkPeriod)
+        endTime: SchedTime = clkWindowBeginOfNext(time, clkPeriod)
         toSearchDefToUse: SetList[HlsNetNodeOut] = SetList()
         toSearchUseToDef: SetList[HlsNetNodeOut] = SetList()
 
@@ -287,8 +287,8 @@ class SyncLogicSearcher():
     def collectFromOutput(self, syncNode: ArchSyncNodeTy, out: HlsNetNodeOut):
         time = out.obj.scheduledOut[out.out_i]
         clkPeriod = self.clkPeriod
-        beginTime: SchedTime = beginOfClk(time, clkPeriod)
-        endTime: SchedTime = beginOfNextClk(time, clkPeriod)
+        beginTime: SchedTime = clkWindowBeginForTime(time, clkPeriod)
+        endTime: SchedTime = clkWindowBeginOfNext(time, clkPeriod)
         toSearchUseToDef: SetList[HlsNetNodeOut] = SetList()
 
         if self._addToSearchUseToDef(out, toSearchUseToDef, syncNode, beginTime, endTime):

@@ -1,5 +1,5 @@
 from functools import lru_cache
-from math import log2
+from math import log2, ceil
 from pathlib import Path
 from typing import Dict, Optional, Union, Set, List
 
@@ -25,7 +25,7 @@ from hwtHls.netlist.nodes.ops import OP_INDEX_CONST
 from hwtHls.platform.debugBundleTypes import LlvmCliArgTuple
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.platform.platform import DefaultHlsPlatform, DebugId, HlsDebugBundle
-
+from hwtHls.netlist.nodes.schedulableNode import SchedTime
 
 _OPS_T_GROWING_EXP = {
     HwtOps.POW,
@@ -200,7 +200,7 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
 
     @lru_cache()
     def get_op_realization(self, op: HOperatorDef, opSpecialization: "OpSpecialization_t", bit_width: int,
-                           input_cnt: int, clkPeriod: float) -> OpRealizationMeta:
+                           input_cnt: int, realTimeClkPeriod: float) -> OpRealizationMeta:
         if opSpecialization is not None:
             raise NotImplementedError(op, opSpecialization)
 
@@ -241,4 +241,13 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
         get maximum number of lut inputs
         """
         return 7
+
+    def get_lut_dealy(self, lutInputCnt: int, realTimeClkPeriod: float):
+        r = self.get_op_realization(HwtOps.AND, None, 1, lutInputCnt, realTimeClkPeriod)
+        assert isinstance(r.inputWireDelay, (int, float))
+        assert isinstance(r.outputWireDelay, (int, float))
+        return r.inputWireDelay + r.outputWireDelay
+
+    def get_lut_dealy_max_normalized(self, realTimeClkPeriod: float, schedulerResolution: float):
+        return SchedTime(ceil(self.get_lut_dealy(2, realTimeClkPeriod) / schedulerResolution))
 

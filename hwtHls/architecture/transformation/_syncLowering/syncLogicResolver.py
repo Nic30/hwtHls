@@ -31,7 +31,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, unlink_hls_node_input_if_e
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.scheduler.clk_math import beginOfNextClk
+from hwtHls.netlist.scheduler.clk_math import clkWindowBeginOfNext
 
 
 # class ChannelDeadlockError(AssertionError):
@@ -265,7 +265,7 @@ class SyncLogicResolver(HlsNetlistToAbcAig):
                 dataDrivesAnyOtherEnInSameClk = True
             else:
                 toSearch: SetList[HlsNetNodeOut] = SetList()
-                timeLimit = beginOfNextClk(ioNode.scheduledZero, ioNode.netlist.normalizedClkPeriod)
+                timeLimit = clkWindowBeginOfNext(ioNode.scheduledZero, ioNode.netlist.normalizedClkPeriod)
                 seen: set[HlsNetNode] = set()
                 for o, uses in zip(ioNode._outputs, ioNode.usedBy):
                     o: HlsNetNodeOut

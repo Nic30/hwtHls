@@ -20,7 +20,7 @@ from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
-from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
+from hwtHls.netlist.scheduler.clk_math import clkWindowIndex
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOperatorNodeWith
 from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
@@ -66,7 +66,7 @@ class HlsAndRtlNetlistPassLoopControlLowering(HlsAndRtlNetlistPass):
         netlist = loopStatus.netlist
         clkPeriod = netlist.normalizedClkPeriod
         scheduledZero = loopStatus.scheduledZero
-        clkIndex = indexOfClkPeriod(scheduledZero, clkPeriod)
+        clkIndex = clkWindowIndex(scheduledZero, clkPeriod)
         syncNode = (parent, clkIndex)
         isAlwaysBusy = loopStatus._isEnteredOnExit and not loopStatus.fromEnter
         if isAlwaysBusy:

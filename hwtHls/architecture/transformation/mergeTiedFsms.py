@@ -7,7 +7,7 @@ from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement, ArchElmEdge
 from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
 from hwtHls.netlist.nodes.archElementUtils import ArchElement_mergeFsms
-from hwtHls.netlist.scheduler.clk_math import start_clk
+from hwtHls.netlist.scheduler.clk_math import clkWindowIndex
 from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
 
@@ -92,7 +92,7 @@ class RtlArchPassMergeTiedFsms(HlsArchPass):
                     elif len(syncClks) == 1:
                         fsmConnectedWithMultipleSync.append(k)
 
-                    clkI = start_clk(use.obj.scheduledIn[use.in_i], clkPeriod)
+                    clkI = clkWindowIndex(use.obj.scheduledIn[use.in_i], clkPeriod)
                     syncClks.add(clkI)
 
         # for dstElm in netlist.iterAllNodes():

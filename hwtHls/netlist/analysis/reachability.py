@@ -9,7 +9,7 @@ from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.observableList import ObservableList, ObservableListRm
-from hwtHls.netlist.scheduler.clk_math import beginOfNextClk, beginOfClk
+from hwtHls.netlist.scheduler.clk_math import clkWindowBeginOfNext, clkWindowBeginForTime
 
 
 def iterUserObjs(n: HlsNetNode):
@@ -247,8 +247,8 @@ class HlsNetlistAnalysisPassReachability(HlsNetlistAnalysisPass):
                 t = newSuc.obj.scheduledIn[newSuc.in_i]
                 clkPeriod = newSuc.obj.netlist.normalizedClkPeriod
 
-            timeLimitBegin = beginOfClk(t, clkPeriod)
-            timeLimitEnd = beginOfNextClk(t, clkPeriod)
+            timeLimitBegin = clkWindowBeginForTime(t, clkPeriod)
+            timeLimitEnd = clkWindowBeginOfNext(t, clkPeriod)
         else:
             timeLimitBegin = None
             timeLimitEnd = None

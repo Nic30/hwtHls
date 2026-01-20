@@ -18,8 +18,8 @@ from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
-from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod, \
-    offsetInClockCycle
+from hwtHls.netlist.scheduler.clk_math import clkWindowIndex, \
+    clkWindowOffsetFromWindowBegin
 from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import iterAllHierachies
 
 
@@ -89,8 +89,8 @@ class HlsNetlistPassConsistencyCheck(HlsNetlistAnalysisPass):
                 continue
             for dep in n.dependsOn:
                 if dep is not None:
-                    # dep may be None only in metastates where this node is removed
-                    # but node list is not updated yet
+                    # dep may be None only in metastates, in this function
+                    # we check DAG property and the check for unconnected ports should be performed elsewere
                     g.add_edge(dep.obj, n)
 
         for scc in strongly_connected_components(g):
@@ -175,7 +175,7 @@ class HlsNetlistPassConsistencyCheck(HlsNetlistAnalysisPass):
             # check that dst port and port internally inside of dst has correct time
             if dstIsNoSyncElm:
                 assert dstElm.scheduledZero == 0
-                t = offsetInClockCycle(dstElm.scheduledIn[u.in_i], clkPeriod)
+                t = clkWindowOffsetFromWindowBegin(dstElm.scheduledIn[u.in_i], clkPeriod)
                 assert ii.scheduledOut == (t,), (
                     "ArchElementNoImplicitSync instance internal input ports should all be scheduled to offset in clock cycle",
                     u, ii.scheduledOut, t)
@@ -209,14 +209,14 @@ class HlsNetlistPassConsistencyCheck(HlsNetlistAnalysisPass):
                 if HdlType_isVoid(o._dtype):
                     continue
 
-                srcClkI = indexOfClkPeriod(srcTime, clkPeriod)
+                srcClkI = clkWindowIndex(srcTime, clkPeriod)
                 for inp in uses:
                     dstElm: ArchElement = inp.obj
                     if not isinstance(dstElm, (ArchElement, HlsNetNodeAggregateTmpForScheduling)):
                         continue
 
                     dstTime = dstElm.scheduledIn[inp.in_i]
-                    assert srcClkI == indexOfClkPeriod(dstTime, clkPeriod), (
+                    assert srcClkI == clkWindowIndex(dstTime, clkPeriod), (
                         "At this point all inter element IO paths should be scheduled in a same clk period",
                         o, inp, srcTime, dstTime, clkPeriod)
                     assert isinstance(dstElm, ArchElement), inp

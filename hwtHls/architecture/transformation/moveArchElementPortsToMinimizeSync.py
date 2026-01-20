@@ -18,8 +18,8 @@ from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
-from hwtHls.netlist.scheduler.clk_math import start_clk, endOfClkWindow, \
-    beginOfClkWindow
+from hwtHls.netlist.scheduler.clk_math import clkWindowIndex, clkWindowEnd, \
+    clkWindowBegin
 from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
 
@@ -45,7 +45,7 @@ class HlsArchPassMoveArchElementPortsToMinimizeSync(HlsArchPass):
                     defClk = defTime // clkPeriod
                     # resolve maximum value of use time,
                     # it is the maximum time where output time may potentially shift
-                    realMaxUseTimeMax = endOfClkWindow(elm._endClkI, clkPeriod)
+                    realMaxUseTimeMax = clkWindowEnd(elm._endClkI, clkPeriod)
                     for u in uses:
                         u: HlsNetNodeIn
                         useObj: ArchElement = u.obj
@@ -69,13 +69,13 @@ class HlsArchPassMoveArchElementPortsToMinimizeSync(HlsArchPass):
                                     else:
                                         break
                                 # useClk is now the the clock window index at where the first node with side-effect is
-                                useTime = min(earliestUseOfUserInput, endOfClkWindow(useClk, clkPeriod))
+                                useTime = min(earliestUseOfUserInput, clkWindowEnd(useClk, clkPeriod))
 
                         realMaxUseTimeMax = min(realMaxUseTimeMax, useTime)
 
                     newDefClkIndex = realMaxUseTimeMax // clkPeriod
                     elmentsWithRescheduledInputs: SetList[ArchElement] = SetList()
-                    newTime = beginOfClkWindow(newDefClkIndex, clkPeriod)
+                    newTime = clkWindowBegin(newDefClkIndex, clkPeriod)
                     if defClk != newDefClkIndex:
                         for u in uses:
                             u: HlsNetNodeIn
@@ -115,7 +115,7 @@ class HlsArchPassMoveArchElementPortsToMinimizeSync(HlsArchPass):
                 # check if clkWindowList is empty or nodes can be scheduled in later clk window
                 if all(isinstance(n, HlsNetNodeConst) for n in clkWindowList):
                     # reschedule all constants to clock window where it is first used the first time
-                    endTime = endOfClkWindow(elm._endClkI, clkPeriod)
+                    endTime = clkWindowEnd(elm._endClkI, clkPeriod)
                     for n in clkWindowList:
                         if not n.usedBy:
                             n.markAsRemoved()
@@ -155,8 +155,8 @@ class HlsArchPassMoveArchElementPortsToMinimizeSync(HlsArchPass):
     #    useT = dstElm.scheduledIn[i.in_i]
     #    defTime = o.obj.scheduledOut[o.out_i]
     #    assert defTime <= useT, (defTime, useT, o)
-    #    srcStartClkI = start_clk(defTime, clkPeriod)
-    #    dstUseClkI = start_clk(useT, clkPeriod)
+    #    srcStartClkI = clkWindowIndex(defTime, clkPeriod)
+    #    dstUseClkI = clkWindowIndex(useT, clkPeriod)
     #    if isinstance(dstElm, ArchElementFsm):
     #        assert dstElm.fsm.hasUsedStateForClkI(dstUseClkI), (
     #            dstUseClkI, o, "Output must be scheduled to some cycle corresponding to fsm state")
@@ -227,7 +227,7 @@ class HlsArchPassMoveArchElementPortsToMinimizeSync(HlsArchPass):
     #                #    srcBaseName = self._getArchElmBaseName(srcElm)
     #                #    dstBaseName = self._getArchElmBaseName(dstElm)
     #                #    bufferPipelineName = f"{self.name:s}buffer_{srcBaseName:s}{srcStartClkI}_to_{dstBaseName:s}{dstUseClkI}"
-    #                #    stages = [[] for _ in range(start_clk(useT, clkPeriod) + 1)]
+    #                #    stages = [[] for _ in range(clkWindowIndex(useT, clkPeriod) + 1)]
     #                #    p = ArchElementPipeline(self.netlist, bufferPipelineName, stages, None)
     #                #    self._archElements.append(p)
     #                #    interElementBufferPipelines[k] = p
@@ -309,12 +309,12 @@ class HlsArchPassMoveArchElementPortsToMinimizeSync(HlsArchPass):
     #        tirsConnected.add((srcTir, dstTir))
     #
     #    clkPeriod: SchedTime = self.netlist.normalizedClkPeriod
-    #    dstUseClkI = start_clk(dstTir.timeOffset, clkPeriod)
+    #    dstUseClkI = clkWindowIndex(dstTir.timeOffset, clkPeriod)
     #    if srcTir.timeOffset is INVARIANT_TIME:
     #        dstTir.valuesInTime[0].data(srcTir.valuesInTime[0].data)
     #        return
     #
-    #    srcStartClkI = start_clk(srcTir.timeOffset, clkPeriod)
+    #    srcStartClkI = clkWindowIndex(srcTir.timeOffset, clkPeriod)
     #    assert srcTir is not dstTir, (o, srcTir)
     #    srcOff = dstUseClkI - srcStartClkI
     #    if srcStartClkI > dstUseClkI:

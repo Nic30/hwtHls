@@ -1,7 +1,7 @@
 from collections import deque
 from copy import copy
 from itertools import chain
-from typing import List, Optional, Tuple, Set, Deque, Sequence, Callable
+from typing import Optional, Sequence, Callable
 
 from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.setList import SetList
@@ -14,8 +14,8 @@ from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, OutputTimeGetter, OutputMinUseTimeGetter, \
     SchedTime
-from hwtHls.netlist.scheduler.clk_math import offsetInClockCycle, \
-    indexOfClkPeriod
+from hwtHls.netlist.scheduler.clk_math import clkWindowOffsetFromWindowBegin, \
+    clkWindowIndex
 
 
 class HlsNetNodeAggregate(HlsNetNode):
@@ -34,12 +34,12 @@ class HlsNetNodeAggregate(HlsNetNode):
         self.subNodes = subNodes
         for n in subNodes:
             n.parent = self
-        self._inputsInside: List[HlsNetNodeAggregatePortIn] = []
-        self._outputsInside: List[HlsNetNodeAggregatePortOut] = []
+        self._inputsInside: list[HlsNetNodeAggregatePortIn] = []
+        self._outputsInside: list[HlsNetNodeAggregatePortOut] = []
         self.builder = HlsNetlistBuilder(self.netlist, self)
 
     @override
-    def clone(self, memo:dict, keepTopPortsConnected:bool) -> Tuple["HlsNetNode", bool]:
+    def clone(self, memo:dict, keepTopPortsConnected:bool) -> tuple["HlsNetNode", bool]:
         y, isNew = HlsNetNode.clone(self, memo, keepTopPortsConnected)
         if isNew:
             y: HlsNetNodeAggregate
@@ -67,7 +67,7 @@ class HlsNetNodeAggregate(HlsNetNode):
         return y, isNew
 
     @override
-    def _addOutput(self, t:HdlType, name:Optional[str], time:Optional[SchedTime]=None) -> Tuple[HlsNetNodeOut, HlsNetNodeIn]:
+    def _addOutput(self, t:HdlType, name:Optional[str], time:Optional[SchedTime]=None) -> tuple[HlsNetNodeOut, HlsNetNodeIn]:
         outputClkTickOffset: int = 0
         outputWireDelay: int = 0
         if time is None:
@@ -76,13 +76,13 @@ class HlsNetNodeAggregate(HlsNetNode):
             assert self.scheduledZero is not None
             schedZero = self.scheduledZero
             clkPeriod = self.netlist.normalizedClkPeriod
-            outputClkTickOffset = indexOfClkPeriod(time, clkPeriod) - indexOfClkPeriod(schedZero, clkPeriod)
+            outputClkTickOffset = clkWindowIndex(time, clkPeriod) - clkWindowIndex(schedZero, clkPeriod)
             if outputClkTickOffset == 0:
                 # schedZero is an offset in current clock window
-                outputWireDelay = offsetInClockCycle(time, clkPeriod) - offsetInClockCycle(schedZero, clkPeriod)
+                outputWireDelay = clkWindowOffsetFromWindowBegin(time, clkPeriod) - clkWindowOffsetFromWindowBegin(schedZero, clkPeriod)
             else:
                 # schedZero is not important because start is from the beginning of selected clock window
-                outputWireDelay = offsetInClockCycle(time, clkPeriod)
+                outputWireDelay = clkWindowOffsetFromWindowBegin(time, clkPeriod)
 
         o = HlsNetNode._addOutput(self, t, name, addDefaultScheduling=time is not None,
                                   outputClkTickOffset=outputClkTickOffset,
@@ -92,16 +92,16 @@ class HlsNetNodeAggregate(HlsNetNode):
         self._outputsInside.append(oPort)
         self.addNode(oPort)
         if time is None:
-            assert self.scheduledOut is None
+            assert self.scheduledZero is None
         else:
             oPort._setScheduleZero(time)
-            if self.scheduledOut is not None:
+            if self.scheduledZero is not None:
                 assert len(self.scheduledOut) == len(self._outputs)
 
         return o, oPort._inputs[0]
 
     @override
-    def _addInput(self, t:HdlType, name:Optional[str], time:Optional[SchedTime]=None) -> Tuple[HlsNetNodeIn, HlsNetNodeOut]:
+    def _addInput(self, t:HdlType, name:Optional[str], time:Optional[SchedTime]=None) -> tuple[HlsNetNodeIn, HlsNetNodeOut]:
         inputClkTickOffset: int = 0
         inputWireDelay: int = 0
         schedZero = self.scheduledZero
@@ -112,13 +112,13 @@ class HlsNetNodeAggregate(HlsNetNode):
             assert self.realization.mayBeInFFStoreTime, self
             netlist = self.netlist
             clkPeriod = netlist.normalizedClkPeriod
-            inputClkTickOffset = indexOfClkPeriod(schedZero, clkPeriod) - indexOfClkPeriod(time, clkPeriod)
+            inputClkTickOffset = clkWindowIndex(schedZero, clkPeriod) - clkWindowIndex(time, clkPeriod)
             if inputClkTickOffset == 0:
                 # under normal circumstances where input is scheduled before scheduledZero time < schedZero
                 inputWireDelay = schedZero - time
             else:
                 inputWireDelay = (
-                    (clkPeriod - offsetInClockCycle(time, clkPeriod))  # remaining until end of clk
+                    (clkPeriod - clkWindowOffsetFromWindowBegin(time, clkPeriod))  # remaining until end of clk
                 )
 
         i = HlsNetNode._addInput(self, name, addDefaultScheduling=time is not None,
@@ -208,6 +208,7 @@ class HlsNetNodeAggregate(HlsNetNode):
             assert outerDepT <= outerInT, (outerDepT, outerInT, outerDep, outerIn)
             portT = port.scheduledOut[0]
             assert outerInT == portT, (outerInT, portT, outerIn, port)
+
         for outer, port, t in zip(self._outputs, self._outputsInside, self.scheduledOut):
             outer: HlsNetNodeOut
             port: HlsNetNodeAggregatePortOut
@@ -249,8 +250,8 @@ class HlsNetNodeAggregate(HlsNetNode):
     @override
     def scheduleAsap(self, pathForDebug: Optional[SetList["HlsNetNode"]],
                      beginOfFirstClk: SchedTime,
-                     outputTimeGetter: Optional[OutputTimeGetter]) -> List[int]:
-        if self.scheduledOut is None:
+                     outputTimeGetter: Optional[OutputTimeGetter]) -> list[int]:
+        if self.scheduledZero is None:
             if self.realization is None:
                 self.resolveRealization()
             for o in self.subNodes:
@@ -264,7 +265,7 @@ class HlsNetNodeAggregate(HlsNetNode):
                                outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter],
                                excludeNode: Optional[Callable[[HlsNetNode], bool]]):
         inTimes = copy(self.scheduledIn)
-        
+
         self.scheduleAlapCompactionForSubnodes(endOfLastClk, outputMinUseTimeGetter, excludeNode)
 
         self.copySchedulingFromChildren()
@@ -280,8 +281,8 @@ class HlsNetNodeAggregate(HlsNetNode):
         """
         Run ALAP scheduling for all submodes including HlsNetNodeAggregatePortOut nodes.
         """
-        toSearch: Deque[HlsNetNode] = deque()
-        toSearchSet: Set[HlsNetNode] = set()
+        toSearch: deque[HlsNetNode] = deque()
+        toSearchSet: set[HlsNetNode] = set()
         for oPort in self._outputsInside:
             assert len(oPort.dependsOn) == 1, oPort
             node = oPort.dependsOn[0].obj
@@ -391,7 +392,7 @@ class HlsNetNodeAggregate(HlsNetNode):
     def filterNodesUsingRemovedSet(self, recursive=False):
         return HlsNetlistCtx.filterNodesUsingRemovedSet(self, recursive=recursive)
 
-    def filterNodesUsingSet(self, removed: Set[HlsNetNode], recursive=False, clearRemoved=True):
+    def filterNodesUsingSet(self, removed: set[HlsNetNode], recursive=False, clearRemoved=True):
         if removed:
             toRm = []
             for iNode in self._inputsInside:

@@ -3,6 +3,7 @@ from typing import Tuple, Union, Optional
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.pyUtils.setList import SetList
 from hwtHls.architecture.analysis.nodeParentSyncNode import ArchSyncNodeTy
+from hwtHls.architecture.transformation._syncLowering.syncLogicSearcher import SyncLogicSearcher
 from hwtHls.netlist.abc.abcCpp import Abc_Frame_t, Abc_Ntk_t, Abc_NtkType_t, \
     Abc_NtkFunc_t, Abc_Aig_t
 from hwtHls.netlist.abc.hlsNetlistToAbcAig import HlsNetlistToAbcAig
@@ -11,8 +12,8 @@ from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregatePortIn, \
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
+from hwtHls.netlist.scheduler.clk_math import clkWindowBegin
 from pyMathBitPrecise.bit_utils import ValidityError
-from hwtHls.architecture.transformation._syncLowering.syncLogicSearcher import SyncLogicSearcher
 
 
 class SyncLogicHlsNetlistToAbc(HlsNetlistToAbcAig):
@@ -49,7 +50,7 @@ class SyncLogicHlsNetlistToAbc(HlsNetlistToAbcAig):
         # if item definition is coming from previous clock cycle
         # or driving node was not marked as handshake logic, this will be new primary input
         defTime = d.scheduledOut[o.out_i]
-        beginOfClkWindow = clkI * self.clkPeriod
+        beginOfClkWindow = clkWindowBegin(clkI, self.clkPeriod)
         if defTime < beginOfClkWindow or (d, clkI) not in self.syncLogicNodes:
             syncNode = (o.obj.parent, clkI)
             _syncNode = SyncLogicSearcher._getEarliestTimeIfValueIsPersistent(o, syncNode)[0]

@@ -3,28 +3,28 @@ from io import StringIO
 from itertools import chain
 from math import inf, isfinite
 import sys
-from typing import Deque, Set, List, Optional, Callable
+from typing import Optional, Callable
 
 from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod, beginOfClk, \
-    beginOfClkWindow, beginOfNextClk
+from hwtHls.netlist.scheduler.clk_math import clkWindowIndex, clkWindowBeginForTime, \
+    clkWindowBegin, clkWindowBeginOfNext
 from hwtHls.netlist.scheduler.resourceList import HlsSchedulerResourceUseList, \
     SchedulingResourceConstraints
 
 
 def asapSchedulePartlyScheduled(o: HlsNetNodeOut,
                                 beforeSchedulingFn: Optional[Callable[[HlsNetNode], bool]],
-                                beginOfFirstClk:SchedTime=0) -> List[HlsNetNode]:
+                                beginOfFirstClk:SchedTime=0) -> list[HlsNetNode]:
     """
     Run ASAP scheduling partly scheduled netlist.
 
     :param beforeSchedulingFn: a function which can be used to initialize or skip node which is going to be scheduled
     """
-    newlyScheduledNodes: List[HlsNetNode] = []
+    newlyScheduledNodes: list[HlsNetNode] = []
     n = o.obj
     if n.scheduledIn is None:
         if beforeSchedulingFn is not None and not beforeSchedulingFn(n):
@@ -51,7 +51,7 @@ def asapSchedulePartlyScheduled(o: HlsNetNodeOut,
 def alapSchedulePartlyScheduled(o: HlsNetNodeOut,
                                 beforeSchedulingFn: Optional[Callable[[HlsNetNode], bool]],
                                 endOfLastClk: SchedTime,
-                                allowNewClockWindow:bool=False) -> List[HlsNetNode]:
+                                allowNewClockWindow:bool=False) -> list[HlsNetNode]:
     """
     Run ASAP scheduling partly scheduled netlist.
 
@@ -102,7 +102,7 @@ def alapSchedulePartlyScheduled(o: HlsNetNodeOut,
             if dep.obj.scheduledOut[dep.out_i] > inT:
                 n2: HlsNetNode = dep.obj
                 # [todo] collect conflicting nodes in advance
-                for _ in n2.scheduleAsapCompaction(beginOfClk(inT, clkPeriod), None):
+                for _ in n2.scheduleAsapCompaction(clkWindowBeginForTime(inT, clkPeriod), None):
                     pass
                 assert n2.scheduledOut[dep.out_i] <= inT, ("alapSchedulePartlyScheduled failed because inputs have time larger than output", n1, n2, n2.scheduledOut[dep.out_i], inT)
 
@@ -152,7 +152,7 @@ class HlsScheduler():
                 minTime = min(minTime, min(node.scheduledOut))
         if not isfinite(minTime):
             minTime = 0
-        clkI0 = indexOfClkPeriod(minTime, clkPeriod)
+        clkI0 = clkWindowIndex(minTime, clkPeriod)
         return minTime, clkI0
 
     def moveSchedulingTime(self, clkOffset: int, clkPeriod: SchedTime):
@@ -181,7 +181,7 @@ class HlsScheduler():
             for t in chain(n.scheduledIn, n.scheduledOut):
                 if curBegin is None:
                     # compute boundaries of clock window
-                    curBegin = beginOfClk(t, clkPeriod)
+                    curBegin = clkWindowBeginForTime(t, clkPeriod)
                     curEnd = curBegin + clkPeriod
                 else:
                     # compare if time is in current clock window
@@ -218,21 +218,21 @@ class HlsScheduler():
             curMaxInTime = 0
 
         clkPeriod = netlist.normalizedClkPeriod
-        endOfLastClk = beginOfNextClk(curMaxInTime, clkPeriod)
+        endOfLastClk = clkWindowBeginOfNext(curMaxInTime, clkPeriod)
         allNodes = list(netlist.iterAllNodes())
         if freezeRightSideOfSchedule:
             nodesBannedToMove = set()
             for n in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.OMMIT_PARENT):
                 if (isinstance(n, HlsNetNodeWrite) and n.isChannel()) or not any(n.usedBy):
                     nodesBannedToMove.add(n)
-            toSearch: Deque[HlsNetNode] = deque(n for n in reversed(allNodes) if n not in nodesBannedToMove)
+            toSearch: deque[HlsNetNode] = deque(n for n in reversed(allNodes) if n not in nodesBannedToMove)
             excludeNode = nodesBannedToMove.__contains__
         else:
             nodesBannedToMove = None
             excludeNode = None
-            toSearch: Deque[HlsNetNode] = deque(reversed(allNodes))
+            toSearch: deque[HlsNetNode] = deque(reversed(allNodes))
 
-        toSearchSet: Set[HlsNetNode] = set(toSearch)
+        toSearchSet: set[HlsNetNode] = set(toSearch)
         # perform compaction while scheduling changes
         while toSearch:
             node0 = toSearch.popleft()
@@ -250,10 +250,10 @@ class HlsScheduler():
         """
         netlist = self.netlist
         allNodes = list(netlist.iterAllNodes())
-        toSearch: Deque[HlsNetNode] = deque(reversed(allNodes))
-        toSearchSet: Set[HlsNetNode] = set(allNodes)
+        toSearch: deque[HlsNetNode] = deque(reversed(allNodes))
+        toSearchSet: set[HlsNetNode] = set(allNodes)
         _, firstClkI = self.getSchedulingMinTime(netlist.normalizedClkPeriod)
-        startOfFirstClk = beginOfClkWindow(firstClkI, netlist.normalizedClkPeriod)
+        startOfFirstClk = clkWindowBegin(firstClkI, netlist.normalizedClkPeriod)
         while toSearch:
             node0 = toSearch.popleft()
             toSearchSet.remove(node0)

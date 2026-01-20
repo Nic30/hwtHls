@@ -22,7 +22,7 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.scheduler.clk_math import offsetInClockCycle
+from hwtHls.netlist.scheduler.clk_math import clkWindowOffsetFromWindowBegin
 
 
 class ReadOrWriteType(Enum):
@@ -168,7 +168,7 @@ def sortIoByOffsetInClkWindow(neighborDict: ArchSyncNeighborDict,
                             ioTy = ReadOrWriteType.CHANNEL_W
                             assert isinstance(chPort, HlsNetNodeWrite), chPort
 
-                        timeOff = offsetInClockCycle(chPort.scheduledZero, clkPeriod)
+                        timeOff = clkWindowOffsetFromWindowBegin(chPort.scheduledZero, clkPeriod)
                         allIo.append((timeOff, chPort, n, ioTy))
 
                     otherChPort = getOtherPortOfChannel(chPort)
@@ -181,7 +181,7 @@ def sortIoByOffsetInClkWindow(neighborDict: ArchSyncNeighborDict,
                             ioTy = ReadOrWriteType.CHANNEL_R
                             assert isinstance(otherChPort, HlsNetNodeRead), chPort
 
-                        timeOff = offsetInClockCycle(otherChPort.scheduledZero, clkPeriod)
+                        timeOff = clkWindowOffsetFromWindowBegin(otherChPort.scheduledZero, clkPeriod)
                         allIo.append((timeOff, otherChPort, otherNode, ioTy))
             else:
                 # interpret channel ports as an external IO
@@ -193,7 +193,7 @@ def sortIoByOffsetInClkWindow(neighborDict: ArchSyncNeighborDict,
                         ioTy = ReadOrWriteType.W
                         assert isinstance(chPort, HlsNetNodeWrite), chPort
 
-                    timeOff = offsetInClockCycle(chPort.scheduledZero, clkPeriod)
+                    timeOff = clkWindowOffsetFromWindowBegin(chPort.scheduledZero, clkPeriod)
                     allIo.append((timeOff, chPort, n, ioTy))
 
     allIo = sorted(allIo, key=HlsNetNodePreceCmpKey)  # sort by offset in clock window

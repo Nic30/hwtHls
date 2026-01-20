@@ -18,8 +18,7 @@ from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import  HlsNetNodeRead
-from hwtHls.netlist.scheduler.clk_math import start_clk, indexOfClkPeriod, \
-    endOfClkWindow
+from hwtHls.netlist.scheduler.clk_math import clkWindowIndex, clkWindowEnd
 from hwtHls.platform.opRealizationMeta import EMPTY_OP_REALIZATION
 from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
@@ -87,7 +86,7 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
                         localControlReads.append(node)
                         controlToStateI[node] = stI
                         wrTime = max(wr.scheduledIn, default=wr.scheduledZero)
-                        controlToStateI[wr] = indexOfClkPeriod(wrTime, clkPeriod)
+                        controlToStateI[wr] = clkWindowIndex(wrTime, clkPeriod)
 
                 # elif isinstance(node, HlsNetNodeLoopStatus):
                 #    for g in node.fromReenter:
@@ -99,7 +98,7 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
                 #            controlToStateI[e] = stI
                 #            wr = e.associatedWrite
                 #            wrTime = max(wr.scheduledIn, default=wr.scheduledZero)
-                #            controlToStateI[e.associatedWrite] = indexOfClkPeriod(wrTime, clkPeriod)
+                #            controlToStateI[e.associatedWrite] = clkWindowIndex(wrTime, clkPeriod)
                 #
                     # for g in node.fromExitToHeaderNotify:
                     #    w = g.getChannelUsedAsControl()
@@ -119,7 +118,7 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
         otherElmConnectionFirstTimeSeen: Dict[ArchElement, int] = {}
         for o, uses, outTime in zip(fsmElm._outputs, fsmElm.usedBy, fsmElm.scheduledOut):
             o: HlsNetNodeOut
-            clkI = start_clk(outTime, clkPeriod)
+            clkI = clkWindowIndex(outTime, clkPeriod)
             if not fsmElm.hasUsedStateForClkI(clkI):
                 raise AssertionError("fsmElm is missing state for time where node is scheduled", o, clkI)
 
@@ -217,7 +216,7 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
             # there are not any and the outputs of nodes defined in this state are not used later
             # (or later use is skipped as well)
             nodes = fsmElm.stages[clkI]
-            clkWindowEnd = endOfClkWindow(clkI, clkPeriod)
+            _clkWindowEnd = clkWindowEnd(clkI, clkPeriod)
             hasUseAfter = False
             for n in nodes:
                 if isinstance(n, HlsNetNodeExplicitSync) and n.skipWhen is None:
@@ -230,7 +229,7 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
                     for u in uses:
                         u: HlsNetNodeIn
                         useTime = u.obj.scheduledIn[u.in_i]
-                        if useTime > clkWindowEnd:
+                        if useTime > _clkWindowEnd:
                             hasUseAfter = True
                             break
                 if hasUseAfter:
@@ -308,7 +307,7 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
         for clkI in usedStates:
             stateTransitionTable = transitionTable[clkI]
             stNextWrite = HlsNetNodeFsmStateWrite(fsmElm.netlist)
-            t = endOfClkWindow(clkI, clkPeriod)
+            t = clkWindowEnd(clkI, clkPeriod)
             stNextWrite.assignRealization(EMPTY_OP_REALIZATION)
             stNextWrite._setScheduleZeroTimeSingleClock(t)
             fsmElm._addNodeIntoScheduled(clkI, stNextWrite)

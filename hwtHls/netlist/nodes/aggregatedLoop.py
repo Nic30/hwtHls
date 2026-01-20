@@ -10,7 +10,7 @@ from hwtHls.netlist.nodes.aggregatePorts import HlsNetNodeAggregatePortIn, \
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.schedulableNode import OutputTimeGetter, \
     OutputMinUseTimeGetter, SchedulizationDict, SchedTime
-from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
+from hwtHls.netlist.scheduler.clk_math import clkWindowIndex
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
 
 
@@ -23,7 +23,7 @@ class HlsNetNodeAggregateLoop(HlsNetNodeAggregateTmpForScheduling):
     def scheduleAsap(self, pathForDebug:Optional[SetList["HlsNetNode"]],
         beginOfFirstClk:SchedTime,
         outputTimeGetter:Optional[OutputTimeGetter]) -> List[int]:
-        if self.scheduledOut is None:
+        if self.scheduledZero is None:
             # if pathForDebug is not None:
             #    if self in pathForDebug:
             #        raise AssertionError("Cycle in graph", self, [n._id for n in pathForDebug[pathForDebug.index(self):]])
@@ -54,8 +54,8 @@ class HlsNetNodeAggregateLoop(HlsNetNodeAggregateTmpForScheduling):
 
     def _getTimeSpanInClkTicks(self, clkPeriod: SchedTime):
         minTime, maxTime = self._getTimeSpan()
-        beginClkI = indexOfClkPeriod(minTime, clkPeriod)
-        endClkI = indexOfClkPeriod(maxTime, clkPeriod)
+        beginClkI = clkWindowIndex(minTime, clkPeriod)
+        endClkI = clkWindowIndex(maxTime, clkPeriod)
         assert beginClkI <= endClkI, (self, beginClkI, "<=", endClkI)
         assert isinstance(minTime, SchedTime)
 

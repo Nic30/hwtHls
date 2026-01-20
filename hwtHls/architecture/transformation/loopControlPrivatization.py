@@ -11,7 +11,7 @@ from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.scheduler.clk_math import start_clk
+from hwtHls.netlist.scheduler.clk_math import clkWindowIndex
 from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
 
@@ -107,7 +107,7 @@ class HlsArchPassLoopControlPrivatization(HlsArchPass):
 
                 assert wMinTime is not None, w
 
-                jumpSrcValStI = start_clk(jumpSrcValT, clkPeriod)
+                jumpSrcValStI = clkWindowIndex(jumpSrcValT, clkPeriod)
                 removeFromTail = False
                 if isinstance(headerElm, ArchElementFsm):
                     headerElm: ArchElementFsm
@@ -128,7 +128,7 @@ class HlsArchPassLoopControlPrivatization(HlsArchPass):
                     if jumpSrcVal.obj in headerElm.subNodes:
                         headerElm.subNodes.append(w)
                         t = max(wMinTime, jumpSrcValT)
-                        newStI = start_clk(t, clkPeriod)
+                        newStI = clkWindowIndex(t, clkPeriod)
                         if newStI != wStI:
                             w.moveSchedulingTime(t - w.scheduledZero)
                             headerElm.stages[newStI].append(w)

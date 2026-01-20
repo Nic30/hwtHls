@@ -27,7 +27,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import OutputTimeGetter, \
     OutputMinUseTimeGetter, SchedulizationDict
-from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
+from hwtHls.netlist.scheduler.clk_math import clkWindowIndex
 from hwtLib.handshaked.builder import HsBuilder
 
 
@@ -222,7 +222,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         dstTime = dstRead.scheduledOut[0]
         srcTime = srcWrite.scheduledIn[0]
         assert srcTime <= dstTime, ("This was supposed to be forward edge", self, srcTime, dstTime)
-        regCnt = indexOfClkPeriod(dstTime, clkPeriod) - indexOfClkPeriod(srcTime, clkPeriod)
+        regCnt = clkWindowIndex(dstTime, clkPeriod) - clkWindowIndex(srcTime, clkPeriod)
         assert regCnt >= 0, self
         return regCnt
 
@@ -442,8 +442,8 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         clkPeriod = allocator.netlist.normalizedClkPeriod
         wTime = srcWrite.scheduledIn[0]
         rTime = dstRead.scheduledOut[0]
-        wClkI = indexOfClkPeriod(wTime, clkPeriod)
-        rClkI = indexOfClkPeriod(rTime, clkPeriod)
+        wClkI = clkWindowIndex(wTime, clkPeriod)
+        rClkI = clkWindowIndex(rTime, clkPeriod)
         assert dstRead in allocator.subNodes, (
             self, allocator, "If this backedge is not buffer both write and read must be in same element")
 
@@ -616,7 +616,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         if not isinstance(rtlObj, (list, tuple)):
             rtlObj = [rtlObj, ]
         allocator.netNodeToRtl[(dep, dst)] = rtlObj
-        clkI = indexOfClkPeriod(self.scheduledIn[0], allocator.netlist.normalizedClkPeriod)
+        clkI = clkWindowIndex(self.scheduledIn[0], allocator.netlist.normalizedClkPeriod)
         if dst is None:
             rtlVldSignal = None
         else:

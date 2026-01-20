@@ -7,7 +7,7 @@ from hwt.hdl.operatorDefs import CAST_OPS
 from hwt.hwIO import HwIO
 from hwt.synthesizer.rtlLevel.exceptions import SignalDriverErr
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.netlist.scheduler.clk_math import start_clk
+from hwtHls.netlist.scheduler.clk_math import clkWindowIndex
 
 
 class TimeIndependentRtlResourceItem():
@@ -127,8 +127,8 @@ class TimeIndependentRtlResource():
 
         # else try to look up register for this signal in valuesInTime cache
         clkPeriod = netlist.normalizedClkPeriod
-        dstClkClkIndex = start_clk(time, clkPeriod)
-        startClkIndex = start_clk(self.timeOffset, clkPeriod)
+        dstClkClkIndex = clkWindowIndex(time, clkPeriod)
+        startClkIndex = clkWindowIndex(self.timeOffset, clkPeriod)
         index = dstClkClkIndex - startClkIndex
         assert index >= 0, (index, self.timeOffset, time, self.valuesInTime[0])
         try:
@@ -205,7 +205,7 @@ class TimeIndependentRtlResource():
             index = 0
         else:
             clkPeriod = self.allocator.netlist.normalizedClkPeriod
-            index = clkCyleI - start_clk(self.timeOffset, clkPeriod)
+            index = clkCyleI - clkWindowIndex(self.timeOffset, clkPeriod)
             if index < 0 or index >= len(self.valuesInTime):
                 return None
 

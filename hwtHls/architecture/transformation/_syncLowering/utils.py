@@ -18,7 +18,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.scheduler.clk_math import beginOfClk
+from hwtHls.netlist.scheduler.clk_math import clkWindowBeginForTime
 
 
 def hasNotAnySyncOrFlag(n: Union[HlsNetNodeReadAnyChannel, HlsNetNodeWriteAnyChannel]):
@@ -86,7 +86,7 @@ def ioDataIsMixedInControlInThisClk(ioNode: HlsNetNodeExplicitSync, ackPort: Hls
 
     seen: Set[HlsNetNode] = set()
     clkPeriod = ioNode.netlist.normalizedClkPeriod
-    timeLimit = beginOfClk(ioNode.scheduledZero, clkPeriod)
+    timeLimit = clkWindowBeginForTime(ioNode.scheduledZero, clkPeriod)
     toSearch: List[Tuple[HlsNetNode, SchedTime, SchedTime]] = [(ioNode, timeLimit, timeLimit + clkPeriod), ]  # stack of nodes to search in DFS
     while toSearch:
         # def -> use DFS for extraCond, skipWhen, _forceEnPort
@@ -122,7 +122,7 @@ def ioDataIsMixedInControlInThisClk(ioNode: HlsNetNodeExplicitSync, ackPort: Hls
                 # For this type of connections time boundaries must be update to clock window where
                 # the value arrived.
                 if uTime < timeLimitBegin or uTime >= timeLimitEnd:
-                    _timeLimitBegin = beginOfClk(uTime, clkPeriod)
+                    _timeLimitBegin = clkWindowBeginForTime(uTime, clkPeriod)
                     _timeLimitEnd = _timeLimitBegin + clkPeriod
                 else:
                     _timeLimitBegin = timeLimitBegin
@@ -136,7 +136,7 @@ def ioDataIsMixedInControlInThisClk(ioNode: HlsNetNodeExplicitSync, ackPort: Hls
             r = n.associatedRead
             uTime = r.scheduledZero
             if uTime < timeLimitBegin or uTime >= timeLimitEnd:
-                _timeLimitBegin = beginOfClk(uTime, clkPeriod)
+                _timeLimitBegin = clkWindowBeginForTime(uTime, clkPeriod)
                 _timeLimitEnd = _timeLimitBegin + clkPeriod
             else:
                 _timeLimitBegin = timeLimitBegin

@@ -21,7 +21,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.transformation.simplifyExpr.rehash import _ExprRehasher
-from hwtHls.netlist.scheduler.clk_math import endOfClkWindow
+from hwtHls.netlist.scheduler.clk_math import clkWindowEnd
 
 HlsNetOutToAbcOutMap_t = dict[Union[HlsNetNodeOut,
                                     tuple[HlsNetNode, Literal[FLAG_FLUSH_TOKEN_AVAILABLE, FLAG_FLUSH_TOKEN_ACQUIRE]]],
@@ -82,12 +82,12 @@ class SyncLogicExtractor():
         and replace all uses covered by it. 
         """
         _, lastPersistentClkI = SyncLogicSearcher._getEarliestTimeIfValueIsPersistent(o, (o.obj.parent, clkIndex))
-        clkWindowBegin = clkIndex * clkPeriod
-        clkWindowEnd = endOfClkWindow(lastPersistentClkI, clkPeriod)
+        _clkWindowBegin = clkIndex * clkPeriod
+        _clkWindowEnd = clkWindowEnd(lastPersistentClkI, clkPeriod)
         for u in tuple(o.obj.usedBy[o.out_i]):
             uObj = u.obj
             t = u.obj.scheduledIn[u.in_i]
-            if clkWindowBegin <= t and t < clkWindowEnd and\
+            if _clkWindowBegin <= t and t < _clkWindowEnd and\
                     (uObj, t // clkPeriod) in self.syncLogicNodes:
                 u.disconnectFromHlsOut(o)
                 newO.connectHlsIn(u, checkParent=False)  # can not check parent because some nodes may not yet be transfered
@@ -450,11 +450,11 @@ class SyncLogicExtractor():
                 parentElm._addNodeIntoScheduled(0, n, allowNewClockWindow=True)
                 movedOrRemovedSyncLogicNodes.add(n)
 
-                # beginOfNextClk = (clkIndex + 1) * clkPeriod
+                # windowBegin = clkWindowBeginOfNext(clkIndex + 1, clkPeriod)
                 # for nOut, uses in zip(n._outputs, n.usedBy):
                 #    syncLogicSearch._getEarliestTimeIfValueIsPersistent(o, syncNode)
                 #    for u in uses:
-                #        if u.obj.scheduledIn[u.in_i] >= beginOfNextClk:
+                #        if u.obj.scheduledIn[u.in_i] >= windowBegin:
                 #            assert u.obj.parent is originalParent, ("This may be case only for original nodes or new HlsNetNodeAggregatePortOut", nOut, u)
                 #            # port is used in next clock window, this must be also primary output
                 #            # a port back to original element must be constructed

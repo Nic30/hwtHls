@@ -9,7 +9,7 @@ from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import SchedulableNode, SchedTime
 from hwtHls.netlist.observableList import ObservableList
-from hwtHls.netlist.scheduler.clk_math import offsetInClockCycle
+from hwtHls.netlist.scheduler.clk_math import clkWindowOffsetFromWindowBegin
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
 
@@ -195,8 +195,8 @@ class HlsNetNode(SchedulableNode):
                     clkPeriod = netlist.normalizedClkPeriod
                     schedZero = self.scheduledZero
                     if inputClkTickOffset == 0:
-                        assert offsetInClockCycle(schedZero, clkPeriod) >= inputWireDelay, (
-                            offsetInClockCycle(schedZero, clkPeriod), inputWireDelay,
+                        assert clkWindowOffsetFromWindowBegin(schedZero, clkPeriod) >= inputWireDelay, (
+                            clkWindowOffsetFromWindowBegin(schedZero, clkPeriod), inputWireDelay,
                             schedZero, clkPeriod)
                         time = schedZero
                     else:

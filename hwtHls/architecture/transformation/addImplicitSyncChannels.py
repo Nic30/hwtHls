@@ -11,7 +11,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.scheduler.clk_math import start_clk
+from hwtHls.netlist.scheduler.clk_math import clkWindowIndex
 from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
 
@@ -38,13 +38,13 @@ class HlsArchPassAddImplicitSyncChannels(HlsArchPass):
                 if HdlType_isVoid(o._dtype):
                     continue
 
-                srcClkI = start_clk(srcTime, clkPeriod)
+                srcClkI = clkWindowIndex(srcTime, clkPeriod)
                 for i in uses:
                     i: HlsNetNodeIn
                     dstElm: ArchElement = i.obj
                     dstElmIndex = elementIndex[dstElm]
                     dstTime = dstElm.scheduledIn[i.in_i]
-                    dstClkI = start_clk(dstTime, clkPeriod)
+                    dstClkI = clkWindowIndex(dstTime, clkPeriod)
                     assert srcClkI == dstClkI, (o, i, srcTime, dstTime, srcClkI, dstClkI)
                     changed |= self._registerSyncForInterElementConnection(
                         netlist, syncAdded, srcElmIndex, dstElmIndex, srcClkI, o, i)

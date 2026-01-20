@@ -5,7 +5,7 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator, OP_INDEX_CONST
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
-from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod
+from hwtHls.netlist.scheduler.clk_math import clkWindowIndex
 from hwtHls.netlist.scheduler.scheduler import asapSchedulePartlyScheduled, \
     alapSchedulePartlyScheduled
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
@@ -46,7 +46,7 @@ def scheduleUnscheduledControlLogic(syncNode: ArchSyncNodeTy, out: HlsNetNodeOut
     newlyScheduledNodes = asapSchedulePartlyScheduled(
         out, setUnscheduledNodeRealizationToCombForSyncLogic, beginOfFirstClk=beginOfFirstClk)
     for n in newlyScheduledNodes:
-        _clkI = indexOfClkPeriod(n.scheduledZero, clkPeriod)
+        _clkI = clkWindowIndex(n.scheduledZero, clkPeriod)
         # assert clkI == _clkI, ("all nodes must be in the same clk window", clkI, _clkI, n, n.scheduledZero)
         elm._addNodeIntoScheduled(clkI, n, allowNewClockWindow=True)
 
@@ -66,7 +66,7 @@ def scheduledUnscheduedDummyAsap(out: HlsNetNodeOut, beginOfFirstClk: SchedTime)
         clkPeriod = out.obj.netlist.normalizedClkPeriod
         newlyScheduledNodes = asapSchedulePartlyScheduled(out, setUnscheduledNodeRealizationToCombForSyncLogic, beginOfFirstClk)
         for n in newlyScheduledNodes:
-            _clkI = indexOfClkPeriod(n.scheduledZero, clkPeriod)
+            _clkI = clkWindowIndex(n.scheduledZero, clkPeriod)
             # assert clkI == _clkI, ("all nodes must be in the same clk window", clkI, _clkI, n, n.scheduledZero)
             n.parent._addNodeIntoScheduled(_clkI, n, allowNewClockWindow=True)
 

@@ -11,7 +11,7 @@ from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadOrWriteToAnyChan
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.scheduler.clk_math import indexOfClkPeriod, beginOfClkWindow
+from hwtHls.netlist.scheduler.clk_math import clkWindowIndex, clkWindowBegin
 
 
 def insertDummyWriteToImplementSync(parentElm: ArchElement,
@@ -29,7 +29,7 @@ def insertDummyWriteToImplementSync(parentElm: ArchElement,
     dummyVal._setScheduleZeroTimeSingleClock(time)
     dummyVal._outputs[0].connectHlsIn(sync._inputs[0])
 
-    clkIndex = indexOfClkPeriod(time, netlist.normalizedClkPeriod)
+    clkIndex = clkWindowIndex(time, netlist.normalizedClkPeriod)
     for n in (sync, dummyVal):
         parentElm.subNodes.append(n)
         parentElm.getStageForClock(clkIndex).append(n)
@@ -49,7 +49,7 @@ def createBackedgeInClkWindow(parent: ArchElement, clkIndex: int, name: str, dty
 
     regW = HlsNetNodeWrite(netlist, ioProxy, ioProxy.interface, isBackedge=True, name=name + "_src")
     clkPeriod = netlist.normalizedClkPeriod
-    clkBegin = beginOfClkWindow(clkIndex, clkPeriod)
+    clkBegin = clkWindowBegin(clkIndex, clkPeriod)
     clkEnd = clkBegin + clkPeriod - 1
     for c, time in [(regR, clkBegin),
                     (regW, clkEnd)]:
