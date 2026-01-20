@@ -1,6 +1,7 @@
 from typing import Optional, Union, Type as TypingType, Sequence, Literal
 
 from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
 from hwt.hwIOs.hwIOArray import HwIOArray
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld, HwIO_to_HdlType, HwIOStruct
@@ -121,19 +122,22 @@ class IoProxyScalar(IoProxy):
         self._nativeWriteTy = dtype
         return dtype
 
+    @classmethod
+    def _getHdlTypeOfValue(cls, v, suggestedType: Optional[HdlType]) -> HdlType:
+        if isinstance(v, HwIOArray):
+            return cls._getHdlTypeOfValue(v[0], suggestedType.element_t)[len(v)]
+        else:
+            return v._dtype
+
     def write(self, src, isVolatile=True, mayBecomeFlushable=True):
         dstTy = self.getDataTypeOfNativeWrite()
         if src is None or isinstance(src, int):
             src = dstTy.from_py(src)
             dtype = dstTy
-        elif isinstance(src, HwIOArray):
-            dtype = src[0]._dtype[len(src)]
-            assert dtype.bit_length() == dstTy.bit_length(), (
-                "For a normal write the width of src and dst must match", dtype, "->", dstTy, src, self.interface)
         else:
-            dtype = src._dtype
+            dtype = self._getHdlTypeOfValue(src, dstTy)
             assert dtype.bit_length() == dstTy.bit_length(), (
-                "For a normal write the width of src and dst must match", dtype, "->", dstTy, src, self.interface)
+                "For a blocking write the width of src and dst must match", dtype, "->", dstTy, src, self.interface)
 
         dst = self.interface
         if isinstance(dst, HwIO):
