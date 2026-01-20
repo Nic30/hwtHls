@@ -1,31 +1,34 @@
 #include <hwtHls/llvm/Transforms/TmpAllocaLoweringPass.h>
 
-#include <llvm/Analysis/AssumptionCache.h>
-#include <llvm/Analysis/GlobalsModRef.h>
 #include <llvm/Analysis/AliasAnalysis.h>
+#include <llvm/Analysis/AssumptionCache.h>
 #include <llvm/Analysis/BasicAliasAnalysis.h>
+#include <llvm/Analysis/GlobalsModRef.h>
 #include <llvm/IR/Dominators.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Transforms/Utils/PromoteMemToReg.h>
 
-#include <hwtHls/llvm/intrinsic/metadataWithBitrange.h>
-#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinePass.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
+#include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
+#include <hwtHls/llvm/intrinsic/metadataWithBitrange.h>
 
 using namespace llvm;
 
 namespace hwtHls {
 
 const std::string TmpAllocaLoweringPass::HwtHlsTmpAllocaName =
-		"hwtHls.tmp.alloca";
+	"hwtHls.tmp.alloca";
 const std::string TmpAllocaLoweringPass::HwtHlsTmpPropagateNoSplitName =
-		"hwtHls.tmp.propagateNoSplit";
-const std::string TmpAllocaLoweringPass::HwtHlsTmpPropagate_expr_maskContinuosFromLsb =
+	"hwtHls.tmp.propagateNoSplit";
+const std::string
+	TmpAllocaLoweringPass::HwtHlsTmpPropagate_expr_maskContinuosFromLsb =
 		"hwtHls.tmp.expr.maskContinuosFromLsb";
 
-
 void collectInstructionsForMetadataPropagation(AllocaInst &Alloca,
-		unsigned mdKind, unsigned tmpMdKind, MDNode *&MDForBackup) {
+											   unsigned mdKind,
+											   unsigned tmpMdKind,
+											   MDNode *&MDForBackup) {
 	auto _md = Alloca.getMetadata(mdKind);
 	if (!_md)
 		return;
@@ -34,8 +37,8 @@ void collectInstructionsForMetadataPropagation(AllocaInst &Alloca,
 		if (isa<Instruction>(U)) {
 			if (isa<LoadInst>(U)) {
 			} else if (auto ST = dyn_cast<StoreInst>(U)) {
-				if (auto StoredValueInstr = dyn_cast<Instruction>(
-						ST->getValueOperand())) {
+				if (auto StoredValueInstr =
+						dyn_cast<Instruction>(ST->getValueOperand())) {
 					StoredValueInstr->setMetadata(mdKind, _md);
 					StoredValueInstr->setMetadata(tmpMdKind, _md);
 				}
@@ -48,30 +51,31 @@ void collectInstructionsForMetadataPropagation(AllocaInst &Alloca,
 	MDForBackup = _md;
 }
 
-llvm::PreservedAnalyses TmpAllocaLoweringPass::run(llvm::Function &F,
-		llvm::FunctionAnalysisManager &AM) {
+llvm::PreservedAnalyses
+TmpAllocaLoweringPass::run(llvm::Function &F,
+						   llvm::FunctionAnalysisManager &AM) {
 	auto &DT = AM.getResult<llvm::DominatorTreeAnalysis>(F);
 	auto *AC = AM.getCachedResult<llvm::AssumptionAnalysis>(F);
 
-	std::vector<AllocaInst*> TmpAllocas;
-	std::vector<ZExtInst*> TmpZExts;
-	std::vector<TruncInst*> TmpTrucncs;
+	std::vector<AllocaInst *> TmpAllocas;
+	std::vector<ZExtInst *> TmpZExts;
+	std::vector<TruncInst *> TmpTrucncs;
 
 	TmpAllocas.reserve(1024);
 	TmpZExts.reserve(2 * 1024);
 	TmpTrucncs.reserve(2 * 1024);
 	IRBuilder<> Builder(F.getContext());
-	SmallVector<Instruction*> toRm;
+	SmallVector<Instruction *> toRm;
 	MDNode *NoSplitMD = nullptr;
 	MDNode *ContinuousMaskMD = nullptr;
 	auto &ctx = F.getContext();
-	auto NoSplitMDKind = ctx.getMDKindID(
-			SlicesToIndependentVariablesPass::metadataName_NoSplit);
+	auto NoSplitMDKind =
+		ctx.getMDKindID(SlicesToIndependentVariablesPass::metadataName_NoSplit);
 	auto NoSplitTmpMDKind = ctx.getMDKindID(HwtHlsTmpPropagateNoSplitName);
 	auto ContinuousMaskMDKind = ctx.getMDKindID(
-			HwtHlsInstCombinePass::metadataName_expr_maskContinuosFromLsb);
-	auto ContinuousMaskTmpMDKind = ctx.getMDKindID(
-			HwtHlsTmpPropagate_expr_maskContinuosFromLsb);
+		HwtHlsInstCombinePass::metadataName_expr_maskContinuosFromLsb);
+	auto ContinuousMaskTmpMDKind =
+		ctx.getMDKindID(HwtHlsTmpPropagate_expr_maskContinuosFromLsb);
 	for (auto &BB : F) {
 		for (auto &I : make_early_inc_range(BB)) {
 			if (auto AI = dyn_cast<AllocaInst>(&I)) {
@@ -83,17 +87,18 @@ llvm::PreservedAnalyses TmpAllocaLoweringPass::run(llvm::Function &F,
 				if (AllocTy->isArrayTy())
 					continue; // keep as it is
 
-				collectInstructionsForMetadataPropagation(*AI, NoSplitMDKind,
-						NoSplitTmpMDKind, NoSplitMD);
-				collectInstructionsForMetadataPropagation(*AI,
-						ContinuousMaskMDKind, ContinuousMaskTmpMDKind,
-						ContinuousMaskMD);
+				collectInstructionsForMetadataPropagation(
+					*AI, NoSplitMDKind, NoSplitTmpMDKind, NoSplitMD);
+				collectInstructionsForMetadataPropagation(
+					*AI, ContinuousMaskMDKind, ContinuousMaskTmpMDKind,
+					ContinuousMaskMD);
 
 				if (AllocTy->isDoubleTy()) {
 					TmpAllocas.push_back(AI);
 					continue; // promote to reg
 				}
-				// reallocate if size is not %8==0 to prevent interference of allocas
+				// reallocate if size is not %8==0 to prevent interference of
+				// allocas
 				assert(AllocTy->isIntegerTy());
 				size_t origAllocWidth = AllocTy->getIntegerBitWidth();
 				if (origAllocWidth % 8 == 0) {
@@ -106,8 +111,8 @@ llvm::PreservedAnalyses TmpAllocaLoweringPass::run(llvm::Function &F,
 				origAllocWidth = allocSize * 8;
 				Builder.SetInsertPoint(AI);
 				auto alignedAI = Builder.CreateAlloca(
-						IntegerType::get(Builder.getContext(), origAllocWidth),
-						AI->getAddressSpace());
+					IntegerType::get(Builder.getContext(), origAllocWidth),
+					AI->getAddressSpace());
 				alignedAI->copyMetadata(*AI);
 				AI->replaceAllUsesWith(alignedAI);
 				std::string Name = AI->getName().str();
@@ -119,8 +124,9 @@ llvm::PreservedAnalyses TmpAllocaLoweringPass::run(llvm::Function &F,
 				AI = alignedAI;
 				AllocTy = AI->getAllocatedType();
 
-				// if loads or stores to alloca are not working with alloca AllocatedType
-				// they have to be rewritten before PromoteMemToReg
+				// if loads or stores to alloca are not working with alloca
+				// AllocatedType they have to be rewritten before
+				// PromoteMemToReg
 				for (User *U : AI->users()) {
 					if (isa<Instruction>(U)) {
 						if (auto LD = dyn_cast<LoadInst>(U)) {
@@ -128,20 +134,20 @@ llvm::PreservedAnalyses TmpAllocaLoweringPass::run(llvm::Function &F,
 								// load to trunc(load)
 								assert(LD->getType()->isIntegerTy());
 								size_t accessWidth =
-										LD->getType()->getIntegerBitWidth();
+									LD->getType()->getIntegerBitWidth();
 								assert(origAllocWidth > accessWidth);
 
 								Builder.SetInsertPoint(LD);
-								auto NewLd = Builder.CreateLoad(AllocTy, AI,
-										LD->isVolatile());
+								auto NewLd = Builder.CreateLoad(
+									AllocTy, AI, LD->isVolatile());
 								NewLd->copyMetadata(*LD);
-								auto replacement = Builder.CreateTrunc(NewLd,
-										LD->getType(), LD->getName());
+								auto replacement = Builder.CreateTrunc(
+									NewLd, LD->getType(), LD->getName());
 								LD->replaceAllUsesWith(replacement);
 
 								toRm.push_back(LD);
 								TmpTrucncs.push_back(
-										dyn_cast<TruncInst>(replacement));
+									dyn_cast<TruncInst>(replacement));
 							}
 						} else if (auto ST = dyn_cast<StoreInst>(U)) {
 							if (ST->getAccessType() != AllocTy) {
@@ -149,13 +155,13 @@ llvm::PreservedAnalyses TmpAllocaLoweringPass::run(llvm::Function &F,
 								auto src = ST->getValueOperand();
 								assert(src->getType()->isIntegerTy());
 								size_t accessWidth =
-										src->getType()->getIntegerBitWidth();
+									src->getType()->getIntegerBitWidth();
 								assert(origAllocWidth > accessWidth);
 
 								Builder.SetInsertPoint(ST);
 								auto srcZExt = Builder.CreateZExt(src, AllocTy);
-								auto NewStore = Builder.CreateStore(srcZExt, AI,
-										ST->isVolatile());
+								auto NewStore = Builder.CreateStore(
+									srcZExt, AI, ST->isVolatile());
 
 								NewStore->copyMetadata(*ST);
 								toRm.push_back(ST);
@@ -167,7 +173,6 @@ llvm::PreservedAnalyses TmpAllocaLoweringPass::run(llvm::Function &F,
 						}
 					}
 				}
-
 			}
 		}
 	}
@@ -184,10 +189,11 @@ llvm::PreservedAnalyses TmpAllocaLoweringPass::run(llvm::Function &F,
 			bool allowWidthIncrease;
 		};
 		std::array<PropagateMdItem, 2> propagatedMetadataIds;
-		propagatedMetadataIds[0] = { NoSplitMDKind, NoSplitTmpMDKind, NoSplitMD,
-				true };
-		propagatedMetadataIds[1] = { ContinuousMaskMDKind,
-				ContinuousMaskTmpMDKind, ContinuousMaskMD, false };
+		propagatedMetadataIds[0] = {NoSplitMDKind, NoSplitTmpMDKind, NoSplitMD,
+									true};
+		propagatedMetadataIds[1] = {ContinuousMaskMDKind,
+									ContinuousMaskTmpMDKind, ContinuousMaskMD,
+									false};
 		for (auto &BB : F) {
 			for (auto &I : BB) {
 				for (auto md : propagatedMetadataIds) {
@@ -195,7 +201,8 @@ llvm::PreservedAnalyses TmpAllocaLoweringPass::run(llvm::Function &F,
 					if (mdNode) {
 						MetadataBitRanges::BitRanges bitRanges;
 						MetadataBitRanges::fromMetadata(mdNode, bitRanges);
-						MetadataBitRanges::propagateBiDir(I, md.mdKind, bitRanges);
+						MetadataBitRanges::propagateBiDir(I, md.mdKind,
+														  bitRanges);
 						I.setMetadata(md.mdTmpKind, nullptr);
 					}
 				}
@@ -213,4 +220,4 @@ llvm::PreservedAnalyses TmpAllocaLoweringPass::run(llvm::Function &F,
 	}
 }
 
-}
+} // namespace hwtHls
