@@ -106,11 +106,10 @@ def _decodeOpcode_CastInst(interpret: "LlvmIrInterpret", instr: Instruction) -> 
     newWidth = cast.getType().getScalarSizeInBits()
     oTy = cast.getOperand(0).getType()
     assert oTy.isIntegerTy(), oTy
-    oWidth = oTy.getIntegerBitWidth()
+
     if instr.isCast():
         opc = CastOps(cast.getOpcode())
         if opc == CastOps.ZExt:
-            padding = HBits(newWidth - oWidth).from_py(0)
 
             def _opcode_ZExt(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
                 if src0IsConst:
@@ -118,7 +117,7 @@ def _decodeOpcode_CastInst(interpret: "LlvmIrInterpret", instr: Instruction) -> 
                 else:
                     o = regs[_src0]
                 assert o._dtype.signed is None, (instr, o)
-                res = Concat(padding, o)
+                res = o._zext(newWidth)
                 # inlined interpret._storeInstrResult from perf. reasons
                 if waveLog is not None:
                     waveLog.logChange(nowTime, instr, res, None)
@@ -134,8 +133,7 @@ def _decodeOpcode_CastInst(interpret: "LlvmIrInterpret", instr: Instruction) -> 
                 else:
                     o = regs[_src0]
                 assert o._dtype.signed is None, (instr, o)
-                msb = o[oWidth - 1]
-                res = Concat(*(msb for _ in range(newWidth - oWidth)), o)
+                res = o._sext(newWidth)
                 # inlined interpret._storeInstrResult from perf. reasons
                 if waveLog is not None:
                     waveLog.logChange(nowTime, instr, res, None)
@@ -151,13 +149,38 @@ def _decodeOpcode_CastInst(interpret: "LlvmIrInterpret", instr: Instruction) -> 
                 else:
                     o = regs[_src0]
 
-                res = o[newWidth:]
+                res = o._trunc(newWidth)
                 # inlined interpret._storeInstrResult from perf. reasons
                 if waveLog is not None:
                     waveLog.logChange(nowTime, instr, res, None)
                 regs[instr] = res
 
             return _opcode_Trunc
+
+        elif opc == CastOps.BitCast:
+            dstT = cast.getType()
+            dstWidth = dstT.getScalarSizeInBits()
+            if src0IsConst:
+                res = _src0._extOrTrunc(dstWidth)
+
+                def _opcode_BitCast_const(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
+                    # inlined interpret._storeInstrResult from perf. reasons
+                    if waveLog is not None:
+                        waveLog.logChange(nowTime, instr, res, None)
+                    regs[instr] = res
+
+                return _opcode_BitCast_const
+            else:
+
+                def _opcode_BitCast(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
+                    # inlined interpret._storeInstrResult from perf. reasons
+                    o = regs[_src0]
+                    res = o._extOrTrunc(dstWidth)
+                    if waveLog is not None:
+                        waveLog.logChange(nowTime, instr, res, None)
+                    regs[instr] = res
+
+                return _opcode_BitCast
 
     raise NotImplementedError(instr)
 
