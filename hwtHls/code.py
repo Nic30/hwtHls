@@ -16,6 +16,7 @@ from hwt.hdl.operatorDefs import HOperatorDef
 from hwt.hdl.types.bitConstFunctions import AnyHBitsValue
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
+from hwt.hdl.types.bitsRtlSignal import HBitsRtlSignal
 from hwt.hdl.types.defs import BIT
 from hwt.mainBases import HwIOBase
 from hwt.mainBases import RtlSignalBase
@@ -65,6 +66,13 @@ def ctlz(v: AnyHBitsValue, is_zero_poison:bool=False) -> AnyHBitsValue:
 OP_CTLZ = HOperatorDefLlvm(ctlz, _getllvmIntBitcountIntrinsicConstructor(Intrinsic.ctlz), False, idStr="OP_CTLZ")
 
 
+def ctlo(v: AnyHBitsValue, is_zero_poison:bool=False) -> AnyHBitsValue:
+    """
+    Count leading ones
+    """
+    return ctlz(~v, is_zero_poison=is_zero_poison)
+
+
 @hwt_expr_producer
 def cttz(v: AnyHBitsValue, is_zero_poison:bool=False) -> AnyHBitsValue:
     """
@@ -88,6 +96,14 @@ def cttz(v: AnyHBitsValue, is_zero_poison:bool=False) -> AnyHBitsValue:
 
 
 OP_CTTZ = HOperatorDefLlvm(cttz, _getllvmIntBitcountIntrinsicConstructor(Intrinsic.cttz), False, idStr="OP_CTTZ")
+
+
+@hwt_expr_producer
+def ctto(v: AnyHBitsValue, is_zero_poison:bool=False) -> AnyHBitsValue:
+    """
+    Count trailing ones
+    """
+    return cttz(~v, is_zero_poison=is_zero_poison)
 
 
 @hwt_expr_producer
