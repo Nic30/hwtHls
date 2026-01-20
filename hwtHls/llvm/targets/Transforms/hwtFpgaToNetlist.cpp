@@ -33,6 +33,7 @@ void HwtFpgaToNetlist::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 	AU.addPreserved<TargetPassConfig>();
 	AU.addRequired<MachineLoopInfoWrapperPass>();
 	AU.addPreserved<MachineLoopInfoWrapperPass>();
+	AU.addRequired<MachineCycleInfoWrapperPass>();
 	AU.addPreserved<MachineCycleInfoWrapperPass>();
 	//AU.addRequired<MachineTraceMetrics>();
 	//AU.addPreserved<MachineTraceMetrics>();
