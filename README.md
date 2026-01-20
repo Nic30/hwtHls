@@ -202,4 +202,4 @@ pip3 install git+https://github.com/Nic30/hwtHls.git # install this library from
 
 ## Timing database generator scripts
 
-* [Light-HLS](https://github.com/zslwyuan/Light-HLS/blob/master/HLS_Lib_Generator/LibGen.py)
+* [Light-HLS](https://github.com/zslwyuan/Light-HLS/blob/master/HLS_Lib_Generator/LibGen.py) (executes vivado_hls to get delay of operator)
