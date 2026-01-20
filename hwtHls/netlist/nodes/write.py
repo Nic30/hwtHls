@@ -74,8 +74,8 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
                  isBlocking:bool=True,
                  isBackedge:bool=False,
                  addSrcPort=True):
-        if name is None and isinstance(dst, HwIO) and dst._name is not None:
-            name = dst._name
+        #if name is None and isinstance(dst, HwIO) and dst._name is not None:
+        #    name = dst._name
         HlsNetNode.__init__(self, netlist, name=name)
         self.ioProxy = ioProxy
         self._associatedReadSync: Optional["HlsNetNodeReadSync"] = None
