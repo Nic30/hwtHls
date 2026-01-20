@@ -1,10 +1,12 @@
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamIoRewriter.h>
-#include <llvm/Analysis/DomTreeUpdater.h>
+
 #include <llvm/Analysis/AssumptionCache.h>
-#include <llvm/Transforms/Utils/PromoteMemToReg.h>
-#include <llvm/Transforms/Utils/CodeMoverUtils.h>
-#include <llvm/Transforms/Utils/BasicBlockUtils.h>
+#include <llvm/Analysis/DomTreeUpdater.h>
 #include <llvm/IR/Verifier.h>
+#include <llvm/Transforms/Utils/BasicBlockUtils.h>
+#include <llvm/Transforms/Utils/CodeMoverUtils.h>
+#include <llvm/Transforms/Utils/PromoteMemToReg.h>
 
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 
@@ -12,29 +14,31 @@ using namespace llvm;
 namespace hwtHls {
 
 StreamIoRewriter::StreamIoRewriter(StreamIoDetector &cfg,
-		const StreamChannelProps &streamProps, llvm::IRBuilderBase &builder, llvm::DomTreeUpdater *DTU,
-		llvm::LoopInfo *LI) :
-		cfg(cfg), streamProps(streamProps), Builder(builder), DTU(DTU), LI(LI) {
-}
+								   const StreamChannelProps &streamProps,
+								   llvm::IRBuilderBase &builder,
+								   llvm::DomTreeUpdater *DTU,
+								   llvm::LoopInfo *LI) :
+	cfg(cfg), streamProps(streamProps), Builder(builder), DTU(DTU), LI(LI) {}
 
-std::vector<llvm::BasicBlock*> StreamIoRewriter::_createBranchForEachOffsetVariant(
-		const std::vector<size_t> &possibleOffsets) {
-	std::vector<llvm::BasicBlock*> offsetBranches;
+std::vector<llvm::BasicBlock *>
+StreamIoRewriter::_createBranchForEachOffsetVariant(
+	const std::vector<size_t> &possibleOffsets) {
+	std::vector<llvm::BasicBlock *> offsetBranches;
 
 	if (possibleOffsets.size() > 1) {
 		BasicBlock *elseBlock = nullptr;
 		// create branch for each offset variant
-		llvm::SmallVector<llvm::Value*> offsetCaseCond;
-		auto *_curOffsetVar = streamProps.getVarValue(Builder,
-				streamProps.dataOffsetVar);
+		llvm::SmallVector<llvm::Value *> offsetCaseCond;
+		auto *_curOffsetVar =
+			streamProps.getVarValue(Builder, streamProps.dataOffsetVar);
 		size_t offI = 0;
 		for (size_t off : possibleOffsets) {
 			bool last = offI == possibleOffsets.size() - 1;
 			BasicBlock *offsetVariantBlock;
 
-			Value *offEn = Builder.CreateICmpEQ(_curOffsetVar,
-					ConstantInt::get(_curOffsetVar->getType(),
-							off % streamProps.dataWidth));
+			Value *offEn = Builder.CreateICmpEQ(
+				_curOffsetVar, ConstantInt::get(_curOffsetVar->getType(),
+												off % streamProps.dataWidth));
 
 			llvm::Instruction *SplitBefore;
 			if (elseBlock) {
@@ -44,8 +48,9 @@ std::vector<llvm::BasicBlock*> StreamIoRewriter::_createBranchForEachOffsetVaria
 			}
 			llvm::Instruction *ThenTerm = nullptr;
 			llvm::Instruction *ElseTerm = nullptr;
-			llvm::SplitBlockAndInsertIfThenElse(offEn, SplitBefore, &ThenTerm,
-					&ElseTerm, (llvm::MDNode*) nullptr, DTU, LI);
+			llvm::SplitBlockAndInsertIfThenElse(
+				offEn, SplitBefore, &ThenTerm, &ElseTerm,
+				(llvm::MDNode *)nullptr, DTU, LI);
 			offsetVariantBlock = dyn_cast<BasicBlock>(ThenTerm->getParent());
 			assert(offsetVariantBlock != nullptr);
 
@@ -59,21 +64,21 @@ std::vector<llvm::BasicBlock*> StreamIoRewriter::_createBranchForEachOffsetVaria
 				Builder.CreateUnreachable();
 				ElseTerm->eraseFromParent();
 				if (DTU) {
-					DTU->applyUpdates({{DominatorTree::Delete, elseBlock, elseBlockSuc}});
+					DTU->applyUpdates(
+						{{DominatorTree::Delete, elseBlock, elseBlockSuc}});
 				}
 				Builder.SetInsertPoint(elseBlock->getTerminator());
 			}
 
-			offsetVariantBlock->setName(
-					streamProps.ioArg->getName() + "off" + std::to_string(off));
+			offsetVariantBlock->setName(streamProps.ioArg->getName() + "off" +
+										std::to_string(off));
 			offsetBranches.push_back(offsetVariantBlock);
 			++offI;
 		}
 
-
 	} else {
 		auto *curBlock = Builder.GetInsertBlock();
-		offsetBranches = { curBlock };
+		offsetBranches = {curBlock};
 	}
 
 	return offsetBranches;
@@ -86,27 +91,29 @@ void StreamIoRewriter::rewriteAdtAccessToWordAccess(BasicBlock &_curBlock) {
 	}
 
 	for (auto curBlockPos = curBlock->begin(); curBlockPos != curBlock->end();
-			++curBlockPos) {
+		 ++curBlockPos) {
 		if (auto *CI = dyn_cast<CallInst>(&*curBlockPos)) {
-			if (streamProps.ios.count(CI)
-					&& cfg.resolvedStms.find(CI) == cfg.resolvedStms.end()) {
+			if (streamProps.ios.count(CI) &&
+				cfg.resolvedStms.find(CI) == cfg.resolvedStms.end()) {
 				cfg.resolvedStms.insert(CI);
 				_rewriteAdtAccessToWordAccessInstruction(CI);
 				if (curBlockPos->getParent() != curBlock) {
-					// in the case that the block was split continue processing on new block begin
+					// in the case that the block was split continue processing
+					// on new block begin
 					curBlock = curBlockPos->getParent();
 				}
 			}
 		}
 	}
 
-	// :note: curBlock may be a different than the original from arguments, because the block may be split etc.
-	SmallVector<BasicBlock*> originalSuccessors(llvm::successors(curBlock));
+	// :note: curBlock may be a different than the original from arguments,
+	// because the block may be split etc.
+	SmallVector<BasicBlock *> originalSuccessors(llvm::successors(curBlock));
 	for (auto *sucBb : originalSuccessors) {
 		auto seenPredecessors = cfg.seenPredecessors.find(sucBb);
 		bool thisBlockWasSeen = false;
 		if (seenPredecessors == cfg.seenPredecessors.end()) {
-			cfg.seenPredecessors[sucBb] = { };
+			cfg.seenPredecessors[sucBb] = {};
 			seenPredecessors = cfg.seenPredecessors.find(sucBb);
 		} else {
 			thisBlockWasSeen = true;
@@ -119,10 +126,10 @@ void StreamIoRewriter::rewriteAdtAccessToWordAccess(BasicBlock &_curBlock) {
 	}
 }
 
-void finalizeStreamIoLowerig(llvm::Function &F,
-		llvm::FunctionAnalysisManager &FAM, DominatorTree &DT,
-		const std::vector<StreamChannelProps> &streamProps, bool rmOutputs,
-		llvm::SmallVector<llvm::AllocaInst*> &GeneratedAllocas) {
+void finalizeStreamIoLowerig(
+	llvm::Function &F, llvm::FunctionAnalysisManager &FAM, DominatorTree &DT,
+	const std::vector<StreamChannelProps> &streamProps, bool rmOutputs,
+	llvm::SmallVector<llvm::AllocaInst *> &GeneratedAllocas) {
 	// assert(!llvm::verifyFunction(F, &errs()));
 	for (const StreamChannelProps &s : streamProps) {
 		if (rmOutputs != s.isOutput)
@@ -133,9 +140,9 @@ void finalizeStreamIoLowerig(llvm::Function &F,
 		}
 	}
 	auto *AC = FAM.getCachedResult<llvm::AssumptionAnalysis>(F);
-	for (auto a: GeneratedAllocas) {
-		SmallVector<User*> Users(a->users());
-		for (auto u: Users) {
+	for (auto a : GeneratedAllocas) {
+		SmallVector<User *> Users(a->users());
+		for (auto u : Users) {
 			if (auto uci = dyn_cast<CallInst>(u)) {
 				if (IsStreamTmpAllocaTmpSetterPlaceholder(uci))
 					uci->eraseFromParent();
@@ -150,4 +157,4 @@ void finalizeStreamIoLowerig(llvm::Function &F,
 	}
 }
 
-}
+} // namespace hwtHls
