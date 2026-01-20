@@ -5,6 +5,9 @@ from hwtLib.tests.all import unittestMain
 from tests.hlsNetlist.bitwiseOpsAggregation_test import HlsNetlistBitwiseOpsTC
 from tests.hlsNetlist.breakHandshakeCycles_channelCond_test import BreakHandshakeCycles_channelCond_TC
 from tests.hlsNetlist.breakHandshakeCycles_test import BreakHandshakeCycles_TC
+from tests.hlsNetlist.cmpToSubstractMsbCheck_test import HlsNetlistReduceCmpToSubstractMsbCheckTC
+from tests.hlsNetlist.lutMappingScheduleAlap_test import LutMappingScehdulingAlapTC
+from tests.hlsNetlist.lutMapping_test import LutMappingTC
 from tests.hlsNetlist.netlistReduceBitwise_test import HlsNetlistReduceBitwiseTC
 from tests.hlsNetlist.netlistReduceMul_test import HlsNetlistReduceMulTC
 from tests.hlsNetlist.netlistReduceMux_test import HlsNetlistReduceMuxTC
@@ -23,6 +26,7 @@ hlsNetlistAllTests_TCs = [
     HlsNetlistReduceBitwiseTC,
     HlsNetlistReduceMuxTC,
     HlsNetlistReduceMulTC,
+    HlsNetlistReduceCmpToSubstractMsbCheckTC,
     # HlsNetlistPassInjectVldMaskToSkipWhenConditionsTC,
     HlsNetlistReadSyncTC,
     BreakHandshakeCycles_channelCond_TC,
