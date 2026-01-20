@@ -213,9 +213,9 @@ bool HwtHlsSimplifyCFGPass::runOpt0(Function &F, DomTreeUpdater &DTU,
 #endif
 		while (BBIt != F.end() && DTU.isBBPendingDeletion(&*BBIt))
 			++BBIt;
-		DTU.flush(); // (required because otherwise blocks are removed before update is applied)
 		if (DTU.isBBPendingDeletion(&BB))
 			continue;
+		DTU.flush(); // (required because otherwise blocks are removed before update is applied)
 
 		_changed0 |= Options.NormalizeLookupTableIndex
 				&& HwtHlsSimplifyCFGPass_normalizeLookupTableIndex(BB);
