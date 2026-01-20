@@ -8,6 +8,11 @@ LLVM/clang is useful when debugging something LLVM related which does not necess
 * There is a discord server and https://discourse.llvm.org.
 * https://www.cs.cmu.edu/afs/cs/academic/class/15745-s13/public/lectures/L6-LLVM-Detail-1up.pdf
 
+LLVM tutorials
+--------------
+* https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/index.html
+* https://lowlevelbits.org/how-to-learn-compilers-llvm-edition/
+
 Installation linux
 ------------------
 .. code-block:: bash
@@ -202,9 +207,5 @@ LLVM alias analysis
 
 * https://sites.google.com/site/parallelizationforllvm/building-the-dependence-graph
 * https://blog.tartanllama.xyz/llvm-alias-analysis/
-
-LLVM tutorials
---------------
-* https://lowlevelbits.org/how-to-learn-compilers-llvm-edition/
 
 

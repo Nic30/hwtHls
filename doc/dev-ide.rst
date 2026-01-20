@@ -34,12 +34,22 @@ In eclipse.ini allow more memory for JVM by appending
   (update name of your python)
 
 * Eclipse CDT does not recognize some STL containers like unordered_set and unordered_map.
-  To fix that it is necessary to define __cplusplus at least to 202002L
-  Project Properties --> C/C++ General --> Paths and Symbols --> Symbols --> GNU C++
+  --Deprecated:
+  To fix that it is necessary to define __cplusplus at least to 202002L (and for std::generator you need at least 202302L)
+  Project Properties --> C/C++ General --> Paths and Symbols --> Symbols --> GNU C++ 
   Make sure that the value corresponds to language version defined in meson.build
+  --
   https://stackoverflow.com/questions/17131744/eclipse-cdt-indexer-does-not-know-c11-containers
   https://gcc.gnu.org/onlinedocs/cpp/Standard-Predefined-Macros.html
   https://github.com/eclipse-cdt/cdt/issues/438
+  --Deprecated:
+  Alternatively you can add -std=c++23 flag to builtin compiler settings
+  Window -> Preferences -> C/C++ -> Build -> Settings -> CDT GCC Built-in Compiler settings
+  --
+  You also need to switch to LSP based editor in eclipse 2025-12 called "New C/C++ editing experience"
+  Window -> Preferences -> C/C++ -> Editor (LSP) -> Set C/C++ Editor (LSP) as default
+  And for that you need to install clang and clangd.
+
 
 * Worst problems for CDT usually happen in x86 backend generated files, which are not required for hwtHls at all.
   So after analysis nearly all types should be inferred correctly and code advisor should work as expected.
