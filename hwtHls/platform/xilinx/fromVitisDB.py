@@ -33,6 +33,7 @@ class HlsPlatformFromVitisDB(AbstractXilinxPlatform):
     :ivar _targetName: name of target in database e.g. artix7_slow, versal_fast (corresponds to a prefix in table name) 
     """
     _DEFAULT_VITIS_DIR_LINUX = "/opt/Xilinx/Vitis/"
+    _DEFAULT_PLATFORM_DB_FILE = "common/technology/xilinx/common/platform.db"
 
     @classmethod
     def _getVitisHome(cls):
@@ -59,7 +60,7 @@ class HlsPlatformFromVitisDB(AbstractXilinxPlatform):
                 vitisHome = Path(vitisHome)
             else:
                 vitisHome = self._getVitisHome()
-            vitisDbFile = vitisHome / Path("common/technology/xilinx/common/platform.db")
+            vitisDbFile = vitisHome / Path(self._DEFAULT_PLATFORM_DB_FILE)
 
         self._vitisDbFile = vitisDbFile
 
@@ -78,7 +79,7 @@ class HlsPlatformFromVitisDB(AbstractXilinxPlatform):
             speed = "fast"
         else:
             raise NotImplementedError(part)
-    
+
         F = XilinxPart.Family
         family = {
             F.artix7: "artix7",
@@ -91,12 +92,11 @@ class HlsPlatformFromVitisDB(AbstractXilinxPlatform):
             F.virtexuplus: "virtexuplus",
             F.versal: "versal",
             F.versalHbm: "versal",
-    
+
         }[part.family]
-    
+
         target_name = f"{family:s}_{speed:s}"
         return cls(target_name, *args, **kwargs)
-
 
     def _getFromDBArithmeticDelay(self, dbCursor:sqlite3.Cursor, coreName: str, splineTy=ResourceSplineBundleBitwidthDependent):
         operandWidths = []
