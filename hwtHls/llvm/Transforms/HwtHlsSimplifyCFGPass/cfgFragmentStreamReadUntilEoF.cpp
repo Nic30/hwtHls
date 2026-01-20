@@ -1,4 +1,5 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/cfgFragmentStreamReadUntilEoF.h>
+#include <llvm/ADT/iterator_range.h>
 #include <llvm/ADT/SmallSet.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 
@@ -13,12 +14,22 @@ namespace hwtHls {
 StreamReadUntilEoFCFGFragment::StreamReadUntilEoFCFGFragment() :
 	ioPtr(nullptr), exit(nullptr) {}
 
-
+template <typename T>
+inline void
+assertVectorContainOnlyUniqueValues(const llvm::SmallVector<T> &vec) {
+	for (auto xIt = vec.begin(); xIt != vec.end(); ++xIt) {
+		const T &x = *xIt;
+		if (find(llvm::make_range(std::next(xIt), vec.end()), x) != vec.end()) {
+			assert(false);
+		}
+	}
+}
 CallInst *StreamReadUntilEoFCFGFragment::mergeReads(
 	llvm::IRBuilderBase &Builder, // llvm::DomTreeUpdater &DTU,
 	const StreamChannelFormatInfo &streamProps,
 	const llvm::SmallVector<llvm::CallInst *> &reads) {
 	assert(reads.size() > 1);
+	assertVectorContainOnlyUniqueValues(reads);
 	//{
 	//	// update cfg in the case that some blocks with read have more
 	//predecessors
@@ -135,12 +146,13 @@ CallInst *StreamReadUntilEoFCFGFragment::mergeReads(
 		reads, [topBB](CallInst *CI) { return CI->getParent() == topBB; });
 	for (auto *r : reads) {
 		auto BB = r->getParent();
-		if (prevBB) {
-			auto prev = BB->getUniquePredecessor();
-			if (prev) {
-				assert(prev == prevBB);
-			} else {
-				if (!allInSameBB) {
+		if (!allInSameBB) {
+			if (prevBB) {
+				auto prev = BB->getUniquePredecessor();
+				if (prev) {
+					// check that reads were in sequence of bolocks as expected by this function
+					assert(prev == prevBB);
+				} else {
 					assert(&*BB->begin() == r);
 					if (!topBBCheckedToBeginWithRead) {
 						assert(&*topBB->begin() == reads[0]);
@@ -148,8 +160,8 @@ CallInst *StreamReadUntilEoFCFGFragment::mergeReads(
 					}
 				}
 			}
+			prevBB = BB;
 		}
-		prevBB = BB;
 		r->eraseFromParent();
 	}
 	return mergedRead;
