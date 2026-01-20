@@ -1,6 +1,8 @@
+#include <hwtHls/llvm/Transforms/bitwidthReducePass/utils.h>
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitRewriter.h>
 
 #include <iostream>
+#include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/PatternMatch.h>
 #include <llvm/ADT/SmallPtrSet.h>
 
@@ -647,6 +649,33 @@ llvm::Value* BitPartsRewriter::rewriteIfRequiredAndExpandAsOperand(
 	return V;
 }
 
+void setInsertPointForPhiArgMutation(IRBuilderBase & b, BasicBlock & pred) {
+	// [fixme]  phi instructions must always remain at the top of the block
+	// at the end of the block where this value comes from
+
+	// resolve where value for phi node should be materialized
+	Instruction *insertPoint = nullptr;
+	for (BasicBlock::reverse_iterator pi = pred.rbegin();
+			pi != pred.rend(); ++pi) {
+		BasicBlock::reverse_iterator predI = pi;
+		++predI;
+		if (pi == pred.rend() || predI == pred.rend()
+				|| !predI->isTerminator()) {
+			// if is first terminator
+			insertPoint = &*pi;
+			break;
+		}
+	}
+	if (insertPoint == nullptr) {
+		b.SetInsertPoint(&*pred.getFirstInsertionPt());
+	} else {
+		//assert(
+		//		BasicBlock::iterator(insertPoint) == insertPoint->getParent()->begin()
+		//				|| isa<PHINode>(insertPoint->getPrevNode()));
+		b.SetInsertPoint(insertPoint);
+	}
+}
+
 llvm::Value* BitPartsRewriter::rewritePHINodeArgsIfRequired(
 		llvm::PHINode *phi) {
 	APInt phiUseMask = APInt::getAllOnes(getIntegerBitWidthOr1(phi));
@@ -675,7 +704,6 @@ llvm::Value* BitPartsRewriter::rewritePHINodeArgsIfRequired(
 	assert(phi != newPhi || phiUseMask.isAllOnes());
 
 	IRBuilder<> b(phi);
-	unsigned opI = 0;
 	SmallPtrSet<BasicBlock*, 32> updatedForBB; // phi may have block in phi args multiple times
 	// but the value must be always the same (this is common for SwitchInst jumping multiple times to this block)
 	for (BasicBlock *pred : phi->blocks()) {
@@ -692,38 +720,25 @@ llvm::Value* BitPartsRewriter::rewritePHINodeArgsIfRequired(
 		auto constr = constraints.findInConstraints(val);
 		if (constr) {
 			// if operand is a subject for replacement
-
-			// [fixme]  phi instructions must always remain at the top of the block
-			// at the end of the block where this value comes from
-
-			// resolve where value for phi node should be materialized
-			Instruction *insertPoint = nullptr;
-			for (BasicBlock::reverse_iterator pi = pred->rbegin();
-					pi != pred->rend(); ++pi) {
-				BasicBlock::reverse_iterator predI = pi;
-				++predI;
-				if (pi == pred->rend() || predI == pred->rend()
-						|| !predI->isTerminator()) {
-					// if is first terminator
-					insertPoint = &*pi;
-					break;
-				}
-			}
-			if (insertPoint == nullptr) {
-				b.SetInsertPoint(&*pred->getFirstInsertionPt());
-			} else {
-				//assert(
-				//		BasicBlock::iterator(insertPoint) == insertPoint->getParent()->begin()
-				//				|| isa<PHINode>(insertPoint->getPrevNode()));
-				b.SetInsertPoint(insertPoint);
-			}
+			setInsertPointForPhiArgMutation(b, *pred);
 			// materialize phi operand
 			auto *_val = rewriteKnownBitRangeInfoVector(&b,
 					iterUsedBitRanges(phiUseMask, *constr));
+			if (_val->getType()->isIntegerTy()) {
+				assert(_val->getType()->getIntegerBitWidth() == phiUseMask.popcount());
+			}
 			if (_val != val && !_val->hasName() && val->hasName()
 					&& isa<Instruction>(_val)) {
 				_val->takeName(val);
 			}
+			val = _val;
+		} else if (newPhi->getType() == phi->getType()) {
+		} else {
+			setInsertPointForPhiArgMutation(b, *pred);
+			VarBitConstraint constr(val);
+			// :note: slice out un-required bits
+			auto *_val = rewriteKnownBitRangeInfoVector(&b,
+								iterUsedBitRanges(phiUseMask, constr));
 			val = _val;
 		}
 		if (newPhi == phi) {
@@ -731,9 +746,9 @@ llvm::Value* BitPartsRewriter::rewritePHINodeArgsIfRequired(
 		} else {
 			newPhi->addIncoming(val, pred);
 		}
-		opI += 2;
 	}
 	if (newPhi != phi && newPhi->isSameOperationAs(phi)) {
+		// rewritten phi turned out to be exactly same as original, use original and discard newly created.
 		_newPhi->second = phi;
 		newPhi->replaceAllUsesWith(phi);
 		newPhi->takeName(phi);
@@ -741,10 +756,20 @@ llvm::Value* BitPartsRewriter::rewritePHINodeArgsIfRequired(
 		newPhi = phi;
 	}
 	if (newPhi != phi) {
+		assert(phi->getNumOperands() == newPhi->getNumOperands());
 		for (auto &v : phi->incoming_values()) {
 			// clear values of PHI which is entirely replaced to allow DCE
 			v.set(UndefValue::get(v.get()->getType()));
 		}
+		Value * repl;
+		if (phiConstr) {
+			b.SetInsertPoint(phi->getParent()->getFirstInsertionPt());
+			repl = expandConstBits(&b, phi, newPhi, *phiConstr);
+		} else {
+			repl = newPhi;
+		}
+		phi->replaceAllUsesWith(repl);
+		
 	}
 	return newPhi;
 }
