@@ -153,6 +153,55 @@ OP_BITREVERSE = HOperatorDefLlvm(bitreverse, _getllvmIntUnaryIntrinsicConstructo
 
 
 @hwt_expr_producer
+def _normalizeShiftAmount(shiftAmount: Union[AnyHBitsValue, int],
+                          valTy: HBits, w: int, valIsConst: bool,
+                          zextShift: bool) -> Union[int, None, HBitsConst, HBitsRtlSignal]:
+    """
+    :param shiftAmount: shift amount variable to normalize
+    :param valTy: the type of the value to be shifted
+    :param w: width of valTy
+    :param valIsConst: if False the retured shiftAmount type of HBitsConst, HBitsRtlSignal for compatibility with
+        HOperatorNode.withRes
+    :param zextShift: if True the width of shiftAmount is zextended to width of w
+    """
+    if isinstance(shiftAmount, int):
+        assert shiftAmount >= 0, shiftAmount
+        assert shiftAmount < hwt_toPow2Ceil(w + 1), (shiftAmount, w)
+        if not valIsConst:
+            if zextShift:
+                return valTy.from_py(shiftAmount)
+            else:
+                shTy = HBits(hwt_log2ceil(w + 1))
+                return shTy.from_py(shiftAmount)
+    elif isinstance(shiftAmount, HConst):
+        if not shiftAmount._is_full_valid():
+            return None
+        _shiftAmount = shiftAmount
+        shiftAmount = int(shiftAmount)
+        assert shiftAmount >= 0, (shiftAmount, w)
+        assert shiftAmount < hwt_toPow2Ceil(w + 1), (shiftAmount, w)
+        if not valIsConst:
+            if zextShift:
+                shiftAmount = valTy.from_py(shiftAmount)
+            else:
+                return _shiftAmount
+    else:
+        assert not shiftAmount._dtype.signed
+        shW = shiftAmount._dtype.bit_length()
+        assert shW == hwt_log2ceil(w + 1), (shW, hwt_log2ceil(w + 1), w)
+        if isinstance(shiftAmount, HwIOBase):
+            shiftAmount = shiftAmount._sig
+        
+        if zextShift:
+            shWidth = shiftAmount._dtype.bit_length()
+            if shWidth != w:
+                assert shWidth < w, (shWidth, w)
+                shiftAmount = zext(shiftAmount, w)
+    
+    return shiftAmount
+
+
+@hwt_expr_producer
 def ashr(v: AnyHBitsValue, shiftAmount: AnyHBitsValue,
          zextShift=True) -> AnyHBitsValue:
     """
@@ -160,17 +209,12 @@ def ashr(v: AnyHBitsValue, shiftAmount: AnyHBitsValue,
     """
     t = v._dtype
     w = t.bit_length()
-    shW = shiftAmount._dtype.bit_length()
-    assert shW == hwt_log2ceil(w + 1), (shW, hwt_log2ceil(w + 1), w)
-    if isinstance(v, HConst) and isinstance(shiftAmount, HConst):
-        if not isinstance(t, HBits):
-            raise NotImplementedError(t)
+    vIsConst = isinstance(v, HConst)
+    shiftAmount = _normalizeShiftAmount(shiftAmount, v._dtype, w, vIsConst, zextShift)
+    if shiftAmount is None:
+        return t.from_py(None)
 
-        if not shiftAmount._is_full_valid():
-            return t.from_py(None)
-        shiftAmount = int(shiftAmount)
-        assert shiftAmount < hwt_toPow2Ceil(w + 1), (shiftAmount, w)
-        assert shiftAmount >= 0, (shiftAmount, w)
+    if vIsConst and isinstance(shiftAmount, int):
         # :note: python >> is arithmetic shift, but the value is stored in unsigned format
         return t.from_py(
             to_unsigned(to_signed(v.val, w) >> shiftAmount, w),
@@ -179,21 +223,13 @@ def ashr(v: AnyHBitsValue, shiftAmount: AnyHBitsValue,
     else:
         if isinstance(v, HwIOBase):
             v = v._sig
-        if isinstance(shiftAmount, HwIOBase):
-            shiftAmount = shiftAmount._sig
-        if zextShift:
-            shWidth = shiftAmount._dtype.bit_length()
-            if shWidth != w:
-                assert shWidth < w, (shWidth, w)
-                shiftAmount = zext(shiftAmount, w)
-
         return HOperatorNode.withRes(OP_ASHR, (v, shiftAmount), t)
 
 
 OP_ASHR = HOperatorDefLlvm(ashr, _getllvmIntBinOpConstructor(lambda b: b.CreateAShr),
                            False, idStr="OP_ASHR", hdlConvertoAstOp=HdlOpType.SRA)
 
-
+    
 @hwt_expr_producer
 def lshr(v: AnyHBitsValue, shiftAmount: AnyHBitsValue,
          zextShift=True) -> AnyHBitsValue:
@@ -201,19 +237,13 @@ def lshr(v: AnyHBitsValue, shiftAmount: AnyHBitsValue,
     Logical shift right (0 is shifted in) (shiftAmount must be >= 0)
     """
     t = v._dtype
-    assert not shiftAmount._dtype.signed
     w = t.bit_length()
-    shW = shiftAmount._dtype.bit_length()
-    assert shW == hwt_log2ceil(w + 1), (shW, hwt_log2ceil(w + 1), w)
-    if isinstance(v, HConst) and isinstance(shiftAmount, HConst):
-        if not isinstance(t, HBits):
-            raise NotImplementedError(t)
-        if not shiftAmount._is_full_valid():
-            return t.from_py(None)
-        shiftAmount = int(shiftAmount)
-        assert shiftAmount < hwt_toPow2Ceil(w + 1), (shiftAmount, w)
-        assert shiftAmount >= 0, (shiftAmount, w)
+    vIsConst = isinstance(v, HConst)
+    shiftAmount = _normalizeShiftAmount(shiftAmount, v._dtype, w, vIsConst, zextShift)
+    if shiftAmount is None:
+        return t.from_py(None)
 
+    if vIsConst and isinstance(shiftAmount, int):
         # :note: python >> is arithmetic shift, but the value is stored in unsigned format
         if t.signed and v.val < 0:
             val = to_signed(to_unsigned(v.val, w) >> shiftAmount, w)
@@ -228,13 +258,6 @@ def lshr(v: AnyHBitsValue, shiftAmount: AnyHBitsValue,
     else:
         if isinstance(v, HwIOBase):
             v = v._sig
-        if isinstance(shiftAmount, HwIOBase):
-            shiftAmount = shiftAmount._sig
-        if zextShift:
-            shWidth = shiftAmount._dtype.bit_length()
-            if shWidth != w:
-                assert shWidth < w, (shWidth, w)
-                shiftAmount = zext(shiftAmount, w)
         return HOperatorNode.withRes(OP_LSHR, (v, shiftAmount), t)
 
 
@@ -250,19 +273,15 @@ def shl(v: AnyHBitsValue, shiftAmount: AnyHBitsValue,
     """
     t = v._dtype
     w = t.bit_length()
-    shW = shiftAmount._dtype.bit_length()
-    assert shW == hwt_log2ceil(w + 1), (shW, hwt_log2ceil(w + 1), w)
-    if isinstance(v, HConst) and isinstance(shiftAmount, HConst):
-        if not isinstance(t, HBits):
-            raise NotImplementedError(t)
+
+    vIsConst = isinstance(v, HConst)
+    shiftAmount = _normalizeShiftAmount(shiftAmount, v._dtype, w, vIsConst, zextShift)
+    if shiftAmount is None:
+        return t.from_py(None)
+
+    if vIsConst and isinstance(shiftAmount, int):
         t: HBits
         m = t.all_mask()
-        if not shiftAmount._is_full_valid():
-            return t.from_py(None)
-        shiftAmount = int(shiftAmount)
-        assert shiftAmount < hwt_toPow2Ceil(w + 1), (shiftAmount, w)
-        assert shiftAmount >= 0, (shiftAmount, w)
-
         # :note: python >> is arithmetic shift, but the value is stored in unsigned format
         return t.from_py(
             (v.val << shiftAmount) & m,
@@ -271,13 +290,6 @@ def shl(v: AnyHBitsValue, shiftAmount: AnyHBitsValue,
     else:
         if isinstance(v, HwIOBase):
             v = v._sig
-        if isinstance(shiftAmount, HwIOBase):
-            shiftAmount = shiftAmount._sig
-        if zextShift:
-            shWidth = shiftAmount._dtype.bit_length()
-            if shWidth != w:
-                assert shWidth < w, (shWidth, w)
-                shiftAmount = zext(shiftAmount, w)
         return HOperatorNode.withRes(OP_SHL, (v, shiftAmount), t)
 
 
@@ -818,4 +830,7 @@ def incrSat(x: AnyHBitsValue, en:Optional[AnyHBitsValue]=None) -> AnyHBitsValue:
 
 @hwt_expr_producer
 def subSat0(v0: AnyHBitsValue, v1: AnyHBitsValue):
+    """
+    Substract saturate at zero.
+    """
     return (v0 < v1)._ternary(v0._dtype.from_py(0), v0 - v1)
