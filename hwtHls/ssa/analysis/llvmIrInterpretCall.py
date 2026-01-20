@@ -4,7 +4,7 @@ from typing import Optional
 from hwt.code import Concat
 from hwt.hdl.const import HConst
 from hwt.hdl.types.bitsConst import HBitsConst
-from hwtHls.llvm.llvmIr import BasicBlock, Instruction, CallInst, InstructionToCallInst, Intrinsic, ValueToConstantInt
+from hwtHls.llvm.llvmIr import BasicBlock, Instruction, CallInst, InstructionToCallInst, Intrinsic, ValueToConstantInt, ValueToInstruction, InstructionToCastInst
 from hwtHls.ssa.analysis.llvmIrInterpretUtils import HwtHlsFpIntrisicName
 from pyDigitalWaveTools.vcd.writer import VcdWriter
 
@@ -89,8 +89,17 @@ def _decodeOpcode_CallInst(interpret: "LlvmIrInterpret", instr: Instruction) -> 
             raise NotImplementedError(instr)
 
     elif fnName.startswith("hwtHls.pyObjectPlaceholder."):
-        fnId = ValueToConstantInt(instr.getOperand(0))
-        assert fnId, instr
+        _fnId = instr.getOperand(0)
+        fnId = ValueToConstantInt(_fnId)
+        if fnId is None:
+            # case where Constant Hoisting replaced const with bitcast
+            fnId = ValueToInstruction(_fnId)
+            assert fnId, _fnId
+            fnId = InstructionToCastInst(fnId)
+            assert fnId, _fnId
+            fnId = ValueToConstantInt(fnId.getOperand(0))
+            assert fnId, _fnId
+
         fnId = fnId.getValue().getZExtValue()
         ph: "HardBlockHwModule" = interpret.placeholderObjectSlots[fnId][0]
         gen: "ComponentGeneratorForHardBlock" = interpret.componentGenerators[ph.getComponentGeneratorKey()]
