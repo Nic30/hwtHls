@@ -10,7 +10,7 @@ from hwtHls.platform.platform import DefaultHlsPlatform, DebugId, HlsDebugBundle
 from hwtHls.platform.virtual import _OPS_T_ZERO_LATENCY, VirtualHlsPlatform
 
 
-class AbstractXilinxPlatform(DefaultHlsPlatform):
+class AbstractXilinxPlatform(VirtualHlsPlatform):
     """
     Base class for HlsPlatform implementations for Xilinx FPGAs
 
