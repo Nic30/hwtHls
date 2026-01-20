@@ -193,7 +193,7 @@ class HlsPlatformFromVitisDB(AbstractXilinxPlatform):
     def _init_coefs(self):
         with sqlite3.connect(f"file:{self._vitisDbFile.as_posix():s}?mode=ro", uri=True) as db:
             c = db.cursor()
-            Sel = self._getFromDBArithmeticDelay(c, "Sel")
+            Sel = self._getFromDBArithmeticDelay(c, "Sel", splineTy=ResourceSplineBundleArgCntDependent)
             # the multiplier uses dsp (for wide multipliers) with no register,
             # thus delay of whole dsp is added to delay of multiplier itself
             Multiplier = self._getFromDBArithmeticDelay(c, "Multiplier")
