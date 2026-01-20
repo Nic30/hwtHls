@@ -589,6 +589,8 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
         if maxTime is not None and maxTime < scheduledZero:
             scheduledZero = maxTime
             t = maxTime
+            if not self.realization.mayBeInFFStoreTime:
+                t -= ffdelay
         else:
             t = None
 
