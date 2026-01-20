@@ -1,12 +1,18 @@
 from dis import Instruction
+import importlib
 from io import StringIO
 from opcode import opmap, cmp_op, _nb_ops, _intrinsic_1_descs, \
     _intrinsic_2_descs
 import operator
 import sys
 from typing import Type, Tuple, Dict, Callable
-import importlib
 import typing
+
+from hwt.hdl.const import HConst
+from hwt.hwIO import HwIO
+from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
+from hwtHls.code import shl, ashr, lshr
+
 
 # https://docs.python.org/3/library/dis.html
 assert (sys.version_info[0], sys.version_info[1]) == (3, 13), (
@@ -162,17 +168,34 @@ def _binOpOpc(descrTuple: Tuple[str, str]) -> int:
     return _nb_ops.index(descrTuple)
 
 
+def _lshift(x, sh):
+    if isinstance(x, (HConst, HwIO, RtlSignal)) or isinstance(x, (HConst, HwIO, RtlSignal)):
+        return shl(x, sh)
+    else:
+        return operator.lshift(x, sh)
+
+
+def _rshift(x, sh):
+    if isinstance(x, (HConst, HwIO, RtlSignal)) or isinstance(x, (HConst, HwIO, RtlSignal)):
+        if x._dtype.signed:
+            return ashr(x, sh)
+        else:
+            return lshr(x, sh)
+    else:
+        return operator.rshift(x, sh)
+
+
 BINARY_OPS: Dict[int, Tuple[bool, Callable[object, object]]] = {
     _binOpOpc(("NB_ADD", "+")): (False, operator.add),
     _binOpOpc(("NB_AND", "&")): (False, operator.and_),
     _binOpOpc(("NB_FLOOR_DIVIDE", "//")): (False, operator.floordiv),
-    _binOpOpc(("NB_LSHIFT", "<<")): (False, operator.lshift),
+    _binOpOpc(("NB_LSHIFT", "<<")): (False, _lshift),
     _binOpOpc(("NB_MATRIX_MULTIPLY", "@")): (False, operator.matmul),
     _binOpOpc(("NB_MULTIPLY", "*")): (False, operator.mul),
     _binOpOpc(("NB_REMAINDER", "%")): (False, operator.mod),
     _binOpOpc(("NB_OR", "|")): (False, operator.or_),
     _binOpOpc(("NB_POWER", "**")): (False, operator.pow),
-    _binOpOpc(("NB_RSHIFT", ">>")): (False, operator.rshift),
+    _binOpOpc(("NB_RSHIFT", ">>")): (False, _rshift),
     _binOpOpc(("NB_SUBTRACT", "-")): (False, operator.sub),
     _binOpOpc(("NB_TRUE_DIVIDE", "/")): (False, operator.truediv),
     _binOpOpc(("NB_XOR", "^")): (False, operator.xor),
@@ -180,13 +203,13 @@ BINARY_OPS: Dict[int, Tuple[bool, Callable[object, object]]] = {
     _binOpOpc(("NB_INPLACE_ADD", "+=")): (True, operator.add),
     _binOpOpc(("NB_INPLACE_AND", "&=")): (True, operator.and_),
     _binOpOpc(("NB_INPLACE_FLOOR_DIVIDE", "//=")): (True, operator.floordiv),
-    _binOpOpc(("NB_INPLACE_LSHIFT", "<<=")): (True, operator.lshift),
+    _binOpOpc(("NB_INPLACE_LSHIFT", "<<=")): (True, _lshift),
     _binOpOpc(("NB_INPLACE_MATRIX_MULTIPLY", "@=")): (True, operator.matmul),
     _binOpOpc(("NB_INPLACE_MULTIPLY", "*=")): (True, operator.mul),
     _binOpOpc(("NB_INPLACE_REMAINDER", "%=")): (True, operator.mod),
     _binOpOpc(("NB_INPLACE_OR", "|=")): (True, operator.or_),
     _binOpOpc(("NB_INPLACE_POWER", "**=")): (True, operator.pow),
-    _binOpOpc(("NB_INPLACE_RSHIFT", ">>=")): (True, operator.rshift),
+    _binOpOpc(("NB_INPLACE_RSHIFT", ">>=")): (True, _rshift),
     _binOpOpc(("NB_INPLACE_SUBTRACT", "-=")): (True, operator.sub),
     _binOpOpc(("NB_INPLACE_TRUE_DIVIDE", "/=")): (True, operator.truediv),
     _binOpOpc(("NB_INPLACE_XOR", "^=")): (True, operator.xor),
