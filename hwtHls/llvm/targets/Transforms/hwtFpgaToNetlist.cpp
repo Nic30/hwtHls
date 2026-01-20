@@ -1,17 +1,21 @@
 #include <hwtHls/llvm/targets/Transforms/hwtFpgaToNetlist.h>
 
+#include <llvm/ADT/DepthFirstIterator.h>
 #include <llvm/CodeGen/MachineBranchProbabilityInfo.h>
 //#include <llvm/CodeGen/MachineDominators.h>
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/MachineFunctionPass.h>
 #include <llvm/CodeGen/MachineInstr.h>
 #include <llvm/CodeGen/MachineLoopInfo.h>
+#include <llvm/CodeGen/MachineCycleAnalysis.h>
 #include <llvm/CodeGen/MachineOptimizationRemarkEmitter.h>
 #include <llvm/CodeGen/MachineRegisterInfo.h>
 #include <llvm/CodeGen/MachineTraceMetrics.h>
 #include <llvm/CodeGen/LiveVariables.h>
+
 #include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetPassConfig.h>
+#include <stdexcept>
 
 #define DEBUG_TYPE "hwtfpga-tonetlist"
 
@@ -29,6 +33,7 @@ void HwtFpgaToNetlist::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 	AU.addPreserved<TargetPassConfig>();
 	AU.addRequired<MachineLoopInfoWrapperPass>();
 	AU.addPreserved<MachineLoopInfoWrapperPass>();
+	AU.addPreserved<MachineCycleInfoWrapperPass>();
 	//AU.addRequired<MachineTraceMetrics>();
 	//AU.addPreserved<MachineTraceMetrics>();
 	// LiveVariables supports only SSA
@@ -70,6 +75,15 @@ bool HwtFpgaToNetlist::runOnMachineFunction(llvm::MachineFunction &MF) {
 	MachineRegisterInfo *MRI = &MF.getRegInfo();
 	//DomTree = &getAnalysis<MachineDominatorTree>();
 	MachineLoopInfo &Loops = getAnalysis<MachineLoopInfoWrapperPass>().getLI();
+	auto & CI = getAnalysis<MachineCycleInfoWrapperPass>().getCycleInfo();
+	for (auto *TopCycle : CI.toplevel_cycles()) {
+		for (auto *C : depth_first(TopCycle)) {
+			if (C->isReducible()) {
+				std::runtime_error(
+					"HwtFpgaToNetlist: irreducible CFG not expected (cycles should be converted to loops before this pass)");
+			}
+		}
+	}
 	//Traces = &getAnalysis<MachineTraceMetrics>();
 	std::set<MachineBasicBlockEdge> backedges;
 	for (auto loop : Loops) {
