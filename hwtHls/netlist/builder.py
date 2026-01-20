@@ -408,91 +408,95 @@ class HlsNetlistBuilder():
 
     def buildAndVariadic(self, ops: Tuple[Union[HlsNetNodeOut, HConst], ...],
                          name:Optional[str]=None,
-                         operatorSpecialization:OpSpecialization_t=None):
+                         operatorSpecialization:OpSpecialization_t=None, opt=True):
         return balanced_reduce(ops, lambda a, b: self.buildAnd(a, b,
                                                                name=name,
-                                                               operatorSpecialization=operatorSpecialization))
+                                                               operatorSpecialization=operatorSpecialization,
+                                                               opt=opt))
 
     def buildOrVariadic(self, ops: Tuple[Union[HlsNetNodeOut, HConst], ...],
                         name:Optional[str]=None,
-                        operatorSpecialization:OpSpecialization_t=None):
+                        operatorSpecialization:OpSpecialization_t=None, opt=True):
         return balanced_reduce(ops, lambda a, b: self.buildOr(a, b,
                                                               name=name,
-                                                              operatorSpecialization=operatorSpecialization))
+                                                              operatorSpecialization=operatorSpecialization,
+                                                              opt=opt))
 
     def buildAnd(self, a: Union[HlsNetNodeOut, HConst], b:Union[HlsNetNodeOut, HConst],
-                 name:Optional[str]=None, operatorSpecialization:OpSpecialization_t=None) -> HlsNetNodeOut:
+                 name:Optional[str]=None, operatorSpecialization:OpSpecialization_t=None, opt=True) -> HlsNetNodeOut:
         assert a._dtype == b._dtype, (a, b, a._dtype, b._dtype)
-        if a is b or isinstance(a, HlsNetNodeOut) and\
-                isinstance(a.obj, HlsNetNodeOperator) and\
-                a.obj.operator == HwtOps.AND and\
-                (a.obj.dependsOn[0] is b or a.obj.dependsOn[1] is b):
-            return a
-        for op0, other in ((a, b), (b, a)):
-            if isinstance(op0, HlsNetNodeConst):
-                op0 = op0.val
-
-            if isinstance(op0, HConst) and op0._is_full_valid():
-                if op0._eq(op0._dtype.all_mask()):
-                    # 1 & x = x
-                    if isinstance(other, HConst):
-                        c = HlsNetNodeConst(self.netlist, other, name=name)
+        if opt:
+            if a is b or isinstance(a, HlsNetNodeOut) and\
+                    isinstance(a.obj, HlsNetNodeOperator) and\
+                    a.obj.operator == HwtOps.AND and\
+                    (a.obj.dependsOn[0] is b or a.obj.dependsOn[1] is b):
+                return a
+            for op0, other in ((a, b), (b, a)):
+                if isinstance(op0, HlsNetNodeConst):
+                    op0 = op0.val
+    
+                if isinstance(op0, HConst) and op0._is_full_valid():
+                    if op0._eq(op0._dtype.all_mask()):
+                        # 1 & x = x
+                        if isinstance(other, HConst):
+                            c = HlsNetNodeConst(self.netlist, other, name=name)
+                            self._addNode(c)
+                            return c._outputs[0]
+                        else:
+                            return other
+                    elif op0._eq(0):
+                        # 0 & x = 0
+                        c = HlsNetNodeConst(self.netlist, op0._dtype.from_py(0), name=name)
                         self._addNode(c)
                         return c._outputs[0]
-                    else:
-                        return other
-                elif op0._eq(0):
-                    # 0 & x = 0
-                    c = HlsNetNodeConst(self.netlist, op0._dtype.from_py(0), name=name)
-                    self._addNode(c)
-                    return c._outputs[0]
-
+    
         return self.buildOp(HwtOps.AND, operatorSpecialization, a._dtype, a, b, name=name)
 
     def buildAndOptional(self, a: Optional[Union[HlsNetNodeOut, HConst]], b: Optional[Union[HlsNetNodeOut, HConst]],
-                         name:Optional[str]=None, operatorSpecialization:OpSpecialization_t=None)\
+                         name:Optional[str]=None, operatorSpecialization:OpSpecialization_t=None, opt=True)\
             ->Union[HlsNetNodeOut, HConst, None]:
         if a is None:
             return b
-        elif b is None or b is a:
+        elif b is None or (opt and b is a):
             return a
         else:
-            return self.buildAnd(a, b, name=name, operatorSpecialization=operatorSpecialization)
+            return self.buildAnd(a, b, name=name, operatorSpecialization=operatorSpecialization, opt=opt)
 
     def buildOr(self, a: Union[HlsNetNodeOut, HConst], b:Union[HlsNetNodeOut, HConst],
-                name:Optional[str]=None, operatorSpecialization:OpSpecialization_t=None) -> HlsNetNodeOut:
+                name:Optional[str]=None, operatorSpecialization:OpSpecialization_t=None, opt=True) -> HlsNetNodeOut:
         assert a._dtype == b._dtype, (a, b, a._dtype, b._dtype)
-        if isinstance(a, HlsNetNodeOut) and\
-                isinstance(a.obj, HlsNetNodeOperator) and\
-                a.obj.operator == HwtOps.OR and\
-                (a.obj.dependsOn[0] is b or a.obj.dependsOn[1] is b):
-            return a
-
-        for op0, other in ((a, b), (b, a)):
-            if isinstance(op0, HlsNetNodeConst):
-                op0 = op0.val
-
-            if isinstance(op0, HConst) and op0._is_full_valid():
-                if op0._eq(0):
-                    # 0 | x = x
-                    if isinstance(other, HConst):
-                        c = HlsNetNodeConst(self.netlist, other)
+        if opt:
+            if isinstance(a, HlsNetNodeOut) and\
+                    isinstance(a.obj, HlsNetNodeOperator) and\
+                    a.obj.operator == HwtOps.OR and\
+                    (a.obj.dependsOn[0] is b or a.obj.dependsOn[1] is b):
+                return a
+    
+            for op0, other in ((a, b), (b, a)):
+                if isinstance(op0, HlsNetNodeConst):
+                    op0 = op0.val
+    
+                if isinstance(op0, HConst) and op0._is_full_valid():
+                    if op0._eq(0):
+                        # 0 | x = x
+                        if isinstance(other, HConst):
+                            c = HlsNetNodeConst(self.netlist, other)
+                            c.name = name
+                            self._addNode(c)
+                            return c._outputs[0]
+                        else:
+                            return other
+                    elif op0._eq(op0._dtype.all_mask()):
+                        # 1 | x = 1
+                        c = HlsNetNodeConst(self.netlist, op0._dtype.from_py(op0._dtype.all_mask()))
                         c.name = name
                         self._addNode(c)
                         return c._outputs[0]
-                    else:
-                        return other
-                elif op0._eq(op0._dtype.all_mask()):
-                    # 1 | x = 1
-                    c = HlsNetNodeConst(self.netlist, op0._dtype.from_py(op0._dtype.all_mask()))
-                    c.name = name
-                    self._addNode(c)
-                    return c._outputs[0]
-
+    
         return self.buildOp(HwtOps.OR, operatorSpecialization, a._dtype, a, b, name=name)
 
     def buildOrOptional(self, a: Optional[Union[HlsNetNodeOut, HConst]], b: Optional[Union[HlsNetNodeOut, HConst]],
-                        name:Optional[str]=None, operatorSpecialization:OpSpecialization_t=None)\
+                        name:Optional[str]=None, operatorSpecialization:OpSpecialization_t=None, opt=True)\
             ->Union[HlsNetNodeOut, HConst, None]:
         if a is None:
             if b is None:
@@ -503,30 +507,31 @@ class HlsNetlistBuilder():
             if b is None or a is b:
                 return a
             else:
-                return self.buildOr(a, b, name=name, operatorSpecialization=operatorSpecialization)
+                return self.buildOr(a, b, name=name, operatorSpecialization=operatorSpecialization, opt=opt)
 
     def buildXor(self, a: Union[HlsNetNodeOut, HConst], b:Union[HlsNetNodeOut, HConst],
-                name:Optional[str]=None, operatorSpecialization:OpSpecialization_t=None) -> HlsNetNodeOut:
+                name:Optional[str]=None, operatorSpecialization:OpSpecialization_t=None, opt=True) -> HlsNetNodeOut:
         assert a._dtype == b._dtype, (a, b, a._dtype, b._dtype)
-        for op0, other in ((a, b), (b, a)):
-            if isinstance(op0, HlsNetNodeConst):
-                op0 = op0.val
-
-            if isinstance(op0, HConst) and op0._is_full_valid():
-                if op0._eq(0):
-                    # 0 ^ x = x
-                    if isinstance(other, HConst):
-                        c = HlsNetNodeConst(self.netlist, other)
-                        c.name = name
-                        self._addNode(c)
-                        return c._outputs[0]
-                    else:
-                        return other
-
-                elif op0._eq(op0._dtype.all_mask()):
-                    # 1 ^ x = ~x
-                    return self.buildNot(other)
-
+        if opt:
+            for op0, other in ((a, b), (b, a)):
+                if isinstance(op0, HlsNetNodeConst):
+                    op0 = op0.val
+    
+                if isinstance(op0, HConst) and op0._is_full_valid():
+                    if op0._eq(0):
+                        # 0 ^ x = x
+                        if isinstance(other, HConst):
+                            c = HlsNetNodeConst(self.netlist, other)
+                            c.name = name
+                            self._addNode(c)
+                            return c._outputs[0]
+                        else:
+                            return other
+    
+                    elif op0._eq(op0._dtype.all_mask()):
+                        # 1 ^ x = ~x
+                        return self.buildNot(other)
+    
         return self.buildOp(HwtOps.XOR, operatorSpecialization, a._dtype, a, b, name=name)
 
     def buildNot(self, a: Union[HlsNetNodeOut, HConst], name:Optional[str]=None,
