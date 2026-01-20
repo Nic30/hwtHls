@@ -418,9 +418,19 @@ static bool LoopFlattenUsingIfPass_flatten(const LoopFlattenUsingIfPass::Mode mo
 	if (DTU.hasPendingUpdates())
 		DTU.flush();
 
+	Function *F = nullptr;
+	if (tmpAllocas.size()) {
+		F = tmpAllocas[0]->getParent()->getParent();
+	}
 	// construct PHIs for variables defined in loop begin section which are now alive trough iteration
 	// of parent loop because it was merged with child loop
 	PromoteMemToReg(tmpAllocas, DTU.getDomTree(), &AR.AC);
+	if (tmpAllocas.size()) {
+		for (auto &BB: *F) {
+			// :note: llvm-21 PromoteMemToReg somehow generates phis with reversed order of operands according to block predecessors
+			sortPhiOperands(BB);
+		}
+	}
 	//promoteAllocasForBeginSectionLiveouts(beginSectionBegin, beginSectionEnd,
 	//		LParent, DTU, AR);
 	mergeNestedLoops(AR.LI, &AR.SE, LPMU, &LChild, &LParent);

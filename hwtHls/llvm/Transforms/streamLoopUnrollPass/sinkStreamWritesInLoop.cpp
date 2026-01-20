@@ -100,7 +100,18 @@ void sinkMergableSequenceOfWritesMoveWrites(llvm::Loop &L, llvm::LoopInfo &LI,
 	}
 
 	DTU.flush();
+	Function *F = nullptr;
+	if (tmpAllocas.size()) {
+		F = tmpAllocas[0]->getParent()->getParent();
+	}
 	llvm::PromoteMemToReg(tmpAllocas, DT, &AC);
+	if (tmpAllocas.size()) {
+		for (auto &BB : *F) {
+			// :note: llvm-21 PromoteMemToReg somehow generates phis with
+			// reversed order of operands according to block predecessors
+			sortPhiOperands(BB);
+		}
+	}
 }
 
 void sinkMergableSequenceOfWrites(llvm::Loop &L, llvm::LoopInfo &LI,

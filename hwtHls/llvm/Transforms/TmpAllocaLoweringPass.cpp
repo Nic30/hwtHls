@@ -182,6 +182,11 @@ TmpAllocaLoweringPass::run(llvm::Function &F,
 	}
 	if (TmpAllocas.size()) {
 		llvm::PromoteMemToReg(TmpAllocas, DT, AC);
+		for (auto &BB : F) {
+			// :note: llvm-21 PromoteMemToReg somehow generates phis with
+			// reversed order of operands according to block predecessors
+			sortPhiOperands(BB);
+		}
 		struct PropagateMdItem {
 			unsigned mdKind;
 			unsigned mdTmpKind;

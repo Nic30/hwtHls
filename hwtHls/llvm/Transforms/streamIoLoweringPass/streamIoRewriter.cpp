@@ -143,6 +143,11 @@ void finalizeStreamIoLowerig(llvm::Function &F,
 		}
 	}
 	llvm::PromoteMemToReg(GeneratedAllocas, DT, AC);
+	for (auto &BB : F) {
+		// :note: llvm-21 PromoteMemToReg somehow generates phis with reversed
+		// order of operands according to block predecessors
+		sortPhiOperands(BB);
+	}
 }
 
 }

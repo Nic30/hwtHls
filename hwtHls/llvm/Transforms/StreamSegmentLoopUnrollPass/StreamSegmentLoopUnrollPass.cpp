@@ -317,7 +317,13 @@ llvm::PreservedAnalyses StreamSegmentLoopUnrollPass::run(llvm::Function &F,
 	// writeCFGToDotFile(F, "tmp/StreamSegmentLoopUnrollPass.3.cfg.dot", AM,
 	// 		false, true);
  	llvm::PromoteMemToReg(tmpAllocas, DT, &AC);
-
+	if (tmpAllocas.size()) {
+		for (auto &BB : F) {
+			// :note: llvm-21 PromoteMemToReg somehow generates phis with
+			// reversed order of operands according to block predecessors
+			sortPhiOperands(BB);
+		}
+	}
  	assert(DT.verify());
 	//errs() << "\n";
 

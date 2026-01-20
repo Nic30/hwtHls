@@ -303,7 +303,17 @@ void formDedicatedUniqueLoopExitingAndLatchBB(IRBuilder<> &Builder,
 		formDedicatedUniqueLoopExitingAndLatchBB(Builder, DTU, LI, L,
 				tmpAllocas);
 	}
+	Function *F = nullptr;
+	if (tmpAllocas.size()) {
+		F = tmpAllocas[0]->getParent()->getParent();
+	}
 	PromoteMemToReg(tmpAllocas, DTU.getDomTree(), nullptr);
+	if (tmpAllocas.size()) {
+		for (auto &BB: *F) {
+			// :note: llvm-21 PromoteMemToReg somehow generates phis with reversed order of operands according to block predecessors
+			sortPhiOperands(BB);
+		}
+	}
 }
 
 }
