@@ -107,6 +107,8 @@ ENV/
 .project
 .settings/
 .cproject
+.clang-format
+.clangd
 
 # draw.io tmp files
 .$*
@@ -114,4 +116,5 @@ ENV/
 # subprojects
 subprojects/berkeley-abc
 subprojects/DEB
+
 
