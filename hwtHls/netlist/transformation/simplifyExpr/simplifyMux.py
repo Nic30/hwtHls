@@ -19,7 +19,7 @@ from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOpe
 from pyMathBitPrecise.bit_utils import ValidityError
 
 
-def netlistReduceMuxWitAllSameValues(n: HlsNetNodeMux, worklist: SetList[HlsNetNode]):
+def netlistReduceMuxWithAllSameValues(n: HlsNetNodeMux, worklist: SetList[HlsNetNode]):
     commonVal: Union[Literal[NOT_SPECIFIED], HConst, HlsNetNodeOut] = NOT_SPECIFIED
     commonValIsConst = False
     for val, _ in n._iterValueConditionDriverPairs():
@@ -188,6 +188,9 @@ ShiftValueBitsTuple = Tuple[HlsNetNodeOut, int, int]  # vMember, beginBitI, endB
 
 
 def netlistReduceMuxToShift(builder: HlsNetlistBuilder, n: HlsNetNodeMux, worklist: SetList[HlsNetNode]):
+    """
+    :note: similar to yosys pmux2shiftx https://yosyshq.readthedocs.io/projects/yosys/en/stable/cmd/index_passes_opt.html
+    """
     assert len(n._inputs) % 2 == 1, n
     msbShiftIn = None
     shiftedVal = None
@@ -725,7 +728,101 @@ def netlistReduceMuxSinkIncommingValueArithOperators(n: HlsNetNodeMux,
         return False
 
 
-def netlistReduceMux(n: HlsNetNodeMux, worklist: SetList[HlsNetNode]):
+def netlistReduceMuxWith2UniqueValues(n: HlsNetNodeMux, worklist: SetList[HlsNetNode]):
+    """
+    if c0:
+        x = x0
+    elif c1:
+        x = x1
+    else:
+        x = x0
+        
+    # to:
+     
+    if not c0 and c1:
+        x = x1
+    else:
+        x = x0
+         
+    """
+    assert len(n._inputs) >= 3, n
+    v0: Optional[HlsNetNodeOut] = None
+    v1: Optional[HlsNetNodeOut] = None
+    v0const: Optional[HConst] = None
+    v1const: Optional[HConst] = None
+
+    v0enCaseI: list[int] = []
+    v1enCaseI: list[int] = []
+
+    for i, (v, _) in enumerate(n._iterValueConditionDriverPairs()):
+        if v is v0:
+            v0enCaseI.append(i)
+            continue
+        elif v is v1:
+            v1enCaseI.append(i)
+            continue
+
+        vAsConst = getConstOfOutput(v)
+        if vAsConst is not None:
+            if vAsConst == v0const:
+                v0enCaseI.append(i)
+                continue
+            elif vAsConst == v1const:
+                v1enCaseI.append(i)
+                continue
+
+        if v0 is None:
+            v0 = v
+            v0const = vAsConst
+            v0enCaseI.append(i)
+        elif v1 is None:
+            v1 = v
+            v1const = vAsConst
+            v1enCaseI.append(i)
+        else:
+            return False  # more than 2 unique values
+
+    if v1 is None:
+        replaceOperatorNodeWith(n, v0, worklist)
+        return True
+    elif v0 is None:
+        replaceOperatorNodeWith(n, v1, worklist)
+        return True
+
+    # build new condition for the value which will have more simple condition
+    if v0enCaseI[-1] < v1enCaseI[-1]:
+        newV0 = v0
+        newV1 = v1
+        newV0enCases = v0enCaseI
+    else:
+        newV0 = v1
+        newV1 = v0
+        newV0enCases = v1enCaseI
+
+    newV0enCases = set(newV0enCases)
+    condOrMembers = SetList()
+    condNMembers = SetList()
+
+    builder = HlsNetlistBuilderWithWorklist(n.getHlsNetlistBuilder(), worklist)
+    for i, (_, c) in enumerate(n._iterValueConditionDriverPairs()):
+        if i in newV0enCases:
+            if condNMembers:
+                anyPrevNCondEnabled = builder.buildOrVariadic(condNMembers)
+                condOrMembers.append(builder.buildAnd(builder.buildNot(anyPrevNCondEnabled), c))
+            else:
+                condOrMembers.append(c)
+        else:
+            if c is not None:
+                builder.buildNot(c)
+                condNMembers.append(c)
+
+    newC = builder.buildOrVariadic(condOrMembers)
+    newO = builder.buildMux(n._outputs[0]._dtype, (newV0, newC, newV1))
+    replaceOperatorNodeWith(n, newO, worklist)
+    return True
+
+
+def netlistReduceMux(n: HlsNetNodeMux, worklist: SetList[HlsNetNode], reduceMuxWith2UniqueValues: bool):
     inpCnt = len(n._inputs)
     if inpCnt == 1:
         # mux x = x
@@ -747,10 +844,11 @@ def netlistReduceMux(n: HlsNetNodeMux, worklist: SetList[HlsNetNode]):
     builder: HlsNetlistBuilder = n.getHlsNetlistBuilder()
     # search large ROMs implemented as MUX
     if inpCnt >= 3:
-        if netlistReduceMuxWitAllSameValues(n, worklist):
+        if netlistReduceMuxWithAllSameValues(n, worklist):
             return True
-
         elif netlistReduceMuxToRom(builder, n, worklist):
+            return True
+        elif reduceMuxWith2UniqueValues and inpCnt > 3 and netlistReduceMuxWith2UniqueValues(n, worklist):
             return True
 
     if inpCnt % 2 == 1:
