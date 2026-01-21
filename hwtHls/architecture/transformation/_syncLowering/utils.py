@@ -81,7 +81,8 @@ def _moveNonSccChannelPortsToIO(neighbors: ArchSyncNeighborDict,
 
 def ioDataIsMixedInControlInThisClk(ioNode: HlsNetNodeExplicitSync, ackPort: HlsNetNodeOut):
     """
-    For nodes which 
+    For nodes which are in the same clock window as ioNode check if the data port is leading
+    to any control port of any other io node.
     """
 
     seen: Set[HlsNetNode] = set()
