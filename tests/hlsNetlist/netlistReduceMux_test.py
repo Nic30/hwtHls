@@ -44,7 +44,7 @@ class HlsNetlistReduceMuxTC(BaseHlsNetlistReduceTC):
     def test_reduce_0ifCElse1_to_notC_netlist(self):
         _, _, c0, res = self.get_0ifCElse1()
         w = self._w(res)
-        netlistReduceMux(res.obj, [])
+        netlistReduceMux(res.obj, [], True)
         self.assertIsNotOf(w.dependsOn[0], c0)
 
     def test_reduce_0ifCElse1_to_notC_abc(self):
@@ -74,7 +74,7 @@ class HlsNetlistReduceMuxTC(BaseHlsNetlistReduceTC):
         _, _, c0, res = self.get_1ifCElse0(opt=False)
         w = self._w(res)
 
-        netlistReduceMux(res.obj, [])
+        netlistReduceMux(res.obj, [], True)
         resOpt = w.dependsOn[0]
         self.assertIs(resOpt, c0)
 

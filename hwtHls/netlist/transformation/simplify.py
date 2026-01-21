@@ -22,7 +22,7 @@ from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.transformation.hlsNetlistPass import HlsNetlistPass
 from hwtHls.netlist.transformation.simplifyExpr.cmp import netlistReduceEqNe, \
-    netlistReduceCmpConstAfterConstAddSub
+    netlistReduceCmpConstAfterConstAddSub, netlistReduceCmpToBitSlice
 from hwtHls.netlist.transformation.simplifyExpr.cmpNormalize import netlistCmpNormalize, _DENORMALIZED_CMP_OPS
 from hwtHls.netlist.transformation.simplifyExpr.concat import netlistReduceConcatOfVoid, \
     netlistReduceConcat
@@ -122,7 +122,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
             return True
 
     @classmethod
-    def _simplifyHlsNetNodeOperator(cls, n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
+    def _simplifyHlsNetNodeOperator(cls, n: HlsNetNodeOperator, worklist: SetList[HlsNetNode], reduceCmpToBitSlice: bool, reduceMuxWith2UniqueValues: bool):
         o = n.operator
         runSimplifyRules = getattr(o, "runSimplifyRules", None)
         if runSimplifyRules is not None:
@@ -130,7 +130,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                 return True
 
         if isinstance(n, HlsNetNodeMux):
-            if netlistReduceMux(n, worklist):
+            if netlistReduceMux(n, worklist, reduceMuxWith2UniqueValues):
                 return True
 
         elif o == HwtOps.NOT:
@@ -182,6 +182,8 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                     # :note: this is also for EQ/NE
                     if netlistReduceCmpConstAfterConstAddSub(n, worklist):
                         return True
+                    if reduceCmpToBitSlice and netlistReduceCmpToBitSlice(n, worklist):
+                        return True
                 elif o is HwtOps.INDEX:
                     if netlistReduceIndexToConstIndex(n, worklist):
                         return True
@@ -213,7 +215,6 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                     if o in (HwtOps.EQ, HwtOps.NE):
                         if netlistReduceEqNe(n, worklist):
                             return True
-
                     return False
 
                 v = o._evalFn(c0, c1)
@@ -243,7 +244,8 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                     continue
 
                 if isinstance(n, HlsNetNodeOperator):
-                    if self._simplifyHlsNetNodeOperator(n, worklist):
+                    # reduceCmpToBitSlice only after initial simplification because it breaks compatibility with runLlvmCmpOpt
+                    if self._simplifyHlsNetNodeOperator(n, worklist, runCntr > 0, runCntr > 0):
                         didModifyExpr = True
                         continue
 
@@ -253,7 +255,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                     if n._isMarkedRemoved:
                         didModifyExpr = True
                         continue
-                    if isinstance(n, HlsNetNodeRead):
+                    elif isinstance(n, HlsNetNodeRead):
                         if netlistReduceReadReadSyncWithReadOfValidNB(n, worklist):
                             didModifyExpr = True
                             if dbgEn:
@@ -269,6 +271,14 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                         didModifyExpr = True
                         continue
                 assert not isinstance(n, HlsNetNodeReadSync), (n, "Should already be removed")
+
+            if runCntr > self.OPT_ITERATION_LIMIT:
+                while worklist:
+                    n = worklist.pop()
+                    if n._isMarkedRemoved or self._DCE(n, worklist, None):
+                        continue
+                dbgTracer.log(("giving up after ", runCntr, " rounds"))
+                break
 
             if runCntr == 0 or didModifyExpr:
                 if dbgEn:
@@ -299,13 +309,6 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                         break
 
             runCntr += 1
-            if runCntr > self.OPT_ITERATION_LIMIT:
-                while worklist:
-                    n = worklist.pop()
-                    if n._isMarkedRemoved or self._DCE(n, worklist, None):
-                        continue
-                dbgTracer.log(("giving up after ", runCntr, " rounds"))
-                break
 
         if netlist.filterNodesUsingRemovedSet(recursive=True):
             if dbgEn:

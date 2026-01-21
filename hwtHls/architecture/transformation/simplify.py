@@ -106,7 +106,7 @@ def ArchElementValuePropagation(dbgTracer: DebugTracer,
                     continue
                 else:
                     elm = n.parent
-                    if HlsNetlistPassSimplify._simplifyHlsNetNodeOperator(n, worklist):
+                    if HlsNetlistPassSimplify._simplifyHlsNetNodeOperator(n, worklist, True, True):
                         _modifiedElements.append(elm)
                         continue
 
