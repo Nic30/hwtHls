@@ -112,24 +112,25 @@ def ioDataIsMixedInControlInThisClk(ioNode: HlsNetNodeExplicitSync, ackPort: Hls
                 toSearch.append((uObj, timeLimitBegin, timeLimitEnd))
 
         if isinstance(n, HlsNetNodeAggregatePortOut):
-            for u in uses:
-                u: HlsNetNodeIn
-                uObj: HlsNetNodeAggregate = u.obj
-                assert isinstance(uObj, HlsNetNodeAggregate), (n, uObj)
-                uTime = uObj.scheduledIn[u.in_i]
-                # Connections between arch elements are allowed to cross clock boundaries
-                # freely without any register
-                # For this type of connections time boundaries must be update to clock window where
-                # the value arrived.
-                if uTime < timeLimitBegin or uTime >= timeLimitEnd:
-                    _timeLimitBegin = clkWindowBeginForTime(uTime, clkPeriod)
-                    _timeLimitEnd = _timeLimitBegin + clkPeriod
-                else:
-                    _timeLimitBegin = timeLimitBegin
-                    _timeLimitEnd = timeLimitEnd
-
-                toSearch.append((uObj._inputsInside[u.in_i], _timeLimitBegin, _timeLimitEnd))
-
+            for uses in n.usedBy:
+                for u in uses:
+                    u: HlsNetNodeIn
+                    uObj: HlsNetNodeAggregate = u.obj
+                    assert isinstance(uObj, HlsNetNodeAggregate), (n, uObj)
+                    uTime = uObj.scheduledIn[u.in_i]
+                    # Connections between arch elements are allowed to cross clock boundaries
+                    # freely without any register
+                    # For this type of connections time boundaries must be update to clock window where
+                    # the value arrived.
+                    if uTime < timeLimitBegin or uTime >= timeLimitEnd:
+                        _timeLimitBegin = clkWindowBeginForTime(uTime, clkPeriod)
+                        _timeLimitEnd = _timeLimitBegin + clkPeriod
+                    else:
+                        _timeLimitBegin = timeLimitBegin
+                        _timeLimitEnd = timeLimitEnd
+    
+                    toSearch.append((uObj._inputsInside[u.in_i], _timeLimitBegin, _timeLimitEnd))
+    
         elif isinstance(n, HlsNetNodeWrite) and n.isBackedge() and n.associatedRead is not None and n._getBufferCapacity() == 0:
             # if channel has 0 capacity and is crossing clock window boundaries the time must be updated
             # when following value to read port of channel
