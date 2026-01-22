@@ -15,7 +15,7 @@
 #include <hwtHls/llvm/Transforms/utils/functionMutating.h>
 #include <hwtHls/llvm/Transforms/ThreadExtractPass/ThreadExtractor.h>
 #include <hwtHls/llvm/Transforms/ThreadExtractIoFsmPass/separateInstructionsAssociatedWithIoFsm.h>
-#include <hwtHls/llvm/Transforms/ThreadExtractIoFsmPass/formDedicatedLatchUniqueExitingBlock.h>
+#include <hwtHls/llvm/Transforms/FormDedicatedUniqueLoopExitingAndLatchPass/FormDedicatedUniqueLoopExitingAndLatchPass.h>
 
 using namespace llvm;
 

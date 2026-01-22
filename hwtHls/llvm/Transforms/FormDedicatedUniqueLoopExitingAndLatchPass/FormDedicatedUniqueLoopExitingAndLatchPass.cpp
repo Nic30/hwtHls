@@ -1,4 +1,4 @@
-#include <hwtHls/llvm/Transforms/ThreadExtractIoFsmPass/formDedicatedLatchUniqueExitingBlock.h>
+#include <hwtHls/llvm/Transforms/FormDedicatedUniqueLoopExitingAndLatchPass/FormDedicatedUniqueLoopExitingAndLatchPass.h>
 
 #include <llvm/IR/Module.h>
 #include <llvm/ADT/SmallPtrSet.h>
