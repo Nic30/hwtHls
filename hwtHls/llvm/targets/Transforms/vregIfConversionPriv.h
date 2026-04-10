@@ -266,6 +266,10 @@ private:
 		llvm::SmallVector<llvm::MachineOperand, 0> NoCond;
 	  TII->insertBranch(MBB, &ToMBB, nullptr, NoCond, dl);
 	}
+	// If the NewSucBBI redefines registers in Cond, 
+	// create a copy at the end of BBI.BB to backup them into a new registers (and update Cond to use use rew regs)
+	void backupCondIfRedefined(BBInfo &BBI, BBInfo &NewSucBBI, llvm::SmallVector<llvm::MachineOperand, 4> & Cond);
+public:
 	static llvm::MachineBasicBlock* findFalseBlock(llvm::MachineBasicBlock *BB,
 			llvm::MachineBasicBlock *TrueBB);
 	void consistencyCheck(llvm::MachineBasicBlock & MBB) const;

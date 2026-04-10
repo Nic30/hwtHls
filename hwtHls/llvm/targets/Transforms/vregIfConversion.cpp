@@ -500,6 +500,7 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
         LLVM_DEBUG(dbgs() << (RetVal ? "succeeded!" : "failed!") << "\n");
         if (enableTrace)
           hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + KindName +  + "-after.dot");
+
         if (RetVal) {
         	switch (Kind) {
             case ICLoopTail:
@@ -1672,7 +1673,7 @@ bool VRegIfConverter::IfConvertSimple(BBInfo &BBI, IfcvtKind Kind) {
   // Remove the branches from the entry so we can add the contents of the true
   // block to it.
   BBI.NonPredSize -= TII->removeBranch(*BBI.BB);
-
+  backupCondIfRedefined(BBI, *CvtBBI, Cond);
   if (CvtMBB.pred_size() > 1) {
     if (CvtMBBEndsWithRet) {
     	llvm_unreachable("NotImplemented");
@@ -1881,7 +1882,7 @@ bool VRegIfConverter::IfConvertTriangle(BBInfo &BBI, IfcvtKind Kind) {
   // Remove the branches from the entry so we can add the contents of the true
   // block to it.
   BBI.NonPredSize -= TII->removeBranch(*BBI.BB);
-
+  backupCondIfRedefined(BBI, *CvtBBI, Cond);
   if (CvtMBB.pred_size() > 1) {
     // Copy instructions in the true block, predicate them, and add them to
     // the entry block.
@@ -2204,6 +2205,8 @@ bool VRegIfConverter::IfConvertDiamondCommon(
   // predicateInstructionUsingDefRegRename.
   MBB1.addSuccessorWithoutProb(&MBB2); // we need this to know that regs should be preserved for MBB2
   // Predicate the 'true' block.
+  backupCondIfRedefined(BBI, *BBI1, *Cond1);
+  backupCondIfRedefined(BBI, *BBI1, *Cond2);
   PredicateBlock(*BBI1, MBB1.end(), *Cond1, regsForSpeculation1,
       &RedefsByFalse);
   // After predicating BBI1, if there is a predicated terminator in BBI1 and
@@ -2230,6 +2233,8 @@ bool VRegIfConverter::IfConvertDiamondCommon(
   VRegLiveins->UpdateLiveinsBeforeNewPredecessorAdd(MBB1, MBB1);
 
   // Predicate the 'false' block.
+  backupCondIfRedefined(BBI, *BBI2, *Cond1);
+  backupCondIfRedefined(BBI, *BBI2, *Cond2);
   PredicateBlock(*BBI2, DI2, *Cond2, regsForSpeculation2);
 
   // Merge the true block into the entry of the diamond.

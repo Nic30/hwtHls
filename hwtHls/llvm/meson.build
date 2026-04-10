@@ -125,6 +125,7 @@ py3.extension_module(
      'targets/Transforms/RemovePointerArithmeticPass.cpp',
      'targets/Transforms/vregConditionUtils.cpp',
      'targets/Transforms/vregIfConversion.cpp',
+     'targets/Transforms/vregIfConversionBackupCondIfRedefined.cpp',
      'targets/Transforms/vregIfConversionDebugUtils.cpp',
      'targets/Transforms/vregIfConversionForkedTriangle.cpp',
      'targets/Transforms/vregIfConversionLoopTail.cpp',
