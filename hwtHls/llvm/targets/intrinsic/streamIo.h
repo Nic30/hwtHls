@@ -131,4 +131,22 @@ bool IsStreamIo(const llvm::CallInst *C);
 // :returns: number of bits of data only for stream.read/write (excluding non data bits like mask, eof, ...)
 size_t streamIoGetOrigChunkBitWidth(const llvm::CallInst *I);
 
+
+extern const std::string StreamRealignName;
+// :param inAlignAs: specifies where the stream should be cut to perform realigning. 0 means current location
+//                   other values means the bit position in the bus word
+// :param outAlighnAs: specifies the number of bits in the first word of an output steam
+//                     which are unused, if unset the value is picked automatically as the lowest value of offset from input 
+llvm::CallInst* CreateStreamRealign(llvm::IRBuilderBase *Builder,
+		llvm::Value *ioArgPtr, std::optional<size_t> inAlignAs,
+		 std::optional<size_t> outAlignAs);
+bool IsStreamRealign(const llvm::CallInst *C);
+bool IsStreamRealign(const llvm::Function *F);
+struct StreamRealignOptions {
+	llvm::Value *ioArgPtr;
+	std::optional<size_t> inAlignAs;
+	std::optional<size_t> outAlignAs;
+};
+StreamRealignOptions StreamRealignGetOptions(const llvm::CallInst *C);
+
 }

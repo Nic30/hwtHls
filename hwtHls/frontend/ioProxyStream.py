@@ -1,4 +1,4 @@
-from typing import Union, Sequence
+from typing import Union, Sequence, Optional
 
 from hwt.hdl.const import HConst
 from hwt.hdl.types.hdlType import HdlType
@@ -11,7 +11,7 @@ from hwtHls.frontend.pyBytecode import hlsLowLevel
 from hwtHls.frontend.statementsRead import HlsStmReadStartOfFrame, \
     HlsStmReadEndOfFrame
 from hwtHls.frontend.statementsWrite import HlsStmWriteStartOfFrame, \
-    HlsStmWriteEndOfFrame
+    HlsStmWriteEndOfFrame, HlsStmStreamRealign
 from hwtHls.llvm.llvmIr import Value
 from hwtHls.netlist.nodes.node import HlsNetNode
 
@@ -97,3 +97,7 @@ class IoProxyStream(IoProxy):
     def _translateMirToNetlist_HWTFPGA_CSTORE(self, *args, **kwargs) -> Sequence[HlsNetNode]:
         return IoProxyScalar._translateMirToNetlist_HWTFPGA_CSTORE(self, *args, **kwargs)
 
+    @hlsLowLevel
+    def realign(self, inAlignAs: Optional[int], outAlignAs: Optional[int]):
+        ":see: :class:`~.HlsStmStreamRealign`"
+        return HlsStmStreamRealign(self, self.interface, inAlignAs, outAlignAs)

@@ -163,6 +163,10 @@ void register_IRBuilder(pybind11::module_ & m) {
 		.def("CreateStreamWriteEndOfFrame", [](llvm::IRBuilder<> * self, llvm::Value *ioArgPtr) {
 			return CreateStreamWriteEndOfFrame(self, ioArgPtr);
 		}, py::return_value_policy::reference)
+		.def("CreateStreamRealign", [](llvm::IRBuilder<> * self, llvm::Value *ioArgPtr, std::optional<size_t> inAlignAs,
+				 std::optional<size_t> outAlignAs) {
+			return CreateStreamRealign(self, ioArgPtr, inAlignAs, outAlignAs);
+		}, py::return_value_policy::reference)
 		.def("CreateZExt", &llvm::IRBuilder<>::CreateZExt,
 				py::arg("V"), py::arg("DestTy"), py::arg("Name")=llvm::Twine(""), py::arg("IsNonNeg")=false,
 				py::return_value_policy::reference)

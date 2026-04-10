@@ -1,8 +1,9 @@
-from typing import Union, Tuple
+from typing import Union, Tuple, Optional
 
 from hwt.hdl.const import HConst
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
+from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_getName
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.ioUtils import  ANY_HLS_STREAM_INTF_TYPE, ANY_SCALAR_INT_VALUE
@@ -136,3 +137,28 @@ class HlsStmWriteEndOfFrame(HlsWrite):
         dst, _ = getArgumentForHwIO(toLlvm, self.dst, self._ioProxy, self, False)
         dst: Argument
         return bb, toLlvm.b.CreateStreamWriteEndOfFrame(dst)
+
+
+class HlsStmStreamRealign(HlsWrite):
+    """
+    A statement which specifies that the current program should be split on this position in half and two parts
+    should be connected using same stream interface for remaining data in steam (current live variables are passed on separate channel).
+
+    :note: This is intended to be used as a handle which cuts the program into multiple steps
+        to simplify its analysis or to reduce switching logic in the case that the data
+        may appear on too many positions int the bus word.
+    """
+
+    def __init__(self, ioProxy:"IoProxyStream", hwIO:HwIO, inAlign: Optional[int], outAlign: Optional[int]):
+        super(HlsStmWriteEndOfFrame, self).__init__(ioProxy, HVoidOrdering.from_py(None), hwIO, HVoidOrdering,
+                                                    True,  # isVolatile
+                                                    )
+        self.inAlign = inAlign
+        self.outAlign = outAlign
+
+    @override
+    def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
+        dst, _ = getArgumentForHwIO(toLlvm, self.dst, self._ioProxy, self, False)
+        dst: Argument
+        return bb, toLlvm.b.CreateStreamAlign(dst, self.inAlign, self.outAlign)
+

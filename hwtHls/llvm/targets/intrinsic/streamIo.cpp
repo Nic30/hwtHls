@@ -1,5 +1,6 @@
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 
+#include <llvm/IR/Constants.h>
 #include <llvm/ADT/StringExtras.h>
 #include <llvm/IR/Module.h>
 
@@ -29,6 +30,7 @@ const std::string StreamWriteMaskedName = StreamWriteName + ".masked";
 const std::string StreamWritePackingName = StreamWriteName + ".packing";
 const std::string StreamWriteStartOfFrameName = "hwtHls.streamWriteStartOfFrame";
 const std::string StreamWriteEndOfFrameName = "hwtHls.streamWriteEndOfFrame";
+const std::string StreamRealignName = "hwtHls.streamRealign";
 
 // create a call of function which will acts a placeholder setter to prevent removal of the alloca
 // while its driving logic was not constructed yet
@@ -359,6 +361,80 @@ size_t streamIoGetOrigChunkBitWidth(const llvm::CallInst *I) {
 		assert(IsStreamIoStartOfFrame(I) || IsStreamIoEndOfFrame(I));
 		return 0;
 	}
+}
+
+// :param inAlignAs: specifies where the stream should be cut to perform realigning. 0 means current location
+//                   other values means the bit position in the bus word
+// :param outAlighnAs: specifies the number of bits in the first word of an output steam
+//                     which are unused, if unset the value is picked automatically as the lowest value of offset from input
+llvm::CallInst *CreateStreamRealign(llvm::IRBuilderBase *Builder,
+									llvm::Value *ioArgPtr,
+									std::optional<size_t> inAlignAs,
+									std::optional<size_t> outAlignAs) {
+	assert(ioArgPtr->getType()->isPointerTy());
+	if (!inAlignAs.has_value())
+		inAlignAs = -1;
+	if (!outAlignAs.has_value())
+		outAlignAs = -1;
+
+	Module *M = Builder->GetInsertBlock()->getParent()->getParent();
+	CallInst *CI;
+	Value *Ops[] = {
+		ioArgPtr,							  //
+		Builder->getInt64(inAlignAs.value()), //
+		Builder->getInt64(outAlignAs.value()),
+	};
+	Type *ResT = Builder->getVoidTy();
+	Type *TysForName[] = {Ops[0]->getType(), //
+						  Ops[1]->getType(), //
+						  Ops[2]->getType(), //
+						  ResT};
+	auto name = Intrinsic_getName(StreamReadAligningName, TysForName);
+	Function *TheFn =
+		cast<Function>(M->getOrInsertFunction(name, ResT,		 //
+											  Ops[0]->getType(), //
+											  Ops[1]->getType(), //
+											  Ops[2]->getType()	 //
+											  )
+						   .getCallee());
+	setArgNames(*TheFn, {"ioArgPtr", "inAlignAs", "outAlighnAs"});
+	AddDefaultFunctionAttributes(*TheFn);
+	CI = Builder->CreateCall(TheFn, Ops);
+
+	CI->setOnlyAccessesArgMemory();
+	return CI;
+}
+bool IsStreamRealign(const llvm::CallInst *C) {
+	auto *F = C->getCalledFunction();
+	assert(F && "Function may null if definition is missing in IR");
+	return IsStreamRealign(C->getCalledFunction());
+}
+bool IsStreamRealign(const llvm::Function *F) {
+	return F->getName().str().rfind(StreamRealignName) == 0;
+}
+StreamRealignOptions StreamRealignGetOptions(const llvm::CallInst *C) {
+	StreamRealignOptions res;
+	res.ioArgPtr = C->getArgOperand(0);
+	
+	auto _inAlignAs = dyn_cast<ConstantInt>(C->getArgOperand(1));
+	assert(_inAlignAs && "inAlignAs argument is expected to be a integer constant");
+	auto _outAlignAs = dyn_cast<ConstantInt>(C->getArgOperand(2));
+	assert(_outAlignAs && "outAlignAs argument is expected to be a integer constant");
+	auto inAlignAs = _inAlignAs->getSExtValue();
+	if (inAlignAs < 0) {
+		res.inAlignAs = {};
+	} else {
+		res.inAlignAs = inAlignAs;
+	}
+
+	auto outAlignAs = _outAlignAs->getSExtValue();
+	if (outAlignAs < 0) {
+		res.outAlignAs = {};
+	} else {
+		res.outAlignAs = outAlignAs;
+	}
+
+	return res;
 }
 
 }
