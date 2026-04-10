@@ -13,13 +13,15 @@ from tests.math.divremRestoring_test import DivRemRestoring_TCs
 from tests.math.fixp._mathFixpAllTests import llvmMathFixp_TCs
 from tests.math.fp._mathFpAllTests import llvmMathFp_TCs
 from tests.math.hFloatTmp.hFloatTmpConstToLlvm_test import HFloatTmpConstToLlvm_TC
-from tests.testCaseUtils import testSuiteFromTCs
+from tests.math.icmp_test import Icmp_TC
 from tests.math.prefixSum_test import PrefixSumTC
+from tests.testCaseUtils import testSuiteFromTCs
 
 
 #from tests.math.componentGenerators._div.divSrt2_test import DivSrt2_TC
 #from tests.math.componentGenerators._div.divSrt4_test import DivSrt4_TC
 llvmMath_TCs = [
+    Icmp_TC,
     CountBitsTC,
     Ctpop_TC,
     AddMasked_TC,
