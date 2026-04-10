@@ -45,9 +45,11 @@ class HlsWrite(HlsStm):
         self.dst = dst
         self.mayBecomeFlushable = mayBecomeFlushable
 
+    @override
     def _getInterfaceName(self, io: Union[HwIO, Tuple[HwIO]]) -> str:
         return HlsRead._getInterfaceName(self, io)
 
+    @override
     def _translateToLlvm(self, toLlvm: 'ToLlvmIrTranslator', bb: BasicBlock):
         b = toLlvm.b
         bb, src = toLlvm._translateExprToLlvm(bb, self.src)
@@ -76,6 +78,7 @@ class HlsWriteAddressed(HlsWrite):
         HlsWrite.__init__(self, ioProxy, src, dst, element_t, isVolatile, mayBecomeFlushable=mayBecomeFlushable)
         self.index = index
 
+    @override
     def _translateToLlvm(self, toLlvm: 'ToLlvmIrTranslator', bb: BasicBlock):
         b = toLlvm.b
         dst, t = getArgumentForHwIO(toLlvm, self.dst, self._ioProxy, self, False)
@@ -117,6 +120,7 @@ class HlsStmWriteStartOfFrame(HlsWrite):
                                                       True,  # isVolatile
                                                       mayBecomeFlushable=mayBecomeFlushable)
 
+    @override
     def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
         dst, _ = getArgumentForHwIO(toLlvm, self.dst, self._ioProxy, self, False)
         dst: Argument
@@ -133,6 +137,7 @@ class HlsStmWriteEndOfFrame(HlsWrite):
                                                     True,  # isVolatile
                                                     )
 
+    @override
     def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
         dst, _ = getArgumentForHwIO(toLlvm, self.dst, self._ioProxy, self, False)
         dst: Argument

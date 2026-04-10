@@ -233,3 +233,4 @@ class HlsStmReadEndOfFrame(HlsRead):
         src: Argument
         v = toLlvm.b.CreateStreamReadEndOfFrame(src)
         return toLlvm._translateToLlvm_HlsRead_registerVar(bb, self, v)
+
