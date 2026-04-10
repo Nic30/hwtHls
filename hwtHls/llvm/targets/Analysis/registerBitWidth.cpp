@@ -9,6 +9,8 @@
 #include <hwtHls/llvm/targets/bitMathUtils.h>
 #include <hwtHls/llvm/targets/intrinsic/hfloattmp.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtilsInstrFns.h>
+#include <sstream>
+#include <stdexcept>
 
 using namespace llvm;
 
@@ -350,9 +352,13 @@ bool resolveTypes(MachineInstr &MI) {
 				elemT && elemT->isIntegerTy()
 						&& "Instruction load/store type must be resolvable");
 		unsigned bitWidth = elemT->getIntegerBitWidth();
-		assert(
-				bitWidth == MI.getOperand(3).getImm()
-						&& "access width must be exactly one item (array type should have been casted if different size is required)");
+		if(bitWidth != MI.getOperand(3).getImm()) {
+			std::string tmp;
+			llvm::raw_string_ostream ss(tmp);
+			ss << "access width must be exactly one item (array type should have been casted if different size is required): ";
+			ss << MI << " expected:" << bitWidth;
+			throw std::runtime_error(ss.str());
+		}
 
 		MachineOperand_checkOrSetWidth(MRI, MI.getOperand(0), bitWidth);
 
