@@ -127,9 +127,11 @@ bool HwtHlsVRegLiveins::isAnyPredecessorLiveout(
 
 bool HwtHlsVRegLiveins::isLiveout(const llvm::MachineBasicBlock &MBB,
 		Register r) const {
+	assert(MBB.getParent() != nullptr && "Assert block in in a parent function");
 	for (auto *Suc : MBB.successors()) {
 		auto liveins = _liveins.find(Suc);
-		assert(liveins != _liveins.end());
+		assert(Suc->getParent() == MBB.getParent());
+		assert(liveins != _liveins.end() && "Assert that the block was known to his analysis");
 		if (liveins->second.count(r)) {
 			return true;
 		}
@@ -181,6 +183,10 @@ void HwtHlsVRegLiveins::_addToLivenessRecursively(
 	})
 		)
 		return;
+}
+
+void HwtHlsVRegLiveins::removeBlock(MachineBasicBlock * MBB) {
+	_liveins.erase(MBB);
 }
 
 void HwtHlsVRegLiveins::UpdateAfterInsertBranch(llvm::MachineBasicBlock &MBB) {
@@ -245,6 +251,15 @@ void HwtHlsVRegLiveins::UpdateLiveinsBeforeNewPredecessorAdd(llvm::MachineBasicB
 void HwtHlsVRegLiveins::recompute() {
 	_liveins.clear();
 	runOnMachineFunction(*MF);
+}
+void HwtHlsVRegLiveins::verifyAnalysis() const {
+	HwtHlsVRegLiveins other;
+	other.runOnMachineFunction(*MF);
+	for (auto &BB : *MF) {
+		assert(other._liveins.contains(&BB));
+		assert(_liveins.contains(&BB));
+	}
+	assert(_liveins == other._liveins);
 }
 
 void HwtHlsVRegLiveins::print(llvm::raw_ostream &O, const Module *M) const {

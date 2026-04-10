@@ -43,6 +43,7 @@ public:
 			llvm::Register RegToAdd);
 	void addToLivenessRecursively(llvm::MachineBasicBlock &CurMBB,
 			llvm::Register RegToAdd);
+	void removeBlock(llvm::MachineBasicBlock * MBB);
 	/*
 	 * After  TII->insertBranch() there may the defining register may be missing in liveness or branch condition operand may miss killed flag.
 	 * :note: this should be called once all successors are also updated
@@ -56,7 +57,8 @@ public:
 	 * */
 	void UpdateLiveinsBeforeNewPredecessorAdd(llvm::MachineBasicBlock &MBB, llvm::MachineBasicBlock &NewPredecMBB);
 	void recompute();
-
+	void verifyAnalysis() const override;
+	
 	void print(llvm::raw_ostream &O, const llvm::Module *M) const override;
 };
 
