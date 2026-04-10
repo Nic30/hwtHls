@@ -1,16 +1,18 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass.h>
 
-#include <map>
-
+#include <llvm/IR/Analysis.h>
 #include <llvm/ADT/SetVector.h>
-#include <llvm/Analysis/MemorySSAUpdater.h>
-#include <llvm/Analysis/ValueTracking.h>
+#include <llvm/Analysis/AssumptionCache.h>
+#include <llvm/Analysis/BlockFrequencyInfo.h>
+#include <llvm/Analysis/BranchProbabilityInfo.h>
+#include <llvm/Analysis/DomTreeUpdater.h>
 #include <llvm/Analysis/InstructionSimplify.h>
 #include <llvm/Analysis/InstSimplifyFolder.h>
 #include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/Analysis/TargetFolder.h>
-#include <llvm/Analysis/AssumptionCache.h>
-#include <llvm/Analysis/DomTreeUpdater.h>
+#include <llvm/Analysis/LoopInfo.h>
+#include <llvm/Analysis/MemorySSAUpdater.h>
+#include <llvm/Analysis/ValueTracking.h>
 #include <llvm/IR/Attributes.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/IRBuilder.h>
@@ -21,11 +23,14 @@
 #include <llvm/Transforms/Utils/Local.h>
 #include <llvm/Transforms/Scalar/EarlyCSE.h>
 #include <llvm/Transforms/InstCombine/InstCombine.h>
+#include <llvm/IR/PatternMatch.h>
 
 #include <hwtHls/llvm/Transforms/trivialSimplifyCFGPass.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFG.h>
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinePass.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_hoistHoistableAssumes.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_memHoistToNewBB.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_memSinkToNewBB.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_normalizeLookupTableIndex.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_phiToLogicalExpr.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_rewriteMaskPatternsFromCFGToData.h>
@@ -37,6 +42,7 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_storeHoist.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_SwitchReduceRangeUndo.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_unswitchCheapManyPredManySuccBB.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_unswitchComplementarySequentialBlocks.h>
 #include <hwtHls/llvm/Transforms/BitcountMergePass.h>
 #include <hwtHls/llvm/Transforms/RomExtractPass.h>
@@ -44,6 +50,7 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFG_priv.h>
 
 // #include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
+// #include <stdexcept>
 
 using namespace llvm;
 
@@ -55,12 +62,15 @@ static llvm::cl::opt<size_t> OPT_ITERATION_COUNT(
   static llvm::cl::opt<bool> name("hwthls-simplifycfg-" #name, cl::Hidden, cl::init(true), llvm::cl::desc("(default = true)"))
 DEFINE_LLVM_BOOL_OPTION(SwitchReduceRange);
 DEFINE_LLVM_BOOL_OPTION(HoistHoistableAssumes);
+DEFINE_LLVM_BOOL_OPTION(MemHoistToNewBB);
+DEFINE_LLVM_BOOL_OPTION(MemSinkToNewBB);
 DEFINE_LLVM_BOOL_OPTION(NormalizeLookupTableIndex);
 DEFINE_LLVM_BOOL_OPTION(RewriteMaskPatternsFromCFGToData);
 DEFINE_LLVM_BOOL_OPTION(StoreHoist);
 DEFINE_LLVM_BOOL_OPTION(AggresiveStoreSink);
 DEFINE_LLVM_BOOL_OPTION(MergePredecessorsStore);
 DEFINE_LLVM_BOOL_OPTION(PhiToLogicalExpr);
+DEFINE_LLVM_BOOL_OPTION(UnswitchCheapManyPredManySuccBB);
 DEFINE_LLVM_BOOL_OPTION(UnswitchComplementarySequentialBlocks);
 DEFINE_LLVM_BOOL_OPTION(SpeculatePredecessor);
 DEFINE_LLVM_BOOL_OPTION(StreamWriteMerge);
@@ -119,12 +129,14 @@ static void applyCommandLineOverridesToOptions(
 	//	Options.SinkCheapInsts = UserSinkCheapInsts;
 	FORWARD_LLVM_OPTION(SwitchReduceRange);
 	FORWARD_LLVM_OPTION(HoistHoistableAssumes);
+	// FORWARD_LLVM_OPTION(MemSinkToNewBB);
 	FORWARD_LLVM_OPTION(NormalizeLookupTableIndex);
 	FORWARD_LLVM_OPTION(RewriteMaskPatternsFromCFGToData);
 	FORWARD_LLVM_OPTION(StoreHoist);
 	FORWARD_LLVM_OPTION(AggresiveStoreSink);
 	FORWARD_LLVM_OPTION(MergePredecessorsStore);
 	FORWARD_LLVM_OPTION(PhiToLogicalExpr);
+	FORWARD_LLVM_OPTION(UnswitchCheapManyPredManySuccBB);
 	FORWARD_LLVM_OPTION(UnswitchComplementarySequentialBlocks);
 	FORWARD_LLVM_OPTION(SpeculatePredecessor);
 	FORWARD_LLVM_OPTION(StreamWriteMerge);
@@ -255,6 +267,13 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 			assert(!verifyFunction(F, &errs()));
 #endif
 			_changed1 = true;
+		} else if (Options.MemHoistToNewBB && HwtHlsSimplifyCFGPass_memHoistToNewBB(DTU, *BBIt)) {
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+			DTU.flush();
+			// writeCFGToDotFile(F, "tmp/HwtHlsSimplifyCFGPass_memHoistToNewBB.after.dot", AM);
+			assert(!verifyFunction(F, &errs()));
+#endif
+					_changed1 = true;
 		} else if (Options.AggresiveStoreSink
 				&& HwtHlsSimplifyCFGPass_aggresiveStoreSink(DTU, *BBIt)) {
 			// writeCFGToDotFile(F, "tmp/SimplifyCFG2.after.dot", AM);

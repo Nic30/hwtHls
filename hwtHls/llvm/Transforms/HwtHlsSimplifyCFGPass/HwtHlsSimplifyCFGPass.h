@@ -27,6 +27,7 @@ struct HwtHlsSimplifyCFGOptions: public llvm::SimplifyCFGOptions {
 	size_t ITERATION_LIMIT = 1000;
 	// for meaning of following parameters see function HwtHlsSimplifyCFGPass_{optionName}
 	bool HoistHoistableAssumes = true;
+	bool MemHoistToNewBB = true;
 	bool NormalizeLookupTableIndex = true;
 	bool RewriteMaskPatternsFromCFGToData = true;
 	bool StoreHoist = true;
