@@ -7,7 +7,6 @@
 
 #include <llvm/IR/IntrinsicInst.h>
 #include <llvm/IR/IRBuilder.h>
-#include <iostream>
 
 namespace hwtHls {
 
