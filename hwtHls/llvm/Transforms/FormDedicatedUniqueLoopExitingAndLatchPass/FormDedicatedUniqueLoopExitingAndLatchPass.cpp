@@ -1,5 +1,6 @@
 #include <hwtHls/llvm/Transforms/FormDedicatedUniqueLoopExitingAndLatchPass/FormDedicatedUniqueLoopExitingAndLatchPass.h>
 
+// #include <llvm/IR/Verifier.h>
 #include <llvm/IR/Module.h>
 #include <llvm/ADT/SmallPtrSet.h>
 #include <llvm/Analysis/ValueTracking.h>
@@ -11,6 +12,7 @@
 #include <hwtHls/llvm/Transforms/utils/cfgUtils.h>
 #include <hwtHls/llvm/targets/bitMathUtils.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
+// #include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
 
 using namespace llvm;
 
@@ -139,7 +141,7 @@ void formDedicatedUniqueLoopExitingAndLatchBB(IRBuilder<> &Builder,
 	L->getLoopLatches(LoopLatches);
 	L->getExitingBlocks(LoopExitingBBs);
 	// first we need to know how many unique jump destinations from latch there will be
-	// because we need to construct have some encoding of dst target
+	// because we need to have some encoding of dst target
 	SmallVector<Loop::Edge> ExitEdges;
 	L->getExitEdges(ExitEdges);
 	if (LoopLatches.size() == 1 && LoopExitingBBs.empty())
@@ -297,23 +299,28 @@ void formDedicatedUniqueLoopExitingAndLatchBB(IRBuilder<> &Builder,
 }
 
 void formDedicatedUniqueLoopExitingAndLatchBB(IRBuilder<> &Builder,
-		DomTreeUpdater &DTU, LoopInfo &LI) {
+		DomTreeUpdater &DTU, LoopInfo &LI, llvm::FunctionAnalysisManager &FAM_forDebug) {
 	SmallVector<AllocaInst*> tmpAllocas;
 	for (Loop *L : LI.getLoopsInPreorder()) {
 		formDedicatedUniqueLoopExitingAndLatchBB(Builder, DTU, LI, L,
 				tmpAllocas);
 	}
-	Function *F = nullptr;
-	if (tmpAllocas.size()) {
-		F = tmpAllocas[0]->getParent()->getParent();
+
+	if (tmpAllocas.empty()) {
+		return;
 	}
+	Function *F = tmpAllocas[0]->getParent()->getParent();
+	if (DTU.hasPendingUpdates())
+		DTU.flush();
+	// assert(DTU.getDomTree().verify());
+	// writeCFGToDotFile(*F, "tmp/ThreadExtractIoFsmPass.1.dot", FAM_forDebug);
+	// assert(!verifyFunction(*F, &errs()));
+
 	PromoteMemToReg(tmpAllocas, DTU.getDomTree(), nullptr);
-	if (tmpAllocas.size()) {
-		for (auto &BB: *F) {
-			// :note: llvm-21 PromoteMemToReg somehow generates phis with reversed order of operands according to block predecessors
-			sortPhiOperands(BB);
-		}
+	for (auto &BB : *F) {
+		// :note: llvm-21 PromoteMemToReg somehow generates phis with reversed
+		// order of operands according to block predecessors
+		sortPhiOperands(BB);
 	}
 }
-
 }
