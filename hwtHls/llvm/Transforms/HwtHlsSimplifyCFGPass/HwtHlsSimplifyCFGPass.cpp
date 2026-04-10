@@ -409,6 +409,12 @@ llvm::PreservedAnalyses HwtHlsSimplifyCFGPass::run(llvm::Function &F,
 		for (;;) {
 			assert(Options.AC == &AM.getResult<AssumptionAnalysis>(F));
 			DomTreeUpdater DTU(DT, DomTreeUpdater::UpdateStrategy::Lazy);
+			auto PA = PreservedAnalyses::all();
+			PA.abandon<LoopAnalysis>();
+			PA.abandon<BlockFrequencyAnalysis>();
+			PA.abandon<BranchProbabilityAnalysis>();	
+			AM.invalidate(F, PA);
+
 			SimplifyCFGOpt2 opt(&DTU, DL, TTI, Options,
 					LlvmHoistCommonSkipLimit);
 			bool __changed0 = false;
