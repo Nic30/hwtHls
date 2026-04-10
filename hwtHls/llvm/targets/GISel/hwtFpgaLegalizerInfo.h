@@ -37,6 +37,8 @@ public:
 			MachineInstr &MI) const;
 	bool legalizeCustomG_ANYEXT(LegalizerHelper &Helper,
 			MachineInstr &MI) const;
+	virtual ~HwtFpgaLegalizerInfo() {
+	}
 };
 
 }
