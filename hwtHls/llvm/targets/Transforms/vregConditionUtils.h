@@ -49,7 +49,8 @@ bool registerDefinedInEveryBlock(const llvm::MachineRegisterInfo &MRI,
  * */
 void predicateInstructionUsingDefRegRename(llvm::MachineRegisterInfo &MRI,
 		const HwtHlsVRegLiveins &VRegLiveins, llvm::MachineInstr &MI,
-		bimap<llvm::Register, llvm::Register> &regReplaces);
+		bimap<llvm::Register, llvm::Register> &regReplaces,
+	    bool mergingSuccessorToPredecessor=true);
 /*
  * In specified block insert a set of MUXes to conditionally copy speculated register values to a final register.
  * */

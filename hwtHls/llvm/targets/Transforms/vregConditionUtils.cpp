@@ -231,7 +231,7 @@ bool registerDefinedInEveryBlock(const MachineRegisterInfo &MRI,
 
 void predicateInstructionUsingDefRegRename(llvm::MachineRegisterInfo &MRI,
 		const HwtHlsVRegLiveins &VRegLiveins, llvm::MachineInstr &MI,
-		bimap<llvm::Register, llvm::Register> &regReplaces) {
+		bimap<llvm::Register, llvm::Register> &regReplaces, bool mergingSuccessorToPredecessor) {
 	if (MI.isReturn())
 		return;
 	switch (MI.getOpcode()) {
@@ -254,6 +254,12 @@ void predicateInstructionUsingDefRegRename(llvm::MachineRegisterInfo &MRI,
 		return;
 	}
 	auto &MBB = *MI.getParent();
+	MachineBasicBlock * MBBSuc = nullptr;
+	if (!mergingSuccessorToPredecessor) {
+		MBBSuc = MBB.getSingleSuccessor();
+		assert(MBBSuc && "Expecting to call this function only when merging single successor blocks in PredecessorToSuccessor mode");
+		assert(MBBSuc->pred_size() > 1 && "Expected to call this fn. only if this is the case");
+	}
 	// Create temporary registers for defines if the register is live out of this block
 	for (MachineOperand &MO : reverse(MI.operands())) {
 		// reverse is important because uses needs to be seen before defs
@@ -286,11 +292,17 @@ void predicateInstructionUsingDefRegRename(llvm::MachineRegisterInfo &MRI,
 
 			// * MBB is going to be inlined into predecessor (there may be many)
 			// * predecessor may have multiple successors
-			bool isLatchOfLoop = any_of(MBB.predecessors(), [&MBB](MachineBasicBlock* PredMBB) {
-				return is_contained(MBB.successors(), PredMBB);
-			});
-			if ((VRegLiveins.isAnyPredecessorLiveout(MBB, MOReg) || isLatchOfLoop) &&
-					VRegLiveins.isLiveout(MBB, MOReg)) {
+			bool needsTmpReg;
+			if (mergingSuccessorToPredecessor) {
+				bool isLatchOfLoop = any_of(MBB.predecessors(), [&MBB](MachineBasicBlock* PredMBB) {
+					return is_contained(MBB.successors(), PredMBB);
+				});
+				needsTmpReg = (isLatchOfLoop || VRegLiveins.isAnyPredecessorLiveout(MBB, MOReg)) && VRegLiveins.isLiveout(MBB, MOReg);
+			} else {
+				// merging predececessor to successor
+				needsTmpReg =  VRegLiveins.isAnyPredecessorLiveout(*MBBSuc, MOReg);
+			}
+			if (needsTmpReg) {
 				// used also outside of this block, must generate new reg
 				if (!curReplacement.has_value()) {
 					// if it was not yet replaced we create a temporary register as a replacement for this
