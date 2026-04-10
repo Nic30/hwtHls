@@ -49,12 +49,16 @@ void resolveNumbersOfLatchSuccessors(DomTreeUpdater &DTU, LoopInfo &LI,
 	}
 	for (Loop::Edge &edge : ExitEdges) {
 		const auto& [src, dst] = edge;
+		if (src == latch)
+			continue;
 		bool dstSeen = dstBlockNumber.contains(dst);
-		if (dstSeen && !dst->phis().empty()) {
-			// the block has effect on phis, we can not let dst block to have
+		if (dstSeen && !dst->phis().empty() && !dst->getUniquePredecessor()) {
+			// the edge has effect on phis, we can not let dst block to have
 			// the latch block as predecessor several times, for this purpose
 			// a new block on edge must be created
+			// :note: SplitEdge returns the newly added predecessor and successor is original dst
 			edge.second = SplitEdge(src, dst, &DTU.getDomTree(), &LI);
+			dstSeen = false;
 		}
 		if (!dstSeen) {
 			dstBlockNumber[edge.second] = dstBlockNumber.size();
