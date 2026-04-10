@@ -78,23 +78,23 @@ static bool trySelectInstrToBitConcat(SelectInst *SI) {
 
 struct OperandOffsetInfo {
 	// the final original value from where this record was extracted
-	/// was in format Concat(0 on leftOffset bits, val, 0 on offset bits)
-	unsigned leftOffset;
+	/// was in format @hwtHls.bitConcat(0 on lowZeroCnt bits, val, 0 on highZeroCnt bits)
+	unsigned lowZeroBitCnt;
 	Value *val;
-	unsigned offset;
+	unsigned highZeroBitCnt;
 
 	unsigned getBitWidth() {
-		return leftOffset + val->getType()->getIntegerBitWidth() + offset;
+		return highZeroBitCnt + val->getType()->getIntegerBitWidth() + lowZeroBitCnt;
 	}
 
 	void print(raw_ostream &O, bool IsForDebug = false) const {
-		O << "{" << leftOffset << ", ";
+		O << "{" <<lowZeroBitCnt << ", ";
 		if (val) {
 			O << *val;
 		} else {
 			O << "NULL";
 		}
-		O << ", " << offset << "}";
+		O << ", " << highZeroBitCnt << "}";
 	}
 };
 inline raw_ostream& operator<<(raw_ostream &OS, const OperandOffsetInfo &V) {
@@ -105,17 +105,17 @@ inline raw_ostream& operator<<(raw_ostream &OS, const OperandOffsetInfo &V) {
 static OperandOffsetInfo getOperandOffsetAndBaseValue(Value *v) {
 	if (auto *c = dyn_cast<ConstantInt>(v)) {
 		if (c->isZero()) {
-			return {0, nullptr, c->getBitWidth()};
+			return {c->getBitWidth(), nullptr, 0};
 		} else {
 			OperandOffsetInfo res;
 			APInt v0 = c->getValue();
-			res.leftOffset = v0.countLeadingZeros();
-			res.offset = v0.countTrailingZeros();
+			res.highZeroBitCnt = v0.countLeadingZeros();
+			res.lowZeroBitCnt = v0.countTrailingZeros();
 			auto w = v0.getBitWidth();
 			// select the non zero part in the middle to v0
-			v0.lshrInPlace(res.offset);
+			v0.lshrInPlace(res.lowZeroBitCnt);
 			res.val = ConstantInt::get(v->getContext(),
-					v0.trunc(w - res.leftOffset - res.offset));
+					v0.trunc(w - res.highZeroBitCnt - res.lowZeroBitCnt));
 			return res;
 		}
 	} else if (auto *Call = dyn_cast<CallInst>(v)) {
@@ -128,9 +128,9 @@ static OperandOffsetInfo getOperandOffsetAndBaseValue(Value *v) {
 				if (auto *op = dyn_cast<ConstantInt>(_op.get())) {
 					if (op->isZero()) {
 						if (res.val) {
-							res.offset += op->getBitWidth();
+							res.highZeroBitCnt += op->getBitWidth();
 						} else {
-							res.leftOffset += op->getBitWidth();
+							res.lowZeroBitCnt += op->getBitWidth();
 						}
 					} else {
 						// not in correct format there must be at most 1 non zero operand
@@ -146,9 +146,9 @@ static OperandOffsetInfo getOperandOffsetAndBaseValue(Value *v) {
 					} else {
 						// recursively search offsets and merge them with current state
 						auto _res = getOperandOffsetAndBaseValue(_op.get());
-						res.leftOffset += _res.leftOffset;
+						res.highZeroBitCnt += _res.highZeroBitCnt;
 						res.val = _res.val;
-						res.offset = _res.offset;
+						res.lowZeroBitCnt = _res.lowZeroBitCnt;
 					}
 				}
 			}
@@ -174,16 +174,16 @@ static OperandOffsetInfo getOperandOffsetAndBaseValue(Value *v) {
 		if (shiftFound) {
 			auto res = getOperandOffsetAndBaseValue(I->getOperand(0));
 			if (off > 0) {
-				res.offset += off;
+				res.lowZeroBitCnt += off;
 			} else {
-				res.leftOffset += -off;
+				res.highZeroBitCnt += -off;
 			}
 			return res;
 		}
 	} else if (auto *I = dyn_cast<CastInst>(v)) {
 		if (I->getOpcode() == Instruction::CastOps::ZExt) {
 			auto base = I->getOperand(0);
-			return {I->getType()->getIntegerBitWidth() - base->getType()->getIntegerBitWidth(), base, 0};
+			return {0, base, I->getType()->getIntegerBitWidth() - base->getType()->getIntegerBitWidth()};
 		}
 	}
 	return {0, v, 0};
@@ -191,45 +191,50 @@ static OperandOffsetInfo getOperandOffsetAndBaseValue(Value *v) {
 }
 
 static bool tryOrToBitConcat(BinaryOperator *BO) {
-	// %hwthls.bitConcat = call i2 @hwthls.bitConcat(i1 X, i1 0) (or X << 1)
-	// %1 = zext i1 %0 to i2
-	// %2 = or i2 %hwthls.bitConcat, %1
-	OperandOffsetInfo highBits = getOperandOffsetAndBaseValue(
+	// %v0 = call i2 @hwthls.bitConcat(i1 %x0, i1 0) (or %X << 1)
+	// %v1 = zext i1 %x1 to i2
+	// %v2 = or i2 %v0, %v1 # each bit is 0 in some operand, thus this is concatenation
+	// to 
+	// %v2 = call i2 @hwthls.bitConcat(i1 %x0, i1 %x1)
+	// :note: the zeros are reduced from both sides (lsb/msb) and are allowed in the middle,
+	//    
+	OperandOffsetInfo lBits = getOperandOffsetAndBaseValue(
 			BO->getOperand(1));
-	OperandOffsetInfo lowBits = getOperandOffsetAndBaseValue(BO->getOperand(0));
+	OperandOffsetInfo rBits = getOperandOffsetAndBaseValue(BO->getOperand(0));
 
-	// swap so upper part is in left
-	if (lowBits.offset != highBits.offset) {
-		if (lowBits.offset > highBits.offset) {
-			std::swap(lowBits, highBits);
+	if (rBits.lowZeroBitCnt != lBits.lowZeroBitCnt) {
+		if (rBits.lowZeroBitCnt < lBits.lowZeroBitCnt) {
+			// swap so upper part is in right
+			std::swap(rBits, lBits);
 		}
-		std::vector<Value*> OpsLowFirst;
-		unsigned leftWidth =
-				highBits.val ?
-						highBits.val->getType()->getIntegerBitWidth() : 0;
-		unsigned rightWidth =
-				lowBits.val ? lowBits.val->getType()->getIntegerBitWidth() : 0;
-		unsigned resW = dyn_cast<IntegerType>(BO->getType())->getBitWidth();
-		int highPad = (int) resW - int(leftWidth + highBits.offset);
-		int middlePad = (int) highBits.offset
-				- int(rightWidth + lowBits.offset);
-		if (highPad >= 0 && middlePad >= 0) {
+		unsigned lWidth =
+				lBits.val ?
+						lBits.val->getType()->getIntegerBitWidth() : 0;
+		int middlePad = (int) rBits.lowZeroBitCnt
+				- int(lBits.lowZeroBitCnt + lWidth); // begin of higher value part - end of lower value part
+		if (middlePad >= 0) {
+			assert(lBits.lowZeroBitCnt + lWidth + rBits.highZeroBitCnt <= BO->getType()->getIntegerBitWidth());
 			// else the left and right overlaps and this is not the concatenation
 			IRBuilder<> Builder(BO);
 
-			if (lowBits.offset)
-				OpsLowFirst.push_back(Builder.getIntN(lowBits.offset, 0));
-			if (lowBits.val)
-				OpsLowFirst.push_back(lowBits.val);
+			SmallVector<Value*, 5> OpsLowFirst;
+			if (lBits.lowZeroBitCnt)
+				OpsLowFirst.push_back(Builder.getIntN(rBits.lowZeroBitCnt, 0));
+			if (lBits.val)
+				OpsLowFirst.push_back(rBits.val);
 			if (middlePad)
 				OpsLowFirst.push_back(Builder.getIntN(middlePad, 0));
-			if (highBits.val)
-				OpsLowFirst.push_back(highBits.val);
-			if (highPad)
-				OpsLowFirst.push_back(Builder.getIntN(highPad, 0));
+			if (rBits.val)
+				OpsLowFirst.push_back(rBits.val);
+			if (rBits.highZeroBitCnt)
+				OpsLowFirst.push_back(Builder.getIntN(rBits.highZeroBitCnt, 0));
 
 			auto *res = CreateBitConcat(&Builder, OpsLowFirst);
+			auto resI = dyn_cast<Instruction>(res);
+			if (resI && !resI->hasName())
+				resI->takeName(BO);
 			BO->replaceAllUsesWith(res);
+			BO->getParent()->dump();
 			return true;
 		}
 	}
@@ -249,9 +254,9 @@ static bool tryShlToBitConcat(BinaryOperator *BO) {
 
 		IRBuilder<> Builder(BO);
 		if (off > 0) {
-			if (off > base.leftOffset) {
+			if (off > base.highZeroBitCnt) {
 				// (resTy)(base.val << (base.offset + off))
-				unsigned newValWidth = resW - (base.offset + off);
+				unsigned newValWidth = resW - (base.lowZeroBitCnt + off);
 				if (!base.val) {
 					// all 0
 				} else if (auto *C = dyn_cast<ConstantInt>(base.val)) {
@@ -263,12 +268,12 @@ static bool tryShlToBitConcat(BinaryOperator *BO) {
 					// slice base.val to newValWidth
 					base.val = CreateBitRangeGetConst(&Builder, base.val, 0, newValWidth);
 				}
-				base.leftOffset = 0;
-				base.offset += off;
+				base.highZeroBitCnt = 0;
+				base.lowZeroBitCnt += off;
 				off = 0;
 			}
-			base.leftOffset -= off;
-			base.offset += off;
+			base.highZeroBitCnt -= off;
+			base.lowZeroBitCnt += off;
 		} else {
 			return false; // [todo] need to slice
 		}
@@ -276,10 +281,10 @@ static bool tryShlToBitConcat(BinaryOperator *BO) {
 		std::vector<Value*> OpsLowFirst;
 		unsigned width =
 				base.val ? base.val->getType()->getIntegerBitWidth() : 0;
-		int highPad = (int) resW - int(width + base.offset);
+		int highPad = (int) resW - int(width + base.lowZeroBitCnt);
 		if (highPad >= 0) {
-			if (base.offset)
-				OpsLowFirst.push_back(Builder.getIntN(base.offset, 0));
+			if (base.lowZeroBitCnt)
+				OpsLowFirst.push_back(Builder.getIntN(base.lowZeroBitCnt, 0));
 			if (base.val)
 				OpsLowFirst.push_back(base.val);
 			if (highPad)
@@ -287,6 +292,9 @@ static bool tryShlToBitConcat(BinaryOperator *BO) {
 
 			auto *res = CreateBitConcat(&Builder, OpsLowFirst);
 			BO->replaceAllUsesWith(res);
+			auto resI = dyn_cast<Instruction>(res);
+			if (resI && !resI->hasName())
+				resI->takeName(BO);
 			return true;
 		}
 	}
