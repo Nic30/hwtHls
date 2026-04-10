@@ -304,7 +304,11 @@ void register_Instruction(pybind11::module_ & m) {
 	py::implicitly_convertible<llvm::LoadInst, llvm::Instruction>();
 	m.def("InstructionToLoadInst", &llvmInstructionCaster<llvm::LoadInst>, py::return_value_policy::reference_internal);
 
-	py::class_<llvm::StoreInst, std::unique_ptr<llvm::StoreInst, py::nodelete>, llvm::Instruction>(m, "StoreInst");
+	py::class_<llvm::StoreInst, std::unique_ptr<llvm::StoreInst, py::nodelete>, llvm::Instruction> StoreInst(m, "StoreInst");
+	StoreInst
+		.def("getValueOperand", [](llvm::StoreInst & self) { return self.getValueOperand(); })
+		.def("getAccessType", &llvm::StoreInst::getAccessType)
+	;
 	py::implicitly_convertible<llvm::StoreInst, llvm::Instruction>();
 	m.def("InstructionToStoreInst", &llvmInstructionCaster<llvm::StoreInst>, py::return_value_policy::reference_internal);
 
