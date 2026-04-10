@@ -821,8 +821,8 @@ bool HwtFpgaTargetInstructionSelector::select_G_ZEXT(
 namespace llvm {
 InstructionSelector*
 createHwtFpgaInstructionSelector(const HwtFpgaTargetMachine &TM,
-		HwtFpgaTargetSubtarget &Subtarget,
-		HwtFpgaRegisterBankInfo &RBI) {
+		const HwtFpgaTargetSubtarget &Subtarget,
+		const HwtFpgaRegisterBankInfo &RBI) {
 	return new HwtFpgaTargetInstructionSelector(TM, Subtarget, RBI);
 }
 } // end namespace llvm

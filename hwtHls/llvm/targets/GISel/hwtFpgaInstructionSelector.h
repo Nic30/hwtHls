@@ -6,5 +6,5 @@
 namespace llvm {
 InstructionSelector*
 createHwtFpgaInstructionSelector(const HwtFpgaTargetMachine &TM,
-		HwtFpgaTargetSubtarget &Subtarget, HwtFpgaRegisterBankInfo &RBI);
+		const HwtFpgaTargetSubtarget &Subtarget, const HwtFpgaRegisterBankInfo &RBI);
 }
