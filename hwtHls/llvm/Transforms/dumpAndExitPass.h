@@ -24,9 +24,15 @@ class DumpAndExitPass: public llvm::PassInfoMixin<DumpAndExitPass> {
 	bool verify;
 	std::optional<std::string> cfgDumpFileName;
 	bool dumpModule;
+	bool cfgOnly;
 public:
-	explicit DumpAndExitPass(bool dumpFn, bool throwErrAndExit, std::optional<std::string> cfgDumpFileName={}, bool verify=false, bool dumpModule=false) :
-			dumpFn(dumpFn), throwErrAndExit(throwErrAndExit), verify(verify), cfgDumpFileName(cfgDumpFileName), dumpModule(dumpModule) {
+	explicit DumpAndExitPass(bool dumpFn, bool throwErrAndExit, std::optional<std::string> cfgDumpFileName={},
+						     bool verify=false, bool dumpModule=false, bool cfgOnly=false) :
+			dumpFn(dumpFn), throwErrAndExit(throwErrAndExit), verify(verify),
+			cfgDumpFileName(cfgDumpFileName), dumpModule(dumpModule), cfgOnly(cfgOnly) {
+			if (cfgOnly) {
+				assert(cfgDumpFileName.has_value() && "cfgOnly option is intend to be used with cfgDumpFileName");
+			}
 	}
 
 	llvm::PreservedAnalyses run(llvm::Function &F,
@@ -38,7 +44,7 @@ public:
 			F.getParent()->dump();
 
 		if (cfgDumpFileName.has_value()) {
-			writeCFGToDotFile(F, cfgDumpFileName.value(), AM);
+			writeCFGToDotFile(F, cfgDumpFileName.value(), AM, false, cfgOnly);
 		}
 		if (verify) {
 			if(llvm::verifyModule(*F.getParent(), &llvm::dbgs())) {
