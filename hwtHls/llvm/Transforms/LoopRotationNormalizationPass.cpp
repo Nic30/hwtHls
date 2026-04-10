@@ -1,4 +1,4 @@
-#include "LoopRotationNormalizationPass.h"
+#include <hwtHls/llvm/Transforms/LoopRotationNormalizationPass.h>
 
 #include <map>
 
@@ -239,7 +239,7 @@ BasicBlock* moveGuardAndGuardExitBlocksToLoop(llvm::Loop **L, LoopInfo &LI,
 						dbgs() << "LoopUnroll: Merging loops " << **L
 								<< "\n -> \n" << *L0 << "\n");
 				// merge to parent loop
-				mergeNestedLoops(LI, SE, LPMU, *L, L0);
+				mergeLoopsNested(LI, SE, LPMU, *L, L0);
 				*L = L0;
 				guardLoopWasUsed = true;
 			} else {

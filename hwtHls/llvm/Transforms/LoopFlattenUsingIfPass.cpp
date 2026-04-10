@@ -433,7 +433,7 @@ static bool LoopFlattenUsingIfPass_flatten(const LoopFlattenUsingIfPass::Mode mo
 	}
 	//promoteAllocasForBeginSectionLiveouts(beginSectionBegin, beginSectionEnd,
 	//		LParent, DTU, AR);
-	mergeNestedLoops(AR.LI, &AR.SE, LPMU, &LChild, &LParent);
+	mergeLoopsNested(AR.LI, &AR.SE, LPMU, &LChild, &LParent);
 #ifdef LoopFlattenUsingIfPass_TRACE
 	writeCFGToDotFile(*LParent.getHeader()->getParent(),
 			"LoopFlattenUsingIfPass." + std::to_string(dbgCntr++) + "-end.dot",

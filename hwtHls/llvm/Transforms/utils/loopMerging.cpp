@@ -12,7 +12,7 @@ namespace hwtHls {
  * :param L0: parent loop which will remain
  * :param L1: child loop which will be merged into L0 and removed
  * */
-void mergeNestedLoops(llvm::LoopInfo &LI, llvm::ScalarEvolution *SE, llvm::LPMUpdater & LPMU, llvm::Loop *L1,
+void mergeLoopsNested(llvm::LoopInfo &LI, llvm::ScalarEvolution *SE, llvm::LPMUpdater & LPMU, llvm::Loop *L1,
 		llvm::Loop *L0) {
 	// :note: based on llvm/lib/Transforms/Scalar/LoopFuse.cpp
 	std::string L1Name = std::string(L1->getName());
