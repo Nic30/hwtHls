@@ -444,7 +444,7 @@ bool HwtFpgaInstrInfo::PredicateInstruction(MachineInstr &MI,
 		ArrayRef<MachineOperand> Pred) const {
 	auto opc = MI.getOpcode();
 	if (Pred.size() != 2)
-		llvm_unreachable("NotImplemented - predicate with multiple terms");
+		llvm_unreachable("NotImplemented - predicate with multiple terms (expecting: cond, isNegated)");
 
 	switch (opc) {
 	// can not just easily use isPredicable = 1 in instruction definition
