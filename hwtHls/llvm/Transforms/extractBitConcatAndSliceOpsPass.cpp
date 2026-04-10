@@ -234,7 +234,6 @@ static bool tryOrToBitConcat(BinaryOperator *BO) {
 			if (resI && !resI->hasName())
 				resI->takeName(BO);
 			BO->replaceAllUsesWith(res);
-			BO->getParent()->dump();
 			return true;
 		}
 	}
