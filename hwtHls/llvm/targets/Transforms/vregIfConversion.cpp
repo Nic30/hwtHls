@@ -349,9 +349,13 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
   MadeChange = false;
   VRegLiveins = nullptr;
   MadeChange |= normalizeBranchConditions(MF);
-
-  VRegLiveins = &getAnalysis<HwtHlsVRegLiveins>();
-
+  VRegLiveins = getAnalysisIfAvailable<HwtHlsVRegLiveins>();
+  if (VRegLiveins) {
+	  VRegLiveins->recompute(); // because BranchFolder may have broken it
+  } else {
+	  VRegLiveins = &getAnalysis<HwtHlsVRegLiveins>();
+      VRegLiveins->verifyAnalysis();
+  }
   MF.RenumberBlocks();
   BBAnalysis.resize(MF.getNumBlockIDs());
 
