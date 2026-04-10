@@ -1528,6 +1528,8 @@ bool canFallThroughTo(MachineBasicBlock &MBB, MachineBasicBlock &ToMBB) {
   MachineFunction::iterator I = std::next(PI);
   MachineFunction::iterator TI = ToMBB.getIterator();
   MachineFunction::iterator E = MBB.getParent()->end();
+  if (I == MBB.getParent()->end())
+  	return false;
   while (I != TI) {
     // Check isSuccessor to avoid case where the next block is empty, but
     // it's not a successor.
