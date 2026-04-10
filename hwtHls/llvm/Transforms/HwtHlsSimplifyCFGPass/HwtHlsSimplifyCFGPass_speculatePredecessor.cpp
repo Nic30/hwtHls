@@ -54,7 +54,7 @@ bool HwtHlsSimplifyCFGPass_speculatePredecessor(llvm::DomTreeUpdater &DTU,
 						auto fromPredVal0 = phi0->getIncomingValueForBlock(
 								predBB);
 						if (fromPredVal != fromPredVal0) {
-							// can not merge becase phi in sucBB has BB phi as input that phi has a different value
+							// can not merge because phi in sucBB has BB phi as input that phi has a different value
 							// for predBB, this means that phi0 BB is required to resolve the value for phi1
 							return false;
 						}
@@ -62,7 +62,7 @@ bool HwtHlsSimplifyCFGPass_speculatePredecessor(llvm::DomTreeUpdater &DTU,
 							phisToMerge.insert( { phi0, &phi1 });
 					} else if (fromBBVal
 							!= phi1.getIncomingValueForBlock(sucPred)) {
-						// by inlining of the BB phi would not be ale to switch between different fales
+						// by inlining of the BB phi would not be ale to switch between different incoming values
 						return false;
 					}
 				}
@@ -114,10 +114,15 @@ bool HwtHlsSimplifyCFGPass_speculatePredecessor(llvm::DomTreeUpdater &DTU,
 		}
 	}
 #ifdef HwtHlsSimplifyCFGPass_speculatePredecessor_TRACE
-	errs() << "BB: " << BB.getName() << "\n";
+	errs() << "BB: ";
+	BB.printAsOperand(errs());
+	errs() << "\n";
 	errs() << "commonPreds:\n";
-	for (auto predBB: commonPreds)
-		errs() << "    : " << predBB->getName() << "\n";
+	for (auto predBB: commonPreds) {
+		errs() << "    : ";
+		predBB->printAsOperand(errs());
+		errs() << "\n";
+	}
 	errs() << "before: \n";
 	BB.getParent()->dump();
 	errs() << "\n";
@@ -161,12 +166,16 @@ bool HwtHlsSimplifyCFGPass_speculatePredecessor(llvm::DomTreeUpdater &DTU,
 			errs() << predBB->getName() << "\n";
 #endif
 			DTUpdates.push_back( { DominatorTree::Insert, predBB, sucBB });
-			// for new predecessors of sucBB copy a value coming originally from BB if phi was not update yet
+			// for new predecessors of sucBB copy a value coming originally from BB if phi was not updated yet
 			// (new predecessors were always passing trough BB until now)
 			for (auto &phi1 : sucBB->phis()) {
 				if (!resolvedPhisInSucBB.contains(&phi1)) {
 					auto v = phi1.getIncomingValueForBlock(&BB);
-					assert(!is_contained(phi1.blocks(), predBB));
+					auto predI = phi1.getBasicBlockIndex(predBB);
+					if (predI >= 0) {
+						// :note: the block may be predecessor multiple times, but the incoming value must be same
+						assert(phi1.getIncomingValue(predI) == v);
+					}
 					phi1.addIncoming(v, predBB);
 				}
 			}
