@@ -23,16 +23,16 @@ class LlvmCompilationBundle {
 public:
 	std::unique_ptr<llvm::LoopAnalysisManager> LAM;
 	std::unique_ptr<llvm::CGSCCAnalysisManager> CGAM;
-	std::unique_ptr<llvm::ModuleAnalysisManager> MAM;
 	std::unique_ptr<llvm::FunctionAnalysisManager> FAM;
-	std::unique_ptr<llvm::StandardInstrumentations> SI;
 	std::unique_ptr<llvm::ToolOutputFile> RemarksFile;
+	std::unique_ptr<llvm::ModuleAnalysisManager> MAM;
 	llvm::LLVMContext ctx;
 	LLVMStringContext strCtx;
 	llvm::Module *module;
 	llvm::IRBuilder<> builder;
 	llvm::Function *main;
 	llvm::PassInstrumentationCallbacks PIC;
+	std::unique_ptr<llvm::StandardInstrumentations> SI;
 	// if PIC used in new pass manager is used there,
 	// it results in a segfault in callbacks added into PIC using print-after-all and many others
 	llvm::PassInstrumentationCallbacks PICForLegacyPM;

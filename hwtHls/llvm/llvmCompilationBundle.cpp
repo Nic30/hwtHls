@@ -115,8 +115,8 @@ void LlvmCompilationBundle::_initPassBuilder() {
 	// :note: this is not done in constructor because options set from python are require to be initialized
 	LAM = std::make_unique<llvm::LoopAnalysisManager>();
 	CGAM = std::make_unique<llvm::CGSCCAnalysisManager>();
-	MAM = std::make_unique<llvm::ModuleAnalysisManager>();
 	FAM = std::make_unique<llvm::FunctionAnalysisManager>();
+	MAM = std::make_unique<llvm::ModuleAnalysisManager>();
 
 	// pre-populate TLI to customize set of library functions
 	// :note: this can not be moved behind PB->crossRegisterProxies()
