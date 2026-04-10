@@ -28,6 +28,7 @@ struct HwtHlsSimplifyCFGOptions: public llvm::SimplifyCFGOptions {
 	// for meaning of following parameters see function HwtHlsSimplifyCFGPass_{optionName}
 	bool HoistHoistableAssumes = true;
 	bool MemHoistToNewBB = true;
+	bool MemSinkToNewBB = true;
 	bool NormalizeLookupTableIndex = true;
 	bool RewriteMaskPatternsFromCFGToData = true;
 	bool StoreHoist = true;

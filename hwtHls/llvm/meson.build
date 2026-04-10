@@ -211,6 +211,7 @@ py3.extension_module(
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_aggresiveStoreSink.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_hoistHoistableAssumes.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_memHoistToNewBB.cpp',
+     'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_memSinkToNewBB.cpp',
 	 'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_mergePredecessorsStore.cpp',
 	 'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_normalizeBrCond.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_normalizeLookupTableIndex.cpp',

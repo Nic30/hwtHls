@@ -287,6 +287,12 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 			assert(!verifyFunction(F, &errs()));
 #endif
 			_changed1 = true;
+		} else if (Options.MemSinkToNewBB
+					&& HwtHlsSimplifyCFGPass_memSinkToNewBB(DTU, *BBIt)) {
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+			assert(!verifyFunction(F, &errs()));
+#endif
+					_changed1 = true;
 		} else if (Options.PhiToLogicalExpr
 				&& HwtHlsSimplifyCFGPass_phiToLogicalExpr(Builder, DTU, DL, &AC,
 						*BBIt, exprChanged)) {
