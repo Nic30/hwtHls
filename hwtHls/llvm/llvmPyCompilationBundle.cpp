@@ -104,7 +104,7 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 		.def("getMachineModuleInfo", &hwtHls::LlvmCompilationBundle::getMachineModuleInfo, py::return_value_policy::reference_internal)
 		.def("_tryToFindMain",  &hwtHls::LlvmCompilationBundle::_tryToFindMain)
 		.def("_testHwtHlsSimplifyCFGPass", &hwtHls::LlvmCompilationBundle::_testHwtHlsSimplifyCFGPass,
-				//py::kw_only(),
+				py::kw_only(),
 				py::arg("BonusInstThreshold").noconvert() = 1,
 				py::arg("ForwardSwitchCondToPhi").noconvert() = false,
 				py::arg("ConvertSwitchRangeToICmp").noconvert() = false,
@@ -114,6 +114,10 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 				py::arg("SinkCommonInsts").noconvert() = false,
 				py::arg("SimplifyCondBranch").noconvert() = true,
 				py::arg("HoistCheapInsts").noconvert() = false,
+				py::arg("dumpDotBeforeToFile") = std::optional<std::string>(),  //
+				py::arg("dumpDotAfterToFile") = std::optional<std::string>(),   //
+				py::arg("dumpCfgBeforeToFile") = std::optional<std::string>(),  //
+				py::arg("dumpCfgAfterToFile") = std::optional<std::string>(),    //
 				py::return_value_policy::reference_internal)
 		.def("_runCustomModulePass", [](hwtHls::LlvmCompilationBundle & self, py::function & addModulePassesFn) -> llvm::Module& {
 			return self._runCustomModulePass([&addModulePassesFn](llvm::ModulePassManager& MPM) {

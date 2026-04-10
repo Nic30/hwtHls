@@ -22,6 +22,7 @@
 // #include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
 #include <hwtHls/llvm/llvmIrCommon.h>
 
+#include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass.h>
 #include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
 #include <hwtHls/llvm/Transforms/ProfMetadataAddDummy.h>
@@ -132,19 +133,23 @@ llvm::Function& LlvmCompilationBundle::_testHwtHlsSimplifyCFGPass(
 		bool HoistCommonInsts,            //
 		bool SinkCommonInsts,             //
 		bool SimplifyCondBranch,          //
-		bool HoistCheapInsts              //
+		bool HoistCheapInsts,             //
+		std::optional<std::string> dumpDotBeforeToFile,  //
+		std::optional<std::string> dumpDotAfterToFile,   //
+		std::optional<std::string> dumpCfgBeforeToFile,  //
+		std::optional<std::string> dumpCfgAfterToFile    //
 		) {
-	return _runCustomFunctionPass([
-								   BonusInstThreshold,           //
-								    ForwardSwitchCondToPhi,      //
-								    ConvertSwitchRangeToICmp,    //
-								    ConvertSwitchToLookupTable,  //
-								    NeedCanonicalLoops,           //
-								    HoistCommonInsts,            //
-								    SinkCommonInsts,             //
-								    SimplifyCondBranch,          //
-								    HoistCheapInsts              //
-								   ](llvm::FunctionPassManager &FPM) {
+	return _runCustomFunctionPass([&](llvm::FunctionPassManager &FPM) {
+		if (dumpCfgBeforeToFile.has_value()) {
+			FPM.addPass(hwtHls::DumpAndExitPass(
+				false, false, dumpCfgBeforeToFile,
+				false, false, true));
+		}
+		if (dumpDotBeforeToFile.has_value()) {
+			FPM.addPass(hwtHls::DumpAndExitPass(false, false,
+												dumpDotBeforeToFile));
+		}
+
 		FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(hwtHls::HwtHlsSimplifyCFGOptions()//
 				.bonusInstThreshold(BonusInstThreshold)//
 				.forwardSwitchCondToPhi(ForwardSwitchCondToPhi)//
@@ -156,6 +161,16 @@ llvm::Function& LlvmCompilationBundle::_testHwtHlsSimplifyCFGPass(
 				.setSimplifyCondBranch(SimplifyCondBranch)//
 				.setHoistCheapInsts(HoistCheapInsts)
 		));
+		if (dumpCfgAfterToFile.has_value()) {
+			FPM.addPass(hwtHls::DumpAndExitPass(
+				false, false, dumpCfgAfterToFile,
+				false, false, true));
+		}
+
+		if (dumpDotAfterToFile.has_value()) {
+			FPM.addPass(hwtHls::DumpAndExitPass(false, false,
+												dumpDotAfterToFile));
+		}
 	});
 }
 

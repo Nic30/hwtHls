@@ -138,7 +138,11 @@ public:
 			bool HoistCommonInsts,            //
 			bool SinkCommonInsts,             //
 			bool SimplifyCondBranch,          //
-			bool HoistCheapInsts              //
+			bool HoistCheapInsts,              //
+			std::optional<std::string> dumpDotBeforeToFile,  //
+			std::optional<std::string> dumpDotAfterToFile,   //
+			std::optional<std::string> dumpCfgBeforeToFile,  //
+			std::optional<std::string> dumpCfgAfterToFile    //
 			);
 	llvm::Function& _testLoopFlattenUsingIfPass();
 	llvm::Function& _testRewriteExtractOnMergeValues();
