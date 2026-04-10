@@ -137,6 +137,6 @@ class IoProxy(object):
     @classmethod
     def _getRtlSyncTuple(cls, hwIO: Union[HwIO, ValidReadyTuple]):
         return cls._getRtlSyncSignals(hwIO, formatAsValidReadyTuple=True)
-    
-    def __repr__(self)->str:
+
+    def __repr__(self) -> str:
         return f"<{self.__class__.__name__:s} for {self.interface}>"
