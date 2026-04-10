@@ -1,10 +1,11 @@
 #include <hwtHls/llvm/Transforms/extractBitConcatAndSliceOpsPass.h>
 
+#include <algorithm>
+
 #include <llvm/Analysis/AliasAnalysis.h>
 #include <llvm/Analysis/BasicAliasAnalysis.h>
 #include <llvm/Analysis/GlobalsModRef.h>
 #include <llvm/IR/IRBuilder.h>
-#include <algorithm>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 
 
@@ -221,7 +222,7 @@ static bool tryOrToBitConcat(BinaryOperator *BO) {
 			if (lBits.lowZeroBitCnt)
 				OpsLowFirst.push_back(Builder.getIntN(rBits.lowZeroBitCnt, 0));
 			if (lBits.val)
-				OpsLowFirst.push_back(rBits.val);
+				OpsLowFirst.push_back(lBits.val);
 			if (middlePad)
 				OpsLowFirst.push_back(Builder.getIntN(middlePad, 0));
 			if (rBits.val)

@@ -10,6 +10,7 @@
 
 #include <hwtHls/llvm/Transforms/BitcountMergePass.h>
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
+#include <hwtHls/llvm/Transforms/extractBitConcatAndSliceOpsPass.h>
 #include <hwtHls/llvm/Transforms/HFloatTmpLoweringPass.h>
 #include <hwtHls/llvm/Transforms/IoLowerAxiMMPass.h>
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinePass.h>
@@ -114,6 +115,7 @@ void register_PassManager(pybind11::module_ &m) {
 	bindFunctionPass<llvm::EarlyCSEPass>(m, FunctionPassManager, "EarlyCSEPass");
 	bindFunctionPass<BitcountMergePass>(m, FunctionPassManager, "BitcountMergePass");
 	bindFunctionPass<BitwidthReductionPass>(m, FunctionPassManager, "BitwidthReductionPass");
+	bindFunctionPass<ExtractBitConcatAndSliceOpsPass>(m, FunctionPassManager, "ExtractBitConcatAndSliceOpsPass");
 	bindFunctionPass<HFloatTmpLoweringPass>(m, FunctionPassManager, "HFloatTmpLoweringPass");
 	bindFunctionPass<SlicesMergePass>(m, FunctionPassManager, "SlicesMergePass");
 	bindFunctionPass<PruneLoopPhiDeadIncomingValuesPass>(m, FunctionPassManager, "PruneLoopPhiDeadIncomingValuesPass");

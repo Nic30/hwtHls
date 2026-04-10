@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from hwtLib.tests.all import unittestMain
+from tests.llvmIr.ExtractBitConcatAndSliceOpsPass_test import ExtractBitConcatAndSliceOpsPass_TC
 from tests.llvmIr.HFloatTmpLoweringPass_test import HFloatTmpLoweringPass_TC
 from tests.llvmIr.HwtHlsInstCombinePass_bitcountExtract_test import HwtHlsInstCombinePass_bitcountExtract_TC
 from tests.llvmIr.HwtHlsInstCombinePass_select_test import HwtHlsInstCombinePass_select_TC
@@ -37,6 +38,7 @@ from tests.llvmIr.StreamSegmentLoopUnrollPass_test import StreamSegmentLoopUnrol
 
 llvmIr_TCs = [
     LlvmIrFunctionMutating_TC,
+    ExtractBitConcatAndSliceOpsPass_TC,
     HFloatTmpLoweringPass_TC,
     SlicesToIndependentVariablesPass_TC,
     HwtHlsSimplifyCFGPass_TC,
