@@ -1,3 +1,4 @@
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
 #include <hwtHls/llvm/Transforms/trivialSimplifyCFGPass.h>
 
 #include <llvm/IR/Instructions.h>
@@ -183,6 +184,7 @@ bool tryRemoveSingleSuccessorManyPredecessorBlock(DomTreeUpdater &DTU,
 	for (auto &phi : SucBB->phis()) {
 		phi.removeIncomingValue(BB);
 	}
+	sortPhiOperands(*SucBB);
 	assert(BB->hasNPredecessors(0));
 	DeleteDeadBlock(BB, &DTU);
 	// BB->eraseFromParent();
