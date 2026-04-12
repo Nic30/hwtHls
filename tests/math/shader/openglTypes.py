@@ -11,7 +11,6 @@ fragCoord.xy is in rectangle (0, 0), (width, height) with (0,0) in bottom left c
 
 from dataclasses import dataclass
 from dis import Instruction
-# from itertools import islice
 import operator
 from typing import Self
 
@@ -27,6 +26,7 @@ from hwtHls.frontend.pyBytecodeUtils import ObjectWithHlsStoreOverride
 from hwtHls.llvm.llvmIr import BasicBlock
 from tests.math.hFloatTmp.hFloatTmpOps import sin, cos, log, log2, log10
 
+# from itertools import islice
 _VEC4_PROP_NAMES = ("x", "y", "z", "w")
 
 # def max_vec_itemwise(*vectors):
@@ -120,16 +120,16 @@ class vec2(ObjectWithHlsStoreOverride):
             (elementTy, "y"),
         )
 
-    def _unOp(self, fn):
+    def _unOp(self, fn) -> Self:
         return vec2(fn(self.x), fn(self.y))
 
-    def _binOp(self, other, fn):
+    def _binOp(self, other, fn) -> Self:
         if isinstance(other, (float, int, HConst)) or (isinstance(other, RtlSignalBase) and other._dtype.isScalar()):
             return vec2(fn(self.x, other), fn(self.y, other))
         else:
             return vec2(fn(self.x, other.x), fn(self.y, other.y))
 
-    def _rbinOp(self, other, fn):
+    def _rbinOp(self, other, fn) -> Self:
         """
         reverse version of _binOp(), self is RHS and other is LHS
         """
@@ -146,22 +146,22 @@ class vec2(ObjectWithHlsStoreOverride):
         else:
             raise IndexError(key)
 
-    def __neg__(self):
+    def __neg__(self) -> Self:
         return self.__class__(-n for n in self)
 
-    def __add__(self, other):
+    def __add__(self, other) -> Self:
         return self._binOp(other, operator.add)
 
-    def __radd__(self, other):
+    def __radd__(self, other) -> Self:
         return self._rbinOp(other, operator.add)
 
-    def __sub__(self, other):
+    def __sub__(self, other) -> Self:
         return self._binOp(other, operator.sub)
 
-    def __rsub__(self, other):
+    def __rsub__(self, other) -> Self:
         return self._rbinOp(other, operator.sub)
 
-    def __mul__(self, other):
+    def __mul__(self, other) -> Self:
         if isinstance(other, mat2):
             v = self
             m = other
@@ -174,40 +174,40 @@ class vec2(ObjectWithHlsStoreOverride):
                 m[0][1] * v.x + m[1][1] * v.y)
         return self._binOp(other, operator.mul)
 
-    def __rmul__(self, other):
+    def __rmul__(self, other) -> Self:
         return self._rbinOp(other, operator.mul)
 
-    def __truediv__(self, other):
+    def __truediv__(self, other) -> Self:
         return self._binOp(other, operator.truediv)
 
-    def __rtruediv__(self, other):
+    def __rtruediv__(self, other) -> Self:
         return self._rbinOp(other, operator.truediv)
 
-    def __floordiv__(self, other):
+    def __floordiv__(self, other) -> Self:
         return self._binOp(other, operator.floordiv)
 
-    def __rfloordiv__(self, other):
+    def __rfloordiv__(self, other) -> Self:
         return self._rbinOp(other, operator.floordiv)
 
-    def __mod__(self, other):
+    def __mod__(self, other) -> Self:
         return self._binOp(other, operator.mod)
 
-    def __rmod__(self, other):
+    def __rmod__(self, other) -> Self:
         return self._rbinOp(other, operator.mod)
 
-    def sin(self):
+    def sin(self) -> Self:
         return self._unOp(sin)
 
-    def cos(self):
+    def cos(self) -> Self:
         return self._unOp(cos)
 
-    def log(self):
+    def log(self) -> Self:
         return self._unOp(log)
 
-    def log2(self):
+    def log2(self) -> Self:
         return self._unOp(log2)
 
-    def log10(self):
+    def log10(self) -> Self:
         return self._unOp(log10)
 
     def __len__(self):
