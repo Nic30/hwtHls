@@ -18,6 +18,7 @@ from hwt.hdl.const import HConst
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.struct import HStruct
 from hwt.mainBases import RtlSignalBase, HwIOBase
+from hwt.math import hMin, hMax
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.frame import PyBytecodeFrame
 from hwtHls.frontend.fromPython import PyBytecodeToSsa
@@ -210,7 +211,25 @@ class vec2(ObjectWithHlsStoreOverride):
     def log10(self) -> Self:
         return self._unOp(log10)
 
-    def __len__(self):
+    def __min__(self, *others) -> Self:
+        res = list(self)
+        selfLen = len(self)
+        for other in others:
+            assert len(other) == selfLen, (selfLen, other)
+            for i, (cur, other) in enumerate(zip(res, other)):
+                res[i] = hMin(cur, other)
+        return self.__class__(res)
+
+    def __max__(self, *others) -> Self:
+        res = list(self)
+        selfLen = len(self)
+        for other in others:
+            assert len(other) == selfLen, (selfLen, other)
+            for i, (cur, other) in enumerate(zip(res, other)):
+                res[i] = hMax(cur, other)
+        return self.__class__(res)
+
+    def __len__(self) -> int:
         return 2
 
     def __iter__(self):
