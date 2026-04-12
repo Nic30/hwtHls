@@ -358,73 +358,76 @@ class ConnectionsOfStage():
         After all read/write nodes constructed all RTL create a HDL switch to select RTL which should be active.
         """
         for muxCases in self.fsmIoMuxCases.values():
-            muxCases: list[FsmIoMuxCasesValue_t]
-            if len(muxCases) == 1:
-                node, cond, enableOut, caseStatements = muxCases[0]
-                assert isinstance(caseStatements, list), (caseStatements.__class__, caseStatements)
-                if isinstance(node, HlsNetNodeWrite):
-                    if enableOut is not None:
-                        caseStatements = [enableOut(1 if cond is None else cond), ] + caseStatements
-                    if caseStatements:
-                        yield caseStatements
-                else:
-                    assert isinstance(node, HlsNetNodeRead), muxCases
-                    if enableOut is None:
-                        yield caseStatements
-                    else:
-                        yield [enableOut(1 if cond is None else cond), ] + caseStatements
-                    # no MUX needed and we already merged the synchronization
+            yield from self.rtlAllocIoMuxCases(muxCases)
+
+    @classmethod
+    def rtlAllocIoMuxCases(cls, muxCases: list[FsmIoMuxCasesValue_t]):
+        if len(muxCases) == 1:
+            node, cond, enableOut, caseStatements = muxCases[0]
+            assert isinstance(caseStatements, list), (caseStatements.__class__, caseStatements)
+            if isinstance(node, HlsNetNodeWrite):
+                if enableOut is not None:
+                    caseStatements = [enableOut(1 if cond is None else cond), ] + caseStatements
+                if caseStatements:
+                    yield caseStatements
             else:
-                if isinstance(muxCases[0][0], HlsNetNodeWrite):
-                    # create a write MUX
-                    rtlMuxCases = []
-                    for w, cond, enableOut, stms in muxCases:
-                        assert w.skipWhen is None, ("This port should be already lowered by RtlArchPassSyncLower", w)
-                        assert w._forceEnPort is None, ("This port should be already lowered by RtlArchPassSyncLower", w)
-                        # assert w._mayFlushPort is None, ("This port should be already lowered by RtlArchPassSyncLower", w)
-
-                        # if cond is not None:
-                        #    cond = cond.data
-
-                        if isinstance(cond, HBitsConst):
-                            assert int(cond) == 1, (w, "If ack=0 this means that channel is always stalling")
-                            cond = None
-                        else:
-                            assert isinstance(cond, RtlSignal)
-
-                        assert cond is not None, ("Because write object do not have any condition it is not possible to resolve which value should be MUXed to output interface", muxCases[0][0].dst)
-                        if enableOut is not None:
-                            stms = [enableOut(1), ] + stms
-                        rtlMuxCases.append((cond, enableOut, stms))
-
-                    _, enableOut, stms = rtlMuxCases[0]
-                    # create default case to prevent lath in HDL
-                    defaultCase = []
-                    if enableOut is not None:
-                        defaultCase.append(enableOut(0))
-                    if isinstance(stms, HdlAssignmentContainer):
-                        defaultCase.append(stms.dst(None))
-                    else:
-                        defaultCase.extend(asig.dst(None) for asig in stms)
-                    yield SwitchLogic([(c, stms) for c, _, stms in rtlMuxCases], default=defaultCase)
+                assert isinstance(node, HlsNetNodeRead), muxCases
+                if enableOut is None:
+                    yield caseStatements
                 else:
-                    assert isinstance(muxCases[0][0], HlsNetNodeRead), muxCases
-                    en = None
-                    enableOut = None
-                    for _, cond, enableOut, caseStatements in muxCases:
-                        assert not caseStatements
-                        if enableOut is None:
-                            break
-                        if cond is None:
-                            en = None
-                            break
-                        else:
-                            en = RtlSignalBuilder.buildOrOptional(en, cond)
+                    yield [enableOut(1 if cond is None else cond), ] + caseStatements
+                # no MUX needed and we already merged the synchronization
+        else:
+            if isinstance(muxCases[0][0], HlsNetNodeWrite):
+                # create a write MUX
+                rtlMuxCases = []
+                for w, cond, enableOut, stms in muxCases:
+                    assert w.skipWhen is None, ("This port should be already lowered by RtlArchPassSyncLower", w)
+                    assert w._forceEnPort is None, ("This port should be already lowered by RtlArchPassSyncLower", w)
+                    # assert w._mayFlushPort is None, ("This port should be already lowered by RtlArchPassSyncLower", w)
 
+                    # if cond is not None:
+                    #    cond = cond.data
+
+                    if isinstance(cond, HBitsConst):
+                        assert int(cond) == 1, (w, "If ack=0 this means that channel is always stalling")
+                        cond = None
+                    else:
+                        assert isinstance(cond, RtlSignal)
+
+                    assert cond is not None, ("Because write object do not have any condition it is not possible to resolve which value should be MUXed to output interface", muxCases[0][0].dst)
                     if enableOut is not None:
-                        yield [enableOut(1 if en is None else en), ]
+                        stms = [enableOut(1), ] + stms
+                    rtlMuxCases.append((cond, enableOut, stms))
 
-                    # no MUX needed and we already merged the synchronization
+                _, enableOut, stms = rtlMuxCases[0]
+                # create default case to prevent lath in HDL
+                defaultCase = []
+                if enableOut is not None:
+                    defaultCase.append(enableOut(0))
+                if isinstance(stms, HdlAssignmentContainer):
+                    defaultCase.append(stms.dst(None))
+                else:
+                    defaultCase.extend(asig.dst(None) for asig in stms)
+                yield SwitchLogic([(c, stms) for c, _, stms in rtlMuxCases], default=defaultCase)
+            else:
+                assert isinstance(muxCases[0][0], HlsNetNodeRead), muxCases
+                en = None
+                enableOut = None
+                for _, cond, enableOut, caseStatements in muxCases:
+                    assert not caseStatements
+                    if enableOut is None:
+                        break
+                    if cond is None:
+                        en = None
+                        break
+                    else:
+                        en = RtlSignalBuilder.buildOrOptional(en, cond)
+
+                if enableOut is not None:
+                    yield [enableOut(1 if en is None else en), ]
+
+                # no MUX needed and we already merged the synchronization
 
     def __repr__(self):
         return f"<{self.__class__.__name__:s} {self.parent} clk:{self.clkIndex}>"
