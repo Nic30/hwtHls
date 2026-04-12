@@ -836,6 +836,23 @@ class PyBytecodeToSsaLowLevelOpcodes():
                 kwargs[kwName] = a
             del args[-kwArgCnt:]
 
+        elif callableV is setattr and isinstance(getattr(args[0], args[1], None), self.ANY_HWVALUE_CLASS):
+            # instead of call of setattr store to variable on llvm level
+            assert len(args) == 3, args
+            assert len(kwargs) == 0, kwargs
+            curValue = getattr(args[0], args[1])
+            if isinstance(curValue, HwIOSignal):
+                curValue = curValue._sig
+            value = args[2]
+
+            if not isinstance(value, (RtlSignal, Value, HwIOSignal, HConst)):
+                value = toHVal(value, suggestedType=curValue._dtype)
+
+            toLlvm = self.toLlvm
+            curBlock, src = toLlvm._translateExprToLlvm(curBlock, value)
+            toLlvm._variableInBlock_insertRedef(curBlock, curValue, (), src)
+            res = None
+
         if isinstance(_self, PyBytecodeInline) and callableV == _self.__call__.__func__:
             return self._translateCallInlined(frame, curBlock, _self.ref, instr.offset, args, kwargs)
         elif isinstance(callableV, PyBytecodeInline):
@@ -843,6 +860,7 @@ class PyBytecodeToSsaLowLevelOpcodes():
         elif callableV is PyBytecodePreprocHwCopy:
             assert len(args) == 1, args
             curBlock, res = self.toLlvm._translateExprToLlvm(curBlock, args[0])
+
         else:
             hlsCallOverride = getattr(callableV, "hlsCallOverride", None)
             if getattr(callableV, "__hlsIsLowLevelFn", False):
