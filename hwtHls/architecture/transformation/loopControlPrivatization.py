@@ -1,4 +1,4 @@
-from typing import Dict, Union, Tuple
+from typing import Union
 
 from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.transformation.hlsArchPass import HlsArchPass
@@ -47,8 +47,8 @@ class HlsArchPassLoopControlPrivatization(HlsArchPass):
 
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
-        ownerOfControl: Dict[Union[HlsNetNodeWrite, HlsNetNodeRead],
-                             Tuple[ArchElement, int]] = {}
+        ownerOfControl: dict[Union[HlsNetNodeWrite, HlsNetNodeRead],
+                             tuple[ArchElement, int]] = {}
         toSearch: HlsNetNodeWrite = []
         for elm in netlist.iterAllNodes():
             elm: ArchElement

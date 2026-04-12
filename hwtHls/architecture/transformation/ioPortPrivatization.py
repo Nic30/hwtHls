@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Dict, Union, Tuple, List
+from typing import Union
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.constants import READ
@@ -43,7 +43,7 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
                            ioNode: Union[HlsNetNodeRead, HlsNetNodeWrite],
                            port: HwIO,
                            ioDiscovery: HlsNetlistAnalysisPassIoDiscover,
-                           portOwner: Dict[HwIO, ArchElement]):
+                           portOwner: dict[HwIO, ArchElement]):
         ioNodes = ioDiscovery.ioByInterface.get(port, None)
         if ioNodes is None:
             ioNodes = ioDiscovery.ioByInterface[port] = []
@@ -59,9 +59,9 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
 
     def _constructArbitrationLogic(self, arbiterElm: ArchElementPipeline,
                                    ioPort: HwIO,
-                                   ioNodes: List[Union[HlsNetNodeRead, HlsNetNodeWrite]],
-                                   userSyncNodes: OrderedDict[Union[ArchElement, Tuple[ArchElement, int]], List[HlsNetNodeExplicitSync]],
-                                   portOwner: Dict[HwIO, Union[ArchElement, Tuple[ArchElement, int]]]):
+                                   ioNodes: list[Union[HlsNetNodeRead, HlsNetNodeWrite]],
+                                   userSyncNodes: OrderedDict[Union[ArchElement, tuple[ArchElement, int]], list[HlsNetNodeExplicitSync]],
+                                   portOwner: dict[HwIO, Union[ArchElement, tuple[ArchElement, int]]]):
 
         # 1 port n users
         # * the ioNode must occupy only a single clock window
@@ -210,17 +210,17 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
         ioDiscovery: HlsNetlistAnalysisPassIoDiscover = netlist.getAnalysis(HlsNetlistAnalysisPassIoDiscover)
         ioByInterface = ioDiscovery.ioByInterface
         # clkPeriod: SchedTime = allocator.netlist.normalizedClkPeriod
-        portOwner: Dict[HwIO, Union[ArchElement, Tuple[ArchElement, int]]] = {}
+        portOwner: dict[HwIO, Union[ArchElement, tuple[ArchElement, int]]] = {}
         # :note: for each FSM we need to keep pool of assigned ports so we can reuse it in next clock cycle
         # because the ports can be shared between clock cycles.
-        # fsmPortPool: Dict[Tuple[ArchElementFsm, Tuple[HwIO]], List[HwIO]] = {}
+        # fsmPortPool: dict[tuple[ArchElementFsm, tuple[HwIO]], list[HwIO]] = {}
         # :note: for ports used by multiple ArchElements or ArchElementPipeline stages
         #   the arbiter must be generated
 
         for io in ioDiscovery.interfaceList:
             if isinstance(io, MemoryAllocationMeta) and all(isinstance(u, HlsNetNodeRead) for u in io.users):
                 continue
-            userSyncNodes: OrderedDict[Union[ArchElement, Tuple[ArchElement, int]], List[HlsNetNodeExplicitSync]] = OrderedDict()
+            userSyncNodes: OrderedDict[Union[ArchElement, tuple[ArchElement, int]], list[HlsNetNodeExplicitSync]] = OrderedDict()
             ioNodes = ioByInterface[io]
             if len(ioNodes) == 2:
                 n0, n1 = ioNodes

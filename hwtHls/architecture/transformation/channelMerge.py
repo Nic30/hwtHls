@@ -1,7 +1,7 @@
 from collections import OrderedDict
 from itertools import islice
 import re
-from typing import List, Union, Dict, Tuple, Optional, Set
+from typing import Union, Optional
 
 from hwt.code import Concat
 from hwt.hdl.operatorDefs import HwtOps
@@ -39,7 +39,7 @@ from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 AnyChannelIo = Union[HlsNetNodeRead, HlsNetNodeWrite]
 
 
-def archElmEdgeSortKey(archElmChannelKeyValue: Tuple[Tuple[ArchElement, int, ArchElement, int], List[AnyChannelIo]], elmIndex: Dict[ArchElement, int]) -> Tuple[int, int, int, int]:
+def archElmEdgeSortKey(archElmChannelKeyValue: tuple[tuple[ArchElement, int, ArchElement, int], list[AnyChannelIo]], elmIndex: dict[ArchElement, int]) -> tuple[int, int, int, int]:
     ((srcElm, srcClkI, dstElm, dstClkI), _) = archElmChannelKeyValue
     return (elmIndex[srcElm], srcClkI, elmIndex[dstElm], dstClkI)
 
@@ -68,12 +68,12 @@ class RtlArchPassChannelMerge(HlsArchPass):
         super(RtlArchPassChannelMerge, self).__init__()
         self._dbgTracer = dbgTracer
 
-    def _generatePrettyBufferName(self, writes: List[HlsNetNodeWrite]) -> Optional[str]:
+    def _generatePrettyBufferName(self, writes: list[HlsNetNodeWrite]) -> Optional[str]:
         """
         Try to parse names of writes and create nice sorted name out of it for a channel which will contain all writes.
         """
         # srcbb, dstbb, regNo
-        regs: List[Tuple[int, int, int]] = []
+        regs: list[tuple[int, int, int]] = []
         nonstdNames = []
         for w in writes:
             if w.name is not None:
@@ -103,7 +103,7 @@ class RtlArchPassChannelMerge(HlsArchPass):
         else:
             return "_".join(nameBuff)
 
-    def _resolveMergedChannelInitValuesOfWrites(self, writes: List[HlsNetNodeWrite]):
+    def _resolveMergedChannelInitValuesOfWrites(self, writes: list[HlsNetNodeWrite]):
         """
         Resolve concatenation of channel init values from write nodes.
 
@@ -196,8 +196,8 @@ class RtlArchPassChannelMerge(HlsArchPass):
 
     def _removeIoNodesAfterTheyWereMergedToFirstOne(self, r0: HlsNetNodeReadAnyChannel,
                                                     w0: HlsNetNodeWriteAnyChannel,
-                                                    r0O0OrigT: HdlType, r0Users: Tuple[HlsNetNodeIn, ...],
-                                                    selectedForRewrite: List[HlsNetNodeWriteAnyChannel],
+                                                    r0O0OrigT: HdlType, r0Users: tuple[HlsNetNodeIn, ...],
+                                                    selectedForRewrite: list[HlsNetNodeWriteAnyChannel],
                                                     srcElm: ArchElement, srcClkI: int,
                                                     dstElm: ArchElement, dstClkI: int,
                                                     worklist: SetList[HlsNetNode]):
@@ -285,7 +285,7 @@ class RtlArchPassChannelMerge(HlsArchPass):
         assert isinstance(n, HlsNetNodeOperator) and n.operator == HwtOps.CONCAT, n
         return True
 
-    def _mergeChannels(self, selectedForRewrite: List[HlsNetNodeWrite],
+    def _mergeChannels(self, selectedForRewrite: list[HlsNetNodeWrite],
                        dbgTracer: DebugTracer,
                        srcElm: ArchElement, srcClkI: int,
                        dstElm: ArchElement, dstClkI: int,
@@ -352,7 +352,7 @@ class RtlArchPassChannelMerge(HlsArchPass):
         r0Users = tuple(r0.usedBy[0])
         r0O0 = r0._portDataOut
         r0O0OrigT = r0O0._dtype
-        seenR0Users: Set[HlsNetNode] = set()
+        seenR0Users: set[HlsNetNode] = set()
         for u in r0Users:
             uObj: HlsNetNode = u.obj
             if uObj not in seenR0Users:
@@ -376,14 +376,14 @@ class RtlArchPassChannelMerge(HlsArchPass):
                                                          srcElm, srcClkI, dstElm, dstClkI,
                                                          worklist)
 
-    def _detectChannes(self, archELements: List[ArchElement]):
+    def _detectChannes(self, archELements: list[ArchElement]):
         """
         Find all HlsNetNodeRead with associatedWrite, HlsNetNodeWrite with associatedRead
         and associate them to clock period index and ArchElement where it is connected.
         """
-        channelToLocation: Dict[AnyChannelIo, Tuple[ArchElement, int, List[HlsNetNode]]] = {}
-        channels: OrderedDict[Tuple[ArchElement, int, ArchElement, int], List[AnyChannelIo]] = OrderedDict()
-        allWrites: List[HlsNetNodeWrite] = []
+        channelToLocation: dict[AnyChannelIo, tuple[ArchElement, int, list[HlsNetNode]]] = {}
+        channels: OrderedDict[tuple[ArchElement, int, ArchElement, int], list[AnyChannelIo]] = OrderedDict()
+        allWrites: list[HlsNetNodeWrite] = []
         for elm in archELements:
             elm: ArchElement
             for clkI, nodes in elm.iterStages():
@@ -424,7 +424,7 @@ class RtlArchPassChannelMerge(HlsArchPass):
         channels = self._detectChannes(netlist.subNodes)
         reachDb: HlsNetlistAnalysisPassReachabilityDataOnlySingleClock = None
         elmIndex = {elm: i for i, elm in enumerate(netlist.subNodes)}
-        MergeCandidateList = Union[List[HlsNetNodeWrite], List[HlsNetNodeWrite]]
+        MergeCandidateList = Union[list[HlsNetNodeWrite], list[HlsNetNodeWrite]]
         dbgTracer = self._dbgTracer
         changed = False
         worklist: SetList[HlsNetNode] = SetList()  # worklist for simplify

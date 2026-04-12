@@ -1,5 +1,5 @@
 from math import inf
-from typing import Dict, Union, Set, List, Optional
+from typing import Union, Optional
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.pyUtils.setList import SetList
@@ -27,7 +27,8 @@ from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.architecture.transformation.dce import ArchElementDCE
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 
-FsmTransitionTable = Dict[int, Dict[int, Optional[HlsNetNodeOut]]]
+
+FsmTransitionTable = dict[int, dict[int, Optional[HlsNetNodeOut]]]
 
 
 class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
@@ -37,7 +38,7 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
     """
 
     @classmethod
-    def _detectStateTransitions(cls, fsmElm: ArchElementFsm, usedStates:List[int]):
+    def _detectStateTransitions(cls, fsmElm: ArchElementFsm, usedStates:list[int]):
         """
         Detect the state propagation logic and resolve how to replace it with a state bit
         * state bit will be just stored as a register in this FSM
@@ -61,7 +62,7 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
     @classmethod
     def _collectLoops(cls, fsmElm: ArchElementFsm):
         localControlReads: SetList[HlsNetNodeReadAnyChannel] = SetList()
-        controlToStateI: Dict[Union[HlsNetNodeReadAnyChannel, HlsNetNodeWriteAnyChannel], int] = {}
+        controlToStateI: dict[Union[HlsNetNodeReadAnyChannel, HlsNetNodeWriteAnyChannel], int] = {}
         clkPeriod = fsmElm.netlist.normalizedClkPeriod
         for stI, nodes in fsmElm.iterStages():
             for node in nodes:
@@ -75,6 +76,7 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
                     channelGroup = wr._loopChannelGroup
                     if channelGroup is None or channelGroup.getChannelUsedAsControl() is not wr:
                         continue
+                    # :note: now we know that this is the read of a channel which implementes some sort of CFG jump
                     for _, role in channelGroup.connectedLoopsAndBlocks:
                         role: LOOP_CHANEL_GROUP_ROLE
                         if role not in (LOOP_CHANEL_GROUP_ROLE.ENTER,
@@ -111,11 +113,11 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
         return localControlReads, controlToStateI
 
     @classmethod
-    def _collectStatesWhichCanNotBeSkipped(cls, fsmElm: ArchElementFsm) -> Set[int]:
+    def _collectStatesWhichCanNotBeSkipped(cls, fsmElm: ArchElementFsm) -> set[int]:
         clkPeriod = fsmElm.netlist.normalizedClkPeriod
-        nonSkipableStateI: Set[int] = set()
+        nonSkipableStateI: set[int] = set()
         # element: clockTickIndex
-        otherElmConnectionFirstTimeSeen: Dict[ArchElement, int] = {}
+        otherElmConnectionFirstTimeSeen: dict[ArchElement, int] = {}
         for o, uses, outTime in zip(fsmElm._outputs, fsmElm.usedBy, fsmElm.scheduledOut):
             o: HlsNetNodeOut
             clkI = clkWindowIndex(outTime, clkPeriod)
@@ -140,7 +142,7 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
     @staticmethod
     def _insertIntoFsmTransitionTable(builder: HlsNetlistBuilder,
                                       transitionTable: FsmTransitionTable,
-                                      predecessors: Dict[int, int],
+                                      predecessors: dict[int, int],
                                       srcStI: int, dstStI: int,
                                       _transEn: HlsNetNodeOut):
         curTransEn = transitionTable[srcStI].get(dstStI, None)
@@ -151,18 +153,18 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
         predecessors[dstStI].append(srcStI)
 
     @staticmethod
-    def _iterSortedStateTransitions(stateTransitionTable: Dict[int, Optional[HlsNetNodeOut]]):
+    def _iterSortedStateTransitions(stateTransitionTable: dict[int, Optional[HlsNetNodeOut]]):
         # sort and keep default transition at end
         return sorted(stateTransitionTable.items(), key=lambda x: inf if x[1] is None else x[0])
 
     @classmethod
     def _loadFsmTransitionsFromControllChannels(cls,
                 localControlReads: SetList[HlsNetNodeRead],
-                controlToStateI: Dict[Union[HlsNetNodeRead, HlsNetNodeWrite], int],
-                nonSkipableStateI: Set[int],
+                controlToStateI: dict[Union[HlsNetNodeRead, HlsNetNodeWrite], int],
+                nonSkipableStateI: set[int],
                 fsmElm: ArchElementFsm,
                 transitionTable: FsmTransitionTable,
-                predecessors: Dict[int, int]):
+                predecessors: dict[int, int]):
         builder = fsmElm.builder
         # for every loop reenter backedge create a jump back to state where loop header is
         for r in localControlReads:
@@ -201,8 +203,8 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
     def _loadFsmTransitionsFromSkipableStates(cls,
                 fsmElm: ArchElementFsm,
                 transitionTable: FsmTransitionTable,
-                predecessors: Dict[int, int],
-                usedStates:List[int]):
+                predecessors: dict[int, int],
+                usedStates:list[int]):
         # iterating states from back, create a transition if which will skip to next
         # state if the state would hot have any effect
         if len(usedStates) <= 1:
@@ -210,7 +212,7 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
 
         builder = fsmElm.builder
         clkPeriod = fsmElm.netlist.normalizedClkPeriod
-        # stateSkipCondition: Dict[int, Optional[HlsNetNodeOut]] = {}
+        # stateSkipCondition: dict[int, Optional[HlsNetNodeOut]] = {}
         for clkI in reversed(usedStates):
             # state can be skipped if all nodes with side effect are known to be be disabled or
             # there are not any and the outputs of nodes defined in this state are not used later
@@ -270,10 +272,10 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
     @classmethod
     def _resolveTranstitionTableFromLoopControlChannels(cls,
                 localControlReads: SetList[HlsNetNodeRead],
-                controlToStateI: Dict[Union[HlsNetNodeRead, HlsNetNodeWrite], int],
-                nonSkipableStateI: Set[int],
+                controlToStateI: dict[Union[HlsNetNodeRead, HlsNetNodeWrite], int],
+                nonSkipableStateI: set[int],
                 fsmElm: ArchElementFsm,
-                usedStates:List[int]):
+                usedStates:list[int]):
         """
         Extract FSM transition table from loop control channel conditions
         """
@@ -281,7 +283,7 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
         transitionTable: FsmTransitionTable = {}
 
         # initialize transition table to always jump to next state
-        predecessors: Dict[int, int] = {dstClkI: SetList() for dstClkI in usedStates}
+        predecessors: dict[int, int] = {dstClkI: SetList() for dstClkI in usedStates}
         prev = None
         for isLast, clkI in iter_with_last(usedStates):
             transitionTable[prev] = {clkI: None}  # jump to next by default
@@ -299,7 +301,7 @@ class HlsAndRtlNetlistPassFsmStateNextWriteConstruction(HlsAndRtlNetlistPass):
         cls._buildHlsNetNodeFsmStateWrites(usedStates, fsmElm, transitionTable)
 
     @classmethod
-    def _buildHlsNetNodeFsmStateWrites(cls, usedStates: List[int],
+    def _buildHlsNetNodeFsmStateWrites(cls, usedStates: list[int],
                                       fsmElm: ArchElementFsm, transitionTable: FsmTransitionTable):
         builder = fsmElm.builder
         clkPeriod = fsmElm.netlist.normalizedClkPeriod

@@ -1,4 +1,3 @@
-from typing import Tuple, Dict, Set
 
 from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.transformation.hlsArchPass import HlsArchPass
@@ -15,7 +14,7 @@ from hwtHls.netlist.scheduler.clk_math import clkWindowIndex
 from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
 
-SyncCacheKey = Tuple[int, ArchElement, ArchElement]
+SyncCacheKey = tuple[int, ArchElement, ArchElement]
 
 
 class HlsArchPassAddImplicitSyncChannels(HlsArchPass):
@@ -26,8 +25,8 @@ class HlsArchPassAddImplicitSyncChannels(HlsArchPass):
 
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
-        syncAdded: Set[SyncCacheKey] = set()
-        elementIndex: Dict[ArchElement, int] = {a: i for i, a in enumerate(netlist.subNodes)}
+        syncAdded: set[SyncCacheKey] = set()
+        elementIndex: dict[ArchElement, int] = {a: i for i, a in enumerate(netlist.subNodes)}
         clkPeriod: SchedTime = netlist.normalizedClkPeriod
         changed = False
         for srcElm in netlist.subNodes:
@@ -60,7 +59,7 @@ class HlsArchPassAddImplicitSyncChannels(HlsArchPass):
     @classmethod
     def _registerSyncForInterElementConnection(cls,
                                                netlist: HlsNetlistCtx,
-                                               syncAdded: Set[SyncCacheKey],
+                                               syncAdded: set[SyncCacheKey],
                                                srcElmIndex:int, dstElmIndex:int,
                                                clkIndex:int,
                                                o: HlsNetNodeOut,
