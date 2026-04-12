@@ -18,7 +18,7 @@ class ExtractBitConcatAndSliceOpsPass_TC(BaseLlvmIrTC):
 
     def test_tryOrToBitConcat_0(self):
         llvmIr = """\
-        define void @BramRead2R.mainThread(ptr addrspace(1) %o) {
+        define void @test_tryOrToBitConcat_0(ptr addrspace(1) %o) {
         bb0:
           br label %bb1
         
