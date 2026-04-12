@@ -50,8 +50,8 @@ class BramRead2R(HwModule):
         i = HBits(self.ADDR_WIDTH - 1).from_py(0)
         while b1:
             iAsAddr = i._reinterpret_cast(addrT)
-            d0 = hls.read(ram[iAsAddr]).data
-            d1 = hls.read(ram[iAsAddr + (1 << (self.ADDR_WIDTH - 1))]).data
+            d0 = ram.read(iAsAddr).data
+            d1 = ram.read(iAsAddr + (1 << (self.ADDR_WIDTH - 1))).data
             # :note: mayBecomeFlushable=False would lead to much more simple circuit, but
             #  it would make dataOut0, dataOut1 control to depend on each other,
             #  it would allow  dataOut0, dataOut1 only to be read togheter
@@ -125,6 +125,10 @@ if __name__ == "__main__":
     from hwtHls.platform.debugBundle import HlsDebugBundle
 
     m = BramRead2RWithRom()
-    print(to_rtl_str(m,
-                     target_platform=VirtualHlsPlatform(llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED],
-                                                        debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    p = VirtualHlsPlatform(
+        llvmCliArgs=[
+            # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+        ],
+        debugFilter=HlsDebugBundle.ALL_RELIABLE
+    )
+    print(to_rtl_str(m, target_platform=p))
