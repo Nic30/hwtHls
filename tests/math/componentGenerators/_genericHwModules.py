@@ -30,7 +30,7 @@ class _FpUnOpAluHwModule(_BaseALU1HwModule):
     def aluFn(self, inp):
         return PyBytecodeInline(self.FN)(
             inp._reinterpret_cast(self.T),
-            loopPragmaGetter=self._getLoopMeta)
+            loopPragmaGetter=self._getLoopMeta)._reinterpret_cast(self._getTypeOfIo(self.data_out))
 
 
 @serializeParamsUniq
