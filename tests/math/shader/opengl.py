@@ -2,10 +2,12 @@
 Common opengl functions and datatypes defined at the top of HFloatTmp data type.
 """
 from hwt.doc_markers import hwt_expr_producer
+from hwt.hdl.const import HConst
 from hwt.mainBases import RtlSignalBase
 from hwt.math import hMin, hMax
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 from tests.math.hFloatTmp.hFloatTmpOps import sqrt
+
 
 # https://github.com/lzw545/opengg
 # https://github.com/ToNi3141/Rasterix
@@ -53,7 +55,7 @@ def reflect(I: RtlSignalBase["HArray[HFloatTmp]"], N: RtlSignalBase["HArray[HFlo
 
     :attention: N should be normalized in order to achieve the desired result. 
     """
-    return I - __f(2.0) * dot(N, I) * N
+    return I - N * (__f(2.0) * dot(N, I))
 
 
 @hwt_expr_producer
@@ -67,13 +69,13 @@ def refract(I: RtlSignalBase["HArray[HFloatTmp]"], N: RtlSignalBase["HArray[HFlo
     https://registry.khronos.org/OpenGL-Refpages/gl4/html/refract.xhtml
     """
     k = 1.0 - eta * eta * (1.0 - dot(N, I) * dot(N, I))
-    if isinstance(k, float):
+    if isinstance(k, (float, HConst)):
         if k < 0.:
             return I.__class__(__f(0.0))
         else:
-            return  eta * I - (eta * dot(N, I) + sqrt(k)) * N
+            return  I * eta - N * (dot(N, I) * eta + sqrt(k))
 
-    R1 = eta * I - (eta * dot(N, I) + sqrt(k)) * N
+    R1 = I * eta - N * (eta * dot(N, I) + sqrt(k))
     return I.__class__(
         *((k < 0.0)._ternary(__f(0.0), r1) for r1 in R1)
     )
