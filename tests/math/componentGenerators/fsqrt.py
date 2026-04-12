@@ -61,16 +61,15 @@ class ComponentGeneratorFSQRT_hwtHlsFpIntrinsic(ComponentGeneratorForSpecialized
 
 class ComponentGeneratorFSQRT(ComponentGeneratorFp):
     opDef = OP_FSQRT
+    FIXP_HWMODULE_CLS = FixpSqrtHwModule
 
     def __init__(self, platform:DefaultHlsPlatform,
                  genNamePrefix:str, moduleName:str,
-                 optThroughputVsArea=0.0,
-                 FIXP_HWMODULE_CLS=FixpSqrtHwModule):
+                 optThroughputVsArea=0.0):
         ComponentGenerator.__init__(self, platform, genNamePrefix, moduleName)
         # dataWidth -> scheduling
         self.schedulingCache: dict[tuple[float, HFloatTmpConfig], tuple[ComponentRealizationMeta, ComponentRealizationMeta, int]]
         self.optThroughputVsArea = optThroughputVsArea
-        self.FIXP_HWMODULE_CLS = FIXP_HWMODULE_CLS
 
     def _getConfiguredFixpHwModule(self, realTimeClkPeriod:float, ty:HFixedPointQ, UNROLL_FACTOR:int, realization: Optional[ComponentRealizationMeta]):
         hwModule = self.FIXP_HWMODULE_CLS()
