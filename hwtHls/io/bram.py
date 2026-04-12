@@ -43,7 +43,6 @@ from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlis
 from hwtLib.handshaked.streamNode import ValidReadyTuple
 from ipCorePackager.constants import INTF_DIRECTION
 
-
 AnyBramPort = Union[HwIOBramPort_noClk, BankedPortGroup[HwIOBramPort_noClk], MultiPortGroup[HwIOBramPort_noClk], MemoryAllocationMeta]
 
 
@@ -345,7 +344,7 @@ class IoProxyBram(IoProxyAddressed):
     @hlsLowLevel
     def write(self, index: Union[AnyHBitsValue], data: AnyHBitsValue, mask=NOT_SPECIFIED, isVolatile:bool=True, mayBecomeFlushable=True) -> HlsWriteAddressed:
         t = self.getDataTypeOfNativeWrite()
-        if self.interface.HAS_BE:
+        if getFirstInterfaceInstance(self.interface, instanceFilter=lambda hwio: hwio.HAS_W).HAS_BE:
             assert mask is not None
             data = mask._concat(data)
         else:
