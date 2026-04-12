@@ -252,7 +252,7 @@ class vec3(vec2):
         else:
             assert len(args) == 1, "expects 3 items or 1 sequence with 3 items or 1 scalar"
             a = args[0]
-            if isinstance(a, float) or isinstance(a, (HConst, RtlSignalBase)) and a._dtype.isScalar():
+            if isinstance(a, (float, int, HConst)) or isinstance(a, (HConst, RtlSignalBase)) and a._dtype.isScalar():
                 self.x, self.y, self.z = (a, a, a)
             else:
                 self.x, self.y, self.z = a
