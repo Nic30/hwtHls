@@ -4,6 +4,9 @@
 #include <queue>
 #include <unordered_set>
 #include <algorithm>
+// #include <llvm/IR/BasicBlock.h>
+//#include <llvm/Support/raw_ostream.h>
+
 
 namespace hwtHls {
 
@@ -19,6 +22,9 @@ public:
 	struct Edge {
 		Node other;
 		EdgeData data;
+		//bool operator==(const Edge & RHS) const {
+		//	return other == RHS.other && data == RHS.data;
+		//}
 	};
 
 private:
@@ -60,9 +66,15 @@ public:
 	}
 
 	void addEdge(const Node &u, const Node &v, const EdgeData &ed) {
+		// llvm::errs() << "Adding " <<  u->getNumber() << " -> " << v->getNumber() << "   " << u->getName() << " -> " << v->getName() << "\n";
 		assert(adj.count(u));
 		assert(adj.count(v));
-		adj[u].push_back( { v, ed });
+		auto & adjVec = adj[u];
+		assert(std::find_if(adjVec.begin(), adjVec.end(),
+						 [v](const Edge &e) { return e.other == v; }) ==
+				   adjVec.end() &&
+			   "no duplicated edges, this is not a multi-graph");
+		adjVec.push_back( { v, ed });
 		reverseAdj[v].push_back( { u, ed });
 	}
 
