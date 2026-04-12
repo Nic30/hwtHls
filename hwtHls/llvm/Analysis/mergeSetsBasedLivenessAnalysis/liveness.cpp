@@ -1,3 +1,7 @@
+#include <hwtHls/llvm/Analysis/mergeSetsBasedLivenessAnalysis/liveness.h>
+
+#include <llvm/Analysis/LoopInfo.h>
+#include <llvm/IR/Dominators.h>
 #include <set>
 #include <list>
 #include <map>
@@ -6,7 +10,6 @@
 #include <llvm/IR/CFG.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/ADT/SetVector.h>
-#include <hwtHls/llvm/Analysis/mergeSetsBasedLivenessAnalysis/liveness.h>
 
 using namespace llvm;
 
@@ -109,6 +112,63 @@ std::map<BasicBlock*, SetVector<Instruction*>> allLiveInUsingMergeSet(BasicBlock
 
 	return liveInSets;
 }
+
+std::map<BasicBlock*, SetVector<Instruction*>> computeAllLiveins(Function &F, DominatorTree &DT) {
+	/// Get computed DJ-graph of the control flow graph.
+	DJGraph djGraph = computeDJGraph(F, DT);
+	MergeSets mergeSets = completeTopDownMergeSetComputation(djGraph, F, DT);
+	return allLiveInUsingMergeSet(F.getEntryBlock(), DT, mergeSets);
+}
+
+bool fixDublicitCfgEdgesByNewBBInsertion(llvm::DomTreeUpdater * DTU, llvm::LoopInfo * LI, llvm::Function & F) {
+	bool change = false;
+	for (BasicBlock &BB :F) {
+		if (auto sw = dyn_cast<SwitchInst>(BB.getTerminator())) {
+			SmallPtrSet<BasicBlock*, 32> seen;
+			seen.insert(sw->getDefaultDest());
+			for (auto &C: sw->cases()) {
+				auto suc = C.getCaseSuccessor();
+				if (seen.contains(suc)) {
+					auto newBB = BasicBlock::Create(F.getContext(), suc->getName() + ".uniqSuc", &F, suc);
+					if (DTU)
+						DTU->applyUpdates({
+							{DominatorTree::Insert, &BB, newBB},
+							{DominatorTree::Insert, newBB, suc }
+						});
+					C.setSuccessor(newBB);
+					BranchInst::Create(suc, newBB); // newBB br -> suc
+					// update phis of suc
+					for (auto & phi: suc->phis()) {
+						bool thisBBSeen = false;
+						for (size_t bbI = 0; bbI < phi.getNumIncomingValues(); ++bbI) {
+							auto _BB = phi.getIncomingBlock(bbI);
+							if (_BB  == &BB) {
+								// the first appearance of BB in phi operands is left unchanged, the second is
+								// swapped by newly generated block 
+								if (thisBBSeen) {
+									phi.setIncomingBlock(bbI, newBB);
+									break;
+								} else {
+									thisBBSeen = true;
+								}
+							}
+						}	
+					}
+					
+					if (LI) {
+						auto _L = LI->getLoopFor(suc);
+						_L->addBasicBlockToLoop(newBB, *LI);
+					}
+					change = true;
+				} else {
+					seen.insert(suc);
+				}
+			}
+		}
+	}
+	return change;
+}
+
 /*
  /// Compute liveout sets using the livein sets of successor blocks.
  std::map<BasicBlock*, std::set<Value*>> allLiveOutUsingMergeSet(
