@@ -1124,6 +1124,8 @@ class PyBytecodeToSsaLowLevelOpcodes():
                                                        lambda i, dst: dst(value))
 
         if isinstance(container, (RtlSignal, HwIOSignal)):
+            if isinstance(container, HwIOSignal):
+                container = container._sig
             toLlvm: ToLlvmIrTranslator = self.toLlvm
             if not isinstance(key, (RtlSignal, Value, HwIOSignal, HConst)):
                 if isinstance(key, slice):
