@@ -5,6 +5,7 @@ from hwtLib.tests.all import unittestMain
 from tests.frontend.basics_test import FromPythonBasics_TC
 from tests.frontend.binToBcd_test import BinToBcd_TC
 from tests.frontend.bitonicSort import BitonicSorterHLS_TCs
+from tests.frontend.builtin_setattr_test import Builtin_setattr_TC
 from tests.frontend.errors_test import PyBytecodeErrors_TC
 from tests.frontend.exprTree3_test import HlsAstExprTree3_example_TC
 from tests.frontend.fnCall_test import FnCall_TC
@@ -16,6 +17,7 @@ from tests.frontend.ifstm_test import HlsSimpleIfStatement_TC
 from tests.frontend.loopAfterLoop_test import LoopAfterLoop_TC
 from tests.frontend.loopFollowedByIf_test import LoopFollowedByIf_TC
 from tests.frontend.mac_test import HlsMAC_example_TC
+from tests.frontend.opcode_LOAD_FAST_LOAD_FAST__STORE_FAST_STORE_FAST import TestOpcode_LOAD_FAST_LOAD_FAST__STORE_FAST_STORE_FAST_TC
 from tests.frontend.pragmaInline_test import PyBytecodeInline_TC
 from tests.frontend.preprocLoopMultiExit_test import PreprocLoopMultiExit_TCs
 from tests.frontend.pyArrHwIndex_test import PyArrHwIndex_TC
@@ -36,11 +38,12 @@ from tests.frontend.variableChain_test import VariableChain_TC
 from tests.frontend.whileIf_test import HlsAstWhileIf_TC
 from tests.frontend.whileTrue_test import HlsAstWhileTrue_TC
 from tests.testCaseUtils import testSuiteFromTCs
-from tests.frontend.opcode_LOAD_FAST_LOAD_FAST__STORE_FAST_STORE_FAST import TestOpcode_LOAD_FAST_LOAD_FAST__STORE_FAST_STORE_FAST_TC
+
 
 frontend_TCs = [
-    TestOpcode_LOAD_FAST_LOAD_FAST__STORE_FAST_STORE_FAST_TC ,
+    TestOpcode_LOAD_FAST_LOAD_FAST__STORE_FAST_STORE_FAST_TC,
     FnCall_TC,
+    Builtin_setattr_TC,
     HlsSlicingTC,
     HlsPythonTupleAssign_TC,
     VarReference_TC,
