@@ -21,6 +21,7 @@
 #include <hwtHls/llvm/targets/hwtFpgaTargetLowering.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetFrameLowering.h>
 #include <hwtHls/llvm/targets/hwtFpgaRegisterInfo.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaLegalizerInfo.h>
 
 #define GET_SUBTARGETINFO_HEADER
 #include "HwtFpgaGenSubtargetInfo.inc"
@@ -36,22 +37,26 @@ class HwtFpgaTargetMachine;
 // must be in llvm namespace because of tblgen generated code
 class HwtFpgaTargetSubtarget: public llvm::HwtFpgaTargetGenSubtargetInfo {
 	friend HwtFpgaTargetMachine;
+	const TargetMachine &TM;
 protected:
 	struct nodelete {
 	    template <typename T>
 	    void operator()(T *) {}
 	};
 
-	std::unique_ptr<llvm::TargetInstrInfo> TII;
-	std::unique_ptr<HwtFpgaTargetLowering> TLI;
+	mutable std::unique_ptr<llvm::TargetInstrInfo> TII;
+	mutable std::unique_ptr<HwtFpgaTargetLowering> TLI;
 	HwtFpgaRegisterInfo TRI;
-	std::unique_ptr<HwtFpgaTargetFrameLowering> TargetFrameLoweringInfo;
-	std::unique_ptr<InstructionSelector> IS;
+	mutable std::unique_ptr<HwtFpgaTargetFrameLowering> TargetFrameLoweringInfo;
+	mutable std::unique_ptr<InstructionSelector> IS;
 
 	// GlobalISel related APIs.
-	std::unique_ptr<HwtFpgaCallLowering> CallLoweringInfo;
-	std::unique_ptr<llvm::LegalizerInfo> Legalizer;
-	std::unique_ptr<llvm::RegisterBankInfo, nodelete> RegBankInfo;// delete disabled because it is allocated statically
+	mutable std::unique_ptr<HwtFpgaCallLowering> CallLoweringInfo;
+	mutable std::unique_ptr<HwtFpgaLegalizerInfo> Legalizer; // [fixme] on delete: adress x is 0 byts inside a block of size y alloc'd
+	                                                         //         from no obvious reason (other unique_ptrs work)
+															 //         maybe the problem is requests for members of Subtarget in constructors
+															 //         of members
+	mutable std::unique_ptr<llvm::RegisterBankInfo, nodelete> RegBankInfo;// delete disabled because it is allocated statically
 
 public:
 	HwtFpgaTargetSubtarget(const llvm::Triple &TT, llvm::StringRef CPU,
@@ -76,7 +81,7 @@ public:
 	const llvm::LegalizerInfo* getLegalizerInfo() const override;
 	const llvm::TargetFrameLowering* getFrameLowering() const override;
 	const llvm::RegisterBankInfo* getRegBankInfo() const override;
-	virtual bool enableEarlyIfConversion() const {
+	virtual bool enableEarlyIfConversion() const override {
 		return true;
 	}
 	virtual bool enableMachineScheduler() const override {
@@ -85,7 +90,7 @@ public:
 	virtual bool enableMachineSchedDefaultSched() const override {
 		return false;
 	}
-	virtual bool enableMachinePipeliner() const {
+	virtual bool enableMachinePipeliner() const override {
 		return false;
 	}
 };

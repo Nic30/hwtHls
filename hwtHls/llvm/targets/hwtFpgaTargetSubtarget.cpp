@@ -14,7 +14,6 @@
 
 #include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaRegisterBankInfo.h>
-#include <hwtHls/llvm/targets/GISel/hwtFpgaLegalizerInfo.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionSelector.h>
 
 #define DEBUG_TYPE "hwtfpga-subtarget"
@@ -28,23 +27,12 @@ namespace llvm {
 HwtFpgaTargetSubtarget::HwtFpgaTargetSubtarget(const Triple &TT,
 		StringRef CPU, StringRef TuneCPU, StringRef FS, StringRef ABIName,
 		const TargetMachine &TM) :
-		HwtFpgaTargetGenSubtargetInfo(TT, CPU, TuneCPU, FS) {
-	TLI.reset(new HwtFpgaTargetLowering(TM, *this));
-	TII.reset(new HwtFpgaInstrInfo());
-	CallLoweringInfo.reset(new HwtFpgaCallLowering(*TLI));
-	Legalizer.reset(new HwtFpgaLegalizerInfo(*this));
-	TargetFrameLoweringInfo.reset(
-			new HwtFpgaTargetFrameLowering(
-					TargetFrameLowering::StackDirection::StackGrowsDown,
-					Align(1), -2));
-	RegBankInfo.reset(&llvm::hwtFpgaRegisterBankInfo);
-	IS.reset(
-			createHwtFpgaInstructionSelector(
-					static_cast<const HwtFpgaTargetMachine&>(TM), *this,
-					static_cast<HwtFpgaRegisterBankInfo&>(*RegBankInfo)));
+		HwtFpgaTargetGenSubtargetInfo(TT, CPU, TuneCPU, FS), TM(TM) {
 }
 
 const llvm::TargetLowering* HwtFpgaTargetSubtarget::getTargetLowering() const {
+	if (!TLI)
+		TLI.reset(new HwtFpgaTargetLowering(TM, *this));
 	return TLI.get();
 }
 
@@ -53,26 +41,44 @@ const TargetRegisterInfo* HwtFpgaTargetSubtarget::getRegisterInfo() const {
 }
 
 const TargetInstrInfo* HwtFpgaTargetSubtarget::getInstrInfo() const {
+	if (!TII)
+		TII.reset(new HwtFpgaInstrInfo());
 	return TII.get();
 }
 
 const llvm::CallLowering* HwtFpgaTargetSubtarget::getCallLowering() const {
+	if (!CallLoweringInfo)
+		CallLoweringInfo.reset(new HwtFpgaCallLowering(*TLI));
 	return CallLoweringInfo.get();
 }
 
 llvm::InstructionSelector* HwtFpgaTargetSubtarget::getInstructionSelector() const {
+	if (!IS)
+		IS.reset(
+			createHwtFpgaInstructionSelector(
+					static_cast<const HwtFpgaTargetMachine&>(TM), *this,
+					static_cast<const HwtFpgaRegisterBankInfo&>(*RegBankInfo)));
 	return IS.get();
 }
 
 const llvm::LegalizerInfo* HwtFpgaTargetSubtarget::getLegalizerInfo() const {
+	if (!Legalizer)
+		Legalizer.reset(new HwtFpgaLegalizerInfo(*this));
 	return Legalizer.get();
 }
 
 const llvm::TargetFrameLowering* HwtFpgaTargetSubtarget::getFrameLowering() const {
+	if (!TargetFrameLoweringInfo)
+		TargetFrameLoweringInfo.reset(
+			new HwtFpgaTargetFrameLowering(
+					TargetFrameLowering::StackDirection::StackGrowsDown,
+					Align(1), -2));
 	return TargetFrameLoweringInfo.get();
 }
 
 const llvm::RegisterBankInfo* HwtFpgaTargetSubtarget::getRegBankInfo() const {
+	if (!RegBankInfo)
+		RegBankInfo.reset(&llvm::hwtFpgaRegisterBankInfo);
 	return RegBankInfo.get();
 }
 
