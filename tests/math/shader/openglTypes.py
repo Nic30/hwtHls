@@ -145,6 +145,12 @@ class vec2(ObjectWithHlsStoreOverride):
         elif key == 1:
             return self.y
         else:
+            if not hasattr(key, "_dtype"):
+                raise IndexError(key)
+            return (key._eq(0))._ternary(
+                    self.x,
+                    self.y,
+                )
             raise IndexError(key)
 
     def __neg__(self) -> Self:
@@ -289,7 +295,15 @@ class vec3(vec2):
         elif key == 2:
             return self.z
         else:
-            raise IndexError(key)
+            if not hasattr(key, "_dtype"):
+                raise IndexError(key)
+            return (key._eq(0))._ternary(
+                    self.x,
+                   (key._eq(1))._ternary(
+                    self.y,
+                    self.z,
+                    )
+                )
 
     def __len__(self):
         return 3
@@ -354,6 +368,18 @@ class vec4(vec3):
         elif key == 3:
             return self.w
         else:
+            if not hasattr(key, "_dtype"):
+                raise IndexError(key)
+            return (key._eq(0))._ternary(
+                    self.x,
+                   (key._eq(1))._ternary(
+                    self.y,
+                   (key._eq(2))._ternary(
+                    self.z,
+                    self.w,
+                    )
+                    )
+                )
             raise IndexError(key)
 
     def __len__(self):
