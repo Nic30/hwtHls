@@ -27,7 +27,7 @@ bool containsAll(const std::set<T> &a, const std::set<T> &b) {
 bool _isIncomingJEdgeInconsistent(MergeSets &mergeSets, const DJGraph &djGraph,
 		const std::set<std::pair<BasicBlock*, BasicBlock*>> &visited,
 		BasicBlock &node) {
-	for (auto incomingEdge : djGraph.incomingEdgesOf(&node)) {
+	for (const auto incomingEdge : djGraph.incomingEdgesOf(&node)) {
 		auto srcNode = incomingEdge.other;
 		auto dstNode = &node;
 		if (incomingEdge.data == DJ_EDGE_TYPE::DJ_EDGE_TYPE_J
@@ -35,7 +35,7 @@ bool _isIncomingJEdgeInconsistent(MergeSets &mergeSets, const DJGraph &djGraph,
 			auto srcMs = mergeSets.find(srcNode);
 			auto dstMs = mergeSets.find(dstNode);
 			assert(srcMs != mergeSets.end());
-			assert(dstMs == mergeSets.end());
+			assert(dstMs != mergeSets.end());
 			if (!containsAll(srcMs->second, dstMs->second)) {
 				return true;
 			}
