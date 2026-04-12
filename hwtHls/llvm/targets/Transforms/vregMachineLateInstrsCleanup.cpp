@@ -84,16 +84,12 @@ class VRegMachineLateInstrsCleanup: public MachineFunctionPass {
 	const TargetInstrInfo *TII = nullptr;
 	MachineRegisterInfo *MRI = nullptr;
 
-	BumpPtrAllocator UniqueInstrAllocator;
+	SpecificBumpPtrAllocator<UniqueMachineInstrNoProfileDef> UniqueInstrAllocator;
 	std::unique_ptr<CSEConfigBase> CSEOpt;
 
 	// same as GISelCSEInfo::getUniqueInstrForMI
 	UniqueMachineInstrNoProfileDef* getUniqueInstrForMI(
-			const MachineInstr *MI) {
-		auto *Node = new (UniqueInstrAllocator) UniqueMachineInstrNoProfileDef(MI);
-		return Node;
-	}
-
+			const MachineInstr *MI);
 	bool normalizeConstOperands(MachineIRBuilder &Builder, MachineInstr &MI);
 	// Walk through the instructions in MBB and remove any redundant
 	// instructions.
@@ -164,7 +160,7 @@ bool VRegMachineLateInstrsCleanup::runOnMachineFunction(MachineFunction &MF) {
 }
 
 void VRegMachineLateInstrsCleanup::releaseMemory() {
-	UniqueInstrAllocator.Reset();
+	UniqueInstrAllocator.DestroyAll();
 	CSEOpt.reset();
 	MRI = nullptr;
 }
@@ -214,7 +210,11 @@ bool VRegMachineLateInstrsCleanup::isCandidate(const MachineInstr *MI,
 	}
 	return DefedReg.isValid();
 }
-
+UniqueMachineInstrNoProfileDef* VRegMachineLateInstrsCleanup::getUniqueInstrForMI(
+		const MachineInstr *MI) {
+	auto *Node = new (UniqueInstrAllocator.Allocate()) UniqueMachineInstrNoProfileDef(MI);
+	return Node;
+}
 bool VRegMachineLateInstrsCleanup::normalizeConstOperands(
 		MachineIRBuilder &Builder, MachineInstr &MI) {
 	// implements g_constant_to_imm combiner
