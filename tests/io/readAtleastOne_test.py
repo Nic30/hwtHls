@@ -43,7 +43,7 @@ if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.debugBundle import HlsDebugBundle
     m = ReadAtleastOneOf3()
-    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL)))
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
     testLoader = unittest.TestLoader()

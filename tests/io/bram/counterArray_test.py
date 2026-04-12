@@ -3,6 +3,7 @@
 
 from typing import Type
 
+from hwtHls.platform.debugBundle import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.utils import freq_to_period
 from tests.baseSsaTest import BaseSsaTC
@@ -20,7 +21,9 @@ class BramCounterArray_TC(BaseSsaTC):
         #     in the pipeline
         dut = cls()
         dut.CLK_FREQ = int(F)
-        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform(
+            # debugFilter=HlsDebugBundle.ALL_RELIABLE,
+        ))
         mem = self.rtl_simulator.model.ram_inst.io.ram_memory
         ref = {i: 0 for i in range(dut.ITEMS)}
         mem.val = mem.def_val = mem._dtype.from_py(ref)
@@ -54,7 +57,7 @@ if __name__ == "__main__":
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([BramCounterArray_TC("test_BramCounterArray1hardcodedlsu")])
+    # suite = unittest.TestSuite([BramCounterArray_TC("test_BramCounterArray0nocheck")])
     suite = testLoader.loadTestsFromTestCase(BramCounterArray_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

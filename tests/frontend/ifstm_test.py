@@ -24,7 +24,7 @@ class HlsSimpleIfStatement(SimpleIfStatement):
     def hwDeclr(self):
         addClkRstn(self)
         super(HlsSimpleIfStatement, self).hwDeclr()
-    
+
     def mainThread(self, hls: HlsScope):
         while b1:
             r = hls.read
@@ -40,11 +40,20 @@ class HlsSimpleIfStatement(SimpleIfStatement):
                 tmp = c.data
 
             hls.write(tmp, self.d)
-    
+
+    @staticmethod
+    def model(a, b, c):
+        # b if a else c
+        if a:
+            return b
+        elif b:
+            return c
+        else:
+            return c
+
     @override
     def hwImpl(self) -> None:
         WriteOnce.hwImpl(self)
-
 
 
 class HlsSimpleIfStatement_TC(BaseSsaTC):
@@ -59,16 +68,7 @@ class HlsSimpleIfStatement_TC(BaseSsaTC):
             dut.b._ag.data.append(get_bit(i, 1))
             dut.c._ag.data.append(get_bit(i, 2))
 
-        def model(a, b, c):
-            # b if a else c
-            if a:
-                return b
-            elif b:
-                return c
-            else:
-                return c
-
-        d = [model(*args) for args in zip(dut.a._ag.data, dut.b._ag.data, dut.c._ag.data)]
+        d = [dut.model(*args) for args in zip(dut.a._ag.data, dut.b._ag.data, dut.c._ag.data)]
 
         self.runSim(int((len(d) + 1) * freq_to_period(dut.CLK_FREQ)))
 

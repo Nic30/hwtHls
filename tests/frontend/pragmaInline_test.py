@@ -20,6 +20,9 @@ from tests.frontend.varReference_test import \
 
 class PyBytecodeInline_TC(SimTestCase):
 
+    def tearDown(self) -> None:
+        self.rmSim()
+
     def _test_writes1(self, hwModuleCls):
         dut = hwModuleCls()
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
@@ -48,7 +51,9 @@ class PyBytecodeInline_TC(SimTestCase):
             dut = hwModuleCls
         else:
             dut = hwModuleCls()
-        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform(
+         #   debugFilter=HlsDebugBundle.ALL_RELIABLE.union({HlsDebugBundle.DBG_3_0_netlistDumpAfter})
+        ))
         CLK_PERIOD = freq_to_period(dut.clk.FREQ)
         self.runSim((len(refData) + 1) * int(CLK_PERIOD))
 
@@ -134,7 +139,9 @@ class PyBytecodeInline_TC(SimTestCase):
     def test_PragmaInline_TwoInLoopLiveVars(self):
         dut = PragmaInline_TwoInLoopLiveVars()
         dut.CLK_FREQ = int(1e6)
-        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform(
+            # debugFilter=HlsDebugBundle.ALL_RELIABLE
+        ))
         CLK_PERIOD = freq_to_period(dut.clk.FREQ)
         dut.i._ag.data.extend([0, 0, 1, 0, 1, 129, 1, 1, 0, 12, 0])
 
@@ -163,16 +170,23 @@ if __name__ == "__main__":
     import unittest
     from hwt.synth import to_rtl_str
     from hwtHls.platform.debugBundle import HlsDebugBundle
-    m = PragmaInline_TwoInLoopLiveVars()
-    m.CLK_FREQ = int(1e3)
-    #m.IF_COND = True
-    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
-        debugFilter=HlsDebugBundle.ALL_RELIABLE.union({HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
-                                                       HlsDebugBundle.DBG_4_0_addSignalNamesToData}),
-        #llvmCliArgs=[("print-after-all", 0, "", "true"), ]
-        )))
+    # m = PragmaInline_writeCntrForInIf0()
+    # m.IF_COND = False
+    # m.CLK_FREQ = int(1e6)
+    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
+    #     debugFilter=HlsDebugBundle.ALL_RELIABLE.union({HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+    #                                                    HlsDebugBundle.DBG_4_0_addSignalNamesToData}),
+    #     #llvmCliArgs=[("print-after-all", 0, "", "true"), ]
+    #     )))
+    # for name in dir(PyBytecodeInline_TC):
+    #    if not name.startswith("test_"):
+    #        continue
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([PyBytecodeInline_TC("test_PragmaInline_TwoInLoopLiveVars")])
     suite = testLoader.loadTestsFromTestCase(PyBytecodeInline_TC)
+    # suite = unittest.TestSuite([PyBytecodeInline_TC("test_PragmaInline_TwoInLoopLiveVars"),
+    #                            PyBytecodeInline_TC("test_PragmaInline_writeCntrForInIf0_F")
+    #                            ])
+    # suite = unittest.TestSuite([PyBytecodeInline_TC("test_PragmaInline_writeCntrForInIf0_F"), PyBytecodeInline_TC(name)])
+
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

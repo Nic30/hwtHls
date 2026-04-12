@@ -105,7 +105,12 @@ class HlsNetlistBitwiseOpsTC(SimTestCase):
 
     def _test_HlsNetlistBitwiseOps0HwModule(self, cls: Type[HlsNetlistBitwiseOpsPreorder0HwModule]):
         dut = cls()
-        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform(
+            #debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
+            #    HlsDebugBundle.DBG_4_0_hwscheduleTrace,
+            #    HlsDebugBundle.DBG_4_0_hwschedulePrintPhaseBoundaries,
+            #}),
+        ))
 
         i0 = dut.i0._ag.data
         i1 = dut.i1._ag.data
@@ -144,7 +149,12 @@ if __name__ == "__main__":
 
     m = HlsNetlistBitwiseOpsPostorder0HwModule()
     m.CLK_FREQ = int(100e6)
-    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
+        debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
+            HlsDebugBundle.DBG_4_0_hwscheduleTrace,
+            HlsDebugBundle.DBG_4_0_hwschedulePrintPhaseBoundaries,
+        })
+    )))
 
     testLoader = unittest.TestLoader()
     # suite = unittest.TestSuite([HlsNetlistBitwiseOpsTC("test_NetlistWireHwModuleRdSynced")])

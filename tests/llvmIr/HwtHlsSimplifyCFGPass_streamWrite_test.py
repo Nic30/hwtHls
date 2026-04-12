@@ -903,6 +903,6 @@ if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
     suite = testLoader.loadTestsFromTestCase(HwtHlsSimplifyCFGPass_streamWrite_TC)
-    # suite = unittest.TestSuite([HwtHlsSimplifyCFGPass_streamWrite_TC('test_streamWriteMerge1')])
+    # suite = unittest.TestSuite([HwtHlsSimplifyCFGPass_streamWrite_TC('test_streamWriteMerge_onProductOf_SimplifyBranchOnICmpChain')])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

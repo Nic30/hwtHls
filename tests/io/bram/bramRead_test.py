@@ -15,7 +15,9 @@ class BramRead_TC(SimTestCase):
     def _test_BramRead(self, DATA_WIDTH:int):
         dut = BramReadWithRom()
         dut.DATA_WIDTH = DATA_WIDTH
-        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform(
+            #debugFilter=HlsDebugBundle.ALL_RELIABLE,
+        ))
         clkPeriod = int(freq_to_period(dut.CLK_FREQ))
         # + 1 for reset, +1 for latency
         self.runSim((32 + 1 + 1) * clkPeriod)
@@ -73,7 +75,7 @@ class BramRead_TC(SimTestCase):
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([BramRead_TC("test_ReadFsm1Once")])
+    # suite = unittest.TestSuite([BramRead_TC("test_BramRead_8")])
     suite = testLoader.loadTestsFromTestCase(BramRead_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

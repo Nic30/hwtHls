@@ -142,7 +142,7 @@ if __name__ == "__main__":
 
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = testLoader.loadTestsFromTestCase(Axi4SCrc32_TC)
-    suite = unittest.TestSuite([Axi4SCrc32_TC("test_4B")])
+    suite = testLoader.loadTestsFromTestCase(Axi4SCrc32_TC)
+    # suite = unittest.TestSuite([Axi4SCrc32_TC("test_1B")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

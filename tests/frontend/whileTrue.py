@@ -7,11 +7,10 @@ from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import propagateClkRstn
-from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
-from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaLoop import PyBytecodeLoopFlattenUsingIf
 from hwtHls.frontend.pragmaPreproc import PyBytecodeBlockLabel
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.scope import HlsScope
 from hwtLib.handshaked.reg import HandshakedReg
 from tests.frontend.trivial import WhileTrueReadWrite, WhileTrueWrite

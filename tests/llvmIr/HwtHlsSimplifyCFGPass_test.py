@@ -448,6 +448,6 @@ if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
     suite = testLoader.loadTestsFromTestCase(HwtHlsSimplifyCFGPass_TC)
-    # suite = unittest.TestSuite([HwtHlsSimplifyCFGPass_TC('test_0')])
+    # suite = unittest.TestSuite([HwtHlsSimplifyCFGPass_TC('test_noSuboptimalLoopUnswitch')])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

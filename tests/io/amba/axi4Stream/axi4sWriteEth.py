@@ -54,5 +54,5 @@ if __name__ == "__main__":
     from hwtHls.platform.debugBundle import HlsDebugBundle
 
     m = Axi4SWriteEth()
-    p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL)
+    p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
     print(to_rtl_str(m, target_platform=p))

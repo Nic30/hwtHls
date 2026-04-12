@@ -12,7 +12,7 @@ class LoopFlattenUsingIfPass_TC(BaseLlvmIrTC):
     def _runTestOpt(self, llvm:LlvmCompilationBundle) -> Function:
         F = llvm._testLoopFlattenUsingIfPass()
         if verifyFunction(F):
-            print(F)
+            # print(F)
             raise AssertionError()
         return F
 

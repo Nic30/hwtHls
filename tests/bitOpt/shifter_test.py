@@ -175,20 +175,20 @@ if __name__ == "__main__":
     # dut.DATA_WIDTH = 3
     # # u.UNROLL_META = PyBytecodeLLVMLoopUnroll(True, dut.DATA_WIDTH - 1)
     dut.CLK_FREQ = int(1e6)
-    print(to_rtl_str(dut, target_platform=VirtualHlsPlatform(
-        # debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
-        #     HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
-        #     HlsDebugBundle.DBG_4_0_addSignalNamesToData,
-        # }),
-        llvmCliArgs=[LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
-                     # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
-                      ]
-    )))
+    # print(to_rtl_str(dut, target_platform=VirtualHlsPlatform(
+    #     # debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
+    #     #     HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+    #     #     HlsDebugBundle.DBG_4_0_addSignalNamesToData,
+    #     # }),
+    #     llvmCliArgs=[LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+    #                  # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+    #                   ]
+    # )))
 
     import unittest
     testLoader = unittest.TestLoader()
     suite = testLoader.loadTestsFromTestCase(ShifterTC)
-    # suite = unittest.TestSuite([ShifterTC("test_ShifterLeft0")])
+    # suite = unittest.TestSuite([ShifterTC("test_ShifterLeftUsingHwLoopWithBreakIf0_unrol2")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
 

@@ -39,9 +39,12 @@ class HlsAstWhileTrue_TC(SimTestCase):
         dut.CLK_FREQ = int(FREQ)
         if platform is None:
             # platform = VirtualHlsPlatform()
-            platform = VirtualHlsPlatform(debugFilter={  # *HlsDebugBundle.ALL_RELIABLE,
-                                                        HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
-                                                        HlsDebugBundle.DBG_4_0_addSignalNamesToData})
+            platform = VirtualHlsPlatform(
+                # debugFilter={*HlsDebugBundle.ALL_RELIABLE,
+                #                                        *HlsDebugBundle.DBG_SCHEDULING,
+                #                                         HlsDebugBundle.DBG_3_0_netlistDumpAfter,
+                #                                         }
+                )
         self.compileSimAndStart(dut, target_platform=platform)
         # dut.dataIn._ag.data.extend([1, 1, 1, 1])
         inputData = [5, 0, 0, 3, 2, 0, 1, 3, 1,
@@ -184,15 +187,16 @@ class HlsAstWhileTrue_TC(SimTestCase):
 
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
-    m = WhileSendSequence1()
-    m.CLK_FREQ = int(20e6)
+    m = WhileSendSequence0()
+    m.CLK_FREQ = int(150e6)
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
-        #llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED, ],
-        debugFilter={
-      *HlsDebugBundle.ALL_RELIABLE,
-      # HlsDebugBundle.DBG_20_addSignalNamesToSync,
-      # HlsDebugBundle.DBG_20_addSignalNamesToData,
-    })))
+        # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED, ],
+        # debugFilter={
+        #    *HlsDebugBundle.ALL_RELIABLE,
+        #    # HlsDebugBundle.DBG_20_addSignalNamesToSync,
+        #    # HlsDebugBundle.DBG_20_addSignalNamesToData,
+        # }
+        )))
     # Artix7Medium
     # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={*HlsDebugBundle.ALL_RELIABLE, })))
 
@@ -200,8 +204,7 @@ if __name__ == "__main__":
     testLoader = unittest.TestLoader()
     suite = testLoader.loadTestsFromTestCase(HlsAstWhileTrue_TC)
     # suite = unittest.TestSuite([
-    #    HlsAstWhileTrue_TC('test_WhileSendSequence1_20Mhz'),
-    #  #  HlsAstWhileTrue_TC('test_WhileSendSequence2_py_100Mhz_rand'),
+    #    HlsAstWhileTrue_TC('test_WhileSendSequence0_150Mhz'),
     # ])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

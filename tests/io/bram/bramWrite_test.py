@@ -14,7 +14,9 @@ class BramWrite_TC(SimTestCase):
     def _test_BramWrite(self, DATA_WIDTH:int, N:int=8):
         dut = BramWrite()
         dut.DATA_WIDTH = DATA_WIDTH
-        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform(
+            # debugFilter=HlsDebugBundle.ALL_RELIABLE,
+        ))
         clkPeriod = int(freq_to_period(dut.CLK_FREQ))
         self.runSim((N + 1) * clkPeriod)
         BaseIrMirRtl_TC._test_no_comb_loops(self)
@@ -47,7 +49,7 @@ class BramWrite_TC(SimTestCase):
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([BramWrite_TC("test_BramWrite")])
     suite = testLoader.loadTestsFromTestCase(BramWrite_TC)
+    # suite = unittest.TestSuite([BramWrite_TC("test_BramWrite_8")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

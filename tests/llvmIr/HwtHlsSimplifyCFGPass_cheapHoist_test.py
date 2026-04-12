@@ -103,6 +103,7 @@ attributes #11 = { nofree nounwind speculatable willreturn }
                           # ("hwthls-simplifycfg-AggresiveStoreSink", 0, "", "false"),
                           # ("hwthls-simplifycfg-MergePredecessorsStore", 0, "", "false"),
                           # ("hwthls-simplifycfg-PhiToLogicalExpr", 0, "", "false"),
+                          # ("hwthls-simplifycfg-UnswitchCheapManyPredManySuccBB", 0, "", "false"),
                           # ("hwthls-simplifycfg-UnswitchComplementarySequentialBlocks", 0, "", "false"),
                           # ("hwthls-simplifycfg-SpeculatePredecessor", 0, "", "false"),
                           # ("hwthls-simplifycfg-StreamWriteMerge", 0, "", "false"),

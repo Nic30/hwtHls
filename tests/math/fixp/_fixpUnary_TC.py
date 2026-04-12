@@ -12,6 +12,7 @@ from tests.math.installMathLib import installMathLibComponentGenerators
 from tests.math.fixp.fixpOperatorsHwModules import _FixpUnOpTestModule
 from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
+from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
 
 
 class FixpUnary_TC(SimTestCase):
@@ -83,10 +84,14 @@ class FixpUnary_TC(SimTestCase):
             self.getCheckDataOutFn(REF_DATA),
             None,
             topToRunTestsOn=dut,
-            # debugFilter=HlsDebugBundle.ALL_RELIABLE,
-            # llvmCliArgs=[
-            #    LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
-            # ],
+            #debugFilter={*HlsDebugBundle.ALL_RELIABLE, 
+            #             HlsDebugBundle.DBG_4_0_addSignalNamesToData,
+            #             HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+            #             },
+            #llvmCliArgs=[
+            #    # LLVM_CLI_COMMON_OPTS.VREGIFCVT_TRACE,
+            #    # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+            #],
             # noOptIrTest=TestLlvmIrAndMirPlatform.TEST_NO_OPT_IR,
             runTestAfterEachPass=runTestAfterEachPass
         )

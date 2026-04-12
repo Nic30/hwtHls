@@ -1,5 +1,7 @@
 from unittest import TestLoader, TestSuite
 
+# [todo] duplicity with all.py
+
 
 def testSuiteFromTCs(*tcs):
     for tc in tcs:

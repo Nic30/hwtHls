@@ -141,8 +141,7 @@ class HlsMAC_example_TC(SimTestCase):
         res = dut.dataOut._ag.data[-1]
         expectedRes = reduce(lambda a, b: a + b,
                              map(lambda x: x[0] * x[1],
-                                 grouper(2,
-                                         inputs)))
+                                 grouper(2, inputs)))
         self.assertValEqual(res, expectedRes)
 
     def test_2_16simple_handshaked(self):

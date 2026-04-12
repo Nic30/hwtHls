@@ -15,9 +15,9 @@ from hwt.hwParam import HwParam
 from hwt.math import log2ceil
 from hwt.pyUtils.typingFuture import override
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.architecture.componentGenerators.prefixSum import prefixSum1bPerResultBinTreeBased, \
     prefixSum1bFenwickTree, prefixSumNaivePy
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period

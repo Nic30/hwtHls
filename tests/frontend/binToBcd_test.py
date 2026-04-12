@@ -48,10 +48,11 @@ if __name__ == "__main__":
 
     m = BinToBcd()
     m.DATA_WIDTH = 10
-    print(to_rtl_str(m, target_platform=Artix7Medium(debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
-        HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
-        HlsDebugBundle.DBG_4_0_addSignalNamesToData
-    }),  # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED],
+    print(to_rtl_str(m, target_platform=Artix7Medium(
+        # debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
+        #     HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+        #     HlsDebugBundle.DBG_4_0_addSignalNamesToData
+        # }),  # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED],
     )))
 
     import unittest

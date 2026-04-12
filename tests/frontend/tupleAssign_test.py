@@ -91,9 +91,9 @@ if __name__ == "__main__":
     from hwtHls.platform.debugBundle import HlsDebugBundle
     from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 
-    m = HlsPythonSwap()
+    m = HlsPythonTupleAssign()
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
-        # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED],
+        llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED],
         debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest

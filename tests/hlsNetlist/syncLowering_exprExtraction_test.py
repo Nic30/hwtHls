@@ -3,7 +3,6 @@
 
 from io import StringIO
 import os
-import sys
 import unittest
 
 from hwt.hdl.types.bits import HBits

@@ -71,7 +71,7 @@ class BramCounterArray0nocheck(HwModule):
         hls.addThread(mainThread)
         hls.compile()
         assert len(hls._threads[0].netlist.scheduler.resourceUsage) == 2, (
-            "Intended only for 2 cycle operation", len(hls._threads[0].netlist.scheduler.resourceUsage))
+            "Intended only for 2 cycle operation", len(hls._threads[0].netlist.scheduler.resourceUsage), hls._threads[0].netlist.scheduler.resourceUsage)
 
 
 class BramCounterArray1hardcodedWriteForwarding(BramCounterArray0nocheck):
