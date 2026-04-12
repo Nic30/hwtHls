@@ -11,5 +11,5 @@ Potentially useful:
 * https://github.com/f32c/f32c/tree/master/rtl/soc/vector
 * Trigonometric
   * https://doi.org/10.1109/ICCECT.2012.186
-
+* https://half.sourceforge.net/
 """
