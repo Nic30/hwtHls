@@ -4,8 +4,8 @@ using namespace llvm;
 
 namespace hwtHls {
 
-BasicBlock* getIDomBB(const DominatorTree &dominators, BasicBlock& BB) {
-	auto idom = dominators.getNode(&BB)->getIDom();
+BasicBlock* getIDomBB(const DominatorTree &DT, BasicBlock& BB) {
+	auto idom = DT.getNode(&BB)->getIDom();
 	if (!idom) {
 		assert(predecessors(&BB).empty());
 		return &BB;
@@ -64,14 +64,26 @@ bool _topDownMergeSetComputation(MergeSets &mergeSets, const DJGraph &djGraph,
 	}
 
 	for (BasicBlock *dstNode : djGraphInBreadthFirstOrder) {
+		// errs() << "dstNode:";
+		// dstNode->printAsOperand(errs());
+		// errs()  << "\n"; 
 		for (const auto &incomingEdge : djGraph.incomingEdgesOf(dstNode)) {
 			auto srcNode = incomingEdge.other;
 			if (incomingEdge.data == DJ_EDGE_TYPE::DJ_EDGE_TYPE_J
 					&& !visited.contains( { srcNode, dstNode })) {
 				visited.insert( { srcNode, dstNode });
+
+				// errs() << "      incom:";
+				// srcNode->printAsOperand(errs()); 
+				// errs() << "\n";
 				auto tmp = srcNode;
-				BasicBlock *lnode = nullptr;
+				BasicBlock *lnode = tmp;
 				while (level[tmp] >= level[dstNode]) {
+					// errs() << "merge ";
+					// tmp->printAsOperand(errs());
+					// errs() << " <- ";
+					// dstNode->printAsOperand(errs());
+					// errs() << "\n";	 
 					auto mergeSetTmp = mergeSets.find(tmp);
 					if (mergeSetTmp == mergeSets.end()) {
 						mergeSets[tmp] = { };
@@ -125,14 +137,20 @@ bool _topDownMergeSetComputation(MergeSets &mergeSets, const DJGraph &djGraph,
 /// compute Complete Top Down Merge Set Computation (CTDMSC)
 // based  on https://github.com/ethanblake4/control_flow_graph/blob/main/lib/src/merge_set.dart#L93
 MergeSets completeTopDownMergeSetComputation(const DJGraph &djGraph,
-		Function &F, const DominatorTree &dominators) {
+		Function &F, const DominatorTree &DT) {
+	// errs() << "completeTopDownMergeSetComputation\n";
+	// F.dump();
+	// errs() << "\n";
+	// DT.print(errs());
+	// errs() << "\n";
+	// assert(DT.verify());
 	MergeSets mergeSets;
 	bool requireAnotherPass = true;
 	std::vector<BasicBlock*> djGraphInBreadthFirstOrder = djGraph.breadthFirst(
 			&F.getEntryBlock());
 	while (requireAnotherPass) {
 		requireAnotherPass = _topDownMergeSetComputation(mergeSets, djGraph,
-				djGraphInBreadthFirstOrder, F.getEntryBlock(), dominators);
+				djGraphInBreadthFirstOrder, F.getEntryBlock(), DT);
 	}
 	return mergeSets;
 }
