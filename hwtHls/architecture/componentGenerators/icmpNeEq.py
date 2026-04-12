@@ -64,6 +64,7 @@ class ComponentGeneratorICMP_EQ_NE(ComponentGenerator):
                 node.operator, node.operatorSpecialization,
                 representatinveBitLength, 2, netlist.realTimeClkPeriod)
             if not r.fitsIntoSchedTime(clkWindowBudget, schedResolution):
+                r = None
                 raise TimeConstraintError()
         except TimeConstraintError as e:
             # this means that without pipelining this operator can not meet frequency requirements
@@ -107,7 +108,8 @@ class ComponentGeneratorICMP_EQ_NE(ComponentGenerator):
             assert lastMergeLogicR.fitsIntoSingleClockWindow()
             r = OpRealizationMeta(inputWireDelay=firstLevelR.inputWireDelay + firstLevelR.outputWireDelay,
                                   outputWireDelay=lastMergeLogicR.inputWireDelay + lastMergeLogicR.outputWireDelay,
-                                  outputClkTickOffset=len(layers))
+                                  outputClkTickOffset=len(layers) - 1,
+                                  isMulticlock=True)
             assert r.inputWireDelay / schedResolution < clkWindowBudget, (r.inputWireDelay / schedResolution, clkWindowBudget)
             assert r.outputWireDelay / schedResolution < clkWindowBudget, (r.outputWireDelay / schedResolution, clkWindowBudget)
         else:
@@ -115,7 +117,7 @@ class ComponentGeneratorICMP_EQ_NE(ComponentGenerator):
         self.schedulingCache[cacheKey] = (r, layers)
         return r
 
-    @lru_cache
+    # @lru_cache
     def _getMaxCmpOpInputForClk(self, oneOpIsConst: bool, clkWindowBudget: SchedTime, schedResolution: float, node: HlsNetNodeOperator):
         lutInputs = self.platform.get_lut_inputs_max()
         firstLevelInputs = lutInputs
@@ -153,7 +155,7 @@ class ComponentGeneratorICMP_EQ_NE(ComponentGenerator):
 
         return w, r
 
-    @lru_cache
+    # @lru_cache
     def _getMaxLogicOpInputsForClk(self, operator: HOperatorDef, realTimeClkPeriod: float, schedResolution: float, clkWindowBudget: SchedTime) -> tuple[int, OpRealizationMeta]:
         lutInputs = self.platform.get_lut_inputs_max()
         maxMergeLogicInputs = lutInputs
