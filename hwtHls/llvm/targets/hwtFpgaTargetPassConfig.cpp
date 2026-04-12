@@ -259,7 +259,9 @@ void HwtFpgaTargetPassConfig::addMachinePasses() {
 // [todo] handling of register allocation, maybe similar to WebAssemblyPassConfig::addPostRegAlloc()
 void HwtFpgaTargetPassConfig::addPreSched2() {
 	addPass(hwtHls::createVRegMachineLateInstrsCleanup());
+	addPass(hwtHls::createCheapBlockInlinePass());
 	addPass(hwtHls::createVRegIfConverter(nullptr));
+	addPass(hwtHls::createCheapBlockInlinePass());
 	addPass(hwtHls::createVRegMachineLateInstrsCleanup());
 }
 
