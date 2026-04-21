@@ -97,7 +97,7 @@ class HlsPythonHwWhile0c(HlsPythonHwWhile0a):
             i = uint8_t.from_py(10)
             while True:
                 i = i + 1
-                dataOut.append(i)
+                dataOut.append(int(i))
                 if next(dataIn):
                     break
 
@@ -163,7 +163,7 @@ class HlsPythonHwWhile2(HlsPythonHwWhile0a):
         i = uint8_t.from_py(0)
         while True:  # recognized as HW loop because of type
             if i <= 4:
-                dataOut.append(i)
+                dataOut.append(int(i))
                 yield
             elif i._eq(10):
                 break
@@ -207,7 +207,7 @@ class HlsPythonHwWhile3(HlsPythonHwWhile2):
             while True:
                 r1 = next(dataIn)
                 if r1 != 1:
-                    r2 = next(dataIn)
+                    r2 = int(next(dataIn))
                     dataOut.append(r2)
                     if r2 != 2:
                         break
@@ -329,6 +329,7 @@ class HlsPythonHwWhile5c(HlsPythonHwWhile4):
     """
     Same as :class:`~.HlsPythonHwWhile5` Same as :class:`~.HlsPythonHwWhile5` with less arithmetic operations
     """
+
     @staticmethod
     def model(dataIn: Iterator[HBitsConst], dataOut: List[HBitsConst]):
         while True:
@@ -339,8 +340,8 @@ class HlsPythonHwWhile5c(HlsPythonHwWhile4):
     @override
     def mainThread(self, hls: HlsScope):
         PyBytecodeBlockLabel("mainThread")
-        
-        while b1: # :note: 2x while-true will reduce to 1x while-true
+
+        while b1:  # :note: 2x while-true will reduce to 1x while-true
             PyBytecodeBlockLabel("LCntrParentParent")
             while b1:
                 PyBytecodeBlockLabel("LCntrParent")
@@ -355,7 +356,6 @@ class HlsPythonHwWhile5c(HlsPythonHwWhile4):
                 PyBytecodeBlockLabel("LFinalWrite")
                 data = fitTo_t(hls.read(self.i).data, self.o.data._dtype)
                 hls.write(data, self.o)
-
 
 
 class HlsPythonHwWhile6(HlsPythonHwWhile4):
@@ -539,7 +539,9 @@ if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.debugBundle import HlsDebugBundle
-    
-    m = PragmaInline_HlsPythonHwWhile5c()
+
+    m = LoopZeroPadCompareShift()
+    m.DATA_WIDTH = 4
+    m.CLK_FREQ = int(1e6)
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE.union(HlsDebugBundle.DBG_FRONTEND))))
 

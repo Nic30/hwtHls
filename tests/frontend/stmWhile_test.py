@@ -37,20 +37,22 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
         dataIn = [BIT.from_py(self._rand.getrandbits(1)) for _ in range(OUT_CNT)]
         self._test_OneInOneOut(HlsPythonHwWhile0a(), HlsPythonHwWhile0a.model, dataIn,
                    OUT_CNT * 20, OUT_CNT * 20,
-                   OUT_CNT * 20, OUT_CNT + 2)
+                   OUT_CNT * 20, OUT_CNT + 2,
+                   modelReturnsPyValue=True,)
 
     def test_HlsPythonHwWhile0b(self):
         OUT_CNT = 8
         self._testOneOut(HlsPythonHwWhile0b(), HlsPythonHwWhile0b.model, OUT_CNT,
                          OUT_CNT * 10, OUT_CNT * 10,
-                         OUT_CNT * 10, OUT_CNT + 1)
+                         OUT_CNT * 10, OUT_CNT + 1,)
 
     def test_HlsPythonHwWhile0c(self):
         OUT_CNT = 16
         dataIn = [BIT.from_py(self._rand.getrandbits(1)) for _ in range(OUT_CNT)]
         self._test_OneInOneOut(HlsPythonHwWhile0c(), HlsPythonHwWhile0c.model, dataIn,
                    OUT_CNT * 20, OUT_CNT * 20,
-                   OUT_CNT * 20, OUT_CNT + 2)
+                   OUT_CNT * 20, OUT_CNT + 2,
+                   modelReturnsPyValue=True,)
 
     def test_HlsPythonHwWhile1(self):
         OUT_CNT = 16
@@ -58,14 +60,19 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
         self._test_OneInOneOut(HlsPythonHwWhile1(), HlsPythonHwWhile1.model, dataIn,
                          OUT_CNT * 20, OUT_CNT * 20,
                          OUT_CNT * 20, OUT_CNT + 1 + 1,
-                         freq=int(50e6))
+                         freq=int(50e6),
+                         modelReturnsPyValue=True,)
 
     def test_HlsPythonHwWhile2(self):
         OUT_CNT = 16
         self._testOneOut(HlsPythonHwWhile2(), HlsPythonHwWhile2.model, OUT_CNT,
                          OUT_CNT * 25, OUT_CNT * 20,
                          OUT_CNT * 20, OUT_CNT + 6 + 1,
-                         freq=int(100e6))
+                         freq=int(100e6),
+                         #debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
+                         #    HlsDebugBundle.DBG_4_0_hwscheduleTrace,
+                         #    HlsDebugBundle.DBG_4_0_hwschedulePrintPhaseBoundaries})
+                         )
 
     def test_HlsPythonHwWhile3(self):
         IN_CNT = 32
@@ -73,7 +80,8 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
         dataIn = [in_t.from_py(self._rand.getrandbits(2)) for _ in range(IN_CNT)]
         # print([int(d) for d in dataIn])
         self._test_OneInOneOut(HlsPythonHwWhile3(), HlsPythonHwWhile3.model,
-                               dataIn, wallTimeRtlClks=IN_CNT + 9 + 20 + 1)
+                               dataIn, wallTimeRtlClks=IN_CNT + 9 + 20 + 1,
+                               modelReturnsPyValue=True,)
 
     def test_HlsPythonHwWhile4(self, mCls=HlsPythonHwWhile4):
         IN_CNT = 32
@@ -94,12 +102,12 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
         self._testOneOut(MovingOneGen(), MovingOneGen.model, OUT_CNT,
                          OUT_CNT * 20, OUT_CNT * 20,
                          OUT_CNT * 20, OUT_CNT + 1,
-                         freq=int(100e6))
+                         freq=int(100e6),)
 
     def test_LoopCondBitSet(self):
         IN_CNT = 12
         dataIn = [BIT.from_py(self._rand.getrandbits(1)) for _ in range(IN_CNT)]
-        self._test_OneInOneOut(LoopCondBitSet(), LoopCondBitSet.model, dataIn)
+        self._test_OneInOneOut(LoopCondBitSet(), LoopCondBitSet.model, dataIn, modelReturnsPyValue=True)
 
     def test_LoopZeroPadCompareShift(self):
         dut = LoopZeroPadCompareShift()
@@ -109,9 +117,10 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
         dataIn = [t.from_py(13), t.from_py(3)]
         self._test_OneInOneOut(dut, dut.model, dataIn,
                                 wallTimeIr=100,
-                                wallTimeOptIr=50,
-                                wallTimeOptMir=50,
+                                wallTimeOptIr=45,
+                                wallTimeOptMir=70,
                                 wallTimeRtlClks=6 + 2,
+                                modelReturnsPyValue=True,
                                 # debugFilter={
                                 #    *HlsDebugBundle.ALL_RELIABLE,
                                 #    HlsDebugBundle.DBG_20_addSignalNamesToSync,
@@ -130,12 +139,11 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
         self.test_HlsPythonHwWhile4(mCls=PragmaInline_HlsPythonHwWhile5c)
 
 
-
 if __name__ == "__main__":
-    # from hwt.synth import to_rtl_str
-    # m = HlsPythonHwWhile0a()
-    # m.CLK_FREQ = int(1e6)
-    # # m.DATA_WIDTH = 4
+    from hwt.synth import to_rtl_str
+    m = HlsPythonHwWhile3()
+    m.CLK_FREQ = int(1e6)
+    # m.DATA_WIDTH = 4
     # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={
     #     *HlsDebugBundle.ALL_RELIABLE,
     #     HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
@@ -144,11 +152,12 @@ if __name__ == "__main__":
     # #    llvmCliArgs=[("print-after-all", 0, "", "true")]
     # )))
 
-
     testLoader = unittest.TestLoader()
-    # suite1 = unittest.TestSuite([StmWhile_sim_TC("test_PragmaInline_HlsPythonHwWhile5c")])
-    suite1 = testLoader.loadTestsFromTestCase(StmWhile_ll_TC)
-    suite2 = testLoader.loadTestsFromTestCase(StmWhile_sim_TC)
+    suite = unittest.TestSuite([testLoader.loadTestsFromTestCase(TC) for TC in
+                        (
+                            StmWhile_ll_TC,
+                            StmWhile_sim_TC
+                         )])
+    suite = unittest.TestSuite([StmWhile_sim_TC("test_LoopZeroPadCompareShift")])
     runner = unittest.TextTestRunner(verbosity=3)
-    runner.run(unittest.TestSuite([suite1, suite2]))
-    # runner.run(suite1)
+    runner.run(suite)
