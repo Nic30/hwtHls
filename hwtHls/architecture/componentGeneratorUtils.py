@@ -364,14 +364,14 @@ def ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule(
     compBuilder = AbstractComponentBuilder(
         node.netlist.parentHwModule, None,
         f"{generator._genNamePrefix:s}_{generator._moduleName:s}")
-    mayStall = hwModule._isFullyUnrolled()
+    mayStall = not hwModule._isFullyUnrolled()
     replaceHlsNetNodeOperatorWithHwModule(
         compBuilder, node, hwModule,
         simplifyWorklist,
         inputsConcatenated=True,
         outputsConcatenated=True,
         outputsBitMap=outputsBitMap,
-        hasReqEn=not mayStall,
-        hasReqDone=not mayStall,
+        hasReqEn=mayStall,
+        hasReqDone=mayStall,
         inputsMayFlush=hwModule.IN_CHANNEL_TYPE == HwIOStructRdVld,
     )
