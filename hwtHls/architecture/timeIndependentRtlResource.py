@@ -8,6 +8,7 @@ from hwt.hwIO import HwIO
 from hwt.synthesizer.rtlLevel.exceptions import SignalDriverErr
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.netlist.scheduler.clk_math import clkWindowIndex
+from hwtHls.pyUtils.mergeRanges import mergeInRange
 
 
 class TimeIndependentRtlResourceItem():
@@ -91,7 +92,7 @@ class TimeIndependentRtlResource():
 
     def markPersistent(self, beginClkIndex: int, endClkIndex: int):
         if self.persistenceRanges:
-            raise NotImplementedError()
+            self.persistenceRanges[:] = mergeInRange(self.persistenceRanges, beginClkIndex, endClkIndex)
         else:
             self.persistenceRanges.append((beginClkIndex, endClkIndex))
 
