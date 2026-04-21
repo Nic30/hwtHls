@@ -37,10 +37,10 @@ class HlsNetlistReduceCmpToSubstractMsbCheckTC(AbstractHlsNetlistTC):
                 aConst = t.from_py(_a)
                 bConst = t.from_py(_b)
                 ref = bool(predicate._evalFn(aConst, bConst))
-                sim = HlsNetlistSimulator()
+                sim = HlsNetlistSimulator(netlist, (iter([]), iter([]), []))
                 sim.state[a] = aConst
                 sim.state[b] = bConst
-                sim.evalOps()
+                sim.evalExpr()
                 res = bool(sim.getStateOf(newO))
                 self.assertEqual(res, ref, (_a, _b, to_signed(_a, 3), to_signed(_b, 3)))
 
@@ -64,9 +64,9 @@ class HlsNetlistReduceCmpToSubstractMsbCheckTC(AbstractHlsNetlistTC):
             # print(_a, _b)
             aConst = t.from_py(_a)
             ref = bool(predicate._evalFn(aConst, bConst))
-            sim = HlsNetlistSimulator()
+            sim = HlsNetlistSimulator(netlist, (iter([]), []))
             sim.state[a] = aConst
-            sim.evalOps()
+            sim.evalExpr()
             res = bool(sim.getStateOf(newO))
             self.assertEqual(res, ref, (_a, RHS, to_signed(_a, 3), to_signed(RHS, 3)))
 
