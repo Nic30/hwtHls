@@ -1,0 +1,16 @@
+# https://valgrind.org/docs/manual/manual-core.html#manual-core.suppress
+# C++ function names must be mangled
+{
+   ignore-pybind11-leaks-in-iterator-fn-names-0
+   Memcheck:Leak
+   ...
+   src:pybind11.h:550  # pybind11::cpp_function::strdup_guard::operator()*
+   ...
+}
+{
+   ignore-pybind11-leaks-in-iterator-fn-names-1
+   Memcheck:Leak
+   ...
+   src:pybind11.h:520  # rec->name = guarded_strdup(rec->name ? rec->name : "");
+   ...
+}
