@@ -198,7 +198,7 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
         _componentGenerators[OP_FSHR] = ComponentGeneratorFshr(self, genNamePrefix, "fshr")
         _componentGenerators[OP_INDEX_CONST] = ComponentGeneratorOP_INDEX_CONST(self, genNamePrefix, "slice")
 
-    @lru_cache()
+    #@lru_cache()
     def get_op_realization(self, op: HOperatorDef, opSpecialization: "OpSpecialization_t", bit_width: int,
                            input_cnt: int, realTimeClkPeriod: float) -> OpRealizationMeta:
         if opSpecialization is not None:
@@ -216,6 +216,7 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
             inputWireDelay = base_delay * max(1, log2(log2(input_cnt)))
 
         elif op in _OPS_T_GROWING_LOG:
+            assert bit_width >= 1, (bit_width, op)
             inputWireDelay = base_delay * (1 if bit_width == 1 else max(1, log2(log2(bit_width))))
 
         elif op in _OPS_T_GROWING_LIN:
@@ -232,7 +233,7 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
 
         return OpRealizationMeta(inputWireDelay=inputWireDelay)
 
-    @lru_cache()
+    #@lru_cache()
     def get_ff_store_time(self, realTimeClkPeriod: float, schedulerResolution: float):
         return int(self.get_op_realization(ResourceFF, None, 1, 1, realTimeClkPeriod).inputWireDelay // schedulerResolution)
 
