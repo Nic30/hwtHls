@@ -4,6 +4,7 @@
 from typing import List
 
 from hwt.simulator.simTestCase import SimTestCase
+from hwtHls.platform.debugBundle import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.utils import freq_to_period
 from tests.frontend.preprocLoopMultiExit import PreprocLoopMultiExit_singleExit0, \
@@ -45,7 +46,12 @@ class PreprocLoopMultiExit_singleExit1_TC(PreprocLoopMultiExit_singleExit0_TC):
     @classmethod
     def setUpClass(cls):
         dut = cls.dut = PreprocLoopMultiExit_singleExit1()
-        cls.compileSim(dut, target_platform=VirtualHlsPlatform())
+        cls.compileSim(dut, target_platform=VirtualHlsPlatform(
+            # debugFilter={*HlsDebugBundle.ALL_RELIABLE,
+            #             HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+            #             HlsDebugBundle.DBG_4_0_addSignalNamesToData,
+            #             }
+        ))
 
 
 class PreprocLoopMultiExit_hwBreak0_TC(SimTestCase):
@@ -54,7 +60,9 @@ class PreprocLoopMultiExit_hwBreak0_TC(SimTestCase):
     @classmethod
     def setUpClass(cls):
         dut = cls.dut = PreprocLoopMultiExit_hwBreak0()
-        cls.compileSim(dut, target_platform=VirtualHlsPlatform())
+
+        cls.compileSim(dut, target_platform=VirtualHlsPlatform(
+        ))
 
     def _test(self, refInput: List[int], expectedOutput: List[int], CLK_CNT=10):
         PreprocLoopMultiExit_singleExit0_TC._test(self, refInput, expectedOutput, CLK_CNT)
@@ -113,22 +121,23 @@ class PreprocLoopMultiExit_hwBreak1_TC(SimTestCase):
 
 PreprocLoopMultiExit_TCs = [
     PreprocLoopMultiExit_singleExit0_TC,
-    # PreprocLoopMultiExit_singleExit1_TC,
     PreprocLoopMultiExit_hwBreak0_TC,
+    # [todo] not implemented, campture all locals on loop exit of preproc loop,
+    #        run translation to llvm for the exit blocks with all possible jumps from the loop
+    # PreprocLoopMultiExit_singleExit1_TC,
     # PreprocLoopMultiExit_hwBreak1_TC,
 ]
 
 if __name__ == "__main__":
     import unittest
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.debugBundle import HlsDebugBundle
 
-    m = PreprocLoopMultiExit_hwBreak0()
-    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    # m = PreprocLoopMultiExit_hwBreak0()
+    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([PreprocLoopMultiExit_hwBreak0_TC("test_0in0_noSuc")])
     loadedTcs = [testLoader.loadTestsFromTestCase(tc) for tc in PreprocLoopMultiExit_TCs]
     suite = unittest.TestSuite(loadedTcs)
+    # suite = unittest.TestSuite([PreprocLoopMultiExit_hwBreak0_TC("test_0in0_noSuc")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

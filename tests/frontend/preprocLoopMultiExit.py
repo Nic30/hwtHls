@@ -115,7 +115,8 @@ class PreprocLoopMultiExit_hwBreak0(PreprocLoopMultiExit_singleExit0):
         """
         for i in range(3):  # this for statement is unrolled in preprocessor
             if hls.read(self.i).data._eq(0):
-                # This block is actually outside of the lopp and there will be only one instance of it and it will have i=0
+                # This block is actually outside of the loop and there will be only one instance of it
+                # and it will have i=0  because i is pythonic value captured on first visit of this block
                 hls.write(i, self.o)
                 break
 
