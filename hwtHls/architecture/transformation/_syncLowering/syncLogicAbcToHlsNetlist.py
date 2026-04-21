@@ -152,6 +152,7 @@ class SyncLogicAbcToHlsNetlist():
         builder: HlsNetlistBuilder = node.getHlsNetlistBuilder()
         builder.replaceOutput(out, _replacement, True)
         if isinstance(node, HlsNetNodeExplicitSync) and out in (node._ready, node._readyNB, node._valid, node._validNB):
+            # remove optional outputs which have become unused
             node._removeOutput(out.out_i)
 
     # def _proveChannelWritePossible(self, termPropagationCtx: ArchElementTermPropagationCtx, wNode: HlsNetNodeWrite, writeEn: HlsNetNodeOut):

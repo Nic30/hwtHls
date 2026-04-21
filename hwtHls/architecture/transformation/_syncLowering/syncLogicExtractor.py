@@ -79,11 +79,12 @@ class SyncLogicExtractor():
                                             newO: HlsNetNodeOut):
         """
         If o has no special persistence settings this function replaces only
-        uses in this clock. If the will be persistenceRanges items. Take them in account
+        uses in this clock. If there will be any persistenceRanges items. Take them in account
         and replace all uses covered by it. 
         """
         _, lastPersistentClkI = SyncLogicSearcher._getEarliestTimeIfValueIsPersistent(o, (o.obj.parent, clkIndex))
         _clkWindowBegin = clkIndex * clkPeriod
+        # :note: _clkWindowEnd is not end of same clk window as in _clkWindowBegin
         _clkWindowEnd = clkWindowEnd(lastPersistentClkI, clkPeriod)
         for u in tuple(o.obj.usedBy[o.out_i]):
             uObj = u.obj
@@ -91,7 +92,7 @@ class SyncLogicExtractor():
             if _clkWindowBegin <= t and t < _clkWindowEnd and\
                     (uObj, t // clkPeriod) in self.syncLogicNodes:
                 u.disconnectFromHlsOut(o)
-                newO.connectHlsIn(u, checkParent=False)  # can not check parent because some nodes may not yet be transfered
+                newO.connectHlsIn(u, checkParent=False)  # can not check parent because some nodes may not yet be transferred
 
     def _reconstructNetlistBuilderOperatorCache(self, parent: ArchElementNoImplicitSync):
         # initial chek that primaryInputs/primaryOutputs do not contain any port of removed node
