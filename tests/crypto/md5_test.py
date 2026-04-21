@@ -20,7 +20,7 @@ from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
 from tests.crypto.md5 import md5_accumulator_t, md5ProcessChunk, \
-    md5BuildDigist, MD5_INIT_DICT
+    md5BuildDigest, MD5_INIT_DICT
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 
 
@@ -49,7 +49,7 @@ class Md5(HwModule):
             chunk = hls.read(self.din).data
             acc = md5_accumulator_t.from_py(MD5_INIT_DICT)
             PyBytecodeInline(md5ProcessChunk)(chunk, acc, loopPragmaGetter=LOOP_PRAGMA_GETTER)
-            hls.write(PyBytecodeInline(md5BuildDigist)(acc), self.dout)
+            hls.write(PyBytecodeInline(md5BuildDigest)(acc), self.dout)
 
     def hwImpl(self):
         hls = HlsScope(self)
@@ -103,7 +103,7 @@ class Md5_TC(SimTestCase):
         chunk = HBits(512).from_py(int.from_bytes(paddedS, byteorder="little"))
         acc = md5_accumulator_t.from_py(MD5_INIT_DICT)
         md5ProcessChunk(chunk, acc)
-        digits = md5BuildDigist(acc)
+        digits = md5BuildDigest(acc)
         digitsRef = hashlib.md5(s)
         # print(int(digits).to_bytes(16, 'little'))
         # print(digitsRef.digest())

@@ -14,7 +14,6 @@ from hwtHls.frontend.pragmaPreproc import PyBytecodePreprocHwCopy
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtLib.types.ctypes import uint32_t
 
-
 # for i in range(64)
 #     SINES_OF_INTEGERS[i] = floor(23**2 * abs(sin(i + 1)))
 MD5_SINES_OF_INTEGERS = uint32_t[64].from_py([uint32_t.from_py(n) for n in [
@@ -46,7 +45,12 @@ MD5_s = HBits(5)[64].from_py([HBits(5).from_py(n) for n in [
 
 # init for A, B, C, D variables used in MD6 computation
 MD5_INIT = [uint32_t.from_py(n) for n in [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476]]
-MD5_INIT_DICT = {"a0": MD5_INIT[0], "b0": MD5_INIT[1], "c0": MD5_INIT[2], "d0": MD5_INIT[3]}
+MD5_INIT_DICT = {
+    "a0": MD5_INIT[0],
+    "b0": MD5_INIT[1],
+    "c0": MD5_INIT[2],
+    "d0": MD5_INIT[3]
+}
 
 md5_accumulator_t = HStruct(
     (HBits(32), "a0"),
@@ -137,7 +141,7 @@ def md5ProcessChunk(chunk: RtlSignal, acc: RtlSignalBase[md5_accumulator_t], loo
 
 
 @hlsBytecode
-def md5BuildDigist(acc):
+def md5BuildDigest(acc: md5_accumulator_t):
     ":note: output is 128b wide"
     return Concat(acc.d0,
                   acc.c0,
