@@ -1,4 +1,5 @@
 from collections import deque
+import contextlib
 from io import StringIO
 from itertools import chain
 from math import inf, isfinite
@@ -6,6 +7,7 @@ import sys
 from typing import Optional, Callable
 
 from hwt.pyUtils.setList import SetList
+from hwtHls.netlist.analysis.schedulerTracer import HlsSchedulerTracer
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, SchedTime
@@ -14,6 +16,7 @@ from hwtHls.netlist.scheduler.clk_math import clkWindowIndex, clkWindowBeginForT
     clkWindowBegin, clkWindowBeginOfNext
 from hwtHls.netlist.scheduler.resourceList import HlsSchedulerResourceUseList, \
     SchedulingResourceConstraints
+from hwtHls.platform.fileUtils import outputFileGetter
 
 
 def asapSchedulePartlyScheduled(o: HlsNetNodeOut,
@@ -125,7 +128,10 @@ class HlsScheduler():
         self.resolution = resolution
         self.epsilon = 1
         self.resourceUsage = HlsSchedulerResourceUseList(resourceConstraints)
-        self.debug = False
+        self._dbgDumpAfterPhases = False
+        self._dbgCheckCycles = False
+        self._dbgTraceFile: Optional[StringIO] = None
+        self._dbgTracer:Optional[HlsSchedulerTracer] = None
         self._dbgPrintPhaseBoundaries = False
 
     def _checkAllNodesScheduled(self):
@@ -196,7 +202,7 @@ class HlsScheduler():
         * The graph must not contain cycles.
         * DFS from outputs, decorate nodes with scheduledIn,scheduledOut time.
         """
-        if self.debug:
+        if self._dbgCheckCycles:
             # debug run which will raise an exception containing cycle node ids
             pathForDebug = SetList()
         else:
@@ -265,59 +271,103 @@ class HlsScheduler():
                     toSearchSet.add(node1)
             # self._checkAllNodesScheduled()
 
-    def schedule(self):
+    def schedule(self, dbgOut:StringIO=sys.stdout):
         dbgDir = self.netlist.platform._debug.dir
-        if self.debug and dbgDir:
+        if self._dbgDumpAfterPhases and dbgDir:
             from hwtHls.netlist.translation.dumpSchedulingJson import HlsNetlistAnalysisPassDumpSchedulingJson
-            from hwtHls.platform.fileUtils import outputFileGetter
-        dbgPrintPhaseBoundaries = self._dbgPrintPhaseBoundaries
-        if dbgPrintPhaseBoundaries:
-            print("asap0 begin")
-        self._scheduleAsap()
-        if dbgPrintPhaseBoundaries:
-            print("asap0 end")
-        self._checkAllNodesScheduled()
 
-        if self.debug and dbgDir is not None:
-            HlsNetlistAnalysisPassDumpSchedulingJson(
-                outputFileGetter(dbgDir, "schedulingDbg.0.asap0.hwschedule.json"),
-                expandCompositeNodes=True).runOnHlsNetlist(self.netlist)
+        tracer = None
+        if self._dbgTraceFile:
+            tracer = HlsSchedulerTracer(self, self._dbgTraceFile)
+            self._dbgTracer = tracer
+            self.resourceUsage._dbgTracer = tracer
+        else:
+            tracer = contextlib.suppress()
 
-        if self._scheduleIsMulticlock():
+        with tracer as tracer:
+            dbgPrintPhaseBoundaries = self._dbgPrintPhaseBoundaries
+            if dbgPrintPhaseBoundaries:
+                dbgOut.write("asap0 begin\n")
+            if self._dbgTraceFile:
+                tracer.log(f"clkPeriod={self.netlist.normalizedClkPeriod}")
+                tracer.log("asap0 begin")
+                tracer.log(("resources: ", self.resourceUsage), formatter=repr)
+                
+
+            self._scheduleAsap()
+            if dbgPrintPhaseBoundaries:
+                dbgOut.write("asap0 end\n")
+            if self._dbgTraceFile:
+                tracer.log("asap0 end")
+                tracer.log(("resources: ", self.resourceUsage), formatter=repr)
+                
+            self._checkAllNodesScheduled()
+
+            if self._dbgDumpAfterPhases and dbgDir is not None:
+                HlsNetlistAnalysisPassDumpSchedulingJson(
+                    outputFileGetter(dbgDir, "schedulingDbg.0.asap0.hwschedule.json"),
+                    expandCompositeNodes=True).runOnHlsNetlist(self.netlist)
+
+            if not self._scheduleIsMulticlock():
+                return
+
             # if circuit schedule spans over multiple clock periods
             if dbgPrintPhaseBoundaries:
-                print("alap0 begin")
+                dbgOut.write("alap0 begin\n")
+            if self._dbgTraceFile:
+                tracer.log("alap0 begin")
+                
             self._scheduleAlapCompaction(False)
             if dbgPrintPhaseBoundaries:
-                print("alap0 end")
-            if self.debug:
-                self._checkAllNodesScheduled()
+                dbgOut.write("alap0 end\n")
+            if self._dbgTraceFile:
+                tracer.log("alap0 end")
+                tracer.log(("resources: ", self.resourceUsage), formatter=repr)
+
+            if self._dbgDumpAfterPhases:
                 if dbgDir is not None:
                     HlsNetlistAnalysisPassDumpSchedulingJson(
                         outputFileGetter(dbgDir, "schedulingDbg.1.alap0.hwschedule.json"),
                         expandCompositeNodes=True).runOnHlsNetlist(self.netlist)
+                self._checkAllNodesScheduled()
+
             if dbgPrintPhaseBoundaries:
-                print("asap1 begin")
+                dbgOut.write("asap1 begin\n")
+            if self._dbgTraceFile:
+                tracer.log("asap1 begin")
+
             self._scheduleAsapCompaction()
             if dbgPrintPhaseBoundaries:
-                print("asap1 end")
-            if self.debug:
-                self._checkAllNodesScheduled()
+                dbgOut.write("asap1 end\n")
+            if self._dbgTraceFile:
+                tracer.log("asap1 end")
+                tracer.log(("resources: ", self.resourceUsage), formatter=repr)
+
+            if self._dbgDumpAfterPhases:
                 if dbgDir is not None:
                     HlsNetlistAnalysisPassDumpSchedulingJson(
                         outputFileGetter(dbgDir, "schedulingDbg.2.asap1.hwschedule.json"),
                         expandCompositeNodes=True).runOnHlsNetlist(self.netlist)
+                self._checkAllNodesScheduled()
+
             if dbgPrintPhaseBoundaries:
-                print("alap1 begin")
+                dbgOut.write("alap1 begin\n")
+            if self._dbgTraceFile:
+                tracer.log("alap1 begin")
+
             self._scheduleAlapCompaction(True)
             if dbgPrintPhaseBoundaries:
-                print("alap1 end")
-            if self.debug:
-                self._checkAllNodesScheduled()
+                dbgOut.write("alap1 end\n")
+            if self._dbgTraceFile:
+                tracer.log("alap1 end")
+                tracer.log(("resources: ", self.resourceUsage), formatter=repr)
+
+            if self._dbgDumpAfterPhases:
                 if dbgDir is not None:
                     HlsNetlistAnalysisPassDumpSchedulingJson(
                         outputFileGetter(dbgDir, "schedulingDbg.3.alap1.hwschedule.json"),
                         expandCompositeNodes=True).runOnHlsNetlist(self.netlist)
+                self._checkAllNodesScheduled()
 
     def _dbgDumpResources(self, out:StringIO=sys.stdout):
         clkPeriod = self.netlist.normalizedClkPeriod

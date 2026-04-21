@@ -168,6 +168,10 @@ class HlsDebugBundle():
     DBG_3_2_netlistSyncDomains = (HlsNetlistAnalysisPassDumpSyncDomainsDot, "03.02.netlistSyncDomains.dot")  # dump association of IO to individual logic node clouds
     DBG_3_3_netlistAggregated = (HlsNetlistAnalysisPassDumpNodesDot, "03.03.netlistAggregated.dot")  # dump netlist after selected nodes were aggregated to scheduling primitives
     DBG_3_4_submoduleBuildLogPreSchedule = (None, "03.03.submoduleBuildLogPreSchedule.txt")  # log which direct children submodules are build to resolve scheduling
+    DBG_4_0_hwscheduleDumpAfterPhases = (None, "04.00.hwscheduleDumpAfterPhases")  # dump netlist after phases during HlsNetlistAnalysisPassRunScheduler
+    DBG_4_0_hwscheduleCheckCycles = (None, "04.00.hwscheduleCheckCycles")  # check for cycles in HlsNetlist DAG in HlsNetlistAnalysisPassRunScheduler
+    DBG_4_0_hwscheduleTrace = (None, "04.00.hwscheduleTrace.txt")  # trace scheduling process during HlsNetlistAnalysisPassRunScheduler
+    DBG_4_0_hwschedulePrintPhaseBoundaries = (None, "04.00.hwschedulePrintPhaseBoundaries")  # print bondaries of the scheduling phases in HlsNetlistAnalysisPassRunScheduler
     DBG_4_0_hwscheduleErr = (HlsNetlistAnalysisPassDumpSchedulingJson, "04.00.err.hwschedule.json")  # try dump scheduling if scheduler failed
     DBG_4_0_hwschedule = (HlsNetlistAnalysisPassDumpSchedulingJson, "04.00.hwschedule.json")  # node scheduling after first scheduling attempt
     DBG_4_0_submoduleBuildLogPostSchedule = (None, "04.00.submoduleBuildLogPostSchedule.txt")  # log which direct children submodules are build
@@ -305,6 +309,10 @@ class HlsDebugBundle():
     # bundle for debugging of scheduler
     DBG_SCHEDULING = {
         DBG_3_3_netlistAggregated,
+        DBG_4_0_hwscheduleDumpAfterPhases,
+        DBG_4_0_hwscheduleCheckCycles,
+        DBG_4_0_hwscheduleTrace,
+        DBG_4_0_hwschedulePrintPhaseBoundaries,
         DBG_4_0_hwscheduleErr,
         DBG_4_0_hwschedule,
         DBG_4_0_addSignalNamesToSync,
