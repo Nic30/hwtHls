@@ -205,7 +205,7 @@ def replaceHlsNetNodeOperatorWithHwModule(compBuilder: AbstractComponentBuilder,
         name = f"n{n._id:d}_{n.operator.id:s}"
     name = compBuilder._findSuitableName(name)
     debugTracer = n.netlist.dbgSubmoduleBuidTracer
-    debugTracer.log(("replacing with HwModule", name))
+    debugTracer.log(("replacing with HwModule", name, [(p._name, p.get_value()) for p in m._hwParams]))
     setattr(compBuilder.parent, name, m)
 
     compBuilder._propagateClkRstn(m)
