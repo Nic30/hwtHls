@@ -50,7 +50,7 @@ class LLVM_CLI_COMMON_OPTS:
     def filterPrintFuncs(cls, functionNames: list[str]):
         """
         filter dumps to a specific functions
-        :note: this work for print-* options, it does not example for debug-pass-manager
+        :note: this work for print-* options, and it does not for example for debug-pass-manager
         """
         assert not isinstance(functionNames, str), functionNames
         return ("filter-print-funcs", 1, "", ",".join(functionNames))
@@ -90,6 +90,8 @@ class LLVM_CLI_COMMON_OPTS:
     @classmethod
     def debugOnly(cls, passName: str):
         """
+        Activates print of messages defined with LLVM_DEBUG and alike.
+
         :note: available only in llvm debug build
         """
         return ("debug-only", 0, "", passName)
