@@ -1,17 +1,18 @@
 import sys
 from typing import Optional
 
-epsilon = sys.float_info.epsilon
+# :note: times may be negative, for example if the port has negative wire delay it means that it is scheduled before node zero time
+RealTimeEpsilon = sys.float_info.epsilon
+RealTime = float  # e.g. 1e-9 notes 1ns
+SchedTime = int  # 1 == HlsScheduler.resolution of time, e.g. if resolution=1e-9 then 1 notes 1ns
 
-SchedTime = int
-
+assert -49 // 1001 == -1
 
 def clkWindowIndex(time: SchedTime, clkPeriod: SchedTime):
     """
     Get index of clock window where the time lies
     :param clkPeriod: width of the clock time window
     """
-    assert -49 // 1001 == -1
     # if time < 0:
     #    return (time // clkPeriod) - 1
     # else:

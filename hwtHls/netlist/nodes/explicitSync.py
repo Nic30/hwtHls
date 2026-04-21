@@ -12,10 +12,10 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.orderable import HlsNetNodeOrderable
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     HlsNetNodeOutLazy
-from hwtHls.netlist.scheduler.clk_math import epsilon
+from hwtHls.netlist.scheduler.clk_math import RealTimeEpsilon
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
-IO_COMB_REALIZATION = OpRealizationMeta(outputWireDelay=epsilon)
+IO_COMB_REALIZATION = OpRealizationMeta(outputWireDelay=RealTimeEpsilon)
 
 
 class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
@@ -173,7 +173,9 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
 
     def _addReadyNB(self):
         assert self._readyNB is None, (self, "Already present")
-        self._readyNB = self._addOutput(BIT, "readyNB", addDefaultScheduling=True)
+        self._readyNB = self._addOutput(BIT, "readyNB",
+                                        outputClkTickOffset=-1 if self.isMulticlock else 0,
+                                        addDefaultScheduling=True)
 
     def getReady(self):
         if not self.hasReady():

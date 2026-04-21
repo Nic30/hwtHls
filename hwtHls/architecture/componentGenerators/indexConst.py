@@ -4,7 +4,7 @@ from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.componentGenerator import ComponentGenerator
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResourceItem
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.scheduler.clk_math import epsilon
+from hwtHls.netlist.scheduler.clk_math import RealTimeEpsilon
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
 
@@ -16,7 +16,7 @@ class ComponentGeneratorOP_INDEX_CONST(ComponentGenerator):
     @override
     def resolveRealizationOfNode(self, node: HlsNetNodeOperator) -> None:
         assert len(node.dependsOn) == 1, node
-        return OpRealizationMeta(outputWireDelay=epsilon)
+        return OpRealizationMeta(outputWireDelay=RealTimeEpsilon)
 
     @override
     def toRtlForNode(self, node: HlsNetNodeOperator, allocator: "ArchElement") -> None:

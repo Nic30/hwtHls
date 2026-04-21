@@ -22,7 +22,7 @@ from hwtHls.netlist.nodes.memoryAllocationMeta import  MemoryAllocationMeta
 from hwtHls.netlist.nodes.memoryAllocationMetaNode import HlsNetNodeReadMemoryAllocationReadData, \
     HlsNetNodeWriteMemoryAllocationCmd
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
-from hwtHls.netlist.scheduler.clk_math import epsilon
+from hwtHls.netlist.scheduler.clk_math import RealTimeEpsilon
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
 from hwtLib.mem.ram import RamSingleClock
@@ -102,7 +102,7 @@ class ComponentGeneratorMemory(ComponentGenerator):
         bramDelay = netlist.platform.get_op_realization(ResourceRAM, None, 1, 1, realTimeClkPeriod)
         ffDelay = netlist.platform.get_op_realization(ResourceFF, None, 1, 1, realTimeClkPeriod)
 
-        inputWireDelay = ffDelay.inputWireDelay
+        inputWireDelay: float = ffDelay.inputWireDelay
         outputWireDelay = 0
         rLatency = 0
 
@@ -133,7 +133,7 @@ class ComponentGeneratorMemory(ComponentGenerator):
                     # native true dualport ram
                     impl = ComponentGeneratorMemoryAllocationImplementationType.BRAM
                     rLatency = 1
-                    outputWireDelay = bramDelay.outputWireDelay + epsilon
+                    outputWireDelay = bramDelay.outputWireDelay + RealTimeEpsilon
                 else:
                     # XOR memory
                     impl = ComponentGeneratorMemoryAllocationImplementationType.BRAM_XOR
@@ -153,7 +153,7 @@ class ComponentGeneratorMemory(ComponentGenerator):
                 # implement using bram
                 inputWireDelay = bramDelay.inputWireDelay
                 rLatency = 1
-                outputWireDelay = bramDelay.outputWireDelay + epsilon
+                outputWireDelay = bramDelay.outputWireDelay + RealTimeEpsilon
                 impl = ComponentGeneratorMemoryAllocationImplementationType.BRAM
                 if items > largestBram:
                     bramGroups = math.ceil(items / largestBram)
