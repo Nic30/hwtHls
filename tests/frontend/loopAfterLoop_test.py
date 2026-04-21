@@ -102,11 +102,11 @@ class LoopAfterLoop_TC(BaseSsaTC):
         from hwtHls.platform.debugBundle import HlsDebugBundle
         dut = TwoTimesFiniteWhileInWhileTrue()
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform(
-            debugFilter={
-                *HlsDebugBundle.ALL_RELIABLE,
-                HlsDebugBundle.DBG_4_0_addSignalNamesToData,
-                HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
-            }
+            # debugFilter={
+            #     *HlsDebugBundle.ALL_RELIABLE,
+            #     HlsDebugBundle.DBG_4_0_addSignalNamesToData,
+            #     HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+            # }
             ))
         self.runSim(int(9 * freq_to_period(dut.CLK_FREQ)))
 

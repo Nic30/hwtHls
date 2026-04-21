@@ -1,11 +1,13 @@
+import math
 from typing import Optional, Union
 
 from hwt.code import Concat
 from hwt.code_utils import rename_signal
 from hwt.hdl.const import HConst
 from hwt.hdl.operator import HOperatorNode
-from hwt.hdl.operatorDefs import HOperatorDef, HwtOps
+from hwt.hdl.operatorDefs import HOperatorDef, HwtOps, COMPARE_OPS
 from hwt.hdl.types.bits import HBits
+from hwt.pyUtils.setDeque import SetDeque
 from hwt.pyUtils.typingFuture import override
 from hwt.serializer.generic.ops import HWT_TO_HDLCONVERTOR_OPS
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
@@ -13,13 +15,18 @@ from hwtHls.architecture.componentGenerator import ComponentGenerator
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResourceItem
 from hwtHls.code import OP_LSHR, OP_ASHR, OP_SHL, OP_ROL, OP_ROR
 from hwtHls.llvm.llvmIr import HFloatTmpConfig
+from hwtHls.netlist.analysis.hlsNetlistSimHandler import HlsNetlistSimHandler
+from hwtHls.netlist.analysis.hlsNetlistSimulatorTypes import HlsNetlistSimStateT
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
+from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
 from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
-from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwtHls.netlist.nodes.const import HlsNetNodeConst
+from hwtHls.platform.opRealizationMeta import OpRealizationMeta,\
+    EMPTY_OP_REALIZATION
+from pyMathBitPrecise.bit_utils import mask
+
 
 OP_INDEX_CONST = HOperatorDef(None, False, "OP_INDEX_CONST")
 OpSpecialization_t = Optional[HFloatTmpConfig]
@@ -105,6 +112,9 @@ class HlsNetNodeOperator(HlsNetNode):
 
         self.assignRealization(r)
 
+    def hlsNetlistSimGetHandler(self, sim: "HlsNetlistSimulator") -> HlsNetlistSimHandler:
+        return HlsNetlistSimHandlerOperator()
+
     def _rtlAlloc_default(self, allocator:"ArchElement") -> Union[TimeIndependentRtlResourceItem, list[TimeIndependentRtlResourceItem]]:
         op_out = self._outputs[0]
         if HdlType_isVoid(op_out._dtype):
@@ -181,6 +191,7 @@ class HlsNetNodeOperator(HlsNetNode):
         if gen:
             gen: ComponentGenerator
             return gen.toRtlForNode(self, allocator)
+
         return self._rtlAlloc_default(allocator)
 
     def __repr__(self, minify=False):
@@ -190,3 +201,45 @@ class HlsNetNodeOperator(HlsNetNode):
             deps = ", ".join([f"{o.obj._id:d}:{o.out_i}" if isinstance(o, HlsNetNodeOut) else repr(o) for o in self.dependsOn])
             return f"<{self.__class__.__name__:s} {self._id:d} {self.operator.id:s} [{deps:s}]>"
 
+
+class HlsNetlistSimHandlerOperator(HlsNetlistSimHandler):
+
+    @override
+    def simCombStep(self, sim:"HlsNetlistSimulator", state:HlsNetlistSimStateT, worklist:SetDeque[HlsNetNode], n:HlsNetNode):
+        op = n.operator
+        if op == HwtOps.TERNARY:
+            res = None
+            for v, c in n._iterValueConditionDriverPairs():
+                if c is None:
+                    res = state[v]
+                    break
+                c = state[c]
+                if not c._is_full_valid():
+                    res = state[v]._dtype.from_py(None)
+                    break
+                if c:
+                    res = state[v]
+                    break
+            assert res is not None
+        else:
+            deps = []
+            for dep in n.dependsOn:
+                v = state[dep]
+                deps.append(v)
+
+            if op == OP_INDEX_CONST:
+                assert len(deps) == 1
+                res = deps[0][n.operatorSpecialization]
+            else:
+                if op == HwtOps.CONCAT:
+                    deps = reversed(deps)
+                assert n.operator._evalFn is not None, n.operator
+                res = n.operator._evalFn(*deps)
+
+        assert len(n._outputs) == 1, n
+        o = n._outputs[0]
+        prev = state[o]
+        if not (prev == res):  # using not ==, instead of != because it is not overloaded
+            state[o] = res
+            # print(o, res)
+            worklist.extend(n.iterOutUserNodes())

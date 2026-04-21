@@ -16,12 +16,12 @@ class AbstractHlsNetlistTC(unittest.TestCase):
         return HlsNetlistCtx(VirtualHlsPlatform(), None, freq, "test", "test", {}, "")
 
     def generateTestNetlistInputsFromCnt(self, netlist: HlsNetlistCtx, cnt: int, t: HdlType) -> list[HlsNetNodeOut]:
-        ioProxy = IoProxyScalar(None, None)
         inputs = [
-            HlsNetNodeRead(netlist, ioProxy, ioProxy.interface, t, name=f"i{i:d}")._portDataOut
+            HlsNetNodeRead(netlist, IoProxyScalar(None, None), None, t, name=f"i{i:d}")._portDataOut
             for i in range(cnt)
         ]
         netlist.addNodes([i.obj for i in inputs])
+        netlist.topIoOrder = {inp.obj.ioProxy: i for i, inp in enumerate(inputs)}
         return inputs
 
     def generateTestNetlistInputsFromTypes(self, netlist: HlsNetlistCtx, types: list[HdlType]) -> list[HlsNetNodeOut]:
@@ -34,11 +34,13 @@ class AbstractHlsNetlistTC(unittest.TestCase):
         return inputs
 
     def generateTestNetlistOutputs(self, netlist, outputPorts: Sequence[HlsNetNodeOut]) -> list[HlsNetNodeWrite]:
-        ioProxy = IoProxyScalar(None, None)
         outputNodes: list[HlsNetNodeWrite] = []
         for oI, op in enumerate(outputPorts):
+            ioProxy = IoProxyScalar(None, None)
             o = HlsNetNodeWrite(netlist, ioProxy, ioProxy.interface, name=f"o{oI}")
             netlist.subNodes.append(o)
             op.connectHlsIn(o._portSrc)
             outputNodes.append(o)
+            netlist.topIoOrder[ioProxy] = len(netlist.topIoOrder)
+
         return outputNodes

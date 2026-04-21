@@ -7,6 +7,7 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.analysis.fsmStateEncoding import HlsAndRtlNetlistAnalysisPassFsmStateEncoding
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
     TimeIndependentRtlResourceItem
+from hwtHls.netlist.analysis.hlsNetlistSimHandler import HlsNetlistSimHandler
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn
 
@@ -38,6 +39,10 @@ class HlsNetNodeFsmStateWrite(HlsNetNode):
             y.portToNextStateId = {memo[port]: stId for port, stId in self.portToNextStateId.items()}
 
         return y, isNew
+
+    @override
+    def hlsNetlistSimGetHandler(self, sim:"HlsNetlistSimulator") -> HlsNetlistSimHandler:
+        return HlsNetlistSimHandler()
 
     @override
     def rtlAlloc(self, allocator: "ArchElementFsm") -> TimeIndependentRtlResource:

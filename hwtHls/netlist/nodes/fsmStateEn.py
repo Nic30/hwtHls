@@ -1,6 +1,10 @@
+from hwt.hdl.commonConstants import b0, b1
 from hwt.hdl.types.defs import BIT
+from hwt.pyUtils.setDeque import SetDeque
 from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
+from hwtHls.netlist.analysis.hlsNetlistSimHandler import HlsNetlistSimHandler
+from hwtHls.netlist.analysis.hlsNetlistSimulatorTypes import HlsNetlistSimStateT
 from hwtHls.netlist.nodes.node import HlsNetNode
 
 
@@ -15,6 +19,10 @@ class HlsNetNodeFsmStateEn(HlsNetNode):
     def __init__(self, netlist: "HlsNetlistCtx"):
         HlsNetNode.__init__(self, netlist, name=None)
         self._addOutput(BIT, "en")
+
+    @override
+    def hlsNetlistSimGetHandler(self, sim:"HlsNetlistSimulator") -> HlsNetlistSimHandler:
+        return HlsNetlistSimHandlerFsmStateEn()
 
     @override
     def rtlAlloc(self, allocator: "ArchElementFsm") -> TimeIndependentRtlResource:
@@ -35,6 +43,18 @@ class HlsNetNodeFsmStateEn(HlsNetNode):
         self.outputClkTickOffset = (0,)
 
 
+class HlsNetlistSimHandlerFsmStateEn(HlsNetlistSimHandler):
+
+    def simInit(self, sim:"HlsNetlistSimulator", state:HlsNetlistSimStateT, worklist:SetDeque["HlsNetNode"], node:"HlsNetNode"):
+        super().simInit(sim, state, worklist, node)
+        worklist.append(node)
+
+    def simCombStep(self, sim:"HlsNetlistSimulator", state:HlsNetlistSimStateT, worklist:SetDeque["HlsNetNode"], node:"HlsNetNode"):
+        parent, clkI = sim.stageOfNode[node]
+        isEnabled = sim.simHandlerForNode[parent].isNodeEnabled(sim, parent, clkI, node)
+        self._updatePortValue(node._outputs[0], b1 if isEnabled else b0, state, worklist)
+
+
 class HlsNetNodeStageAck(HlsNetNode):
     """
     :see: `Synchronization flag names`_
@@ -43,11 +63,15 @@ class HlsNetNodeStageAck(HlsNetNode):
     def __init__(self, netlist: "HlsNetlistCtx"):
         HlsNetNode.__init__(self, netlist, name=None)
         self._addInput("ackIn")
-    
+
     @override
     def hasSideeffect(self):
         # because it may be used to implement "en" for implicit registers after this stage
         return True
+
+    def hlsNetlistSimGetHandler(self, sim:"HlsNetlistSimulator") -> HlsNetlistSimHandler:
+        # :note: do nothing
+        return HlsNetlistSimHandler()
 
     @override
     def rtlAlloc(self, allocator: "ArchElementFsm") -> TimeIndependentRtlResource:

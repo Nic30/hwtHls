@@ -127,6 +127,12 @@ class IoProxy(object):
         """
         raise AssertionError("Override this method in implementation of this abstract class", self.__class__)
 
+    def getHlsNetlistSimAgentMonitor(self, data: list) -> "HlsNetlistSimAgent":
+        raise AssertionError("Override this method in implementation of this abstract class", self.__class__)
+
+    def getHlsNetlistSimAgentDriver(self, data: Sequence) -> "HlsNetlistSimAgent":
+        raise AssertionError("Override this method in implementation of this abstract class", self.__class__)
+
     @classmethod
     def _getRtlSyncSignals(cls,
                 hwIO: Union[HwIO, ValidReadyTuple],

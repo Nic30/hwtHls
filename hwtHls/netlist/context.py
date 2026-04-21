@@ -41,6 +41,9 @@ class HlsNetlistCtx(AnalysisCache):
         the purpose of objects in this ctx is only to store the input code
         these objects are not present in output circuit and are only form of code
         template which must be translated
+    :ivar topIoOrder: the value in this dictionary is index in global IO arguments and the bool is True if the io is output
+        This is used to preserver argumet order of original function
+        from which this netlist was generated.
     :ivar _dbgAddSignalNamesToSync: add names to synchronization signals in order to improve readability,
         disabled by default as it goes against optimizations
     """
@@ -76,6 +79,7 @@ class HlsNetlistCtx(AnalysisCache):
 
         self.ctx = RtlNetlist()
         self.scheduler: "HlsScheduler" = self.platform.schedulerCls(self, schedulerResolution, resourceConstraints)
+        self.topIoOrder: Optional[dict["IoProxy", tuple[int, bool]]] = None
         self._dbgAddSignalNamesToSync = False
         self._dbgAddSignalNamesToData = False
         self.dbgSubmoduleBuidTracer: Optional[DebugTracer] = None

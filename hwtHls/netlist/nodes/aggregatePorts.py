@@ -1,15 +1,20 @@
-from typing import Optional, List, Generator, Callable
+from typing import Optional, List, Generator, Callable, Self
 
 from hwt.hdl.types.hdlType import HdlType
+from hwt.pyUtils.setDeque import SetDeque
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
+from hwtHls.netlist.analysis.hlsNetlistSimHandler import HlsNetlistSimHandler
+from hwtHls.netlist.analysis.hlsNetlistSimulatorTypes import HlsNetlistSimStateT
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import SchedTime, OutputTimeGetter, \
     OutputMinUseTimeGetter
+from hwtHls.netlist.scheduler.clk_math import clkWindowOffsetFromWindowEnd, \
+    clkWindowBeginForTime
 from hwtHls.platform.opRealizationMeta import EMPTY_OP_REALIZATION
 
 
@@ -106,6 +111,13 @@ class HlsNetNodeAggregatePortIn(HlsNetNode):
         return f"<{self.__class__.__name__:s} {self._id:d} {'' if self.name is None else f'{self.name} '} {parentIn.obj._id:d}:i{parentIn.in_i}>"
 
 
+class HlsNetlistSimHandlerAggregatePortIn(HlsNetlistSimHandler):
+
+    def simCombStep(self, sim:"HlsNetlistSimulator", state:HlsNetlistSimStateT, worklist:SetDeque["HlsNetNode"], node:HlsNetNodeAggregatePortIn):
+        outerV = state[node.parent.dependsOn[node.parentIn.in_i]]
+        self._updatePortValue(node._outputs[0], outerV, state, worklist)
+
+
 class HlsNetNodeAggregatePortOut(HlsNetNode):
     """
     A node which represents an output port from a :class:`~.HlsNetNodeAggregate` node inside of a node.
@@ -153,6 +165,10 @@ class HlsNetNodeAggregatePortOut(HlsNetNode):
         yield
 
     @override
+    def hlsNetlistSimGetHandler(self, sim:"HlsNetlistSimulator") -> HlsNetlistSimHandler:
+        return HlsNetlistSimHandlerAggregatePortOut()
+
+    @override
     def rtlAlloc(self, allocator:"ArchElement"):
         assert not self._isRtlAllocated
         outerO = self.parentOut
@@ -175,3 +191,9 @@ class HlsNetNodeAggregatePortOut(HlsNetNode):
         parentOut = self.parentOut
         return f"<{self.__class__.__name__:s} {self._id:d} {'' if self.name is None else f'{self.name} '} {parentOut.obj._id:d}:o{parentOut.out_i}>"
 
+
+class HlsNetlistSimHandlerAggregatePortOut(HlsNetlistSimHandler):
+
+    def simCombStep(self, sim:"HlsNetlistSimulator", state:HlsNetlistSimStateT, worklist:SetDeque["HlsNetNode"], node:HlsNetNodeAggregatePortOut):
+        outerV = state[node.dependsOn[0]]
+        self._updatePortValue(node.parentOut, outerV, state, worklist)

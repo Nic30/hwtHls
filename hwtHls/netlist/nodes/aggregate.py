@@ -4,8 +4,11 @@ from itertools import chain
 from typing import Optional, Sequence, Callable
 
 from hwt.hdl.types.hdlType import HdlType
+from hwt.pyUtils.setDeque import SetDeque
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
+from hwtHls.netlist.analysis.hlsNetlistSimHandler import HlsNetlistSimHandler
+from hwtHls.netlist.analysis.hlsNetlistSimulatorTypes import HlsNetlistSimStateT
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.aggregatePorts import HlsNetNodeAggregatePortIn, \
@@ -15,7 +18,7 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.schedulableNode import SchedulizationDict, OutputTimeGetter, OutputMinUseTimeGetter, \
     SchedTime
 from hwtHls.netlist.scheduler.clk_math import clkWindowOffsetFromWindowBegin, \
-    clkWindowIndex
+    clkWindowIndex, clkWindowBegin
 
 
 class HlsNetNodeAggregate(HlsNetNode):
@@ -418,6 +421,10 @@ class HlsNetNodeAggregate(HlsNetNode):
             if clearRemoved:
                 removed.clear()
 
+    @override
+    def hlsNetlistSimGetHandler(self, sim:"HlsNetlistSimulator") -> HlsNetlistSimHandler:
+        return HlsNetlistSimHandlerAggregate()
+
     def __repr__(self, minify=False):
         if minify:
             return f"<{self.__class__.__name__:s} {self._id:d}{' ' + self.name if self.name else ''}>"
@@ -430,3 +437,56 @@ class HlsNetNodeAggregateTmpForScheduling(HlsNetNodeAggregate):
     Subclass of HlsNetNodeAggregate which is meant to be dissolved after scheduling
     """
     pass
+
+
+class HlsNetlistSimHandlerAggregate(HlsNetlistSimHandler):
+    """
+    :ivar regs: for each stage a list of outputs which are used in following stages thus are having the
+        register at the end of this stage
+    :attention: not all ArchElements are using registers 
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.regs: list[list[HlsNetNodeOut]] = []
+
+    def isNodeEnabled(self, sim:"HlsNetlistSimulator", parentNode: HlsNetNodeAggregate, stageIndex: int, node: HlsNetNode):
+        return True
+
+    def simInit(self, sim:"HlsNetlistSimulator", state:HlsNetlistSimStateT, worklist:SetDeque["HlsNetNode"], node:"ArchElement"):
+        super().simInit(sim, state, worklist, node)
+        if sim.flagIsScheduled:
+            regs = self.regs
+            _regs = None
+            for stageI, nodes in node.iterStages():
+                nextClkBegin = clkWindowBegin(stageI + 1, node.netlist.normalizedClkPeriod)
+                prevRegs = _regs
+                _regs = []
+                if prevRegs is not None:
+                    # check if the value of input register is passed also to the next stage
+                    for o in prevRegs:
+                        users = o.obj.usedBy[o.out_i]
+                        for u in users:
+                            useT = u.obj.scheduledIn[u.in_i]
+                            if useT >= nextClkBegin:
+                                _regs.append(o)
+                                break
+
+                regs.append(_regs)
+                for n in nodes:
+                    n: HlsNetNode
+                    # assert not n.isMulticlock, n
+                    # check if the output is used also in the next stages
+                    for o, users in zip(n._outputs, n.usedBy):
+                        for u in users:
+                            useT = u.obj.scheduledIn[u.in_i]
+                            if useT >= nextClkBegin:
+                                _regs.append(o)
+                                break
+
+    def simCombStep(self, sim: "HlsNetlistSimulator", state: HlsNetlistSimStateT, worklist: SetDeque["HlsNetNode"], node: HlsNetNodeAggregate):
+        """
+        add internal inputs to worklist so it copies the outer value into 
+        """
+        worklist.extend(node._inputsInside)
+

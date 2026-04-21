@@ -1,8 +1,10 @@
+from _collections import deque
 from typing import Union, Optional, List, Generator, Tuple, Callable
 
 from hwt.code import Concat, If
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
@@ -18,6 +20,8 @@ from hwt.synthesizer.interfaceLevel.hwModuleImplHelpers import HwIO_without_regi
 from hwt.synthesizer.interfaceLevel.utils import HwIO_pack
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
+from hwtHls.frontend.ioProxyScalarHlsNetlistAgent import HlsNetlistSimAgentScalarChannelDriver, \
+    HlsNetlistSimAgentScalarDriver
 from hwtHls.frontend.utils import HwIO_getName
 from hwtHls.io.portGroups import MultiPortGroup, BankedPortGroup
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid, HVoidData
@@ -146,6 +150,26 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
         for i in self._inputs:
             if i not in nonOrderingInputs:
                 yield i
+
+    @override
+    def hlsNetlistSimGetHandler(self, sim: "HlsNetlistSimulator") -> HlsNetlistSimAgentScalarDriver:
+        if self.associatedWrite is None:
+            proxy: "IoProxy" = self.ioProxy
+            assert proxy is not None, self
+            ag = sim.simAgentForIoProxy.get(proxy, None)
+            if ag is None:
+                argI, isOut = sim.topIoOrder[proxy]
+                data = sim.topIoArgs[argI]
+                assert not isOut, self
+                ag = proxy.getHlsNetlistSimAgentDriver(data)
+                sim.simAgentForIoProxy[proxy] = ag
+            return ag
+        else:
+            data = sim.dataForChannel.get(self.associatedWrite)
+            if data is None:
+                data: deque[Optional[HBitsConst]] = deque()
+                sim.dataForChannel[self.associatedWrite] = data
+            return HlsNetlistSimAgentScalarChannelDriver(self, data)
 
     def _mayHappenConcurrentlyWithWrite(self) -> bool:
         w = self.associatedWrite

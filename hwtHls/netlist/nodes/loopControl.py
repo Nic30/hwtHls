@@ -1,11 +1,13 @@
 from itertools import chain
 from typing import List, Generator, Tuple, Dict, Optional
 
+from hwt.hdl.commonConstants import b1, b0
 from hwt.hdl.types.defs import BIT
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
+from hwtHls.netlist.analysis.hlsNetlistSimHandler import HlsNetlistSimHandler
 from hwtHls.netlist.hdlTypeVoid import HVoidData, HVoidOrdering
 from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.explicitSync import IO_COMB_REALIZATION
@@ -17,6 +19,8 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.portsUtils import HlsNetNodeOut_connectHlsIn_crossingHierarchy
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from hwtHls.netlist.analysis.hlsNetlistSimulatorTypes import HlsNetlistSimStateT
+from hwt.pyUtils.setDeque import SetDeque
 
 
 class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
@@ -41,7 +45,7 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         and will stay at the end of current cycle which is sub-optimal if the whole loop shifts in time.
     :attention: The status register (busy) is 0 in the first clock and becomes 1 after first clock when loop is executed.
         The busy port value controls only if data is accepted from loop predecessors or reenters.
-    :note: This node does not contain any multiplexers or explicit synchronization it is just a state-full control logic
+    :note: This node does not contain any multiplexers or explicit synchronization it is just a state-full arbiter-like control logic
         which provides "enable signals".
     :note: Enable output flags are telling which patch to loop was enabled.
         Busy select between enter/reenter and the input group from fromEnter/fromReenter
@@ -82,7 +86,7 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
 
         self._bbNumberToPorts: Dict[tuple(int, int), Tuple[LoopChanelGroup, Optional[HlsNetNodeIn]]] = {}
         self._isEnteredOnExit: bool = False
-    
+
     @override
     def hasSideeffect(self):
         return True
@@ -184,7 +188,7 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         # else:
         #    enOut = b.buildNot(self.getBusyOutPort())
         HlsNetNodeOut_connectHlsIn_crossingHierarchy(w.getOrderingOutPort(), self._addInput("orderingIn"), "ordering")
-        #self.fromEnter.append(lcg)
+        # self.fromEnter.append(lcg)
         self._bbNumberToPorts[(srcBlockNumber, dstBlockNumber)] = (lcg, None)
 
         # enOut = b.buildAnd(enOut, r.getValidNB(), name=f"enterFrom_bb{srcBlockNumber:}")
@@ -214,7 +218,7 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         #    enOut = self.getBusyOutPort()
         #
         # assert not r._isBlocking, r
-        #self.fromReenter.append(lcg)
+        # self.fromReenter.append(lcg)
         self._bbNumberToPorts[(srcBlockNumber, dstBlockNumber)] = (lcg, None)
 
         # return r, enOut
@@ -255,6 +259,10 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         self.fromExitToSuccessor.append(lcg)
         return w
 
+    @override
+    def hlsNetlistSimGetHandler(self, sim:"HlsNetlistSimulator") -> HlsNetlistSimHandler:
+        return HlsNetlistSimHandlerLoopStatus()
+
     def _getAckOfStageWhereNodeIs(self,
                                   n: HlsNetNodeReadOrWriteToAnyChannel) -> Optional[RtlSignal]:
         elm = n.parent
@@ -265,7 +273,7 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         selfT = n.scheduledOut[0] if n.scheduledOut else n.scheduledIn[0]
         selfCon: ConnectionsOfStage = selfParent.connections.getForTime(selfT)
         if con is selfCon:
-            return BIT.from_py(1)
+            return b1
 
         return con.getRtlStageAckSignal()
 
@@ -286,4 +294,47 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
     def __repr__(self):
         return (f"<{self.__class__.__name__:s}{' ' if self.name else ''}{self.name}"
                 f" {self._id:d}{' isEnteredOnExit' if self._isEnteredOnExit else ''}>")
+
+
+class HlsNetlistSimHandlerLoopStatus(HlsNetlistSimHandler):
+
+    def __init__(self):
+        self.busy = False
+
+    def simInit(self, sim: "HlsNetlistSimulator", state: HlsNetlistSimStateT, worklist: SetDeque["HlsNetNode"], node: HlsNetNodeLoopStatus):
+        """
+        Initialize the state before simulation start.
+        """
+        if len(node._outputs) != 2:
+            raise NotImplementedError()
+        self.busy = not node.fromEnter
+        for o in node._outputs:
+            state[o] = o._dtype.from_py(None)
+        worklist.append(node)
+
+    def simCombStep(self, sim: "HlsNetlistSimulator", state: HlsNetlistSimStateT, worklist: SetDeque["HlsNetNode"], node: HlsNetNodeLoopStatus):
+        """
+        Update combinational outputs from inputs and agent state.
+        
+        :note: if not overriden this method is never executed
+        """
+        busy = node.getBusyOutPort()
+        self._updatePortValue(busy, b1 if self.busy else b0, state, worklist)
+
+    def simSeqStep(self, sim: "HlsNetlistSimulator", state: HlsNetlistSimStateT, worklist: SetDeque["HlsNetNode"], node: HlsNetNodeLoopStatus):
+        """
+        Finalize internal state update after all combinational signals in circuit are resolved.
+        
+        :attention: This should never update values of outputs (state), it should update only internal state of node
+                    and add node to worklist if state changed to update values of outputs
+        :note: if not overriden this method is never executed
+        """
+        if node.fromEnter:
+            raise NotImplementedError(node)
+        if node.fromExitToHeaderNotify:
+            raise NotImplementedError(node)
+        if node.fromExitToSuccessor:
+            raise NotImplementedError(node)
+        if len(node.fromReenter) > 1:
+            raise NotImplementedError(node)
 

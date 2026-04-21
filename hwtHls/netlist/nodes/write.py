@@ -1,3 +1,4 @@
+from collections import deque
 from itertools import zip_longest
 from typing import Union, Optional, Generator, Callable
 
@@ -7,6 +8,7 @@ from hwt.constants import NOT_SPECIFIED
 from hwt.hdl.const import HConst
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.statements.statement import HdlStatement
+from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
 from hwt.hwIO import HwIO
@@ -19,6 +21,8 @@ from hwt.synthesizer.interfaceLevel.utils import HwIO_pack, \
     HwIO_connectPacked
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
+from hwtHls.frontend.ioProxyScalarHlsNetlistAgent import HlsNetlistSimAgentScalarChannelMonitor
+from hwtHls.netlist.analysis.hlsNetlistSimAgent import HlsNetlistSimAgent
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
@@ -282,6 +286,41 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         assert self._getBufferCapacity() > 0, (
             "If this edge is not buffer this port should not be used, because it would do nothing", self)
         return HlsNetNodeExplicitSync.getForceEnPort(self)
+
+    @override
+    def hlsNetlistSimGetHandler(self, sim: "HlsNetlistSimulator") -> HlsNetlistSimAgentScalarChannelMonitor:
+        if self.associatedRead is None:
+            # top IO write
+            proxy: "IoProxy" = self.ioProxy
+            assert proxy is not None, self
+            ag = sim.simAgentForIoProxy.get(proxy, None)
+            if ag is None:
+                argI, isOut = sim.topIoOrder[proxy]
+                data = sim.topIoArgs[argI]
+                if isOut:
+                    ag: HlsNetlistSimAgent = proxy.getHlsNetlistSimAgentMonitor(data)
+                else:
+                    ag = proxy.getHlsNetlistSimAgentDriver(data)
+                sim.simAgentForIoProxy[proxy] = ag
+        else:
+            # channel write
+            data = sim.dataForChannel.get(self)
+            if data is None:
+                data = deque()
+                sim.dataForChannel[self] = data
+            initValues = self.associatedRead.channelInitValues
+            if initValues:
+                for v in initValues:
+                    if len(v) == 0:
+                        # channels without the data
+                        data.append(None)
+                    else:
+                        assert len(v) == 1, v
+                        assert isinstance(v, tuple) and isinstance(v[0], HBitsConst), v
+                        data.append(v[0])
+
+            ag = HlsNetlistSimAgentScalarChannelMonitor(self, data)
+        return ag
 
     def rtlPortPhysicallyExits(self):
         dst = self.dst

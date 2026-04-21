@@ -1,11 +1,17 @@
 from typing import List, Set, Tuple, Union, Generator, Optional
 
 from hwt.code import Switch, If
+from hwt.constants import NOT_SPECIFIED
 from hwt.hdl.const import HConst
+from hwt.hdl.operatorDefs import HOperatorDef
 from hwt.hdl.statements.statement import HdlStatement
 from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.defs import BIT
+from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
+from hwt.mainBases import RtlSignalBase
 from hwt.math import log2ceil
+from hwt.pyUtils.setDeque import SetDeque
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
@@ -15,11 +21,17 @@ from hwtHls.architecture.connectionsOfStage import \
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, INVARIANT_TIME, \
     TimeIndependentRtlResourceItem
 from hwtHls.frontend.ioProxy import IoProxy
+from hwtHls.netlist.analysis.hlsNetlistSimHandler import HlsNetlistSimHandler
+from hwtHls.netlist.analysis.hlsNetlistSimulatorTypes import HlsNetlistSimStateT
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HdlType_isNonData
+from hwtHls.netlist.nodes.aggregate import HlsNetlistSimHandlerAggregate
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
+from hwtHls.netlist.nodes.fsmStateEn import HlsNetNodeFsmStateEn, \
+    HlsNetNodeStageAck
+from hwtHls.netlist.nodes.fsmStateWrite import HlsNetNodeFsmStateWrite
 from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
@@ -97,6 +109,10 @@ class ArchElementFsm(ArchElement):
         #    return self.fsm.addState(clkIndex)
         # else:
         #    return self.fsm.states[clkIndex]
+
+    @override
+    def hlsNetlistSimGetHandler(self, sim:"HlsNetlistSimulator") -> HlsNetlistSimHandler:
+        return super().hlsNetlistSimGetHandler(sim)
 
     def _iterTirsOfNode(self, n: HlsNetNode) -> Generator[TimeIndependentRtlResource, None, None]:
         for o in n._outputs:
@@ -357,3 +373,62 @@ class ArchElementFsm(ArchElement):
             return stateTrans[0][1]
         else:
             return Switch(stReg).add_cases(stateTrans)
+
+
+class HlsNetlistSimHandlerArchElementFsm(HlsNetlistSimHandlerAggregate):
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.stageEn: dict[int, HlsNetNodeOut] = {}
+        self.stageAck: dict[int, tuple[HlsNetNodeOut, int]] = {}
+        self.stageWriteEn: dict[int, "HlsNetNodeFsmStateWrite"] = {}
+        self.fsmState = 0
+
+    def isNodeEnabled(self, sim:"HlsNetlistSimulator", parentNode: ArchElementFsm, stageIndex: int, node: HlsNetNode):
+        if sim.flagHasStageControlLowered:
+            raise NotImplementedError()
+        else:
+            return True
+
+    @override
+    def simInit(self, sim:"HlsNetlistSimulator", state:HlsNetlistSimStateT, worklist:SetDeque[HlsNetNode], node:ArchElementFsm):
+        super().simInit(sim, state, worklist, node)
+        if not sim.flagHasStageControlLowered:
+            return
+        for stageI, nodes in node.iterStages():
+            for n in nodes:
+                if isinstance(n, HlsNetNodeFsmStateEn):
+                    assert self.stageEn.get(stageI) is None, (node, stageI, self.stageEn[stageI], n)
+                    self.stageEn[stageI] = n
+                elif isinstance(n, HlsNetNodeStageAck):
+                    assert self.stageAck.get(stageI) is None, (node, stageI, self.stageAck[stageI], n)
+                    self.stageAck[stageI] = n
+                elif isinstance(n, HlsNetNodeFsmStateWrite):
+                    assert self.stageWriteEn.get(stageI) is None, (node, stageI, self.stageWriteEn[stageI], n)
+                    self.stageWriteEn[stageI] = n
+
+    @override
+    def simSeqStep(self, sim:"HlsNetlistSimulator", state:HlsNetlistSimStateT, worklist:SetDeque["HlsNetNode"], node:"HlsNetNode"):
+        if sim.flagHasStageControlLowered:
+            fsmState = self.fsmState
+            # check if transition to next state is enabled
+            stateAck: HlsNetNodeStageAck = self.stageAck[fsmState]
+            en = state[stateAck.dependsOn[0]]
+            assert en._is_full_valid(), (sim.nowTime, "The FSM transition en condition must be valid, otherwise FSM ends in undefined state", node, self.fsmState, stateAck)
+            if bool(en):
+                # check what new state should be entered
+                stateWr: HlsNetNodeFsmStateWrite = self.stageWriteEn[fsmState]
+                for inp, inpDep in zip(node._inputs, node.dependsOn):
+                    en = state[inpDep]
+                    assert en._is_full_valid(), (sim.nowTime, "The FSM transition condition must be valid, otherwise FSM ends in undefined state", node, self.fsmState, inp)
+                    en = bool(en)
+                    if en:
+                        self.fsmState = stateWr.portToNextStateId[inp]
+                        break
+
+                # if state changed add changed HlsNetNodeFsmStateEn to worklist
+                if fsmState != self.fsmState:
+                    for st in (fsmState, self.fsmState):
+                        enN = self.stageEn[st]
+                        worklist.append(enN)
+

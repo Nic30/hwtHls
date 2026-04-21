@@ -7,6 +7,9 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
 from hwtHls.netlist.nodes.node import HlsNetNode
+from hwtHls.netlist.analysis.hlsNetlistSimulatorTypes import HlsNetlistSimStateT
+from hwtHls.netlist.analysis.hlsNetlistSimHandler import HlsNetlistSimHandler
+from hwt.pyUtils.setDeque import SetDeque
 
 
 class HlsNetNodeConst(HlsNetNode):
@@ -29,6 +32,10 @@ class HlsNetNodeConst(HlsNetNode):
             return True
         else:
             return False
+
+    @override
+    def hlsNetlistSimGetHandler(self, sim:"HlsNetlistSimulator") -> HlsNetlistSimHandler:
+        return HlsNetlistSimHandlerConst()
 
     @override
     def rtlAlloc(self, allocator: "ArchElement") -> TimeIndependentRtlResource:
@@ -61,3 +68,10 @@ class HlsNetNodeConst(HlsNetNode):
         else:
             return f"<{self.__class__.__name__:s} {self._id:d} {self.val}>"
 
+
+class HlsNetlistSimHandlerConst(HlsNetlistSimHandler):
+
+    def simInit(self, sim: "HlsNetlistSimulator", state: HlsNetlistSimStateT, worklist: SetDeque[HlsNetNode], node: HlsNetNodeConst):
+        assert len(node._outputs) == 1, node
+        state[node._outputs[0]] = node.val
+        worklist.extend(u.obj for u in node.usedBy[0])

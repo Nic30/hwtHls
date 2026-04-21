@@ -12,6 +12,8 @@ from hwt.pyUtils.typingFuture import override
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from hwtHls.frontend.hObjListUtils import HwIOArray_getHdlType
 from hwtHls.frontend.ioProxy import IoProxy
+from hwtHls.frontend.ioProxyScalarHlsNetlistAgent import HlsNetlistSimAgentScalarDriver, \
+    HlsNetlistSimAgent, HlsNetlistSimAgentScalarMonitor
 from hwtHls.frontend.statementsRead import HlsRead
 from hwtHls.frontend.statementsWrite import HlsWrite
 from hwtHls.io.portGroups import getFirstInterfaceInstance, MultiPortGroup, \
@@ -260,6 +262,14 @@ class IoProxyScalar(IoProxy):
         mirToNetlist._addSkipWhen_n(n, _cond, None)
         mbMeta.addOrderedNode(n)
         return [n, ]
+
+    @override
+    def getHlsNetlistSimAgentMonitor(self, data: list) -> HlsNetlistSimAgent:
+        return HlsNetlistSimAgentScalarMonitor(self, data)
+
+    @override
+    def getHlsNetlistSimAgentDriver(self, data: Sequence) -> HlsNetlistSimAgent:
+        return HlsNetlistSimAgentScalarDriver(self, data)
 
     @override
     @staticmethod

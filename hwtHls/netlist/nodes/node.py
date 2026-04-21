@@ -5,11 +5,13 @@ from typing import Optional, Union, Tuple, Generator, Set, Self
 
 from hwt.hdl.types.hdlType import HdlType
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
+from hwtHls.netlist.analysis.hlsNetlistSimHandler import HlsNetlistSimHandler
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.schedulableNode import SchedulableNode, SchedTime
 from hwtHls.netlist.observableList import ObservableList
-from hwtHls.netlist.scheduler.clk_math import clkWindowOffsetFromWindowBegin
+from hwtHls.netlist.scheduler.clk_math import clkWindowOffsetFromWindowBegin, \
+    clkWindowIndex, clkWindowBeginOfNext, clkWindowOffsetFromWindowEnd, RealTime
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
 
@@ -277,6 +279,10 @@ class HlsNetNode(SchedulableNode):
         return self
 
     def resolveRealization(self):
+        raise NotImplementedError(
+            "Override this method in derived class", self)
+
+    def hlsNetlistSimGetHandler(self, sim: "HlsNetlistSimulator") -> HlsNetlistSimHandler:
         raise NotImplementedError(
             "Override this method in derived class", self)
 
