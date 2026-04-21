@@ -62,6 +62,7 @@ class ShifterTC(BaseIrMirRtl_TC):
         wallTime = len(REF_DATA) * 1000
         BaseIrMirRtl_TC._test(self, dut,
             prepareIrAndMirArgs, checkIrAndMirArgs,
+            prepareIrAndMirArgs, checkIrAndMirArgs,
             prepareRtlSimArgs, checkRtlSimResults,
             wallTimeIr=wallTime,
             wallTimeOptIr=wallTime,
