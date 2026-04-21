@@ -27,7 +27,7 @@ class HlsArchPassMoveArchElementPortsToMinimizeSync(HlsArchPass):
     """
     This pass reschedules ArchElement ports to minimize number of clock cycles where the data is exchanged between elements.
     For example, a value is passes to other element once it is required in there.
-    However the value may be potentially transfered sooner with other data and synchronization in that cycle may be avoided.
+    However the value may be potentially transferred sooner with other data and synchronization in that cycle may be avoided.
     There are several cases where it is beneficial to modify time when data is moved described in this code.
     """
 
