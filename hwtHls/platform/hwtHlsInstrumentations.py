@@ -1,12 +1,17 @@
+from copy import deepcopy
 from datetime import time
 from io import StringIO
+from pathlib import Path
 import sys
 from time import perf_counter_ns
 from typing import Optional, Union, TypeVar, Callable
 
-from hwtHls.platform.debugBundle import HlsDebugBundle
-from hwtHls.ssa.analysisCache import AnalysisCache, PassT, AnalysisPass
+from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
+from hwtHls.netlist.translation.dumpNodesDot import HwtHlsNetlistToGraphviz
+from hwtHls.platform.debugBundle import HlsDebugBundle, DebugId
 from hwtHls.platform.fileUtils import outputFileGetter
+from hwtHls.ssa.analysisCache import AnalysisCache, PassT, AnalysisPass
 
 
 class DebugPassManagerLogger():
@@ -104,9 +109,53 @@ class TimePassesHandler():
 
     def dump(self, out: StringIO):
         w = out.write
-        for k, t in sorted(self.timingData.items(), key=lambda kv: -kv[1].totalTime):
+        for k, t in sorted(self.timingData.items(), key=lambda kv:-kv[1].totalTime):
             t: TimePassesHandler.Timer
             w(f"{t.totalTime / 1e9:03.3f}    {k.__name__:s}\n")  # ns -> s
+
+
+class DumpHlsNetlistDotHandler():
+
+    def __init__(self, dbgDir: Path, dumpBefore=False, dumpAfter=False, dumpChanged=False):
+        self.dbgCntr = 0
+        self.dbgDir = dbgDir
+        self.dumpAfter = dumpAfter
+        self.dumpChanged = dumpChanged
+        self.dumpBefore = dumpBefore
+        self.origNetlistStack: list[HlsNetlistCtx] = []
+
+    def dump(self, dbgId: DebugId, pass_, netlist: HlsNetlistCtx):
+        d = self.dbgDir / netlist.dbgSubdir
+        d.mkdir(parents=True, exist_ok=True)
+        filename = d / dbgId[1].format(self.dbgCntr, pass_.__class__.__name__)
+        with open(filename, "w") as out:
+            nodes = netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.PREORDER)
+            toGraphviz = HwtHlsNetlistToGraphviz(netlist.label, nodes, True, False, True)
+            toGraphviz.construct()
+            out.write(toGraphviz.dumps())
+
+    def beforePass(self, passId, pass_, ir):
+        if not isinstance(ir, HlsNetlistCtx):
+            return
+
+        if self.dumpBefore:
+            self.dump(HlsDebugBundle.DBG_3_0_netlistDumpBefore, pass_, ir)
+
+        if self.dumpChanged:
+            self.origNetlistStack.append(deepcopy(ir))
+
+    def afterPass(self, passId, pass_, ir):
+        if not isinstance(ir, HlsNetlistCtx):
+            return
+
+        if self.dumpAfter:
+            self.dump(HlsDebugBundle.DBG_3_0_netlistDumpAfter, pass_, ir)
+
+        if self.dumpChanged:
+            origIr = self.origNetlistStack.pop()
+            raise NotImplementedError(passId)
+
+        self.dbgCntr += 1
 
 
 class HwtHlsInstrumentations():
@@ -114,6 +163,7 @@ class HwtHlsInstrumentations():
     def __init__(self, platform: "DefaultHlsPlatform", ac: AnalysisCache):
         self.platform = platform
         self.timePassHandler: Optional[TimePassesHandler] = None
+        self.dumpHlsNetlistDotHandler: Optional[DumpHlsNetlistDotHandler] = None
         self.addedCallbacks: set[Callable[[type, Union[AnalysisPass, PassT], TypeVar("irT")]]] = set()
         self.ac = ac
         self.installInstrumentationCallbacks()
@@ -132,6 +182,17 @@ class HwtHlsInstrumentations():
             ac.callbacksAfterPass = [tph.afterPass, ] + ac.callbacksAfterPass
             self.addedCallbacks.update([tph.beforeAnalysis, tph.afterAnalysis,
                                         tph.beforePass, tph.afterPass])
+
+        dumpAfter = dbg.isActivated(HlsDebugBundle.DBG_3_0_netlistDumpAfter)
+        dumpBefore = dbg.isActivated(HlsDebugBundle.DBG_3_0_netlistDumpBefore)
+        dumpChanged = dbg.isActivated(HlsDebugBundle.DBG_3_0_netlistDumpChanged)
+        if dumpAfter or dumpBefore or dumpChanged:
+            d = self.dumpHlsNetlistDotHandler
+            if d is None:
+                d = self.dumpHlsNetlistDotHandler = DumpHlsNetlistDotHandler(dbg.dir, dumpBefore=dumpBefore, dumpAfter=dumpAfter, dumpChanged=dumpChanged)
+            ac.callbacksBeforePass.append(d.beforePass)
+            ac.callbacksAfterPass = [d.afterPass, ] + ac.callbacksAfterPass
+            self.addedCallbacks.update([d.beforePass, d.afterPass])
 
         debugPMlog = DebugPassManagerLogger.getPassManagerDebugLogFile(self.platform)
         # log = toSsa._dbgLogPassExec

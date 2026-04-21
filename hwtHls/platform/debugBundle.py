@@ -161,6 +161,9 @@ class HlsDebugBundle():
     # hls netlist
     DBG_3_0_netlist = (HlsNetlistAnalysisPassDumpNodesDot, "03.00.netlist.dot")  # basic blocks dissolved to netlist
     DBG_3_0_netlistTxt = (HlsNetlistAnalysisPassDumpNodesTxt, "03.00.netlist.txt")  # same as DBG_3_0_netlist just in txt
+    DBG_3_0_netlistDumpBefore = (None, "03.00.netlist.dump.0.before.{0}.{1}.dot")  # dump HlsNetlst before each pass to separate dot file
+    DBG_3_0_netlistDumpAfter = (None, "03.00.netlist.dump.1.after.{0}.{1}.dot")  # dump HlsNetlst after each pass to separate dot file
+    DBG_3_0_netlistDumpChanged = (None, "03.00.netlist.dump.changed.{0}.{1}.dot")  # same as DBG_3_0_netlistDumpAfter but only if netlist changed
     DBG_3_0_netlistIoClusters = (HlsNetlistAnalysisPassDumpIoClustersDot, "03.00.netlistIoClusters.dot")  #
     DBG_3_1_netlistSimplifyTrace = (None, "03.01.netlistSimplifyTrace.txt")  # trace of netlist simplifier
     DBG_3_1_netlistSimplifiedErr = (HlsNetlistAnalysisPassDumpNodesDot, "03.01.netlistSimplified.err.dot")  # try to dump netlist if simplified failed
