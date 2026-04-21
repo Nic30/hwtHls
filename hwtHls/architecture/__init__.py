@@ -33,4 +33,34 @@ There are several complicated things:
 * Communication asynchronous to FSM state. It is offten the case that some registers in FSM must be modified
   independently on FSM state. For example some loop state which is partly mapped to FSM may be restarted externaly from outside
   of FSM or from state where it is modified trough IMMEDIATE channels. 
+
+
+Register allocation:
+:see: Basic of register allocation https://pages.cs.wisc.edu/~horwitz/CS701-NOTES/5.REGISTER-ALLOCATION.html
+      RA for exclisively executed blocks https://dl.acm.org/doi/pdf/10.1145/37888.37920
+      llvm::RegAllocPBQP uses "Linear Scan Register Allocation" by Poletto and Sarkar https://web.cs.ucla.edu/~palsberg/course/cs132/linearscan.pdf
+      Optimal Polynomial-Time Interprocedural Register Allocation for High-Level Synthesis Using SSA Form 
+          https://www.epfl.ch/labs/lap/wp-content/uploads/2018/05/BriskMay07_OptimalPolynomialTimeInterproceduralRegisterAllocationForHighLevelSynthesisUsingSsaForm_IWLS07.pdf
+
+In traditional register allocation we need to know all registers in advance to compute live ranges
+and then we can compute register mapping as a graph coloring.
+There the situation is slightly different.
+There is no register spiling and all registers will have to be mapped to some FF.
+Traditionaly registes/variables are of n-bits but physical FFs are just 1b
+That means that the number of FFs required is max number of register bits in any state
+and we need only to pick a mapping of registers/variables to FFs which have least scrambling
+to improve readablitity.
+The :class:`LoopChanelGroup` objects connected to block/loop on same place are known to be exclusive,
+that means that they may be mapped to same register, except for control registers (vld/full for channels). 
+
+Register allocation is split to 2 phases:
+Before scheduling RA:
+  * FSMs convert channels to register writes,
+    share registers for exclusively written backedges/forwardedges. 
+After scheduling RA:
+  * AsapCompact for bitwidth reducing instructions
+  * AlapCompact for bitwidth increasing  instructions
+  * :note: that performing RA for every register yields no benefit for tightly packed clock windows on FPGA
+     as the additional MUXes would increase latency and FFs are fixed parts of CLBs.
+
 """
