@@ -8,10 +8,10 @@
     br label %blockL210i0_210
   
   blockL210i0_210:                                  ; preds = %bb0, %blockL210i0_210
-    %.phiConc = phi i17 [ 0, %bb0 ], [ %.selConc, %blockL210i0_210 ]
-    %.phiConc39 = phi i17 [ 0, %bb0 ], [ %.selConc40, %blockL210i0_210 ]
-    %.phiConc41 = phi i17 [ 0, %bb0 ], [ %.selConc42, %blockL210i0_210 ]
-    %.phiConc43 = phi i17 [ 0, %bb0 ], [ %.selConc44, %blockL210i0_210 ]
+    %.phiConc = phi i17 [ %.selConc, %blockL210i0_210 ], [ 0, %bb0 ]
+    %.phiConc39 = phi i17 [ %.selConc40, %blockL210i0_210 ], [ 0, %bb0 ]
+    %.phiConc41 = phi i17 [ %.selConc42, %blockL210i0_210 ], [ 0, %bb0 ]
+    %.phiConc43 = phi i17 [ %.selConc44, %blockL210i0_210 ], [ 0, %bb0 ]
     store volatile i17 %.phiConc, ptr addrspace(1) %keyForMatchThread_0, align 4
     store volatile i17 %.phiConc39, ptr addrspace(2) %keyForMatchThread_1, align 4
     store volatile i17 %.phiConc41, ptr addrspace(3) %keyForMatchThread_2, align 4

@@ -8,7 +8,7 @@
     br label %wh0
   
   wh0:                                              ; preds = %bb0, %blockL68i0_204
-    %i.0 = phi i8 [ 0, %bb0 ], [ %2, %blockL68i0_204 ]
+    %i.0 = phi i8 [ %2, %blockL68i0_204 ], [ 0, %bb0 ]
     %0 = icmp ult i8 %i.0, 5
     %1 = icmp eq i8 %i.0, 10
     br i1 %0, label %blockL68i0_102, label %blockL68i0_158

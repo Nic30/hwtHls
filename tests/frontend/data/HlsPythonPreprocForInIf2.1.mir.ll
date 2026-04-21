@@ -8,7 +8,7 @@
     br label %blockL120i0_120
   
   blockL120i0_120:                                  ; preds = %bb0, %exit
-    %cntr.0 = phi i8 [ 0, %bb0 ], [ %1, %exit ]
+    %cntr.0 = phi i8 [ %1, %exit ], [ 0, %bb0 ]
     store volatile i8 %cntr.0, ptr addrspace(1) %o, align 1
     %0 = icmp eq i8 %cntr.0, 2
     br i1 %0, label %exit, label %for.head2

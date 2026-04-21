@@ -8,7 +8,7 @@
     br label %blockL68i0_68
   
   blockL68i0_68:                                    ; preds = %bb0, %blockL68i0_68
-    %i1.0 = phi i8 [ 0, %bb0 ], [ %i1.1, %blockL68i0_68 ]
+    %i1.0 = phi i8 [ %i1.1, %blockL68i0_68 ], [ 0, %bb0 ]
     %0 = add i8 %i1.0, 1
     store volatile i8 %0, ptr addrspace(2) %o, align 1
     %i_read3 = load volatile i1, ptr addrspace(1) %i, align 1

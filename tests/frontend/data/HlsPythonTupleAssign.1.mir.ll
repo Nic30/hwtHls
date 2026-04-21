@@ -8,7 +8,7 @@
     br label %blockL112i0_112
   
   blockL112i0_112:                                  ; preds = %bb0, %blockL112i0_112
-    %i.shiftPhi1 = phi i2 [ 1, %bb0 ], [ %4, %blockL112i0_112 ]
+    %i.shiftPhi1 = phi i2 [ %4, %blockL112i0_112 ], [ 1, %bb0 ]
     %0 = call i1 @hwtHls.bitRangeGet.i2.i2.i1.0(i2 %i.shiftPhi1, i2 0) #1
     %1 = call i1 @hwtHls.bitRangeGet.i2.i2.i1.1(i2 %i.shiftPhi1, i2 1) #1
     %2 = zext i1 %1 to i8

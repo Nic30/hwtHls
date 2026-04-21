@@ -10,8 +10,8 @@
   blockL24i0_24:                                    ; preds = %bb0, %blockL24i0_24
     %a_read2 = load volatile i8, ptr addrspace(1) %a, align 1
     %0 = call i7 @hwtHls.bitRangeGet.i8.i4.i7.0(i8 %a_read2, i4 0) #1
-    %1 = call i8 @hwtHls.bitConcat.i1.i7(i1 false, i7 %0) #1
-    store volatile i8 %1, ptr addrspace(2) %b, align 1
+    %b4 = call i8 @hwtHls.bitConcat.i1.i7(i1 false, i7 %0) #1
+    store volatile i8 %b4, ptr addrspace(2) %b, align 1
     br label %blockL24i0_24
   }
   

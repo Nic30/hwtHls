@@ -8,7 +8,7 @@
     br label %blockL120i0_120
   
   blockL120i0_120:                                  ; preds = %bb0, %blockL120i0_120
-    %cntr.0 = phi i8 [ 0, %bb0 ], [ %0, %blockL120i0_120 ]
+    %cntr.0 = phi i8 [ %0, %blockL120i0_120 ], [ 0, %bb0 ]
     store volatile i8 %cntr.0, ptr addrspace(1) %o, align 1
     %0 = add i8 %cntr.0, 1
     br label %blockL120i0_120

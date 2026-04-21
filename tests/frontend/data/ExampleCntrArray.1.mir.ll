@@ -8,10 +8,10 @@
     br label %blockL210i0_210
   
   blockL210i0_210:                                  ; preds = %bb0, %blockL210i0_210
-    %v3.0 = phi i16 [ 0, %bb0 ], [ %v3.1, %blockL210i0_210 ]
-    %v2.0 = phi i16 [ 0, %bb0 ], [ %v2.1, %blockL210i0_210 ]
-    %v1.0 = phi i16 [ 0, %bb0 ], [ %v1.1, %blockL210i0_210 ]
-    %v0.0 = phi i16 [ 0, %bb0 ], [ %v0.1, %blockL210i0_210 ]
+    %v3.0 = phi i16 [ %v3.1, %blockL210i0_210 ], [ 0, %bb0 ]
+    %v2.0 = phi i16 [ %v2.1, %blockL210i0_210 ], [ 0, %bb0 ]
+    %v1.0 = phi i16 [ %v1.1, %blockL210i0_210 ], [ 0, %bb0 ]
+    %v0.0 = phi i16 [ %v0.1, %blockL210i0_210 ], [ 0, %bb0 ]
     %o_addr_read1 = load volatile i2, ptr addrspace(3) %o_addr, align 1
     %0 = icmp eq i2 %o_addr_read1, 0
     %1 = icmp eq i2 %o_addr_read1, 1
