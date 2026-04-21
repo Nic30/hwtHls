@@ -4,12 +4,12 @@ from hwt.hdl.const import HConst
 from hwt.hdl.types.array import HArray
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.hdlType import HdlType
+from hwt.pyUtils.setDeque import SetDeque
 from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource
-from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.analysis.hlsNetlistSimulatorTypes import HlsNetlistSimStateT
 from hwtHls.netlist.analysis.hlsNetlistSimHandler import HlsNetlistSimHandler
-from hwt.pyUtils.setDeque import SetDeque
+from hwtHls.netlist.analysis.hlsNetlistSimulatorTypes import HlsNetlistSimStateT
+from hwtHls.netlist.nodes.node import HlsNetNode
 
 
 class HlsNetNodeConst(HlsNetNode):
@@ -61,6 +61,7 @@ class HlsNetNodeConst(HlsNetNode):
         self.outputClkTickOffset = (0,)
         self.scheduledIn = (0,)
         self.scheduledOut = (0,)
+        self.isAllowedInFFStoreTime = True
 
     def __repr__(self, minify=False):
         if minify:

@@ -136,7 +136,7 @@ def ioDataIsMixedInControlInThisClk(ioNode: HlsNetNodeExplicitSync, ackPort: Hls
             # if channel has 0 capacity and is crossing clock window boundaries the time must be updated
             # when following value to read port of channel
             r = n.associatedRead
-            uTime = r.scheduledZero
+            uTime = min(r.scheduledOut)
             if uTime < timeLimitBegin or uTime >= timeLimitEnd:
                 _timeLimitBegin = clkWindowBeginForTime(uTime, clkPeriod)
                 _timeLimitEnd = _timeLimitBegin + clkPeriod

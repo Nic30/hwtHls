@@ -6,10 +6,12 @@ from tests.testCaseUtils import testSuiteFromTCs
 from tests.utils.alapAsapDiffExample_test import AlapAsapDiffExample_TC
 from tests.utils.bitwiseOpsScheduling_test import BitwiseOpsScheduling_TC
 from tests.utils.schedulingNodeFunctions_test import SchedulingNodeFunctions_TC
+from tests.utils.schedulingUtils_test import SchedulingUtils_TC
 from tests.utils.mergeRanges_test import MergeInRangeTC
 
 utils_TCs = [
     MergeInRangeTC,
+    SchedulingUtils_TC,
     SchedulingNodeFunctions_TC,
     BitwiseOpsScheduling_TC,
     AlapAsapDiffExample_TC,

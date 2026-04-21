@@ -137,22 +137,34 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         r = self.associatedRead
         if r is None:
             return False
-        if self._isBackedge:
-            return False
         if self.scheduledZero is not None:
             assert r.scheduledZero is not None, ("Node must be scheduled to resolve this", r)
+            if r.isMulticlock or self.isMulticlock:
+                minRt = min(r.scheduledOut, default=r.scheduledZero)
+                minWt = min(self.scheduledIn, default=self.scheduledZero)
+                return minRt >= minWt
+
             return r.scheduledZero >= self.scheduledZero
+
+        if self._isBackedge:
+            return False
         return True
 
     def isBackedge(self):
         r = self.associatedRead
         if r is None:
             return False
+        if self.scheduledZero is not None:
+            assert r.scheduledZero is not None, ("Node must be scheduled to resolve this", r)
+            if r.isMulticlock or self.isMulticlock:
+                minRt = min(r.scheduledOut, default=r.scheduledZero)
+                minWt = min(self.scheduledIn, default=self.scheduledZero)
+                return minRt <= minWt
+
+            return r.scheduledZero <= self.scheduledZero
+
         if not self._isBackedge:
             return False
-        if  self.scheduledZero is not None:
-            assert r.scheduledZero is not None, ("Node must be scheduled to resolve this", r)
-            return r.scheduledZero <= self.scheduledZero
         return True
 
     @override
@@ -268,10 +280,13 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
             "If this edge is not buffer this port should not be used, because it is const 0", self)
         full = self._fullPort
         if full is None:
+            if not self.isMulticlock:
+                self.convertSchedulingToMultiClockNotation()
             full = self._fullPort = self._addOutput(BIT, "full", addDefaultScheduling=True,
                                                     # = at the begin of clock where this write is
                                                     outputClkTickOffset=-1,
-                                                    outputWireDelay=self.netlist.normalizedClkPeriod + self.netlist.scheduler.epsilon)
+                                                    outputWireDelay=0,
+                                                    )
         return full
 
     def getForceEnPort(self) -> HlsNetNodeIn:

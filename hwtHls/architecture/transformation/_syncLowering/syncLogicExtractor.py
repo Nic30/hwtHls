@@ -20,8 +20,9 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.transformation.simplifyExpr.rehash import _ExprRehasher
 from hwtHls.netlist.scheduler.clk_math import clkWindowEnd
+from hwtHls.netlist.transformation.simplifyExpr.rehash import _ExprRehasher
+
 
 HlsNetOutToAbcOutMap_t = dict[Union[HlsNetNodeOut,
                                     tuple[HlsNetNode, Literal[FLAG_FLUSH_TOKEN_AVAILABLE, FLAG_FLUSH_TOKEN_ACQUIRE]]],
@@ -178,7 +179,7 @@ class SyncLogicExtractor():
         :note: HlsNetNodeAggregatePortIn object is never moved is is cloned.
         """
         # if this is not defined in the same clock when it is exported
-        if n.scheduledZero // self.clkPeriod != clkIndex:
+        if n.getFirstSchedZeroClkI() != clkIndex:
             return None  # can not be extracted as a port in this clock, because there is a register before use
             # a new out-in pair should be constructed instead
 
@@ -348,10 +349,11 @@ class SyncLogicExtractor():
                 o: HlsNetNodeOut
                 originalO = o
                 clkIndex = srcNode[1]
-                oDefClkIndex = o.obj.scheduledZero // clkPeriod
+                oDefClkIndex = o.obj.scheduledOut[o.out_i] // clkPeriod
                 # if input is negation try use original value to avoid case with 2 registers 1st for normal and 2nd for negated value
                 if clkIndex != oDefClkIndex:
-                    assert clkIndex > oDefClkIndex, o
+                    # assert clkIndex > oDefClkIndex, o # :note: this does not have to be the case if the channel spawn over multiple clock cycles and
+                    # the first HsSCC requires some registers from second HsSCC (eg. channel "full")
                     _o = newOutputsSubstitutingOriginal.get(o, o)
                 else:
                     _o = o
@@ -374,7 +376,7 @@ class SyncLogicExtractor():
                 elif isinstance(o.obj, HlsNetNodeAggregatePortOut):
                     raise NotImplementedError(o.obj)
 
-                # oClkIndex = o.obj.scheduledZero // clkPeriod
+                # oClkIndex = o.obj.getFirstSchedZeroClkI()
                 # if clkIndex != oClkIndex:
                 #    assert (o.obj, oClkIndex) not in syncLogicSearch.nodes, (
                 #        "Output is also extracted, but there is register between o and this use,"
@@ -392,7 +394,7 @@ class SyncLogicExtractor():
                 ioMap[abcI.Name()] = newO
 
                 assert isinstance(newO, HlsNetNodeOut), newO
-                if o.obj.scheduledZero // clkPeriod == clkIndex:
+                if o.obj.getFirstSchedZeroClkI() == clkIndex:
                     primaryOutUpdateDict[o] = newO
                 self._replaceAllExtractedUsesInClkWindow(o, clkIndex, clkPeriod, newO)
 

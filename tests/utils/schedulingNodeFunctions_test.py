@@ -26,82 +26,85 @@ class SchedulingNodeFunctions_TC(unittest.TestCase):
         n = HlsNetNodeDelayClkTick(netlist, BIT, 1)
         n.resolveRealization()
 
+        with self.assertRaises(AssertionError):
+            n._setScheduleZeroTimeMultiClock(1, clkPeriod, epsilon, ffdelay)
+        with self.assertRaises(AssertionError):
+            n._setScheduleZeroTimeMultiClock(-1, clkPeriod, epsilon, ffdelay)
+
         n._setScheduleZeroTimeMultiClock(0, clkPeriod, epsilon, ffdelay)
-        self.assertEqual(n.scheduledIn[0], 0)
-        self.assertEqual(n.scheduledOut[0], clkPeriod)
+        self.assertEqual(n.scheduledIn[0], -1)
+        self.assertEqual(n.scheduledOut[0], 0)
 
-        n._setScheduleZeroTimeMultiClock(1, clkPeriod, epsilon, ffdelay)
-        self.assertEqual(n.scheduledIn[0], 1)
-        self.assertEqual(n.scheduledOut[0], clkPeriod)
-
-        n._setScheduleZeroTimeMultiClock(clkPeriod - 1, clkPeriod, epsilon, ffdelay)
+        n._setScheduleZeroTimeMultiClock(clkPeriod, clkPeriod, epsilon, ffdelay)
         self.assertEqual(n.scheduledIn[0], clkPeriod - 1)
         self.assertEqual(n.scheduledOut[0], clkPeriod)
 
-        n._setScheduleZeroTimeMultiClock(clkPeriod, clkPeriod, epsilon, ffdelay)
-        self.assertEqual(n.scheduledIn[0], clkPeriod)
-        self.assertEqual(n.scheduledOut[0], clkPeriod * 2)
+        n._setScheduleZeroTimeMultiClock(-clkPeriod, clkPeriod, epsilon, ffdelay)
+        self.assertEqual(n.scheduledIn[0], -clkPeriod - 1)
+        self.assertEqual(n.scheduledOut[0], -clkPeriod)
 
-        n._setScheduleZeroTimeMultiClock(clkPeriod + 1, clkPeriod, epsilon, ffdelay)
-        self.assertEqual(n.scheduledIn[0], clkPeriod + 1)
+        n._setScheduleZeroTimeMultiClock(clkPeriod * 2, clkPeriod, epsilon, ffdelay)
+        self.assertEqual(n.scheduledIn[0], clkPeriod * 2 - 1)
         self.assertEqual(n.scheduledOut[0], clkPeriod * 2)
 
         n = HlsNetNodeDelayClkTick(netlist, BIT, 2)
         n.resolveRealization()
 
         n._setScheduleZeroTimeMultiClock(0, clkPeriod, epsilon, ffdelay)
-        self.assertEqual(n.scheduledIn[0], 0)
-        self.assertEqual(n.scheduledOut[0], clkPeriod * 2)
+        self.assertEqual(n.scheduledIn[0], -1)
+        self.assertEqual(n.scheduledOut[0], clkPeriod)
 
-        n._setScheduleZeroTimeMultiClock(1, clkPeriod, epsilon, ffdelay)
-        self.assertEqual(n.scheduledIn[0], 1)
-        self.assertEqual(n.scheduledOut[0], clkPeriod * 2)
-
-        n._setScheduleZeroTimeMultiClock(clkPeriod - 1, clkPeriod, epsilon, ffdelay)
+        n._setScheduleZeroTimeMultiClock(clkPeriod, clkPeriod, epsilon, ffdelay)
         self.assertEqual(n.scheduledIn[0], clkPeriod - 1)
         self.assertEqual(n.scheduledOut[0], clkPeriod * 2)
 
-        n._setScheduleZeroTimeMultiClock(clkPeriod, clkPeriod, epsilon, ffdelay)
-        self.assertEqual(n.scheduledIn[0], clkPeriod)
-        self.assertEqual(n.scheduledOut[0], clkPeriod * 3)
+        n._setScheduleZeroTimeMultiClock(-clkPeriod, clkPeriod, epsilon, ffdelay)
+        self.assertEqual(n.scheduledIn[0], -clkPeriod - 1)
+        self.assertEqual(n.scheduledOut[0], 0)
 
-        n._setScheduleZeroTimeMultiClock(clkPeriod + 1, clkPeriod, epsilon, ffdelay)
-        self.assertEqual(n.scheduledIn[0], clkPeriod + 1)
-        self.assertEqual(n.scheduledOut[0], clkPeriod * 3)
-
-    def test_HlsNetNodeWriteBackedge_full(self):
-        netlist = HlsNetlistCtx(VirtualHlsPlatform(), None, int(1e6), "test", "test", {}, "test")
-        clkPeriod = netlist.normalizedClkPeriod
-        epsilon = netlist.scheduler.epsilon
-
-        ioProxy = IoProxyScalar(None, None)
+    def _construct_r_w_nodes(self, netlist, ioProxy) -> tuple[HlsNetNodeRead, HlsNetNodeWrite]:
         w = HlsNetNodeWrite(netlist, ioProxy, ioProxy.interface, isBackedge=True)
         r = HlsNetNodeRead(netlist, ioProxy, ioProxy.interface, BIT)
 
         w.resolveRealization()
         w.associateRead(r)
         r.resolveRealization()
+        return r, w
+
+    def test_HlsNetNodeWriteBackedge_full(self):
+        netlist = HlsNetlistCtx(VirtualHlsPlatform(), None, int(1e6), "test", "test", {}, "test")
+        clkPeriod = netlist.normalizedClkPeriod
+        epsilon = netlist.scheduler.epsilon
+        ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
+
+        ioProxy = IoProxyScalar(None, None)
+        r, w = self._construct_r_w_nodes(netlist, ioProxy)
 
         w._setScheduleZeroTimeSingleClock(clkPeriod - epsilon)  # at the end of clock window
         r._setScheduleZeroTimeSingleClock(epsilon)
         full = w.getFullPort()
 
-        self.assertEqual(w.scheduledOut[full.out_i], 0 + epsilon)
+        self.assertTrue(w.isMulticlock)
+        self.assertTrue(w.realization.isMulticlock)
+        self.assertEqual(w.scheduledZero, clkPeriod)
+        self.assertEqual(w.getSchedResourceClkI(), 0)
+
+        self.assertEqual(w.scheduledOut[full.out_i], 0)
 
         w._removeOutput(full.out_i)
-        w._setScheduleZeroTimeSingleClock(clkPeriod)  # begin of clk 1
+        w._setScheduleZeroTimeMultiClock(2 * clkPeriod, clkPeriod, epsilon, ffdelay)  # begin of clk 1
         full = w.getFullPort()
-        self.assertEqual(w.scheduledOut[full.out_i], clkPeriod + epsilon)
+        self.assertEqual(w.scheduledOut[full.out_i], clkPeriod)
 
-        w._removeOutput(full.out_i)
+        r, w = self._construct_r_w_nodes(netlist, ioProxy)
         w._setScheduleZeroTimeSingleClock(clkPeriod + clkPeriod // 2)  # half of of clk 1
         full = w.getFullPort()
-        self.assertEqual(w.scheduledOut[full.out_i], clkPeriod + epsilon)
+        self.assertEqual(w.scheduledOut[full.out_i], clkPeriod)
 
-        w._removeOutput(full.out_i)
+        r, w = self._construct_r_w_nodes(netlist, ioProxy)
         w._setScheduleZeroTimeSingleClock(2 * clkPeriod)
         full = w.getFullPort()
-        self.assertEqual(w.scheduledOut[full.out_i], 2 * clkPeriod + epsilon)
+        self.assertEqual(w.scheduledOut[full.out_i], 2 * clkPeriod)
 
     def test_HlsNetNodeAggregate_time_afterPortAdd(self):
         netlist = HlsNetlistCtx(VirtualHlsPlatform(), None, int(100e6), "test", "test", {}, "test")
@@ -132,7 +135,7 @@ class SchedulingNodeFunctions_TC(unittest.TestCase):
 
 if __name__ == '__main__':
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([SchedulingNodeFunctions_TC('test_2not1and_400MHz'), ])
+    # suite = unittest.TestSuite([SchedulingNodeFunctions_TC('test_HlsNetNodeWriteBackedge_full'), ])
     suite = testLoader.loadTestsFromTestCase(SchedulingNodeFunctions_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

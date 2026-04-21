@@ -408,7 +408,7 @@ class HwtHlsNetlistToGraphviz():
             # if it is edge crossing time windows exclude it from ordering of the graph
             # because stage clusters already have ordering edges
             # if obj.scheduledZero is not None and shadow_dst.scheduledZero is not None:
-            #    if obj.scheduledZero // clkPeriod != shadow_dst.scheduledZero // clkPeriod:
+            #    if obj.getFirstSchedZeroClkI() != shadow_dst.getFirstSchedZeroClkI():
             #        # attrs["weight"] = 0
             #        attrs["constraint"] = False
 

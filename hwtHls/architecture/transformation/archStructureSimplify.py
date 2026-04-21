@@ -67,14 +67,14 @@ class HlsArchPassArchStructureSimplify(HlsArchPass):
                         w = n.associatedWrite
                         if w is not None:
                             w: HlsNetNodeWrite
-                            wClkI = w.scheduledZero // clkPeriod
+                            wClkI = w.getFirstSchedZeroClkI()
                             if clkI == wClkI and w._getBufferCapacity() == 0:
                                 # this would deadlock
                                 return False
                     elif isinstance(n, HlsNetNodeWrite):
                         r = n.associatedRead
                         if r is not None:
-                            rClkI = r.scheduledZero // clkPeriod
+                            rClkI = r.getFirstSchedZeroClkI()
                             if clkI == rClkI and n._getBufferCapacity() == 0:
                                 # this would deadlock
                                 return False

@@ -24,24 +24,37 @@ class HlsNetNodeDelayClkTick(HlsNetNode):
                  dtype: HdlType,
                  clkCnt: int,
                  normalizedOutDelay: SchedTime=0,
-                 name:str=None):
+                 name:str=None,
+                 isAllowedInFFStoreTime:bool=False):
         HlsNetNode.__init__(self, netlist, name=name)
         assert clkCnt >= 0, clkCnt
         self._clkCnt = clkCnt
         self._outputWireDelay = normalizedOutDelay
         self._addInput(None)
         self._addOutput(dtype, None)
+        self.isAllowedInFFStoreTime = isAllowedInFFStoreTime
 
     @override
     def resolveRealization(self):
-        self.assignRealization(OpRealizationMeta(0, 0, self._outputWireDelay, self._clkCnt))
+        isMulticlock = self._clkCnt > 0
+        op = OpRealizationMeta(
+            inputClkTickOffset=0,
+            inputWireDelay=0,
+            outputWireDelay=self._outputWireDelay,
+            outputClkTickOffset=max(0, self._clkCnt - 1),  # -1 because 0 means in next clock
+            isAllowedInFFStoreTime=isMulticlock or self.isAllowedInFFStoreTime,
+            isMulticlock=isMulticlock)
+        self.assignRealization(op)
 
     @override
     def scheduleAlapCompaction(self,
                                endOfLastClk: SchedTime,
                                outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter],
                                excludeNode: Optional[Callable[[HlsNetNode], bool]]):
-        return HlsNetNode.scheduleAlapCompactionMultiClock(self, endOfLastClk, outputMinUseTimeGetter, excludeNode)
+        if self.isMulticlock:
+            return HlsNetNode.scheduleAlapCompactionMultiClock(self, endOfLastClk, outputMinUseTimeGetter, excludeNode)
+        else:
+            return HlsNetNode.scheduleAlapCompaction(self, endOfLastClk, outputMinUseTimeGetter, excludeNode)
 
     @override
     def rtlAlloc(self, allocator:"ArchElement"):
@@ -68,7 +81,7 @@ class HlsNetNodeDelayClkTick(HlsNetNode):
         for i, t in enumerate(times):
             raise NotImplementedError()
             d = self.__class__(self.netlist, dtype)
-            self.parent._addNodeIntoScheduled(d.scheduledZero // self.netlist.normalizedClkPeriod, d)
+            self.parent._addNodeIntoScheduled(d.getFirstSchedZeroClkI(), d)
             last = d
         return len(times) > 1
 

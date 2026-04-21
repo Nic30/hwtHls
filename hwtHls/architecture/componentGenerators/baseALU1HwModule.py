@@ -132,35 +132,58 @@ class _BaseALU1HwModule(HwModule):
                     if n.src is self.data_in:
                         assert not inSeen, self
                         t = min(n.scheduledOut)
-                        inputWireDelay = min(inputWireDelay, t % clkPeriod)
-                        inputClkTickOffset = min(inputClkTickOffset, t // clkPeriod)
+                        inputWireDelay = min(inputWireDelay, t % clkPeriod)  # min distance from clk begin
+                        inputClkTickOffset = min(inputClkTickOffset, t // clkPeriod)  # first clk window with input
                         inSeen = True
 
                 elif isinstance(n, HlsNetNodeWrite):
                     if n.dst is self.data_out:
                         assert not outSeen, self
                         t = max(n.scheduledIn)
-                        outputWireDelay = max(outputWireDelay, t % clkPeriod)
-                        outputClkTickOffset = max(outputClkTickOffset, t // clkPeriod)
+                        outputWireDelay = max(outputWireDelay, t % clkPeriod)  # max distance from clk begin
+                        outputClkTickOffset = max(outputClkTickOffset, t // clkPeriod)  # last clk window with input
                         outSeen = True
+
         assert inSeen, self
         assert outSeen, self
         assert isinstance(inputClkTickOffset, int), (self, inputClkTickOffset)
+        isMulticlock = inputClkTickOffset != 0 or outputClkTickOffset != 0 or outputWireDelay < inputWireDelay
+        if isMulticlock:
+            if inputWireDelay == 0:
+                inputClkTickOffset = -1
+                ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
+                inputWireDelay = ffdelay
+            else:
+                inputWireDelay = clkPeriod - inputWireDelay  # distance from clk end
+
+            # :note: offset is substracted to have node scheduledZero inside of node
+            clkOffset = min(inputClkTickOffset, outputClkTickOffset)
+            outputClkTickOffset -= clkOffset
+            inputClkTickOffset -= clkOffset
+            outputClkTickOffset -= 1  # because 0 represents next clock
+            assert inputWireDelay < clkPeriod, self
+            assert outputWireDelay < clkPeriod, self
+        else:
+            assert inputWireDelay <= outputWireDelay, (self, inputWireDelay, outputWireDelay)
+            inputWireDelay = outputWireDelay - inputWireDelay
+            outputWireDelay = 0  # distance from clk end
 
         hlsOpRealizationMetaAsSeenFromInside = ComponentRealizationMeta(
             inputClkTickOffset=inputClkTickOffset,
             inputWireDelay=inputWireDelay * timeResolution,
             outputWireDelay=outputWireDelay * timeResolution,
             outputClkTickOffset=outputClkTickOffset,
+            isMulticlock=isMulticlock,
             requiresInValid=not isFullyUnrolled,
             mayGenerateInStall=not isFullyUnrolled,
             mayGenerateOutStall=not isFullyUnrolled
         )
         hlsOpRealizationMetaAsSeenFromOutside: ComponentRealizationMeta = copy(hlsOpRealizationMetaAsSeenFromInside)
-        if not isFullyUnrolled and inputClkTickOffset == 0 and outputClkTickOffset == 0:
+        if not isFullyUnrolled and inputClkTickOffset == 0 and outputClkTickOffset == -1:
+            assert isMulticlock, self
             # +1 because the output is in fist clk, but after n iterations
             # and thus data_in read and data_out write can not happen at once
-            hlsOpRealizationMetaAsSeenFromOutside.inputClkTickOffset = 1
+            hlsOpRealizationMetaAsSeenFromOutside = hlsOpRealizationMetaAsSeenFromOutside.mutated(outputClkTickOffset=0)
             # :attention: Inside and Outside realization may be different
             # because in parent the port of this component may be used earlier
             # if the input and output happen in same clock and the implementation

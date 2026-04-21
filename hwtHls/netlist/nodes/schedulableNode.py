@@ -7,7 +7,7 @@ from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.observableList import ObservableList
 from hwtHls.netlist.scheduler.clk_math import clkWindowIndex, \
-    clkWindowOffsetFromWindowBegin, clkWindowBeginOfNext, clkWindowEnd, SchedTime, \
+    clkWindowBeginOfNext, clkWindowEnd, SchedTime, \
     SchedTime_format, clkWindowOffsetFromWindowEnd
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
@@ -27,6 +27,10 @@ class SchedulableNode():
     :attention: scheduledZero time is used to cheaply detect that the scheduling of the node has changed.
         This time should not be used to resolve when the node is scheduled and port times should be used instead.
         Because it is not guaranteed to have any specific value.
+        
+        
+    :note: if isMulticlock=True the scheduledZero is set to begin of clk window after 
+        where inputs with inputClkTickOffset=0 are (= clkWindow where outputs with outputClkTickOffset=0 are)
     :ivar scheduledIn: a time when the input is scheduled
     :ivar scheduledOut: a time when the output is scheduled
     """
@@ -67,7 +71,7 @@ class SchedulableNode():
 
         assert self.scheduledIn is not None, self
         assert self.scheduledOut is not None, self
-        checkNotInFfStoreTime = self.realization is not None and self.realization.mayBeInFFStoreTime
+        checkNotInFfStoreTime = self.realization is not None and not self.realization.isAllowedInFFStoreTime
         netlist = self.netlist
         ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
         clkPeriod = netlist.normalizedClkPeriod
@@ -79,11 +83,22 @@ class SchedulableNode():
             assert dep.obj.scheduledOut is not None, (self, dep.obj)
             oT = dep.obj.scheduledOut[dep.out_i]
             assert isinstance(oT, SchedTime), (dep, oT)
-            assert iT >= oT, (oT, iT, "Input must be scheduled after connected output port.", dep, "->", i)
+            assert iT >= oT, (oT, SchedTime_format(oT, clkPeriod), iT, SchedTime_format(iT, clkPeriod), "Input must be scheduled after connected output port.", dep, "->", i)
             assert iT >= 0, (iT, self, i, "Scheduled before start of the time.")
             assert oT >= 0, (oT, dep, "Scheduled before start of the time.")
             if checkNotInFfStoreTime:
-                assert abs(iT % clkPeriod) <= usableClkWindow, self
+                try:
+                    assert abs(iT % clkPeriod) <= usableClkWindow, (self, i, iT % clkPeriod, iT, clkPeriod)
+                except:
+                    raise
+        for o, oT, users in zip_longest(self._outputs, self.scheduledOut, self.usedBy):
+            for u in users:
+                uSched = u.obj.scheduledIn
+                if uSched is None:
+                    continue  # not scheduled yet
+                iT = uSched[u.in_i]
+                assert iT >= oT, (oT, SchedTime_format(oT, clkPeriod), iT, SchedTime_format(iT, clkPeriod), self, u)
+
         if checkNotInFfStoreTime:
             for o, oT in zip(self._outputs, self.scheduledOut):
                 assert abs(oT % clkPeriod) <= usableClkWindow, (o, oT, clkPeriod, ffdelay, abs(oT % clkPeriod), usableClkWindow)
@@ -123,40 +138,37 @@ class SchedulableNode():
             for out_delay in self.outputWireDelay
         )
 
+        # maxOutputLatency = max(self.outputWireDelay, default=0)
+        # if not self.isAllowedInFFStoreTime:
+        #    netlist = self.netlist
+        #    clkPeriod = netlist.normalizedClkPeriod
+        #    ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
+        #    if clkWindowOffsetFromWindowEnd(self.scheduledZero, clkPeriod) < ffdelay + maxOutputLatency:
+        #        raise AssertionError()
+
     def _setScheduleZeroTimeMultiClock(self, t: SchedTime, clkPeriod: SchedTime, epsilon: SchedTime, ffdelay: SchedTime):
+        """
+        :note: the t (scheduledZero) is a time of the "middle" of the node
+        """
         assert isinstance(t, SchedTime), t
         assert self.scheduledZero != t, (self, t, "If time is the same this is useless to call")
+        assert t % clkPeriod == 0, (self, t, clkPeriod)
+
         if self.scheduledZeroMin is not None:
             assert t >= self.scheduledZeroMin, (self, t, '>=', self.scheduledZeroMin)
         if self.scheduledZeroMax is not None:
             assert t < self.scheduledZeroMax, (self, t, '<', self.scheduledZeroMax)
 
-        inTime = self._scheduleAlapCompactionMultiClockInTime
+        clkI = clkWindowIndex(t, clkPeriod)
         self.scheduledIn = tuple(
-            inTime(t, clkPeriod, iTicks, epsilon, ffdelay) - iDelay
+            (clkI - iTicks) * clkPeriod - iDelay - epsilon
             for (iDelay, iTicks) in zip(self.inputWireDelay, self.inputClkTickOffset)
         )
         self.scheduledZero = t
-        outTime = self._scheduleAlapCompactionMultiClockOutTime
         self.scheduledOut = tuple(
-            outTime(t, clkPeriod, oTicks) + oDelay
+            (clkI + oTicks) * clkPeriod + oDelay
             for (oDelay, oTicks) in zip(self.outputWireDelay, self.outputClkTickOffset)
         )
-
-    @staticmethod
-    def _scheduleAlapCompactionMultiClockInTime(time: SchedTime, clkPeriod: SchedTime, ticks: int, epsilon: SchedTime, ffDelay: SchedTime):
-        if ticks == 0:
-            return time  # was checked that this does not cross clk boundary
-        else:
-            # if this we subtract the clock periods and we end up at the end of clk, from there we alo need to subtract wire delay, etc
-            return (clkWindowIndex(time, clkPeriod) - ticks + 1) * clkPeriod - epsilon - ffDelay
-
-    @staticmethod
-    def _scheduleAlapCompactionMultiClockOutTime(time: SchedTime, clkPeriod: SchedTime, ticks: int):
-        if ticks == 0:
-            return time
-        else:
-            return (clkWindowIndex(time, clkPeriod) + ticks) * clkPeriod
 
     @staticmethod
     def _schedulerJumpToPrevCycleIfRequired(time: Union[float, SchedTime], requestedTime: SchedTime,
@@ -169,39 +181,51 @@ class SchedulableNode():
             requestedTime = prevClkEndTime - timeSpacingBeforeClkEnd
         elif requestedTime > prevClkEndTime + clkPeriod - timeSpacingBeforeClkEnd:
             # must shift because current requested time is in timeSpacingBeforeClkEnd
-            requestedTime = prevClkEndTime - timeSpacingBeforeClkEnd
+            requestedTime = prevClkEndTime + clkPeriod - timeSpacingBeforeClkEnd
 
         return requestedTime
 
-    @staticmethod
-    def _schedulerGetNormalizedTimeForInput(availableInTime: SchedTime, inWireLatency: SchedTime,
-                                            inputClkTickOffset: SchedTime, clkPeriod: SchedTime,
-                                            ffdelay: SchedTime, mayBeInFFStoreTime: bool):
-        """
-        :param availableInTime: time when all dependencies of input are available
-        :param inWireLatency: time which must be available before clock cycle
-        :param inputClkTickOffset: number of clock cycles between clock cycle where this input is and where node zero time is
-        :param clkPeriod: normalized clock period
-        :param ffdelay: normalized time of register store operation
-        :param mayBeginInFFStoreTime: if true the input time may be at the end of clock window in FF store time
-
-        :return: normalized time of where node zero time is according this input
-        """
-        if mayBeInFFStoreTime and inWireLatency == 0 and inputClkTickOffset == 0:
-            return availableInTime
-
-        nextClkTime = (clkWindowIndex(availableInTime, clkPeriod) + 1) * clkPeriod
-        timeBudget = nextClkTime - availableInTime - (0 if mayBeInFFStoreTime else ffdelay)
-
-        if inWireLatency > timeBudget:
-            availableInTime = nextClkTime
-
-        # [fixme] in_cycles is not used correctly
-        normalizedTime = (availableInTime
-                          +inWireLatency
-                          +inputClkTickOffset * clkPeriod)
-        return normalizedTime
-
+    # @staticmethod
+    # def _schedulerGetNormalizedTimeForInput(availableInTime: SchedTime, inWireLatency: SchedTime,
+    #                                        inputClkTickOffset: SchedTime, clkPeriod: SchedTime,
+    #                                        ffdelay: SchedTime, isAllowedInFFStoreTime: bool):
+    #    """
+    #    Returns the "scheduledZero" inferred from the time where input is available and its scheduling props.
+    #    :note: This computes only for 1 input and ingnores outputs.
+    #
+    #    :param availableInTime: time when all dependencies of input are available
+    #    :param inWireLatency: time which must be available before clock cycle
+    #    :param inputClkTickOffset: number of clock cycles between clock cycle where this input is and where node zero time is
+    #    :param clkPeriod: normalized clock period
+    #    :param ffdelay: normalized time of register store operation
+    #    :param mayBeginInFFStoreTime: if true the input time may be at the end of clock window in FF store time
+    #
+    #    :return: normalized time of where node zero time is according this input
+    #    """
+    #    if isAllowedInFFStoreTime and inWireLatency == 0 and inputClkTickOffset == 0:
+    #        return availableInTime
+    #
+    #    nextClkTime = (clkWindowIndex(availableInTime, clkPeriod) + 1) * clkPeriod
+    #    timeBudget = nextClkTime - availableInTime
+    #
+    #    if isAllowedInFFStoreTime:
+    #        requiredUntilClkEnd = inWireLatency
+    #    else:
+    #        requiredUntilClkEnd = max(inWireLatency, ffdelay)
+    #
+    #    if inputClkTickOffset != 0:
+    #        if requiredUntilClkEnd > timeBudget:
+    #            inputClkTickOffset += 1
+    #        # snapping to next clk window begin
+    #        return nextClkTime + inputClkTickOffset * clkPeriod
+    #    else:
+    #        if requiredUntilClkEnd > timeBudget:
+    #            # does not fit to this clock cycle -> move at the begining of the next
+    #            return nextClkTime + inWireLatency
+    #        else:
+    #            # delay of input fits well to this clock cycles
+    #            return availableInTime + inWireLatency
+    #
     def _scheduledZeroApplyLimits(self, newNodeZeroTime: SchedTime, allowEarlier:bool, allowLater:bool):
         zeroTimeMin = self.scheduledZeroMin
         if zeroTimeMin is not None and newNodeZeroTime < zeroTimeMin:
@@ -220,6 +244,65 @@ class SchedulableNode():
                                 "Impossible scheduling, zeroTimeMax specifies <=", zeroTimeMax,
                                 " but the best node can do is ", newNodeZeroTime, self)
         return newNodeZeroTime
+
+    def getFirstSchedZeroClkI(self):
+        assert self.scheduledZero is not None, self
+        if self._inputs:
+            minT = min(self.scheduledIn)
+        else:
+            minT = self.scheduledZero
+
+        return minT // self.netlist.normalizedClkPeriod
+
+    def _getSchedResourceClkI(self, scheduledZero: SchedTime):
+        return clkWindowIndex(scheduledZero, self.netlist.normalizedClkPeriod) - (1 if self.isMulticlock else 0)
+
+    def getSchedResourceClkI(self):
+        """
+        Get clk window index used where the schedulable resource used by this node is allocated
+        """
+        return self._getSchedResourceClkI(self.scheduledZero)
+
+    def _scheduleAsap_ScheduledZero_fromInSchedule(self,
+                                                  availableInTime: SchedTime,
+                                                  inWireLatency: SchedTime,
+                                                  inputClkTickOffset: int,
+                                                  requiredForOutputTime: SchedTime,
+                                                  ffdelay: SchedTime):
+        clkPeriod = self.netlist.normalizedClkPeriod
+        if inWireLatency + requiredForOutputTime >= clkPeriod:
+            raise TimeConstraintError(
+                "Impossible scheduling, clkPeriod too low for ",
+                self.inputWireDelay, self.outputWireDelay, "clkPeriod:", clkPeriod, self)
+        # normalizedTime = self._schedulerGetNormalizedTimeForInput(
+        #    availableInTime, inWireLatency, 0, clkPeriod, ffdelay,
+        #    isAllowedInFFStoreTime)
+        isAllowedInFFStoreTime = self.isAllowedInFFStoreTime
+        if isAllowedInFFStoreTime and inWireLatency == 0 and inputClkTickOffset == 0:
+            return availableInTime
+        else:
+            nextClkTime = (clkWindowIndex(availableInTime, clkPeriod) + 1) * clkPeriod
+            timeBudget = nextClkTime - availableInTime
+
+            if isAllowedInFFStoreTime:
+                requiredUntilClkEnd = inWireLatency
+            elif self._outputs:
+                requiredUntilClkEnd = inWireLatency + requiredForOutputTime
+            else:
+                requiredUntilClkEnd = max(inWireLatency, ffdelay)
+
+            if inputClkTickOffset != 0:
+                if requiredUntilClkEnd > timeBudget:
+                    inputClkTickOffset += 1
+                # snapping to next clk window begin
+                return nextClkTime + inputClkTickOffset * clkPeriod
+            else:
+                if requiredUntilClkEnd > timeBudget:
+                    # does not fit to this clock cycle -> move at the begining of the next
+                    return nextClkTime + inWireLatency
+                else:
+                    # delay of input fits well to this clock cycles
+                    return availableInTime + inWireLatency
 
     def scheduleAsap(self, pathForDebug: Optional[SetList["HlsNetNode"]],
                      beginOfFirstClk: SchedTime,
@@ -242,6 +325,7 @@ class SchedulableNode():
                     else:
                         pathForDebug.append(self)
                 try:
+                    # :note: all inputs must be scheduled first before
                     if outputTimeGetter is None:
                         inputTimes = (d.obj.scheduleAsap(pathForDebug, beginOfFirstClk, None)[d.out_i]
                                        for d in self.dependsOn)
@@ -253,25 +337,53 @@ class SchedulableNode():
                     # now we have times when the value is available on input
                     # and we must resolve the minimal time so each input timing constraints are satisfied
                     nodeZeroTime = beginOfFirstClk
-                    mayBeInFFStoreTime = self.realization.mayBeInFFStoreTime
-                    offsetDueOutputTime = 0 if self.isMulticlock or not self.outputWireDelay else max(self.outputWireDelay)
-                    for (availableInTime, inWireLatency, inputClkTickOffset) in zip(inputTimes,
-                                                                                    self.inputWireDelay,
-                                                                                    self.inputClkTickOffset):
-                        if inWireLatency + offsetDueOutputTime >= clkPeriod:
-                            raise TimeConstraintError(
-                                "Impossible scheduling, clkPeriod too low for ",
-                                self.inputWireDelay, self.outputWireDelay, "clkPeriod:", self)
-                        normalizedTime = self._schedulerGetNormalizedTimeForInput(
-                            availableInTime, inWireLatency, inputClkTickOffset, clkPeriod, ffdelay,
-                            mayBeInFFStoreTime)
+                    isAllowedInFFStoreTime = self.realization.isAllowedInFFStoreTime
+                    if self.isMulticlock:
+                        zeroClkI = clkWindowIndex(nodeZeroTime, clkPeriod)
+                        # :note: -1 because zeroClkI was the index of clock after
+                        # clock window where inputs with inputClkTickOffset=0 are
+                        zeroClkI -= 1
 
-                        if normalizedTime >= nodeZeroTime:
-                            nodeZeroTime = normalizedTime
+                        for (availableInTime, inWireLatency, inputClkTickOffset) in zip(inputTimes,
+                                                                                        self.inputWireDelay,
+                                                                                        self.inputClkTickOffset):
+                            if inWireLatency >= clkPeriod:
+                                raise TimeConstraintError(
+                                    "Impossible scheduling, clkPeriod too low for ",
+                                    self.inputWireDelay, self.outputWireDelay, "clkPeriod:", self)
+                            inClkBudget = clkWindowOffsetFromWindowEnd(availableInTime, clkPeriod)
+                            zeroClkIFromThisIn = clkWindowIndex(availableInTime, clkPeriod) + inputClkTickOffset
+                            if inClkBudget < inWireLatency:
+                                # first clk can not be mapped to same clock cycle window where the connected
+                                # out is
+                                zeroClkIFromThisIn += 1
 
-                    if not self.isMulticlock and nodeZeroTime + offsetDueOutputTime > clkWindowEnd(nodeZeroTime, clkPeriod) - (0 if mayBeInFFStoreTime else ffdelay):
-                        # if the output delay does not fit to current clock, move this node to next clock
-                        nodeZeroTime = clkWindowBeginOfNext(nodeZeroTime, clkPeriod) + max(self.inputWireDelay)
+                            if zeroClkI < zeroClkIFromThisIn:
+                                # must schedule at later time if any input requires it
+                                zeroClkI = zeroClkIFromThisIn
+
+                        nodeZeroTime = (zeroClkI + 1) * clkPeriod
+                    else:
+                        requiredForOutputTime = 0 if not self.outputWireDelay else max(self.outputWireDelay)
+                        if not isAllowedInFFStoreTime:
+                            if self.outputWireDelay:
+                                requiredForOutputTime += ffdelay
+
+                        for (availableInTime, inWireLatency, inputClkTickOffset) in zip(inputTimes,
+                                                                                        self.inputWireDelay,
+                                                                                        self.inputClkTickOffset):
+                            assert inputClkTickOffset == 0, self
+                            newZeroTime = self._scheduleAsap_ScheduledZero_fromInSchedule(
+                                availableInTime, inWireLatency, inputClkTickOffset, requiredForOutputTime, ffdelay)
+                            if newZeroTime > nodeZeroTime:
+                                nodeZeroTime = newZeroTime
+
+                        if not self._inputs:
+                            if nodeZeroTime + requiredForOutputTime > clkWindowEnd(nodeZeroTime, clkPeriod):
+                                # if the output delay does not fit to current clock, move this node to next clock
+                                nodeZeroTime = clkWindowBeginOfNext(nodeZeroTime, clkPeriod)
+                                if self.inputWireDelay:
+                                    nodeZeroTime += max(self.inputWireDelay)
 
                 finally:
                     if pathForDebug is not None:
@@ -304,7 +416,7 @@ class SchedulableNode():
         if self.isMulticlock:
             yield from self.scheduleAlapCompactionMultiClock(endOfLastClk, outputMinUseTimeGetter, excludeNode)
             return
-        self.checkScheduling()
+        # self.checkScheduling()
         # assert not self.isMulticlock, (self, "this node should use scheduleAlapCompactionMultiClock instead")
         # assert self.usedBy, ("Compaction should be called only for nodes with dependencies, others should be moved only manually", self)
         netlist = self.netlist
@@ -350,6 +462,11 @@ class SchedulableNode():
                 nodeZeroTime = min(nodeZeroTime, oZeroT)
 
         maxOutputLatency = max(self.outputWireDelay, default=0)
+        if not self.isAllowedInFFStoreTime:
+            if clkWindowOffsetFromWindowEnd(self.scheduledZero, clkPeriod) < ffdelay + maxOutputLatency:
+                raise TimeConstraintError("Node was already scheduled on wrong time, end overlaps to ffstore time",
+                                          clkWindowOffsetFromWindowEnd(self.scheduledZero, clkPeriod), ffdelay, maxOutputLatency, self)
+
         if isfinite(nodeZeroTime):
             maxInDelay = max(self.inputWireDelay, default=0)
             # we have to check if every input has enough time for its delay
@@ -374,9 +491,6 @@ class SchedulableNode():
                     ), (self.scheduledZero, "->", nodeZeroTime, self)
 
             if self.scheduledZero is not None and self.scheduledZero > nodeZeroTime:
-                if clkWindowOffsetFromWindowEnd(self.scheduledZero, clkPeriod) < ffdelay + maxOutputLatency:
-                    raise TimeConstraintError("Node was already scheduled on wrong time, end overlaps to ffstore time",
-                                              clkWindowOffsetFromWindowEnd(self.scheduledZero, clkPeriod), ffdelay, maxOutputLatency, self)
                 # this can happen if successor nodes were packed inefficiently in previous cycles and it moved this node.
                 # We can not move this node because it would potentially move whole circuit which would eventually result
                 # in an endless cycle in scheduling
@@ -408,49 +522,51 @@ class SchedulableNode():
         ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
         clkPeriod = netlist.normalizedClkPeriod
         epsilon = netlist.scheduler.epsilon
+        isAllowedInFFStoreTime = self.realization.isAllowedInFFStoreTime
         if not self._outputs or not any(self.usedBy):
             # no outputs, we must use some ASAP input time and move to end of the clock
             assert self._inputs, (self, "Node must have at least some port.")
-            nodeZeroTime = endOfLastClk - ffdelay - epsilon
-
+            nodeZeroTime = endOfLastClk + epsilon
         else:
             # move back in time to satisfy all output timing requirements
-            nodeZeroTime = inf
+            nodeZeroClkI = inf
             for out, uses, oDelay, oTicks in zip(self._outputs,
                                                  self.usedBy,
                                                  self.outputWireDelay,
                                                  self.outputClkTickOffset):
                 # find earliest time where this output is used
-                if uses:
-                    oT = inf
-                    if uses:
-                        for dependentIn in uses:
-                            dependentIn: HlsNetNodeIn
-                            iT = dependentIn.obj.scheduledIn[dependentIn.in_i]
-                            oT = min(oT, iT - oDelay)
+                oT = inf
+                for dependentIn in uses:
+                    dependentIn: HlsNetNodeIn
+                    iT = dependentIn.obj.scheduledIn[dependentIn.in_i]
+                    oT = min(oT, iT)
 
-                        if oTicks:
-                            # resolve nodeZeroTime as a latest time in this clock cycle - oTicks
-                            oT = (clkWindowIndex(oT, clkPeriod) + 1 - oTicks) * clkPeriod - ffdelay - epsilon
-                else:
-                    # the port is unused we must first check other outputs
-                    oT = inf
                 if outputMinUseTimeGetter is not None:
                     oT = outputMinUseTimeGetter(out, oT)
-                nodeZeroTime = min(nodeZeroTime, oT)
+                if oT is inf:
+                    continue
+
+                clkBudget = clkWindowOffsetFromWindowEnd(oT, clkPeriod)
+                if isAllowedInFFStoreTime:
+                    clkBudget -= ffdelay
+                clkI = clkWindowIndex(oT, clkPeriod) - oTicks
+                if clkBudget < oDelay:
+                    clkI -= 1
+                nodeZeroClkI = min(nodeZeroClkI, clkI)
+
+            nodeZeroTime = nodeZeroClkI * clkPeriod
 
             assert isfinite(nodeZeroTime), (self, "Must be finite because we already checked that there is some use.")
-            # we have to check if every input has enough time for its delay
-            # and optionally move this node to previous clock cycle
+            # the node input times are anchored to end of clk window
+            # if there is not enough time for iDelay it means that schedule is not possible
             for iDelay in self.inputWireDelay:
                 if iDelay + ffdelay >= clkPeriod:
                     raise TimeConstraintError(
                         "Impossible scheduling, clkPeriod too low for ",
                         self.inputWireDelay, self.outputWireDelay, self)
-                inTime = nodeZeroTime - iDelay
-                nodeZeroTime = self._schedulerJumpToPrevCycleIfRequired(nodeZeroTime, inTime, clkPeriod, ffdelay - epsilon) + iDelay
 
         nodeZeroTime = self._scheduledZeroApplyLimits(nodeZeroTime, True, False)
+        nodeZeroTime = (nodeZeroTime // clkPeriod) * clkPeriod
         if nodeZeroTime > self.scheduledZero:
             self._setScheduleZeroTimeMultiClock(nodeZeroTime, clkPeriod, epsilon, ffdelay)
             for dep in self.dependsOn:
@@ -459,7 +575,10 @@ class SchedulableNode():
     def scheduleAsapCompaction(self, beginOfFirstClk: SchedTime, outputTimeGetter:Optional[OutputTimeGetter]) -> \
             Generator["HlsNetNode", None, None]:
         outTimes = self.scheduledOut
-        zeroTime = self.scheduledZero
+        zeroClkI = self.getSchedResourceClkI()
+        origSchedZero = self.scheduledZero
+        origIsMulticlock = self.isMulticlock
+
         # self.checkScheduling()
         schedule = {}
         self.copyScheduling(schedule)
@@ -470,7 +589,13 @@ class SchedulableNode():
             return
         # for prevOT, curOT, o in zip(outTimes, self.scheduledOut, self._outputs):
         #    assert prevOT >= curOT, ("asap compact", o, prevOT, "->", curOT)
-        assert self.scheduledZero <= zeroTime, ("asap compact", self, zeroTime, "->", self.scheduledZero)
+
+        assert self.getSchedResourceClkI() <= zeroClkI, (
+            "asap compact", self, zeroClkI, "->", self.getSchedResourceClkI(),
+            (origIsMulticlock, origSchedZero, SchedTime_format(origSchedZero, self.netlist.normalizedClkPeriod)), "->",
+            (self.isMulticlock, self.scheduledZero, SchedTime_format(self.scheduledZero, self.netlist.normalizedClkPeriod)),
+            'clkPeriod:', self.netlist.normalizedClkPeriod)
+
         # self.checkScheduling()
         if outTimes != self.scheduledOut:
             for uses in self.usedBy:
@@ -567,3 +692,17 @@ class SchedulableNode():
     def splitOnClkWindows(self):
         assert not self.isMulticlock, ("This node class does not have clock splitting implemented", self)
         return False
+
+
+def HlsNetNodeOut_getMaxUseTime(rPort: HlsNetNodeOut) -> Optional[SchedTime]:
+    uses = rPort.obj.usedBy[rPort.out_i]
+    maxUseTime = None
+    for u in uses:
+        u: HlsNetNodeIn
+        t = u.obj.scheduledIn[u.in_i]
+        if maxUseTime is None:
+            maxUseTime = t
+        else:
+            maxUseTime = max(maxUseTime, t)
+
+    return maxUseTime

@@ -479,8 +479,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
         HlsNetNodeExplicitSync.checkScheduling(self)
         resourceType = self.getSchedulingResourceType()
         if resourceType is not None:
-            clkPeriod = self.netlist.normalizedClkPeriod
-            clkI = clkWindowIndex(self.scheduledZero, clkPeriod)
+            clkI = self.getSchedResourceClkI()
             assert self.netlist.scheduler.resourceUsage[clkI].get(resourceType, None) is not None, (
                 self, clkI, self.netlist.scheduler.resourceUsage)
 
@@ -488,34 +487,29 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
     def resetScheduling(self):
         scheduledZero = self.scheduledZero
         if scheduledZero is None:
-            return  # already restarted
+            return  # already not scheduled
         resourceType = self.getSchedulingResourceType()
         if resourceType is not None:
-            clkPeriod = self.netlist.normalizedClkPeriod
-            self.netlist.scheduler.resourceUsage.removeUse(resourceType, clkWindowIndex(scheduledZero, clkPeriod))
+            self.netlist.scheduler.resourceUsage.removeUse(resourceType, self.getSchedResourceClkI())
         HlsNetNodeExplicitSync.resetScheduling(self)
 
     @override
     def setScheduling(self, schedule:SchedulizationDict):
         resourceUsage = self.netlist.scheduler.resourceUsage
         resourceType = self.getSchedulingResourceType()
-        if resourceType is not None:
-            clkPeriod = self.netlist.normalizedClkPeriod
-
-            if self.scheduledZero is not None:
-                resourceUsage.removeUse(resourceType, clkWindowIndex(self.scheduledZero, clkPeriod))
+        if resourceType is not None and self.scheduledZero is not None:
+            resourceUsage.removeUse(resourceType, self.getSchedResourceClkI())
 
         HlsNetNodeExplicitSync.setScheduling(self, schedule)
         if resourceType is not None:
-            self.netlist.scheduler.resourceUsage.addUse(resourceType, clkWindowIndex(self.scheduledZero, clkPeriod))
+            self.netlist.scheduler.resourceUsage.addUse(resourceType, self.getSchedResourceClkI())
 
     @override
     def moveSchedulingTime(self, offset: SchedTime):
-        clkPeriod = self.netlist.normalizedClkPeriod
-        originalClkI = clkWindowIndex(self.scheduledZero, clkPeriod)
+        originalClkI = self.getSchedResourceClkI()
         HlsNetNode.moveSchedulingTime(self, offset)
 
-        curClkI = clkWindowIndex(self.scheduledZero, clkPeriod)
+        curClkI = self.getSchedResourceClkI()
         if originalClkI != curClkI:
             resourceType = self.getSchedulingResourceType()
             self.netlist.scheduler.resourceUsage.moveUse(resourceType, originalClkI, curClkI)
@@ -548,13 +542,14 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             #            self.allocationType == CHANNEL_ALLOCATION_TYPE.REG:
             #        r.scheduleAsap(pathForDebug, beginOfFirstClk, outputTimeGetter)
             #        minTime = clkWindowBeginOfNext(r.scheduledZero, clkPeriod)
+            curClkI = self.getSchedResourceClkI()
             if minTime is not None and scheduledZero < minTime:
                 scheduledZero = minTime
                 t = minTime
+                curClkI = max(minTime // clkPeriod, curClkI)
             else:
                 t = None
 
-            curClkI = scheduledZero // clkPeriod
             resourceType = self.getSchedulingResourceType()
             scheduler = netlist.scheduler
             epsilon = scheduler.epsilon
@@ -588,7 +583,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
         scheduler = netlist.scheduler
         clkPeriod = netlist.normalizedClkPeriod
         resourceType = self.getSchedulingResourceType()
-        originalClkI = clkWindowIndex(originalTimeZero, clkPeriod)
+        originalClkI = self.getSchedResourceClkI()
         epsilon = scheduler.epsilon
         ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, scheduler.resolution)
 
@@ -610,15 +605,14 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             pass
 
         scheduledZero = self.scheduledZero
+        curClkI = self.getSchedResourceClkI()
         if maxTime is not None and maxTime < scheduledZero:
-            scheduledZero = maxTime
             t = maxTime
-            if not self.realization.mayBeInFFStoreTime:
+            curClkI = self._getSchedResourceClkI(t)
+            if not self.realization.isAllowedInFFStoreTime:
                 t -= ffdelay
         else:
             t = None
-
-        curClkI = clkWindowIndex(scheduledZero, clkPeriod)
 
         if resourceType is not None:
             if originalClkI != curClkI:

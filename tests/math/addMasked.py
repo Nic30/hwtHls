@@ -229,7 +229,9 @@ class HlsNetNodeOperatorAddMasked(HlsNetNodeOperator):
                         assert i == 1, i
                         o = stateIn
                     else:
+                        assert prevNode.operator in (OP_ADD_MASKED, OP_ADD_MASKED_FRAGMENT), prevNode
                         o = prevNode._addOutput(stateT, None)
+
                 i = newNode._addInput(None)
                 o.connectHlsIn(i)
 
@@ -242,7 +244,7 @@ class HlsNetNodeOperatorAddMasked(HlsNetNodeOperator):
             prevNode.assignRealization(prevRealization)
             prevNode._setScheduleZeroTimeSingleClock(prevSchedZero)
             assert prevNode.scheduledZero >= 0, prevNode
-            clkI = prevNode.scheduledZero // clkPeriod
+            clkI = prevNode.getFirstSchedZeroClkI()
             for iTime in prevNode.scheduledIn:
                 assert iTime // clkPeriod == clkI, (iTime, clkI)
             for oTime in prevNode.scheduledIn:
@@ -250,7 +252,7 @@ class HlsNetNodeOperatorAddMasked(HlsNetNodeOperator):
 
             if prevNode is not self:
                 # can not yeld self because it would duplicate self in the parent
-                parent._addNodeIntoScheduled(prevNode.scheduledZero // clkPeriod, prevNode, allowNewClockWindow=True)
+                parent._addNodeIntoScheduled(prevNode.getFirstSchedZeroClkI(), prevNode, allowNewClockWindow=True)
             # now prevNode is placed in parent based on scheduling
 
             prevNode = newNode
@@ -258,9 +260,16 @@ class HlsNetNodeOperatorAddMasked(HlsNetNodeOperator):
             prevSchedZero = schedZero
 
         # connect top output and reoslve scheduling for last layer
-        o = prevNode._addOutput(stateT, None)
+        if prevNode.operator in (OP_ADD_MASKED, OP_ADD_MASKED_FRAGMENT):
+            o = prevNode._addOutput(stateT, None)
+        else:
+            o = prevNode._outputs[0]
         prevNode.assignRealization(prevRealization)
         prevNode._setScheduleZeroTimeSingleClock(prevSchedZero)
+        if prevNode is not self:
+            # can not yeld self because it would duplicate self in the parent
+            parent._addNodeIntoScheduled(prevNode.getFirstSchedZeroClkI(), prevNode, allowNewClockWindow=True)
+        
         for u in outUsers:
             u: HlsNetNodeIn
             o.connectHlsIn(u)
@@ -410,10 +419,12 @@ class AddMaskedComponentGenerator(ComponentGeneratorForHardBlock):
                 if r.fitsIntoSingleClockWindow():
                     # addin next layer of adders would cross the clock boundary
                     rOut = r
-                    rOut.inputWireDelay += r.outputWireDelay
+                    rOut = rOut.mutated(inputWireDelay=r.inputWireDelay + r.outputWireDelay)
 
-                rOut.outputWireDelay = rAdd.inputWireDelay + rAdd.outputWireDelay
-                rOut.outputClkTickOffset += 1
+                rOut = rOut.mutated(outputWireDelay=rAdd.inputWireDelay + rAdd.outputWireDelay,
+                                    outputClkTickOffset=rOut.outputClkTickOffset + 1,
+                                    isMulticlock=True,
+                                    )
                 beginTime = rOut.outputClkTickOffset * clkPeriod
 
             r = rOut

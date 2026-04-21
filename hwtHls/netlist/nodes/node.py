@@ -131,6 +131,9 @@ class HlsNetNode(SchedulableNode):
         self.scheduledOut = None
 
     def getHlsNetlistBuilder(self) -> "HlsNetlistBuilder":
+        """
+        Get builder which construct the nodes on same level as this node is (in the parent)
+        """
         p = self.parent
         if p is None:
             return self.netlist.builder
@@ -145,7 +148,7 @@ class HlsNetNode(SchedulableNode):
 
     def getParentSyncNode(self) -> Tuple["ArchElement", int]:
         assert self.parent is not None
-        return self.parent, self.scheduledZero // self.netlist.normalizedClkPeriod
+        return self.parent, self.getFirstSchedZeroClkI()
 
     def tryToInheritName(self, other: Self):
         if self.name is None and other.name is None:
@@ -153,6 +156,106 @@ class HlsNetNode(SchedulableNode):
 
     def getInputDtype(self, index: int) -> HdlType:
         return self.dependsOn[index]._dtype
+
+    def iterInDepNodes(self, unique=False):
+        if unique:
+            seen = set()
+            for dep in self.dependsOn:
+                if dep.obj in seen:
+                    continue
+                seen.add(dep.obj)
+                yield dep.obj
+        else:
+            for dep in self.dependsOn:
+                yield dep.obj
+
+    def iterOutUserNodes(self, unique=False):
+        if unique:
+            seen = set()
+            for uses in self.usedBy:
+                for u in uses:
+                    if u.obj in seen:
+                        continue
+                    seen.add(u.obj)
+                    yield u.obj
+        else:
+            for uses in self.usedBy:
+                for u in uses:
+                    yield u.obj
+
+    def _addInput(self, name: Optional[str], addDefaultScheduling=False,
+                  inputClkTickOffset:int=0, inputWireDelay:int=0) -> HlsNetNodeIn:
+        if not self.isMulticlock:
+            assert inputClkTickOffset == 0, self
+
+        r = self.realization
+        if addDefaultScheduling:
+            if r is not None:
+                self.inputClkTickOffset = _tupleAppend(self.inputClkTickOffset, inputClkTickOffset)
+                self.inputWireDelay = _tupleAppend(self.inputWireDelay, inputWireDelay)
+                if self.scheduledIn is not None:
+                    netlist = self.netlist
+                    clkPeriod = netlist.normalizedClkPeriod
+                    schedZero = self.scheduledZero
+                    if self.isMulticlock:
+                        time = (schedZero - inputClkTickOffset * clkPeriod)
+                        time -= netlist.scheduler.epsilon
+                        if not r.isAllowedInFFStoreTime:
+                            ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
+                            inputWireDelay = max(inputWireDelay, ffdelay)
+
+                    else:
+                        assert clkWindowOffsetFromWindowBegin(schedZero, clkPeriod) >= inputWireDelay, (
+                            clkWindowOffsetFromWindowBegin(schedZero, clkPeriod), inputWireDelay,
+                            schedZero, clkPeriod)
+                        time = schedZero
+
+                    time -= inputWireDelay
+                    self.scheduledIn = _tupleAppend(self.scheduledIn, time)
+        else:
+            assert r is None, self
+
+        i = HlsNetNodeIn(self, len(self._inputs), name)
+        self._inputs.append(i)
+        self.dependsOn.append(None)
+        return i
+
+    def _addOutput(self, t: HdlType, name: Optional[str], addDefaultScheduling=False,
+                   outputClkTickOffset:int=0, outputWireDelay:int=0) -> HlsNetNodeOut:
+        if not self.isMulticlock:
+            assert outputClkTickOffset == 0, self
+        realization = self.realization
+        if addDefaultScheduling:
+            if self.realization is not None:
+                self.outputClkTickOffset = _tupleAppend(self.outputClkTickOffset, outputClkTickOffset)
+                self.outputWireDelay = _tupleAppend(self.outputWireDelay, outputWireDelay)
+                if self.scheduledOut is not None:
+                    netlist = self.netlist
+                    clkPeriod = netlist.normalizedClkPeriod
+                    if self.isMulticlock:
+                        time = self.scheduledZero + outputClkTickOffset * clkPeriod + outputWireDelay
+                    else:
+                        time = self.scheduledZero + outputWireDelay
+                        assert clkWindowIndex(time, clkPeriod) == clkWindowIndex(self.scheduledZero, clkPeriod), (
+                            "output time should not cross clk window boundary", self, name, time, clkPeriod)
+
+                    if not realization.isAllowedInFFStoreTime:
+                        ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
+                        try:
+                            assert time <= clkWindowBeginOfNext(time, clkPeriod) - ffdelay, (
+                                "time should not collide with ff store time",
+                                self, name, t, time, clkPeriod, ffdelay, outputWireDelay, self.isMulticlock)
+                        except:
+                            raise
+                    self.scheduledOut = _tupleAppend(self.scheduledOut, time)
+        else:
+            assert realization is None, self
+            assert self.scheduledOut is None, self
+
+        o = HlsNetNodeOut(self, len(self._outputs), t, name)
+        self._outputs.append(o)
+        self.usedBy.append([])
+        return o
 
     def _removeInput(self, index: int):
         """
@@ -186,63 +289,88 @@ class HlsNetNode(SchedulableNode):
             if self.scheduledOut is not None:
                 self.scheduledOut = _tupleWithoutItemOnIndex(self.scheduledOut, index)
 
-    def _addInput(self, name: Optional[str], addDefaultScheduling=False,
-                  inputClkTickOffset:int=0, inputWireDelay:int=0) -> HlsNetNodeIn:
-        if addDefaultScheduling:
-            if self.realization is not None:
-                self.inputClkTickOffset = _tupleAppend(self.inputClkTickOffset, inputClkTickOffset)
-                self.inputWireDelay = _tupleAppend(self.inputWireDelay, inputWireDelay)
-                if self.scheduledIn is not None:
-                    netlist = self.netlist
-                    clkPeriod = netlist.normalizedClkPeriod
-                    schedZero = self.scheduledZero
-                    if inputClkTickOffset == 0:
-                        assert clkWindowOffsetFromWindowBegin(schedZero, clkPeriod) >= inputWireDelay, (
-                            clkWindowOffsetFromWindowBegin(schedZero, clkPeriod), inputWireDelay,
-                            schedZero, clkPeriod)
-                        time = schedZero
-                    else:
-                        if self.realization.mayBeInFFStoreTime:
-                            epsilon = 0
-                            ffdelay = 0
-                        else:
-                            ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
-                            epsilon = netlist.scheduler.epsilon
-                        time = self._scheduleAlapCompactionMultiClockInTime(self.scheduledZero, netlist.normalizedClkPeriod,
-                                                                             inputClkTickOffset, epsilon, ffdelay)
-                    time -= inputWireDelay
-                    self.scheduledIn = _tupleAppend(self.scheduledIn, time)
-        else:
-            assert self.realization is None, self
-
-        i = HlsNetNodeIn(self, len(self._inputs), name)
-        self._inputs.append(i)
-        self.dependsOn.append(None)
-        return i
-
-    def _addOutput(self, t: HdlType, name: Optional[str], addDefaultScheduling=False,
-                   outputClkTickOffset:int=0, outputWireDelay:int=0) -> HlsNetNodeOut:
-        if addDefaultScheduling:
-            if self.realization is not None:
-                self.outputClkTickOffset = _tupleAppend(self.outputClkTickOffset, outputClkTickOffset)
-                self.outputWireDelay = _tupleAppend(self.outputWireDelay, outputWireDelay)
-                if self.scheduledOut is not None:
-                    time = self._scheduleAlapCompactionMultiClockOutTime(self.scheduledZero,
-                                                                         self.netlist.normalizedClkPeriod,
-                                                                         outputClkTickOffset)
-                    time += outputWireDelay
-                    self.scheduledOut = _tupleAppend(self.scheduledOut, time)
-        else:
-            assert self.realization is None, self
-
-        o = HlsNetNodeOut(self, len(self._outputs), t, name)
-        self._outputs.append(o)
-        self.usedBy.append([])
-        return o
-
     def filterNodesUsingSet(self, removed: Set[Self], recursive=False, clearRemoved=False):
         assert not self._isMarkedRemoved, self
         assert self not in removed, self
+
+    def convertSchedulingToMultiClockNotation(self):
+        """
+        For scheduling notations see :class:`OpRealizationMeta`
+        :attention: realization OpRealizationMeta object itself is not modified
+        """
+        assert not self.isMulticlock, self
+        clkPeriod = self.netlist.normalizedClkPeriod
+        zeroClkI = None
+        if self.scheduledZero is not None:
+            zeroClkI = clkWindowIndex(self.scheduledZero, clkPeriod)
+        else:
+            # We do not know where exactly in clk window this will be positioned and thus we can not resolve
+            # a delays from clk window bounaries for multiclock notation
+            raise AssertionError("Can not convert unscheduled to multi clock notation because "
+                                 "there is no reference point thus result would be ambiguous", self)
+
+        if self._inputs:
+            # to have input times with inputClkTickOffset >= 0
+            # (exact location of zero should not matter but it may makes some delay/tickOffsets negative)
+            zeroClkI += 1
+
+        newScheduledZero = zeroClkI * clkPeriod
+        schedZero = self.scheduledZero
+        oldR: OpRealizationMeta = self.realization
+
+        rInputWireDelay = oldR.inputWireDelay
+        schedResolution = self.netlist.scheduler.resolution
+        if self.inputWireDelay:
+            scheduledIn = self.scheduledIn
+            if scheduledIn is None:
+                scheduledIn = tuple(schedZero - t for t in self.inputWireDelay)  # distance from clkEnd
+            self.inputWireDelay = tuple(newScheduledZero - t for t in scheduledIn)
+
+            rInputWireDelay = tuple(clkWindowOffsetFromWindowEnd(t, clkPeriod) * schedResolution for t in scheduledIn)
+            t0 = rInputWireDelay[0]
+            if isinstance(oldR.inputWireDelay, RealTime) and all(t == t0 for t in rInputWireDelay):
+                # optionally reduce to just a single RealTime if all times are same and original
+                # realization was also a single time
+                rInputWireDelay = t0
+
+        rOutputWireDelay = oldR.outputWireDelay
+        rOutputClkTickOffset = oldR.outputClkTickOffset
+        if self.outputWireDelay:
+            scheduledOut = self.scheduledOut
+            if scheduledOut is None:
+                if self._inputs:
+                    schedZeroPrev = schedZero - clkPeriod
+                else:
+                    schedZeroPrev = schedZero
+
+                scheduledOut = tuple(t - schedZeroPrev for t in self.outputWireDelay)  # distance from clkBegin
+            self.outputWireDelay = tuple(newScheduledZero - t for t in scheduledOut)
+            rOutputWireDelay = tuple(clkWindowOffsetFromWindowBegin(t, clkPeriod) * schedResolution for t in scheduledOut)
+            t0 = rOutputWireDelay[0]
+            if isinstance(oldR.inputWireDelay, RealTime) and all(t == t0 for t in rOutputWireDelay):
+                # optionally reduce to just a single RealTime if all times are same and original
+                # realization was also a single time
+                rOutputWireDelay = t0
+
+            if self._inputs:
+                rOutputClkTickOffset = tuple(-1 for _ in range(len(self.outputClkTickOffset)))
+            else:
+                rOutputClkTickOffset = tuple(0 for _ in range(len(self.outputClkTickOffset)))
+            self.outputClkTickOffset = rOutputClkTickOffset
+
+            t0 = rOutputClkTickOffset[0]
+            if isinstance(oldR.outputClkTickOffset, int) and all(t == t0 for t in rOutputClkTickOffset):
+                # optionally reduce to just a single int if all times are same and original
+                # realization was also a single time
+                rOutputWireDelay = t0
+
+        # the schedule of node will now snap to clk window boundaries
+        self.scheduledZero = zeroClkI * clkPeriod
+        self.isMulticlock = True
+        self.realization = oldR.mutated(inputWireDelay=rInputWireDelay,
+                                        outputWireDelay=rOutputWireDelay,
+                                        outputClkTickOffset=rOutputClkTickOffset,
+                                        isMulticlock=True)
 
     def deleteRealization(self):
         self.realization = None
@@ -259,7 +387,7 @@ class HlsNetNode(SchedulableNode):
         self.inputClkTickOffset = HlsNetNode_numberForEachInput(self, r.inputClkTickOffset)
         if self.inputClkTickOffset:
             for c in self.inputClkTickOffset:
-                assert c >= 0 and c >= self.inputClkTickOffset[0]
+                assert c >= 0 and c >= self.inputClkTickOffset[0], (self, self.inputClkTickOffset)
 
         self.inputWireDelay = HlsNetNode_numberForEachInputNormalized(self, r.inputWireDelay, schedulerResolution)
         if self.inputWireDelay:
@@ -268,7 +396,10 @@ class HlsNetNode(SchedulableNode):
 
         self.outputWireDelay = HlsNetNode_numberForEachOutputNormalized(self, r.outputWireDelay, schedulerResolution)
         self.outputClkTickOffset = HlsNetNode_numberForEachOutput(self, r.outputClkTickOffset)
-        self.isMulticlock = any(self.inputClkTickOffset) or any(self.outputClkTickOffset)
+        self.isMulticlock = r.isMulticlock
+        if not self.isMulticlock:
+            assert not any(self.inputClkTickOffset) or not any(self.outputClkTickOffset), self
+        self.isAllowedInFFStoreTime = r.isAllowedInFFStoreTime
         iCnt = len(self._inputs)
         assert len(self.inputWireDelay) == iCnt
         assert len(self.inputClkTickOffset) == iCnt

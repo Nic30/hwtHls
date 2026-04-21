@@ -40,8 +40,7 @@ class HlsArchPassChannelReduceUselessValid(HlsArchPass):
         if not w._isBlocking:
             return False
 
-        clkPeriod = w.netlist.normalizedClkPeriod
-        if w.scheduledZero // clkPeriod != r.scheduledZero // clkPeriod:
+        if w.getFirstSchedZeroClkI() != r.getFirstSchedZeroClkI():
             if not isinstance(r.parent, ArchElementFsm):
                 return False  # both read and write must be in same clock or it can not be active at once
 

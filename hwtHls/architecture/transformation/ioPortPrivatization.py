@@ -160,7 +160,7 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
                 if not isLast:
                     wDataMuxCases.append(req)
 
-            n.assignRealization(OpRealizationMeta(mayBeInFFStoreTime=True))
+            n.assignRealization(OpRealizationMeta(isAllowedInFFStoreTime=True))
             n._setScheduleZeroTimeSingleClock(0)
             arbiterElm._addNodeIntoScheduled(0, n, allowNewClockWindow=True)
             if isReadWithoutReady:
@@ -180,7 +180,7 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
         else:
             newIoNode = HlsNetNodeWrite(netlist, ioProxy, ioPort, mayBecomeFlushable=False)
 
-        newIoNode.assignRealization(OpRealizationMeta(mayBeInFFStoreTime=True))
+        newIoNode.assignRealization(OpRealizationMeta(isAllowedInFFStoreTime=True))
         newIoNode._setScheduleZeroTimeSingleClock(0)
         arbiterElm._addNodeIntoScheduled(0, newIoNode)
         if not isReadWithoutReady:
@@ -198,7 +198,7 @@ class HlsArchPassIoPortPrivatization(HlsArchPass):
 
         for n in arbiterElm.subNodes:
             if n.scheduledZero is None:
-                n.assignRealization(OpRealizationMeta(mayBeInFFStoreTime=True))
+                n.assignRealization(OpRealizationMeta(isAllowedInFFStoreTime=True))
                 n._setScheduleZeroTimeSingleClock(0)
                 arbiterElm._addNodeIntoScheduled(0, n)
 

@@ -78,7 +78,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
 
         if isinstance(n, HlsNetNodeAggregatePortOut):
             if termPropagationCtx is not None:
-                k = ArchSyncNodeTerm((n.parent, n.scheduledZero // n.netlist.normalizedClkPeriod), n.dependsOn[0], None)
+                k = ArchSyncNodeTerm((n.parent, n.getFirstSchedZeroClkI()), n.dependsOn[0], None)
                 termPropagationCtx.exportedPorts.pop(k, None)
             builder.unregisterNode(n)
             disconnectAllInputs(n, worklist)

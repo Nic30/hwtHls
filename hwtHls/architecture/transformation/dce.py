@@ -2,6 +2,8 @@ from itertools import chain
 from typing import Sequence, Optional
 
 from hwt.pyUtils.setList import SetList
+from hwtHls.architecture.transformation.utils.termPropagationContext import ArchElementTermPropagationCtx, \
+    ArchSyncNodeTerm
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.aggregatePorts import HlsNetNodeAggregatePortOut, \
@@ -12,8 +14,6 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.transformation.simplify import HlsNetlistPassSimplify
 from hwtHls.netlist.transformation.simplifyUtils import addAllUsersToWorklist
-from hwtHls.architecture.transformation.utils.termPropagationContext import ArchElementTermPropagationCtx, \
-    ArchSyncNodeTerm
 
 
 def HlsNetNodeAggregate_allSubNodesRemoved(elm: HlsNetNodeAggregate):
@@ -36,7 +36,7 @@ def HlsNetNodeAggregateDCE(elm: HlsNetNodeAggregate, worklist: SetList[HlsNetNod
 
         if not users:
             if termPropagationCtx is not None:
-                k = ArchSyncNodeTerm((elm, oInside.scheduledZero // clkPeriod), depInside, None)
+                k = ArchSyncNodeTerm((elm, oInside.getFirstSchedZeroClkI()), depInside, None)
                 termPropagationCtx.exportedPorts.pop(k, None)
 
             worklist.append(depInside.obj)
@@ -47,7 +47,6 @@ def HlsNetNodeAggregateDCE(elm: HlsNetNodeAggregate, worklist: SetList[HlsNetNod
         elif isinstance(depInside.obj, HlsNetNodeConst):
             # propagate constant to user arch elements
             srcConstNode: HlsNetNodeConst = depInside.obj
-            clkPeriod = elm.netlist.normalizedClkPeriod
             for u in users:
                 uNode = u.obj
                 assert isinstance(uNode, ArchElement), u
@@ -55,7 +54,7 @@ def HlsNetNodeAggregateDCE(elm: HlsNetNodeAggregate, worklist: SetList[HlsNetNod
                 replacement = uNode.builder.buildConst(srcConstNode.val, srcConstNode.name)
                 replacement.obj.resolveRealization()
                 replacement.obj._setScheduleZeroTimeSingleClock(uInsideInp.scheduledZero)
-                uNode._addNodeIntoScheduled(uInsideInp.scheduledZero // clkPeriod, replacement.obj)
+                uNode._addNodeIntoScheduled(uInsideInp.getFirstSchedZeroClkI(), replacement.obj)
                 addAllUsersToWorklist(worklist, uInsideInp)
                 uNode.builder.replaceOutput(uInsideInp._outputs[0], replacement, True, False)
                 worklist.append(uNode)
@@ -68,7 +67,7 @@ def HlsNetNodeAggregateDCE(elm: HlsNetNodeAggregate, worklist: SetList[HlsNetNod
             continue
         if not iInside.usedBy[0]:
             if termPropagationCtx is not None:
-                k = ArchSyncNodeTerm((elm, iInside.scheduledZero // clkPeriod), dep, None)
+                k = ArchSyncNodeTerm((elm, iInside.getFirstSchedZeroClkI()), dep, None)
                 termPropagationCtx.importedPorts.pop(k, None)
 
             worklist.append(dep.obj)

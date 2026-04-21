@@ -95,7 +95,7 @@ def alapSchedulePartlyScheduled(o: HlsNetNodeOut,
             n1._setScheduleZeroTimeSingleClock(endOfLastClk)
 
         if n1.parent is not None:
-            n1.parent._addNodeIntoScheduled(n1.scheduledZero // clkPeriod, n1, allowNewClockWindow=allowNewClockWindow)
+            n1.parent._addNodeIntoScheduled(n1.getFirstSchedZeroClkI(), n1, allowNewClockWindow=allowNewClockWindow)
 
         for dep, inT in zip(n1.dependsOn, n1.scheduledIn):
             dep: HlsNetNodeOut

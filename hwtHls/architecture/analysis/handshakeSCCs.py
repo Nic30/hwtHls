@@ -147,9 +147,21 @@ def sortIoByOffsetInClkWindow(neighborDict: ArchSyncNeighborDict,
         # collect all external IOs
         reads, writes = nodeIo[n]
         for r in reads:
-            allIo.append((r.scheduledZero, r, n, ReadOrWriteType.R))
+            t = r.scheduledZero
+            if r.isMulticlock:
+                if r._inputs:
+                    t -= min(r.scheduledIn)
+                elif r._outputs:
+                    t += min(r.scheduledOut)
+
+            allIo.append((t, r, n, ReadOrWriteType.R))
         for w in writes:
-            allIo.append((w.scheduledZero, w, n, ReadOrWriteType.W))
+            w: HlsNetNodeWrite
+            t = w.scheduledZero
+            if w.isMulticlock:
+                if w._inputs:
+                    t -= min(w.scheduledIn)
+            allIo.append((t, w, n, ReadOrWriteType.W))
 
         _neighbors = neighborDict.get(n, None)
         if _neighbors is None:
@@ -168,6 +180,8 @@ def sortIoByOffsetInClkWindow(neighborDict: ArchSyncNeighborDict,
                             ioTy = ReadOrWriteType.CHANNEL_W
                             assert isinstance(chPort, HlsNetNodeWrite), chPort
 
+                        if chPort.isMulticlock:
+                            raise NotImplementedError(chPort)
                         timeOff = clkWindowOffsetFromWindowBegin(chPort.scheduledZero, clkPeriod)
                         allIo.append((timeOff, chPort, n, ioTy))
 
@@ -181,6 +195,8 @@ def sortIoByOffsetInClkWindow(neighborDict: ArchSyncNeighborDict,
                             ioTy = ReadOrWriteType.CHANNEL_R
                             assert isinstance(otherChPort, HlsNetNodeRead), chPort
 
+                        if otherChPort.isMulticlock:
+                            raise NotImplementedError(otherChPort)
                         timeOff = clkWindowOffsetFromWindowBegin(otherChPort.scheduledZero, clkPeriod)
                         allIo.append((timeOff, otherChPort, otherNode, ioTy))
             else:
@@ -193,6 +209,8 @@ def sortIoByOffsetInClkWindow(neighborDict: ArchSyncNeighborDict,
                         ioTy = ReadOrWriteType.W
                         assert isinstance(chPort, HlsNetNodeWrite), chPort
 
+                    if chPort.isMulticlock:
+                        raise NotImplementedError(chPort)
                     timeOff = clkWindowOffsetFromWindowBegin(chPort.scheduledZero, clkPeriod)
                     allIo.append((timeOff, chPort, n, ioTy))
 

@@ -47,7 +47,7 @@ def replaceHlsNetNodeWithExpression(n: HlsNetNodeOperator,
     assert len(n._outputs) == 1, n
     parent: ArchElement = n.parent
     netlist = n.netlist
-    clkI = n.scheduledZero // netlist.normalizedClkPeriod
+    clkI = n.getFirstSchedZeroClkI()
     newlyScheduledNodes = asapSchedulePartlyScheduled(newO, newNodeTypeCheckFn, beginOfFirstClk=n.scheduledIn[0])
     assert newNodeCnt is None or len(newlyScheduledNodes) == newNodeCnt, newlyScheduledNodes
     for newNode in newlyScheduledNodes:

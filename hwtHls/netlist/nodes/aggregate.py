@@ -71,21 +71,27 @@ class HlsNetNodeAggregate(HlsNetNode):
 
     @override
     def _addOutput(self, t:HdlType, name:Optional[str], time:Optional[SchedTime]=None) -> tuple[HlsNetNodeOut, HlsNetNodeIn]:
-        outputClkTickOffset: int = 0
-        outputWireDelay: int = 0
         if time is None:
+            outputClkTickOffset: int = 0
+            outputWireDelay: int = 0
             assert self.scheduledZero is None, self
         else:
             assert self.scheduledZero is not None
             schedZero = self.scheduledZero
             clkPeriod = self.netlist.normalizedClkPeriod
-            outputClkTickOffset = clkWindowIndex(time, clkPeriod) - clkWindowIndex(schedZero, clkPeriod)
-            if outputClkTickOffset == 0:
-                # schedZero is an offset in current clock window
-                outputWireDelay = clkWindowOffsetFromWindowBegin(time, clkPeriod) - clkWindowOffsetFromWindowBegin(schedZero, clkPeriod)
-            else:
+            newOClkI = clkWindowIndex(time, clkPeriod)
+            outputClkTickOffset = newOClkI - clkWindowIndex(schedZero, clkPeriod)
+            if not self.isMulticlock and outputClkTickOffset != 0:
+                self.convertSchedulingToMultiClockNotation()
+                schedZero = self.scheduledZero
+                outputClkTickOffset = newOClkI - clkWindowIndex(schedZero, clkPeriod)
+
+            if self.isMulticlock:
                 # schedZero is not important because start is from the beginning of selected clock window
                 outputWireDelay = clkWindowOffsetFromWindowBegin(time, clkPeriod)
+            else:
+                # schedZero is an offset in current clock window
+                outputWireDelay = time - schedZero
 
         o = HlsNetNode._addOutput(self, t, name, addDefaultScheduling=time is not None,
                                   outputClkTickOffset=outputClkTickOffset,
@@ -105,24 +111,35 @@ class HlsNetNodeAggregate(HlsNetNode):
 
     @override
     def _addInput(self, t:HdlType, name:Optional[str], time:Optional[SchedTime]=None) -> tuple[HlsNetNodeIn, HlsNetNodeOut]:
-        inputClkTickOffset: int = 0
-        inputWireDelay: int = 0
+        """
+        :param time: optional time when the port should be scheduled
+        """
         schedZero = self.scheduledZero
         if time is None:
+            inputClkTickOffset: int = 0
+            inputWireDelay: int = 0
             assert schedZero is None
         else:
             assert schedZero is not None
-            assert self.realization.mayBeInFFStoreTime, self
+            assert self.realization.isAllowedInFFStoreTime, self
             netlist = self.netlist
             clkPeriod = netlist.normalizedClkPeriod
-            inputClkTickOffset = clkWindowIndex(schedZero, clkPeriod) - clkWindowIndex(time, clkPeriod)
-            if inputClkTickOffset == 0:
+            newIClkI = clkWindowIndex(time, clkPeriod)
+            inputClkTickOffset = -(newIClkI - clkWindowIndex(schedZero, clkPeriod))
+            if not self.isMulticlock and inputClkTickOffset != 0:
+                self.convertSchedulingToMultiClockNotation()
+                # +1 because in with clkTick=0 is in -1 clk window
+                newIClkI += 1
+                schedZero = self.scheduledZero
+                inputClkTickOffset = -(newIClkI - clkWindowIndex(schedZero, clkPeriod))
+
+            if self.isMulticlock:
+                # remaining until end of clk,
+                inputWireDelay = newIClkI * clkPeriod - time
+                inputWireDelay -= netlist.scheduler.epsilon
+            else:
                 # under normal circumstances where input is scheduled before scheduledZero time < schedZero
                 inputWireDelay = schedZero - time
-            else:
-                inputWireDelay = (
-                    (clkPeriod - clkWindowOffsetFromWindowBegin(time, clkPeriod))  # remaining until end of clk
-                )
 
         i = HlsNetNode._addInput(self, name, addDefaultScheduling=time is not None,
                                  inputClkTickOffset=inputClkTickOffset,
@@ -182,13 +199,17 @@ class HlsNetNodeAggregate(HlsNetNode):
     def copyScheduling(self, schedule: SchedulizationDict):
         for n in self.subNodes:
             n.copyScheduling(schedule)
-        schedule[self] = (self.scheduledZero, self.scheduledIn, self.scheduledOut)
+        schedule[self] = (self.scheduledZero, self.scheduledIn, self.scheduledOut, self.realization)
 
     @override
     def setScheduling(self, schedule: SchedulizationDict):
         for n in self.subNodes:
             n.setScheduling(schedule)
-        (self.scheduledZero, self.scheduledIn, self.scheduledOut) = schedule[self]
+        (self.scheduledZero, self.scheduledIn, self.scheduledOut, r) = schedule[self]
+        if r is not None:
+            self.assignRealization(r)
+        else:
+            self.deleteRealization()
 
     @override
     def moveSchedulingTime(self, offset: SchedTime):
@@ -282,10 +303,11 @@ class HlsNetNodeAggregate(HlsNetNode):
                                           outputMinUseTimeGetter: Optional[OutputMinUseTimeGetter],
                                           excludeNode: Optional[Callable[[HlsNetNode], bool]]):
         """
-        Run ALAP scheduling for all submodes including HlsNetNodeAggregatePortOut nodes.
+        Run ALAP scheduling for all subNodes including HlsNetNodeAggregatePortOut nodes.
         """
         toSearch: deque[HlsNetNode] = deque()
         toSearchSet: set[HlsNetNode] = set()
+        # collect primary outputs from output ports
         for oPort in self._outputsInside:
             assert len(oPort.dependsOn) == 1, oPort
             node = oPort.dependsOn[0].obj
@@ -293,6 +315,7 @@ class HlsNetNodeAggregate(HlsNetNode):
                 toSearch.append(node)
                 toSearchSet.add(node)
 
+        # collect all potential primary outputs from subNodes which may be potentially unconnected
         for node in self.subNodes:
             node: HlsNetNode
             if isinstance(node, HlsNetNodeAggregate) or (
@@ -303,6 +326,7 @@ class HlsNetNodeAggregate(HlsNetNode):
                     toSearch.append(node)
                     toSearchSet.add(node)
 
+        # process circuit from primary outputs to primary inputs
         while toSearch:
             node0: HlsNetNode = toSearch.popleft()
             toSearchSet.remove(node0)

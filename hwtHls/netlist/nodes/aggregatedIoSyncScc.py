@@ -148,7 +148,7 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregateTmpForScheduling):
         # if move failed move -1 clk if fails again it is not possible to move and original scheduling must be restored
         while True:
             # move all outputs to same time as most constraining port
-            endCurClk = (minClkI + 1) * clkPeriod - ffdelay
+            endCurClk = (minClkI + 1) * clkPeriod# - ffdelay
             # for oPort in self._outputsInside:
             #    oPort: HlsNetNodeAggregatePortOut
             #    if oPort.scheduledZero is None or oPort.scheduledZero > endCurClk:
@@ -181,8 +181,8 @@ class HlsNetNodeIoSyncScc(HlsNetNodeAggregateTmpForScheduling):
                 self.copySchedulingFromChildren()
                 #self.checkScheduling()
 
-                scheduledZero, scheduledIn, scheduledOut = origSchedule[self]
-                if self.scheduledZero != scheduledZero or self.scheduledIn != scheduledIn or self.scheduledOut != scheduledOut:
+                scheduledZero, scheduledIn, scheduledOut, r = origSchedule[self]
+                if self.scheduledZero != scheduledZero or self.scheduledIn != scheduledIn or self.scheduledOut != scheduledOut or self.realization != r:
                     for dep in self.dependsOn:
                         yield dep.obj
                 return

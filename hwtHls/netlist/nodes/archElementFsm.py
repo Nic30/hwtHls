@@ -148,31 +148,43 @@ class ArchElementFsm(ArchElement):
 
         if not tir.persistenceRanges:
             # if value persistenceRanges were not discovered yet
-            peristentFromThisClk = False
+            # The first clock behind this clock period and the rest is persistent in this register
+            persistentFromClkI = clkWindowIndex(tir.timeOffset, clkPeriod) + 1
             if isinstance(outOrTime, HlsNetNodeOut):
                 node = outOrTime.obj
+                lastUseClkI = None
+                for u in node.usedBy[outOrTime.out_i]:
+                    assert u.obj.scheduledIn is not None, ("Node is not scheduled", u.obj)
+                    useClkI = u.obj.scheduledIn[u.in_i] // clkPeriod
+                    if lastUseClkI is None:
+                        lastUseClkI = useClkI
+                    else:
+                        lastUseClkI = max(lastUseClkI, useClkI)
+
                 if isinstance(node, HlsNetNodeRead) and node._isBlocking:
                     w = node.associatedWrite
-                    if w is not None and w.allocationType == CHANNEL_ALLOCATION_TYPE.REG:
-                        wClkI = w.scheduledZero // clkPeriod
-                        for u in node.usedBy[outOrTime.out_i]:
-                            if u.obj.scheduledOut[u.in_i] // clkPeriod > wClkI:
-                                raise NotImplementedError("Use after write, need to create reg for copy of current val")
-                        peristentFromThisClk = True
+                    if w is not None and w.allocationType == CHANNEL_ALLOCATION_TYPE.REG and w.isBackedge():
+                        wClkI = w.getFirstSchedZeroClkI()
+                        if lastUseClkI > wClkI:
+                            raise NotImplementedError("Use after write, need to create reg for copy of current val,"
+                                                      " because current reg will be updated", w)
+                    #    persistentFromClkI += 1
+                    if lastUseClkI is not None:
+                        _endClkI = lastUseClkI
 
                 elif isinstance(node, HlsNetNodeWrite) and node.allocationType == CHANNEL_ALLOCATION_TYPE.REG:
-                    r = node.associatedRead
-                    if r is not None and r.parent is self:
-                        peristentFromThisClk = True
+                    # r = node.associatedRead
+                    #if r is not None and r.parent is self:
+                    #    persistentFromClkI += 1
+                    if lastUseClkI is not None:
+                        _endClkI = lastUseClkI
 
-            # value for the first clock behind this clock period and the rest is persistent in this register
-            persistentFromClkI = clkWindowIndex(tir.timeOffset, clkPeriod)
-            if not peristentFromThisClk:
-                persistentFromClkI += 1
             if persistentFromClkI <= _endClkI:
+                # if value lives more than 1 clk window
                 tir.markPersistent(persistentFromClkI, _endClkI)
 
-            self.connections.getForTime(tir.timeOffset).signals.append(tir.valuesInTime[0])
+            con: ConnectionsOfStage = self.connections.getForTime(tir.timeOffset)
+            con.signals.append(tir.valuesInTime[0])
 
         return tir
 
@@ -297,13 +309,20 @@ class ArchElementFsm(ArchElement):
             nextClkI = next(usedClks, None)
             con: ConnectionsOfStage
             assert con is not None, ("If state is used there must be ConnectionsOfStage object for this clock window", self, clkI)
+            stateChangeDependentDrives = con.stateChangeDependentDrives
             if nextClkI is not None:
                 for curV in con.signals:
                     curV: TimeIndependentRtlResourceItem
+                    vParent: TimeIndependentRtlResource = curV.parent
+                    if vParent._isInPersistenceRanges(clkI) and vParent._isInPersistenceRanges(nextClkI):
+                        # the value is not captured on transition from clkI -> nextClkI
+                        continue
                     # if the value has a register at the end of this stage
-                    nextStVal = curV.parent.checkIfExistsInClockCycle(nextClkI)
+                    nextStVal: Optional[TimeIndependentRtlResourceItem] = vParent.checkIfExistsInClockCycle(nextClkI)
                     if nextStVal is not None and nextStVal.isRltRegister() and not nextStVal in seenRegs:
-                        con.stateChangeDependentDrives.append(nextStVal.data._rtlNextSig._rtlDrivers[0])
+                        regDriver = nextStVal.data._rtlNextSig._rtlDrivers[0]
+                        assert regDriver.parentStm is None, (curV, regDriver, regDriver.parentStm)
+                        stateChangeDependentDrives.append(regDriver)
                         seenRegs.add(nextStVal)
 
             # unconditionalTransSeen = False
@@ -352,8 +371,6 @@ class ArchElementFsm(ArchElement):
             #        if c is None:
             #            c = True
             #        inStateTrans.append((c, stReg(self.stateEncoding[dstStI])))
-
-            stateChangeDependentDrives = con.stateChangeDependentDrives
 
             if stateAck is not None:
                 # if stateAck is not always satisfied create parent if to load registers conditionally

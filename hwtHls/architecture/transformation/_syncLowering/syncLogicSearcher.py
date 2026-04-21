@@ -170,7 +170,9 @@ class SyncLogicSearcher():
                     if w.isBackedge():
                         # if this is a backedge and the value is used after write, there must be a copy
                         # to keep original values for later code
-                        wClkI = w.scheduledZero // clkPeriod
+                        wClkI = w.getFirstSchedZeroClkI()
+                        if w.isMulticlock:
+                            wClkI -= 1
                         if clkI > wClkI:
                             _clkI = wClkI + 1
                             while not elm.hasUsedStateForClkI(_clkI):  # skip unused clock windows

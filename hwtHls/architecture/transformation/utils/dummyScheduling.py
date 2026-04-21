@@ -30,7 +30,7 @@ def setUnscheduledNodeRealizationToCombForSyncLogic(n: HlsNetNode):
     """
     assert isinstance(n, HlsNetNodeConst) or (
     isinstance(n, HlsNetNodeOperator) and n.operator in _OPERATOS_POTENTIALLY_GENERATED_DURING_SYNC_OPT), n
-    n.assignRealization(OpRealizationMeta(mayBeInFFStoreTime=True))
+    n.assignRealization(OpRealizationMeta(isAllowedInFFStoreTime=True))
     return True
 
 

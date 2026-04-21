@@ -33,7 +33,7 @@ def netlistNormalizeConstToRhs(n: HlsNetNodeOperator, worklist: SetList[HlsNetNo
                 newN._setScheduleZeroTimeSingleClock(n.scheduledZero)
             else:
                 newN._setScheduleZeroTimeSingleClock(n.scheduledZero)
-            n.parent._addNodeIntoScheduled(n.scheduledZero // n.netlist.normalizedClkPeriod, newN)
+            n.parent._addNodeIntoScheduled(n.getFirstSchedZeroClkI(), newN)
 
         replaceOperatorNodeWith(n, replacement, worklist)
         worklist.append(replacement.obj)

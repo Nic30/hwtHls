@@ -1,6 +1,4 @@
 from copy import copy
-# from math import inf
-# import math
 from typing import List, Dict, Optional, Generator, Callable, Union, Tuple
 
 from hwt.hdl.operatorDefs import HwtOps
@@ -12,12 +10,11 @@ from hwtHls.netlist.nodes.aggregate import \
 from hwtHls.netlist.nodes.node import HlsNetNode_numberForEachInput, \
     HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-# from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.schedulableNode import OutputTimeGetter, OutputMinUseTimeGetter, \
     SchedTime
-from hwtHls.netlist.scheduler.clk_math import clkWindowBeginOfNext,\
-    clkWindowOffsetFromWindowEnd
+from hwtHls.netlist.scheduler.clk_math import clkWindowBeginOfNext
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
+from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
 
 class HlsNetNodeBitwiseOps(HlsNetNodeAggregateTmpForScheduling):
@@ -39,6 +36,16 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregateTmpForScheduling):
 
         return HlsNetNode_numberForEachInput(node, wireDelay)
 
+    def _createAdhocRealizationIfPlatformDoesNotProvideMultiClockImpl(self, bit_length:int):
+        # platform does not support such wide multiclock operand, we have to create multi clock
+        # realization ourselfs
+        r = self.netlist.platform.get_op_realization(
+            HwtOps.AND, None, bit_length, 2, self.netlist.realTimeClkPeriod)
+        r = r.mutated(inputWireDelay=0,
+                      outputWireDelay=r.inputWireDelay + r.outputWireDelay,
+                      isMulticlock=True,)
+        return r
+
     def resolveSubnodeRealization(self, node: HlsNetNodeOperator, input_cnt: int):
         netlist = self.netlist
         assert isinstance(node, HlsNetNodeOperator), node
@@ -48,43 +55,53 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregateTmpForScheduling):
         #     input_cnt = max(1, input_cnt // 2)
 
         representativeOperator = HwtOps.NOT if input_cnt == 1 else HwtOps.AND
-        rWithThisNode = netlist.platform.get_op_realization(
-            representativeOperator, None, bit_length,
-            input_cnt, netlist.realTimeClkPeriod)
+        try:
+            rWithThisNode = netlist.platform.get_op_realization(
+                representativeOperator, None, bit_length,
+                input_cnt, netlist.realTimeClkPeriod)
+        except TimeConstraintError:
+            rWithThisNode = self._createAdhocRealizationIfPlatformDoesNotProvideMultiClockImpl(bit_length)
 
-        rWithThisNode = copy(rWithThisNode)
+        inputWireDelay = rWithThisNode.inputWireDelay
+        inputClkTickOffset = rWithThisNode.inputClkTickOffset
         if input_cnt <= 2:
-            if isinstance(rWithThisNode.inputWireDelay, tuple):
-                rWithThisNode.inputWireDelay = tuple(
-                    rWithThisNode.inputWireDelay[0] for _ in node._inputs)
+            if isinstance(inputWireDelay, tuple):
+                inputWireDelay = tuple(inputWireDelay[0] for _ in node._inputs)
 
-            if isinstance(rWithThisNode.inputClkTickOffset, tuple):
-                rWithThisNode.inputClkTickOffset = tuple(
-                    rWithThisNode.inputClkTickOffset[0] for _ in node._inputs)
+            if isinstance(inputClkTickOffset, tuple):
+                inputClkTickOffset = tuple(
+                    inputClkTickOffset[0] for _ in node._inputs)
 
+            rWithThisNode.mutated(inputWireDelay=inputWireDelay, inputClkTickOffset=inputClkTickOffset)
             node.assignRealization(rWithThisNode)  # the first operator in cluster does not need any latency modifications
             return
 
         representativeOperatorForChildren = HwtOps.NOT if input_cnt - 2 == 1 else HwtOps.AND
-        rWithoutThisNode = netlist.platform.get_op_realization(
-            representativeOperatorForChildren, None, bit_length,
-            input_cnt - 2, netlist.realTimeClkPeriod)
+
+        try:
+            rWithoutThisNode = netlist.platform.get_op_realization(
+                representativeOperatorForChildren, None, bit_length,
+                input_cnt - 2, netlist.realTimeClkPeriod)
+        except TimeConstraintError:
+            rWithoutThisNode = self._createAdhocRealizationIfPlatformDoesNotProvideMultiClockImpl(bit_length)
 
         # substract the latency which is counted in some input latency
-        if not isinstance(rWithThisNode.inputClkTickOffset, int):
-            rWithThisNode.inputClkTickOffset = rWithoutThisNode.inputClkTickOffset[:2]
+        inputClkTickOffset = rWithThisNode.inputClkTickOffset
+        if not isinstance(inputClkTickOffset, int):
+            inputClkTickOffset = inputClkTickOffset[:2]
 
         inputWireDelay_with = self._resolveSubnodeRealization_normalizeTiming(node, rWithThisNode.inputWireDelay)
         inputWireDelay_without = self._resolveSubnodeRealization_normalizeTiming(node, rWithoutThisNode.inputWireDelay)
         inDelay = max((inputWireDelay_with[0] - inputWireDelay_without[0], 0))
-        rWithThisNode.inputWireDelay = tuple(inDelay for _ in node._inputs)
+        inputWireDelay = tuple(inDelay for _ in node._inputs)
             # max((latWith - latWithout, 0))
             # for latWith, latWithout in zip(inputWireDelay_with, inputWireDelay_without)
 
-        if isinstance(rWithThisNode.inputClkTickOffset, tuple):
-            rWithThisNode.inputClkTickOffset = tuple(
-                rWithThisNode.inputClkTickOffset[0] for _ in node._inputs)
+        if isinstance(inputClkTickOffset, tuple):
+            inputClkTickOffset = tuple(
+                inputClkTickOffset[0] for _ in node._inputs)
 
+        rWithThisNode.mutated(inputWireDelay=inputWireDelay, inputClkTickOffset=inputClkTickOffset)
         node.assignRealization(rWithThisNode)
 
     def scheduleAsapWithQuantization(self, node: HlsNetNodeOperator,
@@ -120,27 +137,27 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregateTmpForScheduling):
                     # and we must resolve the minimal time so each input timing constraints are satisfied
 
                     nodeZeroTime = 0
-                    clkPeriod = self.netlist.normalizedClkPeriod
-                    for (available_in_time, in_delay, in_cycles) in zip(inputAvailableTimes, node.inputWireDelay, node.inputClkTickOffset):
-                        assert in_cycles == 0
-                        if in_delay >= clkPeriod:
-                            raise TimeConstraintError(
-                                "Impossible scheduling, clkPeriod too low for ",
-                                node.inputWireDelay, node.outputWireDelay, node)
+                    netlist = self.netlist
+                    clkPeriod = netlist.normalizedClkPeriod
+                    ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
+                    requiredForOutputTime = max(node.outputWireDelay) + ffdelay
+                    for (availableInTime, inWireLatency, inputClkTickOffset) in zip(inputAvailableTimes, node.inputWireDelay, node.inputClkTickOffset):
+                        assert inputClkTickOffset == 0
+                        newNodeZeroTime = node._scheduleAsap_ScheduledZero_fromInSchedule(
+                            availableInTime, inWireLatency, inputClkTickOffset, requiredForOutputTime, ffdelay)
+                        if newNodeZeroTime > nodeZeroTime:
+                            nodeZeroTime = newNodeZeroTime
 
-                        next_clk_time = clkWindowBeginOfNext(available_in_time, clkPeriod)
-                        time_budget = next_clk_time - available_in_time
-
-                        if in_delay >= time_budget:
-                            available_in_time = next_clk_time
-
-                        normalized_time = (available_in_time + in_delay)
-
-                        if normalized_time > nodeZeroTime:
-                            nodeZeroTime = normalized_time
+                    if node.isMulticlock:
+                        # :note: this was used only to mark that the node must be in next cycle
+                        r = node.realization.mutated(isMulticlock=False)
+                        node.assignRealization(r)
 
                     node._setScheduleZeroTimeSingleClock(nodeZeroTime)
+
                     for ot in node.scheduledOut:
+                        if node.isMulticlock:
+                            continue
                         for it in node.scheduledIn:
                             assert int(ot // clkPeriod) == int(it // clkPeriod), ("Bitwise operator primitives can not cross clock boundaries", node, it, ot, clkPeriod)
             finally:
@@ -371,7 +388,7 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregateTmpForScheduling):
                 return
         
         # self.checkScheduling()
-        
-        if self.scheduledZero != scheduledZero or self.scheduledIn != scheduledIn or self.scheduledOut != scheduledOut:
+
+        if self.scheduledIn != scheduledIn or self.scheduledOut != scheduledOut:
             for dep in self.dependsOn:
                 yield dep.obj

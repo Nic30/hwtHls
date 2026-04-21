@@ -68,7 +68,7 @@ class HlsNetNodeWriteMemoryAllocationCmd(HlsNetNodeWriteBramCmd):
                 dNode._rtlUseReady = False
                 dNode._rtlUseValid = False
                 self._extractReadPortsToSeparateNode(dNode)
-                self.parent._addNodeIntoScheduled(dNode.scheduledZero // self.netlist.normalizedClkPeriod, dNode)
+                self.parent._addNodeIntoScheduled(dNode.getFirstSchedZeroClkI(), dNode)
                 return True
             else:
                 assert self.cmd is WRITE, self

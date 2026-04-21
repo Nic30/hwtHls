@@ -123,7 +123,7 @@ class HlsArchPassMoveArchElementPortsToMinimizeSync(HlsArchPass):
                             for _ in n.scheduleAlapCompaction(endTime, None, None):
                                 pass
 
-                            elm.getStageForClock(n.scheduledZero // clkPeriod).append(n)
+                            elm.getStageForClock(n.getFirstSchedZeroClkI()).append(n)
 
                     clkWindowList.clear()
 
@@ -366,7 +366,7 @@ class HlsArchPassMoveArchElementPortsToMinimizeSync(HlsArchPass):
     #            # skip if there is nothing to potentially add
     #            continue
     #
-    #        if io.scheduledZero // clkPeriod != dstUseClkI:
+    #        if io.getFirstSchedZeroClkI() != dstUseClkI:
     #            # skip if the IO is not in this synchronized state/stage
     #            continue
     #

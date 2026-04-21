@@ -85,6 +85,7 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
         self._dataVoidOut: Optional[HlsNetNodeOut] = None
         self._rtlUseReady = io is None or isinstance(io, (HwIORdVldSync, HwIODataRd))
         self._rtlUseValid = io is None or isinstance(io, (HwIORdVldSync, HwIODataVld))
+        self._isWorkingOutOfParentState = False
 
     @override
     def hasSideeffect(self):
@@ -213,6 +214,8 @@ class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
                 # = at the end of clock where this write is
                 inputClkTickOffset=0,
                 inputWireDelay=netlist.normalizedClkPeriod - self.scheduledZero - netlist.scheduler.epsilon)
+            self._isWorkingOutOfParentState = True
+
         return forceEn
 
     def getDataVoidOutPort(self) -> HlsNetNodeOut:

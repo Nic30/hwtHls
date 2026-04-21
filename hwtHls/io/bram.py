@@ -35,7 +35,7 @@ from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readIndexed import HlsNetNodeReadIndexed
 from hwtHls.netlist.nodes.schedulableNode import OutputMinUseTimeGetter
 from hwtHls.netlist.nodes.writeIndexed import HlsNetNodeWriteIndexed
-from hwtHls.netlist.scheduler.clk_math import epsilon, clkWindowIndex, \
+from hwtHls.netlist.scheduler.clk_math import RealTimeEpsilon, clkWindowIndex, \
     clkWindowBeginOfNext
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
@@ -112,15 +112,26 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
     @override
     def resolveRealization(self):
         netlist = self.netlist
-        ffdelay = netlist.platform.get_op_realization(ResourceFF, None, 1, 1, netlist.realTimeClkPeriod).inputWireDelay * 2
+        ffdelay = netlist.platform.get_op_realization(ResourceFF, None, 1, 1, netlist.realTimeClkPeriod).inputWireDelay
         isRead = self.cmd is READ
-        re = OpRealizationMeta(
-            inputWireDelay=ffdelay,
+        addrDelay = ffdelay
+        rLatency = 1
+        rOutWireDelay = 2 * ffdelay
+        clkPeriod = netlist.realTimeClkPeriod
+        if rOutWireDelay + ffdelay >= clkPeriod:
+            rLatency = 2
+            rOutWireDelay = RealTimeEpsilon
+
+        nonROutCnt = len(self._outputs) - 1
+        nonROutWireDelay = addrDelay - clkPeriod
+        r = OpRealizationMeta(
+            inputWireDelay=addrDelay,
             inputClkTickOffset=0,
-            outputWireDelay=epsilon if isRead else 0,
-            outputClkTickOffset=(1, *(0 for _ in range(len(self._outputs) - 1))) if isRead else 0
+            outputWireDelay=(rOutWireDelay, *(nonROutWireDelay for _ in range(nonROutCnt))) if isRead else nonROutWireDelay,
+            outputClkTickOffset=(rLatency - 1, *(0 for _ in range(nonROutCnt))) if isRead else 0,
+            isMulticlock=True,
         )
-        self.assignRealization(re)
+        self.assignRealization(r)
 
     @classmethod
     def _extractDout(cls, port: AnyBramPort):
@@ -140,7 +151,7 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
                 readDataIo = self._extractDout(self.dst)
                 dNode = HlsNetNodeReadBramData(self.netlist, self.ioProxy, readDataIo, _dst.dout._dtype, name=self.name)
                 self._extractReadPortsToSeparateNode(dNode)
-                self.parent._addNodeIntoScheduled(dNode.scheduledZero // self.netlist.normalizedClkPeriod, dNode)
+                self.parent._addNodeIntoScheduled(dNode.getFirstSchedZeroClkI(), dNode)
                 return True
         return False
 

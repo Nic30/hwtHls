@@ -62,7 +62,7 @@ class HlsNetNodeAggregatePortIn(HlsNetNode):
         Copy the ASAP time from outside output to this input port
         """
         # resolve time for input of this cluster
-        if self.scheduledOut is None:
+        if self.scheduledZero is None:
             if self.realization is None:
                 self.resolveRealization()
             dep = self.parentIn.obj.dependsOn[self.parentIn.in_i]
@@ -76,8 +76,26 @@ class HlsNetNodeAggregatePortIn(HlsNetNode):
             else:
                 t = outputTimeGetter(dep, pathForDebug, beginOfFirstClk)
 
+            netlist = self.netlist
+            ffdelay = netlist.platform.get_ff_store_time(
+                netlist.realTimeClkPeriod, netlist.scheduler.resolution)
+            clkPeriod = netlist.normalizedClkPeriod
+            if clkWindowOffsetFromWindowEnd(t, clkPeriod) < ffdelay:
+                # :note: port can not fit at the end of the clock cycle, we need to move it to next clock cycle begin
+                t = clkWindowBeginForTime(t, clkPeriod) + clkPeriod
+
             self._setScheduleZero(t)
+
         return self.scheduledOut
+
+    # @override
+    # def scheduleAlapCompaction(self,
+    #     endOfLastClk:SchedTime,
+    #     outputMinUseTimeGetter:Optional[OutputMinUseTimeGetter],
+    #     excludeNode:Optional[Callable[[Self], bool]]) -> Generator["HlsNetNode", None, None]:
+    #     yield from super().scheduleAlapCompaction(endOfLastClk, outputMinUseTimeGetter, excludeNode)
+    #     t = self.scheduledZero
+    #     raise
 
     @override
     def rtlAlloc(self, allocator: "ArchElement"):
