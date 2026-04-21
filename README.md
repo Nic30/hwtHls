@@ -121,6 +121,7 @@ pip3 install git+https://github.com/Nic30/hwtHls.git # install this library from
 * :skull: [LeFlow](https://github.com/danielholanda/LeFlow) - 2018-2018, TensorFlow -> XLA -> LegUp
 * :skull: [orcc/Open RVC-CAL Compiler](https://github.com/orcc/orcc) - 2011-2015, dataflow compiler
 * :skull: [xronos](https://github.com/endrix/xronos) [git2](hhttps://github.com/orcc/xronos) - 2012-2016, java, simple HLS for orcc
+* :skull: [Convey OpenHT Hybrid-threading](https://github.com/TonyBrewer/OpenHT) [paper](https://www.nsf-shrec.org/sites/default/files/2024-03/Performance-and-Productivity-Evaluation-of-Hybrid-Threading-HLS-versus-HDLs.pdf) [presentation](https://research.ece.cmu.edu/~calcm/carl/lib/exe/fetch.php?media=carl15-brewer.pdf)
 * [abc](https://people.eecs.berkeley.edu/~alanmi/abc/) <2008-?, A System for Sequential Synthesis and Verification
 * [ahir](https://github.com/madhavPdesai/ahir) - LLVM, llvm bytecode->vhdl
 * [AutoBridge](https://autosa.readthedocs.io/en/latest/tutorials/auto_bridge.html) - Python, floorplaning/pipelining tool for Vitis HLS
