@@ -829,7 +829,7 @@ def netlistReduceMux(n: HlsNetNodeMux, worklist: SetList[HlsNetNode], reduceMuxW
         i: HlsNetNodeOut = n.dependsOn[0]
         replaceOperatorNodeWith(n, i, worklist)
         return True
-
+    
     if netlistReduceMuxConstantConditionsAndChildMuxSink(n, worklist):
         return True
 
