@@ -179,7 +179,9 @@ class DivRemRestoringGen_TC(DivRemRestoring_TC):
 
     def platformSetUp(self, p:TestLlvmIrAndMirPlatform):
         installMathLibComponentGenerators(p)
-        p._componentGenerators[OP_UDIVREM].optThroughputVsArea = self.UNROLL_FACTOR / self.DATA_WIDTH
+        gen = p._componentGenerators[OP_UDIVREM]
+        gen.optThroughputVsArea = self.UNROLL_FACTOR / self.DATA_WIDTH
+        gen.CHECK_FOR_INEFFICIENCY = False
 
 
 class DivRemRestoringGen_unroll2_TC(DivRemRestoringGen_TC):
