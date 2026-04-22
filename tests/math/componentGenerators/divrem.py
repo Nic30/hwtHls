@@ -20,13 +20,14 @@ from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
 from hwtHls.platform.opRealizationMeta import ComponentRealizationMeta
 from hwtHls.platform.platform import DefaultHlsPlatform
-from hwtHls.ssa.analysis.llvmIrInterpretInt import _makeDecodeOpcodeFunction_BinaryOperator
 from hwtHls.ssa.analysis.llvmMirInterpret import LlvmMirInterpret
 from hwtHls.ssa.analysis.llvmMirInterpretUtils import LlvmMirInstrFunction
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.llvmMirToNetlist.utils import MirToHlsNetlistTranslatedInstrOpsT
 from tests.math.componentGenerators._div.divRestoring import DivRemHwModule
+from hwtHls.ssa.analysis.llvmMirInterpretInt import makeDecode_arithmeticBin
+from hwtHls.ssa.analysis.llvmIrInterpretInt import _makeDecodeOpcodeFunction_BinaryOperator
 
 
 def _floorsdiv(a: HBitsConst, b: HBitsConst):
@@ -50,12 +51,13 @@ class ComponentGeneratorDIVREM(ComponentGenerator):
     
     :note: reqEn/reqDone are not present in MIR
     """
+    CHECK_FOR_INEFFICIENCY = True
+    INT_DIV_HWMODULE_CLS = DivRemHwModule
 
     def __init__(self, platform: DefaultHlsPlatform,
                  genNamePrefix:str, moduleName:str,
                  isSigned:bool, hasDiv:bool, hasRem:bool,
-                 optThroughputVsArea=0.0,
-                 INT_DIV_HWMODULE_CLS=DivRemHwModule):
+                 optThroughputVsArea=0.0,):
         ComponentGenerator.__init__(self, platform, genNamePrefix, moduleName)
         # dataWidth -> scheduling
         self.schedulingCache: dict[tuple[float, int], tuple[ComponentRealizationMeta, ComponentRealizationMeta, int]] = {}
@@ -63,7 +65,6 @@ class ComponentGeneratorDIVREM(ComponentGenerator):
         self._hasDiv = hasDiv
         self._hasRem = hasRem
         self.optThroughputVsArea = optThroughputVsArea
-        self.INT_DIV_HWMODULE_CLS = INT_DIV_HWMODULE_CLS
         self._llvmMirInterpretDecodeFn = None
         assert hasDiv or hasRem
         evalFn: Optional[Callable[[int, int], Union[int, tuple[int, int]]]] = None
@@ -212,6 +213,7 @@ class ComponentGeneratorDIVREM(ComponentGenerator):
         hwModule.T = HBits(DATA_WIDTH, signed=self._isSigned)
         hwModule.CLK_FREQ = int(1 / realTimeClkPeriod)
         hwModule.UNROLL_FACTOR = UNROLL_FACTOR
+        hwModule.CHECK_FOR_INEFFICIENCY = self.CHECK_FOR_INEFFICIENCY
         if realization:
             hwModule._setIoChannelTypes(realization)
         return hwModule
@@ -247,6 +249,7 @@ class ComponentGeneratorDIVREM(ComponentGenerator):
         _, _, rOutside = self.resolveRealizationOfNode_compileToResolveScheduling(
             netlist.parentHwModule, intDivModule,
             netlist.dbgSubmoduleBuidTracer, cacheKey, (UNROLL_FACTOR,))
+        # raise NotImplementedError("[dbg]")
         return rOutside
 
     @override
