@@ -365,18 +365,14 @@ class ConnectionsOfStage():
         if len(muxCases) == 1:
             node, cond, enableOut, caseStatements = muxCases[0]
             assert isinstance(caseStatements, list), (caseStatements.__class__, caseStatements)
-            if isinstance(node, HlsNetNodeWrite):
-                if enableOut is not None:
-                    caseStatements = [enableOut(1 if cond is None else cond), ] + caseStatements
-                if caseStatements:
-                    yield caseStatements
-            else:
-                assert isinstance(node, HlsNetNodeRead), muxCases
-                if enableOut is None:
-                    yield caseStatements
-                else:
-                    yield [enableOut(1 if cond is None else cond), ] + caseStatements
-                # no MUX needed and we already merged the synchronization
+            for stm in caseStatements:
+                assert stm.parentStm is None, (node, stm, stm.parentStm)
+
+            if enableOut is not None:
+                caseStatements = [enableOut(1 if cond is None else cond), ] + caseStatements
+            if caseStatements:
+                yield caseStatements
+
         else:
             if isinstance(muxCases[0][0], HlsNetNodeWrite):
                 # create a write MUX
