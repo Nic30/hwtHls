@@ -84,16 +84,20 @@ class HlsNetNodeAggregateLoop(HlsNetNodeAggregateTmpForScheduling):
         bestBeginClkI, bestEndClkI, _, initialMaxTime = self._getTimeSpanInClkTicks(clkPeriod)
         endCurClk = endOfLastClk
 
+        #self.checkScheduling()
         prevWasBest = isBest = True
+        schedTracer = self.netlist.scheduler._dbgTracer
         while True:
             isBest = False
             try:
+                if schedTracer is not None:
+                    schedTracer.log((self, "scheduleAlapCompactionForSubnodes"))
                 self.scheduleAlapCompactionForSubnodes(endCurClk, outputMinUseTimeGetter, excludeNode)
             except TimeConstraintError:
                 break  # scheduling impossible, use previous best schedule
             beginClkI, endClkI, _, maxTime = self._getTimeSpanInClkTicks(clkPeriod)
             self.copySchedulingFromChildren()  # update timing in ports
-            #self.checkScheduling()
+            # self.checkScheduling()
 
             if maxTime > endCurClk:
                 # left side (lower time) of the circuit is blocked an moving end clkI has no effect
@@ -111,6 +115,9 @@ class HlsNetNodeAggregateLoop(HlsNetNodeAggregateTmpForScheduling):
                 break
 
             endCurClk -= clkPeriod
+            if schedTracer is not None:
+                schedTracer.log((self, "reset and move -1clk"))
+        
             self.setScheduling(originalSchedule)
             prevWasBest = isBest
 
@@ -120,11 +127,13 @@ class HlsNetNodeAggregateLoop(HlsNetNodeAggregateTmpForScheduling):
             self._scheduleCompaction_onlyForPorts(endOfLastClk, outputMinUseTimeGetter, False)
         else:
             self.copySchedulingFromChildren()
-
-        #self.checkScheduling()
-
-        scheduledZero, scheduledIn, scheduledOut = originalSchedule[self]
-        if self.scheduledZero != scheduledZero or self.scheduledIn != scheduledIn or self.scheduledOut != scheduledOut:
+        
+        #try:
+        #    self.checkScheduling()
+        #except:
+        #    raise
+        scheduledZero, scheduledIn, scheduledOut, r = originalSchedule[self]
+        if self.scheduledZero != scheduledZero or self.scheduledIn != scheduledIn or self.scheduledOut != scheduledOut or self.realization != r:
             for dep in self.dependsOn:
                 yield dep.obj
 
