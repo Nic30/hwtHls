@@ -116,6 +116,10 @@ class LoopChanelGroup():
     def associateWithLoop(self, loop: "HlsNetNodeLoopStatus", role:LOOP_CHANEL_GROUP_ROLE):
         self.connectedLoopsAndBlocks.append((loop, role))
 
+    def deassociateWithLoop(self, loop: "HlsNetNodeLoopStatus", role:LOOP_CHANEL_GROUP_ROLE):
+        curItemI = self.connectedLoopsAndBlocks.index((loop, role))
+        self.connectedLoopsAndBlocks[curItemI] = (None, role)
+
     def getChannelUsedAsControl(self) -> HlsNetNodeWriteAnyChannel:
         return self.members[-1]
 
