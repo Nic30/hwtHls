@@ -182,28 +182,9 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
         else:
             return True
 
-    def _rtlAllocDatapathIo(self):
-        """
-        Load declaration of the interface and construct its RTL signals.
-        """
-        if self.src and self.src._parent is not None:
-            return
+    def _rtlAllocDatapathIoCreateForDtype(self):
         hasValid = self._rtlUseValid
         hasReady = self._rtlUseReady
-        # if (isinstance(self, HlsNetNodeRead) and self.associatedWrite._getBufferCapacity() == 0) or \
-        #        (isinstance(self, HlsNetNodeWrite) and self._getBufferCapacity() == 0):
-        #        hasValid &= self._rtlUseReady
-        #        hasReady &= self._rtlUseValid
-
-        u:HwModule = self.netlist.parentHwModule
-        w = self.associatedWrite
-        name = None
-        if self.src is not None:
-            name = self.src._name
-        # assert self.src is None, (
-        #    "Src interface must not be yet instantiated on parent HwModule", self, self.src)
-        assert w is not None, ("if src is None this is a channel and associatedWrite must be set", self)
-        assert w.dst is None or self.src, (w, w.dst)
         dtype = self._portDataOut._dtype
         if HdlType_isVoid(dtype):
             if hasValid and hasReady:
@@ -228,6 +209,30 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             else:
                 src = HdlType_to_HwIO().apply(dtype)
 
+        return src
+
+    def _rtlAllocDatapathIo(self):
+        """
+        Load declaration of the interface and construct its RTL signals.
+        """
+        if self.src and self.src._parent is not None:
+            return  # already constructed
+
+        # if (isinstance(self, HlsNetNodeRead) and self.associatedWrite._getBufferCapacity() == 0) or \
+        #        (isinstance(self, HlsNetNodeWrite) and self._getBufferCapacity() == 0):
+        #        hasValid &= self._rtlUseReady
+        #        hasReady &= self._rtlUseValid
+
+        u:HwModule = self.netlist.parentHwModule
+        w = self.associatedWrite
+        name = None
+        if self.src is not None:
+            name = self.src._name
+        # assert self.src is None, (
+        #    "Src interface must not be yet instantiated on parent HwModule", self, self.src)
+        assert w is not None, ("if src is None this is a channel and associatedWrite must be set", self)
+        assert w.dst is None or self.src, (w, w.dst)
+        src = self._rtlAllocDatapathIoCreateForDtype()
         if src is not None:
             src._name = name if name is not None else self.netlist.namePrefix + (self.name if self.name is not None else f"n{self._id}")
             self.src = HwIO_without_registration(u, src, src._name)
@@ -241,7 +246,8 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             wName = name if name is not None else self.netlist.namePrefix + (w.name if w.name is not None else f"n{w._id}")
             w.dst = HwIO_without_registration(u, self.src.__copy__(), wName)
 
-    def rtlAllocChannelDataVldAndFullReg(self, allocator:"ArchElement") -> Tuple[Optional[Union[RtlSignal, HwIO]], Optional[Union[RtlSignal, HwIO]]]:
+    def rtlAllocChannelDataVldAndFullReg(self, allocator:"ArchElement") -> Tuple[Optional[Union[RtlSignal, HwIO]],
+                                                                                 Optional[Union[RtlSignal, HwIO]]]:
         # check if this was already allocated to support re-entrability
         if self._rtlDataVldReg is not None or self._rtlFullReg is not None:
             return self._rtlDataVldReg, self._rtlFullReg
@@ -261,14 +267,19 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
         if srcWrite.allocationType == CHANNEL_ALLOCATION_TYPE.REG and capacity == 1:
             hadInit = bool(self.channelInitValues)
             if hasVld:
+                # :see: doc of :class:`ArchElementFsm`
                 dataVldReg = allocator._reg(f"{dataRegName:s}_vld", BIT, def_val=int(hadInit))
                 dataVldReg._isUnnamedExpr = False
+
             if hasFull:
+                # :see: doc of :class:`ArchElementFsm`
                 fullReg = allocator._reg(f"{dataRegName:s}_full", BIT, def_val=int(hadInit))
                 fullReg._isUnnamedExpr = False
+
         elif srcWrite.allocationType == CHANNEL_ALLOCATION_TYPE.IMMEDIATE or capacity == 0:
             dataVldReg = allocator._sig(f"{dataRegName:s}_vld", BIT)
             assert not hasFull, self
+
         else:
             raise NotImplementedError(self, srcWrite.allocationType, capacity)
 
@@ -386,7 +397,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
                             res = [If(en.data, res), ]
                         # rStageCon.stateChangeDependentDrives.append(res)
 
-            if  dataVldReg is not None:
+            if dataVldReg is not None:
                 if self._rtlUseValid:
                     assert not self.src.vld._sig._rtlDrivers, (self, self.src.vld._sig._rtlDrivers)
                     self.src.vld(dataVldReg)
