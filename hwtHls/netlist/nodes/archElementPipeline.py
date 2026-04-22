@@ -210,7 +210,7 @@ class ArchElementPipeline(ArchElement):
                 if isinstance(node, HlsNetNodeRead) and node.isBackedge():
                     w = node.associatedWrite
                     if w.allocationType == CHANNEL_ALLOCATION_TYPE.BUFFER and w in self.subNodes and w.scheduledIn[0] // clkPeriod == stI:
-                        # allocate as a register because this is connect just this stage with itself
+                        # allocate as a register because this connects just this stage with itself
                         w.allocationType = CHANNEL_ALLOCATION_TYPE.REG
 
     @override
