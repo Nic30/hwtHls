@@ -23,15 +23,23 @@ class TestModuleFixpSin(_FixpUnOpTestModule):
 
 
 class FixpSinNoLut_TC(FixpUnary_TC):
-    FP_TY = HFixedPointQ(4, 10, rounding=HFloatTmpRounding.ROUND_FLOOR, saturation=HFloatTmpSaturation.SATURATE_NONE)
+    FP_TY = HFixedPointQ(4, 10, rounding=HFloatTmpRounding.ROUND_HALF_EVEN,
+                                saturation=HFloatTmpSaturation.SATURATE_NONE)
     RTL_SIM_TIME_MULTIPLIER = 10
     MAX_TABLE_ADDR_WIDTH = 0
     optThroughputVsArea = 0.0
-    INPUT_DATA = [
-         0.0,
-         0.1,
-         0.2, 0.25, 0.5,
-         1.0
+    # https://flop.evanau.dev/float-converter
+    INPUT_DATA = [  # ============== fp32 ===============  == q4.10 ==
+         0.0,  # 0 0000 0000 00000000000000000000000   0
+         0.0146484375,  # 0 0111 1000 11100000000000000000000   15
+         0.12890625,  # 0 0111 1100 00001000000000000000000   132
+         # 0.1,
+         0.1875,  # 0 0111 1100 10000000000000000000000   192
+         0.21875,  # 0 0111 1100 11000000000000000000000   224
+         0.25,  # 0 0111 1101 00000000000000000000000   256
+         0.5,  # 0 0111 1110 00000000000000000000000   512
+         0.9375,  # 0 0111 1110 11100000000000000000000   960
+         1.0  # 0 0111 1111 00000000000000000000000   1024
     ]
     MODULE_CLS = TestModuleFixpSin
 
