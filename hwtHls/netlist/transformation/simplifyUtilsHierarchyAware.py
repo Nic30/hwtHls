@@ -8,7 +8,8 @@ from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregatePortIn, \
     HlsNetNodeAggregate
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
+from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn, \
+    HlsNetNodeOutLazy
 from hwtHls.netlist.transformation.simplifyUtils import addAllUsersToWorklist
 
 
@@ -18,7 +19,7 @@ def replaceOperatorNodeWith(n: HlsNetNodeOperator,
     assert len(n.usedBy) == 1 or all(not uses for uses in islice(n.usedBy, 1, None)), (
         n, "implemented only for single output nodes or nodes with only first output used")
     assert not newO.obj._isMarkedRemoved, newO
-    assert n._outputs[0] is not newO,  ("It is pointless to replace to the same", newO)
+    assert n._outputs[0] is not newO, ("It is pointless to replace to the same", newO)
     oldTy = n._outputs[0]._dtype
     newTy = newO._dtype
     assert oldTy == newO._dtype or (isinstance(oldTy, HBits) and
@@ -30,6 +31,8 @@ def replaceOperatorNodeWith(n: HlsNetNodeOperator,
 
     # add dependencies which do not have any other use to worklist
     for dep in n.dependsOn:
+        if isinstance(dep, HlsNetNodeOutLazy):
+            continue
         hasAnyOtherUser = False
         for u in dep.obj.usedBy[dep.out_i]:
             if u.obj is not n:
@@ -42,9 +45,8 @@ def replaceOperatorNodeWith(n: HlsNetNodeOperator,
     disconnectAllInputs(n, worklist)
     if n.scheduledOut is not None:
         scheduleUncheduledDummyAlap(newO, n.scheduledOut[0])
-        
+
     n.markAsRemoved()
-    
 
 
 def iterAllHierachies(netlist: HlsNetlistCtx, postOrder=True):
