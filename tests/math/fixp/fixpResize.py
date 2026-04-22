@@ -124,7 +124,6 @@ def fixp_resize(value: Union[HBitsRtlSignal, HBitsConst],
         toward −∞ (floor)                           trunc(x)                                   11.0, 16, 01011.0    12.0, 18, 01100.0   −12.0, e8, 1110100.0   −13.0, e6, 1110011.0
         ========================================== ========================================== ===================  =================== ====================== ======================
     """
-
     # https://github.com/WangXuan95/FPGA-FixedPoint/blob/master/RTL/fixedpoint.v#L22
     # https://icshare.work/posts/understanding-rounding-and-saturation-in-hardward-design/
     assert value._dtype.bit_length() == inTy.bit_length(), (value._dtype, inTy)

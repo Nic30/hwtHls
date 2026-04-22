@@ -26,6 +26,8 @@ from hwtHls.frontend.hwrange import hwrange
 from tests.math.fixp.fixpConst import HFixedPointQConst
 from tests.math.fixp.fixpRtlSignal import HFixedPointQRtlSignal
 from tests.math.fixp.fixpTypes import HFixedPointQ
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInPreproc, \
+    PyBytecodeBlockLabel
 
 # @hlsBytecode
 # def intSqrt(a: Union[HBitsConst, HBitsRtlSignal], iterationCnt:Optional[int]=None, loopPragmaGetter=lambda:None):
@@ -85,23 +87,32 @@ def fixpSqrt(a: Union[HFixedPointQConst, HFixedPointQRtlSignal, HBitsConst, HBit
     bit2_t = HBits(2)
     b2_00 = bit2_t.from_py(0)
     b2_01 = bit2_t.from_py(0b01)
+
     square_root = tRaw.from_py(0)  # intermediate root (quotient)
     aRaw = a._reinterpret_cast(HBits(width))
     remainder = zext(aRaw[:width - 2], width + 2)  # accumulator (2 bits wider)
     x = Concat(aRaw[width - 2:], b2_00)  # radicand copy
+    del aRaw
 
+    PyBytecodeBlockLabel("bb.fixpSqrt.preheader")
     for _ in hwrange(iterationCnt):
+        PyBytecodeBlockLabel("bb.fixpSqrt.header")
         # sign test result (2 bits wider)
         test_res = remainder - Concat(square_root, b2_01)
         ac_topBits = tRaw.from_py(None)
         if test_res.getMsb():  # test_res >=0? (check MSB)
+            PyBytecodeBlockLabel("bb.fixpSqrt.testNeg")
             ac_topBits = remainder[width:]
             square_root = square_root << 1
         else:
+            PyBytecodeBlockLabel("bb.fixpSqrt.testPos")
             ac_topBits = test_res[width:]
             square_root = Concat(square_root[width - 1:], b1)
 
+        PyBytecodeBlockLabel("bb.fixpSqrt.latch")
+        del test_res
         remainder = Concat(ac_topBits, x[:width - 2])
+        del ac_topBits
         x = Concat(x[width - 2:], b2_00)
         loopPragmaGetter()
 
@@ -185,6 +196,6 @@ if __name__ == "__main__":
     from tests.math.componentGenerators.fsqrt import FixpSqrtHwModule
     m = FixpSqrtHwModule()
     m.T = HBits(16)
-    m.UNROLL_FACTOR = m.T.bit_length() // 2
+    # m.UNROLL_FACTOR = m.T.bit_length() // 2
     m.CLK_FREQ = int(100e6)
-    print(to_rtl_str(m, target_platform=Artix7Fast()))  # {debugFilter=HlsDebugBundle.ALL_RELIABLE, HlsDebugBundle.DBG_23_arch}
+    print(to_rtl_str(m, target_platform=Artix7Fast(debugFilter={*HlsDebugBundle.ALL_RELIABLE})))  #
