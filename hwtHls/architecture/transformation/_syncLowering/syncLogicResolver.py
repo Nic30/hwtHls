@@ -265,7 +265,7 @@ class SyncLogicResolver(HlsNetlistToAbcAig):
                 dataDrivesAnyOtherEnInSameClk = True
             else:
                 toSearch: SetList[HlsNetNodeOut] = SetList()
-                timeLimit = clkWindowBeginOfNext(ioNode.scheduledZero, ioNode.netlist.normalizedClkPeriod)
+                timeLimit = clkWindowBeginOfNext(ioNode.scheduledZero, ioNode.netlist.normalizedClkPeriod) - (1 if ioNode.isMulticlock else 0)
                 seen: set[HlsNetNode] = set()
                 for o, uses in zip(ioNode._outputs, ioNode.usedBy):
                     o: HlsNetNodeOut
