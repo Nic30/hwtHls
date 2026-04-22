@@ -17,6 +17,7 @@ from hwtHls.architecture.transformation.controlLogicMinimize import HlsAndRtlNet
 from hwtHls.architecture.transformation.fsmStateNextWriteConstruction import HlsAndRtlNetlistPassFsmStateNextWriteConstruction
 from hwtHls.architecture.transformation.ioPortPrivatization import HlsArchPassIoPortPrivatization
 from hwtHls.architecture.transformation.loopControlLowering import HlsAndRtlNetlistPassLoopControlLowering
+from hwtHls.architecture.transformation.lowerChannelsToRegs import HlsAndRtlNetlistPassLowerChannelsToRegs
 from hwtHls.architecture.transformation.moveArchElementPortsToMinimizeSync import HlsArchPassMoveArchElementPortsToMinimizeSync
 from hwtHls.architecture.transformation.syncLowering import HlsArchPassSyncLowering
 from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, Register, MachineLoopInfo, ModulePassManager, Function, \
@@ -394,6 +395,11 @@ class DefaultHlsPlatform(DummyPlatform):
             HlsArchPassSyncLowering(dbgDumpNodes=self._debug.isActivated(D.DBG_4_4_syncLoweringAbc),
                                     dbgDumpAbc=self._debug.isActivated(D.DBG_4_4_syncLoweringNodes)
                                     ).runOnHlsNetlist(netlist)
+            DBG(lambda: HlsNetlistPassConsistencyCheck(checkCycleFree=False,
+                                                       checkAllArchElementPortsInSameClockCycle=False),
+                (netlist,))
+            
+            HlsAndRtlNetlistPassLowerChannelsToRegs().runOnHlsNetlist(netlist)
             DBG(lambda: HlsNetlistPassConsistencyCheck(checkCycleFree=False,
                                                        checkAllArchElementPortsInSameClockCycle=False),
                 (netlist,))

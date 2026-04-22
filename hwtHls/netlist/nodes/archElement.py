@@ -431,12 +431,19 @@ class ArchElement(HlsNetNodeAggregate):
         if hwIO is None:
             hwIO = node
 
-        muxVariants = con.fsmIoMuxCases.get(hwIO, None)
-        if muxVariants is None:
-            muxVariants = con.fsmIoMuxCases[hwIO] = []
+        if node._isWorkingOutOfParentState:
+            muxVariants = []
         else:
-            assert hwIO is not None, ("Nodes without hwIO can not be duplicated", node)
+            muxVariants = con.fsmIoMuxCases.get(hwIO, None)
+            if muxVariants is None:
+                muxVariants = con.fsmIoMuxCases[hwIO] = []
+            else:
+                assert hwIO is not None, ("Nodes without hwIO can not be duplicated", node)
+
         muxVariants.append((node, ec, rtlIoEnableSignal, rtl))
+        if node._isWorkingOutOfParentState:
+            for _ in ConnectionsOfStage.rtlAllocIoMuxCases(muxVariants):
+                pass
 
     def rtlAllocDatapath(self):
         """
