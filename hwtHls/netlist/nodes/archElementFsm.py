@@ -46,13 +46,25 @@ from ipCorePackager.constants import INTF_DIRECTION
 
 class ArchElementFsm(ArchElement):
     """
-    An HlsNetNode which represents FSM. FSM is composed of group of nodes.
+    An HlsNetNode which represents FSM. 
+    FSM is composed of group of nodes which are activated based on central state.
+    States are formed from clock windows. Transitions are reconstructed from 
+    implicit jumps to next state and from controll edges in :class:`HlsAndRtlNetlistPassFsmStateNextWriteConstruction`
 
     .. figure:: ./_static/ArchElementFsm.png
 
-    :see: `~.ArchElement`
+    :see: :class:`~.ArchElement`
+    :see: :class:`HlsAndRtlNetlistAnalysisPassFsmStateEncoding`
+    
+    :note: Any allocations, sharing, scheduling etc. should be done before calling rtlAlloc*, those methods
+        are just for just for conversion to RLT as name sugests.
 
-    #:ivar fsm: an original FsmMeta object from which this was created
+    
+    The variables private to FSM are allocated in registers and those register may be used from any state.
+    This functionality is implemented using :class:`TimeIndependentRtlResource`.persistenceRanges.
+    persistenceRanges are discovered in :math:`~.rtlRegisterOutputRtlSignal`.
+    RTL registers themselfs are allocated in :meth:`TimeIndependentRtlResource.get` lazily.
+    
     """
 
     def __init__(self, netlist: HlsNetlistCtx, name: str, namePrefix:str,
@@ -128,7 +140,7 @@ class ArchElementFsm(ArchElement):
                                 data: Union[RtlSignal, HwIO, HConst],
                                 isExplicitRegister: bool,
                                 isForwardDeclr: bool,
-                                mayChangeOutOfCfg: bool):
+                                mayChangeOutOfCfg: bool) -> TimeIndependentRtlResource:
         tir = super(ArchElementFsm, self).rtlRegisterOutputRtlSignal(
             outOrTime, data, isExplicitRegister, isForwardDeclr, mayChangeOutOfCfg)
         # mark value in register as persistent until the end of FSM
