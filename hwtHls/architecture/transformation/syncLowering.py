@@ -31,6 +31,7 @@ from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.translation.dumpNodesDot import HlsNetlistAnalysisPassDumpNodesDot
 from hwtHls.platform.fileUtils import outputFileGetter
 from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
+from hwtHls.architecture.analysis.fsmStateTransition import HlsAndRtlNetlistAnalysisPassFsmStateTransition
 
 
 class HlsArchPassSyncLowering(HlsArchPass):
@@ -320,6 +321,7 @@ class HlsArchPassSyncLowering(HlsArchPass):
 
         pa = PreservedAnalysisSet.preserveScheduling()
         pa.add(HlsAndRtlNetlistAnalysisPassFsmStateEncoding)
+        pa.add(HlsAndRtlNetlistAnalysisPassFsmStateTransition)
         # Not preserved because ready/valid of internal channels was dissolved:
         # HlsAndRtlNetlistAnalysisPassSyncNodeGraph
         # HlsAndRtlNetlistAnalysisPassHandshakeSCC
