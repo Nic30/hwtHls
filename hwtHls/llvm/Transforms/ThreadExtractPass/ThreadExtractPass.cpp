@@ -116,7 +116,7 @@ Function* ThreadExtractPass::extractSectionAsHwHlsThread(Function &Func,
 		const SmallVector<BasicBlock*> &Blocks, bool extractedIsInLoop,
 		SmallVector<ArgToAddToParentFn> &argsToAddToParentFn) {
 	// create a subloop for section after threadSplitInst
-	// phi may be transfered to subloop if used only in new subloop
+	// phi may be transferred to subloop if used only in new subloop
 	// additional channel for phi init may be added
 	llvm::CodeExtractorAnalysisCache CEAC(Func);
 
