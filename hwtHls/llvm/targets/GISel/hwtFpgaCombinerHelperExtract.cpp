@@ -78,7 +78,7 @@ void HwtFpgaCombinerHelper::rewriteExtractOnMergeValues(llvm::MachineInstr &MI,
 			auto sliceDstOp = src.existingSlice->getOperand(0);
 			if (!MRI.hasOneDef(sliceDstOp.getReg())) {
 				// in the case that there are multiple defs we create backup copy after slice instruction
-				hwtHls::MachineInsertPointGuard(Builder,
+				hwtHls::MachineInsertPointGuard g(Builder,
 						*src.existingSlice->getParent(),
 						src.existingSlice->getNextNode());
 				auto cpMIB = buildHwtFpgaCopy(sliceDstOp);
