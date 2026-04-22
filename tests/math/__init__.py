@@ -32,6 +32,10 @@ Math libraries with definitions of elementary math functions:
 * [mpmath](https://github.com/mpmath/mpmath)
 * [gmp](https://github.com/Halliburton-Landmark/gmp/tree/master/mpn/generic)
 * [libtom/tomsfastmath](https://github.com/libtom/tomsfastmath) [libtom/libtommath](https://github.com/libtom/libtommath)
+* [tomverbeure/math](https://github.com/tomverbeure/math) math library for SpinalHDL
+* [FloppyFloat](https://github.com/not-chciken/FloppyFloat) soft math library for ISA simulators
+* [simple-soft-float](https://salsa.debian.org/Kazan-team/simple-soft-float)
+* [sfpy](https://github.com/billzorn/sfpy) softfloat and softposit in Python
 
 Math focused compilers
 * https://github.com/diku-dk/futhark
