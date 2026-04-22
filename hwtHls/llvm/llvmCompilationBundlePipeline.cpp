@@ -86,6 +86,7 @@
 #include <hwtHls/llvm/Transforms/HFloatTmpLoweringPass.h>
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinePass.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass.h>
+#include <hwtHls/llvm/Transforms/IoPortVectorizationPass/IoPortVectorizationPass.h>
 #include <hwtHls/llvm/Transforms/ICmpToOnlyEqLtLePass.h>
 #include <hwtHls/llvm/Transforms/IoLowerAxiMMPass.h>
 #include <hwtHls/llvm/Transforms/LoopAddLatchPass.h>
@@ -144,6 +145,7 @@ void LlvmCompilationBundle::_registerHwtHlsPasses() {
 						   hwtHls::SelectPruningPass,				   //
 						   hwtHls::StripAssumePass,					   //
 						   hwtHls::HwtHlsSimplifyCFGPass,			   //
+						   hwtHls::IoPortVectorizationPass,            //
 						   hwtHls::TrivialSimplifyCFGPass,			   //
 						   hwtHls::HwtHlsInstCombinePass,			   //
 						   hwtHls::SlicesMergePass,					   //
@@ -488,8 +490,29 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 	//FPM.addPass(hwtHls::DumpAndExitPass(
 	//	true, false, "tmp/HwtHlsSimplifyCFGPass.end.dot"));
 	FPM.addPass(llvm::LoopSimplifyPass());
-	FPM.addPass(hwtHls::StreamSegmentLoopUnrollPass());
+	//FPM.addPass(hwtHls::DumpAndExitPass(
+	//	true, false, "tmp/LoopToIoFsmPass.begin.dot"));
+	FPM.addPass(hwtHls::LoopToIoFsmPass());
+	//FPM.addPass(hwtHls::DumpAndExitPass(
+	//	true, false, "tmp/LoopToIoFsmPass.after0.dot"));
+	FPM.addPass(hwtHls::IoPortVectorizationPass());
+	//FPM.addPass(hwtHls::DumpAndExitPass(
+	//	true, false, "tmp/LoopToIoFsmPass.IoPortVectorizationPass.after1.dot"));
 	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
+	//FPM.addPass(hwtHls::DumpAndExitPass(
+	//	true, false, "tmp/LoopToIoFsmPass.HwtHlsSimplifyCFGPass.after2.dot"));
+	// :note: llvm-22 can not use
+	// FixIrreduciblePass because it
+	// does not support SwitchInst
+	FPM.addPass(
+		hwtHls::StreamSegmentLoopUnrollPass());
+	//FPM.addPass(hwtHls::DumpAndExitPass(
+	//	false, false, "tmp/StreamSegmentLoopUnrollPass.end.dot"));
+	FPM.addPass(hwtHls::IoPortVectorizationPass());	
+	//FPM.addPass(hwtHls::DumpAndExitPass(
+	//	false, false, "tmp/StreamSegmentLoopUnrollPass.ioVectorized.end.dot"));
+	// FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
+	// FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
 }
 
 void LlvmCompilationBundle::_addCommonPasses(llvm::FunctionPassManager &FPM) {
