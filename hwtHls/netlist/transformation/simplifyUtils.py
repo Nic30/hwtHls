@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 from hwt.hdl.const import HConst
 from hwt.hdl.operatorDefs import HOperatorDef, HwtOps
@@ -6,7 +6,7 @@ from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator, OP_INDEX_CONST
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn, HlsNetNodeOutAny
 
 
@@ -27,6 +27,27 @@ def getConstOfOutput(o: HlsNetNodeOutAny) -> Optional[HConst]:
         return o.obj.val
     else:
         return None
+
+
+def getVecAndSliceOf(o: HlsNetNodeOutAny) -> Optional[tuple[HlsNetNodeOutAny, Union[slice, int]]]:
+    if not isinstance(o, HlsNetNodeOut):
+        return None
+
+    n: HlsNetNode = o.obj
+    if isinstance(n, HlsNetNodeOperator) and n.operator == OP_INDEX_CONST:
+        return (n.dependsOn[0], n.operatorSpecialization)
+    return None
+
+
+def sliceOrIntToHighLowBitIndex(i: Union[slice, int]) -> tuple[int, int]:
+    if isinstance(i, int):
+        high = i + 1
+        low = i
+    else:
+        assert i.step == -1, i
+        high = i.start
+        low = i.stop
+    return high, low
 
 
 def addAllUsersToWorklist(worklist: SetList[HlsNetNode], n: HlsNetNode):

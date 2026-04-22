@@ -1,13 +1,10 @@
-from hwt.hdl.operatorDefs import HwtOps
-from hwt.hdl.types.defs import SLICE
 from hwt.pyUtils.setList import SetList
-from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator, OP_INDEX_CONST
 from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOperatorNodeWith
 from hwtHls.netlist.builder import HlsNetlistBuilderWithWorklist
-from hwtHls.netlist.transformation.simplifyUtils import getConstDriverOf, \
-    getConstOfOutput
+from hwtHls.netlist.transformation.simplifyUtils import getConstOfOutput, \
+    getVecAndSliceOf
 from hwt.hdl.types.bits import HBits
 
 
@@ -38,38 +35,37 @@ def netlistReduceIndexSelectAll(n: HlsNetNodeOperator, worklist: SetList[HlsNetN
 
 def netlistReduceIndexOnIndex(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
     assert n.operator is OP_INDEX_CONST, n
-    srcObj = n.dependsOn[0].obj
-    if not isinstance(srcObj, HlsNetNodeOperator):
+    srcNodeSlice = getVecAndSliceOf(n.dependsOn[0])
+    if srcNodeSlice is None:
         return False
-    if srcObj.operator is OP_INDEX_CONST:
-        # flatten index
-        i1 = n.operatorSpecialization
-        i0 = srcObj.operatorSpecialization
-        newSrc = srcObj.dependsOn[0]
-        # flatten newSrc[i0h:i0l][i1h:i1l] -> newSrc[i0l+i1h: i0l+i1l]
-        if isinstance(i0, slice) and isinstance(i1, slice):
-            assert i0.step == -1, i0
-            assert i1.step == -1, i1
-            curOut = n._outputs[0]
-            offset = i0.stop + i1.stop
-            w = i1.start - i1.stop
-            assert w > 0, i1
-            builder = HlsNetlistBuilderWithWorklist(n.getHlsNetlistBuilder(), worklist)
-            newOut = builder.buildIndexConstSlice(
-                curOut._dtype, newSrc,
-                offset + w,
-                offset)
-            replaceOperatorNodeWith(n, newOut, worklist)
-            return True
 
-        elif isinstance(i0, slice) and isinstance(i1, int):
-            assert i0.step == -1, i0
-            curOut = n._outputs[0]
-            assert curOut._dtype.bit_length() == 1
-            offset = i0.stop + i1
-            builder = HlsNetlistBuilderWithWorklist(n.getHlsNetlistBuilder(), worklist)
-            newOut = builder.buildIndexConst(newSrc, offset)
-            replaceOperatorNodeWith(n, newOut, worklist)
-            return True
+    # flatten index
+    i1 = n.operatorSpecialization
+    newSrc, i0 = srcNodeSlice
+    # flatten newSrc[i0h:i0l][i1h:i1l] -> newSrc[i0l+i1h: i0l+i1l]
+    if isinstance(i0, slice) and isinstance(i1, slice):
+        assert i0.step == -1, i0
+        assert i1.step == -1, i1
+        curOut = n._outputs[0]
+        offset = i0.stop + i1.stop
+        w = i1.start - i1.stop
+        assert w > 0, i1
+        builder = HlsNetlistBuilderWithWorklist(n.getHlsNetlistBuilder(), worklist)
+        newOut = builder.buildIndexConstSlice(
+            curOut._dtype, newSrc,
+            offset + w,
+            offset)
+        replaceOperatorNodeWith(n, newOut, worklist)
+        return True
+
+    elif isinstance(i0, slice) and isinstance(i1, int):
+        assert i0.step == -1, i0
+        curOut = n._outputs[0]
+        assert curOut._dtype.bit_length() == 1
+        offset = i0.stop + i1
+        builder = HlsNetlistBuilderWithWorklist(n.getHlsNetlistBuilder(), worklist)
+        newOut = builder.buildIndexConst(newSrc, offset)
+        replaceOperatorNodeWith(n, newOut, worklist)
+        return True
 
     return False
