@@ -138,6 +138,14 @@ class DivRemRestoring_TC(SimTestCase):
         self.test_div_rtl(MAIN_FN_META=PyBytecodeSkipPass(["hwtHls::SlicesToIndependentVariablesPass"]),
                           runTestAfterEachPass=False)
 
+    def test_div_no_SelectPruningPass(self):
+        self.test_div_rtl(MAIN_FN_META=PyBytecodeSkipPass(["hwtHls::SelectPruningPass"]),
+                          runTestAfterEachPass=False)
+
+    def test_div_no_SlicesToIndependentVariablesPassAndSelectPruningPass(self):
+        self.test_div_rtl(MAIN_FN_META=PyBytecodeSkipPass(["hwtHls::SlicesToIndependentVariablesPass", "hwtHls::SelectPruningPass"]),
+                          runTestAfterEachPass=False)
+
     def test_div_rtl_inRand(self):
         self.test_div_rtl(randomizeIn=True, randomizeOut=False)
 
