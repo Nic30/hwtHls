@@ -3,6 +3,9 @@ from hwtHls.netlist.context import HlsNetlistCtx
 
 class HlsNetlistPass():
 
+    def getName(self) -> str:
+        return self.__class__.__name__
+
     def runOnHlsNetlist(self, netlist: HlsNetlistCtx, *args, **kwargs):
         #from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
         for cb in netlist.callbacksBeforePass:

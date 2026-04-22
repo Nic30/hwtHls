@@ -9,6 +9,9 @@ class HlsAndRtlNetlistPass():
     Passes of this type are used after code was translated to hardware netlist to customize it for target architecture.
     """
 
+    def getName(self) -> str:
+        return self.__class__.__name__
+
     def runOnHlsNetlist(self, netlist: HlsNetlistCtx, *args, **kwargs):
         return HlsNetlistPass.runOnHlsNetlist(self, netlist, *args, **kwargs)
 
