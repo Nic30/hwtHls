@@ -3,7 +3,6 @@
 
 from pathlib import Path
 from random import Random
-import sys
 from typing import Sequence, Optional
 import unittest
 
@@ -25,8 +24,7 @@ from hwt.pyUtils.typingFuture import override
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle
-from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
+from hwtHls.platform.debugBundle import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtHls.ssa.analysis.llvmIrInterpretUtils import SimIoUnderflowErr
@@ -35,10 +33,12 @@ from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import mask, byte_mask_to_bit_mask_int, align
 from tests.frontend.trivial import WriteOnce
 from tests.io.pcie.storeAligner import PcieTlpStoreAligner
-from tests.io.testIoUtils import TestInputQueue, TestOutputIndexedQueue
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
+from tests.utils.testQueue import TestQueueIn, TestQueueOutIndexed
 
 
+# from hwtHls.llvm.llvmIr import LlvmCompilationBundle
+# from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 class PcieTlpStoreAligner_TC(unittest.TestCase):
 
     @staticmethod
@@ -79,7 +79,7 @@ class PcieTlpStoreAligner_TC(unittest.TestCase):
         inWordAddrWidth = log2ceil(dataWidth // 8)
         inputTy = PcieTlpStoreAligner.getWordToStore_t(64, dataWidth)
         addressWidth = log2ceil(ramWords * (dataWidth // 8))
-        dataIn = TestInputQueue(inputTy, maxNbReadsWithoutData=5)
+        dataIn = TestQueueIn(inputTy, maxNbReadsWithoutData=5)
         if rand is None:
             rand: Random = Random(0)
 
@@ -117,7 +117,7 @@ class PcieTlpStoreAligner_TC(unittest.TestCase):
             rand: Random = Random(0)
 
         dataIn, addressWidth, refRam = self._generateInputTransactions(addresses, rand, dataWidth, ramWords, hasDataAtBegin)
-        dataRamOut = TestOutputIndexedQueue()
+        dataRamOut = TestQueueOutIndexed()
 
         try:
             # print("PcieTlpStoreAligner.mainThread")
@@ -403,7 +403,6 @@ PcieTlpStoreAligner_TCs = [
 
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.debugBundle import HlsDebugBundle
 
     dut = TestHwModulePcieTlpStoreAligner_splitToAlignedWords()
     dut.CLK_FREQ = int(1e6)

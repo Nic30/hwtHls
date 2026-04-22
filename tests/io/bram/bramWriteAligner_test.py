@@ -23,8 +23,8 @@ from pyMathBitPrecise.bit_utils import mask, byte_mask_to_bit_mask_int
 from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.io.bram.bramSimRam import BramSimRam
 from tests.io.bram.bramWriteAligner import HwIOAddrDataUnalignedToBram
-from tests.io.testIoUtils import TestInputQueue, TestOutputIndexedQueue
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
+from tests.utils.testQueue import TestQueueIn, TestQueueOutIndexed
 
 
 class HwIOAddrDataUnalignedToBram_TC(unittest.TestCase):
@@ -64,7 +64,7 @@ class HwIOAddrDataUnalignedToBram_TC(unittest.TestCase):
                                         requestChannelRandomize: bool):
         inWordAddrWidth = log2ceil(dataWidth // 8)
         inputTy = cls._getRequestT(unalignedAdderessWidth, dataWidth)
-        dataIn = TestInputQueue(inputTy, maxNbReadsWithoutData=5)
+        dataIn = TestQueueIn(inputTy, maxNbReadsWithoutData=5)
         if rand is None:
             rand: Random = Random(0)
 
@@ -127,7 +127,7 @@ class HwIOAddrDataUnalignedToBram_TC(unittest.TestCase):
                     print("dataIn NOP")
                 else:
                     print(f"dataIn {int(din.addr):02x}: {int(din.data):08x} {int(din.mask):x}")
-        dataRamOut = TestOutputIndexedQueue()
+        dataRamOut = TestQueueOutIndexed()
         ALIGN_BIT_CNT = log2ceil(dataWidth // 8)
         wordT = HBits(dataWidth)
         wordMaskT = HBits(dataWidth // 8)
