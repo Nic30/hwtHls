@@ -92,4 +92,5 @@ class HlsNetNodeStageAck(HlsNetNode):
         self.inputClkTickOffset = (0,)
         self.outputWireDelay = ()
         self.outputClkTickOffset = ()
+        self.isAllowedInFFStoreTime = True
 
