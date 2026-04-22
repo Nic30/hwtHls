@@ -21,7 +21,6 @@ from hwtHls.netlist.scheduler.clk_math import clkWindowBeginOfNext, clkWindowBeg
 from hwtHls.netlist.scheduler.resourceList import SchedulingResourceConstraints
 from hwtHls.ssa.analysisCache import AnalysisCache
 
-
 DEFAULT_SCHEDULER_RESOLUTION = 0.01e-9
 
 
@@ -46,6 +45,11 @@ class HlsNetlistCtx(AnalysisCache):
         from which this netlist was generated.
     :ivar _dbgAddSignalNamesToSync: add names to synchronization signals in order to improve readability,
         disabled by default as it goes against optimizations
+    :ivar _dbgAddSignalNamesToData: similar as _dbgAddSignalNamesToSync just for all values
+    
+    :ivar flagIsScheduled: true if all nodes have schedule assigned
+    :ivar flagHasStageControlLowered: once ArchElement control is lowered, fsm transition implemented as enable
+            for next state nodes
     """
 
     def __init__(self,
@@ -86,6 +90,9 @@ class HlsNetlistCtx(AnalysisCache):
 
         from hwtHls.netlist.builder import HlsNetlistBuilder  # can not import directly because of cyclical dependency
         self.builder = HlsNetlistBuilder(self)
+
+        self.flagIsScheduled = False
+        self.flagHasStageControlLowered = False
 
     def getHlsNetlistBuilder(self) -> "HlsNetlistBuilder":
         return self.builder
