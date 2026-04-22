@@ -466,6 +466,8 @@ class Cordic():
         mode = CORDIC_MODE.ROTATION
         coordinateMode = CORDIC_COORDINATE_MODE.CIRCULAR
         STAGES_IN_LUT = self.STAGES_IN_LUT
+        T = None if isinstance(anglePiRadAnyRange, float) else anglePiRadAnyRange._dtype
+
         swapXY, negateX, negateY, _anglePiRad0to0_25, T_INTERNAL = PyBytecodeInline(self._normalizeAnglePiRads0to0_25)(anglePiRadAnyRange)
 
         _thetaROM = self.getThetaROM(coordinateMode, scale=1. / math.pi)
@@ -554,11 +556,10 @@ class Cordic():
             return x_final, y_final
         else:
             # cast from HFloatTmp to concrete fp type
-            outT = T_INTERNAL._createMutated(rounding=HFloatTmpRounding.ROUND_HALF_EVEN)
-            T_OUT = anglePiRadAnyRange._dtype
+            T_INTERNAL_WITH_OUT_ROUND_SAT = T_INTERNAL._createMutated(rounding=T.rounding, saturation=T.saturation)
             return (
-                x_final._auto_cast(T_INTERNAL)._auto_cast(outT)._auto_cast(T_OUT),
-                y_final._auto_cast(T_INTERNAL)._auto_cast(outT)._auto_cast(T_OUT)
+                x_final._auto_cast(T_INTERNAL)._auto_cast(T_INTERNAL_WITH_OUT_ROUND_SAT),
+                y_final._auto_cast(T_INTERNAL)._auto_cast(T_INTERNAL_WITH_OUT_ROUND_SAT)
             )
 
     def cosSin(self, _angleRad: ANY_FP_VALUE) -> tuple[ANY_FP_VALUE, ANY_FP_VALUE]:
@@ -619,8 +620,8 @@ class Cordic():
                 return x_final, y_final
             else:
                 # cast from HFloatTmp to concrete fp type
-                outT = T_INTERNAL._createMutated(rounding=HFloatTmpRounding.ROUND_HALF_EVEN)
+                T_INTERNAL_WITH_OUT_ROUND_SAT = T_INTERNAL._createMutated(rounding=T.rounding, saturation=T.saturation)
                 return (
-                    x_final._auto_cast(T_INTERNAL)._auto_cast(outT)._auto_cast(T),
-                    y_final._auto_cast(T_INTERNAL)._auto_cast(outT)._auto_cast(T)
+                    x_final._auto_cast(T_INTERNAL)._auto_cast(T_INTERNAL_WITH_OUT_ROUND_SAT),
+                    y_final._auto_cast(T_INTERNAL)._auto_cast(T_INTERNAL_WITH_OUT_ROUND_SAT)
                 )
