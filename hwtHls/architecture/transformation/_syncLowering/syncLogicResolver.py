@@ -490,7 +490,7 @@ class SyncLogicResolver(HlsNetlistToAbcAig):
 
             elif isinstance(n, HlsNetNodeWrite):
                 assert isinstance(n, HlsNetNodeWrite), n
-                assert o == n._readyNB
+                assert o == n._readyNB, (o, n)
                 w: HlsNetNodeWrite = n
                 r: HlsNetNodeRead = w.associatedRead
                 rSyncNode = r.getParentSyncNode()
@@ -549,8 +549,12 @@ class SyncLogicResolver(HlsNetlistToAbcAig):
             if ioTy.isRead():
                 r: HlsNetNodeRead = ioNode
                 w: HlsNetNodeWrite = ioNode.associatedWrite
-                assert w.getParentSyncNode() in scc, (
-                    r, "other channel port must be in the same HsSCC otherwise this should not be marked as channel")
+                assert w._getBufferCapacity() > 0 or w.getParentSyncNode() in scc, (
+                    r, "other channel port must be in the same HsSCC otherwise this should not be marked as channel",
+                    r.getParentSyncNode(),
+                    w.getParentSyncNode(),
+                    scc
+                    )
                 if r.hasAnyUsedValidPort():
                     return True  # because valid ports need to be rewritten
 
