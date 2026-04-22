@@ -11,7 +11,7 @@ from hwtHls.llvm.llvmIr import Type, ConstantFP
 from pyMathBitPrecise.bit_utils import ValidityError
 from tests.math.hFloatTmp.hFloatTmpOps import fadd, fsub, fmul, \
     fdiv, fpowi, fcmp_olt, fcmp_ole, fcmp_oeq, fcmp_one, fcmp_ogt, fcmp_oge, \
-    fpow, fround, fmod
+    fpow, fround, fmod, fabs
 
 _HFloatTmpValue = Union["HFloatTmpConst", "HFloatTmpRtlSignal"]
 
@@ -68,7 +68,7 @@ class HFloatTmpConst(HConst):
         elif isinstance(other, RtlSignalBase):
             return opFn(self, other)
         else:
-            raise NotImplementedError(other)
+            raise NotImplementedError(self, fn, other)
         res = fn(self.val, other)
         assert isinstance(res, float), res
         return self.__class__(self._dtype, res, vld_mask)
@@ -231,10 +231,13 @@ class HFloatTmpConst(HConst):
             return fpow(self, other)
 
         return self._applyBinFnForConstants(other, pow, pow)
-    
+
+    def __abs__(self):
+        return fabs(self)
+
     def __round__(self):
         return fround(self)
-    
+
     def toLlvm(self, toLlvm: "ToLlvmIrTranslator"):
         t = Type.getDoubleTy(toLlvm.ctx)
         return ConstantFP.get(t, self.val)
