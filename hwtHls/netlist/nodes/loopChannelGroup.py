@@ -142,7 +142,10 @@ class LoopChanelGroup():
 
     def __repr__(self):
         origin = [(o[0], o[1], o[2].name) if len(o) == 3 else o for o in self.origin]
-        return  f"<{self.__class__.__name__:s} origin:{origin}, channels:{[(w._id, w.associatedRead._id) for w in self.members]} loops:{[(l._id, r.name) for l, r in self.connectedLoopsAndBlocks]}>"
+        return  (
+            f"<{self.__class__.__name__:s} origin:{origin}, channels:{[(w._id, w.associatedRead._id) for w in self.members]} "
+            f"loops:{[(None if l is None else l._id, r.name) for l, r in self.connectedLoopsAndBlocks]}>"
+        )
 
     @staticmethod
     def appendToListOfPriorityEncodedReads(channelGroupList: List[Self],
