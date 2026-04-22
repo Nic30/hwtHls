@@ -1,4 +1,3 @@
-from io import StringIO
 from pathlib import Path
 from typing import Union, Sequence, Callable, Optional
 
@@ -35,7 +34,7 @@ from hwtHls.llvm.llvmIr import Value, Type, FunctionType, Function, VectorOfType
     ConstantInt, ConstantArray, APInt, TypeToIntegerType, \
     LlvmCompilationBundle, LLVMContext, LLVMStringContext, ArrayType, MDString, \
     ConstantAsMetadata, MDNode, Module, IRBuilder, UndefValue, \
-    GlobalVariable, GlobalValue, Align, AllocaInst, ValueToInstruction, ValueToAllocaInst, \
+    GlobalVariable, GlobalValue, AllocaInst, ValueToInstruction, ValueToAllocaInst, \
     TypeToArrayType, MaybeAlign, ValueToGlobalValue
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator, OP_INDEX_CONST
@@ -499,9 +498,9 @@ class ToLlvmIrTranslator(AnalysisCache[SsaAnalysisPass, SsaPass]):
             vTy: HArray
 
             if not isinstance(vTy.element_t, HBits):
-                #try:
+                # try:
                 floatTy = self._getHFloatType()
-                #except NotImplementedError:
+                # except NotImplementedError:
                 #    floatTy = None
 
                 if vTy.element_t != floatTy:
@@ -664,7 +663,6 @@ class ToLlvmIrTranslator(AnalysisCache[SsaAnalysisPass, SsaPass]):
                 elif op.operator == HwtOps.TERNARY:
                     cond, trueVal, falseVal = ops
                     ops = (trueVal, cond, falseVal)
-
                 block, var = self._translateExprOperator(block, op, op.operator, var._dtype, ops, "" if var._hasGenericName else var._name)
 
             # we know for sure that this in in this block that is why we do not need to use readVariable
