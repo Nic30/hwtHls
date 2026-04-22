@@ -313,8 +313,32 @@ void LlvmCompilationBundle::runOpt(
 	MPM.addPass(llvm::StripDeadDebugInfoPass());
 	MPM.addPass(llvm::StripDeadPrototypesPass());
 	MPM.addPass(hwtHls::ProfMetadataRmDummy());
-	//MPM.addPass(llvm::FixIrreduciblePass());
-	//MPM.addPass(llvm::UnifyLoopExitsPass());
+	//MPM.addPass(llvm::createModuleToFunctionPassAdaptor(hwtHls::DumpAndExitPass(
+	//	true, false, "tmp/before.LowerSwitchPass.dot")));
+	//	// :note: llvm-22 FixIrreduciblePass requires LowerSwitchPass
+	MPM.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::LowerSwitchPass())); 
+	MPM.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::FixIrreduciblePass()));
+	// MPM.addPass(llvm::UnifyLoopExitsPass());
+	//{
+	//	auto simplifyCfgOpts =
+	//		hwtHls::HwtHlsSimplifyCFGOptions()	  //
+	//			.setSwitchReduceRange(false)      //
+	//			.forwardSwitchCondToPhi(true)	  //
+	//			.convertSwitchRangeToICmp(true)	  //
+	//			.convertSwitchToLookupTable(true) //
+	//			.needCanonicalLoops(
+	//				false) // :attention: conversion back to canonical loops
+	//					   // will spawn new loops if loop header has phi and
+	//					   // more than 2 predecessors
+	//			.hoistCommonInsts(true) //
+	//			.sinkCommonInsts(true)	//
+	//			.hoistCommonInsts(true) //
+	//			.bonusInstThreshold(1024);
+	//	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(simplifyCfgOpts));
+	//	MPM.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::LowerSwitchPass())); 
+	//}
+	//MPM.addPass(llvm::createModuleToFunctionPassAdaptor(hwtHls::DumpAndExitPass(
+	//	true, false, "tmp/before._addMachineCodegenPasses.dot")));
 	MPM.run(*module, *MAM);
 	_tryToFindMain();
 	// main function may mutate in ThreadExtractPass
