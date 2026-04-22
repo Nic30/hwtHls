@@ -17,13 +17,12 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.transformation.simplifyExpr.simplifyMux import popConcatOfSlices
 from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOperatorNodeWith
 
-
-# value, low, high
+# :note: BitChunkTuple represents value, lowBitIndex, highBitIndex,  <low, high) notation
 BitChunkTuple = Union[HConst, Tuple[HlsNetNodeOut, int, int]]
 CaseTuple = Tuple[List[BitChunkTuple], Optional[HlsNetNodeOut]]
 
 
-def _buildConcatFromSliceTuples(builder: HlsNetlistBuilder, vals: Sequence[BitChunkTuple]):
+def _buildConcatFromSliceTuples(builder: HlsNetlistBuilder, vals: Sequence[BitChunkTuple]) -> HlsNetNodeOut:
     assert vals
     valuesSliced = []
     for _v in vals:
@@ -77,14 +76,19 @@ def sliceOutValueFromValue(val: HConst, lowBitNo: int, highBitNo: int):
 
 def sliceOutValueFromConcatOrConst(v: HlsNetNodeOut,
                                    lowBitNo: int, highBitNo: int,
-                                   collectLeftover: bool):
+                                   collectLeftover: bool) -> tuple[list[BitChunkTuple], list[BitChunkTuple]]:
     width = v._dtype.bit_length()
-    _leftover = [] if collectLeftover else None
-    _extracted = []
+    assert lowBitNo >= 0, (v, lowBitNo, highBitNo)
+    assert lowBitNo < highBitNo, (v, lowBitNo, highBitNo)
+    assert highBitNo <= width, (v, width, highBitNo)
+    _leftover: list[BitChunkTuple] = [] if collectLeftover else None
+
+    _extracted: list[BitChunkTuple] = []
     vObj = v.obj
     if isinstance(vObj, HlsNetNodeConst):
         vVal = vObj.val
         if collectLeftover and lowBitNo != 0:
+            assert lowBitNo > 0
             _leftover.append(sliceOutValueFromValue(vVal, 0, lowBitNo))
 
         _v = sliceOutValueFromValue(vVal, lowBitNo, highBitNo)
@@ -106,6 +110,7 @@ def sliceOutValueFromConcatOrConst(v: HlsNetNodeOut,
                 if offset + w <= lowBitNo:
                     # no overlap with extracted part
                     if collectLeftover:
+                        assert l < h
                         _leftover.append((o, l, h))
                     offset += w
                     continue
@@ -113,6 +118,7 @@ def sliceOutValueFromConcatOrConst(v: HlsNetNodeOut,
                     # overlap with beginning of extracted part, must split
                     bitsUtilExtractedStart = lowBitNo - offset
                     if collectLeftover:
+                        assert bitsUtilExtractedStart > 0
                         _leftover.append((o, l, l + bitsUtilExtractedStart))
                     l += bitsUtilExtractedStart
                     w -= bitsUtilExtractedStart
@@ -124,23 +130,25 @@ def sliceOutValueFromConcatOrConst(v: HlsNetNodeOut,
                 if offset + w >= highBitNo:
                     # overlap with leftover as well
                     bitUntilExtractedEnd = highBitNo - offset
+                    assert bitUntilExtractedEnd > 0
                     _extracted.append((o, l, l + bitUntilExtractedEnd))
                     l += bitUntilExtractedEnd
                     w -= bitUntilExtractedEnd
                     offset += bitUntilExtractedEnd
                 else:
+                    assert l < h
                     _extracted.append((o, l, h))
                     l = h
                     offset += w
 
             if h != l:
-                assert h > l
+                assert l < h
                 if collectLeftover:
                     _leftover.append((o, l, h))
                 offset += w
-
         assert sum(h - l for (_, l, h) in _extracted) == highBitNo - lowBitNo, (
             highBitNo - lowBitNo, _extracted)
+
         if collectLeftover:
             assert sum(h - l for (_, l, h) in _leftover) == width - (highBitNo - lowBitNo), (
                 width - (highBitNo - lowBitNo), _leftover)
