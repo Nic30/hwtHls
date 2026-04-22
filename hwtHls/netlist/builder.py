@@ -79,26 +79,26 @@ class HlsNetlistBuilder():
 
         return o
 
-    def _toNodeOut(self, o: Union[HlsNetNodeOut, HConst]):
+    def _toNodeOut(self, o: Union[HlsNetNodeOut, HConst]) -> HlsNetNodeOut:
         if isinstance(o, HConst):
             return self.buildConst(o)
         else:
             return o
 
-    def buildConstPy(self, dtype: HdlType, v, name:Optional[str]=None):
+    def buildConstPy(self, dtype: HdlType, v, name:Optional[str]=None) -> HlsNetNodeOut:
         return self.buildConst(dtype.from_py(v), name=name)
 
-    def buildConst(self, v: HConst, name:Optional[str]=None):
+    def buildConst(self, v: HConst, name:Optional[str]=None) -> HlsNetNodeOut:
         c = HlsNetNodeConst(self.netlist, v, name=name)
         self._addNode(c)
         return c._outputs[0]
 
-    def buildConstBit(self, v: Optional[int], name:Optional[str]=None):
+    def buildConstBit(self, v: Optional[int], name:Optional[str]=None) -> HlsNetNodeOut:
         assert v in (0, 1, None, False, True), v
         return self.buildConst(BIT.from_py(v) if v is None else b1 if v else b0, name=name)
 
     @staticmethod
-    def buildScheduledConst(parent: "ArchElement", clkIndex: int, v: HConst):
+    def buildScheduledConst(parent: "ArchElement", clkIndex: int, v: HConst) -> HlsNetNodeOut:
         netlist = parent.netlist
         c0 = HlsNetNodeConst(netlist, v)
         c0.resolveRealization()
@@ -107,7 +107,7 @@ class HlsNetlistBuilder():
         return c0._outputs[0]
 
     @classmethod
-    def buildScheduledConstPy(cls, parent: "ArchElement", clkIndex: int, dtype: HdlType, v):
+    def buildScheduledConstPy(cls, parent: "ArchElement", clkIndex: int, dtype: HdlType, v) -> HlsNetNodeOut:
         return cls.buildScheduledConst(parent, clkIndex, dtype.from_py(v))
 
     def _tryToFindInUseList(self, operator: HOperatorDef,
@@ -172,7 +172,7 @@ class HlsNetlistBuilder():
             return res
 
         operandsWithOutputsOnly = tuple(self._toNodeOut(o) for o in operands)
-        if  operator is HwtOps.INDEX or operator is OP_INDEX_CONST:
+        if operator is HwtOps.INDEX or operator is OP_INDEX_CONST:
             assert operands[0]._dtype.bit_length() > 1, operands
         n = operatorNodeCls(self.netlist, operator, len(operands), resT, name=name, operatorSpecialization=operatorSpecialization)
         self._addNode(n)
@@ -434,7 +434,7 @@ class HlsNetlistBuilder():
             for op0, other in ((a, b), (b, a)):
                 if isinstance(op0, HlsNetNodeConst):
                     op0 = op0.val
-    
+
                 if isinstance(op0, HConst) and op0._is_full_valid():
                     if op0._eq(op0._dtype.all_mask()):
                         # 1 & x = x
@@ -449,7 +449,7 @@ class HlsNetlistBuilder():
                         c = HlsNetNodeConst(self.netlist, op0._dtype.from_py(0), name=name)
                         self._addNode(c)
                         return c._outputs[0]
-    
+
         return self.buildOp(HwtOps.AND, operatorSpecialization, a._dtype, a, b, name=name)
 
     def buildAndOptional(self, a: Optional[Union[HlsNetNodeOut, HConst]], b: Optional[Union[HlsNetNodeOut, HConst]],
@@ -471,11 +471,11 @@ class HlsNetlistBuilder():
                     a.obj.operator == HwtOps.OR and\
                     (a.obj.dependsOn[0] is b or a.obj.dependsOn[1] is b):
                 return a
-    
+
             for op0, other in ((a, b), (b, a)):
                 if isinstance(op0, HlsNetNodeConst):
                     op0 = op0.val
-    
+
                 if isinstance(op0, HConst) and op0._is_full_valid():
                     if op0._eq(0):
                         # 0 | x = x
@@ -492,7 +492,7 @@ class HlsNetlistBuilder():
                         c.name = name
                         self._addNode(c)
                         return c._outputs[0]
-    
+
         return self.buildOp(HwtOps.OR, operatorSpecialization, a._dtype, a, b, name=name)
 
     def buildOrOptional(self, a: Optional[Union[HlsNetNodeOut, HConst]], b: Optional[Union[HlsNetNodeOut, HConst]],
@@ -516,7 +516,7 @@ class HlsNetlistBuilder():
             for op0, other in ((a, b), (b, a)):
                 if isinstance(op0, HlsNetNodeConst):
                     op0 = op0.val
-    
+
                 if isinstance(op0, HConst) and op0._is_full_valid():
                     if op0._eq(0):
                         # 0 ^ x = x
@@ -527,11 +527,11 @@ class HlsNetlistBuilder():
                             return c._outputs[0]
                         else:
                             return other
-    
+
                     elif op0._eq(op0._dtype.all_mask()):
                         # 1 ^ x = ~x
                         return self.buildNot(other)
-    
+
         return self.buildOp(HwtOps.XOR, operatorSpecialization, a._dtype, a, b, name=name)
 
     def buildNot(self, a: Union[HlsNetNodeOut, HConst], name:Optional[str]=None,
