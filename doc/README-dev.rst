@@ -34,16 +34,20 @@ Debug build
 * Default build and install (from locally downloaded repo)
 
 .. code-block:: bash
-
+    # :note: you can use just pip3 install . 
+    #    or   pip3 install . -e 
+    #    The folliwng commands however do a raw C++ in place build, which may be useful for debugging
 	# make sure that you installed dependencies from pyproject.toml using pip3 install
 	meson setup build
 	# meson setup build -Db_profile=true # to build with profiling
+	# you can overide which LLVM is used by --native-file utils/custom-llvm.ini (you have to modify the example file)
 	ninja -C build
 
 	# you must link the c++ library file in order to find it from python using "import"
 	# this is required becase we are not installing the library but using repo directly as a python package
 	ln -s "../../$(ls build/hwtHls/llvm/*.so)" hwtHls/llvm/
 	ln -s "../../../$(ls build/hwtHls/netlist/abc/abc*.so)" hwtHls/netlist/abc/
+	ln -s "../../../$(ls build/hwtHls/netlist/techmap/techmap*.so)" hwtHls/netlist/techmap/
 	ln -s "../../../../$(ls build/hwtHls/netlist/analysis/reachabilityCpp/*.so)"  hwtHls/netlist/analysis/reachabilityCpp/
 
 * You can use `LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libSegFault.so` to get better segfault reports.

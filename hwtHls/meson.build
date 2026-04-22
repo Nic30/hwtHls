@@ -18,4 +18,5 @@ endforeach
 
 subdir('llvm')
 subdir('netlist/abc')
+subdir('netlist/techmap')
 subdir('netlist/analysis/reachabilityCpp')
