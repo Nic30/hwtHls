@@ -1,5 +1,5 @@
 from itertools import islice
-from typing import Any, Sequence
+from typing import Any, Sequence, Optional
 from hwtHls.io.portGroups import BankedPortGroup, MultiPortGroup
 
 SchedulingResourceType = Any
@@ -33,6 +33,7 @@ class HlsSchedulerResourceUseList(list[dict[object, int]]):
         list.__init__(self)
         self.clkOffset = 0  # always >= 0, used to allow negative indexes on self
         self.resourceConstraints = resourceConstraints
+        self._dbgTracer:Optional["HlsSchedulerTracer"] = None
 
     def getUseCount(self, resourceType: SchedulingResourceType, clkI: int) -> int:
         assert resourceType is not None
@@ -43,10 +44,13 @@ class HlsSchedulerResourceUseList(list[dict[object, int]]):
         assert resourceType is not None
         cur = self[clkI]  # offset applied in __getitem__
         cur[resourceType] = cur.get(resourceType, 0) + useCount
-        # print(" v:", cur[resourceType])
+        if self._dbgTracer is not None:
+            self._dbgTracer.log(("         resource add use:", self._minifyResource(resourceType), clkI, cur[resourceType]), formatter=repr)
 
     def removeUse(self, resourceType: SchedulingResourceType, clkI: int):
-        # print("rm use", resourceType, clkI)
+        if self._dbgTracer is not None:
+            self._dbgTracer.log(("         resource rm use:", self._minifyResource(resourceType), clkI), formatter=repr)
+
         assert resourceType is not None
         i = self.clkOffset + clkI
         assert i >= 0, (i, clkI, resourceType, "Trying to remove from clock where no resource is used")
@@ -63,9 +67,11 @@ class HlsSchedulerResourceUseList(list[dict[object, int]]):
             cur[resourceType] = curCnt - 1
 
     def moveUse(self, resourceType: SchedulingResourceType, fromClkI: int, toClkI: int):
+        if self._dbgTracer is not None:
+            self._dbgTracer.log(("         resource mv use:", self._minifyResource(resourceType), fromClkI, toClkI), formatter=repr)
+
         assert resourceType is not None
         assert fromClkI != toClkI, (resourceType, "if this is the case this function should not be called at all", fromClkI)
-        # print("mv use ", resourceType, fromClkI, toClkI)
         # accessing directly to raise index error if there is not yet any use in this clk
         _fromClkI = self.clkOffset + fromClkI
         assert _fromClkI >= 0 and _fromClkI < len(self), ("Moving from usage from clock slot which is not present",
@@ -164,3 +170,19 @@ class HlsSchedulerResourceUseList(list[dict[object, int]]):
             for _ in range(clkIndex + 1 - len(self)):
                 self.append({})
             return self[_clkIndex]
+
+    @staticmethod
+    def _minifyResource(res):
+        return getattr(res, "_id", res)
+
+    def __repr__(self) -> str:
+        items = []
+        for item in self:
+            _item = {}
+            items.append(_item)
+            for k, v in item.items():
+                kId = self._minifyResource(k)
+                if kId in _item:
+                    kId = k
+                _item[kId] = v
+        return repr(items)
