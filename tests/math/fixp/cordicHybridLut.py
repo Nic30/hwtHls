@@ -90,7 +90,7 @@ Efficient Hardware Design of Transcendental Functions for FPGA https://people.in
 # https://github.com/alireza-shirzad/Cordic_tanh
 # Trigonometrical Addition Theorems https://amycoders.org/tutorials/sintables.html
 # cordic for floating point https://docs.amd.com/v/u/en-US/xapp552-cordic-floating-point-operations
-
+# EFFICIENT IMPLEMENTATION OF TANH: A COMPARATIVE STUDY OF NEW RESULTS https://aircconline.com/csit/papers/vol13/csit130701.pdf
 
 class Cordic():
     """
@@ -194,7 +194,8 @@ class Cordic():
         required and X and Y are directly holding the value of cos(a), sin(a)
         """
         # :note: K is independent of the angular units
-        return reduce(lambda a, b: a * b, [math.cos(t) for t in self.getThetaROM(CORDIC_COORDINATE_MODE.CIRCULAR)], 1.0)
+        rom = [math.cos(t) for t in self.getThetaROM(CORDIC_COORDINATE_MODE.CIRCULAR)]
+        return reduce(lambda a, b: a * b, rom, 1.0)
 
     @hlsBytecode
     @staticmethod
@@ -208,6 +209,14 @@ class Cordic():
         Simulate CORDIC iterations from index start to stop-1.
         :param dbgInPy: turn off redundant casts if running with just pythonic values in simulation.
         """
+        if not isinstance(x, float) and isinstance(x._dtype, HFixedPointQ):
+            assert x._dtype.rounding == HFloatTmpRounding.ROUND_FLOOR
+            assert y._dtype.rounding == HFloatTmpRounding.ROUND_FLOOR
+            assert z._dtype.rounding == HFloatTmpRounding.ROUND_FLOOR
+            assert x._dtype.saturation == HFloatTmpSaturation.SATURATE_NONE
+            assert y._dtype.saturation == HFloatTmpSaturation.SATURATE_NONE
+            assert z._dtype.saturation == HFloatTmpSaturation.SATURATE_NONE
+
         # for i in range(start, stop):
         #    sigma = 1. if z >= 0 else -1.
         #    factor = 2. ** (-i)
@@ -234,14 +243,14 @@ class Cordic():
                 i = _i + stepOffset
             else:
                 i = _i._zext(indexWidth) + stepOffset
-            
+
             xDivided = x / (_f(2.0) ** i)  # x * 2 ** (-i)
             yDivided = (y / (_f(2.0) ** i)) * _f(coordinateMode)  # y * 2 ** (-i)
             if mode == CORDIC_MODE.ROTATION:
                 d = z < 0.0
             else:
                 d = y >= 0.0
-            
+
             if d:
                 PyBytecodeBlockLabel("cordic.mainLoop.clockwise")
                 # in rotation, y < 0 in vectoring -> clockwise
@@ -527,7 +536,7 @@ class Cordic():
         if swapXY:
             PyBytecodeBlockLabel("Cordic.cosSinPi.swapXY")
             if T_INTERNAL is None:
-                copy = lambda x:x
+                copy = lambda x: x
             else:
                 # the copy is necessary because otherwise both will be y_final because we are working with references
                 copy = PyBytecodePreprocHwCopy
@@ -552,7 +561,7 @@ class Cordic():
                 y_final._auto_cast(T_INTERNAL)._auto_cast(outT)._auto_cast(T_OUT)
             )
 
-    def cosSin(self, angleRad: ANY_FP_VALUE) -> tuple[ANY_FP_VALUE, ANY_FP_VALUE]:
+    def cosSin(self, _angleRad: ANY_FP_VALUE) -> tuple[ANY_FP_VALUE, ANY_FP_VALUE]:
         """
         Compute (cos(angle), sin(angle)) using a hybrid LUT/CORDIC approach.
 
@@ -563,33 +572,32 @@ class Cordic():
 
         STAGES_IN_LUT = self.STAGES_IN_LUT
         if STAGES_IN_LUT or (\
-             not isinstance(angleRad, RtlSignalBase) and\
-             not isinstance(angleRad._dtype, HFixedPointQ) and\
-             angleRad._dtype.int_bit_length <= 1):
+             not isinstance(_angleRad, RtlSignalBase) and\
+             not isinstance(_angleRad._dtype, HFixedPointQ) and\
+            _angleRad._dtype.int_bit_length <= 1):
             # if is not Q1.x the input may be out of range of cordic
             # rather than native range reduction to 1 to pi/4 radians it is more easy to convert it to pi*radians
             # and perform reduction there
 
             # divide by pi at the input because we would have to do this anyway to resolve index to LUT
             # or to normalize input to correct octants
-            anglePiRadAnyRange = radsToPiRads(angleRad)
+            anglePiRadAnyRange = radsToPiRads(_angleRad)
             return PyBytecodeInline(self.cosSinPi)(anglePiRadAnyRange)
 
         else:
             # only normalized Q1.x
             mode = CORDIC_MODE.ROTATION
             coordinateMode = CORDIC_COORDINATE_MODE.CIRCULAR
-            # build table for pi rads in order to avoid division by pi at input
             _thetaROM = self.getThetaROM(coordinateMode)
-            if isinstance(angleRad, float):
+            if isinstance(_angleRad, float):
                 T = None
                 _f = lambda v: v
                 thetaROM = _thetaROM
-                _angleRad = angleRad
+                angleRad = _angleRad
             else:
-                T = angleRad._dtype
+                T = _angleRad._dtype
                 T_INTERNAL = self._getInternalType(T)
-                _angleRad = angleRad._auto_cast(T_INTERNAL)
+                angleRad = _angleRad._auto_cast(T_INTERNAL)
                 _f = HFloatTmp.from_py
                 thetaROM = HFloatTmp[len(_thetaROM)].from_py(_thetaROM)
 
@@ -598,7 +606,7 @@ class Cordic():
             K = self.getK_forNoDivCosSin()
             x0 = _f(K)
             y0 = _f(0.0)
-            z0 = _angleRad
+            z0 = angleRad
             x_final, y_final, _ = PyBytecodeInline(self.runCordicSteps)(
                 mode, coordinateMode,
                 x0, y0, z0,
@@ -607,6 +615,7 @@ class Cordic():
                 loopPragmaGetter=self.loopPragmaGetter)
 
             if T is None:
+                # we operate with python float, no need to cast
                 return x_final, y_final
             else:
                 # cast from HFloatTmp to concrete fp type
