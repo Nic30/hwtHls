@@ -263,16 +263,16 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
     def getFullPort(self) -> HlsNetNodeOut:
         """
         The full port is HlsNetlistOut. Only usable for channels with capacity>0.
-        * 1 if internal buffer of this channel is full.
-        * empty = ~read.valid
-
+        
         :attention: This port should be used only after scheduling to access internal state of the buffer.
             Under normal scenario one should use ready/readyNB.
         :attention: For CHANNEL_ALLOCATION_TYPE.REG valid/validNB and full is set on write.
             After read the valid/validNB stays 1 but full is cleared.
             Write is blocked while full and is not affected by valid/validNB.
             This is to avoid register duplication.
-        :return: port which is 1 if there is a space in the buffer of this edge.
+        
+        :return: Port which is 1 if there is no space in the buffer of this edge.
+            For example if capacity=1 then empty = ~read.valid.
         """
         assert self.associatedRead is not None, ("This port should be used only for internal channels", self)
         assert self.scheduledZero is not None, ("This port should be used only after scheduling", self)
@@ -500,7 +500,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         rClkI = clkWindowIndex(rTime, clkPeriod)
         assert dstRead in allocator.subNodes, (
             self, allocator, "If this backedge is not buffer both write and read must be in same element")
-
+        assert self.dependsOn[0] is not None, self
         hasOnlyVoidData = HdlType_isVoid(self.dependsOn[0]._dtype)
         # :var dataDst: the signal which holds the value which is an output of an associated read
         # :var dataSrc: the signal which holds the value which is an input to this write
@@ -641,7 +641,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
 
         dst = self.dst
         if not self.rtlPortPhysicallyExits():
-            assert self.isChannel(), self
+            assert self.isChannel(), (self, "write to HwIO which is not physically constructed is allowed only for chnnels between HLS threads")
             self.associatedRead._rtlAllocDatapathIo()
             dst = self.dst
 
