@@ -229,6 +229,8 @@ py3.extension_module(
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_SwitchToSelect.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.cpp',
+     'Transforms/IoPortVectorizationPass/InstructionGraph.cpp',
+     'Transforms/IoPortVectorizationPass/IoPortVectorizationPass.cpp',
      'Transforms/trivialSimplifyCFGPass.cpp',
      'Transforms/slicesMerge/rewritePhiShift.cpp',
      'Transforms/slicesMerge/rewriteConcat.cpp',

@@ -37,6 +37,17 @@ void register_HwtHlsIoMetadata(pybind11::module_ & m) {
 		.value("IO_DIR_OUT", hwtHls::IODirection::IO_DIR_OUT)
 		.value("IO_DIR_UNRESOLVED", hwtHls::IODirection::IO_DIR_UNRESOLVED)
 		.finalize();
+	py::native_enum<hwtHls::IOVectorizationType> (m, "IOVectorizationType", "enum.Enum")
+		.value("IOV_SCALAR_PACKED", hwtHls::IOVectorizationType::IOV_SCALAR_PACKED)
+		.value("IOV_SCALAR_SPARSE", hwtHls::IOVectorizationType::IOV_SCALAR_SPARSE)
+		.value("IOV_SCALAR_SPARSE_SYNCED", hwtHls::IOVectorizationType::IOV_SCALAR_SPARSE_SYNCED)
+		.finalize();
+	py::class_<hwtHls::IOVectorizationMd>(m, "IOVectorizationMd")
+		.def(py::init<>())
+		.def(py::init<IOVectorizationType, std::optional<unsigned>>())
+		.def_readwrite("type", &IOVectorizationMd::type)
+		.def_readwrite("laneCnt", &IOVectorizationMd::laneCnt)
+		;
 	py::class_<hwtHls::HwtHlsIoMetadata>(m, "HwtHlsIoMetadata")
 		.def(py::init<>())
     	.def(py::init<IODirection,  // direction
@@ -47,10 +58,11 @@ void register_HwtHlsIoMetadata(pybind11::module_ & m) {
     	              size_t,         // otherArgIndex
     	              bool,           // hasBlockingLoad
     	              bool,           // hasBlockingStore
-					  size_t,         // bufferCapacity
+    	              size_t,         // bufferCapacity
     	              MDTupleWithDeletedDelete*, // ioPropertyPath
     	              MDTupleWithDeletedDelete*, // latenciesFromPredecessorIo
-    	              MDTupleWithDeletedDelete* // ioProtocolMd
+    	              MDTupleWithDeletedDelete*, // ioProtocolMd
+    	              std::optional<hwtHls::IOVectorizationMd> // ioVectorization
     	      >(),
     	      py::arg("direction"),
     	      py::arg("addrWidth"),
@@ -60,10 +72,11 @@ void register_HwtHlsIoMetadata(pybind11::module_ & m) {
     	      py::arg("otherArgIndex"),
     	      py::arg("hasBlockingLoad"),
     	      py::arg("hasBlockingStore"),
-			  py::arg("bufferCapacity"),
+    	      py::arg("bufferCapacity"),
     	      py::arg("ioPropertyPath"),
     	      py::arg("latenciesFromPredecessorIo"),
-    	      py::arg("ioProtocolMd")
+    	      py::arg("ioProtocolMd"),
+    	      py::arg("ioVectorization")
     	)
     	.def_readwrite("direction", &HwtHlsIoMetadata::direction)
     	.def_readwrite("addrWidth", &HwtHlsIoMetadata::addrWidth)
@@ -89,6 +102,7 @@ void register_HwtHlsIoMetadata(pybind11::module_ & m) {
 		}, [](hwtHls::HwtHlsIoMetadata & self, MDTupleWithDeletedDelete * v) {
 			self.ioProtocolMd = reinterpret_cast<llvm::MDTuple*>(v);
 		})
+		.def_readwrite("ioVectorization", &HwtHlsIoMetadata::ioVectorization)
 		.def_readwrite("unparsedMd", &hwtHls::HwtHlsIoMetadata::unparsedMd) // this requires PYBIND11_MAKE_OPAQUE(std::vector<llvm::Metadata*>); otherwise
 		// the access to property just returns new python list instance and it would not be possible to append to this vector from python
 		.def("__eq__", [](const hwtHls::HwtHlsIoMetadata &V0, const hwtHls::HwtHlsIoMetadata & V1) { return V0 == V1;})

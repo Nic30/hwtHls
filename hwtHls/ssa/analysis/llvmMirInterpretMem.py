@@ -12,6 +12,8 @@ from hwtHls.ssa.analysis.llvmIrInterpretUtils import PtrAddrTuple, \
 from hwtHls.ssa.analysis.llvmMirInterpretUtils import LlvmMirInstrFunction
 from hwtLib.abstract.sim_ram import SimRam
 from hwtSimApi.agents.base import NOP
+from hwtHls.io.hwIoVectorized import HwIoProxyScalarVectorized, \
+    splitConstBitsToLanes
 
 
 def _decodeOpcode_HWTFPGA_ARG_GET(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
@@ -41,6 +43,9 @@ def _decodeOpcode_HWTFPGA_CLOAD(interpret: "LlvmMirInterpret", MRI: MachineRegis
     else:
         tWithoutVld = HBits(width - 1)
         validFlagMask = 1 << width - 1
+
+    if ioMd.ioVectorization is not None and ioMd.ioVectorization.laneCnt != 1:
+        raise NotImplementedError(instr)
 
     # data invalid, but vld=0 (vld is msb bit)
     invalidData = t.from_py(0, vld_mask=validFlagMask)
@@ -104,6 +109,8 @@ def _decodeOpcode_G_LOAD(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo
     if addrSpace > 0:
         ioMd: HwtHlsIoMetadata = interpret.ioMetadata[addrSpace - 1]
         isBlocking = ioMd.hasBlockingLoad
+        if ioMd.ioVectorization is not None and ioMd.ioVectorization.laneCnt != 1:
+            raise NotImplementedError(instr)
     else:
         ioMd = None
         isBlocking = True
@@ -153,26 +160,59 @@ def _decodeOpcode_HWTFPGA_CSTORE(interpret: "LlvmMirInterpret", MRI: MachineRegi
     cond, hasRuntimeCond = interpret._decodeEnableCondition(instr)
     valIsConst = isinstance(val, HConst)
     hasIndex = not isinstance(index, int) or index != 0
+    # :note: at this point the instruction pointer operand and register will likely have no type
+    mo = tuple(instr.memoperands())[0]
+    addrSpace = mo.getAddrSpace()
+    if addrSpace > 0:
+        ioMd: HwtHlsIoMetadata = interpret.ioMetadata[addrSpace - 1]
+        segmentWidth = ioMd.writeWordWidth
+        laneCnt = HwIoProxyScalarVectorized.getLaneCntFromWidth(ioMd, segmentWidth, width)
+    else:
+        laneCnt = 1
 
-    def _opcode_HWTFPGA_CSTORE_toIO(timeNow: int, regs: list[HConst]):
-        io = regs[_io]
-        if hasRuntimeCond:
-            _cond = regs[cond]
-            assert _cond._is_full_valid(), instr
-            if not _cond:
-                return
+    if laneCnt == 1:
 
+        def _opcode_HWTFPGA_CSTORE_toIO(timeNow: int, regs: list[HConst]):
+            io = regs[_io]
+            if hasRuntimeCond:
+                _cond = regs[cond]
+                assert _cond._is_full_valid(), instr
+                if not _cond:
+                    return
+
+            if valIsConst:
+                _val = val
+            else:
+                _val = regs[val]
+            if hasIndex:
+                _index = regs[index]
+                io.write(_index, _val)
+            else:
+                io.append(_val)
+
+        return _opcode_HWTFPGA_CSTORE_toIO
+    else:
         if valIsConst:
-            _val = val
-        else:
-            _val = regs[val]
-        if hasIndex:
-            _index = regs[index]
-            io.write(_index, _val)
-        else:
-            io.append(_val)
+            _val = splitConstBitsToLanes(val, laneCnt, segmentWidth)
+        assert not hasIndex, instr
 
-    return _opcode_HWTFPGA_CSTORE_toIO
+        def _opcode_HWTFPGA_CSTORE_toVecIO(timeNow: int, regs: list[HConst]):
+            io = regs[_io]
+            if hasRuntimeCond:
+                _cond = regs[cond]
+                assert _cond._is_full_valid(), instr
+                if not _cond:
+                    return
+
+            if valIsConst:
+                _val = val
+            else:
+                _val = regs[val]
+                _val = splitConstBitsToLanes(_val, laneCnt, segmentWidth)
+
+            io.extend(_val)
+
+        return _opcode_HWTFPGA_CSTORE_toVecIO
 
 
 def _decodeOpcode_G_STORE(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
@@ -180,20 +220,53 @@ def _decodeOpcode_G_STORE(interpret: "LlvmMirInterpret", MRI: MachineRegisterInf
     valIsConst = isinstance(val, HConst)
     assert isinstance(_io, int), instr
 
-    def _opcode_G_STORE(timeNow: int, regs: list[HConst]):
-        io = regs[_io]
+    ptrLlt = MRI.getType(instr.getOperand(1).getReg())
+    addrSpace = ptrLlt.getAddressSpace()
+    if addrSpace > 0:
+        ioMd: HwtHlsIoMetadata = interpret.ioMetadata[addrSpace - 1]
+        segmentWidth = ioMd.writeWordWidth
         if valIsConst:
-            _val = valIsConst
+            width = val._dtype.bit_length()
         else:
-            _val = regs[val]
+            valT = MRI.getType(instr.getOperand(0).getReg())
+            assert valT, instr
+            width = valT.getScalarSizeInBits()
 
-        if isinstance(io, PtrAddrTuple):
-            # SimRam
-            io[0].write(io[1], _val)
-        else:
-            io.append(_val)
+        laneCnt = HwIoProxyScalarVectorized.getLaneCntFromWidth(ioMd, segmentWidth, width)
+    else:
+        laneCnt = 1
 
-    return _opcode_G_STORE
+    if laneCnt == 1:
+
+        def _opcode_G_STORE(timeNow: int, regs: list[HConst]):
+            io = regs[_io]
+            if valIsConst:
+                _val = valIsConst
+            else:
+                _val = regs[val]
+
+            if isinstance(io, PtrAddrTuple):
+                # SimRam
+                io[0].write(io[1], _val)
+            else:
+                io.append(_val)
+
+        return _opcode_G_STORE
+    else:
+        if valIsConst:
+            val = splitConstBitsToLanes(val, laneCnt, segmentWidth)
+
+        def _opcode_G_STORE_vec(timeNow: int, regs: list[HConst]):
+            io = regs[_io]
+            if valIsConst:
+                _val = val
+            else:
+                _val = regs[val]
+                _val = splitConstBitsToLanes(_val, laneCnt, segmentWidth)
+
+            io.extend(_val)
+
+        return _opcode_G_STORE_vec
 
 
 def _decodeOpcode_HWTFPGA_IMPLICIT_DEF(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:

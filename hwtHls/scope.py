@@ -32,6 +32,8 @@ from hwtHls.netlist.context import HlsNetlistChannels
 from hwtHls.platform.platform import DefaultHlsPlatform
 from hwtHls.thread import HlsThread, HlsThreadDoesNotUseSsa
 from hwtLib.amba.axi_common import Axi_hs
+from hwtHls.io.hwIoVectorized import HwIOStructVecRdVld, \
+    HwIoProxyScalarVectorized
 
 # type representing HwIO and alike classes which are natively supported by HlsScope read/write
 ANY_HLS_COMPATIBLE_IO = Union[HwIODataRdVld, HwIOStructRdVld,
@@ -134,7 +136,10 @@ class HlsScope():
         else:
             proxy = self._ioProxyForIo.get(src)
             if proxy is None:
-                proxy = IoProxyScalar(self, src, dtype=dtype)
+                if isinstance(src, HwIOStructVecRdVld):
+                    proxy = HwIoProxyScalarVectorized(self, src, dtype=dtype)
+                else:
+                    proxy = IoProxyScalar(self, src, dtype=dtype)
 
             r = proxy.read(blocking=blocking, isVolatile=isVolatile)
             if dtype is not None:
@@ -142,7 +147,9 @@ class HlsScope():
             return r
 
     @hlsLowLevel
-    def write(self, src: Union[HlsRead, bytes, int, HConst], dst: ANY_HLS_COMPATIBLE_IO, isVolatile:bool=True, mayBecomeFlushable=True) -> HlsWrite:
+    def write(self, src: Union[HlsRead, bytes, int, HConst],
+              dst: ANY_HLS_COMPATIBLE_IO,
+              isVolatile:bool=True, mayBecomeFlushable=True) -> HlsWrite:
         """
         Create a write statement for simple interfaces.
         """
@@ -155,7 +162,10 @@ class HlsScope():
         else:
             proxy = self._ioProxyForIo.get(dst)
             if proxy is None:
-                proxy = IoProxyScalar(self, dst)
+                if isinstance(dst, HwIOStructVecRdVld):
+                    proxy = HwIoProxyScalarVectorized(self, dst)
+                else:
+                    proxy = IoProxyScalar(self, dst)
 
             w = proxy.write(src, isVolatile=isVolatile, mayBecomeFlushable=mayBecomeFlushable)
             return w

@@ -108,17 +108,24 @@ std::tuple<Type*, size_t, MachineInstr*> getLoadOrStoreElementType(
 			IntegerType *resT = nullptr;
 			size_t addressWidth = 0;
 			auto hwtHlsIO = HwtHlsIoMetadata_get(F, addrSpace - 1);
-			if (!hwtHlsIO.has_value()) {
-				if (expectedResWidth.has_value())
-					resT = IntegerType::get(F.getContext(),
-							expectedResWidth.value());
-			} else {
+			if (hwtHlsIO.has_value()) {
 				addressWidth = hwtHlsIO.value().addrWidth;
-				resT = IntegerType::getIntNTy(F.getContext(),
-						std::max(hwtHlsIO.value().readWordWidth,
-								 hwtHlsIO.value().writeWordWidth));
+				size_t bitwidth = std::max(hwtHlsIO.value().readWordWidth,
+									       hwtHlsIO.value().writeWordWidth);
+				auto vec = hwtHlsIO.value().ioVectorization;
+				if (vec.has_value()) {
+					assert(vec.value().laneCnt.has_value() && "At this point the number of lanes should be already resolved");
+					if (vec.value().laneCnt.value() != 1) {
+						bitwidth = (bitwidth + 1) * vec.value().laneCnt.value(); // +1 for segment enable
+					}
+				}		
+				resT = IntegerType::getIntNTy(F.getContext(), bitwidth);
 				if (expectedResWidth.has_value())
 					assert(MO->getSizeInBits() == expectedResWidth);
+			} else {
+				if (expectedResWidth.has_value())
+							resT = IntegerType::get(F.getContext(),
+									expectedResWidth.value());
 			}
 			MachineInstr *ioArgDefiningInstr = nullptr;
 			for (MachineInstr &FirstBBMI : *MI.getMF()->begin()) {

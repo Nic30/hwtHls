@@ -2,7 +2,6 @@ from datetime import datetime
 import re
 from typing import Union, Optional, Callable, Sequence
 
-from hwt.hdl.commonConstants import b1
 from hwt.hdl.const import HConst
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
@@ -12,12 +11,12 @@ from hwtHls.code import ctlz, zext, hwUMax, hwUMin, hwSMax, hwSMin, fshl, fshr, 
 from hwtHls.llvm.llvmIr import Function, BasicBlock, InstructionToCallInst, \
     InstructionToPHINode, ValueToBasicBlock, \
     ValueToConstantInt, ValueToFunction, ValueToInstruction, Instruction, \
-    InstructionToLoadInst, InstructionToStoreInst, InstructionToAllocaInst, ValueToArgument, ValueToGlobalValue, \
+    InstructionToAllocaInst, ValueToArgument, ValueToGlobalValue, \
     ValueToConstantFP, TypeToPointerType, TypeToIntegerType, IntegerType, \
     LLVMStringContext, ValueToUndefValue, TypeToArrayType, ArrayType, \
-    Intrinsic, ValueToAllocaInst, ValueToConstantArray, ValueToConstantDataArray, IsStreamIo, Value, PHINode, \
-    Module, Argument, InstructionToGetElementPtrInst, HwtHlsIoMetadata, HwtHlsIoMetadata_get, \
-    AllocaInst, StreamChannelProps, LlvmCompilationBundle, TargetOpcode, Type
+    Intrinsic, ValueToConstantArray, ValueToConstantDataArray, IsStreamIo, Value, PHINode, \
+    Module, Argument, HwtHlsIoMetadata, HwtHlsIoMetadata_get, \
+   LlvmCompilationBundle, TargetOpcode, Type
 from hwtHls.platform.platform import ComponentGeneratorDict
 from hwtHls.ssa.analysis.llvmIrInterpretCall import _decodeOpcode_CallInst
 from hwtHls.ssa.analysis.llvmIrInterpretInt import _decodeOpcode_ICmpInst, \
@@ -30,16 +29,14 @@ from hwtHls.ssa.analysis.llvmIrInterpretInt import _decodeOpcode_ICmpInst, \
 from hwtHls.ssa.analysis.llvmIrInterpretJump import _decodeOpcode_Br, \
     _decodeOpcode_Switch, _decodeOpcode_RetInst
 from hwtHls.ssa.analysis.llvmIrInterpretMem import _decodeOpcode_GetElementPtr, \
-    _decodeOpcode_Freeze, _decodeOpcode_Alloca, _getItemFromLocalPointer, \
-    _decodeOpcode_ExtractValueInst, _opcode_Intrinsic_memcpy, AllocaInstCell
+    _decodeOpcode_Freeze, _decodeOpcode_Alloca, _decodeOpcode_ExtractValueInst, _opcode_Intrinsic_memcpy,\
+    decodeOpcode_Load, decodeOpcode_Store
 from hwtHls.ssa.analysis.llvmIrInterpretStreamIo import LlvmIrInterpretStreamIo
 from hwtHls.ssa.analysis.llvmIrInterpretUtils import BINARY_OPS_TO_FN, \
     _prepareWaveWriterTopIo, VcdLlvmIrCodelineFormatter, \
     VcdLlvmIrSimTimeFormatter, VcdLlvmIrBBFormatter, RE_NON_ID, PtrAddrTuple, \
-    SimIoUnderflowErr, LlvmIrInstrFunction, LlvmIrInterpretArgs, AnyInstrOpcode
+    LlvmIrInstrFunction, LlvmIrInterpretArgs, AnyInstrOpcode
 from hwtHls.ssa.translation.toLlvm import PyObjectPlaceholderList
-from hwtLib.abstract.sim_ram import SimRam
-from hwtSimApi.agents.base import NOP
 from hwtSimApi.constants import CLK_PERIOD
 from hwtSimApi.triggers import StopSimumulation
 from pyDigitalWaveTools.vcd.common import VCD_SIG_TYPE
@@ -133,8 +130,8 @@ class LlvmIrInterpret():
         self.fnArgs = fnArgs
         # instructions with special handling of operands
         self._dispatchDict0: dict[AnyInstrOpcode, Callable] = {
-            Instruction.MemoryOps.Load: self._decodeOpcode_Load,
-            Instruction.MemoryOps.Store: self._decodeOpcode_Store,
+            Instruction.MemoryOps.Load: decodeOpcode_Load,
+            Instruction.MemoryOps.Store: decodeOpcode_Store,
             Instruction.TermOps.Unreachable: self._decodeOpcode_UnreachableInst,
         }
         d = self._dispatchDict0
@@ -326,167 +323,6 @@ class LlvmIrInterpret():
             ops.append(v)
 
         return ops
-
-    def _decodeOpcode_Load(self, _, instr: Instruction) -> LlvmIrInstrFunction:
-        load = InstructionToLoadInst(instr)
-        assert load is not None, instr
-        srcPtr, = load.iterOperandValues()
-        srcPtrAsArg = ValueToArgument(srcPtr)
-        if srcPtrAsArg is None:
-            # load with GEP from GlobalVariable
-            width = instr.getType().getScalarSizeInBits()
-            srcAlloca = ValueToAllocaInst(srcPtr)
-            if srcAlloca is not None:
-                srcAlloca: AllocaInst
-                streamOffsetMd = srcAlloca.getMetadata(self.strCtx.addStringRef(StreamChannelProps.METADATA_NAME_TMP_VAR_DATA_OFFSET))
-                if streamOffsetMd is not None:
-                    return self.streamIoHandler._decodeLoadFromStreamTmpVar_offset(instr, srcAlloca, streamOffsetMd)
-
-            def _opcode_Load(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
-                res = _getItemFromLocalPointer(regs, srcPtr, width, instr)
-                self._storeInstrResult(waveLog, nowTime, regs, instr, res)
-
-        else:
-
-            t = TypeToPointerType(srcPtrAsArg.getType())
-            argI = t.getAddressSpace() - 1
-            ioValues = self.fnArgs[argI]
-            ioMd: HwtHlsIoMetadata = self.ioMetadata[argI]
-            isBlocking = ioMd.hasBlockingLoad
-            if not isBlocking:
-                w = instr.getType().getScalarSizeInBits()
-                nopVal = HBits(w).from_py(0, 1 << (w - 1))  # only vld=0 valid
-            streamProps: Optional[StreamChannelProps] = self.streamIoHandler._streamProps.get(srcPtrAsArg, None)
-            if streamProps is not None:
-                busWordWidth = streamProps.getWidthOfBusWord()
-                ldWidth = instr.getType().getIntegerBitWidth()
-                if ldWidth != busWordWidth:
-                    # this is load of just 1 segment from segmented bus
-                    assert ldWidth < busWordWidth, instr
-                    assert ldWidth == busWordWidth // streamProps.segmentCnt, instr
-                    return self.streamIoHandler._decodeLlvmIrLoadOfSingleSegmentFromSegmentedBus(self, instr, srcPtrAsArg, streamProps)
-
-            def _opcode_Load(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
-                try:
-                    res = next(ioValues)
-                except StopIteration:
-                    raise SimIoUnderflowErr()
-                if res is NOP:
-                    assert not isBlocking, instr
-                    res = nopVal
-                else:
-                    assert isinstance(res, HConst) and \
-                        isinstance(res._dtype, HBits) and\
-                        res._dtype.signed is None, ("Input value must be must be not-signed BitsVal", instr, res)
-                    if isBlocking:
-                        assert res._dtype.bit_length() == instr.getType().getScalarSizeInBits(), (
-                            "Input value must be must have correct width", instr, res)
-                    else:
-                        assert res._dtype.bit_length() + 1 == instr.getType().getScalarSizeInBits(), (
-                            "Input value must be must have correct width", instr, res)
-                        res = b1._concat(res)  # concat with valid=1
-                # print("  load", instr, res)
-                if waveLog is not None:
-                    # update for value of input port itself
-                    waveLog.logChange(nowTime, srcPtrAsArg, res, None)
-                # update for result of load instruction
-                self._storeInstrResult(waveLog, nowTime, regs, instr, res)
-
-        return _opcode_Load
-
-    def _decodeOpcode_Store(self, _, instr: Instruction) -> LlvmIrInstrFunction:
-        """
-        Convert StoreInst to a python function which will do just that.
-        """
-        store = InstructionToStoreInst(instr)
-        assert store is not None, instr
-        _v, dstPtr = store.iterOperandValues()
-        vAsConstInt = ValueToConstantInt(_v)
-        vIsConst = True
-        if vAsConstInt is not None:
-            pyT = HBits(vAsConstInt.getType().getScalarSizeInBits())
-            _v = int(vAsConstInt.getValue())
-            if _v < 0:  # convert to unsigned
-                _v = pyT.all_mask() + _v + 1
-            _v = pyT.from_py(_v)
-        elif ValueToUndefValue(_v) is not None:  # :note: class PoisonValue final : public UndefValue
-            Ty = _v.getType()
-            arrTy = TypeToArrayType(Ty)
-            if arrTy is not None:
-                pyT = HBits(arrTy.getElementType().getScalarSizeInBits())[arrTy.getNumElements()]
-            else:
-                pyT = HBits(_v.getType().getScalarSizeInBits())
-            _v = pyT.from_py(None)
-        else:
-            vAsConstFP = ValueToConstantFP(_v)
-            if vAsConstFP:
-                _v = self._getHFloatTmp().from_py(float(vAsConstFP.getValue()))
-            else:
-                vIsConst = False
-
-        dstPtrInstr = ValueToInstruction(dstPtr)
-        if dstPtrInstr is not None:
-            dstGep = InstructionToGetElementPtrInst(dstPtrInstr)
-            if dstGep is not None:
-
-                def _opcode_Store_gep(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
-                    if vIsConst:
-                        v = _v
-                    else:
-                        v = regs[_v]
-                    dstPtr, addr = regs[dstGep]
-
-                    if isinstance(dstPtr, SimRam):
-                        dstPtr.write(addr, v)
-                        return
-
-                    dstPtrAsArg = ValueToArgument(dstPtr)
-                    if dstPtrAsArg is not None:
-                        raise NotImplementedError()
-
-                    alloca = ValueToAllocaInst(dstPtr)
-                    if alloca is not None:
-                        raise NotImplementedError()
-                    raise NotImplementedError(dstGep)
-
-                return _opcode_Store_gep
-
-        dstPtrAsArg = ValueToArgument(dstPtr)
-        if dstPtrAsArg is not None:
-            t = TypeToPointerType(dstPtrAsArg.getType())
-            ioValues = self.fnArgs[t.getAddressSpace() - 1]
-
-            def _opcode_Store(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
-                if vIsConst:
-                    v = _v
-                else:
-                    v = regs[_v]
-                ioValues.append(v)
-                if waveLog is not None:
-                    # update for value of output port
-                    waveLog.logChange(nowTime, dstPtrAsArg, v, None)
-
-            return _opcode_Store
-        else:
-            alloca = ValueToAllocaInst(dstPtr)
-            if alloca is not None:
-
-                def _opcode_Store(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
-                    if vIsConst:
-                        v = _v
-                    else:
-                        v = regs[_v]
-                    curV: AllocaInstCell = regs[alloca]
-                    allocatedWidth = curV.v._dtype.bit_length()
-                    storeWidth = v._dtype.bit_length()
-                    if allocatedWidth == storeWidth:
-                        curV.setValue(v, nowTime)
-                    else:
-                        curV.setValue(curV.v[allocatedWidth: storeWidth]._concat(v), nowTime)
-
-                return _opcode_Store
-
-            raise NotImplementedError(instr)
 
     def _decodeOpcode_UnreachableInst(self, _, instr: Instruction) -> LlvmIrInstrFunction:
 

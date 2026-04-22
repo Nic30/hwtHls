@@ -16,6 +16,7 @@ class LlvmIrFunctionMutating_TC(unittest.TestCase):
         None,  # ioPropertyPath
         None,  # latenciesFromPredecessorIo
         None,  # protocolSpecificMetadata
+        None,  # ioVectorization 
     )
 
     def _createFunctionPrototype(self,

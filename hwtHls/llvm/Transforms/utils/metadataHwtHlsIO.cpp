@@ -25,18 +25,56 @@ const char* IODirection_toString(IODirection d) {
 	switch (d) {
 	case IO_DIR_UNRESOLVED:
 		return "UNRESOLVED";
-		break;
 	case IO_DIR_IN:
 		return "IN";
-		break;
 	case IO_DIR_OUT:
 		return "OUT";
-		break;
 	default:
-		assert(false && "Invalid value for direction");
+		assert(false && "Invalid value for IODirection");
 	}
 	return "INVALID";
 }
+
+IODirection IODirection_fromString(StringRef dir) {
+	if (dir == "UNRESOLVED") {
+		return IO_DIR_UNRESOLVED;
+	} else if (dir == "IN") {
+		return IO_DIR_IN;
+	} else if (dir == "OUT") {
+		return IO_DIR_OUT;
+	} else {
+		throw std::runtime_error(
+				("HwtHlsIoMetadata_get invalid value for IODirection: " + dir).str());
+	}
+}
+
+const char* IOVectorizationType_toString(IOVectorizationType v) {
+	switch (v) {
+	case IOVectorizationType::IOV_SCALAR_SPARSE:
+		return "SCALAR_SPARSE";
+	case IOVectorizationType::IOV_SCALAR_SPARSE_SYNCED:
+		return "SCALAR_SPARSE_SYNCED";
+	case IOVectorizationType::IOV_SCALAR_PACKED:
+		return "SCALAR_PACKED";
+	default:
+		throw std::runtime_error(
+					"invalid value for IOVectorizationType: ");
+	}
+}
+
+IOVectorizationType IOVectorizationType_fromString(StringRef v) {
+	if (v == "SCALAR_SPARSE") {
+		return IOVectorizationType::IOV_SCALAR_SPARSE;
+	} else if (v == "SCALAR_SPARSE_SYNCED") {
+		return IOVectorizationType::IOV_SCALAR_SPARSE_SYNCED;
+	} else if (v == "SCALAR_PACKED") {
+		return IOVectorizationType::IOV_SCALAR_PACKED;
+	} else {
+		throw std::runtime_error(
+				("invalid value for IOVectorizationType: " + v).str());
+	}
+}
+
 
 const std::string HwtHlsIoMetadata::METADATA_NAME = "hwtHls.io";
 const std::string HwtHlsIoMetadata::METADATA_NAME_NON_BLOCKING_LOAD =
@@ -51,7 +89,10 @@ const std::string HwtHlsIoMetadata::METADATA_NAME_LATENCIES_FROM_PREDECESSOR_IO 
 		"hwtHls.io.latencyfrompredecessor";
 const std::string HwtHlsIoMetadata::METADATA_NAME_IO_PROTOCOL =
 		"hwtHls.io.protocol";
+const std::string HwtHlsIoMetadata::METADATA_NAME_IO_VECTORIZATION =
+		"hwtHls.io.vectorization";
 
+	
 bool HwtHlsIoMetadata::isOut() const {
 	return direction == IODirection::IO_DIR_OUT;
 }
@@ -69,22 +110,23 @@ void HwtHlsIoMetadata::consystencyCheck() const {
 	}
 }
 
-bool HwtHlsIoMetadata::operator==(const HwtHlsIoMetadata &other) const {
-	//return memcmp(this, &other, sizeof *this) == 0;
-	return (direction == other.direction && //
-			addrWidth == other.addrWidth && //
-			readWordWidth == other.readWordWidth && //
-			writeWordWidth == other.writeWordWidth && //
-			hasBlockingLoad == other.hasBlockingLoad && //
-			hasBlockingStore == other.hasBlockingStore && //
-			otherThreadFn == other.otherThreadFn && //
-			otherArgIndex == other.otherArgIndex && //
-			bufferCapacity == other.bufferCapacity && //
-			ioPropertyPath == other.ioPropertyPath && //
-			latenciesFromPredecessorIo == other.latenciesFromPredecessorIo && //
-			ioProtocolMd == other.ioProtocolMd && //
-			unparsedMd == unparsedMd);
-}
+//bool HwtHlsIoMetadata::operator==(const HwtHlsIoMetadata &other) const {
+//	//return memcmp(this, &other, sizeof *this) == 0;
+//	return (direction == other.direction && //
+//			addrWidth == other.addrWidth && //
+//			readWordWidth == other.readWordWidth && //
+//			writeWordWidth == other.writeWordWidth && //
+//			hasBlockingLoad == other.hasBlockingLoad && //
+//			hasBlockingStore == other.hasBlockingStore && //
+//			otherThreadFn == other.otherThreadFn && //
+//			otherArgIndex == other.otherArgIndex && //
+//			bufferCapacity == other.bufferCapacity && //
+//			ioPropertyPath == other.ioPropertyPath && //
+//			latenciesFromPredecessorIo == other.latenciesFromPredecessorIo && //
+//			ioProtocolMd == other.ioProtocolMd && //
+//			ioVectorization == other.ioVectorization && //
+//			unparsedMd == unparsedMd);
+//}
 
 void HwtHlsIoMetadata::print(llvm::raw_ostream &O, bool IsForDebug) const {
 	O << "<HwtHlsIoMetadata " << IODirection_toString(direction);
@@ -107,6 +149,13 @@ void HwtHlsIoMetadata::print(llvm::raw_ostream &O, bool IsForDebug) const {
 		O << " latenciesFromPredecessorIo=" << *latenciesFromPredecessorIo;
 	if (ioProtocolMd)
 		O << " ioProtocolMd=" << *ioProtocolMd;
+	if (ioVectorization) {
+		O << " ioVectorization=(" << IOVectorizationType_toString(ioVectorization.value().type);
+		if (ioVectorization.value().laneCnt.has_value()) {
+			O << ", laneCnt=" << ioVectorization.value().laneCnt.value();
+		}
+		O << ")";
+	}
 	if (!unparsedMd.empty()) {
 		O << " unparsedMd=[";
 		for (auto md : unparsedMd) {
@@ -123,16 +172,7 @@ HwtHlsIoMetadata HwtHlsIoMetadata::fromMetadata(llvm::Metadata &hwtHlsIOItem) {
 	assert(aMD->getNumOperands() >= 6);
 	HwtHlsIoMetadata aMd;
 	auto dir = cast<MDString>(aMD->getOperand(0).get())->getString();
-	if (dir == "UNRESOLVED") {
-		aMd.direction = IO_DIR_UNRESOLVED;
-	} else if (dir == "IN") {
-		aMd.direction = IO_DIR_IN;
-	} else if (dir == "OUT") {
-		aMd.direction = IO_DIR_OUT;
-	} else {
-		throw std::runtime_error(
-				("HwtHlsIoMetadata_get invalid value for direction: " + dir).str());
-	}
+	aMd.direction = IODirection_fromString(dir);
 	auto getMdIntFromMd = [](Metadata *md) {
 		auto v = cast<ValueAsMetadata>(md)->getValue();
 		assert(isa<ConstantInt>(v));
@@ -141,6 +181,17 @@ HwtHlsIoMetadata HwtHlsIoMetadata::fromMetadata(llvm::Metadata &hwtHlsIOItem) {
 	auto getMdInt = [&aMD, &getMdIntFromMd](size_t argI) {
 		return getMdIntFromMd(aMD->getOperand(argI).get());
 	};
+	auto getMdOptionalIntFromMd = [](Metadata *md) -> std::optional<uint64_t> {
+		auto v = cast<ValueAsMetadata>(md)->getValue();
+		if (v->getType()->isPointerTy()) {
+			auto _v = dyn_cast<ConstantPointerNull>(v);
+			assert(_v && _v->isNullValue());
+			return {};
+		}
+		assert(isa<ConstantInt>(v));
+		return dyn_cast<ConstantInt>(v)->getZExtValue();
+	};
+
 	aMd.addrWidth = getMdInt(1);
 	aMd.readWordWidth = getMdInt(2);
 	aMd.writeWordWidth = getMdInt(3);
@@ -187,6 +238,13 @@ HwtHlsIoMetadata HwtHlsIoMetadata::fromMetadata(llvm::Metadata &hwtHlsIOItem) {
 							oTuple->getOperand(1).get());
 					assert(aMd.ioProtocolMd);
 					assert(oTuple->getNumOperands() == 2);
+				} else if (str == METADATA_NAME_IO_VECTORIZATION) {
+						assert(oTuple->getNumOperands() == 3);
+						auto v = cast<MDString>(oTuple->getOperand(1).get())->getString();
+						aMd.ioVectorization = {
+							IOVectorizationType_fromString(v),
+							getMdOptionalIntFromMd(oTuple->getOperand(2).get())
+						};
 				} else {
 					aMd.unparsedMd.push_back(oTuple);
 				}
@@ -385,6 +443,22 @@ llvm::MDNode* HwtHlsIoMetadata::asMetadata(LLVMContext &Ctx) const {
 	}
 	if (ioProtocolMd) {
 		addNamedMd(METADATA_NAME_IO_PROTOCOL, ioProtocolMd);
+	}
+	if (ioVectorization) {
+		Metadata* laneCnt;
+		if (ioVectorization.value().laneCnt.has_value()) {
+			laneCnt = getU64md(ioVectorization.value().laneCnt.value());
+		} else {
+			laneCnt = ValueAsMetadata::get(ConstantPointerNull::get(PointerType::get(Ctx, 0)));
+		}
+		std::array<Metadata*, 3> mds = {
+			MDString::get(Ctx, METADATA_NAME_IO_VECTORIZATION),
+			MDString::get(Ctx, IOVectorizationType_toString(ioVectorization.value().type)),
+			laneCnt
+		};
+		
+		mdArgs.push_back(MDTuple::get(Ctx, mds));
+		
 	}
 	for (auto umd: unparsedMd) {
 		mdArgs.push_back(umd);

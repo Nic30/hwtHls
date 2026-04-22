@@ -1,16 +1,22 @@
 from typing import Optional
 
+from hwt.hdl.commonConstants import b1
 from hwt.hdl.const import HConst
 from hwt.hdl.types.array import HArray
 from hwt.hdl.types.arrayConst import HArrayConst
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
+from hwtHls.io.hwIoVectorized import splitConstBitsToLanes, \
+    HwIoProxyScalarVectorized
 from hwtHls.llvm.llvmIr import Instruction, InstructionToGetElementPtrInst, \
     IntegerType, TypeToArrayType, InstructionToFreezeInst, InstructionToAllocaInst, TypeToIntegerType, \
-    ValueToAllocaInst, AllocaInst, Value, ArrayType, InstructionToExtractValueInst, ExtractValueInst
+    ValueToAllocaInst, AllocaInst, Value, ArrayType, InstructionToExtractValueInst, ExtractValueInst, \
+    InstructionToLoadInst, ValueToArgument, TypeToPointerType, ValueToInstruction, ValueToConstantFP, \
+    ValueToUndefValue, ValueToConstantInt, InstructionToStoreInst, StreamChannelProps, HwtHlsIoMetadata
 from hwtHls.ssa.analysis.llvmIrInterpretUtils import PtrAddrTuple, \
-    LlvmIrInstrFunction
+    LlvmIrInstrFunction, SimIoUnderflowErr
 from hwtLib.abstract.sim_ram import SimRam
+from hwtSimApi.agents.base import NOP
 from pyDigitalWaveTools.vcd.writer import VcdWriter
 
 
@@ -229,3 +235,202 @@ def _decodeOpcode_ExtractValueInst(interpret: "LlvmIrInterpret", instr: Instruct
         regs[instr] = v
 
     return _opcode_ExtractValueInst
+
+
+def decodeOpcode_Load(interpret: "LlvmIrInterpret", instr: Instruction) -> LlvmIrInstrFunction:
+    load = InstructionToLoadInst(instr)
+    assert load is not None, instr
+    srcPtr, = load.iterOperandValues()
+    srcPtrAsArg = ValueToArgument(srcPtr)
+    if srcPtrAsArg is None:
+        # load with GEP from GlobalVariable
+        width = instr.getType().getScalarSizeInBits()
+        srcAlloca = ValueToAllocaInst(srcPtr)
+        if srcAlloca is not None:
+            srcAlloca: AllocaInst
+            streamOffsetMd = srcAlloca.getMetadata(interpret.strCtx.addStringRef(StreamChannelProps.METADATA_NAME_TMP_VAR_DATA_OFFSET))
+            if streamOffsetMd is not None:
+                return interpret.streamIoHandler._decodeLoadFromStreamTmpVar_offset(instr, srcAlloca, streamOffsetMd)
+
+        def _opcode_Load_fromLocal(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
+            res = _getItemFromLocalPointer(regs, srcPtr, width, instr)
+            interpret._storeInstrResult(waveLog, nowTime, regs, instr, res)
+
+        return _opcode_Load_fromLocal
+    else:
+
+        t = TypeToPointerType(srcPtrAsArg.getType())
+        argI = t.getAddressSpace() - 1
+        ioValues = interpret.fnArgs[argI]
+        ioMd: HwtHlsIoMetadata = interpret.ioMetadata[argI]
+        isBlocking = ioMd.hasBlockingLoad
+        if not isBlocking:
+            w = instr.getType().getScalarSizeInBits()
+            nopVal = HBits(w).from_py(0, 1 << (w - 1))  # only vld=0 valid
+        streamProps: Optional[StreamChannelProps] = interpret.streamIoHandler._streamProps.get(srcPtrAsArg, None)
+        if streamProps is not None:
+            assert ioMd.ioVectorization is None, instr
+            busWordWidth = streamProps.getWidthOfBusWord()
+            ldWidth = instr.getType().getIntegerBitWidth()
+            if ldWidth != busWordWidth:
+                # this is load of just 1 segment from segmented bus
+                assert ldWidth < busWordWidth, instr
+                assert ldWidth == busWordWidth // streamProps.segmentCnt, instr
+                return interpret.streamIoHandler._decodeLlvmIrLoadOfSingleSegmentFromSegmentedBus(interpret, instr, srcPtrAsArg, streamProps)
+
+        elif ioMd.ioVectorization is not None:
+            raise NotImplementedError(instr)
+
+        def _opcode_Load_fromIo(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
+            try:
+                res = next(ioValues)
+            except StopIteration:
+                raise SimIoUnderflowErr()
+            if res is NOP:
+                assert not isBlocking, instr
+                res = nopVal
+            else:
+                assert isinstance(res, HConst) and \
+                    isinstance(res._dtype, HBits) and\
+                    res._dtype.signed is None, ("Input value must be must be not-signed BitsVal", instr, res)
+                if isBlocking:
+                    assert res._dtype.bit_length() == instr.getType().getScalarSizeInBits(), (
+                        "Input value must be must have correct width", instr, res)
+                else:
+                    assert res._dtype.bit_length() + 1 == instr.getType().getScalarSizeInBits(), (
+                        "Input value must be must have correct width", instr, res)
+                    res = b1._concat(res)  # concat with valid=1
+            # print("  load", instr, res)
+            if waveLog is not None:
+                # update for value of input port itinterpret
+                waveLog.logChange(nowTime, srcPtrAsArg, res, None)
+            # update for result of loainterpretstruction
+            interpret._storeInstrResult(waveLog, nowTime, regs, instr, res)
+
+        return _opcode_Load_fromIo
+
+
+def decodeOpcode_Store(interpret: "LlvmIrInterpret", instr: Instruction) -> LlvmIrInstrFunction:
+    """
+    Convert StoreInst to a python function which will perform the store operation on propper object.
+    """
+    store = InstructionToStoreInst(instr)
+    assert store is not None, instr
+    _v, dstPtr = store.iterOperandValues()
+    vAsConstInt = ValueToConstantInt(_v)
+    vIsConst = True
+    if vAsConstInt is not None:
+        pyT = HBits(vAsConstInt.getType().getScalarSizeInBits())
+        _v = int(vAsConstInt.getValue())
+        if _v < 0:  # convert to unsigned
+            _v = pyT.all_mask() + _v + 1
+        _v = pyT.from_py(_v)
+    elif ValueToUndefValue(_v) is not None:  # :note: class PoisonValue final : public UndefValue
+        Ty = _v.getType()
+        arrTy = TypeToArrayType(Ty)
+        if arrTy is not None:
+            pyT = HBits(arrTy.getElementType().getScalarSizeInBits())[arrTy.getNumElements()]
+        else:
+            pyT = HBits(_v.getType().getScalarSizeInBits())
+        _v = pyT.from_py(None)
+    else:
+        vAsConstFP = ValueToConstantFP(_v)
+        if vAsConstFP:
+            _v = interpret._getHFloatTmp().from_py(float(vAsConstFP.getValue()))
+        else:
+            vIsConst = False
+
+    dstPtrInstr = ValueToInstruction(dstPtr)
+    if dstPtrInstr is not None:
+        dstGep = InstructionToGetElementPtrInst(dstPtrInstr)
+        if dstGep is not None:
+
+            def _opcode_Store_gep(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
+                """
+                Store into an array using index.
+                """
+                if vIsConst:
+                    v = _v
+                else:
+                    v = regs[_v]
+                dstPtr, addr = regs[dstGep]
+
+                if isinstance(dstPtr, SimRam):
+                    dstPtr.write(addr, v)
+                    return
+
+                dstPtrAsArg = ValueToArgument(dstPtr)
+                if dstPtrAsArg is not None:
+                    raise NotImplementedError()
+
+                alloca = ValueToAllocaInst(dstPtr)
+                if alloca is not None:
+                    raise NotImplementedError()
+                raise NotImplementedError(dstGep)
+
+            return _opcode_Store_gep
+
+    dstPtrAsArg = ValueToArgument(dstPtr)
+    if dstPtrAsArg is not None:
+        t = TypeToPointerType(dstPtrAsArg.getType())
+        argI = t.getAddressSpace() - 1
+        ioMd: HwtHlsIoMetadata = interpret.ioMetadata[argI]
+        ioValues = interpret.fnArgs[argI]
+        segmentWidth = ioMd.writeWordWidth
+        w = store.getAccessType().getIntegerBitWidth()
+        laneCnt = HwIoProxyScalarVectorized.getLaneCntFromWidth(ioMd, segmentWidth, w)
+
+        if laneCnt == 1:
+
+            def _opcode_Store_toScalarIo(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
+                if vIsConst:
+                    v = _v
+                else:
+                    v = regs[_v]
+
+                ioValues.append(v)
+                if waveLog is not None:
+                    # update for value of output port
+                    waveLog.logChange(nowTime, dstPtrAsArg, v, None)
+
+            return _opcode_Store_toScalarIo
+
+        else:
+            if vIsConst:
+                _v = tuple(splitConstBitsToLanes(_v, laneCnt, segmentWidth))
+            undef = HBits(segmentWidth).from_py(None)
+            def _opcode_Store_toVectorIo(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
+                if vIsConst:
+                    v = _v
+                else:
+                    v = regs[_v]
+                    v = splitConstBitsToLanes(v, laneCnt, segmentWidth)
+
+                ioValues.extend(v)
+                if waveLog is not None:
+                    # update for value of output port
+                    waveLog.logChange(nowTime, dstPtrAsArg, v[-1] if v else undef, None)
+                        
+
+            return _opcode_Store_toVectorIo
+
+    else:
+        alloca = ValueToAllocaInst(dstPtr)
+        if alloca is not None:
+
+            def _opcode_Store_toAlloca(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
+                if vIsConst:
+                    v = _v
+                else:
+                    v = regs[_v]
+                curV: AllocaInstCell = regs[alloca]
+                allocatedWidth = curV.v._dtype.bit_length()
+                storeWidth = v._dtype.bit_length()
+                if allocatedWidth == storeWidth:
+                    curV.setValue(v, nowTime)
+                else:
+                    curV.setValue(curV.v[allocatedWidth: storeWidth]._concat(v), nowTime)
+
+            return _opcode_Store_toAlloca
+
+        raise NotImplementedError(instr)
