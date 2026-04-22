@@ -1,5 +1,6 @@
+from hwt.hdl.types.bits import HBits
 from hwt.pyUtils.setList import SetList
-from hwtHls.netlist.builder import _replaceOutPortWith
+from hwtHls.netlist.builder import _replaceOutPortWith, HlsNetlistBuilder
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator, OP_INDEX_CONST
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
@@ -83,10 +84,35 @@ def netlistReadOfRawValueToDataAndVld(n: HlsNetNodeRead, worklist: SetList[HlsNe
 
                 elif lowBitNo == dataWidth + 1 and highBitNo == dataWidth + 2:
                     # exactly selecting _validNB port
-                    replaceOperatorNodeWith(uObj, n._validNB, worklist)
+                    replaceOperatorNodeWith(uObj, n.getValidNB(), worklist)
 
                 else:
-                    raise NotImplementedError("Index overlaps data, _valid, _validNB port boundary in rawValue, split to 2x index + concat")
+                    # Index overlaps data, _valid, _validNB port boundary in rawValue, split to index + concat
+                    builder: HlsNetlistBuilder = n.getHlsNetlistBuilder()
+                    replacement: list[HlsNetNodeOut] = []  # lsb first
+                    if lowBitNo == 0:
+                        replacement.append(dataValueO)
+                    else:
+                        _data = builder.buildIndexConstSlice(HBits(dataWidth - lowBitNo), dataValueO,
+                                                             dataWidth, lowBitNo)
+
+                        replacement.append(_data)
+                    assert highBitNo > dataWidth
+
+                    if n._isBlocking:
+                        vld = n.getValid()
+                    else:
+                        vld = n.getValidNB()
+                    replacement.append(vld)
+
+                    if highBitNo == dataWidth + 2:
+                        vld = n.getValidNB()
+                        replacement.append(vld)
+                    else:
+                        assert highBitNo == dataWidth + 1, (n, dataWidth, lowBitNo, highBitNo)
+
+                    replacement = builder.buildConcat(*replacement)
+                    replaceOperatorNodeWith(uObj, replacement, worklist)
 
             modified = True
             # reachDb.addOutUseChange(uObj)
