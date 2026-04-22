@@ -1,4 +1,4 @@
-from typing import Set, Dict, List, Optional, Union
+from typing import Union
 
 from hwt.hdl.operatorDefs import BITWISE_OPS
 from hwt.pyUtils.setList import SetList
@@ -26,7 +26,7 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
     def _isBitwiseOperator(n: HlsNetNode):
         return isinstance(n, HlsNetNodeOperator) and n.operator in BITWISE_OPS
 
-    def _registerInternalyStoredClusterInputs(self, n: HlsNetNodeAggregate, otherAggregateInputs: Dict[HlsNetNodeOut, SetList[HlsNetNodeAggregate]]):
+    def _registerInternalyStoredClusterInputs(self, n: HlsNetNodeAggregate, otherAggregateInputs: dict[HlsNetNodeOut, SetList[HlsNetNodeAggregate]]):
         for dep in n.dependsOn:
             userList = otherAggregateInputs.get(dep, None)
             if userList is None:
@@ -34,10 +34,10 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
             userList.append(n)
 
     def _searchClusters(self, parent: Union[HlsNetlistCtx, HlsNetNodeAggregate],
-                        otherAggregateInputs: Dict[HlsNetNodeOut, SetList[HlsNetNodeAggregate]]) -> ObservableList[HlsNetNode]:
-        seen: Set[HlsNetNodeOperator] = set()
-        removedNodes: Set[HlsNetNode] = set()
-        newOutMap: Dict[HlsNetNodeOut, HlsNetNodeOut] = {}
+                        otherAggregateInputs: dict[HlsNetNodeOut, SetList[HlsNetNodeAggregate]]) -> ObservableList[HlsNetNode]:
+        seen: set[HlsNetNodeOperator] = set()
+        removedNodes: set[HlsNetNode] = set()
+        newOutMap: dict[HlsNetNodeOut, HlsNetNodeOut] = {}
         changed = False
         changedOnThisLevel = False
         for n in parent.subNodes:
@@ -80,8 +80,7 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
 
     @override
     def runOnHlsNetlistImpl(self, netlist: HlsNetlistCtx) -> PreservedAnalysisSet:
-
-        otherAggregateInputs: Dict[HlsNetNodeOut, SetList[HlsNetNodeAggregate]] = {}
+        otherAggregateInputs: dict[HlsNetNodeOut, SetList[HlsNetNodeAggregate]] = {}
         for n in netlist.subNodes:
             if isinstance(n, HlsNetNodeAggregate):
                 self._registerInternalyStoredClusterInputs(n, otherAggregateInputs)
