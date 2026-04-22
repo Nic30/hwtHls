@@ -723,9 +723,12 @@ class HlsNetlistBuilder():
     def buildIndexConst(self, a: HlsNetNodeOut, i: int,
                         operatorSpecialization:OpSpecialization_t=None, name:Optional[str]=None):
         assert operatorSpecialization is None
-        if i == 0 and a._dtype.bit_length() == 1:
+        w = a._dtype.bit_length()
+        if i == 0 and w == 1:
             return a
 
+        assert i >= 0, (a, w, i)
+        assert i < w, (a, w, i)
         return self.buildOp(OP_INDEX_CONST, i, BIT, a, name=name)
 
     def buildIndexConstSlice(self, resT: HdlType, a: HlsNetNodeOut, high: int, low: Optional[int],
@@ -737,9 +740,13 @@ class HlsNetlistBuilder():
             assert (high == 0 and low is None) or (high == 1 and low == 0), (a, high, low)
             return a
         elif low is None:
+            # selecting 1bit  x[high]
             assert resT == BIT, resT
             assert high <= w and high >= 0, (high, w)
             i = high
+        elif low == high - 1:
+            # selecting 1bit  x[high:low]
+            i = high - 1
         else:
             assert high > low, (high, low)
             assert high <= w, (high, w)
