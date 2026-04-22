@@ -56,6 +56,7 @@ def createBackedgeInClkWindow(parent: ArchElement, clkIndex: int, name: str, dty
         c: HlsNetNodeReadOrWriteToAnyChannel
         c._isBlocking = False
         c.resolveRealization()
+        c.assignRealization(c.realization.mutated(isAllowedInFFStoreTime=True))
         c._setScheduleZeroTimeSingleClock(time)
         parent._addNodeIntoScheduled(clkIndex, c, allowNewClockWindow=True)
 
