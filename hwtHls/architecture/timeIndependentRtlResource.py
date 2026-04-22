@@ -1,5 +1,5 @@
 from itertools import islice
-from typing import Union, List, Tuple, Literal
+from typing import Union, List, Tuple, Literal, Optional
 
 from hwt.hdl.const import HConst
 from hwt.hdl.operator import HOperatorNode
@@ -60,7 +60,7 @@ class TimeIndependentRtlResource():
         which is instantiated at the time of the beginning and the synchronization from that time should be injected
         into register load logic.
     :ivar isForwardDeclr: The first value is forward declaration which will be replaced or driver will be added once it is resolved.
-    :ivar mayChangeOutOfCfg: The first value may change from places which were not present in original CFG and thus the value
+    :ivar mayChangeOutOfCfg: The value may change from places which were not present in original CFG and thus the value
         must be copied if used in different time than the first one.
     """
 
@@ -119,7 +119,6 @@ class TimeIndependentRtlResource():
         if self.timeOffset is INVARIANT_TIME:
             return self.valuesInTime[0]
         assert time >= self.timeOffset, ("This resource does not yet exist in requested time", time, ">=", self.timeOffset, self)
-
         netlist = self.allocator.netlist
         # epsilon = netlist.scheduler.epsilon
         # time += epsilon
@@ -201,7 +200,7 @@ class TimeIndependentRtlResource():
 
         return cur
 
-    def checkIfExistsInClockCycle(self, clkCyleI: int):
+    def checkIfExistsInClockCycle(self, clkCyleI: int) -> Optional[TimeIndependentRtlResourceItem]:
         if self.timeOffset is INVARIANT_TIME:
             index = 0
         else:
