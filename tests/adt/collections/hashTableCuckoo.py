@@ -27,12 +27,20 @@ from pyMathBitPrecise.bit_utils import mask
 from tests.adt.collections.hashTableIo import HashTableCmd, HashTableCmdResult, \
     HASH_TABLE_CMD
 
-
 # other HLS implementations:
 # https://github.com/Xilinx/HLS_packet_processing/blob/master/apps/common/cam.h
+
+
 class HashTableCuckoo(HwModule):
     """
     Hash table utilizing Cuckoo hashing scheme
+
+    :note: For analysis of cuckoo hashing see https://doi.org/10.1007/3-540-36494-3_25
+    :note: Using CAM stash was first presented in:
+        Adam Kirsch and Michael Mitzenmacher. 2007. Using a queue to de-amortize
+        cuckoo hashing in hardware. In Proceedings of the 45th Annual Allerton Conference
+        on Communication, Control, and Computing, Vol. 75. Monticello, Ill., 751–758.
+
     
     :see: :class:`tests.frontend.hashTableIo.HashTableCmd`
     :ivar STASH_CAM_SIZE: size of temporal memory for moving items between tables in cuckoo hash scheme
