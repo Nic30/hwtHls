@@ -96,6 +96,9 @@ class HlsNetNodeAggregatePortIn(HlsNetNode):
     #     yield from super().scheduleAlapCompaction(endOfLastClk, outputMinUseTimeGetter, excludeNode)
     #     t = self.scheduledZero
     #     raise
+    @override
+    def hlsNetlistSimGetHandler(self, sim:"HlsNetlistSimulator") -> HlsNetlistSimHandler:
+        return HlsNetlistSimHandlerAggregatePortIn()
 
     @override
     def rtlAlloc(self, allocator: "ArchElement"):
