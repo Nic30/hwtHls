@@ -18,8 +18,8 @@ from hwtHls.platform.debugBundle import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4s import Axi4Stream
-from tests.math.addMasked import AddMaskedHardblock
 from tests.io.amba.axi4Stream._baseAxi4SPktInPktOutTC import BaseAxi4SPktInScalarOutTC
+from tests.math.addMasked import AddMaskedHardblock
 
 
 class Axi4SSum(HwModule):

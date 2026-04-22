@@ -27,8 +27,25 @@ class Axi4SPacketCopyByteByByteTC(BaseAxi4SPktInPktOutTC):
             # data = [self._rand.getrandbits(8) for _ in range(frameLen)]
             refFrames.append(data)
 
-        BaseAxi4SPktInPktOutTC._test(self, dut, refFrames, refFrames, freq=freq,
-                                     rtlSimTimeMultiplier=rtlSimTimeMultiplier)
+        BaseAxi4SPktInPktOutTC._test(
+            self, dut, refFrames, refFrames, freq=freq,
+            rtlSimTimeMultiplier=rtlSimTimeMultiplier,
+            # platformKwargs=dict(
+            #      debugFilter={
+            #          *HlsDebugBundle.ALL_RELIABLE,
+            #          HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+            #          HlsDebugBundle.DBG_4_0_addSignalNamesToData,
+            #       },
+            #       llvmCliArgs=[
+            #          # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+            #          # LLVM_CLI_COMMON_OPTS.PRINT_BEFORE_ALL,
+            #          # LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL
+            #       ],
+            #      # runTestAfterEachPass=True,
+            #      # runTestAfterEachIrPass=True,
+            #      # runTestAfterEachMirPass=True,
+            # )
+            )
 
     def test_1B(self):
         PKT_CNT = 6
@@ -83,7 +100,6 @@ class Axi4SPacketCopyByteByByteTC(BaseAxi4SPktInPktOutTC):
                    UNROLL=PyBytecodeLLVMLoopUnroll(True, 2),
                    rtlSimTimeMultiplier=3)
 
-
     def test_4B_unroll2(self):
         PKT_CNT = 6
         self._test(4 * 8, 4 * 8, [self._rand.randint(1, 12) for _ in range(PKT_CNT)],
@@ -112,11 +128,11 @@ if __name__ == "__main__":
         # LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL
        ],
     )
-    print(to_rtl_str(m, target_platform=p))
+    # print(to_rtl_str(m, target_platform=p))
 
     import unittest
     testLoader = unittest.TestLoader()
     suite = testLoader.loadTestsFromTestCase(Axi4SPacketCopyByteByByteTC)
-    # suite = unittest.TestSuite([Axi4SPacketCopyByteByByteTC("test_4B_unroll2")])
+    # suite = unittest.TestSuite([Axi4SPacketCopyByteByByteTC("test_2B")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

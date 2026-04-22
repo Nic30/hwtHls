@@ -8,7 +8,7 @@ import unittest
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.struct import HStruct
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
+from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS, HlsDebugBundle
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtLib.amba.axi4sSimFrameUtils import Axi4StreamSimFrameUtils
 from hwtSimApi.utils import freq_to_period
@@ -110,7 +110,7 @@ class Axi4SParseIfTC(SimTestCase):
         dut.CLK_FREQ = freq
         self._run_test_Axi4SParse2If(dut, N)
 
-    def _run_test_Axi4SParse2If(self, dut: Axi4SParse2If, N:int):
+    def _run_test_Axi4SParse2If(self, dut: Axi4SParse2If, N:int, platformKwargs={}):
         T1 = HStruct(
             (HBits(16), "v0"),
             (HBits(8), "v1"),
@@ -156,10 +156,11 @@ class Axi4SParseIfTC(SimTestCase):
 
         self.compileSimAndStart(dut, target_platform=TestLlvmIrAndMirPlatform(
             optIrTest=testLlvmOptIr, optMirTest=testLlvmOptMir,
-            llvmCliArgs=[
-                LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
-                # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
-            ]
+            **platformKwargs,
+            #llvmCliArgs=[
+            #    LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+            #    # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+            #]
             # runTestAfterEachPass=True,
             # runTestAfterEachIrPass=True,
             # runTestAfterEachMirPass=True
@@ -186,8 +187,20 @@ class Axi4SParseIfTC(SimTestCase):
         dut.CLK_FREQ = freq
         self._run_test_Axi4SParse2IfAndSequel(dut, N, WRITE_FOOTER)
 
-    def _run_test_Axi4SParse2IfAndSequel(self, dut: Axi4SParse2IfAndSequel, N:int, WRITE_FOOTER:bool):
-        N = 2
+    def _run_test_Axi4SParse2IfAndSequel(self, dut: Axi4SParse2IfAndSequel, N:int, WRITE_FOOTER:bool, platformKwargs=dict(
+                # debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
+                #    HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+                #    HlsDebugBundle.DBG_4_0_addSignalNamesToData,
+                # }),
+                # runTestAfterEachIrPass=True,
+                # runTestAfterEachMirPass=True,
+                llvmCliArgs=[
+                    # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+                    # LLVM_CLI_COMMON_OPTS.VREGIFCVT_TRACE,
+                    LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+                    # LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
+                ]
+            )):
         T0 = HStruct(
             (HBits(16), "v0"),
             (HBits(8), "v2"),
@@ -203,8 +216,8 @@ class Axi4SParseIfTC(SimTestCase):
             (HBits(8), "v2"),
         )
 
-        outputRef: List[int] = []
-        inputFrames: List[List[int]] = []
+        outputRef: list[int] = []
+        inputFrames: list[list[int]] = []
         ALL_Ts = [T0, T2, T4]
         for _ in range(N):
             T = self._rand.choice(ALL_Ts)
@@ -242,17 +255,9 @@ class Axi4SParseIfTC(SimTestCase):
             tc._testLlvmIrOrMir(*args, True, inputFrames, outputRef)
 
         self.compileSimAndStart(dut, target_platform=TestLlvmIrAndMirPlatform(
-                # debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
-                #    HlsDebugBundle.DBG_4_0_addSignalNamesToSync}),
                 optIrTest=testLlvmOptIr,
                 optMirTest=testLlvmOptMir,
-                # runTestAfterEachPass=True,
-                # runTestAfterEachIrPass=True,
-                # runTestAfterEachMirPass=True,
-                llvmCliArgs=[
-                    # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
-                    LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
-                ]
+                **platformKwargs,
         ))
 
         dut.i._ag.presetBeforeClk = True
@@ -439,20 +444,27 @@ class Axi4SParseIfTC(SimTestCase):
 
 
 if __name__ == '__main__':
-    # from hwtHls.platform.virtual import VirtualHlsPlatform
-    # from hwt.synth import to_rtl_str
-    # m = Axi4SParse2IfAndSequel()
-    # m.WRITE_FOOTER = False
-    # m.DATA_WIDTH = 16
-    # m.CLK_FREQ = int(1e6)
-    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
-    #    debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
-    #        HlsDebugBundle.DBG_4_0_addSignalNamesToSync
-    # }))))
+    from hwtHls.platform.virtual import VirtualHlsPlatform
+    from hwt.synth import to_rtl_str
+    m = Axi4SParse2IfAndSequel()
+    # m = Axi4SParse2If2B()
+    m.WRITE_FOOTER = True
+    m.DATA_WIDTH = 16
+    m.CLK_FREQ = int(1e6)
+    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
+       llvmCliArgs=[
+            LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+            LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+            LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
+       ],
+       debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
+           HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+           HlsDebugBundle.DBG_4_0_addSignalNamesToData,
+    }))))
 
     testLoader = unittest.TestLoader()
 
-    # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2If_512b_40MHz")])
     suite = testLoader.loadTestsFromTestCase(Axi4SParseIfTC)
+    # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2If2B_8b_1MHz")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

@@ -8,8 +8,8 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
-from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInPreproc
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
 from hwtHls.scope import HlsScope
@@ -32,6 +32,10 @@ class Axi4SParseUdpIpv4(HwModule):
         addClkRstn(self)
         with self._hwParamsShared():
             self.i = Axi4Stream()
+
+            # :note: this is a test, it is significantly more efficient
+            #        to use single port to pass src_ip and srcp in sruct
+            #        rather than 2 independent ports
             self.src_ip: HwIOStructRdVld[ipv4_t] = HwIOStructRdVld()._m()
             self.src_ip.T = ipv4_t
 
@@ -51,6 +55,7 @@ class Axi4SParseUdpIpv4(HwModule):
                     udp = p(i.read(UDP_header_t))
                     hls.write(ipv4.data.src, self.src_ip)
                     hls.write(udp.data.srcp, self.srcp)
+
             i.readEndOfFrame()
 
     @override

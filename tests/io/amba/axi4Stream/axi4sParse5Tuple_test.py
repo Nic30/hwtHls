@@ -234,7 +234,7 @@ if __name__ == "__main__":
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([Axi4SParse5Tuple_TC("test_ipv4tcp_t_2048b")])
     suite = testLoader.loadTestsFromTestCase(Axi4SParse5Tuple_TC)
+    # suite = unittest.TestSuite([Axi4SParse5Tuple_TC("test_rand_t_128b")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

@@ -81,8 +81,8 @@ class BaseAxi4SPktInPktOutTC(BaseIrMirRtl_TC):
               platformArgs=(),
               platformKwargs=dict(
                   debugFilter={   #*HlsDebugBundle.ALL_RELIABLE,
-                  # HlsDebugBundle.DBG_20_addSignalNamesToSync,
-                  # HlsDebugBundle.DBG_20_addSignalNamesToData,
+                  # HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+                  # HlsDebugBundle.DBG_4_0_addSignalNamesToData,
                    },
                    llvmCliArgs=[
                       # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,

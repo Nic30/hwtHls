@@ -155,6 +155,6 @@ if __name__ == '__main__':
 
     testLoader = unittest.TestLoader()
     suite = testLoader.loadTestsFromTestCase(Axi4SSPacketByteCntrTC)
-    # suite = unittest.TestSuite([Axi4SSPacketByteCntrTC("test_Axi4SSPacketByteCntr_readSegmentWord_3x8b")])
+    # suite = unittest.TestSuite([Axi4SSPacketByteCntrTC("test_Axi4SSPacketByteCntr_readSegmentWord_2x16b")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
