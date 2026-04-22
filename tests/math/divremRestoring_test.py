@@ -11,6 +11,7 @@ from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.pragmaFunction import PyBytecodeSkipPass
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.netlist.extraOps import OP_UDIVREM
+from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import mask
 from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
@@ -86,7 +87,11 @@ class DivRemRestoring_TC(SimTestCase):
     def platformSetUp(self, p: TestLlvmIrAndMirPlatform):
         installMathLibComponentGenerators(p)
 
-    def test_div_rtl(self, MAIN_FN_META=None, randomizeIn=False, randomizeOut=False, runTestAfterEachPass=False):
+    def test_div_rtl(self,
+                     MAIN_FN_META=None,
+                     randomizeIn=False,
+                     randomizeOut=False,
+                     runTestAfterEachPass=False):
         dut = DivRemHwModule()
         dut.T = HBits(self.DATA_WIDTH)
         dut.FN = self.HLS_DIV_FN
@@ -94,23 +99,26 @@ class DivRemRestoring_TC(SimTestCase):
         dut.UNROLL_FACTOR = self.UNROLL_FACTOR
         dut.IN_CHANNEL_TYPE = HwIOStructRdVld
         dut.CHECK_FOR_INEFFICIENCY = False
+        # dut.CLK_FREQ = int(200e6)
         REF_DATA = self._getRefData(self.INPUT_DATA)
+
         p = TestLlvmIrAndMirPlatform.forSimpleDataInDataOutHwModule(
             self.prepareDataInFn,
             self.getCheckDataOutFn(REF_DATA),
             None,
             topToRunTestsOn=dut,
             # debugFilter=HlsDebugBundle.ALL_RELIABLE,
-            # llvmCliArgs=[
-            #    LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
-            # ],
-            # noOptIrTest=TestLlvmIrAndMirPlatform.TEST_NO_OPT_IR,
+            llvmCliArgs=[
+                LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+                # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+            ],
             runTestAfterEachPass=runTestAfterEachPass,
         )
         self.platformSetUp(p)
         self.compileSimAndStart(dut, target_platform=p)
         CLK_PERIOD = freq_to_period(dut.clk.FREQ)
         dut.data_in._ag.data.extend(self.INPUT_DATA)
+        # :note: for better sim wave readability
         dut.data_in._ag.presetBeforeClk = True
         dut.data_out._ag.presetBeforeClk = True
 
@@ -151,6 +159,7 @@ class DivRemRestoring_unroll4_TC(DivRemRestoring_TC):
 class DivRemRestoringGen_TC(DivRemRestoring_TC):
     """
     Variant of DivRestoring_TC which test default component generator for / and % operator installed in Platform
+    (the DivRemRestoring is instanciated by this operator)
     """
 
     @staticmethod
@@ -187,38 +196,39 @@ if __name__ == "__main__":
     # from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.debugBundle import HlsDebugBundle
     from hwtHls.platform.xilinx.artix7 import Artix7Fast
-    from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 
-    m = DivRemHwModule()
-    m.T = HBits(4, False)
-    m.FN = DivRemRestoringGen_TC.HLS_DIV_FN
-    # m.UNROLL_FACTOR = 1
-    m.CLK_FREQ = int(200e6)
-    m.IN_CHANNEL_TYPE = HwIOStructRdVld
-    m.MAIN_FN_META = PyBytecodeSkipPass(["hwtHls::SlicesToIndependentVariablesPass"])
-    p = Artix7Fast(
-      debugFilter=HlsDebugBundle.ALL_RELIABLE,
-      llvmCliArgs=[
-        # LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
-        # LLVM_CLI_COMMON_OPTS.PRINT_BEFORE_ALL,
-        # LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL,
-        # LLVM_CLI_COMMON_OPTS.printBefore("hwtHls::TrivialSimplifyCFGPass"),
-        # LLVM_CLI_COMMON_OPTS.printAfter("hwtHls::TrivialSimplifyCFGPass"),
-        # LLVM_CLI_COMMON_OPTS.printBefore("hwtHls::HwtHlsInstCombinePass"),
-        # LLVM_CLI_COMMON_OPTS.printAfter("hwtHls::HwtHlsInstCombinePass"),
-        # LLVM_CLI_COMMON_OPTS.printBefore("simplifycfg"),
-        # LLVM_CLI_COMMON_OPTS.printAfter("simplifycfg"),
-        # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
-      ]
-    )
-    installMathLibComponentGenerators(p)
-    p._componentGenerators[OP_UDIVREM].optThroughputVsArea = 0  # 2 / m.T.bit_length()
-    print(to_rtl_str(m, target_platform=p))
+    # m = DivRemHwModule()
+    # m.T = HBits(4, False)
+    # m.FN = DivRemRestoringGen_TC.HLS_DIV_FN
+    # m.CLK_FREQ = int(1e6)
+    # m.UNROLL_FACTOR = 4
+    # m.CHECK_FOR_INEFFICIENCY = False
+    # # m.CLK_FREQ = int(200e6)
+    # m.IN_CHANNEL_TYPE = HwIOStructRdVld
+    # # m.MAIN_FN_META = PyBytecodeSkipPass(["hwtHls::SlicesToIndependentVariablesPass"])
+    # p = Artix7Fast(
+    #  debugFilter=HlsDebugBundle.ALL_RELIABLE,
+    #  llvmCliArgs=[
+    #    # LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+    #    # LLVM_CLI_COMMON_OPTS.PRINT_BEFORE_ALL,
+    #    # LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL,
+    #    # LLVM_CLI_COMMON_OPTS.printBefore("hwtHls::TrivialSimplifyCFGPass"),
+    #    # LLVM_CLI_COMMON_OPTS.printAfter("hwtHls::TrivialSimplifyCFGPass"),
+    #    # LLVM_CLI_COMMON_OPTS.printBefore("hwtHls::HwtHlsInstCombinePass"),
+    #    # LLVM_CLI_COMMON_OPTS.printAfter("hwtHls::HwtHlsInstCombinePass"),
+    #    # LLVM_CLI_COMMON_OPTS.printBefore("simplifycfg"),
+    #    # LLVM_CLI_COMMON_OPTS.printAfter("simplifycfg"),
+    #    # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+    #  ]
+    # )
+    # installMathLibComponentGenerators(p)
+    # p._componentGenerators[OP_UDIVREM].optThroughputVsArea = 0  # 2 / m.T.bit_length()
+    # print(to_rtl_str(m, target_platform=p))
 
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([DivRemRestoringGen_TC('test_div_no_SlicesToIndependentVariablesPass')])
     suite = unittest.TestSuite(testLoader.loadTestsFromTestCase(cls) for cls in DivRemRestoring_TCs)
+    # suite = unittest.TestSuite([DivRemRestoring_unroll4_TC('test_div_no_SlicesToIndependentVariablesPass')])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
