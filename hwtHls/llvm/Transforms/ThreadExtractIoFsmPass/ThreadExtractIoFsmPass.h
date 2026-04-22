@@ -5,6 +5,9 @@
 
 namespace hwtHls {
 
+/*
+ * Metadata which can be added to HwtHlsIoMetadata to trigger ThreadExtractIoFsmPass for selected IO
+ */
 class ThreadExtractIoFsmMetadata {
 public:
 	llvm::MDTuple *md;
