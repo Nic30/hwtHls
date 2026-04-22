@@ -45,7 +45,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         
     :ivar _isBlocking: flag which specifies if this node is blocking or non-blocking write
     :ivar _mayBecomeFlushable: flag, if True the _isFlushable may be set to True
-    :ivar _isFlushable: flag, if True the data may be transfered to destination even if
+    :ivar _isFlushable: flag, if True the data may be transferred to destination even if
         parent sync node is stalling if dependencies are available
     #:ivar _mayFlushPort: the netlist input port, if it is 1 the node may perform write even
     #    if the parent node does not have ack. If parent did not have ack then isFlushed is set to 1
@@ -78,7 +78,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
                  isBlocking:bool=True,
                  isBackedge:bool=False,
                  addSrcPort=True):
-        #if name is None and isinstance(dst, HwIO) and dst._name is not None:
+        # if name is None and isinstance(dst, HwIO) and dst._name is not None:
         #    name = dst._name
         HlsNetNode.__init__(self, netlist, name=name)
         self.ioProxy = ioProxy
@@ -699,7 +699,6 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         assert not self._isRtlAllocated, self
         assert self.skipWhen is None, ("skipWhen should have been lowered during HlsArchPassSyncLowering", self)
         assert self._forceEnPort is None, ("forceEnPort should have been lowered during HlsArchPassSyncLowering", self)
-
         dstRead = self.associatedRead
         if dstRead is None:
             res = self.rtlAllocAsIO(allocator)

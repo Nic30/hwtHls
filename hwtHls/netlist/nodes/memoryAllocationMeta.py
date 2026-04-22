@@ -8,7 +8,7 @@ from hwt.serializer.resourceAnalyzer.resourceTypes import RtlResourceType
 class MemoryAllocationMeta(RtlResourceType):
     """
     This class represents record about memory which should be constructed later in compilation.
-    This is a symbolic reference and it is yet to be chosen how many port, which latency
+    This is a symbolic reference and it is yet to be choosen how many port, which latency
     and which physical resource will be used to realize this memory.  
     
     :note: it is not a HlsNetNode because it would create complex cycles during scheduling.
