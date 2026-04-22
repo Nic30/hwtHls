@@ -102,7 +102,11 @@ class HlsNetNodeOutLazy():
     :ivar dependent_inputs: information about children where new object should be replaced
     """
 
-    def __init__(self, netlist: "HlsNetlistCtx", keys_of_self_in_cache: list, op_cache:"SsaToHwtHlsNetlistOpCache", dtype: HdlType, name:Optional[str]=None):
+    def __init__(self, netlist: "HlsNetlistCtx",
+                 keys_of_self_in_cache: list,
+                 op_cache: "SsaToHwtHlsNetlistOpCache",
+                 dtype: HdlType,
+                 name:Optional[str]=None):
         self.netlist = netlist
         self._id = netlist.getUniqId()
         self.dependent_inputs: List[HlsNetNodeIn] = []
