@@ -286,6 +286,7 @@ class ArchElementFsm(ArchElement):
                 node: HlsNetNode
                 if node._isRtlAllocated:
                     continue
+                assert not node._isMarkedRemoved, node
                 assert node.scheduledIn is not None, ("Node must be scheduled", node)
                 assert node.dependsOn is not None, ("Node must not be destroyed", node)
                 node.rtlAlloc(self)
@@ -295,6 +296,8 @@ class ArchElementFsm(ArchElement):
             if con is None:
                 continue
             for rtl in con.rtlAllocIoMux():
+                for stm in rtl:
+                    assert stm.parentStm is None, stm
                 con.stateDependentDrives.extend(rtl)
 
     @override
