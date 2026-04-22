@@ -2,6 +2,7 @@ from typing import Callable, Union
 
 from hwt.code import Concat
 from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.bitsRtlSignal import HBitsRtlSignal
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
 from hwt.hwIOs.utils import addClkRstn
@@ -9,13 +10,13 @@ from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwt.serializer.mode import serializeParamsUniq
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.pyBytecode import hlsBytecode
+from hwtHls.architecture.componentGenerators.baseALU1HwModule import _BaseALU1HwModule
 from hwtHls.frontend.pragma import _PyBytecodeLoopPragma
 from hwtHls.frontend.pragmaFunction import PyBytecodeSkipPass
 from hwtHls.frontend.pragmaInstruction import PyBytecodeNoSplitSlices
 from hwtHls.frontend.pragmaPreproc import PyBytecodeBlockLabel
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
-from hwtHls.architecture.componentGenerators.baseALU1HwModule import _BaseALU1HwModule
+from hwtHls.frontend.pyBytecode import hlsBytecode
 
 
 @hlsBytecode
@@ -43,10 +44,13 @@ def _divCastToUnsigned(dividend: RtlSignal, divisor: RtlSignal, isSigned: Union[
 
 # NR https://hardwaredescriptions.com/conquer-the-divide/
 
+
 @hlsBytecode
-def divremRestoring(dividend: RtlSignal, divisor: RtlSignal, isSigned: Union[RtlSignal, bool],
-                 loopPragmaGetter: Callable[[], _PyBytecodeLoopPragma]=lambda: None,
-                 dbgNoSplitSlices:bool=True):
+def divremRestoring(dividend: HBitsRtlSignal,
+                    divisor: HBitsRtlSignal,
+                    isSigned: Union[HBitsRtlSignal, bool],
+                    loopPragmaGetter: Callable[[], _PyBytecodeLoopPragma]=lambda: None,
+                    dbgNoSplitSlices:bool=True):
     """
     Restoring integer division, quotient = dividend // divisor, remainder = dividend%divisor 
 
