@@ -11,8 +11,7 @@ from tests.math.fixp.fixpOperatorsCommonArith_test import FixpUnary_TC, \
 from tests.math.fixp.fixpOperatorsHwModules import _FixpUnOpTestModule, _FixpBinOpTestModule
 from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
-from tests.math.hFloatTmp.hFloatTmpOps import sin, cos, sinpi, cospi, tan, sqrt, \
-    atan2
+from tests.math.hFloatTmp.hFloatTmpOps import sin, cos, sinpi, cospi, tan, atan2
 
 
 @serializeParamsUniq
@@ -155,45 +154,6 @@ class FixpCosPiNoLutUnroll_TC(FixpCosPiNoLut_TC):
 
 
 @serializeParamsUniq
-class TestModuleFixpSqrt(_FixpUnOpTestModule):
-
-    @staticmethod
-    def HLS_OP_FN(a):
-        return sqrt(a)
-
-
-class FixpSqrt_TC(FixpSinNoLut_TC):
-    FP_TY = HFixedPointQ(4, 20, signed=False, rounding=HFloatTmpRounding.ROUND_FLOOR, saturation=HFloatTmpSaturation.SATURATE_NONE)
-    RTL_SIM_TIME_MULTIPLIER = 20.0
-
-    MODULE_CLS = TestModuleFixpSqrt
-
-    def _model(self, a: float) -> float:
-        return math.sqrt(a)
-
-
-class FixpSqrtUnroll_TC(FixpSqrt_TC):
-    optThroughputVsArea = 1.0
-
-
-class FixpSqrt_int_TC(FixpSqrt_TC):
-    FP_TY = HFixedPointQ(8, 0, signed=False,
-                         rounding=HFloatTmpRounding.ROUND_FLOOR,
-                         saturation=HFloatTmpSaturation.SATURATE_NONE)
-    INPUT_DATA = [
-         0.0,
-         1.0,
-         2.0,
-         3.0,
-         4.0,
-         7.0,
-         8.0,
-        12.0,
-        15.0,
-    ]
-
-
-@serializeParamsUniq
 class TestModuleFixpAtan2(_FixpBinOpTestModule):
 
     @staticmethod
@@ -254,31 +214,27 @@ class FixpAtan2Unroll_TC(FixpAtan2_TC):
 
 
 FixpOpTrigonometric_TCs = [
-    FixpSinNoLutUnroll_TC,
-    FixpCosNoLutUnroll_TC,
-    FixpTanNoLutUnroll_TC,
-    FixpSinPiNoLutUnroll_TC,
-    FixpCosPiNoLutUnroll_TC,
+   FixpSinNoLutUnroll_TC,
+   FixpCosNoLutUnroll_TC,
+   FixpTanNoLutUnroll_TC,
+   FixpSinPiNoLutUnroll_TC,
+   FixpCosPiNoLutUnroll_TC,
 
-    FixpSinNoLut_TC,
-    FixpCosNoLut_TC,
-    FixpTanNoLut_TC,  # [fixme] tan does not recognize that sin/cos/div are not unrolled and
-                     #  _BaseALU1HwModule then incorerectly resolves sync
-    FixpSinPiNoLut_TC,
-    FixpCosPiNoLut_TC,
+   FixpSinNoLut_TC,
+   FixpCosNoLut_TC,
+   FixpTanNoLut_TC,
+   FixpSinPiNoLut_TC,
+   FixpCosPiNoLut_TC,
 
-    FixpSinLut7_TC,
-    FixpCosLut7_TC,
-    FixpTanLut7_TC,
-    FixpTanLut7Unroll_TC,
-    FixpSinPiLut7_TC,
-    FixpCosPiLut7_TC,
+   FixpSinLut7_TC,
+   FixpCosLut7_TC,
+   FixpTanLut7_TC,
+   FixpTanLut7Unroll_TC,
+   FixpSinPiLut7_TC,
+   FixpCosPiLut7_TC,
 
-    FixpSqrt_TC,
-    FixpSqrtUnroll_TC,
-    FixpSqrt_int_TC,
-    FixpAtan2_TC,
-    FixpAtan2Unroll_TC,
+   FixpAtan2_TC,
+   FixpAtan2Unroll_TC,
 ]
 
 if __name__ == "__main__":
