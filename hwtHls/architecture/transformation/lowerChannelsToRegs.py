@@ -145,8 +145,9 @@ class HlsAndRtlNetlistPassLowerChannelsToRegs(HlsAndRtlNetlistPass):
         # assert transitionTables is not None, "HlsAndRtlNetlistAnalysisPassFsmStateTransition should not be invalidated"
         dbgTracer = DebugTracer(None)
         clkPeriod = netlist.normalizedClkPeriod
-
+        changed = False
         for elm in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.ONLY_PARENT_PREORDER):
+            _changed = False
             if isinstance(elm, ArchElementFsm):
                 elm: ArchElementFsm
                 # usedStates = stateEncoding.usedStates[elm]
@@ -407,8 +408,15 @@ class HlsAndRtlNetlistPassLowerChannelsToRegs(HlsAndRtlNetlistPass):
                     assert not any(w.usedBy), (w, w.usedBy)
                     assert all(d is None for d in w.dependsOn), (w, w.dependsOn)
                     w.markAsRemoved()
+                    _changed = True
+                if _changed:
+                    elm.filterNodesUsingRemovedSet(recursive=False)
+                    changed = True
 
-        pa = PreservedAnalysisSet.preserveScheduling()
-        pa.add(HlsAndRtlNetlistAnalysisPassFsmStateTransition)
-        pa.add(HlsAndRtlNetlistAnalysisPassFsmStateEncoding)
-        return pa
+        if changed:
+            pa = PreservedAnalysisSet.preserveScheduling()
+            pa.add(HlsAndRtlNetlistAnalysisPassFsmStateTransition)
+            pa.add(HlsAndRtlNetlistAnalysisPassFsmStateEncoding)
+            return pa
+        else:
+            return PreservedAnalysisSet.preserveAll()
