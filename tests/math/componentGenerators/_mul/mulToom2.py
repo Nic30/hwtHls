@@ -65,7 +65,7 @@ class PipelinedMultiplierToom2(_BaseALU1HwModule):
         c1 = subAutoExt(subAutoExt(z1._cast_sign(isSigned), z2._cast_sign(isSigned)), z0._cast_sign(isSigned))
         # (z2 << (2*m2)) + ((z1 - z2 - z0) << m2) + z0
         c0_1 = addShifted(z0._cast_sign(isSigned), c1, width2, 2 * width)
-        return addShifted(c0_1, z2._cast_sign(isSigned), 2 * width, self.T.bit_length())
+        return addShifted(c0_1, z2._cast_sign(isSigned), 2 * width, self.T.bit_length())._reinterpret_cast(self.T)
 
 
 if __name__ == "__main__":

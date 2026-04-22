@@ -55,7 +55,7 @@ class PipelinedMultiplierSequential(_BaseALU1HwModule):
             P >>= 1
             self._getLoopMeta()
 
-        return Concat(P, B)[self.T.bit_length():]
+        return Concat(P, B)[self.T.bit_length():]._reinterpret_cast(self.T)
 
 
 if __name__ == "__main__":

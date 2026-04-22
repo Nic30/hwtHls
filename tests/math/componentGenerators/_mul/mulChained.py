@@ -168,7 +168,7 @@ class PipelinedMultiplierChained(_BaseALU1HwModule):
             result = addShifted(result, bMsb._ternary(inp.a, inp.a._dtype.from_py(0)), offA, w)
             # result = addShifted(result, (aMsb ^ bMsb)._sext(2)._cast_sign(True), offAB, w)
 
-        return result[resultWidth:]._cast_sign(isSigned)
+        return result[resultWidth:]._reinterpret_cast(self.T)
 
 
 if __name__ == "__main__":

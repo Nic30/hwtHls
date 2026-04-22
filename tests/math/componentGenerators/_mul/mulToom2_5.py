@@ -211,7 +211,7 @@ class PipelinedMultiplierToom2_5(_BaseALU1HwModule):
             assert int(result) == _result0Ref, (result, _result0Ref)
             assert int(result) == int(a) * int(b), (int(result), int(a) * int(b))
 
-        return result
+        return result._reinterpret_cast(self.T)
 
 
 if __name__ == "__main__":
