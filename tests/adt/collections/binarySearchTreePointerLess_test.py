@@ -59,6 +59,7 @@ class BinaryTreePointerLessArraySearch_TC(BaseIrMirRtl_TC):
 
         self._test(dut,
             prepareIrAndMirArgs, checkIrAndMirArgs,
+            prepareIrAndMirArgs, checkIrAndMirArgs,
             prepareRtlSimArgs, checkRtlSimResults,
             wallTimeIr=wallTimeIr,
             wallTimeOptIr=wallTimeOptIr,
