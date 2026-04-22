@@ -1,4 +1,4 @@
-from typing import Union, Optional, Generator, Literal
+from typing import Union, Optional, Generator, Literal, Any
 
 from hwt.constants import NOT_SPECIFIED
 from hwt.hdl.const import HConst
@@ -68,7 +68,8 @@ class ArchElement(HlsNetNodeAggregate):
         self.netNodeToRtl: dict[
             Union[
                 HlsNetNodeOut,  # any operation output
-                tuple[HlsNetNodeOut, HwIO]  # write
+                tuple[HlsNetNodeOut, HwIO],  # write
+                Any,  # the HlsNetNode specific object
             ],
             TimeIndependentRtlResource] = {}
         # function to create register/signal on RTL level
@@ -223,7 +224,7 @@ class ArchElement(HlsNetNodeAggregate):
         endClkI = self._endClkI
         if endClkI is None or endClkI < clkI:
             self._endClkI = clkI
-        
+
         assert clkI >= 0, (node, clkI)
         self.getStageForClock(clkI, createIfNotExists=allowNewClockWindow).append(node)
         self.subNodes.append(node)
@@ -246,6 +247,8 @@ class ArchElement(HlsNetNodeAggregate):
         Create HlsNetNodeReadForwardedge/HlsNetNodeWriteForwardedge pairs to implement synchronization
         between parts of this element.
         
+        :note: For FSM this is not required because states do not happen concurrently.
+        
         :returns: True if netlist was changed
         """
         return False
@@ -261,7 +264,7 @@ class ArchElement(HlsNetNodeAggregate):
                                    isForwardDeclr: bool,
                                    mayChangeOutOfCfg: bool,
                                    timeOffset: Union[SchedTime, Literal[INVARIANT_TIME, NOT_SPECIFIED]]=NOT_SPECIFIED)\
-                                   -> TimeIndependentRtlResource:
+                                   ->TimeIndependentRtlResource:
         """
         Construct the container for RtlSignal and alike which is used for resolving of synchronization for it.
         """
@@ -311,7 +314,6 @@ class ArchElement(HlsNetNodeAggregate):
             assert not oObj._isRtlAllocated, (
                 "Node was allocated, but the output rtl is missing, this could be the case only for outputs of void type, "
                 "This error could be also a sign of node being allocated/used directly in other element (without port on this element)", o)
-
             assert oObj.scheduledOut is not None, ("Node must be scheduled", oObj)
             clkI = clkWindowIndex(oObj.scheduledOut[o.out_i], self.netlist.normalizedClkPeriod)
             if len(self.connections) <= clkI or self.connections[clkI] is None:
@@ -458,3 +460,4 @@ class ArchElement(HlsNetNodeAggregate):
 
 
 ArchElmEdge = tuple[ArchElement, ArchElement]
+
