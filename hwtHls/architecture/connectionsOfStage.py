@@ -110,8 +110,8 @@ class ConnectionsOfStage():
         # self.outputs_extraCond: Dict[InterfaceOrReadWriteNodeOrValidReadyTuple, OrMemberList] = {}
         # self.ioMuxes: OrderedDict[HwIO, tuple[Union[HlsNetNodeRead, HlsNetNodeWrite], list[HdlStatement]]] = OrderedDict()
         self.fsmIoMuxCases: OrderedDict[Union[HlsNetNodeRead, HlsNetNodeWrite, HwIO],
-
-                                         ] = {}
+                                        FsmIoMuxCasesValue_t
+                                        ] = {}
         # :note: ready/valid is not assigned from enable immediately because if there will be mux of variants we want it to be assigned
         # 1 in each case and not enable as if it there was just a single mux case
         self.pipelineSyncIn: Optional["HlsNetNodeReadForwardedge"] = None
@@ -433,6 +433,7 @@ class ConnectionsOfStage():
         return f"<{self.__class__.__name__:s} {self.parent} clk:{self.clkIndex}>"
 
 
+# IntPredicated = Literal[operator.eq, operator.ne, operator.lt, operator.le, operator.gt, operator.ge]
 class ConnectionsOfStageList(list[Optional[SetList[ConnectionsOfStage]]]):
     """
     Container of for :class:`~.ConnectionsOfStage` divided into clock cycles.
