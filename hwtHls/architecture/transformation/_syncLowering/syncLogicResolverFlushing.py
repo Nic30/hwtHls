@@ -171,7 +171,14 @@ class SyncLogicResolverFlushing():
             if en is not None:
                 mayFlush = aig.And(en, mayFlush)
             if w._rtlUseReady:
-                rtlAck = syncLogicResolver.toAbc._translate(aig, (w.getReadyNB(), clkI))
+                toAbc = syncLogicResolver.toAbc
+                if w.isReadyNBNotFull():
+                    wNRd = toAbc._translate(aig, (w.getFullPort(), clkI))
+                    rtlAck = aig.Not(wNRd)
+                else:
+                    rtlAck = toAbc._translate(aig, (w.getReadyNB(), clkI))                
+
+                rtlAck = toAbc._translate(aig, (w.getReadyNB(), clkI))
                 mayFlush = aig.And(mayFlush, rtlAck)
 
             abcO.AddFanin(mayFlush)

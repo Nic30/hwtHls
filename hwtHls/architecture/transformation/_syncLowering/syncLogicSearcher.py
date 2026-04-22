@@ -344,6 +344,9 @@ class SyncLogicSearcher():
                     self.collectFromInput(syncNode, forceEn)
 
                 if ioNode._rtlUseReady:
+                    if ioNode.isReadyNBNotFull():
+                        self.collectFromOutput(syncNode, ioNode.getFullPort())
+
                     rdNB = ioNode.getReadyNB()
                     rd = ioNode._ready
                     if isChannel:
@@ -356,7 +359,7 @@ class SyncLogicSearcher():
                                 # :note: must not search for uses of rValidNB because rSyncNode may not be in this SCC
                                 if self.primaryInputs.append((rValidNB, rSyncNode)):
                                     self._onPrimaryInputFound(rValidNB, rSyncNode)
-                            else:
+                            elif rdNB is not ioNode.getFullPort():
                                 self.collectFromOutput(syncNode, ioNode.getFullPort())
 
                     if rd is not None:

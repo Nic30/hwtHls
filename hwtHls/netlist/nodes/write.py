@@ -260,6 +260,11 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
 
             self._isFlushable = False
 
+    def isReadyNBNotFull(self):
+        return self.allocationType == CHANNEL_ALLOCATION_TYPE.REG and \
+             self.associatedRead is not None and \
+             self.associatedRead.parent is self.parent
+
     def getFullPort(self) -> HlsNetNodeOut:
         """
         The full port is HlsNetlistOut. Only usable for channels with capacity>0.
@@ -725,10 +730,11 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         else:
             allocationType = ""
         if self.isChannel():
-            if self.isBackedge():
-                allocationType += " backedge"
-            else:
-                allocationType += " forwardedge"
+            if self.scheduledZero is not None and self.associatedRead and self.associatedRead.scheduledZero is not None:
+                if self.isBackedge():
+                    allocationType += " backedge"
+                else:
+                    allocationType += " forwardedge"
 
         dstName = "<None>" if self.dst is None else self._getInterfaceName(self.dst)
         if minify:

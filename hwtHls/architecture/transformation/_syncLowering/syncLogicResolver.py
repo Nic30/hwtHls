@@ -384,7 +384,11 @@ class SyncLogicResolver(HlsNetlistToAbcAig):
 
         for w in writes:
             if w._rtlUseReady and w._isBlocking:
-                wRd = toAbc._translate(aig, (w.getReadyNB(), clkI))
+                if w.isReadyNBNotFull():
+                    wNRd = toAbc._translate(aig, (w.getFullPort(), clkI))
+                    wRd = aig.Not(wNRd)
+                else:
+                    wRd = toAbc._translate(aig, (w.getReadyNB(), clkI))
             else:
                 wRd = None
 
