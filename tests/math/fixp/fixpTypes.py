@@ -12,7 +12,6 @@ from hwt.serializer.hwt.serializer import ToHdlAstHwt
 from hwtHls.llvm.llvmIr import HFloatTmpConfig, Type, HFloatTmpRounding, HFloatTmpSaturation
 from pyMathBitPrecise.bit_utils import mask
 
-
 HFixedPointQComaptibleValue = Union["HFixedPointQConst", "HFixedPointQRtlSignal", float, int, None]
 
 # Fixed point
@@ -297,11 +296,15 @@ class HFixedPointQ(HdlType):
 
         if self.const:
             constr.append("const")
-
         if self.signed:
             constr.append("signed")
 
         constr.append(f"Q{self.int_bit_length:d}.{self.frac_bit_length:d}")
+
+        if self.rounding != HFloatTmpRounding.ROUND_C_DEFAULT:
+            constr.append(self.rounding.name)
+        if self.saturation != HFloatTmpSaturation.SATURATE_C_DEFAULT:
+            constr.append(self.saturation.name)
 
         return "%s<%s, %s>" % (getIndent(indent),
                                self.__class__.__name__,
