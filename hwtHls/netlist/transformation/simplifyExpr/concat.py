@@ -1,7 +1,10 @@
 from itertools import islice
-from typing import Set, Dict, List
+from typing import Set, Dict, List, Optional, Union
 
+from hwt.code import Concat
 from hwt.hdl.operatorDefs import HwtOps
+from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
@@ -9,6 +12,8 @@ from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
+from hwtHls.netlist.transformation.simplifyUtils import getConstOfOutput, \
+    getVecAndSliceOf, sliceOrIntToHighLowBitIndex
 from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOperatorNodeWith
 
 
@@ -54,11 +59,17 @@ def _getOrderingOutStrenght(o: HlsNetNodeOut):
 
 
 def netlistReduceConcat(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
+    if len(n.dependsOn) == 1:
+        # concat(x) -> x
+        replaceOperatorNodeWith(n, n.dependsOn[0], worklist)
+        return True
+
     if len(n.usedBy[0]) == 1:
         onlyUser = n.usedBy[0][0]
         onlyUserObj = onlyUser.obj
         if isinstance(onlyUserObj, HlsNetNodeOperator) and onlyUserObj.operator == HwtOps.CONCAT:
             # Merge this concat into only user which is also concat
+            # concat(x, concat(y, z)) -> concat(x, y, z)
             newOps = []
             newOps.extend(onlyUserObj.dependsOn[:onlyUser.in_i])
             newOps.extend(n.dependsOn)
@@ -69,6 +80,77 @@ def netlistReduceConcat(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
 
             replaceOperatorNodeWith(onlyUserObj, replacement, worklist)
             return True
+
+    lsbToMsbOps: list[Union[HlsNetNodeOut,
+                            HBitsConst,
+                            list[HBitsConst],
+                            tuple[HlsNetNodeOut, int, int]]] = []
+    lastC: Optional[Union[HBitsConst, list[HBitsConst]]] = None
+    lastSlice: Optional[tuple[HlsNetNodeOut, int, int]] = None  # :note: (high, low> notation
+    operandsMerged = False
+    for dep in n.dependsOn:
+        c = getConstOfOutput(dep)
+        if c is not None:
+            lastSlice = None
+            if lastC is None:
+                # :note: add dep to prevent creating of a ne HlsNetNodeConst if there is just a single constant operartor
+                lsbToMsbOps.append(dep)
+                lastC = c
+            else:
+                operandsMerged = True
+                if isinstance(lastC, list):
+                    lastC.append(c)
+                else:
+                    lastC = [lastC, c]
+                    lsbToMsbOps[-1] = lastC
+        else:
+            lastC = None
+            vecAndSlice = getVecAndSliceOf(dep)
+            if vecAndSlice is not None:
+                vec, i = vecAndSlice
+                high, low = sliceOrIntToHighLowBitIndex(i)
+
+                if lastSlice is None:
+                    lastSlice = (vec, high, low)
+                    lsbToMsbOps.append(dep)
+                else:
+                    # check if slices are continuation of the same base vector
+                    if vec is lastSlice[0] and lastSlice[1] == low:
+                        operandsMerged = True
+                        # is continuation
+                        lastSlice = (vec, high, lastSlice[2])
+                        lsbToMsbOps[-1] = lastSlice
+                    else:
+                        lastSlice = (vec, high, low)
+                        lsbToMsbOps.append(dep)
+            else:
+                lastSlice = None
+                lsbToMsbOps.append(dep)
+
+    if operandsMerged:
+        b = n.getHlsNetlistBuilder()
+        lsbToMsbOpsOutputs: list[HlsNetNodeOut] = []
+        for op in lsbToMsbOps:
+            if isinstance(op, list):
+                # concat(c0, c1) -> c01
+                _op = b.buildConst(Concat(*reversed(op)))
+            elif isinstance(op, tuple):
+                (vec, high, low) = op
+                _op = b.buildIndexConstSlice(
+                    HBits(high - low), vec,
+                    high, low)
+            else:
+                _op = op
+
+            lsbToMsbOpsOutputs.append(_op)
+
+        if len(lsbToMsbOpsOutputs) == 1:
+            replacement = lsbToMsbOpsOutputs[0]
+        else:
+            replacement = b.buildConcat(*lsbToMsbOpsOutputs)
+
+        replaceOperatorNodeWith(n, replacement, worklist)
+        return True
 
     return False
 
