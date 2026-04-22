@@ -166,10 +166,11 @@ class LoopChanelGroup():
             lastEC = lastRead.dependsOn[lastRead.extraCond.in_i] if lastRead.extraCond is not None else None
             lastSW = lastRead.dependsOn[lastRead.skipWhen.in_i] if lastRead.skipWhen is not None else None
             controlEc = b.buildAndOptional(lastEC, lastVld_n, name=None if name is None else f"{name:s}_extraCond")
-            controlSw = b.buildOrOptional(lastSW, lastVld, name=None if name is None else f"{name:s}_extraCond")
+            controlSw = b.buildOrOptional(lastSW, lastVld, name=None if name is None else f"{name:s}_skipWhen")
         else:
             controlEc = extraCondOfFirst
             controlSw = skipWhenOfFirst
+
         if controlEc is not None:
             controlChannelR.addControlSerialExtraCond(controlEc)
         if controlSw is not None:
