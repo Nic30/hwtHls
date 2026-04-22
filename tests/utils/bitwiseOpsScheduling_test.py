@@ -33,7 +33,7 @@ class BitwiseOpsScheduling_TC(SimTestCase):
         net = HlsNetlistCtx(platform, None, freq, f"3not{int(freq//1e6)}Mhz", "test", {}, "test")
         net.builder = HlsNetlistBuilder(net)
         t = HBits(8)
-        
+
         ioProxy0 = IoProxyScalar(None, HwIOVectSignal(8))
         r = HlsNetNodeRead(net, ioProxy0, ioProxy0.interface, t, name="r0")
         net.addNode(r)
@@ -41,7 +41,6 @@ class BitwiseOpsScheduling_TC(SimTestCase):
         n1 = HlsNetNodeOperator(net, HwtOps.NOT, 1, t, "n1")
         n2 = HlsNetNodeOperator(net, HwtOps.NOT, 1, t, "n2")
         net.addNodes((n0, n1, n2))
-
 
         ioProxy1 = IoProxyScalar(None, HwIOVectSignal(8))
         w = HlsNetNodeWrite(net, ioProxy1, ioProxy1.interface, name="w0")
@@ -78,7 +77,6 @@ class BitwiseOpsScheduling_TC(SimTestCase):
         n2 = HlsNetNodeOperator(net, HwtOps.AND, 2, t, "n2")
         net.addNodes((n0, n1, n2))
 
-
         ioProxy2 = IoProxyScalar(None, HwIOVectSignal(8))
         w = HlsNetNodeWrite(net, ioProxy2, ioProxy2.interface, name="w0")
         net.addNode(w)
@@ -90,16 +88,19 @@ class BitwiseOpsScheduling_TC(SimTestCase):
         r1._outputs[0].connectHlsIn(n2._inputs[1])
 
         HlsNetlistPassAggregateBitwiseOps().runOnHlsNetlist(net)
-        #HlsNetlistAnalysisPassDumpNodesDot(outputFileGetter("tmp", ".nodes.dot")).runOnHlsNetlist(net)
+        # HlsNetlistAnalysisPassDumpNodesDot(outputFileGetter("tmp", ".nodes.dot")).runOnHlsNetlist(net)
+        #try:
         net.getAnalysis(HlsNetlistAnalysisPassRunScheduler)
-        #HlsNetlistAnalysisPassDumpSchedulingJson(outputFileGetter("tmp", ".hwschedule.json")).runOnHlsNetlist(net)
+        #finally:
+        #    HlsNetlistAnalysisPassDumpNodesDot(outputFileGetter("tmp", ".schedule.dot")).runOnHlsNetlist(net)
+        #    HlsNetlistAnalysisPassDumpSchedulingJson(outputFileGetter("tmp", ".hwschedule.json")).runOnHlsNetlist(net)
 
 
 if __name__ == "__main__":
     import unittest
 
     testLoader = unittest.TestLoader()
-    #suite = unittest.TestSuite([BitwiseOpsScheduling_TC('test_2not1and_400MHz'), ])
     suite = testLoader.loadTestsFromTestCase(BitwiseOpsScheduling_TC)
+    # suite = unittest.TestSuite([BitwiseOpsScheduling_TC('test_2not1and_400MHz'), ])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
