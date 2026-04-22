@@ -5,10 +5,12 @@ from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.defs import BIT
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
+from hwtHls.architecture.transformation.dce import ArchElementDCE
 from hwtHls.architecture.transformation.hlsAndRtlNetlistPass import HlsAndRtlNetlistPass
+from hwtHls.architecture.transformation.simplify import ArchElementValuePropagation
 from hwtHls.architecture.transformation.utils.dummyScheduling import scheduleUnscheduledControlLogic
 from hwtHls.architecture.transformation.utils.syncUtils import createBackedgeInClkWindow
-from hwtHls.netlist.builder import _replaceOutPortWith,\
+from hwtHls.netlist.builder import _replaceOutPortWith, \
     HlsNetlistBuilderWithWorklist
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.debugTracer import DebugTracer
@@ -24,15 +26,13 @@ from hwtHls.netlist.scheduler.clk_math import clkWindowIndex
 from hwtHls.netlist.transformation.simplifySync.simplifyOrdering import netlistExplicitSyncDisconnectFromOrderingChain
 from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOperatorNodeWith
 from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
-from hwtHls.architecture.transformation.simplify import ArchElementValuePropagation
-from hwtHls.architecture.transformation.dce import ArchElementDCE
 
 
 class HlsAndRtlNetlistPassLoopControlLowering(HlsAndRtlNetlistPass):
     """
     Rewrite :class:`HlsNetNodeLoopStatus` (kind of lock guarding inputs to loop) using channel communication.
     """
-
+        
     @classmethod
     def _lowerHlsNetNodeLoopStatus(cls, dbgTracer: DebugTracer,
                                    parent: ArchElement,
@@ -90,6 +90,7 @@ class HlsAndRtlNetlistPassLoopControlLowering(HlsAndRtlNetlistPass):
             else:
                 channelInitValue = NOT_SPECIFIED  # loop lock locked (loop is busy after reset)
             # busyReg_n will be 1 if loop is idle and during first iteration
+            # the set mechanism relays on forceEn and does not foolow typical write with extraCond/skipWhen conditions
             busyReg_n_R, busyReg_n_W = createBackedgeInClkWindow(parent, clkIndex, f"{name:s}_busy_n", HVoidData, channelInitValue)
             busyReg_n_Out = busyReg_n_R.getValidNB()
             busyReg_Out = builder.buildNot(busyReg_n_Out)
@@ -100,8 +101,10 @@ class HlsAndRtlNetlistPassLoopControlLowering(HlsAndRtlNetlistPass):
                 if isinstance(u.obj, HlsNetNodeOperator) and u.obj.operator == HwtOps.NOT:
                     replaceOperatorNodeWith(u.obj, busyReg_n_Out, worklist)
 
-        groupToEdgeAndPort: Dict[LoopChanelGroup, Tuple[Tuple[int, int], Union[HlsNetNodeOut, HlsNetNodeIn]]] = {
-            lcg: (edge, port) for edge, (lcg, port) in loopStatus._bbNumberToPorts.items()}
+        groupToEdgeAndPort: dict[LoopChanelGroup, tuple[tuple[int, int], Union[HlsNetNodeOut, HlsNetNodeIn]]] = {
+            lcg: (edge, port) 
+            for edge, (lcg, port) in loopStatus._bbNumberToPorts.items()
+        }
 
         # has the priority and does not require sync token (because it already owns it)
         assert loopStatus.fromReenter, (loopStatus, "Must have some reenters otherwise this is not the loop")
@@ -135,7 +138,7 @@ class HlsAndRtlNetlistPassLoopControlLowering(HlsAndRtlNetlistPass):
         #    newEnter = builder.buildAnd(en, builder.buildOrVariadic(_newEnter, f"{name:s}_newEnter"))  # en & Or(*_newEnter)
 
         if not isAlwaysBusy or not loopStatus.fromExitToHeaderNotify:
-            # deactivate write so lock is never released
+            # deactivate write so lock is never released during regular parent functionality (and is set reset only using forceEnPort pseudo asynchonously)
             busyReg_n_W.addControlSerialExtraCond(builder.buildScheduledConstPy(parent, clkIndex, BIT, 0), addDefaultScheduling=True)
             busyReg_n_W.addControlSerialSkipWhen(builder.buildScheduledConstPy(parent, clkIndex, BIT, 1), addDefaultScheduling=True)
 
