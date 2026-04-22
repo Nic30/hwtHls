@@ -42,6 +42,21 @@ def getNumberOfConstBitsInDriver(o: HlsNetNodeOut):
         return 0
 
 
+def getConstBitsInDriverMask(o: HlsNetNodeOut):
+    n = o.obj
+    if isinstance(n, HlsNetNodeOperator) and n.operator == HwtOps.CONCAT:
+        res = 0
+        offset = 0
+        for dep in n.dependsOn:
+            res |= getNumberOfConstBitsInDriver(dep) << offset
+            offset += dep._dtype.bit_length()
+
+    elif isinstance(n, HlsNetNodeConst):
+        return mask(n._outputs[0]._dtype.bit_length())
+    else:
+        return 0
+
+
 class HlsNetNodeOperator(HlsNetNode):
     """
     Abstract implementation of RTL operator
@@ -86,12 +101,8 @@ class HlsNetNodeOperator(HlsNetNode):
     def resolveRealization(self):
         netlist = self.netlist
         input_cnt = len(self.dependsOn)
-
-        if self.operator in (OP_SHL, OP_ASHR, OP_LSHR, OP_ROL, OP_ROR):
-            bit_length = self.getInputDtype(1).bit_length() - getNumberOfConstBitsInDriver(self.dependsOn[1])
-        else:
-            bit_length = self.getInputDtype(0).bit_length()
         assert self.operator is not (HwtOps.TERNARY, "Mux has own class HlsNetNodeMux")
+
         gen = netlist.platform._componentGenerators.get(self.operator)
         if gen is not None:
             gen: ComponentGenerator
@@ -103,12 +114,30 @@ class HlsNetNodeOperator(HlsNetNode):
 
             assert isinstance(r, OpRealizationMeta), ("ComponentGenerator.resolveRealizationOfNode must return OpRealizationMeta", self, r, gen)
         else:
-            try:
-                r = netlist.platform.get_op_realization(
-                    self.operator, self.operatorSpecialization, bit_length,
-                    input_cnt, netlist.realTimeClkPeriod)
-            except TimeConstraintError as e:
-                raise TimeConstraintError(*e.args, self.operator, self._id)
+            if self.operator in (OP_SHL, OP_ASHR, OP_LSHR, OP_ROL, OP_ROR):
+                bit_length = self.getInputDtype(1).bit_length() - getNumberOfConstBitsInDriver(self.dependsOn[1])
+            elif self.operator in COMPARE_OPS or self.operator in (HwtOps.ADD, HwtOps.SUB):
+                # realization is specified for operator version where all bits are non-constant
+                # if some bits are constant the circuit can be simplified, e.g. if one operand is
+                # constant this is practicaly the case as the operands have half width
+                bit_length = self.getInputDtype(0).bit_length()
+                bit_length = math.ceil(((2 * bit_length)
+                                         -getNumberOfConstBitsInDriver(self.dependsOn[0])
+                                         -getNumberOfConstBitsInDriver(self.dependsOn[1])
+                                         ) / 2)
+    
+            else:
+                bit_length = self.getInputDtype(0).bit_length()
+            if bit_length == 0:
+                # this may happen for example constant operands
+                r = EMPTY_OP_REALIZATION
+            else:
+                try:
+                    r = netlist.platform.get_op_realization(
+                        self.operator, self.operatorSpecialization, bit_length,
+                        input_cnt, netlist.realTimeClkPeriod)
+                except TimeConstraintError as e:
+                    raise TimeConstraintError(*e.args, self.operator, self._id)
 
         self.assignRealization(r)
 
@@ -157,7 +186,8 @@ class HlsNetNodeOperator(HlsNetNode):
         self._isRtlAllocated = True
         return res
 
-    def _rtlAlloc_registerOutput(self, allocator:"ArchElement", op_out: HlsNetNodeOut, s: Union[RtlSignal, HConst]) -> Union[TimeIndependentRtlResourceItem, list[TimeIndependentRtlResourceItem]]:
+    def _rtlAlloc_registerOutput(self, allocator: "ArchElement", op_out: HlsNetNodeOut, s: Union[RtlSignal, HConst])\
+            ->Union[TimeIndependentRtlResourceItem, list[TimeIndependentRtlResourceItem]]:
         # create RTL signal expression base on operator type
         if not isinstance(s, HConst) and s._hasGenericName:
             if self.name is not None:
