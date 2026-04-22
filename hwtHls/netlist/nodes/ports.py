@@ -54,15 +54,26 @@ class HlsNetNodeOut():
         else:
             return f'lazy:{o._id:d}'
 
-    def getPrettyName(self, useParentName=True) -> str:
+    def getPrettyName(self, useParentName=True, addParentId=False) -> str:
         obj = self.obj
         if useParentName and obj.name and self.name:
-            return f"{obj.name:s}_{self.name:s}"
+            if addParentId:
+                return f"n{obj._id:d}_{obj.name:s}_{self.name:s}"
+            else:
+                return f"{obj.name:s}_{self.name:s}"
         elif useParentName and obj.name:
             if len(obj._outputs) == 1:
-                return obj.name
+                if addParentId:
+                    return f"n{obj._id:d}_{obj.name:s}"
+                else:
+                    return obj.name
+
             else:
-                return f"{obj.name:s}_{self.out_i:d}"
+                if addParentId:
+                    return f"n{obj._id:d}_{obj.name:s}_{self.out_i:d}"
+                else:
+                    return f"{obj.name:s}_{self.out_i:d}"
+
         elif self.name:
             return f"n{obj._id:d}_{self.name:s}"
         else:
@@ -193,15 +204,26 @@ class HlsNetNodeIn():
 
         return oldO
 
-    def getPrettyName(self, useParentName=True) -> str:
+    def getPrettyName(self, useParentName=True, addParentId=False) -> str:
         obj = self.obj
         if useParentName and obj.name and self.name:
-            return f"{obj.name:s}_{self.name:s}"
+            if addParentId:
+                return f"{obj._id:d}_{obj.name:s}_{self.name:s}"
+            else:
+                return f"{obj.name:s}_{self.name:s}"
+
         elif useParentName and obj.name:
             if len(obj._inputs) == 1:
-                return obj.name
+                if addParentId:
+                    return f"{obj._id:d}_{obj.name:s}"
+                else:
+                    return obj.name
             else:
-                return f"{obj.name:s}_{self.in_i:d}"
+                if addParentId:
+                    return f"{obj._id:d}_{obj.name:s}_{self.in_i:d}"
+                else:
+                    return f"{obj.name:s}_{self.in_i:d}"
+
         elif self.name:
             return f"{obj._id:d}_{self.name:s}"
         else:
