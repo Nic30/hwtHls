@@ -192,8 +192,8 @@ class HlsArchPassSyncLowering(HlsArchPass):
                 if syncFlag is not None and not ioNode.usedBy[syncFlag.out_i]:
                     ioNode._removeOutput(syncFlag.out_i)
 
-    #@classmethod
-    #def _removeChannelsWithoutAnyDataSyncOrFlag(cls, nodes: List[ArchSyncNodeTy],
+    # @classmethod
+    # def _removeChannelsWithoutAnyDataSyncOrFlag(cls, nodes: List[ArchSyncNodeTy],
     #                                            successors:ArchSyncSuccDiGraphDict):
     #    """
     #    :attention: The read/write nodes are moved from ArchElement but the successors dictionary is not updated.
