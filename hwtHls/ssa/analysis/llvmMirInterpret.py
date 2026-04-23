@@ -1,7 +1,6 @@
 from copy import copy
 from datetime import datetime
-from typing import Tuple, List, Generator, Union, Optional, Dict, \
-    Callable, Sequence
+from typing import Generator, Union, Optional, Callable, Sequence
 
 from hwt.hdl.const import HConst
 from hwt.hdl.operatorDefs import HwtOps
@@ -56,7 +55,7 @@ class LlvmMirInterpret():
     :ivar strCtx: string context for llvm string allocations during initialization of waveLog
     :ivar codelineOffset: offset from beginning from the MIR .ll file where function body starts
     """
-    _dispatchDict: Dict[TargetOpcode, Callable] = {
+    _dispatchDict: dict[TargetOpcode, Callable] = {
         TargetOpcode.HWTFPGA_BR: _decodeOpcode_BR,
         TargetOpcode.G_BR: _decodeOpcode_BR,
         TargetOpcode.HWTFPGA_BRCOND: _decodeOpcode_BRCOND,
@@ -108,7 +107,7 @@ class LlvmMirInterpret():
                  llvm: LlvmCompilationBundle,
                  placeholderObjectSlots: PyObjectPlaceholderList,
                  componentGenerators: ComponentGeneratorDict,
-                 fnArgs: Tuple[Generator[Union[int, HConst], None, None], List[HConst], ...],
+                 fnArgs: tuple[Generator[Union[int, HConst], None, None], list[HConst], ...],
                  timeStep: int=CLK_PERIOD):
         assert llvm.main
         self.MF: MachineFunction = llvm.getMachineFunction(llvm.main)
@@ -147,7 +146,7 @@ class LlvmMirInterpret():
         strCtx = self.strCtx
         waveLog.date(datetime.now())
         waveLog.timescale(1)
-        instrCodeline: Dict[MachineInstr, int] = {}
+        instrCodeline: dict[MachineInstr, int] = {}
         simCodelineLabel = object()
         simTimeLabel = object()
         simBlockLabel = object()
@@ -319,7 +318,7 @@ class LlvmMirInterpret():
         :note: wraped in extra function so bb, fallThroughNextBB will get captured in function scope
         """
 
-        def _opcode_default_fallthrough(nowTime: int, regs: List[HConst]):
+        def _opcode_default_fallthrough(nowTime: int, regs: list[HConst]):
             assert fallThroughNextBB is not None
             nextBb = fallThroughNextBB
             waveLog = self.waveLog
@@ -372,7 +371,7 @@ class LlvmMirInterpret():
                 # need to handle fall trough for non branches and not taken conditional branches
                 fallTroughMb = bb.getFallThrough(False)
 
-                def _opcode_falltrough(nowTime: int, regs: List[HConst]):
+                def _opcode_falltrough(nowTime: int, regs: list[HConst]):
                     nextBb = instrFn(nowTime, regs)
                     if nextBb is not None:
                         return nextBb
@@ -450,7 +449,7 @@ class LlvmMirInterpret():
         MRI: MachineRegisterInfo = MF.getRegInfo()
 
         # registers storing value of variables in this interpret
-        regs: List[Union[HConst, List[Union[int, HConst]], None]] = {
+        regs: list[Union[HConst, list[Union[int, HConst]], None]] = {
             i: None for i in range(MRI.getNumVirtRegs())
         }
         LlvmIrInterpret._initGlobalsFromIr(MF.getFunction().getParent(), regs)
@@ -458,7 +457,7 @@ class LlvmMirInterpret():
         waveLog = self.waveLog
         if waveLog is not None:
 
-            def logToWave(_:List[HConst], i: int, v: HConst):
+            def logToWave(_:dict[HConst], i: int, v: HConst):
                 if not isinstance(v, HBitsConst):
                     return  # case of HWTFPGA_ARG_GET and similar
 
@@ -479,7 +478,7 @@ class LlvmMirInterpret():
                   componentGenerators: ComponentGeneratorDict,
                   nameOfMain: str,
                   mirStr: str,
-                  fnArgs: Tuple[Generator[Union[int, HConst], None, None], List[HConst], ...],
+                  fnArgs: tuple[Generator[Union[int, HConst], None, None], list[HConst], ...],
                   timeStep: int=CLK_PERIOD):
         m = parseMIR(mirStr, nameOfMain, llvm)
         MMI = llvm.getMachineModuleInfo()

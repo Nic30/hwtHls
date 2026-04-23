@@ -7,7 +7,7 @@ from hwt.hdl.commonConstants import b0
 from hwt.hdl.const import HConst
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
-from hwtHls.llvm.llvmIr import Argument, BasicBlock, ValueToConstantInt, ValueToInstruction, \
+from hwtHls.llvm.llvmIr import Argument, ValueToConstantInt, ValueToInstruction, \
     Instruction, ValueToArgument, ValueToUndefValue, CallInst, IsStreamRead, \
     IsStreamReadStartOfFrame, IsStreamReadEndOfFrame, IsStreamWrite, IsStreamWriteStartOfFrame, \
     IsStreamWriteEndOfFrame, streamReadGetOrigChunkBitWidth, streamWriteGetOrigChunkBitWidth, \
