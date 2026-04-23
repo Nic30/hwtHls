@@ -894,12 +894,13 @@ class HlsNetlistAnalysisPassMirToNetlistDatapath(HlsNetlistAnalysisPassMirToNetl
                                         isBackedge=isBackedge,
                                         addWriteToOrderingChain=not isBackedge)
                                     rn = v.obj
-                                    wn = v.obj.associatedWrite
+                                    wn: HlsNetNodeWrite = v.obj.associatedWrite
                                     if isBackedge:
                                         writeListForOrdering.append(wn)
                                     if isImplementedAsReg:
                                         # allocate as a register because this is just local control channel
                                         wn.allocationType = CHANNEL_ALLOCATION_TYPE.REG
+                                        wn._bufferCapacity = 1
                                     self.dbgTracer.log(("adding channel, ", wn))
                                     blockLiveInMuxInputSync[(predMb, sucMb, liveIn)] = rn
 
