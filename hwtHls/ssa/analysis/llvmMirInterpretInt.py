@@ -561,6 +561,48 @@ def makeDecode_arithmeticBin(opDef: HOperatorDef):
     return _decodeOpcode_arithmetic
 
 
+def makeDecode_arithmeticBinBin(evalFn: Callable[[int, int], [int, int]]):
+
+    def _decodeOpcode_arithmeticBinBin(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
+        try:
+            dst0, dst1, _src0, _src1 = interpret._decodeInstArguments(MRI, instr, instr.operands())
+        except:
+            raise AssertionError("Instruction operands in invalid format or this is not binary arithmetic instruction", instr)
+        src0IsConst = isinstance(_src0, HConst)
+        src1IsConst = isinstance(_src1, HConst)
+
+        def _opcode_arithmeticBinBin(nowTime: int, regs: list[HConst]):
+            if src0IsConst:
+                src0 = _src0
+            else:
+                src0 = regs[_src0]
+                assert isinstance(src0, HConst), (instr, _src0, src0)
+
+            if src1IsConst:
+                src1 = _src1
+            else:
+                src1 = regs[_src1]
+                assert isinstance(src1, HConst), (instr, _src1, src1)
+
+            if src0._dtype.signed is not None:
+                src0 = src0._cast_sign(None)
+            if src1._dtype.signed is not None:
+                src1 = src1._cast_sign(None)
+            try:
+                res0, res1 = evalFn(src0, src1)
+            except ZeroDivisionError:
+                undef = src0._dtype.from_py(None)
+                res0 = undef
+                res1 = undef
+                
+            regs[dst0] = res0
+            regs[dst1] = res1
+
+        return _opcode_arithmeticBinBin
+
+    return _decodeOpcode_arithmeticBinBin
+
+
 def makeDecode_AddSubSatBin(evalFn: Callable[[HBitsConst, HBitsConst], HBitsConst]):
 
     def _decodeOpcode_arithmetic(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
