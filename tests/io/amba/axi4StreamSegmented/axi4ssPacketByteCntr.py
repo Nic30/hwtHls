@@ -14,15 +14,17 @@ from hwt.math import log2ceil
 from hwt.pyUtils.typingFuture import override
 from hwtHls.code import zextToTy
 from hwtHls.frontend.ioProxyScalar import IoProxyScalar
+from hwtHls.frontend.pragmaLoop import PyBytecodeStreamSegmentLoopUnroll, \
+    PyBytecodeStreamLoopUnroll
 from hwtHls.frontend.statementsRead import HlsRead
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4StreamSegmented
 from hwtHls.io.amba.axi4Stream.stmRead import HlsStmReadAxi4StreamSegmented
+from hwtHls.io.hwIoVectorized import HwIOStructVecRdVld
 from hwtHls.scope import HlsScope
-from hwtLib.amba.axi4SSegmented import Axi4StreamSegmented
+from hwtLib.amba.axi4SSegmented import Axi4StreamSegmented,\
+    Axi4StreamSegmentedMockSegmentUserTy
 from hwtLib.types.ctypes import uint16_t
-from hwtHls.frontend.pragmaLoop import PyBytecodeStreamSegmentLoopUnroll,\
-    PyBytecodeStreamLoopUnroll
 
 
 class Axi4SSPacketByteCntr_readBusWord(HwModule):
@@ -35,6 +37,7 @@ class Axi4SSPacketByteCntr_readBusWord(HwModule):
         self.CLK_FREQ = HwParam(int(100e6))
         self.SEGMENT_DATA_WIDTH = HwParam(64)
         self.SEGMENT_CNT = HwParam(1)
+        self.VECTORIZE_OUT = HwParam(True)
 
     @override
     def hwDeclr(self):
@@ -43,8 +46,14 @@ class Axi4SSPacketByteCntr_readBusWord(HwModule):
         i.SEGMENT_DATA_WIDTH = self.SEGMENT_DATA_WIDTH
         i.SEGMENT_CNT = self.SEGMENT_CNT
 
-        self.byte_cnt: HwIODataRdVld = HwIODataRdVld()._m()
-        self.byte_cnt.DATA_WIDTH = 16
+        if self.VECTORIZE_OUT:
+            o: HwIOStructVecRdVld = HwIOStructVecRdVld()._m()
+            o.T = HBits(16)
+            o.LANE_CNT = self.i.SEGMENT_CNT
+        else:
+            o: HwIODataRdVld = HwIODataRdVld()._m()
+            o.DATA_WIDTH = 16
+        self.byte_cnt = o
 
     @hwt_expr_producer
     def segmentByteCnt(self, segmentUser: HStructConstBase) -> AnyHBitsValue:
@@ -69,13 +78,14 @@ class Axi4SSPacketByteCntr_readBusWord(HwModule):
         while b1:
             word: HlsRead = i.read()
             for segment in word.data.user:
+                segment: Axi4StreamSegmentedMockSegmentUserTy
                 segmentByteCntVal = self.segmentByteCnt(segment)
                 byte_cnt += zextToTy(segmentByteCntVal, byte_cnt._dtype)
-                # delete to simplify translation to llvm ir (limit variable life) 
+                # delete to simplify translation to llvm ir (limit variable life)
+                if getattr(segment, "enable", b1) & segment.eof:
+                    hls.write(byte_cnt, self.byte_cnt)
                 del segmentByteCntVal
                 del segment
-
-            hls.write(byte_cnt, self.byte_cnt)
 
     @override
     def hwImpl(self):
@@ -100,9 +110,9 @@ class Axi4SSPacketByteCntr_readSegmentWord(Axi4SSPacketByteCntr_readBusWord):
             while b1:
                 word: HlsStmReadAxi4StreamSegmented = i.read(wordTy, reliable=False)
                 byte_cnt += zextToTy(word.getSize(), byte_cnt._dtype)
-                hls.write(byte_cnt, self.byte_cnt)
                 if word._isEoF():
                     break
+            hls.write(byte_cnt, self.byte_cnt)
             i.readEndOfFrame()
             PyBytecodeStreamSegmentLoopUnroll(i.interface)
 
@@ -117,8 +127,8 @@ class Axi4SSPacketByteCntr_readSegmentWord(Axi4SSPacketByteCntr_readBusWord):
 
 class Axi4SSPacketByteCntr_readByte(Axi4SSPacketByteCntr_readSegmentWord):
 
-    #@override
-    #def mainThread(self, hls: HlsScope, i: IoProxyAxi4StreamSegmented):
+    # @override
+    # def mainThread(self, hls: HlsScope, i: IoProxyAxi4StreamSegmented):
     #    byteTy = HBits(self.i.BYTE_WIDTH)
     #    byte_cnt = uint16_t.from_py(0)
     #    while b1:
@@ -158,7 +168,7 @@ if __name__ == "__main__":
     from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 
     m = Axi4SSPacketByteCntr_readBusWord()
-    m.SEGMENT_DATA_WIDTH = 16
+    m.SEGMENT_DATA_WIDTH = 8
     m.SEGMENT_CNT = 2
     m.CLK_FREQ = int(100e6)
     print(to_rtl_str(m, target_platform=Artix7Medium(
