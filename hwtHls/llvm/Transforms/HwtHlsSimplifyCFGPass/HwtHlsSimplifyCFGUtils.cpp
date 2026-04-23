@@ -19,7 +19,7 @@ unsigned skippedInstrFlags(Instruction *I) {
 	if (I->mayReadFromMemory())
 		Flags |= SkipReadMem;
 	// We can't arbitrarily move around allocas, e.g. moving allocas (especially
-	// inalloca) across stacksave/stackrestore boundaries.
+	// in alloca) across stacksave/stackrestore boundaries.
 	if (I->mayHaveSideEffects() || isa<AllocaInst>(I))
 		Flags |= SkipSideEffect;
 	if (!isGuaranteedToTransferExecutionToSuccessor(I))
@@ -222,4 +222,4 @@ void sortPhiOperands(BasicBlock &BB, bool removeRedundantOperands) {
 	}
 }
 
-} // namespace hwtHls
+}
