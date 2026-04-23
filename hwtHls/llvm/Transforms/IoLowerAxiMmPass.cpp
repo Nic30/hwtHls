@@ -110,7 +110,7 @@ MetadataIoAxiMM MetadataIoAxiMM::fromMetadata(const llvm::MDTuple &mdTuple) {
 	metadata.wDefault = getAPInt(i++);
 	metadata.bDefault = getAPInt(i++);
 
-	auto getSizePair = [&mdTuple, &getAPInt](size_t opI0,
+	auto getSizePair = [&getAPInt](size_t opI0,
 			size_t opI1) -> std::pair<size_t, size_t> {
 		auto v0 = getAPInt(opI0).getZExtValue();
 		auto v1 = getAPInt(opI1).getZExtValue();
@@ -134,7 +134,7 @@ MetadataIoAxiMM MetadataIoAxiMM::fromMetadata(const llvm::MDTuple &mdTuple) {
 	metadata.wData = getSizePair(i, i + 1);
 	i += 2;
 
-	auto getUnsigned = [&mdTuple, &getAPInt](size_t opI) -> unsigned {
+	auto getUnsigned = [&getAPInt](size_t opI) -> unsigned {
 		return getAPInt(opI).getZExtValue();
 	};
 
@@ -698,7 +698,7 @@ llvm::PreservedAnalyses IoLowerAxiMMPass::run(llvm::Module &M,
 				builder.SetInsertPoint(F.getEntryBlock().begin());
 
 				auto mkTmpAlloca = [&builder, ioArg, &ioArgMd,
-						&argsToAddToParentFn, &axiMMIoMd](std::string name,
+						&argsToAddToParentFn](std::string name,
 						IODirection dir, APInt &defVal) {
 					size_t w = defVal.getBitWidth();
 					auto alloca = builder.CreateAlloca(builder.getIntNTy(w),
