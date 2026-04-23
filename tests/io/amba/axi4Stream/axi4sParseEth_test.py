@@ -7,7 +7,8 @@ import unittest
 from hwt.hdl.types.bits import HBits
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtLib.amba.axi4sSimFrameUtils import axi4s_send_bytes
+from hwtLib.amba.axi4sSimFrameUtils import axi4s_send_bytes,\
+    Axi4StreamSimFrameUtils
 from hwtLib.types.net.ethernet import Eth2Header_t, ETHER_TYPE
 from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import  int_to_int_list
@@ -21,19 +22,21 @@ class Axi4SParseEthTC(SimTestCase):
         dut.DATA_WIDTH = DATA_WIDTH
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
         dsts = [0x010203040506, 0x111213141516, 0x212223242526, ]
+        
+        fu = Axi4StreamSimFrameUtils.from_HwIO(dut.i)
         for dst in dsts:
             v = Eth2Header_t.from_py({
                 "dst": dst,
                 "src": 0x778899101112,
                 "type": ETHER_TYPE.IPv4,
-                
+
             })
             v = int(v._reinterpret_cast(HBits(v._dtype.bit_length())))
             data = int_to_int_list(v, 8, ceil(Eth2Header_t.bit_length() / 8))
-            axi4s_send_bytes(dut.i, data)
-        
+            fu.send_bytes(data, dut.i._ag.data)
+
         CLK_PERIOD = int(freq_to_period(dut.CLK_FREQ))
-        t = CLK_PERIOD * (len(dut.i._ag.data) + 5) 
+        t = CLK_PERIOD * (len(dut.i._ag.data) + 5)
         self.runSim(t)
 
         self.assertValSequenceEqual(dut.dst_mac._ag.data, dsts, "[%s] != [%s]" % (
@@ -58,9 +61,16 @@ class Axi4SParseEthTC(SimTestCase):
 
 
 if __name__ == '__main__':
+    # from hwt.synth import to_rtl_str
+    # from hwtHls.platform.debugBundle import HlsDebugBundle
+    # 
+    # m = Axi4SParseEth()
+    # m.DATA_WIDTH = 8
+    # p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)
+    # print(to_rtl_str(m, target_platform=p))
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([Axi4SParseEthTC("test_parse_24b")])
+    # suite = unittest.TestSuite([Axi4SParseEthTC("test_parse_8b")])
     suite = testLoader.loadTestsFromTestCase(Axi4SParseEthTC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
