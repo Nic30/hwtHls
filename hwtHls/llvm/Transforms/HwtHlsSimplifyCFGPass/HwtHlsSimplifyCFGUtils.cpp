@@ -194,7 +194,8 @@ void sortPhiOperands(BasicBlock &BB, bool removeRedundantOperands) {
 		} else {
 			assert(phi.getNumIncomingValues() == predCnt);
 		}
-		for (auto pred : predecessors(&BB)) {
+		SmallVector<BasicBlock*> _predecessors(predecessors(&BB));
+		for (auto pred : _predecessors) {
 			auto curPredI = phi.getBasicBlockIndex(pred);
 			if (curPredI < 0) {
 				llvm_unreachable("PHINode should have one entry for each "
@@ -206,7 +207,7 @@ void sortPhiOperands(BasicBlock &BB, bool removeRedundantOperands) {
 		}
 		// set original values with order
 		size_t phiBlockI = 0;
-		for (const auto &[pred, v] : zip(predecessors(&BB), values)) {
+		for (const auto &[pred, v] : zip(_predecessors, values)) {
 			phi.setIncomingBlock(phiBlockI, pred);
 			phi.setIncomingValue(phiBlockI, v);
 			phiBlockI++;
