@@ -805,6 +805,8 @@ llvm::PreservedAnalyses LoopRotationNormalizationPass::run(llvm::Loop &L,
 	if (Changed) {
 		U.markLoopNestChanged(true);
 	}
+
+	// [todo] rm verify
 	for (auto &L0 : AR.LI) {
 		L0->verifyLoop();
 	}
@@ -818,6 +820,7 @@ llvm::PreservedAnalyses LoopRotationNormalizationPass::run(llvm::Loop &L,
 
 	if (AR.MSSA && VerifyMemorySSA)
 		AR.MSSA->verifyMemorySSA();
+	// [todo]
 	PreservedAnalyses PA;
 	//auto PA = getLoopPassPreservedAnalyses();
 	//if (AR.MSSA)
