@@ -3,14 +3,14 @@ from typing import Set, Type, Union, Iterable
 from hwt.constants import NOT_SPECIFIED
 from hwtHls.architecture.analysis.hlsArchAnalysisPass import HlsArchAnalysisPass
 from hwtHls.netlist.analysis.hlsNetlistAnalysisPass import HlsNetlistAnalysisPass
-from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
-from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
 
 AnalysisKey = Union[Type[HlsArchAnalysisPass],
                     Type[HlsNetlistAnalysisPass]]
 
 
 class PreservedAnalysisSet(Set[AnalysisKey]):
+    HlsNetlistAnalysisPassRunScheduler = None
+    HlsNetlistAnalysisPassReachability = None
 
     def __init__(self, iterable:Iterable[AnalysisKey]=NOT_SPECIFIED, isAll=False):
         if iterable is NOT_SPECIFIED:
@@ -24,12 +24,26 @@ class PreservedAnalysisSet(Set[AnalysisKey]):
 
     @classmethod
     def preserveScheduling(cls):
-        return cls(((HlsNetlistAnalysisPassReachability, HlsNetlistAnalysisPassRunScheduler)))
+        if cls.HlsNetlistAnalysisPassReachability is None:
+            from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
+            cls.HlsNetlistAnalysisPassReachability = HlsNetlistAnalysisPassReachability
+        if cls.HlsNetlistAnalysisPassRunScheduler is None:
+            from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
+            cls.HlsNetlistAnalysisPassRunScheduler = HlsNetlistAnalysisPassRunScheduler
+
+        return cls(((cls.HlsNetlistAnalysisPassReachability, cls.HlsNetlistAnalysisPassRunScheduler)))
 
     @classmethod
     def preserveSchedulingOnly(cls):
-        return cls(((HlsNetlistAnalysisPassRunScheduler, )))
+        if cls.HlsNetlistAnalysisPassRunScheduler is None:
+            from hwtHls.netlist.analysis.schedule import HlsNetlistAnalysisPassRunScheduler
+            cls.HlsNetlistAnalysisPassRunScheduler = HlsNetlistAnalysisPassRunScheduler
+        return cls(((cls.HlsNetlistAnalysisPassRunScheduler,)))
 
     @classmethod
     def preserveReachablity(cls):
-        return cls(((HlsNetlistAnalysisPassReachability,)))
+        if cls.HlsNetlistAnalysisPassReachability is None:
+            from hwtHls.netlist.analysis.reachability import HlsNetlistAnalysisPassReachability
+            cls.HlsNetlistAnalysisPassReachability = HlsNetlistAnalysisPassReachability
+        return cls(((cls.HlsNetlistAnalysisPassReachability,)))
+
