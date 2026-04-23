@@ -57,7 +57,7 @@ The source code location is not usually explicitly added to each instruction ins
 * Dominance Frontier - is the set of all blocks that are immediate successors to blocks dominated by N,
      but which aren’t themselves strictly dominated by N.
     * DF(N) = {Z | M->Z & (N dom M) & !(N sdom Z)}
-
+* RegionInfo -  Calculate a program structure tree built out of single entry single exit regions.
 * Control Dependence - Y is control dependent on X if and only if:
 	1. Y postdominates a successor of X.
 	2. Y does not postdominate all successors of X.
