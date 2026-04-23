@@ -6,6 +6,7 @@ from tests.hlsNetlist.bitwiseOpsAggregation_test import HlsNetlistBitwiseOpsTC
 from tests.hlsNetlist.breakHandshakeCycles_channelCond_test import BreakHandshakeCycles_channelCond_TC
 from tests.hlsNetlist.breakHandshakeCycles_test import BreakHandshakeCycles_TC
 from tests.hlsNetlist.cmpToSubstractMsbCheck_test import HlsNetlistReduceCmpToSubstractMsbCheckTC
+from tests.hlsNetlist.hlsNetlistSimulator_test import HlsNetlistSimulator_TC
 from tests.hlsNetlist.lutMappingScheduleAlap_test import LutMappingScehdulingAlapTC
 from tests.hlsNetlist.lutMapping_test import LutMappingTC
 from tests.hlsNetlist.netlistReduceBitwise_test import HlsNetlistReduceBitwiseTC
@@ -19,7 +20,6 @@ from tests.hlsNetlist.syncLowering_exprExtraction_test import RtlArchPassSyncLow
 from tests.hlsNetlist.wire_test import HlsNetlistWireTC
 from tests.testCaseUtils import testSuiteFromTCs
 
-
 hlsNetlistAllTests_TCs = [
     HlsNetlistWireTC,
     HlsNetlistBitwiseOpsTC,
@@ -28,6 +28,7 @@ hlsNetlistAllTests_TCs = [
     HlsNetlistReduceMulTC,
     HlsNetlistReduceCmpToSubstractMsbCheckTC,
     # HlsNetlistPassInjectVldMaskToSkipWhenConditionsTC,
+    HlsNetlistSimulator_TC,
     HlsNetlistReadSyncTC,
     BreakHandshakeCycles_channelCond_TC,
     RtlArchPassSyncLowering_exprExtraction_1Pipeline_TC,
