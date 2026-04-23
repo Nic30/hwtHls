@@ -963,7 +963,7 @@ llvm::CallInst* CreateHwtHlsFpFCmp(llvm::IRBuilderBase &Builder,
 	Type *TysForName[] = { op0->getType() };
 	Module *M = Builder.GetInsertBlock()->getParent()->getParent();
 	std::string name = (Intrinsic_getName(IntrinsicNameHwtHlsFpFCmp, TysForName)
-			+ "." + llvm::CmpInst::getPredicateName(predicate)).str();
+			+ "." + llvm::CmpInst::getPredicateName(predicate));
 	auto F = M->getOrInsertFunction(name, ResT,    //
 			Ops[0]->getType(), Ops[1]->getType(), Ops[2]->getType(), //
 			HFloatTmpConfig_OP_ARG_TYPES(3, Ops)  //
