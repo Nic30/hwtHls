@@ -10,7 +10,7 @@ from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pragmaPreproc import PyBytecodeInPreproc,\
+from hwtHls.frontend.pragmaPreproc import PyBytecodeInPreproc, \
     PyBytecodeBlockLabel
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
@@ -18,7 +18,8 @@ from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4s import Axi4Stream
 from hwtLib.amba.axis_comp.frame_parser.test_types import structManyInts
 from hwtLib.types.ctypes import uint16_t, uint32_t
-from hwtHls.frontend.pragmaLoop import PyBytecodeStreamSegmentLoopUnroll
+from hwtHls.frontend.pragmaLoop import PyBytecodeStreamSegmentLoopUnroll, \
+    PyBytecodeLoopToIoFsm
 
 
 class Axi4SParseStructManyInts0(HwModule):
@@ -108,6 +109,12 @@ class Axi4SParse2fields(Axi4SParseStructManyInts0):
         o[0].DATA_WIDTH = 16
         o[1].DATA_WIDTH = 32
         self.o = o
+
+    def getLoopUnrollPragma(self, i: IoProxyAxi4Stream):
+        return PyBytecodeLoopToIoFsm(
+                i.interface,
+                followup=PyBytecodeStreamSegmentLoopUnroll(i.interface)
+            )
 
     @override
     @hlsBytecode

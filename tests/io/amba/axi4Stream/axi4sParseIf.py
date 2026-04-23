@@ -7,7 +7,6 @@ from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
-from hwtHls.frontend.pragmaLoop import PyBytecodeStreamSegmentLoopUnroll
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInPreproc, \
     PyBytecodeBlockLabel
 from hwtHls.frontend.pyBytecode import hlsBytecode
@@ -34,7 +33,7 @@ class Axi4SParse2If2B(Axi4SParse2fields):
     def mainThread(self, hls: HlsScope, i: IoProxyAxi4Stream):
         o = PyBytecodeInPreproc(self.o)
         while b1:
-            PyBytecodeStreamSegmentLoopUnroll(i.interface)
+            self.getLoopUnrollPragma(i)
             i.readStartOfFrame()
             v0 = i.read(HBits(8), reliable=True)
             if  v0.data._eq(2):
@@ -42,7 +41,7 @@ class Axi4SParse2If2B(Axi4SParse2fields):
                 v1 = i.read(HBits(8), reliable=True)
                 hls.write(v1.data, o)
             else:
-                hls.write(v0.data._reinterpret_cast(o._dtype), o)
+                hls.write(v0.data._reinterpret_cast(o.T), o)
 
             i.readEndOfFrame()
 
@@ -65,7 +64,7 @@ class Axi4SParse2IfLess(Axi4SParse2fields):
     def mainThread(self, hls: HlsScope, i: IoProxyAxi4Stream):
         o = PyBytecodeInPreproc(self.o)
         while b1:
-            PyBytecodeStreamSegmentLoopUnroll(i.interface)
+            self.getLoopUnrollPragma(i)
             i.readStartOfFrame()
             v0 = i.read(HBits(8), reliable=True)
             if v0.data < 128:
@@ -93,7 +92,7 @@ class Axi4SParse2If(Axi4SParse2fields):
     def mainThread(self, hls: HlsScope, i: IoProxyAxi4Stream):
         o = PyBytecodeInPreproc(self.o)
         while b1:
-            PyBytecodeStreamSegmentLoopUnroll(i.interface)
+            self.getLoopUnrollPragma(i)
             i.readStartOfFrame()
             v0 = i.read(HBits(16), reliable=True)
             if v0.data._eq(2):
@@ -133,25 +132,28 @@ class Axi4SParse2IfAndSequel(Axi4SParse2fields):
     def mainThread(self, hls: HlsScope, i: IoProxyAxi4Stream):
         o = PyBytecodeInPreproc(self.o)
 
+        def writeO(v):
+            return hls.write(v._reinterpret_cast(o.T), o, mayBecomeFlushable=False)
+
         while b1:
-            PyBytecodeStreamSegmentLoopUnroll(i.interface)
+            self.getLoopUnrollPragma(i)
             i.readStartOfFrame()
             PyBytecodeBlockLabel("sof")
             v0 = i.read(HBits(16))
             if v0.data._eq(3):
                 PyBytecodeBlockLabel("case3B")
                 v1a = PyBytecodeInPreproc(i.read(HBits(24)))
-                hls.write(v1a.data._reinterpret_cast(o.T), o)
+                writeO(v1a.data)
 
             elif v0.data._eq(4):
                 PyBytecodeBlockLabel("case4B")
                 v1b = PyBytecodeInPreproc(i.read(HBits(32)))
-                hls.write(v1b.data._reinterpret_cast(o.T), o),
+                writeO(v1b.data)
 
             PyBytecodeBlockLabel("final1B")
             v2 = i.read(HBits(8))
             if self.WRITE_FOOTER:
-                hls.write(v2.data._reinterpret_cast(o.T), o)
+                writeO(v2.data)
 
             i.readEndOfFrame()
 
