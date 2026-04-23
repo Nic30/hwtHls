@@ -286,7 +286,7 @@ class PcieTlpStoreAligner_splitToAlignedWords_rtl_TC(SimTestCase):
 
         tc = self
 
-        debugFilter = None
+        debugFilter = HlsDebugBundle.NONE
         inFlatTy = HBits(dinT.bit_length())
         dataInFlat = [dinT.from_py({
              "addr": newDPy[0],
