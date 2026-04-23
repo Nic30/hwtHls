@@ -15,6 +15,8 @@ from hwtLib.amba.axi4SSegmented import Axi4StreamSegmented
 from hwtLib.types.ctypes import uint16_t, uint32_t
 from tests.io.amba.axi4Stream.axi4sParseLinear import Axi4SParseStructManyInts0, \
     Axi4SParse2fields
+from hwtHls.frontend.pragmaLoop import PyBytecodeLoopToIoFsm, \
+    PyBytecodeStreamSegmentLoopUnroll
 
 
 class Axi4SSParseStructManyInts0(HwModule):
@@ -29,6 +31,12 @@ class Axi4SSParseStructManyInts0(HwModule):
     @override
     def hwDeclr(self):
         Axi4SParseStructManyInts0.hwDeclr(self)
+
+    def getLoopUnrollPragma(self, i: IoProxyAxi4Stream):
+        return PyBytecodeLoopToIoFsm(
+                i.interface,
+                followup=PyBytecodeStreamSegmentLoopUnroll(i.interface)
+            )
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope, i: IoProxyAxi4Stream) -> None:
