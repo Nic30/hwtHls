@@ -18,6 +18,7 @@ llvm::Value* CreateGlobalDataWithGEP(llvm::IRBuilder<> &builder,
 		llvm::ArrayRef<llvm::Constant*> romData, const llvm::Twine &ROMName,
 		const llvm::Twine &IndexName, const llvm::Twine &SwitchGepName);
 
+bool IsFreeInstruction(llvm::Instruction &I);
 bool IsCheapInstruction(llvm::Instruction &I);
 bool tryHoistCheapInstsAtBlockBegin(llvm::BasicBlock &BB,
 		llvm::BasicBlock::iterator MoveBeforePos,

@@ -1,5 +1,6 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
 
+#include <llvm/IR/PatternMatch.h>
 #include <llvm/Analysis/ValueTracking.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
@@ -97,6 +98,24 @@ Value *CreateGlobalDataWithGEP(IRBuilder<> &builder, Module &M,
 	Value *newGep = builder.CreateInBoundsGEP(newArray->getValueType(),
 											  newArray, GEPIndices, GepName);
 	return newGep;
+}
+
+bool IsFreeInstruction(Instruction &I) {
+	Value * tmp;
+	if (auto *CI = dyn_cast<CallInst>(&I)) {
+		if (isa<AssumeInst>(&I)) {
+			assert(hasMetadataSideeffectAllowHoist(
+				I)); // because otherwise the fist branch should have been taken
+			return true;
+		}
+		return IsBitConcat(CI) || IsBitRangeGet(CI);
+	} else if (isa<SExtInst>(&I) || isa<ZExtInst>(&I) || isa<BitCastInst>(&I) ||
+			   isa<AddrSpaceCastInst>(&I)) {
+		return true;
+	} else if (PatternMatch::match(&I, PatternMatch::m_Not(PatternMatch::m_Value(tmp)))) {
+		return true;
+	}
+	return false;
 }
 
 bool IsCheapInstruction(Instruction &I) {
