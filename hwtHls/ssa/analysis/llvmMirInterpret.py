@@ -6,18 +6,17 @@ from hwt.hdl.const import HConst
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
-from hwtHls.architecture.componentGenerator import ComponentGenerator
 from hwtHls.llvm.llvmIr import parseMIR, LlvmCompilationBundle, MachineFunction, \
     MachineBasicBlock, MachineInstr, TargetOpcode, MachineOperand, \
     CmpInst, TypeToIntegerType, Register, LLVMStringContext, MachineRegisterInfo, \
     HwtHlsIoMetadata_get, HwtHlsIoMetadata
 from hwtHls.platform.platform import ComponentGeneratorDict
 from hwtHls.ssa.analysis.llvmIrInterpret import VcdLlvmIrCodelineFormatter, \
-    VcdLlvmIrSimTimeFormatter, SimIoUnderflowErr, _prepareWaveWriterTopIo, \
-    LlvmIrInterpret
+    VcdLlvmIrSimTimeFormatter, _prepareWaveWriterTopIo, LlvmIrInterpret
 from hwtHls.ssa.analysis.llvmIrInterpretInt import _opcode_Intrinsic_usub_sat, \
     _opcode_Intrinsic_uadd_sat, _opcode_Intrinsic_sadd_sat, \
     _opcode_Intrinsic_ssub_sat
+from hwtHls.ssa.analysis.llvmIrInterpretUtils import SimIoUnderflowErr
 from hwtHls.ssa.analysis.llvmMirInterpretInt import _decodeOpcode_HWTFPGA_EXTRACT, \
     _decodeOpcode_G_EXTRACT, _decodeOpcode_HWTFPGA_MERGE_VALUES, \
     _decodeOpcode_HWTFPGA_MUX, _decodeOpcode_G_SELECT, \

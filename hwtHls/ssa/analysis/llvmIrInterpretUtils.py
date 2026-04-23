@@ -42,6 +42,13 @@ class SimIoUnderflowErr(Exception):
     the simulation did finish or simulated function is missing some data
     """
 
+
+class SimIoOverflowErr(Exception):
+    """
+    This exception is raised when there is too much of data for some IO.
+    This may mean that the simulation did finish or some internal buffer did overflow.
+    """
+
 # LLVM_BIN_OP_TO_HWT = {
 #    TargetOpcode.HWTFPGA_ADD: AllOps.ADD,
 #    TargetOpcode.HWTFPGA_SUB: AllOps.SUB,
@@ -94,7 +101,7 @@ class VcdLlvmIrCodelineFormatter(LogValueFormatter):
         self.vcdId = varInfo.vcdId
 
     def format(self, newVal: Instruction, updater, t: int, out: StringIO):
-        codeline =  self.instrCodeline[newVal]
+        codeline = self.instrCodeline[newVal]
         out.write(f"b{codeline:b} {self.vcdId:s}\n")
 
 
