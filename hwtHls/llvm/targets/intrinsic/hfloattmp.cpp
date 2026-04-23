@@ -122,6 +122,115 @@ uint64_t HFloatTmpConfig::_mantissaToFixedPointQWithRounding(bool sign,
 	return mantissa;
 }
 
+
+/**
+ * Convert unsigned int to negative int which has same bits set (emulate sign overflow).
+ *
+ * :note: bits in value are not changed, just the C++ int object
+ *        has signed flag set properly. And the number is in the expected range.
+ */
+template<typename T>
+T to_signed(T val, int width) {
+	if (val > 0) {
+		T msb = static_cast<T>(1) << (width - 1); // most significant bit (MSB) mask
+		if (val & msb) {  // check if MSB is set
+			val -= mask<T>(width) + 1; // subtract mask value to emulate signed overflow
+		}
+	}
+	return val;
+}
+
+// Convert signed integer to unsigned integer
+template<typename T>
+T to_unsigned(T val, int width) {
+	if (val < 0) {
+		return val & mask<T>(width); // apply mask to simulate unsigned behavior
+	} else {
+		return val;  // return as-is if the value is non-negative
+	}
+}
+
+double HFloatTmpConfig::fixp_resize_double(double x, bool isSigned,
+                   size_t inIntWidth, size_t inFracWidth,
+				   size_t outIntWidth, size_t outFracWidth,
+				   HFloatTmpRounding roundingMode,
+				   HFloatTmpSaturation saturationMode) {
+    // :see: :func:`fixp_resize`
+    double inputScale = pow(2, inFracWidth);
+    double shiftedValue = x * inputScale;  // all number bits will be in the int part
+    int64_t fracSizeDiff = outFracWidth - inFracWidth;
+    // scale shiftedValue so the lsb is bit 0 of output fractionpart
+    shiftedValue *= pow(2, fracSizeDiff);
+    int64_t roundedValue = shiftedValue;
+    if (fracSizeDiff < 0) {
+    	// output fraction part is smaller, need truncation and rounding
+        switch(roundingMode) {
+        case HFloatTmpRounding::ROUND_HALF_EVEN:
+        	// https://stackoverflow.com/a/32751115
+            roundedValue = shiftedValue -= remainder(shiftedValue, 1.0);
+            break;
+        case HFloatTmpRounding::ROUND_HALF_UP:
+        	// https://stackoverflow.com/a/79758374
+            if (shiftedValue >= 0) {
+                roundedValue = size_t(shiftedValue + 0.5);
+            } else {
+                roundedValue = size_t(shiftedValue - 0.5);
+            }
+            break;
+        case HFloatTmpRounding::ROUND_DOWN:
+            if (shiftedValue > 0) {
+                roundedValue = floor(shiftedValue);
+            } else {
+                roundedValue = ceil(shiftedValue);
+            }
+            break;
+        case HFloatTmpRounding::ROUND_CEILING:
+            roundedValue = ceil(shiftedValue);
+            break;
+        case HFloatTmpRounding::ROUND_FLOOR:
+            roundedValue = floor(shiftedValue);
+            break;
+        default:
+            llvm_unreachable("Invalid rounding mode");
+        }
+    }
+    double maxOutputValue;
+    double minOutputValue;
+    if (isSigned) {
+        maxOutputValue = pow(2, (outIntWidth + outFracWidth - 1)) - 1;
+        minOutputValue = -pow(2, (outIntWidth + outFracWidth - 1));
+    } else {
+        maxOutputValue = pow(2, (outIntWidth + outFracWidth)) - 1;
+        minOutputValue = 0;
+    }
+    double finalValue;
+    if (saturationMode == HFloatTmpSaturation::SATURATE_INF) {
+        if (roundedValue > maxOutputValue) {
+            finalValue = maxOutputValue;
+        } else if (roundedValue < minOutputValue) {
+            finalValue = minOutputValue;
+        } else {
+            finalValue = roundedValue;
+        }
+    } else if (saturationMode == HFloatTmpSaturation::SATURATE_NONE) {
+        roundedValue = size_t(roundedValue);
+        size_t outWidth = outIntWidth + outFracWidth;
+        roundedValue &= mask<size_t>(outWidth);
+        if (isSigned) {
+            roundedValue = to_signed(static_cast<size_t>(roundedValue), outWidth);
+        } else if ( roundedValue < 0) {
+            roundedValue = to_unsigned(static_cast<size_t>(roundedValue), outWidth);
+        }
+        finalValue = roundedValue;
+    } else {
+        finalValue = roundedValue;
+    }
+    double outputScale = pow(2, outFracWidth);
+    finalValue = finalValue / outputScale;
+
+    return finalValue;
+}
+
 APInt HFloatTmpConfig::bitCastAPFloatToHFloatTmpAPInt(const APFloat &v) const {
 	// IEEE-754 s special meanings
 	//
@@ -136,7 +245,16 @@ APInt HFloatTmpConfig::bitCastAPFloatToHFloatTmpAPInt(const APFloat &v) const {
 	auto res = APInt(fpCfg.getBitWidth(), 0);
 
 	auto vAsDouble = v.convertToDouble();
-	auto vAsAPInt = v.bitcastToAPInt();
+	APInt vAsAPInt;
+	if (isInQFormat) {
+		auto vRounded = fixp_resize_double(vAsDouble, true, C_DOUBLE_MANTISA_W,
+				C_DOUBLE_MANTISA_W, exponentOrIntWidth,
+				mantissaOrFracWidth, rounding, saturation);
+		vAsAPInt = APFloat(vRounded).bitcastToAPInt();
+	} else  {
+		// [todo] round float
+		vAsAPInt = v.bitcastToAPInt();
+	}
 	// bool issubnormal_ = issubnormal(vAsDouble);
 	size_t CUR_MANTISA_W = C_DOUBLE_MANTISA_W;
 	size_t CUR_EXP_W = C_DOUBLE_EXPONENT_W;
