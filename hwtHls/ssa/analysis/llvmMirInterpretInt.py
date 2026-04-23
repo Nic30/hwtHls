@@ -524,7 +524,7 @@ def makeDecode_arithUnary(opDef: HOperatorDef):
 
 def makeDecode_arithmeticBin(opDef: HOperatorDef):
 
-    def _decodeOpcode_arithmetic(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
+    def _decodeOpcode_arithmeticBin(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
         try:
             dst, _src0, _src1 = interpret._decodeInstArguments(MRI, instr, instr.operands())
         except:
@@ -533,7 +533,7 @@ def makeDecode_arithmeticBin(opDef: HOperatorDef):
         src1IsConst = isinstance(_src1, HConst)
         evalFn = opDef._evalFn
 
-        def _opcode_arithmetic(nowTime: int, regs: list[HConst]):
+        def _opcode_arithmeticBin(nowTime: int, regs: list[HConst]):
             if src0IsConst:
                 src0 = _src0
             else:
@@ -556,9 +556,9 @@ def makeDecode_arithmeticBin(opDef: HOperatorDef):
                 res = src0._dtype.from_py(None)
             regs[dst] = res
 
-        return _opcode_arithmetic
+        return _opcode_arithmeticBin
 
-    return _decodeOpcode_arithmetic
+    return _decodeOpcode_arithmeticBin
 
 
 def makeDecode_arithmeticBinBin(evalFn: Callable[[int, int], [int, int]]):
@@ -605,7 +605,7 @@ def makeDecode_arithmeticBinBin(evalFn: Callable[[int, int], [int, int]]):
 
 def makeDecode_AddSubSatBin(evalFn: Callable[[HBitsConst, HBitsConst], HBitsConst]):
 
-    def _decodeOpcode_arithmetic(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
+    def _decodeOpcode_AddSubSatBin(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
         try:
             dst, _src0, _src1 = interpret._decodeInstArguments(MRI, instr, instr.operands())
         except:
@@ -613,7 +613,7 @@ def makeDecode_AddSubSatBin(evalFn: Callable[[HBitsConst, HBitsConst], HBitsCons
         src0IsConst = isinstance(_src0, HConst)
         src1IsConst = isinstance(_src1, HConst)
 
-        def _opcode_arithmetic(nowTime: int, regs: list[HConst]):
+        def _opcode_AddSubSatBin(nowTime: int, regs: list[HConst]):
             if src0IsConst:
                 src0 = _src0
             else:
@@ -633,7 +633,7 @@ def makeDecode_AddSubSatBin(evalFn: Callable[[HBitsConst, HBitsConst], HBitsCons
             res = evalFn((src0, src1))
             regs[dst] = res
 
-        return _opcode_arithmetic
+        return _opcode_AddSubSatBin
 
-    return _decodeOpcode_arithmetic
+    return _decodeOpcode_AddSubSatBin
 
