@@ -24,4 +24,67 @@ bool tryHoistCheapInstsAtBlockBegin(llvm::BasicBlock &BB,
 		std::optional<std::function<bool(llvm::Instruction&)>> extraCheck = { });
 bool simplifyBranchToSameDst(llvm::BasicBlock *BB);
 void sortPhiOperands(llvm::BasicBlock &BB, bool removeRedundantOperands=false);
+
+template<typename InstrT>
+InstrT *findInstrAtSuccessorsBegin(
+	llvm::BasicBlock &BB, bool exitOnFirstUnsupportedBlock,
+	llvm::SmallVector<std::pair<llvm::BasicBlock *, InstrT *>> &toHoist,
+	llvm::SmallVector<llvm::BasicBlock *>* unreachableBBs) {
+	InstrT *representativeI = nullptr;
+	for (auto *suc : successors(&BB)) {
+		if (suc->hasNPredecessorsOrMore(2)) {
+			if (exitOnFirstUnsupportedBlock) {
+				return nullptr;
+			} else {
+				continue;
+			}
+		}
+		if (llvm::isa<llvm::UnreachableInst>(suc->getTerminator())) {
+			if (unreachableBBs)
+				unreachableBBs->push_back(suc);
+		}
+		bool blockIsSupported = true;
+		for (auto &I : *suc) {
+			if (llvm::isa<llvm::PHINode>(&I)) {
+				// [todo] maybe support 1 entry phis
+				blockIsSupported = false;
+				break;
+			}
+			if (auto st = dyn_cast<InstrT>(&I)) {
+				if (representativeI) {
+					if (!st->isSameOperationAs(representativeI) ||
+						st->getPointerOperand() !=
+							representativeI->getPointerOperand()) {
+						blockIsSupported = false;
+						break;
+					}
+				} else {
+					representativeI = st;
+				}
+				toHoist.push_back({suc, st});
+				break;
+			}
+			if (!isSafeToHoistInstr(&I, SkipFlags::NONE, false)) {
+				// something with side-effect or store not found
+				blockIsSupported = false;
+				break;
+			}
+			if (auto CI = llvm::dyn_cast<llvm::CallInst>(&I)) {
+				if (!CI->getCalledFunction()->hasFnAttribute(
+						llvm::Attribute::AttrKind::Speculatable)) {
+					blockIsSupported = false;
+					break;
+				}
+			}
+		}
+		if (!blockIsSupported) {
+			if (exitOnFirstUnsupportedBlock) {
+				return nullptr;
+			} else {
+				continue;
+			}
+		}
+	}
+	return representativeI;
+}
 }

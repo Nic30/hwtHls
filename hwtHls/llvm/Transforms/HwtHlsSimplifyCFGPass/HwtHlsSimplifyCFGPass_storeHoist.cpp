@@ -15,40 +15,9 @@ bool HwtHlsSimplifyCFGPass_storeHoist(llvm::BasicBlock &BB) {
 	SmallVector<BasicBlock *> unreachableBBs;
 	SmallVector<std::pair<BasicBlock *, StoreInst *>> toHoist;
 
-	StoreInst *representativeSt = nullptr;
-	for (auto *suc : successors(&BB)) {
-		if (suc->hasNPredecessorsOrMore(2))
-			return false;
-		if (isa<UnreachableInst>(suc->getTerminator())) {
-			unreachableBBs.push_back(suc);
-		}
-		for (auto &I : *suc) {
-			if (isa<PHINode>(&I))
-				return false; // [todo] maybe support 1 entry phis
-			if (auto st = dyn_cast<StoreInst>(&I)) {
-				if (representativeSt) {
-					if (!st->isSameOperationAs(representativeSt)
-							|| st->getPointerOperand()
-									!= representativeSt->getPointerOperand()) {
-						return false;
-					}
-				} else {
-					representativeSt = st;
-				}
-				toHoist.push_back( { suc, st });
-				break;
-			}
-			if (!isSafeToHoistInstr(&I, SkipFlags::NONE, false)) {
-				return false; // something with side-effect or store not found
-			}
-			if (auto CI = dyn_cast<CallInst>(&I)) {
-				if (!CI->getCalledFunction()->hasFnAttribute(
-						Attribute::AttrKind::Speculatable)) {
-					return false;
-				}
-			}
-		}
-	}
+	StoreInst *representativeSt = findInstrAtSuccessorsBegin<StoreInst>(BB, true, toHoist, &unreachableBBs);
+	if (!representativeSt)
+		return false; // some block does not contain compatible store
 	if (toHoist.empty())
 		return false; // case for blocks without suc
 	assert(unreachableBBs.size() + toHoist.size() == succ_size(&BB));
