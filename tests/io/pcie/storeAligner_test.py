@@ -303,10 +303,10 @@ class PcieTlpStoreAligner_splitToAlignedWords_rtl_TC(SimTestCase):
                 out = out._reinterpret_cast(outTy)
                 index, w0d, w0m, w1d, w1m = out.newWIndex, out.newWord0, out.newWord0Mask, out.newWord1, out.newWord1Mask
                 ref_index, ref_w0d, ref_w0m, ref_w1d, ref_w1m = outRef
-                #print(f"dataOut 0x{int(index):08x}: 0x{int(w0d):064x} {int(w0m):08x}")
-                #print(f"                    0x{int(w1d):064x} {int(w1m):08x}")
-                #print(f"ref out 0x{int(ref_index):08x}: 0x{int(ref_w0d):064x} {int(ref_w0m):08x}")
-                #print(f"                    0x{int(ref_w1d):064x} {int(ref_w1m):08x}\n")
+                # print(f"dataOut 0x{int(index):08x}: 0x{int(w0d):064x} {int(w0m):08x}")
+                # print(f"                    0x{int(w1d):064x} {int(w1m):08x}")
+                # print(f"ref out 0x{int(ref_index):08x}: 0x{int(ref_w0d):064x} {int(ref_w0m):08x}")
+                # print(f"                    0x{int(ref_w1d):064x} {int(ref_w1m):08x}\n")
                 tc.assertEqual(int(index), int(ref_index))
                 tc.assertEqual(int(w0d), int(ref_w0d))
                 tc.assertEqual(int(w0m), int(ref_w0m))
@@ -314,7 +314,7 @@ class PcieTlpStoreAligner_splitToAlignedWords_rtl_TC(SimTestCase):
                 tc.assertEqual(int(w1m), int(ref_w1m))
 
         platform = TestLlvmIrAndMirPlatform.forSimpleDataInDataOutHwModule(
-            prepareDataInFn, checkDataOutFn, 
+            prepareDataInFn, checkDataOutFn,
             Path(self.DEFAULT_LOG_DIR, self.getTestName()),
             debugFilter=debugFilter,
             # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER, ],
@@ -331,12 +331,12 @@ class PcieTlpStoreAligner_splitToAlignedWords_rtl_TC(SimTestCase):
         # print("PcieTlpStoreAligner_splitToAlignedWords_rtl_TC\n")
         self.assertEqual(len(dut.dataOut._ag.data), len(refDataOut))
         for (index, w0d, w0m, w1d, w1m), ref in zip(dut.dataOut._ag.data, refDataOut):
-            #print(f"dataOut 0x{int(index):08x}: 0x{int(w0d):064x} {int(w0m):08x}")
-            #print(f"                    0x{int(w1d):064x} {int(w1m):08x}")
+            # print(f"dataOut 0x{int(index):08x}: 0x{int(w0d):064x} {int(w0m):08x}")
+            # print(f"                    0x{int(w1d):064x} {int(w1m):08x}")
 
             ref_index, ref_w0d, ref_w0m, ref_w1d, ref_w1m = next(doutRefIt)
-            #print(f"ref out 0x{int(ref_index):08x}: 0x{int(ref_w0d):064x} {int(ref_w0m):08x}")
-            #print(f"                    0x{int(ref_w1d):064x} {int(ref_w1m):08x}\n")
+            # print(f"ref out 0x{int(ref_index):08x}: 0x{int(ref_w0d):064x} {int(ref_w0m):08x}")
+            # print(f"                    0x{int(ref_w1d):064x} {int(ref_w1m):08x}\n")
             self.assertEqual(int(index), int(ref_index))
             self.assertEqual(int(w0d), int(ref_w0d))
             self.assertEqual(int(w0m), int(ref_w0m))
@@ -366,14 +366,14 @@ class PcieTlpStoreAligner_rtl_TC(SimTestCase):
         # prepare transactions and reference ram
         dataIn, _, refRam = PcieTlpStoreAligner_TC._generateInputTransactions(
             addresses, rand=rand, dataWidth=dataWidth, ramWords=ramWords, hasDataAtBegin=hasDataAtBegin)
-        #for din in dataIn:
+        # for din in dataIn:
         #    if din is NOP:
         #        print("dataIn NOP")
         #    else:
         #        print(f"dataIn 0x{int(din.addr):08x}: 0x{int(din.data):064x} {int(din.empty):d}")
         self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
         dut.dataIn._ag.data.extend(dataIn)
-        #dut.ramOut._ag._debugOutput = sys.stdout
+        # dut.ramOut._ag._debugOutput = sys.stdout
         self.runSim(int(freq_to_period(dut.CLK_FREQ) * (len(dataIn) + 2) * 2))
         self.assertFalse(bool(dut.dataIn._ag.data))
         ram: dict[int, tuple[int, int]] = {k: (v.val, v.vld_mask) for k, v in dut.ramOut._ag.mem.items()}
@@ -385,11 +385,11 @@ class PcieTlpStoreAligner_rtl_TC(SimTestCase):
         #    assert (_d.vld_mask & mExpanded) == mExpanded, (f"all bytes which are marked valid by mask must be valid {_d.vld_mask:x} {_d.vld_mask:x}")
         #    storeToRamMaskedByIndex(ram, i, d, mExpanded)
 
-        #print("ramRef:")
-        #for a, d in sorted(refRam.items(), key=lambda x: x[0]):
+        # print("ramRef:")
+        # for a, d in sorted(refRam.items(), key=lambda x: x[0]):
         #    print(f"  {a:08x}: {d[0]:064x} {d[1]:08x}")
-        #print("ram:")
-        #for a, d in sorted(ram.items(), key=lambda x: x[0]):
+        # print("ram:")
+        # for a, d in sorted(ram.items(), key=lambda x: x[0]):
         #    print(f"  {a:08x}: {d[0]:064x} {d[1]:08x}")
         self.assertDictEqual(ram, refRam)
         return ram
