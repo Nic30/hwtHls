@@ -5,6 +5,7 @@ from hwtHls.llvm.llvmIr import LlvmCompilationBundle, verifyModule, Module, Modu
     ThreadExtractIoFsmPass, StripDeadPrototypesPass
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
 from tests.llvmIr.StreamReadLoweringPass_test import StreamReadLoweringPass_TC
+from unittest.case import expectedFailure
 
 
 def _addThreadExtractIoFsmPass(MPM: ModulePassManager):
@@ -27,6 +28,17 @@ class ThreadExtractIoFsmPass_ir_TC(BaseLlvmIrTC):
     def test_1loop(self):
         self._test_ir_file()
 
+    @expectedFailure  # NotImplemented for in
+    def test_1loop_in(self):
+        self._test_ir_file()
+
+    @expectedFailure  # NotImplemented for in
+    def test_1loop_in_bitRangeGet(self):
+        self._test_ir_file()
+
+    def test_1loop_bitRangeGet(self):
+        self._test_ir_file()
+
     def test_2loopNested(self):
         self._test_ir_file()
 
@@ -39,7 +51,7 @@ if __name__ == "__main__":
     import unittest
     import sys
     testLoader = unittest.TestLoader()
-    #suite = unittest.TestSuite([ThreadExtractIoFsmPass_ir_TC('test_2loopNested2')])
+    # suite = unittest.TestSuite([ThreadExtractIoFsmPass_ir_TC('test_1loop_in')])
     suite = testLoader.loadTestsFromTestCase(ThreadExtractIoFsmPass_ir_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     sys.exit(not runner.run(suite).wasSuccessful())
