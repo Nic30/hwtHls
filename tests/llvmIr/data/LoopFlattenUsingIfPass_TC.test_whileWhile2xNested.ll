@@ -3,10 +3,10 @@ entry:
   br label %bb.wh
 
 bb.wh:                                            ; preds = %bb.fn1, %entry
-  %isChildLoop.bb.wh1 = phi i1 [ false, %entry ], [ %isChildLoopInLatch.bb.wh1, %bb.fn1 ]
-  %v0 = phi i8 [ 0, %entry ], [ %v2.inLatch, %bb.fn1 ]
-  %isChildLoop.bb.wh2.inChildHeader = phi i1 [ poison, %entry ], [ %isChildLoop.bb.wh2.inLatch, %bb.fn1 ]
-  %v2.2.inChildHeader.inChildHeader = phi i8 [ poison, %entry ], [ %v2.2.inChildHeader.inLatch, %bb.fn1 ]
+  %isChildLoop.bb.wh1 = phi i1 [ %isChildLoopInLatch.bb.wh1, %bb.fn1 ], [ false, %entry ]
+  %v0 = phi i8 [ %v2.inLatch, %bb.fn1 ], [ 0, %entry ]
+  %isChildLoop.bb.wh2.inChildHeader = phi i1 [ %isChildLoop.bb.wh2.inLatch, %bb.fn1 ], [ poison, %entry ]
+  %v2.2.inChildHeader.inChildHeader = phi i8 [ %v2.2.inChildHeader.inLatch, %bb.fn1 ], [ poison, %entry ]
   br i1 %isChildLoop.bb.wh1, label %bb.wh1, label %bb.wh.split
 
 bb.wh.split:                                      ; preds = %bb.wh

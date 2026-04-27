@@ -8,7 +8,7 @@
     br label %loopHeader
   
   loopHeader:                                       ; preds = %bb0, %loopHeader
-    %i.0 = phi i8 [ 0, %bb0 ], [ %0, %loopHeader ]
+    %i.0 = phi i8 [ %0, %loopHeader ], [ 0, %bb0 ]
     store volatile i8 %i.0, ptr addrspace(1) %o, align 1
     %0 = add i8 %i.0, 1
     br label %loopHeader, !llvm.loop !2

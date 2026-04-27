@@ -3,9 +3,9 @@ entry:
   br label %bb.wh
 
 bb.wh:                                            ; preds = %bb.fn1, %entry
-  %beginTmp2.0 = phi i8 [ undef, %entry ], [ %beginTmp2.1, %bb.fn1 ]
-  %isChildLoop.bb.wh.wh = phi i1 [ false, %entry ], [ %isChildLoopInLatch.bb.wh.wh, %bb.fn1 ]
-  %v0 = phi i8 [ 0, %entry ], [ %v2.inLatch, %bb.fn1 ]
+  %beginTmp2.0 = phi i8 [ %beginTmp2.1, %bb.fn1 ], [ undef, %entry ]
+  %isChildLoop.bb.wh.wh = phi i1 [ %isChildLoopInLatch.bb.wh.wh, %bb.fn1 ], [ false, %entry ]
+  %v0 = phi i8 [ %v2.inLatch, %bb.fn1 ], [ 0, %entry ]
   br i1 %isChildLoop.bb.wh.wh, label %bb.wh.wh, label %bb.wh.split
 
 bb.wh.split:                                      ; preds = %bb.wh
@@ -42,7 +42,7 @@ bb.fn1.loopexit:                                  ; preds = %bb.wh.wh
   br label %bb.fn1.oldLatch
 
 bb.fn1.oldLatch:                                  ; preds = %bb.wh.if, %bb.fn1.loopexit
-  %beginTmp2.3 = phi i8 [ %beginTmp2.2, %bb.fn1.loopexit ], [ %beginTmp, %bb.wh.if ]
+  %beginTmp2.3 = phi i8 [ %beginTmp, %bb.wh.if ], [ %beginTmp2.2, %bb.fn1.loopexit ]
   %v4 = phi i8 [ %v1, %bb.wh.if ], [ %v2.lcssa, %bb.fn1.loopexit ]
   store volatile i8 %v4, ptr addrspace(2) %o, align 1
   store volatile i8 %beginTmp2.3, ptr addrspace(2) %o, align 1

@@ -3,11 +3,11 @@ entry:
   br label %bb.wh
 
 bb.wh:                                            ; preds = %bb.fn1, %entry
-  %beginTmp2.25.0 = phi i8 [ undef, %entry ], [ %beginTmp2.25.1, %bb.fn1 ]
-  %isChildLoop.bb.wh1.wh = phi i1 [ false, %entry ], [ %isChildLoopInLatch.bb.wh1.wh, %bb.fn1 ]
-  %beginTmp2.0 = phi i8 [ undef, %entry ], [ %beginTmp2.111, %bb.fn1 ]
-  %isChildLoop.bb.wh.wh = phi i1 [ false, %entry ], [ %isChildLoopInLatch.bb.wh.wh12, %bb.fn1 ]
-  %v0 = phi i8 [ 0, %entry ], [ %v2.1.inLatch, %bb.fn1 ]
+  %beginTmp2.25.0 = phi i8 [ %beginTmp2.25.1, %bb.fn1 ], [ undef, %entry ]
+  %isChildLoop.bb.wh1.wh = phi i1 [ %isChildLoopInLatch.bb.wh1.wh, %bb.fn1 ], [ false, %entry ]
+  %beginTmp2.0 = phi i8 [ %beginTmp2.111, %bb.fn1 ], [ undef, %entry ]
+  %isChildLoop.bb.wh.wh = phi i1 [ %isChildLoopInLatch.bb.wh.wh12, %bb.fn1 ], [ false, %entry ]
+  %v0 = phi i8 [ %v2.1.inLatch, %bb.fn1 ], [ 0, %entry ]
   br i1 %isChildLoop.bb.wh1.wh, label %bb.wh1.wh, label %bb.wh.split3
 
 bb.wh.split3:                                     ; preds = %bb.wh
@@ -65,8 +65,8 @@ bb.fn1.loopexit:                                  ; preds = %bb.wh1.wh
   br label %bb.fn1.oldLatch
 
 bb.fn1.oldLatch:                                  ; preds = %bb.wh.if, %bb.wh1.if, %bb.fn1.loopexit
-  %beginTmp2.25.3 = phi i8 [ %beginTmp2.25.2, %bb.fn1.loopexit ], [ %beginTmp2.2, %bb.wh1.if ], [ %beginTmp2.25.0, %bb.wh.if ]
-  %beginTmp2.3 = phi i8 [ %beginTmp2.25.2, %bb.fn1.loopexit ], [ %beginTmp2.2, %bb.wh1.if ], [ %beginTmp, %bb.wh.if ]
+  %beginTmp2.25.3 = phi i8 [ %beginTmp2.25.0, %bb.wh.if ], [ %beginTmp2.2, %bb.wh1.if ], [ %beginTmp2.25.2, %bb.fn1.loopexit ]
+  %beginTmp2.3 = phi i8 [ %beginTmp, %bb.wh.if ], [ %beginTmp2.2, %bb.wh1.if ], [ %beginTmp2.25.2, %bb.fn1.loopexit ]
   %v4 = phi i8 [ %v1, %bb.wh.if ], [ %v1.1, %bb.wh1.if ], [ %v2.1.lcssa, %bb.fn1.loopexit ]
   store volatile i8 %v4, ptr addrspace(2) %o, align 1
   store volatile i8 %beginTmp2.3, ptr addrspace(2) %o, align 1
@@ -74,9 +74,9 @@ bb.fn1.oldLatch:                                  ; preds = %bb.wh.if, %bb.wh1.i
 
 bb.fn1.oldLatch10:                                ; preds = %bb.fn1.oldLatch, %bb.wh.wh.body
   %beginTmp2.25.4 = phi i8 [ %beginTmp2.25.3, %bb.fn1.oldLatch ], [ %beginTmp2.2, %bb.wh.wh.body ]
-  %beginTmp2.1 = phi i8 [ %beginTmp2.2, %bb.wh.wh.body ], [ %beginTmp2.3, %bb.fn1.oldLatch ]
-  %v2.inLatch = phi i8 [ %v3, %bb.wh.wh.body ], [ %v4, %bb.fn1.oldLatch ]
-  %isChildLoopInLatch.bb.wh.wh = phi i1 [ true, %bb.wh.wh.body ], [ false, %bb.fn1.oldLatch ]
+  %beginTmp2.1 = phi i8 [ %beginTmp2.3, %bb.fn1.oldLatch ], [ %beginTmp2.2, %bb.wh.wh.body ]
+  %v2.inLatch = phi i8 [ %v4, %bb.fn1.oldLatch ], [ %v3, %bb.wh.wh.body ]
+  %isChildLoopInLatch.bb.wh.wh = phi i1 [ false, %bb.fn1.oldLatch ], [ true, %bb.wh.wh.body ]
   br label %bb.fn1
 
 bb.fn1:                                           ; preds = %bb.wh1.wh.body, %bb.fn1.oldLatch10

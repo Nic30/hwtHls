@@ -3,8 +3,8 @@ entry:
   br label %bb.wh
 
 bb.wh:                                            ; preds = %bb.fn1, %entry
-  %isChildLoop.bb.wh.wh = phi i1 [ false, %entry ], [ %isChildLoopInLatch.bb.wh.wh, %bb.fn1 ]
-  %v0 = phi i8 [ 0, %entry ], [ %v2.inLatch, %bb.fn1 ]
+  %isChildLoop.bb.wh.wh = phi i1 [ %isChildLoopInLatch.bb.wh.wh, %bb.fn1 ], [ false, %entry ]
+  %v0 = phi i8 [ %v2.inLatch, %bb.fn1 ], [ 0, %entry ]
   br i1 %isChildLoop.bb.wh.wh, label %bb.wh.wh, label %bb.wh.split
 
 bb.wh.split:                                      ; preds = %bb.wh

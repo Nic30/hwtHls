@@ -43,12 +43,12 @@ bb1.segmentEnCheck.after.1lane:                   ; preds = %bb1.segmentEnCheck.
   br label %bb.forwardUntilEoF.streamSegSplit.1lane
 
 bb.forwardUntilEoF.streamSegSplit.0lane:          ; preds = %bb.forwardUntilEoF.0lane, %bb1.segmentEnCheck.after.0lane
-  %rx.1segment.1 = phi i134 [ %ld.s12, %bb1.segmentEnCheck.after.0lane ], [ %ld.s14, %bb.forwardUntilEoF.0lane ]
-  %r.phi.0lane = phi i134 [ %ld.s01, %bb1.segmentEnCheck.after.0lane ], [ %ld.s03, %bb.forwardUntilEoF.0lane ]
+  %rx.1segment.1 = phi i134 [ %ld.s14, %bb.forwardUntilEoF.0lane ], [ %ld.s12, %bb1.segmentEnCheck.after.0lane ]
+  %r.phi.0lane = phi i134 [ %ld.s03, %bb.forwardUntilEoF.0lane ], [ %ld.s01, %bb1.segmentEnCheck.after.0lane ]
   br label %bb.forwardUntilEoF.1lane
 
 bb.forwardUntilEoF.streamSegSplit.1lane:          ; preds = %bb.forwardUntilEoF.1lane, %bb1.segmentEnCheck.after.1lane
-  %r.phi.1lane = phi i134 [ %ld.s1, %bb1.segmentEnCheck.after.1lane ], [ %rx.1segment.1, %bb.forwardUntilEoF.1lane ]
+  %r.phi.1lane = phi i134 [ %rx.1segment.1, %bb.forwardUntilEoF.1lane ], [ %ld.s1, %bb1.segmentEnCheck.after.1lane ]
   br label %bb.forwardUntilEoF.0lane
 
 bb.forwardUntilEoF.0lane:                         ; preds = %bb.forwardUntilEoF.streamSegSplit.1lane
@@ -83,7 +83,7 @@ bb.consumePendingOnLast.1lane:                    ; preds = %bb.forwardUntilEoF.
   br label %bb1.backedge.1lane
 
 bb1.backedge.0lane:                               ; preds = %bb.consumePendingOnLast.0lane, %bb1.0lane
-  %rx.1segment.0 = phi i134 [ %ld.s1, %bb1.0lane ], [ %ld.s14, %bb.consumePendingOnLast.0lane ]
+  %rx.1segment.0 = phi i134 [ %ld.s14, %bb.consumePendingOnLast.0lane ], [ %ld.s1, %bb1.0lane ]
   br label %bb1.streamSegSplit.0lane
 
 bb1.backedge.1lane:                               ; preds = %bb.consumePendingOnLast.1lane, %bb1.1lane
