@@ -5,6 +5,7 @@ from hwtLib.tests.all import unittestMain
 from tests.llvmIr.ExtractBitConcatAndSliceOpsPass_test import ExtractBitConcatAndSliceOpsPass_TC
 from tests.llvmIr.HFloatTmpLoweringPass_test import HFloatTmpLoweringPass_TC
 from tests.llvmIr.HwtHlsInstCombinePass_bitcountExtract_test import HwtHlsInstCombinePass_bitcountExtract_TC
+from tests.llvmIr.HwtHlsInstCombinePass_concat_test import HwtHlsInstCombinePass_concat_TC
 from tests.llvmIr.HwtHlsInstCombinePass_select_test import HwtHlsInstCombinePass_select_TC
 from tests.llvmIr.HwtHlsInstCombinePass_streamEoFThreading_test import HwtHlsInstCombinePass_streamEoFThreading_TC
 from tests.llvmIr.HwtHlsInstCombinePass_test import HwtHlsInstCombinePass_TC
@@ -16,6 +17,7 @@ from tests.llvmIr.HwtHlsSimplifyCFGPass_unswitchComplementarySequentialBlocks_te
 from tests.llvmIr.LoopRotationNormalizationPass_test import LoopRotationNormalizationPass_TC
 from tests.llvmIr.PruneLoopPhiDeadIncomingValuesPass_test import PruneLoopPhiDeadIncomingValuesPass_TC
 from tests.llvmIr.StreamReadLoweringPass_test import StreamReadLoweringPass_TC
+from tests.llvmIr.StreamSegmentLoopUnrollPass_test import StreamSegmentLoopUnrollPass_TC
 from tests.llvmIr.ThreadExtractIoFsmPass_ir_test import ThreadExtractIoFsmPass_ir_TC
 from tests.llvmIr.ThreadExtractPass_ir_test import ThreadExtractPass_ir_TC
 from tests.llvmIr.bitWidthReductionPass_Cmp_test import BitWidthReductionPass_Cmp_TCs
@@ -32,8 +34,7 @@ from tests.llvmIr.slicesMergePass_select_test import SlicesMergePass_select_TC
 from tests.llvmIr.slicesMergePass_test import SlicesMergePass_TC
 from tests.llvmIr.slicesToIndependentVariablesPass_test import SlicesToIndependentVariablesPass_TC
 from tests.testCaseUtils import testSuiteFromTCs
-from tests.llvmIr.HwtHlsInstCombinePass_concat_test import HwtHlsInstCombinePass_concat_TC
-from tests.llvmIr.StreamSegmentLoopUnrollPass_test import StreamSegmentLoopUnrollPass_TC
+from tests.llvmIr.LoopMarkStatelessSequelAsAsyncThreadPass_test import LoopMarkStatelessSequelAsAsyncThreadPass_TC
 
 
 llvmIr_TCs = [
@@ -68,6 +69,7 @@ llvmIr_TCs = [
     StreamSegmentLoopUnrollPass_TC,
     ThreadExtractPass_ir_TC,
     ThreadExtractIoFsmPass_ir_TC,
+    LoopMarkStatelessSequelAsAsyncThreadPass_TC,
 ]
 
 if __name__ == '__main__':

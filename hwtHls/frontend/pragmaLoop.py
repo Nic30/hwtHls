@@ -2,7 +2,8 @@ from math import inf
 from typing import Union, Literal, Optional
 
 from hwt.hwIO import HwIO
-from hwtHls.llvm.llvmIr import LoopMarkStatelessPrequelAsAsyncThreadPass
+from hwtHls.llvm.llvmIr import LoopMarkStatelessPrequelAsAsyncThreadPass, \
+    LoopMarkStatelessSequelAsAsyncThreadPass
 from hwtHls.frontend.ioProxyStream import IoProxyStream
 from hwtHls.frontend.pragma import _PyBytecodeLoopPragma
 from hwtHls.llvm.llvmIr import LoopFlattenUsingIfPass
@@ -248,3 +249,9 @@ class PyBytecodeLoopMarkStatelessPrequelAsAsyncThread(_PyBytecodeLoopPragma):
 
         return items
 
+
+class PyBytecodeLoopMarkStatelessSequelAsAsyncThread(_PyBytecodeLoopPragma):
+    """
+    :see: LoopMarkStatelessSequelAsAsyncThreadPass
+    """
+    PASS_CLS = LoopMarkStatelessSequelAsAsyncThreadPass

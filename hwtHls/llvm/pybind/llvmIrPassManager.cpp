@@ -28,6 +28,7 @@
 #include <hwtHls/llvm/Transforms/ThreadExtractPass/ThreadExtractPass.h>
 #include <hwtHls/llvm/Transforms/ThreadExtractIoFsmPass/ThreadExtractIoFsmPass.h>
 #include <hwtHls/llvm/Transforms/LoopMarkStatelessPrequelAsAsyncThreadPass.h>
+#include <hwtHls/llvm/Transforms/LoopMarkStatelessSequelAsAsyncThreadPass.h>
 
 namespace py = pybind11;
 
@@ -96,7 +97,12 @@ void register_PassManager(pybind11::module_ &m) {
 		.def_readonly_static("METADATA_NAME", &LoopMarkStatelessPrequelAsAsyncThreadPass::METADATA_NAME)
 		.def_readonly_static("METADATA_NAME_followup", &LoopMarkStatelessPrequelAsAsyncThreadPass::METADATA_NAME_followup);
 
-	py::class_<SlicesToIndependentVariablesPass>(m, "SlicesToIndependentVariablesPass")
+	py::class_<LoopMarkStatelessSequelAsAsyncThreadPass>(m, "LoopMarkStatelessSequelAsAsyncThreadPass")
+		.def(py::init<bool>(), py::arg("applyOnAll")=false)
+	    .def_readonly_static("METADATA_NAME", &LoopMarkStatelessSequelAsAsyncThreadPass::METADATA_NAME)
+	    .def_readonly_static("METADATA_NAME_followup", &LoopMarkStatelessSequelAsAsyncThreadPass::METADATA_NAME_followup);		
+		
+	py::class_<SlicesToIndependentVariablesPass>(m, "SlicesToIendentVariablesPass")
 		.def(py::init())
 		.def_readonly_static("metadataName_NoSplit", &SlicesToIndependentVariablesPass::metadataName_NoSplit);
 
@@ -114,6 +120,7 @@ void register_PassManager(pybind11::module_ &m) {
 		.def("addPass", &ModulePassManager_addPass<ThreadExtractIoFsmPass>)
 		.def("addPass", &ModulePassManager_addPass<IoLowerAxiMMPass>)
 		.def("addPass", &ModulePassManager_addPass<LoopMarkStatelessPrequelAsAsyncThreadPass>)
+		.def("addPass", &ModulePassManager_addPass<LoopMarkStatelessSequelAsAsyncThreadPass>)
 		;
 	py::class_<llvm::FunctionPassManager, std::unique_ptr<llvm::FunctionPassManager, py::nodelete>> FunctionPassManager(m, "FunctionPassManager");
 	FunctionPassManager
@@ -136,6 +143,7 @@ void register_PassManager(pybind11::module_ &m) {
 		.def("addPass", &LoopPassManager_addPass<LoopFlattenUsingIfPass>)
 		.def("addPass", &LoopPassManager_addPass<LoopRotationNormalizationPass>)
 		.def("addPass", &LoopPassManager_addPass<LoopMarkStatelessPrequelAsAsyncThreadPass>)
+		.def("addPass", &LoopPassManager_addPass<LoopMarkStatelessSequelAsAsyncThreadPass>)
 		;
 }
 

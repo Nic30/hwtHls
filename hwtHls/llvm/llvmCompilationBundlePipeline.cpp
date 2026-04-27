@@ -92,6 +92,7 @@
 #include <hwtHls/llvm/Transforms/LoopAddLatchPass.h>
 #include <hwtHls/llvm/Transforms/LoopFlattenUsingIfPass.h>
 #include <hwtHls/llvm/Transforms/LoopMarkStatelessPrequelAsAsyncThreadPass.h>
+#include <hwtHls/llvm/Transforms/LoopMarkStatelessSequelAsAsyncThreadPass.h>
 #include <hwtHls/llvm/Transforms/LoopRotationNormalizationPass.h>
 #include <hwtHls/llvm/Transforms/ProfMetadataAddDummy.h>
 #include <hwtHls/llvm/Transforms/ProfMetadataRmDummy.h>
@@ -137,6 +138,7 @@ void LlvmCompilationBundle::_registerHwtHlsPasses() {
 						   hwtHls::LoopFlattenUsingIfPass,			   //
 						   hwtHls::LoopRotationNormalizationPass,	   //
 						   hwtHls::LoopMarkStatelessPrequelAsAsyncThreadPass,       //
+						   hwtHls::LoopMarkStatelessSequelAsAsyncThreadPass,        //
 						   hwtHls::OverwriteBlockNamesPass,			   //
 						   hwtHls::ProfMetadataAddDummy,			   //
 						   hwtHls::ProfMetadataRmDummy,				   //
@@ -307,6 +309,7 @@ void LlvmCompilationBundle::runOpt(
 	addExtraModulePasses(MPM);
 	MPM.addPass(llvm::ConstantMergePass());
 	MPM.addPass(hwtHls::LoopMarkStatelessPrequelAsAsyncThreadPass());
+	MPM.addPass(hwtHls::LoopMarkStatelessSequelAsAsyncThreadPass());
 	MPM.addPass(hwtHls::ThreadExtractPass());
 	MPM.addPass(llvm::createModuleToFunctionPassAdaptor(
 		hwtHls::HwtHlsSimplifyCFGPass())); // ThreadExtractPass may create
