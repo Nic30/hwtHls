@@ -1,4 +1,6 @@
 #include <hwtHls/llvm/pybind/llvmIrPassManager.h>
+
+#include <pybind11/cast.h>
 #include <pybind11/native_enum.h>
 
 #include <llvm/IR/PassManager.h>
@@ -25,6 +27,7 @@
 #include <hwtHls/llvm/Transforms/StreamSegmentLoopUnrollPass/StreamSegmentLoopUnrollPass.h>
 #include <hwtHls/llvm/Transforms/ThreadExtractPass/ThreadExtractPass.h>
 #include <hwtHls/llvm/Transforms/ThreadExtractIoFsmPass/ThreadExtractIoFsmPass.h>
+#include <hwtHls/llvm/Transforms/LoopMarkStatelessPrequelAsAsyncThreadPass.h>
 
 namespace py = pybind11;
 
@@ -88,6 +91,11 @@ void register_PassManager(pybind11::module_ &m) {
 		.def_readonly_static("metadataName_expr_maskContinuosFromLsb", &HwtHlsInstCombinePass::metadataName_expr_maskContinuosFromLsb)
 		;
 
+	py::class_<LoopMarkStatelessPrequelAsAsyncThreadPass>(m, "LoopMarkStatelessPrequelAsAsyncThreadPass")
+		.def(py::init<bool>(), py::arg("applyOnAll")=false)
+		.def_readonly_static("METADATA_NAME", &LoopMarkStatelessPrequelAsAsyncThreadPass::METADATA_NAME)
+		.def_readonly_static("METADATA_NAME_followup", &LoopMarkStatelessPrequelAsAsyncThreadPass::METADATA_NAME_followup);
+
 	py::class_<SlicesToIndependentVariablesPass>(m, "SlicesToIndependentVariablesPass")
 		.def(py::init())
 		.def_readonly_static("metadataName_NoSplit", &SlicesToIndependentVariablesPass::metadataName_NoSplit);
@@ -105,6 +113,7 @@ void register_PassManager(pybind11::module_ &m) {
 		.def("addPass", &ModulePassManager_addPass<ThreadExtractPass>)
 		.def("addPass", &ModulePassManager_addPass<ThreadExtractIoFsmPass>)
 		.def("addPass", &ModulePassManager_addPass<IoLowerAxiMMPass>)
+		.def("addPass", &ModulePassManager_addPass<LoopMarkStatelessPrequelAsAsyncThreadPass>)
 		;
 	py::class_<llvm::FunctionPassManager, std::unique_ptr<llvm::FunctionPassManager, py::nodelete>> FunctionPassManager(m, "FunctionPassManager");
 	FunctionPassManager
@@ -123,10 +132,10 @@ void register_PassManager(pybind11::module_ &m) {
 	bindFunctionPass<StreamReadLoweringPass>(m, FunctionPassManager, "StreamReadLoweringPass");
 	bindFunctionPass<StreamSegmentLoopUnrollPass>(m, FunctionPassManager, "StreamSegmentLoopUnrollPass");
 
-
 	py::class_<llvm::LoopPassManager, std::unique_ptr<llvm::LoopPassManager, py::nodelete>>(m, "LoopPassManager")
 		.def("addPass", &LoopPassManager_addPass<LoopFlattenUsingIfPass>)
 		.def("addPass", &LoopPassManager_addPass<LoopRotationNormalizationPass>)
+		.def("addPass", &LoopPassManager_addPass<LoopMarkStatelessPrequelAsAsyncThreadPass>)
 		;
 }
 

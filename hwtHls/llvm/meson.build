@@ -193,6 +193,7 @@ py3.extension_module(
      'Transforms/LoopFlattenUsingIfPass/findAssociatedPhis.cpp',
      'Transforms/LoopFlattenUsingIfPass/rerouteChildBackedgeAndTransferChildPhis.cpp',
      'Transforms/LoopFlattenUsingIfPass/mergeLoopMetadata.cpp',
+     'Transforms/LoopMarkStatelessPrequelAsAsyncThreadPass.cpp',
      'Transforms/LoopRotationNormalizationPass.cpp',
      'Transforms/overwriteBlockNamesPass.cpp',
      'Transforms/ProfMetadataAddDummy.cpp',

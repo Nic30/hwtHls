@@ -2,6 +2,7 @@ from math import inf
 from typing import Union, Literal, Optional
 
 from hwt.hwIO import HwIO
+from hwtHls.llvm.llvmIr import LoopMarkStatelessPrequelAsAsyncThreadPass
 from hwtHls.frontend.ioProxyStream import IoProxyStream
 from hwtHls.frontend.pragma import _PyBytecodeLoopPragma
 from hwtHls.llvm.llvmIr import LoopFlattenUsingIfPass
@@ -187,7 +188,6 @@ class PyBytecodeStreamSegmentLoopUnroll(PyBytecodeStreamLoopUnroll):
             items.append(item)
         return items
 
-
 class PyBytecodeLoopFlattenUsingIf(_PyBytecodeLoopPragma):
     """
     Merge child loop into parent loop.
@@ -217,3 +217,34 @@ class PyBytecodeLoopFlattenUsingIf(_PyBytecodeLoopPragma):
             items.append(md)
 
         return items
+
+
+class PyBytecodeLoopMarkStatelessPrequelAsAsyncThread(_PyBytecodeLoopPragma):
+    """
+    :see: LoopMarkStatelessPrequelAsAsyncThreadPass
+    """
+    PASS_CLS = LoopMarkStatelessPrequelAsAsyncThreadPass
+
+    def __init__(self, followup:Optional[_PyBytecodeLoopPragma]=None):
+        _PyBytecodeLoopPragma.__init__(self)
+        self.followup = followup
+
+    def getLlvmLoopMetadataItems(self, irTranslator: "ToLlvmIrTranslator"):
+        getStr = irTranslator.mdGetStr
+        getTuple = irTranslator.mdGetTuple
+        PASS_CLS = self.PASS_CLS
+        items = [
+            getTuple([
+                    getStr(PASS_CLS.METADATA_NAME),
+                ],
+                False)
+        ]
+        if self.followup is not None:
+            md = getTuple([
+                    getStr(PASS_CLS.METADATA_NAME_folloup),
+                    *self.followup.getLlvmLoopMetadataItems(irTranslator),
+                ], False)
+            items.append(md)
+
+        return items
+
