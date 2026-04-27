@@ -9,18 +9,21 @@
   
   loopHeader:                                       ; preds = %bb0, %loopHeader
     %i_read2 = load volatile i16, ptr addrspace(1) %i, align 2
-    %0 = icmp eq i16 %i_read2, 10
-    %1 = xor i1 %0, true
-    %2 = icmp ne i16 %i_read2, 11
-    %3 = xor i1 %0, %2
-    %4 = call i3 @hwtHls.bitConcat.i1.i1.i1(i1 %1, i1 %0, i1 %1) #1
-    %.sink3 = select i1 %3, i3 -4, i3 %4
-    %5 = call i2 @hwtHls.bitRangeGet.i3.i3.i2.1(i3 %.sink3, i3 1) #1
-    %6 = call i1 @hwtHls.bitRangeGet.i3.i3.i1.0(i3 %.sink3, i3 0) #1
-    %7 = call i16 @hwtHls.bitConcat.i1.i1.i2.i12(i1 %6, i1 %3, i2 %5, i12 1) #1
-    store volatile i16 %7, ptr addrspace(2) %o, align 2
+    %0 = call i15 @hwtHls.bitRangeGet.i16.i5.i15.1(i16 %i_read2, i5 1) #1
+    %1 = icmp eq i16 %i_read2, 10
+    %2 = xor i1 %1, true
+    %brmerge3 = icmp ne i15 %0, 5
+    %3 = call i3 @hwtHls.bitConcat.i1.i1.i1(i1 %2, i1 %1, i1 %2) #1
+    %.sink4 = select i1 %brmerge3, i3 -4, i3 %3
+    %4 = call i2 @hwtHls.bitRangeGet.i3.i3.i2.1(i3 %.sink4, i3 1) #1
+    %5 = call i1 @hwtHls.bitRangeGet.i3.i3.i1.0(i3 %.sink4, i3 0) #1
+    %6 = call i16 @hwtHls.bitConcat.i1.i1.i2.i12(i1 %5, i1 %brmerge3, i2 %4, i12 1) #1
+    store volatile i16 %6, ptr addrspace(2) %o, align 2
     br label %loopHeader
   }
+  
+  ; Function Attrs: nofree nounwind speculatable willreturn
+  declare i15 @hwtHls.bitRangeGet.i16.i5.i15.1(i16, i5) #0
   
   ; Function Attrs: nofree nounwind speculatable willreturn
   declare i3 @hwtHls.bitConcat.i1.i1.i1(i1, i1, i1) #0
@@ -68,22 +71,23 @@ registers:
   - { id: 0, class: anyregcls, preferred-register: '', flags: [  ] }
   - { id: 1, class: anyregcls, preferred-register: '', flags: [  ] }
   - { id: 2, class: anyregcls, preferred-register: '', flags: [  ] }
-  - { id: 3, class: anyregbank, preferred-register: '', flags: [  ] }
-  - { id: 4, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 3, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 4, class: _, preferred-register: '', flags: [  ] }
   - { id: 5, class: anyregbank, preferred-register: '', flags: [  ] }
   - { id: 6, class: anyregcls, preferred-register: '', flags: [  ] }
   - { id: 7, class: anyregbank, preferred-register: '', flags: [  ] }
   - { id: 8, class: anyregcls, preferred-register: '', flags: [  ] }
-  - { id: 9, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 9, class: anyregbank, preferred-register: '', flags: [  ] }
   - { id: 10, class: anyregcls, preferred-register: '', flags: [  ] }
   - { id: 11, class: anyregcls, preferred-register: '', flags: [  ] }
-  - { id: 12, class: anyregbank, preferred-register: '', flags: [  ] }
-  - { id: 13, class: anyregcls, preferred-register: '', flags: [  ] }
-  - { id: 14, class: _, preferred-register: '', flags: [  ] }
-  - { id: 15, class: anyregcls, preferred-register: '', flags: [  ] }
-  - { id: 16, class: _, preferred-register: '', flags: [  ] }
-  - { id: 17, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 12, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 13, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 14, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 15, class: _, preferred-register: '', flags: [  ] }
+  - { id: 16, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 17, class: _, preferred-register: '', flags: [  ] }
   - { id: 18, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 19, class: anyregcls, preferred-register: '', flags: [  ] }
 liveins:         []
 frameInfo:
   isFrameAddressTaken: false
@@ -125,15 +129,15 @@ body:             |
     successors: %bb.1(0x80000000)
   
     %2:anyregcls(s16) = HWTFPGA_CLOAD %0, 0, 16, 1 :: (volatile load (s16) from %ir.i, addrspace 1)
-    %4:anyregcls(s1) = HWTFPGA_ICMP intpred(eq), %2(s16), i16 10
-    %6:anyregcls(s1) = HWTFPGA_NOT %4(s1)
-    %8:anyregcls(s1) = HWTFPGA_ICMP intpred(ne), %2(s16), i16 11
-    %9:anyregcls(s1) = HWTFPGA_XOR %4(s1), %8(s1)
-    %10:anyregcls(s3) = HWTFPGA_MERGE_VALUES %6(s1), %4(s1), %6(s1), 1, 1, 1
-    %11:anyregcls(s3) = HWTFPGA_MUX i3 -4, %9(s1), %10(s3)
-    %13:anyregcls(s2) = HWTFPGA_EXTRACT %11(s3), 3, 1, 2
-    %15:anyregcls(s1) = HWTFPGA_EXTRACT %11(s3), 3, 0, 1
-    %17:anyregcls(s16) = HWTFPGA_MERGE_VALUES %15(s1), %9(s1), %13(s2), i12 1, 1, 1, 2, 12
-    HWTFPGA_CSTORE %17(s16), %1, 0, 16, 1 :: (volatile store (s16) into %ir.o, addrspace 2)
+    %3:anyregcls(s15) = HWTFPGA_EXTRACT %2(s16), 16, 1, 15
+    %6:anyregcls(s1) = HWTFPGA_ICMP intpred(eq), %2(s16), i16 10
+    %8:anyregcls(s1) = HWTFPGA_NOT %6(s1)
+    %10:anyregcls(s1) = HWTFPGA_ICMP intpred(ne), %3(s15), i15 5
+    %11:anyregcls(s3) = HWTFPGA_MERGE_VALUES %8(s1), %6(s1), %8(s1), 1, 1, 1
+    %12:anyregcls(s3) = HWTFPGA_MUX i3 -4, %10(s1), %11(s3)
+    %14:anyregcls(s2) = HWTFPGA_EXTRACT %12(s3), 3, 1, 2
+    %16:anyregcls(s1) = HWTFPGA_EXTRACT %12(s3), 3, 0, 1
+    %18:anyregcls(s16) = HWTFPGA_MERGE_VALUES %16(s1), %10(s1), %14(s2), i12 1, 1, 1, 2, 12
+    HWTFPGA_CSTORE %18(s16), %1, 0, 16, 1 :: (volatile store (s16) into %ir.o, addrspace 2)
     HWTFPGA_BR %bb.1
 ...
