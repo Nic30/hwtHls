@@ -1,13 +1,14 @@
 from hwt.code import Concat
+from hwt.hdl.commonConstants import b0
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsCastUtils import fitTo
 from hwt.hdl.types.defs import BIT
 from hwt.math import log2ceil
 from hwtHls.code import lshr, ctlz, hwUMin, shl
-from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaInstruction import PyBytecodeNoSplitSlices
 from hwtHls.frontend.pragmaPreproc import PyBytecodePreprocHwCopy, \
     PyBytecodeInline, PyBytecodeBlockLabel
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from tests.math.fp.fptypes import IEEE754Fp, IEEE754FpValue
 from tests.math.fp.normalizeDenormalize import _denormalize, fpRoundup, \
     fpPack
@@ -121,8 +122,8 @@ def IEEE754FpAdd(a: IEEE754FpValue, b: IEEE754FpValue, isSim=False):
             sumTmp = HBits(aMantissa._dtype.bit_length() + 1).from_py(None)
             res.sign = aSign
 
-            aMantissaTmp = Concat(BIT.from_py(0), aMantissa)
-            bMantissaTmp = Concat(BIT.from_py(0), bMantissa)
+            aMantissaTmp = Concat(b0, aMantissa)
+            bMantissaTmp = Concat(b0, bMantissa)
 
             if aSign._eq(bSign):
                 sumTmp = aMantissaTmp + bMantissaTmp
