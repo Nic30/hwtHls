@@ -250,5 +250,4 @@ class HFloatTmpConst(HConst):
             m = ", mask {0:x}".format(self.vld_mask)
             v = self.val
 
-        return "<{0:s} {1:f}{2:s}>".format(
-            self.__class__.__name__, v, m)
+        return f"<{self.__class__.__name__:s} {v:f}{m:s}>"
