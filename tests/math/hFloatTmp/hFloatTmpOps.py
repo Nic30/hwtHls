@@ -72,8 +72,9 @@ OP_FDIV = HOperatorDefLlvm(fdiv, _getllvmFp2OpConstructor(lambda b: b.CreateFDiv
 # https://github.com/gpuweb/gpuweb/issues/1696
 # FRem "The floating-point remainder whose sign matches the sign of Operand 1."
 # FMod "The floating-point remainder whose sign matches the sign of Operand 2."
-
-
+# :note: Remainder = Dividend – (Divisor * Quotient)
+# https://www.delftstack.com/howto/cpp/cpp-modulo-negative/
+# :attention: % modulo operator in C++ is actually a remainder, in python it is modulo
 def frem(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
     return _evalFpFunction2(math.remainder, OP_FREM, op0, op1)
 
