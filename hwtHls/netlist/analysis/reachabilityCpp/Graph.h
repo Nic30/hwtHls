@@ -6,7 +6,7 @@
 #include <vector>
 #include <memory>
 
-#include "../reachabilityCpp/Vertex.h"
+#include <hwtHls/netlist/analysis/reachabilityCpp/Vertex.h>
 
 namespace hwtHls::reachability {
 

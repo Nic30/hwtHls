@@ -1,4 +1,4 @@
-#include "../reachabilityCpp/Grail.h"
+#include <hwtHls/netlist/analysis/reachabilityCpp/Grail.h>
 
 #include <algorithm>
 

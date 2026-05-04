@@ -1,4 +1,4 @@
-#include "../reachabilityCpp/Vertex.h"
+#include <hwtHls/netlist/analysis/reachabilityCpp/Vertex.h>
 
 #include <sstream>
 

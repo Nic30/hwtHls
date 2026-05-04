@@ -7,7 +7,7 @@
 #include <vector>
 #include <sstream>
 
-#include "../reachabilityCpp/DagGraphWithDFSReachQuery.h"
+#include <hwtHls/netlist/analysis/reachabilityCpp/DagGraphWithDFSReachQuery.h>
 
 namespace py = pybind11;
 

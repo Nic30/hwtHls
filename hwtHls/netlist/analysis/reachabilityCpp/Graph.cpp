@@ -1,4 +1,4 @@
-#include "../reachabilityCpp/Graph.h"
+#include <hwtHls/netlist/analysis/reachabilityCpp/Graph.h>
 
 #include <istream>
 #include <stdlib.h>

@@ -1,4 +1,4 @@
-#include "../reachabilityCpp/DagGraphWithDFSReachQuery.h"
+#include <hwtHls/netlist/analysis/reachabilityCpp/DagGraphWithDFSReachQuery.h>
 
 namespace hwtHls::reachability {
 

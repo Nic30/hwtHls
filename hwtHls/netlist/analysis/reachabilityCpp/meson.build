@@ -10,4 +10,5 @@ py3.extension_module(
     install: true,
     cpp_args: [],
     subdir: 'hwtHls/netlist/analysis/',
+    include_directories : hwtHls_inc,
 )

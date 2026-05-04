@@ -2,7 +2,7 @@
 
 #include <unordered_map>
 
-#include "../reachabilityCpp/Graph.h"
+#include <hwtHls/netlist/analysis/reachabilityCpp/Graph.h>
 
 namespace hwtHls::reachability {
 
