@@ -6,13 +6,15 @@ from hwt.hdl.commonConstants import b0, b1
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsRtlSignal import HBitsRtlSignal
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.frontend.pragmaPreproc import PyBytecodeBlockLabel
+from hwtHls.frontend.pragmaPreproc import PyBytecodeBlockLabel, PyBytecodeInline
 from hwtHls.llvm.llvmIr import HFloatTmpSaturation, HFloatTmpRounding
 from tests.math.fixp.fixpRtlSignal import HFixedPointQRtlSignal
 from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.math.fp.fptypes import IEEE754Fp, IEEE754FpValue
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 from tests.math.hFloatTmp.hFloatTmpOps import frem
+from tests.math.fixp.fixpConst import HFixedPointQConst
+from tests.math.hFloatTmp.hFloatTmpConst import _HFloatTmpValue
 
 ANY_FP_VALUE = Union[float, HFixedPointQRtlSignal, IEEE754FpValue]
 
@@ -92,35 +94,27 @@ def sin_withNormalization0_to_0_25(x:float):
 
 
 @hlsBytecode
-def anglePiRadsTo0_to_2(anglePiRads):
+def anglePiRadsTo0_to_2(anglePiRads: Union[float, _HFloatTmpValue]):
     PyBytecodeBlockLabel("anglePiRadsTo0_to_2")
-    if isinstance(anglePiRads, float) or anglePiRads._dtype == HFloatTmp:
-        origTy = None
-        _anglePiRads = anglePiRads
-    else:
-        origTy = anglePiRads._dtype
-        _anglePiRads = anglePiRads._auto_cast(HFloatTmp)
-
-    normalized_angle = frem(_anglePiRads, 2.)
+    normalized_angle = frem(anglePiRads, 2.)
     if normalized_angle < 0.:
-        normalized_angle += 2
+        normalized_angle += 2.0
 
-    if origTy is None:
-        return normalized_angle
-    else:
-        return normalized_angle._auto_cast(origTy)
+    return normalized_angle
 
 
 @hwt_expr_producer
-def radsToPiRads(angleRad):
+def radsToPiRads(angleRad: ANY_FP_VALUE) -> ANY_FP_VALUE:
     """
-    Conversion to pi*radians is beneficial when doing range reduction
-    which would otherwise require 2x multiplication.
-    .. code-block::c
-        int k = (int)(x * (1. / (2. * PI)));
-        xNew = x - (float)k * 2. * PI;
+    :note: Conversion to pi*radians is beneficial when doing range reduction
+        which would otherwise require 2x multiplication.
     
-    if angle is converted to pi radians the range reduction is just truncatenation of msb bits.
+        .. code-block::c
+            // range reduction of x without using radsToPiRads
+            int k = (int)(x * (1. / (2. * PI)));
+            xNew = x - (float)k * 2. * PI;
+        
+        if angle is converted to pi radians the range reduction is just truncatenation of msb bits.
     """
     return angleRad * (1. / math.pi)
 
@@ -204,7 +198,7 @@ def normalizeOctantPiradsTo0_to_0_25(octant: HBitsRtlSignal, z: ANY_FP_VALUE):
 
     https://github.com/cebarnes/cordic/blob/master/cordic.v#L63
     https://github.com/kevinpt/vhdl-extras/blob/master/rtl/extras/cordic.vhdl#L333
-    https://zipcpu.com/dsp/2017/08/30/cordic.html , https://github.com/ZipCPU/cordic/blob/master/rtl/seqcordic.v#L126
+    https://zipcpu.com/dsp/2017/08/30/cordic.html, https://github.com/ZipCPU/cordic/blob/master/rtl/seqcordic.v#L126
     """
     assert isinstance(z, float) or z._dtype == HFloatTmp, z._dtype
     swapXY = b0
@@ -257,13 +251,52 @@ def normalizeOctantPiradsTo0_to_0_25(octant: HBitsRtlSignal, z: ANY_FP_VALUE):
         PyBytecodeBlockLabel("normalizeOctantPiradsTo0_to_0_25.octant7")
         negateY = b1
         zOut = 8 * octantSize - z
-    
-    #if isinstance(z, float):
+
+    # if isinstance(z, float):
     #    if z == octantSize:
     #        swapXY = ~swapXY
-    #else:
+    # else:
     #    if zOut._eq(octantSize):
     #        swapXY = ~swapXY
-    #zOut = fmod(zOut, 0.25)
+    # zOut = fmod(zOut, 0.25)
     return swapXY, negateX, negateY, zOut
+
+
+@hlsBytecode
+def normalizeAnglePiRads0to0_25(anglePiRadAnyRange: ANY_FP_VALUE):
+    """
+    Normalize anyangle in pi radians to <0, 0.25> range
+    """
+    if isinstance(anglePiRadAnyRange, float):
+        T = None
+        anglePiRad0to2 = float(anglePiRadsTo0_to_2(anglePiRadAnyRange))
+    else:
+        T = anglePiRadAnyRange._dtype
+        _anglePiRad0to2Tmp = PyBytecodeInline(anglePiRadsTo0_to_2)(anglePiRadAnyRange._explicit_cast(HFloatTmp))
+
+        # trimm int part to 3 bits fro range <-2, 2>
+        T_FOR_m2_TO_2 = T._createMutated(int_bit_length=3, signed=True)
+        _anglePiRad0to2 = _anglePiRad0to2Tmp\
+            ._explicit_cast(T)\
+            ._explicit_cast(T_FOR_m2_TO_2)
+        anglePiRad0to2 = _anglePiRad0to2._explicit_cast(HFloatTmp)
+
+    octant = getOctantPiRads(
+        anglePiRad0to2
+        if T is None else
+        anglePiRad0to2._explicit_cast(T_FOR_m2_TO_2)
+    )
+    swapXY, negateX, negateY, _anglePiRad0to0_25Tmp = PyBytecodeInline(normalizeOctantPiradsTo0_to_0_25)(
+        octant, anglePiRad0to2)
+
+    if T is None:
+        _anglePiRad0to0_25 = _anglePiRad0to0_25Tmp
+        assert float(_anglePiRad0to0_25) >= 0. and float(_anglePiRad0to0_25) <= 0.25, (_anglePiRad0to2, octant, _anglePiRad0to0_25)
+        _anglePiRad0to0_25 = HFloatTmp.from_py(_anglePiRad0to0_25)
+    else:
+        assert _anglePiRad0to0_25Tmp._dtype == HFloatTmp, (_anglePiRad0to0_25Tmp._dtype, T)
+        _anglePiRad0to0_25 = _anglePiRad0to0_25Tmp\
+                            ._explicit_cast(T_FOR_m2_TO_2)\
+
+    return swapXY, negateX, negateY, _anglePiRad0to0_25
 

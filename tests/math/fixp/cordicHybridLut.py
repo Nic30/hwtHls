@@ -1,4 +1,5 @@
 from functools import reduce
+from io import StringIO
 from itertools import islice
 import math
 from typing import Union, Optional, Sequence
@@ -10,19 +11,20 @@ from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.struct import HStruct
 from hwt.mainBases import RtlSignalBase
 from hwt.math import log2ceil
-from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.hwenumerate import hwenumerate
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline, \
     PyBytecodeBlockLabel, PyBytecodePreprocHwCopy
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.llvm.llvmIr import HFloatTmpSaturation, HFloatTmpRounding
-from tests.math.fixp.cordicAngleNormalization import anglePiRadsTo0_to_2, \
-    getOctantPiRads, normalizeOctantPiradsTo0_to_0_25, ANY_FP_VALUE, \
-    radsToPiRads
+from tests.frontend.hwSimCallback_test import hwSimPrint
+from tests.math.fixp.cordicAngleNormalization import ANY_FP_VALUE, \
+    radsToPiRads, normalizeAnglePiRads0to0_25
 from tests.math.fixp.fixpResize import fixp_resize
 from tests.math.fixp.fixpRtlSignal import HFixedPointQRtlSignal
 from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 from tests.math.hFloatTmp.hFloatTmpConst import HFloatTmpConst
+from tests.math.hFloatTmp.hFloatTmpRtlSignal import HFloatTmpRtlSignal
 
 
 class CORDIC_MODE:
@@ -92,6 +94,7 @@ Efficient Hardware Design of Transcendental Functions for FPGA https://people.in
 # cordic for floating point https://docs.amd.com/v/u/en-US/xapp552-cordic-floating-point-operations
 # EFFICIENT IMPLEMENTATION OF TANH: A COMPARATIVE STUDY OF NEW RESULTS https://aircconline.com/csit/papers/vol13/csit130701.pdf
 
+
 class Cordic():
     """
     COordinate Rotation DIgital Computer
@@ -132,12 +135,14 @@ class Cordic():
     :ivar STAGES_IN_LUT: number of cordic stages precomputed in LUT, the LUT holds 2**STAGES_IN_LUT items
     """
 
-    def __init__(self, ITERATION_COUNT:int, STAGES_IN_LUT:int=0, loopPragmaGetter=lambda: None):
+    def __init__(self, ITERATION_COUNT:int, STAGES_IN_LUT:int=0, loopPragmaGetter=lambda: None,
+                 dbgLogFile: Optional[StringIO]=None):
         assert STAGES_IN_LUT >= 0, STAGES_IN_LUT
         assert ITERATION_COUNT > 0 and STAGES_IN_LUT <= ITERATION_COUNT, (ITERATION_COUNT, STAGES_IN_LUT)
         self.ITERATION_COUNT = ITERATION_COUNT
         self.STAGES_IN_LUT = STAGES_IN_LUT
         self.loopPragmaGetter = loopPragmaGetter
+        self.dbgLogFile = dbgLogFile
 
     @staticmethod
     def getHyberbolicIterationCount(iterations: int):
@@ -148,6 +153,27 @@ class Cordic():
         j = iterations - 1 // 3 + 1
         cnt = iterations + j
         return cnt
+
+    @staticmethod
+    def getCircularIterationCountForTy(t: HFixedPointQ) -> int:
+        return 2 + t.frac_bit_length
+
+    @staticmethod
+    def _getInternalType(T: HFixedPointQ):
+        """
+        Cordic must internally use wider to achieve full accuracy:
+        https://upload.wikimedia.org/wikiversity/en/0/0d/CORDIC.VHDL.1.A.20111110.pdf
+        log n + 2 extra bits n bit accuracy after n iterations
+        4 bit accuracy after 4 iterations 4 + log2(4) + 2 = 8bit datapath
+        8 bit accuracy after 8 iterations 8 + log2(8) + 2 = 13 
+        16 bit accuracy after 16 iterations 16 + log2(16) + 2 = 22
+        https://eclipse.umbc.edu/robucci/cmpeRSD/Lectures/Lecture20__CORDIC/
+        https://people.ece.cornell.edu/land/courses/ece4760/Math/FixedPointTrigonometry.pdf
+        """
+        return HFixedPointQ(2, T.frac_bit_length + log2ceil(T.frac_bit_length) + 2,
+                            signed=True,
+                            rounding=HFloatTmpRounding.ROUND_FLOOR,
+                            saturation=HFloatTmpSaturation.SATURATE_NONE)
 
     def getThetaROM(self, mode: CORDIC_MODE, scale: float=1.) -> list[float]:
         """
@@ -188,13 +214,15 @@ class Cordic():
             K *= 1. / math.sqrt(1. + 2. ** (-2 * i))
         return K
 
-    def getK_forNoDivCosSin(self) -> float:
+    def getK_forNoDivCosSin(self, thetaRom:Optional[list[float]]=None) -> float:
         """
         Variant of :meth:`~.getK` which computes initialization of X in a way that final division by K is not
         required and X and Y are directly holding the value of cos(a), sin(a)
         """
         # :note: K is independent of the angular units
-        rom = [math.cos(t) for t in self.getThetaROM(CORDIC_COORDINATE_MODE.CIRCULAR)]
+        if thetaRom is None:
+            thetaRom = self.getThetaROM(CORDIC_COORDINATE_MODE.CIRCULAR)
+        rom = [math.cos(t) for t in thetaRom]
         return reduce(lambda a, b: a * b, rom, 1.0)
 
     @hlsBytecode
@@ -204,7 +232,9 @@ class Cordic():
                  x: ANY_FP_VALUE, y: ANY_FP_VALUE, z: ANY_FP_VALUE,
                  stepOffset: int,
                  thetaRom:Sequence[HFloatTmpConst],
-                 loopPragmaGetter=lambda: None, dbgInPy=False):
+                 loopPragmaGetter=lambda: None,
+                 dbgInPy=False,
+                 dbgLogFile:Optional[StringIO]=None):
         """
         Simulate CORDIC iterations from index start to stop-1.
         :param dbgInPy: turn off redundant casts if running with just pythonic values in simulation.
@@ -226,15 +256,15 @@ class Cordic():
         #    x, y = x_new, y_new
         if dbgInPy:
             _f = lambda v: v
-            # _range = range(start, stop)
-            # _range = hwrange(start, stop)
-            thetaRomIt = enumerate(thetaRom)
+            _enumerate = enumerate
         else:
             _f = HFloatTmp.from_py
             indexWidth = log2ceil(stepOffset + len(thetaRom) + 1)
-            thetaRomIt = hwenumerate(thetaRom)
+            _enumerate = hwenumerate
 
-        for _i, theta in thetaRomIt:
+        # :note: for for sin/cos x=cos, y=cos,
+        #        for atan2 y=imaginary, x=real
+        for _i, theta in _enumerate(thetaRom):
             PyBytecodeBlockLabel("cordic.mainLoop")
             # :attention: -i overflows because i is unsigned
             # :attention: 2.0 value usually does not fit to fp type because it is crodic uses (1.0,  -1.0) range
@@ -243,7 +273,6 @@ class Cordic():
                 i = _i + stepOffset
             else:
                 i = _i._zext(indexWidth) + stepOffset
-
             xDivided = x / (_f(2.0) ** i)  # x * 2 ** (-i)
             yDivided = (y / (_f(2.0) ** i)) * _f(coordinateMode)  # y * 2 ** (-i)
             if mode == CORDIC_MODE.ROTATION:
@@ -265,61 +294,12 @@ class Cordic():
                 z -= theta
 
             # print(float(x), float(y), float(z))
+            if dbgLogFile is not None:
+                hwSimPrint("i, theta: ", i, theta, "     x, y, z: ", x, y, z, file=dbgLogFile)
             PyBytecodeBlockLabel("cordic.mainLoop.latch")
             loopPragmaGetter()
 
         return x, y, z
-
-    # @hlsBytecode
-    # @staticmethod
-    # def runCordicSteps(mode: CORDIC_MODE,
-    #             coordinateMode: CORDIC_COORDINATE_MODE,
-    #             x: ANY_FP_VALUE, y: ANY_FP_VALUE, z: ANY_FP_VALUE,
-    #             thetaRomEnumeratedIterator: Generator[tuple[int, float], None, None],
-    #             loopPragmaGetter=lambda: None):
-    #    """
-    #    Simulate CORDIC iterations from index start to stop-1.
-    #    :param dbgInPy: turn off redundant casts if running with just pythonic values in simulation.
-    #    """
-    #    # for i in range(start, stop):
-    #    #    sigma = 1. if z >= 0 else -1.
-    #    #    factor = 2. ** (-i)
-    #    #    x_new = x - sigma * y * factor
-    #    #    y_new = y + sigma * x * factor
-    #    #    z = z - sigma * thetaROM[i]
-    #    #    x, y = x_new, y_new
-    #
-    #    # :note: for atan2 y=imaginary, x=real
-    #    _f = HFloatTmp.from_py
-    #    for i, theta in thetaRomEnumeratedIterator:
-    #        PyBytecodeBlockLabel("cordic.mainLoop")
-    #        # :attention: -i overflows because i is unsigned
-    #        # :attention: 2.0 value usually does not fit to fp type because it is crodic uses (1.0,  -1.0) range
-    #        #             but this pattern is recognized for hwtHls.fp.shr so no overflow error should appear
-    #        xDivided = x / (_f(2.0) ** i)  # x * 2 ** (-i)
-    #        yDivided = (y / (_f(2.0) ** i)) * _f(coordinateMode)  # y * 2 ** (-i)
-    #        if mode == CORDIC_MODE.ROTATION:
-    #            d = z < 0.0
-    #        else:
-    #            d = y >= 0.0
-    #        if d:
-    #            PyBytecodeBlockLabel("cordic.mainLoop.clockwise")
-    #            # in rotation, y < 0 in vectoring -> clockwise
-    #            x += yDivided
-    #            y -= xDivided
-    #            z += theta
-    #        else:
-    #            PyBytecodeBlockLabel("cordic.mainLoop.counterClockwise")
-    #            # in vectoring -> counter-clockwise
-    #            x -= yDivided
-    #            y += xDivided
-    #            z -= theta
-    #
-    #        # print(float(x), float(y), float(z))
-    #        PyBytecodeBlockLabel("cordic.mainLoop.latch")
-    #        loopPragmaGetter()
-    #
-    #    return x, y, z
 
     def build_LUT(self,
                   mode: CORDIC_MODE,
@@ -405,70 +385,27 @@ class Cordic():
             assert abs(int(indexRounded) - indexRef) <= 1, (indexRounded, indexRef)
         return indexRounded
 
-    @staticmethod
-    def _getInternalType(T: HFixedPointQ):
-        """
-        Cordic must internally use wider to achieve full accuracy:
-        https://upload.wikimedia.org/wikiversity/en/0/0d/CORDIC.VHDL.1.A.20111110.pdf
-        log n + 2 extra bits n bit accuracy after n iterations
-        4 bit accuracy after 4 iterations 4 + log2(4) + 2 = 8bit datapath
-        8 bit accuracy after 8 iterations 8 + log2(8) + 2 = 13 
-        16 bit accuracy after 16 iterations 16 + log2(16) + 2 = 22
-        https://eclipse.umbc.edu/robucci/cmpeRSD/Lectures/Lecture20__CORDIC/
-        https://people.ece.cornell.edu/land/courses/ece4760/Math/FixedPointTrigonometry.pdf
-        """
-        return HFixedPointQ(2, T.frac_bit_length + log2ceil(T.frac_bit_length) + 2,
-                            signed=True,
-                            rounding=HFloatTmpRounding.ROUND_FLOOR,
-                            saturation=HFloatTmpSaturation.SATURATE_NONE)
-
-    @hlsBytecode
-    @classmethod
-    def _normalizeAnglePiRads0to0_25(cls, anglePiRadAnyRange: ANY_FP_VALUE):
-        # :var T_INTERNAL:  type for internal computation, (T_INTERNAL is larger than io type)
-        if isinstance(anglePiRadAnyRange, float):
-            T = None
-            T_INTERNAL = None
-            anglePiRad0to2 = float(anglePiRadsTo0_to_2(anglePiRadAnyRange))
-        else:
-            T = anglePiRadAnyRange._dtype
-            T_INTERNAL = cls._getInternalType(T)
-            _anglePiRad0to2Tmp = PyBytecodeInline(anglePiRadsTo0_to_2)(anglePiRadAnyRange)
-
-            # needs range reduction
-            _anglePiRad0to2 = _anglePiRad0to2Tmp\
-                ._auto_cast(T)\
-                ._auto_cast(T._createMutated(int_bit_length=3, signed=True))
-
-            T_OCT_NORM = _anglePiRad0to2._dtype._createMutated(int_bit_length=3, signed=True)
-            T = T._createMutated(int_bit_length=2, signed=True)
-
-            anglePiRad0to2 = _anglePiRad0to2._auto_cast(HFloatTmp)
-
-        octant = getOctantPiRads(anglePiRad0to2 if T is None else anglePiRad0to2._auto_cast(T_OCT_NORM))
-        swapXY, negateX, negateY, _anglePiRad0to0_25Tmp = PyBytecodeInline(normalizeOctantPiradsTo0_to_0_25)(
-            octant, anglePiRad0to2)
-
-        if T is None:
-            _anglePiRad0to0_25 = _anglePiRad0to0_25Tmp
-            assert float(_anglePiRad0to0_25) >= 0. and float(_anglePiRad0to0_25) <= 0.25, (_anglePiRad0to2, octant, _anglePiRad0to0_25)
-            _anglePiRad0to0_25 = HFloatTmp.from_py(_anglePiRad0to0_25)
-        else:
-            assert _anglePiRad0to0_25Tmp._dtype == HFloatTmp, (_anglePiRad0to0_25Tmp._dtype, T)
-            _anglePiRad0to0_25 = _anglePiRad0to0_25Tmp._auto_cast(T_OCT_NORM)._auto_cast(T_INTERNAL)._auto_cast(HFloatTmp)
-
-        return swapXY, negateX, negateY, _anglePiRad0to0_25, T_INTERNAL
-
-    def cosSinPi(self, anglePiRadAnyRange: ANY_FP_VALUE) -> tuple[ANY_FP_VALUE, ANY_FP_VALUE]:
+    def cosSinPi(self, anglePiRadAnyRange: ANY_FP_VALUE, isSim:bool=False) -> tuple[ANY_FP_VALUE, ANY_FP_VALUE]:
         """
         same as :meth:`~.cosSin` just angle in in pi radians (2 = 360°)
         """
         mode = CORDIC_MODE.ROTATION
         coordinateMode = CORDIC_COORDINATE_MODE.CIRCULAR
         STAGES_IN_LUT = self.STAGES_IN_LUT
-        T = None if isinstance(anglePiRadAnyRange, float) else anglePiRadAnyRange._dtype
+        if isinstance(anglePiRadAnyRange, float):
+            T = None
+            T_INTERNAL = None
+        else:
+            T = anglePiRadAnyRange._dtype
+            T_INTERNAL = self._getInternalType(T)
 
-        swapXY, negateX, negateY, _anglePiRad0to0_25, T_INTERNAL = PyBytecodeInline(self._normalizeAnglePiRads0to0_25)(anglePiRadAnyRange)
+        swapXY, negateX, negateY, _anglePiRad0to0_25Tmp = PyBytecodeInline(normalizeAnglePiRads0to0_25)(anglePiRadAnyRange)
+        if T is None:
+            _anglePiRad0to0_25 = _anglePiRad0to0_25Tmp
+        else:
+            _anglePiRad0to0_25 = _anglePiRad0to0_25Tmp\
+                ._explicit_cast(T_INTERNAL)\
+                ._explicit_cast(HFloatTmp)
 
         _thetaROM = self.getThetaROM(coordinateMode, scale=1. / math.pi)
         K = self.getK_forNoDivCosSin()
@@ -537,7 +474,7 @@ class Cordic():
 
         if swapXY:
             PyBytecodeBlockLabel("Cordic.cosSinPi.swapXY")
-            if T_INTERNAL is None:
+            if isSim:
                 copy = lambda x: x
             else:
                 # the copy is necessary because otherwise both will be y_final because we are working with references
@@ -554,7 +491,7 @@ class Cordic():
         PyBytecodeBlockLabel("Cordic.cosSinPi.finalization")
         return self._castOutputs(x_final, y_final, T, T_INTERNAL)
 
-    def cosSin(self, _angleRad: ANY_FP_VALUE) -> tuple[ANY_FP_VALUE, ANY_FP_VALUE]:
+    def cosSin(self, _angleRad: ANY_FP_VALUE, isSim: bool=False) -> tuple[ANY_FP_VALUE, ANY_FP_VALUE]:
         """
         Compute (cos(angle), sin(angle)) using a hybrid LUT/CORDIC approach.
 
@@ -562,20 +499,33 @@ class Cordic():
         
         :returns: tuple (cos(angle), sin(angle))
         """
-
+        dbgLogFile = self.dbgLogFile
         STAGES_IN_LUT = self.STAGES_IN_LUT
         if STAGES_IN_LUT or (\
-             not isinstance(_angleRad, RtlSignalBase) and\
-             not isinstance(_angleRad._dtype, HFixedPointQ) and\
-            _angleRad._dtype.int_bit_length <= 1):
+             not isinstance(_angleRad, RtlSignalBase) or\
+             (isinstance(_angleRad._dtype, HFixedPointQ) and\
+              _angleRad._dtype.int_bit_length >= 1)):
             # if is not Q1.x the input may be out of range of cordic
             # rather than native range reduction to 1 to pi/4 radians it is more easy to convert it to pi*radians
             # and perform reduction there
 
             # divide by pi at the input because we would have to do this anyway to resolve index to LUT
             # or to normalize input to correct octants
-            anglePiRadAnyRange = radsToPiRads(_angleRad)
-            return PyBytecodeInline(self.cosSinPi)(anglePiRadAnyRange)
+            T = _angleRad._dtype
+
+            # T_INTERNAL = self._getInternalType(T)
+            # for rounding during multiplication of in radsToPiRads
+            T_TO_PIRAD_MUL = T._createMutated(frac_bit_length=T.frac_bit_length + 1, rounding=HFloatTmpRounding.ROUND_C_DEFAULT)
+            # T_TO_PIRAD_MUL = T._createMutated(frac_bit_length=T_INTERNAL.frac_bit_length, rounding=HFloatTmpRounding.ROUND_C_DEFAULT)
+            _angleRadWidened = _angleRad \
+                ._explicit_cast(T_TO_PIRAD_MUL)  \
+                ._explicit_cast(HFloatTmp)
+            anglePiRadAnyRange = radsToPiRads(_angleRadWidened)\
+                ._explicit_cast(T_TO_PIRAD_MUL)\
+                ._explicit_cast(T)
+            if dbgLogFile is not None:
+                hwSimPrint("anglePiRadAnyRange: ", anglePiRadAnyRange, file=dbgLogFile)
+            return PyBytecodeInline(self.cosSinPi)(anglePiRadAnyRange, isSim=isSim)
 
         else:
             # only normalized Q1.x
@@ -593,6 +543,9 @@ class Cordic():
                 angleRad = _angleRad._explicit_cast(T_INTERNAL)._explicit_cast(HFloatTmp)
                 _f = HFloatTmp.from_py
                 thetaROM = HFloatTmp[len(_thetaROM)].from_py(_thetaROM)
+
+            if dbgLogFile is not None:
+                hwSimPrint("angleRad: ", angleRad, file=dbgLogFile)
 
             assert len(thetaROM) == self.ITERATION_COUNT
             # Compute overall gain K.

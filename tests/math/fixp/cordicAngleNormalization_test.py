@@ -11,13 +11,10 @@ from hwtHls.architecture.componentGenerators.baseALU1HwModule import _BaseALU1Hw
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.llvm.llvmIr import HFloatTmpRounding, HFloatTmpSaturation
-from tests.math.fixp.cordicAngleNormalization import anglePiRadsTo0_to_2, \
-    getOctantPiRads, normalizeOctantPiradsTo0_to_0_25, \
-    cordic_withNormalization0_to_0_25
+from tests.math.fixp.cordicAngleNormalization import cordic_withNormalization0_to_0_25, normalizeAnglePiRads0to0_25
 from tests.math.fixp.fixpOperatorsCommonArith_test import FixpAdd_TC
 from tests.math.fixp.fixpOperatorsTrigonometric_test import FixpSinNoLutUnroll_TC
 from tests.math.fixp.fixpTypes import HFixedPointQ
-from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 
 
 class _CordicAngleNormalizationTestModule(_BaseALU1HwModule):
@@ -43,25 +40,14 @@ class _CordicAngleNormalizationTestModule(_BaseALU1HwModule):
     @hlsBytecode
     def aluFn(self, _inp):
         T = self.T
-        anglePiRad = _inp._reinterpret_cast(T)._auto_cast(HFloatTmp)
-        _anglePiRadTmp = PyBytecodeInline(anglePiRadsTo0_to_2)(anglePiRad)
-        if isinstance(T, HFixedPointQ) and (T.int_bit_length > 2 or T.signed):
-            # needs range reduction
-            _anglePiRad0to2 = _anglePiRadTmp._auto_cast(T)._auto_cast(T._createMutated(int_bit_length=2, signed=False))
-            T = _anglePiRad0to2._dtype
-        else:
-            _anglePiRad0to2 = _anglePiRadTmp
+        anglePiRad = _inp._reinterpret_cast(T)
 
-        octant = getOctantPiRads(_anglePiRad0to2)
-        octantNormTy = _anglePiRad0to2._dtype._createMutated(int_bit_length=3, signed=True)
-        anglePiRad0to2 = _anglePiRad0to2._auto_cast(octantNormTy)._auto_cast(HFloatTmp)
-
-        swapXY, negateX, negateY, _anglePiRad0to0_25Tmp = PyBytecodeInline(normalizeOctantPiradsTo0_to_0_25)(
-            octant, anglePiRad0to2)
-        _anglePiRad0to0_25 = _anglePiRad0to0_25Tmp._auto_cast(octantNormTy)
+        swapXY, negateX, negateY, _anglePiRad0to0_25 = PyBytecodeInline(normalizeAnglePiRads0to0_25)(anglePiRad)
 
         resTmp = self._getTypeOfIo(self.data_out).from_py(None)
-        resTmp.value = _anglePiRad0to0_25._auto_cast(T)._reinterpret_cast(resTmp.value._dtype)
+        resTmp.value = _anglePiRad0to0_25._explicit_cast(T)\
+            ._explicit_cast(HFixedPointQ(2, T.frac_bit_length, signed=False))\
+            ._reinterpret_cast(resTmp.value._dtype)
         resTmp.swapXY = swapXY
         resTmp.negateX = negateX
         resTmp.negateY = negateY
