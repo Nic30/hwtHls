@@ -26,7 +26,10 @@ class ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary(ComponentGenerator)
 
     @override
     def llvmIrInterpretDecode(self, interpret:"LlvmIrInterpret", instr:Instruction) -> LlvmIrInstrFunction:
-        cfg: HFloatTmpConfig = HFloatTmpConfig.fromCallArgs(InstructionToCallInst(instr), 1)
+        try:
+            cfg: HFloatTmpConfig = HFloatTmpConfig.fromCallArgs(InstructionToCallInst(instr), 1)
+        except:
+            raise AssertionError("Malformed HFloatTmpConfig operands in instruction", instr, HFloatTmpConfig.MEMBER_CNT)
         resUndef = HBits(cfg.getBitWidth()).from_py(None)
         _v, = interpret._decodeInstArguments((instr.getOperand(0),))
         vIsConst = isinstance(_v, HConst)
@@ -64,7 +67,10 @@ class ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary_binResult(Component
 
     @override
     def llvmIrInterpretDecode(self, interpret:"LlvmIrInterpret", instr:Instruction) -> LlvmIrInstrFunction:
-        cfg: HFloatTmpConfig = HFloatTmpConfig.fromCallArgs(InstructionToCallInst(instr), 1)
+        try:
+            cfg: HFloatTmpConfig = HFloatTmpConfig.fromCallArgs(InstructionToCallInst(instr), 1)
+        except:
+            raise AssertionError("Malformed HFloatTmpConfig operands in instruction", instr, HFloatTmpConfig.MEMBER_CNT)
         resUndef = HBits(cfg.getBitWidth()).from_py(None)
         _v, = interpret._decodeInstArguments((instr.getOperand(0),))
         vIsConst = isinstance(_v, HConst)
@@ -110,7 +116,10 @@ class ComponentGeneratorForSpecializedHwtHlsFpIntrinsicBinary_FloatFloat(Compone
     @override
     def llvmIrInterpretDecode(self, interpret:"LlvmIrInterpret", instr:Instruction) -> LlvmIrInstrFunction:
         ops = interpret._decodeInstArguments((instr.getOperand(0), instr.getOperand(1)))
-        cfg: HFloatTmpConfig = HFloatTmpConfig.fromCallArgs(InstructionToCallInst(instr), 2)
+        try:
+            cfg: HFloatTmpConfig = HFloatTmpConfig.fromCallArgs(InstructionToCallInst(instr), 2)
+        except:
+            raise AssertionError("Malformed HFloatTmpConfig operands in instruction", instr, HFloatTmpConfig.MEMBER_CNT)
         resUndef = HBits(cfg.getBitWidth()).from_py(None)
         evalFn = self.evalFn
 
@@ -146,7 +155,10 @@ class ComponentGeneratorForSpecializedHwtHlsFpIntrinsicBinary_FloatInt(Component
     @override
     def llvmIrInterpretDecode(self, interpret:"LlvmIrInterpret", instr:Instruction) -> LlvmIrInstrFunction:
         ops = interpret._decodeInstArguments((instr.getOperand(0), instr.getOperand(1)))
-        cfg: HFloatTmpConfig = HFloatTmpConfig.fromCallArgs(InstructionToCallInst(instr), 2)
+        try:
+            cfg: HFloatTmpConfig = HFloatTmpConfig.fromCallArgs(InstructionToCallInst(instr), 2)
+        except:
+            raise AssertionError("Malformed HFloatTmpConfig operands in instruction", instr, HFloatTmpConfig.MEMBER_CNT)
         resUndef = HBits(cfg.getBitWidth()).from_py(None)
         evalFn = self.evalFn
 
@@ -172,7 +184,10 @@ class ComponentGeneratorForSpecializedHwtHlsFpIntrinsicBinary_FloatInt(Component
         return _intrinsic_specialized_BinOperator_FloatInt
 
     def llvmMirInterpretDecode(self, interpret: LlvmMirInterpret, MRI: MachineRegisterInfo, instr: MachineInstr, rhsIsSigned=False, evalFn=None) -> LlvmMirInstrFunction:
-        cfg: HFloatTmpConfig = HFloatTmpConfig.fromMachineInstrOperands(instr, 3)
+        try:
+            cfg: HFloatTmpConfig = HFloatTmpConfig.fromMachineInstrOperands(instr, 3)
+        except:
+            raise AssertionError("Malformed HFloatTmpConfig operands in instruction", instr, HFloatTmpConfig.MEMBER_CNT)
         dst, _src0, _src1 = interpret._decodeInstArguments(MRI, instr, (instr.getOperand(0), instr.getOperand(1), instr.getOperand(2)))
         src0IsConst = isinstance(_src0, HConst)
         src1IsConst = isinstance(_src1, HConst)

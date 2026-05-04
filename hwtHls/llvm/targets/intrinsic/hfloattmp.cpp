@@ -7,6 +7,7 @@
 #include <hwtHls/llvm/bitMath.h>
 
 #include <math.h>
+#include <stdexcept>
 
 using namespace llvm;
 
@@ -559,13 +560,17 @@ llvm::APFloat HFloatTmpConfig::bitCastHFloatTmpAPIntToAPFloat(
 }
 
 static uint64_t extractConstIntFromArg(User::op_iterator &A,
-		User::op_iterator AEnd) {
-	assert(A != AEnd);
+									   User::op_iterator AEnd) {
+	if (A == AEnd) {
+		throw std::runtime_error(
+			"HFloatTmpConfig: not enough operands to extract HFloatTmpConfig");
+	}
 	auto c = dyn_cast<ConstantInt>(A->get());
 	A++;
-	assert(
-			c
-					&& "Arguments specifying HFloatTmpConfig members should be only constant integers");
+	if (!c)
+		throw std::runtime_error(
+			"HFloatTmpConfig: Arguments specifying HFloatTmpConfig members "
+			"should be only constant integers");
 	return c->getZExtValue();
 }
 
