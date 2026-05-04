@@ -57,3 +57,10 @@ In eclipse.ini allow more memory for JVM by appending
   Debug build of LLVM + Debug build of hwtHls = 70s
   Release build of LLVM + Debug build of hwtHls = 2s
 
+* Quick debugging profile execution in Eclipse 2026-06 
+  * Previously lastly executed profile stayed in target selection but now the toolbar was removed
+    and replaced by View.
+  * For debugging of custom targets which do not have file (for example C++ debugging of python module)
+    this means that with default prespective one must always click trough all GUI select elements to find
+    the desired target, likely Launch Configurations view is there to avoid that.
+  * Find Action (Ctrl+3) -> Launch Configurations (debug)
