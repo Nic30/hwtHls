@@ -135,7 +135,8 @@ let hasSideEffects = 0 in {
     def HWTFPGA_FP_TANPI: HwtFpgaFpUn;
     def HWTFPGA_FP_ATAN: HwtFpgaFpUn;
     def HWTFPGA_FP_TANH: HwtFpgaFpUn;
-    def HWTFPGA_FP_ATAN2: HwtFpgaFpBinBinRes;
+    def HWTFPGA_FP_ATAN2: HwtFpgaFpBin;
+    // :note: return order is sin(x), cos(x) as name suggests https://llvm.org/docs/LangRef.html#llvm-sincos-intrinsic
     def HWTFPGA_FP_SINCOS: HwtFpgaFpUnBinRes;
     def HWTFPGA_FP_SINCOSPI: HwtFpgaFpUnBinRes;
     def HWTFPGA_FP_ASINCOS: HwtFpgaFpUnBinRes;
