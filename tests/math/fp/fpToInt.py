@@ -22,10 +22,7 @@ def IEEE754FpToInt(a: RtlSignalBase[IEEE754Fp], res: RtlSignalBase[HBits], dbgUs
     if extendBitCnt <= 0:
         raise NotImplementedError("Result has fewer bits than mantissa")
 
-    res = Concat(BIT.from_py(1), a.mantissa, HBits(extendBitCnt).from_py(0))
-    if resIsSigned:
-        res = res._signed()
-
+    res = Concat(BIT.from_py(1), a.mantissa, HBits(extendBitCnt).from_py(0))._cast_sign(resIsSigned)
     resW = res._dtype.bit_length()
     exponent = a.exponent
     if resIsSigned:

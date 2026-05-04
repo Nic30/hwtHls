@@ -145,7 +145,7 @@ def getOctantPiRads(anglePiRads: Union[HBitsRtlSignal, float]) -> ANY_FP_VALUE:
                         saturation=HFloatTmpSaturation.SATURATE_NONE,
                         rounding=HFloatTmpRounding.ROUND_FLOOR)
     return anglePiRads\
-            ._auto_cast(Q2_2)\
+            ._explicit_cast(Q2_2)\
             ._reinterpret_cast(HBits(4))[3:]
 
 

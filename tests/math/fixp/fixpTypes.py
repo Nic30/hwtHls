@@ -204,30 +204,30 @@ class HFixedPointQ(HdlType):
     @internal
     @override
     @classmethod
-    def get_auto_cast_HConst_fn(cls):
-        from tests.math.fixp.fixpCast import HFixedPointQ_auto_cast
-        return HFixedPointQ_auto_cast
+    def get_explicit_cast_HConst_fn(cls):
+        from tests.math.fixp.fixpCast import HFixedPointQ_explicit_cast
+        return HFixedPointQ_explicit_cast
 
     @internal
     @override
     @classmethod
-    def get_auto_cast_RtlSignal_fn(cls):
-        from tests.math.fixp.fixpCast import HFixedPointQ_auto_cast
-        return HFixedPointQ_auto_cast
+    def get_explicit_cast_RtlSignal_fn(cls):
+        from tests.math.fixp.fixpCast import HFixedPointQ_explicit_cast
+        return HFixedPointQ_explicit_cast
 
     @internal
     @override
     @classmethod
-    def get_reverse_auto_cast_HConst_fn(cls):
-        from tests.math.fixp.fixpCast import HFixedPointQ_reverse_auto_cast_HConst
-        return HFixedPointQ_reverse_auto_cast_HConst
+    def get_reverse_explicit_cast_HConst_fn(cls):
+        from tests.math.fixp.fixpCast import HFixedPointQ_reverse_explicit_cast_HConst
+        return HFixedPointQ_reverse_explicit_cast_HConst
 
     @internal
     @override
     @classmethod
-    def get_reverse_auto_cast_RtlSignal_fn(cls):
-        from tests.math.fixp.fixpCast import HFixedPointQ_reverse_auto_cast_RtlSignal
-        return HFixedPointQ_reverse_auto_cast_RtlSignal
+    def get_reverse_explicit_cast_RtlSignal_fn(cls):
+        from tests.math.fixp.fixpCast import HFixedPointQ_reverse_explicit_cast_RtlSignal
+        return HFixedPointQ_reverse_explicit_cast_RtlSignal
 
     @internal
     @override

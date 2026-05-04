@@ -84,10 +84,12 @@ class FixpSinCosCordic(_BaseALU1HwModule):
         cordic = Cordic(self.ITERATION_COUNT, self.STAGES_IN_LUT, loopPragmaGetter=lambda: _BaseALU1HwModule._getLoopMeta(self))
 
         inp = _inp._reinterpret_cast(T)
-        res = PyBytecodeInline(cordic.cosSin)(inp)
+        _cos, _sin = PyBytecodeInline(cordic.cosSin)(inp)
         resTmp = self._getTypeOfIo(self.data_out).from_py(None)
-        resTmp.cos = res[0]._auto_cast(T)._reinterpret_cast(resTmp.cos._dtype)
-        resTmp.sin = res[1]._auto_cast(T)._reinterpret_cast(resTmp.sin._dtype)
+        assert isinstance(_cos._dtype, self.T.__class__), (_cos._dtype)
+        assert isinstance(_sin._dtype, self.T.__class__), (_sin._dtype)
+        resTmp.cos = _cos._reinterpret_cast(resTmp.cos._dtype)
+        resTmp.sin = _sin._reinterpret_cast(resTmp.sin._dtype)
         return resTmp
 
 
@@ -235,17 +237,19 @@ class ComponentGeneratorFSINCOS(ComponentGeneratorFp):
 
 @serializeParamsUniq
 class FixpSinCosCordicPi(FixpSinCosCordic):
-
+    
+    @override
     @hlsBytecode
     def aluFn(self, _inp: HBitsRtlSignal):
         T = self.T
         cordic = Cordic(self.ITERATION_COUNT, self.STAGES_IN_LUT, loopPragmaGetter=lambda: _BaseALU1HwModule._getLoopMeta(self))
-
         inp = _inp._reinterpret_cast(T)
-        res = PyBytecodeInline(cordic.cosSinPi)(inp)
+        _cos, _sin = PyBytecodeInline(cordic.cosSinPi)(inp)
         resTmp = _BaseALU1HwModule._getTypeOfIo(self.data_out).from_py(None)
-        resTmp.cos = res[0]._auto_cast(T)._reinterpret_cast(resTmp.cos._dtype)
-        resTmp.sin = res[1]._auto_cast(T)._reinterpret_cast(resTmp.sin._dtype)
+        assert isinstance(_cos._dtype, self.T.__class__), (_cos._dtype)
+        assert isinstance(_sin._dtype, self.T.__class__), (_sin._dtype)
+        resTmp.cos = _cos._reinterpret_cast(resTmp.cos._dtype)
+        resTmp.sin = _sin._reinterpret_cast(resTmp.sin._dtype)
         return resTmp
 
 

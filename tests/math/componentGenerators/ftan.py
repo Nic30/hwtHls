@@ -52,11 +52,11 @@ class TanCordicDivHwModule(_BaseALU1HwModule):
     @hlsBytecode
     def aluFn(self, _inp: HBitsRtlSignal) -> HBitsRtlSignal:
         T = self.T
-        inp = _inp._reinterpret_cast(T)._auto_cast(HFloatTmp)
+        inp = _inp._reinterpret_cast(T)._explicit_cast(HFloatTmp)
         sinVal = sin(inp)
         cosVal = cos(inp)
         tanVal = sinVal / cosVal
-        return tanVal._auto_cast(T)._reinterpret_cast(self._getTypeOfIo(self.data_out))
+        return tanVal._explicit_cast(T)._reinterpret_cast(self._getTypeOfIo(self.data_out))
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
@@ -69,11 +69,11 @@ class TanpiCordicDivHwModule(TanCordicDivHwModule):
     @hlsBytecode
     def aluFn(self, _inp: HBitsRtlSignal) -> HBitsRtlSignal:
         T = self.T
-        inp = _inp._reinterpret_cast(T)._auto_cast(HFloatTmp)
+        inp = _inp._reinterpret_cast(T)._explicit_cast(HFloatTmp)
         sinVal = sinpi(inp)
         cosVal = cospi(inp)
         tanVal = sinVal / cosVal
-        return tanVal._auto_cast(T)._reinterpret_cast(self._getTypeOfIo(self.data_out))
+        return tanVal._explicit_cast(T)._reinterpret_cast(self._getTypeOfIo(self.data_out))
 
 
 class ComponentGeneratorFTAN_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary):

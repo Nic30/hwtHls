@@ -20,7 +20,7 @@ from tests.math.hFloatTmp.hFloatTmpCast import OP_CAST_TO_HFLOATTMP, \
     OP_CAST_FROM_HFLOATTMP
 
 
-def HFixedPointQ_auto_cast(curType: HFixedPointQ, val: Union["HFixedPointQConst", "HFixedPointQRtlSignal"], toType: HdlType):
+def HFixedPointQ_explicit_cast(curType: HFixedPointQ, val: Union["HFixedPointQConst", "HFixedPointQRtlSignal"], toType: HdlType):
     if toType == HFloatTmp:
         cfg = HFloatTmpConfigHdlType.from_py(curType._cfg)
         if isinstance(val, HConst):
@@ -56,7 +56,7 @@ def HFixedPointQ_auto_cast(curType: HFixedPointQ, val: Union["HFixedPointQConst"
     return default_auto_cast_fn(curType, val, toType)
 
 
-def HFixedPointQ_reverse_auto_cast_HConst(toType: HFixedPointQ, val: Union["RtlSignal", "HConst"], fromType: HdlType):
+def HFixedPointQ_reverse_explicit_cast_HConst(toType: HFixedPointQ, val: Union["RtlSignal", "HConst"], fromType: HdlType):
     if isinstance(fromType, HBits):
         cfg: HFloatTmpConfig = toType._cfg
         srcWidth = fromType.bit_length()
@@ -93,43 +93,44 @@ def HFixedPointQ_reverse_auto_cast_HConst(toType: HFixedPointQ, val: Union["RtlS
     return default_reverse_reinterpret_cast_fn(toType, val, fromType)
 
 
-def HFixedPointQ_reverse_auto_cast_RtlSignal(toType: HFixedPointQ, val: Union["RtlSignal", "HConst"], fromType: HdlType):
+def HFixedPointQ_reverse_explicit_cast_RtlSignal(toType: HFixedPointQ, val: Union["RtlSignal", "HConst"], fromType: HdlType):
     if isinstance(fromType, HBits):
         if isinstance(val, HwIOBase):
             val = val._sig
         cfg = HFloatTmpConfigHdlType.from_py(toType._cfg)
-        return HOperatorNode.withRes(OP_AUTO_CAST_HBITS_TO_HFIXEDPOINTQ, (val, BIT.from_py(bool(fromType.signed)), cfg),
+        return HOperatorNode.withRes(OP_EXPLICIT_CAST_HBITS_TO_HFIXEDPOINTQ, (val, BIT.from_py(bool(fromType.signed)), cfg),
             toType)
 
     return default_reverse_reinterpret_cast_fn(toType, val, fromType)
 
 
-def HBits_auto_cast_to_HFixedPointQ_llvm(ctx: LlvmCompilationBundle, b:IRBuilder, instr: HOperatorNode, srcArg: Value, srcIsSigned:Value, dstCfg: HFloatTmpConfig, name: Twine) -> Value:
+def HBits_explicit_cast_to_HFixedPointQ_llvm(ctx: LlvmCompilationBundle, b:IRBuilder, instr: HOperatorNode, srcArg: Value, srcIsSigned:Value, dstCfg: HFloatTmpConfig, name: Twine) -> Value:
     srcTy = srcArg.getType()
     _srcIsSigned = ValueToConstantInt(srcIsSigned)
     assert _srcIsSigned is not None, (srcIsSigned, "must be ConstantInt")
 
-    srcCfg = HFloatTmpConfig(True, srcTy.getIntegerBitWidth(), 0, False, 
+    srcCfg = HFloatTmpConfig(True, srcTy.getIntegerBitWidth(), 0, False,
                              _srcIsSigned.getValue().getZExtValue(),
                              saturation=HFloatTmpSaturation.SATURATE_NONE,
                              rounding=HFloatTmpRounding.ROUND_FLOOR)
     return b.CreateCastHFloatTmpToHFloatTmpRaw(srcArg, srcCfg, dstCfg, name)
 
 
-def _OP_AUTO_CAST_HBITS_TO_HFIXEDPOINTQ_fn(x, dstCfg: _HFloatTmpConfigHdlTypeConst):
+def _OP_EXPLICIT_CAST_HBITS_TO_HFIXEDPOINTQ_fn(x, dstCfg: _HFloatTmpConfigHdlTypeConst):
     raise NotImplementedError()
 
 
 # int to fixed (value stays as llvm integer)
-OP_AUTO_CAST_HBITS_TO_HFIXEDPOINTQ = HOperatorDefLlvm(_OP_AUTO_CAST_HBITS_TO_HFIXEDPOINTQ_fn,
-                                                      HBits_auto_cast_to_HFixedPointQ_llvm, False,
-                                                      idStr="OP_AUTO_CAST_HBITS_TO_HFIXEDPOINTQ")
+OP_EXPLICIT_CAST_HBITS_TO_HFIXEDPOINTQ = HOperatorDefLlvm(_OP_EXPLICIT_CAST_HBITS_TO_HFIXEDPOINTQ_fn,
+                                                      HBits_explicit_cast_to_HFixedPointQ_llvm, False,
+                                                      idStr="OP_EXPLICIT_CAST_HBITS_TO_HFIXEDPOINTQ")
 
 
 def HFixedPointQ_reinterpret_cast_HConst(curType: HFixedPointQ, val: "HFixedPointQConst", toType: HdlType):
     if isinstance(toType, HBits) and toType.bit_length() == curType.bit_length():
         assert isinstance(val.val, int), "expected raw bits of value in HFixedPointQConst val attribute"
-        return toType.from_py(val.val, val.vld_mask)
+        v = val.val if not toType.signed else to_signed(val.val, toType.bit_length())
+        return toType.from_py(v, val.vld_mask)
 
     return default_reinterpret_cast_fn(curType, val, toType)
 

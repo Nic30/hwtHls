@@ -60,26 +60,26 @@ class IEEE754FpValue():
     @override
     def __add__(self, other):
         other = toHVal(other, HFloatTmp)
-        res = fadd(self._auto_cast(HFloatTmp), other._auto_cast(HFloatTmp))
-        return res._auto_cast(self._dtype)
+        res = fadd(self._explicit_cast(HFloatTmp), other._explicit_cast(HFloatTmp))
+        return res._explicit_cast(self._dtype)
 
     @override
     def __sub__(self, other):
         other = toHVal(other, HFloatTmp)
-        res = fsub(self._auto_cast(HFloatTmp), other._auto_cast(HFloatTmp))
-        return res._auto_cast(self._dtype)
+        res = fsub(self._explicit_cast(HFloatTmp), other._explicit_cast(HFloatTmp))
+        return res._explicit_cast(self._dtype)
 
     @override
     def __mul__(self, other):
         other = toHVal(other, HFloatTmp)
-        res = fmul(self._auto_cast(HFloatTmp), other._auto_cast(HFloatTmp))
-        return res._auto_cast(self._dtype)
+        res = fmul(self._explicit_cast(HFloatTmp), other._explicit_cast(HFloatTmp))
+        return res._explicit_cast(self._dtype)
 
     @override
     def __truediv__(self, other):
         other = toHVal(other, HFloatTmp)
-        res = fdiv(self._auto_cast(HFloatTmp), other._auto_cast(HFloatTmp))
-        return res._auto_cast(self._dtype)
+        res = fdiv(self._explicit_cast(HFloatTmp), other._explicit_cast(HFloatTmp))
+        return res._explicit_cast(self._dtype)
 
 
 class IEEE754FpHConst(HStructConstBase, IEEE754FpValue):
@@ -225,15 +225,15 @@ class IEEE754Fp(HStruct):
 
     @internal
     @classmethod
-    def get_auto_cast_HConst_fn(cls):
-        from tests.math.fp.fptypesCast import auto_cast_IEEE754Fp
-        return auto_cast_IEEE754Fp
+    def get_explicit_cast_HConst_fn(cls):
+        from tests.math.fp.fptypesCast import IEEE754Fp_explicit_cast
+        return IEEE754Fp_explicit_cast
 
     @internal
     @classmethod
-    def get_auto_cast_RtlSignal_fn(cls):
-        from tests.math.fp.fptypesCast import auto_cast_IEEE754Fp
-        return auto_cast_IEEE754Fp
+    def get_explicit_cast_RtlSignal_fn(cls):
+        from tests.math.fp.fptypesCast import IEEE754Fp_explicit_cast
+        return IEEE754Fp_explicit_cast
 
     @hlsBytecode
     def getSpecialExponent(self):

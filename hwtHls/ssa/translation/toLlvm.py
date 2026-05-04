@@ -4,7 +4,7 @@ from typing import Union, Sequence, Callable, Optional
 from hwt.constants import NOT_SPECIFIED
 from hwt.hdl.const import HConst
 from hwt.hdl.operator import HOperatorNode
-from hwt.hdl.operatorDefs import HwtOps, HOperatorDef
+from hwt.hdl.operatorDefs import HwtOps, HOperatorDef, CAST_OPS
 from hwt.hdl.portItem import HdlPortItem
 from hwt.hdl.statements.assignmentContainer import HdlAssignmentContainer
 from hwt.hdl.types.array import HArray
@@ -767,7 +767,7 @@ class ToLlvmIrTranslator(AnalysisCache[SsaAnalysisPass, SsaPass]):
 
         else:
             block, args = self._translateExprsToLlvm(block, operands)
-            if operator in (HwtOps.BitsAsSigned, HwtOps.BitsAsUnsigned, HwtOps.BitsAsVec):
+            if operator in CAST_OPS:
                 op0, = args
                 # LLVM uses sign/unsigned variants of instructions and does not have signed/unsigned as a part of type or variable
                 return block, op0
@@ -831,6 +831,6 @@ class ToLlvmIrTranslator(AnalysisCache[SsaAnalysisPass, SsaPass]):
                 if constructor_fn is not None:
                     return block, constructor_fn(self.llvm, b, instr, *args, name)
 
-                assert len(operands) == 2, instr
+                assert len(operands) == 2, (operator, instr)
                 _opConstructorMapCmp = self._opConstructorMapCmp
                 return block, _opConstructorMapCmp[operator](*args, name)

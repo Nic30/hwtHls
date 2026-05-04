@@ -68,6 +68,7 @@ def fdiv(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HFloatTmp]) -> RtlSig
 
 OP_FDIV = HOperatorDefLlvm(fdiv, _getllvmFp2OpConstructor(lambda b: b.CreateFDiv), False, idStr="OP_FDIV")
 
+
 # https://github.com/gpuweb/gpuweb/issues/1696
 # FRem "The floating-point remainder whose sign matches the sign of Operand 1."
 # FMod "The floating-point remainder whose sign matches the sign of Operand 2."
@@ -463,6 +464,7 @@ def sqrt(op0: RtlSignalBase[Union[HFloatTmp, HBits]]) -> RtlSignalBase[Union[HFl
         w = t.bit_length()
         if w % 2 != 0:
             w += 1  # width must be %2 == 0
+        # w // 2 because sqrt reduces bitwidth ov value by this scale
         resTy = HBits(w // 2, signed=False)
 
         if isinstance(op0, HBitsConst):
@@ -477,9 +479,9 @@ def sqrt(op0: RtlSignalBase[Union[HFloatTmp, HBits]]) -> RtlSignalBase[Union[HFl
 
             # reuse HFixedPointQ sqrt
             fixPTy = HFixedPointQ(w, 0, False)
-            op0 = op0._reinterpret_cast(fixPTy)._auto_cast(HFloatTmp)
+            op0 = op0._reinterpret_cast(fixPTy)._explicit_cast(HFloatTmp)
             res = HOperatorNode.withRes(OP_FSQRT, (op0,), HFloatTmp)
-            return res._auto_cast(fixPTy)._reinterpret_cast(resTy)
+            return res._auto_cast(fixPTy)._auto_cast(HFixedPointQ(w // 2, 0, False))._reinterpret_cast(resTy)
 
     valSpecificFn = getattr(op0, "sqrt", None)
     if valSpecificFn is not None:

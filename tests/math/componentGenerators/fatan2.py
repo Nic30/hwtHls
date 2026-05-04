@@ -78,10 +78,11 @@ class FixpAtan2HypotCordic(FixpSinCosCordic):
         res = PyBytecodeInline(self.getAtan2Function(cordic))(inpY, inpX)
         resTmp = self._getTypeOfIo(self.data_out).from_py(None)
         if self.HAS_ATAN2:
-            resTmp.atan2 = res[0]._auto_cast(T)._reinterpret_cast(resTmp.atan2._dtype)
+            resTmp.atan2 = res[0]._explicit_cast(T)._reinterpret_cast(resTmp.atan2._dtype)
         if self.HAS_HYPOT:
-            resTmp.hypot = res[1]._auto_cast(T)._reinterpret_cast(resTmp.hypot._dtype)
+            resTmp.hypot = res[1]._explicit_cast(T)._reinterpret_cast(resTmp.hypot._dtype)
         return resTmp
+
 
 # class ComponentGeneratorFATAN2HYPOT_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicBinary_binResult):
 #

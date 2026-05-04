@@ -85,7 +85,7 @@ def prefixSum1bFenwickTree(vec: list[AnyHBitsValue]) -> list[AnyHBitsValue]:
 #    else:
 #        leftRes = ctpop_fn(num[w // 2:], bitsToLookupInROM=bitsToLookupInROM)
 #        rightRes = ctpop_fn(num[:w // 2], bitsToLookupInROM=bitsToLookupInROM)
-#        res = leftRes._reinterpret_cast(res._dtype) + rightRes._reinterpret_cast(res._dtype)
+#        res = leftRes._explicit_cast(res._dtype) + rightRes._explicit_cast(res._dtype)
 #
 #    return res
 

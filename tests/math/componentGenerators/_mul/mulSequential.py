@@ -43,8 +43,8 @@ class PipelinedMultiplierSequential(_BaseALU1HwModule):
             }
             Done: (N+M)-bit result in {P, B}
         """
-        A = inp.a
-        B = inp.b
+        A = inp.a._cast_sign(False)
+        B = inp.b._cast_sign(False)
         N = A._dtype.bit_length()
         M = B._dtype.bit_length()
         P = HBits(N + M).from_py(0)

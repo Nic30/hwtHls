@@ -7,7 +7,7 @@ from hwt.hdl.operator import HOperatorNode
 from tests.math.hFloatTmp.hFloatTmpCast import OP_CAST_TO_HFLOATTMP
 
 
-def auto_cast_IEEE754Fp(curType: IEEE754Fp, val: Union["IEEE754FpConst", HwIOStruct, "IEEE754FpRtlSignal"], toType: HdlType):
+def IEEE754Fp_explicit_cast(curType: IEEE754Fp, val: Union["IEEE754FpConst", HwIOStruct, "IEEE754FpRtlSignal"], toType: HdlType):
     if toType == HFloatTmp:
         cfg = HFloatTmpConfigHdlType.from_py(curType._cfg)
         # if isinstance(val, RtlSignalBase):

@@ -114,13 +114,13 @@ class FixpExp():
         if isCompileTimeEvaluated:
             xAsFloat = float(x)
         else:
-            xAsFloat = x._auto_cast(HFloatTmp)
+            xAsFloat = x._explicit_cast(HFloatTmp)
 
         xRaw = x._reinterpret_cast(HBits(numWidth))
         res = _f(1.0)
         xNegative = xAsFloat < 0.0
         if maxIntBitsUntilAlwaysOverlows != t.int_bit_length and xAsFloat > (2. ** maxIntBitsUntilAlwaysOverlows):
-            res = t.getMaxValue()
+            res = t.getMaxValue()._explicit_cast(HFloatTmp)
         else:
             xRawInv = -xRaw
             # query each table with bits extracted from input value and compute product of all results
@@ -168,7 +168,7 @@ class FixpExp():
                     res *= v
                 del v
         try:
-            return res._auto_cast(t)
+            return res._explicit_cast(t)
         except:
             return t.getMaxValue()
 

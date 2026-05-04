@@ -49,7 +49,7 @@ class BramRead2R(HwModule):
         addrT = HBits(self.ADDR_WIDTH)
         i = HBits(self.ADDR_WIDTH - 1).from_py(0)
         while b1:
-            iAsAddr = i._reinterpret_cast(addrT)
+            iAsAddr = i._explicit_cast(addrT)
             d0 = ram.read(iAsAddr).data
             d1 = ram.read(iAsAddr + (1 << (self.ADDR_WIDTH - 1))).data
             # :note: mayBecomeFlushable=False would lead to much more simple circuit, but

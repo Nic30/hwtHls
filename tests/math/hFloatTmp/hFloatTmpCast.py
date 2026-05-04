@@ -79,12 +79,14 @@ def _llvmCastToHFloatTmp(ctx: LlvmCompilationBundle, b:IRBuilder, instr: HOperat
 OP_CAST_TO_HFLOATTMP = HOperatorDefLlvm(castToHFloatTmp, _llvmCastToHFloatTmp, False, idStr="OP_CAST_TO_HFLOATTMP")
 
 
-def castFromHFloatTmp(op: RtlSignalBase[Union[IEEE754Fp, HFixedPointQ, HBits]], t: Union[IEEE754Fp, HFixedPointQ, HBits]) \
+def castFromHFloatTmp(op: Union[HConst, RtlSignalBase[Union[IEEE754Fp, HFixedPointQ, HBits]]],
+                      isConst: bool,
+                      t: Union[IEEE754Fp, HFixedPointQ, HBits]) \
         ->Union[RtlSignalBase[HFloatTmp], HConst[HFloatTmp]]:
     assert op._dtype == HFloatTmp, (op, op._dtype)
     cfg = _extractHFloatTmpParamsFromFriendType(t)
     cfg = HFloatTmpConfigHdlType.from_py(cfg)
-    if isinstance(op, HConst):
+    if isConst:
         return t.from_py(float(op) if op._is_full_valid() else None)
 
     elif isinstance(t, HStruct):
@@ -102,7 +104,7 @@ def _llvmCastFromHFloatTmp(ctx: LlvmCompilationBundle, b:IRBuilder, instr: HOper
     return b.CreateCastFromHFloatTmp(srcArg, cfg, name)
 
 
-OP_CAST_FROM_HFLOATTMP = HOperatorDefLlvm(castFromHFloatTmp, _llvmCastFromHFloatTmp, False, idStr="OP_CAST_FROM_HFLOATTMP")
+OP_CAST_FROM_HFLOATTMP = HOperatorDefLlvm(lambda op, t: castFromHFloatTmp(op, isinstance(op, HConst), t), _llvmCastFromHFloatTmp, False, idStr="OP_CAST_FROM_HFLOATTMP")
 
 
 def _llvmCastHFloatTmpToHFloatTmp(ctx: LlvmCompilationBundle, b:IRBuilder, instr: HOperatorNode, srcArg: Value, cfg: _HFloatTmpConfigHdlTypeConst, name: Twine) -> Value:

@@ -39,7 +39,7 @@ class BramWrite(HwModule):
     def mainThread(self, hls: HlsScope, ram: IoProxyBram):
         i = HBits(self.ADDR_WIDTH).from_py(0)
         while b1:
-            hls.write(i._reinterpret_cast(self.ram.din._dtype), ram[i])
+            hls.write(i._explicit_cast(self.ram.din._dtype), ram[i])
             i += 1
 
     def hwImpl(self) -> None:

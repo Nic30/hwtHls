@@ -40,8 +40,8 @@ class Axi4LiteWrite(HwModule):
         i = HBits(self.ADDR_WIDTH).from_py(0)
         t = ram.getDataTypeOfNativeWrite().field_by_name["data"].dtype
         while b1:
-            ram.write(i, i._reinterpret_cast(t))
-            # w.data = i._reinterpret_cast(ram.dataWordT)
+            ram.write(i, i._explicit_cast(t))
+            # w.data = i._explicit_cast(ram.dataWordT)
             # w.strb = mask(w.strb._dtype.bit_length())
             # hls.write(w, ram[i])
             i += 1

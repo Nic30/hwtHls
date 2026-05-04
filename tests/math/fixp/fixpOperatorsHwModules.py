@@ -13,6 +13,7 @@ from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.math.hFloatTmp.hFloatTmpCast import castToHFloatTmp
+from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 
 
 class _FixpUnOpTestModule(HwModule):
@@ -49,7 +50,9 @@ class _FixpUnOpTestModule(HwModule):
             a = castToHFloatTmp(inp.a._reinterpret_cast(T))
 
             res = self.HLS_OP_FN(a)
-            hls.write(res._auto_cast(self.T), self.data_out, mayBecomeFlushable=False)
+            assert res._dtype is HFloatTmp
+            resOut = res._explicit_cast(self.T)
+            hls.write(resOut, self.data_out, mayBecomeFlushable=False)
 
     @override
     def hwImpl(self) -> None:
@@ -87,13 +90,15 @@ class _FixpBinOpTestModule(HwModule):
         T = self.T
         while b1:
             inp = hls.read(self.data_in).data
-            # a = inp.data.a._auto_cast(HFloatTmp)
-            # b = inp.data.b._auto_cast(HFloatTmp)
+            # a = inp.data.a._explicit_cast(HFloatTmp)
+            # b = inp.data.b._explicit_cast(HFloatTmp)
             a = castToHFloatTmp(inp.a._reinterpret_cast(T))
             b = castToHFloatTmp(inp.b._reinterpret_cast(T))
 
             res = self.HLS_OP_FN(a, b)
-            hls.write(res._auto_cast(self.T), self.data_out, mayBecomeFlushable=False)
+            assert res._dtype is HFloatTmp
+            resOut = res._explicit_cast(self.T)
+            hls.write(resOut, self.data_out, mayBecomeFlushable=False)
 
     @override
     def hwImpl(self) -> None:
@@ -137,6 +142,7 @@ class _FixpCmpOpTestModule(HwModule):
             b = castToHFloatTmp(inp.b._reinterpret_cast(T))
 
             res = self.HLS_OP_FN(a, b)
+            assert res._dtype is BIT, (res._dtype, res)
             hls.write(res, self.data_out, mayBecomeFlushable=False)
 
     def hwImpl(self) -> None:
@@ -172,8 +178,9 @@ class _FixpCastOpTestModule(HwModule):
         while b1:
             inp = hls.read(self.data_in).data
             a = inp.a._reinterpret_cast(T)
-            aCasted = a._auto_cast(T_OUT)
-            hls.write(aCasted._reinterpret_cast(T_OUT_RAW), self.data_out, mayBecomeFlushable=False)
+            aCasted = a._explicit_cast(T_OUT)
+            aOutRaw = aCasted._reinterpret_cast(T_OUT_RAW)
+            hls.write(aOutRaw, self.data_out, mayBecomeFlushable=False)
 
     @override
     def hwImpl(self) -> None:

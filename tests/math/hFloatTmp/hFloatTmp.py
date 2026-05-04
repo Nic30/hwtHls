@@ -33,29 +33,29 @@ class _HFloatTmp(HdlType):
 
     @internal
     @classmethod
-    def get_auto_cast_HConst_fn(cls):
+    def get_explicit_cast_HConst_fn(cls):
         from tests.math.hFloatTmp.hFloatTmpCast import castFromHFloatTmp
-        return lambda curTy, cur, newTy: castFromHFloatTmp(cur, newTy)
+        return lambda curTy, cur, newTy: castFromHFloatTmp(cur, True, newTy)
 
     # @internal
     # @override
     # @classmethod
     # def get_reinterpret_cast_HConst_fn(cls):
-    #    from tests.math.hFloatTmpCast import reinterpretBits__HConst
-    #    return reinterpretBits__HConst
+    #    from tests.math.hFloatTmpCast import HBits_reinterpret_cast__HConst
+    #    return HBits_reinterpret_cast__HConst
 
     @internal
     @classmethod
-    def get_auto_cast_RtlSignal_fn(cls):
+    def get_explicit_cast_RtlSignal_fn(cls):
         from tests.math.hFloatTmp.hFloatTmpCast import castFromHFloatTmp
-        return lambda curTy, cur, newTy: castFromHFloatTmp(cur, newTy)
+        return lambda curTy, cur, newTy: castFromHFloatTmp(cur, False, newTy)
 
     # @internal
     # @override
     # @classmethod
     # def get_reinterpret_cast_RtlSignal_fn(cls):
-    #    from tests.math.hFloatTmpCast import reinterpretBits__RtlSignal
-    #    return reinterpretBits__RtlSignal
+    #    from tests.math.hFloatTmpCast import HBits_reinterpret_cast__RtlSignal
+    #    return HBits_reinterpret_cast__RtlSignal
 
     @internal
     @override

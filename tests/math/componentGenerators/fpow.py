@@ -67,8 +67,8 @@ class PowHwModule(TanCordicDivHwModule):
     @hlsBytecode
     def aluFn(self, _inp: HBitsRtlSignal) -> HBitsRtlSignal:
         T = self.T
-        a = _inp.a._reinterpret_cast(T)._auto_cast(HFloatTmp)
-        b = _inp.b._reinterpret_cast(T)._auto_cast(HFloatTmp)
+        a = _inp.a._reinterpret_cast(T)._explicit_cast(HFloatTmp)
+        b = _inp.b._reinterpret_cast(T)._explicit_cast(HFloatTmp)
         # :note: higher precision needs to be used internally to achieve nominal precision of output
         #     Pasca, Bogdan. “Floating-Point Exponentiation Units for Reconfigurable Computing.
         #     ” ACM Transactions on Reconfigurable Technology and Systems, Association for Computing Machinery (ACM), 2013.

@@ -367,10 +367,10 @@ class Cordic():
         # else:
         # convert to fixedpoint to select bits for digits 0.25 and lower STAGES_IN_LUT bits
         index_t = HFixedPointQ(1, 2 + self.STAGES_IN_LUT + 1)
-        indexBits = (_anglePiRad0to0_25._auto_cast(T)
+        indexBits = (_anglePiRad0to0_25._explicit_cast(T)
                      if T is not None else
                      _anglePiRad0to0_25)\
-            ._auto_cast(index_t)\
+            ._explicit_cast(index_t)\
             ._reinterpret_cast(HBits(index_t.bit_length()))
         # from range [0, size] to range [0, size-1]
         #
@@ -496,10 +496,10 @@ class Cordic():
                 z0 = _z0
             else:
                 PyBytecodeBlockLabel("Cordic.cosSinPi.cordicInit")
-                nominal_angle = _nominal_angle._auto_cast(HFloatTmp)
-                x0 = _x0._auto_cast(HFloatTmp)
-                y0 = _y0._auto_cast(HFloatTmp)
-                z0 = _z0._auto_cast(HFloatTmp)
+                nominal_angle = _nominal_angle._explicit_cast(HFloatTmp)
+                x0 = _x0._explicit_cast(HFloatTmp)
+                y0 = _y0._explicit_cast(HFloatTmp)
+                z0 = _z0._explicit_cast(HFloatTmp)
 
             PyBytecodeBlockLabel("Cordic.cosSinPi.z0resolve")
             # The difference between the desired angle and the LUT's nominal angle
@@ -552,15 +552,7 @@ class Cordic():
             y_final = -y_final
 
         PyBytecodeBlockLabel("Cordic.cosSinPi.finalization")
-        if T_INTERNAL is None:
-            return x_final, y_final
-        else:
-            # cast from HFloatTmp to concrete fp type
-            T_INTERNAL_WITH_OUT_ROUND_SAT = T_INTERNAL._createMutated(rounding=T.rounding, saturation=T.saturation)
-            return (
-                x_final._auto_cast(T_INTERNAL)._auto_cast(T_INTERNAL_WITH_OUT_ROUND_SAT),
-                y_final._auto_cast(T_INTERNAL)._auto_cast(T_INTERNAL_WITH_OUT_ROUND_SAT)
-            )
+        return self._castOutputs(x_final, y_final, T, T_INTERNAL)
 
     def cosSin(self, _angleRad: ANY_FP_VALUE) -> tuple[ANY_FP_VALUE, ANY_FP_VALUE]:
         """
@@ -598,7 +590,7 @@ class Cordic():
             else:
                 T = _angleRad._dtype
                 T_INTERNAL = self._getInternalType(T)
-                angleRad = _angleRad._auto_cast(T_INTERNAL)
+                angleRad = _angleRad._explicit_cast(T_INTERNAL)._explicit_cast(HFloatTmp)
                 _f = HFloatTmp.from_py
                 thetaROM = HFloatTmp[len(_thetaROM)].from_py(_thetaROM)
 
@@ -613,15 +605,35 @@ class Cordic():
                 x0, y0, z0,
                 0,
                 thetaROM,  # 0, self.ITERATION_COUNT
-                loopPragmaGetter=self.loopPragmaGetter)
+                loopPragmaGetter=self.loopPragmaGetter, dbgLogFile=dbgLogFile)
 
-            if T is None:
-                # we operate with python float, no need to cast
-                return x_final, y_final
-            else:
-                # cast from HFloatTmp to concrete fp type
-                T_INTERNAL_WITH_OUT_ROUND_SAT = T_INTERNAL._createMutated(rounding=T.rounding, saturation=T.saturation)
-                return (
-                    x_final._auto_cast(T_INTERNAL)._auto_cast(T_INTERNAL_WITH_OUT_ROUND_SAT),
-                    y_final._auto_cast(T_INTERNAL)._auto_cast(T_INTERNAL_WITH_OUT_ROUND_SAT)
-                )
+            return PyBytecodeInline(self._castOutputs)(x_final, y_final, T, T_INTERNAL)
+
+    @hwt_expr_producer
+    def _castOutputs(self, x_final: HFloatTmpRtlSignal, y_final: HFloatTmpRtlSignal, T: Optional[HFixedPointQ], T_INTERNAL: HFixedPointQ):
+        dbgLogFile = self.dbgLogFile
+        if dbgLogFile is not None:
+            hwSimPrint("before final cast: ", x_final, y_final, file=dbgLogFile)
+        if T is None:
+            # we operate with python float, no need to cast
+            return x_final, y_final
+
+        # cast from HFloatTmp to concrete fp type
+        T_INTERNAL_FOR_ROUND_SAT = T_INTERNAL._createMutated(
+            rounding=HFloatTmpRounding.ROUND_C_DEFAULT,
+            saturation=T.saturation)
+        xIntern = x_final._explicit_cast(T_INTERNAL)
+        yIntern = y_final._explicit_cast(T_INTERNAL)
+        xNoSat = xIntern._explicit_cast(T_INTERNAL_FOR_ROUND_SAT)
+        yNoSat = yIntern._explicit_cast(T_INTERNAL_FOR_ROUND_SAT)
+        xOut = xNoSat._explicit_cast(T)
+        yOut = yNoSat._explicit_cast(T)
+        if dbgLogFile is not None:
+            hwSimPrint("T_INTERNAL: ", xIntern, yIntern, file=dbgLogFile)
+            hwSimPrint("T_INTERNAL_WITH_OUT_ROUND_SAT: ", T_INTERNAL_FOR_ROUND_SAT, xNoSat, yNoSat, file=dbgLogFile)
+            hwSimPrint("T: ", T, xOut, yOut, file=dbgLogFile)
+
+        return (
+            # HFloatTmp -> Q extended -> Q without rounding/saturation -> final Q
+            xOut, yOut
+        )

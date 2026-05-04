@@ -13,24 +13,24 @@ class HFixedPointQRtlSignal(RtlSignal):
 
     def __add__(self, other: HFixedPointQComaptibleValue):
         other = toHVal(other, HFloatTmp)
-        return fadd(self._auto_cast(HFloatTmp), other._auto_cast(HFloatTmp))._auto_cast(self._dtype)
+        return fadd(self._explicit_cast(HFloatTmp), other._explicit_cast(HFloatTmp))._explicit_cast(self._dtype)
 
     def __sub__(self, other: HFixedPointQComaptibleValue):
         other = toHVal(other, HFloatTmp)
-        return fsub(self._auto_cast(HFloatTmp), other._auto_cast(HFloatTmp))._auto_cast(self._dtype)
+        return fsub(self._explicit_cast(HFloatTmp), other._explicit_cast(HFloatTmp))._explicit_cast(self._dtype)
 
     def __mul__(self, other: HFixedPointQComaptibleValue):
         other = toHVal(other, HFloatTmp)
-        return fmul(self._auto_cast(HFloatTmp), other._auto_cast(HFloatTmp))._auto_cast(self._dtype)
+        return fmul(self._explicit_cast(HFloatTmp), other._explicit_cast(HFloatTmp))._explicit_cast(self._dtype)
 
     def __truediv__(self, other: HFixedPointQComaptibleValue):
         other = toHVal(other, HFloatTmp)
-        return fdiv(self._auto_cast(HFloatTmp), other._auto_cast(HFloatTmp))._auto_cast(self._dtype)
+        return fdiv(self._explicit_cast(HFloatTmp), other._explicit_cast(HFloatTmp))._explicit_cast(self._dtype)
 
     def _eq(self, other: HFixedPointQComaptibleValue) -> Union["HBitsConst", Self]:
         other = toHVal(other, HFloatTmp)
         try:
-            return fcmp_oeq(self._auto_cast(HFloatTmp), other._auto_cast(HFloatTmp))
+            return fcmp_oeq(self._explicit_cast(HFloatTmp), other._explicit_cast(HFloatTmp))
         except Exception as e:
             # simplification of previous exception traceback
             e_simplified = copy(e)
@@ -39,7 +39,7 @@ class HFixedPointQRtlSignal(RtlSignal):
     def __ne__(self, other: HFixedPointQComaptibleValue) -> Union["HBitsConst", Self]:
         other = toHVal(other, HFloatTmp)
         try:
-            return fcmp_one(self._auto_cast(HFloatTmp), other._auto_cast(HFloatTmp))
+            return fcmp_one(self._explicit_cast(HFloatTmp), other._explicit_cast(HFloatTmp))
         except Exception as e:
             # simplification of previous exception traceback
             e_simplified = copy(e)
@@ -48,7 +48,7 @@ class HFixedPointQRtlSignal(RtlSignal):
     def __lt__(self, other: HFixedPointQComaptibleValue) -> Union["HBitsConst", Self]:
         other = toHVal(other, HFloatTmp)
         try:
-            return fcmp_olt(self._auto_cast(HFloatTmp), other._auto_cast(HFloatTmp))
+            return fcmp_olt(self._explicit_cast(HFloatTmp), other._explicit_cast(HFloatTmp))
         except Exception as e:
             # simplification of previous exception traceback
             e_simplified = copy(e)
@@ -57,7 +57,7 @@ class HFixedPointQRtlSignal(RtlSignal):
     def __gt__(self, other: HFixedPointQComaptibleValue) -> Union["HBitsConst", Self]:
         other = toHVal(other, HFloatTmp)
         try:
-            return fcmp_ogt(self._auto_cast(HFloatTmp), other._auto_cast(HFloatTmp))
+            return fcmp_ogt(self._explicit_cast(HFloatTmp), other._explicit_cast(HFloatTmp))
         except Exception as e:
             # simplification of previous exception traceback
             e_simplified = copy(e)
@@ -66,7 +66,7 @@ class HFixedPointQRtlSignal(RtlSignal):
     def __ge__(self, other: HFixedPointQComaptibleValue) -> Union["HBitsConst", Self]:
         other = toHVal(other, HFloatTmp)
         try:
-            return fcmp_oge(self._auto_cast(HFloatTmp), other._auto_cast(HFloatTmp))
+            return fcmp_oge(self._explicit_cast(HFloatTmp), other._explicit_cast(HFloatTmp))
         except Exception as e:
             # simplification of previous exception traceback
             e_simplified = copy(e)
@@ -75,7 +75,7 @@ class HFixedPointQRtlSignal(RtlSignal):
     def __le__(self, other: HFixedPointQComaptibleValue) -> Union["HBitsConst", Self]:
         other = toHVal(other, HFloatTmp)
         try:
-            return fcmp_ole(self._auto_cast(HFloatTmp), other._auto_cast(HFloatTmp))
+            return fcmp_ole(self._explicit_cast(HFloatTmp), other._explicit_cast(HFloatTmp))
         except Exception as e:
             # simplification of previous exception traceback
             e_simplified = copy(e)

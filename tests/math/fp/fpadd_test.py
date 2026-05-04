@@ -49,7 +49,7 @@ class _Test_IEEE754FpAlu(HwModule):
         while b1:
             a = hls.read(self.a).data
             b = hls.read(self.b).data
-            res = PyBytecodeInline(self.FP_FUNCTION)(a, b)
+            res = PyBytecodeInline(self.FP_FUNCTION)(a, b)._explicit_cast(self.T)
             hls.write(res, self.res, mayBecomeFlushable=False)
 
     def hwImpl(self) -> None:
@@ -229,7 +229,7 @@ if __name__ == "__main__":
     m.T = IEEE754Fp16
     # def FP_OPERATOR_FN(a, b):
     #    T = a._dtype
-    #    return (a._auto_cast(HFloatTmp) + b._auto_cast(HFloatTmp))._auto_cast(T)
+    #    return (a._explicit_cast(HFloatTmp) + b._explicit_cast(HFloatTmp))._auto_cast(T)
     # m.FP_FUNCTION = FP_OPERATOR_FN
     m.FP_FUNCTION = lambda a, b: a - b
     p = VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE,

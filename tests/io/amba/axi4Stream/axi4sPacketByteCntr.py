@@ -56,7 +56,7 @@ class Axi4SPacketByteCntr1(Axi4SPacketByteCntr0):
                     # This would not work if the prefix of strb contains some 0 bits before first 1.
                     wordByteCnt = i + 1
             # there is just 1 adder
-            byte_cnt += wordByteCnt._reinterpret_cast(byte_cnt._dtype)
+            byte_cnt += wordByteCnt._explicit_cast(byte_cnt._dtype)
             hls.write(byte_cnt, self.byte_cnt)
 
 
@@ -80,7 +80,7 @@ class Axi4SPacketByteCntr2(Axi4SPacketByteCntr0):
                     break
 
             # there is just 1 adder
-            byte_cnt += wordByteCnt._reinterpret_cast(byte_cnt._dtype)
+            byte_cnt += wordByteCnt._explicit_cast(byte_cnt._dtype)
             hls.write(byte_cnt, self.byte_cnt)
 
 
@@ -108,7 +108,7 @@ class Axi4SPacketByteCntr3(Axi4SPacketByteCntr1):
             
             PyBytecodeInPreproc(f"strbCheckAfter")
             # there is just 1 adder
-            byte_cnt += wordByteCnt._reinterpret_cast(byte_cnt._dtype)
+            byte_cnt += wordByteCnt._explicit_cast(byte_cnt._dtype)
             if word.last:
                 hls.write(byte_cnt, self.byte_cnt)
                 byte_cnt = 0

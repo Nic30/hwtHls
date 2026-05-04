@@ -71,7 +71,7 @@ class HFixedPointQ_HConst_TC(unittest.TestCase):
         bitsT = HBits(9)
 
         def cast(v: float):
-            return float(fpT0.from_py(v)._auto_cast(fpT1))
+            return float(fpT0.from_py(v)._explicit_cast(fpT1))
 
         testIn = [11.5, 12.5, -11.5, -12.5]
         for n, ref in zip(testIn, refValues):
@@ -88,9 +88,9 @@ class HFixedPointQ_HConst_TC(unittest.TestCase):
             _n = fixp_resize(nAsBits, fpT0, fpT1)
             _n = _n._reinterpret_cast(fpT1)
             self.assertEqual(float(_n), ref, ("round in fixp_resize_py", n))
-            self.assertEqual(float(_n._auto_cast(fpT0_i16)), ref, ("extending int part", n))
-            self.assertEqual(float(_n._auto_cast(fpT0_f4)), ref, ("extending frac part", n))
-            self.assertEqual(float(_n._auto_cast(fpT0_i16_f4)), ref, ("extending int and frac part", n))
+            self.assertEqual(float(_n._explicit_cast(fpT0_i16)), ref, ("extending int part", n))
+            self.assertEqual(float(_n._explicit_cast(fpT0_f4)), ref, ("extending frac part", n))
+            self.assertEqual(float(_n._explicit_cast(fpT0_i16_f4)), ref, ("extending int and frac part", n))
 
     def test_q8_0_ROUND_HALF_EVEN(self):
         self._test_q8_0(HFloatTmpRounding.ROUND_HALF_EVEN, [12.0, 12.0, -12.0, -12.0, ])

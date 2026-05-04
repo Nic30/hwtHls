@@ -123,7 +123,9 @@ class FixpLog2():
         xRaw = shl(xRaw, numLeadingZeros)
         PyBytecodeNoSplitSlices(xRaw)
         numLeadingZerosSigned = zext(numLeadingZeros, numLeadingZeros._dtype.bit_length() + 1)._signed()
-        numLeadingZerosAsF = (numLeadingZerosSigned._dtype.from_py(t.int_bit_length - 1) - numLeadingZerosSigned)._auto_cast(t)._auto_cast(HFloatTmp)
+        numLeadingZerosAsFAsInt = (numLeadingZerosSigned._dtype.from_py(t.int_bit_length - 1) - numLeadingZerosSigned)
+        numLeadingZerosAsFAsFp = numLeadingZerosAsFAsInt._explicit_cast(t)
+        numLeadingZerosAsF = numLeadingZerosAsFAsFp._explicit_cast(HFloatTmp)
 
         res = _f(0.0)
         res += numLeadingZerosAsF
@@ -151,7 +153,7 @@ class FixpLog2():
             del xBits  # delete because width may differ between iterations which would raise type error
             res += v  # all values in table are negative numbers
 
-        return res._auto_cast(t)
+        return res._explicit_cast(t)
 
 
 @serializeParamsUniq

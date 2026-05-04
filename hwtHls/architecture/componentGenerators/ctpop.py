@@ -38,7 +38,7 @@ def ctpop_fn(num: RtlSignal, bitsToLookupInROM: int=4, dbgRomInPyList=False):
     else:
         leftRes = PyBytecodeInline(ctpop_fn)(num[w // 2:], bitsToLookupInROM=bitsToLookupInROM, dbgRomInPyList=dbgRomInPyList)
         rightRes = PyBytecodeInline(ctpop_fn)(num[:w // 2], bitsToLookupInROM=bitsToLookupInROM, dbgRomInPyList=dbgRomInPyList)
-        res = leftRes._reinterpret_cast(res._dtype) + rightRes._reinterpret_cast(res._dtype)
+        res = leftRes._explicit_cast(res._dtype) + rightRes._explicit_cast(res._dtype)
 
     return res
 

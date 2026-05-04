@@ -146,8 +146,8 @@ class CordicAtan2(Cordic):
             isZero = (y == 0.) & (x == 0.)
         else:
             T_INTERNAL = _y._dtype
-            y = _y._auto_cast(HFloatTmp)
-            x = _x._auto_cast(HFloatTmp)
+            y = _y._explicit_cast(HFloatTmp)
+            x = _x._explicit_cast(HFloatTmp)
             isZero = (y._eq(0.)) & (x._eq(0.))
 
         inline = PyBytecodeInline
