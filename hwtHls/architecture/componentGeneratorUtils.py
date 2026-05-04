@@ -113,7 +113,7 @@ def _replaceHlsNetNodeOperatorInputWithWrite(netlist: HlsNetlistCtx,
     return inpWrite
 
 
-def _replaceHlsNetNodOperatorOutputWithRead(netlist: HlsNetlistCtx,
+def _replaceHlsNetNodeOperatorOutputWithRead(netlist: HlsNetlistCtx,
                                             parent: ArchElement,
                                             outHwIo: HwIO,
                                             outputUseReadyValid: Optional[tuple[bool, bool]],
@@ -134,7 +134,9 @@ def _replaceHlsNetNodOperatorOutputWithRead(netlist: HlsNetlistCtx,
     # outRead.setNonBlocking()
     outRead.assignRealization(EMPTY_OP_REALIZATION)
     outRead._setScheduleZeroTimeSingleClock(outTime)
-    parent._addNodeIntoScheduled(outTime // netlist.normalizedClkPeriod, outRead)
+    # :note: allowNewClockWindow=True required for case where out is alone in clk window
+    #        this may happen if all users are scheduled to later clk window
+    parent._addNodeIntoScheduled(outTime // netlist.normalizedClkPeriod, outRead, allowNewClockWindow=True)
 
     toSearch: SetList[HlsNetNode] = SetList()
     seen: set[HlsNetNode] = set()
@@ -291,7 +293,7 @@ def replaceHlsNetNodeOperatorWithHwModule(compBuilder: AbstractComponentBuilder,
         for _users in n.usedBy:
             users.extend(_users)
 
-        outRead: HlsNetNodeRead = _replaceHlsNetNodOperatorOutputWithRead(
+        outRead: HlsNetNodeRead = _replaceHlsNetNodeOperatorOutputWithRead(
             netlist, parent, outHwIo,
             outputUseReadyValid, outTy,
             outTime, firstInputWrite, users)
@@ -325,7 +327,7 @@ def replaceHlsNetNodeOperatorWithHwModule(compBuilder: AbstractComponentBuilder,
             # for every output port replace it with read from new module output signal
             assert outHwIo._dtype == out._dtype, ("Original node output must have same type as out of module replacing it",
                                                   n, outHwIo._dtype, out._dtype, outHwIo, out)
-            outRead = _replaceHlsNetNodOperatorOutputWithRead(netlist, parent, outHwIo, outputUseReadyValid, out._dtype, outTime, firstInputWrite, users)
+            outRead = _replaceHlsNetNodeOperatorOutputWithRead(netlist, parent, outHwIo, outputUseReadyValid, out._dtype, outTime, firstInputWrite, users)
             builder.replaceOutput(out, outRead._portDataOut, True, checkCycleFree=False)
             outCnt += 1
 
