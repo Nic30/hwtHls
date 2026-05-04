@@ -8,7 +8,8 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.observableList import ObservableList
 from hwtHls.netlist.scheduler.clk_math import clkWindowIndex, \
     clkWindowBeginOfNext, clkWindowEnd, SchedTime, \
-    SchedTime_format, clkWindowOffsetFromWindowEnd
+    SchedTime_format, clkWindowOffsetFromWindowEnd,\
+    clkWindowOffsetFromWindowBegin
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
@@ -169,6 +170,7 @@ class SchedulableNode():
             (clkI + oTicks) * clkPeriod + oDelay
             for (oDelay, oTicks) in zip(self.outputWireDelay, self.outputClkTickOffset)
         )
+
 
     @staticmethod
     def _schedulerJumpToPrevCycleIfRequired(time: Union[float, SchedTime], requestedTime: SchedTime,
@@ -515,6 +517,7 @@ class SchedulableNode():
         to a clock period windows.
 
         :return: generator of nodes for compaction worklist
+        :see: :meth:`HlsNetNode::scheduleAlapCompactionMultiClock`
         """
         assert self.isMulticlock, self
         # if all dependencies have inputs scheduled we schedule this node and try successors
@@ -546,9 +549,9 @@ class SchedulableNode():
                 if oT is inf:
                     continue
 
-                clkBudget = clkWindowOffsetFromWindowEnd(oT, clkPeriod)
+                clkBudget = clkWindowOffsetFromWindowBegin(oT, clkPeriod)
                 if isAllowedInFFStoreTime:
-                    clkBudget -= ffdelay
+                    clkBudget = max(clkBudget, clkPeriod -ffdelay)
                 clkI = clkWindowIndex(oT, clkPeriod) - oTicks
                 if clkBudget < oDelay:
                     clkI -= 1

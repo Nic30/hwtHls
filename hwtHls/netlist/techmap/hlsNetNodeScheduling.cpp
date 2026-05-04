@@ -679,7 +679,7 @@ std::generator<HlsNetNode *> HlsNetNode::scheduleAlapCompactionMultiClock(
 			if (oT ==  std::numeric_limits<SchedTime>::max())
 			    continue;
 
-			auto clkBudget = clkWindowOffsetFromWindowEnd(oT, clkPeriod);
+			auto clkBudget = clkWindowOffsetFromWindowBegin(oT, clkPeriod);
 			if (scheduleMayBeInFFStoreTime)
 			    clkBudget -= ffdelay;
 			auto clkI = clkWindowIndex(oT, clkPeriod) - oTicks;
