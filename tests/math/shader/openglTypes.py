@@ -12,7 +12,7 @@ fragCoord.xy is in rectangle (0, 0), (width, height) with (0,0) in bottom left c
 from dataclasses import dataclass
 from dis import Instruction
 import operator
-from typing import Self
+from typing import Self, Any, Callable
 
 from hwt.hdl.const import HConst
 from hwt.hdl.types.hdlType import HdlType
@@ -121,7 +121,7 @@ class vec2(ObjectWithHlsStoreOverride):
             (elementTy, "y"),
         )
 
-    def _unOp(self, fn) -> Self:
+    def _unOp(self, fn: Callable[[Any], Any]) -> Self:
         return vec2(fn(self.x), fn(self.y))
 
     def _binOp(self, other, fn) -> Self:
@@ -138,6 +138,15 @@ class vec2(ObjectWithHlsStoreOverride):
             return vec2(fn(other, self.x), fn(other, self.y))
         else:
             return vec2(fn(other.x, self.x), fn(other.y, self.y))
+
+    def _auto_cast_itemwise(self, t: HdlType) -> Self:
+        return self._unOp(lambda x: x._auto_cast(t))
+
+    def _explicit_cast_itemwise(self, t: HdlType) -> Self:
+        return self._unOp(lambda x: x._explicit_cast(t))
+
+    def _reinterpret_cast_itemwise(self, t: HdlType) -> Self:
+        return self._unOp(lambda x: x._reinterpret_cast(t))
 
     def __getitem__(self, key):
         if key == 0:
