@@ -5,19 +5,19 @@ from typing import Iterable, Tuple, Union, Callable, Optional, Any, Set, \
 
 from hwt.hdl.const import HConst
 from hwt.hwModule import HwModule
-from hwt.serializer.combLoopAnalyzer import CombLoopAnalyzer
+from hwt.serializer.combLoopAnalyzer import CombLoopAnalyzer, freeze_set_of_sets
 from hwt.simulator.simTestCase import SimTestCase
+from hwtHls.netlist.analysis.hlsNetlistSimulator import HlsNetlistSimulator
 from hwtHls.platform.platform import DebugId, HlsDebugBundle
 from hwtHls.ssa.analysis.llvmIrInterpret import LlvmIrInterpret
+from hwtHls.ssa.analysis.llvmIrInterpretUtils import SimIoUnderflowErr
 from hwtHls.ssa.analysis.llvmMirInterpret import LlvmMirInterpret
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
-from hwtLib.examples.errors.combLoops import freeze_set_of_sets
 from hwtSimApi.triggers import StopSimumulation
 from hwtSimApi.utils import freq_to_period
 from pyDigitalWaveTools.vcd.writer import VcdWriter
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
-from hwtHls.netlist.analysis.hlsNetlistSimulator import HlsNetlistSimulator
-from hwtHls.ssa.analysis.llvmIrInterpretUtils import SimIoUnderflowErr
+
 
 LlvmSimFunctionArgT = Union[list, deque]  # :note: item types depend on type of the IO of the simulated function
 
