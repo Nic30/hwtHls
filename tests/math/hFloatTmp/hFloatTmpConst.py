@@ -118,7 +118,7 @@ class HFloatTmpConst(HConst):
             return opFn(self, other)
         else:
             raise NotImplementedError(other)
-        return BIT._from_py(fn(self.val, other), int(vld_mask == self._dtype.all_mask()))
+        return BIT._from_py(int(fn(self.val, other)), int(vld_mask == self._dtype.all_mask()))
 
     def _applyRCmpFnForConstants(self, other: Union[float, Self],
                                  fn: Callable[[float, float], bool],
