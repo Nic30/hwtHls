@@ -16,14 +16,14 @@ class PeekableIterator(Iterator[T]):
     based on https://stackoverflow.com/a/10576559
     """
 
-    def __init__(self, generator: Generator[T], emptyVal=PeekableIterator_HANDLE):
+    def __init__(self, iterator: Generator[T], emptyVal=PeekableIterator_HANDLE):
         """
         :param emptyVal: the value returned by peek if there is no more data
         """
         self._peekValue = emptyVal
         self._nextException = None
         self._emptyVal = emptyVal
-        self._generator = generator
+        self._iterator = iterator
         next(self)  # :note: return inital None, loads first item for peeking
 
     def __iter__(self) -> Self:
@@ -37,8 +37,9 @@ class PeekableIterator(Iterator[T]):
             raise self._nextException
 
         to_return = self._peekValue
+        # preload _peekValue for next call of next()
         try:
-            self._peekValue = next(self._generator)
+            self._peekValue = next(self._iterator)
         except Exception as e:
             self._nextException = e
             self._peekValue = self._emptyVal
