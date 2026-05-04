@@ -287,12 +287,12 @@ class HlsScheduler():
         with tracer as tracer:
             dbgPrintPhaseBoundaries = self._dbgPrintPhaseBoundaries
             if dbgPrintPhaseBoundaries:
+                dbgOut.write(self.netlist.label + "\n")
                 dbgOut.write("asap0 begin\n")
             if self._dbgTraceFile:
                 tracer.log(f"clkPeriod={self.netlist.normalizedClkPeriod}")
                 tracer.log("asap0 begin")
                 tracer.log(("resources: ", self.resourceUsage), formatter=repr)
-                
 
             self._scheduleAsap()
             if dbgPrintPhaseBoundaries:
@@ -300,7 +300,7 @@ class HlsScheduler():
             if self._dbgTraceFile:
                 tracer.log("asap0 end")
                 tracer.log(("resources: ", self.resourceUsage), formatter=repr)
-                
+
             self._checkAllNodesScheduled()
 
             if self._dbgDumpAfterPhases and dbgDir is not None:
@@ -316,7 +316,7 @@ class HlsScheduler():
                 dbgOut.write("alap0 begin\n")
             if self._dbgTraceFile:
                 tracer.log("alap0 begin")
-                
+
             self._scheduleAlapCompaction(False)
             if dbgPrintPhaseBoundaries:
                 dbgOut.write("alap0 end\n")
