@@ -441,7 +441,7 @@ def sinpi(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
     return _evalFpFunction1ValSpecific(lambda a: math.sin(a * math.pi), OP_FSINPI, "sinpi", op0)
 
 
-OP_FSINPI = HOperatorDefLlvm(sin, _getllvmFp1LibFuncConstructor(LibFunc.LibFunc_sinpi), False, idStr="OP_FSINPI", runSimplifyRules=_get_sin_runSimplifyRules(OP_FCOSPI, OP_FSINCOSPI))
+OP_FSINPI = HOperatorDefLlvm(sinpi, _getllvmFp1LibFuncConstructor(LibFunc.LibFunc_sinpi), False, idStr="OP_FSINPI", runSimplifyRules=_get_sin_runSimplifyRules(OP_FCOSPI, OP_FSINCOSPI))
 
 
 def sqrt(op0: RtlSignalBase[Union[HFloatTmp, HBits]]) -> RtlSignalBase[Union[HFloatTmp, HBits]]:
