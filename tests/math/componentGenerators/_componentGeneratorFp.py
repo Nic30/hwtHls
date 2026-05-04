@@ -77,10 +77,7 @@ class ComponentGeneratorFp(ComponentGenerator):
         return _opcode_FP_binary
 
     def llvmMirInterpretDecode_unary(self, interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
-        try:
-            cfg: HFloatTmpConfig = HFloatTmpConfig.fromMachineInstrOperands(instr, 2)
-        except:
-            raise
+        cfg: HFloatTmpConfig = HFloatTmpConfig.fromMachineInstrOperands(instr, 2)
         dst, _src0 = interpret._decodeInstArguments(MRI, instr, (instr.getOperand(0), instr.getOperand(1)))
         src0IsConst = isinstance(_src0, HConst)
         cond, hasRuntimeCond = interpret._decodeEnableCondition(instr)
