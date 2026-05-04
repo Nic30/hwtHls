@@ -322,14 +322,19 @@ def fpow(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HFloatTmp]) -> RtlSig
 OP_FPOW = HOperatorDefLlvm(fpow, _getllvmFp2IntrinsicConstructor(Intrinsic.pow), False, idStr="OP_FPOW")
 
 
-def fpowi(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HBits]) -> RtlSignalBase[HFloatTmp]:
+def fpowi(op0: Union[RtlSignalBase[HFloatTmp], float], op1: RtlSignalBase[HBits]) -> RtlSignalBase[HFloatTmp]:
     """
     equivalent of float @llvm.powi.f32.i32(float %Val, i32 %power), 
     :returns: the first argument raised to the (positive or negative) power
     """
+    if isinstance(op0, float):
+        assert isinstance(op1, int)
+        return math.pow(op0, op1)
+
     valSpecificFn = getattr(op0, "fpowi", None)
     if valSpecificFn is not None:
         return valSpecificFn(op1)
+
     assert op0._dtype == HFloatTmp, op0._dtype
     assert isinstance(op1._dtype, HBits), op1._dtype
     if not op1._dtype.signed:
