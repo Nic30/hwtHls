@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from io import StringIO
 import math
 from typing import Optional
 
@@ -45,6 +46,7 @@ class FixpSinCosCordic(_BaseALU1HwModule):
         self.MAIN_FN_META = PyBytecodeSkipPass(["hwtHls::SlicesToIndependentVariablesPass", ])
         self.ITERATION_COUNT: Optional[int] = HwParam(None)
         self.STAGES_IN_LUT: Optional[int] = HwParam(0)
+        self.dbgLogFile: Optional[StringIO] = None
 
     @override
     def _getMaxIterationCount(self):
@@ -52,7 +54,7 @@ class FixpSinCosCordic(_BaseALU1HwModule):
 
     @staticmethod
     def _getMaxIterationCountForTy(t: HFixedPointQ) -> int:
-        return 2 + t.frac_bit_length
+        return Cordic.getCircularIterationCountForTy(t)
 
     @override
     def hwDeclr(self) -> None:
@@ -81,8 +83,9 @@ class FixpSinCosCordic(_BaseALU1HwModule):
     @hlsBytecode
     def aluFn(self, _inp: HBitsRtlSignal):
         T = self.T
-        cordic = Cordic(self.ITERATION_COUNT, self.STAGES_IN_LUT, loopPragmaGetter=lambda: _BaseALU1HwModule._getLoopMeta(self))
-
+        cordic = Cordic(self.ITERATION_COUNT, self.STAGES_IN_LUT,
+                        loopPragmaGetter=lambda: _BaseALU1HwModule._getLoopMeta(self),
+                        dbgLogFile=self.dbgLogFile)
         inp = _inp._reinterpret_cast(T)
         _cos, _sin = PyBytecodeInline(cordic.cosSin)(inp)
         resTmp = self._getTypeOfIo(self.data_out).from_py(None)
