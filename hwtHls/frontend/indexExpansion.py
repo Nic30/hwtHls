@@ -84,7 +84,7 @@ class PyObjectHwSubscriptRef(PyObjectRequiresExpandBeforeUse):
                     assert t == inferedResultTy, ("All items in sequence needs to have same type", t, inferedResultTy)
 
                 if muxTy is not inferedResultTy:
-                    # mux operates on flatened type only
+                    # mux operates on flattened type only
                     v = v._reinterpret_cast(muxTy)
 
                 if res is None:
@@ -94,7 +94,7 @@ class PyObjectHwSubscriptRef(PyObjectRequiresExpandBeforeUse):
 
             assert res is not None
             if muxTy is not inferedResultTy:
-                # undo flatening of values for mux
+                # undo flattening of values for mux
                 res = res._reinterpret_cast(inferedResultTy)
 
             return res
