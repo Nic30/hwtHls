@@ -1,7 +1,7 @@
 
 // Placeholder instruction for netlist object which will be aded later in translation
 // 
-// inputs are in format $objId, $dstWidt, $src[n], $srcWidth[n], $enCond
+// inputs are in format $objId, $dstWidth, $src[n], $srcWidth[n], $enCond
 class _HWTFPGA_PYOBJECT_PLACEHOLDER : HwtFpgaInst<
     (outs anyregcls:$dst),
     (ins variable_ops),

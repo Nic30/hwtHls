@@ -551,7 +551,7 @@ bool resolveTypes(MachineInstr &MI) {
 	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE:
 	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER_WITH_SIDEEFFECT:
 	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE_WITH_SIDEEFECT: {
-		// $dst, $objId, $dstWidt, $src[n], $srcWidth[n], $enCond
+		// $dst, $objId, $dstWidth, $src[n], $srcWidth[n], $enCond
 		auto dstWidth = MI.getOperand(2).getImm();
 		if (!MachineOperand_checkOrSetWidth(MRI, MI.getOperand(0), dstWidth,
 						nullptr)) {
