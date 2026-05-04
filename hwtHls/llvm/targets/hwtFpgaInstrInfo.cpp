@@ -511,6 +511,8 @@ bool HwtFpgaInstrInfo::PredicateInstruction(MachineInstr &MI,
 	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE:
 	case HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER_NOTDUPLICABLE_WITH_SIDEEFECT: {
 		// dst/val, addr, index, dstWidth, cond
+		// or
+		// arg0, args1, ..., cond
 		bool hasSomePred = false;
 		Register curPred;
 		const size_t condOpIndex = MI.getNumExplicitOperands() - 1;
