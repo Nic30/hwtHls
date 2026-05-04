@@ -16,11 +16,8 @@ class VcdLlvmMirBBFormatter(LogValueFormatter):
         self.vcdId = varInfo.vcdId
 
     def format(self, newVal: MachineBasicBlock, updater, t: int, out: StringIO):
-        # val = newVal.getName().str()
-        # name = newVal.printAsOperand()[len("label "):]
-        # name = RE_ID.sub("_", name)
-        name = f"{newVal.getNumber()}:{newVal.getName().str():s}"
-        out.write(f"s{name:s} {self.vcdId:s}\n")
+        num = newVal.getNumber()
+        out.write(f"b{num:b} {self.vcdId:s}\n")
 
 
 class DictWithSetitemListener(dict):

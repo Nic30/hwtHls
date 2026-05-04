@@ -152,7 +152,7 @@ class LlvmMirInterpret():
         with waveLog.varScope("__sim__") as simScope:
             simScope.addVar(simCodelineLabel, "codeline", VCD_SIG_TYPE.WIRE, 64, VcdLlvmIrCodelineFormatter(instrCodeline))
             simScope.addVar(simTimeLabel, "step", VCD_SIG_TYPE.WIRE, 64, VcdLlvmIrSimTimeFormatter(self.timeStep))
-            simScope.addVar(simBlockLabel, "block", VCD_SIG_TYPE.ENUM, 0, VcdLlvmMirBBFormatter())
+            simScope.addVar(simBlockLabel, "block", VCD_SIG_TYPE.WIRE, 64, VcdLlvmMirBBFormatter())
 
         _prepareWaveWriterTopIo(waveLog, strCtx, MF.getFunction())
         seen = set()
@@ -451,7 +451,7 @@ class LlvmMirInterpret():
         regs: list[Union[HConst, list[Union[int, HConst]], None]] = {
             i: None for i in range(MRI.getNumVirtRegs())
         }
-        LlvmIrInterpret._initGlobalsFromIr(MF.getFunction().getParent(), regs)
+        LlvmIrInterpret._initGlobalsFromIr(self, MF.getFunction().getParent(), regs)
 
         waveLog = self.waveLog
         if waveLog is not None:
