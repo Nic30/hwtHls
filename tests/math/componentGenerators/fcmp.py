@@ -202,7 +202,7 @@ class ComponentGeneratorFCMP(ComponentGeneratorFp):
     def llvmIrInterpretDecode(self, interpret: LlvmIrInterpret, instr: Instruction) -> LlvmIrInstrFunction:
         cmp = InstructionToFCmpInst(instr)
         pred = cmp.getPredicate()
-        op = HlsNetlistAnalysisPassMirToNetlistLowLevel.CMP_PREDICATE_TO_OP[pred]
+        op = ComponentGeneratorFCMP.CMP_PREDICATE_TO_OP[pred]
         _src0, _src1 = interpret._decodeInstArguments(instr.iterOperandValues())
         src0IsConst = isinstance(_src0, HConst)
         src1IsConst = isinstance(_src1, HConst)
