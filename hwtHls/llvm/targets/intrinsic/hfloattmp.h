@@ -18,6 +18,8 @@ namespace hwtHls {
  * :note: LLVM has some intrinsics for fixed point like llvm.smul.fix.*, but they are not used, because there is only few of them
  *
  * */
+
+// https://thax.hardliners.org/rounding/
 enum HFloatTmpRounding {
 	ROUND_HALF_EVEN, // nearest with ties going to nearest even integer. (c fp default)
 	// also known as Gaussian rounding or bankers’ rounding, 1.5 -> 2, 2.5 -> 2
