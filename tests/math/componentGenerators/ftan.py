@@ -25,7 +25,7 @@ from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.math.fp.fptypes import IEEE754Fp
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 from tests.math.hFloatTmp.hFloatTmpOps import sin, cos, sinpi, cospi, OP_FTAN, \
-    OP_FTANPI, OP_FSIN, OP_FCOS, OP_FDIV
+    OP_FTANPI, OP_FDIV, OP_FSINCOS
 from tests.math.hFloatTmp.hFloatTmpUtils import HFloatTmpConfigToHType
 
 
@@ -39,15 +39,13 @@ class TanCordicDivHwModule(_BaseALU1HwModule):
         t = HBits(T.bit_length())
         _BaseALU1HwModule._addDataInDataOut(self, t, t)
 
-    def _isFullyUnrolled(self):
+    def _isFullyUnrolled(self) -> bool:
         gens = self._target_platform._componentGenerators
-        sinGen = gens[OP_FSIN]
-        cosGen = gens[OP_FCOS]
+        sincosGen = gens[OP_FSINCOS]
         divGen = gens[OP_FDIV]
         # the tan itself has no unroll factor but internal sin/cos and div have its own
-        return abs(sinGen.optThroughputVsArea - 1.0) <= 0.001 and \
-            abs(cosGen.optThroughputVsArea - 1.0) <= 0.001 and \
-            abs(divGen.optThroughputVsArea - 1.0) <= 0.001
+        return abs(sincosGen.optThroughputVsArea - 1.0) >= -0.001 and \
+            abs(divGen.optThroughputVsArea - 1.0) >= -0.001
 
     @hlsBytecode
     def aluFn(self, _inp: HBitsRtlSignal) -> HBitsRtlSignal:
