@@ -1,6 +1,8 @@
 """
 Common opengl functions and datatypes defined at the top of HFloatTmp data type.
 """
+from typing import Union
+
 from hwt.doc_markers import hwt_expr_producer
 from hwt.hdl.const import HConst
 from hwt.mainBases import RtlSignalBase
@@ -97,11 +99,27 @@ def normalize(v: RtlSignalBase["HArray[HFloatTmp]"]):
 
 
 @hwt_expr_producer
-def distance(p0: RtlSignalBase[HFloatTmp], p1: RtlSignalBase[HFloatTmp]):
+def distance(p0: RtlSignalBase[HFloatTmp], p1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
     """
     https://registry.khronos.org/OpenGL-Refpages/gl4/html/distance.xhtml
     """
     return length(p0 - p1)
+
+
+@hwt_expr_producer
+def distance1D(x0: Union[int, float, RtlSignalBase[HFloatTmp]], x1: Union[int, float, RtlSignalBase[HFloatTmp]]) \
+        ->Union[int, float, RtlSignalBase[HFloatTmp]]:
+    if isinstance(x0, (float, int)):
+        if x0 < x1:
+            d = x1 - x0
+        else:
+            d = x0 - x1
+    else:
+        d = (x0 < x1)._ternary(
+                x1 - x0,
+                x0 - x1)
+
+    return d
 
 
 @hwt_expr_producer
