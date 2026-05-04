@@ -143,12 +143,21 @@ bool HwtFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 			} else if (hasSideEffect) {
 				opc = HwtFpga::HWTFPGA_PYOBJECT_PLACEHOLDER_WITH_SIDEEFFECT;
 			}
-			assert(Info.OrigRet.Regs.size() == 1);
-			auto DstReg = Info.OrigRet.Regs[0];
-			auto MIB = MIRBuilder.buildInstr(opc)	 //
-			.addReg(DstReg, RegState::Define);
-			MRI.setRegClass(DstReg, &HwtFpga::anyregclsRegClass);
-
+			auto MIB = MIRBuilder.buildInstr(opc);
+			bool returnsVoid = F->getReturnType()->isVoidTy();
+			uint64_t dstRegWidth = 0;
+			if (returnsVoid ) {
+				// the placeholder has to be used because we need to keep indexing of operands intact
+				auto dummyDstReg = MRI.createVirtualRegister(&HwtFpga::anyregclsRegClass);
+				MIB.addReg(dummyDstReg, RegState::Define);
+				MRI.setType(dummyDstReg, LLT::scalar(0));
+			} else {
+				assert(Info.OrigRet.Regs.size() == 1);
+				auto DstReg = Info.OrigRet.Regs[0];
+				MIB.addReg(DstReg, RegState::Define);
+				MRI.setRegClass(DstReg, &HwtFpga::anyregclsRegClass);
+			    dstRegWidth = MRI.getType(DstReg).getSizeInBits();
+			}
 			if (!addIntImmByRegiter(MRI, MIB, Info.OrigArgs[0].Regs[0])) {
 				std::string errStr =
 						"HwtFpgaCallLowering: hwtHls.pyOjbectPlaceholder object id operand must be constant: ";
@@ -156,8 +165,7 @@ bool HwtFpgaCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 				Info.CB->print(ss);
 				throw std::runtime_error(ss.str());
 			}
-			uint64_t dstRegWidth = MRI.getType(DstReg).getSizeInBits();
-			MIB.addImm(dstRegWidth);
+    		 MIB.addImm(dstRegWidth);
 
 			// add operands
 			bool first = true;
