@@ -76,6 +76,6 @@ def IEEE754FpFromInt(a: RtlSignalBase[HBits], t: IEEE754Fp,
             mantissa = fitTo_t(value, mantissa._dtype)
 
         # pack
-        res.mantissa = mantissa[t.MANTISSA_WIDTH:]
+        res.mantissa = mantissa._trunc(t.MANTISSA_WIDTH)
 
     return res

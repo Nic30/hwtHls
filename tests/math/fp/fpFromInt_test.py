@@ -138,8 +138,8 @@ class IEEE754FpFromInt_TC(SimTestCase):
             time1 = datetime.now()
             print("RTL sim", time1 - time0)
 
-        # res = [IEEE754Fp64.to_py(IEEE754Fp64.from_py({"sign": sign, "exponent": exponent, "mantissa": mantissa}))
-        #                             for mantissa, exponent, sign in dut.res._ag.data]
+        # res = [IEEE754Fp64.from_py({"sign": sign, "exponent": exponent, "mantissa": mantissa}).to_py()
+        #        for mantissa, exponent, sign in dut.res._ag.data]
         res = dut.res._ag.data
         # for resItem, refItem in zip(res, refRes):
         #     self.assertValSequenceEqual(resItem, refItem)
@@ -155,8 +155,10 @@ if __name__ == "__main__":
     from hwtLib.types.ctypes import int16_t
     from tests.math.fp.fptypes import IEEE754Fp16
     m = IEEE754FpFromIntConventor()
-    m.T_IN = int16_t
-    m.T = IEEE754Fp16
+    # m.T_IN = int16_t
+    # m.T = IEEE754Fp16
+    m.T_IN = int64_t
+    m.T = IEEE754Fp64
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     import unittest
