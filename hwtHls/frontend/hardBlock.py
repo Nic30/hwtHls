@@ -2,28 +2,28 @@ from typing import Union, Optional
 
 from hwt.constants import NOT_SPECIFIED
 from hwt.hdl.operatorDefs import HOperatorDef
+from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.function import HFunction
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hdl.types.struct import HStructField
 from hwt.pyUtils.typingFuture import override
+from hwtHls.architecture.componentGenerator import ComponentGenerator
 from hwtHls.frontend.pragma import _PyBytecodeIntrinsic
 from hwtHls.llvm.llvmIr import CallInst, AddDefaultFunctionAttributes, Value, \
     IRBuilder, FunctionCallee, VectorOfTypePtr, FunctionType, Function, Type, \
     Instruction, MachineInstr, Register, MachineRegisterInfo
-from hwtHls.platform.opRealizationMeta import OpRealizationMeta
-from hwtHls.architecture.componentGenerator import ComponentGenerator
-from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, HlsNetNodeOut
-from hwtHls.ssa.translation.llvmMirToNetlist.utils import MirToHlsNetlistTranslatedInstrOpsT
-from hwtHls.ssa.analysis.llvmIrInterpretUtils import LlvmIrInstrFunction
-from hwtHls.ssa.analysis.llvmMirInterpretUtils import LlvmMirInstrFunction
-from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.netlist.builder import HlsNetlistBuilder
-from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
+from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
+from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.ssa.analysis.llvmIrInterpret import LlvmIrInterpret
+from hwtHls.ssa.analysis.llvmIrInterpretUtils import LlvmIrInstrFunction
 from hwtHls.ssa.analysis.llvmMirInterpret import LlvmMirInterpret
-from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
+from hwtHls.ssa.analysis.llvmMirInterpretUtils import LlvmMirInstrFunction
+from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
+from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
+from hwtHls.ssa.translation.llvmMirToNetlist.utils import MirToHlsNetlistTranslatedInstrOpsT
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
-from hwt.hdl.types.bits import HBits
+from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 
 
 class HardBlockHwModule(_PyBytecodeIntrinsic):
@@ -99,7 +99,7 @@ class HardBlockHwModule(_PyBytecodeIntrinsic):
 
     @staticmethod
     def _llvmMirToHlsNetlist_cutOfIdAndWidthFromOps(ops: tuple):
-        # ops are in foramt $objId id, $resultWidth, inputs,  inputWidths, enCond
+        # ops are in format $objId id, $resultWidth, inputs,  inputWidths, enCond
         # extract inputs and enCond
         return ops[1 + 1:2 + (len(ops) - 2) // 2], ops[-1]
 
