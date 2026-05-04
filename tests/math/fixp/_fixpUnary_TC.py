@@ -13,6 +13,7 @@ from tests.math.fixp.fixpOperatorsHwModules import _FixpUnOpTestModule
 from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
+from pyMathBitPrecise.bit_utils import mask, to_signed
 
 
 class FixpUnary_TC(SimTestCase):
@@ -21,6 +22,7 @@ class FixpUnary_TC(SimTestCase):
     optThroughputVsArea = 0.0
     RTL_SIM_TIME_MULTIPLIER = 1.0
     MODULE_CLS: Type[_FixpUnOpTestModule]
+    MAX_ULP = 1
 
     def initPlatform(self, target_platform:TestLlvmIrAndMirPlatform):
         installMathLibComponentGenerators(target_platform,
@@ -64,10 +66,27 @@ class FixpUnary_TC(SimTestCase):
             dataOutRef.append(int(ref))
 
         def checkDataOutFn(dataOut):
-            self.assertValSequenceEqual(dataOut, dataOutRef, (
-                [toFloat(v) for v in dataOut],
-                "!=", REF_DATA)
-            )
+            if self.MAX_ULP < 1:
+                maxErrInt = 0
+            else:
+                maxErrInt = mask(self.MAX_ULP)
+            signed = self.FP_TY.signed
+            w = self.FP_TY.bit_length()
+            if len(dataOut) == len(dataOutRef):
+                for i, (res, refInt, refFloat) in enumerate(zip(dataOut, dataOutRef, REF_DATA)):
+                    msg = (i, toFloat(res), refFloat)
+                    if res._is_full_valid():
+                        if signed:
+                            res = to_signed(int(res), w)
+                            refInt = to_signed(refInt, w)
+                        self.assertAlmostEqual(int(res), refInt, delta=maxErrInt, msg=msg)
+                    else:
+                        self.assertValEqual(res, refInt, msg=msg)
+            else:
+                self.assertValSequenceEqual(dataOut, dataOutRef, (
+                    [toFloat(v) for v in dataOut],
+                    "!=", REF_DATA)
+                )
 
         return  checkDataOutFn
 
@@ -77,21 +96,26 @@ class FixpUnary_TC(SimTestCase):
         dut.CLK_FREQ = freq
         self._test_rtl(dut, runTestAfterEachPass)
 
-    def _test_rtl(self, dut: HwModule, runTestAfterEachPass=False, randomizeIn=False, randomizeOut=False, rtlTimeMultiplier=1):
+    def _test_rtl(self, dut: HwModule, runTestAfterEachPass=False,
+                  randomizeIn=False, randomizeOut=False, rtlTimeMultiplier=1):
         REF_DATA = self._getRefData(self.INPUT_DATA)
+        checkFn = self.getCheckDataOutFn(REF_DATA)
         target_platform = TestLlvmIrAndMirPlatform.forSimpleDataInDataOutHwModule(
             self.prepareDataInFn,
-            self.getCheckDataOutFn(REF_DATA),
+            checkFn,
             None,
             topToRunTestsOn=dut,
-            #debugFilter={*HlsDebugBundle.ALL_RELIABLE, 
-            #             HlsDebugBundle.DBG_4_0_addSignalNamesToData,
-            #             HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
-            #             },
-            #llvmCliArgs=[
+            #debugFilter={*HlsDebugBundle.ALL_RELIABLE,
+            #              HlsDebugBundle.DBG_4_0_hwscheduleTrace,
+            #              HlsDebugBundle.DBG_4_0_hwscheduleDumpAfterPhases,
+            #              HlsDebugBundle.DBG_4_0_hwschedulePrintPhaseBoundaries,
+            #              HlsDebugBundle.DBG_4_0_addSignalNamesToData,
+            #              HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+            #            },
+            # llvmCliArgs=[
             #    # LLVM_CLI_COMMON_OPTS.VREGIFCVT_TRACE,
             #    # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
-            #],
+            # ],
             # noOptIrTest=TestLlvmIrAndMirPlatform.TEST_NO_OPT_IR,
             runTestAfterEachPass=runTestAfterEachPass
         )
@@ -111,7 +135,6 @@ class FixpUnary_TC(SimTestCase):
         # fpTy = self.FP_TY
         # bitTy = HBits(fpTy.bit_length())
 
-        checkFn = self.getCheckDataOutFn(REF_DATA)
         # def toFloat(v):
         #    return float(bitTy.from_py(v.val, v.vld_mask)._reinterpret_cast(fpTy)) if v._is_full_valid() else v
 

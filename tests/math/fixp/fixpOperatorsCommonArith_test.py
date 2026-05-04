@@ -44,6 +44,7 @@ class FixpAdd_TC(SimTestCase):
         (-1.0, -1.0),
     ]
     MODULE_CLS = TestModuleFixpAdd
+    MAX_ULP = 0
 
     def _model(self, a: float, b: float) -> float:
         return a + b
