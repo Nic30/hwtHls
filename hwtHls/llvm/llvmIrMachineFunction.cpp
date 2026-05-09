@@ -22,6 +22,7 @@
 #include <hwtHls/llvm/targets/hwtFpgaMCTargetDesc.h>
 #include <hwtHls/llvm/targets/hwtFpgaIoUtils.h>
 #include <pybind11/native_enum.h>
+#include <stdexcept>
 
 namespace py = pybind11;
 
@@ -136,6 +137,13 @@ void register_MachineFunction(pybind11::module_ &m) {
 		.def("getNumOperands", &llvm::MachineInstr::getNumOperands)
 		.def("getNumExplicitOperands", &llvm::MachineInstr::getNumExplicitOperands)
 		.def("getOperand", [](llvm::MachineInstr & I, unsigned i) {
+			if (i >= I.getNumOperands()) {
+				std::string tmp;
+				llvm::raw_string_ostream ss(tmp);
+				ss << "MachineInstr operand index out or range: "  << i << " ";
+				I.print(ss);
+				throw std::runtime_error(ss.str());
+			}
 			return I.getOperand(i);
 		}, py::return_value_policy::reference_internal)
 		.def("getOpcode", [](const llvm::MachineInstr & I) {
