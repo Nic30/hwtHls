@@ -108,6 +108,7 @@ void register_Types(pybind11::module_ & m) {
 
 	py::class_<llvm::IntegerType, llvm::Type>(m, "IntegerType")
 			.def("getBitWidth", &llvm::IntegerType::getBitWidth)
+			.def("get", &llvm::IntegerType::get)
 			.def("__repr__",  &printToStr<llvm::IntegerType>);
 	py::implicitly_convertible<llvm::IntegerType, llvm::Type>();
 	m.def("TypeToIntegerType",[](llvm::Type & t) {

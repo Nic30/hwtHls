@@ -248,7 +248,10 @@ void register_Instruction(pybind11::module_ & m) {
 	    .value("BAD_ICMP_PREDICATE", llvm::CmpInst::Predicate::BAD_ICMP_PREDICATE)
 		.finalize();
 	CmpInst
-		.def("getPredicate", &llvm::CmpInst::getPredicate);
+		.def("getPredicate", &llvm::CmpInst::getPredicate)
+		.def_static("isFPPredicate", [](llvm::CmpInst & self) { return self.isFPPredicate(); })
+		.def_static("isFPPredicatePred", [](llvm::CmpInst::Predicate P) { return llvm::CmpInst::isFPPredicate(P); })
+		;
 
 	py::class_<llvm::ICmpInst, std::unique_ptr<llvm::ICmpInst, py::nodelete>, llvm::CmpInst>(m, "ICmpInst");
 	py::implicitly_convertible<llvm::ICmpInst, llvm::Instruction>();
