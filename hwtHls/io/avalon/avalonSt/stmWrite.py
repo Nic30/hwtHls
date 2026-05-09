@@ -18,6 +18,8 @@ class HlsStmWriteAvalonSt(HlsWrite):
         eof: Optional[Union[RtlSignal, HConst]],
         dst: AvalonST,
         mayBecomeFlushable: bool=True):
+        if dst.firstSymbolInHighOrderBits:
+            raise NotImplementedError("AvalonST in big-endian mode")
         HlsWrite.__init__(self, ioProxy, src, dst, src._dtype,
                           # True,  # isBlocking
                           True,  # isVolatile

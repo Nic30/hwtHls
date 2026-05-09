@@ -19,6 +19,9 @@ class IoProxyAvalonSt(IoProxyStream):
     """
 
     def __init__(self, hls:"HlsScope", interface:AvalonST):
+        if interface.firstSymbolInHighOrderBits:
+            raise NotImplementedError("AvalonST in big-endian mode")
+
         IoProxyStream.__init__(self, hls, interface)
 
     @override

@@ -26,6 +26,8 @@ class HlsStmReadAvalonSt(HlsStmReadAxi4Stream):
                  src: AvalonST,
                  dtype: HdlType,
                  isReliable: bool):
+        if src.firstSymbolInHighOrderBits:
+            raise NotImplementedError("AvalonST in big-endian mode")
         HlsStmReadAxi4Stream.__init__(self, ioProxy, src, dtype, isReliable)
 
     @override
