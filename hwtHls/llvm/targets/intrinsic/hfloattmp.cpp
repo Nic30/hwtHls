@@ -1,3 +1,4 @@
+#include <cmath>
 #include <hwtHls/llvm/targets/intrinsic/hfloattmp.h>
 #include <llvm/IR/Module.h>
 #include <llvm/ADT/StringExtras.h>
@@ -151,86 +152,84 @@ T to_unsigned(T val, int width) {
 	}
 }
 
-double HFloatTmpConfig::fixp_resize_double(double x, bool isSigned,
+double HFloatTmpConfig::fixp_resize_double_representing_Q(double x, bool isSigned,
                    size_t inIntWidth, size_t inFracWidth,
-				   size_t outIntWidth, size_t outFracWidth,
-				   HFloatTmpRounding roundingMode,
-				   HFloatTmpSaturation saturationMode) {
-    // :see: :func:`fixp_resize`
-    double inputScale = pow(2, inFracWidth);
-    double shiftedValue = x * inputScale;  // all number bits will be in the int part
-    int64_t fracSizeDiff = outFracWidth - inFracWidth;
-    // scale shiftedValue so the lsb is bit 0 of output fractionpart
-    shiftedValue *= pow(2, fracSizeDiff);
-    int64_t roundedValue = shiftedValue;
-    if (fracSizeDiff < 0) {
-    	// output fraction part is smaller, need truncation and rounding
-        switch(roundingMode) {
+                   size_t outIntWidth, size_t outFracWidth,
+                   HFloatTmpRounding roundingMode,
+                   HFloatTmpSaturation saturationMode)  {
+	if (inIntWidth + inFracWidth > 64) {
+		throw std::runtime_error(
+			"NotImplemented: HFloatTmpConfig::fixp_resize_double_representing_Q in >64b "
+			"value");
+	}
+	if (outIntWidth + outFracWidth > 64) {
+		throw std::runtime_error(
+			"NotImplemented: HFloatTmpConfig::fixp_resize_double_representing_Q out >64b "
+			"value");
+	}
+   // :see: :func:`fixp_resize`
+				   
+    // Convert to internal scaled integer (assuming values fit in 64-bit)
+    // We use std::ldexp to avoid multiplication overhead and ensure precision.
+    // This represents the raw fixed-point bits.
+    double scaled = std::ldexp(x, static_cast<int>(inFracWidth));
+    
+    // Adjust for change in fractional width
+    int fracSizeDiff = static_cast<int>(outFracWidth) - static_cast<int>(inFracWidth);
+    double target = std::ldexp(scaled, fracSizeDiff);
+
+    // Rounding: Perform on the 'target' double before integer cast
+    // This maintains the bit-precision relative to the Q-format definition.
+    int64_t roundedValue;
+    switch(roundingMode) {
         case HFloatTmpRounding::ROUND_HALF_EVEN:
-        	// https://stackoverflow.com/a/32751115
-            roundedValue = shiftedValue -= remainder(shiftedValue, 1.0);
+            roundedValue = static_cast<int64_t>(std::nearbyint(target));
             break;
         case HFloatTmpRounding::ROUND_HALF_UP:
-        	// https://stackoverflow.com/a/79758374
-            if (shiftedValue >= 0) {
-                roundedValue = size_t(shiftedValue + 0.5);
-            } else {
-                roundedValue = size_t(shiftedValue - 0.5);
-            }
-            break;
-        case HFloatTmpRounding::ROUND_DOWN:
-            if (shiftedValue > 0) {
-                roundedValue = floor(shiftedValue);
-            } else {
-                roundedValue = ceil(shiftedValue);
-            }
-            break;
-        case HFloatTmpRounding::ROUND_CEILING:
-            roundedValue = ceil(shiftedValue);
+            roundedValue = static_cast<int64_t>(std::round(target));
             break;
         case HFloatTmpRounding::ROUND_FLOOR:
-            roundedValue = floor(shiftedValue);
+            roundedValue = static_cast<int64_t>(std::floor(target));
             break;
-        default:
-            llvm_unreachable("Invalid rounding mode");
-        }
+        case HFloatTmpRounding::ROUND_CEILING:
+            roundedValue = static_cast<int64_t>(std::ceil(target));
+            break;
+        case HFloatTmpRounding::ROUND_DOWN:
+            roundedValue = static_cast<int64_t>(std::trunc(target)); // Truncation
+            break;
+        default: throw std::runtime_error("Unsupported rounding");
     }
-    double maxOutputValue;
-    double minOutputValue;
-    if (isSigned) {
-        maxOutputValue = pow(2, (outIntWidth + outFracWidth - 1)) - 1;
-        minOutputValue = -pow(2, (outIntWidth + outFracWidth - 1));
-    } else {
-        maxOutputValue = pow(2, (outIntWidth + outFracWidth)) - 1;
-        minOutputValue = 0;
-    }
-    double finalValue;
-    if (saturationMode == HFloatTmpSaturation::SATURATE_INF) {
-        if (roundedValue > maxOutputValue) {
-            finalValue = maxOutputValue;
-        } else if (roundedValue < minOutputValue) {
-            finalValue = minOutputValue;
-        } else {
-            finalValue = roundedValue;
-        }
-    } else if (saturationMode == HFloatTmpSaturation::SATURATE_NONE) {
-        roundedValue = size_t(roundedValue);
-        size_t outWidth = outIntWidth + outFracWidth;
-        roundedValue &= mask<size_t>(outWidth);
-        if (isSigned) {
-            roundedValue = to_signed(static_cast<size_t>(roundedValue), outWidth);
-        } else if ( roundedValue < 0) {
-            roundedValue = to_unsigned(static_cast<size_t>(roundedValue), outWidth);
-        }
-        finalValue = roundedValue;
-    } else {
-        finalValue = roundedValue;
-    }
-    double outputScale = pow(2, outFracWidth);
-    finalValue = finalValue / outputScale;
 
-    return finalValue;
+    // Saturation logic on the integer representation
+    // Calculate bounds based on target bit widths
+    int64_t minVal = isSigned ? -(1LL << (outIntWidth + outFracWidth - 1)) : 0;
+    int64_t maxVal = (1LL << (outIntWidth + outFracWidth - (isSigned ? 1 : 0))) - 1;
+
+    if (saturationMode == HFloatTmpSaturation::SATURATE_INF) {
+		if (std::isinf(x)) {
+			roundedValue = x < 0 ? minVal: maxVal;
+		} else if (std::isnan(x)) {
+			std::runtime_error("Can not represent NaN on ");
+		}
+        roundedValue = std::max(minVal, std::min(roundedValue, maxVal));
+    } else if (saturationMode == HFloatTmpSaturation::SATURATE_NONE) {
+        // Masking logic for bit-truncation (emulates hardware overflow)
+		uint64_t vMask = (1ULL << (outIntWidth + outFracWidth)) - 1;
+        uint64_t mask = (outIntWidth + outFracWidth >= 64) ? ~0ULL : vMask;
+        uint64_t raw = static_cast<uint64_t>(roundedValue) & mask;
+		uint64_t outMsb = 1ULL << (outIntWidth + outFracWidth - 1);
+        if (isSigned && (raw & outMsb)) {
+            // Sign extend if negative
+            roundedValue = static_cast<int64_t>(raw | ~mask);
+        } else {
+            roundedValue = static_cast<int64_t>(raw);
+        }
+    }
+
+    // Convert back to double scaling by output fractional width
+    return std::ldexp(static_cast<double>(roundedValue), -static_cast<int>(outFracWidth));
 }
+
 
 APInt HFloatTmpConfig::bitCastAPFloatToHFloatTmpAPInt(const APFloat &v) const {
 	// IEEE-754 s special meanings
@@ -248,8 +247,8 @@ APInt HFloatTmpConfig::bitCastAPFloatToHFloatTmpAPInt(const APFloat &v) const {
 	auto vAsDouble = v.convertToDouble();
 	APInt vAsAPInt;
 	if (isInQFormat) {
-		auto vRounded = fixp_resize_double(vAsDouble, true, C_DOUBLE_MANTISA_W,
-				C_DOUBLE_MANTISA_W, exponentOrIntWidth,
+		auto vRounded = fixp_resize_double_representing_Q(vAsDouble, fpCfg.hasSign, C_DOUBLE_MANTISA_W,
+				C_DOUBLE_EXPONENT_W, exponentOrIntWidth,
 				mantissaOrFracWidth, rounding, saturation);
 		vAsAPInt = APFloat(vRounded).bitcastToAPInt();
 	} else  {

@@ -111,7 +111,7 @@ struct HFloatTmpConfig {
 	// load config from operands od HWTFPGA_FP_* MachineInstr instance
 	static HFloatTmpConfig fromMachineInstrOperands(llvm::MachineInstr &MI,
 			size_t operandOffset);
-	static double fixp_resize_double(double x, bool isSigned,
+	static double fixp_resize_double_representing_Q(double x, bool isSigned,
             size_t inIntWidth, size_t inFracWidth,
 			size_t outIntWidth, size_t outFracWidth,
 			HFloatTmpRounding roundingMode,
