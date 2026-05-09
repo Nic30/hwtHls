@@ -637,6 +637,14 @@ class PyBytecodeToSsaLowLevelOpcodes():
         else:
             setattr(dstParent, instr.argval, src)
             return curBlock
+    
+    def _shareNameWithRtlSignal(self, v:Union[RtlSignal, HwIO] , name:str):
+        # only if it is a hw variable, create assignment to HW variable
+        if isinstance(v, RtlSignal) and v._hasGenericName:
+            v._name = name
+            v._hasGenericName = False
+        elif isinstance(v, HwIO) and v._name is None:
+            v._name = name
 
     def _STORE_FAST(self, frame: PyBytecodeFrame, curBlock: BasicBlock, instr: Instruction, arg: int, argval: str) -> BasicBlock:
         stack = frame.stack
@@ -658,14 +666,9 @@ class PyBytecodeToSsaLowLevelOpcodes():
                         v = self._initializeStorageCellForHwSignal(argval, vVal)
                         localsplus[varIndex] = v
 
+                        
             if isinstance(v, (RtlSignal, HwIO, ObjectWithHlsStoreOverride)):
-                # only if it is a hw variable, create assignment to HW variable
-                if isinstance(v, RtlSignal) and v._hasGenericName:
-                    v._name = argval
-                    v._hasGenericName = False
-                elif isinstance(v, HwIO) and v._name is None:
-                    v._name = argval
-
+                self._shareNameWithRtlSignal(v, argval)
                 return self._storeToHwSignal(curBlock, v, vVal)
 
         if isinstance(vVal, PyBytecodeInPreproc):
