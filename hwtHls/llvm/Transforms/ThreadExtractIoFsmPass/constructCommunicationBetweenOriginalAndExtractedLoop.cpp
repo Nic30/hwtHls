@@ -71,24 +71,25 @@ void resolveExportedValues(LoopInfo &LI, Loop *L, ValueToValueMapTy &VMap,
 			}
 		}
 	}
-
 }
 
-ArrayRef<Value*> castArrayRefOfInstructionToValue(ArrayRef<Instruction*> arr) {
+ArrayRef<Value *>
+castArrayRefOfInstructionToValue(ArrayRef<Instruction *> arr) {
 	// We can create a new ArrayRef pointing to the same data with new
-	return ArrayRef<Value*>(reinterpret_cast<Value* const*>(arr.data()),
-			arr.size());
+	return ArrayRef<Value *>(reinterpret_cast<Value *const *>(arr.data()),
+							 arr.size());
 }
 
 HwtHlsIoMetadata ExportFromOndThreadToNewThread_createAllocaAndStoreInOld(
-		IRBuilder<> &Builder, BasicBlock::iterator allocaInsertPoint,
-		Instruction *storeInsertPoint, const SetVector<Instruction*> &values,
-		Function &F, Function &extractedF,
-		SmallVector<ArgToAddToParentFn> &argsToAddToOldFn,
-		AllocaInst *&tmpAlloca, size_t &addedArgI, IntegerType *&valueTy) {
+	IRBuilder<> &Builder, BasicBlock::iterator allocaInsertPoint,
+	Instruction *storeInsertPoint, const SetVector<Instruction *> &values,
+	Function &F, Function &extractedF,
+	SmallVector<ArgToAddToParentFn> &argsToAddToOldFn, AllocaInst *&tmpAlloca,
+	size_t &addedArgI, IntegerType *&valueTy) {
+
 	Builder.SetInsertPoint(storeInsertPoint);
-	auto allInConcat = CreateBitConcat(&Builder,
-			castArrayRefOfInstructionToValue(values.getArrayRef()));
+	auto allInConcat =
+		CreateBitConcat(&Builder, castArrayRefOfInstructionToValue(values.getArrayRef()));
 	valueTy = dyn_cast<IntegerType>(allInConcat->getType());
 	Builder.SetInsertPoint(allocaInsertPoint);
 	addedArgI = F.arg_size() + argsToAddToOldFn.size();
@@ -100,17 +101,18 @@ HwtHlsIoMetadata ExportFromOndThreadToNewThread_createAllocaAndStoreInOld(
 	mdSrc.writeWordWidth = valueTy->getIntegerBitWidth();
 	mdSrc.otherArgIndex = addedArgI;
 	mdSrc.otherThreadFn = &extractedF;
-	argsToAddToOldFn.push_back( { tmpAlloca, mdSrc });
+	argsToAddToOldFn.push_back({tmpAlloca, mdSrc});
 	return mdSrc;
 }
 
 void ExportFromOndThreadToNewThread_createAllocaAndLoadInNew(
-		IRBuilder<> &Builder, BasicBlock::iterator allocaInsertPoint,
-		Instruction *loadInsertPoint, Function &F, Function &extractedF,
-		IntegerType *valueTy, size_t addedArgI, ValueToValueMapTy &VMap,
-		const SetVector<Instruction*> &values, AllocaInst *&tmpAlloca,
-		SmallVector<ArgToAddToParentFn> &argsToAddToNewFn,
-		SetVector<Value*> &newInstructionsInNewFn) {
+	IRBuilder<> &Builder, BasicBlock::iterator allocaInsertPoint,
+	Instruction *loadInsertPoint, Function &F, Function &extractedF,
+	IntegerType *valueTy, size_t addedArgI, ValueToValueMapTy &VMap,
+	const SetVector<Instruction *> &values, AllocaInst *&tmpAlloca,
+	SmallVector<ArgToAddToParentFn> &argsToAddToNewFn,
+	SetVector<Value *> &newInstructionsInNewFn) {
+
 	Builder.SetInsertPoint(allocaInsertPoint);
 	tmpAlloca = Builder.CreateAlloca(valueTy, addedArgI);
 	newInstructionsInNewFn.insert(tmpAlloca);
@@ -123,8 +125,8 @@ void ExportFromOndThreadToNewThread_createAllocaAndLoadInNew(
 		assert(bitOffset < valueTy->getIntegerBitWidth());
 		size_t w = v->getType()->getIntegerBitWidth();
 		Value *vInNew = &*VMap[v];
-		auto newVReplacement = CreateBitRangeGetConst(&Builder, allInConcatNew,
-				bitOffset, w);
+		auto newVReplacement =
+			CreateBitRangeGetConst(&Builder, allInConcatNew, bitOffset, w);
 		newInstructionsInNewFn.insert(newVReplacement);
 		newVReplacement->takeName(vInNew);
 		vInNew->replaceAllUsesWith(newVReplacement);
@@ -135,31 +137,33 @@ void ExportFromOndThreadToNewThread_createAllocaAndLoadInNew(
 	mdDst.writeWordWidth = valueTy->getIntegerBitWidth();
 	mdDst.otherArgIndex = addedArgI;
 	mdDst.otherThreadFn = &F;
-	argsToAddToNewFn.push_back( { tmpAlloca, mdDst });
+	argsToAddToNewFn.push_back({tmpAlloca, mdDst});
 }
 
-void constructCommunicationBetweenOriginalAndExtractedLoop(IRBuilder<> &Builder,
-		Function &F, Function &extractedF,
-		SmallVector<ArgToAddToParentFn> &argsToAddToOldFn,
-		SmallVector<ArgToAddToParentFn> &argsToAddToNewFn,
-		std::map<Loop*, LoopExports> &loopExports,
-		SetVector<Instruction*> &alreadyExported, ValueToValueMapTy &VMap,
-		ValueToValueMapTy &VMapNewToOld,
-		BasicBlock::iterator allocaInsertPointInOld,
-		BasicBlock::iterator allocaInsertPointInNew, Loop *L,
-		SetVector<Value*> &newInstructionsInNewFn) {
+void constructCommunicationBetweenOriginalAndExtractedLoop(
+	IRBuilder<> &Builder, Function &F,
+	Function &extractedF, SmallVector<ArgToAddToParentFn> &argsToAddToOldFn,
+	SmallVector<ArgToAddToParentFn> &argsToAddToNewFn,
+	std::map<Loop *, LoopExports> &loopExports,
+	SetVector<Instruction *> &alreadyExported, ValueToValueMapTy &VMap,
+	ValueToValueMapTy &VMapNewToOld,
+	BasicBlock::iterator allocaInsertPointInOld,
+	BasicBlock::iterator allocaInsertPointInNew, Loop *L,
+	SetVector<Value *> &newInstructionsInNewFn) {
 	// :note: F has already remove extracted instructions
 	LoopExports &loopExport = loopExports[L];
 	// [todo] check the dominance it is not guaranteed because
-	//        we are not capturing the value in the point of definition but in loop preheader
-	loopExport.beforeHeaderExports.remove_if([&alreadyExported](Instruction *v) {
-		return alreadyExported.contains(v);
-	});
-	//errs() << "beforeHeader of " << *L;
+	//        we are not capturing the value in the point of definition but in
+	//        loop preheader
+	loopExport.beforeHeaderExports.remove_if(
+		[&alreadyExported](Instruction *v) {
+			return alreadyExported.contains(v);
+		});
+	// errs() << "beforeHeader of " << *L;
 	if (loopExport.beforeHeaderExports.size()) {
-		//for (auto *I : loopExport.beforeHeaderExports) {
+		// for (auto *I : loopExport.beforeHeaderExports) {
 		//	errs() << "    " << *I << "\n";
-		//}
+		// }
 		BasicBlock *preHeader = L->getLoopPreheader();
 		if (!preHeader) {
 			// if the header does not have
@@ -169,51 +173,51 @@ void constructCommunicationBetweenOriginalAndExtractedLoop(IRBuilder<> &Builder,
 
 		size_t addedArgI;
 		IntegerType *valueTy = nullptr;
-		ExportFromOndThreadToNewThread_createAllocaAndStoreInOld(Builder,
-				allocaInsertPointInOld, preHeader->getTerminator(),
-				loopExport.beforeHeaderExports, F, extractedF, argsToAddToOldFn,
-				loopExport.beforeHeaderInOld, addedArgI, valueTy);
+		ExportFromOndThreadToNewThread_createAllocaAndStoreInOld(
+			Builder, allocaInsertPointInOld, preHeader->getTerminator(),
+			loopExport.beforeHeaderExports, F, DT, extractedF, argsToAddToOldFn,
+			loopExport.beforeHeaderInOld, addedArgI, valueTy);
 		// :attention: the pre-header section does not necessary be just 1 block
 		//  and thus preHeaderNew->getFirstInsertionPt() may not be the correct place
-		auto preHeaderNew = dyn_cast<BasicBlock>(&*VMap[preHeader]);
-		ExportFromOndThreadToNewThread_createAllocaAndLoadInNew(Builder,
-				allocaInsertPointInNew, &*preHeaderNew->getFirstInsertionPt(), F,
-				extractedF, valueTy, addedArgI, VMap,
-				loopExport.beforeHeaderExports, loopExport.beforeHeaderInNew,
-				argsToAddToNewFn, newInstructionsInNewFn);
+		ExportFromOndThreadToNewThread_createAllocaAndLoadInNew(
+			Builder, allocaInsertPointInNew, &*preHeaderNew->getFirstInsertionPt(), F, extractedF,
+			valueTy, addedArgI, VMap, loopExport.beforeHeaderExports,
+			loopExport.beforeHeaderInNew, argsToAddToNewFn,
+			newInstructionsInNewFn);
 	} else {
-		//errs() << "    <none>\n";
+		// errs() << "    <none>\n";
 	}
 
 	alreadyExported.insert(loopExport.beforeHeaderExports.begin(),
-			loopExport.beforeHeaderExports.end());
+						   loopExport.beforeHeaderExports.end());
 	for (Loop *cLoop : *L) {
-		constructCommunicationBetweenOriginalAndExtractedLoop(Builder, F,
-				extractedF, argsToAddToOldFn, argsToAddToNewFn, loopExports,
-				alreadyExported, VMap, VMapNewToOld, allocaInsertPointInOld,
-				allocaInsertPointInNew, cLoop, newInstructionsInNewFn);
+		constructCommunicationBetweenOriginalAndExtractedLoop(
+			Builder, F, extractedF, argsToAddToOldFn, argsToAddToNewFn,
+			loopExports, alreadyExported, VMap, VMapNewToOld,
+			allocaInsertPointInOld, allocaInsertPointInNew, cLoop,
+			newInstructionsInNewFn);
 	}
 
 	loopExport.beforeExitOrLatchExports.remove_if(
-			[&alreadyExported](Instruction *v) {
-				return alreadyExported.contains(v);
-			});
-	//errs() << "beforeExit of " << *L;
+		[&alreadyExported](Instruction *v) {
+			return alreadyExported.contains(v);
+		});
+	// errs() << "beforeExit of " << *L;
 	if (loopExport.beforeExitOrLatchExports.size()) {
-		//for (auto *I : loopExport.beforeExitOrLatchExports) {
+		// for (auto *I : loopExport.beforeExitOrLatchExports) {
 		//	errs() << "    " << *I << "\n";
-		//}
+		// }
 
 		SmallVector<Loop::Edge> edgesForExport;
 		L->getExitEdges(edgesForExport);
-		SmallVector<BasicBlock*> latches;
+		SmallVector<BasicBlock *> latches;
 		L->getLoopLatches(latches);
 		auto header = L->getHeader();
 		for (auto latch : latches) {
-			edgesForExport.push_back( { latch, header });
+			edgesForExport.push_back({latch, header});
 		}
-		std::map<BasicBlock*, size_t> cntOfExportingEdgeFromBB;
-		for (const auto& [src, _] : edgesForExport) {
+		std::map<BasicBlock *, size_t> cntOfExportingEdgeFromBB;
+		for (const auto &[src, _] : edgesForExport) {
 			auto cur = cntOfExportingEdgeFromBB.find(src);
 			if (cur == cntOfExportingEdgeFromBB.end()) {
 				cntOfExportingEdgeFromBB[src] = 1;
@@ -221,34 +225,34 @@ void constructCommunicationBetweenOriginalAndExtractedLoop(IRBuilder<> &Builder,
 				cur->second++;
 			}
 		}
-		std::set<BasicBlock*> exitBBsWithExportAtEnd;
+		std::set<BasicBlock *> exitBBsWithExportAtEnd;
 		auto headerInNew = dyn_cast<BasicBlock>(&*VMap[header]);
-		for (const auto& [src, dst] : edgesForExport) {
-			if (cntOfExportingEdgeFromBB[src]
-					== src->getTerminator()->getNumSuccessors()) {
+		for (const auto &[src, dst] : edgesForExport) {
+			if (cntOfExportingEdgeFromBB[src] ==
+				src->getTerminator()->getNumSuccessors()) {
 				// every branch from this bb will result in export
 				// Store of exported variables may be constructed there
 				if (exitBBsWithExportAtEnd.contains(src)) {
 					// export already constructed
 				} else {
-					// :note: store is placed before each exit or reenter in the original loop
+					// :note: store is placed before each exit or reenter in the
+					// original loop
 					//        load is placed in header of extracted loop
 					size_t addedArgI;
 					IntegerType *valueTy;
 					ExportFromOndThreadToNewThread_createAllocaAndStoreInOld(
-							Builder, allocaInsertPointInOld,
-							src->getTerminator(),
-							loopExport.beforeExitOrLatchExports, F, extractedF,
-							argsToAddToOldFn, loopExport.beforeExitOrLatchInOld,
-							addedArgI, valueTy);
+						Builder, allocaInsertPointInOld, src->getTerminator(),
+						loopExport.beforeExitOrLatchExports, F, extractedF,
+						argsToAddToOldFn, loopExport.beforeExitOrLatchInOld,
+						addedArgI, valueTy);
 
 					ExportFromOndThreadToNewThread_createAllocaAndLoadInNew(
-							Builder, allocaInsertPointInNew,
-							&*headerInNew->getFirstInsertionPt(), F, extractedF,
-							valueTy, addedArgI, VMap,
-							loopExport.beforeExitOrLatchExports,
-							loopExport.beforeExitOrLatchInNew, argsToAddToNewFn,
-							newInstructionsInNewFn);
+						Builder, allocaInsertPointInNew,
+						&*headerInNew->getFirstInsertionPt(), F, extractedF,
+						valueTy, addedArgI, VMap,
+						loopExport.beforeExitOrLatchExports,
+						loopExport.beforeExitOrLatchInNew, argsToAddToNewFn,
+						newInstructionsInNewFn);
 
 					exitBBsWithExportAtEnd.insert(src);
 				}
