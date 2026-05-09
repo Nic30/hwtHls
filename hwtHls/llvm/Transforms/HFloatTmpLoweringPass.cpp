@@ -1,3 +1,4 @@
+#include <hwtHls/llvm/targets/intrinsic/pyObjectPlaceholder.h>
 #include <hwtHls/llvm/Transforms/HFloatTmpLoweringPass.h>
 
 #include <unordered_map>
@@ -484,7 +485,57 @@ Value* HFloatTmplRewriter::createSpecializedInstruction(Instruction &I) {
 					Builder.SetInsertPoint(&I);
 					newI = createSpecializedValue(newFpTyCfg, *srcOp);
 					newInstructionType[&I] = newFpTyCfg; // because new
+				} else if (IsPyObjectPlacehoder(CI)) {
+					if (CI->getType()->isDoubleTy()) {
+						errs() << I << "\n";
+						llvm_unreachable(
+							"NotImplementedError: HFloatTmpLoweringPass "
+							"PyObjectPlacehoder with HFloatTmp as return type");
+					}
+					// create a specialized variant which will use int arguments
+					// instead of double for HFloatTmp
+					SmallVector<Value*, 8> newArgs;
+					SmallVector<Type*, 8> newArgTypes;
+					for (auto& a: CI->args()) {
+						// :attention: newFpTyCfg is for one of the arguments,
+						//  but some arguments may use different newFpTyCfg
+						Value * newA = a.get();
+						if (newA->getType()->isDoubleTy()) {
+							if (auto *newAI = dyn_cast<Instruction>(newA)) {
+								auto _newFpTyCfg = newInstructionType.find(newAI);
+								if (_newFpTyCfg != newInstructionType.end()) {
+									HFloatTmpConfig& newFpTyCfgForArg =
+										_newFpTyCfg->second;
+									newA = createSpecializedValue(newFpTyCfgForArg,
+																  *newAI);
+								}
+							} else {
+								errs() << I << "\n";
+								llvm_unreachable(
+									"NotImplementedError: HFloatTmpLoweringPass "
+									"PyObjectPlacehoder with constant HFloatTmp argument");
+							}
+						}
+						newArgs.push_back(newA);
+						newArgTypes.push_back(newA->getType());
+					}
+					auto & oldF = *CI->getCalledFunction();
+					auto oldFT = CI->getFunctionType();
+					auto newFT = FunctionType::get(oldFT->getReturnType(), newArgTypes, false);
+					auto* newF = Function::Create(newFT, Function::LinkageTypes::ExternalLinkage,
+						 oldF.getName() + ".fpLowered", oldF.getParent());
+					newF->copyAttributesFrom(&oldF);
+					newF->copyMetadata(&oldF, 0);
+					// :note: call metadata set at end of this cycle
+					Builder.SetInsertPoint(&I);
+					newI = Builder.CreateCall(FunctionCallee(newF), newArgs);
+					newInstructionType[&I] = newFpTyCfg; // to mark this instruction as to be removed
 				} else {
+					if (CI->arg_size() == 0) { 
+						errs() << I << "\n";
+						llvm_unreachable(
+								"Unsupported CallInst for HFloatTmpLoweringPass");
+					}
 					auto op0 = createSpecializedValue(newFpTyCfg,
 							*CI->getArgOperand(0));
 					Builder.SetInsertPoint(&I);
@@ -493,7 +544,7 @@ Value* HFloatTmplRewriter::createSpecializedInstruction(Instruction &I) {
 						shOp = CreateHwtHlsFpShl;
 					} else if (IsHwtHlsFpUnspecializedShr(CI)) {
 						shOp = CreateHwtHlsFpShr;
-					} else {
+					} else { 
 						errs() << I << "\n";
 						llvm_unreachable(
 								"Unsupported CallInst for HFloatTmpLoweringPass");
@@ -552,8 +603,9 @@ llvm::PreservedAnalyses HFloatTmpLoweringPass::run(llvm::Function &F,
 			auto CI = dyn_cast<CallInst>(&I);
 			if (!CI)
 				continue;
-			// [todo] cover when only floating point primary inputs to expression are constants (which do not use CastToHFloatTmp)
-			//        and any output does not use CastFromHFloatTmp (e.g. expression tree ending with FCmp)
+			// [todo] cover case when only floating point primary inputs to expression are constants
+			//        (which do not use CastToHFloatTmp) and any output does not use CastFromHFloatTmp
+			//        (e.g. expression tree ending with FCmp)
 			if (IsCastToHFloatTmp(CI)) {
 				auto fpCfg = HFloatTmpConfig::fromCallArgs(*CI);
 				propagateTypeDefToUse(fpCfg, *CI, newInstructionType,
@@ -588,7 +640,7 @@ llvm::PreservedAnalyses HFloatTmpLoweringPass::run(llvm::Function &F,
 								newInstructionType.find(
 										dyn_cast<Instruction>(U))
 										!= newInstructionType.end()
-										&& "There can not be any user which will not be removed ad this point");
+										&& "There can not be any user which will not be removed at this point");
 					}
 					I.replaceAllUsesWith(PoisonValue::get(I.getType()));
 					I.eraseFromParent();
