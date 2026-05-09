@@ -11,6 +11,7 @@ from tests.frontend.exprTree3_test import HlsAstExprTree3_example_TC
 from tests.frontend.fnCall_test import FnCall_TC
 from tests.frontend.fnClosue_test import FnClosure_TC
 from tests.frontend.hStructAssign_test import HStructAssign_TC
+from tests.frontend.hwSimCallback_test import TestHwSimCallbackTC
 from tests.frontend.hwenumerate_test import HlsPythonHwenumerate_TC
 from tests.frontend.hwrange_test import HlsPythonHwrange_TC
 from tests.frontend.ifstm_test import HlsSimpleIfStatement_TC
@@ -77,6 +78,7 @@ frontend_TCs = [
     HStructAssign_TC,
     VariableChain_TC,
     ReadNonBlocking_TC,
+    TestHwSimCallbackTC,
 ]
 
 if __name__ == '__main__':
