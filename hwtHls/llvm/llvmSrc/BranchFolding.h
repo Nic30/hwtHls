@@ -9,11 +9,11 @@
 #ifndef LLVM_LIB_CODEGEN_BRANCHFOLDING_H
 #define LLVM_LIB_CODEGEN_BRANCHFOLDING_H
 
-#include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/SmallPtrSet.h"
-#include "llvm/CodeGen/LivePhysRegs.h"
-#include "llvm/CodeGen/MachineBasicBlock.h"
-#include "llvm/Support/Compiler.h"
+#include <llvm/ADT/DenseMap.h>
+#include <llvm/ADT/SmallPtrSet.h>
+#include <llvm/CodeGen/LivePhysRegs.h>
+#include <llvm/CodeGen/MachineBasicBlock.h>
+#include <llvm/Support/Compiler.h>
 #include <vector>
 
 namespace llvm {
