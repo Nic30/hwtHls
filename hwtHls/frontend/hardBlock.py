@@ -98,6 +98,10 @@ class HardBlockHwModule(_PyBytecodeIntrinsic):
         return res
 
     @staticmethod
+    def _llvmMirToHlsNetlist_getResultWidth(ops: tuple):
+        return ops[1]
+
+    @staticmethod
     def _llvmMirToHlsNetlist_cutOfIdAndWidthFromOps(ops: tuple):
         # ops are in format $objId id, $resultWidth, inputs,  inputWidths, enCond
         # extract inputs and enCond
