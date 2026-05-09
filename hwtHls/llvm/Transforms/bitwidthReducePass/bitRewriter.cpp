@@ -481,7 +481,12 @@ llvm::Value* BitPartsRewriter::expandConstBits(IRBuilder<> *b,
 			//}
 			auto *v = rewriteKnownBitRangeInfo(b, kbri);
 			concatMembers.push_back(v);
-			size_t w = v->getType()->getIntegerBitWidth();
+			size_t w;
+			if (v->getType()->isIntegerTy()) {
+			 	w =v->getType()->getIntegerBitWidth();
+			} else {
+				w = 1;
+			}
 			actualWidth += w;
 			// if it is of some known value other than itself it is not computed by this instruction and thus reduced
 			reducedBitCnt += w;

@@ -120,8 +120,9 @@ void BitPartsUseAnalysisContext::updateUseMask(const llvm::Value *V,
 	if (_newMask != newMask) {
 		for (const KnownBitRangeInfo &r : vbc.replacements) {
 			if (!isa<ConstantData>(r.src) && r.src != V) {
-				APInt replUseMask =
-						(newMask
+				APInt replUseMask;
+				if (V->getType()->isIntegerTy()) {
+						replUseMask = (newMask
 								& APInt::getBitsSet(newMask.getBitWidth(),
 										r.dstBeginBitI, r.dstBeginBitI + r.width)) // clear unrelated bits
 						.zext(
@@ -130,6 +131,10 @@ void BitPartsUseAnalysisContext::updateUseMask(const llvm::Value *V,
 						.ashr(r.dstBeginBitI) // align so bit 0 is where replacement value starts in dst
 						.shl(r.srcBeginBitI) // align so the mask value is compatible with src
 						.trunc(r.src->getType()->getIntegerBitWidth());
+				} else {
+					replUseMask = newMask;
+				}
+
 				updateUseMask(r.src, replUseMask);
 			}
 		}
