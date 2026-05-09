@@ -68,7 +68,7 @@ public:
 	// number of segments in this interfaces, if >1 the wires of interface are physically divided
 	// into multiple segments each represented by a single nativeWordTy. This division allows
 	// for transfer of multiple packets in single beat. This also solves throughput degradation for
-	// wide buses and misalligned packets sizes but it comes at the cost of increased circuit complexity.
+	// wide buses and misaligned packets sizes but it comes at the cost of increased circuit complexity.
 	size_t segmentCnt;
 
 	// the load and store to a pointer representing this stream is segmentCnt*nativeSegmentTy = wordTy
