@@ -3,16 +3,20 @@ from tests.io.pcie.pcieTlpTestUtils import PcieTlpPretty, pcieTlpParse_DWs
 
 # UG-01097_avst Transaction Layer Packet (TLP) Header Formats
 
-# read from addr 0
+# :note: https://github.com/j-marjanovic/chisel-stuff/blob/master/example-14-pcie-endpoint/src/test/scala/pcie_endpoint/PcieEndpoint64bInterfaceSimpleTest.scala
+# https://support.microchip.com/s/article/Transaction-Layer-Packets
 
-r0 = [
+# :attention: 
+
+# read from addr 0
+PcieTlp_ExampleDwords_AlteraStatixV_r0 = [
     0x00000001,  # MRd32, len=1
     0x001A080F,
     0xDF8C0000,
     0x0,
 ]
 # read from addr 4
-r4 = [
+PcieTlp_ExampleDwords_AlteraStatixV_r4 = [
     0x00000001,  # MRd32, len=1
     0x001A080F,
     0xDF8C0004,
@@ -20,16 +24,16 @@ r4 = [
 ]
 
 # write to 0x8
-w8 = [
+PcieTlp_ExampleDwords_AlteraStatixV_w8 = [
     0x40000001,  # MWr32, len=1
     0x00000B0F,  # first_be=0xf
     0xDF8C0008,  # addr32_2  # :attention: Figure B-10: Memory Write Request, 32-Bit Addressing
-    0x0,  # 0xDDCCBBAA, #           #             specifies format as for 64b
+    0x0,  # 0xDDCCBBAA, #               specifies format as for 64b
     0xAABBCCDD,  # https://forum.xillybus.com/viewtopic.php?t=494
     # 0xE3AFD64B,
 ]
 # write to 0x20
-w20 = [
+PcieTlp_ExampleDwords_AlteraStatixV_w20 = [
     0x40000001,
     0x0000090F,
     0xDF8C0020,
@@ -38,7 +42,7 @@ w20 = [
     # 0x0975F1E4,
 ]
 # read from addr 0x24 (8B non-aligned)
-r24 = [
+PcieTlp_ExampleDwords_AlteraStatixV_r24 = [
     0x00000001,
     0x001A080F,
     0xDF8C0024,
@@ -46,7 +50,7 @@ r24 = [
 ]
 
 # write to addr 0x24 (8B non-aligned)
-w24 = [
+PcieTlp_ExampleDwords_AlteraStatixV_w24 = [
     0x40000001,
     0x00000A0F,
     0xDF8C0024,
@@ -58,12 +62,12 @@ class PcieUtils_TC(unittest.TestCase):
 
     def test_PcieTlpPretty_pcieTlpParse_DWs_RW(self):
         pkts = (
-            ("r0", r0),
-            ("r4", r4),
-            ("w8", w8),
-            ("w20", w20),
-            ("r24", r24),
-            ("w24", w24)
+            ("r0", PcieTlp_ExampleDwords_AlteraStatixV_r0),
+            ("r4", PcieTlp_ExampleDwords_AlteraStatixV_r4),
+            ("w8", PcieTlp_ExampleDwords_AlteraStatixV_w8),
+            ("w20", PcieTlp_ExampleDwords_AlteraStatixV_w20),
+            ("r24", PcieTlp_ExampleDwords_AlteraStatixV_r24),
+            ("w24", PcieTlp_ExampleDwords_AlteraStatixV_w24),
         )
         expectedPktRepr = [
             "<PcieTlpPretty MRd32, len=1, req_id=0x1a, tag=8, be=(0xf, 0), addr=0xdf8c0000>",
@@ -75,7 +79,7 @@ class PcieUtils_TC(unittest.TestCase):
         ]
         for (name, pktRaw), expectedRepr in zip(pkts, expectedPktRepr):
             # print(name)
-            p = PcieTlpPretty(pcieTlpParse_DWs(pktRaw, alignTo8B=True))
+            p = PcieTlpPretty(pcieTlpParse_DWs(pktRaw, extendDW3To4DW=True))
             self.assertEqual(repr(p), expectedRepr, name)
 
     # def test_MRd32(self):
