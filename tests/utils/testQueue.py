@@ -1,6 +1,6 @@
 from collections import deque
 from math import inf
-from typing import Sequence, Optional
+from typing import Sequence, Optional, Union
 
 from hwt.constants import NOP
 from hwt.hdl.const import HConst
@@ -34,7 +34,7 @@ class TestRead():
         self.valid = valid
 
 
-class TestQueueIn(deque):
+class TestQueueIn(deque[HConst]):
     """
     Testing mock type for :class:`IoProxyScalar`. Implements a FIFO which supports read operation.
     """
@@ -105,7 +105,7 @@ class TestQueueInOut(TestQueueIn):
 
 class TestQueueOutIndexed(deque):
     """
-    Testing mock type for :class:`IoProxyScalar`. Implements a FIFO which stores tuples for store into array.
+    Testing mock type for :class:`IoProxyArray`. Implements a FIFO which stores tuples for store into array.
     """
 
     def write(self, index, data, mask=None):
@@ -113,3 +113,4 @@ class TestQueueOutIndexed(deque):
 
     def __repr__(self) -> str:
         return TestIoWithName.__repr__(self)
+
