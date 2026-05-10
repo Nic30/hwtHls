@@ -42,7 +42,7 @@ def pcieTlpParse_DWs(dataWords: list[int], alteraAlignTo8B:bool=False):
             dw = next(wordIt)
             assert dw == 0, ("expect padding", hex(dw), parsed)
 
-    elif tlpTy == PcieTlpType.Cpl or tlpTy == PcieTlpType.CplD or tlpTy == PcieTlpType.CplDLk:
+    elif tlpTy in (PcieTlpType.Cpl, PcieTlpType.CplD, PcieTlpType.CplDLk):
         dw0 = next(wordIt)
         dw1 = next(wordIt)
         cpl = HBits(64).from_py((dw1 << 32) | dw0)._reinterpret_cast(PcieTlpCpl_t)
@@ -70,7 +70,6 @@ def pcieTlpParse_DWs(dataWords: list[int], alteraAlignTo8B:bool=False):
         assert dw is NOT_SPECIFIED, ("No data expected", hex(dw), parsed)
 
     return parsed
-
 
 
 class PcieTlpPretty():
