@@ -46,6 +46,14 @@ class TestQueueIn(deque[HConst]):
         self.T = T
         self.nbReadsWithoutDataLimit = maxNbReadsWithoutData
 
+    def append(self, v):
+        """
+        :param v: a value to be returned on read from this queue, type depens on T and can also be NOP
+        """
+        if not isinstance(v, HConst) and v is not NOP:
+            v = self.T.from_py(v)
+        super().append(v)
+
     def read(self, blocking=True) -> HConst:
         if self:
             d = self.popleft()
