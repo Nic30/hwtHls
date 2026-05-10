@@ -189,10 +189,7 @@ def _makeDecodeOpcodeFunction_BinaryOperator(fn: Callable[[HConst, HConst], HCon
 
     def _decodeOpcode_BinaryOperator(interpret: "LlvmIrInterpret", instr: Instruction) -> LlvmIrInstrFunction:
         bi: BinaryOperator = InstructionToBinaryOperator(instr)
-        try:
-            assert bi is not None, (instr, fn)
-        except:
-            raise
+        assert bi is not None, (instr, fn)
         _ops = interpret._decodeInstArguments(bi.iterOperandValues())
 
         def _opcode_BinaryOperator(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
