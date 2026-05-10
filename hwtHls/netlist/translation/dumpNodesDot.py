@@ -21,7 +21,7 @@ from hwtHls.netlist.nodes.fsmStateEn import HlsNetNodeFsmStateEn, \
 from hwtHls.netlist.nodes.fsmStateWrite import HlsNetNodeFsmStateWrite
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
-from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
+from hwtHls.netlist.nodes.ops import HlsNetNodeOperator, OP_INDEX_CONST
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     _reprMinify, HlsNetNodeIn
 from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
@@ -29,11 +29,14 @@ from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
-from hwtHls.netlist.scheduler.clk_math import clkWindowIndex, \
-    clkWindowOffsetFromWindowBegin, clkWindowOffsetFromWindowEnd, \
-    SchedTime_format
+from hwtHls.netlist.scheduler.clk_math import clkWindowOffsetFromWindowBegin, \
+    clkWindowOffsetFromWindowEnd, SchedTime_format
 from hwtHls.platform.fileUtils import OutputStreamGetter
+from hwtHls.netlist.nodes.explicitRegisterAccess import HlsNetNodeExplicitRegisterStore, \
+    HlsNetNodeExplicitRegisterLoad
 
+# https://graphviz.org/doc/info/colors.html
+COLOR_FREE_OPERANDS = "grey70"
 COLOR_INPUT_READ = "LightGreen"
 COLOR_OUTPUT_WRITE = "LightBlue"
 COLOR_SYNC_INTERNAL = "Chartreuse"  # bright type of green
@@ -50,6 +53,9 @@ class ClockWindowLayer(Enum):
 class HwtHlsNetlistToGraphviz():
     """
     Generate a Graphviz (dot) diagram of the netlist.
+    
+    :attention: if the clock frequency is too low (~1KHz) the edge weights will become very large 1e8
+        and xdot will fail with error "1:1:unexpected end of file"
     """
     # ORDERING_EDGE_STYLE = { "color": "red"}
     # ORDERING_NODE_STYLE = {}
@@ -95,9 +101,11 @@ class HwtHlsNetlistToGraphviz():
   <tr><td bgcolor="plum">HlsNetNodeConst</td></tr>
   <tr><td bgcolor="{COLOR_SYNC_INTERNAL:s}">HlsNetNodeExplicitSync</td></tr>
   <tr><td bgcolor="{COLOR_SPECIAL_PURPOSE:s}">HlsNetNodeLoopStatus, HlsProgramStarter, HlsNetNodeFsmStateEn, HlsNetNodeStageAck, HlsNetNodeFsmStateWrite</td></tr>
+  <tr><td bgcolor="yellow">HlsNetNodeExplicitRegisterStore, HlsNetNodeExplicitRegisterLoad</td></tr>
   <tr><td bgcolor="gray">shadow connection</td></tr>
   <tr><td bgcolor="{COLOR_TEMPORARY_NODE:s}">HlsNetNodeOutLazy</td></tr>
   <tr><td bgcolor="gray">HlsNetNodeAggregatePortIn/Out</td></tr>
+  <tr><td bgcolor="{COLOR_FREE_OPERANDS}">HlsNetNodeOperator with HwtOps.INDEX,CONCAT, OP_INDEX_CONST, NOT</td></tr>
 </table>>"""
         return pydot.Node("legend", label=legendTable, style='filled', shape="plain")
 
@@ -124,8 +132,12 @@ class HwtHlsNetlistToGraphviz():
             bgcolor = COLOR_SYNC_INTERNAL
         elif isinstance(obj, (HlsNetNodeLoopStatus, HlsProgramStarter, HlsNetNodeFsmStateEn, HlsNetNodeStageAck, HlsNetNodeFsmStateWrite)):
             bgcolor = COLOR_SPECIAL_PURPOSE
+        elif isinstance(obj, (HlsNetNodeExplicitRegisterStore, HlsNetNodeExplicitRegisterLoad)):
+            bgcolor = "yellow"
         elif isinstance(obj, (HlsNetNodeAggregatePortIn, HlsNetNodeAggregatePortOut)):
             color = "gray"
+        elif isinstance(obj, HlsNetNodeOperator) and obj.operator in (HwtOps.INDEX, HwtOps.CONCAT, OP_INDEX_CONST, HwtOps.NOT):
+            color = COLOR_FREE_OPERANDS
 
         return bgcolor, color
 
