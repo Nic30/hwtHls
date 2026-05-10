@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from hwtLib.avalon.st import AvalonST
+from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
-from tests.io.amba.axi4Stream.axi4sParseLinear import Axi4SParseStructManyInts0, \
-    Axi4SParseStructManyInts1, Axi4SParse2fields
-from hwtHls.scope import HlsScope
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.io.avalon.avalonSt.proxy import IoProxyAvalonSt
-from tests.io.amba.axi4Stream.axi4sParseLinear_test import Axi4SParseLinearTC
+from hwtHls.scope import HlsScope
 from hwtLib.amba.axis_comp.frame_parser.test_types import structManyInts
+from hwtLib.avalon.st import AvalonST
 from hwtLib.avalon.stSimFrameUtils import AvalonStSimFrameUtils
+from tests.io.amba.axi4Stream.axi4sParseLinear import Axi4SParseStructManyInts0, \
+    Axi4SParseStructManyInts1, Axi4SParse2fields
+from tests.io.amba.axi4Stream.axi4sParseLinear_test import Axi4SParseLinearTC
 
 
 class AvalonStStructManyInts0(Axi4SParseStructManyInts0):
     AXI_CLS = AvalonST
+
+    @override
+    def hwConfig(self):
+        super().hwConfig()
+        self.firstSymbolInHighOrderBits = HwParam(False)
 
     @override
     def hwImpl(self) -> None:
@@ -27,12 +33,22 @@ class AvalonStParseStructManyInts1(Axi4SParseStructManyInts1):
     AXI_CLS = AvalonST
 
     @override
+    def hwConfig(self):
+        super().hwConfig()
+        self.firstSymbolInHighOrderBits = HwParam(False)
+
+    @override
     def hwImpl(self) -> None:
         AvalonStStructManyInts0.hwImpl(self)
 
 
 class AvalonStParse2fields(Axi4SParse2fields):
     AXI_CLS = AvalonST
+
+    @override
+    def hwConfig(self):
+        super().hwConfig()
+        self.firstSymbolInHighOrderBits = HwParam(False)
 
     @override
     def hwImpl(self) -> None:
