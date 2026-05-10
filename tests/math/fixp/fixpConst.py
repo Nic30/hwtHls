@@ -39,6 +39,12 @@ class HFixedPointQConst(HConst):
         t = Type.getIntNTy(toLlvm.ctx, self._dtype.bit_length())
         return toLlvm._translateExprInt(self.val, t)
 
+    def to_py(self) -> Optional[float]:
+        if self._is_full_valid():
+            return float(self)
+        else:
+            return None
+
     def __repr__(self) -> str:
         if self._is_full_valid():
             vld_mask = ""
