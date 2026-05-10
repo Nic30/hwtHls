@@ -73,7 +73,10 @@ class ComponentGeneratorFCAST_hwtHlsFpIntrinsic_castToHFloatTmp(ComponentGenerat
     def llvmIrInterpretDecode(self, interpret:LlvmIrInterpret, instr:Instruction) -> LlvmIrInstrFunction:
         _src0, = interpret._decodeInstArguments((instr.getOperand(0),))
         src0IsConst = isinstance(_src0, HConst)
-        cfg: HFloatTmpConfig = HFloatTmpConfig.fromCallArgs(InstructionToCallInst(instr))
+        try:
+            cfg: HFloatTmpConfig = HFloatTmpConfig.fromCallArgs(InstructionToCallInst(instr))
+        except:
+            raise AssertionError("Malformed HFloatTmpConfig operands in instruction", instr, HFloatTmpConfig.MEMBER_CNT)
         resUndef = HFloatTmp.from_py(None)
 
         def _intrinsic_fp_castToHFloatTmp(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
