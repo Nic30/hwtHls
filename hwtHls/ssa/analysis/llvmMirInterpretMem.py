@@ -50,6 +50,12 @@ def _decodeOpcode_HWTFPGA_CLOAD(interpret: "LlvmMirInterpret", MRI: MachineRegis
 
     # data invalid, but vld=0 (vld is msb bit)
     invalidData = t.from_py(0, vld_mask=validFlagMask)
+    waveLog = interpret.waveLog
+    F = interpret.MF.getFunction()
+    if isinstance(io, int) and io >= 0 and io < F.arg_size():
+        FArg = F.getArg(io)
+    else:
+        FArg = None
 
     def _opcode_HWTFPGA_CLOAD(timeNow: int, regs: list[HConst]):
         if hasRuntimeCond:
@@ -73,26 +79,28 @@ def _decodeOpcode_HWTFPGA_CLOAD(interpret: "LlvmMirInterpret", MRI: MachineRegis
                 v = next(regs[io])
             except StopIteration:
                 raise SimIoUnderflowErr("underflow on io argument", instr)
+
             if v is NOP:
                 assert not isBlocking, instr
                 v = invalidData
+            elif isinstance(v, HConst):
+                if v._dtype != tWithoutVld:
+                    if isBlocking:
+                        assert v._dtype.bit_length() == width, (instr, v._dtype, t, v)
+                    else:
+                        assert v._dtype.bit_length() == width - 1, (instr, v._dtype, t, v)
+
+                    v = v._reinterpret_cast(tWithoutVld)
+
+                if not isBlocking:
+                    v = b1._concat(v)  # concat with valid=1
+
             else:
-                if isinstance(v, HConst):
-                    if v._dtype != tWithoutVld:
-                        if isBlocking:
-                            assert v._dtype.bit_length() == width, (instr, v._dtype, t, v)
-                        else:
-                            assert v._dtype.bit_length() == width - 1, (instr, v._dtype, t, v)
-
-                        v = v._reinterpret_cast(tWithoutVld)
-
-                    if not isBlocking:
-                        v = b1._concat(v)  # concat with valid=1
-
-                else:
-                    if not isBlocking:
-                        v |= validFlagMask
-                    v = t.from_py(v)
+                if not isBlocking:
+                    v |= validFlagMask
+                v = t.from_py(v)
+            if waveLog is not None and FArg is not None:
+                waveLog.logChange(interpret.nowTime, FArg, v, None)
         regs[dst] = v
 
     return _opcode_HWTFPGA_CLOAD
@@ -172,6 +180,8 @@ def _decodeOpcode_HWTFPGA_CSTORE(interpret: "LlvmMirInterpret", MRI: MachineRegi
         laneCnt = 1
 
     if laneCnt == 1:
+        waveLog = interpret.waveLog
+        FArg = interpret.MF.getFunction().getArg(_io)
 
         def _opcode_HWTFPGA_CSTORE_toIO(timeNow: int, regs: list[HConst]):
             io = regs[_io]
@@ -185,11 +195,14 @@ def _decodeOpcode_HWTFPGA_CSTORE(interpret: "LlvmMirInterpret", MRI: MachineRegi
                 _val = val
             else:
                 _val = regs[val]
+
             if hasIndex:
                 _index = regs[index]
                 io.write(_index, _val)
             else:
                 io.append(_val)
+                if waveLog is not None:
+                    waveLog.logChange(interpret.nowTime, FArg, _val, None)
 
         return _opcode_HWTFPGA_CSTORE_toIO
     else:
