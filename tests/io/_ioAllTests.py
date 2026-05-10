@@ -31,11 +31,11 @@ from tests.io.bram.readSizeFromRamAndSendSequence_test import ReadSizeFromRamAnd
 from tests.io.flushing_test import Flushing_TC
 from tests.io.ioFsm2_test import IoFsm2_TC
 from tests.io.ioFsm_test import IoFsm_TC
+from tests.io.ioVectorizeStore_test import IoVectorizationStore_TC
 from tests.io.pcie.pcieUtils_test import PcieUtils_TC
 from tests.io.pcie.storeAligner_test import PcieTlpStoreAligner_TCs
 from tests.io.readAtleastOne_test import ReadAtleastOne_TC
 from tests.testCaseUtils import testSuiteFromTCs
-
 
 io_TCs = [
     Flushing_TC,
@@ -71,6 +71,7 @@ io_TCs = [
     *HwIOAddrDataUnalignedToBram_TCs,
     ReadSizeFromRamAndSendSequence_TC,
     ReadAtleastOne_TC,
+    IoVectorizationStore_TC,
     PcieUtils_TC,
     *PcieTlpStoreAligner_TCs,
 ]
