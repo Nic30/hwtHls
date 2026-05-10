@@ -308,6 +308,15 @@ PcieTlpRequestorId_t = HStruct(
     (HBits(8), "bus"),
     name="PcieTlpRequestorId_t"
 )
+
+
+def flat_PcieTlpRequestorId_t_from_busdev(busdev: AnyHBitsValue, function: Union[AnyHBitsValue, int]):
+    if isinstance(function, int):
+        function = HBits(3).from_py(function)
+
+    return Concat(busdev, function)
+
+
 # [0] Table 2-8: Header Field Locations for ARI ID Routing
 PcieTlpRequestorAriId_t = HStruct(
     (HBits(8), "function"),
