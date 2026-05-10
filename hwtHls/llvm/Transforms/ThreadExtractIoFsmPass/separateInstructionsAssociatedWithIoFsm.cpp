@@ -347,7 +347,7 @@ void separateInstructionsAssociatedWithIoFsm(IRBuilder<> &Builder,
 	// if the loop contains only access to this io Arg then the loop will be inside of extracted IoFsm function
 	// if it contains also some other IO there will be channel which transfers data on each iteration
 	// to synchronize code between original and extracted IoFsm
-	// * if extracted IoFsm is for output, then the data is transfered between original latch and new header
+	// * if extracted IoFsm is for output, then the data is transferred between original latch and new header
 	//
 }
 
