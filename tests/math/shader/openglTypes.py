@@ -464,6 +464,30 @@ class mat3():
                 vec2(zero, a),
             ]
 
+    def __mul__(self, other) -> Self:
+        if isinstance(other, mat3):
+            a = self
+            b = other
+            return self.__class__(
+                [
+                    sum(a[i][k] * b[k][j] for k in range(3))
+                    for j in range(3)
+                ]
+                for i in range(3)
+            )
+        elif isinstance(other, vec3):
+            m = self
+            v = other
+            r = vec3(
+                sum(m[0][k] * v[k] for k in range(3)),
+                sum(m[1][k] * v[k] for k in range(3)),
+                sum(m[2][k] * v[k] for k in range(3)),
+            )
+            return r
+
+        else:
+            raise NotImplementedError(self, "*", other)
+
     def __getitem__(self, key):
         return self.__data[key]
 
