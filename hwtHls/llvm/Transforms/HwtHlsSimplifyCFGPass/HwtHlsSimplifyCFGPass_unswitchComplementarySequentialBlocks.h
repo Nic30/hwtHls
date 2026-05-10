@@ -1,4 +1,5 @@
 #pragma once
+
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Analysis/DomTreeUpdater.h>
