@@ -27,8 +27,6 @@ def pcieTlpParse_DWs(dataWords: list[int], alteraAlignTo8B:bool=False):
         dw = next(wordIt)
         memReq = PcieTlpWord_t.from_py(dw)._reinterpret_cast(PcieTlpMemRequest_t)
         parsed.append(memReq)
-    else:
-        raise NotImplementedError(tlpTy)
 
     if PcieTlpType.has64bAddr(fmt, typ):
         dw0 = next(wordIt)
