@@ -3,17 +3,18 @@ from hwt.hdl.commonConstants import b1
 from hwt.hdl.const import HConst
 from hwt.hdl.types.arrayConst import HArrayConst
 from hwt.hdl.types.bits import HBits
+from hwtHls.io.hwIoVectorized import HwIoProxyScalarVectorized, \
+    splitConstBitsToLanes
 from hwtHls.llvm.llvmIr import MachineRegisterInfo, MachineInstr, GlobalValue, ValueToGlobalValue, \
     ValueToConstantArray, ValueToConstantDataArray, ConstantDataArray, ArrayType, TypeToArrayType, \
     HwtHlsIoMetadata
 from hwtHls.ssa.analysis.llvmIrInterpretMem import _getItemFromLocalPointer
 from hwtHls.ssa.analysis.llvmIrInterpretUtils import PtrAddrTuple, \
     SimIoUnderflowErr
+from hwtHls.llvm.llvmIr import Type
 from hwtHls.ssa.analysis.llvmMirInterpretUtils import LlvmMirInstrFunction
 from hwtLib.abstract.sim_ram import SimRam
 from hwtSimApi.agents.base import NOP
-from hwtHls.io.hwIoVectorized import HwIoProxyScalarVectorized, \
-    splitConstBitsToLanes
 
 
 def _decodeOpcode_HWTFPGA_ARG_GET(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
@@ -316,6 +317,9 @@ def _decodeOpcode_G_GLOBAL_VALUE(interpret: "LlvmMirInterpret", MRI: MachineRegi
 
 def _decodeOpcode_G_PTR_ADD(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
     dst, _op0, _op1 = interpret._decodeInstArguments(MRI, instr, instr.operands())
+    F = interpret.MF.getFunction()
+    Ctx = F.getContext()
+    DL = interpret.MF.getFunction().getParent().getDataLayout()
 
     def _opcode_G_PTR_ADD(timeNow: int, regs: list[HConst]):
         if isinstance(_op0, int):
@@ -336,7 +340,10 @@ def _decodeOpcode_G_PTR_ADD(interpret: "LlvmMirInterpret", MRI: MachineRegisterI
         if isinstance(_base, SimRam):
             base = _base
             raise NotImplementedError("the elementWidth is aligned by LLVM at this point")
-            elementWidth = _base.getWriteWordWidth()
+            elmTy = Type.getIntNTy(Ctx, _base.getWriteWordWidth())
+        elif isinstance(_base, HArrayConst):
+            base = _base
+            elmTy = Type.getIntNTy(Ctx, base._dtype.element_t.bit_length())
         else:
             if isinstance(_base, GlobalValue):
                 base = _base
@@ -353,17 +360,14 @@ def _decodeOpcode_G_PTR_ADD(interpret: "LlvmMirInterpret", MRI: MachineRegisterI
                 arrVal: ConstantDataArray
                 arrTy: ArrayType = TypeToArrayType(arrVal.getType())
                 assert arrTy, baseMem
-                elementTy = arrTy.getElementType()
+                elmTy = arrTy.getElementType()
             else:
-                elementTy = arrVal.getOperand(0).getType()
+                elmTy = arrVal.getOperand(0).getType()
 
-            elementWidth = elementTy.getScalarSizeInBits()
             assert isinstance(base, GlobalValue), base
 
-        elementSize = elementWidth // 8
-        if elementWidth > elementSize * 8:
-            elementSize += 1
-        op1 = op1 // elementSize
+        sizeOfWord = DL.getTypeAllocSize(elmTy).getFixedValue()
+        op1 = op1 // sizeOfWord
 
         index = op1 + index
 
