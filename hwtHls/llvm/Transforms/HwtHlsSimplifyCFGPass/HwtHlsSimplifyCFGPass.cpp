@@ -260,6 +260,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 		//auto _DTU = DomTreeUpdater(DT, DomTreeUpdater::UpdateStrategy::Lazy);
 
 		// continue rewriting this block while it is updated
+		DTU.flush();
 		// writeCFGToDotFile(F, "tmp/SimplifyCFG2.before.dot", AM, false, true);
 		// errs() << F << "\n";
 		if (Options.StoreHoist && HwtHlsSimplifyCFGPass_storeHoist(*BBIt)) {
