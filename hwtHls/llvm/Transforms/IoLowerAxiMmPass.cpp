@@ -10,7 +10,7 @@
 #include <hwtHls/llvm/targets/intrinsic/threadSplit.h>
 #include <hwtHls/llvm/targets/bitMathUtils.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
-#include <hwtHls/llvm/Transforms/ThreadExtractPass/ThreadExtractor.h>
+#include <hwtHls/llvm/Transforms/ThreadExtractPass/ThreadExtractorIoArgUtils.h>
 #include <hwtHls/llvm/Transforms/utils/dceWorklist.h>
 
 using namespace llvm;
