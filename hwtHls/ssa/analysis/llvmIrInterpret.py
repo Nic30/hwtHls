@@ -63,6 +63,7 @@ class LlvmIrInterpret():
         **{i.value: i for i in Instruction.OtherOps},
         **{i.value: i for i in Instruction.TermOps},
         **{i.value: i for i in Instruction.CastOps},
+        **{i.value: i for i in Instruction.UnaryOps},
     }
     INTRINSIC_ID_TO_FN = {
         Intrinsic.ctlz: lambda interpret, instr, ops: zext(ctlz(*ops), ops[0]._dtype.bit_length()),
