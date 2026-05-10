@@ -7,8 +7,7 @@ from hwt.hwIOs.std import HwIODataRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
-from hwtHls.frontend.pragmaLoop import PyBytecodeLLVMLoopUnroll, \
-    PyBytecodeStreamLoopUnroll
+from hwtHls.frontend.pragmaLoop import PyBytecodeStreamLoopUnroll
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInPreproc, \
     PyBytecodeBlockLabel
 from hwtHls.frontend.pyBytecode import hlsBytecode
