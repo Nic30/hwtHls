@@ -80,7 +80,7 @@ class Axi4SPingResponder(HwModule):
             pd = p.data
             rx.readEndOfFrame()
             if pd.eth.type._eq(ETHER_TYPE.IPv4) & \
-               reverse_byte_order(pd.ip.dst)._eq(myIp) & \
+               pd.ip.dst._eq(myIp) & \
                pd.ip.protocol._eq(IP_PROTOCOL.ICMP) & \
                pd.icmp.type._eq(ICMP_TYPE.ECHO_REQUEST):
                 # set fields for reply
