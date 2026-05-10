@@ -231,6 +231,8 @@ py3.extension_module(
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_SwitchToSelect.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass.cpp',
      'Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.cpp',
+     'Transforms/HwtHlsSimplifyCFGPass/utils_fewExitCluster_cutOffExitBBInClusterSuccessors.cpp',
+     'Transforms/HwtHlsSimplifyCFGPass/utils_lowerPhiToSelect.cpp',
      'Transforms/IoPortVectorizationPass/InstructionGraph.cpp',
      'Transforms/IoPortVectorizationPass/IoPortVectorizationPass.cpp',
      'Transforms/trivialSimplifyCFGPass.cpp',
