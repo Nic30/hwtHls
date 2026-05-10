@@ -1,5 +1,6 @@
 from typing import Union
 
+from hwt.code import Concat, In
 from hwt.hdl.types.bitConstFunctions import AnyHBitsValue
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
@@ -54,12 +55,12 @@ class PcieTlpTypeVal():
 
 # Table 2-3: Fmt[2:0] and Type[4:0] Field Encodings
 class PcieTlpType:
-    MRd32 = (PcieTlpFmt.DW3_NO_DATA, PcieTlpTypeVal.M)  # Memory Read Request
+    MRd32 = (PcieTlpFmt.DW3_NO_DATA, PcieTlpTypeVal.M)  # Memory Read Request (non-posted)
     MRd64 = (PcieTlpFmt.DW4_NO_DATA, PcieTlpTypeVal.M)
     MRdLk32 = (PcieTlpFmt.DW3_NO_DATA, PcieTlpTypeVal.MLk)  # Memory Read Request-Locked
     MRdLk64 = (PcieTlpFmt.DW4_NO_DATA, PcieTlpTypeVal.MLk)
 
-    MWr32 = (PcieTlpFmt.DW3_DATA, PcieTlpTypeVal.M)  # Memory Write Request
+    MWr32 = (PcieTlpFmt.DW3_DATA, PcieTlpTypeVal.M)  # Memory Write Request (posted)
     MWr64 = (PcieTlpFmt.DW4_DATA, PcieTlpTypeVal.M)
 
     # :note: all IO/Cfg are non-posted
@@ -156,17 +157,23 @@ class PcieTlpType:
             cls.CAS64
         )
 
-    @staticmethod
-    def hasData(fmt: int):
-        return fmt in (PcieTlpFmt.DW3_DATA, PcieTlpFmt.DW4_DATA)
+    _FMT_WITH_DATA = (PcieTlpFmt.DW3_DATA, PcieTlpFmt.DW4_DATA)
+
+    @classmethod
+    def hasData(cls, fmt: Union[int, AnyHBitsValue]):
+        if isinstance(fmt, int):
+            return fmt in cls._FMT_WITH_DATA
+        else:
+            return In(fmt, cls._FMT_WITH_DATA)
 
 """
 
 :attenton:
-    Structures defined in this module have native byte order with 
+    Structures defined in this module have little-endian byte order with 
     byte0 at st_data[8:0], byte1 at st_data[16:8] etc.
     PCIe spec however pack fields in words in big endian maner.
     The word has 4B (PcieWord_t) and the byte 0 is at data[32:24].
+    
     
     For example 64b data is divided into Concat(header1, header0)
     If the segment is a header header0=Concat(byte0, byte1, byte2, byte3).
@@ -177,8 +184,26 @@ class PcieTlpType:
     :note: values itself are litlendian
     
 :note: from https://xillybus.com/tutorials/pci-express-tlp-pcie-primer-tutorial-guide-1
-    MWr32 fmt=2,length=1, first_be=0xf, addr=0x3f6bfc10, data=0x12345678 and all other fields set to 0
+    MWr32 fmt=2, length=1, first_be=0xf, addr=0x3f6bfc10, data=0x12345678 and all other fields set to 0
     is send on bus as 0x40000001, 0x0000000f, 0xfdaff040 (=addr<<2), 0x12345678 (=data).
+    
+For example for the length=1 the PCIe specifies that bits should be placed in this order
+.. code-block::text
+    B2                B3
+    7 6 5 4 3 2 1 0   7 6 5 4 3 2 1 0
+                0 0   0 0 0 0 0 0 0 1
+
+While struct in this module specify
+
+.. code-block::text
+    B1                B0
+    7 6 5 4 3 2 1 0   7 6 5 4 3 2 1 0
+                0 0   0 0 0 0 0 0 0 1
+
+This allows direct usage of values without byte rordering but the fields are written in
+visually reversed order than they are in spec. And this also means that for data_width > 32
+the 32b word order should be changed.  (e.g. for 64b dw1, dw0 should become reverse_byte_order(dw0), reverse_byte_order(dw1))
+    
 """
 PcieTlpWord_t = HBits(32)
 # https://indico.cern.ch/event/121654/attachments/68430/98164/Practical_introduction_to_PCI_Express_with_FPGAs_-_Extended.pdf
@@ -192,16 +217,16 @@ PcieTlpCommonHdr_t = HStruct(
     name="PcieCommonHdr_t"
 )
 
-# :note: PCIe length is in DW units, 1=1DW, 2=2DW, 0=1024DW, Table 2-4: Length[9:0] Field Encoding
+# :note: PCIe length is in DW units, 1=1DW, 2=2DW, 0=1024DW, 1DW=4B, Table 2-4: Length[9:0] Field Encoding
 # pcie byte 2 (w/o length9_8)
 PcieTlpLength_t = HBits(10)
 PcieTlpLengthDecoded_t = HBits(PcieTlpLength_t.bit_length() + 1)
-PcieTlpByteLengthDecoded_t = HBits(PcieTlpLength_t.bit_length() + 1 + 2) # :note: max 4096B
+PcieTlpByteLengthDecoded_t = HBits(PcieTlpLength_t.bit_length() + 1 + 2)  # :note: max 4096B
 
 # Figure 2-5: Fields Present in All TLP Headers
 PcieTlpCommonHdrFields_t = HStruct(
     # pcie byte 3 + byte 2 [2:0]
-    (PcieTlpLength_t, "length"), # 1== 1DW word, 0 == max DWs (1024)
+    (PcieTlpLength_t, "length"),  # 1== 1DW word, 0 == max DWs (1024)
     (HBits(2), "at"),  # :see: PcieAddressType
     (HBits(2), "attr0_2"),  # ([1]=relaxedOrdering, [0]=no Snoop) # Table 2-10: Ordering Attributes
     (BIT, "ep"),  # indicates the TLP is poisoned
@@ -242,6 +267,7 @@ class PcieAddressType():
 PcieTlpTag_t = HBits(8)
 
 # :note: Address/Length combination which causes a Memory Space access to cross a 4-KB boundary
+#        are not allowed
 # Figure 2-15: Request Header Format for 64-bit Addressing of Memory (without address part)
 PcieTlpMemRequest_t = HStruct(
   # pcie byte 7
@@ -272,8 +298,8 @@ PcieTlpAddr64_t = HStruct(
   name="PcieTlpAddr64_t"
 )
 
-# MRd32_t = MemRequest32_t
-# MWr32_t = MemRequest32_t followed by proper number of data words
+# MRd32_t = PcieTlpCommonHdr_t + PcieTlpMemRequest_t + PcieTlpAddr32_t
+# MWr32_t = PcieTlpCommonHdr_t + PcieTlpMemRequest_t + PcieTlpAddr32_t followed by proper number of data words
 
 # [0] Non-ARI # Table 2-7: Header Field Locations for non-ARI ID Routing
 PcieTlpRequestorId_t = HStruct(
@@ -295,7 +321,7 @@ class PcieTlpCompletitionStatus:
     SC = 0b000  # Successful Completion
     UR = 0b001  # Unsupported Request
     CRS = 0b010  # Configuration Request Retry Status
-    CA = 0b100  # Completer Abor
+    CA = 0b100  # Completer Abort
 
 
 # [0] Figure 2-28: Completion Header Format
@@ -303,7 +329,8 @@ class PcieTlpCompletitionStatus:
 # :note: packets with the same tag are ordered
 PcieTlpCpl_t = HStruct(
   # pcie byte 6, 7
-  (HBits(12), "byte_count"), # (total data bytes - data bytes in all previous Cpls)
+  (HBits(12), "byte_count"),  # (total data bytes - data bytes in all previous Cpls)
+  # == the number of bytes left for transmission, including those in the current packet.
   # pcie byte 6
   (BIT, "bcm"),  # Byte Count Modified, this bit must not set by PCIe Completers, PCI-X only
   (HBits(3), "compl_status"),  # :see: PcieTlpCompletitionStatus
