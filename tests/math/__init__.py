@@ -39,4 +39,9 @@ Math libraries with definitions of elementary math functions:
 
 Math focused compilers
 * https://github.com/diku-dk/futhark
+
+FPGA vendor libraries
+    * Altera IEEE754 FP library
+        * https://people.ece.cornell.edu/land/courses/ece5760/DE1_SOC/ug_altfp_mfug.pdf
+
 """
