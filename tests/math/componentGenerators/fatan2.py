@@ -2,7 +2,9 @@
 # -*- coding: utf-8 -*-
 
 import math
+from typing import Optional
 
+from hwt.hdl.const import HConst
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsRtlSignal import HBitsRtlSignal
 from hwt.hdl.types.struct import HStruct
@@ -17,15 +19,19 @@ from hwtHls.architecture.componentGeneratorUtils import \
 from hwtHls.architecture.componentGenerators.baseALU1HwModule import _BaseALU1HwModule
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from hwtHls.llvm.llvmIr import HFloatTmpConfig, HFloatTmpRounding, HFloatTmpSaturation
+from hwtHls.llvm.llvmIr import HFloatTmpConfig, HFloatTmpRounding, HFloatTmpSaturation, CallInst, \
+    Instruction
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta, \
     ComponentRealizationMeta
+from hwtHls.ssa.analysis.llvmIrInterpretUtils import LlvmIrInstrFunction
+from pyDigitalWaveTools.vcd.writer import VcdWriter
 from tests.math.componentGenerators._componentGeneratorFp import ComponentGeneratorFp
 from tests.math.componentGenerators._llvmIrInterpretFP import ComponentGeneratorForSpecializedHwtHlsFpIntrinsicBinary_FloatFloat
 from tests.math.componentGenerators.fsincos import FixpSinCosCordic
 from tests.math.fixp.cordicAtan2 import CordicAtan2
 from tests.math.fixp.fixpTypes import HFixedPointQ
+from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 from tests.math.hFloatTmp.hFloatTmpOps import OP_FATAN2
 
 
@@ -94,9 +100,43 @@ class FixpAtan2HypotCordic(FixpSinCosCordic):
 #        x *= math.pi
 #        y *= math.pi
 #        return (math.atan2(y, x), math.hypot(y, x))
+class ComponentGeneratorLlvmIntrinsicAtan2(ComponentGeneratorFp):
+    """
+    Component generator for llvm.Intrinsic.atan2
+    """
+
+    @override
+    def llvmIrInterpretDecode(self, interpret:"LlvmIrInterpret", instr:CallInst) -> LlvmIrInstrFunction:
+        ops = interpret._decodeInstArguments((instr.getOperand(0), instr.getOperand(1)))
+        resUndef = HFloatTmp.from_py(None)
+        evalFn = self.evalFn
+
+        def _intrinsic_atan2_or_atan2pi(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
+            op0, op1 = interpret._prepareInstrArguments(ops, regs)
+            if op0._is_full_valid() and op1._is_full_valid():
+                op0 = float(op0)
+                op1 = float(op1)
+                v = evalFn(op0, op1)
+                res = HFloatTmp.from_py(v)
+            else:
+                res = resUndef
+            # inlined interpret._storeInstrResult from perf. reasons
+            if waveLog is not None:
+                waveLog.logChange(nowTime, instr, res, None)
+            regs[instr] = res
+
+        return _intrinsic_atan2_or_atan2pi
+
+    @override
+    @staticmethod
+    def evalFn(y:float, x:float) -> float:
+        return math.atan2(y, x)
 
 
 class ComponentGeneratorFATAN2_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicBinary_FloatFloat):
+    """
+    Component generator for llvm.Intrinsic.atan2
+    """
 
     @override
     @staticmethod
@@ -113,6 +153,7 @@ class ComponentGeneratorFATAN2_PI_hwtHlsFpIntrinsic(ComponentGeneratorForSpecial
 
 
 class ComponentGeneratorFATAN2HYPOT(ComponentGeneratorFp):
+    INPUT_CNT = 2
 
     def __init__(self, platform:"DefaultHlsPlatform",
                  genNamePrefix:str, moduleName:str,
@@ -121,7 +162,8 @@ class ComponentGeneratorFATAN2HYPOT(ComponentGeneratorFp):
                  FIXP_HWMODULE_CLS=FixpAtan2HypotCordic):
         ComponentGenerator.__init__(self, platform, genNamePrefix, moduleName)
         # dataWidth -> scheduling
-        self.schedulingCache: dict[tuple[float, HFloatTmpConfig], tuple[ComponentRealizationMeta, ComponentRealizationMeta, int, int]]
+        self.schedulingCache: dict[tuple[float, HFloatTmpConfig],
+                                   tuple[ComponentRealizationMeta, ComponentRealizationMeta, int, int]]
         self._hasAtan2 = hasAtan2
         self._hasHypot = hasHypot
         if hasAtan2 and hasHypot:

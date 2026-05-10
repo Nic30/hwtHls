@@ -13,7 +13,8 @@ from tests.math.componentGenerators.fadd import ComponentGeneratorFADD, \
     ComponentGeneratorFADD_hwtHlsFpIntrinsic
 from tests.math.componentGenerators.fatan2 import ComponentGeneratorFATAN2HYPOT, \
     ComponentGeneratorFATAN2_hwtHlsFpIntrinsic, \
-    ComponentGeneratorFATAN2_PI_hwtHlsFpIntrinsic
+    ComponentGeneratorFATAN2_PI_hwtHlsFpIntrinsic, \
+    ComponentGeneratorLlvmIntrinsicAtan2
 from tests.math.componentGenerators.fcast import ComponentGeneratorFCAST, \
     ComponentGeneratorFCAST_hwtHlsFpIntrinsic_castFromHFloatTmp, \
     ComponentGeneratorFCAST_hwtHlsFpIntrinsic_castToHFloatTmp
@@ -180,6 +181,7 @@ def installMathLibComponentGenerators(p: VirtualHlsPlatform, optThroughputVsArea
     g[HwtHlsFpIntrisicName("hwtHls.fp.cospi.")] = ComponentGeneratorFCOSPI_hwtHlsFpIntrinsic(p, np, "fcospi")
     g[T.HWTFPGA_FP_SINCOS] = g[OP_FSINCOS] = ComponentGeneratorFSINCOS(p, np, "fsincos", True, True, optThroughputVsArea=optThroughputVsArea, optMaxStagesInLut=MAX_TABLE_ADDR_WIDTH)
     g[T.HWTFPGA_FP_SINCOSPI] = g[OP_FSINCOSPI] = ComponentGeneratorFSINCOS_PI(p, np, "fsincospi", True, True, optThroughputVsArea=optThroughputVsArea, optMaxStagesInLut=MAX_TABLE_ADDR_WIDTH)
+    g[Intrinsic.atan2] = ComponentGeneratorLlvmIntrinsicAtan2(p, np, "fatan2")
     g[T.HWTFPGA_FP_ATAN2] = g[OP_FATAN2] = ComponentGeneratorFATAN2HYPOT(p, np, "fatan2", True, False, optThroughputVsArea=optThroughputVsArea)
     g[HwtHlsFpIntrisicName("hwtHls.fp.atan2.")] = ComponentGeneratorFATAN2_hwtHlsFpIntrinsic(p, np, "fatan2")
     g[HwtHlsFpIntrisicName("hwtHls.fp.atan2pi.")] = ComponentGeneratorFATAN2_PI_hwtHlsFpIntrinsic(p, np, "fatan2pi")
