@@ -150,4 +150,6 @@ class BaseLlvmIrTC(BaseSsaTC):
 
         optF = self._runTestOpt(llvm, *passArgs, **passKwArgs)
         assert optF is not None
+        if verifyModule(M):
+            raise AssertionError()
         self.assert_same_as_file(repr(optF), os.path.join("data", f'{self.__class__.__name__:s}.{name:s}.ll'))
