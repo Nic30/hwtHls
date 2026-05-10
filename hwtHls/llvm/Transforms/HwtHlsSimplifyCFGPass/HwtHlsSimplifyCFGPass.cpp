@@ -260,10 +260,12 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 		//auto _DTU = DomTreeUpdater(DT, DomTreeUpdater::UpdateStrategy::Lazy);
 
 		// continue rewriting this block while it is updated
-		// writeCFGToDotFile(F, "tmp/SimplifyCFG2.before.dot", AM);
+		// writeCFGToDotFile(F, "tmp/SimplifyCFG2.before.dot", AM, false, true);
 		// errs() << F << "\n";
 		if (Options.StoreHoist && HwtHlsSimplifyCFGPass_storeHoist(*BBIt)) {
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+			// DTU.flush();
+			// writeCFGToDotFile(F, "tmp/HwtHlsSimplifyCFGPass_storeHoist.after.dot", AM);
 			assert(!verifyFunction(F, &errs()));
 #endif
 			_changed1 = true;
@@ -284,6 +286,8 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 		} else if (Options.MergePredecessorsStore
 				&& HwtHlsSimplifyCFGPass_mergePredecessorsStore(DTU, *BBIt)) {
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+			// DTU.flush();
+			// writeCFGToDotFile(F, "tmp/HwtHlsSimplifyCFGPass_mergePredecessorsStore.after.dot", AM);
 			assert(!verifyFunction(F, &errs()));
 #endif
 			_changed1 = true;
@@ -311,30 +315,30 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 				&& isa<SwitchInst>(BBIt->getTerminator()) && HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit(
 						Builder, DTU, *cast<SwitchInst>(BBIt->getTerminator()), exprChanged)) {
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
-			// writeCFGToDotFile(F, "tmp/SimplifyCFG2.after.dot", AM);
 			DTU.flush();
+			// writeCFGToDotFile(F, "tmp/HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit.after.dot", AM);
+			assert(!verifyFunction(F, &errs()));
 			auto& DT = DTU.getDomTree();
 			assert(DT.verify());
-			assert(!verifyFunction(F, &errs()));
 #endif
 			_changed1 = true;
 
-		} else if (Options.SpeculatePredecessor
-				&& HwtHlsSimplifyCFGPass_speculatePredecessor(DTU, *BBIt)) {
+		} else if (Options.SpeculatePredecessor &&
+				   HwtHlsSimplifyCFGPass_speculatePredecessor(DTU, *BBIt)) {
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
 #endif
 			_changed1 = true;
-		} else if (Options.StreamWriteMerge
-				&& HwtHlsSimplifyCFGPass_streamWriteMerge(Builder, DTU, *BBIt,
-						SQ)) {
+		} else if (Options.StreamWriteMerge &&
+				   HwtHlsSimplifyCFGPass_streamWriteMerge(Builder, DTU, *BBIt,
+														  SQ)) {
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
 #endif
 			_changed1 = true;
-		} else if (Options.StreamReadMerge
-				&& HwtHlsSimplifyCFGPass_streamReadMerge(Builder, DTU, *BBIt,
-						SQ)) {
+		} else if (Options.StreamReadMerge &&
+				   HwtHlsSimplifyCFGPass_streamReadMerge(Builder, DTU, *BBIt,
+														 SQ)) {
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
 #endif
@@ -367,8 +371,10 @@ llvm::PreservedAnalyses HwtHlsSimplifyCFGPass::run(llvm::Function &F,
 	// InstSimplifyFolder, TargetFolder
 	IRBuilder<TargetFolder, IRBuilderCallbackInserter> Builder(F.getContext(),
 			TargetFolder(DL), IRBuilderCallbackInserter([&AC](Instruction *I) {
-				if (auto *Assume = dyn_cast<AssumeInst>(I))
+				using namespace PatternMatch;
+				if (auto *Assume = dyn_cast<AssumeInst>(I)) {
 					AC.registerAssumption(Assume);
+				}
 			}));
 
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
@@ -424,6 +430,7 @@ llvm::PreservedAnalyses HwtHlsSimplifyCFGPass::run(llvm::Function &F,
 			SimplifyCFGOpt2 opt(&DTU, DL, TTI, Options,
 					LlvmHoistCommonSkipLimit);
 			bool __changed0 = false;
+			// try {
 			while (runOpt0(F, DTU, opt, exprChanged)) {
 				__changed0 = true;
 				itCntr++;
@@ -432,6 +439,12 @@ llvm::PreservedAnalyses HwtHlsSimplifyCFGPass::run(llvm::Function &F,
 								&& "SimplifyCFGPass2 did not converge");
 
 			}
+			// } catch (std::runtime_error & e) {
+			// 	// [dbg]
+			// 	writeCFGToDotFile(F, "tmp/SimplifyCFG2.after.dot", AM);
+			// 	assert(false && "[dbg]");
+			// 	throw e;
+			// }
 			_changed0 |= __changed0;
 			changed |= __changed0;
 
