@@ -1,5 +1,6 @@
 #include <hwtHls/llvm/Transforms/ThreadExtractIoFsmPass/ThreadExtractIoFsmPass.h>
 
+// #include <llvm/IR/Verifier.h>
 #include <llvm/ADT/SetVector.h>
 #include <llvm/ADT/SmallSet.h>
 #include <llvm/Analysis/AssumptionCache.h>
@@ -13,6 +14,7 @@
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 
 #include <hwtHls/llvm/Transforms/utils/functionMutating.h>
+// #include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
 #include <hwtHls/llvm/Transforms/ThreadExtractPass/ThreadExtractor.h>
 #include <hwtHls/llvm/Transforms/ThreadExtractIoFsmPass/separateInstructionsAssociatedWithIoFsm.h>
 #include <hwtHls/llvm/Transforms/FormDedicatedUniqueLoopExitingAndLatchPass/FormDedicatedUniqueLoopExitingAndLatchPass.h>
@@ -99,8 +101,10 @@ llvm::PreservedAnalyses ThreadExtractIoFsmPass::run(llvm::Module &M,
 			auto &DT = LookupDomTree(*F);
 			auto &LI = LookupLoopInfo(*F);
 			//AssumptionCache *AC = LookupAssumptionCache(F);
+			// assert(!verifyFunction(*F, &errs()));
+			// writeCFGToDotFile(*F, "tmp/ThreadExtractIoFsmPass.0.dot", FAM);
 			DomTreeUpdater DTU(DT, DomTreeUpdater::UpdateStrategy::Lazy);
-			formDedicatedUniqueLoopExitingAndLatchBB(Builder, DTU, LI);
+			formDedicatedUniqueLoopExitingAndLatchBB(Builder, DTU, LI, FAM);
 			DTU.flush();
 			ValueToValueMapTy VMap;
 			Function *extractedFn = CloneFunction(F, VMap);
