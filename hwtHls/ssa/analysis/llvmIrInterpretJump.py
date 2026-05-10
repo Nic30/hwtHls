@@ -79,9 +79,6 @@ def _decodeOpcode_Switch(interpret: "LlvmIrInterpret", instr: Instruction) -> Ll
             cond = regs[_cond]
             assert cond._is_full_valid(), ("jump condition must be always valid", cond, bb, instr)
             cond = cond._cast_sign(None)
-            if cond._dtype.bit_length() == 1 and not (cond._dtype == BIT):
-                # cast bool to 1b
-                cond = cond._reinterpret_cast(BIT)
 
         nextBB = defDst
         for condVal, condValIsConst, dst in condValPairs:
