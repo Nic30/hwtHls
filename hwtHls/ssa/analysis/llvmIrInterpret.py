@@ -29,13 +29,11 @@ from hwtHls.ssa.analysis.llvmIrInterpretInt import _decodeOpcode_ICmpInst, \
 from hwtHls.ssa.analysis.llvmIrInterpretJump import _decodeOpcode_Br, \
     _decodeOpcode_Switch, _decodeOpcode_RetInst
 from hwtHls.ssa.analysis.llvmIrInterpretMem import _decodeOpcode_GetElementPtr, \
-    _decodeOpcode_Freeze, _decodeOpcode_Alloca, _decodeOpcode_ExtractValueInst, _opcode_Intrinsic_memcpy,\
+    _decodeOpcode_Freeze, _decodeOpcode_Alloca, _decodeOpcode_ExtractValueInst, _opcode_Intrinsic_memcpy, \
     decodeOpcode_Load, decodeOpcode_Store
 from hwtHls.ssa.analysis.llvmIrInterpretStreamIo import LlvmIrInterpretStreamIo
 from hwtHls.ssa.analysis.llvmIrInterpretUtils import BINARY_OPS_TO_FN, \
-    _prepareWaveWriterTopIo, VcdLlvmIrCodelineFormatter, \
-    VcdLlvmIrSimTimeFormatter, VcdLlvmIrBBFormatter, RE_NON_ID, PtrAddrTuple, \
-    LlvmIrInstrFunction, LlvmIrInterpretArgs, AnyInstrOpcode
+    RE_NON_ID, PtrAddrTuple, LlvmIrInstrFunction, LlvmIrInterpretArgs, AnyInstrOpcode
 from hwtHls.ssa.translation.toLlvm import PyObjectPlaceholderList
 from hwtSimApi.constants import CLK_PERIOD
 from hwtSimApi.triggers import StopSimumulation
@@ -43,6 +41,9 @@ from pyDigitalWaveTools.vcd.common import VCD_SIG_TYPE
 from pyDigitalWaveTools.vcd.value_format import VcdBitsFormatter
 from pyDigitalWaveTools.vcd.writer import VcdWriter
 from pyMathBitPrecise.bit_utils import to_unsigned
+from hwtHls.ssa.analysis.llvmIrInterpretWaveFormatters import VcdLlvmIrCodelineFormatter, \
+    VcdLlvmIrSimTimeFormatter, VcdLlvmIrBBFormatter, VcdFloatFormatter, \
+    _prepareWaveWriterTopIo
 
 
 class LlvmIrInterpret():
@@ -179,14 +180,14 @@ class LlvmIrInterpret():
                     instr: Instruction
                     instrCodeline[instr] = codelineOffset
                     codelineOffset += 1
-                    t = TypeToIntegerType(instr.getType())
-                    if t is None:
+                    t = instr.getType()
+                    if not t.isIntegerTy() and not t.isDoubleTy():
                         # :note: treating alloca of int as a scalar value in wave
                         alloca = InstructionToAllocaInst(instr)
                         if alloca is None:
                             continue
-                        t = TypeToIntegerType(alloca.getAllocatedType())
-                        if t is None:
+                        t = alloca.getAllocatedType()
+                        if not t.isIntegerTy() and not t.isDoubleTy():
                             continue
 
                     name = " ".join(instr.printAsOperand().split(" ")[1:]).strip()
@@ -197,8 +198,11 @@ class LlvmIrInterpret():
                         name = " ".join(instr.printAsOperand().split(" ")[1:]).strip()
                         name = RE_NON_ID.sub("_", name)
                         assert name, name
-
-                    fnScope.addVar(instr, name, VCD_SIG_TYPE.WIRE, t.getBitWidth(), VcdBitsFormatter())
+                    if t.isDoubleTy():
+                        fnScope.addVar(instr, name, VCD_SIG_TYPE.REAL, 0, VcdFloatFormatter())
+                    else:
+                        t = TypeToIntegerType(t)
+                        fnScope.addVar(instr, name, VCD_SIG_TYPE.WIRE, t.getBitWidth(), VcdBitsFormatter())
                 codelineOffset += 2
 
         waveLog.enddefinitions()
@@ -230,7 +234,7 @@ class LlvmIrInterpret():
 
         vvConstFP = ValueToConstantFP(v)
         if vvConstFP is not None:
-            return self._getHFloatTmp().from_py(float(vvConstFP.getValue()))
+            return self._getHFloatType().from_py(float(vvConstFP.getValue()))
 
         raise NotImplementedError("NotImplemented type of value", phi, v)
 
@@ -289,7 +293,7 @@ class LlvmIrInterpret():
 
             vAsConstFP = ValueToConstantFP(v)
             if vAsConstFP:
-                ops.append(self._getHFloatTmp().from_py(float(vAsConstFP.getValue())))
+                ops.append(self._getHFloatType().from_py(float(vAsConstFP.getValue())))
                 continue
 
             vAsBB = ValueToBasicBlock(v)
@@ -404,8 +408,7 @@ class LlvmIrInterpret():
                     bbDecoded = decodedBlocks[nextBb]
                     break
 
-    @staticmethod
-    def _initGlobalsFromIr(M: Module, regs: dict[Instruction, HConst]):
+    def _initGlobalsFromIr(self, M: Module, regs: dict[Instruction, HConst]):
         for gv in M.globals():
             v = gv.getOperand(0)
             t: ArrayType = TypeToArrayType(v.getType())
@@ -431,6 +434,7 @@ class LlvmIrInterpret():
                 instanceOfGv = arrTyHwt.from_py(items)
             else:
                 assert elmT.isDoubleTy(), v
+                arrTyHwt = self._getHFloatType()[t.getNumElements()]
                 instanceOfGv = arrTyHwt.from_py([float(ValueToConstantFP(i).getValue()) for i in v])
             regs[gv] = instanceOfGv
 

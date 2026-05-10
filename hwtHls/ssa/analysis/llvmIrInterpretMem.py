@@ -20,6 +20,16 @@ from hwtSimApi.agents.base import NOP
 from pyDigitalWaveTools.vcd.writer import VcdWriter
 
 
+def _llvmArrayTypeToHwtHArray(interpret: "LlvmIrInterpret", arrTy:ArrayType):
+    if arrTy.getElementType().isDoubleTy():
+        elmTy = interpret._getHFloatType()
+    else:
+        elmTy = HBits(arrTy.getElementType().getScalarSizeInBits())
+
+    pyT = elmTy[arrTy.getNumElements()]
+    return pyT
+
+
 def _opcode_Intrinsic_memcpy(interpret: "LlvmIrInterpret", instr: Instruction, ops: tuple[object, ...]):
     dst, src, length, isVolatile = ops
     length = int(length)
@@ -27,7 +37,7 @@ def _opcode_Intrinsic_memcpy(interpret: "LlvmIrInterpret", instr: Instruction, o
         dst = dst.v
         DL = interpret.F.getParent().getDataLayout()
         if dst._dtype.element_t != src._dtype.element_t:
-            raise NotImplementedError(dst._dtype.element_t, src._dtype.element_t)
+            raise NotImplementedError(instr, ('dst', 'src'), dst._dtype.element_t, src._dtype.element_t)
         elmTy = IntegerType.getIntNTy(instr.getContext(), dst._dtype.element_t.bit_length())
         # arrTy = TypeToArrayType(instr.getOperand(0).getType())
         # assert arrTy is not None
@@ -68,7 +78,7 @@ def _decodeOpcode_Alloca(interpret: "LlvmIrInterpret", instr: Instruction) -> Ll
         v = HBits(intTy.getIntegerBitWidth()).from_py(None)
     elif arrTy is not None:
         arrTy: ArrayType
-        pyT = HBits(arrTy.getElementType().getScalarSizeInBits())[arrTy.getNumElements()]
+        pyT = _llvmArrayTypeToHwtHArray(interpret, arrTy)
 
         def _opcode_AllocaArray(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
             regs[instr] = AllocaInstCell(waveLog, instr, pyT.from_py(None))
@@ -76,7 +86,7 @@ def _decodeOpcode_Alloca(interpret: "LlvmIrInterpret", instr: Instruction) -> Ll
         return _opcode_AllocaArray
 
     elif Ty.isDoubleTy():
-        v = interpret._getHFloatTmp().from_py(None)
+        v = interpret._getHFloatType().from_py(None)
     else:
         raise NotImplementedError(instr)
 
@@ -329,14 +339,16 @@ def decodeOpcode_Store(interpret: "LlvmIrInterpret", instr: Instruction) -> Llvm
         Ty = _v.getType()
         arrTy = TypeToArrayType(Ty)
         if arrTy is not None:
-            pyT = HBits(arrTy.getElementType().getScalarSizeInBits())[arrTy.getNumElements()]
+            pyT = _llvmArrayTypeToHwtHArray(interpret, arrTy)
+        elif Ty.isDoubleTy():
+            pyT = interpret._getHFloatType()
         else:
             pyT = HBits(_v.getType().getScalarSizeInBits())
         _v = pyT.from_py(None)
     else:
         vAsConstFP = ValueToConstantFP(_v)
         if vAsConstFP:
-            _v = interpret._getHFloatTmp().from_py(float(vAsConstFP.getValue()))
+            _v = interpret._getHFloatType().from_py(float(vAsConstFP.getValue()))
         else:
             vIsConst = False
 
@@ -399,6 +411,7 @@ def decodeOpcode_Store(interpret: "LlvmIrInterpret", instr: Instruction) -> Llvm
             if vIsConst:
                 _v = tuple(splitConstBitsToLanes(_v, laneCnt, segmentWidth))
             undef = HBits(segmentWidth).from_py(None)
+
             def _opcode_Store_toVectorIo(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
                 if vIsConst:
                     v = _v
@@ -410,7 +423,6 @@ def decodeOpcode_Store(interpret: "LlvmIrInterpret", instr: Instruction) -> Llvm
                 if waveLog is not None:
                     # update for value of output port
                     waveLog.logChange(nowTime, dstPtrAsArg, v[-1] if v else undef, None)
-                        
 
             return _opcode_Store_toVectorIo
 
@@ -423,6 +435,7 @@ def decodeOpcode_Store(interpret: "LlvmIrInterpret", instr: Instruction) -> Llvm
                     v = _v
                 else:
                     v = regs[_v]
+
                 curV: AllocaInstCell = regs[alloca]
                 allocatedWidth = curV.v._dtype.bit_length()
                 storeWidth = v._dtype.bit_length()
