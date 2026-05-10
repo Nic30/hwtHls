@@ -106,4 +106,9 @@ def _decodeOpcode_CallInst(interpret: "LlvmIrInterpret", instr: Instruction) -> 
         return gen.llvmIrInterpretDecode(interpret, instr, ph)
 
     else:
-        raise NotImplementedError(instr, Intrinsic.IndependentIntrinsics(inId))
+        cg: "ComponentGenerator" = interpret.componentGenerators.get(inId)  # lookup fn by intrinsic id
+        if cg:
+            return cg.llvmIrInterpretDecode(interpret, instr)
+        else:
+            raise NotImplementedError(instr, Intrinsic.IndependentIntrinsics(inId))
+
