@@ -212,8 +212,8 @@ PcieTlpCommonHdr_t = HStruct(
     # pcie Byte 1-3
     (HBits(3 * 8), "fields"),  # specific to each fmt/typ variant, :see: PcieTlpCommonHdrFields_t
     # pcie Byte 0
-    (HBits(3), "fmt"),  # format
     (HBits(5), "typ"),
+    (HBits(3), "fmt"),  # format
     name="PcieCommonHdr_t"
 )
 
