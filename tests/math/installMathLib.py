@@ -68,11 +68,19 @@ from tests.math.hFloatTmp.hFloatTmpOps import OP_FADD, OP_FSUB, OP_FMUL, \
 
 def installMathLibComponentGenerators(p: VirtualHlsPlatform, optThroughputVsArea=0.0, MAX_TABLE_ADDR_WIDTH=7, genNamePrefix="gen"):
     """
+    
+    
     :attention: Various libraries, frameworks, languages and hardware typically have imperfect precision of various math functions
         :see: Brian Gladman, Vincenzo Innocente, John Mather, Paul Zimmermann. Accuracy of Mathematical
         Functions in Single, Double, Double Extended, and Quadruple Precision. 2025. hal-03141101v8
         https://inria.hal.science/hal-03141101/document
         This function installs code generators which implements components with 0.5 ulp error if not configured otherwise.
+        
+        :see: See tests of each component for actual state,
+        .. code-block::bash
+            # you can use grep to find all components which do not have 0.5 ULP error
+            grep -R "ULP *= *[1-9]"
+
     """
     g = p._componentGenerators
 
@@ -100,15 +108,8 @@ def installMathLibComponentGenerators(p: VirtualHlsPlatform, optThroughputVsArea
     # }
 
     # HwtHlsFpIntrisicName("hwtHls.fp.floor."): _decodeIntrinsic_fp_unOp(math.floor),
-
     # HwtHlsFpIntrisicName("hwtHls.fp.round."): _decodeIntrinsic_fp_unOp(round),
     # HwtHlsFpIntrisicName("hwthls.fp.roundeven."):  _decodeIntrinsic_fp_unOp(roundeven),
-
-    # HwtHlsFpIntrisicName("hwtHls.fp.log."): _decodeIntrinsic_fp_unOp(math.log),
-    # HwtHlsFpIntrisicName("hwtHls.fp.log10."): _decodeIntrinsic_fp_unOp(math.log10),
-    # HwtHlsFpIntrisicName("hwtHls.fp.log2."): _decodeIntrinsic_fp_unOp(math.log2),
-    # HwtHlsFpIntrisicName("hwtHls.fp.cospi."):_decodeIntrinsic_fp_unOp(lambda x: math.cos(x * math.pi)),
-    # HwtHlsFpIntrisicName("hwtHls.fp.sinpi."): _decodeIntrinsic_fp_unOp(lambda x: math.sin(x * math.pi)),
 
     # g[HwtOps.MUL] = ComponentGeneratorMUL(p, np, "mul")
     # g[OP_MUL_HL] = ComponentGeneratorMUL_HL(p, np, "mul_hl")
@@ -197,5 +198,3 @@ def installMathLibComponentGenerators(p: VirtualHlsPlatform, optThroughputVsArea
     g[HwtHlsFpIntrisicName("hwtHls.fp.fpow.")] = ComponentGeneratorFPOW_hwtHlsFpIntrinsic(p, np, "fpow")
     g[Intrinsic.powi] = g[T.HWTFPGA_FP_FPOWI] = g[OP_FPOWI] = ComponentGeneratorFPOWI(p, np, "fpowi")
     g[HwtHlsFpIntrisicName("hwtHls.fp.fpowi.")] = ComponentGeneratorFPOWI_hwtHlsFpIntrinsic(p, np, "fpowi")
-    # : lambda ops: fpowi(*ops),
-    # : lambda ops: fpow(*ops),
