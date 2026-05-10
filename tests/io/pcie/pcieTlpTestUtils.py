@@ -7,10 +7,10 @@ from tests.io.pcie.pcieTypes import PcieTlpWord_t, PcieTlpType, PcieTlpMemReques
     PcieTlpAddr64_t, PcieTlpAddr32_t, PcieTlpCpl_t, PcieTlpCommonHdrUnpacked_t
 
 
-def pcieTlpParse_DWs(dataWords: list[int], alignTo8B:bool=False):
+def pcieTlpParse_DWs(dataWords: list[int], alteraAlignTo8B:bool=False):
     """
     :param dataWords: list of 4B ints for each word in pcie TLP transaction
-    :param alignTo8B: (qword) pad 3DW headers to 4DW if data address is aligned to 8B,
+    :param alteraAlignTo8B: (qword) pad 3DW headers to 4DW if data address is aligned to 8B,
         used for Altera Stattix V, Arria 10 and alike  
     """
 
@@ -40,7 +40,7 @@ def pcieTlpParse_DWs(dataWords: list[int], alignTo8B:bool=False):
         dw = next(wordIt)
         addr = PcieTlpWord_t.from_py(dw)._reinterpret_cast(PcieTlpAddr32_t)
         parsed.append(addr)
-        if alignTo8B and not int(addr.addr[0]) or not PcieTlpType.hasData(fmt):
+        if alteraAlignTo8B and (not int(addr.addr[0]) or not PcieTlpType.hasData(fmt)):
             dw = next(wordIt)
             assert dw == 0, ("expect padding", hex(dw), parsed)
 
@@ -49,7 +49,7 @@ def pcieTlpParse_DWs(dataWords: list[int], alignTo8B:bool=False):
         dw1 = next(wordIt)
         cpl = HBits(64).from_py((dw1 << 32) | dw0)._reinterpret_cast(PcieTlpCpl_t)
         parsed.append(cpl)
-        if alignTo8B and not PcieTlpType.hasData(fmt):
+        if alteraAlignTo8B and not PcieTlpType.hasData(fmt):
             dw = next(wordIt)
             assert dw == 0, ("expect padding", hex(dw), parsed)
 

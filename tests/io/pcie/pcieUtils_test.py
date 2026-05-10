@@ -79,7 +79,7 @@ class PcieUtils_TC(unittest.TestCase):
         ]
         for (name, pktRaw), expectedRepr in zip(pkts, expectedPktRepr):
             # print(name)
-            p = PcieTlpPretty(pcieTlpParse_DWs(pktRaw, extendDW3To4DW=True))
+            p = PcieTlpPretty(pcieTlpParse_DWs(pktRaw, alteraAlignTo8B=True))
             self.assertEqual(repr(p), expectedRepr, name)
 
     # def test_MRd32(self):
