@@ -240,10 +240,8 @@ def _decodeOpcode_G_ICMP(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo
         else:
             src1 = regs[_src1]
 
-        if src0._dtype.signed is not None:
-            src0 = src0._cast_sign(None)
-        if src1._dtype.signed is not None:
-            src1 = src1._cast_sign(None)
+        assert src0._dtype.signed is None, (instr, src0)
+        assert src1._dtype.signed is None, (instr, src1)
         res = evalFn(src0, src1)
         regs[dst] = res
 
