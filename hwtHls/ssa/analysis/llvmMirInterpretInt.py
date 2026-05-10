@@ -592,7 +592,7 @@ def makeDecode_arithmeticBinBin(evalFn: Callable[[int, int], [int, int]]):
                 undef = src0._dtype.from_py(None)
                 res0 = undef
                 res1 = undef
-                
+
             regs[dst0] = res0
             regs[dst1] = res1
 
