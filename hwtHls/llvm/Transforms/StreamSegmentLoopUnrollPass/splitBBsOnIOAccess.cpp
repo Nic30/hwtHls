@@ -14,6 +14,7 @@ void splitBBsOnIOAccess(DomTreeUpdater &DTU, LoopInfo &LI, Loop &L,
 	MemorySSAUpdater *MSSAU = nullptr; // not using memory ssa
 	BBs.insert(BBs.end(), L.block_begin(), L.block_end());
 	SmallVector<BasicBlock*> newBBs;
+	Type * valueTy = nullptr;
 	for (auto *BB : BBs) {
 		for (auto BBIt = BB->begin(); BBIt != BB->end();) {
 			std::optional<bool> shouldSplitBefore;
@@ -23,6 +24,11 @@ void splitBBsOnIOAccess(DomTreeUpdater &DTU, LoopInfo &LI, Loop &L,
 					// the section for this lane will begin after the LoadInst
 					// ==> the LoadInst should be at the top of BB
 					shouldSplitBefore = true;
+					if (valueTy != nullptr) {
+						assert(valueTy == Ld->getAccessType() && "splitBBsOnIOAccess: All accesses to IO must be of the same type");
+					} else {
+						valueTy = Ld->getAccessType();
+					}
 					IoInstructions.push_back(Ld);
 				}
 			} else if (auto St = dyn_cast<StoreInst>(&*BBIt)) {
@@ -30,6 +36,11 @@ void splitBBsOnIOAccess(DomTreeUpdater &DTU, LoopInfo &LI, Loop &L,
 					// the section for this lane will end with this StoreInst
 					shouldSplitBefore = false;
 					ioIsInput = false;
+					if (valueTy != nullptr) {
+						assert(valueTy == St->getAccessType() && "splitBBsOnIOAccess: All accesses to IO must be of the same type");
+					} else {
+						valueTy = St->getAccessType();
+					}
 					IoInstructions.push_back(St);
 				}
 			}
