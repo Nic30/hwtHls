@@ -75,11 +75,11 @@ class Axi4SVlan1qEncapUncond(HwModule):
             tx.write(eth_802_1q)
 
             forwardUntilEoF(rx, tx)
-
             tx.writeEndOfFrame()
+
             rx.readEndOfFrame()
             PyBytecodeStreamSegmentLoopUnroll(rx)
-            PyBytecodeThreadExtractIoFsm(tx)  # separte rx/tx part for more simple scheduling and expansion
+            PyBytecodeThreadExtractIoFsm(tx) # separte rx/tx part for more simple scheduling and expansion
 
     @override
     def hwImpl(self) -> None:
@@ -97,8 +97,8 @@ if __name__ == "__main__":
 
     m = Axi4SVlan1qEncapUncond()
     m.CLK_FREQ = int(1e6)
-    # m.DATA_WIDTH = 32
-    m.PREFER_MULTI_THREAD = False
+    m.DATA_WIDTH = 512
+    # m.PREFER_MULTI_THREAD = False
     # m.SEGMENT_DATA_WIDTH = 128
     # m.SEGMENT_CNT = 2
     # m.USE_SOF = True
