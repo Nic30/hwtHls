@@ -1,8 +1,6 @@
 from typing import Optional, Callable
 
-from hwt.code import Concat
 from hwt.hdl.const import HConst
-from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwtHls.llvm.llvmIr import Instruction, InstructionToICmpInst, \
     InstructionToCastInst, InstructionToSelectInst, InstructionToBinaryOperator, BinaryOperator, \
@@ -201,6 +199,7 @@ def _makeDecodeOpcodeFunction_BinaryOperator(fn: Callable[[HConst, HConst], HCon
             # inlined interpret._storeInstrResult from perf. reasons
             if waveLog is not None:
                 waveLog.logChange(nowTime, instr, res, None)
+
             regs[instr] = res
 
         return _opcode_BinaryOperator
