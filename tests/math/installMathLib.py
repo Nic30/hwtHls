@@ -127,8 +127,8 @@ def installMathLibComponentGenerators(p: VirtualHlsPlatform, optThroughputVsArea
     g[BinaryOps.SDiv] = g[T.HWTFPGA_SDIV] = g[HwtOps.SDIV] = ComponentGeneratorDIVREM(p, np, "sdiv", True, True, False)
     g[BinaryOps.URem] = g[T.HWTFPGA_UREM] = g[HwtOps.UREM] = ComponentGeneratorDIVREM(p, np, "urem", False, False, True)
     g[BinaryOps.SRem] = g[T.HWTFPGA_SREM] = g[HwtOps.SREM] = ComponentGeneratorDIVREM(p, np, "srem", True, False, True)
-    g[T.G_UDIVREM] = g[T.HWTFPGA_UDIVREM] = g[OP_UDIVREM] = ComponentGeneratorDIVREM(p, np, "udivrem", False, True, True)
-    g[T.G_SDIVREM] = g[T.HWTFPGA_SDIVREM] = g[OP_SDIVREM] = ComponentGeneratorDIVREM(p, np, "sdivrem", True, True, True)
+    g[T.HWTFPGA_UDIVREM] = g[OP_UDIVREM] = ComponentGeneratorDIVREM(p, np, "udivrem", False, True, True)
+    g[T.HWTFPGA_SDIVREM] = g[OP_SDIVREM] = ComponentGeneratorDIVREM(p, np, "sdivrem", True, True, True)
 
     g[HwtHlsFpIntrisicName("hwtHls.fp.castToHFloatTmp.")] = ComponentGeneratorFCAST_hwtHlsFpIntrinsic_castToHFloatTmp(p, np, "fcast")
     g[HwtHlsFpIntrisicName("hwtHls.fp.castFromHFloatTmp.")] = ComponentGeneratorFCAST_hwtHlsFpIntrinsic_castFromHFloatTmp(p, np, "fcast")
