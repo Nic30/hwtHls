@@ -319,30 +319,26 @@ blockL24i0_L106i4_106:                            ; preds = %blockL24i0_L106i3_1
 
 blockL24i0_282:                                   ; preds = %blockL24i0_L106i4_106
   %_k_vld5 = load i1, ptr %_k_vld8, align 1
-  %0 = icmp eq i1 %_k_vld5, true
   %_k_key8 = load i16, ptr %_k_key7, align 2
   %m9 = load i16, ptr %m, align 2
-  %1 = icmp eq i16 %_k_key8, %m9
-  %2 = and i1 %0, %1
+  %0 = icmp eq i16 %_k_key8, %m9
+  %1 = and i1 %_k_vld5, %0
   %_k_vld10 = load i1, ptr %_k_vld7, align 1
-  %3 = icmp eq i1 %_k_vld10, true
   %_k_key11 = load i16, ptr %_k_key6, align 2
-  %4 = icmp eq i16 %_k_key11, %m9
-  %5 = and i1 %3, %4
-  %6 = call i2 @hwtHls.bitConcat.i1.i1(i1 %5, i1 %2) #1
+  %2 = icmp eq i16 %_k_key11, %m9
+  %3 = and i1 %_k_vld10, %2
+  %4 = call i2 @hwtHls.bitConcat.i1.i1(i1 %3, i1 %1) #1
   %_k_vld12 = load i1, ptr %_k_vld6, align 1
-  %7 = icmp eq i1 %_k_vld12, true
   %_k_key13 = load i16, ptr %_k_key5, align 2
-  %8 = icmp eq i16 %_k_key13, %m9
-  %9 = and i1 %7, %8
-  %10 = call i3 @hwtHls.bitConcat.i1.i2(i1 %9, i2 %6) #1
+  %5 = icmp eq i16 %_k_key13, %m9
+  %6 = and i1 %_k_vld12, %5
+  %7 = call i3 @hwtHls.bitConcat.i1.i2(i1 %6, i2 %4) #1
   %_k_vld14 = load i1, ptr %_k_vld, align 1
-  %11 = icmp eq i1 %_k_vld14, true
   %_k_key15 = load i16, ptr %_k_key, align 2
-  %12 = icmp eq i16 %_k_key15, %m9
-  %13 = and i1 %11, %12
-  %14 = call i4 @hwtHls.bitConcat.i1.i3(i1 %13, i3 %10) #1
-  store volatile i4 %14, ptr addrspace(6) %out, align 1
+  %8 = icmp eq i16 %_k_key15, %m9
+  %9 = and i1 %_k_vld14, %8
+  %10 = call i4 @hwtHls.bitConcat.i1.i3(i1 %9, i3 %7) #1
+  store volatile i4 %10, ptr addrspace(6) %out, align 1
   br label %blockL24i0_394
 
 blockL24i0_394:                                   ; preds = %blockL24i0_282
