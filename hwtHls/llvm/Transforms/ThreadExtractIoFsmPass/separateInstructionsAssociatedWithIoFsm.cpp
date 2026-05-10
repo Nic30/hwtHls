@@ -234,6 +234,8 @@ void detectExtractedCodeAndRemoveItFromOldFn(llvm::Argument &Arg, Function &F,
 			// errs() << "erasing from old: " << *I << "\n";
 			Value &newI = *VMap[I];
 			newFnSpecificValInNewFn.insert(&newI);
+			// required because erase order does not obey use->def order
+			I->replaceAllUsesWith(PoisonValue::get(I->getType()));
 			I->eraseFromParent();
 		}
 		// try to simplify CFG so we can remove branch conditions if possible
@@ -268,6 +270,8 @@ void removeNonSelectedInstructionsFromFunctionIfNotTerminal(llvm::Function &F,
 			}
 
 			// If the instruction is not used by any selected instruction or terminal, remove it
+			// required because erase order does not obey use->def order
+			I.replaceAllUsesWith(PoisonValue::get(I.getType()));
 			I.eraseFromParent();
 		}
 	}
