@@ -196,7 +196,7 @@ void detectExtractedCodeAndRemoveItFromOldFn(llvm::Argument &Arg, Function &F,
 			bool hasSomeOtherIoArgAsOperand = false;
 			for (Use &op : I->operands()) {
 				auto opA = dyn_cast<Argument>(op.get());
-				if (opA != &Arg) {
+				if (opA && opA != &Arg) {
 					hasSomeOtherIoArgAsOperand = true;
 					break;
 				}
