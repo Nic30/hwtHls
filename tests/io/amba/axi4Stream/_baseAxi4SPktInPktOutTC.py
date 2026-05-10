@@ -4,6 +4,7 @@
 from collections import deque
 from typing import Optional
 
+from hwt.constants import NOT_SPECIFIED
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hwModule import HwModule
 from hwt.pyUtils.typingFuture import override
@@ -80,7 +81,7 @@ class BaseAxi4SPktInPktOutTC(BaseIrMirRtl_TC):
               rtlSimTimeMultiplier=2.0,
               platformArgs=(),
               platformKwargs=dict(
-                  debugFilter={   #*HlsDebugBundle.ALL_RELIABLE,
+                  debugFilter={  # *HlsDebugBundle.ALL_RELIABLE,
                   # HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
                   # HlsDebugBundle.DBG_4_0_addSignalNamesToData,
                    },
@@ -92,7 +93,10 @@ class BaseAxi4SPktInPktOutTC(BaseIrMirRtl_TC):
                   # runTestAfterEachPass=True,
                   # runTestAfterEachIrPass=True,
                   # runTestAfterEachMirPass=True,
-              )
+              ),
+              testLlvmIrNoOpt=NOT_SPECIFIED,
+              testLlvmIr=NOT_SPECIFIED,
+              testLlvmMir=NOT_SPECIFIED,
               ):
         """
         test LLVM IR, MIR and RTL
@@ -103,15 +107,20 @@ class BaseAxi4SPktInPktOutTC(BaseIrMirRtl_TC):
         wallTimeIr = None
         wallTimeOptIr = None
         wallTimeOptMir = None
+        if testLlvmIrNoOpt is NOT_SPECIFIED:
 
-        def testLlvmIrNoOpt(platform: TestLlvmIrAndMirPlatform, toLlvm: ToLlvmIrTranslator):
-            tc._testLlvmIrOrMir(platform, toLlvm, "", wallTimeIr, False, refFramesIn, refFramesOut)
+            def testLlvmIrNoOpt(platform: TestLlvmIrAndMirPlatform, toLlvm: ToLlvmIrTranslator):
+                tc._testLlvmIrOrMir(platform, toLlvm, "", wallTimeIr, False, refFramesIn, refFramesOut)
 
-        def testLlvmIr(platform: TestLlvmIrAndMirPlatform, toLlvm: ToLlvmIrTranslator):
-            tc._testLlvmIrOrMir(platform, toLlvm, "opt", wallTimeOptIr, False, refFramesIn, refFramesOut)
+        if testLlvmIr is NOT_SPECIFIED:
 
-        def testLlvmMir(platform: TestLlvmIrAndMirPlatform, toLlvm: ToLlvmIrTranslator):
-            tc._testLlvmIrOrMir(platform, toLlvm, "", wallTimeOptMir, True, refFramesIn, refFramesOut)
+            def testLlvmIr(platform: TestLlvmIrAndMirPlatform, toLlvm: ToLlvmIrTranslator):
+                tc._testLlvmIrOrMir(platform, toLlvm, "opt", wallTimeOptIr, False, refFramesIn, refFramesOut)
+
+        if testLlvmMir is NOT_SPECIFIED:
+
+            def testLlvmMir(platform: TestLlvmIrAndMirPlatform, toLlvm: ToLlvmIrTranslator):
+                tc._testLlvmIrOrMir(platform, toLlvm, "", wallTimeOptMir, True, refFramesIn, refFramesOut)
 
         target_platform = TestLlvmIrAndMirPlatform(
             topToRunTestsOn=dut,
