@@ -3,6 +3,8 @@
 #include <llvm/Analysis/CFG.h>
 #include <llvm/Analysis/LoopIterator.h>
 
+#include <stdexcept>
+
 // :note: DEBUG_TYPE must be defined before InstructionWorklist include
 #define DEBUG_TYPE "thread-extract-iofsm"
 
@@ -173,7 +175,9 @@ void detectExtractedCodeAndRemoveItFromOldFn(llvm::Argument &Arg, Function &F,
 			// initialize worklist
 			for (User *U : Arg.users()) {
 				if (auto I = dyn_cast<Instruction>(U)) {
-					if (isa<LoadInst>(I) || isa<StoreInst>(I)) {
+					if (isa<LoadInst>(I)) {
+						throw std::runtime_error("ThreadExtractorIoFsmPass/detectExtractedCodeAndRemoveItFromOldFn for input");
+					} else if (isa<StoreInst>(I)) {
 						//originalBlockWithExtractedIo.insert(I->getParent());
 						instrSpecificToThisArgInOldFnTmp.insert(I);
 						addAllOperandsToWorklist(*I);
