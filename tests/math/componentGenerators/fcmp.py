@@ -234,7 +234,7 @@ class ComponentGeneratorFCMP(ComponentGeneratorFp):
 
     @override
     def llvmMirInterpretDecode(self, interpret: LlvmMirInterpret, MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
-        cfg: HFloatTmpConfig = HFloatTmpConfig.fromMachineInstrOperands(instr, 4) # dst, pred, lhs, rhs
+        cfg: HFloatTmpConfig = HFloatTmpConfig.fromMachineInstrOperands(instr, 4)  # dst, pred, lhs, rhs
         dst, predicate, _src0, _src1 = interpret._decodeInstArguments(MRI, instr, (instr.getOperand(0),
                                                                                    instr.getOperand(1),
                                                                                    instr.getOperand(2),
