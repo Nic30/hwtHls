@@ -36,6 +36,7 @@ struct HwtHlsSimplifyCFGOptions: public llvm::SimplifyCFGOptions {
 	bool MergePredecessorsStore = true;
 	bool PhiToLogicalExpr = true;
 	bool UnswitchComplementarySequentialBlocks = true;
+	bool UnswitchCheapManyPredManySuccBB = true;
 	bool SpeculatePredecessor = true;
 	bool StreamWriteMerge = true;
 	bool StreamReadMerge = true;

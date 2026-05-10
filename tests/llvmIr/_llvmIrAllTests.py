@@ -13,6 +13,7 @@ from tests.llvmIr.HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_test impo
 from tests.llvmIr.HwtHlsSimplifyCFGPass_phiToLogicalExpr_test import HwtHlsSimplifyCFGPass_phiToLogicalExp_TC
 from tests.llvmIr.HwtHlsSimplifyCFGPass_streamWrite_test import HwtHlsSimplifyCFGPass_streamWrite_TC
 from tests.llvmIr.HwtHlsSimplifyCFGPass_test import HwtHlsSimplifyCFGPass_TC
+from tests.llvmIr.HwtHlsSimplifyCFGPass_unswitchCheapManyPredManySuccBB_test import HwtHlsSimplifyCFGPass_unswitchCheapManyPredManySuccBB_test_TC
 from tests.llvmIr.HwtHlsSimplifyCFGPass_unswitchComplementarySequentialBlocks_test import HwtHlsSimplifyCFGPass_unswitchComplementarySequentialBlocks_TC
 from tests.llvmIr.LoopRotationNormalizationPass_test import LoopRotationNormalizationPass_TC
 from tests.llvmIr.PruneLoopPhiDeadIncomingValuesPass_test import PruneLoopPhiDeadIncomingValuesPass_TC
@@ -46,6 +47,7 @@ llvmIr_TCs = [
     HwtHlsInstCombinePass_select_TC,
     HwtHlsSimplifyCFGPass_phiToLogicalExp_TC,
     HwtHlsSimplifyCFGPass_streamWrite_TC,
+    HwtHlsSimplifyCFGPass_unswitchCheapManyPredManySuccBB_test_TC,
     HwtHlsSimplifyCFGPass_unswitchComplementarySequentialBlocks_TC,
     HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_TC,
     LoopRotationNormalizationPass_TC,

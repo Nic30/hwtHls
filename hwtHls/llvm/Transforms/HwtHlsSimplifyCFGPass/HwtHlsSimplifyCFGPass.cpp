@@ -312,9 +312,20 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 			assert(!verifyFunction(F, &errs()));
 #endif
 			_changed1 = true;
-		} else if (Options.SwitchSuccClusterReduceFewExit
-				&& isa<SwitchInst>(BBIt->getTerminator()) && HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit(
-						Builder, DTU, *cast<SwitchInst>(BBIt->getTerminator()), exprChanged)) {
+		} else if (Options.UnswitchCheapManyPredManySuccBB &&
+				   BBIt->hasNPredecessorsOrMore(2) &&
+				   BBIt->getTerminator()->getNumSuccessors() >= 2 &&
+				   HwtHlsSimplifyCFGPass_unswitchCheapManyPredManySuccBB(
+					   Builder, DTU, *BBIt, exprChanged)) {
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+			assert(!verifyFunction(F, &errs()));
+#endif
+					_changed1 = true;
+		} else if (Options.SwitchSuccClusterReduceFewExit &&
+				   isa<SwitchInst>(BBIt->getTerminator()) &&
+				   HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit(
+					   Builder, DTU, *cast<SwitchInst>(BBIt->getTerminator()),
+					   exprChanged)) {
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			DTU.flush();
 			// writeCFGToDotFile(F, "tmp/HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit.after.dot", AM);
