@@ -3,6 +3,7 @@ from math import inf
 from typing import Sequence, Optional, Union
 
 from hwt.constants import NOP
+from hwt.hdl.commonConstants import b0, b1
 from hwt.hdl.const import HConst
 from hwt.hdl.types.hdlType import HdlType
 from hwtHls.ssa.analysis.llvmIrInterpretUtils import SimIoUnderflowErr, \
@@ -51,7 +52,7 @@ class TestQueueIn(deque[HConst]):
             if d is NOP:
                 assert not blocking, "This should be used only for non blocing reads"
             else:
-                return TestRead(d, True)
+                return TestRead(d, b1)
 
         if blocking:
             raise SimIoUnderflowErr(self)
@@ -59,7 +60,7 @@ class TestQueueIn(deque[HConst]):
             if self.nbReadsWithoutDataLimit:
                 if not self:
                     self.nbReadsWithoutDataLimit -= 1
-                return TestRead(self.T.from_py(None), False)
+                return TestRead(self.T.from_py(None), b0)
             else:
                 raise SimIoUnderflowErr(self)
 
