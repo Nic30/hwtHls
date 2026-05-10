@@ -279,7 +279,7 @@ class ComponentGeneratorDIVREM_G_opcodes(ComponentGeneratorDIVREM):
         if self._hasDiv and self._hasRem:
             pass
         else:
-            self.llvmMirInterpretDecode_binaryOp = _makeDecodeOpcodeFunction_BinaryOperator(self.opDef._evalFn)
+            self.llvmMirInterpretDecode_binaryOp = makeDecode_arithmeticBin(self.opDef)
 
     def llvmMirInterpretDecode_binaryOpBinRes(self, interpret: LlvmMirInterpret, MRI:MachineRegisterInfo, instr:MachineInstr) -> LlvmMirInstrFunction:
         dst0, dst1, _src0, _src1 = interpret._decodeInstArguments(MRI, instr, instr.operands())
