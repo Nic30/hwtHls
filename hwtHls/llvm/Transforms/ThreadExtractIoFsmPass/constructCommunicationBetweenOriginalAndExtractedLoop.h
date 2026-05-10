@@ -2,6 +2,7 @@
 
 #include <map>
 
+#include <llvm/IR/Dominators.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/ADT/SetVector.h>
@@ -29,13 +30,15 @@ struct LoopExports {
 	llvm::SetVector<llvm::BasicBlock*> beforeExitOrLatchSection;
 };
 
-void resolveExportedValues(llvm::LoopInfo& LI, llvm::Loop *L, llvm::ValueToValueMapTy &VMap,
-		llvm::ValueToValueMapTy &VMapNewToOld,
-		llvm::SetVector<llvm::Value*> &newInstructionsInNewFn,
-		std::map<llvm::Loop*, LoopExports> &loopExports);
+void resolveExportedValues(llvm::LoopInfo& LI, llvm::Loop *L,
+		/*const*/ llvm::ValueToValueMapTy &VMap,
+		/*const*/ llvm::ValueToValueMapTy &VMapNewToOld,
+		const llvm::SetVector<llvm::Value*> &newInstructionsInNewFn,
+		std::map<llvm::Loop*, LoopExports> &loopExports); // 		std::unordered_set<llvm::Instruction*> & alreadyExported
 
 void constructCommunicationBetweenOriginalAndExtractedLoop(
 		llvm::IRBuilder<> &Builder, llvm::Function &F,
+		llvm::DominatorTree & DT, // (for F)
 		llvm::Function &extractedF,
 		llvm::SmallVector<ArgToAddToParentFn> &argsToAddToOldFn,
 		llvm::SmallVector<ArgToAddToParentFn> &argsToAddToNewFn,

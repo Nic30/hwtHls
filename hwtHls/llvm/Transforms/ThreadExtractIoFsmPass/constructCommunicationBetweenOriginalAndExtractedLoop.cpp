@@ -1,73 +1,115 @@
 #include <hwtHls/llvm/Transforms/ThreadExtractIoFsmPass/constructCommunicationBetweenOriginalAndExtractedLoop.h>
 
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <llvm/IR/Dominators.h>
+#include <llvm/Transforms/Utils/PromoteMemToReg.h>
 
 using namespace llvm;
 
 namespace hwtHls {
 
-void resolveExportedValues(LoopInfo &LI, Loop *L, ValueToValueMapTy &VMap,
-		ValueToValueMapTy &VMapNewToOld,
-		SetVector<Value*> &newInstructionsInNewFn,
-		std::map<Loop*, LoopExports> &loopExports) {
+void resolveExportedValues_onUseInNewFn(
+	Loop *L,
+	/*const*/ ValueToValueMapTy &VMap,
+	/*const*/ ValueToValueMapTy &VMapNewToOld,
+	const SetVector<Value *> &newInstructionsInNewFn, Instruction &I,
+	LoopExports &loopExport) {
+	// if instruction has dependency defined outside of this loop the dependency
+	// should be in beforeHeaderExports
+	for (auto *op : I.operand_values()) {
+		auto opI = dyn_cast<Instruction>(op);
+		if (!opI)
+			continue;
+		if (newInstructionsInNewFn.contains(opI))
+			continue;
+		auto oldOpI = dyn_cast<Instruction>(VMapNewToOld[opI]);
+		assert(oldOpI);
+		if (L->contains(oldOpI))
+			continue; // opI will be also in new F
+		loopExport.beforeHeaderExports.insert(oldOpI);
+		// errs() << "beforeHeaderExports: " << *oldOpI << "\n";
+	}
+}
+
+void resolveExportedValues_onNotExportedIDef(
+	Loop *L,
+	/*const*/ ValueToValueMapTy &VMap,
+	/*const*/ ValueToValueMapTy &VMapNewToOld,
+	const SetVector<Value *> &newInstructionsInNewFn, BasicBlock *oldBB,
+	Instruction &I, std::map<Loop *, LoopExports> &loopExports,
+	LoopExports &loopExport, bool addToExit) {
+	// if instruction has use inside or after this loop in extracted code
+	for (auto U : I.users()) {
+		auto UI = dyn_cast<Instruction>(U);
+		if (!UI)
+			continue;
+		if (!newInstructionsInNewFn.contains(UI) && !UI->isTerminator())
+			continue; // skip instruction which will not be in new Fn
+
+		auto oldI = dyn_cast<Instruction>(VMapNewToOld[&I]);
+		assert(oldI);
+		bool added = false;
+		for (auto *subL : L->getSubLoops()) {
+			LoopExports &subLoopExport = loopExports[subL];
+			if (subLoopExport.beforeHeaderSection.contains(oldBB)) {
+				// if the value is defined before some child loop, it must be
+				// exported on that place because there is no export location
+				// after loop
+				// errs() << "beforeHeaderExports: " << *oldI << "  ";
+				// subL->getHeader()->printAsOperand(errs());
+				// errs() << "\n";
+				subLoopExport.beforeHeaderExports.insert(oldI);
+				added = true;
+			}
+		}
+		if (addToExit) {
+			if (!added) {
+				// if the value is not defined before any child loop it it safe
+				// to export it at this loop end
+				loopExport.beforeExitOrLatchExports.insert(oldI);
+				// errs() << "beforeExitOrLatchExports: " << *oldI << "\n";
+			}
+			break; // break because I was added to
+				   // beforeHeaderExports/beforeExitOrLatchExports
+		}
+	}
+}
+
+void resolveExportedValues(LoopInfo &LI, Loop *L,
+						   /*const*/ ValueToValueMapTy &VMap,
+						   /*const*/ ValueToValueMapTy &VMapNewToOld,
+						   const SetVector<Value *> &newInstructionsInNewFn,
+						   std::map<Loop *, LoopExports> &loopExports) {
+	LoopExports &loopExport = loopExports[L];
+	// :note: problematic features
+	//    * if the instruction (new) requires export of instruction (old)
+	//      old can be defined in any parent loop, before loop header or in the
+	//      loop itself
+	//    * The value is exported on last possible location to extend its life
+	//      in src code (old) and limit it in dst code (new)
 	for (Loop *subLoop : *L) {
 		resolveExportedValues(LI, subLoop, VMap, VMapNewToOld,
-				newInstructionsInNewFn, loopExports);
+							  newInstructionsInNewFn, loopExports);
 	}
-	LoopExports &loopExport = loopExports[L];
-	//errs() << " L:" << *L << "\n";
-	for (BasicBlock *_BB : L->blocks()) {
-		//errs() << "BB: " << _BB->getName() << "\n";
-		if (LI.getLoopFor(_BB) != L)
+
+	// errs() << " L:" << *L << "\n";
+	for (BasicBlock *oldBB : L->blocks()) {
+		// errs() << "BB: " << oldBB->getName() << "\n";
+		if (LI.getLoopFor(oldBB) != L)
 			continue; // this BB will be processed in some child loop.
-		auto BB = dyn_cast<BasicBlock>(VMap[_BB]);
+		auto *BB = dyn_cast<BasicBlock>(VMap[oldBB]);
 		assert(BB);
 		for (auto &I : *BB) {
 			bool isNewI = newInstructionsInNewFn.contains(&I);
 			if (isNewI || I.isTerminator()) {
-				// if instruction has dependency defined outside of this loop the dependency should be in beforeHeaderExports
-				for (auto *op : I.operand_values()) {
-					auto opI = dyn_cast<Instruction>(op);
-					if (!opI)
-						continue;
-					if (newInstructionsInNewFn.contains(opI))
-						continue;
-					auto oldOpI = dyn_cast<Instruction>(VMapNewToOld[opI]);
-					assert(oldOpI);
-					if (L->contains(oldOpI))
-						continue;
-					loopExport.beforeHeaderExports.insert(oldOpI);
-					//errs() << "beforeHeaderExports: " << * oldOpI << "\n";
-				}
+				resolveExportedValues_onUseInNewFn(L, VMap, VMapNewToOld,
+												   newInstructionsInNewFn, I,
+												   loopExport);
 			}
 			if (!isNewI) {
-				// if instruction has use outside inside or after this loop in extracted code
-				for (auto U : I.users()) {
-					auto UI = dyn_cast<Instruction>(U);
-					if (!UI)
-						continue;
-					if (!newInstructionsInNewFn.contains(UI) && !UI->isTerminator())
-						continue;
-
-					auto oldI = dyn_cast<Instruction>(VMapNewToOld[&I]);
-					assert(oldI);
-					bool added = false;
-					for (auto* subL: L->getSubLoops()) {
-						LoopExports &subLoopExport = loopExports[subL];
-						if (subLoopExport.beforeHeaderSection.contains(_BB)) {
-							// if the value is defined before some child loop, it must be exported on that place
-							// because there is no export location after loop
-							subLoopExport.beforeHeaderExports.insert(oldI);
-							added = true;
-						}
-					}
-					if (!added) {
-						// if the value is not defined before any child loop it it safe to export it at this loop end
-						loopExport.beforeExitOrLatchExports.insert(oldI);
-						//errs() << "beforeExitOrLatchExports: " << * oldI << "\n";
-					}
-					break;
-				}
+				resolveExportedValues_onNotExportedIDef(
+					L, VMap, VMapNewToOld, newInstructionsInNewFn, oldBB, I,
+					loopExports, loopExport, true);
 			}
 		}
 	}
@@ -83,13 +125,32 @@ castArrayRefOfInstructionToValue(ArrayRef<Instruction *> arr) {
 HwtHlsIoMetadata ExportFromOndThreadToNewThread_createAllocaAndStoreInOld(
 	IRBuilder<> &Builder, BasicBlock::iterator allocaInsertPoint,
 	Instruction *storeInsertPoint, const SetVector<Instruction *> &values,
-	Function &F, Function &extractedF,
+	Function &F, DominatorTree &DT, Function &extractedF,
 	SmallVector<ArgToAddToParentFn> &argsToAddToOldFn, AllocaInst *&tmpAlloca,
 	size_t &addedArgI, IntegerType *&valueTy) {
 
+	// handle values which are not dominating the storeInsertPoint
+	SmallVector<AllocaInst *> tmpAllocasForValuesNotDominatingInsertPoint;
+	SmallVector<Instruction *> valuesTmp(values.begin(), values.end());
+	for (auto &v : valuesTmp) {
+		if (!DT.dominates(v, storeInsertPoint)) {
+			Builder.SetInsertPoint(F.getEntryBlock().getFirstInsertionPt());
+			auto tmpAlloca = Builder.CreateAlloca(v->getType());
+			tmpAllocasForValuesNotDominatingInsertPoint.push_back(tmpAlloca);
+			Builder.SetInsertPoint(++v->getIterator());
+			Builder.CreateStore(v, tmpAlloca);
+
+			Builder.SetInsertPoint(storeInsertPoint);
+			v = Builder.CreateLoad(v->getType(), tmpAlloca);
+		}
+	}
+
 	Builder.SetInsertPoint(storeInsertPoint);
 	auto allInConcat =
-		CreateBitConcat(&Builder, castArrayRefOfInstructionToValue(values.getArrayRef()));
+		CreateBitConcat(&Builder, castArrayRefOfInstructionToValue(valuesTmp));
+
+	if (!tmpAllocasForValuesNotDominatingInsertPoint.empty())
+		PromoteMemToReg(tmpAllocasForValuesNotDominatingInsertPoint, DT);
 	valueTy = dyn_cast<IntegerType>(allInConcat->getType());
 	Builder.SetInsertPoint(allocaInsertPoint);
 	addedArgI = F.arg_size() + argsToAddToOldFn.size();
@@ -142,6 +203,7 @@ void ExportFromOndThreadToNewThread_createAllocaAndLoadInNew(
 
 void constructCommunicationBetweenOriginalAndExtractedLoop(
 	IRBuilder<> &Builder, Function &F,
+	llvm::DominatorTree &DT, // (for F)
 	Function &extractedF, SmallVector<ArgToAddToParentFn> &argsToAddToOldFn,
 	SmallVector<ArgToAddToParentFn> &argsToAddToNewFn,
 	std::map<Loop *, LoopExports> &loopExports,
@@ -177,10 +239,26 @@ void constructCommunicationBetweenOriginalAndExtractedLoop(
 			Builder, allocaInsertPointInOld, preHeader->getTerminator(),
 			loopExport.beforeHeaderExports, F, DT, extractedF, argsToAddToOldFn,
 			loopExport.beforeHeaderInOld, addedArgI, valueTy);
-		// :attention: the pre-header section does not necessary be just 1 block
-		//  and thus preHeaderNew->getFirstInsertionPt() may not be the correct place
+		BasicBlock::iterator InNewLdIP;
+		// :note: the pre-header section does not necessary be just 1 block
+		//  and thus preHeaderNew->getFirstInsertionPt() may not be the correct
+		//  place
+		// :note: some incoming values for pre-header section may be undefined
+		// 	because definition do not need to dominate child loop header
+		//  (case where value is used only on some path in pre-header section)
+		//  However the forwarded value should hold all valid data required and
+		//  some values are just unused on some paths.
+		if (loopExport.beforeHeaderSection.empty()) {
+			auto *preHeaderNew = dyn_cast<BasicBlock>(&*VMap[preHeader]);
+			InNewLdIP = preHeaderNew->getFirstInsertionPt();
+		} else {
+			auto *preHeaderSectionEntry =
+				dyn_cast<BasicBlock>(&*VMap[loopExport.beforeHeaderSection[0]]);
+			InNewLdIP = preHeaderSectionEntry->getFirstInsertionPt();
+		}
+
 		ExportFromOndThreadToNewThread_createAllocaAndLoadInNew(
-			Builder, allocaInsertPointInNew, &*preHeaderNew->getFirstInsertionPt(), F, extractedF,
+			Builder, allocaInsertPointInNew, &*InNewLdIP, F, extractedF,
 			valueTy, addedArgI, VMap, loopExport.beforeHeaderExports,
 			loopExport.beforeHeaderInNew, argsToAddToNewFn,
 			newInstructionsInNewFn);
@@ -192,7 +270,7 @@ void constructCommunicationBetweenOriginalAndExtractedLoop(
 						   loopExport.beforeHeaderExports.end());
 	for (Loop *cLoop : *L) {
 		constructCommunicationBetweenOriginalAndExtractedLoop(
-			Builder, F, extractedF, argsToAddToOldFn, argsToAddToNewFn,
+			Builder, F, DT, extractedF, argsToAddToOldFn, argsToAddToNewFn,
 			loopExports, alreadyExported, VMap, VMapNewToOld,
 			allocaInsertPointInOld, allocaInsertPointInNew, cLoop,
 			newInstructionsInNewFn);
@@ -242,7 +320,7 @@ void constructCommunicationBetweenOriginalAndExtractedLoop(
 					IntegerType *valueTy;
 					ExportFromOndThreadToNewThread_createAllocaAndStoreInOld(
 						Builder, allocaInsertPointInOld, src->getTerminator(),
-						loopExport.beforeExitOrLatchExports, F, extractedF,
+						loopExport.beforeExitOrLatchExports, F, DT, extractedF,
 						argsToAddToOldFn, loopExport.beforeExitOrLatchInOld,
 						addedArgI, valueTy);
 

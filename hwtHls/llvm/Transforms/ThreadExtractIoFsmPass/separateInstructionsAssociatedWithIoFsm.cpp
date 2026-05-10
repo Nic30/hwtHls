@@ -326,9 +326,11 @@ void separateInstructionsAssociatedWithIoFsm(IRBuilder<> &Builder,
 	// construct tmp alloca and create a store to it in original function and load from it in new function
 	auto allocaInsertPointInOld = F.getEntryBlock().begin();
 	auto allocaInsertPointInNew = extractedF.getEntryBlock().begin();
+	if (DTU.hasPendingUpdates())
+		DTU.flush();
 	for (Loop *L : LI.getTopLevelLoops()) {
 		// iter parent first then children
-		constructCommunicationBetweenOriginalAndExtractedLoop(Builder, F,
+		constructCommunicationBetweenOriginalAndExtractedLoop(Builder, F, DTU.getDomTree(),
 				extractedF, argsToAddToOldFn, argsToAddToNewFn, loopExports,
 				alreadyExported, VMap, VMapRev, allocaInsertPointInOld,
 				allocaInsertPointInNew, L, newFnSpecificValInNewFn);
