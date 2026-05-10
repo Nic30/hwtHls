@@ -80,6 +80,7 @@ void register_Function(pybind11::module_ & m) {
 		.def("setMetadata", [](llvm::Function * F, llvm::StringRef Kind, MDNodeWithDeletedDelete *Node) {
 			F->setMetadata(Kind, Node);
 		})
+		.def("setMemoryEffects", &llvm::Function::setMemoryEffects)
 		.def("getIntrinsicID", &llvm::Function::getIntrinsicID)
 		.def("addFnAttrKind", [](llvm::Function*F, llvm::Attribute::AttrKind Attr) {
 			F->addFnAttr(Attr);
@@ -90,6 +91,7 @@ void register_Function(pybind11::module_ & m) {
 		.def("addFnAttr", [](llvm::Function &self, llvm::Attribute::AttrKind Kind) {
 			self.addFnAttr(Kind);
 		})
+		.def("getContext", &llvm::Function::getContext)
 		;
 
 	m.def("ValueToFunction", &valueCaster<llvm::Function>);
@@ -115,7 +117,25 @@ void register_Function(pybind11::module_ & m) {
 
 	py::class_<llvm::FunctionCallee> FunctionCallee(m, "FunctionCallee");
 	FunctionCallee.def(py::init<llvm::Function *>());
-
+	py::native_enum<llvm::ModRefInfo> ModRefInfo(m, "ModRefInfo", "enum.Enum");
+	ModRefInfo.value("NoModRef", llvm::ModRefInfo::NoModRef);
+	ModRefInfo.value("Ref",      llvm::ModRefInfo::Ref     );
+	ModRefInfo.value("Mod",      llvm::ModRefInfo::Mod     );
+	ModRefInfo.value("ModRef",   llvm::ModRefInfo::ModRef  );
+	ModRefInfo.finalize();
+	
+	py::class_<llvm::MemoryEffects, std::unique_ptr<llvm::MemoryEffects, py::nodelete>> MemoryEffects(m, "MemoryEffects");
+	MemoryEffects
+		.def_static("unknown", &llvm::MemoryEffects::unknown)
+		.def_static("none", &llvm::MemoryEffects::none)
+		.def_static("readOnly", &llvm::MemoryEffects::readOnly)
+		.def_static("writeOnly", &llvm::MemoryEffects::writeOnly)
+		.def_static("argMemOnly", &llvm::MemoryEffects::argMemOnly, py::arg("MR") = llvm::ModRefInfo::ModRef)
+		.def_static("inaccessibleMemOnly", &llvm::MemoryEffects::inaccessibleMemOnly, py::arg("MR") = llvm::ModRefInfo::ModRef)
+		.def_static("errnoMemOnly", &llvm::MemoryEffects::errnoMemOnly, py::arg("MR") = llvm::ModRefInfo::ModRef)
+		.def_static("otherMemOnly", &llvm::MemoryEffects::otherMemOnly, py::arg("MR") = llvm::ModRefInfo::ModRef)
+		;
+		
 	auto Intrinsic = m.def_submodule("Intrinsic");
 	py::native_enum<llvm::Intrinsic::IndependentIntrinsics> IndependentIntrinsics(Intrinsic, "IndependentIntrinsics", "enum.Enum");
 	for (unsigned I= llvm::Intrinsic::IndependentIntrinsics::abs; I <= llvm::Intrinsic::xray_typedevent; ++I) {
