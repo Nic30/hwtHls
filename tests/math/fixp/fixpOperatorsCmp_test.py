@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from tests.math.fixp.fixpTypes import HFixedPointQ
+from hwt.serializer.mode import serializeParamsUniq
 from tests.math.fixp.fixpOperatorsCommonArith_test import FixpAdd_TC
 from tests.math.fixp.fixpOperatorsHwModules import _FixpCmpOpTestModule
-from hwt.serializer.mode import serializeParamsUniq
+from tests.math.fixp.fixpTypes import HFixedPointQ
 
 
 @serializeParamsUniq
