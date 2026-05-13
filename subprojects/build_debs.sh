@@ -28,7 +28,7 @@ VERSION=$(git rev-parse HEAD)
 cmake -G Ninja \
  -DCMAKE_BUILD_TYPE=Debug \
  -DABC_SKIP_TESTS=1 \
- -DCPACK_PACKAGE_VERSION="$VERSION" \
+ -DCPACK_PACKAGE_VERSION="0.0.1+git.$VERSION" \
  .. 
 cmake --build . --target libabc-pic --config Debug
 cpack -G DEB
@@ -36,6 +36,6 @@ cpack -G DEB
 if [ ! -d "$SUBPROJECTS_DIR/DEB" ] ; then
     mkdir "$SUBPROJECTS_DIR/DEB"
 fi
-cp $ABC_ROOT/build/libabc-dev-$VERSION-Linux.deb $SUBPROJECTS_DIR/DEB
+cp $ABC_ROOT/build/libabc-dev-0.0.1+git.$VERSION-Linux.deb $SUBPROJECTS_DIR/DEB
 
 # building deb with meson https://blog.devgenius.io/how-to-build-debian-packages-from-meson-ninja-d1c28b60e709
