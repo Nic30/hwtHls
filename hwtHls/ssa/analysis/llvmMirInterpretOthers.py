@@ -5,8 +5,10 @@ from hwtHls.llvm.llvmIr import TargetOpcode, MachineRegisterInfo, MachineInstr
 from hwtHls.ssa.analysis.llvmMirInterpretInt import \
     _makeDecode_G_shift, _makeDecode_shift, \
     makeDecode_funel_shift, makeDecode_G_funel_shift, \
-    makeDecode_arithmeticBin, makeDecode_arithUnary
+    makeDecode_arithmeticBin, makeDecode_arithUnary, \
+    makeDecode_arithmetic_MUL_HL
 from hwtHls.ssa.analysis.llvmMirInterpretUtils import LlvmMirInstrFunction
+from hwtHls.netlist.extraOps import OP_MUL_HL
 
 
 def _makeDecodeOpcodeFunction(opcode: TargetOpcode, opDef: HOperatorDef):
@@ -39,6 +41,8 @@ def _makeDecodeOpcodeFunction(opcode: TargetOpcode, opDef: HOperatorDef):
 
     # elif opcode in HlsNetlistAnalysisPassMirToNetlistLowLevel._FP_UNARY_OPCODES:
     #     return _makeDecodeFpUnary(opDef)
+    elif opDef == OP_MUL_HL:
+        return makeDecode_arithmetic_MUL_HL(OP_MUL_HL)
     else:
         return makeDecode_arithmeticBin(opDef)
 

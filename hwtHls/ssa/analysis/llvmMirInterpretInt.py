@@ -559,6 +559,49 @@ def makeDecode_arithmeticBin(opDef: HOperatorDef):
     return _decodeOpcode_arithmeticBin
 
 
+def _getBinInstrArgs_MUL_HL(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr):
+    dst, _src0, _src1, _, _, _, _, _ = interpret._decodeInstArguments(MRI, instr, instr.operands())
+    return dst, _src0, _src1
+
+
+def makeDecode_arithmetic_MUL_HL(opDef: HOperatorDef):
+
+    def _decodeOpcode_arithmetic_MUL_HL(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
+        try:
+            dst, _src0, _src1, isSigned0, width0, isSigned1, width1, resultWidth = interpret._decodeInstArguments(MRI, instr, instr.operands())
+        except:
+            raise AssertionError("Instruction operands in invalid format or this is not binary arithmetic instruction", instr)
+
+        src0IsConst = isinstance(_src0, HConst)
+        src1IsConst = isinstance(_src1, HConst)
+        evalFn = opDef._evalFn
+
+        def _opcode_arithmeticBin(nowTime: int, regs: list[HConst]):
+            if src0IsConst:
+                src0 = _src0
+            else:
+                src0 = regs[_src0]
+                assert isinstance(src0, HConst), (instr, _src0, src0)
+
+            if src1IsConst:
+                src1 = _src1
+            else:
+                src1 = regs[_src1]
+                assert isinstance(src1, HConst), (instr, _src1, src1)
+
+            assert src0._dtype.signed is None
+            assert src1._dtype.signed is None
+            try:
+                res = evalFn(src0, src1, isSigned0, width0, isSigned1, width1, resultWidth)
+            except ZeroDivisionError:
+                res = src0._dtype.from_py(None)
+            regs[dst] = res
+
+        return _opcode_arithmeticBin
+
+    return _decodeOpcode_arithmetic_MUL_HL
+
+
 def makeDecode_arithmeticBinBin(evalFn: Callable[[int, int], [int, int]]):
 
     def _decodeOpcode_arithmeticBinBin(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
