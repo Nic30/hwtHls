@@ -366,11 +366,8 @@ def _makeDecode_G_shift(opDef: HOperatorDef):
             else:
                 sh = regs[_sh]
 
-            if src0._dtype.signed is not None:
-                src0 = src0._cast_sign(None)
-            if sh._dtype.signed is not None:
-                sh = sh._cast_sign(None)
-
+            assert src0._dtype.signed is None
+            assert sh._dtype.signed is None
             sh = sh[shAmountTruncSlice]  # truncate shiftAmount
             res = evalFn(src0, sh)
             regs[dst] = res
@@ -398,10 +395,8 @@ def _makeDecode_shift(opDef: HOperatorDef):
                 sh = _sh
             else:
                 sh = regs[_sh]
-            if src0._dtype.signed is not None:
-                src0 = src0._cast_sign(None)
-            if sh._dtype.signed is not None:
-                sh = sh._cast_sign(None)
+            assert src0._dtype.signed is None
+            assert sh._dtype.signed is None
             assert sh._dtype.bit_length() == expectedShWidth, (instr, sh._dtype.bit_length(), expectedShWidth)
             res = evalFn(src0, sh)
             regs[dst] = res
@@ -440,12 +435,9 @@ def makeDecode_G_funel_shift(opDef: HOperatorDef):
             else:
                 sh = regs[_sh]
 
-            if src0._dtype.signed is not None:
-                src0 = src0._cast_sign(None)
-            if src1._dtype.signed is not None:
-                src1 = src1._cast_sign(None)
-            if sh._dtype.signed is not None:
-                sh = sh._cast_sign(None)
+            assert src0._dtype.signed is None
+            assert src1._dtype.signed is None
+            assert sh._dtype.signed is None
 
             sh = sh[shAmountTruncSlice]
             res = evalFn(src0, src1, sh)
@@ -482,12 +474,9 @@ def makeDecode_funel_shift(opDef: HOperatorDef):
             else:
                 sh = regs[_sh]
 
-            if src0._dtype.signed is not None:
-                src0 = src0._cast_sign(None)
-            if src1._dtype.signed is not None:
-                src1 = src1._cast_sign(None)
-            if sh._dtype.signed is not None:
-                sh = sh._cast_sign(None)
+            assert src0._dtype.signed is None
+            assert src1._dtype.signed is None
+            assert sh._dtype.signed is None
 
             assert sh._dtype.bit_length() == expectedShWidth, (instr, sh._dtype.bit_length(), expectedShWidth)
             res = evalFn(src0, src1, sh)
@@ -510,8 +499,7 @@ def makeDecode_arithUnary(opDef: HOperatorDef):
                 src0 = _src0
             else:
                 src0 = regs[_src0]
-            if src0._dtype.signed is not None:
-                src0 = src0._cast_sign(None)
+            assert src0._dtype.signed is None
             res = evalFn(src0)
             regs[dst] = res
 
@@ -525,6 +513,7 @@ def makeDecode_arithmeticBin(opDef: HOperatorDef):
     def _decodeOpcode_arithmeticBin(interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
         try:
             dst, _src0, _src1 = interpret._decodeInstArguments(MRI, instr, instr.operands())
+
         except:
             raise AssertionError("Instruction operands in invalid format or this is not binary arithmetic instruction", instr)
         src0IsConst = isinstance(_src0, HConst)
@@ -544,10 +533,8 @@ def makeDecode_arithmeticBin(opDef: HOperatorDef):
                 src1 = regs[_src1]
                 assert isinstance(src1, HConst), (instr, _src1, src1)
 
-            if src0._dtype.signed is not None:
-                src0 = src0._cast_sign(None)
-            if src1._dtype.signed is not None:
-                src1 = src1._cast_sign(None)
+            assert src0._dtype.signed is None
+            assert src1._dtype.signed is None
             try:
                 res = evalFn(src0, src1)
             except ZeroDivisionError:
@@ -625,10 +612,8 @@ def makeDecode_arithmeticBinBin(evalFn: Callable[[int, int], [int, int]]):
                 src1 = regs[_src1]
                 assert isinstance(src1, HConst), (instr, _src1, src1)
 
-            if src0._dtype.signed is not None:
-                src0 = src0._cast_sign(None)
-            if src1._dtype.signed is not None:
-                src1 = src1._cast_sign(None)
+            assert src0._dtype.signed is None
+            assert src1._dtype.signed is None
             try:
                 res0, res1 = evalFn(src0, src1)
             except ZeroDivisionError:
@@ -667,10 +652,8 @@ def makeDecode_AddSubSatBin(evalFn: Callable[[HBitsConst, HBitsConst], HBitsCons
                 src1 = regs[_src1]
                 assert isinstance(src1, HConst), (instr, _src1, src1)
 
-            if src0._dtype.signed is not None:
-                src0 = src0._cast_sign(None)
-            if src1._dtype.signed is not None:
-                src1 = src1._cast_sign(None)
+            assert src0._dtype.signed is None
+            assert src1._dtype.signed is None
             res = evalFn((src0, src1))
             regs[dst] = res
 
