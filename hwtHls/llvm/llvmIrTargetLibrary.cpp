@@ -4,6 +4,7 @@
 #include <llvm/Analysis/TargetLibraryInfo.h>
 
 #include <pybind11/native_enum.h>
+#include <pybind11/stl.h>
 
 namespace py = pybind11;
 
@@ -13,6 +14,14 @@ void register_TargetLibrary(pybind11::module_ &m) {
 	py::class_<llvm::TargetLibraryInfo,
 			std::unique_ptr<llvm::TargetLibraryInfo, py::nodelete>> TargetLibraryInfo(
 			m, "TargetLibraryInfo");
+	TargetLibraryInfo
+		.def("getLibFunc_fromCallBase", [](llvm::TargetLibraryInfo & TLI, const llvm::CallBase &CB) -> std::optional<llvm::LibFunc> {
+			llvm::LibFunc LF;
+			if (TLI.getLibFunc(CB, LF)) {
+				return LF;
+			}
+			return {};
+		});
 
 	py::native_enum<llvm::LibFunc> LibFunc(m, "LibFunc", "enum.Enum");
 
