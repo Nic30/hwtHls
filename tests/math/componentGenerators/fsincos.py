@@ -96,7 +96,8 @@ class FixpSinCosCordic(_BaseALU1HwModule):
         return resTmp
 
 
-class ComponentGeneratorFSIN_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary):
+class ComponentGeneratorLlvmIntrinsicSin(ComponentGeneratorFp):
+    INPUT_CNT = 1
 
     @override
     @staticmethod
@@ -104,7 +105,8 @@ class ComponentGeneratorFSIN_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedH
         return math.sin(x)
 
 
-class ComponentGeneratorFCOS_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary):
+class ComponentGeneratorLlvmIntrinsicCos(ComponentGeneratorFp):
+    INPUT_CNT = 1
 
     @override
     @staticmethod
@@ -112,7 +114,17 @@ class ComponentGeneratorFCOS_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedH
         return math.cos(x)
 
 
-class ComponentGeneratorFSINPI_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary):
+class ComponentGeneratorLlvmIntrinsicSincos(ComponentGeneratorFp):
+    INPUT_CNT = 1
+
+    @override
+    @staticmethod
+    def evalFn(x: float) -> tuple[float, float]:
+        return (math.sin(x), math.cos(x))
+
+
+class ComponentGeneratorLlvmIntrinsicSinpi(ComponentGeneratorFp):
+    INPUT_CNT = 1
 
     @override
     @staticmethod
@@ -120,12 +132,38 @@ class ComponentGeneratorFSINPI_hwtHlsFpIntrinsic(ComponentGeneratorForSpecialize
         return math.sin(x * math.pi)
 
 
-class ComponentGeneratorFCOSPI_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary):
+class ComponentGeneratorLlvmIntrinsicCospi(ComponentGeneratorFp):
+    INPUT_CNT = 1
 
     @override
     @staticmethod
     def evalFn(x: float) -> float:
         return math.cos(x * math.pi)
+
+
+class ComponentGeneratorLlvmIntrinsicSincospi(ComponentGeneratorFp):
+    INPUT_CNT = 1
+
+    @override
+    @staticmethod
+    def evalFn(x: float) -> tuple[float, float]:
+        return (math.sin(x * math.pi), math.cos(x * math.pi))
+
+
+class ComponentGeneratorFSIN_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary):
+    evalFn = staticmethod(ComponentGeneratorLlvmIntrinsicSin.evalFn)
+
+
+class ComponentGeneratorFCOS_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary):
+    evalFn = staticmethod(ComponentGeneratorLlvmIntrinsicCos.evalFn)
+
+
+class ComponentGeneratorFSINPI_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary):
+    evalFn = staticmethod(ComponentGeneratorLlvmIntrinsicSinpi.evalFn)
+
+
+class ComponentGeneratorFCOSPI_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary):
+    evalFn = staticmethod(ComponentGeneratorLlvmIntrinsicCospi.evalFn)
 
 
 class ComponentGeneratorFSINCOS(ComponentGeneratorFp):
@@ -240,7 +278,7 @@ class ComponentGeneratorFSINCOS(ComponentGeneratorFp):
 
 @serializeParamsUniq
 class FixpSinCosCordicPi(FixpSinCosCordic):
-    
+
     @override
     @hlsBytecode
     def aluFn(self, _inp: HBitsRtlSignal):

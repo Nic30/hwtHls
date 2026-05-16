@@ -51,6 +51,15 @@ class FixpSqrtHwModule(_FpUnOpAluHwModule):
             raise NotImplementedError(t)
 
 
+class ComponentGeneratorLlvmIntrinsicSqrt(ComponentGeneratorFp):
+    INPUT_CNT = 1
+
+    @override
+    @staticmethod
+    def evalFn(x: float) -> float:
+        return math.sqrt(x)
+
+
 class ComponentGeneratorFSQRT_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary):
 
     @override

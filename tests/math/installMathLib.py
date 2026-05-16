@@ -1,7 +1,8 @@
 from typing import Optional
 
 from hwt.hdl.operatorDefs import HwtOps
-from hwtHls.llvm.llvmIr import TargetOpcode, CmpInst, Instruction, FCmpInst, Intrinsic, Type
+from hwtHls.llvm.llvmIr import TargetOpcode, CmpInst, Instruction, FCmpInst, Intrinsic, Type, \
+    LibFunc
 from hwtHls.netlist.extraOps import OP_UDIVREM, OP_SDIVREM, OP_MUL_HL
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.ssa.analysis.llvmIrInterpretUtils import HwtHlsFpIntrisicName
@@ -27,8 +28,12 @@ from tests.math.componentGenerators.fexp import ComponentGeneratorFEXP, \
     ComponentGeneratorFEXP2, ComponentGeneratorFEXP10, \
     ComponentGeneratorFEXP_hwtHlsFpIntrinsic, \
     ComponentGeneratorFEXP2_hwtHlsFpIntrinsic, \
-    ComponentGeneratorFEXP10_hwtHlsFpIntrinsic
-from tests.math.componentGenerators.flog import ComponentGeneratorFLOG2
+    ComponentGeneratorFEXP10_hwtHlsFpIntrinsic, \
+    ComponentGeneratorLlvmIntrinsicExp, ComponentGeneratorLlvmIntrinsicExp2, \
+    ComponentGeneratorLlvmIntrinsicExp10
+from tests.math.componentGenerators.flog import ComponentGeneratorFLOG2, \
+    ComponentGeneratorLlvmIntrinsicLog, ComponentGeneratorLlvmIntrinsicLog2, \
+    ComponentGeneratorLlvmIntrinsicLog10
 from tests.math.componentGenerators.flog import ComponentGeneratorFLOG_hwtHlsFpIntrinsic, \
     ComponentGeneratorFLOG2_hwtHlsFpIntrinsic, \
     ComponentGeneratorFLOG10_hwtHlsFpIntrinsic
@@ -48,14 +53,20 @@ from tests.math.componentGenerators.fsincos import ComponentGeneratorFSINCOS, \
     ComponentGeneratorFSINCOS_PI, ComponentGeneratorFSIN_hwtHlsFpIntrinsic, \
     ComponentGeneratorFCOS_hwtHlsFpIntrinsic, \
     ComponentGeneratorFSINPI_hwtHlsFpIntrinsic, \
-    ComponentGeneratorFCOSPI_hwtHlsFpIntrinsic
+    ComponentGeneratorFCOSPI_hwtHlsFpIntrinsic, \
+    ComponentGeneratorLlvmIntrinsicSin, ComponentGeneratorLlvmIntrinsicCos, \
+    ComponentGeneratorLlvmIntrinsicSincos, \
+    ComponentGeneratorLlvmIntrinsicSincospi,\
+    ComponentGeneratorLlvmIntrinsicSinpi, ComponentGeneratorLlvmIntrinsicCospi
 from tests.math.componentGenerators.fsqrt import ComponentGeneratorFSQRT, \
-    ComponentGeneratorFSQRT_hwtHlsFpIntrinsic
+    ComponentGeneratorFSQRT_hwtHlsFpIntrinsic, \
+    ComponentGeneratorLlvmIntrinsicSqrt
 from tests.math.componentGenerators.fsub import ComponentGeneratorFSUB, \
     ComponentGeneratorFSUB_hwtHlsFpIntrinsic
 from tests.math.componentGenerators.ftan import ComponentGeneratorFTAN, \
     ComponentGeneratorFTANPI, ComponentGeneratorFTAN_hwtHlsFpIntrinsic, \
-    ComponentGeneratorFTANPI_hwtHlsFpIntrinsic
+    ComponentGeneratorFTANPI_hwtHlsFpIntrinsic, \
+    ComponentGeneratorLlvmIntrinsicTan
 from tests.math.componentGenerators.mul import ComponentGeneratorMUL
 from tests.math.componentGenerators.mul_hl import ComponentGeneratorMUL_HL
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
@@ -147,9 +158,11 @@ def installMathLibComponentGenerators(p: VirtualHlsPlatform, optThroughputVsArea
     g[HwtHlsFpIntrisicName("hwtHls.fp.fmul.")] = ComponentGeneratorFMUL_hwtHlsFpIntrinsic(p, np, "fmul")
     g[BinaryOps.FDiv] = g[T.HWTFPGA_FP_FDIV] = g[OP_FDIV] = ComponentGeneratorFDIVREM(p, np, "fdiv", True, False, optThroughputVsArea=optThroughputVsArea)
     g[HwtHlsFpIntrisicName("hwtHls.fp.fdiv.")] = ComponentGeneratorFDIV_hwtHlsFpIntrinsic(p, np, "fdiv")
-    g[T.HWTFPGA_FP_FREM] = g[OP_FREM] = ComponentGeneratorFDIVREM(p, np, "frem", False, True, optThroughputVsArea=optThroughputVsArea)
+    g[BinaryOps.FRem] = g[T.HWTFPGA_FP_FREM] = g[OP_FREM] = ComponentGeneratorFDIVREM(p, np, "frem", False, True, optThroughputVsArea=optThroughputVsArea)
     g[HwtHlsFpIntrisicName("hwtHls.fp.frem.")] = ComponentGeneratorFREM_hwtHlsFpIntrinsic(p, np, "frem")
-    # g[] = g[OP_FDIVREM] = ComponentGeneratorFDIVREM(p, True, True, np, "fdivrem", optThroughputVsArea=optThroughputVsArea)
+    # g[OP_FDIVREM] = ComponentGeneratorFDIVREM(p, True, True, np, "fdivrem", optThroughputVsArea=optThroughputVsArea)
+
+    g[Intrinsic.sqrt] = ComponentGeneratorLlvmIntrinsicSqrt(p, np, "fsqrt")
     g[T.HWTFPGA_FP_SQRT] = g[OP_FSQRT] = ComponentGeneratorFSQRT(p, np, "fsqrt", optThroughputVsArea=optThroughputVsArea)
     g[HwtHlsFpIntrisicName("hwtHls.fp.sqrt.")] = ComponentGeneratorFSQRT_hwtHlsFpIntrinsic(p, np, "fsqrt")
 
@@ -167,35 +180,61 @@ def installMathLibComponentGenerators(p: VirtualHlsPlatform, optThroughputVsArea
     g[(FCmpInst, P.FCMP_OLE)] = g[(T.HWTFPGA_FP_FCMP, P.FCMP_OLE)] = g[OP_FCMP_OLE] = ComponentGeneratorFCMP(p, np, "fcmp_ole", HwtOps.ULE, HwtOps.SLE)
     g[(FCmpInst, P.FCMP_ONE)] = g[(T.HWTFPGA_FP_FCMP, P.FCMP_ONE)] = g[OP_FCMP_ONE] = ComponentGeneratorFCMP(p, np, "fcmp_one", HwtOps.NE, HwtOps.NE)
 
+    g[Intrinsic.sin] = ComponentGeneratorLlvmIntrinsicSin(p, np, "fsin")
     g[T.HWTFPGA_FP_SIN] = g[OP_FSIN] = ComponentGeneratorFSINCOS(p, np, "fsin", False, True, optThroughputVsArea=optThroughputVsArea, optMaxStagesInLut=MAX_TABLE_ADDR_WIDTH)
     g[HwtHlsFpIntrisicName("hwtHls.fp.sin.")] = ComponentGeneratorFSIN_hwtHlsFpIntrinsic(p, np, "fsin")
+
+    g[Intrinsic.cos] = ComponentGeneratorLlvmIntrinsicCos(p, np, "fcos")
     g[T.HWTFPGA_FP_COS] = g[OP_FCOS] = ComponentGeneratorFSINCOS(p, np, "fcos", True, False, optThroughputVsArea=optThroughputVsArea, optMaxStagesInLut=MAX_TABLE_ADDR_WIDTH)
     g[HwtHlsFpIntrisicName("hwtHls.fp.cos.")] = ComponentGeneratorFCOS_hwtHlsFpIntrinsic(p, np, "fcos")
+
+    g[Intrinsic.tan] = ComponentGeneratorLlvmIntrinsicTan(p, np, "ftan")
     g[T.HWTFPGA_FP_TAN] = g[OP_FTAN] = ComponentGeneratorFTAN(p, np, "ftan")
     g[HwtHlsFpIntrisicName("hwtHls.fp.tan.")] = ComponentGeneratorFTAN_hwtHlsFpIntrinsic(p, np, "ftan")
+
     g[T.HWTFPGA_FP_TANPI] = g[OP_FTANPI] = ComponentGeneratorFTANPI(p, np, "ftanpi")
     g[HwtHlsFpIntrisicName("hwtHls.fp.tanpi.")] = ComponentGeneratorFTANPI_hwtHlsFpIntrinsic(p, np, "ftanpi")
+
+    g[LibFunc.LibFunc_sinpi] = ComponentGeneratorLlvmIntrinsicSinpi(p, np, "fsinpi")
     g[T.HWTFPGA_FP_SINPI] = g[OP_FSINPI] = ComponentGeneratorFSINCOS_PI(p, np, "fsinpi", False, True, optThroughputVsArea=optThroughputVsArea, optMaxStagesInLut=MAX_TABLE_ADDR_WIDTH)
     g[HwtHlsFpIntrisicName("hwtHls.fp.sinpi.")] = ComponentGeneratorFSINPI_hwtHlsFpIntrinsic(p, np, "fsinpi")
+
+    g[LibFunc.LibFunc_cospi] = ComponentGeneratorLlvmIntrinsicCospi(p, np, "fcospi")
     g[T.HWTFPGA_FP_COSPI] = g[OP_FCOSPI] = ComponentGeneratorFSINCOS_PI(p, np, "fcospi", True, False, optThroughputVsArea=optThroughputVsArea, optMaxStagesInLut=MAX_TABLE_ADDR_WIDTH)
     g[HwtHlsFpIntrisicName("hwtHls.fp.cospi.")] = ComponentGeneratorFCOSPI_hwtHlsFpIntrinsic(p, np, "fcospi")
+
+    g[Intrinsic.sincos] = ComponentGeneratorLlvmIntrinsicSincos(p, np, "fsincos")
     g[T.HWTFPGA_FP_SINCOS] = g[OP_FSINCOS] = ComponentGeneratorFSINCOS(p, np, "fsincos", True, True, optThroughputVsArea=optThroughputVsArea, optMaxStagesInLut=MAX_TABLE_ADDR_WIDTH)
+    g[Intrinsic.sincospi] = ComponentGeneratorLlvmIntrinsicSincospi(p, np, "fsincospi")
     g[T.HWTFPGA_FP_SINCOSPI] = g[OP_FSINCOSPI] = ComponentGeneratorFSINCOS_PI(p, np, "fsincospi", True, True, optThroughputVsArea=optThroughputVsArea, optMaxStagesInLut=MAX_TABLE_ADDR_WIDTH)
+
     g[Intrinsic.atan2] = ComponentGeneratorLlvmIntrinsicAtan2(p, np, "fatan2")
     g[T.HWTFPGA_FP_ATAN2] = g[OP_FATAN2] = ComponentGeneratorFATAN2HYPOT(p, np, "fatan2", True, False, optThroughputVsArea=optThroughputVsArea)
     g[HwtHlsFpIntrisicName("hwtHls.fp.atan2.")] = ComponentGeneratorFATAN2_hwtHlsFpIntrinsic(p, np, "fatan2")
     g[HwtHlsFpIntrisicName("hwtHls.fp.atan2pi.")] = ComponentGeneratorFATAN2_PI_hwtHlsFpIntrinsic(p, np, "fatan2pi")
 
+    g[Intrinsic.log] = ComponentGeneratorLlvmIntrinsicLog(p, np, "flog")
     g[HwtHlsFpIntrisicName("hwtHls.fp.log.")] = ComponentGeneratorFLOG_hwtHlsFpIntrinsic(p, np, "flog")
+
+    g[Intrinsic.log2] = ComponentGeneratorLlvmIntrinsicLog2(p, np, "flog2")
     g[T.HWTFPGA_FP_LOG2] = g[OP_FLOG2] = ComponentGeneratorFLOG2(p, np, "flog2", MAX_TABLE_ADDR_WIDTH)
     g[HwtHlsFpIntrisicName("hwtHls.fp.log2.")] = ComponentGeneratorFLOG2_hwtHlsFpIntrinsic(p, np, "flog2")
+
+    g[Intrinsic.log10] = ComponentGeneratorLlvmIntrinsicLog10(p, np, "flog10")
     g[HwtHlsFpIntrisicName("hwtHls.fp.log10.")] = ComponentGeneratorFLOG10_hwtHlsFpIntrinsic(p, np, "flog10")
     g[T.HWTFPGA_FP_EXP] = g[OP_FEXP] = ComponentGeneratorFEXP(p, np, "fexp", MAX_TABLE_ADDR_WIDTH)
+
+    g[Intrinsic.exp] = ComponentGeneratorLlvmIntrinsicExp(p, np, "fexp")
     g[HwtHlsFpIntrisicName("hwtHls.fp.exp.")] = ComponentGeneratorFEXP_hwtHlsFpIntrinsic(p, np, "fexp")
+
+    g[Intrinsic.exp2] = ComponentGeneratorLlvmIntrinsicExp2(p, np, "fexp2")
     g[T.HWTFPGA_FP_EXP2] = g[OP_FEXP2] = ComponentGeneratorFEXP2(p, np, "fexp2", MAX_TABLE_ADDR_WIDTH)
     g[HwtHlsFpIntrisicName("hwtHls.fp.exp2.")] = ComponentGeneratorFEXP2_hwtHlsFpIntrinsic(p, np, "fexp2")
+
+    g[Intrinsic.exp10] = ComponentGeneratorLlvmIntrinsicExp10(p, np, "fexp10")
     g[T.HWTFPGA_FP_EXP10] = g[OP_FEXP10] = ComponentGeneratorFEXP10(p, np, "fexp10", MAX_TABLE_ADDR_WIDTH)
     g[HwtHlsFpIntrisicName("hwtHls.fp.exp10.")] = ComponentGeneratorFEXP10_hwtHlsFpIntrinsic(p, np, "fexp10")
+
     g[Intrinsic.pow] = g[T.HWTFPGA_FP_FPOW] = g[OP_FPOW] = ComponentGeneratorFPOW(p, np, "fpow")
     g[HwtHlsFpIntrisicName("hwtHls.fp.fpow.")] = ComponentGeneratorFPOW_hwtHlsFpIntrinsic(p, np, "fpow")
     g[Intrinsic.powi] = g[T.HWTFPGA_FP_FPOWI] = g[OP_FPOWI] = ComponentGeneratorFPOWI(p, np, "fpowi")

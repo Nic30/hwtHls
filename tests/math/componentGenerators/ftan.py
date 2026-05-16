@@ -74,6 +74,15 @@ class TanpiCordicDivHwModule(TanCordicDivHwModule):
         return tanVal._explicit_cast(T)._reinterpret_cast(self._getTypeOfIo(self.data_out))
 
 
+class ComponentGeneratorLlvmIntrinsicTan(ComponentGeneratorFp):
+    INPUT_CNT = 1
+
+    @override
+    @staticmethod
+    def evalFn(x: float) -> float:
+        return math.tan(x)
+
+
 class ComponentGeneratorFTAN_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary):
 
     @override

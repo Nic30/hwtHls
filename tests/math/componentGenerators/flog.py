@@ -5,43 +5,62 @@ from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.componentGeneratorUtils import \
     ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule
-from hwtHls.llvm.llvmIr import HFloatTmpConfig
+from hwtHls.llvm.llvmIr import HFloatTmpConfig, CallInst, Instruction
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.node import HlsNetNode
-from hwtHls.platform.opRealizationMeta import OpRealizationMeta,\
-    ComponentRealizationMeta
+from hwtHls.platform.opRealizationMeta import ComponentRealizationMeta
 from hwtHls.platform.platform import DefaultHlsPlatform
 from tests.math.componentGenerators._componentGeneratorFp import ComponentGeneratorFp
 from tests.math.componentGenerators._llvmIrInterpretFP import ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary
 from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.math.fixp.fixplog import FixpLog2TabularizedHwModule
-from tests.math.hFloatTmp.hFloatTmp import HFloatTmpConfigHdlType
+from tests.math.hFloatTmp.hFloatTmp import HFloatTmpConfigHdlType, HFloatTmp
 from tests.math.hFloatTmp.hFloatTmpOps import OP_FLOG2
+from hwtHls.ssa.analysis.llvmIrInterpretUtils import LlvmIrInstrFunction
+from pyDigitalWaveTools.vcd.writer import VcdWriter
+from hwt.hdl.const import HConst
+
+
+class ComponentGeneratorLlvmIntrinsicLog(ComponentGeneratorFp):
+    INPUT_CNT = 1
+
+    @override
+    @staticmethod
+    def evalFn(y:float) -> float:
+        return math.log(y)
+
+
+class ComponentGeneratorLlvmIntrinsicLog2(ComponentGeneratorFp):
+    INPUT_CNT = 1
+
+    @override
+    @staticmethod
+    def evalFn(y:float) -> float:
+        return math.log2(y)
+
+
+class ComponentGeneratorLlvmIntrinsicLog10(ComponentGeneratorFp):
+    INPUT_CNT = 1
+
+    @override
+    @staticmethod
+    def evalFn(y:float) -> float:
+        return math.log10(y)
 
 
 class ComponentGeneratorFLOG_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary):
 
-    @override
-    @staticmethod
-    def evalFn(x: float) -> float:
-        return math.log(x)
+    evalFn = staticmethod(ComponentGeneratorLlvmIntrinsicLog.evalFn)
 
 
 class ComponentGeneratorFLOG2_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary):
 
-    @override
-    @staticmethod
-    def evalFn(x: float) -> float:
-        return math.log2(x)
+    evalFn = staticmethod(ComponentGeneratorLlvmIntrinsicLog2.evalFn)
 
 
 class ComponentGeneratorFLOG10_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary):
-
-    @override
-    @staticmethod
-    def evalFn(x: float) -> float:
-        return math.log10(x)
+    evalFn = staticmethod(ComponentGeneratorLlvmIntrinsicLog10.evalFn)
 
 
 class ComponentGeneratorFLOG2(ComponentGeneratorFp):
