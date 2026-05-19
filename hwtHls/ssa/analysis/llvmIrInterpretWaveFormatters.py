@@ -59,9 +59,9 @@ class VcdFloatFormatter(LogValueFormatter):
 
     def format(self, newVal: "HFloatTmpConst", updater, t: int, out: StringIO):
         if newVal._is_full_valid():
-            out.write(f"{math.nan:.16g} {self.vcdId:s}\n")
+            out.write(f"r{float(newVal.val):.16g} {self.vcdId:s}\n")
         else:
-            out.write(f"{float(newVal.val):.16g} {self.vcdId:s}\n")
+            out.write(f"{math.nan:.16g} {self.vcdId:s}\n")
 
 
 def _prepareWaveWriterTopIo(waveLog: VcdWriter, strCtx: LLVMStringContext, fn: Function):
