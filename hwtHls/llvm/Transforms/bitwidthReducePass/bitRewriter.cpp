@@ -492,6 +492,7 @@ llvm::Value* BitPartsRewriter::expandConstBits(IRBuilder<> *b,
 			reducedBitCnt += w;
 		}
 	}
+
 	return CreateBitConcat(b, concatMembers);
 }
 
@@ -525,7 +526,8 @@ llvm::Instruction* BitPartsRewriter::rewriteInstructionOperands(
 }
 
 // @note we can not remove instruction immediately when rewritten because
-// it may result in breaking of iterators and would require an update everywhere where instr. iterator is used
+//       it may result in breaking of iterators and would require an update
+//       everywhere where instr. iterator is used.
 llvm::Value* BitPartsRewriter::rewriteIfRequired(llvm::Value *V) {
 	if (auto *I = dyn_cast<llvm::Instruction>(V)) {
 		//	if (!dyn_cast<PHINode>(&I))
