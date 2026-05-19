@@ -21,29 +21,37 @@
     store volatile i1 %4, ptr addrspace(13) %res_prefix_same_1, align 1
     store volatile i1 false, ptr addrspace(4) %res_prefix_0vs1, align 1
     store volatile i1 false, ptr addrspace(5) %res_prefix_0vsAll, align 1
-    store volatile i1 %4, ptr addrspace(17) %res_suffix_aVs0, align 1
     %5 = call i16 @hwtHls.bitConcat.i8.i8(i8 %a_read2, i8 %a_read2) #1
-    %6 = call i16 @hwtHls.bitConcat.i8.i8(i8 %b_read2, i8 -1) #1
+    %6 = zext i8 %b_read2 to i16
     %7 = icmp uge i16 %5, %6
-    store volatile i1 %7, ptr addrspace(18) %res_suffix_aVsAll, align 1
-    %8 = call i16 @hwtHls.bitConcat.i8.i8(i8 %b_read2, i8 %b_read2) #1
-    %9 = zext i8 %a_read2 to i16
-    %10 = icmp ule i16 %8, %9
-    store volatile i1 %10, ptr addrspace(15) %res_suffix_0vsB, align 1
-    store volatile i1 %4, ptr addrspace(16) %res_suffix_AllVsB, align 1
-    store volatile i1 %4, ptr addrspace(6) %res_prefix_aVs0, align 1
-    %11 = call i16 @hwtHls.bitConcat.i8.i8(i8 -1, i8 %b_read2) #1
-    %12 = icmp uge i16 %5, %11
-    store volatile i1 %12, ptr addrspace(7) %res_prefix_aVsAll, align 1
-    %13 = call i16 @hwtHls.bitConcat.i8.i8(i8 0, i8 %a_read2) #1
-    %14 = icmp uge i16 %13, %8
-    store volatile i1 %14, ptr addrspace(8) %res_prefix_bVs0, align 1
-    store volatile i1 %4, ptr addrspace(9) %res_prefix_bVsAll, align 1
+    store volatile i1 %7, ptr addrspace(17) %res_suffix_aVs0, align 1
+    %8 = call i16 @hwtHls.bitConcat.i8.i8(i8 %b_read2, i8 -1) #1
+    %9 = icmp uge i16 %5, %8
+    store volatile i1 %9, ptr addrspace(18) %res_suffix_aVsAll, align 1
+    %10 = call i16 @hwtHls.bitConcat.i8.i8(i8 %b_read2, i8 %b_read2) #1
+    %11 = zext i8 %a_read2 to i16
+    %12 = icmp ule i16 %10, %11
+    store volatile i1 %12, ptr addrspace(15) %res_suffix_0vsB, align 1
+    %13 = call i16 @hwtHls.bitConcat.i8.i8(i8 %a_read2, i8 -1) #1
+    %14 = icmp uge i16 %13, %10
+    store volatile i1 %14, ptr addrspace(16) %res_suffix_AllVsB, align 1
+    %15 = call i16 @hwtHls.bitConcat.i8.i8(i8 0, i8 %b_read2) #1
+    %16 = icmp uge i16 %5, %15
+    store volatile i1 %16, ptr addrspace(6) %res_prefix_aVs0, align 1
+    %17 = call i16 @hwtHls.bitConcat.i8.i8(i8 -1, i8 %b_read2) #1
+    %18 = icmp uge i16 %5, %17
+    store volatile i1 %18, ptr addrspace(7) %res_prefix_aVsAll, align 1
+    %19 = call i16 @hwtHls.bitConcat.i8.i8(i8 0, i8 %a_read2) #1
+    %20 = icmp uge i16 %19, %10
+    store volatile i1 %20, ptr addrspace(8) %res_prefix_bVs0, align 1
+    %21 = call i16 @hwtHls.bitConcat.i8.i8(i8 -1, i8 %a_read2) #1
+    %22 = icmp uge i16 %21, %10
+    store volatile i1 %22, ptr addrspace(9) %res_prefix_bVsAll, align 1
     store volatile i1 %4, ptr addrspace(12) %res_prefix_sameInMiddle, align 1
-    %15 = call i13 @hwtHls.bitConcat.i4.i5.i4(i4 %0, i5 0, i4 %1) #1
-    %16 = call i13 @hwtHls.bitConcat.i4.i5.i4(i4 %2, i5 -1, i4 %3) #1
-    %17 = icmp uge i13 %15, %16
-    store volatile i1 %17, ptr addrspace(10) %res_prefix_differentInMiddle, align 1
+    %23 = call i13 @hwtHls.bitConcat.i4.i5.i4(i4 %0, i5 0, i4 %1) #1
+    %24 = call i13 @hwtHls.bitConcat.i4.i5.i4(i4 %2, i5 -1, i4 %3) #1
+    %25 = icmp uge i13 %23, %24
+    store volatile i1 %25, ptr addrspace(10) %res_prefix_differentInMiddle, align 1
     br label %loopHeader
   }
   
@@ -152,6 +160,14 @@ registers:
   - { id: 43, class: anyregcls, preferred-register: '', flags: [  ] }
   - { id: 44, class: anyregcls, preferred-register: '', flags: [  ] }
   - { id: 45, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 46, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 47, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 48, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 49, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 50, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 51, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 52, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 53, class: anyregcls, preferred-register: '', flags: [  ] }
 liveins:         []
 frameInfo:
   isFrameAddressTaken: false
@@ -221,28 +237,36 @@ body:             |
     HWTFPGA_CSTORE %26(s1), %12, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_same_1, addrspace 13)
     HWTFPGA_CSTORE i1 false, %3, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_0vs1, addrspace 4)
     HWTFPGA_CSTORE i1 false, %4, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_0vsAll, addrspace 5)
-    HWTFPGA_CSTORE %26(s1), %16, 0, 1, 1 :: (volatile store (s1) into %ir.res_suffix_aVs0, addrspace 17)
     %29:anyregcls(s16) = HWTFPGA_MERGE_VALUES %18(s8), %18(s8), 8, 8
-    %30:anyregcls(s16) = HWTFPGA_MERGE_VALUES %23(s8), i8 -1, 8, 8
-    %32:anyregcls(s1) = HWTFPGA_ICMP intpred(uge), %29(s16), %30
-    HWTFPGA_CSTORE %32(s1), %17, 0, 1, 1 :: (volatile store (s1) into %ir.res_suffix_aVsAll, addrspace 18)
-    %33:anyregcls(s16) = HWTFPGA_MERGE_VALUES %23(s8), %23(s8), 8, 8
-    %34:anyregcls(s16) = HWTFPGA_MERGE_VALUES %18(s8), i8 0, 8, 8
-    %35:anyregcls(s1) = HWTFPGA_ICMP intpred(ule), %33(s16), %34
-    HWTFPGA_CSTORE %35(s1), %14, 0, 1, 1 :: (volatile store (s1) into %ir.res_suffix_0vsB, addrspace 15)
-    HWTFPGA_CSTORE %26(s1), %15, 0, 1, 1 :: (volatile store (s1) into %ir.res_suffix_AllVsB, addrspace 16)
-    HWTFPGA_CSTORE %26(s1), %5, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_aVs0, addrspace 6)
-    %36:anyregcls(s16) = HWTFPGA_MERGE_VALUES i8 -1, %23(s8), 8, 8
-    %37:anyregcls(s1) = HWTFPGA_ICMP intpred(uge), %29(s16), %36
-    HWTFPGA_CSTORE %37(s1), %6, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_aVsAll, addrspace 7)
-    %38:anyregcls(s16) = HWTFPGA_MERGE_VALUES i8 0, %18(s8), 8, 8
-    %40:anyregcls(s1) = HWTFPGA_ICMP intpred(uge), %38(s16), %33
-    HWTFPGA_CSTORE %40(s1), %7, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_bVs0, addrspace 8)
-    HWTFPGA_CSTORE %26(s1), %8, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_bVsAll, addrspace 9)
+    %30:anyregcls(s16) = HWTFPGA_MERGE_VALUES %23(s8), i8 0, 8, 8
+    %31:anyregcls(s1) = HWTFPGA_ICMP intpred(uge), %29(s16), %30
+    HWTFPGA_CSTORE %31(s1), %16, 0, 1, 1 :: (volatile store (s1) into %ir.res_suffix_aVs0, addrspace 17)
+    %32:anyregcls(s16) = HWTFPGA_MERGE_VALUES %23(s8), i8 -1, 8, 8
+    %34:anyregcls(s1) = HWTFPGA_ICMP intpred(uge), %29(s16), %32
+    HWTFPGA_CSTORE %34(s1), %17, 0, 1, 1 :: (volatile store (s1) into %ir.res_suffix_aVsAll, addrspace 18)
+    %35:anyregcls(s16) = HWTFPGA_MERGE_VALUES %23(s8), %23(s8), 8, 8
+    %36:anyregcls(s16) = HWTFPGA_MERGE_VALUES %18(s8), i8 0, 8, 8
+    %37:anyregcls(s1) = HWTFPGA_ICMP intpred(ule), %35(s16), %36
+    HWTFPGA_CSTORE %37(s1), %14, 0, 1, 1 :: (volatile store (s1) into %ir.res_suffix_0vsB, addrspace 15)
+    %38:anyregcls(s16) = HWTFPGA_MERGE_VALUES %18(s8), i8 -1, 8, 8
+    %39:anyregcls(s1) = HWTFPGA_ICMP intpred(uge), %38(s16), %35
+    HWTFPGA_CSTORE %39(s1), %15, 0, 1, 1 :: (volatile store (s1) into %ir.res_suffix_AllVsB, addrspace 16)
+    %40:anyregcls(s16) = HWTFPGA_MERGE_VALUES i8 0, %23(s8), 8, 8
+    %42:anyregcls(s1) = HWTFPGA_ICMP intpred(uge), %29(s16), %40
+    HWTFPGA_CSTORE %42(s1), %5, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_aVs0, addrspace 6)
+    %43:anyregcls(s16) = HWTFPGA_MERGE_VALUES i8 -1, %23(s8), 8, 8
+    %44:anyregcls(s1) = HWTFPGA_ICMP intpred(uge), %29(s16), %43
+    HWTFPGA_CSTORE %44(s1), %6, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_aVsAll, addrspace 7)
+    %45:anyregcls(s16) = HWTFPGA_MERGE_VALUES i8 0, %18(s8), 8, 8
+    %46:anyregcls(s1) = HWTFPGA_ICMP intpred(uge), %45(s16), %35
+    HWTFPGA_CSTORE %46(s1), %7, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_bVs0, addrspace 8)
+    %47:anyregcls(s16) = HWTFPGA_MERGE_VALUES i8 -1, %18(s8), 8, 8
+    %48:anyregcls(s1) = HWTFPGA_ICMP intpred(uge), %47(s16), %35
+    HWTFPGA_CSTORE %48(s1), %8, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_bVsAll, addrspace 9)
     HWTFPGA_CSTORE %26(s1), %11, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_sameInMiddle, addrspace 12)
-    %41:anyregcls(s13) = HWTFPGA_MERGE_VALUES %19(s4), i5 0, %21(s4), 4, 5, 4
-    %43:anyregcls(s13) = HWTFPGA_MERGE_VALUES %24(s4), i5 -1, %25(s4), 4, 5, 4
-    %45:anyregcls(s1) = HWTFPGA_ICMP intpred(uge), %41(s13), %43
-    HWTFPGA_CSTORE %45(s1), %9, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_differentInMiddle, addrspace 10)
+    %49:anyregcls(s13) = HWTFPGA_MERGE_VALUES %19(s4), i5 0, %21(s4), 4, 5, 4
+    %51:anyregcls(s13) = HWTFPGA_MERGE_VALUES %24(s4), i5 -1, %25(s4), 4, 5, 4
+    %53:anyregcls(s1) = HWTFPGA_ICMP intpred(uge), %49(s13), %51
+    HWTFPGA_CSTORE %53(s1), %9, 0, 1, 1 :: (volatile store (s1) into %ir.res_prefix_differentInMiddle, addrspace 10)
     HWTFPGA_BR %bb.1
 ...
