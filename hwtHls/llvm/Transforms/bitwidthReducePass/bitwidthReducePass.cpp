@@ -1,5 +1,6 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
 
+#include <llvm/Support/ErrorHandling.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Analysis/GlobalsModRef.h>
 
@@ -10,29 +11,30 @@
 #include <hwtHls/llvm/Transforms/utils/dceWorklist.h>
 #include <hwtHls/llvm/Transforms/utils/bitSliceFlattening.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <hwtHls/llvm/Transforms/utils/bitSliceInstrMove.h>
 #include <hwtHls/llvm/Transforms/utils/setList.h>
 
 using namespace llvm;
 
-// #include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
-// #include <llvm/IR/Verifier.h>
+#include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
+#include <llvm/IR/Verifier.h>
 // #define DBG_VERIFY_AFTER_MODIFICATION
 
 namespace hwtHls {
 
 
 static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI, bool& CFGChanged) {
-//#ifdef DBG_VERIFY_AFTER_MODIFICATION
-//	{
-//		std::string errTmp = "hwtHls::BitwidthReductionPass received corrupted function ";
-//		llvm::raw_string_ostream errSS(errTmp);
-//		errSS << F.getName().str();
-//		errSS << "\n";
-//		if (verifyModule(*F.getParent(), &errSS)) {
-//			throw std::runtime_error(errSS.str());
-//		}
-//	}
-//#endif
+#ifdef DBG_VERIFY_AFTER_MODIFICATION
+	{
+		std::string errTmp = "hwtHls::BitwidthReductionPass received corrupted function ";
+		llvm::raw_string_ostream errSS(errTmp);
+		errSS << F.getName().str();
+		errSS << "\n";
+		if (verifyModule(*F.getParent(), &errSS)) {
+			throw std::runtime_error(errSS.str());
+		}
+	}
+#endif
 	ConstBitPartsAnalysisContext A;
 	{
 		ListSet<Instruction*> Worklist;
@@ -144,17 +146,17 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI, bool& CFGC
 		}
 	}
 // 	writeCFGToDotFile(F, "after.BitwidthReducePass.dot", nullptr, nullptr);
-// #ifdef DBG_VERIFY_AFTER_MODIFICATION
-// 	{
-// 		std::string errTmp = "hwtHls::BitwidthReductionPass corrupted function ";
-// 		llvm::raw_string_ostream errSS(errTmp);
-// 		errSS << F.getName().str();
-// 		errSS << "\n";
-// 		if (verifyModule(*F.getParent(), &errSS)) {
-// 			throw std::runtime_error(errSS.str());
-// 		}
-// 	}
-// #endif
+#ifdef DBG_VERIFY_AFTER_MODIFICATION
+	{
+		std::string errTmp = "hwtHls::BitwidthReductionPass corrupted function ";
+		llvm::raw_string_ostream errSS(errTmp);
+		errSS << F.getName().str();
+		errSS << "\n";
+		if (verifyModule(*F.getParent(), &errSS)) {
+			throw std::runtime_error(errSS.str());
+		}
+	}
+#endif
 	return didModify;
 }
 
