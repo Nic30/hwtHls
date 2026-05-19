@@ -6,7 +6,6 @@ from typing import List
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, SMDiagnostic, parseIR, Function, verifyModule
 from tests.baseSsaTest import BaseSsaTC
 
-
 RE_HWTHLS_FN_CALL = re.compile(r'call (i[0-9]+|void|double) '  # return type
                                r'@hwtHls.('
                                    r'bitRangeGet|bitConcat|'
@@ -16,10 +15,11 @@ RE_HWTHLS_FN_CALL = re.compile(r'call (i[0-9]+|void|double) '  # return type
                                    r'fp\.castToHFloatTmp|'
                                    r'fp\.castHFloatTmpToHFloatTmp|'
                                    r'fp\.castHFloatTmpToHFloatTmpRaw|'
-                                   r'fp\.castFromHFloatTmp'
+                                   r'fp\.castFromHFloatTmp|'
+                                   r'pyObjectPlaceholder.[^(]+'
                                r')'  # fn name stem
                                r'((\.(i?[0-9]+|p[0-9]+|isVoid|double))+)'  # '.' separated arg types in function names
-                               r'\(.*\)'  # args ignored
+                               r'\((.*)\)'  # args ignored
                                r'( #(\d+))?'  # attribute id after definition
                                )
 
@@ -51,14 +51,16 @@ def generateAndAppendHwtHlsFunctionDeclarations(llvmIrStr:str):
         argTy = _argTy.split(".")
         assert argTy[0] == ""
         argTy = argTy[1:]
+        args = fn[5]
+        attrId = fn[7]
         if fnName == "bitRangeGet":
-            assert fn[6] == "2", (fn[6], "@hwtHls.bitRangeGet call must have memory attribute #2 otherwise it will not be reduced correctly")
+            assert attrId == "2", (attrId, "@hwtHls.bitRangeGet call must have memory attribute #2 otherwise it will not be reduced correctly")
             #  %ret = call i16 @hwtHls.bitRangeGet.i19.i6.i16.0(i19 %1, i6 0) #2
             assert len(argTy) == 2 + 1 + 1, (fn, argTy)
             assert argTy[-2] == retTy, ("wrong bitRangeGet return type", argTy[-2], "!=", retTy)
             declarations.add(f"{indent:s}declare {retTy:s} @hwtHls.bitRangeGet{_argTy:s}({argTy[0]:s} %0, {argTy[1]:s} %1) #1")
         elif fnName == "bitConcat":
-            assert fn[6] == "2", (fn[6], "@hwtHls.bitConcat call must have memory attribute #2 otherwise it will not be reduced correctly")
+            assert attrId == "2", (attrId, "@hwtHls.bitConcat call must have memory attribute #2 otherwise it will not be reduced correctly")
             # %ret = call i10 @hwtHls.bitConcat.i8.i1.i1(i8 %1, i1 %2, i1 %3) #2
             params = ", ".join(f"{t:s} %{i}" for i, t in enumerate(argTy))
             declarations.add(f"{indent:s}declare {retTy:s} @hwtHls.bitConcat{_argTy:s}({params:s}) #1")
@@ -75,7 +77,7 @@ def generateAndAppendHwtHlsFunctionDeclarations(llvmIrStr:str):
             # call void @hwtHls.streamWrite.p2.i8.i1(ptr addrspace(2) %tx, i8 %data, i1 %eof) #4
             # call void @hwtHls.streamWrite.masked.p2.i16.i2.i1(ptr addrspace(2) %tx, i16 %data, i2 %mask, i1 %eof) #4
             # %0 = call i10 @hwtHls.streamRead.p2.i64.i10(ptr addrspace(2) %i, i64 8) #4
-            assert fn[6] == "4", (fn[6], "@hwtHls.", fnName, " call must have memory attribute #4")
+            assert attrId == "4", (attrId, "@hwtHls.", fnName, " call must have memory attribute #4")
             hasStreamFns = True
             if fnName == "streamRead":
                 assert argTy[-1] == retTy, (fn, argTy[-1], retTy)
@@ -107,6 +109,11 @@ def generateAndAppendHwtHlsFunctionDeclarations(llvmIrStr:str):
             params = ", ".join(f"{t:s} %{i}" for i, t in enumerate(chain(argTy, hfloatTmpConfigArgTypes)))
             declarations.add(f"{indent:s}declare {retTy:s} @hwtHls.{fnName:s}{_argTy:s}({params:s}) #5")
 
+        elif fnName.startswith("pyObjectPlaceholder."):
+            argTypes = [a.split(" ")[0] for a in args.split(", ")]
+            params = ", ".join(f"{t:s} %{i}" for i, t in enumerate(argTypes))
+            declarations.add(f"{indent:s}declare {retTy:s} @hwtHls.{fnName:s}{_argTy:s}({params:s})")
+
     buff = [llvmIrStr]
     buff.extend(sorted(declarations))
     if declarations:
@@ -125,6 +132,7 @@ def generateAndAppendHwtHlsFunctionDeclarations(llvmIrStr:str):
         buff.append(
             f"{indent:s}attributes #5 = {{ nofree nounwind willreturn }}"
         )
+    # print("\n".join(buff))
     return "\n".join(buff)
 
 
@@ -146,10 +154,11 @@ class BaseLlvmIrTC(BaseSsaTC):
             llvm._tryToFindMain()
             name = llvm.main.getName().str()
         if verifyModule(M):
-            raise AssertionError()
+            raise AssertionError("Module is already invalid before the test")
 
         optF = self._runTestOpt(llvm, *passArgs, **passKwArgs)
         assert optF is not None
         if verifyModule(M):
-            raise AssertionError()
+            print(M)
+            raise AssertionError("Module becomes invalid after test")
         self.assert_same_as_file(repr(optF), os.path.join("data", f'{self.__class__.__name__:s}.{name:s}.ll'))
