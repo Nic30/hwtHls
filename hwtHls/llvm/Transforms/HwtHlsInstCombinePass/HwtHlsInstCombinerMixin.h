@@ -90,11 +90,6 @@ public:
 		return false;
 	}
 
-	// BitRangeGet and TruncInst are implementation of bitvector slice, in order to reduce code replication
-	// these instructions are always kept directly after src operand (or after phis if src is a PHINode)
-	// this instructions moves slices which are not in slice list directly after src operand
-	bool _moveIntoSliceSuccessorsOf(llvm::Instruction &IToMoveAfterSrc,
-			llvm::Instruction &src);
 };
 
 // copied llvm-21.1.2  llvm::InstCombinerImpl::prepareWorklist
@@ -497,36 +492,5 @@ bool HwtHlsInstCombinerMixin<DerivedT>::run() {
 	return MadeIRChange;
 }
 
-
-template<typename DerivedT>
-bool HwtHlsInstCombinerMixin<DerivedT>::_moveIntoSliceSuccessorsOf(
-		llvm::Instruction &IToMoveAfterSrc, llvm::Instruction &src) {
-	if (IToMoveAfterSrc.getIterator() != IToMoveAfterSrc.getParent()->begin()) {
-		auto predI = IToMoveAfterSrc.getPrevNode();
-		if (predI == &src) {
-			return false;
-		} else if (isa<llvm::TruncInst>(predI)) {
-			auto _src = predI->getOperand(0);
-			if (_src == &src)
-				return false;
-		} else if (auto CI = llvm::dyn_cast<llvm::CallInst>(predI)) {
-			if (IsBitRangeGet(CI)) {
-				auto _src = CI->getArgOperand(0);
-				if (_src == &src)
-					return false;
-			}
-		}
-	}
-	if (llvm::isa<llvm::PHINode>(&src)) {
-		auto firstNonPhi = src.getParent()->getFirstNonPHIIt();
-		if (firstNonPhi != src.getParent()->end())
-			IToMoveAfterSrc.moveBefore(firstNonPhi);
-		else
-			IToMoveAfterSrc.moveAfter(&src.getParent()->back());
-	} else {
-		IToMoveAfterSrc.moveAfter(&src);
-	}
-	return true;
-}
 
 }

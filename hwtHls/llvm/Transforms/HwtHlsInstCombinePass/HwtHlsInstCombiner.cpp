@@ -8,6 +8,7 @@
 #include <hwtHls/llvm/targets/intrinsic/hfloattmp.h>
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinerConcatAndSlices.h>
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinerUtilsImplication.h>
+#include <hwtHls/llvm/Transforms/utils/bitSliceInstrMove.h>
 
 using namespace llvm;
 
@@ -97,7 +98,7 @@ Instruction* HwtHlsInstCombiner::runOnInstr(Instruction &I) {
 				return r;
 			}
 		} else if (IsBitRangeGet(CI)) {
-			BitRangeGetMoveIntoSliceSuccessorsOfSrcOperand(*this, *CI);
+			BitRangeGetMoveIntoSliceSuccessorsOfSrcOperand(*CI);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
 #endif
@@ -251,7 +252,7 @@ Instruction* HwtHlsInstCombiner::runOnInstr(Instruction &I) {
 			return r;
 		}
 	} else if (auto TI = dyn_cast<TruncInst>(&I)) {
-		TruncInstMoveIntoSliceSuccessorsOfSrcOperand(*this, *TI);
+		TruncInstMoveIntoSliceSuccessorsOfSrcOperand(*TI);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 		assert(!verifyFunction(F, &errs()));
 #endif

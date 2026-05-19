@@ -1,4 +1,5 @@
 #pragma once
+
 #include <hwtHls/llvm/targets/intrinsic/concatMemberVector.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <llvm/IR/PatternMatch.h>
@@ -173,23 +174,5 @@ llvm::Instruction* tryReduceConcatOnConcatOrContinuousSlices(InstructionCombiner
 	return IC.replaceInstUsesWith(CI, newI);
 }
 
-template<typename InstructionCombinerT>
-bool BitRangeGetMoveIntoSliceSuccessorsOfSrcOperand(InstructionCombinerT& IC,
-		llvm::CallInst &I) {
-	auto src = I.getArgOperand(0);
-	if (auto srcI = llvm::dyn_cast<llvm::Instruction>(src))
-		return IC._moveIntoSliceSuccessorsOf(I, *srcI);
-	return false;
-}
-
-template<typename InstructionCombinerT>
-bool TruncInstMoveIntoSliceSuccessorsOfSrcOperand(InstructionCombinerT& IC,
-		llvm::TruncInst &I) {
-	auto src = I.getOperand(0);
-	if (auto srcI = llvm::dyn_cast<llvm::Instruction>(src))
-		return IC._moveIntoSliceSuccessorsOf(I, *srcI);
-	return false;
-
-}
 
 }

@@ -246,6 +246,7 @@ py3.extension_module(
      'Transforms/slicesMerge/mergeConsequentSlicesSelect.cpp',
      'Transforms/slicesMerge/parallelInstrVec.cpp',
      'Transforms/utils/bitSliceFlattening.cpp',
+     'Transforms/utils/bitSliceInstrMove.cpp',
      'Transforms/utils/cfgUtils.cpp',
      'Transforms/utils/dceWorklist.cpp',
      'Transforms/utils/functionMutating.cpp',
