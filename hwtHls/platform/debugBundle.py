@@ -80,7 +80,7 @@ class LLVM_CLI_COMMON_OPTS:
 
     STATS_JSON = ("stats-json", 0, "", "true")  # specifies that stats/time output is in json format
     TIME_PASSES = ("time-passes", 0, "", "true")  # profile times of passes and analysis, for new PassManager use time-trace
-    TIME_PHASES = ("time-phases", 0, "", "")  # [todo] rm
+
     # TIME_TRACE = ("time-trace", 0, "", "true") # log time of each pass (for new PassManager)
 
     @classmethod
