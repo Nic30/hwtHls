@@ -35,6 +35,7 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI, bool& CFGC
 		}
 	}
 #endif
+	moveSlicesDirectlyAfterSrcOpDef(F);
 	ConstBitPartsAnalysisContext A;
 	{
 		ListSet<Instruction*> Worklist;
