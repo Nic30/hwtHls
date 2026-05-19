@@ -82,11 +82,13 @@ uint64_t HFloatTmpConfig::_mantissaToFixedPointQWithRounding(bool sign,
 	int rshiftAmount = rshiftAmountToAliginFrac - exponent;
 	bool addOneFlag = false;
 	if (rshiftAmount == 0) {
-	}
-	if (rshiftAmount < 0) {
+	} else if (rshiftAmount < 0) {
+		uint64_t lsb =  mantissa & 0b1;
 		mantissa <<= -rshiftAmount;
-		llvm_unreachable(
-				"[todo] lsb should be copied when there is more bits in fraction");
+		// copy lsb when there is more bits in fraction
+		if (lsb) {
+			mantissa |= mask<uint64_t>(-rshiftAmount);
+		}
 	} else if (rshiftAmount >= 64) {
 		mantissa = 0; // set explicitly because shiftamount of >> operator has modulo applied
 	} else {
