@@ -118,6 +118,7 @@ class LlvmIrInterpret():
                  timeStep: int=CLK_PERIOD):
         assert llvm.main
         self.F = llvm.main
+        self.TLI = llvm.getTargetLibraryInfo()
         self.timeStep = timeStep
         self.waveLog: Optional[VcdWriter] = None
         self.strCtx: LLVMStringContext = llvm.strCtx
