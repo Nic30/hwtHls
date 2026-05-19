@@ -264,7 +264,7 @@ APInt HFloatTmpConfig::bitCastAPFloatToHFloatTmpAPInt(const APFloat &v) const {
 	uint64_t mantissa = vAsAPInt.extractBits(CUR_MANTISA_W, 0).getZExtValue();
 	uint64_t _exponent =
 			vAsAPInt.extractBits(CUR_EXP_W, CUR_MANTISA_W).getZExtValue();
-	int exponent = ((int) _exponent) + -mask<unsigned>(CUR_EXP_W - 1);
+	int exponent = ((int) _exponent) + -mask<unsigned>(CUR_EXP_W - 1); // exponent in unbiassed format
 	uint64_t sign =
 			vAsAPInt.extractBits(1, CUR_EXP_W + CUR_MANTISA_W).getZExtValue();
 	size_t offset = 0;
@@ -351,6 +351,7 @@ APInt HFloatTmpConfig::bitCastAPFloatToHFloatTmpAPInt(const APFloat &v) const {
 					mantissa = 0;
 				}
 			}
+			exponent = 0;
 		} else if (_exponent == mask<uint64_t>(CUR_EXP_W)) {
 			// exponent == all 1
 			if (mantissa == 0) {
@@ -359,8 +360,8 @@ APInt HFloatTmpConfig::bitCastAPFloatToHFloatTmpAPInt(const APFloat &v) const {
 				// nan case
 				// mantissa = mask<uint64_t>(newMantisaW);
 				mantissa = 1ul << (newMantisaW - 1);
-
 			}
+			exponent = mask<unsigned>(fpCfg.exponentOrIntWidth);
 		} else {
 			size_t shiftedOutBits = 0;
 			if (CUR_MANTISA_W > newMantisaW) {
@@ -388,12 +389,12 @@ APInt HFloatTmpConfig::bitCastAPFloatToHFloatTmpAPInt(const APFloat &v) const {
 				exponent = newExpMin - 1;
 				mantissa = 0;
 			}
+			exponent = (exponent + -newExpOffset) & mask<uint64_t>(fpCfg.exponentOrIntWidth);
 		}
 		res.insertBits(mantissa, offset, fpCfg.mantissaOrFracWidth);
 		offset += fpCfg.mantissaOrFracWidth;
-		size_t newExponent = (exponent + -newExpOffset)
-				& mask<uint64_t>(fpCfg.exponentOrIntWidth);
-		res.insertBits(newExponent, offset, fpCfg.exponentOrIntWidth);
+
+		res.insertBits(exponent, offset, fpCfg.exponentOrIntWidth);
 		offset += fpCfg.exponentOrIntWidth;
 		// fill sign and other special flags
 		if (fpCfg.hasSign) {
