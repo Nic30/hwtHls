@@ -1,8 +1,9 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/phiValueProver.h>
+
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/Support/Debug.h>
 #include <hwtHls/llvm/bitMath.h>
 #include <hwtHls/llvm/Transforms/utils/bitWidthInfo.h>
-#include <llvm/Support/Debug.h>
 
 using namespace llvm;
 
