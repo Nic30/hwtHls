@@ -1,8 +1,5 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
 
-#include <algorithm>
-#include <unordered_set>
-
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Analysis/GlobalsModRef.h>
 
@@ -13,6 +10,7 @@
 #include <hwtHls/llvm/Transforms/utils/dceWorklist.h>
 #include <hwtHls/llvm/Transforms/utils/bitSliceFlattening.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <hwtHls/llvm/Transforms/utils/setList.h>
 
 using namespace llvm;
 
@@ -22,38 +20,6 @@ using namespace llvm;
 
 namespace hwtHls {
 
-template<typename T>
-class ListSet: std::list<T> {
-	using list_t = std::list<T>;
-	std::unordered_set<T> set;
-public:
-	ListSet() :
-			list_t() {
-	}
-	bool contains(const T &__x) {
-		return set.contains(__x);
-	}
-	bool empty() const {
-		return list_t::empty();
-	}
-
-	void push_back(T __x) {
-		if (set.contains(__x))
-			return;
-		list_t::push_back(__x);
-		set.insert(__x);
-	}
-
-	T& front() {
-		return list_t::front();
-	}
-
-	void pop_front() {
-		auto front = list_t::front();
-		set.erase(front);
-		list_t::pop_front();
-	}
-};
 
 static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI, bool& CFGChanged) {
 //#ifdef DBG_VERIFY_AFTER_MODIFICATION
@@ -67,7 +33,6 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI, bool& CFGC
 //		}
 //	}
 //#endif
-
 	ConstBitPartsAnalysisContext A;
 	{
 		ListSet<Instruction*> Worklist;
