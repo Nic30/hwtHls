@@ -10,6 +10,7 @@
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Instructions.h>
+#include <llvm/IR/Verifier.h>
 #include <llvm/IR/InstrTypes.h>
 #include <llvm/Transforms/Utils/Local.h>
 
@@ -134,6 +135,9 @@ static size_t tryIfPreservesCrash(LlvmCompilationBundle &ctx, size_t nProcs,
 				errs() << "child SUCCESS\n";
 			#endif
 			
+			if (verifyModule(*ctx.module, &errs())) {
+				_exit(2);
+			}
 			_exit(EXIT_SUCCESS);
 		} else {
 			// parent process
