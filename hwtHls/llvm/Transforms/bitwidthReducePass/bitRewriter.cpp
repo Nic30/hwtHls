@@ -552,6 +552,9 @@ llvm::Value* BitPartsRewriter::rewriteIfRequired(llvm::Value *V) {
 					// if vbc.useMask.isAllOnes() it means there are no constant bits cut of
 					// on bit range selected by this slice
 					IRBuilder<> b(I);
+					if (isAnyFormOfBitRangeGet(I)) {
+						b.SetInsertPoint(GetAfterSlicesInsertPoint_forSliceInst(*I));
+					}
 					//auto newSrcV = rewriteIfRequired(src);
 					//size_t width = I->getType()->getIntegerBitWidth();
 					//assert(width >= I->getType()->getIntegerBitWidth());
@@ -616,6 +619,9 @@ llvm::Value* BitPartsRewriter::rewriteIfRequiredAndExpand(llvm::Value *V) {
 		auto _vcb = constraints.findInConstraints(I);
 		if (_vcb) {
 			IRBuilder<> b(I);
+			if (isAnyFormOfBitRangeGet(I)) {
+				b.SetInsertPoint(GetAfterSlicesInsertPoint_forSliceInst(*I));
+			}
 			const VarBitConstraint &vbc = *_vcb;
 			if (vbc.valuesHaveSameMeaning(V))
 				return V;
@@ -640,6 +646,12 @@ llvm::Value* BitPartsRewriter::rewriteIfRequiredAndExpandAsOperand(
 		if (V != NewO) {
 			if (NewO && VarBitConstraint::valuesHaveSameMeaning(V, NewO)) {
 				return V; // to prevent unnecessary construction of equivalent concats
+			}
+			IRBuilder<>::InsertPointGuard g(b); // because other operands and parent IP can not be altered
+			if (auto I = dyn_cast<Instruction>(V)) {
+				if (isAnyFormOfBitRangeGet(I)) {
+					b.SetInsertPoint(GetAfterSlicesInsertPoint_forSliceInst(*I));
+				}
 			}
 			auto newValExpanded = expandConstBits(&b, V, NewO, *vbc);
 			assert(newValExpanded);
