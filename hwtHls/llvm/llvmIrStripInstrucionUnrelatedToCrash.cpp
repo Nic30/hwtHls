@@ -1,8 +1,14 @@
 #include <hwtHls/llvm/llvmIrStripInstrucionUnrelatedToCrash.h>
 
+#include <optional>
 #include <unistd.h>
 #include <sys/wait.h>
 
+
+#include <llvm/ADT/STLExtras.h>
+#include <llvm/IR/Constants.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/IR/InstrTypes.h>
 #include <llvm/Transforms/Utils/Local.h>
 
 using namespace llvm;
@@ -31,6 +37,21 @@ public:
 			opToReplaceWith({nullptr, nullptr}), IToRm(nullptr), IWithSingleNonConstOperand(
 					{ &I, onlyNonConstOperand }) {
 	}
+	bool convertToFollowup() {
+		if (opToReplaceWith.first) {
+			if (auto C = dyn_cast<ConstantInt>(opToReplaceWith.first)) {
+				if (C->isZero()) {
+					// previously we were trying to replace with 0, now we try
+					// with all-ones
+					auto newC = ConstantInt::getAllOnesValue(
+						opToReplaceWith.second->getType());
+					opToReplaceWith.second = newC;
+					return true;
+				}
+			}
+		}
+		return false;
+	}
 
 	void run(IRBuilderBase &Builder) {
 		if (opToReplaceWith.first) {
@@ -45,8 +66,15 @@ public:
 			IToRm->eraseFromParent();
 		} else if (IWithSingleNonConstOperand.first) {
 			auto I = IWithSingleNonConstOperand.first;
-			assert(!isa<TruncInst>(I) && !isa<ZExtInst>(I));
-			auto src = I->getOperand(IWithSingleNonConstOperand.second);
+			Value*src;
+			if (isa<CastInst>(I)) {
+				if (!isa<CastInst>(I->getOperand(0)))
+					return; // operand was already replaced and it is no longer possible to apply this
+				src = dyn_cast<CastInst>(I->getOperand(0))->getOperand(0);
+			} else {
+				src = I->getOperand(IWithSingleNonConstOperand.second);
+			}
+			
 			Builder.SetInsertPoint(I);
 			auto replacement = Builder.CreateZExtOrTrunc(src, I->getType());
 			I->replaceAllUsesWith(replacement);
@@ -159,8 +187,10 @@ void llvmIrStripInstrucionUnrelatedToCrash(LlvmCompilationBundle &ctx,
 				for (Use &op : reverse(I.operands())) {
 					auto ty = op.get()->getType();
 					if (ty->isIntegerTy() && !isa<Constant>(op.get())) {
-						// stag update for later
+						// try replacing with 0
 						removes.push_back(InstructionStripWorkItem(op, *ConstantInt::get(ty, 0)));
+						
+						// if there are enough updates to run updates in child workers
 						if (removes.size() >= nProcs) {
 							auto removableCnt = runApplyRemoveUpdates(ctx,
 									nProcs, testFn, removes);
@@ -179,9 +209,9 @@ void llvmIrStripInstrucionUnrelatedToCrash(LlvmCompilationBundle &ctx,
 				if (isInstructionTriviallyDead(&I, TLI)) {
 					// stag update for later
 					removes.push_back(InstructionStripWorkItem(I));
-				} else if (!isa<TruncInst>(&I) && !isa<ZExtInst>(&I)
-						&& I.getType()->isIntegerTy()) {
-					// try to replace this instruction with just zext of only non const arg
+				} else if (I.getType()->isIntegerTy() && (!isa<CastInst>(&I) || isa<CastInst>(I.getOperand(0))) && !isa<PHINode>(&I)) {
+					// try to replace this instruction with just zext of only
+					// non const arg
 					std::optional<size_t> nonConstOpIndex;
 					for (auto &O : I.operands()) {
 						if (!isa<Constant>(O.get())) {
@@ -201,6 +231,9 @@ void llvmIrStripInstrucionUnrelatedToCrash(LlvmCompilationBundle &ctx,
 								InstructionStripWorkItem(I,
 										nonConstOpIndex.value()));
 					}
+				} else if (!I.isTerminator() && I.hasNUses(0)) {
+					// case for instructions with sideeffect which are not dead but potentially removable
+					removes.push_back(InstructionStripWorkItem(I));
 				}
 				if (removes.size() >= nProcs) {
 					auto removableCnt = runApplyRemoveUpdates(ctx, nProcs,
