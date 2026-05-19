@@ -326,25 +326,38 @@ size_t BitRangeGetOffset(const llvm::CallInst *C) {
 	return dyn_cast<ConstantInt>(C->getArgOperand(1))->getZExtValue();
 }
 
-llvm::BasicBlock::iterator GetAfterSlicesInsertPoint(llvm::Instruction &I) {
-	auto It = I.getIterator();
-	It++;
-	for (; It != I.getParent()->end(); ++It) {
+llvm::BasicBlock::iterator GetAfterSlicesInsertPoint(BasicBlock::iterator It, BasicBlock::iterator ItEnd, Value& SrcV) {
+	for (; It != ItEnd; ++It) {
 		if (isa<llvm::TruncInst>(&*It)) {
 			auto _src = It->getOperand(0);
-			if (_src != &I)
-				return It;
+			if (_src == &SrcV)
+				continue;
 		} else if (auto CI = llvm::dyn_cast<llvm::CallInst>(&*It)) {
 			if (IsBitRangeGet(CI)) {
 				auto _src = CI->getArgOperand(0);
-				if (_src != &I)
-					return It;
+				if (_src == &SrcV)
+					continue;
 			}
-		} else {
-			return It;
 		}
+		break;
 	}
-	return I.getParent()->end();
+	return It;
+}
+
+
+llvm::BasicBlock::iterator GetAfterSlicesInsertPoint_forSliceInst(llvm::Instruction &I) {
+	auto It = I.getIterator();
+	It++; // ++ because we do not need to check that this is also the slice instr.
+	auto ItEnd = I.getParent()->end();
+	auto src = I.getOperand(0);
+	return GetAfterSlicesInsertPoint(It, ItEnd, *src);
+}
+
+llvm::BasicBlock::iterator GetAfterSlicesInsertPoint(llvm::Instruction &I) {
+	auto It = I.getIterator();
+	It++;
+	auto ItEnd = I.getParent()->end();
+	return GetAfterSlicesInsertPoint(It, ItEnd, I);
 }
 
 const std::string BitConcatName = "hwtHls.bitConcat";
@@ -489,6 +502,13 @@ bool IsBitConcat(const llvm::Function *F) {
 			F != nullptr
 					&& "Function must have definition in parent Module if input code was valid");
 	return F->getName().str().rfind(BitConcatName, 0) == 0;
+}
+
+bool isAnyFormOfBitRangeGet_forValue(llvm::Value *V) {
+	if (auto I = dyn_cast<Instruction>(V)) {
+		return isAnyFormOfBitRangeGet(I);
+	}
+	return false;
 }
 
 bool isAnyFormOfBitRangeGet(llvm::Instruction *I) {

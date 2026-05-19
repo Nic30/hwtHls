@@ -31,6 +31,8 @@ size_t BitRangeGetOffset(const llvm::CallInst *C);
  * :note: this preserves order of instruction compatible with SearchBitRangeGet
  * */
 llvm::BasicBlock::iterator GetAfterSlicesInsertPoint(llvm::Instruction &I);
+// same as GetAfterSlicesInsertPoint but the I is the member of instruction list and the search for end of this list for I operand 0
+llvm::BasicBlock::iterator GetAfterSlicesInsertPoint_forSliceInst(llvm::Instruction &I);
 
 extern const std::string BitConcatName;
 /*
@@ -43,6 +45,7 @@ bool IsBitConcatInst(const llvm::Instruction *I);
 bool IsBitConcat(const llvm::CallInst *C);
 bool IsBitConcat(const llvm::Function *F);
 
+bool isAnyFormOfBitRangeGet_forValue(llvm::Value *V);
 bool isAnyFormOfBitRangeGet(llvm::Instruction *I);
 bool isAnyFormOfBitRangeGet(llvm::Instruction *I, llvm::Value *&src);
 bool isAnyFormOfBitRangeGet(llvm::Instruction *I, llvm::Value *&src, size_t& offset);
