@@ -268,6 +268,17 @@ void llvmIrStripInstrucionUnrelatedToCrash(LlvmCompilationBundle &ctx,
 				} else if (!I.isTerminator() && I.hasNUses(0)) {
 					// case for instructions with sideeffect which are not dead but potentially removable
 					removes.push_back(InstructionStripWorkItem(I));
+				} else if (auto phi = dyn_cast<PHINode>(&I)) {
+					auto* iv0 = phi->getIncomingValue(0);
+					bool allIncomingValuesEqual = true;
+					for (auto& iv: phi->incoming_values()) {
+						if (iv.get() != iv0) {
+							allIncomingValuesEqual = false;
+						}
+					}
+					if (allIncomingValuesEqual) {
+						removes.push_back(InstructionStripWorkItem(I, 0));
+					}
 				}
 				if (removes.size() >= nProcs) {
 					auto removableCnt = runApplyRemoveUpdates(ctx, nProcs,
