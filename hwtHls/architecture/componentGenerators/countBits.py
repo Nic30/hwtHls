@@ -127,7 +127,7 @@ class ComponentGeneratorBitcount(ComponentGenerator):
         except KeyError:
             pass
 
-        # run compilation of IntDiv HwModule to resolve scheduling properties
+        # run compilation of HwModule to resolve scheduling properties
         hwModule = self._getConfiguredHwModule(netlist.realTimeClkPeriod, T, None)
         _, _, r = self.resolveRealizationOfNode_compileToResolveScheduling(
             netlist.parentHwModule, hwModule,
