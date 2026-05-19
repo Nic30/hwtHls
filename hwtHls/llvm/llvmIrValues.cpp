@@ -123,6 +123,7 @@ void register_Values_and_Use(pybind11::module_ & m) {
 		.def_static("getBitsSet", llvm::APInt::getBitsSet)
 		.def_static("getZero", llvm::APInt::getZero)
 		.def("getZExtValue", &llvm::APInt::getZExtValue)
+		.def("getBitWidth", &llvm::APInt::getBitWidth)
 		.def("__int__", [](llvm::APInt& I) {
 			if (I.getBitWidth() == 0) {
 				throw std::runtime_error("APInt bitwidth==0");
