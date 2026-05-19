@@ -241,6 +241,55 @@ class BitwidthReductionPass_PHI_inLoopHeader_TC(BaseLlvmIrTC):
         """
         self._test_ll(llvmIr)
 
+    def test_phiTrunc(self):
+        # :note: based on fixpDivremRestoring
+        llvmIr = """\
+        define void @test_phiTrunc(ptr addrspace(1) %data_in, ptr addrspace(2) %data_out) {
+        bb0:
+          br label %bb1
+        
+        bb1:                                              ; preds = %bb4, %bb0
+          %inpData_divisor.0 = phi i16 [ %13, %bb4 ], [ 0, %bb0 ]
+          %0 = trunc i16 %inpData_divisor.0 to i1
+          %1 = trunc i16 %inpData_divisor.0 to i1
+          %invertQuotient4 = and i1 %1, %0
+          %2 = sub nsw i16 0, 0
+          %inpData_divisor.1 = select i1 %0, i16 %2, i16 0
+          %3 = trunc nsw i16 %inpData_divisor.1 to i13
+          %4 = and i13 %3, 4095
+          br i1 false, label %bb2, label %bb4
+        
+        bb2:                                              ; preds = %bb2, %bb1
+          %acc.046 = phi i16 [ 0, %bb1 ], [ %11, %bb2 ]
+          %quotient.045 = phi i16 [ 0, %bb1 ], [ %10, %bb2 ]
+          %5 = trunc nuw i16 %acc.046 to i13
+          %6 = icmp ule i13 0, %5
+          %7 = select i1 %6, i13 %4, i13 0
+          %accNext2236 = sub i13 %5, %7
+          %8 = trunc i13 %accNext2236 to i12
+          %9 = call i13 @hwtHls.bitConcat.i1.i12(i1 false, i12 %8) #2
+          %10 = zext i1 %6 to i16
+          %11 = zext i13 %9 to i16
+          br i1 false, label %bb3, label %bb2
+        
+        bb3:                                              ; preds = %bb2
+          %quotient.3.le.le = select i1 %invertQuotient4, i16 %quotient.045, i16 0
+          %12 = zext i16 %quotient.3.le.le to i24
+          store volatile i24 %12, ptr addrspace(2) %data_out, align 4
+          br label %bb4
+        
+        bb4:                                              ; preds = %bb3, %bb1
+          %data_in_read1 = load volatile i25, ptr addrspace(1) %data_in, align 4
+          %13 = trunc i25 %data_in_read1 to i16
+          br label %bb1
+        }
+        """
+
+        # from tests.stripInstructionsUnrelatedToCrash import llmIrStripInstrucionsUnrelatedToCrash
+        # llvm = llmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: self._runTestOpt(llvm), logAfterChange=True)
+        # print(str(llvm.main))
+        self._test_ll(llvmIr)
+
 
 if __name__ == "__main__":
     import unittest

@@ -209,11 +209,80 @@ class BitwidthReductionPass_TC(BaseLlvmIrTC):
 
         self._test_ll(llvmIr)
 
+    def test_slicesExpandingCausingSliceReoder(self):
+        # based on FixpDivRemHwModule for HFixedPointQ(1, 8, signed=False)
+        llvmIr = """\
+        define void @BitwidthReductionPass_PHI_TC.test_phiRmRight1.ll(ptr addrspace(1) %data_in, ptr addrspace(2) %data_out) {
+        bb0:
+          br label %bb1
+        
+        bb1:                                              ; preds = %bb1, %bb0
+          %data_in_read1 = load volatile i18, ptr addrspace(1) %data_in, align 4
+          %0 = trunc i18 %data_in_read1 to i1
+          %1 = sext i1 %0 to i9
+          %conc = xor i9 %1, -1
+          %2 = trunc i9 %conc to i8
+          %3 = call i1 @hwtHls.bitRangeGet.i9.i5.i1.8(i9 %conc, i5 8) #2
+          %4 = trunc i9 %conc to i1
+          %5 = zext i1 %3 to i9
+          call void @hwtHls.pyObjectPlaceholder.0.HwSimCallback.i44(i32 0, i9 %5)
+          %6 = call i9 @hwtHls.bitConcat.i1.i8(i1 %4, i8 %2) #2
+          call void @hwtHls.pyObjectPlaceholder.0.HwSimCallback.i44(i32 0, i9 %6)
+          br label %bb1
+        }
+        """
+
+        self._test_ll(llvmIr)
+
+    def test_slicesExpandingCausingSliceReoder2(self):
+        llvmIr = """\
+        define void @test_slicesExpandingCausingSliceReoder2(ptr addrspace(1) %data_in, ptr addrspace(2) %data_out) {
+        bb0:
+          br label %bb1
+        
+        bb1:                                              ; preds = %bb1, %bb0
+          %data_in_read1 = load volatile i18, ptr addrspace(1) %data_in, align 4
+          %0 = trunc i18 %data_in_read1 to i1
+          %1 = trunc i18 %data_in_read1 to i7
+          %2 = call i3 @hwtHls.bitConcat.i1.i1.i1(i1 %0, i1 %0, i1 false) #2
+          %3 = trunc i3 %2 to i2
+          %4 = call i9 @hwtHls.bitConcat.i2.i7(i2 %3, i7 %1) #2
+          call void @hwtHls.pyObjectPlaceholder.0.HwSimCallback.i44(i32 0, i5 11, i9 %4)
+          br label %bb1
+        }
+        """
+
+        self._test_ll(llvmIr)
+
+    def test_subIfLarger(self):
+        # :note: based on fixpDivremRestoring
+        llvmIr = """\
+        define void @test_subsat(ptr addrspace(1) %data_in, ptr addrspace(2) %data_out) {
+        bb0:
+          br label %bb1
+        
+        bb1:                                              ; preds = %bb1, %bb0
+          %acc0 = load volatile i4, ptr addrspace(1) %data_in, align 4
+          %div0 = load volatile i4, ptr addrspace(1) %data_in, align 4
+          %lsbShIn = load volatile i1, ptr addrspace(1) %data_in, align 4
+          %0 = zext i4 %div0 to i5
+          %subLhs = call i5 @hwtHls.bitConcat.i1.i4(i1 %lsbShIn, i4 %acc0) #2
+          %2 = icmp uge i5 %subLhs, %0
+          %subRhs = select i1 %2, i5 %0, i5 0
+          %accNext = sub i5 %subLhs, %subRhs
+          store volatile i5 %accNext, ptr addrspace(2) %data_out, align 4
+          br label %bb1
+        }
+
+        """
+
+        self._test_ll(llvmIr)
+
 
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([BitwidthReductionPass_TC('test_constInConcat0')])
     suite = testLoader.loadTestsFromTestCase(BitwidthReductionPass_TC)
+    suite = unittest.TestSuite([BitwidthReductionPass_TC('test_0')])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
