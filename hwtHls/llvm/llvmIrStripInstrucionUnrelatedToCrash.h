@@ -10,6 +10,6 @@ namespace hwtHls {
  * :param nprocs: max number of processes to use at once
  * */
 void llvmIrStripInstrucionUnrelatedToCrash(LlvmCompilationBundle &ctx,
-		size_t nprocs, std::function<void(LlvmCompilationBundle&)> testFn);
+		size_t nprocs, std::function<void(LlvmCompilationBundle&)> testFn, bool logAfterChange=false);
 
 }

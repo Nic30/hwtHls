@@ -13,6 +13,8 @@
 
 using namespace llvm;
 
+// #define DEBUG_LOGS 1
+
 namespace hwtHls {
 
 class InstructionStripWorkItem {
@@ -87,6 +89,9 @@ public:
 };
 
 void segfault_handler(int signal) {
+	#ifdef DEBUG_LOGS
+		errs() << "child SIGSEGV\n";
+	#endif
 	exit(1);
 }
 
@@ -116,12 +121,19 @@ static size_t tryIfPreservesCrash(LlvmCompilationBundle &ctx, size_t nProcs,
 			}
 			signal(SIGSEGV, segfault_handler);
 			testFn(ctx);
+			#ifdef DEBUG_LOGS
+				errs() << "child SUCCESS\n";
+			#endif
+			
 			exit(EXIT_SUCCESS);
-		} else {
 			// parent process
 			children.push_back(pid);
 		}
 	}
+
+	#ifdef DEBUG_LOGS
+		errs() << "tryIfPreservesCrash forked \n";
+	#endif
 	bool foundChildrenWhichDoesNotCrash = false;
 	size_t crashedChildren = 0;
 	for (auto c_pid : children) {
@@ -135,12 +147,20 @@ static size_t tryIfPreservesCrash(LlvmCompilationBundle &ctx, size_t nProcs,
 				crashedChildren++;
 		}
 	}
-	return crashedChildren;
+	#ifdef DEBUG_LOGS
+		errs() << "tryIfPreservesCrash child waited \n";
+	#endif
+
+	return crashedChildren; // = number of updates from "work" which we can apply and the compilation is still crashing
 }
 
+// :note: this function always removes some items from "udpates" or replaces them by followup
 static size_t runApplyRemoveUpdates(LlvmCompilationBundle &ctx, size_t nProcs,
 		std::function<void(LlvmCompilationBundle&)> testFn,
 		std::vector<InstructionStripWorkItem> &updates) {
+	#ifdef DEBUG_LOGS
+		errs() << "runApplyRemoveUpdates " << updates.size() << "\n";
+	#endif
 	// test if update are preserving crash in child processes
 	size_t removableOps = tryIfPreservesCrash(ctx, nProcs, testFn, updates);
 	// apply updates which are preserving the crash
@@ -170,15 +190,19 @@ static size_t runApplyRemoveUpdates(LlvmCompilationBundle &ctx, size_t nProcs,
 		// all updates were applied
 		updates.clear();
 	}
+	#ifdef DEBUG_LOGS
+		errs() << "runApplyRemoveUpdates end" << removableOps << "\n";
+	#endif
 	return removableOps;
 }
 
 void llvmIrStripInstrucionUnrelatedToCrash(LlvmCompilationBundle &ctx,
-		size_t nProcs, std::function<void(LlvmCompilationBundle&)> testFn) {
+		size_t nProcs, std::function<void(LlvmCompilationBundle&)> testFn, bool logAfterChange) {
 	size_t removedCnt = 0;
 	std::vector<InstructionStripWorkItem> removes;
 	removes.reserve(nProcs);
 	const TargetLibraryInfo *TLI = nullptr;
+	size_t iterationCount = 0;
 	for (;;) {
 		bool change = false;
 
@@ -198,6 +222,10 @@ void llvmIrStripInstrucionUnrelatedToCrash(LlvmCompilationBundle &ctx,
 							removedCnt += removableCnt;
 							if (removableCnt)
 								errs() << "removedCnt: " << removedCnt << "\n";
+							if (removableCnt && logAfterChange) {
+								errs() << "iteration:" << iterationCount << "\n" << *ctx.main << "\n";
+								iterationCount++; 
+							}
 						}
 					}
 				}
@@ -241,6 +269,10 @@ void llvmIrStripInstrucionUnrelatedToCrash(LlvmCompilationBundle &ctx,
 					change |= bool(removableCnt);
 					errs() << "removedCnt (instr): " << removedCnt << "\n";
 					removedCnt += removableCnt;
+					if (removableCnt && logAfterChange) {
+						errs() << "iteration:" << iterationCount << "\n" << *ctx.main << "\n";
+						iterationCount++; 
+					}
 				}
 			}
 		}
@@ -252,6 +284,10 @@ void llvmIrStripInstrucionUnrelatedToCrash(LlvmCompilationBundle &ctx,
 			change |= bool(removableCnt);
 			errs() << "removedCnt (leftover): " << removedCnt << "\n";
 			removedCnt += removableCnt;
+			if (removableCnt && logAfterChange) {
+				errs() << "iteration:" << iterationCount << "\n" << *ctx.main << "\n";
+				iterationCount++; 
+			}
 		}
 
 		if (!change)
