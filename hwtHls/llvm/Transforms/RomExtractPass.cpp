@@ -36,7 +36,7 @@ std::optional<IndexCmpMatchInfo> matchIndexCmp(const Value *V) {
 }
 
 bool collectSelectTree(std::set<SelectInst*> &analyzed, Value &V,
-		Value *index, SmallVector<Constant*, 64>& values, size_t& collectedValues, Constant*& defaultValue) {
+		Value *index, std::unordered_map<uint64_t, Constant*> values, size_t& collectedValues, Constant*& defaultValue) {
 	if (auto SI = dyn_cast<SelectInst>(&V)) {
 		auto _indexMatch = matchIndexCmp(SI->getCondition());
 		if (!_indexMatch.has_value()) {
@@ -54,8 +54,8 @@ bool collectSelectTree(std::set<SelectInst*> &analyzed, Value &V,
 			return false; // value is not constant -> this can not be rewritten as a ROM
 						  // not in format select indexCmp, constant, v
 		}
-		assert(values.size() > indexMatch.val && "The table was created for max val of index, the index value can not be larger");
-		if (values[indexMatch.val] != nullptr && values[indexMatch.val] != TValAsConst) {
+		auto curVal = values.find(indexMatch.val);
+		if (curVal != values.end() && curVal->second != TValAsConst) {
 			// value was known to be something else, cancel search
 			return false;
 		}
@@ -96,40 +96,51 @@ llvm::PreservedAnalyses RomExtractPass::run(llvm::Function &F,
 					size_t romSize = 1 << indexWidth;
 					if (romIndex->getType()->getIntegerBitWidth() == 1)
 						continue; // to simple for extraction
-
-					SmallVector<Constant*, 64> romData;
-					romData.resize(romSize);
-					std::fill(romData.begin(), romData.end(), nullptr);
 					size_t collectedValues = 0;
 					Constant *defaultValue = nullptr;
 					SelectInst * TopSI = SI;
+					bool parentShouldBeAnalyzedFirst = false;
 					for (;TopSI->hasOneUser();) {
 						User* SiUser = *TopSI->user_begin();
 						if (auto SiUserAsSI = dyn_cast<SelectInst>(SiUser)) {
 							auto UserIndexMatch = matchIndexCmp(SI->getCondition());
-							if (UserIndexMatch.has_value() && UserIndexMatch.value().index == romIndex) {
-								TopSI = SiUserAsSI;
-								continue;
+							if (!analyzed.contains(SiUserAsSI) &&
+								UserIndexMatch.has_value() &&
+								UserIndexMatch.value().index == romIndex) {
+								// if the select has cmp on same index and it was not analyzed yet
+								//TopSI = SiUserAsSI;
+								parentShouldBeAnalyzedFirst = true;
+								break;
 							}
 						}
 						break;
 					}
-
-					if (!collectSelectTree(analyzed, *TopSI, romIndex, romData, collectedValues, defaultValue))
+					if (parentShouldBeAnalyzedFirst) {
+						continue;
+					}
+					std::unordered_map<uint64_t, Constant*> romDataDict;
+					if (!collectSelectTree(analyzed, *TopSI, romIndex, romDataDict, collectedValues, defaultValue))
 						continue;
 					if (collectedValues < romSize)
 						continue; // not enough values to extract as a ROM
+											
 					if (collectedValues == romSize) {
-						for (auto & V: romData) {
-							if (!V) {
-								assert(defaultValue != nullptr);
-								V = defaultValue;
-							}
-						}
 					} else {
 						// +1 is the case where default value is not used because all cases are covered
 						assert(collectedValues == romSize + 1);
 					}
+
+					SmallVector<Constant *, 64> romData;
+					romData.resize(romSize);
+					for (uint64_t i = 0; i < romSize; ++i) {
+						auto curVal = romDataDict.find(i);
+						if (curVal == romDataDict.end()) {
+							romData[i] = defaultValue;
+						} else {
+							romData[i] = curVal->second;
+						}
+					}
+
 					IRBuilder<> builder(TopSI);
 					Value *newGep = CreateGlobalDataWithGEP(builder,
 							*F.getParent(), romIndex, romData,
