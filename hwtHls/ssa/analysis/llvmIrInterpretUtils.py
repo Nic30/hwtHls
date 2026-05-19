@@ -6,6 +6,7 @@ import re
 from typing import Union, Any, Callable, Optional, Generator
 
 from hwt.hdl.const import HConst
+from hwtHls.code import ashr
 from hwtHls.llvm.llvmIr import BasicBlock, Instruction, MDOperand, ValueToConstantInt, \
     MetadataToValueAsMetadata, LLVMStringContext, Argument, Value, UserToInstruction, \
     InstructionToLoadInst, User, InstructionToStoreInst, InstructionToGetElementPtrInst, StreamChannelFormatInfo
@@ -71,6 +72,7 @@ BINARY_OPS_TO_FN: dict[Instruction.BinaryOps, Callable] = {
     Instruction.BinaryOps.Sub: sub,
     Instruction.BinaryOps.Mul: mul,
     Instruction.BinaryOps.LShr: rshift,  # logical shift right
+    Instruction.BinaryOps.AShr: ashr,
     Instruction.BinaryOps.Shl: lshift,
 }
 
