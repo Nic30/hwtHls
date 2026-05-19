@@ -23,7 +23,7 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
 from hwtHls.netlist.typeUtils import dtypeEqualSignIgnore
-from hwtHls.platform.opRealizationMeta import OpRealizationMeta,\
+from hwtHls.platform.opRealizationMeta import OpRealizationMeta, \
     EMPTY_OP_REALIZATION
 from pyMathBitPrecise.bit_utils import mask
 
@@ -232,6 +232,7 @@ class HlsNetNodeOperator(HlsNetNode):
             return f"<{self.__class__.__name__:s} {self._id:d} {self.operator.id:s} [{deps:s}]>"
 
 
+# [todo]: specialized version for TERNARY, OP_INDEX_CONST, CONCAT to simplify simCombStep
 class HlsNetlistSimHandlerOperator(HlsNetlistSimHandler):
 
     @override
