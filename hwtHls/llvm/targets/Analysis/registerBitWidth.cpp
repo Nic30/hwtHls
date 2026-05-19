@@ -432,9 +432,9 @@ bool resolveTypes(MachineInstr &MI) {
 	case HwtFpga::HWTFPGA_FP_FCMP: {
 		auto fpCfg = HFloatTmpConfig::fromMachineInstrOperands(MI, 1 + 1 + 2);
 		size_t w = fpCfg.getBitWidth();
-		MachineOperand_checkOrSetWidth(MRI, MI.getOperand(0), w);
+		MachineOperand_checkOrSetWidth(MRI, MI.getOperand(0), 1);
 		MachineOperand_checkOrSetWidth(MRI, MI.getOperand(1), w);
-		MRI.setType(MI.getOperand(0).getReg(), LLT::scalar(1));
+		MachineOperand_checkOrSetWidth(MRI, MI.getOperand(2), w);
 		auto enCond = MI.getOperand(1 + 1 + 2 + HFloatTmpConfig::MEMBER_CNT);
 		if (!MachineOperand_checkOrSetWidth(MRI, enCond, 1, nullptr)) {
 			llvm_unreachable("enCond must be 1b variable");
