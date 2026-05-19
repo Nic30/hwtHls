@@ -71,6 +71,7 @@ public:
 			const std::vector<KnownBitRangeInfo> &vec1);
 };
 
+
 class VarBitConstraint {
 public:
 	// mask of which bits are used from this value which bits are set during discovery process
@@ -101,7 +102,14 @@ public:
 			const llvm::Value *V1);
 	bool _valuesHaveSameMeaning(const llvm::Value *V1) const;
 	bool valuesHaveSameMeaning(const llvm::Value *V1) const;
-
+	// returns true if all members are same and not undef
+	bool replacementValuesEqual(const VarBitConstraint & other) const;
+	// returns true if all there are known constant bits which do not equal
+	// :attention: checks only for cases where replacements items have same width, if not returns false
+	bool replacementValuesKnownNonEqualFast(const VarBitConstraint & other) const;
+	const llvm::ConstantInt* tryGetConstantInt() const;
+	
+	
 	// add all ones item into operandUseMask
 	void addAllSetOperandMask(unsigned width);
 	void clearAllOperandMasks();

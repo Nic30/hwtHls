@@ -646,6 +646,96 @@ void VarBitConstraint_discardCommonPrefixAndUselessSuffix(VarBitConstraint &res,
 	}
 }
 
+bool visitCmpInst_trivialCases(CmpInst::Predicate op,
+							   const VarBitConstraint &lhs,
+							   const VarBitConstraint &rhs, bool &is0,
+							   bool &is1) {
+
+	// const ConstantInt *c0 = lhs.tryGetConstantInt();
+	const ConstantInt *c1 = rhs.tryGetConstantInt();
+
+		// cover trivial cases
+	switch (op) {
+	case CmpInst::Predicate::ICMP_EQ: {
+		if (lhs.replacementValuesEqual(rhs)) {
+			is1 = true;
+		} else if (lhs.replacementValuesKnownNonEqualFast(rhs)) {
+			is0 = true;
+		}
+		break;
+	}
+	case CmpInst::Predicate::ICMP_NE: {
+		if (lhs.replacementValuesEqual(rhs)) {
+			is0 = true;
+		} else if (lhs.replacementValuesKnownNonEqualFast(rhs)) {
+			is1 = true;
+		}
+		break;
+	}
+	case CmpInst::Predicate::ICMP_UGT: 	{
+		if (c1 && c1->isMaxValue(false)) {
+			// x > max -> 0
+			is0 = true;
+		}
+		break;
+	}
+	case CmpInst::Predicate::ICMP_UGE: {
+		if (c1 && c1->isMinValue(false)) {
+			// x >= min -> 1
+			is1 = true;
+		}
+		break;
+	}
+	case CmpInst::Predicate::ICMP_ULT:	{
+		if (c1 && c1->isMinValue(false)) {
+			// x < min -> 0
+			is0 = true;
+		}
+		break;
+	}
+	case CmpInst::Predicate::ICMP_ULE: {
+		if (c1 && c1->isMaxValue(false)) {
+			// x <= max -> 1
+			is1 = true;
+		}
+		break;
+	}
+	case CmpInst::Predicate::ICMP_SGT:	{
+		if (c1 && c1->isMaxValue(true)) {
+			// x > max -> 0
+			is0 = true;
+		}
+		break;
+	}
+	case CmpInst::Predicate::ICMP_SGE: {
+		if (c1 && c1->isMinValue(true)) {
+			// x >= min -> 1
+			is1 = true;
+		}
+		break;
+	}
+	case CmpInst::Predicate::ICMP_SLT: {
+		if (c1 && c1->isMinValue(true)) {
+			// x < min -> 0
+			is0 = true;
+		}
+		break;
+	}
+	case CmpInst::Predicate::ICMP_SLE: {
+		if (c1 && c1->isMaxValue(true)) {
+			// x <= max -> 1
+			is1 = true;
+		}
+		break;
+	}
+	default: {
+		// not implemented predicate
+		return false;
+	}
+	}
+	return true;
+}
+
 VarBitConstraint& ConstBitPartsAnalysisContext::visitCmpInst(const CmpInst *I) {
 	VarBitConstraint &res = initConstraintMember(I);
 
@@ -657,202 +747,199 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitCmpInst(const CmpInst *I) {
 	auto w = lhs.useMask.getBitWidth();
 	res.addAllSetOperandMask(w);
 	res.addAllSetOperandMask(w);
-
-	switch (op) {
-	case CmpInst::Predicate::ICMP_EQ:
-	case CmpInst::Predicate::ICMP_NE:
-	case CmpInst::Predicate::ICMP_UGT:
-	case CmpInst::Predicate::ICMP_UGE:
-	case CmpInst::Predicate::ICMP_ULT:
-	case CmpInst::Predicate::ICMP_ULE:
-	case CmpInst::Predicate::ICMP_SGT:
-	case CmpInst::Predicate::ICMP_SGE:
-	case CmpInst::Predicate::ICMP_SLT:
-	case CmpInst::Predicate::ICMP_SLE:
-		break;
-	default: {
+	bool is0 = false; // result of cmp is known to be 0
+	bool is1 = false; // result of cmp is known to be 1
+	//bool hasKnownUnequalPart = false; // some cons part of operands is known to be unequal
+	//// this is used for final resolution  of ugt, ult and alike
+	if (!visitCmpInst_trivialCases(op, lhs, rhs, is0, is1)) {
 		// not implemented predicate
 		assert(res.replacements.size() == 1 && "Must stay 1b value");
 		assert(res.consistencyCheck());
 		return res;
 	}
-	}
 
-	unsigned lastBitEnd = w; // bit position in operands
 	// :note: there is a limitation that we can not create new instruction during this analysis phase
 	//        this result in inability to resolve that this cmp can be simplified to other predicate
 	//        From this reason BitPartsRewriter::rewriteCmpInst implements additional optimization rules
-
-	bool msbsEqual = true; // currently seen bits from msb side are known to equal
-	bool is0 = false; // result of cmp is known to be 0
-	bool is1 = false; // result of cmp is known to be 1
-	//bool hasKnownUnequalPart = false; // some cons part of operands is known to be unequal
-	//// this is used for final resolution  of ugt, ult and alike
-
-	// check if it is possible to immediately evaluate based on known const bits
-	auto sequences = RangeSequenceIterator().uniqueRanges(lhs.replacements,
-			rhs.replacements);
-	for (auto _item = sequences.rbegin(); _item != sequences.rend(); ++_item) {
-		const auto &item = *_item;
-		assert(item.v0 && item.v1);
-		assert(item.width);
-		assert(lastBitEnd >= item.width);
-		const ConstantInt *_v0;
-		const ConstantInt *_v1;
-		bool v0IsUMin;
-		bool v0IsUMax;
-		bool v1IsUMin;
-		bool v1IsUMax;
-		APInt v0;
-		APInt v1;
-		std::tie(_v0, v0, v0IsUMin, v0IsUMax) =
-				analyzeKnowBitsInfoForCmpInstPart(item, item.v0);
-		std::tie(_v1, v1, v1IsUMin, v1IsUMax) =
-				analyzeKnowBitsInfoForCmpInstPart(item, item.v1);
-		bool bothOpPartsConst = _v0 && _v1;
-		bool eq = item.v0 == item.v1 || (bothOpPartsConst && v0 == v1);
-
-		bool doesAffectResult = true;
-		switch (op) {
-		case CmpInst::Predicate::ICMP_EQ: {
-			// for == we can evaluate to false if some constant bits not-equal
-			// otherwise we cut of constant bits
-			if (eq) {
-				doesAffectResult = false;
-			} else if (bothOpPartsConst) {
-				is0 = true;
-			}
-			break;
-		}
-		case CmpInst::Predicate::ICMP_NE: {
-			// for != we can evaluate to true if some constant bits not-equal
-			// otherwise we cut of constant bits
-			if (eq) {
-				doesAffectResult = false;
-			} else if (bothOpPartsConst) {
-				is1 = true;
-			}
-			break;
-		}
-
-			// for unsigned <, <=, >, >= if the prefix is constant we may be able to evaluate expr
-			// otherwise we can drop all constant and equal bits
-		case CmpInst::Predicate::ICMP_UGT:
-		case CmpInst::Predicate::ICMP_UGE:
-			if (eq) {
-				doesAffectResult = false;
-			} else if (bothOpPartsConst) {
-				if (msbsEqual && !v0.ugt(v1)) {
-					is0 = true;
-				} else {
-					VarBitConstraint_discardCommonPrefixAndUselessSuffix(res,
-							item.begin, v0, v1);
-				}
-			} else if (op == CmpInst::Predicate::ICMP_UGE) {
-				if (v0IsUMax || v1IsUMin) {
-					// max >= o1 -> 1 (if prefix msb equal)
-					// o0 >= min -> 1 (if prefix msb equal)
+	bool needToCheckBitwise = !(is0 || is1);	
+	if (needToCheckBitwise) {
+		bool msbsEqual = true; // currently seen bits from msb side are known to equal
+		unsigned lastBitEnd = w; // bit position in operands
+	
+		// check if it is possible to immediately evaluate based on known const bits
+		auto sequences = RangeSequenceIterator().uniqueRanges(lhs.replacements,
+				rhs.replacements);
+		for (auto _item = sequences.rbegin(); _item != sequences.rend(); ++_item) {
+			// :note: iterating msb->lsb
+			const auto &item = *_item;
+			assert(item.v0 && item.v1);
+			assert(item.width);
+			assert(lastBitEnd >= item.width);
+			const ConstantInt *_v0;
+			const ConstantInt *_v1;
+			bool v0IsUMin;
+			bool v0IsUMax;
+			bool v1IsUMin;
+			bool v1IsUMax;
+			APInt v0;
+			APInt v1;
+			std::tie(_v0, v0, v0IsUMin, v0IsUMax) =
+					analyzeKnowBitsInfoForCmpInstPart(item, item.v0);
+			std::tie(_v1, v1, v1IsUMin, v1IsUMax) =
+					analyzeKnowBitsInfoForCmpInstPart(item, item.v1);
+			bool bothOpPartsConst = _v0 && _v1;
+			bool eq = item.v0 == item.v1 || (bothOpPartsConst && v0 == v1);
+			// :note: 
+			//   for x UGE 0 the term can be removed only if it is not followed by 
+			//   other non cost compares because if top bits are equal
+			//   we need to check successor bits, but if not we know the result
+			//   For example {x, y} UGE {0, z} (MSB...LSB) we can not discard
+			//   x UGE 0 part because  ({1, 0} UGE {0, 2}) == 1 but 0 UGE 2 == 0
+			//   (and x UGE 0 alone is always satisfied)
+			bool isNotMsbOrAllIsConst = msbsEqual && _item == (sequences.rend()-1);
+			
+			bool doesAffectResult = true;
+			switch (op) {
+			case CmpInst::Predicate::ICMP_EQ: {
+				// for == we can evaluate to false if some constant bits not-equal
+				// otherwise we cut of constant bits
+				if (eq) {
 					doesAffectResult = false;
-				}
-			}
-			break;
-		case CmpInst::Predicate::ICMP_ULT:
-		case CmpInst::Predicate::ICMP_ULE:
-			if (eq) {
-				doesAffectResult = false;
-			} else if (bothOpPartsConst) {
-				if (msbsEqual && !v0.ult(v1)) {
+				} else if (bothOpPartsConst) {
 					is0 = true;
-				} else {
-					VarBitConstraint_discardCommonPrefixAndUselessSuffix(res,
-							item.begin, v0, v1);
 				}
-			} else if (op == CmpInst::Predicate::ICMP_ULE) {
-				if (v0IsUMin || v1IsUMax) {
-					// min <= o1 -> 1 (if prefix msb equal)
-					// o0 <= max -> 1 (if prefix msb equal)
-					doesAffectResult = false;
-				}
+				break;
 			}
-			break;
-
-			// for signed <, <=, >, >= same as for unsigned but we must not remove sign bit
-			// even if it is constant when reducing
-		case CmpInst::Predicate::ICMP_SGT:
-		case CmpInst::Predicate::ICMP_SGE:
-			// 	if (v0.sgt(v1)) {
-			// 		is1 = true;
-			// 	} else if (eq && op == CmpInst::Predicate::ICMP_SGE) {
-			// 		doesAffectResult = false;
-			// 	} else {
-			// 		is0 = true;
-			// 	}
-		case CmpInst::Predicate::ICMP_SLT:
-		case CmpInst::Predicate::ICMP_SLE:
-			//		if (v0.slt(v1)) {
-			//			is1 = true;
-			//		} else if (eq && op == CmpInst::Predicate::ICMP_SLE) {
-			//			doesAffectResult = false;
-			//		} else {
-			//			is0 = true;
-			//		}
-
-			//{
-			//	// o0 < min -> 0
-			//	// max < o1 -> 0
-			//	if (v1IsMin || v0IsMax) {
-			//		if (msbsEqual) {
-			//			is0 = true;
-			//		} else {
-			//			doesAffectResult = false;
-			//		}
-			//	}
-			//	break;
-			//}
-			break;
-
-		default:
-			assert(false && "Unknown compare operator value");
+			case CmpInst::Predicate::ICMP_NE: {
+				// for != we can evaluate to true if some constant bits not-equal
+				// otherwise we cut of constant bits
+				if (eq) {
+					doesAffectResult = false;
+				} else if (bothOpPartsConst) {
+					is1 = true;
+				}
+				break;
+			}
+	
+				// for unsigned <, <=, >, >= if the prefix is constant we may be able to evaluate expr
+				// otherwise we can drop all constant and equal bits
+			case CmpInst::Predicate::ICMP_UGT:
+			case CmpInst::Predicate::ICMP_UGE:
+				if (eq) {
+					doesAffectResult = false;
+				} else if (bothOpPartsConst) {
+					if (msbsEqual && !v0.ugt(v1)) {
+						is0 = true;
+					} else {
+						VarBitConstraint_discardCommonPrefixAndUselessSuffix(res,
+								item.begin, v0, v1);
+					}
+				} else if (op == CmpInst::Predicate::ICMP_UGE) {
+					if (isNotMsbOrAllIsConst && (v0IsUMax || v1IsUMin)) {
+						// max >= o1 -> 1 (if prefix msb equal)
+						// o0 >= min -> 1 (if prefix msb equal)
+						doesAffectResult = false;
+					}
+				}
+				break;
+			case CmpInst::Predicate::ICMP_ULT:
+			case CmpInst::Predicate::ICMP_ULE:
+				if (eq) {
+					doesAffectResult = false;
+				} else if (bothOpPartsConst) {
+					if (msbsEqual && !v0.ult(v1)) {
+						is0 = true;
+					} else {
+						VarBitConstraint_discardCommonPrefixAndUselessSuffix(res,
+								item.begin, v0, v1);
+					}
+				} else if (op == CmpInst::Predicate::ICMP_ULE) {
+					if (isNotMsbOrAllIsConst && (v0IsUMin || v1IsUMax)) {
+						// min <= o1 -> 1 (if prefix msb equal)
+						// o0 <= max -> 1 (if prefix msb equal)
+						doesAffectResult = false;
+					}
+				}
+				break;
+	
+				// for signed <, <=, >, >= same as for unsigned but we must not remove sign bit
+				// even if it is constant when reducing
+			case CmpInst::Predicate::ICMP_SGT:
+			case CmpInst::Predicate::ICMP_SGE:
+				// 	if (v0.sgt(v1)) {
+				// 		is1 = true;
+				// 	} else if (eq && op == CmpInst::Predicate::ICMP_SGE) {
+				// 		doesAffectResult = false;
+				// 	} else {
+				// 		is0 = true;
+				// 	}
+			case CmpInst::Predicate::ICMP_SLT:
+			case CmpInst::Predicate::ICMP_SLE:
+				//		if (v0.slt(v1)) {
+				//			is1 = true;
+				//		} else if (eq && op == CmpInst::Predicate::ICMP_SLE) {
+				//			doesAffectResult = false;
+				//		} else {
+				//			is0 = true;
+				//		}
+	
+				//{
+				//	// o0 < min -> 0
+				//	// max < o1 -> 0
+				//	if (v1IsMin || v0IsMax) {
+				//		if (msbsEqual) {
+				//			is0 = true;
+				//		} else {
+				//			doesAffectResult = false;
+				//		}
+				//	}
+				//	break;
+				//}
+				break;
+	
+			default:
+				assert(false && "Unknown compare operator value");
+			}
+	
+			if (doesAffectResult) {
+				// we just found something different, for same values there would be doesAffectResult==true
+				msbsEqual = false;
+			} else {
+				// (clear because operands are constants and do not affect result)
+				res.clearAllOperandMasks(lastBitEnd - item.width, lastBitEnd);
+			}
+			lastBitEnd -= item.width;
+	
+			// if this are top bits and they do not equal we can resolve output value
+			if (is0 || is1) {
+				break;
+			}
 		}
-
-		if (doesAffectResult) {
-			// we just found something different, for same values there would be doesAffectResult==true
-			msbsEqual = false;
-		} else {
-			// (clear because operands are constants and do not affect result)
-			res.clearAllOperandMasks(lastBitEnd - item.width, lastBitEnd);
-		}
-		lastBitEnd -= item.width;
-
-		// if this are top bits and they do not equal we can resolve output value
-		if (is0 || is1) {
-			break;
-		}
-	}
-	assert(res.replacements.size() == 1 && "Must stay 1b value");
-	if (msbsEqual) {
-		// whole value is equal
-		switch (op) {
-		case CmpInst::Predicate::ICMP_EQ:
-		case CmpInst::Predicate::ICMP_UGE:
-		case CmpInst::Predicate::ICMP_SGE:
-		case CmpInst::Predicate::ICMP_ULE:
-		case CmpInst::Predicate::ICMP_SLE:
-			assert(!is0);
-			is1 = true;  // every part equals so result is 1
-			break;
-
-		case CmpInst::Predicate::ICMP_NE:
-		case CmpInst::Predicate::ICMP_UGT:
-		case CmpInst::Predicate::ICMP_SGT:
-		case CmpInst::Predicate::ICMP_ULT:
-		case CmpInst::Predicate::ICMP_SLT:
-			assert(!is1);
-			is0 = true; // every part equals so result is 0
-			break;
-
-		default:
-			assert(false && "Unknown compare operator value");
+		assert(res.replacements.size() == 1 && "Must stay 1b value");
+		if (msbsEqual) {
+			// whole value is equal
+			switch (op) {
+			case CmpInst::Predicate::ICMP_EQ:
+			case CmpInst::Predicate::ICMP_UGE:
+			case CmpInst::Predicate::ICMP_SGE:
+			case CmpInst::Predicate::ICMP_ULE:
+			case CmpInst::Predicate::ICMP_SLE:
+				assert(!is0);
+				is1 = true;  // every part equals so result is 1
+				break;
+	
+			case CmpInst::Predicate::ICMP_NE:
+			case CmpInst::Predicate::ICMP_UGT:
+			case CmpInst::Predicate::ICMP_SGT:
+			case CmpInst::Predicate::ICMP_ULT:
+			case CmpInst::Predicate::ICMP_SLT:
+				assert(!is1);
+				is0 = true; // every part equals so result is 0
+				break;
+	
+			default:
+				assert(false && "Unknown compare operator value");
+			}
 		}
 	}
 	if (is0 || is1) {

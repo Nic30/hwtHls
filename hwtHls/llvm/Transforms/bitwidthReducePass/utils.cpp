@@ -1,5 +1,6 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/utils.h>
 #include <llvm/ADT/SmallString.h>
+#include <llvm/IR/Constants.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/PatternMatch.h>
 
@@ -356,6 +357,58 @@ bool VarBitConstraint::_valuesHaveSameMeaning(const llvm::Value *V1) const {
 		}
 	}
 	return false;
+}
+
+bool VarBitConstraint::replacementValuesEqual(const VarBitConstraint & other) const {
+	auto &seq0 = replacements;
+	auto &seq1 = other.replacements;
+	if (seq0.size() != seq1.size())
+		return false;
+	auto it1 = seq1.begin();
+	for (const auto & v0: seq0) {
+		if (isa<UndefValue>(v0.src))
+			return false;
+		if (v0 != *it1)
+			return false;
+		it1++;
+	}
+	return true;
+}
+
+bool VarBitConstraint::replacementValuesKnownNonEqualFast(const VarBitConstraint & other) const {
+	auto &seq0 = replacements;
+	auto &seq1 = other.replacements;
+		
+	if (seq0.size() != seq1.size())
+		return false;
+	
+	auto it1 = seq1.begin();
+	for (const auto & v0: seq0) {
+		if (isa<UndefValue>(v0.src))
+			return false;
+		if (isa<UndefValue>(it1->src))
+			return false;
+		if (v0 != *it1) {
+			if (v0.width != it1->width)
+				return false;
+			if (isa<ConstantInt>(v0.src) && isa<ConstantInt>(it1->src)) {
+				return true;
+			}
+			// :note: v0 not the same as *it1 but non necessary non-equal
+		}
+		it1++;
+	}
+	return false;
+}
+const llvm::ConstantInt* VarBitConstraint::tryGetConstantInt() const {
+	if (replacements.size() == 1) {
+		auto c0 = dyn_cast<ConstantInt>(replacements[0].src);
+		if (c0) {
+			assert(replacements[0].srcBeginBitI == 0);
+		}
+		return c0;
+	}
+	return nullptr;
 }
 
 bool VarBitConstraint::valuesHaveSameMeaning(const llvm::Value *V1) const {
