@@ -90,7 +90,7 @@ def fpNormalize(denormalMantissa: AnyHBitsValue,
     mantisaLsbIndex = DW - MANTISSA_WIDTH - 2  # -1 because of MSB 1, -1 because of size to index
     guard_bit = mantissa[mantisaLsbIndex]
     round_bit = mantissa[mantisaLsbIndex - 1]
-    sticky_bit = mantissa[mantisaLsbIndex - 2:] != 0
+    sticky_bit = mantissa[mantisaLsbIndex - 1:] != 0
 
     return mantissa, exponent, guard_bit, round_bit, sticky_bit
 
