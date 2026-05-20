@@ -2,7 +2,7 @@ from math import inf
 from typing import Union, Literal, Optional
 
 from hwt.hwIO import HwIO
-from hwtHls.llvm.llvmIr import LoopMarkStatelessPrequelAsAsyncThreadPass, \
+from hwtHls.llvm.llvmIr import LoopToIoFsmPass, LoopMarkStatelessPrequelAsAsyncThreadPass, \
     LoopMarkStatelessSequelAsAsyncThreadPass
 from hwtHls.frontend.ioProxyStream import IoProxyStream
 from hwtHls.frontend.pragma import _PyBytecodeLoopPragma
@@ -189,6 +189,48 @@ class PyBytecodeStreamSegmentLoopUnroll(PyBytecodeStreamLoopUnroll):
             items.append(item)
         return items
 
+
+class PyBytecodeLoopToIoFsm(_PyBytecodeLoopPragma):
+    """
+    Cut cfg on IO instructions and build a loop which begins with a single load/ ends with single store
+    and have transition between segments encoded inside of FSM state variable instead of original CFG. .
+    
+    """
+    METADATA_NAME_IO = LoopToIoFsmPass.METADATA_NAME_io
+    METADATA_NAME_FOLLOWUP = LoopToIoFsmPass.METADATA_NAME_followup
+
+    def __init__(self, io_: Union[HwIO, IoProxyStream],
+                 followup:Optional[_PyBytecodeLoopPragma]=None):
+        _PyBytecodeLoopPragma.__init__(self)
+        self.io = io_
+        self.followup = followup
+
+    def getLlvmLoopMetadataItems(self, irTranslator:"ToLlvmIrTranslator"):
+        getStr = irTranslator.mdGetStr
+        getInt = irTranslator.mdGetUInt32
+        getTuple = irTranslator.mdGetTuple
+        io_ = self.io
+        if isinstance(io_, IoProxyStream):
+            io_ = io_.interface
+        ioArgIndex = irTranslator.ioToArgIndex[io_]
+        items = [
+            getTuple([
+                    getStr(self.METADATA_NAME_IO),
+                    getInt(ioArgIndex),
+                ],
+                False)
+        ]
+
+        if self.followup is not None:
+            md = getTuple([
+                    getStr(self.METADATA_NAME_FOLLOWUP),
+                    *self.followup.getLlvmLoopMetadataItems(irTranslator),
+                ], False)
+            items.append(md)
+
+        return items
+
+
 class PyBytecodeLoopFlattenUsingIf(_PyBytecodeLoopPragma):
     """
     Merge child loop into parent loop.
@@ -212,7 +254,7 @@ class PyBytecodeLoopFlattenUsingIf(_PyBytecodeLoopPragma):
         ]
         if self.followup is not None:
             md = getTuple([
-                    getStr("hwthls.loop.flattenusingif.followup"),
+                    getStr(LoopFlattenUsingIfPass.METADATA_NAME_followup),
                     *self.followup.getLlvmLoopMetadataItems(irTranslator),
                 ], False)
             items.append(md)

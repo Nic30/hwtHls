@@ -93,6 +93,7 @@
 #include <hwtHls/llvm/Transforms/LoopFlattenUsingIfPass.h>
 #include <hwtHls/llvm/Transforms/LoopMarkStatelessPrequelAsAsyncThreadPass.h>
 #include <hwtHls/llvm/Transforms/LoopMarkStatelessSequelAsAsyncThreadPass.h>
+#include <hwtHls/llvm/Transforms/LoopToIoFsmPass/LoopToIoFsmPass.h>
 #include <hwtHls/llvm/Transforms/LoopRotationNormalizationPass.h>
 #include <hwtHls/llvm/Transforms/ProfMetadataAddDummy.h>
 #include <hwtHls/llvm/Transforms/ProfMetadataRmDummy.h>
@@ -103,6 +104,7 @@
 #include <hwtHls/llvm/Transforms/SelectPruningPass.h>
 #include <hwtHls/llvm/Transforms/StreamSegmentLoopUnrollPass/StreamSegmentLoopUnrollPass.h>
 #include <hwtHls/llvm/Transforms/StripAssumePass.h>
+#include <hwtHls/llvm/Transforms/ThreadExtractIoFsmPass/ThreadExtractIoFsmPass.h>
 #include <hwtHls/llvm/Transforms/ThreadExtractPass/ThreadExtractPass.h>
 #include <hwtHls/llvm/Transforms/TmpAllocaLoweringPass.h>
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
@@ -136,6 +138,7 @@ void LlvmCompilationBundle::_registerHwtHlsPasses() {
 						   hwtHls::IoLowerAxiMMPass,				   //
 						   hwtHls::LoopAddLatchPass,				   //
 						   hwtHls::LoopFlattenUsingIfPass,			   //
+						   hwtHls::LoopToIoFsmPass,                    //
 						   hwtHls::LoopRotationNormalizationPass,	   //
 						   hwtHls::LoopMarkStatelessPrequelAsAsyncThreadPass,       //
 						   hwtHls::LoopMarkStatelessSequelAsAsyncThreadPass,        //

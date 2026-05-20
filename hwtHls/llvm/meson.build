@@ -195,6 +195,8 @@ py3.extension_module(
      'Transforms/LoopFlattenUsingIfPass/mergeLoopMetadata.cpp',
      'Transforms/LoopMarkStatelessPrequelAsAsyncThreadPass.cpp',
      'Transforms/LoopMarkStatelessSequelAsAsyncThreadPass.cpp',
+     'Transforms/LoopToIoFsmPass/LoopToIoFsmPass.cpp',
+     'Transforms/LoopToIoFsmPass/normalizeLoops.cpp',
      'Transforms/LoopRotationNormalizationPass.cpp',
      'Transforms/overwriteBlockNamesPass.cpp',
      'Transforms/ProfMetadataAddDummy.cpp',

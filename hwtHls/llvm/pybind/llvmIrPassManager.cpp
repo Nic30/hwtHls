@@ -29,6 +29,7 @@
 #include <hwtHls/llvm/Transforms/ThreadExtractIoFsmPass/ThreadExtractIoFsmPass.h>
 #include <hwtHls/llvm/Transforms/LoopMarkStatelessPrequelAsAsyncThreadPass.h>
 #include <hwtHls/llvm/Transforms/LoopMarkStatelessSequelAsAsyncThreadPass.h>
+#include <hwtHls/llvm/Transforms/LoopToIoFsmPass/LoopToIoFsmPass.h>
 
 namespace py = pybind11;
 
@@ -92,6 +93,11 @@ void register_PassManager(pybind11::module_ &m) {
 		.def_readonly_static("metadataName_expr_maskContinuosFromLsb", &HwtHlsInstCombinePass::metadataName_expr_maskContinuosFromLsb)
 		;
 
+	py::class_<LoopToIoFsmPass>(m, "LoopToIoFsmPass")
+		.def(py::init<>())
+		.def_readonly_static("METADATA_NAME_io", &LoopToIoFsmPass::METADATA_NAME_io)
+		.def_readonly_static("METADATA_NAME_followup", &LoopToIoFsmPass::METADATA_NAME_followup)
+		;
 	py::class_<LoopMarkStatelessPrequelAsAsyncThreadPass>(m, "LoopMarkStatelessPrequelAsAsyncThreadPass")
 		.def(py::init<bool>(), py::arg("applyOnAll")=false)
 		.def_readonly_static("METADATA_NAME", &LoopMarkStatelessPrequelAsAsyncThreadPass::METADATA_NAME)
