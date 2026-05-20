@@ -36,7 +36,7 @@ std::optional<IndexCmpMatchInfo> matchIndexCmp(const Value *V) {
 }
 
 bool collectSelectTree(std::set<SelectInst*> &analyzed, Value &V,
-		Value *index, std::unordered_map<uint64_t, Constant*> values, size_t& collectedValues, Constant*& defaultValue) {
+		Value *index, std::unordered_map<uint64_t, Constant*> &values, size_t& collectedValues, Constant*& defaultValue) {
 	if (auto SI = dyn_cast<SelectInst>(&V)) {
 		auto _indexMatch = matchIndexCmp(SI->getCondition());
 		if (!_indexMatch.has_value()) {
