@@ -1,7 +1,9 @@
 #include <hwtHls/llvm/Transforms/slicesMerge/slicesMergeCombiner.h>
+
 #include <llvm/IR/Verifier.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinerConcatAndSlices.h>
+#include <hwtHls/llvm/Transforms/utils/bitSliceInstrMove.h>
 
 using namespace llvm;
 
@@ -202,7 +204,7 @@ llvm::Instruction* SlicesMergeCombiner::runOnInstr(llvm::Instruction &I) {
 			}
 
 		} else if (IsBitRangeGet(CI)) {
-			BitRangeGetMoveIntoSliceSuccessorsOfSrcOperand(*this, *CI);
+			BitRangeGetMoveIntoSliceSuccessorsOfSrcOperand(*CI);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 				verifyAfterUpdate("BitRangeGetMoveIntoSliceSuccessorsOfSrcOperand corrupted function", CI);
 #endif
@@ -233,7 +235,7 @@ llvm::Instruction* SlicesMergeCombiner::runOnInstr(llvm::Instruction &I) {
 			return r;
 		}
 	} else if (auto TI = dyn_cast<TruncInst>(&I)) {
-		TruncInstMoveIntoSliceSuccessorsOfSrcOperand(*this, *TI);
+		TruncInstMoveIntoSliceSuccessorsOfSrcOperand(*TI);
 	}
 	//if (auto r = simplifyInstruction(&I, SQ)) {
 	//		return replaceInstUsesWith(I, r);
