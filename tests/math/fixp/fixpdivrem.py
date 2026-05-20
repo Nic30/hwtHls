@@ -27,11 +27,11 @@ from tests.math.componentGenerators._genericHwModules import _FpBinOpAluHwModule
 
 @hlsBytecode
 def fixpDivremRestoring(t:HFixedPointQ,
-                     dividend: HBitsRtlSignal,
-                     divisor: HBitsRtlSignal,
-                     isSigned: Union[bool, HBitsRtlSignal],
-                     loopPragmaGetter: Callable[[], _PyBytecodeLoopPragma]=lambda: None,
-                     dbgNoSplitSlices:bool=True):
+                        dividend: HBitsRtlSignal,
+                        divisor: HBitsRtlSignal,
+                        isSigned: Union[bool, HBitsRtlSignal],
+                        loopPragmaGetter: Callable[[], _PyBytecodeLoopPragma]=lambda: None,
+                        dbgNoSplitSlices:bool=True):
     """
     Fixed point division (longdiv algorithm) with support for signed/unsigned and frac_bit_length=0 types
     
@@ -101,7 +101,7 @@ def fixpDivremRestoring(t:HFixedPointQ,
             quotient = shlIn(quotient, quoNewLsb)
             acc = accNext
             if i._eq(width - 1) & (t.frac_bit_length != 0) & (quotient[width:width - t.frac_bit_length] != 0):
-                overflow = 1
+                overflow = b1
                 # :note: do not break to have stable latency
         if i._eq(width - 1):
             # capture remainder before we start to by fractions of divider
