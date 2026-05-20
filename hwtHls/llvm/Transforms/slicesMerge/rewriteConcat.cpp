@@ -230,6 +230,15 @@ struct OffsetWidthValueNameGetter {
 		return v.value->getName();
 	}
 };
+
+void appendSuffixIfNotPresentAndNotTooLong(std::string& name, const std::string & newSuffix) {
+	constexpr size_t SIZE_LIMIT = 128;
+	if (name.size() >= SIZE_LIMIT)
+		return;
+	if (name.ends_with(newSuffix))
+		return;
+	name += newSuffix;
+}
 // :attention: this function is called in recurse, in insert point may change
 // :param I: parent concatenation which triggered this merge
 bool SlicesMergeCombiner::mergeInstructionSequenceInPlace(
@@ -245,17 +254,20 @@ bool SlicesMergeCombiner::mergeInstructionSequenceInPlace(
 				make_range(mergableInstrSequenceBegin, mergableInstrSequenceEnd));
 	}
 	if (isa<PHINode>(ToMerge)) {
+		appendSuffixIfNotPresentAndNotTooLong(name, ".phiConc");
 		return mergePhisInConcatMemberVector(*this, members,
 				mergableInstrSequenceBegin, mergableInstrSequenceEnd, I,
-				name + ".phiConc");
+				name);
 	} else if (isa<SelectInst>(ToMerge)) {
+		appendSuffixIfNotPresentAndNotTooLong(name, ".selConc");
 		return mergeSelectsInConcatMemberVector(*this, members,
 				mergableInstrSequenceBegin, mergableInstrSequenceEnd, I,
-				name + ".selConc");
+				name);
 	} else if (isa<BinaryOperator>(ToMerge)) {
+		appendSuffixIfNotPresentAndNotTooLong(name, ".opConc");
 		return mergeBinaryOperatorsInConcatMemberVector(*this, members,
 				mergableInstrSequenceBegin, mergableInstrSequenceEnd, I,
-				name + ".opConc");
+				name);
 	} else {
 		llvm_unreachable("NotImplemented");
 	}
