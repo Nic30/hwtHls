@@ -458,9 +458,21 @@ def sqrt(op0: RtlSignalBase[Union[HFloatTmp, HBits]]) -> RtlSignalBase[Union[HFl
     if isinstance(op0, _F_CONST_CLS):
         try:
             if isinstance(op0, HBitsConst):
-                return op0._dtype.from_py(math.sqrt(int(op0)))
+                op0 = int(op0)
+                try:
+                    v = math.sqrt(op0)
+                    return op0._dtype.from_py(v)
+                except ValueError:
+                    return op0._dtype.from_py(0, vld_mask=0)
             else:
-                return HFloatTmp.from_py(math.sqrt(float(op0)))
+                op0 = float(op0)
+                try:
+                    v = math.sqrt(op0)
+                    return HFloatTmp.from_py(v)
+                except ValueError:
+                    v = math.nan
+                    return HFloatTmp.from_py(v)
+               
         except ValidityError:
             return HFloatTmp.from_py(None)
 
