@@ -112,8 +112,7 @@ def fpRoundup(t: IEEE754Fp,
         guard_bit = BIT.from_py(guard_bit)
 
     roundUp = guard_bit & (round_bit | sticky_bit | mantissaTmp[0])
-    overflow = roundUp & mantissaTmp._eq(mask(t.MANTISSA_WIDTH + 1) - 1)  # is max value (and +1 would cause overflow)
-
+    overflow = roundUp & mantissaTmp._eq(mask(t.MANTISSA_WIDTH + 1) - 1)
     return (
         roundUp._ternary(mantissaTmp + 1, mantissaTmp),
         overflow._ternary(exponetTmp + 1, exponetTmp)
@@ -185,6 +184,7 @@ def fpRound(t: IEEE754Fp,
 def fpPack(exponetTmp: RtlSignalBase[HBits], mantissaTmp: RtlSignalBase[HBits], res: RtlSignalBase[IEEE754Fp]):
     """
     handle overflows during conversion of wider exponent/mantissa to result
+    :param mantissaTmp: manitsa in format which includes MSB 1, final mantisa bits on t.MANTISSA_WIDTH:0 bits,
     """
     t = res._dtype
     overflow = exponetTmp[:t.EXPONENT_WIDTH] != 0
@@ -198,8 +198,8 @@ def fpPack(exponetTmp: RtlSignalBase[HBits], mantissaTmp: RtlSignalBase[HBits], 
         res.exponent = exponetTmp[t.EXPONENT_WIDTH:]
         res.mantissa = mantissaTmp[t.MANTISSA_WIDTH:]
         if exponetTmp._eq(1):
-            if ~mantissaTmp[t.MANTISSA_WIDTH]:
+            if ~mantissaTmp.getMsb():
                 res.exponent = res.exponent._dtype.from_py(0)
                 if mantissaTmp[t.MANTISSA_WIDTH:]._eq(0):
-                    res.sign = res.sign._dtype.from_py(0)  # -a + a = +0.
+                    res.sign = b0  # -a + a = +0.
 
