@@ -1,7 +1,11 @@
 #include <hwtHls/llvm/llvmPyCompilationBundle.h>
 
-#include <hwtHls/llvm/llvmCompilationBundle.h>
-#include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
+#include <pybind11/cast.h>
+#include <pybind11/pybind11.h>
+// :note: this is important to automatically cast runOpt callback arguments (in runtime)
+#include <pybind11/stl.h>
+#include <pybind11/stl_bind.h>
+
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/LLVMContext.h>
@@ -9,16 +13,33 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IR/PassManager.h>
 #include <llvm/Analysis/LoopInfo.h>
+
+#include <hwtHls/llvm/llvmCompilationBundle.h>
+#include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
 #include <hwtHls/llvm/targets/hwtFpga.h>
 #include <hwtHls/llvm/targets/Transforms/hwtFpgaToNetlist.h>
-
-#include <pybind11/pybind11.h>
-// :note: this is important to automatically cast runOpt callback arguments (in runtime)
-#include <pybind11/stl.h>
-#include <pybind11/stl_bind.h>
 #include <hwtHls/llvm/llvmIrStripInstrucionUnrelatedToCrash.h>
 
+
+ 
 namespace py = pybind11;
+
+namespace PYBIND11_NAMESPACE { namespace detail {
+template <> struct type_caster<llvm::SetVector<llvm::Instruction *>> {
+public:
+	using T = llvm::SetVector<llvm::Instruction *>;
+	PYBIND11_TYPE_CASTER(T, _("set"));
+	// C++ -> Python
+	static handle cast(const T &src, return_value_policy policy,
+					   handle parent) {
+		set s;
+		for (auto *inst : src)
+			s.add(type_caster<llvm::Instruction *>::cast(inst, policy, parent));
+		return s.release();
+	}
+};
+
+}}
 
 namespace hwtHls {
 
@@ -38,7 +59,7 @@ public:
 
 void register_LlvmCompilationBundle(pybind11::module_ &m) {
 	py::register_local_exception<hwtHls::IntentionalCompilationInterupt>(m, "IntentionalCompilationInterupt", PyExc_RuntimeError);
-
+	
 	py::class_<hwtHls::LlvmCompilationBundle>(m, "LlvmCompilationBundle")
 		.def(py::init<const std::string &, const std::vector<hwtHls::LlvmCompilationBundle::LlvmCliOptionTuple> &>())
 		.def("getTargetLibraryInfo", &hwtHls::LlvmCompilationBundle::getTargetLibraryInfo)
@@ -119,6 +140,7 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 				py::arg("dumpCfgBeforeToFile") = std::optional<std::string>(),  //
 				py::arg("dumpCfgAfterToFile") = std::optional<std::string>(),    //
 				py::return_value_policy::reference_internal)
+		.def("_testMergeSetsBasedLivenessAnalysis", &hwtHls::LlvmCompilationBundle::_testMergeSetsBasedLivenessAnalysis)
 		.def("_runCustomModulePass", [](hwtHls::LlvmCompilationBundle & self, py::function & addModulePassesFn) -> llvm::Module& {
 			return self._runCustomModulePass([&addModulePassesFn](llvm::ModulePassManager& MPM) {
 					addModulePassesFn.operator() <py::return_value_policy::reference, llvm::ModulePassManager&>(MPM);

@@ -146,7 +146,8 @@ public:
 			);
 	llvm::Function& _testLoopFlattenUsingIfPass();
 	llvm::Function& _testRewriteExtractOnMergeValues();
-
+	std::map<llvm::BasicBlock*, llvm::SetVector<llvm::Instruction*>> _testMergeSetsBasedLivenessAnalysis();
+	
 	llvm::Module& _runCustomModulePass(
 			std::function<void(llvm::ModulePassManager&)> addPasses);
 	llvm::Function& _runCustomFunctionPass(

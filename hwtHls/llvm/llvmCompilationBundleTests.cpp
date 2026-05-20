@@ -22,6 +22,7 @@
 // #include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
 #include <hwtHls/llvm/llvmIrCommon.h>
 
+#include <hwtHls/llvm/Analysis/mergeSetsBasedLivenessAnalysis/liveness.h>
 #include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass.h>
 #include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
@@ -233,6 +234,12 @@ llvm::Function& LlvmCompilationBundle::_testRewriteExtractOnMergeValues() {
 	return _runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
 		FPM.addPass(hwtHls::RewriteExtractOnMergeValuesPass());
 	});
+}
+
+std::map<BasicBlock*, SetVector<Instruction*>> LlvmCompilationBundle::_testMergeSetsBasedLivenessAnalysis() {
+	llvm::DominatorTree DT(*main);
+	return computeAllLiveins(*main, DT);
+	
 }
 
 /////////////////////////////////////////////////////////////// MIR tests ///////////////////////////////////////////////////////////////

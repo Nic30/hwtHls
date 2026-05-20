@@ -36,10 +36,12 @@ from tests.llvmIr.slicesMergePass_test import SlicesMergePass_TC
 from tests.llvmIr.slicesToIndependentVariablesPass_test import SlicesToIndependentVariablesPass_TC
 from tests.testCaseUtils import testSuiteFromTCs
 from tests.llvmIr.LoopMarkStatelessSequelAsAsyncThreadPass_test import LoopMarkStatelessSequelAsAsyncThreadPass_TC
+from tests.llvmIr.MergeSetsBasedLivenessAnalysis_test import MergeSetsBasedLivenessAnalysis_TC
 
 
 llvmIr_TCs = [
     LlvmIrFunctionMutating_TC,
+    MergeSetsBasedLivenessAnalysis_TC,
     ExtractBitConcatAndSliceOpsPass_TC,
     HFloatTmpLoweringPass_TC,
     SlicesToIndependentVariablesPass_TC,
