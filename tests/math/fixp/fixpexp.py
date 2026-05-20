@@ -183,8 +183,9 @@ class FixpExpTabularizedHwModule(_FpUnOpAluHwModule):
 
     @hlsBytecode
     def aluFn(self, x):
+        outT = self._getTypeOfIo(self.data_out)
         fixpexp = FixpExp(self.T, self.MAX_TABLE_ADDR_WIDTH)
-        return PyBytecodeInline(fixpexp.fixpexp_tabularized)(x._reinterpret_cast(self.T))
+        return PyBytecodeInline(fixpexp.fixpexp_tabularized)(x._reinterpret_cast(self.T))._reinterpret_cast(outT)
 
 
 @serializeParamsUniq
@@ -192,8 +193,9 @@ class FixpExp2TabularizedHwModule(FixpExpTabularizedHwModule):
 
     @hlsBytecode
     def aluFn(self, x):
+        outT = self._getTypeOfIo(self.data_out)
         fixpexp = FixpExp(self.T, self.MAX_TABLE_ADDR_WIDTH, EXP_FUNCTION=lambda x: 2.**x, LOG_FUNCTION=math.log2)
-        return PyBytecodeInline(fixpexp.fixpexp_tabularized)(x._reinterpret_cast(self.T))
+        return PyBytecodeInline(fixpexp.fixpexp_tabularized)(x._reinterpret_cast(self.T))._reinterpret_cast(outT)
 
 
 @serializeParamsUniq
@@ -201,8 +203,9 @@ class FixpExp10TabularizedHwModule(FixpExpTabularizedHwModule):
 
     @hlsBytecode
     def aluFn(self, x):
+        outT = self._getTypeOfIo(self.data_out)
         fixpexp = FixpExp(self.T, self.MAX_TABLE_ADDR_WIDTH, EXP_FUNCTION=lambda x: 10.**x, LOG_FUNCTION=math.log10)
-        return PyBytecodeInline(fixpexp.fixpexp_tabularized)(x._reinterpret_cast(self.T))
+        return PyBytecodeInline(fixpexp.fixpexp_tabularized)(x._reinterpret_cast(self.T))._reinterpret_cast(outT)
 
 
 if __name__ == "__main__":
