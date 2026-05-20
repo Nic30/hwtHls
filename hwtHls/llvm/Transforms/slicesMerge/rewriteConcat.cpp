@@ -100,7 +100,7 @@ static bool mergePhisInConcatMemberVector(SlicesMergeCombiner &IC,
 		SmallVector<OffsetWidthValue>::iterator begin,
 		SmallVector<OffsetWidthValue>::iterator &end, Instruction *userToSkip,
 		const Twine &Name) {
-	auto createWiderPhi = [&members, &Name](SlicesMergeCombiner &IC,
+	auto createWiderPhi = [&Name](SlicesMergeCombiner &IC,
 			const std::vector<PHINode*> &phis) {
 		return mergePhisToWiderPhi(IC.Builder, Name, phis);
 	};
