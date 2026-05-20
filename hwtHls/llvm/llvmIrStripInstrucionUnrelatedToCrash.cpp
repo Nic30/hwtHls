@@ -110,7 +110,7 @@ void segfault_handler(int signal) {
  * */
 static size_t tryIfPreservesCrash(LlvmCompilationBundle &ctx, size_t nProcs,
 		const std::function<void(LlvmCompilationBundle&)> &testFn,
-		std::deque<InstructionStripWorkItem>& work) {
+		std::deque<InstructionStripWorkItem>& work, std::optional<double> TIMEOUT) {
 	nProcs = std::min(nProcs, work.size());
 	std::vector<pid_t> children;
 	for (size_t i = 0; i < nProcs; ++i) {
@@ -148,11 +148,38 @@ static size_t tryIfPreservesCrash(LlvmCompilationBundle &ctx, size_t nProcs,
 	#ifdef DEBUG_LOGS
 		errs() << "tryIfPreservesCrash forked \n";
 	#endif
+
+	auto start = std::chrono::steady_clock::now();
 	bool foundChildrenWhichDoesNotCrash = false;
 	size_t crashedChildren = 0;
 	for (auto c_pid : children) {
 		int status;
-		waitpid(c_pid, &status, 0);
+		if (TIMEOUT.has_value()) {
+			while (true) {
+			    pid_t r = waitpid(c_pid, &status, WNOHANG);
+			    if (r == c_pid) {
+			        break; // child finished
+			    } else if (r == -1) {
+			        break;  // waitpid failed
+			    }
+	
+			    auto elapsed = std::chrono::duration<double>(
+			        std::chrono::steady_clock::now() - start
+			    ).count();
+	
+			    if (elapsed >= TIMEOUT.value()) {
+			        kill(c_pid, SIGKILL);
+			        waitpid(c_pid, &status, 0); // reap it
+			        break;
+			    }
+	
+			    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+			}
+		} else {
+			waitpid(c_pid, &status, 0);
+		}
+		
+		
 		// :note: WIFEXITED returns true if process exited normally
 		if (WIFEXITED(status) && WEXITSTATUS(status) == EXIT_SUCCESS) {
 			foundChildrenWhichDoesNotCrash = true;
@@ -171,12 +198,13 @@ static size_t tryIfPreservesCrash(LlvmCompilationBundle &ctx, size_t nProcs,
 // :note: this function always removes some items from "udpates" or replaces them by followup
 static size_t runApplyRemoveUpdates(LlvmCompilationBundle &ctx, size_t nProcs,
 		std::function<void(LlvmCompilationBundle&)> testFn,
-		std::deque<InstructionStripWorkItem> &updates) {
+		std::deque<InstructionStripWorkItem> &updates,
+		std::optional<double> TIMEOUT) {
 	#ifdef DEBUG_LOGS
 		errs() << "runApplyRemoveUpdates " << updates.size() << "\n";
 	#endif
 	// test if update are preserving crash in child processes
-	size_t removableOps = tryIfPreservesCrash(ctx, nProcs, testFn, updates);
+	size_t removableOps = tryIfPreservesCrash(ctx, nProcs, testFn, updates, TIMEOUT);
 	// apply updates which are preserving the crash
 	for (size_t i = 0; i < removableOps; ++i) {
 		updates[i].run(ctx.builder);
@@ -203,7 +231,7 @@ static size_t runApplyRemoveUpdates(LlvmCompilationBundle &ctx, size_t nProcs,
 }
 
 void llvmIrStripInstrucionUnrelatedToCrash(LlvmCompilationBundle &ctx,
-		size_t nProcs, std::function<void(LlvmCompilationBundle&)> testFn, bool logAfterChange) {
+		size_t nProcs, std::function<void(LlvmCompilationBundle&)> testFn, bool logAfterChange, std::optional<double> timeout) {
 	size_t removedCnt = 0;
 	std::deque<InstructionStripWorkItem> removes;
 	//removes.reserve(nProcs);
@@ -223,7 +251,7 @@ void llvmIrStripInstrucionUnrelatedToCrash(LlvmCompilationBundle &ctx,
 						// if there are enough updates to run updates in child workers
 						if (removes.size() >= nProcs) {
 							auto removableCnt = runApplyRemoveUpdates(ctx,
-									nProcs, testFn, removes);
+									nProcs, testFn, removes, timeout);
 							change |= bool(removableCnt);
 							removedCnt += removableCnt;
 							if (removableCnt)
@@ -282,7 +310,7 @@ void llvmIrStripInstrucionUnrelatedToCrash(LlvmCompilationBundle &ctx,
 				}
 				if (removes.size() >= nProcs) {
 					auto removableCnt = runApplyRemoveUpdates(ctx, nProcs,
-							testFn, removes);
+							testFn, removes, timeout);
 					change |= bool(removableCnt);
 					errs() << "removedCnt (instr): " << removedCnt << "\n";
 					removedCnt += removableCnt;
@@ -297,7 +325,7 @@ void llvmIrStripInstrucionUnrelatedToCrash(LlvmCompilationBundle &ctx,
 		// [todo] if block has only a single successor which has only a single predecessor try merging src and dst block if src!=dst
 		while (!removes.empty()) {
 			auto removableCnt = runApplyRemoveUpdates(ctx, nProcs, testFn,
-					removes);
+					removes, timeout);
 			change |= bool(removableCnt);
 			errs() << "removedCnt (leftover): " << removedCnt << "\n";
 			removedCnt += removableCnt;

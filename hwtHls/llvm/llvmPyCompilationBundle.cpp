@@ -141,11 +141,18 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 		.def("_testRewriteExtractOnMergeValuesPass", &hwtHls::LlvmCompilationBundle::_testRewriteExtractOnMergeValues, py::return_value_policy::reference_internal)
 		.def("_testVRegIfConverter", &hwtHls::LlvmCompilationBundle::_testVRegIfConverter, py::return_value_policy::reference_internal)
 		.def("_testVRegIfConverterForIr", &hwtHls::LlvmCompilationBundle::_testVRegIfConverterForIr, py::return_value_policy::reference_internal)
-		.def("_testStripInstrucionUnrelatedToCrash", [](hwtHls::LlvmCompilationBundle &self, size_t nprocs, py::function testFunction, bool logAfterChange) {
+		.def("_testStripInstrucionUnrelatedToCrash", [](hwtHls::LlvmCompilationBundle &self,
+													    size_t nprocs,
+														py::function testFunction,
+														bool logAfterChange,
+														std::optional<double> timeout) {
 			llvmIrStripInstrucionUnrelatedToCrash(self, nprocs, [&testFunction](hwtHls::LlvmCompilationBundle &ctx) {
 				testFunction(ctx);
-			}, logAfterChange);
-	    }, py::arg("nprocs"), py::arg("testFunction"), py::arg("logAfterChange")=false)
+			}, logAfterChange, timeout);
+	    }, py::arg("nprocs"),
+		   py::arg("testFunction"),
+		   py::arg("logAfterChange")=false,
+		   py::arg("timeout")=std::optional<double>())
 		.def_readonly("ctx", &hwtHls::LlvmCompilationBundle::ctx)
 		.def_readonly("strCtx", &hwtHls::LlvmCompilationBundle::strCtx)
 		.def_readonly("builder", &hwtHls::LlvmCompilationBundle::builder)
