@@ -60,14 +60,15 @@ class HardBlockHwModule(_PyBytecodeIntrinsic):
         strCtx = toLlvm.strCtx
         _argTypes = VectorOfTypePtr()
         _argTypes.append(Type.getIntNTy(toLlvm.ctx, 32))
-        if self.hasManyInputs:
-            for field in self.hwInputT.fields:
-                field: HStructField
-                t = toLlvm._translateType(field.dtype)
+        if self.hwInputT.bit_length() > 0:
+            if self.hasManyInputs:
+                for field in self.hwInputT.fields:
+                    field: HStructField
+                    t = toLlvm._translateType(field.dtype)
+                    _argTypes.append(t)
+            else:
+                t = toLlvm._translateType(self.hwInputT)
                 _argTypes.append(t)
-        else:
-            t = toLlvm._translateType(self.hwInputT)
-            _argTypes.append(t)
 
         returnType = toLlvm._translateType(self.hwOutputT)
         FT = FunctionType.get(returnType, _argTypes, False)
