@@ -16,7 +16,7 @@ from tests.math.fp.fptypes import IEEE754Fp
 
 # https://github.com/sudhamshu091/32-Verilog-Mini-Projects/blob/main/Floating%20Point%20IEEE%20754%20Addition%20Subtraction/Addition_Subtraction.v
 @hwt_expr_producer
-def _denormalize(a: RtlSignalBase[IEEE754Fp], mantisaWidthIncrease=3, expWidthIncrease=1) -> tuple[AnyHBitsValue, AnyHBitsValue]:
+def fpUnpack(a: RtlSignalBase[IEEE754Fp], mantisaWidthIncrease=3, expWidthIncrease=1) -> tuple[AnyHBitsValue, AnyHBitsValue]:
     """
     Transform mantissa and exponent in format where mantissa MSB is 1
     and both mantissa and exponent have sufficient bit width to not overflow 

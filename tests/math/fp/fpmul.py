@@ -5,7 +5,7 @@ from hwtHls.frontend.pragmaInstruction import PyBytecodeNoSplitSlices
 from hwtHls.frontend.pragmaPreproc import PyBytecodeBlockLabel, \
     PyBytecodeInline
 from tests.math.fp.fptypes import IEEE754Fp
-from tests.math.fp.normalizeDenormalize import _denormalize, fpNormalize, \
+from tests.math.fp.normalizeDenormalize import fpUnpack, fpNormalize, \
     fpRoundup, fpPack
 
 
@@ -58,8 +58,8 @@ def IEEE754FpMul(a: RtlSignalBase[IEEE754Fp], b: RtlSignalBase[IEEE754Fp]):
 
     else:
         PyBytecodeBlockLabel("IEEE754FpMul.compute")
-        aMantissa, aExponent = _denormalize(a, mantisaWidthIncrease=0, expWidthIncrease=2)
-        bMantissa, bExponent = _denormalize(b, mantisaWidthIncrease=0, expWidthIncrease=2)
+        aMantissa, aExponent = fpUnpack(a, mantisaWidthIncrease=0, expWidthIncrease=2)
+        bMantissa, bExponent = fpUnpack(b, mantisaWidthIncrease=0, expWidthIncrease=2)
 
         PyBytecodeBlockLabel("IEEE754FpMul.multiply_0")
         resExponent = aExponent + bExponent + 1 - -t.EXPONENT_OFFSET

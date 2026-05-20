@@ -10,7 +10,7 @@ from hwtHls.frontend.pragmaPreproc import PyBytecodePreprocHwCopy, \
     PyBytecodeInline, PyBytecodeBlockLabel
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from tests.math.fp.fptypes import IEEE754Fp, IEEE754FpValue
-from tests.math.fp.normalizeDenormalize import _denormalize, fpRoundup, \
+from tests.math.fp.normalizeDenormalize import fpUnpack, fpRoundup, \
     fpPack
 
 
@@ -82,9 +82,9 @@ def IEEE754FpAdd(a: IEEE754FpValue, b: IEEE754FpValue, isSim=False):
         PyBytecodeBlockLabel("IEEE754FpAdd.compute")
 
         # :note: mantissa +4 bits, still in biased form
-        aMantissa, aExponent = _denormalize(a)
+        aMantissa, aExponent = fpUnpack(a)
         aSign = a.sign
-        bMantissa, bExponent = _denormalize(b)
+        bMantissa, bExponent = fpUnpack(b)
         bSign = b.sign
 
         if aExponent < bExponent:
