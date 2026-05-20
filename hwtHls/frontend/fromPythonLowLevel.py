@@ -242,7 +242,7 @@ class PyBytecodeToSsaLowLevel(PyBytecodeToSsaLowLevelOpcodes):
 
     def _translateBytecodeBlock(self,
             frame: PyBytecodeFrame,
-            instructions: List[Instruction],
+            instructions: list[Instruction],
             curBlock: BasicBlock):
         """
         Evaluate instruction list and translate to SSA all which is using HW types and which can not be evaluated compile time.
