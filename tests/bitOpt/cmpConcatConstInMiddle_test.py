@@ -10,6 +10,8 @@ from hwt.hdl.commonConstants import b1
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
+from hwt.hdl.types.struct import HStruct
+from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.std import HwIODataVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
@@ -22,8 +24,6 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtSimApi.constants import CLK_PERIOD
 from tests.frontend.trivial import WriteOnce
-from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
-from hwt.hdl.types.struct import HStruct
 
 
 class TestHwModuleCmpConcatWithConstInMiddle(HwModule):
