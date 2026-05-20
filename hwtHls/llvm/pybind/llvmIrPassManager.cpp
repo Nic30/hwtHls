@@ -108,7 +108,7 @@ void register_PassManager(pybind11::module_ &m) {
 	    .def_readonly_static("METADATA_NAME", &LoopMarkStatelessSequelAsAsyncThreadPass::METADATA_NAME)
 	    .def_readonly_static("METADATA_NAME_followup", &LoopMarkStatelessSequelAsAsyncThreadPass::METADATA_NAME_followup);		
 		
-	py::class_<SlicesToIndependentVariablesPass>(m, "SlicesToIendentVariablesPass")
+	py::class_<SlicesToIndependentVariablesPass>(m, "SlicesToIndependentVariablesPass")
 		.def(py::init())
 		.def_readonly_static("metadataName_NoSplit", &SlicesToIndependentVariablesPass::metadataName_NoSplit);
 
