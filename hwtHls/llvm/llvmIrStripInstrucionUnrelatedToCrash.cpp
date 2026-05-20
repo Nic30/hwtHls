@@ -135,7 +135,7 @@ static size_t tryIfPreservesCrash(LlvmCompilationBundle &ctx, size_t nProcs,
 				errs() << "child SUCCESS\n";
 			#endif
 			
-			if (verifyModule(*ctx.module, &errs())) {
+			if (verifyModule(*ctx.module)) {
 				_exit(2);
 			}
 			_exit(EXIT_SUCCESS);
