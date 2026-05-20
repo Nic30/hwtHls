@@ -8,7 +8,7 @@ from hwt.hdl.types.bitConstFunctions import AnyHBitsValue
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwt.mainBases import RtlSignalBase
-from hwtHls.code import zext, ctlz, shl, hwUMin
+from hwtHls.code import zext, ctlz, shl, hwUMin, subSat0
 from hwtHls.frontend.pragmaPreproc import PyBytecodeBlockLabel
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.llvm.llvmIr import HFloatTmpRounding
@@ -54,10 +54,11 @@ def fpUnpack(a: RtlSignalBase[IEEE754Fp], mantisaWidthIncrease=3, expWidthIncrea
 
 
 @hwt_expr_producer
-def fpNormalize(denormalMantissa: RtlSignalBase[HBits],
+def fpNormalize(denormalMantissa: AnyHBitsValue,
                 MANTISSA_WIDTH: int,
-                exponent: RtlSignalBase[HBits],
-                underflowAmount: Optional[RtlSignalBase[HBits]]=None) \
+                exponent: AnyHBitsValue,
+                curLeftShift: Optional[AnyHBitsValue]=None,
+                msbKnonwToBe1:bool=False) \
                 ->tuple[AnyHBitsValue, AnyHBitsValue, AnyHBitsValue, AnyHBitsValue, AnyHBitsValue]:
     """
     shift mantissa so MSB is 1, but not if it would make the exponent less than the
@@ -66,23 +67,25 @@ def fpNormalize(denormalMantissa: RtlSignalBase[HBits],
     :note: exponent is in its native form (biased form)
     :note: subnormal numbers are supported 
     
+    :param denormalMantissa: extended mantissa which also contains normally hidden 1
+    
     :param MANTISSA_WIDTH: width of mantissa in original FP type
-    :param underflowAmount: amount of underflow specifies
-        how many right shift amount for mantissa and a value
-        to be substracted from exponent, however min exponent
-        of 0 must be preserved and the number may become
-        subnormal instead.
+    :param curLeftShift: specifies how much the mantissa is shifted to left
+        to normalize this number we virtualy shift the mantisa to right using exponent substract
+    
+    :returns: mantissa in format starting with MSB=1, wider than MANTISSA_WIDTH
     """
     DW = denormalMantissa._dtype.bit_length()
     assert DW > MANTISSA_WIDTH + 1, (denormalMantissa, DW, MANTISSA_WIDTH)
-    if underflowAmount:
-        raise NotImplementedError()
-    leadingZeroCnt = ctlz(denormalMantissa)
-    # :note: if underflowAmount != 0, exponent is expected to be 0
-    shiftAmount = hwUMin(exponent, leadingZeroCnt, autoExtend=True)  # assert saturation at 0
-    mantissa = shl(denormalMantissa, shiftAmount[leadingZeroCnt._dtype.bit_length():])
-    exponent = exponent - shiftAmount
-
+    if not msbKnonwToBe1:
+        leadingZeroCnt = ctlz(denormalMantissa)
+        shiftAmount = hwUMin(exponent, leadingZeroCnt, autoExtend=True)  # assert saturation at 0
+        mantissa = shl(denormalMantissa, shiftAmount[leadingZeroCnt._dtype.bit_length():])
+        exponent = exponent - shiftAmount
+        if curLeftShift is not None:
+            exponent = subSat0(exponent, curLeftShift)
+    else:
+        mantissa = denormalMantissa
     # mantissa in format "1, mantissa<MANTISSA_WIDTH>, ..."
     mantisaLsbIndex = DW - MANTISSA_WIDTH - 2  # -1 because of MSB 1, -1 because of size to index
     guard_bit = mantissa[mantisaLsbIndex]
