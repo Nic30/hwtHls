@@ -23,11 +23,11 @@ from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.bitsRtlSignal import HBitsRtlSignal
 from hwtHls.code import zext
 from hwtHls.frontend.hwrange import hwrange
+from hwtHls.frontend.pragmaPreproc import PyBytecodeBlockLabel
 from tests.math.fixp.fixpConst import HFixedPointQConst
 from tests.math.fixp.fixpRtlSignal import HFixedPointQRtlSignal
 from tests.math.fixp.fixpTypes import HFixedPointQ
-from hwtHls.frontend.pragmaPreproc import PyBytecodeInPreproc, \
-    PyBytecodeBlockLabel
+
 
 # @hlsBytecode
 # def intSqrt(a: Union[HBitsConst, HBitsRtlSignal], iterationCnt:Optional[int]=None, loopPragmaGetter=lambda:None):
@@ -60,16 +60,17 @@ from hwtHls.frontend.pragmaPreproc import PyBytecodeInPreproc, \
 #        loopPragmaGetter()
 #
 #    return square_root
-
-
-def fixpSqrt(a: Union[HFixedPointQConst, HFixedPointQRtlSignal, HBitsConst, HBitsRtlSignal], loopPragmaGetter=lambda:None):
+def fixpSqrt(a: Union[HFixedPointQConst, HFixedPointQRtlSignal, HBitsConst, HBitsRtlSignal], loopPragmaGetter=lambda:None, t=None):
     """
     Longdiv alg. based integer square root
     :note: input of sqrt is called radicand
     
     Based on https://projectf.io/posts/square-root-in-verilog/
     """
-    t = a._dtype
+    isInRawForm = isinstance(a._dtype, HBits)
+    if t is None:
+        t = a._dtype
+
     width = t.bit_length()
     tRaw = HBits(width)
     assert not t.signed, ("must satisfy x >= 0, it can not be signed", t)
@@ -81,7 +82,9 @@ def fixpSqrt(a: Union[HFixedPointQConst, HFixedPointQRtlSignal, HBitsConst, HBit
         frac_width = 0
 
     assert width == int_width + frac_width
-    assert width % 2 == 0, ("must be a multiple of 2, for example, when working with 7 binary digits, you must set the width to 8", t, a, width)
+    assert int_width % 2 == 0, ("must be a multiple of 2, for example, when working with 7 binary digits, you must set the width to 8", t, a, int_width)
+    assert frac_width % 2 == 0, ("must be a multiple of 2", t, a, frac_width)
+
     iterationCnt = (int_width + frac_width * 2) // 2
 
     bit2_t = HBits(2)
@@ -89,7 +92,10 @@ def fixpSqrt(a: Union[HFixedPointQConst, HFixedPointQRtlSignal, HBitsConst, HBit
     b2_01 = bit2_t.from_py(0b01)
 
     square_root = tRaw.from_py(0)  # intermediate root (quotient)
-    aRaw = a._reinterpret_cast(HBits(width))
+    if isInRawForm:
+        aRaw = a
+    else:
+        aRaw = a._reinterpret_cast(HBits(width))
     remainder = zext(aRaw[:width - 2], width + 2)  # accumulator (2 bits wider)
     x = Concat(aRaw[width - 2:], b2_00)  # radicand copy
     del aRaw
@@ -117,7 +123,10 @@ def fixpSqrt(a: Union[HFixedPointQConst, HFixedPointQRtlSignal, HBitsConst, HBit
         loopPragmaGetter()
 
     # rem = remainder[:2]  # undo the final shift
-    return square_root._reinterpret_cast(t)
+    if isInRawForm:
+        return square_root
+    else:
+        return square_root._reinterpret_cast(t)
 
 # def sqrt_fixed_point(num, frac_width):
 #    """
