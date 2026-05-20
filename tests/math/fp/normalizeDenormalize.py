@@ -2,6 +2,7 @@ from typing import Union, Optional
 
 from hwt.code import Concat
 from hwt.doc_markers import hwt_expr_producer
+from hwt.hdl.commonConstants import b0
 from hwt.hdl.const import HConst
 from hwt.hdl.types.bitConstFunctions import AnyHBitsValue
 from hwt.hdl.types.bits import HBits
@@ -10,6 +11,7 @@ from hwt.mainBases import RtlSignalBase
 from hwtHls.code import zext, ctlz, shl, hwUMin
 from hwtHls.frontend.pragmaPreproc import PyBytecodeBlockLabel
 from hwtHls.frontend.pyBytecode import hlsBytecode
+from hwtHls.llvm.llvmIr import HFloatTmpRounding
 from pyMathBitPrecise.bit_utils import mask
 from tests.math.fp.fptypes import IEEE754Fp
 
@@ -113,6 +115,67 @@ def fpRoundup(t: IEEE754Fp,
         roundUp._ternary(mantissaTmp + 1, mantissaTmp),
         overflow._ternary(exponetTmp + 1, exponetTmp)
     )
+
+
+@hwt_expr_producer
+def fpRound(t: IEEE754Fp,
+            sign: Union[HConst[HBits], RtlSignalBase[HBits]],
+            exponetTmp: Union[HConst[HBits], RtlSignalBase[HBits]],
+            mantissaTmp: Union[HConst[HBits], RtlSignalBase[HBits]],
+            guard_bit: _bitTy, round_bit: _bitTy, sticky_bit: _bitTy,
+            ):
+    """
+    :note: mantissa and exponent are in expanded form, (mantisa is extended and contains hidden 1, exponent is extended)
+    
+    https://pages.cs.wisc.edu/~markhill/cs354/Fall2008/notes/flpt.apprec.html
+    https://stackoverflow.com/questions/8981913/how-to-perform-round-to-even-with-floating-point-numbers
+
+    :returns: tuple mantissa, exponent
+    """
+    assert mantissaTmp._dtype.bit_length() == t.MANTISSA_WIDTH + 1, \
+        (mantissaTmp._dtype, t.MANTISSA_WIDTH, mantissaTmp)
+
+    roundTy: HFloatTmpRounding = t._cfg.rounding
+    if isinstance(guard_bit, (int, bool)):
+        guard_bit = BIT.from_py(guard_bit)
+    if isinstance(round_bit, (int, bool)):
+        round_bit = BIT.from_py(round_bit)
+    if isinstance(sticky_bit, (int, bool)):
+        sticky_bit = BIT.from_py(sticky_bit)
+
+    inexact = guard_bit | round_bit | sticky_bit
+    lsb = mantissaTmp[0]
+    odd = lsb
+
+    if roundTy == HFloatTmpRounding.ROUND_HALF_EVEN:
+        roundUp = guard_bit & (round_bit | sticky_bit | odd)
+
+    elif roundTy == HFloatTmpRounding.ROUND_HALF_UP:
+        # ties away from zero
+        roundUp = sign._ternary(inexact, guard_bit)
+
+    elif roundTy == HFloatTmpRounding.ROUND_DOWN:
+        # toward zero
+        roundUp = sign._ternary(inexact, b0)
+
+    elif roundTy == HFloatTmpRounding.ROUND_CEILING:
+        # toward +inf
+        roundUp = sign._ternary(b0, inexact)
+
+    elif roundTy == HFloatTmpRounding.ROUND_FLOOR:
+        # toward -inf
+        roundUp = sign._ternary(inexact, b0)
+
+    else:
+        raise NotImplementedError(roundTy)
+
+    # is max value (and +1 would cause overflow)
+    overflow = roundUp & mantissaTmp._eq(mask(mantissaTmp._dtype.bit_length()) - 1)
+
+    mantissaOut = roundUp._ternary(mantissaTmp + 1, mantissaTmp)
+    exponentOut = overflow._ternary(exponetTmp + 1, exponetTmp)
+
+    return mantissaOut, exponentOut
 
 
 @hlsBytecode
