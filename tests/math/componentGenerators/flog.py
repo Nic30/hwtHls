@@ -5,7 +5,7 @@ from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.componentGeneratorUtils import \
     ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule
-from hwtHls.llvm.llvmIr import HFloatTmpConfig, CallInst, Instruction
+from hwtHls.llvm.llvmIr import HFloatTmpConfig
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -15,11 +15,9 @@ from tests.math.componentGenerators._componentGeneratorFp import ComponentGenera
 from tests.math.componentGenerators._llvmIrInterpretFP import ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary
 from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.math.fixp.fixplog import FixpLog2TabularizedHwModule
-from tests.math.hFloatTmp.hFloatTmp import HFloatTmpConfigHdlType, HFloatTmp
+from tests.math.hFloatTmp.hFloatTmp import HFloatTmpConfigHdlType
 from tests.math.hFloatTmp.hFloatTmpOps import OP_FLOG2
-from hwtHls.ssa.analysis.llvmIrInterpretUtils import LlvmIrInstrFunction
-from pyDigitalWaveTools.vcd.writer import VcdWriter
-from hwt.hdl.const import HConst
+
 
 
 class ComponentGeneratorLlvmIntrinsicLog(ComponentGeneratorFp):
@@ -99,7 +97,7 @@ class ComponentGeneratorFLOG2(ComponentGeneratorFp):
 
             ty = HFixedPointQ.fromHFloatTmpConfig(cfg)
 
-            # run compilation of IntDiv HwModule to resolve scheduling properties
+            # run compilation of HwModule to resolve scheduling properties
             hwModule = self._getConfiguredFixpHwModule(netlist.realTimeClkPeriod, ty, None)
             _, _, r = self.resolveRealizationOfNode_compileToResolveScheduling(
                 netlist.parentHwModule, hwModule,

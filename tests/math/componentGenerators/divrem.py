@@ -20,14 +20,14 @@ from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
 from hwtHls.platform.opRealizationMeta import ComponentRealizationMeta
 from hwtHls.platform.platform import DefaultHlsPlatform
+from hwtHls.ssa.analysis.llvmIrInterpretInt import _makeDecodeOpcodeFunction_BinaryOperator
 from hwtHls.ssa.analysis.llvmMirInterpret import LlvmMirInterpret
+from hwtHls.ssa.analysis.llvmMirInterpretInt import makeDecode_arithmeticBin
 from hwtHls.ssa.analysis.llvmMirInterpretUtils import LlvmMirInstrFunction
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.llvmMirToNetlist.utils import MirToHlsNetlistTranslatedInstrOpsT
 from tests.math.componentGenerators._div.divRestoring import DivRemHwModule
-from hwtHls.ssa.analysis.llvmMirInterpretInt import makeDecode_arithmeticBin
-from hwtHls.ssa.analysis.llvmIrInterpretInt import _makeDecodeOpcodeFunction_BinaryOperator
 
 
 def _floorsdiv(a: HBitsConst, b: HBitsConst):

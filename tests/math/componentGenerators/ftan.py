@@ -127,7 +127,7 @@ class ComponentGeneratorFTAN(ComponentGeneratorFp):
             return self.schedulingCache[cfg][1]
         except KeyError:
             pass
-        # run compilation of IntDiv HwModule to resolve scheduling properties
+        # run compilation of HwModule to resolve scheduling properties
         ty = HFloatTmpConfigToHType(cfg)
 
         hwModule = self._getConfiguredHwModule(netlist.realTimeClkPeriod, ty, None)

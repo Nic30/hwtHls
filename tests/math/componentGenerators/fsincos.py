@@ -234,7 +234,7 @@ class ComponentGeneratorFSINCOS(ComponentGeneratorFp):
             # iterations which are not precomputed in LUT
             UNROLL_FACTOR = max(min(UNROLL_FACTOR, maxIterations - STAGES_IN_LUT), 1)
 
-            # run compilation of IntDiv HwModule to resolve scheduling properties
+            # run compilation of HwModule to resolve scheduling properties
             hwModule = self._getConfiguredFixpHwModule(netlist.realTimeClkPeriod, ty, STAGES_IN_LUT, UNROLL_FACTOR, None)
             _, _, r = self.resolveRealizationOfNode_compileToResolveScheduling(
                 netlist.parentHwModule, hwModule,

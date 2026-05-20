@@ -187,7 +187,7 @@ class ComponentGeneratorFATAN2HYPOT(ComponentGeneratorFp):
             else:
                 raise NotImplementedError()
 
-            # run compilation of IntDiv HwModule to resolve scheduling properties
+            # run compilation of HwModule to resolve scheduling properties
             hwModule = self._getConfiguredFixpHwModule(netlist.realTimeClkPeriod, ty, UNROLL_FACTOR, None)
             _, _, r = self.resolveRealizationOfNode_compileToResolveScheduling(
                 netlist.parentHwModule, hwModule,

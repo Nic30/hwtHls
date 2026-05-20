@@ -129,7 +129,7 @@ class ComponentGeneratorFADD(ComponentGeneratorFp):
             netlist.dbgSubmoduleBuidTracer.log(("resolved realization", self, cfg, r,))
             self.schedulingCache[cacheKey] = (r, r, UNROLL_FACTOR)
         else:
-            # run compilation of IntDiv HwModule to resolve scheduling properties
+            # run compilation of HwModule to resolve scheduling properties
             hwModule = self._getConfiguredHwModule(netlist.realTimeClkPeriod, IEEE754Fp.fromHFloatTmpConfig(cfg), UNROLL_FACTOR, None)
             _, _, r = self.resolveRealizationOfNode_compileToResolveScheduling(
                 netlist.parentHwModule, hwModule,
@@ -148,7 +148,8 @@ class ComponentGeneratorFADD(ComponentGeneratorFp):
         ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule(self, node, hwModule, worklist)
 
         if realizationSeenFromOut.fitsIntoSingleClockWindow():
-            assert hwModule.getHlsOpRealizationMeta()[1].fitsIntoSingleClockWindow(), (hwModule, realizationSeenFromOut, hwModule.getHlsOpRealizationMeta())
+            assert hwModule.getHlsOpRealizationMeta()[1].fitsIntoSingleClockWindow(), (
+                hwModule, realizationSeenFromOut, hwModule.getHlsOpRealizationMeta())
         return True
 
     #

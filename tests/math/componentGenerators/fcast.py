@@ -109,7 +109,7 @@ class ComponentGeneratorFCAST_hwtHlsFpIntrinsic_castFromHFloatTmp(ComponentGener
         t = HBits(w)
         resUndef = t.from_py(None)
 
-        def _intrinsic_fp_castToHFloatTmp(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
+        def _intrinsic_fp_castFromHFloatTmp(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
             if src0IsConst:
                 src0 = _src0
             else:
@@ -128,7 +128,7 @@ class ComponentGeneratorFCAST_hwtHlsFpIntrinsic_castFromHFloatTmp(ComponentGener
                 waveLog.logChange(nowTime, instr, res, None)
             regs[instr] = res
 
-        return _intrinsic_fp_castToHFloatTmp
+        return _intrinsic_fp_castFromHFloatTmp
 
 
 class ComponentGeneratorFCAST(ComponentGeneratorFp):
@@ -191,7 +191,7 @@ class ComponentGeneratorFCAST(ComponentGeneratorFp):
         cfgSrc: HFloatTmpConfig
         cfgDst: HFloatTmpConfig
 
-        # run compilation of IntDiv HwModule to resolve scheduling properties
+        # run compilation of HwModule to resolve scheduling properties
         hwModule = self._getConfiguredHwModule(netlist.realTimeClkPeriod, cfgSrc, cfgDst, None)
         _, _, r = self.resolveRealizationOfNode_compileToResolveScheduling(
             netlist.parentHwModule, hwModule, netlist.dbgSubmoduleBuidTracer, cfg)

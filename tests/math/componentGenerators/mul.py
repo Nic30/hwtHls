@@ -61,7 +61,7 @@ class ComponentGeneratorMUL(ComponentGenerator):
             pass
 
         freq = netlist.realTimeClkPeriod
-        # run compilation of IntDiv HwModule to resolve scheduling properties
+        # run compilation of HwModule to resolve scheduling properties
         maxMulWidth, rSeenFromIn, rSeenFromOut = PipelinedMultiplier.resolveOpRealization(self.platform, freq, width)
         self.schedulingCache[cacheKey] = (rSeenFromIn, rSeenFromOut, maxMulWidth)
         return rSeenFromOut
