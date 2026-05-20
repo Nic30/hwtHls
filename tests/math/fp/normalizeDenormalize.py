@@ -14,6 +14,17 @@ from pyMathBitPrecise.bit_utils import mask
 from tests.math.fp.fptypes import IEEE754Fp
 
 
+def exponentBiassedToUnbiassed(t: IEEE754Fp, exp: AnyHBitsValue):
+    w = exp._dtype.bit_length()
+    assert w > t.EXPONENT_WIDTH, ("The two's complement format requires +1b compared to biased format", w, t.EXPONENT_WIDTH)
+    return exp._signed() + t.EXPONENT_OFFSET
+
+
+def exponentUnbiassedToBiassed(t: IEEE754Fp, exp: AnyHBitsValue):
+    assert exp._dtype.signed
+    return (exp - t.EXPONENT_OFFSET)._vec()
+
+
 # https://github.com/sudhamshu091/32-Verilog-Mini-Projects/blob/main/Floating%20Point%20IEEE%20754%20Addition%20Subtraction/Addition_Subtraction.v
 @hwt_expr_producer
 def fpUnpack(a: RtlSignalBase[IEEE754Fp], mantisaWidthIncrease=3, expWidthIncrease=1) -> tuple[AnyHBitsValue, AnyHBitsValue]:
