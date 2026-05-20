@@ -206,7 +206,8 @@ class IEEE754Fp(HStruct):
 
     def from_py(self, v, vld_mask=None):
         if isinstance(v, (float, int)):
-            if self != IEEE754Fp64:
+            formatChar = IEEE754Fp_formatChar.get(self)
+            if formatChar is None:
                 raise NotImplementedError(self, "not implemented rounding when converting from python float to a float of a different size")
             if isinstance(v, int):
                 v = float(v)
@@ -214,7 +215,7 @@ class IEEE754Fp(HStruct):
             if vld_mask is not None:
                 raise NotImplementedError()
 
-            v = int.from_bytes(struct.pack("d", v), byteorder='little')
+            v = int.from_bytes(struct.pack(formatChar, v), byteorder='little')
             v = {
                 "mantissa": get_bit_range(v, 0, self.MANTISSA_WIDTH),
                 "exponent": get_bit_range(v, self.MANTISSA_WIDTH, self.EXPONENT_WIDTH),
@@ -222,6 +223,18 @@ class IEEE754Fp(HStruct):
             }
 
         return HStruct.from_py(self, v, vld_mask)
+
+    def reinterpretFloatToRawInt(self, a: float) -> int:
+        formatChar = IEEE754Fp_formatChar.get(self)
+        if formatChar is None:
+            raise NotImplementedError(self)
+        return int.from_bytes(struct.pack(formatChar, a), byteorder='little')
+
+    def reinterpretRawIntToFloat(self, n: int) -> float:
+        formatChar = IEEE754Fp_formatChar.get(self)
+        if formatChar is None:
+            raise NotImplementedError(self)
+        return struct.unpack(formatChar, n.to_bytes(self.bit_length() // 8, byteorder='little'))[0]
 
     @internal
     @classmethod
@@ -248,7 +261,11 @@ class IEEE754Fp(HStruct):
 IEEE754Fp16 = IEEE754Fp(5, 10, name="float16")
 IEEE754Fp32 = IEEE754Fp(8, 23, name="float32")  # c float
 IEEE754Fp64 = IEEE754Fp(11, 52, name="float64")  # c double
-
+IEEE754Fp_formatChar = {
+    IEEE754Fp64: 'd',
+    IEEE754Fp32: 'f',
+    IEEE754Fp16: 'e',
+}
 # other commonly used floating point number types
 TF32 = IEEE754Fp(8, 10, name="TF32")  # NVidia's TensorFloat32 (19 bits)
 BF16 = IEEE754Fp(7, 8, name="BF16")  # BFLOAT16
