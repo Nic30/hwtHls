@@ -1,3 +1,5 @@
+LLVM profiling:
+* https://clang.llvm.org/docs/analyzer/developer-docs/PerformanceInvestigation.html
 
 To collect:
 .. code-block:: python
