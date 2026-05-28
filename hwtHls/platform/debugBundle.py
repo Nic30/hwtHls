@@ -43,6 +43,7 @@ class LLVM_CLI_COMMON_OPTS:
     PRINT_BEFORE_ALL = ("print-before-all", 0, "", "true")
     PRINT_CHANGED = ("print-changed", 0, "", "")
     PRINT_CHANGED_DOT_CFG = ("print-changed", 0, "", "dot-cfg")  # :attention: blocks without name will cause crash https://github.com/llvm/llvm-project/pull/148582
+    OVERWIRTE_BB_NAMES = ("hwthls-overwrite-bb-names", 0, "", "true") # set names of all block to bb<id>
 
     STATS = ("stats", 0, "", "")  # print values of llvm statistics defined by STATISTIC(<id>, <string>)
 
