@@ -38,7 +38,7 @@
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 
 // #include <llvm/IR/Verifier.h>
-#include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
+// #include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
 
 #define DEBUG_TYPE "StreamSegmentLoopUnroll"
 // #undef LLVM_DEBUG
@@ -212,7 +212,7 @@ static bool tryConvertLoopToIoFsmLoop(
 #ifndef NDEBUG
 	assert(DT.verify());
 #endif
-	writeCFGToDotFile(F, "tmp/LoopToIoFsmPass.1.dot", AMForDebug, false, true);
+	// writeCFGToDotFile(F, "tmp/LoopToIoFsmPass.1.dot", AMForDebug, false, true);
 	std::map<BasicBlock *, SetVector<Instruction *>> allLiveins =
 		computeAllLiveins(F, DT);
 	demoteAllLiveVarsOnLaneCrossingToTmpAlloca(
