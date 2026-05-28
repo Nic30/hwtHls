@@ -217,12 +217,12 @@ bool HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit(
 				inRegionBB0Preds.push_back(pred);
 			}
 		}
+		assert(inRegionBB0Preds.size());
 		BasicBlock *newExit;
-		if (inRegionBB0Preds.size() == 1) {
+		if (inRegionBB0Preds.size() == 1 && inRegionBB0Preds[0] != &BB0) {
 			// use existing latch
 			newExit = inRegionBB0Preds[0];
 		} else {
-			assert(inRegionBB0Preds.size());
 			newExit = SplitBlockPredecessors(&BB0, inRegionBB0Preds,
 											 ".BB0Split", &DTU);
 			change = true;
