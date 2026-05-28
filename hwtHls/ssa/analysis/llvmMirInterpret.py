@@ -73,6 +73,7 @@ class LlvmMirInterpret():
         # TargetOpcode.G_FSHL: _decodeOpcode_G_FSHL, # already in HlsNetlistAnalysisPassMirToNetlistLowLevel.OPC_TO_OP
         # TargetOpcode.G_FSHR: _decodeOpcode_G_FSHR,
         TargetOpcode.COPY: _decodeOpcode_COPY,
+        TargetOpcode.G_FREEZE: _decodeOpcode_COPY,
         TargetOpcode.G_ICMP: _decodeOpcode_G_ICMP,
         TargetOpcode.HWTFPGA_ICMP: _decodeOpcode_G_ICMP,
         TargetOpcode.HWTFPGA_IMPLICIT_DEF: _decodeOpcode_HWTFPGA_IMPLICIT_DEF,
