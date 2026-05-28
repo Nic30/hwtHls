@@ -10,7 +10,7 @@ from pyDigitalWaveTools.vcd.value_format import VcdBitsFormatter, \
     LogValueFormatter
 from pyDigitalWaveTools.vcd.writer import VcdWriter
 
-
+# STRICT_VCD_ONLY gtkwave lib/libgtkwave/src/gw-vcd-loader.c
 class VcdLlvmIrBBFormatter(LogValueFormatter):
 
     def bind_var_info(self, varInfo: "VcdVarWritingInfo"):
