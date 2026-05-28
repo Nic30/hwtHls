@@ -72,7 +72,7 @@ jobs:
   install-test-deploy:
     resource_class: large
     docker:
-      - image: ubuntu:rolling
+      - image: ubuntu:questing
     executor:
        name: python/default
        tag: "3.13.7"
