@@ -1,8 +1,10 @@
 #pragma once
 
+#include <unordered_set>
+
 #include <llvm/ADT/SetVector.h>
 #include <llvm/IR/IRBuilder.h>
-#include <unordered_set>
+#include <llvm/IR/Dominators.h>
 
 namespace hwtHls {
 
@@ -25,7 +27,8 @@ public:
 
 	// llvm::DenseMap<llvm::PHINode *, llvm::Value *> loweredPhiCache;
 	llvm::SetVector<llvm::BasicBlock *> betweenExitBBs;
-
+	llvm::SetVector<llvm::BasicBlock *> blocksReachableFromBB0WithoutExit0;
+	
 	// BB0, exit block if it has some predecessor from outside of the region
 	// or some other exit block transitively
 	llvm::SetVector<llvm::BasicBlock *> bbsWhichMustPreservePhis;
@@ -34,9 +37,14 @@ public:
 	std::unordered_set<llvm::Value *> valuesAfffectedByExit0;
 	// map for phis which are instantiated for values defined in exitBB0
 	// directly and used in betweenExitBBs or exitBB1 phi node args
-	llvm::DenseMap<llvm::PHINode *, llvm::PHINode *>
+	llvm::MapVector<llvm::PHINode *, llvm::PHINode *>
 		phiInExit1ForValuesFromExit0;
-
+	llvm::DenseMap<llvm::Value*, llvm::PHINode *> exit1VersionOfValueDependentOnExit0;
+	llvm::DenseSet<llvm::PHINode*> newPhisInExit1;
+	
+	llvm::BasicBlock::iterator bb0SelectInsertPos;
+	llvm::BasicBlock::iterator bbExit1SelectInsertPos;
+		
 	LowerPhisToSelectInRegionContext(
 		llvm::IRBuilderBase &Builder, llvm::BasicBlock &BB0,
 		llvm::SetVector<llvm::BasicBlock *> &allBBsOfRegion,
@@ -63,6 +71,15 @@ public:
 			return sBB != &BB0 && sBB != BB && allBBsOfRegion.contains(sBB);
 		});
 	};
+	bool isInExit0Section(llvm::BasicBlock &BB) {
+		assert(exitBBs.size() > 1 && "Otherwise this function has no meaning");
+		return &BB == exitBBs[0] || betweenExitBBs.contains(&BB);
+	}
+	
+	bool isBlockExit1WithConditionRequired(llvm::BasicBlock & BB) {
+		// if we can not use exit0 cond
+		return exitBBs.size() == 2 && (exitBBs[0] == &BB0 && exitBBs[1] == &BB);
+	}
 };
 
 // construct an expression which is true if the DstBB is reached from SrcBB
@@ -81,11 +98,15 @@ llvm::Value *constructBranchConditionToBB(
 // Construct the expression which is 1 if the SrcBB jumps to DstBB
 llvm::Value *constructBranchConditionToBBDirect(llvm::IRBuilderBase &Builder,
 												llvm::BasicBlock &SrcBB,
-												llvm::BasicBlock &DstBB);
+												llvm::BasicBlock &DstBB,
+												std::optional<llvm::Value*> condOverride={}
+											);
 
 // :returns: the enable condition for a given block
 llvm::Value *lowerPhisOfBlockInRegion(LowerPhisToSelectInRegionContext &ctx,
-									  llvm::BasicBlock &BB);
+									  llvm::BasicBlock &BB, bool isPhiWithVersionForExit0);
+									  
+//void lowerPhisOfBlockInRegion_finalizeExit0AndBB0PathSelect(LowerPhisToSelectInRegionContext &ctx, llvm::DominatorTree &DT);
 //void updatePhiOperandsBeforeCfgUpdate(LowerPhisToSelectInRegionContext &ctx);
 // transform PHIs operands to select,
 // but only for blocks in switchSuccessors which are going to be removed

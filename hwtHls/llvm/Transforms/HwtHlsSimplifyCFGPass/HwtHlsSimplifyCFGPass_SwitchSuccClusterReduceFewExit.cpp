@@ -4,6 +4,7 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/utils_lowerPhiToSelect.h>
 
 #include <cassert>
+#include <llvm/IR/Verifier.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <llvm/IR/Dominators.h>
 #include <llvm/ADT/STLExtras.h>
@@ -20,6 +21,8 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
 
 using namespace llvm;
+
+// #define TRACE_SwitchSuccClusterReduceFewExit
 
 namespace hwtHls {
 
@@ -140,60 +143,160 @@ bool HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_matchPattern(
 	return true;
 }
 
+static void cleanupBlockWhichBecomeUnreachable(
+	LowerPhisToSelectInRegionContext &lowerPhiCtx,
+	const SetVector<BasicBlock *>& origSwitchSuccessors,
+	SmallVector<DominatorTree::UpdateType>& updates) {
+	/// change terminator to UnreachableInst for dangling unreachable blocks
+	/// without predecessor after we rerouted the parent SwitchInst
+	SetVector<BasicBlock *> worklist;
+	// init worklist
+	for (auto *BB : origSwitchSuccessors) {
+		if (pred_empty(BB)) {
+			worklist.insert(BB);
+		}
+	}
+	while (!worklist.empty()) {
+		BasicBlock *BB = worklist.pop_back_val();
+		assert(!lowerPhiCtx.bbsWhichMustPreservePhis.contains(BB));
+		auto term = BB->getTerminator();
+		SetVector<BasicBlock *> bbSuccessors(succ_begin(BB), succ_end(BB));
+		// :note: remove in advance to avoid problems with SwitchInst which may
+		// have BB as successor multipletimes
+		if (!isa<UnreachableInst>(term)) {
+			new UnreachableInst(BB->getContext(), term->getIterator());
+			term->eraseFromParent();
+		}
+		assert(BB->phis().empty() && "Phis for blocks which are going to be "
+									 "removed should be already lowered");
+		BB->moveBefore(BB->getParent()->end());
+		for (auto sucBB : bbSuccessors) {
+			// BB block is now unreachable, from this reason we has to
+			// replace all successor phi values for this BB with PoisonValue to
+			// prevent use before def, the value of phi in successor should be
+			// already updated and the incoming value from BBWithSwitch should
+			// have the value as this value had before this transformation
+			auto sucPreserved =
+				lowerPhiCtx.bbsWhichMustPreservePhis.contains(sucBB);
+			if (!sucPreserved) {
+				assert(sucBB->phis().empty() &&
+					   "Phis for blocks which are going to be removed should "
+					   "be already lowered");
+			}
+
+			if (pred_empty(sucBB)) {
+				worklist.insert(sucBB);
+			}
+			updates.push_back({DominatorTree::Delete, BB, sucBB});
+		}
+	}
+}
+
 bool HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit(
 	llvm::IRBuilderBase &Builder, llvm::DomTreeUpdater &DTU,
 	llvm::SwitchInst &SI, bool &exprChanged) {
 	auto &BB0 = *SI.getParent();
-	const SetVector<BasicBlock *> origSwitchSuccessors(succ_begin(&BB0),
-													   succ_end(&BB0));
+	DTU.flush();
+	auto &DT = DTU.getDomTree();
+	// assert(DT.verify());
+	SetVector<BasicBlock *> origSwitchSuccessors(succ_begin(&BB0),
+  											     succ_end(&BB0));
 	// :attention: switchSuccessors are gathered accumulatively from all
 	// dominated blocks
 	SetVector<BasicBlock *> allRegionBBs(origSwitchSuccessors);
-	DTU.flush();
-	auto &DT = DTU.getDomTree();
-	assert(DT.verify());
 	SetVector<BasicBlock *> exitBBs;
 	if (!HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_matchPattern(BB0, allRegionBBs, exitBBs, DT))
 		return false;
-	//errs() << "uniqueExits:\n";
-	//for (auto e : uniqueExits)
-	//	errs() << "    " << e->getName() << "\n";
-	//errs() << "before HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit: "
-	//	   << *BB0.getParent() << "\n";
+	bool change = false;
+	if (exitBBs.size() > 1) {
+		if (exitBBs.contains(&BB0)) {
+			SmallVector<BasicBlock *> inRegionBB0Preds;
+			for (auto pred : predecessors(&BB0)) {
+				if (allRegionBBs.contains(pred)) {
+					// [todo] move loop metadata from predecessor, because we creating a new latch
+					inRegionBB0Preds.push_back(pred);
+				}
+			}
+			BasicBlock *newExit;
+			if (inRegionBB0Preds.size() == 1) {
+				// use existing latch
+				newExit = inRegionBB0Preds[0];
+			} else {
+				assert(inRegionBB0Preds.size());
+				newExit = SplitBlockPredecessors(&BB0, inRegionBB0Preds,
+												 ".BB0Split", &DTU);
+				change = true;
+			}
+			allRegionBBs.insert(newExit);
+			origSwitchSuccessors.remove_if([&BB0](BasicBlock*BB) {
+				return BB == &BB0;
+			});
+			origSwitchSuccessors.insert(newExit);
+			// substitute BB0 exit with a newExit 			
+			if (exitBBs[0] == &BB0) {
+				auto e1 = exitBBs.pop_back_val();
+				exitBBs.pop_back();
+				exitBBs.insert(newExit);
+				exitBBs.insert(e1);
+			} else {
+				exitBBs.pop_back();
+				exitBBs.insert(newExit);
+			}
+			DTU.flush();
+		}
+	}
 	assert(exitBBs.size() != 0);
-
 	// now we know that there are only <=2 unique blocks from the cluster of
 	// empty blocks after the SwitchInst
-	//DenseMap<BasicBlock *, Value *> bbEnableCache;
-	//if (exitBBs.size() >= 2) {
-	//	fewExitCluster_cutOffExitBBInClusterSuccessors(Builder, DTU, BB0,
-	//												   allRegionBBs, exitBBs, bbEnableCache);
-	//}
 	SmallVector<DominatorTree::UpdateType> updates;
 	allRegionBBs.insert(exitBBs.begin(), exitBBs.end());
 	LowerPhisToSelectInRegionContext lowerPhiCtx(Builder, BB0, allRegionBBs, exitBBs);
 	lowerPhiCtx.analyze();
+	if (all_of(lowerPhiCtx.allBBsOfRegion, [&lowerPhiCtx](BasicBlock *BB) {
+		return &lowerPhiCtx.BB0 == BB || lowerPhiCtx.exitBBs.contains(BB);
+	})) {
+		return change; // too simple CFG for this transformation
+	}
+#ifdef TRACE_SwitchSuccClusterReduceFewExit
+	errs() << "before HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit: \n"
+		   << *BB0.getParent() << "\n";
+#endif
 	{
-		BasicBlock::iterator bbExit1InsertBegin;
+		lowerPhiCtx.bb0SelectInsertPos = BB0.getTerminator()->getIterator();
 		if (lowerPhiCtx.exitBBs.size() > 1) {
-			bbExit1InsertBegin = lowerPhiCtx.exitBBs[1]->getFirstInsertionPt();
-			if (!lowerPhiCtx.betweenExitBBs.empty() &&
-				is_contained(predecessors(lowerPhiCtx.exitBBs[1]),
-							 lowerPhiCtx.exitBBs[0])) {
-				// if bbExit0 is already a predecessor of bbExit1 we add
-				// split edge with a new block so we can safely add new operands coming from bbExit0
-				// once required
-				DTU.flush();
-				auto newBB =
-					SplitEdge(lowerPhiCtx.exitBBs[0], lowerPhiCtx.exitBBs[1], &DTU.getDomTree());
-				lowerPhiCtx.betweenExitBBs.insert(newBB);
-				assert(lowerPhiCtx.allBBsOfRegion.back() ==
-					   lowerPhiCtx.exitBBs[1]);
-				lowerPhiCtx.allBBsOfRegion.pop_back();
-				lowerPhiCtx.allBBsOfRegion.insert(newBB);
-				lowerPhiCtx.allBBsOfRegion.insert(lowerPhiCtx.exitBBs[1]);
-			}
+			lowerPhiCtx.bbExit1SelectInsertPos = lowerPhiCtx.exitBBs[1]->getFirstInsertionPt();
 		}
+#ifdef TRACE_SwitchSuccClusterReduceFewExit
+		errs() << "HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit\n";
+		errs() << "bb0:";
+		BB0.printAsOperand(errs());
+		errs() << "\n";
+		errs() << "allBBsOfRegion:\n";
+		for (auto bb : lowerPhiCtx.allBBsOfRegion) {
+			errs() << "    ";
+			bb->printAsOperand(errs());
+			errs() << "\n";
+		}
+		errs() << "blocksReachableFromBB0WithoutExit0:\n";
+		for (auto bb : lowerPhiCtx.blocksReachableFromBB0WithoutExit0) {
+			errs() << "    ";
+			bb->printAsOperand(errs());
+			errs() << "\n";
+		}
+		errs() << "betweenExitBBs:\n";
+		for (auto bb : lowerPhiCtx.betweenExitBBs) {
+			errs() << "    ";
+			bb->printAsOperand(errs());
+			errs() << "\n";
+		}
+		errs() << "exits:\n";
+		for (auto e : lowerPhiCtx.exitBBs) {
+			errs() << "    ";
+			e->printAsOperand(errs());
+			errs() << "\n";
+		}
+#endif
+		
 		// :note: lowerPhisOfBlockInRegion is required even if there are no phis, because it constructs
 		//        also block enable conditions
 		// :note: allBBsOfRegion are now topologically sorted so once we reach the
@@ -201,15 +304,20 @@ bool HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit(
 		for (auto *BB : lowerPhiCtx.allBBsOfRegion) {
 			if (BB == &lowerPhiCtx.BB0)
 				continue; // this may happen if BB0 is also the exit block
+			// if (lowerPhiCtx.bbsWhichMustPreservePhis.contains(BB))
+			// 	continue;
 			// errs() << "lowerPhisOfBlockInRegion: " << BB->getName() << "\n"; 
-			if (lowerPhiCtx.betweenExitBBs.contains(BB) || (!lowerPhiCtx.betweenExitBBs.empty() && BB == lowerPhiCtx.exitBBs[1])) {
+			if (lowerPhiCtx.betweenExitBBs.contains(BB) || 
+			    (!lowerPhiCtx.betweenExitBBs.empty() && BB == lowerPhiCtx.exitBBs[1])) {
 				// insert point will have to be set to bbExit1 because
 				// some values will come from the bbExit0
-				IRBuilderBase::InsertPointGuard g(Builder);
-				Builder.SetInsertPoint(bbExit1InsertBegin);
-				lowerPhisOfBlockInRegion(lowerPhiCtx, *BB);
+				Builder.SetInsertPoint(lowerPhiCtx.bbExit1SelectInsertPos);
+				// construct select only for incoming values from the {allBBsOfRegion - betweenExitBBs}, keep rest as is
+				// do not update uses
+				lowerPhisOfBlockInRegion(lowerPhiCtx, *BB, true);
 			} else {
-				lowerPhisOfBlockInRegion(lowerPhiCtx, *BB);
+				Builder.SetInsertPoint(lowerPhiCtx.bb0SelectInsertPos);
+				lowerPhisOfBlockInRegion(lowerPhiCtx, *BB, false);
 			}
 			exprChanged |= !BB->phis().empty(); 
 		}
@@ -358,17 +466,11 @@ bool HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit(
 		// }
 		//  must be constructed before we remove terminator from pred blocks
 		assert(Builder.GetInsertPoint() == SI.getIterator());
-		if (exitBBs[0] == &BB0) {
-			assert(lowerPhiCtx.bbEnableCache.contains(exitBBs[1]));
-			auto toExit1brCond = lowerPhiCtx.bbEnableCache[exitBBs[1]];
-			assert(toExit1brCond);
-			Builder.CreateCondBr(toExit1brCond, exitBBs[1], exitBBs[0]);
-		} else {
-			assert(lowerPhiCtx.bbEnableCache.contains(exitBBs[0]));
-			auto toExit0brCond = lowerPhiCtx.bbEnableCache[exitBBs[0]];
-			assert(toExit0brCond);
-			Builder.CreateCondBr(toExit0brCond, exitBBs[0], exitBBs[1]);
-		}
+		assert(exitBBs[0] != &BB0);
+		assert(lowerPhiCtx.bbEnableCache.contains(exitBBs[0]));
+		Value * toExit0brCond = lowerPhiCtx.bbEnableCache[exitBBs[0]];
+		assert(toExit0brCond);
+		Builder.CreateCondBr(toExit0brCond, exitBBs[0], exitBBs[1]);
 		
 		for (auto newSuc : exitBBs) {
 			if (!origSwitchSuccessors.contains(newSuc)) {
@@ -379,6 +481,8 @@ bool HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit(
 
 		DTU.applyUpdates(updates);
 		DTU.flush();
+
+		//lowerPhisOfBlockInRegion_finalizeExit0AndBB0PathSelect(lowerPhiCtx, DT);
 		updates.clear();
 		break;
 	}
@@ -386,57 +490,20 @@ bool HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit(
 		llvm_unreachable("All cases should be already handled");
 	}
 
-	/// change terminator to UnreachableInst for dangling unreachable blocks
-	/// without predecessor after we rerouted the parent SwitchInst
-	SetVector<BasicBlock *> worklist;
-	// init worklist
-	for (auto *BB : origSwitchSuccessors) {
-		if (pred_empty(BB)) {
-			worklist.insert(BB);
-		}
-	}
-	while (!worklist.empty()) {
-		BasicBlock *BB = worklist.pop_back_val();
-		assert(!lowerPhiCtx.bbsWhichMustPreservePhis.contains(BB));
-		auto term = BB->getTerminator();
-		SetVector<BasicBlock *> bbSuccessors(succ_begin(BB), succ_end(BB));
-		// :note: remove in advance to avoid problems with SwitchInst which may
-		// have BB as successor multipletimes
-		if (!isa<UnreachableInst>(term)) {
-			new UnreachableInst(BB->getContext(), term->getIterator());
-			term->eraseFromParent();
-		}
-		assert(BB->phis().empty() && "Phis for blocks which are going to be "
-									 "removed should be already lowered");
-		BB->moveBefore(BB->getParent()->end());
-		for (auto sucBB : bbSuccessors) {
-			// BB block is now unreachable, from this reason we has to
-			// replace all successor phi values for this BB with PoisonValue to
-			// prevent use before def, the value of phi in successor should be
-			// already updated and the incoming value from BBWithSwitch should
-			// have the value as this value had before this transformation
-			auto sucPreserved = lowerPhiCtx.bbsWhichMustPreservePhis.contains(sucBB);
-			if (!sucPreserved) {
-				assert(sucBB->phis().empty() &&
-					   "Phis for blocks which are going to be removed should "
-					   "be already lowered");
-			}
-
-			if (pred_empty(sucBB)) {
-				worklist.insert(sucBB);
-			}
-			updates.push_back({DominatorTree::Delete, BB, sucBB});
-		}
-	}
+	cleanupBlockWhichBecomeUnreachable(lowerPhiCtx, origSwitchSuccessors,
+									   updates);
 
 	DTU.applyUpdates(updates);
-	//DTU.flush();
+	DTU.flush();
 	for (auto *eBB : exitBBs) {
 		sortPhiOperands(*eBB, /*removeRedundantOperands*/ true);
 	}
-	//errs() << "after HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit: "
-	//		<< *BB0.getParent() << "\n";
-
+#ifdef TRACE_SwitchSuccClusterReduceFewExit
+	errs() << "after HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit: \n"
+			<< *BB0.getParent() << "\n";
+	assert(!verifyFunction(*BB0.getParent(), &errs()));
+#endif
+			
 	return true;
 }
 

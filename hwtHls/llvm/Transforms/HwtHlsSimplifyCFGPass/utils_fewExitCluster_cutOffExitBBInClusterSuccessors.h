@@ -10,6 +10,7 @@
 namespace hwtHls {
 
 void findBlocksBetweenExitBlocksOfRegion(
+	const llvm::BasicBlock & BB0,
 	const llvm::SetVector<llvm::BasicBlock *> &allRegionBBs,
 	const llvm::SetVector<llvm::BasicBlock *> &exitBBs,
 	llvm::SetVector<llvm::BasicBlock *> &betweenExitBBs);

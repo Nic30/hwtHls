@@ -21,13 +21,14 @@ using namespace llvm;
 namespace hwtHls {
 
 void findBlocksBetweenExitBlocksOfRegion(
+	const BasicBlock& BB0,
 	const SetVector<BasicBlock *> &allRegionBBs,
 	const SetVector<BasicBlock *> &exitBBs,
 	SetVector<BasicBlock *> &betweenExitBBs) {
 	SmallVector<BasicBlock *> worklist;
 	for (auto eBB : exitBBs) {
 		for (auto *Succ : successors(eBB)) {
-			if (!exitBBs.contains(Succ) && allRegionBBs.contains(Succ))
+			if (Succ != &BB0 && !exitBBs.contains(Succ) && allRegionBBs.contains(Succ))
 				worklist.push_back(Succ);
 		}
 	}
@@ -39,7 +40,7 @@ void findBlocksBetweenExitBlocksOfRegion(
 
 		betweenExitBBs.insert(Cur);
 		for (auto *Succ : successors(Cur)) {
-			if (!exitBBs.contains(Succ) && allRegionBBs.contains(Succ) &&
+			if (Succ != &BB0 && !exitBBs.contains(Succ) && allRegionBBs.contains(Succ) &&
 				!betweenExitBBs.contains(Succ))
 				worklist.push_back(Succ);
 		}
