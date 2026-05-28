@@ -143,6 +143,7 @@ void LlvmCompilationBundle::_registerHwtHlsPasses() {
 						   hwtHls::LoopMarkStatelessPrequelAsAsyncThreadPass,       //
 						   hwtHls::LoopMarkStatelessSequelAsAsyncThreadPass,        //
 						   hwtHls::OverwriteBlockNamesPass,			   //
+						   hwtHls::OptionallyOverwriteBlockNamesPass,  //
 						   hwtHls::ProfMetadataAddDummy,			   //
 						   hwtHls::ProfMetadataRmDummy,				   //
 						   hwtHls::PromoteAllocaToGlobalPass,		   //
@@ -418,7 +419,7 @@ void LlvmCompilationBundle::_addInitialNormalizationPasses(
 	FPM.addPass(llvm::DCEPass());
 	FPM.addPass(hwtHls::TmpAllocaLoweringPass());
 	// FPM.addPass(hwtHls::DumpAndExitPass(true, true, "dump.dot"));
-	// FPM.addPass(hwtHls::OverwriteBlockNamesPass());
+	FPM.addPass(hwtHls::OptionallyOverwriteBlockNamesPass());
 	// FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true));
 	llvm::LoopPassManager LPM0;
 	// it is important that it is done before LoopFlattenUsingIfPass
@@ -524,6 +525,7 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 	//FPM.addPass(hwtHls::DumpAndExitPass(
 	//	true, false, "tmp/LoopToIoFsmPass.begin.dot"));
 	FPM.addPass(hwtHls::LoopToIoFsmPass());
+	FPM.addPass(hwtHls::OptionallyOverwriteBlockNamesPass());
 	//FPM.addPass(hwtHls::DumpAndExitPass(
 	//	true, false, "tmp/LoopToIoFsmPass.after0.dot"));
 	FPM.addPass(hwtHls::IoPortVectorizationPass());
@@ -537,6 +539,7 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 	// does not support SwitchInst
 	FPM.addPass(
 		hwtHls::StreamSegmentLoopUnrollPass());
+	FPM.addPass(hwtHls::OptionallyOverwriteBlockNamesPass());
 	//FPM.addPass(hwtHls::DumpAndExitPass(
 	//	false, false, "tmp/StreamSegmentLoopUnrollPass.end.dot"));
 	FPM.addPass(hwtHls::IoPortVectorizationPass());	

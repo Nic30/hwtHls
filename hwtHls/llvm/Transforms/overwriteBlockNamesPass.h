@@ -6,8 +6,9 @@
 namespace hwtHls {
 
 /**
- *  Overwrite all block names to be in format bb{n}
- *  This pass is useful when debugging IR with very long block names
+ *  Overwrite all block names to be in format bb{n}.
+ *  It preserves the block names which are already in format bb{n}.  
+ *  This pass is useful when debugging IR with very long block names.
  */
 class OverwriteBlockNamesPass: public llvm::PassInfoMixin<
 OverwriteBlockNamesPass> {
@@ -15,5 +16,14 @@ public:
 	llvm::PreservedAnalyses run(llvm::Function &F,
 			llvm::FunctionAnalysisManager &AM);
 };
+
+// same as OverwriteBlockNamesPass just enabled only if the cli opt. is set
+class OptionallyOverwriteBlockNamesPass: public llvm::PassInfoMixin<
+OverwriteBlockNamesPass> {
+public:
+	llvm::PreservedAnalyses run(llvm::Function &F,
+			llvm::FunctionAnalysisManager &AM);
+};
+
 
 }
