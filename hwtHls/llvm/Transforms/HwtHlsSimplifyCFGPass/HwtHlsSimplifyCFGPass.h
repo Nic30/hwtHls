@@ -109,6 +109,32 @@ struct HwtHlsSimplifyCFGOptions: public llvm::SimplifyCFGOptions {
 		SwitchReduceRange = B;
 		return *this;
 	}
+	
+	HwtHlsSimplifyCFGOptions& setRunEarlyCSEPass(bool B) {
+		RunEarlyCSEPass = B;
+		return *this;
+	}
+
+	HwtHlsSimplifyCFGOptions& setRunRomExtractPass(bool B) {
+		RunRomExtractPass = B;
+		return *this;
+	}
+	HwtHlsSimplifyCFGOptions& setRunHwtHlsInstCombinePass(bool B) {
+		RunHwtHlsInstCombinePass = B;
+		return *this;
+	}
+	HwtHlsSimplifyCFGOptions& setRunTrivialSimplifyCFGPass(bool B) {
+		RunTrivialSimplifyCFGPass = B;
+		return *this;
+	}
+	HwtHlsSimplifyCFGOptions& setRunSimplifyCFGPass(bool B) {
+		RunSimplifyCFGPass = B;
+		return *this;
+	}
+	HwtHlsSimplifyCFGOptions& setRunBitcountMergePass(bool B) {
+		RunBitcountMergePass = B;
+		return *this;
+	}
 
 };
 class SimplifyCFGOpt2;

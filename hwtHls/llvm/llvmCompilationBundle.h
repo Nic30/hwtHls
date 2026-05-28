@@ -138,7 +138,13 @@ public:
 			bool HoistCommonInsts,            //
 			bool SinkCommonInsts,             //
 			bool SimplifyCondBranch,          //
-			bool HoistCheapInsts,              //
+			bool HoistCheapInsts,             //
+			bool RunEarlyCSEPass,             //
+			bool RunRomExtractPass,           //
+			bool RunHwtHlsInstCombinePass,    //
+			bool RunTrivialSimplifyCFGPass,   //
+			bool RunSimplifyCFGPass,          //
+			bool RunBitcountMergePass,        //
 			std::optional<std::string> dumpDotBeforeToFile,  //
 			std::optional<std::string> dumpDotAfterToFile,   //
 			std::optional<std::string> dumpCfgBeforeToFile,  //

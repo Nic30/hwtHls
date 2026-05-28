@@ -135,6 +135,12 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 				py::arg("SinkCommonInsts").noconvert() = false,
 				py::arg("SimplifyCondBranch").noconvert() = true,
 				py::arg("HoistCheapInsts").noconvert() = false,
+				py::arg("RunEarlyCSEPass").noconvert() = true,
+				py::arg("RunRomExtractPass").noconvert() = true,
+				py::arg("RunHwtHlsInstCombinePass").noconvert() = true,
+				py::arg("RunTrivialSimplifyCFGPass").noconvert() = true,
+				py::arg("RunSimplifyCFGPass").noconvert() = true,
+				py::arg("RunBitcountMergePass").noconvert() = true,
 				py::arg("dumpDotBeforeToFile") = std::optional<std::string>(),  //
 				py::arg("dumpDotAfterToFile") = std::optional<std::string>(),   //
 				py::arg("dumpCfgBeforeToFile") = std::optional<std::string>(),  //
