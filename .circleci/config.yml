@@ -60,7 +60,7 @@ jobs:
               apt install build-essential git ninja-build cmake libreadline8 libreadline-dev -y
               ./build_debs.sh
               cd $DEB_dir
-              mv libabc-dev-$ABC_VERSION_LATEST-Linux.deb libabc-dev-$ABC_BUILD_CACHE_KEY-Linux.deb 
+              mv libabc-dev-0.0.1+git.$ABC_VERSION_LATEST-Linux.deb libabc-dev-$ABC_BUILD_CACHE_KEY-Linux.deb 
               ls -l $DEB_dir
             fi
       - save_cache:
