@@ -208,42 +208,40 @@ bool HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit(
 	if (!HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_matchPattern(BB0, allRegionBBs, exitBBs, DT))
 		return false;
 	bool change = false;
-	if (exitBBs.size() > 1) {
-		if (exitBBs.contains(&BB0)) {
-			SmallVector<BasicBlock *> inRegionBB0Preds;
-			for (auto pred : predecessors(&BB0)) {
-				if (allRegionBBs.contains(pred)) {
-					// [todo] move loop metadata from predecessor, because we creating a new latch
-					inRegionBB0Preds.push_back(pred);
-				}
+	if (exitBBs.size() > 1 && exitBBs.contains(&BB0)) {
+		SmallVector<BasicBlock *> inRegionBB0Preds;
+		for (auto pred : predecessors(&BB0)) {
+			if (allRegionBBs.contains(pred)) {
+				// [todo] move loop metadata from predecessor, because we
+				// creating a new latch
+				inRegionBB0Preds.push_back(pred);
 			}
-			BasicBlock *newExit;
-			if (inRegionBB0Preds.size() == 1) {
-				// use existing latch
-				newExit = inRegionBB0Preds[0];
-			} else {
-				assert(inRegionBB0Preds.size());
-				newExit = SplitBlockPredecessors(&BB0, inRegionBB0Preds,
-												 ".BB0Split", &DTU);
-				change = true;
-			}
-			allRegionBBs.insert(newExit);
-			origSwitchSuccessors.remove_if([&BB0](BasicBlock*BB) {
-				return BB == &BB0;
-			});
-			origSwitchSuccessors.insert(newExit);
-			// substitute BB0 exit with a newExit 			
-			if (exitBBs[0] == &BB0) {
-				auto e1 = exitBBs.pop_back_val();
-				exitBBs.pop_back();
-				exitBBs.insert(newExit);
-				exitBBs.insert(e1);
-			} else {
-				exitBBs.pop_back();
-				exitBBs.insert(newExit);
-			}
-			DTU.flush();
 		}
+		BasicBlock *newExit;
+		if (inRegionBB0Preds.size() == 1) {
+			// use existing latch
+			newExit = inRegionBB0Preds[0];
+		} else {
+			assert(inRegionBB0Preds.size());
+			newExit = SplitBlockPredecessors(&BB0, inRegionBB0Preds,
+											 ".BB0Split", &DTU);
+			change = true;
+		}
+		allRegionBBs.insert(newExit);
+		origSwitchSuccessors.remove_if(
+			[&BB0](BasicBlock *BB) { return BB == &BB0; });
+		origSwitchSuccessors.insert(newExit);
+		// substitute BB0 exit with a newExit
+		if (exitBBs[0] == &BB0) {
+			auto e1 = exitBBs.pop_back_val();
+			exitBBs.pop_back();
+			exitBBs.insert(newExit);
+			exitBBs.insert(e1);
+		} else {
+			exitBBs.pop_back();
+			exitBBs.insert(newExit);
+		}
+		DTU.flush();
 	}
 	assert(exitBBs.size() != 0);
 	// now we know that there are only <=2 unique blocks from the cluster of
