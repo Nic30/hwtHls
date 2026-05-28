@@ -8,7 +8,7 @@ namespace hwtHls {
 
 void splitBBsOnIOAccess(DomTreeUpdater &DTU, LoopInfo &LI, Loop &L,
 		Argument &IoArg, bool &ioIsInput, SmallVector<BasicBlock*> &BBs,
-		SmallVector<Instruction*> &IoInstructions) {
+		SmallVector<Instruction*> &IoInstructions, StringRef nameSuffix) {
 	ioIsInput = true;
 	// split blocks on LoadInst/StoreInst to this IO
 	MemorySSAUpdater *MSSAU = nullptr; // not using memory ssa
@@ -52,7 +52,7 @@ void splitBBsOnIOAccess(DomTreeUpdater &DTU, LoopInfo &LI, Loop &L,
 				if (!shouldSplitBefore.value())
 					splitPoint = splitPoint->getNextNode();
 				auto BBTmp = SplitBlock(BB, splitPoint, &DTU, &LI, MSSAU,
-						BB->getName() + ".streamSegSplit",
+						BB->getName() + nameSuffix,
 						shouldSplitBefore.value());
 				newBBs.push_back(BBTmp);
 				if (shouldSplitBefore.value()) {

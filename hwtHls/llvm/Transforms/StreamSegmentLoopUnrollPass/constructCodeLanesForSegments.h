@@ -17,8 +17,7 @@ void copyCodeForLanes(const StreamChannelProps &streamProps, llvm::LoopInfo &LI,
 		llvm::SmallVector<llvm::SmallVector<llvm::BasicBlock*> > &loopBodyCopies,
 		const std::unique_ptr<llvm::ValueToValueMapTy[]> &valueMaps,
 		llvm::Function &F);
-void demoteBlockPHIsToAlloca(std::vector<llvm::AllocaInst*> &tmpAllocas,
-		llvm::BasicBlock &BB);
+
 void buildBlockIndexMaps(
 		const llvm::SmallVector<llvm::SmallVector<llvm::BasicBlock*> > &loopBodyCopies,
 		std::map<llvm::BasicBlock*, unsigned> &BBToIndexInloopBodyCopies,

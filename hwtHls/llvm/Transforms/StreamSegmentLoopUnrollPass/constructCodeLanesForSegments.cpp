@@ -85,14 +85,6 @@ void copyCodeForLanes(const StreamChannelProps &streamProps, llvm::LoopInfo &LI,
 	DTU.applyUpdates(DTUpdates);
 }
 
-void demoteBlockPHIsToAlloca(std::vector<AllocaInst*> &tmpAllocas,
-		BasicBlock &BB) {
-	for (auto &headerPhi : make_early_inc_range(BB.phis())) {
-		AllocaInst *a = DemotePHIToStack(&headerPhi);
-		tmpAllocas.push_back(a);
-	}
-}
-
 void buildBlockIndexMaps(
 		const SmallVector<SmallVector<BasicBlock*> > &loopBodyCopies,
 		std::map<BasicBlock*, unsigned> &BBToIndexInloopBodyCopies,

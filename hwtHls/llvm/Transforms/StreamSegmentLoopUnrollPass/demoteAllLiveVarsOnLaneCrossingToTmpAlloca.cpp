@@ -35,4 +35,24 @@ void demoteAllLiveVarsOnLaneCrossingToTmpAlloca(llvm::IRBuilder<> &Builder,
 	}
 }
 
+void demoteBlockPHIsToAlloca(std::vector<AllocaInst*> &tmpAllocas,
+		BasicBlock &BB) {
+	for (auto &headerPhi : make_early_inc_range(BB.phis())) {
+		AllocaInst *a = DemotePHIToStack(&headerPhi);
+		tmpAllocas.push_back(a);
+	}
+}
+void demoteBlockPHIsToAlloca(std::vector<AllocaInst *> &tmpAllocas, Loop &L) {
+	// :note: the PHIs are known to be only in header, other split point do
+	// not have PHIs
+	//  because the split was just created using SplitBlock on the place
+	//  where Load/Store inst was
+	demoteBlockPHIsToAlloca(tmpAllocas, *L.getHeader());
+	SmallVector<BasicBlock *> ExitBlocks;
+	L.getExitBlocks(ExitBlocks);
+	for (auto E : ExitBlocks) {
+		demoteBlockPHIsToAlloca(tmpAllocas, *E);
+	}
+}
+
 }

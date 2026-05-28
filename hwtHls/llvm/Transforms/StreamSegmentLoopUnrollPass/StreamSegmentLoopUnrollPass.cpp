@@ -1,6 +1,6 @@
 #include <hwtHls/llvm/Transforms/StreamSegmentLoopUnrollPass/StreamSegmentLoopUnrollPass.h>
-#include <hwtHls/llvm/Transforms/StreamSegmentLoopUnrollPass/chainedRerouteLaneCfg.h>
 
+#include <llvm/Support/ErrorHandling.h>
 #include <llvm/ADT/PriorityWorklist.h>
 #include <llvm/Analysis/AssumptionCache.h>
 #include <llvm/Analysis/DomTreeUpdater.h>
@@ -20,6 +20,8 @@
 #include <hwtHls/llvm/Analysis/mergeSetsBasedLivenessAnalysis/liveness.h>
 #include <hwtHls/llvm/Analysis/mergeSetsBasedLivenessAnalysis/mergeSets.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
+#include <hwtHls/llvm/Transforms/LoopToIoFsmPass/normalizeLoops.h>
+#include <hwtHls/llvm/Transforms/StreamSegmentLoopUnrollPass/chainedRerouteLaneCfg.h>
 #include <hwtHls/llvm/Transforms/StreamSegmentLoopUnrollPass/constructCodeLanesForSegments.h>
 #include <hwtHls/llvm/Transforms/StreamSegmentLoopUnrollPass/demoteAllLiveVarsOnLaneCrossingToTmpAlloca.h>
 #include <hwtHls/llvm/Transforms/StreamSegmentLoopUnrollPass/splitBBsOnIOAccess.h>
@@ -29,7 +31,6 @@
 #include <hwtHls/llvm/Transforms/utils/loopHwtHlsMetadata.h>
 #include <hwtHls/llvm/bitMath.h>
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
-
 
 // #include <llvm/IR/Verifier.h>
 // #include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
@@ -105,18 +106,7 @@ static LoopUnrollResult tryToUnrollStreamSegmentLoop(
 	if (hasUserOutsideOfLoop)
 		throw std::runtime_error(errSS.str());
 	SE.forgetLoop(&L);
-	{
-		// :note: the PHIs are known to be only in header, other split point do
-		// not have PHIs
-		//  because the split was just created using SplitBlock on the place
-		//  where Load/Store inst was
-		demoteBlockPHIsToAlloca(tmpAllocas, *L.getHeader());
-		SmallVector<BasicBlock *> ExitBlocks;
-		L.getExitBlocks(ExitBlocks);
-		for (auto E : ExitBlocks) {
-			demoteBlockPHIsToAlloca(tmpAllocas, *E);
-		}
-	}
+	demoteBlockPHIsToAlloca(tmpAllocas, L);
 	// Save loop properties before it is transformed.
 	MDNode *OrigLoopID = L.getLoopID();
 	// MDNode *OrigHwtHlsLoopID = Loop_getHwtHlsLoopID(*L);
@@ -125,15 +115,17 @@ static LoopUnrollResult tryToUnrollStreamSegmentLoop(
 	bool ioIsInput;
 	SmallVector<BasicBlock *> BBs;
 	SmallVector<Instruction *> IoInstructions;
-	splitBBsOnIOAccess(DTU, LI, L, IoArg, ioIsInput, BBs, IoInstructions);
+	fixDublicitCfgEdgesByNewBBInsertion(&DTU, &LI, F);
+	// assert(!verifyFunction(F, &errs()));
+	DTU.flush();
+	splitBBsOnIOAccess(DTU, LI, L, IoArg, ioIsInput, BBs, IoInstructions, ".streamSegSplit");
 	DTU.flush();
 #ifndef NDEBUG
 	LI.verify(DT);
 #endif
-	/// Get computed DJ-graph of the control flow graph.
-	DJGraph djGraph = computeDJGraph(F, DT);
-	MergeSets mergeSets = completeTopDownMergeSetComputation(djGraph, F, DT);
-	auto allLiveins = allLiveInUsingMergeSet(F.getEntryBlock(), DT, mergeSets);
+
+	std::map<BasicBlock*, SetVector<Instruction*>> allLiveins = computeAllLiveins(F, DT);
+
 	IRBuilder<> Builder(F.getContext());
 	demoteAllLiveVarsOnLaneCrossingToTmpAlloca(
 		Builder, F, ioIsInput, allLiveins, BBs, IoInstructions, tmpAllocas);
@@ -262,18 +254,7 @@ StreamSegmentLoopUnrollPass::run(llvm::Function &F,
 					? &AM.getResult<BlockFrequencyAnalysis>(F)
 					: nullptr;
 
-	bool Changed = false;
-
-	// The unroller requires loops to be in simplified form, and also needs
-	// LCSSA. Since simplification may add new inner loops, it has to run before
-	// the legality and profitability checks. This means running the loop
-	// unroller will simplify all loops, regardless of whether anything end up
-	// being unrolled.
-	for (const auto &L : LI) {
-		Changed |= simplifyLoop(L, &DT, &LI, &SE, &AC, nullptr,
-								false /* PreserveLCSSA */);
-		Changed |= formLCSSARecursively(*L, DT, &LI, &SE);
-	}
+	bool Changed = normalizeLoopsForUnrolling(LI, DT, &SE, &AC);
 	// F.dump();
 	// writeCFGToDotFile(F, "tmp/StreamSegmentLoopUnrollPass.0.dot", AM, false,
 	// 		true);
@@ -367,11 +348,7 @@ StreamSegmentLoopUnrollPass::run(llvm::Function &F,
 	// #ifndef NDEBUG
 	//	LI2.verify(DT);
 	// #endif
-	for (const auto &L : LI2) {
-		simplifyLoop(L, &DT, &LI2, &SE2, &AC, nullptr,
-					 false /* PreserveLCSSA */);
-		formLCSSARecursively(*L, DT, &LI2, &SE2);
-	}
+	normalizeLoopsForUnrolling(LI2, DT, &SE2, &AC);
 
 	PA.preserve<LoopAnalysis>();
 	PA.preserve<LoopAnalysisManagerFunctionProxy>();
