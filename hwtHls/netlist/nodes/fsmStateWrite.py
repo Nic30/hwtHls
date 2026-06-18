@@ -82,3 +82,16 @@ class HlsNetNodeFsmStateWrite(HlsNetNode):
         self.outputWireDelay = ()
         self.outputClkTickOffset = ()
 
+    @override
+    def markAsRemoved(self):
+        super().markAsRemoved()
+        assert self.scheduledZero is not None, self
+        assert self.parent, self
+        con = self.parent.connections.getForTime(self.scheduledZero, allowNone=True)
+        if con is None:
+            return
+        
+        con: "ConnectionsOfStage"
+        assert con.fsmStateWriteNode is self, (self, con.fsmStateWriteNode)
+        con.fsmStateWriteNode = None
+

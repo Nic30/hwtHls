@@ -42,6 +42,19 @@ class HlsNetNodeFsmStateEn(HlsNetNode):
         self.outputWireDelay = (0,)
         self.outputClkTickOffset = (0,)
 
+    @override
+    def markAsRemoved(self):
+        super().markAsRemoved()
+        assert self.scheduledZero is not None, self
+        assert self.parent, self
+        con = self.parent.connections.getForTime(self.scheduledZero, allowNone=True)
+        if con is None:
+            return
+        
+        con: "ConnectionsOfStage"
+        assert con.fsmStateEnNode is self, (self, con.fsmStateEnNode)
+        con.fsmStateEnNode = None
+
 
 class HlsNetlistSimHandlerFsmStateEn(HlsNetlistSimHandler):
 
@@ -93,4 +106,17 @@ class HlsNetNodeStageAck(HlsNetNode):
         self.outputWireDelay = ()
         self.outputClkTickOffset = ()
         self.isAllowedInFFStoreTime = True
+
+    @override
+    def markAsRemoved(self):
+        super().markAsRemoved()
+        assert self.scheduledZero is not None, self
+        assert self.parent, self
+        con = self.parent.connections.getForTime(self.scheduledZero, allowNone=True)
+        if con is None:
+            return
+        
+        con: "ConnectionsOfStage"
+        assert con.fsmStateAckNode is self, (self, con.fsmStateAckNode)
+        con.fsmStateAckNode = None
 
