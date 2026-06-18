@@ -41,5 +41,5 @@ hlsNetlistAllTests_TCs = [
 ]
 
 if __name__ == '__main__':
-    unittestMain(testSuiteFromTCs(*hlsNetlistAllTests_TCs), useParallelTest=True, printTopLongest=3)
+    unittestMain(testSuiteFromTCs(*hlsNetlistAllTests_TCs), printTopLongest=3)
 

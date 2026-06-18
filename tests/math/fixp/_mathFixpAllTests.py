@@ -29,4 +29,4 @@ llvmMathFixp_TCs = [
 ]
 
 if __name__ == '__main__':
-    unittestMain(testSuiteFromTCs(*llvmMathFixp_TCs))
+    unittestMain(testSuiteFromTCs(*llvmMathFixp_TCs), printTopLongest=3)
