@@ -1,4 +1,3 @@
-from copy import copy
 from typing import List, Dict, Optional, Generator, Callable, Union, Tuple
 
 from hwt.hdl.operatorDefs import HwtOps
@@ -12,11 +11,9 @@ from hwtHls.netlist.nodes.node import HlsNetNode_numberForEachInput, \
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.schedulableNode import OutputTimeGetter, OutputMinUseTimeGetter, \
     SchedTime
-from hwtHls.netlist.scheduler.clk_math import clkWindowBeginOfNext
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
 from hwtHls.netlist.techmap.hlsNetlistToCppTranslator import HlsNetlistToCppTranslator
 from hwtHls.netlist.techmap.techmap import FlowmapWorker, HlsNetNode as HlsNetNodeCpp, scheduleLutAlap
-from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
 
 class HlsNetNodeBitwiseOps(HlsNetNodeAggregateTmpForScheduling):
@@ -32,6 +29,16 @@ class HlsNetNodeBitwiseOps(HlsNetNodeAggregateTmpForScheduling):
         self._totalInputCnt: Dict[HlsNetNodeOperator, int] = {}
         self._toCppTranslator:Optional[HlsNetlistToCppTranslator] = None
         self._flowMapWorker: Optional[FlowmapWorker] = None
+
+    @override
+    def destroy(self):
+        """
+        Delete properties of this object to prevent unintentional use.
+        """
+        super().destroy()
+        self._totalInputCnt = None
+        self._toCppTranslator = None
+        self._flowMapWorker = None
 
     @staticmethod
     def _resolveSubnodeRealization_normalizeTiming(node: HlsNetNodeOperator, wireDelay: Union[float, Tuple[float]]):
