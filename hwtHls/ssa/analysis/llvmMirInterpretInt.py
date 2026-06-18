@@ -88,7 +88,7 @@ def _decodeOpcode_HWTFPGA_MERGE_VALUES(interpret: "LlvmMirInterpret", MRI: Machi
         _ops = interpret._prepareInstrArguments(ops, regs)
         for i, (o, w) in enumerate(zip(_ops, widths)):
             if o is None:
-                raise AssertionError("Indexing on uninitialized value (this is use before def)", i, instr)
+                raise AssertionError("Indexing on uninitialized value (this is use before def)", i, instr.getOperand(i + 1), instr,)
             assert (o._dtype.bit_length() == w), (instr, i, o, w)
         res = Concat(*reversed(_ops))
         regs[dst] = res
