@@ -12,6 +12,7 @@ from hwtHls.architecture.analysis.fsmStateEncoding import HlsAndRtlNetlistAnalys
 from hwtHls.netlist.nodes.fsmStateWrite import HlsNetNodeFsmStateWrite
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from hwtHls.netlist.nodes.explicitRegisterAccess import RtlRegisterMeta
 
 
 class HlsAndRtlNetlistPassDumpStreamNodes(HlsAndRtlNetlistAnalysisPass):
@@ -64,25 +65,31 @@ class HlsAndRtlNetlistPassDumpStreamNodes(HlsAndRtlNetlistAnalysisPass):
 
                         out.write("   inputs (io, out ready signal):\n")
                         for hwio, ioMuxCaseList in stCon.fsmIoMuxCases.items():
-                            if isinstance(ioMuxCaseList[0][0], HlsNetNodeWrite):
+                            if isinstance(hwio, RtlRegisterMeta):
+                                continue
+                            elif isinstance(ioMuxCaseList[0][0], HlsNetNodeWrite):
+                                # skip local non io ports
                                 continue
                             rd = ioMuxCaseList[0][2]
                             out.write(f"      {hwio}, {rd}:\n")
                             for node, en, _, _ in ioMuxCaseList:
                                 out.write(f"         id={node._id}, {en}\n")
-                        #for en, rd in stCon.finalInputs:
+                        # for en, rd in stCon.finalInputs:
                         #    out.write(f"      {en}, {rd}\n")
 
                         out.write("   outputs (io, out valid signal):\n")
-                        #for en, vld in stCon.finalOutputs:
+                        # for en, vld in stCon.finalOutputs:
                         for hwio, ioMuxCaseList in stCon.fsmIoMuxCases.items():
-                            if isinstance(ioMuxCaseList[0][0], HlsNetNodeRead):
+                            if isinstance(hwio, RtlRegisterMeta):
+                                continue
+                            elif isinstance(ioMuxCaseList[0][0], HlsNetNodeRead):
+                                # skip local non io ports
                                 continue
                             vld = ioMuxCaseList[0][2]
                             out.write(f"      {hwio}, {vld}:\n")
                             for node, en, _, _ in ioMuxCaseList:
                                 out.write(f"         id={node._id}, {en}\n")
-                            #out.write(f"      {en}, {vld}\n")
+                            # out.write(f"      {en}, {vld}\n")
 
                         out.write("\n")
                 elif isinstance(elm, ArchElementNoImplicitSync):
