@@ -7,6 +7,9 @@ from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
 
 class HlsNetlistPassArchElementStageInit(HlsNetlistPass):
+    """
+    Init stage containers in ArchElements with from its nodes
+    """
 
     def _ArchElementStageInit(self, elm: ArchElement):
         for n in elm.subNodes:
