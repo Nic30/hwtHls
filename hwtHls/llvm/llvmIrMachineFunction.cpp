@@ -117,6 +117,7 @@ void register_MachineFunction(pybind11::module_ &m) {
 		.def("isMBB", &llvm::MachineOperand::isMBB)
 		.def("isCImm", &llvm::MachineOperand::isCImm)
 		.def("isImm", &llvm::MachineOperand::isImm)
+		.def("isImplicit", &llvm::MachineOperand::isImplicit)
 		.def("isPredicate", &llvm::MachineOperand::isPredicate)
 		.def("isGlobal", &llvm::MachineOperand::isGlobal)
 		.def("getParent", [](llvm::MachineOperand * MO) {

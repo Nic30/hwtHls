@@ -222,6 +222,8 @@ class LlvmMirInterpret():
         for mo in operandValues:
             mo: MachineOperand
             if mo.isReg():
+                if mo.isImplicit():
+                    continue
                 r: Register = mo.getReg()
                 if mo.isDef():
                     ops.append(r.virtRegIndex())
