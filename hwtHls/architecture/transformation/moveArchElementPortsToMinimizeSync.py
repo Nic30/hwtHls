@@ -1,24 +1,16 @@
-from typing import Tuple, Dict, Set
-
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
-from hwtHls.architecture.connectionsOfStage import ConnectionsOfStage
-from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResource, \
-    INVARIANT_TIME
-from hwtHls.architecture.transformation.addImplicitSyncChannels import SyncCacheKey
 from hwtHls.architecture.transformation.hlsArchPass import HlsArchPass
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.aggregatePorts import HlsNetNodeAggregatePortIn, \
     HlsNetNodeAggregatePortOut
 from hwtHls.netlist.nodes.archElement import ArchElement
-from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
 from hwtHls.netlist.nodes.archElementPipeline import ArchElementPipeline
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
-from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
+from hwtHls.netlist.nodes.ports import HlsNetNodeIn
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
-from hwtHls.netlist.scheduler.clk_math import clkWindowIndex, clkWindowEnd, \
+from hwtHls.netlist.scheduler.clk_math import clkWindowEnd, \
     clkWindowBegin
 from hwtHls.preservedAnalysisSet import PreservedAnalysisSet
 
@@ -37,6 +29,7 @@ class HlsArchPassMoveArchElementPortsToMinimizeSync(HlsArchPass):
         archElements = [elm for elm in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.ONLY_PARENT_PREORDER) if elm is not netlist]
         # nonOptionalClkWindows: Set[Tuple[ArchElement, int]] = set()
         clkPeriod = netlist.normalizedClkPeriod
+
         for elm in archElements:
             elm: ArchElement
             if isinstance(elm, ArchElementPipeline):
@@ -246,7 +239,7 @@ class HlsArchPassMoveArchElementPortsToMinimizeSync(HlsArchPass):
     #
     #    return False
     #
-    #def extendValidityOfRtlResource(self, tir: TimeIndependentRtlResource, endTime: float):
+    # def extendValidityOfRtlResource(self, tir: TimeIndependentRtlResource, endTime: float):
     #    assert self._rtlDatapathAllocated
     #    assert not self._rtlSyncAllocated
     #    assert tir.timeOffset is not INVARIANT_TIME
@@ -268,7 +261,7 @@ class HlsArchPassMoveArchElementPortsToMinimizeSync(HlsArchPass):
     #        tir.get(t)
     #        sigs.append(tir)
 
-    #def finalizeInterElementsConnections(self):
+    # def finalizeInterElementsConnections(self):
     #    """
     #    Resolve a final value when the data will be exchanged between arch. element instances
     #    """
@@ -296,7 +289,7 @@ class HlsArchPassMoveArchElementPortsToMinimizeSync(HlsArchPass):
     #                dstTir: TimeIndependentRtlResource = dstElm.netNodeToRtl[o]
     #                self._finalizeInterElementsConnection(o, srcTir, dstTir, srcElm, dstElm, elementIndex, syncAdded, tirsConnected)
     #
-    #def _finalizeInterElementsConnection(self, o: HlsNetNodeOut,
+    # def _finalizeInterElementsConnection(self, o: HlsNetNodeOut,
     #                                     srcTir: TimeIndependentRtlResource, dstTir: TimeIndependentRtlResource,
     #                                     srcElm: ArchElement, dstElm: ArchElement,
     #                                     elementIndex: Dict[ArchElement, int],
