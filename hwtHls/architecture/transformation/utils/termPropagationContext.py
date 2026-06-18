@@ -63,6 +63,7 @@ class ArchElementTermPropagationCtx():
 
     def propagate(self, srcNode: ArchSyncNodeTy, out: HlsNetNodeOut, name: str) -> HlsNetNodeOut:
         assert out
+        assert not out.obj._isMarkedRemoved, out
         assert out.obj in srcNode[0].subNodes, (srcNode[0], out, name)
         # export out from srcNode
         kSrc = ArchSyncNodeTerm(srcNode, out, name)
