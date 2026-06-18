@@ -68,38 +68,41 @@ char CheapBlockInline::ID = 0;
 INITIALIZE_PASS(CheapBlockInline, DEBUG_TYPE, "Cheap Machine Block Inline Pass",
 		false, false)
 
-static bool isFreeMachineInstr(const MachineInstr &MI) {
+namespace hwtHls {
+bool isFreeMachineInstr(const MachineInstr &MI) {
 	switch (MI.getOpcode()) {
 	case TargetOpcode::COPY:
 	case TargetOpcode::G_CONSTANT:
 	case HwtFpga::HWTFPGA_MUX:
 		return MI.getNumExplicitOperands() == 2;
 		// :note: implicit defs should be hoisted before
-		// case TargetOpcode::G_IMPLICIT_DEF:
-		// case TargetOpcode::IMPLICIT_DEF:
-		// [TODO]
-		// case HwtFpga::HWTFPGA_EXTRACT:
-		// case HwtFpga::HWTFPGA_MERGE_VALUES:
+	case TargetOpcode::G_IMPLICIT_DEF:
+	case TargetOpcode::IMPLICIT_DEF:
+	case HwtFpga::HWTFPGA_IMPLICIT_DEF:
+	//	// [TODO]
+	//	// case HwtFpga::HWTFPGA_EXTRACT:
+	//	// case HwtFpga::HWTFPGA_MERGE_VALUES:
 		return true;
 	default:
 		return false;
 	}
 }
 
-static bool isCheapMachineInstr(const MachineInstr &MI) {
+bool isCheapMachineInstr(const MachineInstr &MI) {
 	if (isFreeMachineInstr(MI))
 		return true;
 	switch (MI.getOpcode()) {
 	case TargetOpcode::G_IMPLICIT_DEF:
 	case TargetOpcode::IMPLICIT_DEF:
+	case HwtFpga::HWTFPGA_IMPLICIT_DEF:
 	case HwtFpga::HWTFPGA_MUX:
 	case TargetOpcode::G_SELECT:
 	case TargetOpcode::COPY:
 	case TargetOpcode::G_CONSTANT:
 	case HwtFpga::HWTFPGA_EXTRACT:
 	case HwtFpga::HWTFPGA_MERGE_VALUES:
-	case HwtFpga::HWTFPGA_ICMP:
 	case TargetOpcode::G_ICMP:
+	case HwtFpga::HWTFPGA_ICMP:
 	case TargetOpcode::G_AND:
 	case TargetOpcode::G_OR:
 	case TargetOpcode::G_XOR:
@@ -117,6 +120,18 @@ static bool isCheapMachineInstr(const MachineInstr &MI) {
 	}
 }
 
+bool MachineBasicBlock_isCheap_exceptTerminator(const MachineBasicBlock & MBB) {
+	for (auto &MI : MBB) {
+		if (MI.isTerminator())
+			break;
+		if (!isFreeMachineInstr(MI)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+}
 // :param MBB: block which is going to be removed
 void removeMachineBasicBlockWithSingleSuccessor(MachineBasicBlock &MBB, MachineBasicBlock &MBBReplacement,
 		const SmallVectorImpl<MachineBasicBlock*> &MBB_predecessors) {
@@ -541,9 +556,9 @@ bool CheapBlockInline::runOnMachineFunction(MachineFunction &MF) {
 			if (MI.isTerminator()) {
 				break;
 			}
-			if (!isFree || !isFreeMachineInstr(MI)) {
+			if (!isFree || !hwtHls::isFreeMachineInstr(MI)) {
 				isFree = false;
-				if (!isCheap || !isCheapMachineInstr(MI)) {
+				if (!isCheap || !hwtHls::isCheapMachineInstr(MI)) {
 					isCheap = false;
 					break;
 				}
