@@ -277,7 +277,6 @@ void HwtFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
 	//    we are now tying to remove MI by inline of MI into parentMI
 	//    MI is removed if dst has no other use or MI.dst is parentMi.dst
 	MachineInstr *parentMI = parentUse->getParent();
-	assert(parentMI->getOpcode() == HwtFpga::HWTFPGA_MUX);
 
 	Builder.setInstrAndDebugLoc(*parentMI);
 	auto MIB0 = Builder.buildInstr(HwtFpga::HWTFPGA_MUX);
@@ -481,7 +480,8 @@ void HwtFpgaCombinerHelper::rewriteConstValMux(MachineInstr &MI,
 			MI.eraseFromParent();
 			onChangeTestCallback("rewriteConstValMux - rm self copy");
 		} else {
-			replaceSingleDefInstWithReg(MI, replacement);
+			buildHwtFpgaCopy(MI.getOperand(0), MachineOperand::CreateReg(replacement, false));
+			MI.eraseFromParent();
 			//replaceSingleDefInstWithReg(MI, replacement);
 			onChangeTestCallback("rewriteConstValMux - replace with copy");
 		}
