@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from typing import Sequence
+
 from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.struct import HStruct
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.std import HwIODataRdVld
@@ -11,13 +14,14 @@ from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.math import log2ceil
 from hwt.pyUtils.typingFuture import override
-from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaInstruction import PyBytecodeIntrinsicAssume, PyBytecodeNoSplitSlices
 from hwtHls.frontend.pragmaLoop import PyBytecodeLoopFlattenUsingIf
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from pyMathBitPrecise.bit_utils import mask
 from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
+from tests.passTestInjectorFor1StructIn1DOutHwModule import PassTestInjectorFor1StructIn1DOutHwModule
 
 
 class ShiftSequential1Loop(HwModule):
@@ -36,10 +40,10 @@ class ShiftSequential1Loop(HwModule):
                 (HBits(self.DATA_WIDTH), "data"),
                 (HBits(log2ceil(self.DATA_WIDTH + 1)), "sh"),
             )
-            self.i = dataIn
-            self.o = HwIODataRdVld()._m()
+            self.dataIn = dataIn
+            self.dataOut = HwIODataRdVld()._m()
 
-    def model(self, dataIn, dataOut):
+    def model(self, dataIn:Sequence[tuple[HBitsConst, HBitsConst]], dataOut: list[HBitsConst]):
         for dIn in dataIn:
             d, sh = dIn
             res = d._dtype.from_py(int(d) >> int(sh))
@@ -62,7 +66,7 @@ class ShiftSequential1Loop(HwModule):
     @override
     def hwImpl(self) -> None:
         hls = HlsScope(self)
-        hls.addThread(HlsThreadFromPy(hls, self.mainThread, hls, self.i, self.o))
+        hls.addThread(HlsThreadFromPy(hls, self.mainThread, hls, self.dataIn, self.dataOut))
         hls.compile()
 
 
@@ -105,14 +109,9 @@ class ShiftSequential_TC(BaseIrMirRtl_TC):
             for _ in range(OUT_CNT)
         ]
 
-        def prepareIrAndMirArgs():
-            dataOut = []
-            return ((d[1]._concat(d[0]) for d in dataIn), dataOut)
-
-        self._test_OneInOneOut(dut, dut.model, dataIn,
-                   OUT_CNT * 200, OUT_CNT * 200,
-                   OUT_CNT * 200, (OUT_CNT * 8) + 2,
-                   prepareIrAndMirArgs=prepareIrAndMirArgs)
+        passTests = PassTestInjectorFor1StructIn1DOutHwModule(dut, self)
+        passTests.setTimeLimits(wallTimeIr=OUT_CNT * 200, wallTimeMir=OUT_CNT * 200, wallTimeRtl=(OUT_CNT * 8) + 2)
+        passTests.test_allInOne_withModel((dataIn,))
 
     def test_ShiftSequential2Loops(self):
         self.test_ShiftSequential1Loop(dutCls=ShiftSequential2Loops)

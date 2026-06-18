@@ -35,7 +35,7 @@ from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnaly
 from hwtHls.ssa.translation.llvmMirToNetlist.utils import MirToHlsNetlistTranslatedInstrOpsT
 from pyDigitalWaveTools.vcd.writer import VcdWriter
 from tests.math.componentGenerators._componentGeneratorFp import ComponentGeneratorFp
-from tests.math.componentGenerators._genericHwModules import _FpBinOpAluHwModule
+from tests.math.componentGenerators._genericHwModules import _FpAlu2HwModule
 from tests.math.componentGenerators.fpshl import ComponentGeneratorFP_SHL
 from tests.math.fp.fpcmp import IEEE754FpCmpResult, IEEE754FpCmp
 from tests.math.fp.fptypes import IEEE754Fp
@@ -45,14 +45,14 @@ from tests.math.hFloatTmp.hFloatTmpOps import OP_FCMP_OEQ, OP_FCMP_OGT, \
 
 
 @serializeParamsUniq
-class _FpCmpOpAluHwModule(_FpBinOpAluHwModule):
+class _FpCmpOpAluHwModule(_FpAlu2HwModule):
     """
     Universal HwModule wrapper around floating point compare operator function.
     """
 
     @override
     def hwConfig(self) -> None:
-        _FpBinOpAluHwModule.hwConfig(self)
+        _FpAlu2HwModule.hwConfig(self)
         self.FPCMP_OP = HwParam(None)
 
     @override
@@ -65,28 +65,26 @@ class _FpCmpOpAluHwModule(_FpBinOpAluHwModule):
             (t, "a"),
             (t, "b"),
         )
-        OP = self.FPCMP_OP
         self._addDataInDataOut(inT, BIT)
 
-        @hlsBytecode
-        def _FN(x, loopPragmaGetter=lambda: None):
-            res = PyBytecodeInline(IEEE754FpCmp)(x)
-            if OP == HwtOps.EQ:
-                return res._eq(IEEE754FpCmpResult.EQ)
-            elif OP == HwtOps.UGT:
-                return res._eq(IEEE754FpCmpResult.GT)
-            elif OP == HwtOps.UGE:
-                return res._eq(IEEE754FpCmpResult.GT) | res._eq(IEEE754FpCmpResult.EQ)
-            elif OP == HwtOps.ULT:
-                return res._eq(IEEE754FpCmpResult.LT)
-            elif OP == HwtOps.ULE:
-                return res._eq(IEEE754FpCmpResult.LT) | res._eq(IEEE754FpCmpResult.EQ)
-            elif OP == HwtOps.NE:
-                return res != IEEE754FpCmpResult.EQ
-            else:
-                raise AssertionError()
-
-        self.FN = _FN
+    @override
+    def FN(self, x, loopPragmaGetter=lambda: None):
+        OP = self.FPCMP_OP
+        res = PyBytecodeInline(IEEE754FpCmp)(x)
+        if OP == HwtOps.EQ:
+            return res._eq(IEEE754FpCmpResult.EQ)
+        elif OP == HwtOps.UGT:
+            return res._eq(IEEE754FpCmpResult.GT)
+        elif OP == HwtOps.UGE:
+            return res._eq(IEEE754FpCmpResult.GT) | res._eq(IEEE754FpCmpResult.EQ)
+        elif OP == HwtOps.ULT:
+            return res._eq(IEEE754FpCmpResult.LT)
+        elif OP == HwtOps.ULE:
+            return res._eq(IEEE754FpCmpResult.LT) | res._eq(IEEE754FpCmpResult.EQ)
+        elif OP == HwtOps.NE:
+            return res != IEEE754FpCmpResult.EQ
+        else:
+            raise AssertionError()
 
 
 class ComponentGeneratorFCMP_hwtHlsFpIntrinsic(ComponentGenerator):
@@ -355,7 +353,7 @@ class ComponentGeneratorFCMP(ComponentGeneratorFp):
             except KeyError:
                 pass
 
-            # run compilation of IntDiv HwModule to resolve scheduling properties
+            # run compilation of HwModule to resolve scheduling properties
             hwModule = self._getConfiguredHwModule(netlist.realTimeClkPeriod, IEEE754Fp.fromHFloatTmpConfig(cfg), None)
             _, _, r = self.resolveRealizationOfNode_compileToResolveScheduling(
                 netlist.parentHwModule, hwModule,

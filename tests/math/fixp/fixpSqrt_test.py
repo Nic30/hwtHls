@@ -8,23 +8,32 @@ from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.serializer.mode import serializeParamsUniq
 from hwtHls.llvm.llvmIr import HFloatTmpSaturation, HFloatTmpRounding
 from tests.math.componentGenerators.fsqrt import FixpSqrtHwModule
-from tests.math.fixp._fixpUnary_TC import FixpUnary_TC
+from tests.math.fixp._fixpAlu1_TC import FixpAlu1_TC
 from tests.math.fixp.fixpOperatorsHwModules import _FixpUnOpTestModule
 from tests.math.fixp.fixpOperatorsTrigonometric_test import FixpSinNoLut_TC
 from tests.math.fixp.fixpSqrt import fixpSqrt
 from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.math.hFloatTmp.hFloatTmpOps import sqrt
+from hwt.pyUtils.typingFuture import override
+from tests.passTestInjectorForDInDOutHwModule import hlsModelProps
 
 
 @serializeParamsUniq
 class TestModuleFixpSqrtGen(_FixpUnOpTestModule):
 
+    @override
+    @staticmethod
+    @hlsModelProps(returnsPyValue=True, returnsOutValue=True)
+    def model(data_in: float) -> float:
+        return math.sqrt(data_in)
+
+    @override
     @staticmethod
     def HLS_OP_FN(a):
         return sqrt(a)
 
 
-class FixpSqrtGen_TC(FixpUnary_TC):
+class FixpSqrtGen_TC(FixpAlu1_TC):
     FP_TY = HFixedPointQ(4, 20, signed=False,
                          rounding=HFloatTmpRounding.ROUND_FLOOR,
                          saturation=HFloatTmpSaturation.SATURATE_NONE)
@@ -39,12 +48,10 @@ class FixpSqrtGen_TC(FixpUnary_TC):
         4.25
     ]
 
-    def _model(self, a: float) -> float:
-        return math.sqrt(a)
-
 
 class FixpSqrt_TC(FixpSqrtGen_TC):
     MODULE_CLS = FixpSqrtHwModule
+    MAX_DELTA = 2.0 ** -20
 
     def prepareDataInFnRtl(self):
         fpTy = self.FP_TY
@@ -59,15 +66,27 @@ class FixpSqrt_TC(FixpSqrtGen_TC):
         dut.CLK_FREQ = freq
         dut.IN_CHANNEL_TYPE = HwIOStructRdVld
         dut.OUT_CHANNEL_TYPE = HwIOStructRdVld
-        self._test_rtl(dut, runTestAfterEachPass)
+        self._test_rtl(dut=dut, runTestAfterEachPass=runTestAfterEachPass)
 
     def test_py(self):
         fp = self.FP_TY.from_py
+        model = self.MODULE_CLS.model
         for d in self.INPUT_DATA:
-            resRef = self._model(d)
+            resRef = model(d)
             _d = fp(d)
             res = fixpSqrt(_d)
-            self.assertAlmostEqual(float(res), resRef, delta=2.0 ** -20)
+            self.assertAlmostEqual(float(res), resRef, delta=self.MAX_DELTA)
+
+
+class FixpSqrt_q2_10_TC(FixpSqrt_TC):
+    MODULE_CLS = FixpSqrtHwModule
+    FP_TY = HFixedPointQ(2, 10, signed=False,
+                         rounding=HFloatTmpRounding.ROUND_FLOOR,
+                         saturation=HFloatTmpSaturation.SATURATE_NONE)
+    INPUT_DATA = [
+        *FixpSinNoLut_TC.INPUT_DATA,
+    ]
+    MAX_DELTA = 2.0 ** -10
 
 
 class FixpSqrtUnroll_TC(FixpSqrt_TC):
@@ -93,7 +112,8 @@ class FixpSqrt_int_TC(FixpSqrtGen_TC):
 
 FixpOpSqrt_TCs = [
     FixpSqrt_TC,
-    FixpSqrtGen_TC,  # [fixme] the loop is not mapped into a single FSM and the pipeline sync is somehow broken
+    FixpSqrtGen_TC,
+    FixpSqrt_q2_10_TC,
     FixpSqrtUnroll_TC,
     FixpSqrt_int_TC,
 ]
@@ -104,7 +124,7 @@ if __name__ == "__main__":
     testLoader = unittest.TestLoader()
     suite = unittest.TestSuite([testLoader.loadTestsFromTestCase(tc) for tc in FixpOpSqrt_TCs])
     # suite = unittest.TestSuite([FixpSqrt_TC('test_py')])
-    # suite = unittest.TestSuite([testLoader.loadTestsFromTestCase(FixpSqrt_TC)])
+    # suite = unittest.TestSuite([testLoader.loadTestsFromTestCase(FixpSqrt_q2_10_TC)])
 
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

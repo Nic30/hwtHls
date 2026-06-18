@@ -50,7 +50,7 @@ from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from tests.math.fixp.fixpConst import HFixedPointQConst
 from tests.math.fixp.fixpRtlSignal import HFixedPointQRtlSignal
 from tests.math.fixp.fixpTypes import HFixedPointQ
-from tests.math.componentGenerators._genericHwModules import _FpUnOpAluHwModule
+from tests.math.componentGenerators._genericHwModules import _FpAlu1HwModule
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 
 
@@ -157,23 +157,19 @@ class FixpLog2():
 
 
 @serializeParamsUniq
-class FixpLog2TabularizedHwModule(_FpUnOpAluHwModule):
+class FixpLog2TabularizedHwModule(_FpAlu1HwModule):
 
     def hwConfig(self) -> None:
-        _FpUnOpAluHwModule.hwConfig(self)
+        _FpAlu1HwModule.hwConfig(self)
         self.T = HFixedPointQ(8, 16)
         self.MAX_TABLE_ADDR_WIDTH = HwParam(8)
 
     def hwDeclr(self) -> None:
-        _FpUnOpAluHwModule.hwDeclr(self)
+        _FpAlu1HwModule.hwDeclr(self)
 
         fixplog2 = FixpLog2(self.T, self.MAX_TABLE_ADDR_WIDTH)
-
-        @hlsBytecode
-        def _FN(x, loopPragmaGetter=lambda: None):
-            return PyBytecodeInline(fixplog2.fixplog2_tabularized)(x)
-
-        self.FN = _FN
+        self.fixplog2 = fixplog2
+        self.FN = fixplog2.fixplog2_tabularized
 
 
 def debug():

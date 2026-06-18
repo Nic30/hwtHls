@@ -10,6 +10,7 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
+from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.pragmaLoop import PyBytecodeStreamLoopUnroll
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInPreproc, \
     PyBytecodeBlockLabel
@@ -20,11 +21,13 @@ from hwtHls.platform.debugBundle import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4s import Axi4Stream
+from hwtLib.amba.axi4sSimFrameUtils import Axi4StreamSimFrameUtils
 from hwtLib.logic.crcPoly import CRC_32, CRC_POLY
 from pyMathBitPrecise.bit_utils import mask
 from tests.crypto.crcFinalize import CrcFinalizeHardblock
 from tests.crypto.crcStep import CrcStepHardblock
-from tests.io.amba.axi4Stream._baseAxi4SPktInPktOutTC import BaseAxi4SPktInScalarOutTC
+from tests.passTestInjectorForDInDOutHwModule import PassTestInjectorForDInDOutHwModule
+from tests.passTestIoStream import PassTestIoInStream
 
 
 class Axi4SCrc32(HwModule):
@@ -91,17 +94,37 @@ class Axi4SCrc32(HwModule):
         hls.compile()
 
 
-class Axi4SCrc32_TC(BaseAxi4SPktInScalarOutTC):
+class Axi4SCrc32_TC(SimTestCase):
+
+    StreamFrameUtils = Axi4StreamSimFrameUtils
 
     def _test(self, inputs: list[bytes], DATA_WIDTH:int):
         ref = [crc32(inp) & mask(32) for inp in inputs]
         dut = Axi4SCrc32()
         dut.DATA_WIDTH = DATA_WIDTH
         refFramesIn = [[c for c in inp] for inp in inputs]
-        super()._test(dut, refFramesIn, ref, platformKwargs=dict(
-            debugFilter=HlsDebugBundle.ALL_RELIABLE,
-            runTestAfterEachPass=True,
-            ))
+
+        passTests = PassTestInjectorForDInDOutHwModule(dut, self)
+        passTests.bindDataByInOut((PassTestIoInStream(self.StreamFrameUtils, refFramesIn),),
+                                  (ref,), PORT_NAMES=['rx', 'tx'])
+        passTests.setTimeLimits(wallTimeRtlDefaultMultiplier=2.0,)
+        passTests.test_allInOne(
+            # platformKwargs=dict(
+            #      debugFilter={
+            #          *HlsDebugBundle.ALL_RELIABLE,
+            #          HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+            #          HlsDebugBundle.DBG_4_0_addSignalNamesToData,
+            #       },
+            #       llvmCliArgs=[
+            #          # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+            #          # LLVM_CLI_COMMON_OPTS.PRINT_BEFORE_ALL,
+            #          # LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL
+            #       ],
+            #      # runTestAfterEachPass=True,
+            #      # runTestAfterEachIrPass=True,
+            #      # runTestAfterEachMirPass=True,
+            # )
+            )
 
     def test_1B(self):
         inp = [b"a",

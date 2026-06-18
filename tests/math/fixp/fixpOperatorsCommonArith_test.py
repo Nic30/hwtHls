@@ -3,18 +3,17 @@
 
 import math
 
-from hwt.code import Concat
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
+from hwt.pyUtils.typingFuture import override
 from hwt.serializer.mode import serializeParamsUniq
-from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
-from tests.math.installMathLib import installMathLibComponentGenerators
+from pyMathBitPrecise.bit_utils import mask, to_signed
+from tests.math.fixp._fixpAlu2_TC import FixpAlu2_TC
 from tests.math.fixp.fixpOperatorsHwModules import _FixpBinOpTestModule
 from tests.math.fixp.fixpTypes import HFixedPointQ
-from tests.math.fixp.fixpdivrem import fixpDivremRestoring
-from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
-from tests.math.fixp._fixpUnary_TC import FixpUnary_TC
+from tests.math.fixp.fixpdivrem import fixpDivremRestoring, FixpDivRemHwModule
+from tests.math.fixp.passTestIoFixp import PassTestIoOutStructHFixedPoint2
 
 
 @serializeParamsUniq
@@ -25,7 +24,7 @@ class TestModuleFixpAdd(_FixpBinOpTestModule):
         return a + b
 
 
-class FixpAdd_TC(SimTestCase):
+class FixpAdd_TC(FixpAlu2_TC):
     FP_TY = HFixedPointQ(4, 8)
     MAX_TABLE_ADDR_WIDTH = 0
     optThroughputVsArea = 0.0
@@ -46,44 +45,6 @@ class FixpAdd_TC(SimTestCase):
     MODULE_CLS = TestModuleFixpAdd
     MAX_ULP = 0
 
-    def _model(self, a: float, b: float) -> float:
-        return a + b
-
-    def _getRefData(self, input_data):
-        return [self._model(*d) for d in input_data]
-
-    def prepareDataInFn(self):
-        fpTy = self.FP_TY
-        bitTy = HBits(fpTy.bit_length())
-        dataIn = []
-        for (a, b) in self.INPUT_DATA:
-            a = fpTy.from_py(a)._reinterpret_cast(bitTy)
-            b = fpTy.from_py(b)._reinterpret_cast(bitTy)
-            dataIn.append(Concat(b, a))
-        return dataIn
-
-    def prepareDataInFnRtl(self):
-        fpTy = self.FP_TY
-        bitTy = HBits(fpTy.bit_length())
-        for (a, b) in self.INPUT_DATA:
-            a = fpTy.from_py(a)._reinterpret_cast(bitTy)
-            b = fpTy.from_py(b)._reinterpret_cast(bitTy)
-            yield (a, b)
-
-    def getCheckDataOutFn(self, REF_DATA):
-        return FixpUnary_TC.getCheckDataOutFn(self, REF_DATA)
-
-    def initPlatform(self, target_platform:TestLlvmIrAndMirPlatform):
-        FixpUnary_TC.initPlatform(self, target_platform)
-
-    def test_rtl(self, runTestAfterEachPass=False, freq=int(1e6), dut=None):
-        if dut is None:
-            dut = self.MODULE_CLS()
-            dut.T = self.FP_TY
-            dut.CLK_FREQ = freq
-
-        FixpUnary_TC._test_rtl(self, dut, runTestAfterEachPass)
-
 
 @serializeParamsUniq
 class TestModuleFixpSub(_FixpBinOpTestModule):
@@ -94,11 +55,7 @@ class TestModuleFixpSub(_FixpBinOpTestModule):
 
 
 class FixpSub_TC(FixpAdd_TC):
-
     MODULE_CLS = TestModuleFixpSub
-
-    def _model(self, a: float, b: float) -> float:
-        return a - b
 
 
 @serializeParamsUniq
@@ -112,19 +69,16 @@ class TestModuleFixpMul(_FixpBinOpTestModule):
 class FixpMul_TC(FixpAdd_TC):
     MODULE_CLS = TestModuleFixpMul
 
-    def _model(self, a: float, b: float) -> float:
-        return a * b
-
 
 @serializeParamsUniq
-class TestModuleFixpDiv(_FixpBinOpTestModule):
+class _TestModuleFixpDiv(_FixpBinOpTestModule):
 
     @staticmethod
     def HLS_OP_FN(a, b):
         return a / b
 
 
-class FixpDiv_TC(FixpAdd_TC):
+class FixpDiv_TC(FixpAlu2_TC):
     RTL_SIM_TIME_MULTIPLIER = FixpAdd_TC.FP_TY.bit_length() + FixpAdd_TC.FP_TY.frac_bit_length + 1
     INPUT_DATA = [
        (0.0, 0.25),
@@ -144,10 +98,7 @@ class FixpDiv_TC(FixpAdd_TC):
        (-1.0, -1.0),
     ]
 
-    MODULE_CLS = TestModuleFixpDiv
-
-    def _model(self, a: float, b: float) -> float:
-        return a / b
+    MODULE_CLS = _TestModuleFixpDiv
 
     def test_py(self):
         fpTy = self.FP_TY
@@ -171,7 +122,7 @@ class FixpDiv_TC(FixpAdd_TC):
             _quotient, _remainder, overflow = fixpDivremRestoring(fpTy, _dividend, _divisor, isSigned,
                                                                   loopPragmaGetter=lambda: None, dbgNoSplitSlices=False)
             msg = (
-                (dividend, "//", divisor, "==", (quotient, remainder), (int(toBitVecFloat(quotient)), int(toBitVecFloat(remainder)))),
+                (dividend, "/", divisor, "==", (quotient, remainder), (int(toBitVecFloat(quotient)), int(toBitVecFloat(remainder)))),
                 ("res:", (toFloat(_quotient), toFloat(_remainder)), (_quotient, _remainder))
             )
             self.assertAlmostEqual(toFloat(_quotient), quotient, msg=msg, delta=0.001)
@@ -182,28 +133,69 @@ class FixpDivUnroll_TC(FixpDiv_TC):
     optThroughputVsArea = 1.0
 
 
+class FixpDiv_q1_8_TC(FixpDivUnroll_TC):
+    FP_TY = HFixedPointQ(1, 8, signed=False)
+    RTL_SIM_TIME_MULTIPLIER = FP_TY.bit_length() + FP_TY.frac_bit_length + 1
+    MODULE_CLS = FixpDivRemHwModule
+    INPUT_DATA = [
+       (1.0, 1.0),
+       (1.0, 1.25),
+       (1.25, 1.0),
+       (0.5, 0.5),
+       (0.25, 0.5),
+    ]
+
+    def test_rtl(self, runTestAfterEachPass=False, freq=int(1e6),
+                 platformKwArgs=dict(
+                    # debugFilter={*HlsDebugBundle.ALL_RELIABLE,
+                    #             # HlsDebugBundle.DBG_4_0_hwscheduleTrace,
+                    #             # HlsDebugBundle.DBG_4_0_hwscheduleDumpAfterPhases,
+                    #             # HlsDebugBundle.DBG_4_0_hwschedulePrintPhaseBoundaries,
+                    #             # HlsDebugBundle.DBG_4_0_addSignalNamesToData,
+                    #             # HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+                    #           },
+                    llvmCliArgs=[
+                        LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+                       # LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
+                       # LLVM_CLI_COMMON_OPTS.VREGIFCVT_TRACE,
+                       # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+                    ],)):
+        dut = self.MODULE_CLS()
+        dut.T = self.FP_TY
+        dut.CLK_FREQ = freq
+        dut.UNROLL_FACTOR = dut._getMaxIterationCount()
+
+        FixpAlu2_TC.test_rtl(
+            self, dut=dut, runTestAfterEachPass=runTestAfterEachPass,
+            OUT_DATA_REF=(PassTestIoOutStructHFixedPoint2(dut.T, self.INPUT_DATA, [], maxErrorInt=mask(self.MAX_ULP), name="data_out"),),
+            platformKwArgs=platformKwArgs,
+        )
+
+
 FixpOpCommonArith_TCs = [
     FixpAdd_TC,
     FixpSub_TC,
     FixpMul_TC,
     FixpDiv_TC,
     FixpDivUnroll_TC,
+    FixpDiv_q1_8_TC,
 ]
 
 if __name__ == "__main__":
-    from hwt.synth import to_rtl_str
-    from hwtHls.platform.xilinx.artix7 import Artix7Fast
-    from hwtHls.platform.virtual import VirtualHlsPlatform
-    m = TestModuleFixpAdd()
-    m.T = HFixedPointQ(4, 8)
-    m.CLK_FREQ = int(1e6)
-    # platform = Artix7Fast(
-    platform = VirtualHlsPlatform(
-        debugFilter=HlsDebugBundle.ALL_RELIABLE,
-       # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL, ]
-    )
-    installMathLibComponentGenerators(platform)
-    print(to_rtl_str(m, target_platform=platform))
+    # from hwt.synth import to_rtl_str
+    # from hwtHls.platform.xilinx.artix7 import Artix7Fast
+    # from hwtHls.platform.virtual import VirtualHlsPlatform
+    # from tests.math.installMathLib import installMathLibComponentGenerators
+    # m = TestModuleFixpAdd()
+    # m.T = HFixedPointQ(4, 8)
+    # m.CLK_FREQ = int(1e6)
+    # # platform = Artix7Fast(
+    # platform = VirtualHlsPlatform(
+    #     debugFilter=HlsDebugBundle.ALL_RELIABLE,
+    #    # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL, ]
+    # )
+    # installMathLibComponentGenerators(platform)
+    # print(to_rtl_str(m, target_platform=platform))
 
     import unittest
 

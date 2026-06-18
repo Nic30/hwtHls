@@ -1,18 +1,23 @@
+from types import MethodType
+from typing import Union, Callable
+
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.struct import HStruct
+from hwt.hdl.types.structValBase import HStructConstBase
 from hwt.hwIOs.utils import addClkRstn
 from hwt.pyUtils.typingFuture import override
-from hwt.serializer.mode import serializeParamsUniq
 from hwtHls.architecture.componentGenerators.baseALU1HwModule import _BaseALU1HwModule
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from tests.math.fixp.fixpTypes import HFixedPointQ
 
 
-class _FpUnOpAluHwModule(_BaseALU1HwModule):
+class _FpAlu1HwModule(_BaseALU1HwModule):
     """
     Universal HwModule wrapper around floating point unary operator function.
+    :attention: do not forget to override _getMaxIterationCount if necessary
     """
+    CHECK_UNROLL_FACTOR = True
 
     @override
     def hwDeclr(self) -> None:
@@ -25,23 +30,40 @@ class _FpUnOpAluHwModule(_BaseALU1HwModule):
 
         self._addDataInDataOut(t, t)
 
+    def _doesSupport_loopPragmaGetter(self, fn: Union[MethodType, Callable]):
+        # handle cases of static methods and alike
+        fn = getattr(fn, "__func__", fn)
+        return "loopPragmaGetter" in fn.__code__.co_varnames[:fn.__code__.co_argcount]
+        return fn.__code__.co_kwonlyargcount != 0
+
+    def FN(self, a, loopPragmaGetter=None):
+        raise NotImplementedError("Implement this method in child class", self)
+
     @override
     @hlsBytecode
-    def aluFn(self, inp):
-        return PyBytecodeInline(self.FN)(
-            inp._reinterpret_cast(self.T),
-            loopPragmaGetter=self._getLoopMeta)._reinterpret_cast(self._getTypeOfIo(self.data_out))
+    def aluFn(self, inp: HStructConstBase):
+        outT = self._getTypeOfIo(self.data_out)
+        inpAsT = inp._reinterpret_cast(self.T)
+        if self._doesSupport_loopPragmaGetter(self.FN):
+            return PyBytecodeInline(self.FN)(
+                inpAsT,
+                loopPragmaGetter=self._getLoopMeta)\
+                ._reinterpret_cast(outT)
+        else:
+            assert not self.CHECK_UNROLL_FACTOR or self.UNROLL_FACTOR == 1, ("does not support unrolling because function does not have loopPragmaGetter kwarg", self, self.FN)
+            return PyBytecodeInline(self.FN)(inpAsT)\
+                    ._reinterpret_cast(outT)
 
 
-@serializeParamsUniq
-class _FpBinOpAluHwModule(_FpUnOpAluHwModule):
+class _FpAlu2HwModule(_BaseALU1HwModule):
     """
     Universal HwModule wrapper around floating point binary operator function.
+    :attention: do not forget to override _getMaxIterationCount if necessary
     """
+    CHECK_UNROLL_FACTOR = True
 
     @override
     def hwDeclr(self) -> None:
-        assert self.FN is not NotImplemented
         addClkRstn(self)
 
         t = self.T
@@ -56,15 +78,20 @@ class _FpBinOpAluHwModule(_FpUnOpAluHwModule):
         )
         self._addDataInDataOut(inT, t)
 
+    def _doesSupport_loopPragmaGetter(self, fn: Union[MethodType, Callable]):
+        return _FpAlu1HwModule._doesSupport_loopPragmaGetter(self, fn)
+
+    def FN(self, a, b, loopPragmaGetter=None):
+        raise NotImplementedError("Implement this method in child class", self)
+
     @override
     @hlsBytecode
-    def aluFn(self, inp):
-        if self.FN.__code__.co_kwonlyargcount == 0:
-            assert self.UNROLL_FACTOR == 1
-            return PyBytecodeInline(self.FN)(inp.a._reinterpret_cast(self.T),
-                                             inp.b._reinterpret_cast(self.T))
+    def aluFn(self, inp: HStructConstBase):
+        a = inp.a._reinterpret_cast(self.T)
+        b = inp.b._reinterpret_cast(self.T)
+        if self._doesSupport_loopPragmaGetter(self.FN):
+            return PyBytecodeInline(self.FN)(a, b, loopPragmaGetter=self._getLoopMeta)
         else:
-            return PyBytecodeInline(self.FN)(inp.a._reinterpret_cast(self.T),
-                                             inp.b._reinterpret_cast(self.T),
-                                             loopPragmaGetter=self._getLoopMeta)
+            assert not self.CHECK_UNROLL_FACTOR or self.UNROLL_FACTOR == 1, ("does not support unrolling because function does not have loopPragmaGetter kwarg", self, self.FN)
+            return PyBytecodeInline(self.FN)(a, b)
 

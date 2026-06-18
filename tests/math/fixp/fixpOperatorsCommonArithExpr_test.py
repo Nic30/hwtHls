@@ -2,24 +2,27 @@
 # -*- coding: utf-8 -*-
 
 from hwt.serializer.mode import serializeParamsUniq
-from tests.math.fixp.fixpOperatorsCommonArith_test import FixpUnary_TC
 from tests.math.fixp.fixpOperatorsHwModules import _FixpUnOpTestModule
 from tests.math.fixp.fixpTypes import HFixedPointQ
+from tests.math.fixp._fixpAlu1_TC import FixpAlu1_TC
 
 
 @serializeParamsUniq
 class TestModuleFixpDiv2(_FixpUnOpTestModule):
 
     @staticmethod
-    def HLS_OP_FN(a):
+    def HLS_OP_FN(a: float):
         return a / 2
 
 
-class FixpDiv2_TC(FixpUnary_TC):
+class FixpDiv2_TC(FixpAlu1_TC):
     INPUT_DATA = [
         -3, -2, -1, 0, 1, 2, 3, 4, 5
     ]
     MODULE_CLS = TestModuleFixpDiv2
+
+    def testRtl(self):
+        self._test_rtl()
 
 
 @serializeParamsUniq
@@ -30,11 +33,7 @@ class TestModuleFixpDiv_m2(_FixpUnOpTestModule):
         return a / -2
 
 
-class FixpDiv_m2_TC(FixpUnary_TC):
-    INPUT_DATA = [
-        -3, -2, -1, 0, 1, 2, 3, 4, 5
-    ]
-
+class FixpDiv_m2_TC(FixpDiv2_TC):
     MODULE_CLS = TestModuleFixpDiv_m2
 
 
@@ -47,7 +46,6 @@ class TestModuleFixpDiv4(_FixpUnOpTestModule):
 
 
 class FixpDiv4_TC(FixpDiv2_TC):
-
     MODULE_CLS = TestModuleFixpDiv4
 
 
@@ -72,9 +70,7 @@ class TestModuleFixpDiv_0_5(_FixpUnOpTestModule):
 
 
 class FixpDiv_0_5_TC(FixpDiv2_TC):
-
     FP_TY = HFixedPointQ(5, 8)
-
     MODULE_CLS = TestModuleFixpDiv_0_5
 
 
@@ -87,7 +83,6 @@ class TestModuleFixpDiv_m0_5(_FixpUnOpTestModule):
 
 
 class FixpDiv_m0_5_TC(FixpDiv2_TC):
-
     FP_TY = HFixedPointQ(5, 8)
     MODULE_CLS = TestModuleFixpDiv_m0_5
 

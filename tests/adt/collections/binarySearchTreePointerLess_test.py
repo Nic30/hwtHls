@@ -1,74 +1,14 @@
-from collections import deque
-from typing import Sequence, Callable, Optional
 
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.hdlType import HdlType
-from hwt.hdl.types.struct import HStruct
-from hwt.simulator.utils import Bits3valToInt
-from hwtHls.platform.debugBundle import DebugId, HlsDebugBundle
 from tests.adt.collections.binarySearchTreePointerLess import _ExampleBinaryTreePointerLessArraySearchROM0, \
     binaryTreePointerLessArraySearch, _computeTreeLayersLayoutInMemories
 from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
+from tests.passTestInjectorForDInDOutHwModule import PassTestInjectorForDInDOutHwModule
+from tests.passTestIoStruct import PassTestIoOutStruct
 
 
 class BinaryTreePointerLessArraySearch_TC(BaseIrMirRtl_TC):
-
-    def _test_search(self, dut: _ExampleBinaryTreePointerLessArraySearchROM0,
-                          model: Callable[Sequence[int], list[HStruct]],
-                          dataIn: Sequence[int],
-                          wallTimeIr: Optional[int]=None,
-                          wallTimeOptIr: Optional[int]=None,
-                          wallTimeOptMir: Optional[int]=None,
-                          wallTimeRtlClks: Optional[int]=None,
-                          debugFilter: Optional[set[DebugId]]=HlsDebugBundle.DEFAULT,
-                          freq=int(1e6),
-                          *args, **kwargs):
-        """
-        :param model: a function which process all inputs and generate all outputs
-        For meaning of params check :meth:`~._testOneOut`
-        """
-        _dataOutRef = []
-        try:
-            model(iter(dataIn), _dataOutRef)
-        except StopIteration:
-            pass
-        dataOutRef = []
-        for d in _dataOutRef:
-            dataOutRef.append(tuple(Bits3valToInt(member) for member in d))
-
-        def prepareIrAndMirArgs():
-            dataOut = []
-            return (iter(dataIn), dataOut)
-
-        def checkIrAndMirArgs(args: tuple[deque]):
-            dataOut = args[1]
-            RESULT_T = dut.RESULT_T
-            dataOut = [tuple(Bits3valToInt(member) for member in d._reinterpret_cast(RESULT_T)) for d in dataOut]
-            self.assertValSequenceEqual(dataOut, dataOutRef)
-
-        def prepareRtlSimArgs(dut: _ExampleBinaryTreePointerLessArraySearchROM0):
-            dut.dataIn._ag.data.extend(dataIn)
-            ref = dataOutRef
-            return ref
-
-        def checkRtlSimResults(dut: _ExampleBinaryTreePointerLessArraySearchROM0, ref: list):
-            self.assertValSequenceEqual(dut.dataOut._ag.data, ref)
-
-        if wallTimeRtlClks is None:
-            wallTimeRtlClks = len(dataIn) + 1
-
-        self._test(dut,
-            prepareIrAndMirArgs, checkIrAndMirArgs,
-            prepareIrAndMirArgs, checkIrAndMirArgs,
-            prepareRtlSimArgs, checkRtlSimResults,
-            wallTimeIr=wallTimeIr,
-            wallTimeOptIr=wallTimeOptIr,
-            wallTimeOptMir=wallTimeOptMir,
-            wallTimeRtlClks=wallTimeRtlClks,
-            freq=freq,
-            debugFilter=debugFilter,
-            *args, **kwargs
-        )
 
     def getRandVal(self, t: HdlType):
         return t.from_py(self._rand.getrandbits(t.bit_length()))
@@ -109,23 +49,20 @@ class BinaryTreePointerLessArraySearch_TC(BaseIrMirRtl_TC):
         for k, v in dut.ITEMS:
             itemDict[k] = v
 
-        def model(toSearchIn, resultsOut):
-            assert not resultsOut
-            for k in toSearchIn:
+        def model(dataIn, dataOut):
+            assert not dataOut
+            for k in dataIn:
                 v = itemDict.get(int(k))
                 res = dut.RESULT_T.from_py({
                     "found": v is not None,
                     "value": v
                 })
-                resultsOut.append(res)
+                dataOut.append(res)
 
         self._test_python(dut, itemDict, searchIn)
-
-        self._test_search(dut, model, searchIn,
-                   OUT_CNT * 400, OUT_CNT * 400,
-                   OUT_CNT * 400, (OUT_CNT * 8) + 2,
-                   # runTestAfterEachPass=True
-                   )
+        passTests = PassTestInjectorForDInDOutHwModule(dut, self)
+        passTests.setTimeLimits(wallTimeIr=OUT_CNT * 400, wallTimeMir=OUT_CNT * 400, wallTimeRtl=(OUT_CNT * 8) + 2)
+        passTests.test_allInOne_withModel((searchIn,), (PassTestIoOutStruct(dut.RESULT_T, [], name="dataOut"),), model=model)
 
 
 if __name__ == "__main__":

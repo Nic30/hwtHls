@@ -1,43 +1,23 @@
 from math import inf, nan, isnan
-import struct
 import unittest
 
-from hwt.code import Concat
-from hwt.hdl.types.structValBase import HStructConstBase
-from pyMathBitPrecise.bits3t import Bits3val
 from hwtHls.llvm.llvmIr import HFloatTmpConfig, APFloat, APInt
 from tests.math.fp.fpcmp_test import IEEE754FpCmp_TC
-from tests.math.fp.fptypes import IEEE754Fp32, IEEE754Fp64, IEEE754Fp, \
-    IEEE754Fp16
-from pyMathBitPrecise.bit_utils import to_unsigned
-
-
-def fpTupleToFpConst(d: tuple[Bits3val, Bits3val, Bits3val], fpType: IEEE754Fp):
-    """
-    :param d: input data in format (mantissa, exponent, sign)
-    """
-    dAsInt = Concat(*reversed(d))
-    return fpType.fromPyInt(dAsInt.val, dAsInt.vld_mask)
-
-
-def fpConstToFpTuple(d: HStructConstBase):
-    return (int(d.sign), int(d.exponent), int(d.mantissa))
-
-
-def fpPyDictToFpTuple(d: dict[str, Bits3val]):
-    return (d['sign'], d['exponent'], d['mantissa'])
+from tests.math.fp.fptypes import IEEE754Fp32, IEEE754Fp64, IEEE754Fp16, _IntFloat32Union
 
 
 class IEEE754Fp_TC(unittest.TestCase):
 
     def testFromPyAndBackInt(self):
-        for intNumbers in IEEE754FpCmp_TC.TEST_DATA:
-            for nInt in intNumbers:
-                nFloatRef = struct.unpack("f", nInt.to_bytes(4, byteorder='little'))[0]
-
+        v = _IntFloat32Union()
+        for floatNumbers in IEEE754FpCmp_TC.INPUT_DATA:
+            for nFloat in floatNumbers:
+                # nFloatRef = struct.unpack("f", nInt.to_bytes(4, byteorder='little'))[0]
+                v.float = nFloat 
+                nInt = v.int
                 nHdl = IEEE754Fp32.fromPyInt(nInt)
                 nFloat = nHdl.to_py()
-                self.assertEqual(nFloat, nFloatRef)
+                self.assertEqual(nFloat, nFloat)
 
     def testFromPyAndBackFloat_fp64(self, t=IEEE754Fp64, DATA=[0.0, 1.0, 2.0, 1.5, 1.125, 0.00001, 1e6, nan, inf, -inf, -10.0]):
         cfg: HFloatTmpConfig = t._cfg

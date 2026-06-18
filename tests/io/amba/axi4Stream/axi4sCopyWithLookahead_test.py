@@ -5,6 +5,7 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
+from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.ioProxyStream import IoProxyStream
 from hwtHls.frontend.pragmaLoop import PyBytecodeStreamLoopUnroll, \
     PyBytecodeLoopFlattenUsingIf
@@ -14,7 +15,8 @@ from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4s import Axi4Stream
-from tests.io.amba.axi4Stream._baseAxi4SPktInPktOutTC import BaseAxi4SPktInPktOutTC
+from hwtLib.amba.axi4sSimFrameUtils import Axi4StreamSimFrameUtils
+from tests.passTestInjectorForStreamHwModule import PassTestInjectorForStreamHwModule
 
 
 class Axi4SCopyWithLookahead(HwModule):
@@ -106,7 +108,9 @@ class Axi4SCopyWithLookahead(HwModule):
         hls.compile()
 
 
-class Axi4SCopyWithLookaheadTC(BaseAxi4SPktInPktOutTC):
+class Axi4SCopyWithLookaheadTC(SimTestCase):
+
+    StreamFrameUtils = Axi4StreamSimFrameUtils
 
     def _test(self, DATA_WIDTH:int, COPY_WORD_WIDTH:int, FRAME_LENGTHS=[1, 2, 3], freq=int(1e6), rtlSimTimeMultiplier=1.1, USE_STRB=True):
         dut = Axi4SCopyWithLookahead()
@@ -120,9 +124,26 @@ class Axi4SCopyWithLookaheadTC(BaseAxi4SPktInPktOutTC):
             data = [i for i in range(1, frameLen + 1)]
             # data = [self._rand.getrandbits(8) for _ in range(frameLen)]
             refFrames.append(data)
-
-        BaseAxi4SPktInPktOutTC._test(self, dut, refFrames, refFrames, freq=freq,
-                                     rtlSimTimeMultiplier=rtlSimTimeMultiplier)
+        passTests = PassTestInjectorForStreamHwModule(dut, self, self.StreamFrameUtils)
+        passTests.bindDataByInOut((refFrames,), (refFrames,))
+        passTests.setTimeLimits(wallTimeRtlDefaultMultiplier=rtlSimTimeMultiplier)
+        passTests.test_allInOne(
+            # platformKwargs=dict(
+            #      debugFilter={
+            #          *HlsDebugBundle.ALL_RELIABLE,
+            #          HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+            #          HlsDebugBundle.DBG_4_0_addSignalNamesToData,
+            #       },
+            #       llvmCliArgs=[
+            #          # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+            #          # LLVM_CLI_COMMON_OPTS.PRINT_BEFORE_ALL,
+            #          # LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL
+            #       ],
+            #      # runTestAfterEachPass=True,
+            #      # runTestAfterEachIrPass=True,
+            #      # runTestAfterEachMirPass=True,
+            # )
+            )
 
     #    self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
     #
@@ -159,7 +180,7 @@ class Axi4SCopyWithLookaheadTC(BaseAxi4SPktInPktOutTC):
     def test_64dw_32(self):
         self._test(64, 32, FRAME_LENGTHS=[4, 8, 12])
 
-    #def test_1024dw_32(self):
+    # def test_1024dw_32(self):
     #    # this should ~2s on 3GHz cpu
     #    self._test(1024, 8)
 

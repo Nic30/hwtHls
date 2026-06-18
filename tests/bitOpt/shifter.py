@@ -33,8 +33,8 @@ class ShifterLeft0(HwModule):
 
     def hwDeclr(self) -> None:
         addClkRstn(self)
-        self.i = HwIOSignal(HBits(self.DATA_WIDTH))
-        self.sh = HwIOSignal(HBits(log2ceil(self.DATA_WIDTH)))
+        self.i_data = HwIOSignal(HBits(self.DATA_WIDTH))
+        self.i_sh = HwIOSignal(HBits(log2ceil(self.DATA_WIDTH)))
         self.o = HwIOSignal(HBits(self.DATA_WIDTH))._m()
 
     @hlsBytecode
@@ -43,8 +43,8 @@ class ShifterLeft0(HwModule):
         Shift implemented as a loop unrolled in the frontend
         """
         while b1:
-            v = hls.read(self.i).data
-            sh = hls.read(self.sh).data
+            v = hls.read(self.i_data).data
+            sh = hls.read(self.i_sh).data
             for i in range(self.DATA_WIDTH):
                 if sh._eq(i):
                     break
@@ -66,8 +66,8 @@ class ShifterLeft1(ShifterLeft0):
         Loop unrolled in frontend which implements shift left
         """
         while b1:
-            v = hls.read(self.i).data
-            sh = hls.read(self.sh).data
+            v = hls.read(self.i_data).data
+            sh = hls.read(self.i_sh).data
             for i in range(v._dtype.bit_length()):
                 if sh._eq(i):
                     # :note: following code would not work because i would be shapshoted when first seeing this hw block
@@ -90,12 +90,12 @@ class ShifterLeftUsingHwLoopWithWhileNot0(ShifterLeft0):
         Use handshake for sync of IO because the implementation may not be fully pipelined.
         """
         addClkRstn(self)
-        self.i = HwIOStructRdVld()
-        self.sh = HwIOStructRdVld()
-        self.sh.T = HBits(log2ceil(self.DATA_WIDTH))
+        self.i_data = HwIOStructRdVld()
+        self.i_sh = HwIOStructRdVld()
+        self.i_sh.T = HBits(log2ceil(self.DATA_WIDTH))
         self.o = HwIOStructRdVld()._m()
 
-        self.i.T = self.o.T = HBits(self.DATA_WIDTH)
+        self.i_data.T = self.o.T = HBits(self.DATA_WIDTH)
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
@@ -104,8 +104,8 @@ class ShifterLeftUsingHwLoopWithWhileNot0(ShifterLeft0):
         """
         self.FN_META
         while b1:
-            v = hls.read(self.i).data
-            sh = hls.read(self.sh).data
+            v = hls.read(self.i_data).data
+            sh = hls.read(self.i_sh).data
             while sh != 0:
                 v <<= 1
                 sh -= 1
@@ -123,8 +123,8 @@ class ShifterLeftUsingHwLoopWithBreakIf0(ShifterLeftUsingHwLoopWithWhileNot0):
         """
         self.FN_META
         while b1:
-            v = hls.read(self.i).data
-            sh = hls.read(self.sh).data
+            v = hls.read(self.i_data).data
+            sh = hls.read(self.i_sh).data
             while b1:
                 if sh._eq(0):
                     break
@@ -143,8 +143,8 @@ class ShifterLeftBarrelUsingLoop0(ShifterLeft0):
         Barrel shifter described using loop.
         """
         while b1:
-            v = hls.read(self.i).data
-            sh = hls.read(self.sh).data
+            v = hls.read(self.i_data).data
+            sh = hls.read(self.i_sh).data
             shWidth = sh._dtype.bit_length()
             for isLast, level in iter_with_last(range(shWidth)):
                 # level 0 shifts by 1 or by 0, level 1 shifts by 2 or 0, 4 or 0 ...
@@ -163,8 +163,8 @@ class ShifterLeftBarrelUsingLoop1(ShifterLeft0):
         Same as ShifterLeftBarrelUsingLoop0 just with "if" instead of _ternary.
         """
         while b1:
-            v = hls.read(self.i).data
-            sh = hls.read(self.sh).data
+            v = hls.read(self.i_data).data
+            sh = hls.read(self.i_sh).data
             shWidth = sh._dtype.bit_length()
             for isLast, level in iter_with_last(range(shWidth)):
                 # level 0 shifts by 1 or by 0, level 1 shifts by 2 or 0, 4 or 0 ...
@@ -185,8 +185,8 @@ class ShifterLeftBarrelUsingLoop2(ShifterLeft0):
         Same as ShifterLeftBarrelUsingLoop2 just with write outside of the loop.
         """
         while b1:
-            v = hls.read(self.i).data
-            sh = hls.read(self.sh).data
+            v = hls.read(self.i_data).data
+            sh = hls.read(self.i_sh).data
             shWidth = sh._dtype.bit_length()
             for level in range(shWidth):
                 # level 0 shifts by 1 or by 0, level 1 shifts by 2 or 0, 4 or 0 ...
@@ -224,8 +224,8 @@ class ShifterLeftBarrelUsingPyExprConstructor(ShifterLeft0):
         level 0 of multiplexers is shifting by 0 or 1b, level 1 by 0 or 2b, ...
         """
         while b1:
-            v = hls.read(self.i).data
-            sh = hls.read(self.sh).data
+            v = hls.read(self.i_data).data
+            sh = hls.read(self.i_sh).data
             shiftedV = self.buildBarrelShiftLeft(sh, v)
             hls.write(shiftedV, self.o)
 

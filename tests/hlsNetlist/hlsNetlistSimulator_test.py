@@ -4,16 +4,16 @@
 import unittest
 
 from hwt.hdl.commonConstants import b0, b1
+from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.debugBundle import HlsDebugBundle
 from pyMathBitPrecise.bit_utils import get_bit
-from tests.baseIrMirRtlTC import BaseIrMirRtl_TC, \
-    ListRaisingStopSimumulationWhenFilled
 from tests.frontend.ifstm_test import HlsSimpleIfStatement
 from tests.frontend.whileTrue import WhileTrueWriteCntr0
 from tests.io.ioFsm import WriteFsm0WhileTrue123
+from tests.passTestInjectorForDInDOutHwModule import PassTestInjectorForDInDOutHwModule
 
 
-class HlsNetlistSimulator_TC(BaseIrMirRtl_TC):
+class HlsNetlistSimulator_TC(SimTestCase):
 
     def test_HlsSimpleIfStatement(self):
         # :note: simple combinational 1 clk circuit with 3 inputs, 1 output and 1 mux
@@ -33,40 +33,11 @@ class HlsNetlistSimulator_TC(BaseIrMirRtl_TC):
             _d = dut.model(_a, _b, _c)
             d.append(_d)
 
-        def prepareIrAndMirArgs():
-            return (iter(a), iter(b), iter(c), [])
-
-        def checkIrAndMirArgs(args):
-            _, _, _, _d = args
-            self.assertValSequenceEqual(_d, d)
-
-        prepareHlsNetlistSimArgs = prepareIrAndMirArgs
-        checkHlsNetlistSimResults = checkIrAndMirArgs
-
-        def prepareRtlSimArgs(dut):
-            dut.a._ag.data.extend(a)
-            dut.b._ag.data.extend(b)
-            dut.c._ag.data.extend(c)
-            return d
-
-        def checkRtlSimResults(dut, ref):
-            self.assertValSequenceEqual(dut.d._ag.data, ref)
-
-        self._test(dut,
-            prepareIrAndMirArgs,
-            checkIrAndMirArgs,
-            prepareHlsNetlistSimArgs,
-            checkHlsNetlistSimResults,
-            prepareRtlSimArgs,
-            checkRtlSimResults,
-            # wallTimeIr,
-            # wallTimeOptIr,
-            # wallTimeOptMir,
-            wallTimeRtlClks=(1 << 3) + 1,
-            # runTestAfterPassFilter={"HlsNetlistPassSimplifySync", },
-            runTestAfterEachHlsNetlistPass=True,
-            debugFilter=HlsDebugBundle.ALL_RELIABLE,
-        )
+        passTests = PassTestInjectorForDInDOutHwModule(dut, self)
+        passTests.setRunTestsAfter(runTestAfterEachHlsNetlistPass=True)
+        passTests.setTimeLimits(wallTimeRtl=(1 << 3) + 1)
+        passTests.bindDataByInOut((a, b, c), (d,), PORT_NAMES=("a", "b", "c", "d"))
+        passTests.test_allInOne()
 
     def test_WhileTrueWriteCntr0(self):
         # :note: simple circuit with adder and backedge
@@ -74,68 +45,22 @@ class HlsNetlistSimulator_TC(BaseIrMirRtl_TC):
         N = 10
         ref = list(range(N))
 
-        def prepareIrAndMirArgs():
-            return (ListRaisingStopSimumulationWhenFilled([], N),)
-
-        def checkIrAndMirArgs(args):
-            res, = args
-            self.assertValSequenceEqual(res, ref)
-
-        prepareHlsNetlistSimArgs = prepareIrAndMirArgs
-        checkHlsNetlistSimResults = checkIrAndMirArgs
-
-        def prepareRtlSimArgs(dut):
-            return ref
-
-        def checkRtlSimResults(dut, ref):
-            self.assertValSequenceEqual(dut.dataOut._ag.data, ref)
-
-        self._test(dut,
-            prepareIrAndMirArgs,
-            checkIrAndMirArgs,
-            prepareHlsNetlistSimArgs,
-            checkHlsNetlistSimResults,
-            prepareRtlSimArgs,
-            checkRtlSimResults,
-            wallTimeRtlClks=N + 1,
-            # runTestAfterPassFilter={"HlsArchPassSyncLowering", },
-            runTestAfterEachHlsNetlistPass=True,
-            debugFilter=HlsDebugBundle.ALL_RELIABLE,
-        )
+        passTests = PassTestInjectorForDInDOutHwModule(dut, self)
+        passTests.setRunTestsAfter(runTestAfterEachHlsNetlistPass=True)
+        passTests.setTimeLimits(wallTimeRtl=N + 1)
+        passTests.bindDataByInOut((), (ref,), OUT_ITEM_CNT_LIMITS=(N,), PORT_NAMES=("dataOut", ))
+        passTests.test_allInOne()
 
     def test_WriteFsm0WhileTrue123(self):
         dut = WriteFsm0WhileTrue123()
         N = 10
         ref = list([(i % 3) + 1 for i in range(N)])
 
-        def prepareIrAndMirArgs():
-            return (ListRaisingStopSimumulationWhenFilled([], N),)
-
-        def checkIrAndMirArgs(args):
-            res, = args
-            self.assertValSequenceEqual(res, ref)
-
-        prepareHlsNetlistSimArgs = prepareIrAndMirArgs
-        checkHlsNetlistSimResults = checkIrAndMirArgs
-
-        def prepareRtlSimArgs(dut):
-            return ref
-
-        def checkRtlSimResults(dut, ref):
-            self.assertValSequenceEqual(dut.o._ag.data, ref)
-
-        self._test(dut,
-            prepareIrAndMirArgs,
-            checkIrAndMirArgs,
-            prepareHlsNetlistSimArgs,
-            checkHlsNetlistSimResults,
-            prepareRtlSimArgs,
-            checkRtlSimResults,
-            wallTimeRtlClks=N + 1,
-            # runTestAfterPassFilter={"HlsArchPassSyncLowering", },
-            runTestAfterEachHlsNetlistPass=True,
-            debugFilter=HlsDebugBundle.ALL_RELIABLE,
-        )
+        passTests = PassTestInjectorForDInDOutHwModule(dut, self)
+        passTests.setRunTestsAfter(runTestAfterEachHlsNetlistPass=True)
+        passTests.setTimeLimits(wallTimeRtl=N + 1)
+        passTests.bindDataByInOut((), (ref,), OUT_ITEM_CNT_LIMITS=(N,), PORT_NAMES=("o", ))
+        passTests.test_allInOne()
 
 
 if __name__ == '__main__':

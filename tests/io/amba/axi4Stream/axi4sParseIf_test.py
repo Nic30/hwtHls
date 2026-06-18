@@ -2,49 +2,60 @@
 # -*- coding: utf-8 -*-
 
 from math import ceil
-from typing import List
+from typing import Optional
 import unittest
 
+from hwt.constants import NOT_SPECIFIED
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.struct import HStruct
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS, HlsDebugBundle
-from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
+from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.amba.axi4sSimFrameUtils import Axi4StreamSimFrameUtils
-from hwtSimApi.utils import freq_to_period
-from pyMathBitPrecise.bit_utils import  int_to_int_list, mask
-from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
-from tests.io.amba.axi4Stream._baseAxi4SPktInPktOutTC import BaseAxi4SPktInPktOutTC
+from pyMathBitPrecise.bit_utils import int_to_int_list, mask
 from tests.io.amba.axi4Stream.axi4sParseIf import Axi4SParse2If2B, Axi4SParse2IfLess, Axi4SParse2If, Axi4SParse2IfAndSequel
-from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
+from tests.passTestInjectorForDInDOutHwModule import PassTestInjectorForDInDOutHwModule
+from tests.passTestIo import PassTestIoOut, errMsgFrormatter_HBitsAsHex
+from tests.passTestIoStream import PassTestIoInStream
 
 
 class Axi4SParseIfTC(SimTestCase):
-    _Axi4StreamSimFrameUtils = Axi4StreamSimFrameUtils
+    _SimFrameUtils = Axi4StreamSimFrameUtils
 
-    def _testLlvmIrOrMir(self, platform: TestLlvmIrAndMirPlatform, toLlvm: ToLlvmIrTranslator, isMir: bool, inputFrames: List[List[int]], outputRef: List[int]):
-        dut = toLlvm.parentHwModule
-        fu = self._Axi4StreamSimFrameUtils.from_HwIO(dut.i)
-        dataIn = BaseAxi4SPktInPktOutTC._packFrames(fu, inputFrames)
-        # for f in inputFrames:
-        #     print(f)
-        # for x in dataIn:
-        #     print(x)
-        dataOut = []
-        args = [iter(dataIn), dataOut]
-        BaseIrMirRtl_TC._runLlvmIrOrMir(self, platform, toLlvm, "", None, isMir, args)
-        self.assertValSequenceEqual(dataOut, outputRef, "[%s] != [%s]" % (
-            ", ".join("0x%x" % int(i) if i._is_full_valid() else repr(i) for i in dataOut),
-            ", ".join("0x%x" % i for i in outputRef)
-        ))
+    def _runTest(self, dut, inputFrames: list[int], outputRef: list[int],
+                 platform:Optional[VirtualHlsPlatform]=None,
+                 platformKwArgs=None,
+                 wallTimeRtlDefaultMultiplier:Optional[int]=NOT_SPECIFIED,
+                 ):
+        passTests = PassTestInjectorForDInDOutHwModule(dut, self)
+        passTests.bindData((PassTestIoInStream(self._SimFrameUtils, inputFrames, name="i"),
+                            PassTestIoOut(outputRef, name="o", errMsgFormatter=errMsgFrormatter_HBitsAsHex)))
 
-    def _test_Axi4SParse2If2B(self, DATA_WIDTH:int, freq=int(1e6), N=16):
+        passTests.setRunTestsAfter(
+            # runTestAfterPassFilter:Optional[set["str"]]=None,
+            runTestBeforeLlvmIrPasses=True,
+            runTestAfterEachPass=False,
+            runTestAfterEachIrPass=False,
+            runTestAfterIrPasses=True,
+            runTestAfterEachMirPass=True,
+            runTestAfterMirPasses=True,
+            runTestAfterMirVRegIfConverterChange=True,
+            runTestAfterMirGISelCombinerChange=False,
+            runTestAfterEachHlsNetlistPass=False,
+            runTestAfterHlsNetlistPasses=True)
+        passTests.setTimeLimits(wallTimeRtlDefaultMultiplier=wallTimeRtlDefaultMultiplier)
+
+        passTests.test_allInOne(platform=platform, platformKwArgs=platformKwArgs)
+
+    def _test_Axi4SParse2If2B(self, DATA_WIDTH:int, freq=int(1e6), N=16,
+                              wallTimeRtlDefaultMultiplier:Optional[int]=NOT_SPECIFIED,):
         dut = Axi4SParse2If2B()
         dut.DATA_WIDTH = DATA_WIDTH
         dut.CLK_FREQ = freq
-        self._run_test_Axi4SParse2If2B(dut, N)
+        self._run_test_Axi4SParse2If2B(dut, N, wallTimeRtlDefaultMultiplier=wallTimeRtlDefaultMultiplier)
 
-    def _run_test_Axi4SParse2If2B(self, dut: Axi4SParse2If2B, N:int, platformKwargs={}):
+    def _run_test_Axi4SParse2If2B(self, dut: Axi4SParse2If2B, N:int, platformKwArgs={},
+                                  wallTimeRtlDefaultMultiplier:Optional[int]=NOT_SPECIFIED,):
         T1 = HStruct(
             (HBits(8), "v0"),
         )
@@ -53,8 +64,8 @@ class Axi4SParseIfTC(SimTestCase):
             (HBits(8), "v1"),
         )
 
-        inputFrames: List[List[int]] = []
-        outputRef: List[int] = []
+        inputFrames: list[list[int]] = []
+        outputRef: list[int] = []
         for _ in range(N):
             T = self._rand.choice((T1, T2))
             if T is T1:
@@ -77,40 +88,35 @@ class Axi4SParseIfTC(SimTestCase):
             data = int_to_int_list(v, 8, ceil(T.bit_length() / 8))
             inputFrames.append(data)
 
-        tc = self
-
-        def testLlvmOptIr(*args):
-            tc._testLlvmIrOrMir(*args, False, inputFrames, outputRef)
-
-        def testLlvmOptMir(*args):
-            tc._testLlvmIrOrMir(*args, True, inputFrames, outputRef)
-
-        self.compileSimAndStart(dut, target_platform=TestLlvmIrAndMirPlatform(
-            optIrTest=testLlvmOptIr, optMirTest=testLlvmOptMir,
-            **platformKwargs))
-
-        fu = self._Axi4StreamSimFrameUtils.from_HwIO(dut.i)
-        for f in inputFrames:
-            fu.send_bytes(f, dut.i._ag.data)
-
-        t = int(freq_to_period(dut.CLK_FREQ)) * (len(dut.i._ag.data) + 10) * 2
-        self.runSim(t)
-
-        self.assertValSequenceEqual(dut.o._ag.data, outputRef, "%r [%s] != [%s]" % (
-            dut.o,
-            ", ".join("0x%x" % int(i) if i._is_full_valid() else repr(i) for i in dut.o._ag.data),
-            ", ".join("0x%x" % i for i in outputRef)
-        ))
+        self._runTest(dut, inputFrames, outputRef, platformKwArgs=platformKwArgs,
+                      wallTimeRtlDefaultMultiplier=wallTimeRtlDefaultMultiplier)
 
     # Axi4SParse2IfLess
 
-    def _test_Axi4SParse2If(self, DATA_WIDTH:int, freq=int(1e6), N=16):
+    def _test_Axi4SParse2If(self, DATA_WIDTH:int, freq=int(1e6), N=16,
+                            wallTimeRtlDefaultMultiplier:Optional[int]=NOT_SPECIFIED,):
         dut = Axi4SParse2If()
         dut.DATA_WIDTH = DATA_WIDTH
         dut.CLK_FREQ = freq
-        self._run_test_Axi4SParse2If(dut, N)
+        self._run_test_Axi4SParse2If(dut, N, wallTimeRtlDefaultMultiplier=wallTimeRtlDefaultMultiplier)
 
-    def _run_test_Axi4SParse2If(self, dut: Axi4SParse2If, N:int, platformKwargs={}):
+    def _run_test_Axi4SParse2If(self, dut: Axi4SParse2If, N:int,
+                                platformKwArgs=dict(
+                                    debugFilter={  
+                                     *HlsDebugBundle.ALL_RELIABLE,
+                                    # HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+                                    # HlsDebugBundle.DBG_4_0_addSignalNamesToData,
+                                    },
+                                    llvmCliArgs=[
+                                    #     LLVM_CLI_COMMON_OPTS.OVERWIRTE_BB_NAMES,
+                                    #     LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+                                    #     LLVM_CLI_COMMON_OPTS.PRINT_BEFORE_ALL,
+                                    #     LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL,
+                                        LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+                                    #   LLVM_CLI_COMMON_OPTS.VREGIFCVT_TRACE,
+                                    ],
+                                ),
+                                wallTimeRtlDefaultMultiplier:Optional[int]=NOT_SPECIFIED,):
         T1 = HStruct(
             (HBits(16), "v0"),
             (HBits(8), "v1"),
@@ -124,8 +130,8 @@ class Axi4SParseIfTC(SimTestCase):
             (HBits(32), "v1"),
         )
 
-        outputRef: List[int] = []
-        inputFrames: List[List[int]] = []
+        outputRef: list[int] = []
+        inputFrames: list[list[int]] = []
         ALL_Ts = [T1, T2, T4]
         for _ in range(N):
             T = self._rand.choice(ALL_Ts)
@@ -146,61 +152,38 @@ class Axi4SParseIfTC(SimTestCase):
             data = int_to_int_list(v, 8, ceil(T.bit_length() / 8))
             inputFrames.append(data)
 
-        tc = self
+        self._runTest(dut, inputFrames, outputRef, platformKwArgs=platformKwArgs,
+                      wallTimeRtlDefaultMultiplier=wallTimeRtlDefaultMultiplier)
 
-        def testLlvmOptIr(*args):
-            tc._testLlvmIrOrMir(*args, False, inputFrames, outputRef)
-
-        def testLlvmOptMir(*args):
-            tc._testLlvmIrOrMir(*args, True, inputFrames, outputRef)
-
-        self.compileSimAndStart(dut, target_platform=TestLlvmIrAndMirPlatform(
-            optIrTest=testLlvmOptIr, optMirTest=testLlvmOptMir,
-            **platformKwargs,
-            #llvmCliArgs=[
-            #    LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
-            #    # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
-            #]
-            # runTestAfterEachPass=True,
-            # runTestAfterEachIrPass=True,
-            # runTestAfterEachMirPass=True
-
-            ))
-
-        fu = self._Axi4StreamSimFrameUtils.from_HwIO(dut.i)
-        for f in inputFrames:
-            fu.send_bytes(f, dut.i._ag.data)
-
-        t = int(freq_to_period(dut.CLK_FREQ)) * (len(dut.i._ag.data) + 10) * 2
-        self.runSim(t)
-
-        self.assertValSequenceEqual(dut.o._ag.data, outputRef, "%r [%s] != [%s]" % (
-            dut.o,
-            ", ".join("0x%x" % int(i) if i._is_full_valid() else repr(i) for i in dut.o._ag.data),
-            ", ".join("0x%x" % i for i in outputRef)
-        ))
-
-    def _test_Axi4SParse2IfAndSequel(self, DATA_WIDTH:int, freq=int(1e6), N=16, WRITE_FOOTER=True):
+    def _test_Axi4SParse2IfAndSequel(self, DATA_WIDTH:int, freq=int(1e6), N=2, WRITE_FOOTER=True,
+                 wallTimeRtlDefaultMultiplier:Optional[int]=NOT_SPECIFIED,):
         dut = Axi4SParse2IfAndSequel()
         dut.WRITE_FOOTER = WRITE_FOOTER
         dut.DATA_WIDTH = DATA_WIDTH
         dut.CLK_FREQ = freq
-        self._run_test_Axi4SParse2IfAndSequel(dut, N, WRITE_FOOTER)
+        self._run_test_Axi4SParse2IfAndSequel(dut, N, WRITE_FOOTER,
+                                              wallTimeRtlDefaultMultiplier=wallTimeRtlDefaultMultiplier)
 
-    def _run_test_Axi4SParse2IfAndSequel(self, dut: Axi4SParse2IfAndSequel, N:int, WRITE_FOOTER:bool, platformKwargs=dict(
-                # debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
-                #    HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
-                #    HlsDebugBundle.DBG_4_0_addSignalNamesToData,
-                # }),
+    def _run_test_Axi4SParse2IfAndSequel(self, dut: Axi4SParse2IfAndSequel, N:int, WRITE_FOOTER:bool,
+            platformKwArgs=dict(
+                debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
+                   # HlsDebugBundle.DBG_4_0_hwscheduleTrace,
+                   HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+                   HlsDebugBundle.DBG_4_0_addSignalNamesToData,
+                }),
                 # runTestAfterEachIrPass=True,
                 # runTestAfterEachMirPass=True,
                 llvmCliArgs=[
+                    # LLVM_CLI_COMMON_OPTS.OVERWIRTE_BB_NAMES,
+                    # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
                     # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
                     # LLVM_CLI_COMMON_OPTS.VREGIFCVT_TRACE,
                     LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
                     # LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
                 ]
-            )):
+            ),
+            wallTimeRtlDefaultMultiplier:Optional[int]=NOT_SPECIFIED,
+            ):
         T0 = HStruct(
             (HBits(16), "v0"),
             (HBits(8), "v2"),
@@ -218,7 +201,11 @@ class Axi4SParseIfTC(SimTestCase):
 
         outputRef: list[int] = []
         inputFrames: list[list[int]] = []
-        ALL_Ts = [T0, T2, T4]
+        ALL_Ts = [
+            T0,
+            T2,
+            T4
+                  ]
         for _ in range(N):
             T = self._rand.choice(ALL_Ts)
             v2 = self._rand.getrandbits(8)
@@ -243,38 +230,8 @@ class Axi4SParseIfTC(SimTestCase):
             data = int_to_int_list(v, 8, ceil(T.bit_length() / 8))
             inputFrames.append(data)
 
-        tc = self
-
-        def testLlvmOptIr(*args):
-            # try:
-            tc._testLlvmIrOrMir(*args, False, inputFrames, outputRef)
-
-            # except NotImplementedError:
-            #    pass
-        def testLlvmOptMir(*args):
-            tc._testLlvmIrOrMir(*args, True, inputFrames, outputRef)
-
-        self.compileSimAndStart(dut, target_platform=TestLlvmIrAndMirPlatform(
-                optIrTest=testLlvmOptIr,
-                optMirTest=testLlvmOptMir,
-                **platformKwargs,
-        ))
-
-        dut.i._ag.presetBeforeClk = True
-        fu = self._Axi4StreamSimFrameUtils.from_HwIO(dut.i)
-        for f in inputFrames:
-            fu.send_bytes(f, dut.i._ag.data)
-
-        t = int(freq_to_period(dut.CLK_FREQ)) * (len(dut.i._ag.data) + 10) * 2
-        if WRITE_FOOTER:
-            t *= 2
-        self.runSim(t)
-
-        self.assertValSequenceEqual(dut.o._ag.data, outputRef, "%r [%s] != [%s]" % (
-            dut.o,
-            ", ".join("0x%x" % int(i) if i._is_full_valid() else repr(i) for i in dut.o._ag.data),
-            ", ".join("0x%x" % i for i in outputRef)
-        ))
+        self._runTest(dut, inputFrames, outputRef, platformKwArgs=platformKwArgs,
+                      wallTimeRtlDefaultMultiplier=wallTimeRtlDefaultMultiplier)
 
     # Axi4SParse2If2B
 
@@ -322,7 +279,7 @@ class Axi4SParseIfTC(SimTestCase):
         self._test_Axi4SParse2If(512)
 
     def test_Axi4SParse2If_8b_40MHz(self):
-        self._test_Axi4SParse2If(8, freq=int(40e6))
+        self._test_Axi4SParse2If(8, freq=int(40e6), wallTimeRtlDefaultMultiplier=2)
 
     def test_Axi4SParse2If_16b_40MHz(self):
         self._test_Axi4SParse2If(16, freq=int(40e6))
@@ -337,7 +294,7 @@ class Axi4SParseIfTC(SimTestCase):
         self._test_Axi4SParse2If(512, freq=int(40e6))
 
     def test_Axi4SParse2If_8b_100MHz(self):
-        self._test_Axi4SParse2If(8, freq=int(100e6))
+        self._test_Axi4SParse2If(8, freq=int(100e6), wallTimeRtlDefaultMultiplier=8)
 
     def test_Axi4SParse2If_16b_100MHz(self):
         self._test_Axi4SParse2If(16, freq=int(100e6))
@@ -371,7 +328,7 @@ class Axi4SParseIfTC(SimTestCase):
         self._test_Axi4SParse2IfAndSequel(8, freq=int(40e6))
 
     def test_Axi4SParse2IfAndSequel_16b_40MHz(self):
-        self._test_Axi4SParse2IfAndSequel(16, freq=int(40e6))
+        self._test_Axi4SParse2IfAndSequel(16, freq=int(40e6), wallTimeRtlDefaultMultiplier=3)
 
     def test_Axi4SParse2IfAndSequel_24b_40MHz(self):
         self._test_Axi4SParse2IfAndSequel(24, freq=int(40e6))
@@ -386,7 +343,7 @@ class Axi4SParseIfTC(SimTestCase):
         self._test_Axi4SParse2IfAndSequel(8, freq=int(100e6))
 
     def test_Axi4SParse2IfAndSequel_16b_100MHz(self):
-        self._test_Axi4SParse2IfAndSequel(16, freq=int(100e6))
+        self._test_Axi4SParse2IfAndSequel(16, freq=int(100e6), wallTimeRtlDefaultMultiplier=5.5)
 
     def test_Axi4SParse2IfAndSequel_24b_100MHz(self):
         self._test_Axi4SParse2IfAndSequel(24, freq=int(100e6))
@@ -434,7 +391,7 @@ class Axi4SParseIfTC(SimTestCase):
         self._test_Axi4SParse2IfAndSequel(16, freq=int(100e6), WRITE_FOOTER=False)
 
     def test_Axi4SParse2IfAndSequel_NO_FOOTER_24b_100MHz(self):
-        self._test_Axi4SParse2IfAndSequel(24, freq=int(100e6), WRITE_FOOTER=False)
+        self._test_Axi4SParse2IfAndSequel(24, freq=int(100e6), WRITE_FOOTER=False, wallTimeRtlDefaultMultiplier=3)
 
     def test_Axi4SParse2IfAndSequel_NO_FOOTER_48b_100MHz(self):
         self._test_Axi4SParse2IfAndSequel(48, freq=int(100e6), WRITE_FOOTER=False)
@@ -444,27 +401,26 @@ class Axi4SParseIfTC(SimTestCase):
 
 
 if __name__ == '__main__':
-    from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synth import to_rtl_str
-    m = Axi4SParse2IfAndSequel()
-    # m = Axi4SParse2If2B()
-    m.WRITE_FOOTER = True
-    m.DATA_WIDTH = 16
-    m.CLK_FREQ = int(1e6)
-    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
-       llvmCliArgs=[
-            LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
-            LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
-            LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
-       ],
-       debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
-           HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
-           HlsDebugBundle.DBG_4_0_addSignalNamesToData,
-    }))))
+    # m = Axi4SParse2IfAndSequel()
+    # # m = Axi4SParse2If2B()
+    # m.WRITE_FOOTER = True
+    # m.DATA_WIDTH = 16
+    # m.CLK_FREQ = int(1e6)
+    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
+    #    llvmCliArgs=[
+    #         LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+    #         LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+    #         LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
+    #    ],
+    #    debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
+    #        HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+    #        HlsDebugBundle.DBG_4_0_addSignalNamesToData,
+    # }))))
 
     testLoader = unittest.TestLoader()
 
     suite = testLoader.loadTestsFromTestCase(Axi4SParseIfTC)
-    # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2If2B_8b_1MHz")])
+    # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2If_8b_100MHz")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

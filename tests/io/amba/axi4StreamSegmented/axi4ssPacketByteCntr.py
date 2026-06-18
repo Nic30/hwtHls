@@ -53,7 +53,7 @@ class Axi4SSPacketByteCntr_readBusWord(HwModule):
         else:
             o: HwIODataRdVld = HwIODataRdVld()._m()
             o.DATA_WIDTH = 16
-        self.byte_cnt = o
+        self.o_byte_cnt = o
 
     @hwt_expr_producer
     def segmentByteCnt(self, segmentUser: HStructConstBase) -> AnyHBitsValue:
@@ -83,7 +83,7 @@ class Axi4SSPacketByteCntr_readBusWord(HwModule):
                 byte_cnt += zextToTy(segmentByteCntVal, byte_cnt._dtype)
                 # delete to simplify translation to llvm ir (limit variable life)
                 if getattr(segment, "enable", b1) & segment.eof:
-                    hls.write(byte_cnt, self.byte_cnt)
+                    hls.write(byte_cnt, self.o_byte_cnt)
                 del segmentByteCntVal
                 del segment
 
@@ -112,7 +112,7 @@ class Axi4SSPacketByteCntr_readSegmentWord(Axi4SSPacketByteCntr_readBusWord):
                 byte_cnt += zextToTy(word.getSize(), byte_cnt._dtype)
                 if word._isEoF():
                     break
-            hls.write(byte_cnt, self.byte_cnt)
+            hls.write(byte_cnt, self.o_byte_cnt)
             i.readEndOfFrame()
             PyBytecodeStreamSegmentLoopUnroll(i.interface)
 
@@ -139,7 +139,7 @@ class Axi4SSPacketByteCntr_readByte(Axi4SSPacketByteCntr_readSegmentWord):
     #            PyBytecodeStreamLoopUnroll(i.interface)
     #            if word._isEoF():
     #                break
-    #        hls.write(byte_cnt, self.byte_cnt)
+    #        hls.write(byte_cnt, self.o_byte_cnt)
     #        i.readEndOfFrame()
     #        PyBytecodeStreamSegmentLoopUnroll(i.interface)
     #
@@ -155,7 +155,7 @@ class Axi4SSPacketByteCntr_readByte(Axi4SSPacketByteCntr_readSegmentWord):
                 PyBytecodeStreamLoopUnroll(i.interface)
                 if word._isEoF():
                     break
-            hls.write(byte_cnt, self.byte_cnt)
+            hls.write(byte_cnt, self.o_byte_cnt)
             i.readEndOfFrame()
             PyBytecodeStreamSegmentLoopUnroll(i.interface)
 

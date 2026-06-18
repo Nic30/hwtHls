@@ -24,6 +24,7 @@ from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.io.bram import IoProxyBram
 from hwtHls.scope import HlsScope
 from tests.io.bram.bramWriteAligner import HwIOAddrDataUnalignedToBram
+from hwt.hdl.types.bitsConst import HBitsConst
 
 
 class PcieTlpStoreAligner(HwModule):
@@ -72,7 +73,8 @@ class PcieTlpStoreAligner(HwModule):
 
     @hwt_expr_producer
     @classmethod
-    def splitToAlignedWords(cls, newD: HStructConstBase, addrToWordIndexAlignBits:int, dataWidth:int):
+    def splitToAlignedWords(cls, newD: HStructConstBase, addrToWordIndexAlignBits:int, dataWidth:int) \
+            ->tuple[HBitsConst, HBitsConst, HBitsConst, HBitsConst, HBitsConst]:
         bit2_t = HBits(2)
         newWIndex = newD.addr[:addrToWordIndexAlignBits]
         # pcie address is always aligned to 4B (PcieTlpWord_t)

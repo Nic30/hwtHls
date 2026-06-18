@@ -1,23 +1,34 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from typing import Tuple
-
 from hwt.code import Concat
 from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.defs import BIT
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
+from hwt.pyUtils.typingFuture import override
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.pragmaFunction import PyBytecodeSkipPass
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.netlist.extraOps import OP_UDIVREM
 from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
-from hwtSimApi.utils import freq_to_period
+from hwtHls.platform.virtual import VirtualHlsPlatform
 from pyMathBitPrecise.bit_utils import mask
-from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.math.componentGenerators._div.divRestoring import DivRemHwModule, divremRestoring
 from tests.math.installMathLib import installMathLibComponentGenerators
-from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
+from tests.passTestInjectorForDInDOutHwModule import PassTestInjectorForDInDOutHwModule
+from tests.passTestIoStruct import PassTestIoInStruct, PassTestIoOutStruct
+
+
+class PassTestInjectorForDivRemRestoring(PassTestInjectorForDInDOutHwModule):
+
+    @override
+    def checkDataOutFn(self, dataOut):
+        DW = self._topToRunTestsOn.DATA_WIDTH
+        self.assertValSequenceEqual(dataOut, self.OUT_DATA_REF[0], "[%s] != [%s]" % (
+            ", ".join("(q:%d, r:%d)" % (int(i) & mask(DW), int(i) >> DW) if i._is_full_valid() else repr(i) for i in dataOut),
+            ", ".join("(q:%d, r:%d)" % (q, r) for q, r in self.OUT_DATA_REF_PY[0])
+        ))
 
 
 class DivRemRestoring_TC(SimTestCase):
@@ -35,16 +46,8 @@ class DivRemRestoring_TC(SimTestCase):
 
     HLS_DIV_FN = staticmethod(divremRestoring)
 
-    def _getRefData(self, input_data):
-        return [self._model(*d) for d in input_data]
-
-    def _model(self, dividend: int, divisor: int, isSigned:bool) -> Tuple[int, int]:
-        if isSigned:
-            raise NotImplementedError()
-
-        quotient = dividend // divisor
-        remainder = dividend % divisor
-        return quotient, remainder
+    def platformSetUp(self, p: VirtualHlsPlatform):
+        pass
 
     def test_div_py(self):
         T = HBits(self.DATA_WIDTH)
@@ -53,39 +56,10 @@ class DivRemRestoring_TC(SimTestCase):
             _dividend = T.from_py(dividend)
             _divisor = T.from_py(divisor)
             _isSigned = BIT.from_py(isSigned)
-            (quotient, remainder) = self._model(dividend, divisor, isSigned)
+            (quotient, remainder) = DivRemHwModule.model(dividend, divisor, isSigned)
             _quotient, _remainder = divFn(_dividend, _divisor, _isSigned)
             self.assertValSequenceEqual([_quotient, _remainder], (quotient, remainder),
                                         msg=((dividend, "//", divisor, "signed?:", isSigned), (quotient, "rem:", remainder)))
-
-    def prepareDataInFn(self):
-        T = HBits(self.DATA_WIDTH)
-        dataIn = []
-        for (dividend, divisor, isSigned) in self.INPUT_DATA:
-            _dividend = T.from_py(dividend)
-            _divisor = T.from_py(divisor)
-            _isSigned = BIT.from_py(isSigned)
-            dataIn.append(Concat(_isSigned, _divisor, _dividend))
-        return dataIn
-
-    def getCheckDataOutFn(self, REF_DATA):
-        DW = self.DATA_WIDTH
-
-        dataOutRef = []
-        for (quotient, remainder) in REF_DATA:
-            dataOutRef.append((remainder << DW) | quotient)
-
-        def checkDataOutFn(dataOut):
-
-            self.assertValSequenceEqual(dataOut, dataOutRef, "[%s] != [%s]" % (
-                ", ".join("(q:%d, r:%d)" % (int(i) & mask(DW), int(i) >> DW) if i._is_full_valid() else repr(i) for i in dataOut),
-                ", ".join("(q:%d, r:%d)" % (q, r) for q, r in REF_DATA)
-            ))
-
-        return  checkDataOutFn
-
-    def platformSetUp(self, p: TestLlvmIrAndMirPlatform):
-        installMathLibComponentGenerators(p)
 
     def test_div_rtl(self,
                      MAIN_FN_META=None,
@@ -100,38 +74,40 @@ class DivRemRestoring_TC(SimTestCase):
         dut.IN_CHANNEL_TYPE = HwIOStructRdVld
         dut.CHECK_FOR_INEFFICIENCY = False
         # dut.CLK_FREQ = int(200e6)
-        REF_DATA = self._getRefData(self.INPUT_DATA)
 
-        p = TestLlvmIrAndMirPlatform.forSimpleDataInDataOutHwModule(
-            self.prepareDataInFn,
-            self.getCheckDataOutFn(REF_DATA),
-            None,
-            topToRunTestsOn=dut,
-            # debugFilter=HlsDebugBundle.ALL_RELIABLE,
-            llvmCliArgs=[
-                LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
-                # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
-            ],
-            runTestAfterEachPass=runTestAfterEachPass,
-        )
-        self.platformSetUp(p)
-        self.compileSimAndStart(dut, target_platform=p)
-        CLK_PERIOD = freq_to_period(dut.clk.FREQ)
-        dut.data_in._ag.data.extend(self.INPUT_DATA)
-        # :note: for better sim wave readability
-        dut.data_in._ag.presetBeforeClk = True
-        dut.data_out._ag.presetBeforeClk = True
+        T = HBits(self.DATA_WIDTH)
+        dataIn: list[HBitsConst] = []
+        for (dividend, divisor, isSigned) in self.INPUT_DATA:
+            _dividend = T.from_py(dividend)
+            _divisor = T.from_py(divisor)
+            _isSigned = BIT.from_py(isSigned)
+            dataIn.append(Concat(_isSigned, _divisor, _dividend))
+
+        platform = VirtualHlsPlatform(
+                                      # debugFilter=HlsDebugBundle.ALL_RELIABLE,
+                                      llvmCliArgs=[
+                                          LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+                                          # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+                                      ],
+                                      )
+
+        passTests = PassTestInjectorForDivRemRestoring(dut, self)
+        self.platformSetUp(platform)
+        passTests.setRunTestsAfter(runTestAfterEachPass=runTestAfterEachPass)
 
         timeMultiplier = 1
         if randomizeIn:
-            self.randomize(dut.data_in)
             timeMultiplier *= 2
         if randomizeOut:
-            self.randomize(dut.data_out)
             timeMultiplier *= 2
-        self.runSim((len(dut.data_in._ag.data) * dut.T.bit_length() + 20) * int(CLK_PERIOD) * timeMultiplier)
-        BaseIrMirRtl_TC._test_no_comb_loops(self)
-        self.assertValSequenceEqual(dut.data_out._ag.data, REF_DATA)
+        inT, outT = dut._getDataInOutTypes()
+        passTests.setTimeLimits(wallTimeRtl=(len(self.INPUT_DATA) * dut.T.bit_length() + 20) * timeMultiplier)
+        passTests.test_allInOne_withModel(
+            (PassTestIoInStruct(inT, self.INPUT_DATA, name="data_in", inInPyFormat=True, unpackMembersForModel=True, randomizeControl=randomizeIn),),
+            OUT_DATA_REF=(PassTestIoOutStruct(outT, (), name="data_out", randomizeControl=randomizeOut),),
+            platform=platform,
+        )
+
         self.rtl_simulator_cls = None
 
     def test_div_no_SlicesToIndependentVariablesPass(self):
@@ -177,7 +153,7 @@ class DivRemRestoringGen_TC(DivRemRestoring_TC):
         remainder = dividend % divisor  # [fixme] rem vs mod
         return quotient, remainder
 
-    def platformSetUp(self, p:TestLlvmIrAndMirPlatform):
+    def platformSetUp(self, p:VirtualHlsPlatform):
         installMathLibComponentGenerators(p)
         gen = p._componentGenerators[OP_UDIVREM]
         gen.optThroughputVsArea = self.UNROLL_FACTOR / self.DATA_WIDTH
@@ -239,6 +215,6 @@ if __name__ == "__main__":
 
     testLoader = unittest.TestLoader()
     suite = unittest.TestSuite(testLoader.loadTestsFromTestCase(cls) for cls in DivRemRestoring_TCs)
-    # suite = unittest.TestSuite([DivRemRestoring_unroll4_TC('test_div_no_SlicesToIndependentVariablesPass')])
+    # suite = unittest.TestSuite([DivRemRestoring_TC('test_div_no_SelectPruningPass')])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

@@ -12,6 +12,8 @@ from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4s import Axi4Stream
 from hwtLib.types.ctypes import uint16_t
 from tests.io.amba.axi4Stream.axi4sPacketCntr import Axi4SPacketCntr
+from hwtHls.frontend.pyBytecode import hlsBytecode
+from hwt.pyUtils.typingFuture import override
 
 
 class Axi4SPacketByteCntr0(Axi4SPacketCntr):
@@ -19,14 +21,17 @@ class Axi4SPacketByteCntr0(Axi4SPacketCntr):
     Counts a total number of bytes in any word seen.
     """
 
+    @override
     def hwDeclr(self):
         addClkRstn(self)
         with self._hwParamsShared():
             self.i = Axi4Stream()
             self.i.USE_STRB = True
-            self.byte_cnt: HwIODataRdVld = HwIODataRdVld()._m()
-            self.byte_cnt.DATA_WIDTH = 16
+            self.o_byte_cnt: HwIODataRdVld = HwIODataRdVld()._m()
+            self.o_byte_cnt.DATA_WIDTH = 16
 
+    @override
+    @hlsBytecode
     def mainThread(self, hls: HlsScope, i: IoProxyAxi4Stream):
         byte_cnt = uint16_t.from_py(0)
         i.readStartOfFrame()
@@ -39,7 +44,7 @@ class Axi4SPacketByteCntr0(Axi4SPacketCntr):
                     # is set as written.
                     # This leads to high resource consumption for wide interfaces.
                     byte_cnt += 1
-            hls.write(byte_cnt, self.byte_cnt)
+            hls.write(byte_cnt, self.o_byte_cnt)
 
 
 class Axi4SPacketByteCntr1(Axi4SPacketByteCntr0):
@@ -57,7 +62,7 @@ class Axi4SPacketByteCntr1(Axi4SPacketByteCntr0):
                     wordByteCnt = i + 1
             # there is just 1 adder
             byte_cnt += wordByteCnt._explicit_cast(byte_cnt._dtype)
-            hls.write(byte_cnt, self.byte_cnt)
+            hls.write(byte_cnt, self.o_byte_cnt)
 
 
 class Axi4SPacketByteCntr2(Axi4SPacketByteCntr0):
@@ -68,20 +73,20 @@ class Axi4SPacketByteCntr2(Axi4SPacketByteCntr0):
         i.readStartOfFrame()
         wordByteCntrTy = HBits(log2ceil(strbWidth + 1), signed=False)
         while b1:
-            wordByteCnt = wordByteCntrTy.from_py(strbWidth) # initialized to all bytes valid
+            wordByteCnt = wordByteCntrTy.from_py(strbWidth)  # initialized to all bytes valid
             # this for is just MUX
             for i, strbBit in enumerate(i.read(self.i.data._dtype, reliable=False).strb):
                 # this is required because value of i would not get captured once leaving the loop
                 iHw = wordByteCntrTy.from_py(i)
                 if ~strbBit:
-                    # :note: exit on first invalid byte and store number of valid bytes into wordByteCnt 
-                    # :attention: this code block is outside of the loop 
+                    # :note: exit on first invalid byte and store number of valid bytes into wordByteCnt
+                    # :attention: this code block is outside of the loop
                     wordByteCnt = iHw
                     break
 
             # there is just 1 adder
             byte_cnt += wordByteCnt._explicit_cast(byte_cnt._dtype)
-            hls.write(byte_cnt, self.byte_cnt)
+            hls.write(byte_cnt, self.o_byte_cnt)
 
 
 class Axi4SPacketByteCntr3(Axi4SPacketByteCntr1):
@@ -91,33 +96,33 @@ class Axi4SPacketByteCntr3(Axi4SPacketByteCntr1):
         strbWidth = self.i.strb._dtype.bit_length()
         i.readStartOfFrame()
         while b1:
-            # PyBytecodeInPreproc is used because otherwise 
+            # PyBytecodeInPreproc is used because otherwise
             # the read object is converted to a RtlSignal because word= is a store to a word variable
             word = PyBytecodeInPreproc(i.read(self.i.data._dtype, reliable=False))
             wordByteCnt = HBits(log2ceil(strbWidth + 1), signed=False).from_py(strbWidth)
             PyBytecodeInPreproc(f"strbCheckBefore")
             # this for is just MUX
-            for i, strbBit in enumerate(word.strb): # unrolled in preproc
+            for i, strbBit in enumerate(word.strb):  # unrolled in preproc
                 # this is required because value of i would not get captured once leaving the loop
                 iHw = wordByteCnt._dtype.from_py(i)
                 if ~strbBit:  # [TODO] preproc variable divergence dependent on hw evaluated value
-                    # :attention: this code block is outside of the loop 
+                    # :attention: this code block is outside of the loop
                     PyBytecodeInPreproc(f"strb{i:d}")
                     wordByteCnt = iHw
                     break
-            
+
             PyBytecodeInPreproc(f"strbCheckAfter")
             # there is just 1 adder
             byte_cnt += wordByteCnt._explicit_cast(byte_cnt._dtype)
             if word.last:
-                hls.write(byte_cnt, self.byte_cnt)
+                hls.write(byte_cnt, self.o_byte_cnt)
                 byte_cnt = 0
 
 
 if __name__ == "__main__":
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS 
+    from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
 
     m = Axi4SPacketByteCntr2()
     m.DATA_WIDTH = 16

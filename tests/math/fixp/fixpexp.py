@@ -12,7 +12,7 @@ from hwt.serializer.mode import serializeParamsUniq
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from pyMathBitPrecise.bit_utils import mask
-from tests.math.componentGenerators._genericHwModules import _FpUnOpAluHwModule
+from tests.math.componentGenerators._genericHwModules import _FpAlu1HwModule
 from tests.math.fixp.fixpConst import HFixedPointQConst
 from tests.math.fixp.fixpRtlSignal import HFixedPointQRtlSignal
 from tests.math.fixp.fixpTypes import HFixedPointQ
@@ -174,10 +174,10 @@ class FixpExp():
 
 
 @serializeParamsUniq
-class FixpExpTabularizedHwModule(_FpUnOpAluHwModule):
+class FixpExpTabularizedHwModule(_FpAlu1HwModule):
 
     def hwConfig(self) -> None:
-        _FpUnOpAluHwModule.hwConfig(self)
+        _FpAlu1HwModule.hwConfig(self)
         self.T = HFixedPointQ(8, 16)
         self.MAX_TABLE_ADDR_WIDTH = HwParam(8)
 

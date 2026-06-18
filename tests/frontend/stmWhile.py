@@ -21,6 +21,7 @@ from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from hwtLib.types.ctypes import uint8_t
 from hwt.hdl.commonConstants import b1
+from tests.passTestInjectorForDInDOutHwModule import hlsModelProps
 
 
 class HlsPythonHwWhile0a(HwModule):
@@ -32,10 +33,11 @@ class HlsPythonHwWhile0a(HwModule):
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.i = HwIOSignal()  # rst
-        self.o = HwIOVectSignal(8, signed=False)._m()
+        self.dataIn = HwIOSignal()  # rst
+        self.dataOut = HwIOVectSignal(8, signed=False)._m()
 
     @staticmethod
+    @hlsModelProps(returnsPyValue=True)
     def model(dataIn: Iterator[HBitsConst], dataOut: List[int]):
         i = uint8_t.from_py(0)
         while True:  # recognized as HW loop because of type
@@ -50,8 +52,8 @@ class HlsPythonHwWhile0a(HwModule):
         i = uint8_t.from_py(0)
         while b1:  # recognized as HW loop because of type
             i += 1
-            hls.write(i, self.o)
-            if hls.read(self.i).data:
+            hls.write(i, self.dataOut)
+            if hls.read(self.dataIn).data:
                 i = 0
 
     @override
@@ -70,10 +72,11 @@ class HlsPythonHwWhile0b(HlsPythonHwWhile0a):
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.o = HwIOVectSignal(8, signed=False)._m()
+        self.dataOut = HwIOVectSignal(8, signed=False)._m()
 
     @staticmethod
     @override
+    @hlsModelProps(returnsPyValue=True)
     def model(dataOut: List[int]):
         while True:
             dataOut.append(10)
@@ -85,13 +88,14 @@ class HlsPythonHwWhile0b(HlsPythonHwWhile0a):
         while b1:  # recognized as HW loop because of type
             while b1:  # recognized as HW loop because of type
                 i = uint8_t.from_py(10)
-                hls.write(i, self.o)
+                hls.write(i, self.dataOut)
 
 
 class HlsPythonHwWhile0c(HlsPythonHwWhile0a):
 
     @staticmethod
     @override
+    @hlsModelProps(returnsPyValue=True)
     def model(dataIn: Iterator[HBitsConst], dataOut: List[HBitsConst]):
         while True:
             i = uint8_t.from_py(10)
@@ -108,15 +112,21 @@ class HlsPythonHwWhile0c(HlsPythonHwWhile0a):
             i = uint8_t.from_py(10)
             while b1:  # recognized as HW loop because of type
                 i += 1
-                hls.write(i, self.o)
-                if hls.read(self.i).data:
+                hls.write(i, self.dataOut)
+                if hls.read(self.dataIn).data:
                     break
 
 
 class HlsPythonHwWhile1(HlsPythonHwWhile0a):
 
+    @override
+    def hwConfig(self) -> None:
+        super().hwConfig()
+        self.CLK_FREQ = int(50e6)  # to make this 1clk implementation with VirtualHlsPlatform
+
     @staticmethod
     @override
+    @hlsModelProps(returnsPyValue=True)
     def model(dataIn: Iterator[HBitsConst], dataOut: List[int]):
         i = uint8_t.from_py(10)
         while True:
@@ -135,9 +145,9 @@ class HlsPythonHwWhile1(HlsPythonHwWhile0a):
         i = uint8_t.from_py(10)
         while b1:  # recognized as HW loop because of type
             while True:  # recognized as HW loop because of break condition
-                hls.write(i, self.o)
+                hls.write(i, self.dataOut)
                 i += 1
-                if hls.read(self.i).data:
+                if hls.read(self.dataIn).data:
                     break
 
             i = 0
@@ -153,12 +163,13 @@ class HlsPythonHwWhile2(HlsPythonHwWhile0a):
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.o = HwIOStructRdVld()._m()
-        self.o.T = uint8_t
-        # self.o = HwIOVectSignal(8, signed=False)._m()
+        self.dataOut = HwIOStructRdVld()._m()
+        self.dataOut.T = uint8_t
+        # self.dataOut = HwIOVectSignal(8, signed=False)._m()
 
     @staticmethod
     @override
+    @hlsModelProps(returnsPyValue=True)
     def model(dataOut: List[Union[HBitsConst, int]]):
         i = uint8_t.from_py(0)
         while True:  # recognized as HW loop because of type
@@ -180,14 +191,14 @@ class HlsPythonHwWhile2(HlsPythonHwWhile0a):
         while b1:  # recognized as HW loop because of type
             PyBytecodeBlockLabel("wh0")
             if i <= 4:
-                hls.write(i, self.o)
+                hls.write(i, self.dataOut)
             elif i._eq(10):
                 break
             i += 1
 
         while b1:
             PyBytecodeBlockLabel("wh1")
-            hls.write(0, self.o)
+            hls.write(0, self.dataOut)
 
 
 class HlsPythonHwWhile3(HlsPythonHwWhile2):
@@ -195,13 +206,14 @@ class HlsPythonHwWhile3(HlsPythonHwWhile2):
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.i = HwIODataRdVld()
-        self.o = HwIODataRdVld()._m()
-        for i in (self.i, self.o):
+        self.dataIn = HwIODataRdVld()
+        self.dataOut = HwIODataRdVld()._m()
+        for i in (self.dataIn, self.dataOut):
             i.DATA_WIDTH = 8
 
     @staticmethod
     @override
+    @hlsModelProps(returnsPyValue=True)
     def model(dataIn: Iterator[HBitsConst], dataOut: List[Union[HBitsConst, int]]):
         while True:
             while True:
@@ -221,17 +233,17 @@ class HlsPythonHwWhile3(HlsPythonHwWhile2):
     def mainThread(self, hls: HlsScope):
         while b1:
             while b1:
-                r1 = hls.read(self.i).data
+                r1 = hls.read(self.dataIn).data
                 # dCroped = [d.data._reinterpret_cast(HBits(i * 8)) for i in range(1, self.DATA_WIDTH // 8)]
                 if r1 != 1:
-                    r2 = hls.read(self.i).data
-                    hls.write(r2, self.o)
+                    r2 = hls.read(self.dataIn).data
+                    hls.write(r2, self.dataOut)
                     if r2 != 2:
                         break
                 else:
                     break
 
-            hls.write(99, self.o)
+            hls.write(99, self.dataOut)
 
 
 class HlsPythonHwWhile4(HlsPythonHwWhile2):
@@ -239,10 +251,10 @@ class HlsPythonHwWhile4(HlsPythonHwWhile2):
     @override
     def hwDeclr(self):
         addClkRstn(self)
-        self.i = HwIOStructRdVld()
-        self.i.T = BIT
-        self.o = HwIODataRdVld()._m()
-        self.o.DATA_WIDTH = 8
+        self.dataIn = HwIOStructRdVld()
+        self.dataIn.T = BIT
+        self.dataOut = HwIODataRdVld()._m()
+        self.dataOut.DATA_WIDTH = 8
 
     @staticmethod
     @override
@@ -267,11 +279,11 @@ class HlsPythonHwWhile4(HlsPythonHwWhile2):
             cntr = HBits(4, signed=True).from_py(8 - 1)
             while cntr >= 0:
                 PyBytecodeBlockLabel("LCntr")
-                data = Concat(hls.read(self.i).data, data[8:1])  # shift-in data from left
+                data = Concat(hls.read(self.dataIn).data, data[8:1])  # shift-in data from left
                 cntr -= 1
 
             PyBytecodeBlockLabel("LFinalWrite")
-            hls.write(data, self.o)
+            hls.write(data, self.dataOut)
 
 
 class HlsPythonHwWhile5(HlsPythonHwWhile4):
@@ -292,11 +304,11 @@ class HlsPythonHwWhile5(HlsPythonHwWhile4):
                 cntr = HBits(4, signed=True).from_py(8 - 1)
                 while cntr >= 0:
                     PyBytecodeBlockLabel("LCntr")
-                    data = Concat(hls.read(self.i).data, data[8:1])  # shift-in data from left
+                    data = Concat(hls.read(self.dataIn).data, data[8:1])  # shift-in data from left
                     cntr -= 1
 
                 PyBytecodeBlockLabel("LFinalWrite")
-                hls.write(data, self.o)
+                hls.write(data, self.dataOut)
 
 
 class HlsPythonHwWhile5b(HlsPythonHwWhile5):
@@ -318,11 +330,11 @@ class HlsPythonHwWhile5b(HlsPythonHwWhile5):
                     cntr = HBits(4, signed=True).from_py(8 - 1)
                     while cntr >= 0:
                         PyBytecodeBlockLabel("LCntr")
-                        data = Concat(hls.read(self.i).data, data[8:1])  # shift-in data from left
+                        data = Concat(hls.read(self.dataIn).data, data[8:1])  # shift-in data from left
                         cntr -= 1
 
                     PyBytecodeBlockLabel("LFinalWrite")
-                    hls.write(data, self.o)
+                    hls.write(data, self.dataOut)
 
 
 class HlsPythonHwWhile5c(HlsPythonHwWhile4):
@@ -354,8 +366,8 @@ class HlsPythonHwWhile5c(HlsPythonHwWhile4):
                     cntr -= 1
 
                 PyBytecodeBlockLabel("LFinalWrite")
-                data = fitTo_t(hls.read(self.i).data, self.o.data._dtype)
-                hls.write(data, self.o)
+                data = fitTo_t(hls.read(self.dataIn).data, self.dataOut.data._dtype)
+                hls.write(data, self.dataOut)
 
 
 class HlsPythonHwWhile6(HlsPythonHwWhile4):
@@ -373,9 +385,9 @@ class HlsPythonHwWhile6(HlsPythonHwWhile4):
                     data = HBits(8).from_py(None)
                     cntr = HBits(4, signed=True).from_py(8 - 1)
                     while cntr >= 0:
-                        data = Concat(hls.read(self.i).data, data[8:1])  # shift-in data from left
+                        data = Concat(hls.read(self.dataIn).data, data[8:1])  # shift-in data from left
                         cntr -= 1
-                    hls.write(data, self.o)
+                    hls.write(data, self.dataOut)
 
 
 class MovingOneGen(HwModule):
@@ -388,10 +400,11 @@ class MovingOneGen(HwModule):
     @override
     def hwDeclr(self) -> None:
         addClkRstn(self)
-        self.o = HwIOStructRdVld()._m()
-        self.o.T = HBits(self.DATA_WIDTH)
+        self.dataOut = HwIOStructRdVld()._m()
+        self.dataOut.T = HBits(self.DATA_WIDTH)
 
     @staticmethod
+    @hlsModelProps(returnsPyValue=True)
     def model(dataOut: List[int]):
         t = HBits(4)
         width = t.bit_length()
@@ -404,12 +417,12 @@ class MovingOneGen(HwModule):
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
-        t = self.o.T
+        t = self.dataOut.T
         width = t.bit_length()
         while BIT.from_py(1):
             qMask = t.from_py(1 << (width - 1))
             while qMask != 0:
-                hls.write(qMask, self.o)
+                hls.write(qMask, self.dataOut)
                 qMask >>= 1
 
     @override
@@ -422,11 +435,12 @@ class LoopCondBitSet(MovingOneGen):
     @override
     def hwDeclr(self) -> None:
         MovingOneGen.hwDeclr(self)
-        self.i = HwIOStructRdVld()
-        self.i.T = BIT
+        self.dataIn = HwIOStructRdVld()
+        self.dataIn.T = BIT
 
     @staticmethod
     @override
+    @hlsModelProps(returnsPyValue=True)
     def model(dataIn: Iterator[HBitsConst], dataOut: List[int]):
         t = HBits(4)
         width = t.bit_length()
@@ -442,15 +456,15 @@ class LoopCondBitSet(MovingOneGen):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        t = self.o.T
+        t = self.dataOut.T
         width = t.bit_length()
         while BIT.from_py(1):
             qMask = t.from_py(1 << (width - 1))
             res = t.from_py(0)
             while qMask != 0:
-                if hls.read(self.i).data:
+                if hls.read(self.dataIn).data:
                     res |= qMask
-                hls.write(res, self.o)
+                hls.write(res, self.dataOut)
                 qMask >>= 1
 
 
@@ -459,11 +473,12 @@ class LoopZeroPadCompareShift(MovingOneGen):
     @override
     def hwDeclr(self) -> None:
         MovingOneGen.hwDeclr(self)
-        self.i = HwIOStructRdVld()
-        self.i.T = self.o.T
+        self.dataIn = HwIOStructRdVld()
+        self.dataIn.T = self.dataOut.T
 
     @staticmethod
     @override
+    @hlsModelProps(returnsPyValue=True)
     def model(dataIn: Iterator[HBitsConst], dataOut: List[int]):
         t = HBits(4)
         divisor = next(dataIn)
@@ -488,10 +503,10 @@ class LoopZeroPadCompareShift(MovingOneGen):
     @hlsBytecode
     @override
     def mainThread(self, hls: HlsScope):
-        divisor = hls.read(self.i).data
-        dividend = hls.read(self.i).data
+        divisor = hls.read(self.dataIn).data
+        dividend = hls.read(self.dataIn).data
 
-        t = self.o.T
+        t = self.dataOut.T
         width = t.bit_length()
         zeroPad = HBits(width - 1).from_py(0)
         divisorTmp = Concat(divisor, zeroPad)
@@ -499,7 +514,7 @@ class LoopZeroPadCompareShift(MovingOneGen):
         while b1:
             if divisorTmp <= Concat(zeroPad, dividend):
                 dividend -= divisorTmp[width:]
-            hls.write(dividend, self.o)
+            hls.write(dividend, self.dataOut)
             divisorTmp >>= 1
 
 

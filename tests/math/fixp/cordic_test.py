@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from copy import copy
 import math
-from pathlib._local import Path
 from typing import Sequence
 
 from hwt.hdl.types.bits import HBits
@@ -13,7 +11,8 @@ from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.llvm.llvmIr import HFloatTmpRounding, HFloatTmpSaturation, \
     HFloatTmpConfig, APInt
 from hwtHls.platform.debugBundle import HlsDebugBundle
-from hwtSimApi.utils import freq_to_period
+from hwtHls.platform.virtual import VirtualHlsPlatform
+from pyMathBitPrecise.bit_utils import mask, to_signed
 from pyMathBitPrecise.bits3t import Bits3val
 from tests.math.componentGenerators.fsincos import FixpSinCosCordic, \
     FixpSinCosCordicPi
@@ -22,8 +21,9 @@ from tests.math.fixp.fixpConst import HFixedPointQConst
 from tests.math.fixp.fixpOperatorsTrigonometric_test import FixpSinNoLut_TC
 from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.math.installMathLib import installMathLibComponentGenerators
-from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
-from pyMathBitPrecise.bit_utils import mask, to_signed
+from tests.passTestInjectorForDInDOutHwModule import PassTestInjectorForDInDOutHwModule
+from tests.math.fixp.passTestIoFixp import PassTestIoInHFixedPoint,\
+    PassTestIoOutStructHFixedPoint2
 
 
 class Cordic_TC(SimTestCase):
@@ -136,45 +136,6 @@ class Cordic_TC(SimTestCase):
             f = cfg.bitCastHFloatTmpAPIntToAPFloat(APInt(w, i))
             TEST_VALUES.append(float(f))
         return TEST_VALUES
-
-    def _assertSinCosPairEquals(self,
-                                fpT: HFixedPointQ,
-                                inputs: float,
-                                sinCosPairs: Sequence[tuple[HBitsConst, HBitsConst]],
-                                sinCosPairsRef: Sequence[tuple[HFixedPointQConst, HFixedPointQConst]],
-                                maxErrorInt:int=0):
-        """
-        :param maxErrorInt: 1 represents 1ULP (Unit in the Last Place)
-        """
-        w = fpT.bit_length()
-        bitVecT = HBits(w)
-
-        def bitsToFloat(v: Bits3val):
-            return bitVecT._from_py(v.val, v.vld_mask)._reinterpret_cast(fpT).to_py()
-
-        signed = fpT.signed
-        self.assertEqual(len(inputs), len(sinCosPairs), (len(inputs), len(sinCosPairs)))
-        for i, (v, (sin, cos), (refSin, refCos)) in enumerate(zip(inputs, sinCosPairs, sinCosPairsRef)):
-            sin: HBitsConst
-            cos: HBitsConst
-            refSin: HFixedPointQConst
-            refCos: HFixedPointQConst
-
-            refSinInt, refCosInt = int(refSin), int(refCos)
-            sinF, cosF = bitsToFloat(sin), bitsToFloat(cos)
-            _sin = sin.to_py()
-            _cos = cos.to_py()
-            if signed:
-                refSinInt = to_signed(refSinInt, w)
-                refCosInt = to_signed(refCosInt, w)
-                _sin = to_signed(_sin, w)
-                _cos = to_signed(_cos, w)
-            self.assertAlmostEqual(_sin, refSinInt,
-                                   msg=(i, v, sin, sinF),
-                                   delta=maxErrorInt)
-            self.assertAlmostEqual(_cos, refCosInt,
-                                   msg=(i, v, _cos, cos, cosF),
-                                   delta=maxErrorInt)
 
     def test_py(self):
         # T = HFixedPointQ(10, 10)
@@ -304,21 +265,12 @@ class Cordic_TC(SimTestCase):
         if UNROLL_FACTOR is None:
             UNROLL_FACTOR = dut.ITERATION_COUNT - STAGES_IN_LUT
         dut.UNROLL_FACTOR = UNROLL_FACTOR
-        bitVecT = HBits(fpT.bit_length())
+        # bitVecT = HBits(fpT.bit_length())
 
-        def floatToBits(v: float):
-            return fpT.from_py(v)._reinterpret_cast(bitVecT)
+        # def bitsToFloat(v: Bits3val):
+        #    return bitVecT._from_py(v.val, v.vld_mask)._reinterpret_cast(fpT).to_py()
 
-        def bitsToFloat(v: Bits3val):
-            return bitVecT._from_py(v.val, v.vld_mask)._reinterpret_cast(fpT).to_py()
-
-        TEST_VALUES_H = []
-        for v in TEST_VALUES:
-            vH = floatToBits(v)
-            self.assertEqual(bitsToFloat(vH), v, ("check that input cast does not cause rounding", vH))
-            TEST_VALUES_H.append(vH)
-
-        ref: list[tuple[HBitsConst, HBitsConst]] = []  # :note: tuples (cos(x), sin(x))
+        ref: list[tuple[float, float]] = []  # :note: tuples (cos(x), sin(x))
         for v in TEST_VALUES:
             if useSinCosPi:
                 refCosVal = math.cos(v * math.pi)
@@ -326,51 +278,25 @@ class Cordic_TC(SimTestCase):
             else:
                 refCosVal = math.cos(v)
                 refSinVal = math.sin(v)
-            ref.append((floatToBits(refSinVal), floatToBits(refCosVal)))
+            ref.append((refSinVal, refCosVal))
 
         if ULP <= 0:
             maxErrorInt = 0
         else:
             maxErrorInt = mask(ULP)
 
-        def prepareDataInFn():
-            return copy(TEST_VALUES_H)
-
-        def checkDataOutFn(dataOut):
-            assert dataOut
-            w = fpT.bit_length()
-            dataOutAsSinCosPairs = []
-            for d in dataOut:
-                cos = d[:w]
-                sin = d[w:]
-                dataOutAsSinCosPairs.append((sin, cos))
-
-            # self._showSinCosErrorGraph(fpT, TEST_VALUES, dataOutAsSinCosPairs, useSinCosPi)
-            self._assertSinCosPairEquals(fpT, TEST_VALUES, dataOutAsSinCosPairs, ref, maxErrorInt=maxErrorInt)
-
-        # checkDataOutFn = None
-        vcdFileNameStem = Path(self.DEFAULT_LOG_DIR, self.getTestName())
-        p = TestLlvmIrAndMirPlatform.forSimpleDataInDataOutHwModule(
-            prepareDataInFn, checkDataOutFn,
-            vcdFileNameStem,
-            topToRunTestsOn=dut,
-            inputCnt=1,
-            # noOptIrTest=TestLlvmIrAndMirPlatform.TEST_NO_OPT_IR,
-            # runTestAfterEachPass=True,
-            # runTestAfterEachMirPass=True,
-            debugFilter={*HlsDebugBundle.ALL_RELIABLE},
-            llvmCliArgs=[
-                # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED
-            ]
+        passTests = PassTestInjectorForDInDOutHwModule(dut, self)
+        passTests.bindData((PassTestIoInHFixedPoint(fpT, TEST_VALUES),
+                            PassTestIoOutStructHFixedPoint2(fpT, TEST_VALUES, ref, name="data_out", maxErrorInt=maxErrorInt),))
+        platform = VirtualHlsPlatform(
+            # debugFilter={*HlsDebugBundle.ALL_RELIABLE},
+            # llvmCliArgs=[
+            #     # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED
+            # ]
         )
-        installMathLibComponentGenerators(p)
-        self.compileSimAndStart(dut, target_platform=p)
-
-        dut.data_in._ag.data.extend(TEST_VALUES_H)
-
-        self.runSim(int((len(ref) * dut.ITERATION_COUNT + 2) * freq_to_period(dut.CLK_FREQ) * RTL_SIM_TIME_MULTIPLIER))
-        # self._showSinCosErrorGraph(fpT, TEST_VALUES, dut.data_out._ag.data, useSinCosPi)
-        self._assertSinCosPairEquals(fpT, TEST_VALUES, dut.data_out._ag.data, ref, maxErrorInt=maxErrorInt)
+        installMathLibComponentGenerators(platform)
+        passTests.setTimeLimits(wallTimeRtl=(len(ref) * dut.ITERATION_COUNT + 2) * RTL_SIM_TIME_MULTIPLIER)
+        passTests.test_allInOne(platform=platform)
 
     def test_SinCos_Q4_10_rtl_noUnroll(self):
         self.test_SinCos_Q4_10_rtl(UNROLL_FACTOR=0, RTL_SIM_TIME_MULTIPLIER=4)
@@ -445,7 +371,7 @@ if __name__ == '__main__':
 
     testLoader = unittest.TestLoader()
     suite = testLoader.loadTestsFromTestCase(Cordic_TC)
-    # suite = unittest.TestSuite([Cordic_TC('test_SinCosPi_Q4_4_lut2_rtl_all')])
+    # suite = unittest.TestSuite([Cordic_TC('test_SinCos_Q4_10_rtl')])
     runner = unittest.TextTestRunner(verbosity=3)
     sys.exit(not runner.run(suite).wasSuccessful())
 

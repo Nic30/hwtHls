@@ -12,16 +12,15 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaFunction import PyBytecodeSkipPass
 from hwtHls.frontend.pragmaLoop import PyBytecodeLLVMLoopUnroll
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.scope import HlsScope
-from hwtSimApi.utils import freq_to_period
 from tests.crypto.md5 import md5_accumulator_t, md5ProcessChunk, \
     md5BuildDigest, MD5_INIT_DICT
-from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
+from tests.passTestInjectorForDInDOutHwModule import PassTestInjectorForDInDOutHwModule
 
 
 class Md5(HwModule):
@@ -124,22 +123,11 @@ class Md5_TC(SimTestCase):
         hAsInt = int.from_bytes(h.digest(), byteorder="little")
         REF_DATA = [hAsInt]
 
-        platform = TestLlvmIrAndMirPlatform.forSimpleDataInDataOutHwModule(
-            prepareDataInFn=lambda: [HBits(512).from_py(d) for d in TEST_DATA],
-            checkDataOutFn=lambda data: self.assertValSequenceEqual(data, REF_DATA),
-            logFileNameStem=None,
-            # debugFilter=debugFilter,
-            # runTestAfterEachMirPass=True,  # runTestAfterEachPass,
-        )
-
-        self.compileSimAndStart(dut, target_platform=platform)
-        dut.din._ag.data.extend(TEST_DATA)
-        CLK_PERIOD = freq_to_period(dut.CLK_FREQ)
-        self.runSim((64 + 1) * int(CLK_PERIOD))
-
+        passTests = PassTestInjectorForDInDOutHwModule(dut, self)
+        passTests.setTimeLimits(wallTimeRtl=64 + 1)
+        passTests.bindDataByInOut(([HBits(512).from_py(d) for d in TEST_DATA],), (REF_DATA,), PORT_NAMES=("din", "dout"))
+        passTests.test_allInOne()
         # print(list("".join(x) for x in grouper(8, "{0:032x}".format(int(dut.dout._ag.data[-1])))))
-
-        self.assertValSequenceEqual(dut.dout._ag.data, REF_DATA)
 
     def test_noUnroll(self):
         self._test(lambda: None)
@@ -169,14 +157,14 @@ if __name__ == "__main__":
     # m.LOOP_PRAGMA_GETTER = lambda: PyBytecodeLLVMLoopUnroll(True, 64)
     # try:
     print(to_rtl_str(m, target_platform=Artix7Medium(
-       #debugFilter={HlsDebugBundle.DBG_4_4_arch,},
+       # debugFilter={HlsDebugBundle.DBG_4_4_arch,},
        debugFilter=HlsDebugBundle.ALL_RELIABLE,
        llvmCliArgs=[
-           #LLVM_CLI_COMMON_OPTS.debugOnly("legalizer"),
-           #LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
-           #LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL,
-           #LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
-           #LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL,
+           # LLVM_CLI_COMMON_OPTS.debugOnly("legalizer"),
+           # LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
+           # LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL,
+           # LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+           # LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL,
            ]
        )))  #
     # finally:

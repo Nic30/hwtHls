@@ -29,8 +29,8 @@ class Axi4SPacketCntr(HwModule):
         with self._hwParamsShared():
             self.i = Axi4Stream()
 
-        self.pkt_cnt: HwIODataRdVld = HwIODataRdVld()._m()
-        self.pkt_cnt.DATA_WIDTH = 16
+        self.o_pkt_cnt: HwIODataRdVld = HwIODataRdVld()._m()
+        self.o_pkt_cnt.DATA_WIDTH = 16
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope, i: IoProxyAxi4Stream):
@@ -42,7 +42,7 @@ class Axi4SPacketCntr(HwModule):
             word = PyBytecodeInPreproc(i.read(self.i.data._dtype))
             if word._isEoF():
                 pkts += 1
-            hls.write(pkts, self.pkt_cnt)
+            hls.write(pkts, self.o_pkt_cnt)
 
     @override
     def hwImpl(self):

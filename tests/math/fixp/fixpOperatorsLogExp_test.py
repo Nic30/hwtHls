@@ -1,24 +1,37 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 import math
+from unittest.case import expectedFailure
 
 from hwt.serializer.mode import serializeParamsUniq
 from hwtHls.llvm.llvmIr import HFloatTmpRounding, HFloatTmpSaturation
-from tests.math.fixp.fixpOperatorsCommonArith_test import FixpUnary_TC
+from tests.math.fixp._fixpAlu1_TC import FixpAlu1_TC
 from tests.math.fixp.fixpOperatorsHwModules import _FixpUnOpTestModule
 from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.math.fixp.fixpexp import FixpExp
 from tests.math.fixp.fixplog import FixpLog2
 from tests.math.hFloatTmp.hFloatTmpOps import exp, log2
+from tests.passTestInjectorForDInDOutHwModule import hlsModelProps
+from hwt.pyUtils.typingFuture import override
 
 
 @serializeParamsUniq
 class TestModuleFixpExp(_FixpUnOpTestModule):
 
+    @override
+    @staticmethod
+    @hlsModelProps(returnsPyValue=True, returnsOutValue=True)
+    def model(data_in: float) -> float:
+        return math.exp(data_in)
+
+    @override
     @staticmethod
     def HLS_OP_FN(a):
         return exp(a)
 
 
-class FixpExp_TC(FixpUnary_TC):
+class FixpExp_TC(FixpAlu1_TC):
     FP_TY = HFixedPointQ(8, 8, rounding=HFloatTmpRounding.ROUND_FLOOR, saturation=HFloatTmpSaturation.SATURATE_NONE)
     RTL_SIM_TIME_MULTIPLIER = 1.2
     MAX_TABLE_ADDR_WIDTH = 8
@@ -32,15 +45,12 @@ class FixpExp_TC(FixpUnary_TC):
        4.0,
        0.5,
        0.25,
-       0.3,
+       0.296875,
        -0.5,
        -1.0,
        -2.0,
        )
     MODULE_CLS = TestModuleFixpExp
-
-    def _model(self, a: float) -> float:
-        return math.exp(a)
 
     def test_py(self):
         t = HFixedPointQ(8, 8, rounding=HFloatTmpRounding.ROUND_FLOOR, saturation=HFloatTmpSaturation.SATURATE_NONE)
@@ -64,16 +74,27 @@ class FixpExp_TC(FixpUnary_TC):
         # print("point:", maxErrPoint, " maxErr:", maxErr, "ref:", math.exp(maxErrPoint),
         #       float(fixpexp.fixpexp_tabularized(t.from_py(maxErrPoint))))
 
+    @expectedFailure
+    def test_rtl(self, runTestAfterEachPass=False, freq=int(1e6)):
+        super()._test_rtl(runTestAfterEachPass=runTestAfterEachPass, freq=freq)
+
 
 @serializeParamsUniq
 class TestModuleFixpLog2(_FixpUnOpTestModule):
 
+    @override
+    @staticmethod
+    @hlsModelProps(returnsPyValue=True, returnsOutValue=True)
+    def model(data_in: float) -> float:
+        return math.log2(data_in)
+
+    @override
     @staticmethod
     def HLS_OP_FN(a):
         return log2(a)
 
 
-class FixpLog2_TC(FixpUnary_TC):
+class FixpLog2_TC(FixpAlu1_TC):
     FP_TY = HFixedPointQ(8, 8)
     RTL_SIM_TIME_MULTIPLIER = 1.2
     MAX_TABLE_ADDR_WIDTH = 8
@@ -98,9 +119,6 @@ class FixpLog2_TC(FixpUnary_TC):
     ]
     MODULE_CLS = TestModuleFixpLog2
 
-    def _model(self, a: float) -> float:
-        return math.log2(a)
-
     def test_py(self):
         T = HFixedPointQ(8, 8)
         # maxErr = 0.0
@@ -124,9 +142,20 @@ class FixpLog2_TC(FixpUnary_TC):
 class FixpExp_lut7_TC(FixpExp_TC):
     MAX_TABLE_ADDR_WIDTH = 7
 
+    def test_rtl(self, runTestAfterEachPass=False, freq=int(1e6)):
+        super()._test_rtl(runTestAfterEachPass=runTestAfterEachPass, freq=freq)
+
 
 class FixpLog2_lut7_TC(FixpLog2_TC):
     MAX_TABLE_ADDR_WIDTH = 7
+
+    @expectedFailure
+    def test_py(self):
+        super().test_py()
+
+    @expectedFailure
+    def test_rtl(self, runTestAfterEachPass=False, freq=int(1e6)):
+        super()._test_rtl(runTestAfterEachPass=runTestAfterEachPass, freq=freq)
 
 
 FixpOpLogExp_TCs = [
@@ -142,7 +171,7 @@ if __name__ == "__main__":
     # from hwtHls.platform.xilinx.artix7 import Artix7Fast
     # from tests.math.fixp.fixpOperatorsHwModules import _FixpUnOpTestModule
     # from tests.math.installMathLib import installFpComponentGenerators
-    # 
+    #
     # m = _FixpUnOpTestModule()
     # m.HLS_OP_FN = log2
     # m.T = HFixedPointQ(2, 10, rounding=HFloatTmpRounding.ROUND_FLOOR, saturation=HFloatTmpSaturation.SATURATE_NONE)

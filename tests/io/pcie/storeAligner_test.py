@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from pathlib import Path
+from itertools import zip_longest
 from random import Random
 from typing import Sequence, Optional
 import unittest
@@ -33,7 +33,8 @@ from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import mask, byte_mask_to_bit_mask_int, align
 from tests.frontend.trivial import WriteOnce
 from tests.io.pcie.storeAligner import PcieTlpStoreAligner
-from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
+from tests.passTestInjectorForDInDOutHwModule import PassTestInjectorForDInDOutHwModule
+from tests.passTestIoStruct import PassTestIoOutStruct, PassTestIoInStruct
 from tests.utils.testQueue import TestQueueIn, TestQueueOutIndexed
 
 
@@ -257,6 +258,49 @@ class TestHwModulePcieTlpStoreAligner_splitToAlignedWords(HwModule):
         WriteOnce.hwImpl(self)
 
 
+class PassTestIoOutStruct_splitToAlignedWords(PassTestIoOutStruct):
+
+    @override
+    def checkForLlvmIr(self, dataSim:list[HBitsConst]):
+        tc = self.passTests.tc
+        tc.assertEqual(len(dataSim), len(self.dataRef))
+        outTy = self.T
+        for out, outRef in zip(dataSim, self.dataRef):
+            out = out._reinterpret_cast(outTy)
+            index, w0d, w0m, w1d, w1m = out.newWIndex, out.newWord0, out.newWord0Mask, out.newWord1, out.newWord1Mask
+            ref_index, ref_w0d, ref_w0m, ref_w1d, ref_w1m = outRef
+            # print(f"dataOut 0x{int(index):08x}: 0x{int(w0d):064x} {int(w0m):08x}")
+            # print(f"                    0x{int(w1d):064x} {int(w1m):08x}")
+            # print(f"ref out 0x{int(ref_index):08x}: 0x{int(ref_w0d):064x} {int(ref_w0m):08x}")
+            # print(f"                    0x{int(ref_w1d):064x} {int(ref_w1m):08x}\n")
+            tc.assertEqual(int(index), int(ref_index))
+            tc.assertEqual(int(w0d), int(ref_w0d))
+            tc.assertEqual(int(w0m), int(ref_w0m))
+            tc.assertEqual(int(w1d), int(ref_w1d))
+            tc.assertEqual(int(w1m), int(ref_w1m))
+
+    def checkForRtl(self):
+        oPort = self._getRtlDutPort()
+        dataSim = oPort._ag.data
+        tc = self.passTests.tc
+        dut = self.passTests._topToRunTestsOn
+        tc.assertFalse(bool(dut.dataIn._ag.data))
+
+        refDataOut = self.dataRef
+        # print("PcieTlpStoreAligner_splitToAlignedWords_rtl_TC\n")
+        tc.assertEqual(len(dut.dataOut._ag.data), len(refDataOut))
+        for i, ((index, w0d, w0m, w1d, w1m), (ref_index, ref_w0d, ref_w0m, ref_w1d, ref_w1m)) in enumerate(zip_longest(dataSim, refDataOut)):
+            # print(f"dataOut 0x{int(index):08x}: 0x{int(w0d):064x} {int(w0m):08x}")
+            # print(f"                    0x{int(w1d):064x} {int(w1m):08x}")
+            # print(f"ref out 0x{int(ref_index):08x}: 0x{int(ref_w0d):064x} {int(ref_w0m):08x}")
+            # print(f"                    0x{int(ref_w1d):064x} {int(ref_w1m):08x}\n")
+            tc.assertEqual(int(index), int(ref_index), i)
+            tc.assertEqual(int(w0d), int(ref_w0d), i)
+            tc.assertEqual(int(w0m), int(ref_w0m), i)
+            tc.assertEqual(int(w1d), int(ref_w1d), i)
+            tc.assertEqual(int(w1m), int(ref_w1m), i)
+
+
 class PcieTlpStoreAligner_splitToAlignedWords_rtl_TC(SimTestCase):
 
     def test0(self):
@@ -268,13 +312,12 @@ class PcieTlpStoreAligner_splitToAlignedWords_rtl_TC(SimTestCase):
             # (0x00000764, 0x0000000000000000000000000000edf0, 30),
             # (0x00000050, 0x000000000000775c4907b2dea46afa6c, 22),
         ]
-        refDataOut = []
+        refDataOut: list[tuple[HBitsConst, HBitsConst, HBitsConst, HBitsConst, HBitsConst]] = []
 
         dut = TestHwModulePcieTlpStoreAligner_splitToAlignedWords()
         dut.CLK_FREQ = int(1e6)
-        outTy = dut.getOutTy()
         dinT = PcieTlpStoreAligner.getWordToStore_t(dut.ADDR_WIDTH, dut.DATA_WIDTH)
-
+        outT = dut.getOutTy()
         for newDPy in dataIn:
             newD = dinT.from_py({
                 "addr": newDPy[0],
@@ -284,64 +327,21 @@ class PcieTlpStoreAligner_splitToAlignedWords_rtl_TC(SimTestCase):
             ref = PcieTlpStoreAligner.splitToAlignedWords(newD, dut.ADDR_TO_WORD_INDEX_ALIGN_BITS, dut.DATA_WIDTH)
             refDataOut.append(ref)
 
-        tc = self
-
         debugFilter = HlsDebugBundle.NONE
-        inFlatTy = HBits(dinT.bit_length())
-        dataInFlat = [dinT.from_py({
-             "addr": newDPy[0],
-                "data": newDPy[1],
-                "empty": newDPy[2],
-            })._reinterpret_cast(inFlatTy) for newDPy in dataIn]
-
-        def prepareDataInFn():
-            return dataInFlat
-
-        def checkDataOutFn(dataOut: Sequence[HBitsConst]):
-            tc.assertEqual(len(dataOut), len(refDataOut))
-            for out, outRef in zip(dataOut, refDataOut):
-                out = out._reinterpret_cast(outTy)
-                index, w0d, w0m, w1d, w1m = out.newWIndex, out.newWord0, out.newWord0Mask, out.newWord1, out.newWord1Mask
-                ref_index, ref_w0d, ref_w0m, ref_w1d, ref_w1m = outRef
-                # print(f"dataOut 0x{int(index):08x}: 0x{int(w0d):064x} {int(w0m):08x}")
-                # print(f"                    0x{int(w1d):064x} {int(w1m):08x}")
-                # print(f"ref out 0x{int(ref_index):08x}: 0x{int(ref_w0d):064x} {int(ref_w0m):08x}")
-                # print(f"                    0x{int(ref_w1d):064x} {int(ref_w1m):08x}\n")
-                tc.assertEqual(int(index), int(ref_index))
-                tc.assertEqual(int(w0d), int(ref_w0d))
-                tc.assertEqual(int(w0m), int(ref_w0m))
-                tc.assertEqual(int(w1d), int(ref_w1d))
-                tc.assertEqual(int(w1m), int(ref_w1m))
-
-        platform = TestLlvmIrAndMirPlatform.forSimpleDataInDataOutHwModule(
-            prepareDataInFn, checkDataOutFn,
-            Path(self.DEFAULT_LOG_DIR, self.getTestName()),
-            debugFilter=debugFilter,
-            # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER, ],
+        passTests = PassTestInjectorForDInDOutHwModule(dut, self)
+        passTests.bindDataByInOut((PassTestIoInStruct(dinT, dataIn, name='dataIn', inInPyFormat=True),),
+                                  (PassTestIoOutStruct_splitToAlignedWords(outT, refDataOut, name='dataOut'),),
+                                  PORT_NAMES=None
+                                  )
+        passTests.setRunTestsAfter(
             # runTestAfterEachPass=True,
             # runTestAfterEachMirPass=True,
         )
-
-        self.compileSimAndStart(dut, target_platform=platform)
-        dut.dataIn._ag.data.extend(dataIn)
-        self.runSim(int(freq_to_period(dut.CLK_FREQ) * (len(dataIn) + 2) * 2))
-        self.assertFalse(bool(dut.dataIn._ag.data))
-
-        doutRefIt = iter(refDataOut)
-        # print("PcieTlpStoreAligner_splitToAlignedWords_rtl_TC\n")
-        self.assertEqual(len(dut.dataOut._ag.data), len(refDataOut))
-        for (index, w0d, w0m, w1d, w1m), ref in zip(dut.dataOut._ag.data, refDataOut):
-            # print(f"dataOut 0x{int(index):08x}: 0x{int(w0d):064x} {int(w0m):08x}")
-            # print(f"                    0x{int(w1d):064x} {int(w1m):08x}")
-
-            ref_index, ref_w0d, ref_w0m, ref_w1d, ref_w1m = next(doutRefIt)
-            # print(f"ref out 0x{int(ref_index):08x}: 0x{int(ref_w0d):064x} {int(ref_w0m):08x}")
-            # print(f"                    0x{int(ref_w1d):064x} {int(ref_w1m):08x}\n")
-            self.assertEqual(int(index), int(ref_index))
-            self.assertEqual(int(w0d), int(ref_w0d))
-            self.assertEqual(int(w0m), int(ref_w0m))
-            self.assertEqual(int(w1d), int(ref_w1d))
-            self.assertEqual(int(w1m), int(ref_w1m))
+        platform = VirtualHlsPlatform(
+            debugFilter=debugFilter,
+            # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER, ],
+        )
+        passTests.test_allInOne(platform=platform)
 
 
 class PcieTlpStoreAligner_rtl_TC(SimTestCase):

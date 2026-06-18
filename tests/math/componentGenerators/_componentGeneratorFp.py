@@ -7,19 +7,23 @@ from hwt.hwIO import HwIO
 from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.componentGenerator import ComponentGenerator
 from hwtHls.llvm.llvmIr import CmpInst, MachineBasicBlock, Register, HFloatTmpConfig, HFloatTmpRounding, HFloatTmpSaturation, \
-    MachineInstr, MachineRegisterInfo, APInt, APFloat
+    MachineInstr, MachineRegisterInfo, APInt, APFloat, CallInst, Instruction
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
 from hwtHls.platform.opRealizationMeta import ComponentRealizationMeta
+from hwtHls.ssa.analysis.llvmIrInterpretUtils import LlvmIrInstrFunction
 from hwtHls.ssa.analysis.llvmMirInterpretUtils import LlvmMirInstrFunction
 from hwtHls.ssa.translation.llvmMirToNetlist.machineBasicBlockMeta import MachineBasicBlockMeta
 from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnalysisPassMirToNetlist
 from hwtHls.ssa.translation.llvmMirToNetlist.utils import MirToHlsNetlistTranslatedInstrOpsT
+from pyDigitalWaveTools.vcd.writer import VcdWriter
 from pyMathBitPrecise.bit_utils import to_unsigned
 from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.math.fp.fptypes import IEEE754Fp
+from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
+from tests.math.hFloatTmp.hFloatTmpUtils import HFloatTmpConfigToHType
 
 
 class ComponentGeneratorFp(ComponentGenerator):
@@ -28,6 +32,49 @@ class ComponentGeneratorFp(ComponentGenerator):
     """
     INPUT_CNT = 1
     opDef: HOperatorDef = None  # :note: specify this in child class
+
+    @override
+    def llvmIrInterpretDecode(self, interpret:"LlvmIrInterpret", instr:CallInst) -> LlvmIrInstrFunction:
+        resUndef = HFloatTmp.from_py(None)
+        evalFn = self.evalFn
+        if self.INPUT_CNT == 1:
+            ops = interpret._decodeInstArguments((instr.getOperand(0),))
+
+            def _intrinsic_unary_eval(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
+                op0, = interpret._prepareInstrArguments(ops, regs)
+                if op0._is_full_valid():
+                    op0 = float(op0)
+                    v = evalFn(op0)
+                    res = HFloatTmp.from_py(v)
+                else:
+                    res = resUndef
+                # inlined interpret._storeInstrResult from perf. reasons
+                if waveLog is not None:
+                    waveLog.logChange(nowTime, instr, res, None)
+                regs[instr] = res
+
+            return _intrinsic_unary_eval
+
+        elif self.INPUT_CNT == 2:
+            ops = interpret._decodeInstArguments((instr.getOperand(0), instr.getOperand(1)))
+
+            def _intrinsic_bin_eval(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
+                op0, op1 = interpret._prepareInstrArguments(ops, regs)
+                if op0._is_full_valid() and op1._is_full_valid():
+                    op0 = float(op0)
+                    op1 = float(op1)
+                    v = evalFn(op0, op1)
+                    res = HFloatTmp.from_py(v)
+                else:
+                    res = resUndef
+                # inlined interpret._storeInstrResult from perf. reasons
+                if waveLog is not None:
+                    waveLog.logChange(nowTime, instr, res, None)
+                regs[instr] = res
+
+            return _intrinsic_bin_eval
+        else:
+            raise NotImplementedError("This method is supposed to be overriden in child class", self.__class__)
 
     def llvmMirInterpretDecode_binary(self, interpret: "LlvmMirInterpret", MRI: MachineRegisterInfo, instr: MachineInstr) -> LlvmMirInstrFunction:
         cfg: HFloatTmpConfig = HFloatTmpConfig.fromMachineInstrOperands(instr, 3)
@@ -184,10 +231,7 @@ class ComponentGeneratorFp(ComponentGenerator):
                                                             dst, ops, r, self.opDef, opSpecialization, inNames, outNames)
 
     def _scaleUnrollFactor(self, cfg: HFloatTmpConfig):
-        if cfg.isInQFormat:
-            ty = HFixedPointQ.fromHFloatTmpConfig(cfg)
-        else:
-            ty = IEEE754Fp.fromHFloatTmpConfig(cfg)
+        ty = HFloatTmpConfigToHType(cfg)
 
         if self.optThroughputVsArea == 0:
             UNROLL_FACTOR = 1

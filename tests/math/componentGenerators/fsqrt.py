@@ -18,24 +18,33 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.platform.opRealizationMeta import ComponentRealizationMeta
 from hwtHls.platform.platform import DefaultHlsPlatform
 from tests.math.componentGenerators._componentGeneratorFp import ComponentGeneratorFp
-from tests.math.componentGenerators._genericHwModules import _FpUnOpAluHwModule
+from tests.math.componentGenerators._genericHwModules import _FpAlu1HwModule
 from tests.math.componentGenerators._llvmIrInterpretFP import ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary
 from tests.math.componentGenerators.fdivrem import ComponentGeneratorFDIVREM
 from tests.math.fixp.fixpSqrt import fixpSqrt
 from tests.math.fixp.fixpTypes import HFixedPointQ
+from tests.math.fp.fpsqrt import IEEE754FpSqrt, _IEEE754FpSqrt_getInternSqrtTy
+from tests.math.fp.fptypes import IEEE754Fp
 from tests.math.hFloatTmp.hFloatTmpOps import OP_FSQRT
+from tests.passTestInjectorForDInDOutHwModule import hlsModelProps
 
 
 @serializeParamsUniq
-class FixpSqrtHwModule(_FpUnOpAluHwModule):
+class FixpSqrtHwModule(_FpAlu1HwModule):
     """
     Universal module of fixed point square root to implement operators.
     """
+    FN = staticmethod(fixpSqrt)
+
+    @override
+    @staticmethod
+    @hlsModelProps(returnsPyValue=True, returnsOutValue=True)
+    def model(data_in: float) -> float:
+        return math.sqrt(data_in)
 
     @override
     def hwConfig(self) -> None:
-        _FpUnOpAluHwModule.hwConfig(self)
-        self.FN = fixpSqrt
+        _FpAlu1HwModule.hwConfig(self)
 
     @override
     def _getMaxIterationCount(self):
@@ -57,20 +66,44 @@ class ComponentGeneratorLlvmIntrinsicSqrt(ComponentGeneratorFp):
     @override
     @staticmethod
     def evalFn(x: float) -> float:
-        return math.sqrt(x)
+        assert isinstance(x, float), x
+        try:
+            return math.sqrt(x)
+        except ValueError:
+            assert isinstance(x, float), x
+            return math.nan
 
 
 class ComponentGeneratorFSQRT_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicUnary):
 
-    @override
+    evalFn = staticmethod(ComponentGeneratorLlvmIntrinsicSqrt.evalFn)
+
+
+@serializeParamsUniq
+class FpSqrtHwModule(_FpAlu1HwModule):
+    FN = staticmethod(IEEE754FpSqrt)
+
+    def _getMaxIterationCount(self):
+        return self._getMaxIterationCountForTy(self.T)
+
+    @classmethod
+    def _getMaxIterationCountForTy(self, ty: IEEE754Fp):
+        mantisaFixPTy = _IEEE754FpSqrt_getInternSqrtTy(ty)
+        return FixpSqrtHwModule._getMaxIterationCountForTy(mantisaFixPTy)
+
     @staticmethod
-    def evalFn(x:float) -> float:
-        return math.sqrt(x)
+    @hlsModelProps(returnsPyValue=True, returnsOutValue=True)
+    def model(data_in: float) -> float:
+        try:
+            return math.sqrt(data_in)
+        except ValueError:
+            return math.nan
 
 
 class ComponentGeneratorFSQRT(ComponentGeneratorFp):
     opDef = OP_FSQRT
     FIXP_HWMODULE_CLS = FixpSqrtHwModule
+    FP_HWMODULE_CLS = FpSqrtHwModule
 
     def __init__(self, platform:DefaultHlsPlatform,
                  genNamePrefix:str, moduleName:str,
@@ -91,6 +124,16 @@ class ComponentGeneratorFSQRT(ComponentGeneratorFp):
 
         return hwModule
 
+    def _getConfiguredFpHwModule(self, realTimeClkPeriod:float, ty:IEEE754Fp, UNROLL_FACTOR:int, realization: Optional[ComponentRealizationMeta]):
+        hwModule = self.FP_HWMODULE_CLS()
+        hwModule.T = ty
+        hwModule.CLK_FREQ = int(1 / realTimeClkPeriod)
+        hwModule.UNROLL_FACTOR = UNROLL_FACTOR
+        if realization is not None:
+            hwModule._setIoChannelTypes(realization)
+
+        return hwModule
+
     @override
     def resolveRealizationForHlsNetlist(self, netlist: HlsNetlistCtx, cfg: HFloatTmpConfig) -> None:
         return ComponentGeneratorFDIVREM.resolveRealizationForHlsNetlist(self, netlist, cfg)
@@ -99,18 +142,16 @@ class ComponentGeneratorFSQRT(ComponentGeneratorFp):
     def toHwtCompatibleOperatorAfterScheduling(self, node:HlsNetNode, worklist: SetList[HlsNetNode]) -> bool:
         freq = node.netlist.realTimeClkPeriod
         cfg: HFloatTmpConfig = node.operatorSpecialization
+        realization, _, UNROLL_FACTOR = self.schedulingCache[(cfg, self.optThroughputVsArea)]
         if cfg.isInQFormat:
             if cfg.hasIs0 or cfg.hasIs1 or cfg.hasIsInf or cfg.hasIsNaN:
                 raise NotImplementedError()
 
-            realization, _, UNROLL_FACTOR = self.schedulingCache[(cfg, self.optThroughputVsArea)]
             hwModule = self._getConfiguredFixpHwModule(freq, HFixedPointQ.fromHFloatTmpConfig(cfg), UNROLL_FACTOR, realization)
-            ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule(self, node, hwModule, worklist)
-            return True
-
         else:
-            raise NotImplementedError()
+            hwModule = self._getConfiguredFpHwModule(freq, IEEE754Fp.fromHFloatTmpConfig(cfg), UNROLL_FACTOR, realization)
 
+        ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule(self, node, hwModule, worklist)
         return True
 
     @override

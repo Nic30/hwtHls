@@ -1,10 +1,10 @@
 
 import math
-from operator import truediv
 from typing import Optional
 
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
+from hwt.serializer.mode import serializeParamsUniq
 from hwtHls.architecture.componentGeneratorUtils import \
     ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule
 from hwtHls.llvm.llvmIr import HFloatTmpConfig
@@ -16,11 +16,16 @@ from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.platform.platform import DefaultHlsPlatform
 from hwtHls.ssa.analysis.llvmIrInterpretInt import _makeDecodeOpcodeFunction_BinaryOperator
 from tests.math.componentGenerators._componentGeneratorFp import ComponentGeneratorFp
+from tests.math.componentGenerators._genericHwModules import _FpAlu2HwModule
 from tests.math.componentGenerators._llvmIrInterpretFP import ComponentGeneratorForSpecializedHwtHlsFpIntrinsicBinary_FloatFloat
 from tests.math.componentGenerators.divrem import ComponentGeneratorDIVREM
 from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.math.fixp.fixpdivrem import FixpDivRemHwModule
+from tests.math.fp.fpdiv import IEEE754FpDiv, _IEEE754FpDiv_getInternDivTy
+from tests.math.fp.fptypes import IEEE754Fp
 from tests.math.hFloatTmp.hFloatTmpOps import OP_FDIV, OP_FREM
+from tests.math.hFloatTmp.hFloatTmpUtils import HFloatTmpConfigToHType
+from tests.passTestInjectorForDInDOutHwModule import hlsModelProps
 
 
 class ComponentGeneratorFDIV_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicBinary_FloatFloat):
@@ -39,34 +44,53 @@ class ComponentGeneratorFREM_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedH
         return math.remainder(a, b)
 
 
+@serializeParamsUniq
+class FpDivHwModule(_FpAlu2HwModule):
+    CHECK_UNROLL_FACTOR = False
+    FN = staticmethod(IEEE754FpDiv)
+
+    @staticmethod
+    @hlsModelProps(returnsPyValue=True, returnsOutValue=True, inputArgsAreStructMembers=True)
+    def model(a: float, b: float) -> float:
+        return a / b
+
+    def _getMaxIterationCount(self):
+        return self._getMaxIterationCountForTy(self.T)
+
+    @classmethod
+    def _getMaxIterationCountForTy(self, ty: IEEE754Fp):
+        mantisaFixPTy = _IEEE754FpDiv_getInternDivTy(ty)
+        return FixpDivRemHwModule._getMaxIterationCountForTy(mantisaFixPTy)
+
+
 class ComponentGeneratorFDIVREM(ComponentGeneratorFp):
     INPUT_CNT = 2
+    FIXP_HWMODULE_CLS = FixpDivRemHwModule
+    FP_HWMODULE_CLS = FpDivHwModule
 
     def __init__(self, platform:DefaultHlsPlatform,
                  genNamePrefix:str, moduleName:str,
                  hasDiv:bool, hasRem:bool,
-                 optThroughputVsArea=0.0,
-                 FIXP_HWMODULE_CLS=FixpDivRemHwModule):
+                 optThroughputVsArea=0.0):
         ComponentGeneratorFp.__init__(self, platform, genNamePrefix, moduleName)
         # dataWidth (optThroughputVsArea, HFloatTmpConfig) -> scheduling (OpRealizationMeta, UNROLL_FACTOR)
         self._hasDiv = hasDiv
         self._hasRem = hasRem
         self.optThroughputVsArea = optThroughputVsArea
-        self.FIXP_HWMODULE_CLS = FIXP_HWMODULE_CLS
 
         if hasDiv and hasRem:
             raise NotImplementedError()
         elif hasDiv:
             op = OP_FDIV
-            evalFn = truediv
+            # evalFn = truediv
         elif hasRem:
             op = OP_FREM
-            evalFn = math.remainder
+            # evalFn = math.remainder
         else:
             raise AssertionError()
 
         self.opDef = op
-        self.llvmIrInterpretDecode = _makeDecodeOpcodeFunction_BinaryOperator(evalFn)
+        self.llvmIrInterpretDecode = _makeDecodeOpcodeFunction_BinaryOperator(op._evalFn)
 
     @override
     def llvmMirToHlsNetlist(self, *args) -> Optional[HlsNetNodeOutAny]:
@@ -85,6 +109,21 @@ class ComponentGeneratorFDIVREM(ComponentGeneratorFp):
 
         return hwModule
 
+    def _getConfiguredFpHwModule(self, realTimeClkPeriod:float, ty:HFixedPointQ, UNROLL_FACTOR:int, realization:OpRealizationMeta):
+        if self._hasRem:
+            raise NotImplementedError()
+        if not self._hasDiv:
+            raise NotImplementedError()
+
+        hwModule = FpDivHwModule()
+        hwModule.T = ty
+        hwModule.CLK_FREQ = int(1 / realTimeClkPeriod)
+        hwModule.UNROLL_FACTOR = UNROLL_FACTOR
+        if realization is not None:
+            hwModule._setIoChannelTypes(realization)
+
+        return hwModule
+
     @override
     def resolveRealizationForHlsNetlist(self, netlist: HlsNetlistCtx, cfg: HFloatTmpConfig) -> None:
         cacheKey = (cfg, self.optThroughputVsArea)
@@ -93,31 +132,49 @@ class ComponentGeneratorFDIVREM(ComponentGeneratorFp):
         except KeyError:
             pass
 
-        if cfg.isInQFormat:
-            if cfg.hasIs0 or cfg.hasIs1 or cfg.hasIsInf or cfg.hasIsNaN:
-                raise NotImplementedError()
+        ty = HFloatTmpConfigToHType(cfg)
+        if cfg.hasIs0 or cfg.hasIs1 or cfg.hasIsInf or cfg.hasIsNaN:
+            raise NotImplementedError()
 
-            ty = HFixedPointQ.fromHFloatTmpConfig(cfg)
-            if self.optThroughputVsArea == 0:
-                UNROLL_FACTOR = 1
-            elif self.optThroughputVsArea == 1.0:
+        if self.optThroughputVsArea == 0:
+            UNROLL_FACTOR = 1
+        elif self.optThroughputVsArea == 1.0:
+            if cfg.isInQFormat:
                 UNROLL_FACTOR = self.FIXP_HWMODULE_CLS._getMaxIterationCountForTy(ty)
             else:
-                raise NotImplementedError()
+                UNROLL_FACTOR = self.FP_HWMODULE_CLS._getMaxIterationCountForTy(ty)
 
-            # run compilation of IntDiv HwModule to resolve scheduling properties
-            hwModule = self._getConfiguredFixpHwModule(netlist.realTimeClkPeriod, ty, UNROLL_FACTOR, None)
-            _, _, r = self.resolveRealizationOfNode_compileToResolveScheduling(
-                netlist.parentHwModule, hwModule,
-                netlist.dbgSubmoduleBuidTracer, cacheKey, (UNROLL_FACTOR,))
-            return r
         else:
-            raise NotImplementedError()
+            raise NotImplementedError(self, self.optThroughputVsArea)
+
+        # run compilation of HwModule to resolve scheduling properties
+        if cfg.isInQFormat:
+            hwModule = self._getConfiguredFixpHwModule(netlist.realTimeClkPeriod, ty, UNROLL_FACTOR, None)
+        else:
+            hwModule = self._getConfiguredFpHwModule(netlist.realTimeClkPeriod, ty, UNROLL_FACTOR, None)
+
+        _, _, r = self.resolveRealizationOfNode_compileToResolveScheduling(
+            netlist.parentHwModule, hwModule,
+            netlist.dbgSubmoduleBuidTracer, cacheKey, (UNROLL_FACTOR,))
+        return r
 
     @override
     def toHwtCompatibleOperatorAfterScheduling(self, node:HlsNetNode, worklist: SetList[HlsNetNode]) -> bool:
         freq = node.netlist.realTimeClkPeriod
         cfg: HFloatTmpConfig = node.operatorSpecialization
+        realization, _, UNROLL_FACTOR = self.schedulingCache[(cfg, self.optThroughputVsArea)]
+        if self._hasDiv and self._hasRem:
+            outputsBitMap = None
+        elif self._hasDiv:
+            outputsBitMap = None  # quotient starts at the bit 0
+        elif self._hasRem:
+            if not cfg.isInQFormat:
+                raise NotImplementedError()
+
+            outputsBitMap = (cfg.getBitWidth(),)  # remainder starts after quotient
+        else:
+            raise AssertionError("divrem component must be configured as a div or rem (or both)")
+
         if cfg.isInQFormat:
             if cfg.hasIs0 or cfg.hasIs1 or cfg.hasIsInf or cfg.hasIsNaN:
                 raise NotImplementedError()
@@ -155,22 +212,12 @@ class ComponentGeneratorFDIVREM(ComponentGeneratorFp):
             #
             # newO = builder.buildIndexConstSlice(node._outputs[0]._dtype, divRes, w, 0, name=node.name)
             # replaceHlsNetNodeWithExpression(node, newO, None, self._assertIsConcatAnyShiftOrIndex)
-
-            realization, _, UNROLL_FACTOR = self.schedulingCache[(cfg, self.optThroughputVsArea)]
             hwModule = self._getConfiguredFixpHwModule(freq, HFixedPointQ.fromHFloatTmpConfig(cfg), UNROLL_FACTOR, realization)
-            if self._hasDiv and self._hasRem:
-                outputsBitMap = None
-            elif self._hasDiv:
-                outputsBitMap = None  # quotient starts at the bit 0
-            elif self._hasRem:
-                outputsBitMap = (cfg.getBitWidth(),)  # remainder starts after quotient
-            else:
-                raise AssertionError("divrem component must be configured as a div or rem (or both)")
-            ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule(self, node, hwModule, worklist, outputsBitMap=outputsBitMap)
-            return True
-
         else:
-            raise NotImplementedError()
+            hwModule = self._getConfiguredFpHwModule(freq, IEEE754Fp.fromHFloatTmpConfig(cfg), UNROLL_FACTOR, realization)
+
+        ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule(self, node, hwModule, worklist, outputsBitMap=outputsBitMap)
+
         return True
 
     @override

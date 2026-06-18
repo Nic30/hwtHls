@@ -1,50 +1,42 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtSimApi.constants import CLK_PERIOD
 from hwtSimApi.utils import freq_to_period
-from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.frontend.whileTrue import WhileTrueWriteCntr0, WhileTrueWriteCntr1, \
     WhileSendSequence0, WhileSendSequence1, WhileSendSequence2, WhileSendSequence3, \
     WhileSendSequence4
+from tests.passTestInjectorForDInDOutHwModule import PassTestInjectorForDInDOutHwModule
+from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 
 
-class HlsAstWhileTrue_TC(SimTestCase):
-
-    def _test_no_comb_loops(self):
-        BaseIrMirRtl_TC._test_no_comb_loops(self)
+class HlsAstWhileTrue_TC(BaseIrMirRtl_TC):
 
     def test_WhileTrueWriteCntr0(self, cls=WhileTrueWriteCntr0, ref=[0, 1, 2, 3]):
         dut = cls()
-        # debugFilter={*HlsDebugBundle.ALL_RELIABLE, HlsDebugBundle.DBG_20_addSignalNamesToSync}
-        debugFilter = HlsDebugBundle.DEFAULT
-        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform(debugFilter=debugFilter))
-        CLK = 5
-        self.runSim(CLK * CLK_PERIOD)
-        self._test_no_comb_loops()
-
-        self.assertValSequenceEqual(dut.dataOut._ag.data, ref)
+        passTests = PassTestInjectorForDInDOutHwModule(dut, self)
+        passTests.bindDataByInOut((), (ref,),
+            # platformKwArgs=dict(debugFilter={*HlsDebugBundle.ALL_RELIABLE, HlsDebugBundle.DBG_4_0_addSignalNamesToSync})
+            OUT_ITEM_CNT_LIMITS=(len(ref),),
+            PORT_NAMES=("dataOut",))
+        passTests.test_allInOne()
 
     def test_WhileTrueWriteCntr1(self):
         self.test_WhileTrueWriteCntr0(cls=WhileTrueWriteCntr1, ref=[1, 2, 3, 4])
 
     def _test_WhileSendSequence(self, cls: WhileSendSequence0, FREQ:int,
                                 randomizeIn: bool, randomizeOut: bool,
-                                platform=None,
                                 timeMultiplier=1):
         dut = cls()
         dut.CLK_FREQ = int(FREQ)
-        if platform is None:
-            # platform = VirtualHlsPlatform()
-            platform = VirtualHlsPlatform(
-                # debugFilter={*HlsDebugBundle.ALL_RELIABLE,
-                #                                        *HlsDebugBundle.DBG_SCHEDULING,
-                #                                         HlsDebugBundle.DBG_3_0_netlistDumpAfter,
-                #                                         }
-                )
+        # platform = VirtualHlsPlatform()
+        platform = VirtualHlsPlatform(
+            # debugFilter={*HlsDebugBundle.ALL_RELIABLE,
+            #                                        *HlsDebugBundle.DBG_SCHEDULING,
+            #                                         HlsDebugBundle.DBG_3_0_netlistDumpAfter,
+            #                                         }
+            )
         self.compileSimAndStart(dut, target_platform=platform)
         # dut.dataIn._ag.data.extend([1, 1, 1, 1])
         inputData = [5, 0, 0, 3, 2, 0, 1, 3, 1,
@@ -204,7 +196,7 @@ if __name__ == "__main__":
     testLoader = unittest.TestLoader()
     suite = testLoader.loadTestsFromTestCase(HlsAstWhileTrue_TC)
     # suite = unittest.TestSuite([
-    #    HlsAstWhileTrue_TC('test_WhileSendSequence0_150Mhz'),
+    #    HlsAstWhileTrue_TC('test_WhileTrueWriteCntr0'),
     # ])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

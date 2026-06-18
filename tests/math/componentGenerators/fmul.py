@@ -1,10 +1,13 @@
 from hwt.hdl.operatorDefs import HwtOps
 from hwt.pyUtils.typingFuture import override
+from hwt.serializer.mode import serializeParamsUniq
 from hwtHls.llvm.llvmIr import HFloatTmpConfig
+from tests.math.componentGenerators._genericHwModules import _FpAlu2HwModule
 from tests.math.componentGenerators._llvmIrInterpretFP import ComponentGeneratorForSpecializedHwtHlsFpIntrinsicBinary_FloatFloat
 from tests.math.componentGenerators.fadd import ComponentGeneratorFADD
 from tests.math.fp.fpmul import IEEE754FpMul
 from tests.math.hFloatTmp.hFloatTmpOps import OP_FMUL
+from tests.passTestInjectorForDInDOutHwModule import hlsModelProps
 
 
 class ComponentGeneratorFMUL_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicBinary_FloatFloat):
@@ -15,11 +18,21 @@ class ComponentGeneratorFMUL_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedH
         return a * b
 
 
+@serializeParamsUniq
+class FpMulHwModule(_FpAlu2HwModule):
+    FN = staticmethod(IEEE754FpMul)
+
+    @staticmethod
+    @hlsModelProps(returnsPyValue=True, returnsOutValue=True, inputArgsAreStructMembers=True)
+    def model(a: float, b: float) -> float:
+        return a * b
+
+
 # https://surf-vhdl.com/how-to-implement-pipeline-multiplier-vhdl/
 class ComponentGeneratorFMUL(ComponentGeneratorFADD):
     HWT_OPERATOR = HwtOps.MUL
-    FP_OPERATOR_FN = staticmethod(IEEE754FpMul)
     opDef = OP_FMUL
+    FP_HWMODULE_CLS = FpMulHwModule
 
     @override
     def toHwtCompatibleOperatorBeforeScheduling_Q_getTmpCfg(self, cfg: HFloatTmpConfig) -> tuple[HFloatTmpConfig, HFloatTmpConfig]:

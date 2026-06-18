@@ -1,4 +1,4 @@
-from typing import Callable, Union
+from typing import Callable, Union, Optional
 
 from hwt.code import Concat
 from hwt.hdl.types.bits import HBits
@@ -17,6 +17,7 @@ from hwtHls.frontend.pragmaInstruction import PyBytecodeNoSplitSlices
 from hwtHls.frontend.pragmaPreproc import PyBytecodeBlockLabel
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from hwtHls.frontend.pyBytecode import hlsBytecode
+from tests.passTestInjectorForDInDOutHwModule import hlsModelProps
 
 
 @hlsBytecode
@@ -107,17 +108,20 @@ class DivRemHwModule(_BaseALU1HwModule):
     Universal HwModule wrapper around integer division function.
     :note: used also to compute udiv/sdiv/urem/srem (rem/mod)
     """
+    FN = staticmethod(divremRestoring)
 
     @override
     def hwConfig(self) -> None:
         _BaseALU1HwModule.hwConfig(self)
         self.MAIN_FN_META = PyBytecodeSkipPass(["hwtHls::SlicesToIndependentVariablesPass",
                                                 "hwtHls::SelectPruningPass"])
-        self.FN = HwParam(divremRestoring)
+        self._inTy: Optional[HStruct] = None
+        self._outTy: Optional[HStruct] = None
 
-    @override
-    def hwDeclr(self) -> None:
-        addClkRstn(self)
+    def _getDataInOutTypes(self):
+        inT = self._inTy
+        if inT:
+            return inT, self._outTy
         T = self.T
         assert isinstance(T, HBits), T
         self.HAS_RUNTIME_SIGN = T.signed is None
@@ -131,10 +135,28 @@ class DivRemHwModule(_BaseALU1HwModule):
             (T, "quotient"),
             (T, "remainder")
         )
+        self._inTy = inT
+        self._outTy = outT
+        return inT, outT
+
+    @override
+    def hwDeclr(self) -> None:
+        addClkRstn(self)
+        inT, outT = self._getDataInOutTypes()
         self._addDataInDataOut(inT, outT)
 
     def _getMaxIterationCount(self):
         return self.T.bit_length()
+
+    @staticmethod
+    @hlsModelProps(returnsPyValue=True, returnsOutValue=True, inputArgsAreStructMembers=True)
+    def model(dividend: int, divisor: int, isSigned:bool) -> tuple[int, int]:
+        if isSigned or dividend < 0 or divisor < 0:
+            raise NotImplementedError()
+
+        quotient = dividend // divisor
+        remainder = dividend % divisor
+        return quotient, remainder
 
     @hlsBytecode
     def aluFn(self, inp):

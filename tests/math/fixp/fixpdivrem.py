@@ -22,7 +22,8 @@ from hwtHls.llvm.llvmIr import HFloatTmpConfig, HFloatTmpRounding
 from tests.math.componentGenerators._div.divRestoring import _divCastToUnsigned, \
     DivRemHwModule
 from tests.math.fixp.fixpTypes import HFixedPointQ
-from tests.math.componentGenerators._genericHwModules import _FpBinOpAluHwModule
+from tests.math.componentGenerators._genericHwModules import _FpAlu2HwModule
+from tests.passTestInjectorForDInDOutHwModule import hlsModelProps
 
 
 @hlsBytecode
@@ -131,7 +132,6 @@ class FixpDivRemHwModule(DivRemHwModule):
     @override
     def hwConfig(self) -> None:
         DivRemHwModule.hwConfig(self)
-        self.FN = fixpDivremRestoring
 
     @override
     def hwDeclr(self) -> None:
@@ -148,7 +148,16 @@ class FixpDivRemHwModule(DivRemHwModule):
             (t, "quotient"),
             (t, "remainder")
         )
-        _FpBinOpAluHwModule._addDataInDataOut(self, inT, outT)
+        _FpAlu2HwModule._addDataInDataOut(self, inT, outT)
+
+    FN = staticmethod(fixpDivremRestoring)
+
+    @staticmethod
+    @hlsModelProps(returnsPyValue=True, returnsOutValue=True, inputArgsAreStructMembers=True)
+    def model(dividend: float, divisor: float) -> tuple[float, float]:
+        quotient = dividend / divisor
+        remainder = dividend % divisor
+        return quotient, remainder
 
     @hlsBytecode
     def aluFn(self, inp):

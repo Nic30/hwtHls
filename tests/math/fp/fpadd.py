@@ -41,34 +41,35 @@ def IEEE754FpAdd(a: IEEE754FpValue, b: IEEE754FpValue, isSim=False):
     """
     t: IEEE754Fp = a._dtype
     res = t.from_py(None)
+    mantissaT = res.mantissa._dtype
     if a.isNaN() | b.isNaN():
         PyBytecodeBlockLabel("IEEE754FpAdd.isNaN")
         # if a is NaN or b is NaN return NaN
         res.sign = a.sign & b.sign
-        res.exponent = t.getSpecialExponent()
-        res.mantissa = t.getNaNMantisa()
+        res.exponent = t.getSpecialExponentHw()
+        res.mantissa = t.getNaNMantisaHw()
 
     elif a.isInf():
         # if a is inf return inf
         PyBytecodeBlockLabel("IEEE754FpAdd.aIsInf")
         res.sign = a.sign
-        res.exponent = t.getSpecialExponent()
-        res.mantissa = 0
+        res.exponent = t.getSpecialExponentHw()
+        res.mantissa = mantissaT.from_py(0)
         if b.isInf() & (a.sign != b.sign):
-            res.mantissa = t.getNaNMantisa()
+            res.mantissa = t.getNaNMantisaHw()
 
     elif b.isInf():
         PyBytecodeBlockLabel("IEEE754FpAdd.bIsInf")
         # if b is inf return inf
         res.sign = b.sign
-        res.exponent = t.getSpecialExponent()
-        res.mantissa = 0
+        res.exponent = t.getSpecialExponentHw()
+        res.mantissa = mantissaT.from_py(0)
 
     elif a.isZero() & b.isZero():
         PyBytecodeBlockLabel("IEEE754FpAdd.Is0")
         res.sign = a.sign & b.sign
-        res.exponent = 0
-        res.mantissa = 0
+        res.exponent = res.exponent._dtype.from_py(0)
+        res.mantissa = mantissaT.from_py(0)
 
     elif a.isZero():
         PyBytecodeBlockLabel("IEEE754FpAdd.aIs0")

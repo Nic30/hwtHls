@@ -18,8 +18,12 @@ from hwtHls.platform.debugBundle import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4s import Axi4Stream
-from tests.io.amba.axi4Stream._baseAxi4SPktInPktOutTC import BaseAxi4SPktInScalarOutTC
 from tests.math.addMasked import AddMaskedHardblock
+from hwt.simulator.simTestCase import SimTestCase
+from hwtLib.amba.axi4sSimFrameUtils import Axi4StreamSimFrameUtils
+from tests.passTestInjectorForStreamHwModule import PassTestInjectorForStreamHwModule
+from tests.passTestInjectorForDInDOutHwModule import PassTestInjectorForDInDOutHwModule
+from tests.passTestIoStream import PassTestIoInStream
 
 
 class Axi4SSum(HwModule):
@@ -62,8 +66,7 @@ class Axi4SSum(HwModule):
                 #  %17 = call i8 @hwtHls.pyObjectPlaceholder.0.addMasked.i8.i8(i32 0, i8 %16, i8 %5, i1 %2) #3
                 #  %.mux = select i1 %14, i8 %15, i8 %16
                 #  %.mux.mux = select i1 %brmerge, i8 %.mux, i8 %17
-                
-                
+
                 # read 1B and update hasher state, the function of crc are expanded during loop
                 # unrolling and there should be just 1 wide call of crcStepFn at the end
                 dataByte = rx.read(b8_t, reliable=False)
@@ -86,17 +89,22 @@ class Axi4SSum(HwModule):
         hls.compile()
 
 
-class Axi4SSum_TC(BaseAxi4SPktInScalarOutTC):
+class Axi4SSum_TC(SimTestCase):
+    _Axi4StreamSimFrameUtils = Axi4StreamSimFrameUtils
 
     def _test(self, inputs: list[list[int]], DATA_WIDTH:int):
         ref = [sum(inp) for inp in inputs]
         dut = Axi4SSum()
+        dut.CLK_FREQ = int(1e6)
         dut.DATA_WIDTH = DATA_WIDTH
-        refFramesIn = [[c for c in inp] for inp in inputs]
-        super()._test(dut, refFramesIn, ref, platformKwargs=dict(
-            # debugFilter=HlsDebugBundle.ALL_RELIABLE,
-            # runTestAfterEachPass=True,
-            ))
+        dataIn = [[c for c in inp] for inp in inputs]
+
+        passTests = PassTestInjectorForDInDOutHwModule(dut, self)
+        passTests.bindDataByInOut((PassTestIoInStream(self._Axi4StreamSimFrameUtils, dataIn),), (ref,), PORT_NAMES=('rx', 'tx'))
+        passTests.test_allInOne(platformKwArgs=dict(
+                                # debugFilter=HlsDebugBundle.ALL_RELIABLE,
+                                # runTestAfterEachPass=True,
+                                ),)
 
     def test_1B(self):
         inp = [[1],

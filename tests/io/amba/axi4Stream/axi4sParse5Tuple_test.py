@@ -3,22 +3,25 @@
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
 from hwt.hdl.types.bits import HBits
-from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.defs import BIT
 from hwt.hdl.types.struct import HStruct
 from hwt.hdl.types.structValBase import HStructConstBase
+from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
+from hwtLib.amba.axi4sSimFrameUtils import Axi4StreamSimFrameUtils
 from hwtLib.types.ctypes import uint8_t
 from hwtLib.types.net.ethernet import Eth2Header_t, ETHER_TYPE, eth_mac_t
 from hwtLib.types.net.ip import IPv4Header_t, IPv6Header_t, IP_PROTOCOL, \
     IPv6ExtCommonHeader_t, l4port_t, ipv6_t
 from hwtLib.types.net.tcp import TCP_header_t
 from hwtLib.types.net.udp import UDP_header_t
-from tests.io.amba.axi4Stream._baseAxi4SPktInPktOutTC import BaseAxi4SPktInScalarOutTC
 from tests.io.amba.axi4Stream.axi4sParse5Tuple import Axi4SParse5Tuple
+from tests.passTestInjectorForDInDOutHwModule import PassTestInjectorForDInDOutHwModule
+from tests.passTestIoStream import PassTestIoInStream
+from tests.passTestIoStruct import PassTestIoOutStruct
 
 
-class Axi4SParse5Tuple_TC(BaseAxi4SPktInScalarOutTC):
+class Axi4SParse5Tuple_TC(SimTestCase):
     ipv4tcp_t = HStruct(
         (Eth2Header_t, "eth"),
         (IPv4Header_t, "ip"),
@@ -52,16 +55,7 @@ class Axi4SParse5Tuple_TC(BaseAxi4SPktInScalarOutTC):
         (IPv6ExtCommonHeader_t, "ext1"),
         (UDP_header_t, "udp")
     )
-
-    def assertLlvmIrOrMirEqual(self, tx: list[HBitsConst], refTx: list[HStructConstBase]):
-        structT = self.dut.tx.T
-        _tx = [tuple(int(d) for d in frame._reinterpret_cast(structT)) for frame in tx]
-        # for i, (_txF, _refF) in enumerate(zip(_tx, refTx)):
-        #    print("----------------", i, "--------------")
-        #    print(_txF)
-        #    print(_refF)
-
-        self.assertSequenceEqual(_tx, refTx)
+    StreamSimFrameUtils = Axi4StreamSimFrameUtils
 
     def _test(self, inputs: list[HStructConstBase], DATA_WIDTH:int, CLK_FREQ=int(1e6)):
         dut = Axi4SParse5Tuple()
@@ -118,15 +112,19 @@ class Axi4SParse5Tuple_TC(BaseAxi4SPktInScalarOutTC):
             )))
             refFrames.append(ref)
 
-        super()._test(dut, rxFramesIn, refFrames,
-                      platformKwargs=dict(
-                        #debugFilter=HlsDebugBundle.ALL_RELIABLE,
-                        #llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED],
-                        # runTestAfterEachPass=True,
-                        # runTestAfterEachMirPass=True,
-                      ),
-                      rtlSimTimeMultiplier=2.1
-                      )
+        passTests = PassTestInjectorForDInDOutHwModule(dut, self)
+        passTests.bindDataByInOut((PassTestIoInStream(self.StreamSimFrameUtils, rxFramesIn),),
+                                  (PassTestIoOutStruct(resT, refFrames),),
+                                  PORT_NAMES=('rx', 'tx'))
+        passTests.setTimeLimits(wallTimeRtlDefaultMultiplier=2.1)
+        passTests.test_allInOne(
+            platformKwArgs=dict(
+              # debugFilter=HlsDebugBundle.ALL_RELIABLE,
+              # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED],
+              # runTestAfterEachPass=True,
+              # runTestAfterEachMirPass=True,
+            ),
+            )
 
     def _getRandEth(self, type_: ETHER_TYPE):
         rand = self._rand
@@ -139,19 +137,19 @@ class Axi4SParse5Tuple_TC(BaseAxi4SPktInScalarOutTC):
     def _getRandIPv4(self, protocol: IP_PROTOCOL):
         rand = self._rand
         return {
-            **{f.name: (rand.getrandbits(f.dtype.bit_length())
+            f.name: (rand.getrandbits(f.dtype.bit_length())
                         if f.name != "protocol"
                         else protocol)
-                for f in IPv4Header_t.fields}
+            for f in IPv4Header_t.fields
         }
 
     def _getRandIPv6(self, nextHeader: IP_PROTOCOL):
         rand = self._rand
         return {
-            **{f.name: (rand.getrandbits(f.dtype.bit_length())
+            f.name: (rand.getrandbits(f.dtype.bit_length())
                         if f.name != "nextHeader"
                         else nextHeader)
-                for f in IPv6Header_t.fields}
+            for f in IPv6Header_t.fields
         }
 
     def _getRandStruct(self, struct: HStruct):
@@ -235,6 +233,6 @@ if __name__ == "__main__":
 
     testLoader = unittest.TestLoader()
     suite = testLoader.loadTestsFromTestCase(Axi4SParse5Tuple_TC)
-    # suite = unittest.TestSuite([Axi4SParse5Tuple_TC("test_rand_t_128b")])
+    # suite = unittest.TestSuite([Axi4SParse5Tuple_TC("test_ipv4tcp_t_2048b")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

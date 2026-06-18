@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from hwt.pyUtils.typingFuture import override
 from hwt.serializer.mode import serializeParamsUniq
+from tests.math.fixp._fixpAlu2_TC import FixpAlu2_TC
 from tests.math.fixp.fixpOperatorsCommonArith_test import FixpAdd_TC
 from tests.math.fixp.fixpOperatorsHwModules import _FixpCmpOpTestModule
 from tests.math.fixp.fixpTypes import HFixedPointQ
+from tests.passTestInjectorForDInDOutHwModule import hlsModelProps
+from tests.passTestIo import PassTestIoOut
 
 
 @serializeParamsUniq
@@ -19,15 +23,9 @@ class FixpCmp_OLT_TC(FixpAdd_TC):
     FP_TY = HFixedPointQ(3, 4)
     MODULE_CLS = TestModuleFixpCmp_OLT
 
-    def _model(self, a: float, b: float) -> bool:
-        return int(self.MODULE_CLS.HLS_OP_FN(a, b))  # int to have visually shorter output
-
-    def getCheckDataOutFn(self, REF_DATA):
-
-        def checkDataOutFn(dataOut):
-            self.assertValSequenceEqual(dataOut, REF_DATA)
-
-        return  checkDataOutFn
+    def test_rtl(self, runTestAfterEachPass=False, freq=int(1e6)):
+        FixpAlu2_TC.test_rtl(self, runTestAfterEachPass, freq=freq,
+                               OUT_DATA_REF=(PassTestIoOut([], name="data_out"),))
 
 
 @serializeParamsUniq
@@ -49,12 +47,14 @@ class TestModuleFixpCmp_OEQ(_FixpCmpOpTestModule):
     def HLS_OP_FN(a, b):
         return a._eq(b)
 
+    @override
+    @hlsModelProps(returnsPyValue=True, returnsOutValue=True, inputArgsAreStructMembers=True)
+    def model(self, a: float, b: float) -> bool:
+        return int(a == b)  # int to have visually shorter output
+
 
 class FixpCmp_OEQ_TC(FixpCmp_OLT_TC):
     MODULE_CLS = TestModuleFixpCmp_OEQ
-
-    def _model(self, a: float, b: float) -> bool:
-        return int(a == b)  # int to have visually shorter output
 
 
 @serializeParamsUniq

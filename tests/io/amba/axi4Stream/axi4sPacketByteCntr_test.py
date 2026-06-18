@@ -1,59 +1,34 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from typing import List
-
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.pyUtils.typingFuture import override
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtLib.amba.axi4sSimFrameUtils import Axi4StreamSimFrameUtils
-from hwtSimApi.utils import freq_to_period
-from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.io.amba.axi4Stream.axi4sPacketByteCntr import Axi4SPacketByteCntr0, Axi4SPacketByteCntr1, \
     Axi4SPacketByteCntr2, Axi4SPacketByteCntr3
-from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
+from tests.passTestIo import PassTestIoOut
+from tests.passTestIoStream import PassTestIoInStream
+from tests.passTestInjectorForDInDOutHwModule import PassTestInjectorForDInDOutHwModule
+
+
+class PassTestIoOutTestOnlyFinalSum(PassTestIoOut):
+
+    @override
+    def checkForLlvmIr(self, dataSim:list[HBitsConst]):
+        self.passTests.tc.assertValEqual(dataSim[-1], sum(self.dataRef))
+
+    @override
+    def checkForRtl(self):
+        oPort = self._getRtlDutPort()
+        dataSim = oPort._ag.data
+        self.passTests.tc.assertValEqual(dataSim[-1], sum(self.dataRef))
 
 
 class _Axi4SPacketByteCntrTC(SimTestCase):
     _Axi4StreamSimFrameUtils = Axi4StreamSimFrameUtils
 
-    @override
-    def _generateFramesFromLens(self, dut: Axi4SPacketByteCntr0, LENS: List[int]):
-        dataIn = []
-        fu = self._Axi4StreamSimFrameUtils.from_HwIO(dut.i)
-        for LEN in LENS:
-            fu.send_bytes(list(range(LEN)), dataIn)
-
-        dataIn = list(fu.concatWordBits(dataIn))
-        # print("\n")
-        # print(LENS)
-        # BYTE_CNT = dut.i.SEGMENT_DATA_WIDTH // dut.i.BYTE_WIDTH
-        # for din in dataIn:
-        #     d = din._reinterpret_cast(dut.i.WORD_T)
-        #     print(d.data[0], d.data[1])
-        #     print([BYTE_CNT - int(_d.empty) if bool(_d.enable) else 0 for _d in d.user])
-        return dataIn
-
-    def _checkResults(self, SUM_ONLY:bool, LENS: List[int], dataOut: List[HBitsConst]):
-        if SUM_ONLY:
-            self.assertValEqual(dataOut[-1], sum(LENS))
-        else:
-            self.assertValSequenceEqual(dataOut, LENS)
-
-    def _generateLlvmInterpretArgs(self, toLlvm: ToLlvmIrTranslator, LENS: List[int]):
-        dut = toLlvm.parentHwModule
-        dataIn = self._generateFramesFromLens(dut, LENS)
-        dataOut = []
-        args = [dataOut, iter(dataIn)]
-        return dataIn, dataOut, args
-
-    def _testLlvmIrOrMir(self, platform: TestLlvmIrAndMirPlatform, toLlvm: ToLlvmIrTranslator, isMir: bool, SUM_ONLY:bool, LENS: List[int]):
-        _, dataOut, args = self._generateLlvmInterpretArgs(toLlvm, LENS)
-        BaseIrMirRtl_TC._runLlvmIrOrMir(self, platform, toLlvm, "", None, isMir, args)
-        self._checkResults(SUM_ONLY, LENS, dataOut)
-
-    def _run_test_byte_cnt(self, dut: Axi4SPacketByteCntr0, LENS=[1, 2, 3, 4], T_MUL=1, CLK_FREQ=int(1e6),
+    def _run_test_byte_cnt(self, dut: Axi4SPacketByteCntr0, LENS=[1, 2, 3, 4], T_MUL=1,
                        SUM_ONLY:bool=True, TEST_IR:bool=False, TEST_MIR:bool=False, platformKwargs=dict(
                            # debugFilter={ #*HlsDebugBundle.ALL_RELIABLE,
                            #              # HlsDebugBundle.DBG_20_addSignalNamesToSync,
@@ -61,42 +36,28 @@ class _Axi4SPacketByteCntrTC(SimTestCase):
                            #              },
                            # runTestAfterEachPass=True
                            )):
-        tc = self
-
-        def testLlvmOptIr(*args):
-            tc._testLlvmIrOrMir(*args, False, SUM_ONLY, LENS)
-
-        def testLlvmOptMir(*args):
-            tc._testLlvmIrOrMir(*args, True, SUM_ONLY, LENS)
-
-        platform = TestLlvmIrAndMirPlatform(dut,
-                                            optIrTest=testLlvmOptIr if TEST_IR else None,
-                                            optMirTest=testLlvmOptMir if TEST_MIR else None,
-                                            **platformKwargs
-                                            )
-        # platform = VirtualHlsPlatform()
-        self.compileSimAndStart(dut, target_platform=platform)
-        dut.i._ag.presetBeforeClk = True
-        # dut.byte_cnt._ag.presetBeforeClk = True
-        fu = self._Axi4StreamSimFrameUtils.from_HwIO(dut.i)
+        dataIn = []
         for LEN in LENS:
-            fu.send_bytes(list(range(LEN)), dut.i._ag.data)
-
-        t = int(freq_to_period(dut.CLK_FREQ)) * (len(dut.i._ag.data) + 10) * T_MUL
-        self.runSim(t)
-        self.assertEmpty(dut.i._ag.data)
-        self._checkResults(SUM_ONLY, LENS, dut.byte_cnt._ag.data)
+            dataIn.append(list(range(LEN)))
+        passTests = PassTestInjectorForDInDOutHwModule(dut, self)
+        passTests.bindDataByInOut((PassTestIoInStream(self._Axi4StreamSimFrameUtils, dataIn),),
+                                  (PassTestIoOutTestOnlyFinalSum(LENS) if SUM_ONLY else PassTestIoOut(LENS),),
+                                  PORT_NAMES=("i", "o_byte_cnt"))
+        passTests.setRunTestsAfter(runTestBeforeLlvmIrPasses=False, runTestAfterIrPasses=TEST_IR, runTestAfterMirPasses=TEST_MIR)
+        passTests.setTimeLimits(wallTimeRtlDefaultMultiplier=T_MUL)
+        passTests.test_allInOne(platformKwArgs=platformKwargs)
 
 
 class Axi4SPacketByteCntrTC(_Axi4SPacketByteCntrTC):
 
-    def _test_byte_cnt(self, DATA_WIDTH:int, SEGMENT_CNT:int=1, cls=Axi4SPacketByteCntr0, LENS=[1, 2, 3, 4], T_MUL=1, CLK_FREQ=int(1e6),
+    def _test_byte_cnt(self, DATA_WIDTH:int, SEGMENT_CNT:int=1, cls=Axi4SPacketByteCntr0,
+                       LENS=[1, 2, 3, 4], T_MUL=1, CLK_FREQ=int(1e6),
                        SUM_ONLY:bool=True, TEST_IR:bool=False, TEST_MIR:bool=False):
         dut = cls()
         assert SEGMENT_CNT == 1, SEGMENT_CNT
         dut.DATA_WIDTH = DATA_WIDTH
         dut.CLK_FREQ = CLK_FREQ
-        self._run_test_byte_cnt(dut, LENS, T_MUL, CLK_FREQ, SUM_ONLY, TEST_IR, TEST_MIR)
+        self._run_test_byte_cnt(dut, LENS=LENS, T_MUL=T_MUL, SUM_ONLY=SUM_ONLY, TEST_IR=TEST_IR, TEST_MIR=TEST_MIR)
 
     def test_Axi4SPacketByteCntr0_8b(self):
         self._test_byte_cnt(8)
@@ -158,7 +119,7 @@ if __name__ == '__main__':
     # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 
     testLoader = unittest.TestLoader()
-    suite = unittest.TestSuite([Axi4SPacketByteCntrTC("test_Axi4SPacketByteCntr0_16b")])
     suite = testLoader.loadTestsFromTestCase(Axi4SPacketByteCntrTC)
+    # suite = unittest.TestSuite([Axi4SPacketByteCntrTC("test_Axi4SPacketByteCntr0_16b")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

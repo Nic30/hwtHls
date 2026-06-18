@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwt.code import Concat
+from typing import Optional, Sequence
+
 from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.struct import HStruct
 from hwt.hwIOs.hwIOStruct import HwIOStructVld
 from hwt.hwIOs.std import HwIODataVld
@@ -14,10 +16,13 @@ from hwtHls.frontend.pragmaInstruction import PyBytecodeIsMaskContinuosFromLsb
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInPreproc
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
+from hwtHls.platform.xilinx.artix7 import Artix7Medium
 from hwtHls.scope import HlsScope
 from pyMathBitPrecise.bit_utils import mask
 from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.math.addMasked import AddMaskedHardblock
+from tests.passTestInjectorForDInDOutHwModule import PassTestInjectorForDInDOutHwModule
+from tests.passTestIoStruct import PassTestIoInStruct
 
 
 class ExampleAddMasked(HwModule):
@@ -26,27 +31,38 @@ class ExampleAddMasked(HwModule):
         self.DATA_WIDTH = HwParam(16)
         self.ITEMS = 32
         self.CLK_FREQ = HwParam(int(100e6))
+        self._IN_TY: Optional[HStruct] = None
 
     def hwDeclr(self):
         addClkRstn(self)
         assert self.DATA_WIDTH > 0, self.DATA_WIDTH
 
-        self.i = HwIOStructVld()
-        self.i.T = HStruct(
+        self.dataIn = HwIOStructVld()
+        self.dataIn.T = HStruct(
             (HBits(self.DATA_WIDTH)[self.ITEMS], "data"),
             (HBits(self.ITEMS), "mask")
         )
 
-        self.o = HwIODataVld()._m()
-        self.o.DATA_WIDTH = self.DATA_WIDTH
+        self.dataOut = HwIODataVld()._m()
+        self.dataOut.DATA_WIDTH = self.DATA_WIDTH
+
+    def getInTy(self):
+        T = self._IN_TY
+        if T is None:
+            T = HStruct(
+                (HBits(self.DATA_WIDTH)[self.ITEMS], "data"),
+                (HBits(self.ITEMS), "mask")
+            )
+            self._IN_TY = T
+        return T
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
-        t = self.o.data._dtype
+        t = self.dataOut.data._dtype
         p = PyBytecodeInPreproc
         addMaskedFn = p(AddMaskedHardblock(t, t))
         while b1:
-            chunk = hls.read(self.i).data
+            chunk = hls.read(self.dataIn).data
             PyBytecodeIsMaskContinuosFromLsb(chunk.mask)
             acc = t.from_py(0)
             for dItem, mBit in zip(chunk.data, chunk.mask):
@@ -55,9 +71,10 @@ class ExampleAddMasked(HwModule):
                 else:
                     break
 
-            hls.write(acc, self.o)
+            hls.write(acc, self.dataOut)
 
-    def model(self, dataIn, dataOut):
+    @staticmethod
+    def model(dataIn: Sequence[tuple[tuple[HBitsConst, ...], tuple[HBitsConst, ...]]], dataOut: list[HBitsConst]):
         for dataInItems, maskIn in dataIn:
             res = dataInItems[0]._dtype.from_py(0)
             for d, m in zip(dataInItems, maskIn):
@@ -84,6 +101,7 @@ class AddMasked_TC(BaseIrMirRtl_TC):
         dut.CLK_FREQ = int(200e6)
         dataT = HBits(DATA_WIDTH)
         maskT = HBits(ITEMS)
+        inTy = dut.getInTy()
         if randomData:
             dataIn = [
                 (tuple(dataT.from_py(self._rand.getrandbits(DATA_WIDTH)) for _ in range(ITEMS)),
@@ -99,14 +117,14 @@ class AddMasked_TC(BaseIrMirRtl_TC):
                 # print([int(_d) for _d in d], int(m))
                 dataIn.append((d, m))
 
-        def prepareIrAndMirArgs():
-            dataOut = []
-            return ((d[1]._concat(Concat(*reversed(d[0]))) for d in dataIn), dataOut)
+        dataIn = [inTy.from_py(d) for d in dataIn]
 
-        self._test_OneInOneOut(dut, dut.model, dataIn,
-                   OUT_CNT * 200, OUT_CNT * 200,
-                   OUT_CNT * 200, (OUT_CNT * 8) + 2,
-                   prepareIrAndMirArgs=prepareIrAndMirArgs)
+        passTests = PassTestInjectorForDInDOutHwModule(dut, self)
+        passTests.setTimeLimits(wallTimeIr=OUT_CNT * 200,
+                                wallTimeMir=OUT_CNT * 200,
+                                wallTimeHlsNetlist=OUT_CNT * 200,
+                                wallTimeRtl=(OUT_CNT * 8) + 2)
+        passTests.test_allInOne_withModel((PassTestIoInStruct(inTy, dataIn, name="dataIn"),), platform=Artix7Medium())
 
 
 if __name__ == "__main__":
@@ -115,10 +133,11 @@ if __name__ == "__main__":
     sys.setrecursionlimit(int(1e6))
     from hwt.synth import to_rtl_str
     from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
-    from hwtHls.platform.xilinx.artix7 import Artix7Medium
+
     m = ExampleAddMasked()
     m.ITEMS = 4
     m.CLK_FREQ = int(200e6)
+    m.DATA_WIDTH = 16
     print(to_rtl_str(m, target_platform=Artix7Medium(
       # debugFilter={HlsDebugBundle.DBG_4_4_arch,},
       debugFilter=HlsDebugBundle.ALL_RELIABLE,

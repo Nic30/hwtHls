@@ -1,51 +1,56 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from typing import List, Tuple, Callable
+import struct
 
 from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
-from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
-from hwt.hwIOs.std import HwIODataRdVld
+from hwt.hdl.types.bitsConst import HBitsConst
+from hwt.hdl.types.struct import HStruct
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
-from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
 from hwt.simulator.simTestCase import SimTestCase
+from hwtHls.architecture.componentGenerators.baseALU1HwModule import _BaseALU1HwModule
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
+from tests.math.componentGenerators._genericHwModules import _FpAlu2HwModule
 from tests.math.fp.fpcmp import IEEE754FpCmp, IEEE754FpCmpResult
-from tests.math.fp.fptypes import IEEE754Fp32, IEEE754Fp
-from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
+from tests.math.fp.fptypes import IEEE754Fp32, IEEE754FpHConst
+from tests.passTestInjectorForDInDOutHwModule import PassTestInjectorForDInDOutHwModule
 
 
-class IEEE754FpComparator(HwModule):
+class _TestIEEE754FpComparator(HwModule):
 
+    @override
     def hwConfig(self) -> None:
-        self.CLK_FREQ = HwParam(int(20e6))
-        self.T = HwParam(IEEE754Fp32)
+        _BaseALU1HwModule.hwConfig(self)
+        self.CLK_FREQ = int(20e6)
+        self.T = IEEE754Fp32
 
+    @override
     def hwDeclr(self) -> None:
         addClkRstn(self)
 
-        self.a = HwIOStructRdVld()
-        self.b = HwIOStructRdVld()
-        self.a.T = self.b.T = self.T
-
-        self.res = HwIODataRdVld()._m()
-        self.res.DATA_WIDTH = 2
+        t = self.T
+        inT = HStruct(
+            (t, "a"),
+            (t, "b"),
+        )
+        _FpAlu2HwModule._addDataInDataOut(self, inT, HBits(2))
 
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
         while b1:
-            a = hls.read(self.a).data
-            b = hls.read(self.b).data
-            res = PyBytecodeInline(IEEE754FpCmp)(a, b)
-            hls.write(res, self.res)
+            dIn = hls.read(self.data_in).data
+            res = PyBytecodeInline(IEEE754FpCmp)(dIn.a, dIn.b)
+            hls.write(res, self.data_out)
 
+    @override
     def hwImpl(self) -> None:
         hls = HlsScope(self)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
@@ -54,24 +59,20 @@ class IEEE754FpComparator(HwModule):
 
 
 class IEEE754FpCmp_TC(SimTestCase):
-    TEST_DATA = [
-        (0x40c7ae14, 0x4048f5c3),  #   6.239999771118164  GT   3.140000104904175
-        (0xc144cccd, 0xc1566666),  # -12.300000190734863  GT -13.399999618530273
-        (0x4174cccd, 0x40133333),  #  15.300000190734863  GT   2.299999952316284
-        (0x4144cccd, 0x4164cccd),  #  12.300000190734863  LT  14.300000190734863
-        (0xc059999a, 0xc1840000),  #  -3.4000000953674316 GT -16.5
-        (0xbfa66666, 0x40133333),  #  -1.2999999523162842 LT   2.299999952316284
-        (0x4154cccd, 0xc164cccd),  #  13.300000190734863  GT -14.300000190734863
-        (0x40c7ae14, 0x40c7ae14),  #   6.239999771118164  EQ   6.239999771118164
-        (0x4174cccd, 0x4174cccd),  #  15.300000190734863  EQ  15.300000190734863
-    ]
-
-    TEST_DATA_FORMATED = [
-       (IEEE754Fp32.fromPyInt(aInt), IEEE754Fp32.fromPyInt(bInt)) for aInt, bInt in TEST_DATA
+    INPUT_DATA: list[tuple[float, float]] = [
+        (6.239999771118164 , 3.140000104904175),  # GT  (0x40c7ae14, 0x4048f5c3),
+        (-12.300000190734863 , -13.399999618530273),  # GT  (0xc144cccd, 0xc1566666),
+        (15.300000190734863 , 2.299999952316284),  # GT  (0x4174cccd, 0x40133333),
+        (12.300000190734863 , 14.300000190734863),  # LT  (0x4144cccd, 0x4164cccd),
+        (-3.4000000953674316, -16.5),  # GT  (0xc059999a, 0xc1840000),
+        (-1.2999999523162842, 2.299999952316284),  # LT  (0xbfa66666, 0x40133333),
+        (13.300000190734863 , -14.300000190734863),  # GT  (0x4154cccd, 0xc164cccd),
+        (6.239999771118164 , 6.239999771118164),  # EQ  (0x40c7ae14, 0x40c7ae14),
+        (15.300000190734863 , 15.300000190734863),  # EQ  (0x4174cccd, 0x4174cccd),
     ]
 
     @staticmethod
-    def model(a: float, b: float):
+    def model(a: float, b: float) -> int:
         if a == b:
             return IEEE754FpCmpResult.EQ
         elif a < b:
@@ -81,77 +82,55 @@ class IEEE754FpCmp_TC(SimTestCase):
         else:
             return IEEE754FpCmpResult.UNKNOWN
 
-    @staticmethod
-    def prepareTestDataAndRef(TEST_DATA_FORMATED: List[Tuple[IEEE754Fp32, IEEE754Fp32]], model: Callable[[float, float], int]):
-        aDataIn = []
-        bDataIn = []
-        resRef = []
-        for (a, b) in TEST_DATA_FORMATED:
-            aDataIn.append(a)
-            bDataIn.append(b)
-            _a = a.to_py()
-            _b = b.to_py()
-            _resRef = int(model(_a, _b))
-            resRef.append(_resRef)
-        return aDataIn, bDataIn, resRef
-
-    @staticmethod
-    def getPrepareDataFnForIRSim(TEST_DATA: List[Tuple[int, int]], fpTy:IEEE754Fp):
-
-        def prepareDataInFn():
-            aDataIn = []
-            bDataIn = []
-            t = HBits(fpTy.bit_length())
-            for a, b in TEST_DATA:
-                aDataIn.append(t.from_py(a))
-                bDataIn.append(t.from_py(b))
-
-            return aDataIn, bDataIn
-
-        return prepareDataInFn
-
     def test_cmp_py(self):
-        for (a, b) in self.TEST_DATA_FORMATED:
+        T = IEEE754Fp32
+        for (_a, _b) in self.INPUT_DATA:
+            a = T.from_py(_a)
+            b = T.from_py(_b)
             res = IEEE754FpCmp(a, b)
-            _a = a.to_py()
-            _b = b.to_py()
             # check if conversion from py int to hvalue and to float is correct
             resRef = self.model(_a, _b)
             self.assertValEqual(res, int(resRef),
-                                msg=(_a, IEEE754FpCmpResult.toStr(res), _b, 'expected', IEEE754FpCmpResult.toStr(resRef)))
+                                msg=(_a, IEEE754FpCmpResult.toStr(res), _b,
+                                     'expected', IEEE754FpCmpResult.toStr(resRef)))
 
     def test_cmp(self):
-        dut = IEEE754FpComparator()
+        dut = _TestIEEE754FpComparator()
+        dut.T = IEEE754Fp32
+        dataInIr: list[HBitsConst] = []
+        dataInRtl: list[tuple[tuple[HBitsConst, HBitsConst, HBitsConst], ...]] = []
+        resRef: list[HBitsConst] = []
+        T = dut.T
+        t = HBits(dut.T.bit_length() * 2)
+        for (_a, _b) in self.INPUT_DATA:
+            a = T.from_py(_a)
+            b = T.from_py(_b)
+            dataInIr.append(t.from_py(struct.pack("ff", _a, _b)))
+            dataInRtl.append(tuple((v.mantissa._vec(), v.exponent._vec(), v.sign)
+                                   for v in (a, b)))
+            _resRef = int(self.model(_a, _b))
+            resRef.append(_resRef)
 
-        prepareDataInFn = self.getPrepareDataFnForIRSim(self.TEST_DATA, dut.T)
-        aDataIn, bDataIn, resRes = self.prepareTestDataAndRef(self.TEST_DATA_FORMATED, self.model)
+        platform = VirtualHlsPlatform()
+        passTests = PassTestInjectorForDInDOutHwModule(dut, self)
+        passTests.bindDataByInOut((dataInIr,), (resRef,), PORT_NAMES=('data_in', 'data_out'))
+        passTests.install(platform)
+        self.compileSimAndStart(dut, target_platform=platform)
 
-        def checkDataOutFn(dataOut):
-            self.assertValSequenceEqual(dataOut, resRes)
-
-        self.compileSimAndStart(dut, target_platform=TestLlvmIrAndMirPlatform.forSimpleDataInDataOutHwModule(
-                                    prepareDataInFn, checkDataOutFn, None,
-                                    inputCnt=2,
-                                    noOptIrTest=TestLlvmIrAndMirPlatform.TEST_NO_OPT_IR,
-                                    # runTestAfterEachPass=True
-                                    ))
-
-        dut.a._ag.data.extend(aDataIn)
-        dut.b._ag.data.extend(bDataIn)
-
+        dut.data_in._ag.data.extend(dataInRtl)
         CLK_PERIOD = freq_to_period(dut.clk.FREQ)
-        self.runSim((len(self.TEST_DATA_FORMATED) + 1) * int(CLK_PERIOD))
+        self.runSim((len(self.INPUT_DATA) + 1) * int(CLK_PERIOD))
 
-        self.assertValSequenceEqual(dut.res._ag.data, resRes,
-                                    [(a.to_py(), b.to_py(), a, b)
-                                     for a, b in self.TEST_DATA_FORMATED])
+        self.assertValSequenceEqual(dut.data_out._ag.data, resRef,
+                                    [(a, b)
+                                     for a, b in self.INPUT_DATA])
         self.rtl_simulator_cls = None
 
 
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.debugBundle import HlsDebugBundle
-    m = IEEE754FpComparator()
+    m = _TestIEEE754FpComparator()
 
     print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
 

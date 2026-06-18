@@ -6,6 +6,7 @@ import sys
 from hwtLib.tests.all import unittestMain
 from tests.adt._adtAllTests import adt_TCs
 from tests.bitOpt._bitOptAllTests import bitOpt_TCs
+from tests.crypto._cryptoAllTests import crypto_TCs
 from tests.crypto.md5_test import Md5_TC
 from tests.frontend._frontendAllTests import frontend_TCs
 from tests.io._ioAllTests import io_TCs
@@ -26,9 +27,9 @@ suite = testSuiteFromTCs(
     *llvmMir_TCs,
     *llvmMath_TCs,
     *threads_TCs,
-    utils_TCs,
+    *utils_TCs,
     HlsSynthesisChecksTC,
-    Md5_TC,
+    *crypto_TCs,
     *adt_TCs,
 )
 

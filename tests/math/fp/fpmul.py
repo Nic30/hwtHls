@@ -1,9 +1,10 @@
+from hwt.hdl.commonConstants import b1
 from hwt.mainBases import RtlSignalBase
 from hwtHls.code import zext
-from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaInstruction import PyBytecodeNoSplitSlices
 from hwtHls.frontend.pragmaPreproc import PyBytecodeBlockLabel, \
     PyBytecodeInline
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from tests.math.fp.fptypes import IEEE754Fp
 from tests.math.fp.normalizeDenormalize import fpUnpack, fpNormalize, \
     fpRoundup, fpPack
@@ -17,44 +18,45 @@ def IEEE754FpMul(a: RtlSignalBase[IEEE754Fp], b: RtlSignalBase[IEEE754Fp]):
     """
     t: IEEE754Fp = a._dtype
     res = t.from_py(None)
+    mantissaT = res.mantissa._dtype
     if a.isNaN() | b.isNaN():
         PyBytecodeBlockLabel("IEEE754FpMul.isNaN")
         # if a is NaN or b is NaN return NaN
         res.sign = a.sign ^ b.sign
-        res.exponent = t.getSpecialExponent()
-        res.mantissa = t.getNaNMantisa()
+        res.exponent = t.getSpecialExponentHw()
+        res.mantissa = t.getNaNMantisaHw()
 
     elif a.isInf():
         PyBytecodeBlockLabel("IEEE754FpMul.aIsInf")
         # if b is zero return NaN
-        res.exponent = t.getSpecialExponent()
+        res.exponent = t.getSpecialExponentHw()
         if b.isZero():
             # if b is zero return NaN
-            res.sign = 1
-            res.mantissa = t.getNaNMantisa()
+            res.sign = b1
+            res.mantissa = t.getNaNMantisaHw()
         else:
             # if a is inf return inf
             res.sign = a.sign ^ b.sign
-            res.mantissa = 0
+            res.mantissa = mantissaT.from_py(0)
 
     elif b.isInf():
         PyBytecodeBlockLabel("IEEE754FpMul.bIsInf")
-        res.exponent = t.getSpecialExponent()
+        res.exponent = t.getSpecialExponentHw()
         if a.isZero():
             # if a is zero return NaN
-            res.sign = 1
-            res.mantissa = t.getNaNMantisa()
+            res.sign = b1
+            res.mantissa = t.getNaNMantisaHw()
         else:
             # if b is inf return inf
             res.sign = a.sign ^ b.sign
-            res.mantissa = 0
+            res.mantissa = mantissaT.from_py(0)
 
     elif a.isZero() & b.isZero():
         # if a or b is zero return zero
         PyBytecodeBlockLabel("IEEE754FpMul.Is0")
         res.sign = a.sign & b.sign
-        res.exponent = 0
-        res.mantissa = 0
+        res.exponent = res.exponent._dtype.from_py(0)
+        res.mantissa = mantissaT.from_py(0)
 
     else:
         PyBytecodeBlockLabel("IEEE754FpMul.compute")

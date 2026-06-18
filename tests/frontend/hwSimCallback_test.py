@@ -21,6 +21,8 @@ from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.mainBases import RtlSignalBase
 from hwt.pyUtils.typingFuture import override
+from hwtHls.frontend.frame import PyBytecodeFrame
+from hwtHls.frontend.fromPython import PyBytecodeToSsa
 from hwtHls.frontend.hardBlock import HardBlockHwModule, \
     ComponentGeneratorForHardBlock
 from hwtHls.frontend.pragma import _PyBytecodeIntrinsic
@@ -31,10 +33,11 @@ from hwtHls.llvm.llvmIr import Function, Type, \
     MachineInstr, Register, Instruction, MachineRegisterInfo, InstructionToCallInst, \
     MemoryEffects, BasicBlock
 from hwtHls.netlist.builder import HlsNetlistBuilder
+from hwtHls.netlist.context import HlsNetlistCtx
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
+from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
-from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta, \
     EMPTY_OP_REALIZATION
 from hwtHls.scope import HlsScope
@@ -49,8 +52,7 @@ from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlis
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from pyDigitalWaveTools.vcd.writer import VcdWriter
 from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
-from hwtHls.frontend.fromPython import PyBytecodeToSsa
-from hwtHls.frontend.frame import PyBytecodeFrame
+from tests.passTestInjectorForDInDOutHwModule import PassTestInjectorForDInDOutHwModule
 
 
 class HwSimCallbackHwArgDescriptor(int):
@@ -234,7 +236,7 @@ class HwSimCallbackComponentGenerator(ComponentGeneratorForHardBlock):
 
 class HlsNetNodeHwSimCallback(HlsNetNode):
 
-    def __init__(self, netlist:"HlsNetlistCtx", hwSimCallback: HwSimCallback, name:str=None):
+    def __init__(self, netlist:HlsNetlistCtx, hwSimCallback: HwSimCallback, name:str=None):
         super().__init__(netlist, name=name)
         self.hwSimCallback = hwSimCallback
 
@@ -247,7 +249,7 @@ class HlsNetNodeHwSimCallback(HlsNetNode):
     # [todo]
     # bind to BasicRtlSimulator/BasicRtlSimIo/BasicRtlSimModel
     # support in hwt.serializer.simModel
-    def rtlAlloc(self, allocator:"ArchElement"):
+    def rtlAlloc(self, allocator: ArchElement):
         self._isRtlAllocated = True
 
 
@@ -330,58 +332,41 @@ class TestHwSimCallback(HwModule):
         hls.compile()
 
 
+class PassTestInjectorForTestHwSimCallback(PassTestInjectorForDInDOutHwModule):
+
+    def checkIrAndMirArgs(self, args: tuple[deque]):
+        file = self._topToRunTestsOn.PRINT_FILE
+        s = file.getvalue()
+        file.truncate(0)
+        file.seek(0)
+        self.assertEqual(s, self.OUT_DATA_REF[0])
+
+
 class TestHwSimCallbackTC(BaseIrMirRtl_TC):
 
     def _test(self, dut: TestHwSimCallback,
                 TEST_DATA: list[int],
                 REF_DATA: str,
-                freq=int(1e6),
-                timeMultiplier=1,
-                **kwargs):
+                freq=int(1e6)):
         """
         :param model: a function which process all inputs and generate all outputs
         For meaning of params check :meth:`~._testOneOut`
         """
         dataTy = HBits(8)
-        TEST_DATA = tuple(dataTy.from_py(d) for d in TEST_DATA)
+        IN_DATA = tuple(dataTy.from_py(d) for d in TEST_DATA)
         file = StringIO()
         dut.PRINT_FILE = file
-
-        def prepareIrAndMirArgs():
-            return (iter(TEST_DATA),)
-
-        def checkIrAndMirArgs(args: tuple[deque]):
-            s = file.getvalue()
-            file.truncate(0)
-            file.seek(0)
-            self.assertEqual(s, REF_DATA)
-            # self.assertValSequenceEqual(dataOut, REF_DATA)
-
-        def prepareRtlSimArgs(dut: TestHwSimCallback):
-            dut.i._ag.data.extend(TEST_DATA)
-            dut.i._ag.presetBeforeClk = True
-            return None
-
-        def checkRtlSimResults(dut: TestHwSimCallback, ref: list):
-            BaseIrMirRtl_TC._test_no_comb_loops(self)
-            # [todo] see HlsNetNodeHwSimCallback.rtlAlloc
-            #s = file.getvalue()
-            #file.truncate(0)
-            #file.seek(0)
-            #self.assertEqual(s, REF_DATA)
-
+        dut.CLK_FREQ = freq
         wallTime = len(REF_DATA) * 10
-        BaseIrMirRtl_TC._test(self, dut,
-            prepareIrAndMirArgs, checkIrAndMirArgs,
-            prepareIrAndMirArgs, checkIrAndMirArgs,
-            prepareRtlSimArgs, checkRtlSimResults,
-            wallTimeIr=wallTime,
-            wallTimeOptIr=wallTime,
-            wallTimeOptMir=wallTime,
-            wallTimeRtlClks=(len(REF_DATA) + 1) * timeMultiplier,
-            freq=freq,
-            **kwargs
-        )
+        passTests = PassTestInjectorForTestHwSimCallback(dut, self)
+        passTests.setTimeLimits(wallTimeIr=wallTime, wallTimeMir=wallTime, wallTimeRtl=len(REF_DATA))
+        passTests.bindDataByInOut((IN_DATA,), (), PORT_NAMES=("i",))
+        passTests.test_allInOne()
+        # [todo] see HlsNetNodeHwSimCallback.rtlAlloc
+        # s = file.getvalue()
+        # file.truncate(0)
+        # file.seek(0)
+        # self.assertEqual(s, REF_DATA)
 
     def test_10(self, N=10):
         file = StringIO()
@@ -399,6 +384,7 @@ if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtHls.platform.debugBundle import HlsDebugBundle
+    from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 
     # m = TestHwSimCallback()
     # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE,

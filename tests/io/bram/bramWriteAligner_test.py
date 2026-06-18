@@ -3,28 +3,23 @@
 
 from collections import deque
 from random import Random
-from typing import Sequence, Optional
+from typing import Sequence, Optional, Union
 import unittest
 
 from hwt.hdl.types.bits import HBits
-from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.struct import HStruct
-from hwt.hdl.types.structValBase import HStructConstBase
 from hwt.hwIOs.agents.bramPort import storeToRamMaskedByAddress, \
     storeToRamMaskedByIndex
 from hwt.math import log2ceil
 from hwt.simulator.simTestCase import SimTestCase
-from hwtHls.platform.debugBundle import HlsDebugBundle
 from hwtHls.ssa.analysis.llvmIrInterpretUtils import SimIoUnderflowErr
-from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
 from hwtSimApi.agents.base import NOP
-from hwtSimApi.utils import freq_to_period
 from pyMathBitPrecise.bit_utils import mask, byte_mask_to_bit_mask_int
-from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
-from tests.io.bram.bramSimRam import BramSimRam
 from tests.io.bram.bramWriteAligner import HwIOAddrDataUnalignedToBram
-from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
 from tests.utils.testQueue import TestQueueIn, TestQueueOutIndexed
+from tests.passTestIoRam import PassTestIoOutRam
+from tests.passTestInjectorForDInDOutHwModule import PassTestInjectorForDInDOutHwModule
+from tests.passTestIoStruct import PassTestIoInStruct
 
 
 class HwIOAddrDataUnalignedToBram_TC(unittest.TestCase):
@@ -62,8 +57,8 @@ class HwIOAddrDataUnalignedToBram_TC(unittest.TestCase):
                                         dataWidth: int,
                                         hasDataAtBegin: bool,
                                         requestChannelRandomize: bool):
-        inWordAddrWidth = log2ceil(dataWidth // 8)
         inputTy = cls._getRequestT(unalignedAdderessWidth, dataWidth)
+        inWordAddrWidth = log2ceil(dataWidth // 8)
         dataIn = TestQueueIn(inputTy, maxNbReadsWithoutData=5)
         if rand is None:
             rand: Random = Random(0)
@@ -165,7 +160,6 @@ class HwIOAddrDataUnalignedToBram_TC(unittest.TestCase):
         return dataRamOut
 
     def test_aligned_sequential_firstAvail(self):
-        #
         N = 2
         dataWidth = 32
         addrStep = dataWidth // 8
@@ -223,26 +217,6 @@ class HwIOAddrDataUnalignedToBram_TC(unittest.TestCase):
 
 class HwIOAddrDataUnalignedToBram_rtl_TC(SimTestCase):
 
-    def _testLlvmIrOrMir(self, platform: TestLlvmIrAndMirPlatform, toLlvm: ToLlvmIrTranslator,
-                         isMir: bool, dataIn: list[HStructConstBase], refRam: dict[int, HBitsConst]):
-        dut = toLlvm.parentHwModule
-        wallTime = len(dataIn) * 1000
-        ramOut = BramSimRam(dut.DATA_WIDTH, int(2 ** dut.ADDR_WIDTH), hasWeMask=True)
-        dinFlatT = HBits(dataIn[0]._dtype.bit_length())
-        # concat with b1 because read is non-blocking
-        dataInFlat = deque(
-            NOP
-            if d is NOP else
-            d._reinterpret_cast(dinFlatT)
-            for d in dataIn)
-        args = (ramOut, iter(dataInFlat))
-        BaseIrMirRtl_TC._runLlvmIrOrMir(self, platform, toLlvm, "", wallTime, isMir, args)
-        ram: dict[int, tuple[int, int]] = {k: (v.val, v.vld_mask) for k, v in ramOut.data.items()}
-        # print("")
-        # print(refRam)
-        # print(ram)
-        self.assertDictEqual(ram, refRam)
-
     def _test(self, addresses: Sequence[int],
                  unalignedAdderessWidth=10,
                  dataWidth=32,
@@ -256,51 +230,22 @@ class HwIOAddrDataUnalignedToBram_rtl_TC(SimTestCase):
         if rand is None:
             rand = self._rand
         # prepare transactions and reference ram
+        inputTy = HwIOAddrDataUnalignedToBram_TC._getRequestT(unalignedAdderessWidth, dataWidth)
         dataIn, refRam = HwIOAddrDataUnalignedToBram_TC._generateInputTransactions(
             addresses, rand=rand,
             unalignedAdderessWidth=unalignedAdderessWidth,
             dataWidth=dataWidth,
             hasDataAtBegin=hasDataAtBegin,
             requestChannelRandomize=requestChannelRandomize)
-        tc = self
 
-        def testLlvmOptIr(*args):
-            tc._testLlvmIrOrMir(*args, False, dataIn, refRam)
+        passTests = PassTestInjectorForDInDOutHwModule(dut, self)
+        wallTime = len(dataIn) * 1000
+        passTests.setTimeLimits(wallTimeIr=wallTime, wallTimeMir=wallTime, wallTimeRtl=len(dataIn) * 2)
+        passTests.bindData((PassTestIoInStruct(inputTy, dataIn, name="inReq"),
+                            PassTestIoOutRam(refRam, dut.DATA_WIDTH, int(2 ** dut.ADDR_WIDTH), hasWeMask=True, name="outRam"),))
+        passTests.test_allInOne()
 
-        def testLlvmOptMir(*args):
-            tc._testLlvmIrOrMir(*args, True, dataIn, refRam)
-
-        # debugFilter = None
-        debugFilter = HlsDebugBundle.ALL_RELIABLE
-        platform = TestLlvmIrAndMirPlatform(
-            optIrTest=testLlvmOptIr,
-            optMirTest=testLlvmOptMir,
-            debugFilter=debugFilter,
-            # llvmCliArgs=[LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER, ],
-            # runTestAfterEachPass=True,
-            # runTestAfterEachMirPass=True,
-        )
-
-        self.compileSimAndStart(dut, target_platform=platform)
-        dut.reqIn._ag.presetBeforeClk = True  # for more easy orientation in sim
-        dut.reqIn._ag.data.extend(dataIn)
-        # dut.ramOut._ag._debugOutput = sys.stdout
-        self.runSim(int(freq_to_period(dut.CLK_FREQ) * len(dataIn) * 2))
-        self.assertFalse(bool(dut.reqIn._ag.data))
-        ram: dict[int, tuple[int, int]] = {k: (v.val, v.vld_mask) for k, v in dut.ramOut._ag.mem.items()}
-        # for _i, _d, _m in dataRamOut:
-        #    i = int(_i)
-        #    m = int(_m)
-        #    mExpanded = byte_mask_to_bit_mask_int(m, _m._dtype.bit_length())
-        #    d = _d.val & _d.vld_mask & mExpanded
-        #    assert (_d.vld_mask & mExpanded) == mExpanded, (f"all bytes which are marked valid by mask must be valid {_d.vld_mask:x} {_d.vld_mask:x}")
-        #    storeToRamMaskedByIndex(ram, i, d, mExpanded)
-
-        # print("")
-        # print(refRam)
-        # print(ram)
-        self.assertDictEqual(ram, refRam)
-        return ram
+        return passTests.TEST_IO[1]._ramDictToPy(dut.outRam._ag.mem)
 
     def test_aligned_sequential_firstAvail(self):
         HwIOAddrDataUnalignedToBram_TC.test_aligned_sequential_firstAvail(self)

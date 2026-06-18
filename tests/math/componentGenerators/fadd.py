@@ -4,6 +4,7 @@ from hwt.hdl.operatorDefs import HwtOps
 from hwt.hdl.types.bits import HBits
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
+from hwt.serializer.mode import serializeParamsUniq
 from hwtHls.architecture.componentGeneratorUtils import \
     ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule
 from hwtHls.llvm.llvmIr import HFloatTmpConfig, HFloatTmpSaturation
@@ -17,12 +18,13 @@ from hwtHls.platform.opRealizationMeta import OpRealizationMeta, \
 from hwtHls.platform.platform import DefaultHlsPlatform
 from hwtHls.ssa.analysis.llvmIrInterpretInt import _makeDecodeOpcodeFunction_BinaryOperator
 from tests.math.componentGenerators._componentGeneratorFp import ComponentGeneratorFp
-from tests.math.componentGenerators._genericHwModules import _FpBinOpAluHwModule
+from tests.math.componentGenerators._genericHwModules import _FpAlu2HwModule
 from tests.math.componentGenerators._llvmIrInterpretFP import ComponentGeneratorForSpecializedHwtHlsFpIntrinsicBinary_FloatFloat
 from tests.math.fp.fpadd import IEEE754FpAdd
 from tests.math.fp.fptypes import IEEE754Fp
 from tests.math.hFloatTmp.hFloatTmpCast import OP_CAST_HFLOATTMP_TO_HFLOATTMP
 from tests.math.hFloatTmp.hFloatTmpOps import OP_FADD
+from tests.passTestInjectorForDInDOutHwModule import hlsModelProps
 
 
 class ComponentGeneratorFADD_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedHwtHlsFpIntrinsicBinary_FloatFloat):
@@ -33,24 +35,32 @@ class ComponentGeneratorFADD_hwtHlsFpIntrinsic(ComponentGeneratorForSpecializedH
         return a + b
 
 
+@serializeParamsUniq
+class FpAddHwModule(_FpAlu2HwModule):
+    FN = staticmethod(IEEE754FpAdd)
+    
+    @staticmethod
+    @hlsModelProps(returnsPyValue=True, returnsOutValue=True, inputArgsAreStructMembers=True)
+    def model(a: float, b: float) -> float:
+        return a + b
+
+
 class ComponentGeneratorFADD(ComponentGeneratorFp):
     """
     A generator for OP_FADD (fixed point or floating point adder)
     """
     INPUT_CNT = 2
     HWT_OPERATOR = HwtOps.ADD
-    FP_OPERATOR_FN = staticmethod(IEEE754FpAdd)
     opDef = OP_FADD
+    FP_HWMODULE_CLS = FpAddHwModule
 
     def __init__(self, platform:DefaultHlsPlatform,
                  genNamePrefix:str, moduleName:str,
-                 optThroughputVsArea=0.0,
-                 FP_HWMODULE_CLS=_FpBinOpAluHwModule):
+                 optThroughputVsArea=0.0,):
         ComponentGeneratorFp.__init__(self, platform, genNamePrefix, moduleName)
         # dataWidth (optThroughputVsArea, HFloatTmpConfig) -> scheduling (OpRealizationMeta, UNROLL_FACTOR)
         self.schedulingCache: dict[tuple[float, HFloatTmpConfig], tuple[ComponentRealizationMeta, ComponentRealizationMeta, int]]
         self.optThroughputVsArea = optThroughputVsArea
-        self.FP_HWMODULE_CLS = FP_HWMODULE_CLS
         self.llvmIrInterpretDecode = _makeDecodeOpcodeFunction_BinaryOperator(self.HWT_OPERATOR._evalFn)
 
     def toHwtCompatibleOperatorBeforeScheduling_Q_getTmpCfg(self, cfg: HFloatTmpConfig) -> tuple[HFloatTmpConfig, HFloatTmpConfig]:
@@ -94,7 +104,6 @@ class ComponentGeneratorFADD(ComponentGeneratorFp):
         hwModule.T = ty
         hwModule.CLK_FREQ = int(1 / realTimeClkPeriod)
         hwModule.UNROLL_FACTOR = UNROLL_FACTOR
-        hwModule.FN = self.FP_OPERATOR_FN
         if realization is not None:
             hwModule._setIoChannelTypes(realization)
 

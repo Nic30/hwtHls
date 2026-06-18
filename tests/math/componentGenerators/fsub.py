@@ -29,7 +29,7 @@ class ComponentGeneratorFSUB(ComponentGeneratorFADD):
 
     @override
     @staticmethod
-    def FP_OPERATOR_FN(a, b):
+    def FP_HWMODULE_CLS():
         # :note: using special component just to implement substract would prevent early logic sharing with FADD
         raise AssertionError("This should have been lowered to a+(-b) in HwtHlsInstCombiner::tryReduceHwtHlsFpSub_to_addNeg")
 

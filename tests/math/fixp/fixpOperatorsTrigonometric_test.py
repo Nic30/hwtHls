@@ -6,9 +6,9 @@ import math
 from hwt.pyUtils.typingFuture import override
 from hwt.serializer.mode import serializeParamsUniq
 from hwtHls.llvm.llvmIr import HFloatTmpSaturation, HFloatTmpRounding
+from tests.math.fixp._fixpAlu1_TC import FixpAlu1_TC
 from tests.math.fixp.cordicAtan2 import CordicAtan2
-from tests.math.fixp.fixpOperatorsCommonArith_test import FixpUnary_TC, \
-    FixpAdd_TC
+from tests.math.fixp.fixpOperatorsCommonArith_test import FixpAdd_TC
 from tests.math.fixp.fixpOperatorsHwModules import _FixpUnOpTestModule, _FixpBinOpTestModule
 from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
@@ -24,7 +24,7 @@ class TestModuleFixpSin(_FixpUnOpTestModule):
         return sin(a)
 
 
-class FixpSinNoLut_TC(FixpUnary_TC):
+class FixpSinNoLut_TC(FixpAlu1_TC):
     FP_TY = HFixedPointQ(4, 10, rounding=HFloatTmpRounding.ROUND_HALF_EVEN,
                                 saturation=HFloatTmpSaturation.SATURATE_NONE)
     RTL_SIM_TIME_MULTIPLIER = 10
@@ -200,10 +200,10 @@ class FixpAtan2_TC(FixpAdd_TC):
         (0.0, 0.25),
         (0.25, 0.25),
         (1.0, 1.0),
-        (0.1, 0.2),
-        (0.1, 0.1),
-        (0.123, 0.123),
-        (0.123, 0.456),
+        (0.09765625, 0.19921875),
+        (0.09765625, 0.09765625),
+        (0.12109375, 0.12109375),
+        (0.12109375, 0.453125),
         (1.125, 1.0),
         (1.25, 1.0),
         (1.0, 2.0),
@@ -247,20 +247,20 @@ FixpOpTrigonometric_TCs = [
    FixpTanNoLutUnroll_TC,
    FixpSinPiNoLutUnroll_TC,
    FixpCosPiNoLutUnroll_TC,
-
+   
    FixpSinNoLut_TC,
    FixpCosNoLut_TC,
    FixpTanNoLut_TC,
    FixpSinPiNoLut_TC,
    FixpCosPiNoLut_TC,
-
+   
    FixpSinLut7_TC,
    FixpCosLut7_TC,
    FixpTanLut7_TC,
    FixpTanLut7Unroll_TC,
    FixpSinPiLut7_TC,
    FixpCosPiLut7_TC,
-
+   
    FixpAtan2_TC,
    FixpAtan2Unroll_TC,
 ]

@@ -21,7 +21,7 @@ class Axi4SPacketCntrTC(SimTestCase):
 
         t = int(freq_to_period(dut.clk.FREQ)) * (len(dut.i._ag.data) + 10) 
         self.runSim(t)
-        self.assertValEqual(dut.pkt_cnt._ag.data[-1], len(LENS))
+        self.assertValEqual(dut.o_pkt_cnt._ag.data[-1], len(LENS))
 
     def test_Axi4SPacketCntr_8b(self):
         self._test_pkt_cnt(8)

@@ -3,13 +3,16 @@
 
 from typing import List, Optional, Literal
 
+from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.pragmaLoop import PyBytecodeLLVMLoopUnroll, \
     PyBytecodeStreamLoopUnroll
+from hwtLib.amba.axi4sSimFrameUtils import Axi4StreamSimFrameUtils
 from tests.io.amba.axi4Stream.axi4sCopyByteByByte import Axi4SPacketCopyByteByByte
-from tests.io.amba.axi4Stream._baseAxi4SPktInPktOutTC import BaseAxi4SPktInPktOutTC
+from tests.passTestInjectorForStreamHwModule import PassTestInjectorForStreamHwModule
 
 
-class Axi4SPacketCopyByteByByteTC(BaseAxi4SPktInPktOutTC):
+class Axi4SPacketCopyByteByByteTC(SimTestCase):
+    StreamFrameUtils = Axi4StreamSimFrameUtils
 
     def _test(self, DATA_WIDTH:int, OUT_DATA_WIDTH:int, FRAME_LENGTHS:List[int],
         UNROLL:Optional[Literal[PyBytecodeStreamLoopUnroll]]=None, freq=int(1e6),
@@ -18,6 +21,7 @@ class Axi4SPacketCopyByteByByteTC(BaseAxi4SPktInPktOutTC):
 
         dut = cls()
         dut.UNROLL = UNROLL
+        dut.CLK_FREQ = freq
         dut.DATA_WIDTH = DATA_WIDTH
         dut.OUT_DATA_WIDTH = OUT_DATA_WIDTH
 
@@ -27,9 +31,10 @@ class Axi4SPacketCopyByteByByteTC(BaseAxi4SPktInPktOutTC):
             # data = [self._rand.getrandbits(8) for _ in range(frameLen)]
             refFrames.append(data)
 
-        BaseAxi4SPktInPktOutTC._test(
-            self, dut, refFrames, refFrames, freq=freq,
-            rtlSimTimeMultiplier=rtlSimTimeMultiplier,
+        passTests = PassTestInjectorForStreamHwModule(dut, self, self.StreamFrameUtils)
+        passTests.setTimeLimits(wallTimeRtlDefaultMultiplier=rtlSimTimeMultiplier)
+        passTests.bindDataByInOut((refFrames,), (refFrames,))
+        passTests.test_allInOne(
             # platformKwargs=dict(
             #      debugFilter={
             #          *HlsDebugBundle.ALL_RELIABLE,
@@ -66,11 +71,11 @@ class Axi4SPacketCopyByteByByteTC(BaseAxi4SPktInPktOutTC):
 
     def test_3B(self):
         PKT_CNT = 6
-        self._test(3 * 8, 3 * 8, [self._rand.randint(1, 9) for _ in range(PKT_CNT)])
+        self._test(3 * 8, 3 * 8, [self._rand.randint(1, 9) for _ in range(PKT_CNT)], rtlSimTimeMultiplier=2.5)
 
     def test_4B(self):
         PKT_CNT = 6
-        self._test(4 * 8, 4 * 8, [self._rand.randint(1, 12) for _ in range(PKT_CNT)])
+        self._test(4 * 8, 4 * 8, [self._rand.randint(1, 12) for _ in range(PKT_CNT)], rtlSimTimeMultiplier=3.5)
 
     def _testUnrollForRx(self, WORD_BYTE_CNT:int, PKT_CNT=6):
         self._test(WORD_BYTE_CNT * 8, WORD_BYTE_CNT * 8, [self._rand.randint(1, WORD_BYTE_CNT * 3) for _ in range(PKT_CNT)], UNROLL=PyBytecodeStreamLoopUnroll)
@@ -133,6 +138,6 @@ if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
     suite = testLoader.loadTestsFromTestCase(Axi4SPacketCopyByteByByteTC)
-    # suite = unittest.TestSuite([Axi4SPacketCopyByteByByteTC("test_2B")])
+    # suite = unittest.TestSuite([Axi4SPacketCopyByteByByteTC("test_4B")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

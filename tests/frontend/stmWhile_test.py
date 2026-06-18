@@ -6,7 +6,6 @@ import unittest
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.defs import BIT
 from hwtHls.platform.debugBundle import HlsDebugBundle
-from hwtHls.platform.virtual import VirtualHlsPlatform
 from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.baseSsaTest import BaseSsaTC
 from tests.frontend.stmWhile import HlsPythonHwWhile0a, \
@@ -15,6 +14,7 @@ from tests.frontend.stmWhile import HlsPythonHwWhile0a, \
     PragmaInline_HlsPythonHwWhile5, HlsPythonHwWhile6, MovingOneGen, \
     LoopCondBitSet, LoopZeroPadCompareShift, HlsPythonHwWhile5b, \
     PragmaInline_HlsPythonHwWhile4, PragmaInline_HlsPythonHwWhile5c
+from tests.passTestInjectorForDInDOutHwModule import PassTestInjectorForDInDOutHwModule
 
 
 class StmWhile_ll_TC(BaseSsaTC):
@@ -32,61 +32,52 @@ class StmWhile_ll_TC(BaseSsaTC):
 
 class StmWhile_sim_TC(BaseIrMirRtl_TC):
 
-    def test_HlsPythonHwWhile0a(self):
-        OUT_CNT = 16
+    def test_HlsPythonHwWhile0a(self, hwModuleCls:type[HlsPythonHwWhile0a]=HlsPythonHwWhile0a, OUT_CNT=16):
         dataIn = [BIT.from_py(self._rand.getrandbits(1)) for _ in range(OUT_CNT)]
-        self._test_OneInOneOut(HlsPythonHwWhile0a(), HlsPythonHwWhile0a.model, dataIn,
-                   OUT_CNT * 20, OUT_CNT * 20,
-                   OUT_CNT * 20, OUT_CNT + 2,
-                   modelReturnsPyValue=True,)
 
-    def test_HlsPythonHwWhile0b(self):
-        OUT_CNT = 8
-        self._testOneOut(HlsPythonHwWhile0b(), HlsPythonHwWhile0b.model, OUT_CNT,
-                         OUT_CNT * 10, OUT_CNT * 10,
-                         OUT_CNT * 10, OUT_CNT + 1,)
+        passTests = PassTestInjectorForDInDOutHwModule(hwModuleCls(), self)
+        passTests.setTimeLimits(wallTimeIr=OUT_CNT * 20,
+                                wallTimeMir=OUT_CNT * 20,
+                                wallTimeRtl=OUT_CNT + 2)
+        passTests.test_allInOne_withModel((dataIn,))
+
+    def test_HlsPythonHwWhile0b(self, hwModuleCls:type[HlsPythonHwWhile0b]=HlsPythonHwWhile0b, OUT_CNT=8):
+        passTests = PassTestInjectorForDInDOutHwModule(hwModuleCls(), self)
+        passTests.setTimeLimits(wallTimeIr=OUT_CNT * 10,
+                                wallTimeMir=OUT_CNT * 10,
+                                wallTimeRtl=OUT_CNT + 1)
+        passTests.test_allInOne_withModel((), OUT_ITEM_CNT_LIMITS=(OUT_CNT,))
 
     def test_HlsPythonHwWhile0c(self):
-        OUT_CNT = 16
-        dataIn = [BIT.from_py(self._rand.getrandbits(1)) for _ in range(OUT_CNT)]
-        self._test_OneInOneOut(HlsPythonHwWhile0c(), HlsPythonHwWhile0c.model, dataIn,
-                   OUT_CNT * 20, OUT_CNT * 20,
-                   OUT_CNT * 20, OUT_CNT + 2,
-                   modelReturnsPyValue=True,)
+        self.test_HlsPythonHwWhile0a(hwModuleCls=HlsPythonHwWhile0c)
 
     def test_HlsPythonHwWhile1(self):
-        OUT_CNT = 16
-        dataIn = [BIT.from_py(self._rand.getrandbits(1)) for _ in range(OUT_CNT)]
-        self._test_OneInOneOut(HlsPythonHwWhile1(), HlsPythonHwWhile1.model, dataIn,
-                         OUT_CNT * 20, OUT_CNT * 20,
-                         OUT_CNT * 20, OUT_CNT + 1 + 1,
-                         freq=int(50e6),
-                         modelReturnsPyValue=True,)
+        self.test_HlsPythonHwWhile0a(HlsPythonHwWhile1)
 
     def test_HlsPythonHwWhile2(self):
         OUT_CNT = 16
-        self._testOneOut(HlsPythonHwWhile2(), HlsPythonHwWhile2.model, OUT_CNT,
-                         OUT_CNT * 25, OUT_CNT * 20,
-                         OUT_CNT * 20, OUT_CNT + 6 + 1,
-                         freq=int(100e6),
-                         #debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
-                         #    HlsDebugBundle.DBG_4_0_hwscheduleTrace,
-                         #    HlsDebugBundle.DBG_4_0_hwschedulePrintPhaseBoundaries})
-                         )
+        dut = HlsPythonHwWhile2()
+        dut.CLK_FREQ = int(100e6)
+        passTests = PassTestInjectorForDInDOutHwModule(dut, self)
+        passTests.setTimeLimits(wallTimeIr=OUT_CNT * 25,
+                                wallTimeMir=OUT_CNT * 20,
+                                wallTimeRtl=OUT_CNT + 6 + 1)
+        passTests.test_allInOne_withModel((), OUT_ITEM_CNT_LIMITS=(OUT_CNT,))
 
     def test_HlsPythonHwWhile3(self):
         IN_CNT = 32
         in_t = HBits(8)
         dataIn = [in_t.from_py(self._rand.getrandbits(2)) for _ in range(IN_CNT)]
-        # print([int(d) for d in dataIn])
-        self._test_OneInOneOut(HlsPythonHwWhile3(), HlsPythonHwWhile3.model,
-                               dataIn, wallTimeRtlClks=IN_CNT + 9 + 20 + 1,
-                               modelReturnsPyValue=True,)
+
+        passTests = PassTestInjectorForDInDOutHwModule(HlsPythonHwWhile3(), self)
+        passTests.setTimeLimits(wallTimeRtl=IN_CNT + 9 + 20 + 1)
+        passTests.test_allInOne_withModel((dataIn,))
 
     def test_HlsPythonHwWhile4(self, mCls=HlsPythonHwWhile4):
         IN_CNT = 32
         dataIn = [BIT.from_py(self._rand.getrandbits(1)) for _ in range(IN_CNT)]
-        self._test_OneInOneOut(mCls(), mCls.model, dataIn)
+        passTests = PassTestInjectorForDInDOutHwModule(mCls(), self)
+        passTests.test_allInOne_withModel((dataIn,))
 
     def test_HlsPythonHwWhile5(self):
         self.test_HlsPythonHwWhile4(mCls=HlsPythonHwWhile5)
@@ -99,15 +90,17 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
 
     def test_MovingOneGen(self):
         OUT_CNT = 10
-        self._testOneOut(MovingOneGen(), MovingOneGen.model, OUT_CNT,
-                         OUT_CNT * 20, OUT_CNT * 20,
-                         OUT_CNT * 20, OUT_CNT + 1,
-                         freq=int(100e6),)
+        dut = MovingOneGen()
+        dut.CLK_FREQ = int(100e6)
+        passTests = PassTestInjectorForDInDOutHwModule(dut, self)
+        passTests.setTimeLimits(wallTimeIr=OUT_CNT * 20, wallTimeMir=OUT_CNT * 20, wallTimeRtl=OUT_CNT + 1)
+        passTests.test_allInOne_withModel((), OUT_ITEM_CNT_LIMITS=(OUT_CNT,))
 
     def test_LoopCondBitSet(self):
         IN_CNT = 12
         dataIn = [BIT.from_py(self._rand.getrandbits(1)) for _ in range(IN_CNT)]
-        self._test_OneInOneOut(LoopCondBitSet(), LoopCondBitSet.model, dataIn, modelReturnsPyValue=True)
+        passTests = PassTestInjectorForDInDOutHwModule(LoopCondBitSet(), self)
+        passTests.test_allInOne_withModel((dataIn,))
 
     def test_LoopZeroPadCompareShift(self):
         dut = LoopZeroPadCompareShift()
@@ -115,18 +108,9 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
         dut.CLK_FREQ = int(1e6)
         t = HBits(dut.DATA_WIDTH)
         dataIn = [t.from_py(13), t.from_py(3)]
-        self._test_OneInOneOut(dut, dut.model, dataIn,
-                                wallTimeIr=100,
-                                wallTimeOptIr=45,
-                                wallTimeOptMir=70,
-                                wallTimeRtlClks=6 + 2,
-                                modelReturnsPyValue=True,
-                                # debugFilter={
-                                #    *HlsDebugBundle.ALL_RELIABLE,
-                                #    HlsDebugBundle.DBG_20_addSignalNamesToSync,
-                                #    HlsDebugBundle.DBG_20_addSignalNamesToData,
-                                # }
-                                )
+        passTests = PassTestInjectorForDInDOutHwModule(dut, self)
+        passTests.setTimeLimits(wallTimeIr=100, wallTimeMir=70, wallTimeRtl=6 + 2)
+        passTests.test_allInOne_withModel((dataIn,), OUT_ITEM_CNT_LIMITS=(5,))
 
     def test_PragmaInline_PragmaInline_HlsPythonHwWhile4(self):
         self.test_HlsPythonHwWhile4(mCls=PragmaInline_HlsPythonHwWhile4)
@@ -158,6 +142,6 @@ if __name__ == "__main__":
                             StmWhile_ll_TC,
                             StmWhile_sim_TC
                          )])
-    suite = unittest.TestSuite([StmWhile_sim_TC("test_LoopZeroPadCompareShift")])
+    # suite = unittest.TestSuite([StmWhile_sim_TC("test_HlsPythonHwWhile0a")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

@@ -30,11 +30,11 @@ from hwtHls.ssa.translation.llvmMirToNetlist.utils import MirToHlsNetlistTransla
 from tests.math.componentGenerators._div.divRestoring import DivRemHwModule
 
 
-def _floorsdiv(a: HBitsConst, b: HBitsConst):
+def _floorsdiv(a: HBitsConst, b: HBitsConst) -> HBitsConst:
     return (a._signed() // b._signed())._vec()
 
 
-def _srem(a: HBitsConst, b: HBitsConst):
+def _srem(a: HBitsConst, b: HBitsConst) -> HBitsConst:
     return (a._signed() % b._signed())._vec()
 
 

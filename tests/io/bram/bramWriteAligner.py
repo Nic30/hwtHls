@@ -47,17 +47,17 @@ class HwIOAddrDataUnalignedToBram(HwModule):
     def hwDeclr(self):
         addClkRstn(self)
 
-        self.reqIn = HwIOAddrDataRdVld()
-        self.reqIn.ADDR_WIDTH = self.ADDR_WIDTH + log2ceil(self.DATA_WIDTH // 8)
-        self.reqIn.DATA_WIDTH = self.DATA_WIDTH
-        self.reqIn.HAS_MASK = True
+        self.inReq = HwIOAddrDataRdVld()
+        self.inReq.ADDR_WIDTH = self.ADDR_WIDTH + log2ceil(self.DATA_WIDTH // 8)
+        self.inReq.DATA_WIDTH = self.DATA_WIDTH
+        self.inReq.HAS_MASK = True
 
         with self._hwParamsShared():
-            self.ramOut: HwIOBramPort_noClk = HwIOBramPort_noClk()._m()
-            ramOut = self.ramOut
-            ramOut.HAS_W = True
-            ramOut.HAS_R = False
-            ramOut.HAS_BE = True
+            self.outRam: HwIOBramPort_noClk = HwIOBramPort_noClk()._m()
+            outRam = self.outRam
+            outRam.HAS_W = True
+            outRam.HAS_R = False
+            outRam.HAS_BE = True
 
     @hwt_expr_producer
     @classmethod
@@ -215,11 +215,11 @@ class HwIOAddrDataUnalignedToBram(HwModule):
 
     def hwImpl(self) -> None:
         hls = HlsScope(self, namePrefix="")
-        ramOut = IoProxyBram(hls, self.ramOut)
+        ramOut = IoProxyBram(hls, self.outRam)
         reqIn = IoProxyScalar(
-            hls, self.reqIn,
-            dtype=HwIO_to_HdlType().apply(self.reqIn, exclude=(self.reqIn.rd,
-                                                               self.reqIn.vld)))
+            hls, self.inReq,
+            dtype=HwIO_to_HdlType().apply(self.inReq, exclude=(self.inReq.rd,
+                                                               self.inReq.vld)))
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls, reqIn, ramOut)
         hls.addThread(mainThread)
         hls.compile()

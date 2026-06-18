@@ -1,35 +1,43 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from datetime import datetime
-from pathlib import Path
+from itertools import zip_longest
+from math import isnan
 
 from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
 from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
+from hwt.pyUtils.typingFuture import override
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
+from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
-from hwtLib.types.ctypes import int64_t, uint64_t
-from hwtSimApi.utils import freq_to_period
+from hwtLib.types.ctypes import int64_t
 from pyMathBitPrecise.bit_utils import mask, ValidityError, to_signed
+from tests.math.fp._PassTestInjectorForFp import PassTestIoOutIEEE754Fp
 from tests.math.fp.fpFromInt import IEEE754FpFromInt
 from tests.math.fp.fptypes import IEEE754Fp64
-from tests.testLlvmIrAndMirPlatform import TestLlvmIrAndMirPlatform
+from tests.passTestInjector import PassTestInjector
+from tests.passTestInjectorForDInDOutHwModule import PassTestInjectorForDInDOutHwModule, \
+    hlsModelProps
+from tests.passTestIo import PassTestIoInPyInt
 
 
 class IEEE754FpFromIntConventor(HwModule):
 
+    @override
     def hwConfig(self) -> None:
         self.CLK_FREQ = HwParam(int(20e6))
         self.T_IN = HwParam(int64_t)
         self.T = HwParam(IEEE754Fp64)
 
+    @override
     def hwDeclr(self) -> None:
         addClkRstn(self)
 
@@ -45,6 +53,12 @@ class IEEE754FpFromIntConventor(HwModule):
             res = PyBytecodeInline(IEEE754FpFromInt)(a, self.T)
             hls.write(res, self.res)
 
+    @staticmethod
+    @hlsModelProps(returnsPyValue=True, returnsOutValue=True)
+    def model(a: int) -> float:
+        return float(a)
+
+    @override
     def hwImpl(self) -> None:
         hls = HlsScope(self)
         mainThread = HlsThreadFromPy(hls, self.mainThread, hls)
@@ -52,8 +66,31 @@ class IEEE754FpFromIntConventor(HwModule):
         hls.compile()
 
 
+class PassTestIoOutForIEEE754FpFromInt(PassTestIoOutIEEE754Fp):
+    
+    @override
+    def checkForLlvmIr(self, dataSim:list[HBitsConst]):
+        tc = self.passTests.tc
+        T = self.fpTy
+        resRef = self.dataRef
+
+        for i, (din, ref, res) in enumerate(zip_longest(self.DATA_IN_FOR_DBG, resRef, dataSim)):
+            ref: float
+            res: HBitsConst
+            assert not isnan(ref)
+            tc.assertIsNotNone(ref, ("Output data contains more data then was expected", dataSim[len(resRef):]))
+            tc.assertIsNotNone(res, ("Output data is missing data", i, resRef[len(dataSim):]))
+            v = T.reinterpretRawIntToFloat(int(res))
+            try:
+                _resInt = "%016X" % int(res)
+            except ValidityError:
+                _resInt = None
+            tc.assertEqual(v, ref, (self.name, i, "in:", din, _resInt, "%016X" % T.reinterpretFloatToRawInt(ref),
+                                    "got:", T.from_py(v), "expected:", T.from_py(ref)))
+
+
 class IEEE754FpFromInt_TC(SimTestCase):
-    TEST_DATA = [
+    INPUT_DATA = [
         0, 1, 2, 3,
         mask(32),
         mask(63),  # max number
@@ -63,12 +100,8 @@ class IEEE754FpFromInt_TC(SimTestCase):
     ]
     LOG_TIME = False
 
-    @staticmethod
-    def model(a: int):
-        return float(a)
-
     def test_py(self):
-        for a in self.TEST_DATA:
+        for a in self.INPUT_DATA:
             # print("in:", a)
             _res = IEEE754FpFromInt(int64_t.from_py(a), IEEE754Fp64)
             try:
@@ -76,82 +109,26 @@ class IEEE754FpFromInt_TC(SimTestCase):
             except ValidityError:
                 res = None
             # check if conversion from py int to hvalue and to float is correct
-            resRef = self.model(a)
+            resRef = IEEE754FpFromIntConventor.model(a)
             # print(res, resRef, "\n", _res, IEEE754Fp64.from_py(resRef))
             self.assertEqual(res, resRef,
                              msg=(res, _res, 'expected', resRef))
 
     def test_rlt(self):
-
-        def prepareDataInFn():
-            dataIn = []
-            b64 = HBits(64)
-            for a in self.TEST_DATA:
-                dataIn.append(int64_t.from_py(a)._reinterpret_cast(b64))
-            return dataIn
-
-        def checkDataOutFn(dataOut):
-            self.assertEqual(len(dataOut), len(self.TEST_DATA))
-            for _res, a in zip(dataOut, self.TEST_DATA):
-                try:
-                    resFp = _res._reinterpret_cast(IEEE754Fp64)
-                    res = resFp.to_py()
-                    _resInt = "%016X" % int(_res)
-                except ValidityError:
-                    res = None
-                resRef = self.model(a)
-                refVal = IEEE754Fp64.from_py(resRef)
-                self.assertEqual(res, resRef, msg=(res, _resInt, 'expected', resRef,
-                                                   "%016X" % int(refVal._reinterpret_cast(uint64_t)),
-                                                   "input", a, resFp, "expected", refVal))
-
         dut = IEEE754FpFromIntConventor()
         dut.CLK_FREQ = int(1e6)
+        passTests = PassTestInjectorForDInDOutHwModule(dut, self)
         if self.LOG_TIME:
-            time0 = datetime.now()
-        self.compileSimAndStart(dut, target_platform=TestLlvmIrAndMirPlatform.forSimpleDataInDataOutHwModule(
-            prepareDataInFn,
-            checkDataOutFn,
-            Path(self.DEFAULT_LOG_DIR, f"{self.getTestName()}"),
-            topToRunTestsOn=dut,
-            debugLogTime=TestLlvmIrAndMirPlatform.logTimeToStdout if self.LOG_TIME else None,
-            # runTestAfterEachPass=True,
-            # runTestAfterEachMirPass=True,
-        ))
-        if self.LOG_TIME:
-            time1 = datetime.now()
-            print("RTL synthesis", time1 - time0)
-
-        refRes = []
-        for a in self.TEST_DATA:
-            dut.a._ag.data.append(a)
-            _resRef = self.model(a)
-            # refRes.append(_resRef)
-            _resRef = IEEE754Fp64.from_py(_resRef)
-            refRes.append((int(_resRef.mantissa), int(_resRef.exponent), int(_resRef.sign)))
-
-        CLK_PERIOD = freq_to_period(dut.clk.FREQ)
-        if self.LOG_TIME:
-            time0 = datetime.now()
-        self.runSim((len(self.TEST_DATA) + 1) * int(CLK_PERIOD))
-        if self.LOG_TIME:
-            time1 = datetime.now()
-            print("RTL sim", time1 - time0)
-
-        # res = [IEEE754Fp64.from_py({"sign": sign, "exponent": exponent, "mantissa": mantissa}).to_py()
-        #        for mantissa, exponent, sign in dut.res._ag.data]
-        res = dut.res._ag.data
-        # for resItem, refItem in zip(res, refRes):
-        #     self.assertValSequenceEqual(resItem, refItem)
-        self.assertValSequenceEqual(res, refRes)
-
+            passTests.setDebugLogTime(PassTestInjector.logTimeToStdout)
+            
+        passTests.test_allInOne_withModel((PassTestIoInPyInt(HBits(64), self.INPUT_DATA),),
+                                          (PassTestIoOutForIEEE754FpFromInt(dut.T, self.INPUT_DATA, []),))
         self.rtl_simulator_cls = None
 
 
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.debugBundle import HlsDebugBundle
-    from hwtHls.platform.virtual import VirtualHlsPlatform
     from hwtLib.types.ctypes import int16_t
     from tests.math.fp.fptypes import IEEE754Fp16
     m = IEEE754FpFromIntConventor()
