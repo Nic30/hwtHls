@@ -570,9 +570,9 @@ def merge_value_merge_continuous_slices : GICombineRule<
 
 //
 // Fold (HWTFPGA_MUX (... HWTFPGA_MUX ...)) -> HWTFPGA_MUX ...
-def mux_merge_matchdata : GIDefMatchData<"llvm::SmallVector<bool>">;
-def mux_merge: GICombineRule<
-  (defs root:$root, mux_merge_matchdata:$matchinfo),
+def mux_flatten_matchdata : GIDefMatchData<"llvm::SmallVector<bool>">;
+def mux_flatten: GICombineRule<
+  (defs root:$root, mux_flatten_matchdata:$matchinfo),
   (match (wip_match_opcode HWTFPGA_MUX):$root,
     [{ return Helper.matchNestedMux(*${root}, ${matchinfo}); }]),
   (apply [{ Helper.rewriteNestedMuxToMux(*${root}, ${matchinfo}); }])
@@ -660,7 +660,7 @@ def HwtFpgaPreToNetlistGICombiner: GICombiner<
   	extract_on_const_shift,
   	merge_value_merge_continuous_slices,
     const_eval_combines,
-    mux_merge,
+    mux_flatten,
     mux_trivial_const_propagation,
     extract_msb_cmp,
     constCmpConstAdd_to_constCmp,
