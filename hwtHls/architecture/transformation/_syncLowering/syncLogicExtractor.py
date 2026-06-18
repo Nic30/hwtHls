@@ -23,7 +23,6 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import clkWindowEnd
 from hwtHls.netlist.transformation.simplifyExpr.rehash import _ExprRehasher
 
-
 HlsNetOutToAbcOutMap_t = dict[Union[HlsNetNodeOut,
                                     tuple[HlsNetNode, Literal[FLAG_FLUSH_TOKEN_AVAILABLE, FLAG_FLUSH_TOKEN_ACQUIRE]]],
                               Abc_Obj_t]
@@ -356,8 +355,10 @@ class SyncLogicExtractor():
                     # assert clkIndex > oDefClkIndex, o # :note: this does not have to be the case if the channel spawn over multiple clock cycles and
                     # the first HsSCC requires some registers from second HsSCC (eg. channel "full")
                     _o = newOutputsSubstitutingOriginal.get(o, o)
+                    assert not _o.obj._isMarkedRemoved, (_o, o)
                 else:
                     _o = o
+                    assert not _o.obj._isMarkedRemoved, _o
 
                 unNegated = primaryInputsReplacedByNegationOf.get((o, clkIndex), None)
                 if unNegated is not None:
