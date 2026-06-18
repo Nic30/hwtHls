@@ -26,7 +26,8 @@ class HlsNetlistPassAggregateBitwiseOps(HlsNetlistPass):
     def _isBitwiseOperator(n: HlsNetNode):
         return isinstance(n, HlsNetNodeOperator) and n.operator in BITWISE_OPS
 
-    def _registerInternalyStoredClusterInputs(self, n: HlsNetNodeAggregate, otherAggregateInputs: dict[HlsNetNodeOut, SetList[HlsNetNodeAggregate]]):
+    def _registerInternalyStoredClusterInputs(self, n: HlsNetNodeAggregate,
+                                              otherAggregateInputs: dict[HlsNetNodeOut, SetList[HlsNetNodeAggregate]]):
         for dep in n.dependsOn:
             userList = otherAggregateInputs.get(dep, None)
             if userList is None:

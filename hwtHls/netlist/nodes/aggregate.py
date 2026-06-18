@@ -87,6 +87,7 @@ class HlsNetNodeAggregate(HlsNetNode):
                 outputClkTickOffset = newOClkI - clkWindowIndex(schedZero, clkPeriod)
 
             if self.isMulticlock:
+                assert self.scheduledZero % clkPeriod == 0, (self, self.scheduledZero, clkPeriod)
                 # schedZero is not important because start is from the beginning of selected clock window
                 outputWireDelay = clkWindowOffsetFromWindowBegin(time, clkPeriod)
             else:
@@ -96,7 +97,10 @@ class HlsNetNodeAggregate(HlsNetNode):
         o = HlsNetNode._addOutput(self, t, name, addDefaultScheduling=time is not None,
                                   outputClkTickOffset=outputClkTickOffset,
                                   outputWireDelay=outputWireDelay)
-        assert time is None or self.scheduledOut[o.out_i] == time, (self.scheduledOut[o.out_i], time)
+        assert time is None or self.scheduledOut[o.out_i] == time, (
+            "Check that outputWireDelay/outputClkTickOffset was computed correctly",
+            self.scheduledOut[o.out_i], time, outputClkTickOffset, outputWireDelay, self.isMulticlock, self.scheduledZero, self.netlist.normalizedClkPeriod)
+
         oPort = HlsNetNodeAggregatePortOut(self.netlist, o, name)
         self._outputsInside.append(oPort)
         self.addNode(oPort)
@@ -134,6 +138,7 @@ class HlsNetNodeAggregate(HlsNetNode):
                 inputClkTickOffset = -(newIClkI - clkWindowIndex(schedZero, clkPeriod))
 
             if self.isMulticlock:
+                assert self.scheduledZero % clkPeriod == 0, (self, self.scheduledZero)
                 # remaining until end of clk,
                 inputWireDelay = newIClkI * clkPeriod - time
                 inputWireDelay -= netlist.scheduler.epsilon
@@ -191,7 +196,6 @@ class HlsNetNodeAggregate(HlsNetNode):
         """
         HlsNetNode.destroy(self)
         self.subNodes = None
-        self._totalInputCnt = None
         self._inputsInside = None
         self._outputsInside = None
 
@@ -210,9 +214,15 @@ class HlsNetNodeAggregate(HlsNetNode):
             self.assignRealization(r)
         else:
             self.deleteRealization()
+        if self.isMulticlock:
+            assert self.scheduledZero % self.netlist.normalizedClkPeriod == 0, (self, self.scheduledZero)
 
     @override
     def moveSchedulingTime(self, offset: SchedTime):
+        if self.isMulticlock:
+            clkPeriod = self.netlist.normalizedClkPeriod
+            assert self.scheduledZero % clkPeriod == 0, (self, offset, clkPeriod)
+            assert offset % clkPeriod == 0, (self, offset, clkPeriod)
         HlsNetNode.moveSchedulingTime(self, offset)
         for n in self.subNodes:
             n.moveSchedulingTime(offset)
@@ -249,12 +259,20 @@ class HlsNetNodeAggregate(HlsNetNode):
         HlsNetNode.resetScheduling(self)
 
     def copySchedulingFromChildren(self):
+        """
+        :attention: this leaves self.realization in invalid state
+        """
+        self.realization
         assert self.subNodes, ("should always contain some nodes", self)
         self.scheduledIn = tuple(i.scheduledOut[0] for i in self._inputsInside)
         self.scheduledOut = tuple(o.scheduledIn[0] for o in self._outputsInside)
         self.scheduledZero = max(self.scheduledIn) if self.scheduledIn else\
                              min(self.scheduledOut) if self.scheduledOut else\
                              min(n.scheduledZero for n in self.subNodes)
+        
+        if self.isMulticlock:
+            clkPeriod = self.netlist.normalizedClkPeriod
+            self.scheduledZero = clkWindowIndex(self.scheduledZero, clkPeriod) * clkPeriod
 
     def _getAlapOutsideOutMinUseTime(self,
                                      inPort: HlsNetNodeAggregatePortIn,
@@ -331,11 +349,14 @@ class HlsNetNodeAggregate(HlsNetNode):
             node0: HlsNetNode = toSearch.popleft()
             toSearchSet.remove(node0)
             assert len(toSearch) == len(toSearchSet), (toSearch, toSearchSet)
+            # try:
             for node1 in node0.scheduleAlapCompaction(endOfLastClk, outputMinUseTimeGetter, excludeNode):
                 if node1 not in toSearchSet and (excludeNode is None or not excludeNode(node)):
                     toSearch.append(node1)
                     toSearchSet.add(node1)
 
+            # except Exception as e:
+            #    raise e
     @override
     def rtlAlloc(self, allocator: "ArchElement"):
         """
