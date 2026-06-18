@@ -198,6 +198,7 @@ py3.extension_module(
      'Transforms/LoopToIoFsmPass/LoopToIoFsmPass.cpp',
      'Transforms/LoopToIoFsmPass/normalizeLoops.cpp',
      'Transforms/LoopRotationNormalizationPass.cpp',
+     'Transforms/LowerSwitchWithIfChain.cpp',
      'Transforms/overwriteBlockNamesPass.cpp',
      'Transforms/ProfMetadataAddDummy.cpp',
      'Transforms/ProfMetadataRmDummy.cpp',

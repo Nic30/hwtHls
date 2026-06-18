@@ -95,6 +95,7 @@
 #include <hwtHls/llvm/Transforms/LoopMarkStatelessSequelAsAsyncThreadPass.h>
 #include <hwtHls/llvm/Transforms/LoopToIoFsmPass/LoopToIoFsmPass.h>
 #include <hwtHls/llvm/Transforms/LoopRotationNormalizationPass.h>
+#include <hwtHls/llvm/Transforms/LowerSwitchWithIfChain.h>
 #include <hwtHls/llvm/Transforms/ProfMetadataAddDummy.h>
 #include <hwtHls/llvm/Transforms/ProfMetadataRmDummy.h>
 #include <hwtHls/llvm/Transforms/PromoteAllocaToGlobalPass.h>
@@ -140,6 +141,7 @@ void LlvmCompilationBundle::_registerHwtHlsPasses() {
 						   hwtHls::LoopFlattenUsingIfPass,			   //
 						   hwtHls::LoopToIoFsmPass,                    //
 						   hwtHls::LoopRotationNormalizationPass,	   //
+						   hwtHls::LowerSwitchWithIfChain,             //
 						   hwtHls::LoopMarkStatelessPrequelAsAsyncThreadPass,       //
 						   hwtHls::LoopMarkStatelessSequelAsAsyncThreadPass,        //
 						   hwtHls::OverwriteBlockNamesPass,			   //
@@ -324,7 +326,8 @@ void LlvmCompilationBundle::runOpt(
 	//MPM.addPass(llvm::createModuleToFunctionPassAdaptor(hwtHls::DumpAndExitPass(
 	//	true, false, "tmp/before.LowerSwitchPass.dot")));
 	//	// :note: llvm-22 FixIrreduciblePass requires LowerSwitchPass
-	MPM.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::LowerSwitchPass())); 
+	MPM.addPass(llvm::createModuleToFunctionPassAdaptor(hwtHls::LowerSwitchWithIfChain())); 
+	MPM.addPass(llvm::createModuleToFunctionPassAdaptor(hwtHls::TrivialSimplifyCFGPass(true, false)));
 	MPM.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::FixIrreduciblePass()));
 	// MPM.addPass(llvm::UnifyLoopExitsPass());
 	//{
@@ -356,10 +359,10 @@ void LlvmCompilationBundle::runOpt(
 
 	PM.run(*module);
 	
-	llvm::ModulePassManager MPM2;
+	//llvm::ModulePassManager MPM2;
 	//MPM2.addPass(llvm::createModuleToFunctionPassAdaptor(hwtHls::DumpAndExitPass(
 	//	true, false, "tmp/after._addMachineCodegenPasses.dot")));
-	MPM2.run(*module, *MAM);
+	//MPM2.run(*module, *MAM);
 	
 	// from llvm/lib/LTO/LTOCodeGenerator.cpp
 	// If statistics were requested, save them to the specified file or
