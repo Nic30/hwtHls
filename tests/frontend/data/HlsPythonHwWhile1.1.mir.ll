@@ -3,16 +3,16 @@
   source_filename = "hwtHlsModule"
   target datalayout = "e-m:e-i8:8-i16:16-i32:32-i64:64-i128:128-i256:256-i512:512-i1024:1024-i2048:2048-i4096:4096-n8:16:32:64-S128-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
   
-  define void @HlsPythonHwWhile1.mainThread(ptr addrspace(1) %i, ptr addrspace(2) %o) !hwtHls.io !0 {
+  define void @HlsPythonHwWhile1.mainThread(ptr addrspace(1) %dataIn, ptr addrspace(2) %dataOut) !hwtHls.io !0 {
   bb0:
     br label %blockL68i0_L70i0_70
   
   blockL68i0_L70i0_70:                              ; preds = %blockL68i0_L70i0_70, %bb0
-    %i1.1 = phi i8 [ 10, %bb0 ], [ %spec.select, %blockL68i0_L70i0_70 ]
-    store volatile i8 %i1.1, ptr addrspace(2) %o, align 1
-    %i_read3 = load volatile i1, ptr addrspace(1) %i, align 1
-    %0 = add i8 %i1.1, 1
-    %spec.select = select i1 %i_read3, i8 0, i8 %0
+    %i.1 = phi i8 [ 10, %bb0 ], [ %spec.select, %blockL68i0_L70i0_70 ]
+    store volatile i8 %i.1, ptr addrspace(2) %dataOut, align 1
+    %dataIn_read1 = load volatile i1, ptr addrspace(1) %dataIn, align 1
+    %0 = add i8 %i.1, 1
+    %spec.select = select i1 %dataIn_read1, i8 0, i8 %0
     br label %blockL68i0_L70i0_70
   }
   
@@ -95,8 +95,8 @@ body:             |
   bb.1.blockL68i0_L70i0_70:
     successors: %bb.1(0x80000000)
   
-    HWTFPGA_CSTORE %9(s8), %1, 0, 8, 1 :: (volatile store (s8) into %ir.o, addrspace 2)
-    %3:anyregcls(s1) = HWTFPGA_CLOAD %0, 0, 1, 1 :: (volatile load (s1) from %ir.i, addrspace 1)
+    HWTFPGA_CSTORE %9(s8), %1, 0, 8, 1 :: (volatile store (s8) into %ir.dataOut, addrspace 2)
+    %3:anyregcls(s1) = HWTFPGA_CLOAD %0, 0, 1, 1 :: (volatile load (s1) from %ir.dataIn, addrspace 1)
     %5:anyregcls(s8) = HWTFPGA_ADD %9(s8), i8 1
     %9:anyregcls(s8) = HWTFPGA_MUX i8 0, %3(s1), %5(s8)
     HWTFPGA_BR %bb.1

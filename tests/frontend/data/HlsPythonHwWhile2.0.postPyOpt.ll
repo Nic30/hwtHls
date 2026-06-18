@@ -1,4 +1,4 @@
-define void @HlsPythonHwWhile2.mainThread(ptr addrspace(1) %o) !hwtHls.io !0 {
+define void @HlsPythonHwWhile2.mainThread(ptr addrspace(1) %dataOut) !hwtHls.io !0 {
 bb0:
   br label %block0
 
@@ -15,7 +15,7 @@ wh0:                                              ; preds = %blockL68i0_236, %bl
 
 blockL68i0_102:                                   ; preds = %wh0
   %i2 = load i8, ptr %i, align 1
-  store volatile i8 %i2, ptr addrspace(1) %o, align 1
+  store volatile i8 %i2, ptr addrspace(1) %dataOut, align 1
   br label %blockL68i0_204
 
 blockL68i0_204:                                   ; preds = %blockL68i0_158, %blockL68i0_102
@@ -39,7 +39,7 @@ block240:                                         ; preds = %block202
   br label %wh1
 
 wh1:                                              ; preds = %blockL262i0_362, %block240
-  store volatile i8 0, ptr addrspace(1) %o, align 1
+  store volatile i8 0, ptr addrspace(1) %dataOut, align 1
   br label %blockL262i0_362
 
 blockL262i0_362:                                  ; preds = %wh1

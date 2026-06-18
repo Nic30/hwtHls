@@ -15,11 +15,11 @@ bb1 [fillcolor=white, style=filled, shape=plaintext, label=<
         <table border="0" cellborder="1" cellspacing="0">
             <tr><td>bb1.blockL68i0_L70i0_70</td></tr>
             <tr><td>needsControl, rstPredeccessor=bb0, isLoopHeader</td></tr>
-            <tr><td>IO in=[(1, 'i')]</td></tr>
-            <tr><td>IO out=[(2, 'o')]</td></tr>
+            <tr><td>IO in=[(1, 'dataIn')]</td></tr>
+            <tr><td>IO out=[(2, 'dataOut')]</td></tr>
             <tr><td>blockEn=&lt;HlsNetNodeOutLazy 2 bb1_en&gt;</td></tr>
             <tr><td>orderingIn=&lt;HlsNetNodeOutLazy 3 bb1_orderingIn&gt;</td></tr>
-            <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeRead 10 ld_r3 &lt;&gt; i&gt; [1-orderingOut]&gt;</td></tr>
+            <tr><td>orderingOut=&lt;HlsNetNodeOut &lt;HlsNetNodeRead 10 ld_r3 &lt;&gt; dataIn&gt; [1-orderingOut]&gt;</td></tr>
             <tr><td>constLiveOuts=[]</td></tr>
         </table>
 >];
