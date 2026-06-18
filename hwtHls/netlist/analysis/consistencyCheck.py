@@ -29,9 +29,10 @@ class HlsNetlistPassConsistencyCheck(HlsNetlistAnalysisPass):
     
     """
 
-    def __init__(self, checkCycleFree:bool=True, checkAggregatePortsScheduling:bool=False, checkAllArchElementPortsInSameClockCycle:bool=False):
+    def __init__(self, checkCycleFree:bool=True, checkScheduledZeroOfMulticlock:bool=False, checkAggregatePortsScheduling:bool=False, checkAllArchElementPortsInSameClockCycle:bool=False):
         HlsNetlistAnalysisPass.__init__(self)
         self.checkCycleFree = checkCycleFree
+        self.checkScheduledZeroOfMulticlock = checkScheduledZeroOfMulticlock
         self.checkAggregatePortsScheduling = checkAggregatePortsScheduling
         self.checkAllArchElementPortsInSameClockCycle = checkAllArchElementPortsInSameClockCycle
 
@@ -163,6 +164,16 @@ class HlsNetlistPassConsistencyCheck(HlsNetlistAnalysisPass):
                     assert n._outputs[0]._dtype == op0t, ("wrong type of result", n, n._outputs[0]._dtype, op0t)
 
     @staticmethod
+    def _checkScheduledZeroOfMulticlock(netlist: HlsNetlistCtx):
+        clkPeriod = netlist.normalizedClkPeriod
+        for n in netlist.iterAllNodesFlat(NODE_ITERATION_TYPE.PREORDER):
+            n: HlsNetNode
+            if n._isMarkedRemoved:
+                continue
+            if n.isMulticlock:
+                assert n.scheduledZero is None or n.scheduledZero % clkPeriod == 0, (n, n.scheduledZero, clkPeriod)
+        
+    @staticmethod
     def _checkAggregatePortsScheduling_inputs(dstElm: HlsNetNodeAggregate):
         """
         check that all inputs and HlsNetNodeAggregatePortIn have correct time and type
@@ -228,5 +239,7 @@ class HlsNetlistPassConsistencyCheck(HlsNetlistAnalysisPass):
         self._checkNodeContainers(netlist)
         self._checkSyncNodes(netlist)
         self._checkTypes(netlist)
+        if self.checkScheduledZeroOfMulticlock:
+            self._checkScheduledZeroOfMulticlock(netlist)
         if self.checkAggregatePortsScheduling or self.checkAllArchElementPortsInSameClockCycle:
             self._checkAggregatePortsScheduling(netlist, self.checkAllArchElementPortsInSameClockCycle)

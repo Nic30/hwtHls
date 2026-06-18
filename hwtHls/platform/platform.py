@@ -333,7 +333,9 @@ class DefaultHlsPlatform(DummyPlatform):
 
             HlsNetlistPassMultiClockNodeSplit().runOnHlsNetlist(netlist)
             DBG(lambda: HlsNetlistPassConsistencyCheck(
-                checkCycleFree=False, checkAllArchElementPortsInSameClockCycle=True), (netlist,))
+                checkCycleFree=False,
+                checkScheduledZeroOfMulticlock=True,
+                checkAllArchElementPortsInSameClockCycle=True), (netlist,))
 
             DBG(D.DBG_4_0_addSignalNamesToSync, (netlist,))
             DBG(D.DBG_4_0_addSignalNamesToData, (netlist,))
@@ -357,7 +359,8 @@ class DefaultHlsPlatform(DummyPlatform):
 
             # RtlArchPassMergeTiedFsms().runOnHlsNetlist(netlist)
             HlsArchPassArchStructureSimplify().runOnHlsNetlist(netlist)
-            DBG(lambda: HlsNetlistPassConsistencyCheck(checkCycleFree=False), (netlist,))
+            DBG(lambda: HlsNetlistPassConsistencyCheck(checkCycleFree=False,
+                                                       checkScheduledZeroOfMulticlock=True), (netlist,))
 
             dbgTracer, doCloseTrace = self._getDebugTracer(netlist.dbgSubdir, D.DBG_4_2_netlistChannelMergeTrace)
             try:
@@ -366,26 +369,32 @@ class DefaultHlsPlatform(DummyPlatform):
                 if doCloseTrace:
                     dbgTracer._out.close()
 
-            DBG(lambda: HlsNetlistPassConsistencyCheck(checkCycleFree=False), (netlist,))
+            DBG(lambda: HlsNetlistPassConsistencyCheck(checkCycleFree=False,
+                                                       checkScheduledZeroOfMulticlock=True), (netlist,))
 
             HlsArchPassIoPortPrivatization().runOnHlsNetlist(netlist)
             # HlsArchPassSyncPredicatePruning().runOnHlsNetlist(netlist)
             DBG(lambda: HlsNetlistPassConsistencyCheck(
-                checkCycleFree=False, checkAllArchElementPortsInSameClockCycle=True), (netlist,))
+                checkCycleFree=False,
+                checkScheduledZeroOfMulticlock=True,
+                checkAllArchElementPortsInSameClockCycle=True), (netlist,))
             HlsArchPassMoveArchElementPortsToMinimizeSync().runOnHlsNetlist(netlist)
             HlsArchPassAddImplicitSyncChannels().runOnHlsNetlist(netlist)
             DBG(lambda: HlsNetlistPassConsistencyCheck(checkCycleFree=False,
+                                                       checkScheduledZeroOfMulticlock=True,
                                                        checkAllArchElementPortsInSameClockCycle=True),
                 (netlist,))
             # RtlArchPassConnectValidOfLoopInputs().runOnHlsNetlist(netlist)
             HlsAndRtlNetlistPassLoopControlLowering().runOnHlsNetlist(netlist)
             DBG(lambda: HlsNetlistPassConsistencyCheck(checkCycleFree=False,
+                                                       checkScheduledZeroOfMulticlock=True,
                                                        checkAllArchElementPortsInSameClockCycle=True),
                 (netlist,))
             HlsArchPassChannelReduceSyncStrength().runOnHlsNetlist(netlist)
             HlsArchPassChannelReduceUselessValid().runOnHlsNetlist(netlist)
             HlsAndRtlNetlistPassFsmStateNextWriteConstruction().runOnHlsNetlist(netlist)
             DBG(lambda: HlsNetlistPassConsistencyCheck(checkCycleFree=False,
+                                                       checkScheduledZeroOfMulticlock=True,
                                                        checkAllArchElementPortsInSameClockCycle=True),
                 (netlist,))
             DBG(D.DBG_4_3_handshakeSCCs, (netlist,))
