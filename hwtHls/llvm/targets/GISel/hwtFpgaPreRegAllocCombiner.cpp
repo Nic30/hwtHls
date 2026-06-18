@@ -74,7 +74,7 @@ HwtFpgaPreRegAllocGICombinerImpl::HwtFpgaPreRegAllocGICombinerImpl(
     const HwtFpgaTargetSubtarget &STI, MachineDominatorTree *MDT,
     const LegalizerInfo *LI)
     : Combiner(MF, CInfo, TPC, VT, CSEInfo),
-      Helper(Observer, B, /*IsPreLegalize*/ false, VT, MDT, LI),
+      Helper(Observer, B, /*IsPreLegalize*/ false, TPC, VT, MDT, LI),
       RuleConfig(RuleConfig), STI(STI),
 #define GET_GICOMBINER_CONSTRUCTOR_INITS
 #include "HwtFpgaGenPreRegAllocGICombiner.inc"

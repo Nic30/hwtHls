@@ -160,6 +160,7 @@ class VRegIfConverter: public llvm::MachineFunctionPass {
 	std::function<bool(const llvm::MachineFunction&)> PredicateFtor;
 
 	// debug variables
+	std::function<void(const std::string & ruleName, const llvm::MachineFunction & MF)> * _dbgMirVRegIfConverterChangeCallbackFn;
 	bool enableTrace;
 	size_t dbgCntr;
 
@@ -174,6 +175,7 @@ public:
 	llvm::MachineFunctionProperties getRequiredProperties() const override;
 
 private:
+    void onChangeTestCallback(const std::string & ruleName, const llvm::MachineFunction & MF);
 	bool reverseBranchCondition(BBInfo &BBI);
 	bool ValidSimple(BBInfo &TrueBBI, BBInfo &OtherBBI, unsigned &Dups,
 			llvm::BranchProbability Prediction) const;

@@ -296,6 +296,8 @@ void HwtFpgaCombinerHelper::rewriteMulToMulHL(llvm::MachineInstr &MI,
 
 	Observer.changedInstr(*MIB.getInstr());
 	MI.eraseFromParent();
+
+	onChangeTestCallback("rewriteMulToMulHL");
 }
 
 }

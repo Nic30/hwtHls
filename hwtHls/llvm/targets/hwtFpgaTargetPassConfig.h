@@ -1,5 +1,6 @@
 #pragma once
 
+#include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/IR/PassInstrumentation.h>
 #include <llvm/CodeGen/TargetPassConfig.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetMachine.h>
@@ -14,10 +15,16 @@ public:
 	// the callback is used because the translation must be performed until exit
 	// from translation pipeline because after exit the objects would deallocate
 	hwtHls::HwtFpgaToNetlist::ConvesionFnT * toNetlistConversionFn;
-
+	using MirChangeCallbackFn = std::function<void(const std::string & ruleName, const llvm::MachineFunction & MF)>;
+	// optional callback function for test injection into VRegIfConverter
+	MirChangeCallbackFn * dbgMirVRegIfConverterChangeCallbackFn;
+	// optional callback function for test injection into GISelCombiner HwtFpgaCombinerHelper
+	MirChangeCallbackFn * dbgMirGISelCombinerChangeCallbackFn;
+	
 	HwtFpgaTargetPassConfig(HwtFpgaTargetMachine &TM,
 			llvm::PassManagerBase &PM) :
-			llvm::TargetPassConfig(TM, PM), toNetlistConversionFn(nullptr) {
+			llvm::TargetPassConfig(TM, PM), toNetlistConversionFn(nullptr),
+			dbgMirVRegIfConverterChangeCallbackFn(nullptr), dbgMirGISelCombinerChangeCallbackFn(nullptr) {
 	}
 	HwtFpgaTargetMachine& getHwtFpgaTargetMachine() const {
 		return getTM<HwtFpgaTargetMachine>();

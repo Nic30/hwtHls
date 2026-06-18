@@ -57,6 +57,11 @@ public:
 	static const std::string CPU;
 	static const std::string Features;
 
+	// for meaning of MIR debug callbacks see llvm::HwtFpgaTargetPassConfig
+	using MirChangeCallbackFn = llvm::HwtFpgaTargetPassConfig::MirChangeCallbackFn;
+	std::optional<MirChangeCallbackFn> _dbgMirGISelCombinerChangeCallbackFn;
+	std::optional<MirChangeCallbackFn> _dbgMirVRegIfConverterChangeCallbackFn;
+	
 	// std::optional<std::function<void(std::function &)>> _dbgOnChangeCallbackForBitcountMergePass;
 	// OptionName, position, ArgName, ArgValue
 	using LlvmCliOptionTuple = std::tuple<std::string, unsigned, std::string, std::string>;

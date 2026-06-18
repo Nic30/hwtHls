@@ -89,6 +89,8 @@ void HwtFpgaCombinerHelper::rewriteFMulByPow2(llvm::MachineInstr &MI,
 		Observer.changedInstr(*MIB.getInstr());
 	}
 	MI.eraseFromParent();
+
+	onChangeTestCallback("rewriteFMulByPow2");
 }
 //std::optional<ValueAndVReg> op
 //if (op1.isReg() && op1.getReg() && MRI.hasOneDef(op1.getReg())) {
@@ -178,6 +180,8 @@ void HwtFpgaCombinerHelper::rewriteFDivByPowi(llvm::MachineInstr &MI, MatchFDivB
 		}
 	}
 	MI.eraseFromParent();
+
+	onChangeTestCallback("rewriteFDivByPowi");
 }
 
 enum TrigonometricFnType {
@@ -354,6 +358,8 @@ void HwtFpgaCombinerHelper::applyCombineSinCos(MachineInstr &MI,
 
 	MI.eraseFromParent();
 	OtherMI->eraseFromParent();
+
+	onChangeTestCallback("applyCombineSinCos");
 }
 
 }

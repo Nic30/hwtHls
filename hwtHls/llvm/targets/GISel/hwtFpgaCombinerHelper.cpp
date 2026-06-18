@@ -5,8 +5,22 @@
 #include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionSelectorUtils.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtilsInstrFns.h>
+#include <hwtHls/llvm/targets/hwtFpgaTargetPassConfig.h>
 
 namespace llvm {
+
+HwtFpgaCombinerHelper::HwtFpgaCombinerHelper(
+	GISelChangeObserver &Observer, MachineIRBuilder &B, bool IsPreLegalize,
+	const TargetPassConfig *TPC, GISelValueTracking *VT,
+	MachineDominatorTree *MDT, const LegalizerInfo *LI) :
+	llvm::CombinerHelper(Observer, B, IsPreLegalize, VT, MDT, LI) {
+	if (TPC) {
+		if (auto hwtTPC = dynamic_cast<const HwtFpgaTargetPassConfig*>(TPC)) {
+			_dbgMirGISelCombinerChangeCallbackFn =
+				hwtTPC->dbgMirGISelCombinerChangeCallbackFn;
+		}
+	}
+}
 
 void HwtFpgaCombinerHelper::replaceInstWithUndef(llvm::MachineInstr &MI) {
 	auto dstReg = MI.getOperand(0).getReg();
@@ -827,6 +841,12 @@ MachineOperand* HwtFpgaCombinerHelper::getNextUseOfRegAfterInstructionExceptMI(
 		return nullptr; // can not inline operands of self to self
 	}
 	return otherUse;
+}
+
+void HwtFpgaCombinerHelper::onChangeTestCallback(const std::string & ruleName) {
+	if (_dbgMirGISelCombinerChangeCallbackFn) {
+		(*_dbgMirGISelCombinerChangeCallbackFn)(ruleName, getMachineFunction());
+	}
 }
 
 }

@@ -32,6 +32,7 @@
 #include <llvm/CodeGen/TargetInstrInfo.h>
 #include <llvm/CodeGen/TargetLowering.h>
 #include <llvm/CodeGen/TargetRegisterInfo.h>
+#include <llvm/CodeGen/TargetPassConfig.h>
 #include <llvm/CodeGen/TargetSchedule.h>
 #include <llvm/CodeGen/TargetSubtargetInfo.h>
 #include <llvm/IR/DebugLoc.h>
@@ -118,11 +119,13 @@ namespace hwtHls {
 
 VRegIfConverter::VRegIfConverter(std::function<bool(const llvm::MachineFunction&)> Ftor) :
   llvm::MachineFunctionPass(ID), PreRegAlloc(false),
-  MadeChange(false), PredicateFtor(std::move(Ftor)), enableTrace(IfCvtTrace), dbgCntr(0) {
+  MadeChange(false), PredicateFtor(std::move(Ftor)), _dbgMirVRegIfConverterChangeCallbackFn(nullptr),
+  enableTrace(IfCvtTrace), dbgCntr(0) {
   initializeIfConverterPass(*PassRegistry::getPassRegistry());
 }
 
 void VRegIfConverter::getAnalysisUsage(AnalysisUsage &AU) const  {
+  AU.addRequired<TargetPassConfig>();
   AU.addRequired<MachineBlockFrequencyInfoWrapperPass>();
   AU.addRequired<MachineBranchProbabilityInfoWrapperPass>();
   AU.addRequired<ProfileSummaryInfoWrapperPass>();
@@ -311,6 +314,11 @@ namespace hwtHls {
 bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
   if (skipFunction(MF.getFunction()) || (PredicateFtor && !PredicateFtor(MF)))
     return false;
+  auto &TPC = getAnalysis<TargetPassConfig>();
+  if (auto hwtTPC = dynamic_cast<const HwtFpgaTargetPassConfig *>(&TPC)) {
+	  _dbgMirVRegIfConverterChangeCallbackFn =
+		  hwtTPC->dbgMirVRegIfConverterChangeCallbackFn;
+  }
 
   const TargetSubtargetInfo &ST = MF.getSubtarget();
   TLI = ST.getTargetLowering();
@@ -335,6 +343,9 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
     // Tail merge tend to expose more if-conversion opportunities.
     BranchFolder BF(true, false, MBFI, *MBPI, PSI);
     BFChange = BF.OptimizeFunction(MF, TII, ST.getRegisterInfo());
+	if (BFChange) {
+		onChangeTestCallback("BranchFolder in init", MF);
+	}
   }
 
   LLVM_DEBUG(dbgs() << "\nhwtHlsIfcvt: function (" << ++FnNum << ") \'"
@@ -348,7 +359,10 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
 
   MadeChange = false;
   VRegLiveins = nullptr;
-  MadeChange |= normalizeBranchConditions(MF);
+  if (normalizeBranchConditions(MF)) {
+	onChangeTestCallback("normalizeBranchConditions in init", MF);
+	MadeChange = true; 
+  }
   VRegLiveins = getAnalysisIfAvailable<HwtHlsVRegLiveins>();
   if (VRegLiveins) {
 	  VRegLiveins->recompute(); // because BranchFolder may have broken it
@@ -367,6 +381,7 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
     // candidates to perform if-conversion.
     bool Change = false;
     if (returnBlockMerge(MF)) {
+   	  onChangeTestCallback("returnBlockMerge", MF);
       if (enableTrace)
         hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + ".returnBlockMerge-after.dot");
     }
@@ -410,6 +425,7 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
         if (enableTrace)
           hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + KindName +  + "-after.dot");
         if (RetVal) {
+          onChangeTestCallback(IfcvtKind_toStr(Kind), MF);	
           if (isFalse) ++NumSimpleFalse;
           else         ++NumSimple;
         }
@@ -440,6 +456,7 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
         if (enableTrace)
           hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + KindName +  + "-after.dot");
         if (RetVal) {
+		  onChangeTestCallback(IfcvtKind_toStr(Kind), MF);	
           if (isFalse)
             ++NumTriangleFalse;
           else if (isRev)
@@ -462,7 +479,10 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
         LLVM_DEBUG(dbgs() << (RetVal ? "succeeded!" : "failed!") << "\n");
         if (enableTrace)
           hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + KindName +  + "-after.dot");
-        if (RetVal) ++NumDiamonds;
+        if (RetVal) {
+			onChangeTestCallback(IfcvtKind_toStr(Kind), MF);	
+			++NumDiamonds;
+		}
         break;
       case ICForkedDiamond:
         if (DisableForkedDiamond) break;
@@ -478,7 +498,10 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
         LLVM_DEBUG(dbgs() << (RetVal ? "succeeded!" : "failed!") << "\n");
         if (enableTrace)
           hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + KindName +  + "-after.dot");
-        if (RetVal) ++NumForkedDiamonds;
+        if (RetVal) {
+			onChangeTestCallback(IfcvtKind_toStr(Kind), MF);	
+			++NumForkedDiamonds;
+		} 
         break;
 
       case ICLoopTail:
@@ -506,6 +529,7 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
           hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + KindName +  + "-after.dot");
 
         if (RetVal) {
+			onChangeTestCallback(IfcvtKind_toStr(Kind), MF);	
         	switch (Kind) {
             case ICLoopTail:
             	++NumLoopTail; break;
@@ -545,14 +569,19 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
 
   MadeChange |= normalizeBranchConditions(MF);
   if (MadeChange && IfCvtBranchFold) {
+	onChangeTestCallback("normalizeBranchConditions", MF);
     if (enableTrace)
       hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + ".branchFolder-before.dot");
     BranchFolder BF(false, false, MBFI, *MBPI, PSI);
     BF.OptimizeFunction(MF, TII, MF.getSubtarget().getRegisterInfo());
     if (enableTrace)
       hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + ".branchFolder-after.dot");
+    onChangeTestCallback("BranchFolder", MF);
   }
-  MadeChange |= normalizeBranchConditions(MF);
+  if (normalizeBranchConditions(MF)) {
+	MadeChange = true; 
+	onChangeTestCallback("normalizeBranchConditions after BranchFolder", MF);
+  }
   MadeChange |= BFChange;
   if (enableTrace)
     hwtHls::writeCFGToDotFile(MF, "IC." + std::to_string(dbgCntr++) + ".end.dot");
@@ -2396,7 +2425,10 @@ void VRegIfConverter::PredicateBlock(BBInfo &BBI,
                                  MachineBasicBlock::iterator E,
                                  SmallVectorImpl<MachineOperand> &Cond,
                                  bimap<llvm::Register, llvm::Register> &regsForSpeculation,
-                                 SmallSet<Register, 4> *LaterRedefs) {
+                                 SmallSet<Register, 4> *LaterRedefs,
+								 std::function<bool(const HwtHlsVRegLiveins &, const MachineBasicBlock &,
+								 					   Register)>
+								 		defNeedsTmpRegPredicate) {
   bool AnyUnpred = false;
   bool MaySpec = LaterRedefs != nullptr;
   for (MachineInstr &I : make_range(BBI.BB->begin(), E)) {
@@ -2641,6 +2673,12 @@ void VRegIfConverter::MergeBlocks(BBInfo &ToBBI, BBInfo &FromBBI,
   ToBBI.IsAnalyzed = false;
   FromBBI.IsAnalyzed = false;
 }
+void VRegIfConverter::onChangeTestCallback(const std::string & ruleName, const MachineFunction & MF) {
+	if (_dbgMirVRegIfConverterChangeCallbackFn) {
+		(*_dbgMirVRegIfConverterChangeCallbackFn)(ruleName, MF);
+	}
+}
+
 }
 
 namespace hwtHls {

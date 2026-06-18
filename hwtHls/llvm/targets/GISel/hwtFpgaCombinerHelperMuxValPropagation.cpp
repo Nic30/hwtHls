@@ -282,6 +282,7 @@ bool HwtFpgaCombinerHelper::rewriteMuxConstPropagation(llvm::MachineInstr &MI,
 		}
 	}
 	MI.eraseFromParent();
+	onChangeTestCallback("rewriteMuxConstPropagation");
 	return true;
 }
 

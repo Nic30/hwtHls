@@ -164,6 +164,8 @@ void HwtFpgaCombinerHelper::rewriteTrivialRemovableCopy(llvm::MachineInstr &MI,
 	}
 
 	MI.eraseFromParent();
+
+	onChangeTestCallback("rewriteTrivialRemovableCopy");
 }
 
 }

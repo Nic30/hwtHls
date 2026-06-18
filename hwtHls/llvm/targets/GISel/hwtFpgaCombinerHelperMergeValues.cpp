@@ -100,6 +100,8 @@ void HwtFpgaCombinerHelper::rewriteNestedMERGE_VALUES(MachineInstr &MI) {
 		)
 		MI.eraseFromParent();
 	parentMI->eraseFromParent();
+
+	onChangeTestCallback("rewriteNestedMERGE_VALUES");
 }
 
 bool HwtFpgaCombinerHelper::matchIsMergeValueContinuousSlice(

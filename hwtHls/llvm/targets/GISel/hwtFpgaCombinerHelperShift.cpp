@@ -92,6 +92,7 @@ void HwtFpgaCombinerHelper::rewriteConstShift(llvm::MachineInstr &MI) {
 				ConcatMembers);
 	}
 	MI.eraseFromParent();
+	onChangeTestCallback("rewriteConstShift");
 }
 void HwtFpgaCombinerHelper::rewriteConstFunnelShift(llvm::MachineInstr &MI) {
 	auto DstReg = MI.getOperand(0).getReg();
@@ -174,6 +175,8 @@ void HwtFpgaCombinerHelper::rewriteConstFunnelShift(llvm::MachineInstr &MI) {
 				ConcatMembers);
 	}
 	MI.eraseFromParent();
+
+	onChangeTestCallback("rewriteConstFunnelShift");
 
 }
 

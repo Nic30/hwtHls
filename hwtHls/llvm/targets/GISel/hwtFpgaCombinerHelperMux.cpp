@@ -11,7 +11,7 @@
 #include <hwtHls/llvm/bitMath.h>
 
 namespace llvm {
-
+	
 MachineInstrBuilder HwtFpgaCombinerHelper::buildHwtFpgaCopy(
 		MachineOperand opDst, MachineOperand opSrc) {
 	MachineInstrBuilder MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX, { opDst }, { });
@@ -142,6 +142,7 @@ void HwtFpgaCombinerHelper::rewriteConstCondMux(MachineInstr &MI) {
 	}
 	Observer.changedInstr(newMI);
 	MI.eraseFromParent();
+	onChangeTestCallback("rewriteConstCondMux");
 }
 
 /**
@@ -351,7 +352,9 @@ void HwtFpgaCombinerHelper::rewriteNestedMuxToMux(MachineInstr &MI,
 					})
 		)
 		MI.eraseFromParent();
+
 	parentMI->eraseFromParent();
+	onChangeTestCallback("rewriteNestedMuxToMux");
 }
 
 bool HwtFpgaCombinerHelper::hasAll1AndAll0Values(MachineInstr &MI,
@@ -450,6 +453,7 @@ void HwtFpgaCombinerHelper::rewriteConstValMux(MachineInstr &MI,
 		} else {
 			replaceInstWithConstant(MI, matchinfo.CImm->getValue());
 		}
+		onChangeTestCallback("rewriteConstValMux - replace with CImm");
 	} else {
 		Register replacement = matchinfo.Reg;
 		if (matchinfo.Negate) {
@@ -466,6 +470,7 @@ void HwtFpgaCombinerHelper::rewriteConstValMux(MachineInstr &MI,
 
 						replaceInstWithConstant(MI, v_n.getCImm()->getValue());
 						MI.eraseFromParent();
+						onChangeTestCallback("rewriteConstValMux - replaceInstWithConstant");
 						return;
 					}
 				}
@@ -474,10 +479,14 @@ void HwtFpgaCombinerHelper::rewriteConstValMux(MachineInstr &MI,
 		if (MI.getOperand(0).getReg() == replacement) {
 			// case for %0 = HWTFPGA_MUX %0, %1, killed %0
 			MI.eraseFromParent();
+			onChangeTestCallback("rewriteConstValMux - rm self copy");
 		} else {
 			replaceSingleDefInstWithReg(MI, replacement);
+			//replaceSingleDefInstWithReg(MI, replacement);
+			onChangeTestCallback("rewriteConstValMux - replace with copy");
 		}
 	}
+
 }
 
 bool HwtFpgaCombinerHelper::matchMuxMask(llvm::MachineInstr &MI,
@@ -567,6 +576,8 @@ void HwtFpgaCombinerHelper::rewriteMuxRmCases(llvm::MachineInstr &MI,
 		offset += 2;
 	}
 	Observer.changedInstr(MI);
+
+	onChangeTestCallback("rewriteMuxRmCases");
 }
 
 bool HwtFpgaCombinerHelper::matchMuxRedundantCase(llvm::MachineInstr &MI,

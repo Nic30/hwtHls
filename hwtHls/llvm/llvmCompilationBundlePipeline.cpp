@@ -997,6 +997,17 @@ void LlvmCompilationBundle::_addMachineCodegenPasses(
 	// :note: we can not call pass explicitly after PM.run() because
 	// addRequired/getAnalysis will not work
 	TPC->toNetlistConversionFn = &toNetlistConversionFn;
+	using MirChangeCallbackFn = llvm::HwtFpgaTargetPassConfig::MirChangeCallbackFn;
+	auto propagateCallback = [](std::optional<MirChangeCallbackFn>& src, MirChangeCallbackFn *& dst) {
+		if (src.has_value()) {
+			dst = &src.value();	
+		} else {
+			dst = nullptr;
+		}
+	};
+	propagateCallback(_dbgMirGISelCombinerChangeCallbackFn, TPC->dbgMirGISelCombinerChangeCallbackFn);
+	propagateCallback(_dbgMirVRegIfConverterChangeCallbackFn, TPC->dbgMirVRegIfConverterChangeCallbackFn);
+
 	if (TPC->hasLimitedCodeGenPipeline()) {
 		llvm::errs() << "run-pass cannot be used with "
 					 << TPC->getLimitedCodeGenPipelineReason() << ".\n";

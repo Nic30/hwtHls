@@ -241,6 +241,8 @@ void HwtFpgaCombinerHelper::rewriteExtractOnMergeValues(llvm::MachineInstr &MI,
 	}
 
 	MI.eraseFromParent();
+
+	onChangeTestCallback("rewriteExtractOnMergeValues");
 }
 
 bool HwtFpgaCombinerHelper::matchIsExtractOnConstShift(llvm::MachineInstr &MI) {
@@ -298,6 +300,8 @@ void HwtFpgaCombinerHelper::rewriteExtractOnConstShift(llvm::MachineInstr &MI) {
 	};
 
 	MI.eraseFromParent();
+
+	onChangeTestCallback("rewriteExtractOnConstShift");
 }
 
 bool HwtFpgaCombinerHelper::matchExtractOfSameWidth(llvm::MachineInstr &MI) {
@@ -325,6 +329,8 @@ void HwtFpgaCombinerHelper::rewriteExtractOfSameWidthToCopy(
 		MI.removeOperand(i);
 	MI.setDesc(Builder.getTII().get(HwtFpga::HWTFPGA_MUX));
 	Observer.changedInstr(MI);
+
+	onChangeTestCallback("rewriteExtractOfSameWidthToCopy");
 }
 
 }

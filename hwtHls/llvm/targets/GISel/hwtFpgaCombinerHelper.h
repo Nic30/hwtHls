@@ -4,6 +4,7 @@
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtilsInstrFns.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtilsInstrReducibleValuesInfo.h>
 #include <hwtHls/llvm/targets/intrinsic/hfloattmp.h>
+#include <string>
 
 namespace llvm {
 
@@ -76,6 +77,7 @@ public:
  * */
 class HwtFpgaCombinerHelper: public llvm::CombinerHelper {
 public:
+	
 	struct ConcatMember {
 		const MachineOperand &op;
 		const ConstantInt *constOverride; // if specified the op should not be used and this const should be used instead
@@ -88,8 +90,11 @@ public:
 		ConcatMember(const MachineOperand &op, uint64_t offsetOfUse,
 				uint64_t width, uint64_t widthOfUse);
 	};
-
-	using llvm::CombinerHelper::CombinerHelper;
+	std::function<void(const std::string & ruleName, const llvm::MachineFunction & MF)> * _dbgMirGISelCombinerChangeCallbackFn;
+	HwtFpgaCombinerHelper(GISelChangeObserver &Observer, MachineIRBuilder &B,
+	               bool IsPreLegalize, const TargetPassConfig *TPC, GISelValueTracking *VT = nullptr,
+	               MachineDominatorTree *MDT = nullptr,
+	               const LegalizerInfo *LI = nullptr);
 
 	void replaceInstWithUndef(llvm::MachineInstr & MI);
 
@@ -263,6 +268,7 @@ public:
 	bool matchCombineSinCos(MachineInstr &MI, MachineInstr *&OtherMI);
 	void applyCombineSinCos(MachineInstr &MI, MachineInstr *&OtherMI);
 
+	void onChangeTestCallback(const std::string & ruleName);
 };
 
 }
