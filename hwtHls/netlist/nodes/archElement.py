@@ -20,6 +20,7 @@ from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.fsmStateEn import HlsNetNodeFsmStateEn, \
     HlsNetNodeStageAck
+from hwtHls.netlist.nodes.fsmStateWrite import HlsNetNodeFsmStateWrite
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
@@ -27,7 +28,6 @@ from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import clkWindowIndex
 from hwtHls.platform.opRealizationMeta import EMPTY_OP_REALIZATION
-from hwtHls.netlist.nodes.fsmStateWrite import HlsNetNodeFsmStateWrite
 
 
 class ArchElement(HlsNetNodeAggregate):
