@@ -398,8 +398,8 @@ class DefaultHlsPlatform(DummyPlatform):
                                                        checkAllArchElementPortsInSameClockCycle=True),
                 (netlist,))
             DBG(D.DBG_4_3_handshakeSCCs, (netlist,))
-            DBG(D.DBG_4_3_netlistBeforSyncLoweingDot, (netlist,), constructorKwargs=dict(showVoid=True))
-            DBG(D.DBG_4_3_netlistBeforSyncLoweingTxt, (netlist,))
+            DBG(D.DBG_4_3_netlistBeforeSyncLoweringDot, (netlist,), constructorKwargs=dict(showVoid=True))
+            DBG(D.DBG_4_3_netlistBeforeSyncLoweringTxt, (netlist,))
             # DBG(D.DBG_23_finalNetlist, (netlist,), constructorKwargs=dict(showVoid=True))
             HlsArchPassSyncLowering(dbgDumpNodes=self._debug.isActivated(D.DBG_4_4_syncLoweringAbc),
                                     dbgDumpAbc=self._debug.isActivated(D.DBG_4_4_syncLoweringNodes)

@@ -188,8 +188,8 @@ class HlsDebugBundle():
 
     DBG_4_2_netlistChannelMergeTrace = (None, "04.02.netlistChannelMergeTrace.txt")  # trace of channel merging
     DBG_4_3_handshakeSCCs = (RtlArchAnalysisPassDumpHsSCCsDot, "04.03.hanshakeSCCs.dot")  # handshake SCCs for sync debugging
-    DBG_4_3_netlistBeforSyncLoweingDot = (HlsNetlistAnalysisPassDumpNodesDot, "04.03.netlist.beforeSyncLowering.dot")  # scheduled simplified netlist
-    DBG_4_3_netlistBeforSyncLoweingTxt = (HlsNetlistAnalysisPassDumpNodesTxt, "04.03.netlist.beforeSyncLowering.txt")  # same as DBG_4_3_netlistBeforSyncLoweingDot just in txt
+    DBG_4_3_netlistBeforeSyncLoweringDot = (HlsNetlistAnalysisPassDumpNodesDot, "04.03.netlist.beforeSyncLowering.dot")  # scheduled simplified netlist
+    DBG_4_3_netlistBeforeSyncLoweringTxt = (HlsNetlistAnalysisPassDumpNodesTxt, "04.03.netlist.beforeSyncLowering.txt")  # same as DBG_4_3_netlistBeforeSyncLoweringDot just in txt
     DBG_4_4_syncLoweringAbc = ((HlsArchPassSyncLowering, "abc"), None)
     DBG_4_4_syncLoweringNodes = ((HlsArchPassSyncLowering, "nodes"), None)
 
@@ -267,8 +267,8 @@ class HlsDebugBundle():
         DBG_4_1_finalHwschedule,
         DBG_4_2_netlistChannelMergeTrace,
         DBG_4_3_handshakeSCCs,
-        DBG_4_3_netlistBeforSyncLoweingDot,
-        DBG_4_3_netlistBeforSyncLoweingTxt,
+        DBG_4_3_netlistBeforeSyncLoweringDot,
+        DBG_4_3_netlistBeforeSyncLoweringTxt,
         DBG_4_4_finalNetlist,
         DBG_4_4_finalNetlistTxt,
         DBG_4_4_archBasic,
@@ -336,8 +336,8 @@ class HlsDebugBundle():
         DBG_4_1_finalHwschedule,
         DBG_4_2_netlistChannelMergeTrace,
         DBG_4_3_handshakeSCCs,
-        DBG_4_3_netlistBeforSyncLoweingDot,
-        DBG_4_3_netlistBeforSyncLoweingTxt,
+        DBG_4_3_netlistBeforeSyncLoweringDot,
+        DBG_4_3_netlistBeforeSyncLoweringTxt,
         DBG_4_4_syncLoweringNodes,
         DBG_4_4_syncLoweringAbc,
         DBG_4_4_finalNetlist,
