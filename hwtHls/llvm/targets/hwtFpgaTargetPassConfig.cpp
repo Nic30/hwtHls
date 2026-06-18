@@ -243,6 +243,7 @@ void HwtFpgaTargetPassConfig::addMachinePasses() {
 
 	addPass(hwtHls::createVRegMachineLateInstrsCleanup());
 	addPass(createHwtFpgaPreToNetlistCombiner());
+	addPass(&LiveIntervalsID); // add killed and other attributes, potentially rename regs for dead values
 	// because there may be G_SELECT and copy propagation was not working first time
 	addPass(hwtHls::createVRegMachineLateInstrsCleanup());
 	addPass(createHwtFpgaPreToNetlistCombiner());
