@@ -1,5 +1,6 @@
 #include <hwtHls/llvm/targets/Analysis/registerBitWidth.h>
 
+#include <llvm/CodeGen/TargetOpcodes.h>
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/MachineRegisterInfo.h>
 #include <llvm/IR/Constants.h>
@@ -199,17 +200,21 @@ bool resolveTypes(MachineInstr &MI) {
 	MachineRegisterInfo &MRI = MF.getRegInfo();
 
 	switch (Opc) {
+	case TargetOpcode::G_BR:
 	case HwtFpga::HWTFPGA_ARG_GET:
 	case HwtFpga::HWTFPGA_BR:
-	case HwtFpga::HWTFPGA_BRCOND:
 	case HwtFpga::HWTFPGA_RET:
 		// no resolving needed
 		return true;
-		// constants should be already lowered to IMM or global values
-		//case TargetOpcode::G_CONSTANT:
-		//	MRI.setType(MI.getOperand(0).getReg(),
-		//			LLT::scalar(MI.getOperand(1).getCImm()->getBitWidth()));
-		//	return true;
+	case TargetOpcode::G_BRCOND:
+	case HwtFpga::HWTFPGA_BRCOND:
+		MRI.setType(MI.getOperand(0).getReg(), LLT::scalar(1));
+		return true;	
+	// constants should be already lowered to IMM or global values
+	case TargetOpcode::G_CONSTANT:
+		MRI.setType(MI.getOperand(0).getReg(),
+				LLT::scalar(MI.getOperand(1).getCImm()->getBitWidth()));
+		return true;
 	case HwtFpga::HWTFPGA_IMPLICIT_DEF:
 		MRI.setType(MI.getOperand(0).getReg(),
 				LLT::scalar(MI.getOperand(1).getImm()));
@@ -223,9 +228,23 @@ bool resolveTypes(MachineInstr &MI) {
 		MRI.setType(MI.getOperand(0).getReg(), Ty);
 		return true;
 	}
+	case TargetOpcode::G_ICMP:
 	case HwtFpga::HWTFPGA_ICMP:
 		MRI.setType(MI.getOperand(0).getReg(), LLT::scalar(1));
 		return true;
+		
+	case TargetOpcode::G_ADD:
+	case TargetOpcode::G_SUB:
+	case TargetOpcode::G_MUL:
+	case TargetOpcode::G_UDIV:
+	case TargetOpcode::G_SDIV:
+	case TargetOpcode::G_UREM:
+	case TargetOpcode::G_SREM:
+	case TargetOpcode::G_UDIVREM:
+	case TargetOpcode::G_SDIVREM:
+	case TargetOpcode::G_AND:
+	case TargetOpcode::G_OR:
+	case TargetOpcode::G_XOR:
 	case HwtFpga::HWTFPGA_ADD:
 	case HwtFpga::HWTFPGA_SUB:
 	case HwtFpga::HWTFPGA_MUL:
