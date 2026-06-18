@@ -1,12 +1,16 @@
+from itertools import islice
 from math import inf
 from typing import Union, Optional, Literal
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
+from hwt.constants import NOT_SPECIFIED
+from hwt.hdl.operatorDefs import HwtOps, HOperatorDef
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.analysis.fsmStateEncoding import HlsAndRtlNetlistAnalysisPassFsmStateEncoding
 from hwtHls.architecture.analysis.hlsAndRtlNetlistAnalysisPass import HlsAndRtlNetlistAnalysisPass
 from hwtHls.architecture.transformation.utils.dummyScheduling import scheduledUnscheduedDummyAsap
+from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.archElementFsm import ArchElementFsm
@@ -20,9 +24,7 @@ from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import clkWindowIndex, clkWindowEnd, \
     SchedTime
-from hwtHls.netlist.builder import HlsNetlistBuilder
-from hwt.hdl.operatorDefs import HwtOps, HOperatorDef
-from itertools import islice
+
 
 # items are Ored to obtain final condition
 FsmTransitionEnCondItem = Union[
@@ -34,7 +36,11 @@ FsmTransitionEnCondItem = Union[
 FsmTransitionEnCond = SetList[FsmTransitionEnCondItem]
 
 # :note: after HlsAndRtlNetlistPassFsmStateNextWriteConstruction the FsmTransitionEnCond is converted to HlsNetNodeOut
-FsmTransitionTable = dict[int, list[tuple[int, Union[None, HlsNetNodeOut, FsmTransitionEnCond]]]]
+FsmTransitionTable = dict[int,  # src clk index of state
+                          list[tuple[int,  # dst clk index of state
+                                     Union[None,  # None represens always enabled transition
+                                           HlsNetNodeOut,
+                                           FsmTransitionEnCond]]]]
 
 
 class HlsAndRtlNetlistAnalysisPassFsmStateTransition(HlsAndRtlNetlistAnalysisPass):
@@ -134,13 +140,18 @@ class HlsAndRtlNetlistAnalysisPassFsmStateTransition(HlsAndRtlNetlistAnalysisPas
     def _insertIntoFsmTransitionTable(transitionTable: FsmTransitionTable,
                                       predecessors: dict[int, int],
                                       srcStI: int, dstStI: int,
-                                      _transEn: HlsNetNodeOut):
-        curTransEn = transitionTable[srcStI].get(dstStI, None)
-        if curTransEn is None:
-            curTransEn = transitionTable[srcStI][dstStI] = []
-
-        curTransEn.append(_transEn)
-        predecessors[dstStI].append(srcStI)
+                                      _transEn: Optional[HlsNetNodeOut]):
+        if _transEn is None:
+            transitionTable[srcStI][dstStI] = None
+        else:
+            curTransEn = transitionTable[srcStI].get(dstStI, NOT_SPECIFIED)
+            if curTransEn is None:
+                # already unconditional transition
+                return
+            elif curTransEn is NOT_SPECIFIED:
+                curTransEn = transitionTable[srcStI][dstStI] = SetList()
+            curTransEn.append(_transEn)
+            predecessors[dstStI].append(srcStI)
 
     @classmethod
     def materializeTransitionCondition(cls, builder: HlsNetlistBuilder, condition: FsmTransitionEnCond) -> Optional[HlsNetNodeOut]:
@@ -232,8 +243,8 @@ class HlsAndRtlNetlistAnalysisPassFsmStateTransition(HlsAndRtlNetlistAnalysisPas
                 transitionTable: FsmTransitionTable,
                 predecessors: dict[int, int],
                 usedStates:list[int]):
-        # iterating states from back, create a transition if which will skip to next
-        # state if the state would hot have any effect
+        # iterating states from back, create a transition condition which will skip the next
+        # state if the state would not have any effect and jump directly to successor
         if len(usedStates) <= 1:
             return
 
@@ -243,10 +254,10 @@ class HlsAndRtlNetlistAnalysisPassFsmStateTransition(HlsAndRtlNetlistAnalysisPas
             # state can be skipped if all nodes with side effect are known to be be disabled or
             # there are not any and the outputs of nodes defined in this state are not used later
             # (or later use is skipped as well)
-            nodes = fsmElm.stages[clkI]
+            inStateNodes = fsmElm.stages[clkI]
             _clkWindowEnd = clkWindowEnd(clkI, clkPeriod)
             hasUseAfter = False
-            for n in nodes:
+            for n in inStateNodes:
                 if isinstance(n, HlsNetNodeExplicitSync) and n.skipWhen is None:
                     hasUseAfter = True
                     break
@@ -270,7 +281,7 @@ class HlsAndRtlNetlistAnalysisPassFsmStateTransition(HlsAndRtlNetlistAnalysisPas
             
             # resolve condition to skip this state
             andOfAllSkipWhens: list[FsmTransitionEnCondItem] = []
-            for n in nodes:
+            for n in inStateNodes:
                 if isinstance(n, HlsNetNodeExplicitSync):
                     sw = n.getSkipWhenDriver()
                     assert sw is not None, n
@@ -318,7 +329,7 @@ class HlsAndRtlNetlistAnalysisPassFsmStateTransition(HlsAndRtlNetlistAnalysisPas
                 controlToStateI: dict[Union[HlsNetNodeRead, HlsNetNodeWrite], int],
                 nonSkipableStateI: set[int],
                 fsmElm: ArchElementFsm,
-                usedStates:list[int]):
+                usedStates:list[int]) -> FsmTransitionTable:
         """
         Extract FSM transition table from loop control channel conditions
         """
@@ -341,6 +352,17 @@ class HlsAndRtlNetlistAnalysisPassFsmStateTransition(HlsAndRtlNetlistAnalysisPas
                                                      fsmElm, transitionTable, predecessors)
         cls._loadFsmTransitionsFromSkipableStates(fsmElm, transitionTable, predecessors, usedStates)
         return transitionTable
+    
+    @classmethod
+    def _pruneRedundantDefaultJumps(cls, transitionTable: FsmTransitionTable):
+        """
+        if state have multiple default jumps use only the latest one and assert that dst states are continuous sequence
+        """
+        for transitions in transitionTable.values():
+            defaults = sorted(dstI for dstI, cond in transitions.items() if cond is None)
+            if len(defaults) > 1:
+                for dstI in defaults[:-1]:
+                    transitions.pop(dstI)
 
     @override
     def runOnHlsNetlistImpl(self, netlist:"HlsNetlistCtx"):
@@ -372,7 +394,7 @@ class HlsAndRtlNetlistAnalysisPassFsmStateTransition(HlsAndRtlNetlistAnalysisPas
             nonSkipableStateI = self._collectStatesWhichCanNotBeSkipped(fsmElm)
             transTable = self._resolveTranstitionTableFromLoopControlChannels(
                 localControlReads, controlToStateI, nonSkipableStateI, fsmElm, usedStates)
-
+            self._pruneRedundantDefaultJumps(transTable)
             assert fsmElm not in fsmTransitionTables, fsmElm
             fsmTransitionTables[fsmElm] = {
                 srcSt: self._sortedStateTransitions(stateTransitionTable)
