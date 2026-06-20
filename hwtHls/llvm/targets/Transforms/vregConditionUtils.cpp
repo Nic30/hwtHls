@@ -1,4 +1,7 @@
 #include <hwtHls/llvm/targets/Transforms/vregConditionUtils.h>
+#include <llvm-21/llvm/CodeGen/MachineBasicBlock.h>
+#include <llvm-21/llvm/CodeGen/MachineOperand.h>
+#include <llvm-21/llvm/Support/ErrorHandling.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/CodeGen/GlobalISel/MIPatternMatch.h>
 
@@ -11,6 +14,16 @@ using namespace llvm;
 using namespace llvm::MIPatternMatch;
 
 namespace hwtHls {
+
+bool MachinInstr_comesBefore(MachineInstr &A, MachineBasicBlock::iterator B) {
+	// based on MachineDominatorTree::dominates
+	MachineBasicBlock::const_iterator I = A.getParent()->begin();
+	// Loop through the basic block until we find A or B.
+	for (; &*I != &A && &*I != B; ++I)
+		/*empty*/;
+
+	return &*I == &A; // A comes before B if we hit A first
+}
 
 MachineOperand* getRegisterNegationIfExits(MachineRegisterInfo &MRI, const TargetRegisterInfo * TRI,
 		llvm::MachineBasicBlock &TargetMBB,
@@ -25,11 +38,12 @@ MachineOperand* getRegisterNegationIfExits(MachineRegisterInfo &MRI, const Targe
 		case TargetOpcode::G_XOR: {
 			auto &Op1 = I.getOperand(1);
 			if (Op1.isReg()) {
-				if (MRI.isSSA()
-						|| (I.getParent() == &TargetMBB
-								&& !RegisterIsDefinedWithinRange(TRI, Op1.getReg(),
-										++I.getIterator(), TargetIp))) {
+				if (MRI.isSSA()) {
 					Op1CanBeUsed = true;
+				} else if (I.getParent() == &TargetMBB &&
+						   MachinInstr_comesBefore(*I.getIterator(), TargetIp)) {
+					Op1CanBeUsed = I.getIterator() == TargetIp || !RegisterIsDefinedWithinRange(
+						TRI, Op1.getReg(), ++I.getIterator(), TargetIp);
 				}
 			}
 		}
@@ -229,9 +243,43 @@ bool registerDefinedInEveryBlock(const MachineRegisterInfo &MRI,
 	return true;
 }
 
-void predicateInstructionUsingDefRegRename(llvm::MachineRegisterInfo &MRI,
-		const HwtHlsVRegLiveins &VRegLiveins, llvm::MachineInstr &MI,
-		bimap<llvm::Register, llvm::Register> &regReplaces, bool mergingSuccessorToPredecessor) {
+bool predicateInstructionUsingDefRegRename_defNeedsTmpRegPredicate_sucToPred(
+	const HwtHlsVRegLiveins &VRegLiveins, const MachineBasicBlock &MBB,
+	Register MOReg) {
+	// register needs rewrite if it is livein of some sibling or successor block
+	// In other words if MMB does not dominate all uses. But the DominatorTree
+	// is not available.
+
+	// * MBB is going to be inlined into predecessor (there may be many)
+	// * predecessor may have multiple successors
+
+	bool isLatchOfLoop =
+		any_of(MBB.predecessors(), [&MBB](MachineBasicBlock *PredMBB) {
+			return is_contained(MBB.successors(), PredMBB);
+		});
+	return
+		(isLatchOfLoop || VRegLiveins.isAnyPredecessorLiveout(MBB, MOReg)) &&
+		VRegLiveins.isLiveout(MBB, MOReg);
+}
+
+bool predicateInstructionUsingDefRegRename_defNeedsTmpRegPredicate_predToSuc(
+	const HwtHlsVRegLiveins &VRegLiveins, const MachineBasicBlock &MBB,
+	Register MOReg) {
+	// merging predecessor to successor
+	auto *MBBSuc = MBB.getSingleSuccessor();
+	assert(MBBSuc && "Expecting to call this function only when merging single "
+					 "successor blocks in PredecessorToSuccessor mode");
+	assert(MBBSuc->pred_size() > 1 &&
+		   "Expected to call this fn. only if this is the case");
+	return VRegLiveins.isAnyPredecessorLiveout(*MBBSuc, MOReg);
+}
+
+void predicateInstructionUsingDefRegRename(
+	llvm::MachineRegisterInfo &MRI, const HwtHlsVRegLiveins &VRegLiveins,
+	llvm::MachineInstr &MI, bimap<llvm::Register, llvm::Register> &regReplaces,
+	std::function<bool(const HwtHlsVRegLiveins &, const MachineBasicBlock &,
+					   Register)>
+		defNeedsTmpRegPredicate) {
 	if (MI.isReturn())
 		return;
 	switch (MI.getOpcode()) {
@@ -254,12 +302,7 @@ void predicateInstructionUsingDefRegRename(llvm::MachineRegisterInfo &MRI,
 		return;
 	}
 	auto &MBB = *MI.getParent();
-	MachineBasicBlock * MBBSuc = nullptr;
-	if (!mergingSuccessorToPredecessor) {
-		MBBSuc = MBB.getSingleSuccessor();
-		assert(MBBSuc && "Expecting to call this function only when merging single successor blocks in PredecessorToSuccessor mode");
-		assert(MBBSuc->pred_size() > 1 && "Expected to call this fn. only if this is the case");
-	}
+
 	// Create temporary registers for defines if the register is live out of this block
 	for (MachineOperand &MO : reverse(MI.operands())) {
 		// reverse is important because uses needs to be seen before defs
@@ -271,10 +314,6 @@ void predicateInstructionUsingDefRegRename(llvm::MachineRegisterInfo &MRI,
 		if (MO.isDef()) {
 			// check if we have to create a temporary register for this define
 			// or if it used only locally
-			//if (MOReg.virtRegIndex() == 58) {
-			//	errs() << "VRegLiveins:\n";
-			//	VRegLiveins.dump();
-			//}
 
 			// :attention: Predicating using extra tmp register may result
 			//  in artificial register live extension which is highly undesired because
@@ -283,25 +322,12 @@ void predicateInstructionUsingDefRegRename(llvm::MachineRegisterInfo &MRI,
 			// The register needs to be replaced if there is a possibility that there
 			// is some user which is not predicated in this step (e.g. user is in some other block).
 
-			// There are specific corner cases where the tmp register is no required even if the register has use in other block.
+			// There are specific corner cases where the tmp register is no required
+			// even if the register has use in other block.
 			// * This block is the only user of this register.
 			// * The register is used elsewhere but each use is dominated by other def.
 
-			// register needs rewrite if it is livein of some sibling or successor block
-			// In other words if MMB does not dominate all uses. But the DominatorTree is not available.
-
-			// * MBB is going to be inlined into predecessor (there may be many)
-			// * predecessor may have multiple successors
-			bool needsTmpReg;
-			if (mergingSuccessorToPredecessor) {
-				bool isLatchOfLoop = any_of(MBB.predecessors(), [&MBB](MachineBasicBlock* PredMBB) {
-					return is_contained(MBB.successors(), PredMBB);
-				});
-				needsTmpReg = (isLatchOfLoop || VRegLiveins.isAnyPredecessorLiveout(MBB, MOReg)) && VRegLiveins.isLiveout(MBB, MOReg);
-			} else {
-				// merging predececessor to successor
-				needsTmpReg =  VRegLiveins.isAnyPredecessorLiveout(*MBBSuc, MOReg);
-			}
+			bool needsTmpReg = defNeedsTmpRegPredicate(VRegLiveins, MBB, MOReg);
 			if (needsTmpReg) {
 				// used also outside of this block, must generate new reg
 				if (!curReplacement.has_value()) {
@@ -320,96 +346,98 @@ void predicateInstructionUsingDefRegRename(llvm::MachineRegisterInfo &MRI,
 	}
 }
 
-void createSpeculationMergeMuxes(llvm::MachineBasicBlock &insertPointBlock,
+MachineInstr * createSpeculationMergeMuxes(llvm::MachineBasicBlock &insertPointBlock,
 		llvm::MachineBasicBlock::iterator insertPointIt,
 		const bimap<llvm::Register, llvm::Register> &regsForSpeculation,
 		const llvm::ArrayRef<llvm::MachineOperand> &Predicate,
 		llvm::MachineRegisterInfo &MRI) {
 
-	if (!regsForSpeculation.empty()) {
-		// insert MUXes to merge regs which were generated for speculation into original register
-		std::map<Register, llvm::MachineInstr*> existingMuxes;
-		if (Predicate.size() != 2) {
-			// [todo] for every reg check if it is defined by MUX and if this is a cache,
-			// check if the conditions contain Predicate conditions
-			// for (auto & P: Predicate) {
-			// 	errs() << P << "\n";
-			// }
-			// for (auto const & [Reg, regSpeculation] : regsForSpeculation.items()) {
-			// 	errs() << "reg:" << Reg.virtRegIndex() << ": " << regSpeculation.virtRegIndex() << "\n";
-			// }
-			llvm_unreachable("NotImplemented - predicate with multiple terms");
+	if (regsForSpeculation.empty()) {
+		return nullptr;
+	}
+	// insert MUXes to merge regs which were generated for speculation into original register
+	std::map<Register, llvm::MachineInstr*> existingMuxes;
+	if (Predicate.size() != 2) {
+		// [todo] for every reg check if it is defined by MUX and if this is a cache,
+		// check if the conditions contain Predicate conditions
+		// for (auto & P: Predicate) {
+		// 	errs() << P << "\n";
+		// }
+		// for (auto const & [Reg, regSpeculation] : regsForSpeculation.items()) {
+		// 	errs() << "reg:" << Reg.virtRegIndex() << ": " << regSpeculation.virtRegIndex() << "\n";
+		// }
+		llvm_unreachable("NotImplemented - predicate with multiple terms");
 
-			//for (auto const & [Reg, regSpeculation] : regsForSpeculation.items()) {
-			//	for (llvm::MachineInstr & I: llvm::reverse(insertPointBlock)) {
-			//		// find def in this block
-			//		if (I.definesRegister(Reg)) {
-			//			if (I.getOpcode() == HwtFpga::HWTFPGA_MUX) {
-			//				// if I is MUX it may be possible to just prepend operands,
-			//				// but we need to check if it can be moved at the end
-			//				bool canUse = false;
-			//				for (llvm::MachineInstr & I2: llvm::reverse(insertPointBlock)) {
-			//					if (&I2 == &I) {
-			//						canUse = true;
-			//						break;
-			//					} else if (I.definesRegister(regSpeculation)) {
-			//
-			//					}
-			//				}
-			//			}
-			//			break;
-			//		}
-			//	}
-			//}
-		}
-		bool isNegated = Predicate[1].getImm();
-		Register Cond = Predicate[0].getReg();
+		//for (auto const & [Reg, regSpeculation] : regsForSpeculation.items()) {
+		//	for (llvm::MachineInstr & I: llvm::reverse(insertPointBlock)) {
+		//		// find def in this block
+		//		if (I.definesRegister(Reg)) {
+		//			if (I.getOpcode() == HwtFpga::HWTFPGA_MUX) {
+		//				// if I is MUX it may be possible to just prepend operands,
+		//				// but we need to check if it can be moved at the end
+		//				bool canUse = false;
+		//				for (llvm::MachineInstr & I2: llvm::reverse(insertPointBlock)) {
+		//					if (&I2 == &I) {
+		//						canUse = true;
+		//						break;
+		//					} else if (I.definesRegister(regSpeculation)) {
+		//
+		//					}
+		//				}
+		//			}
+		//			break;
+		//		}
+		//	}
+		//}
+	}
+	bool isNegated = Predicate[1].getImm();
+	Register Cond = Predicate[0].getReg();
 
-		// update kill/dead of Cond (potentially rm previous kill, add kill to last mux if used never after)
-		bool condShouldBeKilled = false;
-		for (MachineInstr &predInstr : llvm::reverse(
-				llvm::make_range(insertPointBlock.begin(), insertPointIt))) {
-			for (auto &MO : predInstr.operands()) {
-				if (MO.isReg() && MO.getReg() == Cond) {
-					if (MO.isUse()) {
-						condShouldBeKilled = MO.isKill();
-						if (condShouldBeKilled)
-							MO.setIsKill(false);
-					} else {
-						assert(MO.isDef());
-						condShouldBeKilled = MO.isDead();
-						if (condShouldBeKilled)
-							MO.setIsDead(false);
-					}
-					break;
+	// update kill/dead of Cond (potentially rm previous kill, add kill to last mux if used never after)
+	bool condShouldBeKilled = false;
+	for (MachineInstr &predInstr : llvm::reverse(
+			llvm::make_range(insertPointBlock.begin(), insertPointIt))) {
+		for (auto &MO : predInstr.operands()) {
+			if (MO.isReg() && MO.getReg() == Cond) {
+				if (MO.isUse()) {
+					condShouldBeKilled = MO.isKill();
+					if (condShouldBeKilled)
+						MO.setIsKill(false);
+				} else {
+					assert(MO.isDef());
+					condShouldBeKilled = MO.isDead();
+					if (condShouldBeKilled)
+						MO.setIsDead(false);
 				}
+				break;
 			}
-		}
-		MachineIRBuilder Builder(insertPointBlock, insertPointIt);
-		MachineInstr *lastI = nullptr;
-		for (auto const& [reg, regSpeculation] : regsForSpeculation.items()) {
-			// if the reg was not defined by MUX or we can not move MUX behind the definition of conditions in Predicate,
-			// the mux has to be created
-			auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX);
-			MIB.addDef(reg);
-			if (isNegated) {
-				MIB.addUse(reg);
-				MIB.addUse(Cond);
-				MIB.addUse(regSpeculation, RegState::Kill);
-			} else {
-				MIB.addUse(regSpeculation, RegState::Kill);
-				MIB.addUse(Cond);
-				MIB.addUse(reg);
-			}
-			// else we prepend value, condition pair to current MUX,
-			// optionally moving it behind def of last condition in predicate
-			lastI = MIB.getInstr();
-		}
-		if (condShouldBeKilled) {
-			assert(lastI);
-			lastI->getOperand(2).setIsKill(true); // Cond
 		}
 	}
+	MachineIRBuilder Builder(insertPointBlock, insertPointIt);
+	MachineInstr *lastI = nullptr;
+	for (auto const& [reg, regSpeculation] : regsForSpeculation.items()) {
+		// if the reg was not defined by MUX or we can not move MUX behind the definition of conditions in Predicate,
+		// the mux has to be created
+		auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_MUX);
+		MIB.addDef(reg);
+		if (isNegated) {
+			MIB.addUse(reg);
+			MIB.addUse(Cond);
+			MIB.addUse(regSpeculation, RegState::Kill);
+		} else {
+			MIB.addUse(regSpeculation, RegState::Kill);
+			MIB.addUse(Cond);
+			MIB.addUse(reg);
+		}
+		// else we prepend value, condition pair to current MUX,
+		// optionally moving it behind def of last condition in predicate
+		lastI = MIB.getInstr();
+	}
+	if (condShouldBeKilled) {
+		assert(lastI);
+		lastI->getOperand(2).setIsKill(true); // Cond
+	}
+	return lastI;
 }
 
 void Condition_and(const TargetRegisterInfo * TRI, llvm::MachineIRBuilder &Builder,
@@ -422,6 +450,38 @@ void Condition_or(const TargetRegisterInfo * TRI, llvm::MachineIRBuilder &Builde
 		llvm::SmallVectorImpl<llvm::MachineOperand> &Op0,
 		llvm::SmallVectorImpl<llvm::MachineOperand> &Op1AndDst) {
 	return Condition_and_or(TRI, TargetOpcode::G_OR, Builder, Op0, Op1AndDst);
+}
+
+void Condition_not(llvm::SmallVectorImpl<llvm::MachineOperand> &Op0AndDst) {
+	assert(Op0AndDst.size() == 2);
+	Op0AndDst[1].setImm(Op0AndDst[1].getImm() ? 0 : 1);
+}
+llvm::MachineOperand
+Condition_materializeMO(const TargetRegisterInfo *TRI,
+						llvm::MachineIRBuilder &Builder,
+						llvm::SmallVectorImpl<llvm::MachineOperand> &cond) {
+
+	assert(cond.size() == 2);
+	auto& c = cond[0];
+	bool isNegated = cond[1].getImm();
+	if (c.isCImm()) {
+		auto* ci = c.getCImm();
+		auto& Ctx = ci->getContext();
+		auto _c = ci->getZExtValue();
+		if (isNegated) {
+			 _c = !_c;
+		}
+		return MachineOperand::CreateCImm(ConstantInt::getBool(Ctx, _c));
+	} if (c.isReg()) {
+		Register _c = c.getReg();
+		if (isNegated) {
+			auto &MRI = *Builder.getMRI();
+			_c = hwtHls::negateRegister(MRI, TRI, Builder, _c, c.isKill());
+		}
+		return MachineOperand::CreateReg(_c, c.isKill());
+	} else {
+		llvm_unreachable("Condition_materializeMO expects operands in condition to be only CImm or Reg");
+	}
 }
 
 void Condition_and_or(const TargetRegisterInfo * TRI, unsigned opcode_and_or, llvm::MachineIRBuilder &Builder,

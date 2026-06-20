@@ -37,6 +37,14 @@ bool registerDefinedInEveryBlock(const llvm::MachineRegisterInfo &MRI,
 		llvm::iterator_range<llvm::MachineBasicBlock::const_pred_iterator> blocks,
 		llvm::Register reg);
 
+bool predicateInstructionUsingDefRegRename_defNeedsTmpRegPredicate_sucToPred(
+	const HwtHlsVRegLiveins &VRegLiveins, const llvm::MachineBasicBlock &MBB,
+	llvm::Register MOReg);
+
+bool predicateInstructionUsingDefRegRename_defNeedsTmpRegPredicate_predToSuc(
+	const HwtHlsVRegLiveins &VRegLiveins, const llvm::MachineBasicBlock &MBB,
+	llvm::Register MOReg);
+
 /*
  * Replace all def operands, which register is liveout, with a newly generated register.
  * This register should then be used in all successor instructions in this block (def and use).
@@ -47,14 +55,19 @@ bool registerDefinedInEveryBlock(const llvm::MachineRegisterInfo &MRI,
  *
  * :param regReplaces: map original register -> new replacement and back
  * */
-void predicateInstructionUsingDefRegRename(llvm::MachineRegisterInfo &MRI,
-		const HwtHlsVRegLiveins &VRegLiveins, llvm::MachineInstr &MI,
-		bimap<llvm::Register, llvm::Register> &regReplaces,
-	    bool mergingSuccessorToPredecessor=true);
+void predicateInstructionUsingDefRegRename(
+	llvm::MachineRegisterInfo &MRI, const HwtHlsVRegLiveins &VRegLiveins,
+	llvm::MachineInstr &MI, bimap<llvm::Register, llvm::Register> &regReplaces,
+	std::function<bool(const HwtHlsVRegLiveins &,
+					   const llvm::MachineBasicBlock &, llvm::Register)>
+		defNeedsTmpRegPredicate =
+			predicateInstructionUsingDefRegRename_defNeedsTmpRegPredicate_sucToPred);
+
 /*
  * In specified block insert a set of MUXes to conditionally copy speculated register values to a final register.
+ * :returns: last created mux instruction
  * */
-void createSpeculationMergeMuxes(llvm::MachineBasicBlock &insertPointBlock,
+llvm::MachineInstr* createSpeculationMergeMuxes(llvm::MachineBasicBlock &insertPointBlock,
 		llvm::MachineBasicBlock::iterator insertPointIt,
 		const bimap<llvm::Register, llvm::Register> &regsForSpeculation,
 		const llvm::ArrayRef<llvm::MachineOperand> &Predicate,
@@ -70,6 +83,11 @@ void Condition_and(const llvm::TargetRegisterInfo * TRI, llvm::MachineIRBuilder 
 void Condition_or(const llvm::TargetRegisterInfo * TRI, llvm::MachineIRBuilder &Builder,
 		llvm::SmallVectorImpl<llvm::MachineOperand> &Op0,
 		llvm::SmallVectorImpl<llvm::MachineOperand> &Op1AndDst);
+// [todo] use TII->reverseBranchCondition, VRegIfConverter::reverseBranchCondition
+void Condition_not(llvm::SmallVectorImpl<llvm::MachineOperand> &Op0AndDst);
+llvm::MachineOperand Condition_materializeMO(const llvm::TargetRegisterInfo * TRI,
+	llvm::MachineIRBuilder &Builder, llvm::SmallVectorImpl<llvm::MachineOperand> &cond);
+
 
 /*
  * Op0, Op1AndDst are in KNF, in form of tuples (reg, isNegated flag)

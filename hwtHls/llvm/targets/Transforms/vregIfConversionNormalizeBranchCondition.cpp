@@ -6,53 +6,66 @@ using namespace llvm;
 
 namespace hwtHls {
 
-bool VRegIfConverter::normalizeBranchCondition(VRegIfConverter::BBInfo &BBI) {
+bool VRegIfConverter::normalizeBranchCondition(VRegIfConverter::BBInfo &BBI,
+											   bool unnegateConditions) {
 	MachineBasicBlock &MBB = *BBI.BB;
-	bool reverse = false;
-	if (BBI.TrueBB)
+	bool changed = false;
+	if (BBI.TrueBB) {
 		assert(BBI.TrueBB->getNumber() >= 0);
-	if (BBI.FalseBB)
+	} else {
+		return changed;
+	}
+	if (BBI.FalseBB) {
 		assert(BBI.FalseBB->getNumber() >= 0);
-
-	if (MBB.succ_size() == 2) {
-		auto &br = *MBB.terminators().begin();
-		assert(&br && br.isConditionalBranch());
+	} else {
+		return changed;
+	}
+	auto &br = *MBB.terminators().begin();
+	assert(&br && br.isConditionalBranch());
+	if (BBI.TrueBB == BBI.FalseBB) {
+		DebugLoc DL = MBB.getFirstTerminator()->getDebugLoc();
+		TII->removeBranch(MBB);
+		TII->insertUnconditionalBranch(MBB, BBI.TrueBB, DL);
+		BBI.FalseBB = nullptr;
+		BBI.BrCond.clear();
+		changed = true;
+	} else if (unnegateConditions) {
 		auto &c = br.getOperand(0);
 		assert(c.isReg());
 		bool wasKill;
-		reverse = getRegisterNegationIfExits(*MRI, TRI, MBB, MBB.end(), c.getReg(), wasKill) != nullptr;
-	}
-	if (reverse) {
-		reverse &= reverseBranchCondition(BBI);
-		if (BBI.TrueBB)
-			assert(BBI.TrueBB->getNumber() >= 0);
-		if (BBI.FalseBB)
-			assert(BBI.FalseBB->getNumber() >= 0);
-		if (VRegLiveins)
-			VRegLiveins->UpdateKillAndDeadFlags(*BBI.BB);
+		bool reverse =
+			getRegisterNegationIfExits(*MRI, TRI, MBB, MBB.end(), c.getReg(),
+									   wasKill) != nullptr;
+		if (reverse && reverseBranchCondition(BBI)) {
+			changed = true;
+			if (BBI.TrueBB)
+				assert(BBI.TrueBB->getNumber() >= 0);
+			if (BBI.FalseBB)
+				assert(BBI.FalseBB->getNumber() >= 0);
+			if (VRegLiveins)
+				VRegLiveins->UpdateKillAndDeadFlags(*BBI.BB);
+		}
 	}
 
-	return reverse;
+	return changed;
 }
 
-bool VRegIfConverter::normalizeBranchConditions(MachineFunction & MF) {
+bool VRegIfConverter::normalizeBranchConditions(MachineFunction &MF,
+												bool unnegateConditions) {
 	bool Changed = false;
-	for (auto &MB: MF) {
+	for (auto &MB : MF) {
 		VRegIfConverter::BBInfo BBI;
 		BBI.BB = &MB;
 		if (MB.getNumber() < 0)
 			continue;
-		if(MB.succ_size() == 2 && !TII->analyzeBranch(*BBI.BB, BBI.TrueBB, BBI.FalseBB, BBI.BrCond)) {
+		if (!TII->analyzeBranch(*BBI.BB, BBI.TrueBB, BBI.FalseBB, BBI.BrCond)) {
+			if (!BBI.TrueBB)
+				continue;
 			assert(BBI.TrueBB->getNumber() >= 0);
 			if (!BBI.FalseBB) {
 				BBI.FalseBB = findFalseBlock(BBI.BB, BBI.TrueBB);
-				assert(BBI.FalseBB);
-			} else {
-				assert(BBI.FalseBB->getNumber() >= 0);
 			}
-			Changed |= normalizeBranchCondition(BBI);
-			assert(BBI.TrueBB->getNumber() >= 0);
-			assert(BBI.FalseBB->getNumber() >= 0);
+			Changed |= normalizeBranchCondition(BBI, unnegateConditions);
 		}
 	}
 	return Changed;

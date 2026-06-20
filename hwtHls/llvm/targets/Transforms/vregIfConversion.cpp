@@ -7,6 +7,7 @@
 // :note: It is preferred if all changes to this pass are made outside of this file
 //        to simplify upgrade to next versions of LLVM.
 //===----------------------------------------------------------------------===//
+#include <hwtHls/llvm/targets/hwtFpgaTargetPassConfig.h>
 #include <hwtHls/llvm/targets/Transforms/vregIfConversion.h>
 #include <hwtHls/llvm/targets/Transforms/vregConditionUtils.h>
 #include <hwtHls/llvm/llvmSrc/BranchFolding.h>
@@ -98,7 +99,11 @@ static cl::opt<bool> DisableLoopTailF("disable-vregifcvt-looprail-false",
                                       cl::init(false), cl::Hidden);
 static cl::opt<bool> DisableLoopTailFR("disable-vregifcvt-looprail-false-rev",
                                        cl::init(false), cl::Hidden);
-
+static cl::opt<bool> DisableIntoSingleSucc("disable-vregifcvt-into-single-succ",
+                                       cl::init(false), cl::Hidden);
+static cl::opt<bool> DisableCheapPredSectionBrCondPruning("disable-vregifcvt-cheap-pred-section-brcond-pruning",
+                                       cl::init(false), cl::Hidden);
+									   
 STATISTIC(NumSimple,       "Number of simple if-conversions performed");
 STATISTIC(NumSimpleFalse,  "Number of simple (F) if-conversions performed");
 STATISTIC(NumTriangle,     "Number of triangle if-conversions performed");
@@ -114,6 +119,8 @@ STATISTIC(NumLoopTail,     "Number of loop tail if-conversions performed");
 STATISTIC(NumLoopTailRev,  "Number of loop tail (R) if-conversions performed");
 STATISTIC(NumLoopTailFalse,"Number of loop tail (F) if-conversions performed");
 STATISTIC(NumLoopTailFRev, "Number of loop tail (F/R) if-conversions performed");
+STATISTIC(NumIntoSingleSucc, "Number of into single successor if-conversions performed");
+STATISTIC(NumCheapPredSectionBrCondPruning, "Number of cheap pred section where if-conversions performed brcond remove");
 
 namespace hwtHls {
 
@@ -359,7 +366,7 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
 
   MadeChange = false;
   VRegLiveins = nullptr;
-  if (normalizeBranchConditions(MF)) {
+  if (normalizeBranchConditions(MF, true)) {
 	onChangeTestCallback("normalizeBranchConditions in init", MF);
 	MadeChange = true; 
   }
@@ -544,6 +551,10 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
         }
        break;
       }
+	   case ICCheapPredSectionBrCondPruning:
+	   	llvm_unreachable("ICCheapPredSectionBrCondPruning should be processed only in tryCheapPredSectionBrCondPruning");
+	  case ICIntoSingleSucc:
+	  	llvm_unreachable("ICIntoSingleSucc should be processed only in tryMergeIntoSingleSuccessor");
       }
 
       if (RetVal && MRI->tracksLiveness())
@@ -558,6 +569,24 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
       if (IfCvtLimit != -1 && (int)NumIfCvts >= IfCvtLimit)
         break;
     }
+	if (!Change && !(IfCvtLimit != -1 && (int)NumIfCvts >= IfCvtLimit)) {
+		for (auto &MBB : MF) {
+			assert(MBB.getNumber() >= 0 &&
+				   MBB.getNumber() <= (int)BBAnalysis.size());
+			forceBlockReAnalysis(MBB);
+		}
+		MachineDominatorTree MDT(MF);
+		MachineDomTreeUpdater MDTU(MDT, MachineDomTreeUpdater::UpdateStrategy::Lazy);
+		if (!DisableIntoSingleSucc) {
+			Change |= tryMergeIntoSingleSuccessor(MF, MDTU, NumIntoSingleSucc);
+		}
+		if (!Change && !DisableCheapPredSectionBrCondPruning) {
+			Change |= tryCheapPredSectionBrCondPruning(MF, MDTU, NumCheapPredSectionBrCondPruning);
+		}
+		if (Change) {
+		 	normalizeBranchConditions(MF, false);
+		}
+	}
 
     if (!Change)
       break;
@@ -567,7 +596,7 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
   Tokens.clear();
   BBAnalysis.clear();
 
-  MadeChange |= normalizeBranchConditions(MF);
+  MadeChange |= normalizeBranchConditions(MF, true);
   if (MadeChange && IfCvtBranchFold) {
 	onChangeTestCallback("normalizeBranchConditions", MF);
     if (enableTrace)
@@ -578,7 +607,7 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
       hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + ".branchFolder-after.dot");
     onChangeTestCallback("BranchFolder", MF);
   }
-  if (normalizeBranchConditions(MF)) {
+  if (normalizeBranchConditions(MF, true)) {
 	MadeChange = true; 
 	onChangeTestCallback("normalizeBranchConditions after BranchFolder", MF);
   }
@@ -1043,7 +1072,7 @@ void VRegIfConverter::AnalyzeBranches(BBInfo &BBI) {
       BBI.IsUnpredicable = true;
     }
   }
-  normalizeBranchCondition(BBI);
+  normalizeBranchCondition(BBI, true);
 }
 
 /// ScanInstructions - Scan all the instructions in the block to determine if
@@ -1596,7 +1625,8 @@ void VRegIfConverter::InvalidateSuccs(MachineBasicBlock &MBB, bool resetDone) {
 }
 /// Behaves like LiveRegUnits::StepForward() but also adds implicit uses to all
 /// values defined in MI which are also live/used by MI.
-static void UpdatePredRedefs(MachineInstr &MI, MachineRegisterInfo & MRI, LiveVRegs &Redefs, bimap<llvm::Register, llvm::Register> &regReplaces) {
+static void UpdatePredRedefs(MachineInstr &MI, MachineRegisterInfo & MRI, LiveVRegs &Redefs,
+	bimap<llvm::Register, llvm::Register> &regReplaces, bool fillImplicitRegs=true) {
   // Before stepping forward past MI, remember which regs were live
   // before MI. This is needed to set the Undef flag only when reg is
   // dead.
@@ -1609,7 +1639,8 @@ static void UpdatePredRedefs(MachineInstr &MI, MachineRegisterInfo & MRI, LiveVR
 
   SmallVector<std::pair<Register, const MachineOperand*>, 4> Clobbers;
   Redefs.stepForward(MI, Clobbers);
-
+  if (!fillImplicitRegs)
+     return;
   // Now add the implicit uses for each of the clobbered values.
   for (auto Clobber : Clobbers) {
     // FIXME: Const cast here is nasty, but better than making StepForward
@@ -1638,7 +1669,7 @@ static void UpdatePredRedefs(MachineInstr &MI, MachineRegisterInfo & MRI, LiveVR
     if (LiveBeforeMI.count(Reg)) {
       bool foundSameRegInUseOperands = false;
       for (MachineOperand &MO: reverse(MI.operands())) {
-    	  if (MO.isUse() && MO.isReg()) {
+    	  if (MO.isReg() && MO.isUse()) {
     		  MO.setIsKill();
     		  foundSameRegInUseOperands = true;
     		  break;
@@ -2444,13 +2475,15 @@ void VRegIfConverter::PredicateBlock(BBInfo &BBI,
     // If any instruction is predicated, then every instruction after it must
     // be predicated.
     MaySpec = false;
+	bool fillImplicitRegs = true;
     if (!TII->PredicateInstruction(I, Cond)) {
         predicateInstructionUsingDefRegRename(*MRI, *VRegLiveins, I,
-            regsForSpeculation);
+            regsForSpeculation, defNeedsTmpRegPredicate);
+		fillImplicitRegs = false;
     }
     // If the predicated instruction now redefines a register as the result of
     // if-conversion, add an implicit kill.
-    UpdatePredRedefs(I, *MRI, Redefs, regsForSpeculation);
+    UpdatePredRedefs(I, *MRI, Redefs, regsForSpeculation, fillImplicitRegs);
   }
 
   BBI.Predicate.append(Cond.begin(), Cond.end());

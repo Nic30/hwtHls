@@ -30,6 +30,10 @@ const char* VRegIfConverter::IfcvtKind_toStr(VRegIfConverter::IfcvtKind Kind) {
 		return ".LoopTailRev";
 	case ICLoopTailFRev:
 		return ".LoopTailFRev";
+	case ICIntoSingleSucc:
+		return ".IntoSingleSucc";
+	case ICCheapPredSectionBrCondPruning:
+		return ".CheapPredSectionBrCondPruning";
 	default:
 		llvm_unreachable("Unexpected IfcvtKind value!");
 	}

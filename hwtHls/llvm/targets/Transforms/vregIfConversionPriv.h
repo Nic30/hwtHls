@@ -4,7 +4,10 @@
 #include <hwtHls/llvm/targets/Transforms/vregConditionUtils.h>
 #include <hwtHls/llvm/llvmSrc/BranchFolding.h>
 #include <hwtHls/llvm/targets/Transforms/liveVRegs.h>
+#include <hwtHls/llvm/targets/Analysis/VRegLiveins.h>
 
+#include <functional>
+#include <llvm/ADT/Statistic.h>
 #include <llvm/ADT/SmallSet.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/Analysis/ProfileSummaryInfo.h>
@@ -22,12 +25,11 @@
 #include <llvm/CodeGen/TargetRegisterInfo.h>
 #include <llvm/CodeGen/TargetSchedule.h>
 #include <llvm/CodeGen/TargetSubtargetInfo.h>
+#include <llvm/CodeGen/MachineDomTreeUpdater.h>
+#include <llvm/CodeGen/MachineDominators.h>
 #include <llvm/Support/BranchProbability.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/raw_ostream.h>
-#include <functional>
-
-#include <hwtHls/llvm/targets/Analysis/VRegLiveins.h>
 
 
 #include <hwtHls/llvm/targets/Transforms/writeCFGToDotFile.h>
@@ -52,6 +54,8 @@ class VRegIfConverter: public llvm::MachineFunctionPass {
 		ICLoopTailFalse, // same as ICLoopWithTail but the successor BB is on F branch
 		ICLoopTailRev,   // same as ICLoopWithTail but EBB is on F branch from successor BB
 		ICLoopTailFRev,  // same as ICLoopWithTail but successor BB is on F branch and EBB is on F branch from successor BB
+		ICIntoSingleSucc, // merge BB into its only successor (should be called only after all other options were tried as this generates larger overhead)
+		ICCheapPredSectionBrCondPruning, // prune BR_COND from section with only cheap blocks
 	};
 	const char * IfcvtKind_toStr(VRegIfConverter::IfcvtKind Kind);
 
@@ -174,6 +178,7 @@ public:
 
 	llvm::MachineFunctionProperties getRequiredProperties() const override;
 
+	using MBBlockSet = llvm::SmallSetVector<llvm::MachineBasicBlock *, 16>;
 private:
     void onChangeTestCallback(const std::string & ruleName, const llvm::MachineFunction & MF);
 	bool reverseBranchCondition(BBInfo &BBI);
@@ -225,11 +230,35 @@ private:
 	bool IfConvertForkedDiamond(BBInfo &BBI, IfcvtKind Kind, unsigned NumDups1,
 			unsigned NumDups2, bool TClobbers, bool FClobbers);
 	bool IfConvertLoopTail(BBInfo &BBI, IfcvtKind Kind);
-
-	void PredicateBlock(BBInfo &BBI, llvm::MachineBasicBlock::iterator E,
-			llvm::SmallVectorImpl<llvm::MachineOperand> &Cond,
-			hwtHls::bimap<llvm::Register, llvm::Register> &regsForSpeculation,
-			llvm::SmallSet<llvm::Register, 4> *LaterRedefs = nullptr);
+	bool IfConvertIntoSuccessor(BBInfo &BBI, llvm::MachineBasicBlock & SucMBB, llvm::MachineDomTreeUpdater & MDTU);
+	void _IfConvertIntoSuccessor_predefUndefLiveins(
+		llvm::MachineIRBuilder &Builder, llvm::MachineBasicBlock &MBB,
+		llvm::MachineBasicBlock &MBBSucc);
+	llvm::Register
+	_IfConvertIntoSuccessor_defineConditionOnEndOfEachNewPredecessor(
+		llvm::MachineIRBuilder &Builder, llvm::MachineBasicBlock &MBB,
+		llvm::MachineBasicBlock &MBBSucc);
+	bool tryMergeIntoSingleSuccessor(llvm::MachineFunction & MF, llvm::MachineDomTreeUpdater & MDTU, llvm ::Statistic & numCntr);
+	BBInfo& forceBlockReAnalysis(llvm::MachineBasicBlock & MBB);
+	bool tryCheapPredSectionBrCondPruning(llvm::MachineFunction & MF, llvm::MachineDomTreeUpdater & MDTU, llvm ::Statistic & numCntr);
+	bool CheapPredSectionFind(llvm::MachineDominatorTree &MDT,
+							  llvm::MachineBasicBlock &MBBBottom,
+							  MBBlockSet &sectionBlocks,
+							  MBBlockSet &blocksForPredication,
+							  MBBlockSet &blocksForBrPredication);
+	void rewriteNonLeafCondBranchToBottom_to_predicationOfSuccessors(
+		llvm::MachineDomTreeUpdater &MDTU, 
+		llvm::MachineBasicBlock &MBBBottom, MBBlockSet &sectionBlocks,
+		MBBlockSet &blocksForPredication, MBBlockSet &blocksForBrPredication);
+	void PredicateBlock(
+		BBInfo &BBI, llvm::MachineBasicBlock::iterator E,
+		llvm::SmallVectorImpl<llvm::MachineOperand> &Cond,
+		hwtHls::bimap<llvm::Register, llvm::Register> &regsForSpeculation,
+		llvm::SmallSet<llvm::Register, 4> *LaterRedefs = nullptr,
+		std::function<bool(const HwtHlsVRegLiveins &,
+						   const llvm::MachineBasicBlock &, llvm::Register)>
+			defNeedsTmpRegPredicate =
+				predicateInstructionUsingDefRegRename_defNeedsTmpRegPredicate_sucToPred);
 	void CopyAndPredicateBlock(BBInfo &ToBBI, BBInfo &FromBBI,
 			llvm::SmallVectorImpl<llvm::MachineOperand> &Cond, bool IgnoreBr = false);
 	void MergeBlocks(BBInfo &ToBBI, BBInfo &FromBBI,
@@ -255,8 +284,8 @@ private:
 			const std::unique_ptr<IfcvtToken> &C2);
 
 	// try to swap branch operands to eliminate negation from the branch condition
-	bool normalizeBranchCondition(BBInfo & BBI);
-	bool normalizeBranchConditions(llvm::MachineFunction & MF);
+	bool normalizeBranchCondition(BBInfo & BBI, bool unnegateConditions);
+	bool normalizeBranchConditions(llvm::MachineFunction & MF, bool unnegateConditions);
 
 	// replace all blocks with just return instruction with a single block
 	bool returnBlockMerge(llvm::MachineFunction & MF);
