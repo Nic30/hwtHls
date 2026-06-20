@@ -71,7 +71,7 @@ public:
 	// :attention: HwtFpga instruction predicate works more like enable condition for functional
 	//  unit, the instruction sets undef to all dst registers (def operands) if predicate is false
 	bool PredicateInstruction(MachineInstr &MI,
-			ArrayRef<MachineOperand> Pred) const;
+			ArrayRef<MachineOperand> Pred) const override;
 
 private:
 	const HwtFpgaRegisterInfo RI;
