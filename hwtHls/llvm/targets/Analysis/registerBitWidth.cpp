@@ -322,6 +322,37 @@ bool resolveTypes(MachineInstr &MI) {
 		MachineOperand_checkOrSetWidth(MRI, dst, shWidth);
 		return true;
 	}
+	case TargetOpcode::G_SELECT: {
+		constexpr size_t dst = 0;
+		constexpr size_t c = 1;
+		constexpr size_t tVal = 2;
+		constexpr size_t fVal = 3;
+		MachineOperand_checkOrSetWidth(MRI, MI.getOperand(c), 1);	
+		unsigned bitWidth = 0;
+		for (auto MOI: {dst, tVal, fVal}) {
+			auto &MO = MI.getOperand(MOI);
+			if (MO.isCImm()) {
+				bitWidth = MO.getCImm()->getBitWidth();
+				break;
+			} else if (MO.isReg() && !MRI.def_empty(MO.getReg())) {
+				// :note: registers without def may be shared undef value and such a register may have wrong type
+				//  (because this register was shared on every place where undef was used)
+				LLT T = MRI.getType(MO.getReg());
+				if (T.isValid()) {
+					bitWidth = T.getSizeInBits();
+					break;
+				}
+			}
+		}
+		if (bitWidth == 0)
+			return false; // can not resolve value type yet
+		for (auto MOI : {dst, tVal, fVal}) {
+			auto &MO = MI.getOperand(MOI);
+			MachineOperand_checkOrSetWidth(MRI, MO, bitWidth);
+		}
+		return true;
+	}
+	
 	case HwtFpga::HWTFPGA_MUX: {
 		// 0 and odd operators of same type
 		// even operators of 1b
