@@ -216,6 +216,7 @@ void HwtFpgaCombinerHelper::rewriteXorToNot(llvm::MachineInstr &MI) {
 	Builder.buildInstr(HwtFpga::HWTFPGA_NOT, { MI.getOperand(0) },
 			{ MI.getOperand(1) }, MI.getFlags());
 	MI.eraseFromParent();
+	onChangeTestCallback("rewriteXorToNot");
 }
 
 void HwtFpgaCombinerHelper::rewriteConstBinOp(llvm::MachineInstr &MI,
@@ -455,6 +456,7 @@ bool HwtFpgaCombinerHelper::matchCmpToMsbCheck(llvm::MachineInstr &MI,
 					std::nullopt);
 			// res = not msbReg
 			builder.buildInstr(HwtFpga::HWTFPGA_NOT, { Dst }, { msbReg });
+			onChangeTestCallback("matchCmpToMsbCheck - rewrite ICMP_SGE");
 		};
 		return true;
 	} else if ((Pred == CmpInst::Predicate::ICMP_SLT && RHS.isCImm()
@@ -469,6 +471,7 @@ bool HwtFpgaCombinerHelper::matchCmpToMsbCheck(llvm::MachineInstr &MI,
 		rewriteFn = [bitWidth, Dst, _LHS, this](MachineIRBuilder &builder) {
 			// res = msbReg = x.MSB
 			hwtHls::buildMsbGet(builder, Observer, _LHS, bitWidth, Dst);
+			onChangeTestCallback("matchCmpToMsbCheck - rewrite ICMP_SLT");
 		};
 		return true;
 	}
@@ -521,6 +524,7 @@ bool HwtFpgaCombinerHelper::matchConstCmpConstAdd(llvm::MachineInstr &MI,
 						MIB.addDef(Dst).addPredicate(Pred);
 						newLHS.addAsUse(MIB);
 						MIB.addCImm(newRhs);
+						onChangeTestCallback("matchConstCmpConstAdd - rewrite");
 					};
 					return true;
 				}
