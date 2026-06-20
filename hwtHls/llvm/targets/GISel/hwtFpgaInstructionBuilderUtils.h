@@ -62,7 +62,7 @@ size_t hwtFpgaMuxFindValueWidth(const llvm::MachineInstr &MI,
 bool RegisterIsDefinedWithinRangeExclusive(const llvm::TargetRegisterInfo * TRI, llvm::Register r,
 		llvm::MachineBasicBlock::iterator begin,
 		llvm::MachineBasicBlock::iterator end);
-// test if the r is defined by begin or instructions before end
+// test if the r is defined by begin or instructions before end, (requires begin < end)
 bool RegisterIsDefinedWithinRange(const llvm::TargetRegisterInfo * TRI, llvm::Register r,
 		llvm::MachineBasicBlock::iterator begin,
 		llvm::MachineBasicBlock::iterator end);
