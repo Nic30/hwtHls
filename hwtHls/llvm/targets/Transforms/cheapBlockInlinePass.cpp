@@ -124,7 +124,7 @@ bool MachineBasicBlock_isCheap_exceptTerminator(const MachineBasicBlock & MBB) {
 	for (auto &MI : MBB) {
 		if (MI.isTerminator())
 			break;
-		if (!isFreeMachineInstr(MI)) {
+		if (!isCheapMachineInstr(MI)) {
 			return false;
 		}
 	}
