@@ -201,12 +201,15 @@ public:
 	// check if can merge two HWTFPGA_MUX instructions
 	bool matchNestedMux(llvm::MachineInstr &MI,
 			llvm::SmallVector<bool> &requiresAndWithParentCond);
+	bool _matchNestedMux(MachineInstr &MI, const MachineOperand *otherUse,
+			SmallVector<bool> &requiresAndWithParentCond);
 	void rewriteNestedMuxToMux(llvm::MachineInstr &MI,
-			const llvm::SmallVector<bool> &requiresAndWithParentCond);
+			llvm::SmallVector<bool> &requiresAndWithParentCond);
 	bool matchMuxDuplicitCaseReduce(llvm::MachineInstr &MI,
 			llvm::SmallVector<unsigned> &duplicitCaseConditions);
 	bool matchMuxRedundantCase(llvm::MachineInstr &MI,
 			llvm::SmallVector<unsigned> &caseConditionsToRm);
+	// :attention: caseConditionsToRm assumes to be sorted, first operands first
 	void rewriteMuxRmCases(llvm::MachineInstr &MI,
 			const llvm::SmallVector<unsigned> &caseConditionsToRm);
 
