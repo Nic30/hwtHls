@@ -12,13 +12,13 @@
     %0 = call i15 @hwtHls.bitRangeGet.i16.i5.i15.1(i16 %i_read2, i5 1) #1
     %1 = icmp eq i16 %i_read2, 10
     %2 = xor i1 %1, true
-    %brmerge3 = icmp ne i15 %0, 5
-    %3 = call i3 @hwtHls.bitConcat.i1.i1.i1(i1 %2, i1 %1, i1 %2) #1
-    %.sink4 = select i1 %brmerge3, i3 -4, i3 %3
-    %4 = call i2 @hwtHls.bitRangeGet.i3.i3.i2.1(i3 %.sink4, i3 1) #1
-    %5 = call i1 @hwtHls.bitRangeGet.i3.i3.i1.0(i3 %.sink4, i3 0) #1
-    %6 = call i16 @hwtHls.bitConcat.i1.i1.i2.i12(i1 %5, i1 %brmerge3, i2 %4, i12 1) #1
-    store volatile i16 %6, ptr addrspace(2) %o, align 2
+    %3 = icmp ne i15 %0, 5
+    %4 = call i3 @hwtHls.bitConcat.i1.i1.i1(i1 %2, i1 %1, i1 %2) #1
+    %.sink34 = select i1 %3, i3 -4, i3 %4
+    %5 = call i2 @hwtHls.bitRangeGet.i3.i3.i2.1(i3 %.sink34, i3 1) #1
+    %6 = call i1 @hwtHls.bitRangeGet.i3.i3.i1.0(i3 %.sink34, i3 0) #1
+    %7 = call i16 @hwtHls.bitConcat.i1.i1.i2.i12(i1 %6, i1 %3, i2 %5, i12 1) #1
+    store volatile i16 %7, ptr addrspace(2) %o, align 2
     br label %loopHeader
   }
   

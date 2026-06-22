@@ -2,7 +2,7 @@ define void @test_noSuboptimalLoopUnswitch(ptr addrspace(1) %dataIn, ptr addrspa
 bb0:
   br label %mainLoop.split
 
-mainLoop.split:                                   ; preds = %_forwardPacket.ret.oldLatch, %bb0
+mainLoop.split:                                   ; preds = %mainLoop.split, %copyLoop, %bb0
   %r0 = load volatile i17, ptr addrspace(1) %dataIn, align 4
   %r0.last = call i1 @hwtHls.bitRangeGet.i17.i6.i1.16(i17 %r0, i6 16) #1
   %0 = call i8 @hwtHls.bitRangeGet.i17.i6.i8.0(i17 %r0, i6 0) #1
@@ -12,7 +12,7 @@ mainLoop.split:                                   ; preds = %_forwardPacket.ret.
   %2 = select i1 %r1.last, i17 %1, i17 %r0
   store volatile i17 %2, ptr addrspace(2) %dataOut, align 4
   %merge = or i1 %r0.last, %r1.last
-  br i1 %merge, label %_forwardPacket.ret.oldLatch, label %copyLoop
+  br i1 %merge, label %mainLoop.split, label %copyLoop
 
 copyLoop:                                         ; preds = %mainLoop.split, %copyLoop
   %r2 = load volatile i17, ptr addrspace(1) %dataIn, align 4
@@ -24,8 +24,5 @@ copyLoop:                                         ; preds = %mainLoop.split, %co
   %5 = select i1 %r3.last, i17 %4, i17 %r2
   store volatile i17 %5, ptr addrspace(2) %dataOut, align 4
   %merge2 = or i1 %r2.last, %r3.last
-  br i1 %merge2, label %_forwardPacket.ret.oldLatch, label %copyLoop
-
-_forwardPacket.ret.oldLatch:                      ; preds = %copyLoop, %mainLoop.split
-  br label %mainLoop.split
+  br i1 %merge2, label %mainLoop.split, label %copyLoop
 }

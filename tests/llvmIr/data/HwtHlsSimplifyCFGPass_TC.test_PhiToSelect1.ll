@@ -11,8 +11,8 @@ bb1:                                              ; preds = %bb1, %bb0
   %.mux = zext i1 %1 to i8
   %iHw64 = trunc i8 %.mux to i2
   %iHw.zext = zext i2 %iHw64 to i8
-  %wordByteCnt.0 = select i1 %brmerge, i8 %iHw.zext, i8 2
-  %wordByteCnt81 = trunc i8 %wordByteCnt.0 to i2
+  %spec.select = select i1 %brmerge, i8 %iHw.zext, i8 2
+  %wordByteCnt81 = trunc i8 %spec.select to i2
   %2 = zext i2 %wordByteCnt81 to i16
   %3 = add i16 %byte_cnt1.0, %2
   store volatile i16 %3, ptr addrspace(1) %byte_cnt, align 2
