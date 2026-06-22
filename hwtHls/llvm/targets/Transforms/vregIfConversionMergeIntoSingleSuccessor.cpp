@@ -31,6 +31,7 @@ VRegIfConverter::BBInfo& VRegIfConverter::forceBlockReAnalysis(MachineBasicBlock
 	return BBI;
 }
 
+
 bool VRegIfConverter::tryMergeIntoSingleSuccessor(llvm::MachineFunction &MF, llvm::MachineDomTreeUpdater & MDTU, llvm ::Statistic & numCntr) {
 	bool Change = false;
 	for (auto &MBB : make_early_inc_range(MF)) {
@@ -49,6 +50,11 @@ bool VRegIfConverter::tryMergeIntoSingleSuccessor(llvm::MachineFunction &MF, llv
 
 		if (!MachineBasicBlock_isCheap_exceptTerminator(MBB))
 			continue;
+
+		if (suc->pred_size() == 1) {
+			// too simple for this rule, BranchFolding should handle this case
+			continue;
+		}
 
 		if (IfConvertIntoSuccessor(BBI, *suc, MDTU)) {
 			++numCntr;
