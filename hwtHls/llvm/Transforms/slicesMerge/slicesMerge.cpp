@@ -97,7 +97,7 @@ PreservedAnalyses SlicesMergePass::run(Function &F,
 				dbgs() << "\n\n" DEBUG_TYPE_SHORT " #" << Iteration << " on " << F.getName() << "\n");
 		SlicesMergeCombiner::SliceDict slices = findSlices(F);
 		SlicesMergeCombiner IC(Builder, SQ, Worklist, F, NumCombined,
-				NumConstProp, NumDeadInst, VisitCounter, slices);
+				NumConstProp, NumDeadInst, VisitCounter, slices, _dbgIrInstrCombineChangeCallbackFn);
 
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 		IC.assertSlicesConsistency();
@@ -108,7 +108,11 @@ PreservedAnalyses SlicesMergePass::run(Function &F,
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			IC.assertSlicesConsistency();
 #endif
-			IC.MadeIRChange |= IC.phiShiftPatternRewrite(BB);
+			if (IC.phiShiftPatternRewrite(BB)) {
+				IC.onChangeCallback("phiShiftPatternRewrite", *BB.getParent());
+				IC.MadeIRChange = true; 	
+			}
+
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			IC.verifyAfterUpdate("phiShiftPatternRewrite corrupted function",
 					nullptr);
@@ -138,12 +142,14 @@ PreservedAnalyses SlicesMergePass::run(Function &F,
 		InstCombinePass ic;
 		auto ICres = ic.run(F, AM);
 		if (!ICres.areAllPreserved()) {
+			IC.onChangeCallback("SlicesMergePass - InstCombinePass", F);
 			MadeChangeInThisIteration = true;
 		}
 		GVNPass gnv;
 		//NewGVNPass gnv;
 		auto gnvRes = gnv.run(F, AM);
 		if (!gnvRes.areAllPreserved()) {
+			IC.onChangeCallback("SlicesMergePass - GVNPass", F);
 			MadeChangeInThisIteration = true;
 		}
 		anyChange |= MadeChangeInThisIteration;

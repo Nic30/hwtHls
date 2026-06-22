@@ -25,14 +25,15 @@ public:
 
 protected:
 	SliceDict &slices; // temporary dictionary to speed up lookup of bit vector slices
+	IrChangeCallbackFn *_dbgIrInstrCombineChangeCallbackFn;
 public:
 	SlicesMergeCombiner(BuilderTy &Builder, llvm::SimplifyQuery SQ,
 			llvm::InstructionWorklist &Worklist, llvm::Function &F,
 			llvm::Statistic &NumCombined, llvm::Statistic &NumConstProp,
 			llvm::Statistic &NumDeadInst, const unsigned VisitCounter,
-			SliceDict &slices) :
+			SliceDict &slices, IrChangeCallbackFn *_dbgIrInstrCombineChangeCallbackFn) :
 			HwtHlsInstCombinerMixin<SlicesMergeCombiner>(Builder, SQ, Worklist,
-					F, NumCombined, NumConstProp, NumDeadInst, VisitCounter), slices(
+					F, NumCombined, NumConstProp, NumDeadInst, VisitCounter, _dbgIrInstrCombineChangeCallbackFn), slices(
 					slices) {
 	}
 	void replaceInstUsesWithBefore(llvm::Instruction &I, llvm::Value *V,

@@ -177,7 +177,14 @@ struct HwtFpgaAllowVolatileMemOpDuplication {
 		FPM.addPass(hwtHls::ReconfigureHwtFpgaTTIPass(TM, false));
 	}
 };
-
+template<typename T>
+T* _getPtrOrNull(std::optional<T> & v) {
+	if (v.has_value()) {
+		return &v.value();
+	} else {
+		return nullptr;
+	}
+}
 void LlvmCompilationBundle::runOpt(
 	hwtHls::HwtFpgaToNetlist::ConvesionFnT toNetlistConversionFn,
 	std::function<void(llvm::ModulePassManager &)> addExtraModulePasses) {
@@ -288,7 +295,7 @@ void LlvmCompilationBundle::runOpt(
 		FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(simplifyCfgOpts));
 	}
 	FPM.addPass(llvm::DCEPass()); // because of convertSwitchToLookupTable=true
-	FPM.addPass(hwtHls::SlicesMergePass());
+	FPM.addPass(hwtHls::SlicesMergePass(_getPtrOrNull(_dbgIrInstrCombineChangeCallbackFn)));
 	FPM.addPass(hwtHls::PruneLoopPhiDeadIncomingValuesPass());
 
 	_addInstrCombinePasses(FPM,
@@ -407,20 +414,13 @@ void LlvmCompilationBundle::runExprOpt() {
 		FPM.addPass(llvm::InstCombinePass());
 		FPM.addPass(llvm::EarlyCSEPass());
 		FPM.addPass(hwtHls::HwtHlsInstCombinePass(_getDefaultInstCombineOptions()));
-		// FPM.addPass(hwtHls::SlicesMergePass());
+		// FPM.addPass(hwtHls::SlicesMergePass(_getPtrOrNull(_dbgIrInstrCombineChangeCallbackFn)));
 		FPM.addPass(hwtHls::ICmpToOnlyEqLtLePass());
 		FPM.addPass(hwtHls::StripAssumePass());
 		FPM.addPass(llvm::DCEPass());
 	});
 }
-template<typename T>
-T* _getPtrOrNull(std::optional<T> & v) {
-	if (v.has_value()) {
-		return &v.value();
-	} else {
-		return nullptr;
-	}
-}
+
 void LlvmCompilationBundle::_addInitialNormalizationPasses(
 	llvm::FunctionPassManager &FPM) {
 	FPM.addPass(hwtHls::ProfMetadataAddDummy());

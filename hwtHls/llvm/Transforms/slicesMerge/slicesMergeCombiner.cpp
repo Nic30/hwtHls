@@ -181,22 +181,26 @@ llvm::Instruction* SlicesMergeCombiner::runOnInstr(llvm::Instruction &I) {
 					CI);
 #endif
 			if (auto r = tryReduceConcatToZExt(*this, *CI)) {
+				lastOptRuleName = "tryReduceConcatToZExt";
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 				verifyAfterUpdate("tryReduceConcatToZExt corrupted function", r);
 #endif
 				return r;
 			} else if (auto r = tryReduceConstOpConcat(*this, *CI)) {
+				lastOptRuleName = "tryReduceConstOpConcat";
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 				verifyAfterUpdate("tryReduceConstOpConcat corrupted function", r);
 #endif
 				return r;
 			} else if (auto r = tryReduceConcatOnConcatOrContinuousSlices(*this,
 					*CI)) {
+				lastOptRuleName = "tryReduceConcatOnConcatOrContinuousSlices";
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 				verifyAfterUpdate("tryReduceConcatOnConcatOrContinuousSlices corrupted function", r);
 #endif
 				return r;
 			} else if (auto r = rewriteConcat(CI)) {
+				lastOptRuleName = "rewriteConcat";
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 				verifyAfterUpdate("rewriteConcat corrupted function", r);
 #endif
@@ -204,21 +208,28 @@ llvm::Instruction* SlicesMergeCombiner::runOnInstr(llvm::Instruction &I) {
 			}
 
 		} else if (IsBitRangeGet(CI)) {
-			BitRangeGetMoveIntoSliceSuccessorsOfSrcOperand(*CI);
+			if (BitRangeGetMoveIntoSliceSuccessorsOfSrcOperand(*CI)) {
+				lastOptRuleName = "BitRangeGetMoveIntoSliceSuccessorsOfSrcOperand";
+				onChangeCallback(lastOptRuleName, F);
+			}
+
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 				verifyAfterUpdate("BitRangeGetMoveIntoSliceSuccessorsOfSrcOperand corrupted function", CI);
 #endif
 			if (auto r = tryReduceConstOpBitRangeGet(*this, *CI)) {
+				lastOptRuleName = "tryReduceConstOpBitRangeGet";
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 				verifyAfterUpdate("tryReduceConstOpBitRangeGet corrupted function", r);
 #endif
 				return r;
 			} else if (auto r = tryReduceBitRangeGetOnBitRangeGet(*this, *CI)) {
+				lastOptRuleName = "tryReduceBitRangeGetOnBitRangeGet";
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 				verifyAfterUpdate("tryReduceBitRangeGetOnBitRangeGet corrupted function", r);
 #endif
 				return r;
 			} else if (auto r = tryReduceBitRangeGetOnConcat(*this, *CI)) {
+				lastOptRuleName = "tryReduceBitRangeGetOnConcat";
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 				verifyAfterUpdate("tryReduceBitRangeGetOnConcat corrupted function", r);
 #endif
@@ -227,6 +238,7 @@ llvm::Instruction* SlicesMergeCombiner::runOnInstr(llvm::Instruction &I) {
 		}
 	} else if (auto EI = dyn_cast<ZExtInst>(&I)) {
 		if (auto r = tryReduceZExt_onZExt(*this, *EI)) {
+			lastOptRuleName = "tryReduceZExt_onZExt";
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			verifyAfterUpdate(
 					"BitRangeGetMoveIntoSliceSuccessorsOfSrcOperand corrupted function",
@@ -235,7 +247,10 @@ llvm::Instruction* SlicesMergeCombiner::runOnInstr(llvm::Instruction &I) {
 			return r;
 		}
 	} else if (auto TI = dyn_cast<TruncInst>(&I)) {
-		TruncInstMoveIntoSliceSuccessorsOfSrcOperand(*TI);
+		if (TruncInstMoveIntoSliceSuccessorsOfSrcOperand(*TI)) {
+			lastOptRuleName = "mergeConsequentSlices";
+			onChangeCallback(lastOptRuleName, F);
+		}
 	}
 	//if (auto r = simplifyInstruction(&I, SQ)) {
 	//		return replaceInstUsesWith(I, r);
@@ -248,6 +263,7 @@ llvm::Instruction* SlicesMergeCombiner::runOnInstr(llvm::Instruction &I) {
 #endif
 		bool merged = false;
 		if (auto r = mergeConsequentSlices(I, merged)) {
+			lastOptRuleName = "mergeConsequentSlices";
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			verifyUsesList(F);
 			verifyAfterUpdate("mergeConsequentSlices corrupted function", nullptr);

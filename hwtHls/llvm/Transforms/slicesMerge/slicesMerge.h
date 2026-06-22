@@ -17,10 +17,14 @@ namespace hwtHls {
 class SlicesMergePass: public llvm::PassInfoMixin<SlicesMergePass> {
 
 public:
+	using IrChangeCallbackFn = std::function<void(const std::string & ruleName, const llvm::Function & F)>;
+	IrChangeCallbackFn *_dbgIrInstrCombineChangeCallbackFn;
 	size_t MaxIterations;
-	SlicesMergePass(size_t MaxIterations = 1024) :
-			MaxIterations(MaxIterations) {
-	}
+	SlicesMergePass(
+		IrChangeCallbackFn *_dbgIrInstrCombineChangeCallbackFn = nullptr,
+		size_t MaxIterations = 1024) :
+		_dbgIrInstrCombineChangeCallbackFn(_dbgIrInstrCombineChangeCallbackFn),
+		MaxIterations(MaxIterations) {}
 	llvm::PreservedAnalyses run(llvm::Function &F,
 			llvm::FunctionAnalysisManager &AM);
 	static bool isRequired() {
