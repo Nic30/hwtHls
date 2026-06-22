@@ -13,6 +13,8 @@
 #include <hwtHls/llvm/targets/Transforms/hwtFpgaToNetlist.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetPassConfig.h>
 #include <hwtHls/llvm/LegacyPassManagerWithPI.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass.h>
+#include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinePassOptions.h>
 
 namespace hwtHls {
 
@@ -57,6 +59,9 @@ public:
 	static const std::string CPU;
 	static const std::string Features;
 
+	using IrChangeCallbackFn = std::function<void(const std::string & ruleName, const llvm::Function & F)>;
+	std::optional<IrChangeCallbackFn> _dbgIrInstrCombineChangeCallbackFn;
+	std::optional<IrChangeCallbackFn> _dbgIrCfgSimplifyChangeCallbackFn;
 	// for meaning of MIR debug callbacks see llvm::HwtFpgaTargetPassConfig
 	using MirChangeCallbackFn = llvm::HwtFpgaTargetPassConfig::MirChangeCallbackFn;
 	std::optional<MirChangeCallbackFn> _dbgMirGISelCombinerChangeCallbackFn;
@@ -112,7 +117,10 @@ public:
 	llvm::MachineFunction* getMachineFunction(llvm::Function &fn);
 
 	llvm::MachineModuleInfo* getMachineModuleInfo();
-
+	
+	hwtHls::HwtHlsSimplifyCFGOptions _getDefaultSimplifyCfgOptions();
+	hwtHls::HwtHlsInstCombinePassOptions _getDefaultInstCombineOptions();
+	
 	void _addInitialNormalizationPasses(llvm::FunctionPassManager &FPM);
 	void _addStreamOperationLoweringPasses(llvm::FunctionPassManager &FPM);
 	void _addLoopPasses(llvm::FunctionPassManager &FPM);

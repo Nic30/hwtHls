@@ -57,6 +57,9 @@ struct HwtHlsSimplifyCFGOptions: public llvm::SimplifyCFGOptions {
 	bool RunBitcountMergePass = true;
 	//// same as HoistCheapInsts just move successor block
 	//bool SinkCheapInsts = true;
+	using IrChangeCallbackFn = std::function<void(const std::string & ruleName, const llvm::Function & F)>;
+	IrChangeCallbackFn* _dbgIrInstrCombineChangeCallbackFn = nullptr;
+	IrChangeCallbackFn* _dbgIrCfgSimplifyChangeCallbackFn = nullptr;
 
 	HwtHlsSimplifyCFGOptions& bonusInstThreshold(int I) {
 		return reinterpret_cast<HwtHlsSimplifyCFGOptions&>(SimplifyCFGOptions::bonusInstThreshold(
@@ -135,8 +138,16 @@ struct HwtHlsSimplifyCFGOptions: public llvm::SimplifyCFGOptions {
 		RunBitcountMergePass = B;
 		return *this;
 	}
-
+	HwtHlsSimplifyCFGOptions& setdbgIrInstrCombineChangeCallbackFn(IrChangeCallbackFn * fn) {
+		_dbgIrInstrCombineChangeCallbackFn = fn;
+		return *this;
+	}
+	HwtHlsSimplifyCFGOptions& setdbgIrCfgSimplifyChangeCallbackFn(IrChangeCallbackFn * fn) {
+		_dbgIrCfgSimplifyChangeCallbackFn = fn;
+		return *this;
+	}
 };
+
 class SimplifyCFGOpt2;
 /// same as original LLVM SimplifyCFGPass but with:
 //  * cheap instruction hoist/sink
@@ -154,6 +165,8 @@ public:
 	static llvm::StringRef name() { // :note: required otherwise llvm::SimplifyCFGPass::name is used
 		return "hwtHls::HwtHlsSimplifyCFGPass";
 	}
+	void onChangeCallback(const std::string & ruleName, llvm::Function & F);
+	void onChangeCallbackIC(const std::string & ruleName, llvm::Function & F);
 	bool runOpt0(llvm::Function &F, llvm::DomTreeUpdater &DTU,
 			SimplifyCFGOpt2 &opt, bool &exprChanged);
 	bool runOpt1(llvm::FunctionAnalysisManager &AM,

@@ -61,7 +61,41 @@ public:
 
 void register_LlvmCompilationBundle(pybind11::module_ &m) {
 	py::register_local_exception<hwtHls::IntentionalCompilationInterupt>(m, "IntentionalCompilationInterupt", PyExc_RuntimeError);
-	
+
+#define TEST_MIR_CALLBACK_PROP(name)                                           \
+	.def_property(                                                             \
+		#name, [](hwtHls::LlvmCompilationBundle &self) { return self.name; },  \
+		[](hwtHls::LlvmCompilationBundle &self, py::function fn) {             \
+			if (fn) {                                                          \
+				self.name = [&self, fn](const std::string &ruleName,           \
+										const llvm::MachineFunction &MF) {     \
+					auto _ruleName = self.strCtx.addStringRef(ruleName);       \
+					fn.operator()<py::return_value_policy::reference,          \
+								  llvm::StringRef &,                           \
+								  const llvm::MachineFunction &>(_ruleName,    \
+																 MF);          \
+				};                                                             \
+			} else {                                                           \
+				self.name = {};                                                \
+			}                                                                  \
+		})
+#define TEST_IR_CALLBACK_PROP(name)                                            \
+	.def_property(                                                             \
+		#name, [](hwtHls::LlvmCompilationBundle &self) { return self.name; },  \
+		[](hwtHls::LlvmCompilationBundle &self, py::function fn) {             \
+			if (fn) {                                                          \
+				self.name = [&self, fn](const std::string &ruleName,           \
+										const llvm::Function &F) {             \
+					auto _ruleName = self.strCtx.addStringRef(ruleName);       \
+					fn.operator()<py::return_value_policy::reference,          \
+								  llvm::StringRef &, const llvm::Function &>(  \
+						_ruleName, F);                                         \
+				};                                                             \
+			} else {                                                           \
+				self.name = {};                                                \
+			}                                                                  \
+		})
+
 	py::class_<hwtHls::LlvmCompilationBundle>(m, "LlvmCompilationBundle")
 		.def(py::init<const std::string &, const std::vector<hwtHls::LlvmCompilationBundle::LlvmCliOptionTuple> &>())
 		.def("getTargetLibraryInfo", &hwtHls::LlvmCompilationBundle::getTargetLibraryInfo)
@@ -164,36 +198,10 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 					addLoopPassesFn.operator() <py::return_value_policy::reference, llvm::LoopPassManager&>(LPM);
 				});
 	    }, py::return_value_policy::reference_internal)
-		.def_property("_dbgMirGISelCombinerChangeCallbackFn",
-			 [](hwtHls::LlvmCompilationBundle & self) {
-		     	return self._dbgMirGISelCombinerChangeCallbackFn;
-		     }, 
-		     [](hwtHls::LlvmCompilationBundle & self, py::function fn) {
-		     	if (fn) {
-					fn.inc_ref(); // [todo] decr_ref is missing
-		     		self._dbgMirGISelCombinerChangeCallbackFn	= [&self, fn](const std::string & ruleName, const llvm::MachineFunction &MF) {
-		     			auto _ruleName = self.strCtx.addStringRef(ruleName);
-		     			fn.operator() <py::return_value_policy::automatic, llvm::StringRef&, const llvm::MachineFunction&> (_ruleName, MF);
-		     		};
-		     	} else {
-		     		self._dbgMirGISelCombinerChangeCallbackFn	= {};
-		     	}
-		     })
-		.def_property("_dbgMirVRegIfConverterChangeCallbackFn",
-			 [](hwtHls::LlvmCompilationBundle & self) {
-		     	return self._dbgMirVRegIfConverterChangeCallbackFn;
-		     }, 
-		     [](hwtHls::LlvmCompilationBundle & self, py::function fn) {
-		     	if (fn) {
-					fn.inc_ref(); // [todo] decr_ref is missing
-		     		self._dbgMirVRegIfConverterChangeCallbackFn	= [&self, fn](const std::string & ruleName, const llvm::MachineFunction &MF) {
-		     			auto _ruleName = self.strCtx.addStringRef(ruleName);
-		     			fn.operator() <py::return_value_policy::automatic, llvm::StringRef&, const llvm::MachineFunction&> (_ruleName, MF);
-		     		};
-		     	} else {
-		     		self._dbgMirVRegIfConverterChangeCallbackFn	= {};
-		     	}
-		     })
+		TEST_IR_CALLBACK_PROP(_dbgIrInstrCombineChangeCallbackFn)
+		TEST_IR_CALLBACK_PROP(_dbgIrCfgSimplifyChangeCallbackFn)
+		TEST_MIR_CALLBACK_PROP(_dbgMirGISelCombinerChangeCallbackFn)
+		TEST_MIR_CALLBACK_PROP(_dbgMirVRegIfConverterChangeCallbackFn)
 		.def("_testEarlyIfConverter", &hwtHls::LlvmCompilationBundle::_testEarlyIfConverter, py::return_value_policy::reference_internal)
 		.def("_testHwtFpgaPreRegAllocGICombiner", &hwtHls::LlvmCompilationBundle::_testHwtFpgaPreRegAllocGICombiner, py::return_value_policy::reference_internal)
 		.def("_testHwtFpgaPreToNetlistCombiner", &hwtHls::LlvmCompilationBundle::_testHwtFpgaPreToNetlistCombiner, py::return_value_policy::reference_internal)

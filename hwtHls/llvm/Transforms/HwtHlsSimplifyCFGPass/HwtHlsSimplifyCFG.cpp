@@ -701,13 +701,15 @@ bool SimplifyCFGOpt2::FoldValueComparisonIntoPredecessors(Instruction *TI,
 
 bool SimplifyCFGOpt2::simplifySwitch(SwitchInst *SI, IRBuilder<> &Builder, bool & exprChanged) {
 	BasicBlock *BB = SI->getParent();
-
+	Function &F = *BB->getParent();
 	if (isValueEqualityComparison(SI, false)) {
 		// If the block only contains the switch, see if we can fold the block
 		// away into any preds.
 		if (SI == &*BB->instructionsWithoutDebug(false).begin())
-			if (FoldValueComparisonIntoPredecessors(SI, Builder))
+			if (FoldValueComparisonIntoPredecessors(SI, Builder)) {
+				onChangeCallback("FoldValueComparisonIntoPredecessors", F);
 				return requestResimplify();
+			}
 	}
 	bool everySucDominated = true;
 	bool everySucHasOnlyThisPred = true;
@@ -736,16 +738,17 @@ bool SimplifyCFGOpt2::simplifySwitch(SwitchInst *SI, IRBuilder<> &Builder, bool 
 			break;
 		}
 	}
-	auto& F = *BB->getParent();
 	if (Options.HoistCommonInsts) {
 		if (everySucHasOnlyThisPred
 				&& DBG_SimplifyCFGOpt2_check(HoistFromSwitchSuccessors(SI, TTI,
 						LlvmHoistCommonSkipLimit))) {
+			onChangeCallbackIC("HoistFromSwitchSuccessors", F);
 			exprChanged = true;
 			Resimplify = true;
 		}
 	}
 	if (Options.SwitchToSelectOrRomLoad && everySucDominated && DBG_SimplifyCFGOpt2_check(trySwitchToSelectOrRomLoad(SI, Builder, *DTU))) {
+		onChangeCallback("trySwitchToSelectOrRomLoad", F);
 		return requestResimplify();
 	}
 
@@ -764,6 +767,7 @@ bool SimplifyCFGOpt2::simplifyBr(BranchInst *BI, IRBuilder<> &Builder) {
 						return requestResimplify();
 		if (Options.NormalizeBrCond && DBG_SimplifyCFGOpt2_check(
 				HwtHlsSimplifyCFGPass_normalizeBrCond(BI))) {
+			onChangeCallbackIC("HwtHlsSimplifyCFGPass_normalizeBrCond", F);
 			return requestResimplify();
 		}
 	}
@@ -771,10 +775,24 @@ bool SimplifyCFGOpt2::simplifyBr(BranchInst *BI, IRBuilder<> &Builder) {
 		if (DTU->hasDomTree()
 				&& DBG_SimplifyCFGOpt2_check(tryHoistFromCheapBlocksWithSwitchLikeCmpBr(BI, Builder,
 						DTU, Resimplify))) {
+			onChangeCallback("tryHoistFromCheapBlocksWithSwitchLikeCmpBr", F);
 			return false;
 		}
 	}
 	return false;
+}
+
+
+void SimplifyCFGOpt2::onChangeCallback(const std::string & ruleName, llvm::Function & F) {
+	if (Options._dbgIrCfgSimplifyChangeCallbackFn) {
+		(*Options._dbgIrCfgSimplifyChangeCallbackFn)(ruleName, F);
+	}
+}
+
+void SimplifyCFGOpt2::onChangeCallbackIC(const std::string & ruleName, llvm::Function & F) {
+	if (Options._dbgIrInstrCombineChangeCallbackFn) {
+		(*Options._dbgIrInstrCombineChangeCallbackFn)(ruleName, F);
+	}
 }
 
 bool SimplifyCFGOpt2::simplifyOnce(BasicBlock *BB, bool &exprChanged) {
@@ -790,6 +808,7 @@ bool SimplifyCFGOpt2::simplifyOnce(BasicBlock *BB, bool &exprChanged) {
 			|| BB->getSinglePredecessor() == BB) {
 		LLVM_DEBUG(dbgs() << "Removing BB: \n" << *BB);
 		DeleteDeadBlock(BB, DTU);
+		onChangeCallback("rmDead", F);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 		assert(!verifyFunction(F, &errs()));
 #endif
@@ -798,31 +817,42 @@ bool SimplifyCFGOpt2::simplifyOnce(BasicBlock *BB, bool &exprChanged) {
 	if (Options.HoistCheapInsts) {
 		auto *PredBB = BB->getSinglePredecessor();
 		if (PredBB && PredBB != BB) {
-			exprChanged |= DBG_SimplifyCFGOpt2_check(
-					tryHoistCheapInstsAtBlockBegin(*BB,
-							PredBB->getTerminator()->getIterator()));
+			if (DBG_SimplifyCFGOpt2_check(tryHoistCheapInstsAtBlockBegin(
+					*BB, PredBB->getTerminator()->getIterator()))) {
+				onChangeCallbackIC("tryHoistCheapInstsAtBlockBegin", F);
+				exprChanged = true;
+			}
 		}
 	}
 	// Check to see if we can constant propagate this terminator instruction
 	// away...
-	Changed |= DBG_SimplifyCFGOpt2_check(
-			Options.ConstantFoldTerminator && ConstantFoldTerminator(BB, /*DeleteDeadConditions=*/true,
-			/*TLI=*/nullptr, DTU));
+	if (DBG_SimplifyCFGOpt2_check(
+			Options.ConstantFoldTerminator &&
+			ConstantFoldTerminator(BB, /*DeleteDeadConditions=*/true,
+								   /*TLI=*/nullptr, DTU))) {
+		onChangeCallback("tryHoistCheapInstsAtBlockBegin", F);
+		Changed = true;
+	}
 
 	// Check for and eliminate duplicate PHI nodes in this block.
-	Changed |= DBG_SimplifyCFGOpt2_check(Options.EliminateDuplicatePHINodes && EliminateDuplicatePHINodes(BB));
+	if (DBG_SimplifyCFGOpt2_check(Options.EliminateDuplicatePHINodes && EliminateDuplicatePHINodes(BB))) {
+		onChangeCallbackIC("EliminateDuplicatePHINodes", F);
+		Changed =  true;
+	}
 
 	// Check for and remove branches that will always cause undefined behavior.
 	if (DBG_SimplifyCFGOpt2_check(
-			Options.EemoveUndefIntroducingPredecessor && removeUndefIntroducingPredecessor(BB, DTU, Options.AC)))
+			Options.EemoveUndefIntroducingPredecessor && removeUndefIntroducingPredecessor(BB, DTU, Options.AC))) {
+		onChangeCallback("removeUndefIntroducingPredecessor", F);
 		return requestResimplify();
-
+	}
 	// Merge basic blocks into their predecessor if there is only one distinct
 	// pred, and if there is only one distinct successor of the predecessor, and
 	// if there are no PHI nodes.
-	if (DBG_SimplifyCFGOpt2_check(Options.MergeBlockIntoPredecessor && MergeBlockIntoPredecessor(BB, DTU)))
+	if (DBG_SimplifyCFGOpt2_check(Options.MergeBlockIntoPredecessor && MergeBlockIntoPredecessor(BB, DTU))) {
+		onChangeCallback("MergeBlockIntoPredecessor", F);
 		return true;
-
+	}
 	IRBuilder<> Builder(BB);
 
 	Instruction *Terminator = BB->getTerminator();

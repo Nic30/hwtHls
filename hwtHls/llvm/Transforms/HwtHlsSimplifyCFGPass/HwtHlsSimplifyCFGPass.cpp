@@ -200,6 +200,18 @@ bool runSubpass(PassInstrumentation &PI, Function &F,
 	return !PassPA.areAllPreserved();
 }
 
+void HwtHlsSimplifyCFGPass::onChangeCallback(const std::string & ruleName, llvm::Function & F) {
+	if (Options._dbgIrCfgSimplifyChangeCallbackFn) {
+		(*Options._dbgIrCfgSimplifyChangeCallbackFn)(ruleName, F);
+	}
+}
+
+void HwtHlsSimplifyCFGPass::onChangeCallbackIC(const std::string & ruleName, llvm::Function & F) {
+	if (Options._dbgIrInstrCombineChangeCallbackFn) {
+		(*Options._dbgIrInstrCombineChangeCallbackFn)(ruleName, F);
+	}
+}
+
 bool HwtHlsSimplifyCFGPass::runOpt0(Function &F, DomTreeUpdater &DTU,
 		SimplifyCFGOpt2 &opt, bool &exprChanged) {
 	bool _changed0 = false;
@@ -217,8 +229,15 @@ bool HwtHlsSimplifyCFGPass::runOpt0(Function &F, DomTreeUpdater &DTU,
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 		assert(!verifyFunction(F, &errs()));
 #endif
-		exprChanged |= Options.HoistHoistableAssumes
-				&& HwtHlsSimplifyCFGPass_hoistHoistableAssumes(BB);
+		if (Options.HoistHoistableAssumes &&
+			HwtHlsSimplifyCFGPass_hoistHoistableAssumes(BB)) {
+			onChangeCallbackIC("HwtHlsSimplifyCFGPass_hoistHoistableAssumes",
+							   F);
+			exprChanged = true;
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+			assert(!verifyFunction(F, &errs()));
+#endif
+		}
 		_changed0 |= opt.run(&BB, exprChanged);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 		assert(!verifyFunction(F, &errs()));
@@ -229,18 +248,23 @@ bool HwtHlsSimplifyCFGPass::runOpt0(Function &F, DomTreeUpdater &DTU,
 			continue;
 		DTU.flush(); // (required because otherwise blocks are removed before update is applied)
 
-		_changed0 |= Options.NormalizeLookupTableIndex
-				&& HwtHlsSimplifyCFGPass_normalizeLookupTableIndex(BB);
-#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
-		assert(!verifyFunction(F, &errs()));
-#endif
-		_changed0 |= Options.RewriteMaskPatternsFromCFGToData
+		if (Options.NormalizeLookupTableIndex
+				&& HwtHlsSimplifyCFGPass_normalizeLookupTableIndex(BB)) {
+			onChangeCallback("HwtHlsSimplifyCFGPass_normalizeLookupTableIndex", F);
+			_changed0 = true;
+			#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+					assert(!verifyFunction(F, &errs()));
+			#endif
+		}
+		if (Options.RewriteMaskPatternsFromCFGToData
 				&& HwtHlsSimplifyCFGPass_rewriteMaskPatternsFromCFGToData(DTU,
-						BB);
-#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
-		assert(!verifyFunction(F, &errs()));
-
-#endif
+						BB)) {
+			onChangeCallback("HwtHlsSimplifyCFGPass_rewriteMaskPatternsFromCFGToData", F);
+			_changed0 = true; 
+			#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+					assert(!verifyFunction(F, &errs()));
+			#endif
+		}
 	}
 	return _changed0;
 }
@@ -263,7 +287,9 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 		DTU.flush();
 		// writeCFGToDotFile(F, "tmp/SimplifyCFG2.before.dot", AM, false, true);
 		// errs() << F << "\n";
+		// onChangeCallbackIC("HwtHlsSimplifyCFGPass::runOpt1 - entry", F);
 		if (Options.StoreHoist && HwtHlsSimplifyCFGPass_storeHoist(*BBIt)) {
+			onChangeCallbackIC("HwtHlsSimplifyCFGPass_storeHoist", F);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			// DTU.flush();
 			// writeCFGToDotFile(F, "tmp/HwtHlsSimplifyCFGPass_storeHoist.after.dot", AM);
@@ -271,6 +297,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 #endif
 			_changed1 = true;
 		} else if (Options.MemHoistToNewBB && HwtHlsSimplifyCFGPass_memHoistToNewBB(DTU, *BBIt)) {
+			onChangeCallback("HwtHlsSimplifyCFGPass_memHoistToNewBB", F);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			DTU.flush();
 			// writeCFGToDotFile(F, "tmp/HwtHlsSimplifyCFGPass_memHoistToNewBB.after.dot", AM);
@@ -280,12 +307,14 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 		} else if (Options.AggresiveStoreSink
 				&& HwtHlsSimplifyCFGPass_aggresiveStoreSink(DTU, *BBIt)) {
 			// writeCFGToDotFile(F, "tmp/SimplifyCFG2.after.dot", AM);
+			onChangeCallback("HwtHlsSimplifyCFGPass_aggresiveStoreSink", F);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
 #endif
 			_changed1 = true;
 		} else if (Options.MergePredecessorsStore
 				&& HwtHlsSimplifyCFGPass_mergePredecessorsStore(DTU, *BBIt)) {
+			onChangeCallback("HwtHlsSimplifyCFGPass_mergePredecessorsStore", F);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			// DTU.flush();
 			// writeCFGToDotFile(F, "tmp/HwtHlsSimplifyCFGPass_mergePredecessorsStore.after.dot", AM);
@@ -294,6 +323,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 			_changed1 = true;
 		} else if (Options.MemSinkToNewBB
 					&& HwtHlsSimplifyCFGPass_memSinkToNewBB(DTU, *BBIt)) {
+			onChangeCallback("HwtHlsSimplifyCFGPass_memSinkToNewBB", F);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
 #endif
@@ -301,6 +331,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 		} else if (Options.PhiToLogicalExpr
 				&& HwtHlsSimplifyCFGPass_phiToLogicalExpr(Builder, DTU, DL, &AC,
 						*BBIt, exprChanged)) {
+			onChangeCallbackIC("HwtHlsSimplifyCFGPass_phiToLogicalExpr", F);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
 #endif
@@ -308,6 +339,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 		} else if (Options.UnswitchComplementarySequentialBlocks
 				&& HwtHlsSimplifyCFGPass_unswitchComplementarySequentialBlocks(
 						Builder, DTU, *BBIt, exprChanged)) {
+			onChangeCallback("HwtHlsSimplifyCFGPass_unswitchComplementarySequentialBlocks", F);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
 #endif
@@ -317,6 +349,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 				   BBIt->getTerminator()->getNumSuccessors() >= 2 &&
 				   HwtHlsSimplifyCFGPass_unswitchCheapManyPredManySuccBB(
 					   Builder, DTU, *BBIt, exprChanged)) {
+			onChangeCallback("HwtHlsSimplifyCFGPass_unswitchCheapManyPredManySuccBB", F);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
 #endif
@@ -326,6 +359,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 				   HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit(
 					   Builder, DTU, *cast<SwitchInst>(BBIt->getTerminator()),
 					   exprChanged)) {
+			onChangeCallback("HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit", F);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			DTU.flush();
 			// writeCFGToDotFile(F, "tmp/HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit.after.dot", AM);
@@ -337,6 +371,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 
 		} else if (Options.SpeculatePredecessor &&
 				   HwtHlsSimplifyCFGPass_speculatePredecessor(DTU, *BBIt)) {
+			onChangeCallback("HwtHlsSimplifyCFGPass_speculatePredecessor", F);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
 #endif
@@ -344,6 +379,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 		} else if (Options.StreamWriteMerge &&
 				   HwtHlsSimplifyCFGPass_streamWriteMerge(Builder, DTU, *BBIt,
 														  SQ)) {
+			onChangeCallback("HwtHlsSimplifyCFGPass_streamWriteMerge", F);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
 #endif
@@ -351,6 +387,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 		} else if (Options.StreamReadMerge &&
 				   HwtHlsSimplifyCFGPass_streamReadMerge(Builder, DTU, *BBIt,
 														 SQ)) {
+			onChangeCallback("HwtHlsSimplifyCFGPass_streamReadMerge", F);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
 #endif
@@ -406,11 +443,16 @@ llvm::PreservedAnalyses HwtHlsSimplifyCFGPass::run(llvm::Function &F,
 		bool exprChanged = false;
 		if (Options.RunEarlyCSEPass) {
 			EarlyCSEPass ecsePass;
-			runSubpass(PI, F, AM, ecsePass);
+			if (runSubpass(PI, F, AM, ecsePass)) {
+				onChangeCallbackIC("HwtHlsSimplifyCFGPass - EarlyCSEPass", F);
+			}
 		}
 		if (Options.RunRomExtractPass) {
 			RomExtractPass romExtractPass; // :note: executed before HwtHlsInstCombinePass because HwtHlsInstCombinePass may lower SelectInst to concat
-			exprChanged |= runSubpass(PI, F, AM, romExtractPass);
+			if (runSubpass(PI, F, AM, romExtractPass)) {
+				onChangeCallbackIC("HwtHlsSimplifyCFGPass - RomExtractPass", F);
+				exprChanged = true;
+			}
 		}
 		if (Options.RunHwtHlsInstCombinePass) {
 			// can not perform vectorization of function calls and alike during cfg optimizations
@@ -419,7 +461,8 @@ llvm::PreservedAnalyses HwtHlsSimplifyCFGPass::run(llvm::Function &F,
 			// which would result in duplication of vectorized instruction (which is considered costly)
 			HwtHlsInstCombinePass hicPass(
 					HwtHlsInstCombinePassOptions(/*extractBitcounts*/false)
-					.setMergeMergableFunctionCalls(false));
+					.setMergeMergableFunctionCalls(false)
+					.setdbgIrInstrCombineChangeCallbackFn(Options._dbgIrInstrCombineChangeCallbackFn));
 			exprChanged |= runSubpass(PI, F, AM, hicPass);
 		}
 		//exprChanged |= !InstCombinePass().run(F, AM).areAllPreserved();
@@ -441,6 +484,10 @@ llvm::PreservedAnalyses HwtHlsSimplifyCFGPass::run(llvm::Function &F,
 
 			SimplifyCFGOpt2 opt(&DTU, DL, TTI, Options,
 					LlvmHoistCommonSkipLimit);
+			opt._dbgIrCfgSimplifyChangeCallbackFn =
+				Options._dbgIrCfgSimplifyChangeCallbackFn;
+			opt._dbgIrInstrCombineChangeCallbackFn =
+				Options._dbgIrInstrCombineChangeCallbackFn;
 			bool __changed0 = false;
 			// try {
 			while (runOpt0(F, DTU, opt, exprChanged)) {
@@ -488,6 +535,10 @@ llvm::PreservedAnalyses HwtHlsSimplifyCFGPass::run(llvm::Function &F,
 				TrivialSimplifyCFGPass trivialSimplifyCfg(true, false);
 				changed_trivialSimplifyCfg = runSubpass(PI, F, AM,
 						trivialSimplifyCfg);
+				if (changed_trivialSimplifyCfg) {
+					onChangeCallback("HwtHlsSimplifyCFGPass - TrivialSimplifyCFGPass",
+									   F);
+				}
 				changed |= changed_trivialSimplifyCfg;
 			}
 			if (!__changed0 && !__changed1 && !changed_trivialSimplifyCfg)
@@ -507,6 +558,10 @@ llvm::PreservedAnalyses HwtHlsSimplifyCFGPass::run(llvm::Function &F,
 			_PA.abandon<DominatorTreeAnalysis>();
 			AM.invalidate(F, _PA);
 			changed_origSimplifyCfg = runSubpass(PI, F, AM, origSimplifyCfg);
+			if (changed_origSimplifyCfg) {
+				onChangeCallback("HwtHlsSimplifyCFGPass - llvm::SimplifyCFGPass",
+								   F);
+			}
 		}
 		//LoopFuseWithPrequelPass fuseWithPrequel;
 		//bool changed_fuseWithPrequel = runSubpass(PI, F, AM, fuseWithPrequel);
@@ -524,7 +579,9 @@ llvm::PreservedAnalyses HwtHlsSimplifyCFGPass::run(llvm::Function &F,
 			if (lastIterationWithCfgChange + 1 < itCntr)
 				break; // last 2 iterations did not change the CFG
 			HwtHlsInstCombinePass hicPass(
-					HwtHlsInstCombinePassOptions(/*extractBitcounts*/true));
+				HwtHlsInstCombinePassOptions(/*extractBitcounts*/ true)
+					.setdbgIrInstrCombineChangeCallbackFn(
+						Options._dbgIrInstrCombineChangeCallbackFn));
 			BitcountMergePass bmPass;
 			auto blockCnt = F.size();
 			if (Options.RunHwtHlsInstCombinePass && runSubpass(PI, F, AM, hicPass)) {
@@ -533,6 +590,8 @@ llvm::PreservedAnalyses HwtHlsSimplifyCFGPass::run(llvm::Function &F,
 				assert(blockCnt == F.size());
 				changed = true;
 			} else if (Options.RunBitcountMergePass && runSubpass(PI, F, AM, bmPass)) {
+				onChangeCallbackIC("HwtHlsSimplifyCFGPass -BitcountMergePass",
+								   F);
 				changed = true;
 			} else {
 				break;
@@ -548,7 +607,10 @@ llvm::PreservedAnalyses HwtHlsSimplifyCFGPass::run(llvm::Function &F,
 		if (!Options.SwitchReduceRange) {
 			for (auto &BB : F) {
 				if (auto SW = dyn_cast<SwitchInst>(BB.getTerminator()))
-					HwtHlsSimplifyCFGPass_SwitchReduceRangeUndo(*SW);
+					if (HwtHlsSimplifyCFGPass_SwitchReduceRangeUndo(*SW)) {
+						onChangeCallbackIC("HwtHlsSimplifyCFGPass_SwitchReduceRangeUndo",
+										   F);
+					}
 			}
 		}
 		PreservedAnalyses PA;

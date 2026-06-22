@@ -157,7 +157,6 @@ void LlvmCompilationBundle::_registerHwtHlsPasses() {
 						   hwtHls::HwtHlsSimplifyCFGPass,			   //
 						   hwtHls::IoPortVectorizationPass,            //
 						   hwtHls::TrivialSimplifyCFGPass,			   //
-						   hwtHls::HwtHlsInstCombinePass,			   //
 						   hwtHls::SlicesMergePass,					   //
 						   hwtHls::StreamReadLoweringPass,			   //
 						   hwtHls::StreamWriteLoweringPass,			   //
@@ -212,7 +211,7 @@ void LlvmCompilationBundle::runOpt(
 	// Global value numbering based sinking.
 	if (EnableGVNSink) {
 		FPM.addPass(llvm::GVNSinkPass());
-		FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
+		FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(_getDefaultSimplifyCfgOptions()));
 	}
 
 	// Speculative execution if the target has divergent branches; otherwise
@@ -225,7 +224,7 @@ void LlvmCompilationBundle::runOpt(
 	FPM.addPass(llvm::JumpThreadingPass());
 	FPM.addPass(llvm::CorrelatedValuePropagationPass());
 
-	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(_getDefaultSimplifyCfgOptions()));
 	_addInstrCombinePasses(FPM, /*bitwidthReduction*/ false, /*selectPruning*/
 						   false);
 
@@ -245,7 +244,7 @@ void LlvmCompilationBundle::runOpt(
 	//   FPM.addPass(PGOMemOPSizeOpt());
 	//
 	// FPM.addPass(TailCallElimPass());
-	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(_getDefaultSimplifyCfgOptions()));
 
 	// Form canonically associated expression trees, and simplify the trees
 	// using basic mathematical properties. For example, this will form (nearly)
@@ -270,12 +269,11 @@ void LlvmCompilationBundle::runOpt(
 	//		&& (PGOOpt->Action == PGOOptions::IRUse
 	//				|| PGOOpt->Action == PGOOptions::SampleUse))
 	//	FPM.addPass(llvm::ControlHeightReductionPass());
-	_addVectorPasses(Level, FPM,
-					 true); // LTO like vector opt, after all IR opt, followed
-							// by final cleanup and machine passes
+	_addVectorPasses(Level, FPM,  true);
+	 // LTO like vector opt, after all IR opt, followed
+	// by final cleanup and machine passes
 	{
-		auto simplifyCfgOpts =
-			hwtHls::HwtHlsSimplifyCFGOptions()	  //
+		auto simplifyCfgOpts = _getDefaultSimplifyCfgOptions()	  //
 				.forwardSwitchCondToPhi(true)	  //
 				.convertSwitchRangeToICmp(true)	  //
 				.convertSwitchToLookupTable(true) //
@@ -318,7 +316,7 @@ void LlvmCompilationBundle::runOpt(
 	MPM.addPass(hwtHls::LoopMarkStatelessSequelAsAsyncThreadPass());
 	MPM.addPass(hwtHls::ThreadExtractPass());
 	MPM.addPass(llvm::createModuleToFunctionPassAdaptor(
-		hwtHls::HwtHlsSimplifyCFGPass())); // ThreadExtractPass may create
+		hwtHls::HwtHlsSimplifyCFGPass(_getDefaultSimplifyCfgOptions()))); // ThreadExtractPass may create
 										   // trivially mergable blocks
 	MPM.addPass(llvm::StripDeadDebugInfoPass());
 	MPM.addPass(llvm::StripDeadPrototypesPass());
@@ -332,7 +330,7 @@ void LlvmCompilationBundle::runOpt(
 	// MPM.addPass(llvm::UnifyLoopExitsPass());
 	//{
 	//	auto simplifyCfgOpts =
-	//		hwtHls::HwtHlsSimplifyCFGOptions()	  //
+	//		_getDefaultSimplifyCfgOptions()	  //
 	//			.setSwitchReduceRange(false)      //
 	//			.forwardSwitchCondToPhi(true)	  //
 	//			.convertSwitchRangeToICmp(true)	  //
@@ -397,25 +395,32 @@ void LlvmCompilationBundle::_tryToFindMain() {
 }
 
 void LlvmCompilationBundle::runExprOpt() {
-	_runCustomFunctionPass([](llvm::FunctionPassManager &FPM) {
+	_runCustomFunctionPass([this](llvm::FunctionPassManager &FPM) {
 		FPM.addPass(llvm::EarlyCSEPass());
 		// FPM.addPass(hwtHls::BitwidthReductionPass());
 		FPM.addPass(llvm::CorrelatedValuePropagationPass());
 		FPM.addPass(llvm::AggressiveInstCombinePass());
 		FPM.addPass(llvm::InstCombinePass());
-		FPM.addPass(hwtHls::HwtHlsInstCombinePass());
+		FPM.addPass(hwtHls::HwtHlsInstCombinePass(_getDefaultInstCombineOptions()));
 		FPM.addPass(hwtHls::SelectPruningPass());
-		FPM.addPass(hwtHls::HwtHlsInstCombinePass());
+		FPM.addPass(hwtHls::HwtHlsInstCombinePass(_getDefaultInstCombineOptions()));
 		FPM.addPass(llvm::InstCombinePass());
 		FPM.addPass(llvm::EarlyCSEPass());
-		FPM.addPass(hwtHls::HwtHlsInstCombinePass());
+		FPM.addPass(hwtHls::HwtHlsInstCombinePass(_getDefaultInstCombineOptions()));
 		// FPM.addPass(hwtHls::SlicesMergePass());
 		FPM.addPass(hwtHls::ICmpToOnlyEqLtLePass());
 		FPM.addPass(hwtHls::StripAssumePass());
 		FPM.addPass(llvm::DCEPass());
 	});
 }
-
+template<typename T>
+T* getPtrOrNull(std::optional<T> & v) {
+	if (v.has_value()) {
+		return &v.value();
+	} else {
+		return nullptr;
+	}
+}
 void LlvmCompilationBundle::_addInitialNormalizationPasses(
 	llvm::FunctionPassManager &FPM) {
 	FPM.addPass(hwtHls::ProfMetadataAddDummy());
@@ -466,9 +471,11 @@ void LlvmCompilationBundle::_addInitialNormalizationPasses(
 	// Form SSA out of local memory accesses after breaking apart aggregates
 	// into scalars.
 	{
-		auto simplifyCfgOpts = hwtHls::HwtHlsSimplifyCFGOptions() //
-								   .hoistCommonInsts(true)		  //
-								   .setHoistCheapInsts(true)	  //
+		auto simplifyCfgOpts = _getDefaultSimplifyCfgOptions() //
+			.hoistCommonInsts(true)		  //
+			.setHoistCheapInsts(true)	  //
+			.setdbgIrInstrCombineChangeCallbackFn(getPtrOrNull(_dbgIrInstrCombineChangeCallbackFn))
+			.setdbgIrCfgSimplifyChangeCallbackFn(getPtrOrNull(_dbgIrCfgSimplifyChangeCallbackFn))
 			;
 		FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(simplifyCfgOpts));
 	}
@@ -480,6 +487,21 @@ void LlvmCompilationBundle::_addInitialNormalizationPasses(
 	// if (EnableKnowledgeRetention)
 	FPM.addPass(llvm::AssumeSimplifyPass());
 }
+
+hwtHls::HwtHlsSimplifyCFGOptions LlvmCompilationBundle::_getDefaultSimplifyCfgOptions() {
+	return hwtHls::HwtHlsSimplifyCFGOptions() //
+		.setdbgIrInstrCombineChangeCallbackFn(getPtrOrNull(_dbgIrInstrCombineChangeCallbackFn)) //
+		.setdbgIrCfgSimplifyChangeCallbackFn(getPtrOrNull(_dbgIrCfgSimplifyChangeCallbackFn))   //
+	;
+}
+
+hwtHls::HwtHlsInstCombinePassOptions LlvmCompilationBundle::_getDefaultInstCombineOptions() {
+	return hwtHls::HwtHlsInstCombinePassOptions() //
+		.setdbgIrInstrCombineChangeCallbackFn(getPtrOrNull(_dbgIrInstrCombineChangeCallbackFn)) //
+	;
+}
+
+
 
 void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 	llvm::FunctionPassManager &FPM) {
@@ -494,9 +516,11 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 	//  the LVI is important for stream related transformations as pruning of
 	//  viable options for offset in stream must work perfectly to avoid code
 	//  explosions
-	auto SimplifyCfgOpts =
-		hwtHls::HwtHlsSimplifyCFGOptions().setSwitchReduceRange(false);
-
+	auto SimplifyCfgOptsMin =_getDefaultSimplifyCfgOptions();
+	auto SimplifyCfgOpts = SimplifyCfgOptsMin;
+	SimplifyCfgOpts                                                //
+		.setSwitchReduceRange(false)                                                            //
+	;
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true, false));
 	// FPM.addPass(hwtHls::DumpAndExitPass(false, false,
 	// "tmp/StreamLoopUnrollPass.1.dot", true));
@@ -521,7 +545,7 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 	//FPM.addPass(hwtHls::DumpAndExitPass(
 	//	true, false, "tmp/HwtHlsSimplifyCFGPass.begin.dot"));
 		
-	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(SimplifyCfgOptsMin));
 	//FPM.addPass(hwtHls::DumpAndExitPass(
 	//	true, false, "tmp/HwtHlsSimplifyCFGPass.end.dot"));
 	FPM.addPass(llvm::LoopSimplifyPass());
@@ -534,7 +558,7 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 	FPM.addPass(hwtHls::IoPortVectorizationPass());
 	//FPM.addPass(hwtHls::DumpAndExitPass(
 	//	true, false, "tmp/LoopToIoFsmPass.IoPortVectorizationPass.after1.dot"));
-	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(SimplifyCfgOptsMin));
 	//FPM.addPass(hwtHls::DumpAndExitPass(
 	//	true, false, "tmp/LoopToIoFsmPass.HwtHlsSimplifyCFGPass.after2.dot"));
 	// :note: llvm-22 can not use
@@ -548,8 +572,8 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 	FPM.addPass(hwtHls::IoPortVectorizationPass());	
 	//FPM.addPass(hwtHls::DumpAndExitPass(
 	//	false, false, "tmp/StreamSegmentLoopUnrollPass.ioVectorized.end.dot"));
-	// FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
-	// FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
+	// FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(_getDefaultSimplifyCfgOptions()));
+	// FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(_getDefaultSimplifyCfgOptions()));
 }
 
 void LlvmCompilationBundle::_addCommonPasses(llvm::FunctionPassManager &FPM) {
@@ -589,7 +613,9 @@ void LlvmCompilationBundle::_addCommonPasses(llvm::FunctionPassManager &FPM) {
 											// set in non debug builds
 	// :note: DFAJumpThreadingPass will left unreachable blocks with branch
 	// condition set to undef, there we remove such blocks
-	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass());
+	
+	auto SimplifyCfgOptsMin = _getDefaultSimplifyCfgOptions();
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(SimplifyCfgOptsMin));
 	FPM.addPass(llvm::CorrelatedValuePropagationPass());
 	// Finally, do an expensive DCE pass to catch all the dead code exposed by
 	// the simplifications and basic cleanup after all the simplifications.
@@ -610,7 +636,7 @@ void LlvmCompilationBundle::_addCommonPasses(llvm::FunctionPassManager &FPM) {
 	//	for (auto &C : ScalarOptimizerLateEPCallbacks)
 	//		C(FPM, Level);
 	{
-		auto simplifyCfgOpts = hwtHls::HwtHlsSimplifyCFGOptions()  //
+		auto simplifyCfgOpts = _getDefaultSimplifyCfgOptions()  //
 								   .convertSwitchRangeToICmp(true) //
 								   .hoistCommonInsts(true)		   //
 								   .sinkCommonInsts(true)		   //
@@ -623,9 +649,9 @@ void LlvmCompilationBundle::_addCommonPasses(llvm::FunctionPassManager &FPM) {
 void LlvmCompilationBundle::_addInstrCombinePassesLight(
 	llvm::FunctionPassManager &FPM) {
 	FPM.addPass(hwtHls::RomExtractPass());
-	FPM.addPass(hwtHls::HwtHlsInstCombinePass());
+	FPM.addPass(hwtHls::HwtHlsInstCombinePass(_getDefaultInstCombineOptions()));
 	FPM.addPass(llvm::InstCombinePass());
-	FPM.addPass(hwtHls::HwtHlsInstCombinePass());
+	FPM.addPass(hwtHls::HwtHlsInstCombinePass(_getDefaultInstCombineOptions()));
 }
 
 void LlvmCompilationBundle::_addInstrCombinePasses(
@@ -639,7 +665,7 @@ void LlvmCompilationBundle::_addInstrCombinePasses(
 	FPM.addPass(llvm::EarlyCSEPass());
 	FPM.addPass(hwtHls::RomExtractPass());
 	{
-		auto icOpts = HwtHlsInstCombinePassOptions()						 //
+		auto icOpts = _getDefaultInstCombineOptions()						 //
 						  .setStreamReadEoFThreading(streamReadEoFThreading) //
 						  .setHwtHlsFpCombining(hwtHlsFpInstrCombine)		 //
 			;
@@ -647,21 +673,21 @@ void LlvmCompilationBundle::_addInstrCombinePasses(
 	}
 	if (llvmInstrCombine) {
 		FPM.addPass(llvm::InstCombinePass()); // hwtHls specific
-		FPM.addPass(hwtHls::HwtHlsInstCombinePass());
+		FPM.addPass(hwtHls::HwtHlsInstCombinePass(_getDefaultInstCombineOptions()));
 		FPM.addPass(llvm::AggressiveInstCombinePass()); // hwtHls specific
 	}
 	if (bitwidthReduction) {
 		FPM.addPass(hwtHls::BitwidthReductionPass());
 		FPM.addPass(llvm::InstCombinePass()); // hwtHls specific
-		FPM.addPass(hwtHls::HwtHlsInstCombinePass());
+		FPM.addPass(hwtHls::HwtHlsInstCombinePass(_getDefaultInstCombineOptions()));
 	}
 	if (selectPruning) {
 		FPM.addPass(hwtHls::SelectPruningPass());
-		FPM.addPass(hwtHls::HwtHlsInstCombinePass());
+		FPM.addPass(hwtHls::HwtHlsInstCombinePass(_getDefaultInstCombineOptions()));
 		FPM.addPass(llvm::InstCombinePass()); // hwtHls specific
 	}
 	if (llvmInstrCombine || bitwidthReduction || selectPruning) {
-		auto icOpts = HwtHlsInstCombinePassOptions()				  //
+		auto icOpts = _getDefaultInstCombineOptions()				  //
 						  .setHwtHlsFpCombining(hwtHlsFpInstrCombine) //
 			;
 		FPM.addPass(hwtHls::HwtHlsInstCombinePass(icOpts));
@@ -687,7 +713,7 @@ void LlvmCompilationBundle::_addAfterUnrollFollowupPasses(
 		/*UseBlockFrequencyInfo=*/true,
 		/*UseBranchProbabilityInfo=*/true));
 	{
-		auto simplifyCfgOpts = hwtHls::HwtHlsSimplifyCFGOptions() //
+		auto simplifyCfgOpts =_getDefaultSimplifyCfgOptions() //
 								   .hoistCommonInsts(true)		  //
 								   .setHoistCheapInsts(true)	  //
 			;
@@ -768,7 +794,7 @@ void LlvmCompilationBundle::_addLoopPasses(llvm::FunctionPassManager &FPM) {
 											  true, /*UseBlockFrequencyInfo=*/
 											  true));
 	{
-		auto simplifyCfgOpts = hwtHls::HwtHlsSimplifyCFGOptions()  //
+		auto simplifyCfgOpts = _getDefaultSimplifyCfgOptions()  //
 								   .convertSwitchRangeToICmp(true) //
 			;
 		FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(simplifyCfgOpts));
@@ -864,7 +890,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 											true,
 											/*UseBlockFrequencyInfo=*/true));
 		{
-			auto simplifyCfgOpts = hwtHls::HwtHlsSimplifyCFGOptions()  //
+			auto simplifyCfgOpts = _getDefaultSimplifyCfgOptions()  //
 									   .convertSwitchRangeToICmp(true) //
 				;
 			ExtraPasses.addPass(hwtHls::HwtHlsSimplifyCFGPass(simplifyCfgOpts));
@@ -885,7 +911,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 	// The extra sinking transform can create larger basic blocks, so do this
 	// before SLP vectorization.
 	{
-		auto simplifyCfgOpts = hwtHls::HwtHlsSimplifyCFGOptions()  //
+		auto simplifyCfgOpts = _getDefaultSimplifyCfgOptions()  //
 								   .forwardSwitchCondToPhi(true)   //
 								   .convertSwitchRangeToICmp(true) //
 								   //.convertSwitchToLookupTable(true)//
@@ -959,7 +985,7 @@ void LlvmCompilationBundle::_addVectorPasses(llvm::OptimizationLevel Level,
 			llvm::LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
 						   /*AllowSpeculation=*/true),
 			/*UseMemorySSA=*/true, /*UseBlockFrequencyInfo=*/true));
-		FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass()); // hwtHls specific
+		FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(_getDefaultSimplifyCfgOptions())); // hwtHls specific
 		FPM.addPass(llvm::LoopSimplifyPass());
 	}
 

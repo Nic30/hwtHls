@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from enum import Enum, auto
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from types import MethodType
 from typing import Optional, Union, Callable, Self
 
@@ -17,6 +18,7 @@ from hwtHls.platform.platform import HlsDebugBundle, \
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtHls.ssa.translation.toLlvm import ToLlvmIrTranslator
+from hwtLib.examples.base_serialization_TC import BaseSerializationTC
 
 
 def _isOverriddenFunc(method: MethodType):
@@ -65,6 +67,8 @@ class PassTestInjector():
                       runTestAfterEachPass:bool=False,
                       runTestAfterEachIrPass:bool=False,
                       runTestAfterIrPasses:bool=True,
+                      runTestAfterIrInstrCombineChange:bool=False,
+                      runTestAfterIrCfgSimplify:bool=False,
                       runTestAfterEachMirPass:bool=False,
                       runTestAfterMirPasses:bool=True,
                       runTestAfterMirVRegIfConverterChange:bool=False,
@@ -75,6 +79,8 @@ class PassTestInjector():
         :note: This function has options for common places where tests can be executed, to run tests on
             different places you shoul override the function which constructs the pass pipeline/runs pass.
         
+        :attention: some options like runTestAfterMirGISelCombinerChange can generate milions of test executions,
+            use with care
         :attention: runTestAfterPass is a positive filter and has priority over runTestAfterEachPass etc.
             but for it to actually execute test after any pass runTestAfterEachPass or similar must be enabled first.
         :attentino: Call this after all test functions on this object are defined because this check
@@ -91,6 +97,11 @@ class PassTestInjector():
         self._runTestAfterHlsNetlistPasses = self._hasHlsNetlistTestFn and runTestAfterHlsNetlistPasses
 
         self._runTestAfterEachIrPass = runTestAfterEachIrPass or (runTestAfterEachPass and self._hasLlvmIrTestFn)
+        self._runTestAfterIrInstrCombineChange = runTestAfterIrInstrCombineChange
+        self._runTestAfterIrCfgSimplify = runTestAfterIrCfgSimplify
+        if runTestAfterIrInstrCombineChange or runTestAfterIrCfgSimplify:
+            assert self._hasLlvmIrTestFn 
+        
         self._runTestAfterEachMirPass = runTestAfterEachMirPass or (runTestAfterEachPass and self._hasLlvmMirTestFn)
         if runTestAfterMirGISelCombinerChange or runTestAfterMirVRegIfConverterChange:
             assert self._hasLlvmMirTestFn
@@ -140,6 +151,10 @@ class PassTestInjector():
         """
         pass
 
+    def _getBrokenIrOrMirErr(self, passName:StringRef, IR:Union[Function, MachineFunction]):
+        IR_str = str(IR)
+        return AssertionError(f"Broken after {passName.str():s}, lastWorking:\n{self._lastWorkingIr}\n broken:\n{IR_str:s}")
+
     def _runWithTimeLog(self, stage: TIME_LOG_STAGE, fn: Callable[[LlvmCompilationBundle, ], None], *args, **kwargs):
         if self._debugLogTime:
             time0 = datetime.now()
@@ -168,7 +183,8 @@ class PassTestInjector():
                             try:
                                 self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_MIR, self.testLlvmMir, self._platform, self._compilationBundleStack[-1])
                             except:
-                                raise AssertionError(f"Broken after {passName.str():s}, lastWorking:\n{self._lastWorkingIr}\n broken:\n{str(MF):s}")
+                                raise self._getBrokenIrOrMirErr(passName, MF)
+
                         self._lastWorkingIr = str(MF)
                         return
                     else:
@@ -188,11 +204,22 @@ class PassTestInjector():
             try:
                 self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_IR, self.testLlvmIr, self._platform, self._compilationBundleStack[-1])
             except:
-                raise AssertionError(f"Broken after {passName.str():s} lastWorking:\n{self._lastWorkingIr}\n broken:\n{str(F):s}")
+                raise self._getBrokenIrOrMirErr(passName, F)
 
         # [todo] this is very inefficient, if only some passes are selected, do this in beforePass for selected passes
         self._lastWorkingIr = str(F)
-    
+
+    def runTestAfterLlvmIrFunctionChange(self, passName: StringRef, F: Function):
+        """
+        This method is used as a after-pass callback from LLVM/C++ to executes test functions after MIR changes.
+        """
+        # print("runTestAfterLlvmIrOrMirPass", passName.str())
+        try:
+            self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_IR, self.testLlvmIr, self._platform, self._compilationBundleStack[-1])
+        except:
+            raise self._getBrokenIrOrMirErr(passName, F)
+        self._lastWorkingIr = str(F)
+
     def runTestAfterLlvmMirChange(self, passName: StringRef, MF: MachineFunction):
         """
         This method is used as a after-pass callback from LLVM/C++ to executes test functions after MIR changes.
@@ -201,7 +228,7 @@ class PassTestInjector():
         try:
             self._runWithTimeLog(self.TIME_LOG_STAGE.OPT_MIR, self.testLlvmMir, self._platform, self._compilationBundleStack[-1])
         except:
-            raise AssertionError(f"Broken after {passName.str():s}, lastWorking:\n{self._lastWorkingIr}\n broken:\n{str(MF):s}")
+            raise self._getBrokenIrOrMirErr(passName, MF)
         self._lastWorkingIr = str(MF)
 
     def runTestAfterHlsNetlistPass(self, passId, passObj: HlsNetlistPass, netlist: HlsNetlistCtx):
@@ -234,10 +261,19 @@ class PassTestInjector():
             if self._runTestAfterEachIrPass:
                 llvm.registerAfterPassCallbackForIr(self.runTestAfterLlvmIrOrMirPass)
                 llvm.registerAfterPassCallbackForMir(self.runTestAfterLlvmIrOrMirPass)  # legacy PassManager may also execute IR passes added by TargetPassConfig
-            elif self._runTestAfterEachMirPass:
+            
+            if self._runTestAfterIrInstrCombineChange:
+                llvm._dbgIrInstrCombineChangeCallbackFn = self.runTestAfterLlvmIrFunctionChange
+            
+            if self._runTestAfterIrCfgSimplify:
+                llvm._dbgIrCfgSimplifyChangeCallbackFn = self.runTestAfterLlvmIrFunctionChange
+            
+            if self._runTestAfterEachMirPass:
                 llvm.registerAfterPassCallbackForMir(self.runTestAfterLlvmIrOrMirPass)
+            
             if self._runTestAfterMirVRegIfConverterChange:
                 llvm._dbgMirVRegIfConverterChangeCallbackFn = self.runTestAfterLlvmMirChange
+            
             if self._runTestAfterMirGISelCombinerChange:
                 llvm._dbgMirGISelCombinerChangeCallbackFn = self.runTestAfterLlvmMirChange
 

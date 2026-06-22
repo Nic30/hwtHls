@@ -1,5 +1,8 @@
 #pragma once
 #include <cstddef>
+#include <string>
+#include <functional>
+#include <llvm/IR/Function.h>
 
 namespace hwtHls {
 
@@ -33,6 +36,9 @@ public:
 	// when it should.
 	size_t MaxIterations;
 
+	using IrChangeCallbackFn = std::function<void(const std::string & ruleName, const llvm::Function & F)>;
+	IrChangeCallbackFn* _dbgIrInstrCombineChangeCallbackFn = nullptr;
+	
 	HwtHlsInstCombinePassOptions(bool extractBitcounts = true,
 			size_t bitcountExtractionTreshold = 2,
 			bool mergeMergableFunctionCalls = true,
@@ -48,7 +54,7 @@ public:
 	}
 
 	HwtHlsInstCombinePassOptions& setMergeMergableFunctionCalls(
-			bool streamReadEoFThreading) {
+			bool mergeMergableFunctionCalls) {
 		this->mergeMergableFunctionCalls = mergeMergableFunctionCalls;
 		return *this;
 	}
@@ -60,6 +66,10 @@ public:
 
 	HwtHlsInstCombinePassOptions& setHwtHlsFpCombining(bool hwtHlsFpCombining) {
 		this->hwtHlsFpCombining = hwtHlsFpCombining;
+		return *this;
+	}
+	HwtHlsInstCombinePassOptions& setdbgIrInstrCombineChangeCallbackFn(IrChangeCallbackFn * fn) {
+		_dbgIrInstrCombineChangeCallbackFn = fn;
 		return *this;
 	}
 };

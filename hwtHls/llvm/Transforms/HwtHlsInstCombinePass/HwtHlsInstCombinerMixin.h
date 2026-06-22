@@ -57,6 +57,9 @@ public:
 
 	/// Edges that are known to never be taken.
 	llvm::SmallDenseSet<std::pair<llvm::BasicBlock*, llvm::BasicBlock*>, 8> DeadEdges;
+	const char * lastOptRuleName = nullptr;
+	using IrChangeCallbackFn = std::function<void(const std::string & ruleName, const llvm::Function & F)>;
+	IrChangeCallbackFn* _dbgIrInstrCombineChangeCallbackFn = nullptr;
 
 	HwtHlsInstCombinerMixin(BuilderTy &Builder, llvm::SimplifyQuery SQ,
 			llvm::InstructionWorklist &Worklist, llvm::Function &F,
@@ -65,7 +68,8 @@ public:
 			MadeIRChange(false), Worklist(Worklist), Builder(Builder), TLI(
 					*SQ.TLI), DT(*SQ.DT), DL(SQ.DL), AC(*SQ.AC), SQ(SQ), F(F), NumCombined(
 					NumCombined), NumConstProp(NumConstProp), NumDeadInst(
-					NumDeadInst), VisitCounter(VisitCounter) {
+					NumDeadInst), VisitCounter(VisitCounter), lastOptRuleName(nullptr),
+					_dbgIrInstrCombineChangeCallbackFn(nullptr) {
 		assert(SQ.DT && "DominatorTree is required for prepareWorklist() to filter out dead blocks");
 		assert(SQ.TLI && "TLI is required for checking if instruction is dead");
 	}
@@ -485,6 +489,12 @@ bool HwtHlsInstCombinerMixin<DerivedT>::run() {
 				}
 			}
 			MadeIRChange = true;
+			if (_dbgIrInstrCombineChangeCallbackFn) {
+				assert(lastOptRuleName);
+				auto _lastOptRuleName = std::string(lastOptRuleName);
+				(*_dbgIrInstrCombineChangeCallbackFn)(_lastOptRuleName, F);
+				lastOptRuleName = nullptr;
+			}
 		}
 	}
 

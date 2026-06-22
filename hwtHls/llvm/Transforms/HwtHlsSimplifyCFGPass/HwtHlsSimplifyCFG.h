@@ -37,6 +37,7 @@ class SimplifyCFGOpt2 {
 	const HwtHlsSimplifyCFGOptions &Options;
 	unsigned LlvmHoistCommonSkipLimit;
 
+	
 	bool Resimplify;
 
 	llvm::Value* isValueEqualityComparison(llvm::Instruction *TI,
@@ -50,7 +51,12 @@ class SimplifyCFGOpt2 {
 	bool simplifySwitch(llvm::SwitchInst *SI, llvm::IRBuilder<> &Builder, bool & exprChanged);
 	bool simplifyBr(llvm::BranchInst *BI, llvm::IRBuilder<> &Builder);
 
+	void onChangeCallback(const std::string & ruleName, llvm::Function & F);
+	void onChangeCallbackIC(const std::string & ruleName, llvm::Function & F);
 public:
+	using IrChangeCallbackFn = std::function<void(const std::string & ruleName, const llvm::Function & F)>;
+	IrChangeCallbackFn* _dbgIrInstrCombineChangeCallbackFn = nullptr;
+	IrChangeCallbackFn* _dbgIrCfgSimplifyChangeCallbackFn = nullptr;
 	SimplifyCFGOpt2(llvm::DomTreeUpdater *DTU, const llvm::DataLayout &DL,
 			const llvm::TargetTransformInfo &TTI, const HwtHlsSimplifyCFGOptions &Opts,
 			unsigned LlvmHoistCommonSkipLimit) :
@@ -61,6 +67,7 @@ public:
 						&& "SimplifyCFG is not yet capable of maintaining validity of a "
 								"PostDomTree, so don't ask for it.");
 	}
+	
 	bool simplifyOnce(llvm::BasicBlock *BB, bool &exprChanged);
 	// Helper to set Resimplify and return change indication.
 	bool requestResimplify() {
