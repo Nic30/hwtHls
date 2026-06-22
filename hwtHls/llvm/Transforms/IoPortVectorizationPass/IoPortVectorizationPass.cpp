@@ -179,19 +179,18 @@ void vectorizeLoopIO(Loop &L, DominatorTree &DT, const size_t segmentWidth,
 			*reinterpret_cast<SmallVector<InstructionGraph::NeverCoexecutingInstrVec> *>(
 				&LaneMapping);
 		IG.partialTopologicalSort(IoInstrAsInstrs, _LaneMapping);
-		// [fixme] doc
-		// for example sequence os stores st0, st1, st2 will map to lanes 0: [st0, st1, st2]
-		// and st0, c?st1.0: st1.1, st2 will map to lanes as 0, 1, 1, 2
-		errs() << "Lanes: \n";
-		size_t laneI = 0;
-		for (auto &nodes : LaneMapping) {
-			errs() << "   " << laneI << " [";
-			for (auto st : nodes) {
-				errs() << *st << ", ";
-			}
-			errs() << "]\n";
-			++laneI;
-		}
+		// for example sequence os stores st0, st1, st2 will map to lanes 0: [st0], 1: [st1], 2: [st2]
+		// and st0, c?st1.0: st1.1, st2 will map to lanes as 0:[st0], 1: [st1.0, st1.1], 2: [st2]
+		//errs() << "Lanes: \n";
+		//size_t laneI = 0;
+		//for (auto &nodes : LaneMapping) {
+		//	errs() << "   " << laneI << " [";
+		//	for (auto st : nodes) {
+		//		errs() << *st << ", ";
+		//	}
+		//	errs() << "]\n";
+		//	++laneI;
+		//}
 	}
 
 	//  :attention: This number means the number of lanes for stores,
