@@ -11,6 +11,7 @@ using namespace llvm;
 
 namespace hwtHls {
 
+// [todo] suspected to be broken because it ignores memory SSA (for AllocaInst)
 bool HwtHlsSimplifyCFGPass_memSinkToNewBB(llvm::DomTreeUpdater &DTU,
 										  llvm::BasicBlock &BB) {
 	if (pred_size(&BB) <= 2)
