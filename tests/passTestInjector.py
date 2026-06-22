@@ -51,6 +51,7 @@ class PassTestInjector():
     def __init__(self, topToRunTestsOn: HwModule, tc: SimTestCase):
         self._topToRunTestsOn = topToRunTestsOn
         self._debugLogTime = None
+        self.dbgOpenDiffOnIrErr = False 
         self.tc = tc
         self._logFileNameStem = "" if tc is None else Path(tc.DEFAULT_LOG_DIR, tc.getTestName())
         self._lastWorkingIr: Optional[str] = None
@@ -153,6 +154,15 @@ class PassTestInjector():
 
     def _getBrokenIrOrMirErr(self, passName:StringRef, IR:Union[Function, MachineFunction]):
         IR_str = str(IR)
+        if self.dbgOpenDiffOnIrErr:
+            with NamedTemporaryFile(suffix="_working") as workingF:
+                with NamedTemporaryFile(suffix="_broken") as brokenF:
+                    workingF.write(self._lastWorkingIr.encode("utf-8"))
+                    workingF.flush()
+                    brokenF.write(IR_str.encode("utf-8"))
+                    brokenF.flush()
+                    BaseSerializationTC._runDifftoolCommand(workingF.name, brokenF.name)
+
         return AssertionError(f"Broken after {passName.str():s}, lastWorking:\n{self._lastWorkingIr}\n broken:\n{IR_str:s}")
 
     def _runWithTimeLog(self, stage: TIME_LOG_STAGE, fn: Callable[[LlvmCompilationBundle, ], None], *args, **kwargs):
