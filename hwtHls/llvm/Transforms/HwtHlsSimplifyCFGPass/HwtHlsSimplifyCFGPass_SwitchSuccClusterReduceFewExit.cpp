@@ -299,14 +299,21 @@ bool HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit(
 		//        also block enable conditions
 		// :note: allBBsOfRegion are now topologically sorted so once we reach the
 		// 		  block we have already seen all predecessors
+		// errs() << "BB0: ";
+		// lowerPhiCtx.BB0.printAsOperand(errs());
+		// errs() << "\n";
 		for (auto *BB : lowerPhiCtx.allBBsOfRegion) {
 			if (BB == &lowerPhiCtx.BB0)
 				continue; // this may happen if BB0 is also the exit block
 			// if (lowerPhiCtx.bbsWhichMustPreservePhis.contains(BB))
 			// 	continue;
-			// errs() << "lowerPhisOfBlockInRegion: " << BB->getName() << "\n"; 
-			if (lowerPhiCtx.betweenExitBBs.contains(BB) || 
-			    (!lowerPhiCtx.betweenExitBBs.empty() && BB == lowerPhiCtx.exitBBs[1])) {
+			// errs() << "lowerPhisOfBlockInRegion: ";
+			// BB->printAsOperand(errs());
+			// errs() << "\n";
+			if (lowerPhiCtx.betweenExitBBs.contains(BB) ||
+				(!lowerPhiCtx.betweenExitBBs.empty() &&
+				 BB == lowerPhiCtx.exitBBs[1])) {
+				assert( lowerPhiCtx.exitBBs.size() == 2);
 				// insert point will have to be set to bbExit1 because
 				// some values will come from the bbExit0
 				Builder.SetInsertPoint(lowerPhiCtx.bbExit1SelectInsertPos);
