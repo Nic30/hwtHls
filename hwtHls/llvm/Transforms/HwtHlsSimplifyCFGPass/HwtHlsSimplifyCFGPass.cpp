@@ -50,7 +50,6 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFG_priv.h>
 
 // #include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
-// #include <stdexcept>
 
 using namespace llvm;
 
@@ -226,6 +225,9 @@ bool HwtHlsSimplifyCFGPass::runOpt0(Function &F, DomTreeUpdater &DTU,
 		while (BBIt != F.end() && DTU.isBBPendingDeletion(&*BBIt))
 			++BBIt;
 		assert(&BB && BB.getParent() && "Block not embedded in function!");
+		// the error will appear there only if the input was broken or some check is missing after change
+		// onChangeCallbackIC("HwtHlsSimplifyCFGPass::runOpt0 - entry", F);
+				
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 		assert(!verifyFunction(F, &errs()));
 #endif
@@ -287,6 +289,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 		DTU.flush();
 		// writeCFGToDotFile(F, "tmp/SimplifyCFG2.before.dot", AM, false, true);
 		// errs() << F << "\n";
+		// the error will appear there only if the input was broken or some check is missing after change
 		// onChangeCallbackIC("HwtHlsSimplifyCFGPass::runOpt1 - entry", F);
 		if (Options.StoreHoist && HwtHlsSimplifyCFGPass_storeHoist(*BBIt)) {
 			onChangeCallbackIC("HwtHlsSimplifyCFGPass_storeHoist", F);
