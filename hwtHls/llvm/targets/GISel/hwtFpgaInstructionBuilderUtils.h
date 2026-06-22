@@ -1,13 +1,14 @@
 #pragma once
 #include <llvm/IR/Constants.h>
-#include <list>
 #include <llvm/CodeGen/MachineInstrBuilder.h>
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
 
 namespace hwtHls {
 
 struct CImmOrRegWithNegFlag {
+	llvm::LLT Ty;
 	bool Negate;
+	//bool sext;
 	const llvm::ConstantInt *CImm;
 	llvm::Register Reg;
 };

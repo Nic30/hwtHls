@@ -1,5 +1,8 @@
+#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtilsInstrFns.h>
+#include <hwtHls/llvm/targets/Transforms/vregConditionUtils.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaCombinerHelper.h>
 
+#include <llvm/CodeGenTypes/LowLevelType.h>
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
 #include <llvm/CodeGen/GlobalISel/GISelValueTracking.h>
 #include <llvm/ADT/STLExtras.h>
@@ -398,13 +401,25 @@ bool HwtFpgaCombinerHelper::hasAll1AndAll0Values(MachineInstr &MI,
 		hwtHls::CImmOrRegWithNegFlag &matchinfo) {
 	matchinfo.CImm = nullptr;
 	matchinfo.Negate = false;
+	//matchinfo.sext = false;
+		
 
 	if (MI.getNumOperands() != 1 + 3)
 		return false;
 	auto &v0 = MI.getOperand(1);
 	auto &c0 = MI.getOperand(2);
 	auto &v1 = MI.getOperand(3);
-	LLT Ty = MRI.getType(MI.getOperand(0).getReg());
+	auto Ty = MRI.getType(MI.getOperand(0).getReg());
+	for (auto& v: {v0, v1}) {
+		if (Ty.isValid())
+			break;
+		if (v.isReg()) {
+			Ty = MRI.getType(v.getReg());
+		} else {
+			Ty = LLT::scalar(v.getCImm()->getBitWidth());
+		}
+	}
+	matchinfo.Ty = Ty;
 	bool is1b = Ty.isScalar() && Ty.getSizeInBits() == 1;
 
 	if (v0.isReg() && v1.isReg()) {
@@ -452,7 +467,8 @@ bool HwtFpgaCombinerHelper::hasAll1AndAll0Values(MachineInstr &MI,
 			matchinfo.CImm = vc0;
 			return true;
 
-		} else if (is1b) {
+		} else if (is1b) {//(Ty.isValid() && Ty.isScalar()) {
+			//matchinfo.sext = Ty.getSizeInBits() != 1;
 			if (vc0->isZero() && vc1->isAllOnesValue()) {
 				// c ? 0:1 -> ~c
 				if (c0.isReg()) {
@@ -482,9 +498,11 @@ void HwtFpgaCombinerHelper::rewriteConstValMux(MachineInstr &MI,
 		const hwtHls::CImmOrRegWithNegFlag &matchinfo) {
 	auto Dst = MI.getOperand(0).getReg();
 	if (matchinfo.CImm) {
+		// the replacement is a constant, optionally handle negation
 		if (!MRI.getType(Dst).isValid())
 			MRI.setType(Dst,
 					LLT::scalar(matchinfo.CImm->getValue().getBitWidth()));
+		//assert(!matchinfo.sext);
 		if (matchinfo.Negate) {
 			replaceInstWithConstant(MI, ~matchinfo.CImm->getValue());
 		} else {
@@ -492,33 +510,35 @@ void HwtFpgaCombinerHelper::rewriteConstValMux(MachineInstr &MI,
 		}
 		onChangeTestCallback("rewriteConstValMux - replace with CImm");
 	} else {
+		// the replacements is all ones or zero depending on condition
 		Register replacement = matchinfo.Reg;
 		if (matchinfo.Negate) {
-			if (MachineOperand *vdef = MRI.getOneDef(matchinfo.Reg)) {
-				if (vdef->getParent()->getOpcode() == HwtFpga::HWTFPGA_NOT) {
-					auto &v_n = vdef->getParent()->getOperand(1);
-					if (v_n.isReg()) {
-						replacement = v_n.getReg();
-					} else {
-						if (!MRI.getType(Dst).isValid())
-							MRI.setType(Dst,
-									LLT::scalar(
-											v_n.getCImm()->getValue().getBitWidth()));
-
-						replaceInstWithConstant(MI, v_n.getCImm()->getValue());
-						MI.eraseFromParent();
-						onChangeTestCallback("rewriteConstValMux - replaceInstWithConstant");
-						return;
-					}
-				}
+			bool wasOriginallyKill;
+			if (auto exitingNegation = hwtHls::getRegisterNegationIfExits(
+					MRI, TRI, Builder.getMBB(), Builder.getInsertPt(),
+					replacement, wasOriginallyKill)) {
+				replacement = exitingNegation->getReg();
+			} else { // if (!matchinfo.sext) {
+				Builder.buildInstr(HwtFpga::HWTFPGA_NOT, {MI.getOperand(0).getReg()}, {replacement});
+				MI.eraseFromParent();
+				onChangeTestCallback("rewriteConstValMux - replace with NOT");
+				return;
 			}
+			// else {
+			//	replacement = hwtHls::negateRegister(MRI, TRI, Builder, replacement);
+			//}
 		}
-		if (MI.getOperand(0).getReg() == replacement) {
+		auto &DstMO = MI.getOperand(0);
+		if (DstMO.getReg() == replacement) {
 			// case for %0 = HWTFPGA_MUX %0, %1, killed %0
 			MI.eraseFromParent();
 			onChangeTestCallback("rewriteConstValMux - rm self copy");
 		} else {
-			buildHwtFpgaCopy(MI.getOperand(0), MachineOperand::CreateReg(replacement, false));
+			//if (matchinfo.sext) {
+			//	Builder.buildInstr(HwtFpga::HWTFPGA_SEXT, {DstMO}, {replacement});	
+			//} else {
+				buildHwtFpgaCopy(MI.getOperand(0), MachineOperand::CreateReg(replacement, false));
+			//}
 			MI.eraseFromParent();
 			//replaceSingleDefInstWithReg(MI, replacement);
 			onChangeTestCallback("rewriteConstValMux - replace with copy");
