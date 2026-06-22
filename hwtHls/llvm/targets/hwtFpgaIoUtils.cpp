@@ -123,9 +123,10 @@ std::tuple<Type*, size_t, MachineInstr*> getLoadOrStoreElementType(
 				if (expectedResWidth.has_value())
 					assert(MO->getSizeInBits() == expectedResWidth);
 			} else {
-				if (expectedResWidth.has_value())
-							resT = IntegerType::get(F.getContext(),
-									expectedResWidth.value());
+				if (expectedResWidth.has_value()) {
+					resT = IntegerType::get(F.getContext(),
+							expectedResWidth.value());
+				}
 			}
 			MachineInstr *ioArgDefiningInstr = nullptr;
 			for (MachineInstr &FirstBBMI : *MI.getMF()->begin()) {

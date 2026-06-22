@@ -1,6 +1,5 @@
 #pragma once
 #include <llvm/IR/Constants.h>
-#include <list>
 #include <llvm/CodeGen/MachineInstrBuilder.h>
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtils.h>
