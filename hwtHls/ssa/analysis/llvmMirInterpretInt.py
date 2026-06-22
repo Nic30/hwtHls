@@ -114,6 +114,12 @@ def _decodeOpcode_HWTFPGA_MUX(interpret: "LlvmMirInterpret", MRI: MachineRegiste
     def _opcode_HWTFPGA_MUX(nowTime: int, regs: list[HConst]):
         res = NOT_SPECIFIED
         for v, c in condValPairs:
+            if c is None and isinstance(c, int):
+                assert regs[c] is not None, ("register operand was not previously defined", c, instr)
+            if isinstance(v, int):
+                assert regs[v] is not None, ("register operand was not previously defined", c, instr)
+
+        for v, c in condValPairs:
             if c is None:
                 if isinstance(v, int):
                     v = regs[v]
