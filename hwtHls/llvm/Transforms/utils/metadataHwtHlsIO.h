@@ -1,9 +1,6 @@
 #pragma once
 
 #include <llvm/IR/Metadata.h>
-#include <map>
-#include <set>
-
 #include <llvm/IR/IRBuilder.h>
 
 namespace hwtHls {
