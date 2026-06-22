@@ -123,9 +123,11 @@ InstructionGraph InstructionGraph::buildFromInstuctionsInLoopBodyOnly(
 	return self;
 }
 
+// :param: output vector of vectors of instructions which may never coexecue on any path.
+//         the size of outer vector represents
 void InstructionGraph::partialTopologicalSort(
 	llvm::ArrayRef<Instruction *> &instructions,
-	SmallVector<SmallVector<llvm::Instruction *, 8>> &order) {
+	SmallVector<NeverCoexecutingInstrVec> &order) {
 
 	// Pre-compute in-degrees to avoid seen predecessor set checks
 	// Initialize queue with 0 in-degree blocks (EntryBB first)
@@ -154,7 +156,7 @@ void InstructionGraph::partialTopologicalSort(
 			// contains more than 1 instruction from this set, so they may be
 			// mapped to same lane as they never co-execute.
 			order.push_back(
-				SmallVector<Instruction *, 8>(Queue->begin(), Queue->end()));
+				NeverCoexecutingInstrVec(Queue->begin(), Queue->end()));
 		} else {
 			break;
 		}

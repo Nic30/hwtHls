@@ -17,8 +17,8 @@ public:
 	using AdjacentMap =
 		std::unordered_map<llvm::Instruction *,
 						   llvm::SetVector<llvm::Instruction *>>;
-	// :note: predecessors/successors have always recode for every node so we do
-	// not have 		update extra list on every node add/remove
+	// :note: predecessors/successors have always record for every node so we do
+	// not have update extra list on every node add/remove
 	AdjacentMap predecessors;
 	AdjacentMap successors;
 	
@@ -34,9 +34,11 @@ public:
 	// Kahn's algorithm for topological order (DAG partial order)
 	// :note: instructions are as parameter because predecessors/successors do
 	// not preserver order of the nodes for determinism
+	using NeverCoexecutingInstrVec = SmallVector<llvm::Instruction *, 8>;
+	using NeverCoexecutingStoreInstrVec = SmallVector<llvm::StoreInst *, 8>;
 	void partialTopologicalSort(
 		llvm::ArrayRef<Instruction *> &instructions,
-		SmallVector<SmallVector<llvm::Instruction *, 8>> &order);
+		SmallVector<NeverCoexecutingInstrVec> &order);
 	void print(llvm::raw_ostream &OS) const;
 };
 
