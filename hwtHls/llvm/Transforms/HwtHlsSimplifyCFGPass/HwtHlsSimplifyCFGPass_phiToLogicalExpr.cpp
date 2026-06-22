@@ -507,7 +507,7 @@ llvm::Value* HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 			if (match) {
 				// [5] matched
 				auto fshlShOp = getShiftOperand(true);
-				return Builder.CreateIntrinsic(Intrinsic::fshl, { Ty, Ty, Ty },
+				return Builder.CreateIntrinsic(Ty, Intrinsic::fshl,
 						{ v0, vLast, fshlShOp });
 			}
 			// search for [6]
@@ -520,7 +520,7 @@ llvm::Value* HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 			if (match) {
 				// [6] matched
 				auto fshlShOp = getShiftOperand(true);
-				return Builder.CreateIntrinsic(Intrinsic::fshl, { Ty, Ty, Ty },
+				return Builder.CreateIntrinsic(Ty, Intrinsic::fshl,
 						{ vLast, v0, fshlShOp });
 			}
 		}
