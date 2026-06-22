@@ -657,7 +657,7 @@ static void hoistAllUnrelatedInstrucitionsInWriteUntilEoFPattern(
 }
 
 static bool HwtHlsSimplifyCFGPass_streamWriteMerge_variableLenWrite(
-		IRBuilderBase &Builder, llvm::DomTreeUpdater &DTU,
+		IRBuilderBase &Builder, 
 		llvm::SimplifyQuery &SQ, llvm::CallInst *wr0) {
 
 	llvm::SmallVector<llvm::AllocaInst*> GeneratedAllocas;
@@ -764,7 +764,7 @@ bool HwtHlsSimplifyCFGPass_streamWriteMerge(IRBuilderBase &Builder,
 				streamProps, writeSeqenceDown);
 
 	} else if (HwtHlsSimplifyCFGPass_streamWriteMerge_variableLenWrite(Builder,
-			DTU, SQ, wr0)) {
+			SQ, wr0)) {
 		return true;
 	}
 	return false;
