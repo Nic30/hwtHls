@@ -5,15 +5,15 @@
 #include <cassert>
 #include <optional>
 
-#include <llvm/IR/Instruction.h>
-#include <llvm/IR/Dominators.h>
-#include <llvm/IR/CFG.h>
-#include <llvm/IR/Constants.h>
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/SmallPtrSet.h>
 #include <llvm/Analysis/CFG.h>
 #include <llvm/Analysis/DomTreeUpdater.h>
 #include <llvm/Analysis/InstructionSimplify.h>
+#include <llvm/IR/Instruction.h>
+#include <llvm/IR/Dominators.h>
+#include <llvm/IR/CFG.h>
+#include <llvm/IR/Constants.h>
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
