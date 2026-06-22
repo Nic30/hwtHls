@@ -172,7 +172,6 @@ bool SlicesMergeCombiner::phiShiftPatternRewrite(BasicBlock &BB) {
 	for (auto phi: toRm) {
 		Worklist.push(phi);
 	}
-
 	return toRm.size() != 0;
 }
 
