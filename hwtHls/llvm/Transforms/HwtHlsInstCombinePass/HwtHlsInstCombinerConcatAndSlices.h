@@ -2,6 +2,7 @@
 
 #include <hwtHls/llvm/targets/intrinsic/concatMemberVector.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <llvm/IR/Constants.h>
 #include <llvm/IR/PatternMatch.h>
 // :note: combiner functions are defined as templates so they can be used with any combiner class without using virtual methods
 
@@ -138,7 +139,7 @@ llvm::Instruction* tryReduceBitRangeGetOnBitRangeGet(InstructionCombinerT& IC, l
 
 template<typename InstructionCombinerT>
 llvm::Instruction* tryReduceConcatToZExt(InstructionCombinerT& IC, llvm::CallInst &CI) {
-	if (CI.arg_size() == 2) {
+	if (CI.arg_size() == 2 && !isa<llvm::UndefValue>(CI.getArgOperand(0))) {
 		if (auto rhs = llvm::dyn_cast<llvm::ConstantInt>(CI.getArgOperand(1))) {
 			if (rhs->isZero()) {
 				IC.Builder.SetInsertPoint(&CI);

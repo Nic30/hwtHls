@@ -1,4 +1,5 @@
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+#include <llvm-21/llvm/IR/Constants.h>
 #include <llvm/ADT/StringExtras.h>
 #include <llvm/IR/PatternMatch.h>
 #include <llvm/IR/Module.h>
@@ -362,88 +363,110 @@ llvm::BasicBlock::iterator GetAfterSlicesInsertPoint(llvm::Instruction &I) {
 
 const std::string BitConcatName = "hwtHls.bitConcat";
 
-llvm::Value* CreateBitConcat(llvm::IRBuilderBase *Builder,
-		llvm::ArrayRef<llvm::Value*> _OpsLowFirst, const llvm::Twine &Name) {
+llvm::Value *CreateBitConcat(llvm::IRBuilderBase *Builder,
+							 llvm::ArrayRef<llvm::Value *> _OpsLowFirst,
+							 const llvm::Twine &Name) {
 	if (_OpsLowFirst.size() == 1) {
 		return _OpsLowFirst[0];
 	} else {
 		assert(_OpsLowFirst.size() > 0);
 	}
 	size_t bitWidth = 0;
-	std::vector<Type*> ArgTys;
+	std::vector<Type *> ArgTys;
 	ArgTys.reserve(_OpsLowFirst.size());
-	std::vector<Value*> OpsLowFirst;
-	bool lastWasConst = false;
+	std::vector<Value *> OpsLowFirst;
+	// :note: UndefValue is a subclass of ConstantData
+	// :note; PoisonValue is a subclass of UndefValue
+	bool lastWasConstInt = false;
 	bool lastWasUndef = false;
+	bool lastWasPoison = false;
 	for (auto *o : _OpsLowFirst) {
 		assert(o);
+#ifndef NDEBUG
+		if (auto OAsI = dyn_cast<Instruction>(o)) {
+			assert(OAsI->getParent() && "Check that the value is not erased");
+			assert(OAsI->getParent()->getParent() &&
+				   "Check that the value is not erased");
+		}
+#endif
 		if (auto t = dyn_cast<IntegerType>(o->getType())) {
 			auto w = t->getBitWidth();
 			assert(w > 0 && "Can concatenate only int bit vectors");
 			bitWidth += w;
 		} else {
 			throw std::runtime_error(
-					"CreateBitConcat called with non-integer type");
+				"CreateBitConcat called with non-integer type");
 		}
-		assert(
-				(!lastWasConst || !lastWasUndef)
-						&& "Only one of flags may be set at once");
+		size_t prevWidth;
+		if (ArgTys.empty()) {
+			prevWidth = 0;
+		} else {
+			prevWidth = ArgTys.back()->getIntegerBitWidth();
+		}
+		assert((!lastWasConstInt || !lastWasUndef || !lastWasPoison) &&
+			   "Only one of flags may be set at once");
 		if (auto *C = dyn_cast<ConstantInt>(o)) {
-			if (lastWasConst) {
+			if (lastWasConstInt) {
 				// merge constants in operand vector
 				auto prev =
-						dyn_cast<ConstantInt>(OpsLowFirst.back())->getValue();
+					dyn_cast<ConstantInt>(OpsLowFirst.back())->getValue();
 				auto cur = C->getValue();
-				auto w = prev.getBitWidth() + cur.getBitWidth();
+				auto w = prevWidth + cur.getBitWidth();
 				auto v = cur.zext(w);
-				v <<= prev.getBitWidth();
+				v <<= prevWidth;
 				v |= prev.zext(w);
 				OpsLowFirst.pop_back();
 				ArgTys.pop_back();
-				auto *Ty = IntegerType::get(Builder->getContext(),
-						v.getBitWidth());
+				auto *Ty =
+					IntegerType::get(Builder->getContext(), v.getBitWidth());
 				OpsLowFirst.push_back(ConstantInt::get(Ty, v));
 				ArgTys.push_back(Ty);
 				continue;
 			}
-			lastWasConst = true;
+			lastWasConstInt = true;
 			lastWasUndef = false;
-		} else {
-			lastWasConst = false;
-			if (auto *U = dyn_cast<UndefValue>(o)) {
-				if (lastWasUndef) {
-					// merge undefs in operand vector
-					auto prev = dyn_cast<UndefValue>(OpsLowFirst.back());
-					OpsLowFirst.pop_back();
-					ArgTys.pop_back();
-					auto *Ty = IntegerType::get(Builder->getContext(),
-							prev->getType()->getIntegerBitWidth()
-									+ U->getType()->getIntegerBitWidth());
-					OpsLowFirst.push_back(UndefValue::get(Ty));
-					ArgTys.push_back(Ty);
-					continue;
-				}
-#ifndef NDEBUG
-				else if (auto OAsI = dyn_cast<Instruction>(o)) {
-					assert(
-							OAsI->getParent()
-									&& "Check that the value is not erased");
-					assert(
-							OAsI->getParent()->getParent()
-									&& "Check that the value is not erased");
-				}
-#endif
-				lastWasUndef = true;
-			} else {
-				lastWasUndef = false;
+			lastWasPoison = false;
+		} else if (auto *U = dyn_cast<PoisonValue>(o)) {
+			lastWasConstInt = false;
+			lastWasUndef = false;
+			if (lastWasPoison) {
+				// merge PoisonValue in operand vector
+				OpsLowFirst.pop_back();
+				ArgTys.pop_back();
+				auto *Ty = IntegerType::get(
+					Builder->getContext(),
+					prevWidth + U->getType()->getIntegerBitWidth());
+				OpsLowFirst.push_back(PoisonValue::get(Ty));
+				ArgTys.push_back(Ty);
+				continue;
 			}
+			lastWasPoison = true;
+		} else if (auto *U = dyn_cast<UndefValue>(o)) {
+			lastWasConstInt = false;
+			lastWasPoison = false;
+			if (lastWasUndef) {
+				// merge undefs in operand vector
+				OpsLowFirst.pop_back();
+				ArgTys.pop_back();
+				auto *Ty = IntegerType::get(
+					Builder->getContext(),
+					prevWidth + U->getType()->getIntegerBitWidth());
+				OpsLowFirst.push_back(UndefValue::get(Ty));
+				ArgTys.push_back(Ty);
+				continue;
+			}
+			lastWasUndef = true;
+		} else {
+			lastWasConstInt = false;
+			lastWasUndef = false;
+			lastWasPoison = false;
 		}
 		OpsLowFirst.push_back(o);
 		ArgTys.push_back(o->getType());
 	}
 	if (OpsLowFirst.size() == 1) {
 		return OpsLowFirst[0];
-	} else if (OpsLowFirst.size() == 2) {
+	} else if (OpsLowFirst.size() == 2 &&  !isa<UndefValue>(OpsLowFirst[0])) {
 		if (auto *o1asC = dyn_cast<ConstantInt>(OpsLowFirst[1])) {
 			if (o1asC->isZero()) {
 				Type *RetTy = Builder->getIntNTy(bitWidth);
@@ -455,11 +478,11 @@ llvm::Value* CreateBitConcat(llvm::IRBuilderBase *Builder,
 	Type *RetTy = Builder->getIntNTy(bitWidth);
 	if (OpsLowFirst.size() > 1) {
 		bool isSExt = true;
-		Value* base = OpsLowFirst.front();
+		Value *base = OpsLowFirst.front();
 		bool baseIs1b = base->getType()->getIntegerBitWidth() == 1;
 		for (auto member = OpsLowFirst.begin() + 1; member != OpsLowFirst.end();
-				++member) {
-			Value* memberV = *member;
+			 ++member) {
+			Value *memberV = *member;
 			auto v = OffsetWidthValue::fromValue(memberV);
 			if (v.isMsbOf(base))
 				continue;
@@ -476,8 +499,9 @@ llvm::Value* CreateBitConcat(llvm::IRBuilderBase *Builder,
 	Module *M = Builder->GetInsertBlock()->getParent()->getParent();
 
 	Function *TheFn = cast<Function>(
-			M->getOrInsertFunction(Intrinsic_getName(BitConcatName, ArgTys),
-					FunctionType::get(RetTy, ArgTys, false)).getCallee());
+		M->getOrInsertFunction(Intrinsic_getName(BitConcatName, ArgTys),
+							   FunctionType::get(RetTy, ArgTys, false))
+			.getCallee());
 	AddDefaultFunctionAttributes(*TheFn);
 	TheFn->addFnAttr(Attribute::Speculatable);
 
