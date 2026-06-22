@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function, verifyFunction
+from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function, verifyFunction, StringRef
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
 
 
@@ -9,6 +9,14 @@ class HwtHlsSimplifyCFGPass_TC(BaseLlvmIrTC):
     __FILE__ = __file__
 
     def _runTestOpt(self, llvm:LlvmCompilationBundle, *args, **kwargs) -> Function:
+        # def printOnChange(ruleName: StringRef, F: Function):
+        #     print("after ", ruleName.str())
+        #     print(F)
+        # 
+        # llvm._dbgIrInstrCombineChangeCallbackFn = printOnChange
+        # llvm._dbgIrCfgSimplifyChangeCallbackFn = printOnChange
+        
+        
         F = llvm._testHwtHlsSimplifyCFGPass(*args, **kwargs)
         assert not verifyFunction(F)
         return F

@@ -190,7 +190,7 @@ if __name__ == "__main__":
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = testLoader.loadTestsFromTestCase(HwtHlsSimplifyCFGPass_phiToLogicalExp_TC)
-    suite = unittest.TestSuite([HwtHlsSimplifyCFGPass_phiToLogicalExp_TC('test_phiToLogicalExp_just2UniqueValues')])
+    suite = testLoader.loadTestsFromTestCase(HwtHlsSimplifyCFGPass_phiToLogicalExp_TC)
+    # suite = unittest.TestSuite([HwtHlsSimplifyCFGPass_phiToLogicalExp_TC('test_phiToLogicalExp_just2UniqueValues')])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
