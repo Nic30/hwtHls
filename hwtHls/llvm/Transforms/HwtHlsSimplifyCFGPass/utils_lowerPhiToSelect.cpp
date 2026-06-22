@@ -41,16 +41,27 @@ bool LowerPhisToSelectInRegionContext::analyze() {
 	bbsWhichMustPreservePhis.insert(exitBBs.begin(), exitBBs.end());
 	bbsWhichMustPreservePhis.insert(&BB0);
 	topologicalSortForBlocks(allBBsOfRegion, &BB0);
-
+	// errs() << "allBBsOfRegion\n";
+	// for (auto *BB: allBBsOfRegion) {
+	// 	errs() << "     ";
+	// 	BB->printAsOperand(errs());
+	// 	errs() << "\n";
+	// }
 	if (exitBBs.size() > 1) {
 		assert(exitBBs.size() == 2);
 		assert(!exitBBs.contains(&BB0) && "This is required because IP for select/phis would not be clearly defined");
 		// assert that the exitBB0 is topologically before exitBB1
-		if (hasSuccessorFromRegion(exitBBs[1])) {
+		if (hasSuccessorFromRegionExceptForUnreachable(exitBBs[1])) {
 			// swap items in exitBBs
 			auto e1 = exitBBs.pop_back_val();
 			auto e0 = exitBBs.pop_back_val();
-			assert((e1 == &BB0 || !hasSuccessorFromRegion(e0)) &&
+			// errs() << "LowerPhisToSelectInRegionContext::analyze\n";
+			// e0->printAsOperand(errs());
+			// errs() << "    " << hasSuccessorFromRegionExceptForUnreachable(e0) << "\n";
+			// e1->printAsOperand(errs());
+			// errs() << "    " << hasSuccessorFromRegionExceptForUnreachable(e1) << "\n";
+
+			assert((e1 == &BB0 || !hasSuccessorFromRegionExceptForUnreachable(e0)) &&
 				   "There should not be any loop between the exit blocks");
 			exitBBs.insert(e1);
 			exitBBs.insert(e0);
@@ -264,6 +275,7 @@ static void lowerPhisOfBlockInRegion_construct_enFromPred(LowerPhisToSelectInReg
 		SmallVector<Value *> &enFromPredecessor,
 		SmallVector<bool> &shouldUpdateValueForPred, // false for predecessors outside of region
 		bool &canCompletlyRemovePhi) {
+	assert(!isa<UnreachableInst>(BB.getTerminator()));
 	auto &Builder = ctx.Builder;
 	auto &BB0 = ctx.BB0;
 	//	ctx.betweenExitBBs.contains(pred) || // because previous phi was not yet lowered which means that it will have to stay and this path merges bb0 and bb.exit0 paths
@@ -482,7 +494,8 @@ static void lowerPhisOfBlockInRegion_handePhiUpdate(
 				size_t phiIndex = 0;
 				// construct select for selection between exit0-exit1 paths
 				auto _exit0en = ctx.bbEnableCache.find(ctx.exitBBs[0]);
-				assert(_exit0en != ctx.bbEnableCache.end());
+				assert(_exit0en != ctx.bbEnableCache.end() && "We were walking topologically sorted blocks and "
+					"now we are at ctx.exitBBs[1] we had to see ctx.exitBBs[0] already");
 				for (auto *phi : bbPhis) {
 					auto replacement = phiReplacements[phiIndex];
 					auto finalReplacement = Builder.CreateSelect(_exit0en->second, phi, replacement);	
@@ -609,6 +622,10 @@ Value *lowerPhisOfBlockInRegion(LowerPhisToSelectInRegionContext &ctx,
 	//	if (!is_contained(predecessors(&exitBB), &BBWithSwitch))
 	//		useValFromPhi->addIncoming(Builder.getInt1(1), &BBWithSwitch);
 	// }
+	if (isa<UnreachableInst>(BB.getTerminator())) {
+		assert(BB.phis().empty());
+		return nullptr;
+	}
 	auto &Builder = ctx.Builder;
 	auto &BB0 = ctx.BB0;
 	{

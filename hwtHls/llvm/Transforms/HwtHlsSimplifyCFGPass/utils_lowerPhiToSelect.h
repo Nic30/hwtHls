@@ -1,5 +1,6 @@
 #pragma once
 
+#include <llvm/IR/Instructions.h>
 #include <unordered_set>
 
 #include <llvm/ADT/SetVector.h>
@@ -65,10 +66,10 @@ public:
 			return allBBsOfRegion.contains(BB);
 		});
 	};
-	bool hasSuccessorFromRegion(llvm::BasicBlock *BB) {
+	bool hasSuccessorFromRegionExceptForUnreachable(llvm::BasicBlock *BB) {
 		return any_of(successors(BB), [this, BB](llvm::BasicBlock *sBB) {
 			// :note: BB0 is excluded because if there is such a edge, the edge is not part of the region itself
-			return sBB != &BB0 && sBB != BB && allBBsOfRegion.contains(sBB);
+			return sBB != &BB0 && sBB != BB && allBBsOfRegion.contains(sBB) && !isa<llvm::UnreachableInst>(sBB->getTerminator());
 		});
 	};
 	bool isInExit0Section(llvm::BasicBlock &BB) {
