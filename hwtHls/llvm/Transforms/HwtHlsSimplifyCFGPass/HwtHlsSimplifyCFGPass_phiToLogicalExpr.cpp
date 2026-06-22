@@ -134,7 +134,7 @@ bool HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 			}
 		}
 	}
-	// apply this only as a last step after there nothing inside of blocks
+	// apply this only as a last step after there is nothing inside of blocks
 	for (auto &BBItem : predecChain.blocks) {
 		if (BBItem.BB == predecChain.blocks.front().BB)
 			continue; // allow some instructions in top most block
@@ -394,7 +394,9 @@ llvm::Value* HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 
 	auto &blocks = predecChain.blocks;
 	SmallVector<Value*> conditions;
-	if (commonPrefixLen + commonSuffixLen == values.size()) {
+	if (commonPrefixLen == 1 && commonSuffixLen == 1 && values.size() == 2) {
+		// avoid too simple case
+	} else if (commonPrefixLen + commonSuffixLen == values.size()) {
 		auto prefixBBs = make_range(blocks.begin(),
 				blocks.begin() + commonPrefixLen);
 		auto suffixBBs = make_range(blocks.begin() + commonPrefixLen,
@@ -405,6 +407,8 @@ llvm::Value* HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 			// [0] [false{n}, x{m}] // value conditionally set from some point
 			//                        ->    And(!bb.c for bb in n, x)
 			getConditions(Builder, prefixBBs, /*negate*/true, conditions);
+			// [todo] more tests that negation of conditions works as expected
+			
 			if (valWidth == 1) {
 				conditions.push_back(values.back());
 				pruneImpliedConditionsAndLastLikelyMostSpecific(conditions,
