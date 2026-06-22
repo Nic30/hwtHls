@@ -1,3 +1,4 @@
+#include <pybind11/detail/common.h>
 #include <hwtHls/llvm/llvmIrAny.h>
 
 #include <llvm/ADT/Any.h>
@@ -22,9 +23,9 @@ T* anyCaster(llvm::Any &V) {
 void register_llvmAny(pybind11::module_ &m) {
 	py::class_<llvm::Any, std::unique_ptr<llvm::Any, py::nodelete>> Any(m,
 			"Any");
-	m.def("AnyToFunction", &anyCaster<const llvm::Function>);
-	m.def("AnyToModule", &anyCaster<const llvm::Module>);
-	m.def("AnyToLoop", &anyCaster<const llvm::Loop>);
-	m.def("AnyToMachineFunction", &anyCaster<const llvm::MachineFunction>);
+	m.def("AnyToFunction", &anyCaster<const llvm::Function>, py::return_value_policy::reference_internal);
+	m.def("AnyToModule", &anyCaster<const llvm::Module>, py::return_value_policy::reference_internal);
+	m.def("AnyToLoop", &anyCaster<const llvm::Loop>, py::return_value_policy::reference_internal);
+	m.def("AnyToMachineFunction", &anyCaster<const llvm::MachineFunction>, py::return_value_policy::reference_internal);
 }
 }
