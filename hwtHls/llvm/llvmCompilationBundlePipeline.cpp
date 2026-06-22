@@ -546,23 +546,22 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 	//	true, false, "tmp/HwtHlsSimplifyCFGPass.begin.dot"));
 		
 	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(SimplifyCfgOptsMin));
-	//FPM.addPass(hwtHls::DumpAndExitPass(
-	//	true, false, "tmp/HwtHlsSimplifyCFGPass.end.dot"));
+	// FPM.addPass(hwtHls::DumpAndExitPass(
+	// 	false, false, "tmp/HwtHlsSimplifyCFGPass.end.dot"));
 	FPM.addPass(llvm::LoopSimplifyPass());
-	//FPM.addPass(hwtHls::DumpAndExitPass(
-	//	true, false, "tmp/LoopToIoFsmPass.begin.dot"));
+	// FPM.addPass(hwtHls::DumpAndExitPass(
+	// 	false, false, "tmp/LoopToIoFsmPass.begin.dot"));
 	FPM.addPass(hwtHls::LoopToIoFsmPass());
 	FPM.addPass(hwtHls::OptionallyOverwriteBlockNamesPass());
 	//FPM.addPass(hwtHls::DumpAndExitPass(
-	//	true, false, "tmp/LoopToIoFsmPass.after0.dot"));
+	//	false, false, "tmp/LoopToIoFsmPass.after0.dot"));
 	FPM.addPass(hwtHls::IoPortVectorizationPass());
 	//FPM.addPass(hwtHls::DumpAndExitPass(
-	//	true, false, "tmp/LoopToIoFsmPass.IoPortVectorizationPass.after1.dot"));
+	//	false, false, "tmp/LoopToIoFsmPass.IoPortVectorizationPass.after1.dot"));
 	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(SimplifyCfgOptsMin));
 	//FPM.addPass(hwtHls::DumpAndExitPass(
-	//	true, false, "tmp/LoopToIoFsmPass.HwtHlsSimplifyCFGPass.after2.dot"));
-	// :note: llvm-22 can not use
-	// FixIrreduciblePass because it
+	//	false, false, "tmp/LoopToIoFsmPass.HwtHlsSimplifyCFGPass.after2.dot"));
+	// :note: llvm-22 can not use FixIrreduciblePass because it
 	// does not support SwitchInst
 	FPM.addPass(
 		hwtHls::StreamSegmentLoopUnrollPass());
