@@ -3,6 +3,7 @@
 #include <hwtHls/llvm/Transforms/utils/metadataHwtHlsIO.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 
+#include <llvm/IR/IRBuilder.h>
 #include <llvm/Support/ErrorHandling.h>
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/SetVector.h>
@@ -25,76 +26,21 @@ struct PackedIoValVldPair {
 	AllocaInst *val;
 	AllocaInst *vld;
 };
-
-/// Vectorize IO operations in loop, assuming DAG partial order.
-/// :param AllIOStores: Pre-collected StoreInsts in loop body (partial order
-/// preserved)
-/// :attention: AllIOStoresSorted must be in topological order (use
-/// topologicalSortInstructions)
-void vectorizeLoopIO(Loop &L, DominatorTree &DT, size_t segmentWidth,
-					 ArrayRef<StoreInst *> AllIOInstr,
-					 std::optional<unsigned> &laneCnt) {
-	assert(!AllIOInstr.empty());
-	BasicBlock *Header = L.getHeader();
-	// errs() << "AllIOInstr: \n";
-	// for (auto * st: AllIOInstr) {
-	// 	errs() << "   " << *st << "\n";
-	// }
-
-	// Pack complementary IO ops into minimal lanes (cliques)
-	auto &IoInstrAsInstrs =
-		*reinterpret_cast<ArrayRef<llvm::Instruction *> *>(&AllIOInstr);
-	auto IG = InstructionGraph::buildFromInstuctionsInLoopBodyOnly(
-		L, IoInstrAsInstrs);
-	SmallVector<SmallVector<StoreInst *, 8>> LaneMapping;
-	auto &_LaneMapping =
-		*reinterpret_cast<SmallVector<SmallVector<Instruction *, 8>> *>(
-			&LaneMapping);
-	IG.partialTopologicalSort(IoInstrAsInstrs, _LaneMapping);
-	// for example sequence os stores st0, st1, st2 will
-
-	// errs() << "Lanes: \n";
-	// for (auto &nodes : LaneMapping) {
-	// 	errs() << "   [";
-	// 	for (auto st : nodes) {
-	// 		errs() << *st << ", ";
-	// 	}
-	// 	errs() << "]\n";
-	// }
-	//  :attention: This number means the number of lanes for stores,
-	//    store itself can contain multiple lanes, so stored value has
-	//    NumLanes*lanesPerStore segments
-	unsigned NumLanes = LaneMapping.size();
-	if (NumLanes == 0 )
-	assert(NumLanes >= 1);
-	if (laneCnt.has_value()) {
-		if (NumLanes < laneCnt.value()) {
-			llvm_unreachable("[todo] construct multiple stores instead of just one");
-		}
-		laneCnt = std::max(laneCnt.value(), NumLanes);
-	} else {
-		//if (NumLanes == 1) {
-		//	// this is just a sequence of 
-		//	assert(AllIOInstr.size() > 1 && "Otherwise this function should not been called");
-		//	auto instrs = _LaneMapping[0];
-		//	_LaneMapping.clear();
-		//	for (auto I: isntrs) {
-		//		
-		//	}
-		//}
-		laneCnt = NumLanes;
-	}
-
-	// Create per-lane storage: {valid_flag, value}
-	auto &Ctx = Header->getContext();
-	IRBuilder<> Builder(Header, Header->getFirstInsertionPt());
+void _vectorizeLoopIO(IRBuilderBase &Builder, Loop &L, const unsigned NumLanes,
+					  const size_t segmentWidth,
+					  SmallVector<AllocaInst *> & laneAllocaFlat,
+					  ArrayRef<StoreInst *> AllIOInstr,
+					  ArrayRef<InstructionGraph::NeverCoexecutingStoreInstrVec> LaneMapping) {
+	// the NumLanes may be <= the actual number of segments in out IO
 	SmallVector<PackedIoValVldPair> laneData;
-	SmallVector<AllocaInst *> laneAllocaFlat;
+	// :note: all store datatype should be nearly same, 1b MSB optional
+	// representing enable of the segment
 	Type *StoreDataT = AllIOInstr[0]->getAccessType();
 	size_t lanesPerStore = 1;
 	if (StoreDataT->getIntegerBitWidth() != segmentWidth) {
 		lanesPerStore = StoreDataT->getIntegerBitWidth() / (segmentWidth + 1);
-		assert(lanesPerStore * (segmentWidth + 1) == StoreDataT->getIntegerBitWidth());
+		assert(lanesPerStore * (segmentWidth + 1) ==
+			   StoreDataT->getIntegerBitWidth());
 		StoreDataT = Builder.getIntNTy(lanesPerStore * segmentWidth);
 	}
 	auto laneEnTy = Builder.getIntNTy(lanesPerStore);
@@ -124,7 +70,7 @@ void vectorizeLoopIO(Loop &L, DominatorTree &DT, size_t segmentWidth,
 			auto w = Val->getType()->getIntegerBitWidth();
 			if (w == segmentWidth) {
 				AtSI.CreateStore(Val, lane.val);
-				AtSI.CreateStore(ConstantInt::getTrue(Ctx), lane.vld);
+				AtSI.CreateStore(Builder.getTrue(), lane.vld);
 			} else {
 				// :note: already vectorized with the LANE_CNT=1
 				assert(w == lanesPerStore * (segmentWidth + 1));
@@ -167,33 +113,109 @@ void vectorizeLoopIO(Loop &L, DominatorTree &DT, size_t segmentWidth,
 		Value *WideStream = CreateBitConcat(&AtLatch, ConcatBits);
 		AtLatch.CreateStore(WideStream, StreamAddr, true);
 	};
+	// construct aggregated stores at the end of latch or or before exit from
+	// the loop
 	SmallPtrSet<BasicBlock *, 32> seenBBs;
-	SmallVector<BasicBlock *> LatchBBs;
-	L.getLoopLatches(LatchBBs);
-	for (auto BB : LatchBBs) {
-		if (seenBBs.count(BB))
-			continue;
-		seenBBs.insert(BB);
-		assert(!isa<UnreachableInst>(BB->getTerminator()));
-		construtMergedStore(BB, true);
-	}
-	SmallVector<BasicBlock *> ExitBBs;
-	L.getExitBlocks(ExitBBs);
-	for (auto *BB : ExitBBs) {
-		if (seenBBs.count(BB))
-			continue;
-		if (succ_size(BB) != 1) {
-			for (auto pred : predecessors(BB)) {
-				assert(L.contains(pred) &&
-					   "This should be always satisfied as the loop should be "
-					   "in loop simplify normal form");
-			}
+	{
+		SmallVector<BasicBlock *> LatchBBs;
+		L.getLoopLatches(LatchBBs);
+		for (auto BB : LatchBBs) {
+			if (seenBBs.count(BB))
+				continue;
+			seenBBs.insert(BB);
+			assert(!isa<UnreachableInst>(BB->getTerminator()));
+			construtMergedStore(BB, true);
 		}
-		seenBBs.insert(BB);
-		if (isa<UnreachableInst>(BB->getTerminator()))
-			continue;
-		construtMergedStore(BB, false);
 	}
+	{
+		SmallVector<BasicBlock *> ExitBBs;
+		L.getExitBlocks(ExitBBs);
+		for (auto *BB : ExitBBs) {
+			if (seenBBs.count(BB))
+				continue;
+			if (succ_size(BB) != 1) {
+				for (auto pred : predecessors(BB)) {
+					assert(
+						L.contains(pred) &&
+						"This should be always satisfied as the loop should be "
+						"in loop simplify normal form");
+				}
+			}
+			seenBBs.insert(BB);
+			if (isa<UnreachableInst>(BB->getTerminator()))
+				continue;
+			construtMergedStore(BB, false);
+		}
+	}
+}
+/*
+ *  Vectorize IO operations in loop, assuming DAG partial order.
+ *  Replaces individual Stores with a concatenation of parts
+ *  (representing segments) and store of segmented data at exit/latches
+ *  of the loop.
+ * 
+ *  :param AllIOStores: Pre-collected StoreInsts in loop body
+ *     (must be in topological order (use topologicalSortInstructions)
+ *  :param laneCnt: number of lanes in output interface. Limits
+ *     the max number of segments which can be send in one store. 
+ */
+void vectorizeLoopIO(Loop &L, DominatorTree &DT, const size_t segmentWidth,
+					 ArrayRef<StoreInst *> AllIOInstr,
+					 std::optional<unsigned> &laneCnt) {
+	assert(!AllIOInstr.empty());
+	// errs() << "AllIOInstr: \n";
+	// for (auto * st: AllIOInstr) {
+	// 	errs() << "   " << *st << "\n";
+	// }
+
+	// Pack complementary IO ops into minimal lanes (cliques)
+	SmallVector< InstructionGraph::NeverCoexecutingStoreInstrVec> LaneMapping;
+	{
+		auto &IoInstrAsInstrs =
+			*reinterpret_cast<ArrayRef<llvm::Instruction *> *>(&AllIOInstr);
+		auto IG = InstructionGraph::buildFromInstuctionsInLoopBodyOnly(
+			L, IoInstrAsInstrs);
+		auto &_LaneMapping =
+			*reinterpret_cast<SmallVector<InstructionGraph::NeverCoexecutingInstrVec> *>(
+				&LaneMapping);
+		IG.partialTopologicalSort(IoInstrAsInstrs, _LaneMapping);
+		// [fixme] doc
+		// for example sequence os stores st0, st1, st2 will map to lanes 0: [st0, st1, st2]
+		// and st0, c?st1.0: st1.1, st2 will map to lanes as 0, 1, 1, 2
+		errs() << "Lanes: \n";
+		size_t laneI = 0;
+		for (auto &nodes : LaneMapping) {
+			errs() << "   " << laneI << " [";
+			for (auto st : nodes) {
+				errs() << *st << ", ";
+			}
+			errs() << "]\n";
+			++laneI;
+		}
+	}
+
+	//  :attention: This number means the number of lanes for stores,
+	//    store itself can contain multiple lanes, so stored value has
+	//    NumLanes*lanesPerStore segments
+	unsigned NumLanes = LaneMapping.size();
+	assert(NumLanes > 0 && "The loop does not contain any instructions and "
+						   "this should have been already checked");
+	// Create per-lane storage: {valid_flag, value}
+	BasicBlock *Header = L.getHeader();
+	auto AllocaIP = Header->getFirstInsertionPt();
+	IRBuilder<> Builder(Header, AllocaIP);
+	SmallVector<AllocaInst *> laneAllocaFlat;
+
+	Builder.SetInsertPoint(Header, AllocaIP);
+	if (laneCnt.has_value()) {
+		// the loop may produce more segments than there is lanes in output io,
+		// we increase the number of lanes for this io
+		laneCnt = std::max(laneCnt.value(), NumLanes);
+	} else {
+		// we have just discovered the number of lanes
+		laneCnt = NumLanes;
+	}
+   	_vectorizeLoopIO(Builder, L, NumLanes, segmentWidth, laneAllocaFlat, AllIOInstr, LaneMapping);
 
 	PromoteMemToReg(laneAllocaFlat, DT);
 }
