@@ -10,7 +10,7 @@ class HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_TC(BaseLlvmIrTC):
     __FILE__ = __file__
 
     def _runTestOpt(self, llvm:LlvmCompilationBundle, *args, **kwargs) -> Function:
-        return HwtHlsSimplifyCFGPass_TC._runTestOpt(self, llvm)
+        return HwtHlsSimplifyCFGPass_TC._runTestOpt(self, llvm, *args, **kwargs)
 
     def test_SwitchSuccClusterReduceFewExit_0(self):
         llvmIr = """\
@@ -100,11 +100,61 @@ class HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_TC(BaseLlvmIrTC):
         """
         self._test_ll(llvmIr)
 
+    
+    def test_2exits_conditionInExit0(self):
+        # :note: based on Axi4SParse2IfAndSequel_NO_FOOTER_16b_100MHz
+        llvmIr = """\
+        define void @test_2exits_conditionInExit0(ptr addrspace(1) %i, ptr addrspace(2) %o) {
+        bb0:
+          br label %bb1
+        
+
+        bb1:                                             ; preds = %bb0, %bb.latch
+          %swCond = phi i3 [ %swCond.phi, %bb.latch ], [ 0, %bb0 ]
+          %c0 = load volatile i3, ptr addrspace(1) %i, align 4
+          %c1 = load volatile i3, ptr addrspace(1) %i, align 4
+          %c2 = icmp eq i3 %c1, 0
+          switch i3 %c0, label %bb.def [
+            i3 0, label %bb.c0
+            i3 1, label %bb.latch
+            i3 2, label %bb.c2
+            i3 3, label %bb.c3
+          ]
+        
+        bb.c0:                                              ; preds = %bb1
+          br label %bb.latch
+
+        bb.c2:                                              ; preds = %bb1
+          store volatile i32 10, ptr addrspace(2) %o, align 4
+          br i1 %c2, label %bb.latch, label %bb.c3
+                
+        bb.c3:                                             ; preds = %bb1, %bb.c2
+          br label %bb.latch
+        
+        bb.latch:                                             ; preds = %bb.c0, %bb.c2, %bb1, %bb.c3
+          %swCond.phi = phi i3 [ 2, %bb1 ], [ 0, %bb.c3 ], [ 3, %bb.c2 ], [ %c0, %bb.c0 ]
+          store volatile i3 %swCond.phi, ptr addrspace(2) %o, align 4
+          br label %bb1
+        
+        bb.def:                                             ; preds = %bb1
+          unreachable
+        }
+        """
+        self._test_ll(llvmIr, passKwArgs=dict(
+            RunEarlyCSEPass=False,
+            RunRomExtractPass=False,
+            RunHwtHlsInstCombinePass=False,
+            RunTrivialSimplifyCFGPass=False,
+            RunSimplifyCFGPass=False,
+            RunBitcountMergePass=False,
+            )
+        )
+
 
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
     suite = testLoader.loadTestsFromTestCase(HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_TC)
-    # suite = unittest.TestSuite([HwtHlsSimplifyCFGPass_unswitchComplementarySequentialBlocks_TC('test_0')])
+    # suite = unittest.TestSuite([HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_TC('test_SwitchSuccClusterReduceFewExit_2exit0')])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
