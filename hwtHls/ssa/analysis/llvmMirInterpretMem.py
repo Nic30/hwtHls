@@ -177,9 +177,9 @@ def _decodeOpcode_HWTFPGA_CSTORE(interpret: "LlvmMirInterpret", MRI: MachineRegi
         segmentWidth = ioMd.writeWordWidth
         laneCnt = HwIoProxyScalarVectorized.getLaneCntFromWidth(ioMd, segmentWidth, width)
     else:
-        laneCnt = 1
+        laneCnt = None
 
-    if laneCnt == 1:
+    if laneCnt is None:
         waveLog = interpret.waveLog
         FArg = interpret.MF.getFunction().getArg(_io)
 
@@ -248,9 +248,9 @@ def _decodeOpcode_G_STORE(interpret: "LlvmMirInterpret", MRI: MachineRegisterInf
 
         laneCnt = HwIoProxyScalarVectorized.getLaneCntFromWidth(ioMd, segmentWidth, width)
     else:
-        laneCnt = 1
+        laneCnt = None
 
-    if laneCnt == 1:
+    if laneCnt is None:
 
         def _opcode_G_STORE(timeNow: int, regs: list[HConst]):
             io = regs[_io]

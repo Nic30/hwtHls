@@ -392,7 +392,7 @@ def decodeOpcode_Store(interpret: "LlvmIrInterpret", instr: Instruction) -> Llvm
         w = store.getAccessType().getIntegerBitWidth()
         laneCnt = HwIoProxyScalarVectorized.getLaneCntFromWidth(ioMd, segmentWidth, w)
 
-        if laneCnt == 1:
+        if laneCnt is None:
 
             def _opcode_Store_toScalarIo(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
                 if vIsConst:

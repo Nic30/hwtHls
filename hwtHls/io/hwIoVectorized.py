@@ -248,13 +248,13 @@ class HwIoProxyScalarVectorized(IoProxyScalar):
         return super()._translateMirToNetlist_HWTFPGA_CSTORE(*args, writeNodeCls=writeNodeCls, writeNodeConstructorKwArgs=writeNodeConstructorKwArgs)
 
     @staticmethod
-    def getLaneCntFromWidth(ioMd: HwtHlsIoMetadata, segmentWidth: int, w: int, *dbgMsg) -> int:
+    def getLaneCntFromWidth(ioMd: HwtHlsIoMetadata, segmentWidth: int, w: int, *dbgMsg) -> Optional[int]:
         if ioMd.ioVectorization is None:
             assert segmentWidth == w, (segmentWidth, dbgMsg)
-            return 1
+            return None
         else:
             if w == segmentWidth:
-                return 1
+                return None
                 assert segmentWidth == w, (segmentWidth, dbgMsg)
             else:
                 laneCnt = w // (segmentWidth + 1)
