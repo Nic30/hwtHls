@@ -18,6 +18,8 @@
 #include <llvm/Support/TypeSize.h>
 #include <llvm/Transforms/Utils/PromoteMemToReg.h>
 
+// #include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
+
 using namespace llvm;
 
 namespace hwtHls {
@@ -271,7 +273,7 @@ IoPortVectorizationPass::run(llvm::Function &F,
 	// MemorySSA &MSSA = AM.getResult<MemorySSAAnalysis>(F).getMSSA();
 	// PostDominatorTree &PDT = AM.getResult<PostDominatorTreeAnalysis>(F);
 	LoopInfo &LI = AM.getResult<LoopAnalysis>(F);
-
+	// writeCFGToDotFile(F, "tmp/IoPortVectorizationPass.0.dot",  AM, false, false);
 	bool Changed = false;
 	auto IoMds = HwtHlsIoMetadata_get(F);
 	for (Loop *TopL : LI) {
@@ -312,6 +314,8 @@ IoPortVectorizationPass::run(llvm::Function &F,
 			}
 		}
 	}
+
+	// writeCFGToDotFile(F, "tmp/IoPortVectorizationPass.1.dot",  AM, false, false);
 	if (!Changed) {
 		return PreservedAnalyses::all();
 	} else {
