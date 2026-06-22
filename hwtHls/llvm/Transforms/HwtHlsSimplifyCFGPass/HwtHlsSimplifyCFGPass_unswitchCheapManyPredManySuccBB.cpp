@@ -155,8 +155,8 @@ bool HwtHlsSimplifyCFGPass_unswitchCheapManyPredManySuccBB(
 				// dominated by the definition in BB
 				//   because new path directly from pred was added, we fit this
 				//   at the end after predecessors are processed
+				mustRegeneratePhis = true;
 			}
-			mustRegeneratePhis = true;
 		}
 		
 		if (mustRegeneratePhis) {
