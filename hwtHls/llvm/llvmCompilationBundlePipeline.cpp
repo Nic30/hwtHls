@@ -414,7 +414,7 @@ void LlvmCompilationBundle::runExprOpt() {
 	});
 }
 template<typename T>
-T* getPtrOrNull(std::optional<T> & v) {
+T* _getPtrOrNull(std::optional<T> & v) {
 	if (v.has_value()) {
 		return &v.value();
 	} else {
@@ -474,8 +474,8 @@ void LlvmCompilationBundle::_addInitialNormalizationPasses(
 		auto simplifyCfgOpts = _getDefaultSimplifyCfgOptions() //
 			.hoistCommonInsts(true)		  //
 			.setHoistCheapInsts(true)	  //
-			.setdbgIrInstrCombineChangeCallbackFn(getPtrOrNull(_dbgIrInstrCombineChangeCallbackFn))
-			.setdbgIrCfgSimplifyChangeCallbackFn(getPtrOrNull(_dbgIrCfgSimplifyChangeCallbackFn))
+			.setdbgIrInstrCombineChangeCallbackFn(_getPtrOrNull(_dbgIrInstrCombineChangeCallbackFn))
+			.setdbgIrCfgSimplifyChangeCallbackFn(_getPtrOrNull(_dbgIrCfgSimplifyChangeCallbackFn))
 			;
 		FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(simplifyCfgOpts));
 	}
@@ -490,14 +490,14 @@ void LlvmCompilationBundle::_addInitialNormalizationPasses(
 
 hwtHls::HwtHlsSimplifyCFGOptions LlvmCompilationBundle::_getDefaultSimplifyCfgOptions() {
 	return hwtHls::HwtHlsSimplifyCFGOptions() //
-		.setdbgIrInstrCombineChangeCallbackFn(getPtrOrNull(_dbgIrInstrCombineChangeCallbackFn)) //
-		.setdbgIrCfgSimplifyChangeCallbackFn(getPtrOrNull(_dbgIrCfgSimplifyChangeCallbackFn))   //
+		.setdbgIrInstrCombineChangeCallbackFn(_getPtrOrNull(_dbgIrInstrCombineChangeCallbackFn)) //
+		.setdbgIrCfgSimplifyChangeCallbackFn(_getPtrOrNull(_dbgIrCfgSimplifyChangeCallbackFn))   //
 	;
 }
 
 hwtHls::HwtHlsInstCombinePassOptions LlvmCompilationBundle::_getDefaultInstCombineOptions() {
 	return hwtHls::HwtHlsInstCombinePassOptions() //
-		.setdbgIrInstrCombineChangeCallbackFn(getPtrOrNull(_dbgIrInstrCombineChangeCallbackFn)) //
+		.setdbgIrInstrCombineChangeCallbackFn(_getPtrOrNull(_dbgIrInstrCombineChangeCallbackFn)) //
 	;
 }
 

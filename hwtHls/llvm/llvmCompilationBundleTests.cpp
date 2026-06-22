@@ -157,7 +157,7 @@ llvm::Function& LlvmCompilationBundle::_testHwtHlsSimplifyCFGPass(
 												dumpDotBeforeToFile));
 		}
 
-		FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(hwtHls::HwtHlsSimplifyCFGOptions()//
+		FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(_getDefaultSimplifyCfgOptions()//
 				.bonusInstThreshold(BonusInstThreshold)//
 				.forwardSwitchCondToPhi(ForwardSwitchCondToPhi)//
 				.convertSwitchRangeToICmp(ConvertSwitchRangeToICmp)//
