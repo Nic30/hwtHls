@@ -405,7 +405,7 @@ bool resolveTypes(MachineInstr &MI) {
 		if(bitWidth != MI.getOperand(3).getImm()) {
 			std::string tmp;
 			llvm::raw_string_ostream ss(tmp);
-			ss << "HwtFpgaRegisterBitWidth:: access width must be exactly one item (array type should have been casted if different size is required): ";
+			ss << "HwtFpgaRegisterBitWidth: access width must be exactly as described in HwtHlsIoMetadata: ";
 			ss << MI << " expected:" << bitWidth;
 			throw std::runtime_error(ss.str());
 		}
