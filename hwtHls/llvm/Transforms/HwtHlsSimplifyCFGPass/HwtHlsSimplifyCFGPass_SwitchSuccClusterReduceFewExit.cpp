@@ -44,7 +44,7 @@ bool HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_matchPattern(
 			continue;
 		}
 		if (&*suc->begin() != suc->getTerminator()) {
-			// does not contain only terminator,
+			// does not contain just the terminator,
 			// -> treat it as exit block
 			if (!tryHoistCheapInstsAtBlockBegin(
 					*suc, BB0.getTerminator()->getIterator()) ||
@@ -148,21 +148,11 @@ static void cleanupBlockWhichBecomeUnreachable(
 	}
 }
 
-bool HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit(
-	llvm::IRBuilderBase &Builder, llvm::DomTreeUpdater &DTU,
-	llvm::SwitchInst &SI, bool &exprChanged) {
-	auto &BB0 = *SI.getParent();
-	DTU.flush();
-	auto &DT = DTU.getDomTree();
-	// assert(DT.verify());
-	SetVector<BasicBlock *> origSwitchSuccessors(succ_begin(&BB0),
-  											     succ_end(&BB0));
-	// :attention: switchSuccessors are gathered accumulatively from all
-	// dominated blocks
-	SetVector<BasicBlock *> allRegionBBs(origSwitchSuccessors);
-	SetVector<BasicBlock *> exitBBs;
-	if (!HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_matchPattern(BB0, allRegionBBs, exitBBs, DT))
-		return false;
+static bool
+HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_form_dedicatedLatches(
+	llvm::DomTreeUpdater &DTU, BasicBlock &BB0,
+	SetVector<BasicBlock *> &origSwitchSuccessors,
+	SetVector<BasicBlock *> &allRegionBBs, SetVector<BasicBlock *> &exitBBs) {
 	bool change = false;
 	if (exitBBs.size() > 1 && exitBBs.contains(&BB0)) {
 		SmallVector<BasicBlock *> inRegionBB0Preds;
@@ -199,6 +189,26 @@ bool HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit(
 		}
 		DTU.flush();
 	}
+	return change;
+}
+bool HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit(
+	llvm::IRBuilderBase &Builder, llvm::DomTreeUpdater &DTU,
+	llvm::SwitchInst &SI, bool &exprChanged) {
+	auto &BB0 = *SI.getParent();
+	DTU.flush();
+	auto &DT = DTU.getDomTree();
+	// assert(DT.verify());
+	SetVector<BasicBlock *> origSwitchSuccessors(succ_begin(&BB0),
+  											     succ_end(&BB0));
+	// :attention: switchSuccessors are gathered accumulatively from all
+	// dominated blocks
+	SetVector<BasicBlock *> allRegionBBs(origSwitchSuccessors);
+	SetVector<BasicBlock *> exitBBs;
+	if (!HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_matchPattern(BB0, allRegionBBs, exitBBs, DT))
+		return false;
+	bool change = false;
+	change |= HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_form_dedicatedLatches(
+		DTU, BB0, origSwitchSuccessors, allRegionBBs, exitBBs);
 	assert(exitBBs.size() != 0);
 	// now we know that there are only <=2 unique blocks from the cluster of
 	// empty blocks after the SwitchInst
