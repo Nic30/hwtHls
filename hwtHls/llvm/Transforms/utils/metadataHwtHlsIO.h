@@ -115,9 +115,9 @@ public:
 
 };
 
-std::pair<llvm::Type*, llvm::Type*> getLoadOrStoreElementType(
+std::pair<llvm::Type*, llvm::Type*> getIrLoadOrStoreElementType(
 		const llvm::Argument &arg);
-std::pair<llvm::Type*, llvm::Type*> getLoadOrStoreElementType(
+std::pair<llvm::Type*, llvm::Type*> getIrLoadOrStoreElementType(
 		const llvm::Instruction &I);
 
 llvm::SmallVector<HwtHlsIoMetadata> HwtHlsIoMetadata_get(

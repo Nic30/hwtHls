@@ -327,13 +327,13 @@ void HwtHlsIoMetadata_set(llvm::Function &F, size_t argI,
 	F.setMetadata(HwtHlsIoMetadata::METADATA_NAME, newIoMdTuple);
 }
 
-std::pair<llvm::Type*, llvm::Type*> getLoadOrStoreElementType(
+std::pair<llvm::Type*, llvm::Type*> getIrLoadOrStoreElementType(
 		const llvm::Argument &arg) {
 	Type *loadTy = nullptr;
 	Type *storeTy = nullptr;
 	for (auto *u : arg.users()) {
 		if (auto ui = dyn_cast<Instruction>(u)) {
-			auto lst = getLoadOrStoreElementType(*ui);
+			auto lst = getIrLoadOrStoreElementType(*ui);
 			if (lst.first) {
 				if (loadTy) {
 					assert(lst.first == loadTy);
@@ -353,7 +353,7 @@ std::pair<llvm::Type*, llvm::Type*> getLoadOrStoreElementType(
 	return {loadTy, storeTy};
 }
 
-std::pair<llvm::Type*, llvm::Type*> getLoadOrStoreElementType(
+std::pair<llvm::Type*, llvm::Type*> getIrLoadOrStoreElementType(
 		const llvm::Instruction &I) {
 	if (auto Ld = dyn_cast<LoadInst>(&I)) {
 		return {Ld->getAccessType(), nullptr};
@@ -362,7 +362,7 @@ std::pair<llvm::Type*, llvm::Type*> getLoadOrStoreElementType(
 	} else if (auto gep = dyn_cast<GetElementPtrInst>(&I)) {
 		for (auto u : gep->users()) {
 			if (auto ui = dyn_cast<Instruction>(u)) {
-				return getLoadOrStoreElementType(*ui);
+				return getIrLoadOrStoreElementType(*ui);
 			}
 		}
 
@@ -388,7 +388,7 @@ llvm::SmallVector<HwtHlsIoMetadata> HwtHlsIoMetadata_get(
 		}
 	} else {
 		for (auto &A : F.args()) {
-			auto ldStTy = getLoadOrStoreElementType(A);
+			auto ldStTy = getIrLoadOrStoreElementType(A);
 			res.push_back(
 					HwtHlsIoMetadata(IO_DIR_UNRESOLVED, 0,
 							ldStTy.first ?

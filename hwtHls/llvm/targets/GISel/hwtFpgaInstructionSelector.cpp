@@ -1,5 +1,7 @@
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionSelector.h>
 
+#include <llvm/CodeGen/MachineOperand.h>
+#include <llvm/Support/ErrorHandling.h>
 #include <llvm/CodeGen/GlobalISel/GIMatchTableExecutorImpl.h>
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
 #include <llvm/MC/MCContext.h>
@@ -9,8 +11,10 @@
 #include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
 #include <hwtHls/llvm/targets/hwtFpgaIoUtils.h>
 #include <hwtHls/llvm/targets/bitMathUtils.h>
-#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionSelectorUtils.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaCombinerHelper.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtilsInstrFns.h>
+#include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionSelectorUtils.h>
+#include <stdexcept>
 
 #define DEBUG_TYPE "genericfpga-isel"
 
@@ -214,7 +218,7 @@ bool HwtFpgaTargetInstructionSelector::select(MachineInstr &I) {
 			auto ptrT = I.getOperand(1).getGlobal()->getType();
 			Type * elmT;
 			size_t SizeInBits;
-			std::tie(elmT, SizeInBits) = hwtHls::getGlobalValueElementTypeAndAddressWidth(I);
+			std::tie(elmT, SizeInBits) = hwtHls::getMirGlobalValueElementTypeAndAddressWidth(I);
 			Ty = LLT::pointer(ptrT->getAddressSpace(), SizeInBits);
 		}
 		MRI.setType(o0, Ty);
@@ -560,25 +564,64 @@ bool HwtFpgaTargetInstructionSelector::select_G_LOAD_or_G_STORE(
 					&& "Otherwise not implemented, it is required to rewrite address mux to multiple store/load instructions.");
 	// val/dst, addr, index, cond
 	auto MIB = MIRB.buildInstr(NewOpc);
-	selectInstrArg(MF, MIB, MRI, MI.getOperand(0)); // val/dst - copy as it is
 
 	MachineInstr *addrDef = MRI.getOneDef(addrMO.getReg())->getParent();
-	Type * elmT;
-	size_t indexWidth;
-	MachineInstr* ioDefiningInstr;
-	std::tie(elmT, indexWidth, ioDefiningInstr) = hwtHls::getLoadOrStoreElementType(MRI, MI);
+	auto ioAccessMd = hwtHls::getMirLoadOrStoreElementType(MRI, MI);
 	const DataLayout &DL = MF.getFunction().getParent()->getDataLayout();
-	TypeSize itemSize = elmT ? DL.getTypeAllocSize(elmT) : MRI.getType(MI.getOperand(0).getReg()).getSizeInBytes();
+	auto ValM0 = MI.getOperand(0);
+	auto ValReg = ValM0.getReg();
+	TypeSize itemSize = ioAccessMd.elmTy ? DL.getTypeAllocSize(ioAccessMd.elmTy) : MRI.getType(ValReg).getSizeInBytes();
+	auto Cond = MachineOperand::CreateImm(1);
+	auto valWidth = unsigned(MRI.getType(ValReg).getSizeInBits());
+	bool rewriteMemRefs = false;
+	if (Opc == TargetOpcode::G_STORE && ioAccessMd.ioMd.has_value() &&
+		ioAccessMd.ioMd.value().ioVectorization.has_value() &&
+		ioAccessMd.ioMd.value().ioVectorization.value().laneCnt == 1) {
+		// convert lane enable to condition for the store
+		if (valWidth == ioAccessMd.ioMd.value().writeWordWidth) {
+			// the value of lane enable is 1 and thus it was never been explicityly
+			// concatenated to a value
+		} else if (valWidth == ioAccessMd.ioMd.value().writeWordWidth + 1) {
+			MIRB.setInsertPt(MIRB.getMBB(), MIB.getInstr());
+			auto newOp0 = hwtHls::buildHWTFPGA_EXTRACT(MIRB, nullptr, ValM0, valWidth, 0, valWidth - 1);
+			Register Op0MsbReg = hwtHls::buildMsbGet(MIRB, nullptr, ValReg, valWidth);
+			ValReg = newOp0.reg;
+			ValM0 = MachineOperand::CreateReg(ValReg, ValM0.isDef());
+			--valWidth;
+			Cond = MachineOperand::CreateReg(Op0MsbReg, false);
+			rewriteMemRefs = true;
+		} else  {
+			throw std::runtime_error("The access to vectorized io with laneCnt=1 does not use correct width");
+		}
+	}
+	selectInstrArg(MF, MIB, MRI, ValM0); // val/dst - copy as it is
 
 	std::map<Register, Register> replacements;
-	MachineOperand indexMO = rewrite_G_PTR_ADD_exprToIndexADD(MF, MRI, MIRB, ioDefiningInstr->getOperand(0).getReg(), indexWidth, itemSize, *addrDef, replacements);
-	MIB.addUse(ioDefiningInstr->getOperand(0).getReg()); // base addr
+	auto ioDefReg = ioAccessMd.ioArgDefiningInstr->getOperand(0).getReg();
+	MachineOperand indexMO = rewrite_G_PTR_ADD_exprToIndexADD(
+		MF, MRI, MIRB, ioDefReg, ioAccessMd.addressWidth, itemSize, *addrDef,
+		replacements);
+	MIB.addUse(ioDefReg); // base addr
 	selectInstrArg(MF, MIB, MRI, indexMO); // index
-	auto dst = MI.getOperand(0).getReg();
-	MIB.addImm(MRI.getType(dst).getSizeInBits()); // add dstWidth/val width
-	MIB.addImm(1); // cond
-	MIB.cloneMemRefs(MI); // copy part behind :: in "G_LOAD %0:anyregcls :: (volatile load (s4) from %ir.dataIn)"
-
+	MIB.addImm(valWidth); // add dstWidth/val width
+	MIB.add(Cond);
+	if (rewriteMemRefs) {
+		// update mem refs to use new types
+		// :note: based on llvm::ModuloScheduleExpander::updateMemOperands
+		SmallVector<MachineMemOperand*> memRefs;
+		for (auto* MRO: MI.memoperands()) {
+			auto newMRO = MF.getMachineMemOperand(
+				MRO->getPointerInfo(), MRO->getFlags(), LLT::scalar(valWidth),
+				MRO->getAlign(), MRO->getAAInfo(), MRO->getRanges(),
+				MRO->getSyncScopeID(), MRO->getSuccessOrdering(),
+				MRO->getFailureOrdering());
+			memRefs.push_back(newMRO);
+		}
+		MIB.setMemRefs(memRefs);
+		
+	} else {
+		MIB.cloneMemRefs(MI); // copy part behind :: in "G_LOAD %0:anyregcls :: (volatile load (s4) from %ir.dataIn)"
+	}
 	return finalizeReplacementOfInstruction(MIB, MI);
 }
 

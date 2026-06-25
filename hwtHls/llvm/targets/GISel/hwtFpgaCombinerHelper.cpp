@@ -452,7 +452,7 @@ bool HwtFpgaCombinerHelper::matchCmpToMsbCheck(llvm::MachineInstr &MI,
 		hwtHls::CImmOrReg _LHS(LHS);
 		rewriteFn = [bitWidth, Dst, _LHS, this](MachineIRBuilder &builder) {
 			// msbReg = x.MSB
-			Register msbReg = buildMsbGet(builder, Observer, _LHS, bitWidth,
+			Register msbReg = buildMsbGet(builder, &Observer, _LHS, bitWidth,
 					std::nullopt);
 			// res = not msbReg
 			builder.buildInstr(HwtFpga::HWTFPGA_NOT, { Dst }, { msbReg });
@@ -470,7 +470,7 @@ bool HwtFpgaCombinerHelper::matchCmpToMsbCheck(llvm::MachineInstr &MI,
 		hwtHls::CImmOrReg _LHS(LHS);
 		rewriteFn = [bitWidth, Dst, _LHS, this](MachineIRBuilder &builder) {
 			// res = msbReg = x.MSB
-			hwtHls::buildMsbGet(builder, Observer, _LHS, bitWidth, Dst);
+			hwtHls::buildMsbGet(builder, &Observer, _LHS, bitWidth, Dst);
 			onChangeTestCallback("matchCmpToMsbCheck - rewrite ICMP_SLT");
 		};
 		return true;

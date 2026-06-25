@@ -42,13 +42,19 @@ detail::zippy<detail::zip_first, llvm::iterator_range<llvm::MachineOperand*>,
 			MERGE_VALUES_iter_widths(MI));
 
 }
-
-Register buildMsbGet(MachineIRBuilder &Builder, GISelChangeObserver &Observer,
+llvm::Register buildMsbGet(llvm::MachineIRBuilder &Builder,
+						   llvm::GISelChangeObserver *Observer, Register x,
+						   unsigned bitWidth,
+						   std::optional<llvm::Register> dst) {
+	return buildMsbGet(Builder, Observer, CImmOrReg(x), bitWidth, dst);
+}
+Register buildMsbGet(MachineIRBuilder &Builder, GISelChangeObserver *Observer,
 		CImmOrReg src, unsigned bitWidth, std::optional<Register> dst) {
 	auto MIB = Builder.buildInstr(HwtFpga::HWTFPGA_EXTRACT);
 	auto &newMI = *MIB.getInstr();
 	auto &MRI = newMI.getMF()->getRegInfo();
-	Observer.changingInstr(newMI);
+	if (Observer)
+		Observer->changingInstr(newMI);
 	Register msbReg;
 	if (dst.has_value()) {
 		msbReg = dst.value();
@@ -64,7 +70,8 @@ Register buildMsbGet(MachineIRBuilder &Builder, GISelChangeObserver &Observer,
 	MIB.addImm(1); // $dstWidth
 	assert(MIB->getNumExplicitOperands() == 5);
 
-	Observer.changedInstr(newMI);
+	if (Observer)
+		Observer->changedInstr(newMI);
 
 	return msbReg;
 }

@@ -54,7 +54,7 @@ void HwtFpgaCombinerHelper::rewriteConstShift(llvm::MachineInstr &MI) {
 			if (extract.c) {
 				extracted = hwtHls::CImmOrReg(extract.c);
 			}
-			Register msb = hwtHls::buildMsbGet(Builder, Observer, extracted,
+			Register msb = hwtHls::buildMsbGet(Builder, &Observer, extracted,
 					extractedWidth, { });
 			for (size_t i = extractedWidth; i < srcWidth; i++) {
 				ConcatMembers.push_back(

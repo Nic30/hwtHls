@@ -4,13 +4,12 @@
 
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Metadata.h>
-#include <hwtHls/llvm/Transforms/utils/metadataHwtHlsIO.h>
 
 using namespace llvm;
 
 namespace hwtHls {
 
-MachineInstr* getLoadOrStoreFromAddrOperand(MachineRegisterInfo &MRI,
+MachineInstr* getMirLoadOrStoreFromAddrOperand(MachineRegisterInfo &MRI,
 		MachineOperand &addrOp) {
 	if (!addrOp.isReg())
 		return nullptr;
@@ -23,13 +22,13 @@ MachineInstr* getLoadOrStoreFromAddrOperand(MachineRegisterInfo &MRI,
 		return MI;
 	}
 	for (auto u : MRI.use_operands(addrOp.getReg())) {
-		auto res = getLoadOrStoreFromAddrOperand(MRI, u);
+		auto res = getMirLoadOrStoreFromAddrOperand(MRI, u);
 		if (res != nullptr)
 			return res;
 	}
 	return nullptr;
 }
-llvm::MachineInstr* getReferencedGlobalValue(MachineRegisterInfo &MRI,
+llvm::MachineInstr* getMirReferencedGlobalValue(MachineRegisterInfo &MRI,
 		llvm::DenseSet<MachineInstr*> &seen, llvm::MachineInstr *AddrDefMI) {
 	auto addrDefOpc = AddrDefMI->getOpcode();
 	while (addrDefOpc == TargetOpcode::G_PTR_ADD) {
@@ -46,7 +45,7 @@ llvm::MachineInstr* getReferencedGlobalValue(MachineRegisterInfo &MRI,
 			auto nextAddrDefMI = MRI.getVRegDef(MO.getReg());
 			if (seen.contains(nextAddrDefMI))
 				continue;
-			if (auto addrDef = getReferencedGlobalValue(MRI, seen,
+			if (auto addrDef = getMirReferencedGlobalValue(MRI, seen,
 					nextAddrDefMI)) {
 				return addrDef;
 			}
@@ -57,7 +56,7 @@ llvm::MachineInstr* getReferencedGlobalValue(MachineRegisterInfo &MRI,
 	}
 }
 
-std::tuple<Type*, size_t, MachineInstr*> getLoadOrStoreElementType(
+IoElementMeta getMirLoadOrStoreElementType(
 		MachineRegisterInfo &MRI, MachineInstr &MI) {
 	switch (MI.getOpcode()) {
 	case TargetOpcode::G_LOAD:
@@ -89,7 +88,7 @@ std::tuple<Type*, size_t, MachineInstr*> getLoadOrStoreElementType(
 							"Address for instruction is never defined");
 				}
 				llvm::DenseSet<MachineInstr*> seen;
-				addrDef = getReferencedGlobalValue(MRI, seen, addrDef);
+				addrDef = getMirReferencedGlobalValue(MRI, seen, addrDef);
 				if (!addrDef) {
 					llvm_unreachable(
 							"Unable to find memory for GLOBAL_VALUE read or store");
@@ -101,13 +100,13 @@ std::tuple<Type*, size_t, MachineInstr*> getLoadOrStoreElementType(
 					llvm_unreachable(
 							"In address space 0 there should be only G_GLOBAL_VALUE or HWTFPGA_GLOBAL_VALUE");
 				}
-				auto res = getGlobalValueElementTypeAndAddressWidth(*addrDef);
-				return {res.first, res.second, addrDef};
+				auto res = getMirGlobalValueElementTypeAndAddressWidth(*addrDef);
+				return {res.first, res.second, addrDef, {}};
 			}
 			Function &F = MI.getParent()->getParent()->getFunction();
+			auto hwtHlsIO = HwtHlsIoMetadata_get(F, addrSpace - 1);
 			IntegerType *resT = nullptr;
 			size_t addressWidth = 0;
-			auto hwtHlsIO = HwtHlsIoMetadata_get(F, addrSpace - 1);
 			if (hwtHlsIO.has_value()) {
 				addressWidth = hwtHlsIO.value().addrWidth;
 				size_t bitwidth = std::max(hwtHlsIO.value().readWordWidth,
@@ -151,7 +150,7 @@ std::tuple<Type*, size_t, MachineInstr*> getLoadOrStoreElementType(
 				llvm_unreachable(
 						"Can not find associated HWTFPGA_ARG_GET in the first block");
 			}
-			return {resT, addressWidth, ioArgDefiningInstr};
+			return {resT, addressWidth, ioArgDefiningInstr, hwtHlsIO};
 		}
 		break;
 	}
@@ -159,19 +158,19 @@ std::tuple<Type*, size_t, MachineInstr*> getLoadOrStoreElementType(
 		break;
 	}
 	llvm_unreachable(
-			"Only instructions with previous opcode should be store in MI and it should have memory operand");
+			"Only instructions with previous opcodes should be store in MI and it should have memory operand");
 }
 
-std::optional<std::tuple<llvm::Type*, size_t, llvm::MachineInstr*>> getPointerElementTypeFromAnyLoadOrStore(
+std::optional<IoElementMeta> getMirPointerElementTypeFromAnyLoadOrStore(
 		MachineRegisterInfo &MRI, MachineOperand &addrOp) {
-	auto *MI = getLoadOrStoreFromAddrOperand(MRI, addrOp);
+	auto *MI = getMirLoadOrStoreFromAddrOperand(MRI, addrOp);
 	if (!MI) {
 		return std::nullopt;
 	}
-	return getLoadOrStoreElementType(MRI, *MI);
+	return getMirLoadOrStoreElementType(MRI, *MI);
 }
 
-std::pair<Type*, size_t> getGlobalValueElementTypeAndAddressWidth(
+std::pair<Type*, size_t> getMirGlobalValueElementTypeAndAddressWidth(
 		llvm::MachineInstr &MI) {
 	auto vT = MI.getOperand(1).getGlobal()->getValueType();
 	if (!vT->isArrayTy()) {

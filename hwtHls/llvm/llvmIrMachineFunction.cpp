@@ -224,7 +224,7 @@ void register_MachineFunction(pybind11::module_ &m) {
 							"Can not parse machine functions from module");
 				return Context.module;
 			}, py::return_value_policy::reference_internal);
-	m.def("getLoadOrStoreElementType", &hwtHls::getLoadOrStoreElementType);
+	m.def("getMirLoadOrStoreElementType", &hwtHls::getMirLoadOrStoreElementType);
 }
 
 }

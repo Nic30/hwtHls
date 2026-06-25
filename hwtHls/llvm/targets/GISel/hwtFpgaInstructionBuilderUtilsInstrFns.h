@@ -1,4 +1,5 @@
 #pragma once
+#include <llvm/CodeGen/MachineOperand.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/CodeGen/MachineInstrBuilder.h>
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
@@ -53,6 +54,11 @@ llvm::MachineInstrBuilder buildHWTFPGA_MERGE_VALUES(
 		size_t *_width = nullptr);
 
 llvm::Register buildMsbGet(llvm::MachineIRBuilder &Builder,
-		llvm::GISelChangeObserver &Observer, CImmOrReg x, unsigned bitWidth,
-		std::optional<llvm::Register> dst);
+				   llvm::GISelChangeObserver *Observer,
+				   const llvm::Register x, unsigned bitWidth,
+				   std::optional<llvm::Register> dst={});
+llvm::Register buildMsbGet(llvm::MachineIRBuilder &Builder,
+						   llvm::GISelChangeObserver *Observer,
+						   CImmOrReg x, unsigned bitWidth,
+						   std::optional<llvm::Register> dst={});
 }

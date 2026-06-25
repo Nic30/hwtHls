@@ -223,7 +223,7 @@ bool resolveTypes(MachineInstr &MI) {
 		auto ptrT = MI.getOperand(1).getGlobal()->getType();
 		Type *_t;
 		unsigned SizeInBits;
-		std::tie(_t, SizeInBits) = getGlobalValueElementTypeAndAddressWidth(MI);
+		std::tie(_t, SizeInBits) = getMirGlobalValueElementTypeAndAddressWidth(MI);
 		LLT Ty = LLT::pointer(ptrT->getAddressSpace(), SizeInBits);
 		MRI.setType(MI.getOperand(0).getReg(), Ty);
 		return true;
@@ -393,15 +393,11 @@ bool resolveTypes(MachineInstr &MI) {
 	case HwtFpga::HWTFPGA_CLOAD: {
 		// HWTFPGA_CSTORE val, addr, index, valWidth, cond
 		// HWTFPGA_CLOAD dst, addr, index, dstWidth, cond
-		Type *elemT;
-		size_t indexWidth;
-		MachineInstr *addrDef;
-		std::tie(elemT, indexWidth, addrDef) = getLoadOrStoreElementType(MRI,
-				MI);
+		auto ioAccessMd = getMirLoadOrStoreElementType(MRI, MI);
 		assert(
-				elemT && elemT->isIntegerTy()
+				ioAccessMd.elmTy && ioAccessMd.elmTy->isIntegerTy()
 						&& "Instruction load/store type must be resolvable");
-		unsigned bitWidth = elemT->getIntegerBitWidth();
+		unsigned bitWidth = ioAccessMd.elmTy->getIntegerBitWidth();
 		if(bitWidth != MI.getOperand(3).getImm()) {
 			std::string tmp;
 			llvm::raw_string_ostream ss(tmp);
