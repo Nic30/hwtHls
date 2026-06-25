@@ -4,6 +4,7 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/utils_lowerPhiToSelect.h>
 
 #include <cassert>
+#include <llvm-21/llvm/IR/LLVMContext.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <llvm/IR/Dominators.h>
@@ -176,8 +177,13 @@ HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_form_dedicatedLatches(
 			// use existing latch
 			newExit = inRegionExitLatches[0];
 		} else {
+			auto *MD = inRegionExitLatches[0]->getTerminator()->getMetadata(LLVMContext::MD_loop);
 			newExit = SplitBlockPredecessors(exitBB, inRegionExitLatches,
 											 ".BB0Split", &DTU);
+			newExit->getTerminator()->setMetadata(LLVMContext::MD_loop, MD);
+			for (auto pred : predecessors(exitBB)) {
+				pred->getTerminator()->setMetadata(LLVMContext::MD_loop, nullptr);
+			}								 
 			change = true;
 		}
 		allRegionBBs.insert(newExit);
