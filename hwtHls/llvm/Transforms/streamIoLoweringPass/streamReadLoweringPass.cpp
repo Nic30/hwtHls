@@ -909,20 +909,22 @@ StreamReadLoweringPass::run(llvm::Function &F,
 		DTU.flush();
 	}
 	if (changed) {
-#ifndef NDEBUG
-		// errs() << "StreamReadLoweringPass.afer:\n" << F << "\n";
-		std::string errTmp =
-			"hwtHls::StreamReadLoweringPass corrupted function ";
-		llvm::raw_string_ostream errSS(errTmp);
-		errSS << F.getName().str();
-		errSS << "\n";
-		if (verifyModule(*F.getParent(), &errSS)) {
-			throw std::runtime_error(errSS.str());
-		}
-		// writeCFGToDotFile(F,
-		// "tmp/StreamReadLoweringPass.after.no-reg2mem.dot", 		FAM);
-		assert(DT.verify());
-#endif
+//#ifndef NDEBUG
+//		// errs() << "StreamReadLoweringPass.afer:\n" << F << "\n";
+//		std::string errTmp =
+//			"hwtHls::StreamReadLoweringPass corrupted function ";
+//		llvm::raw_string_ostream errSS(errTmp);
+//		errSS << F.getName().str();
+//		errSS << "\n";
+//		if (verifyModule(*F.getParent(), &errSS)) {
+//			throw std::runtime_error(errSS.str());
+//		}
+//		assert(DT.verify());
+//		LI.verify(DT);
+//		// writeCFGToDotFile(F,
+//		// 	"tmp/StreamReadLoweringPass.after.no-reg2mem.dot", FAM);
+//
+//#endif
 		finalizeStreamIoLowerig(F, FAM, DT, streamProps, false,
 								GeneratedAllocas);
 		llvm::PreservedAnalyses PA;
