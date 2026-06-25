@@ -26,20 +26,6 @@ using namespace llvm;
 
 namespace hwtHls {
 
-//// traverse DstBB and search for SrcBB and exit or reach of dominatingBB
-// bool isPotentiallyReachableForSwitchSuccessors(BasicBlock & dominatingBB,
-// BasicBlock & DstBB, BasicBlock & SrcBB) { 	if (&SrcBB == &DstBB) return
-// true;
-//	if (&SrcBB == &dominatingBB)
-//		return false;
-//	for (auto * pred: predecessors(&DstBB)) {
-//		if (isPotentiallyReachableForSwitchSuccessors(dominatingBB, *pred,
-// SrcBB)) 			return true;
-//	}
-//	return false;
-// }
-//
-
 bool HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_matchPattern(
 	BasicBlock &BB0, SetVector<BasicBlock *> &allRegionBBs,
 	SetVector<BasicBlock *> &exitBBs, DominatorTree &DT) {
@@ -50,8 +36,7 @@ bool HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_matchPattern(
 			//|| is_contained(successors(suc), &BB)
 		) {
 			// is entered from somewhere else than after switch region or
-			//// is latch or
-			// does not contain only terminator,
+			//// is latch or does not contain only terminator,
 			// -> treat it as exit block
 			exitBBs.insert(suc);
 			if (exitBBs.size() > 2)
@@ -83,36 +68,6 @@ bool HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_matchPattern(
 
 		for (auto sucSuc : successors(suc)) {
 			allRegionBBs.insert(sucSuc);
-			// if (switchSuccessors.contains(sucSuc))
-			//	continue; // skip because this is not exit but jump to another
-			// sibling block
-
-			// if (!uniqueExits.empty()) {
-			//	if (uniqueExits.contains(sucSuc))
-			//		continue; // already added
-			//
-			//	// in the case that the one exit dominates second it means that
-			// the dominating
-			//	// exit is true exit from section after switch and it has branch
-			// to some other block 	SmallVector<BasicBlock*, 2>
-			//_uniqueExits(uniqueExits.begin(), 			uniqueExits.end());
-			// bool isDominated = false; 	for (auto curExit : _uniqueExits) {
-			// if (curExit == &BB) { 		} else { 			if
-			//(DT.dominates(curExit, sucSuc)) { 				isDominated =
-			// true; 				break; 			} else if
-			// (DT.dominates(sucSuc, curExit)) {
-			// uniqueExits.remove(curExit);
-			//				uniqueExits.insert(sucSuc);
-			//			}
-			//		}
-			//	}
-			//	if (isDominated)
-			//		continue;
-			// }
-			//
-			// uniqueExits.insert(sucSuc);
-			// if (uniqueExits.size() > 2)
-			//	return false; // not the pattern of interest
 		}
 	}
 	if (allRegionBBs.size() == exitBBs.size() &&
@@ -136,9 +91,10 @@ bool HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_matchPattern(
 				return true;
 			}
 		})) {
-		return false; // this would only convert phis to select which is not
-					  // considered good enough CFG simplification
+		// this would only convert phis to select which is not
+  	    // considered good enough CFG simplification
 		// we avoid it because it cancels the opportunity to simplify phis.
+		return false;
 	}
 	return true;
 }
@@ -339,9 +295,6 @@ bool HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit(
 				}
 			}
 		}
-		//if (!lowerPhiCtx.betweenExitBBs.empty()) {
-		//	exprChanged |= fewExitCluster_cutOffExitBBInClusterSuccessors(lowerPhiCtx, DTU, updates);
-		//}
 	} // else no phis to lower
 	for (BasicBlock *BB : origSwitchSuccessors) {
 		if (lowerPhiCtx.bbsWhichMustPreservePhis.contains(BB))
@@ -376,99 +329,6 @@ bool HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit(
 		break;
 	}
 	case 2: {
-		// Input:
-		//  * As input there is CFG with a region dominated by 1 block BB0 and
-		//    with 2 exit(ing) blocks (BBExit0, BBExit1), all blocks in region
-		//    are post dominated by BBExit0/BBExit1. Exit blocks and BB0 are
-		//    allowed to have any instruction while other blocks are allowed to
-		//    have only PHINodes.
-		// Task:
-		//  * As input there is CFG with a region dominated by 1 block BB0 and
-		//    with 2 exit(ing) blocks (BBExit0, BBExit1), all blocks in region
-		//    are post dominated by BBExit0/BBExit1. Exit blocks and BB0 are
-		//    allowed to have any instruction while other blocks are allowed to
-		//    have only PHINodes.
-		// Problems:
-		//  * Blocks between BBExit0/BBExit1 may also have PHINodes and we can
-		//  not remove them as BBExit0 does not need to dominate BBExit1 (or in
-		//  reverse).
-		//    So only PHINode operands for non-exit should be lowered in this
-		//    case.
-		//  * It is preferred that all SelectInst are constructed in BB0 if
-		//  possible.
-
-		// :note: this does not solve the case where exit block has some other
-		//        predecessors and the switch is inside of the loop
-		// if (isPotentiallyReachableForSwitchSuccessors(BB, *uniqueExits[0],
-		//		*uniqueExits[1])) {
-		//	// swap exit block so the uniqueExits[0] dominates uniqueExits[1]
-		//	auto e0 = uniqueExits[0];
-		//	auto e1 = uniqueExits[1];
-		//	uniqueExits.clear();
-		//	uniqueExits.insert(e1);
-		//	uniqueExits.insert(e0);
-		//
-		//	assert(
-		//			!isPotentiallyReachableForSwitchSuccessors(BB,
-		//					*uniqueExits[0], *uniqueExits[1])
-		//					&& "There should not be any cycle");
-		//}
-		// switchSuccessos.remove(uniqueExits[0]);
-		// switchSuccessos.remove(uniqueExits[1]);
-
-		// DenseMap<BasicBlock *, size_t> unresolvedPredCnt;
-		// for (auto *_BB : switchSuccessors) {
-		//	auto predCnt = pred_size(_BB);
-		//	if (uniqueExits.contains(_BB)) {
-		//		for (auto predBB : predecessors(_BB)) {
-		//			if (!switchSuccessors.contains(predBB)) {
-		//				// ignore block which are not part of target
-		//				// region because they will not change
-		//				predCnt -= 1;
-		//			}
-		//		}
-		//	}
-		//	assert(predCnt > 0 && "All should have at least BB as predecessor");
-		//	unresolvedPredCnt[_BB] = predCnt;
-		// }
-		//
-		// SetVector<BasicBlock *> worklist;
-		// worklist.insert(&BB);
-		// while (!worklist.empty()) {
-		//	auto *_BB = worklist.pop_back_val();
-		// }
-
-		//// find also all block between uniqueExits[0] and uniqueExits[1] and
-		//// add them also as exit, because we can not remove them
-		//// as they are part of the CFG between them (because if there is such
-		//// path the def-before-use must be preserved and thus blocks between
-		//// exit bbs can not be removed and path discarded)
-		// SetVector<BasicBlock *> worklist(uniqueExits);
-		// while (!worklist.empty()) {
-		//	auto sucBB = worklist.pop_back_val();
-		//	for (auto sucSucBB : successors(sucBB)) {
-		//		if (!switchSuccessors.contains(sucSucBB)) {
-		//			uniqueExits.insert(sucSucBB);
-		//			worklist.insert(sucSucBB);
-		//		}
-		//	}
-		// }
-
-		// exprChanged = true;
-		//// lower phis in blocks which will be removed
-		//// this should assert that nothing used in
-		// for (auto *newSuc : uniqueExits) {
-		//	if (newSuc->phis().empty())
-		//		continue;
-		//	if (all_of(predecessors(newSuc), [&uniqueExits](BasicBlock *pred) {
-		//			return uniqueExits.contains(pred);
-		//		})) {
-		//		// no need because all phi operands will stay
-		//		continue;
-		//	}
-		//	lowerPhisToSelect(Builder, BB, switchSuccessors, uniqueExits,
-		//					  *newSuc, bbEnableCache, loweredPhiCache);
-		// }
 		//  must be constructed before we remove terminator from pred blocks
 		assert(Builder.GetInsertPoint() == SI.getIterator());
 		assert(exitBBs[0] != &BB0);
@@ -486,8 +346,6 @@ bool HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit(
 
 		DTU.applyUpdates(updates);
 		DTU.flush();
-
-		//lowerPhisOfBlockInRegion_finalizeExit0AndBB0PathSelect(lowerPhiCtx, DT);
 		updates.clear();
 		break;
 	}
