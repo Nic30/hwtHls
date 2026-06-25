@@ -110,7 +110,7 @@ class SchedulableNode():
         self.scheduledOut = None
 
     def moveSchedulingTime(self, offset: SchedTime):
-        assert offset != 0, ("If offset is 0 this is useless to call", self)
+        assert offset != 0, ("If offset is 0 this is useless to call this", self)
         self.scheduledZero += offset
         if self.scheduledZeroMin is not None:
             assert self.scheduledZero >= self.scheduledZeroMin, (self, self.scheduledZero, '>=', self.scheduledZeroMin)
