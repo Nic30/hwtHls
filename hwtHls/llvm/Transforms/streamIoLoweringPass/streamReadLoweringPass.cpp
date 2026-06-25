@@ -1,6 +1,8 @@
 #include <hwtHls/llvm/Transforms/streamIoLoweringPass/streamReadLoweringPass.h>
 
 #include <algorithm>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/Metadata.h>
 #include <sstream>
 
 #include <llvm/ADT/SetVector.h>
@@ -711,7 +713,22 @@ bool StreamReadRewriter::_mayLoadDisabledSegment(
 
 void StreamReadRewriter::_createLoopForEmptySegmentSkip(LoadInst *ld) {
 	// create loop which will skip empty segments
+	// .. code-block::python
+	//   word = ...
+	//   while 1:
+	//     word = ld()
+	//     if word.enable:
+	//         break 
+	//   # code after original ld, processing the word
+ 
 	BasicBlock *BB = ld->getParent();
+	assert(LI);
+	MDNode * LoopMD = nullptr;
+	auto *ParentL = LI->getLoopFor(BB);
+	if (ParentL && ParentL->getHeader() == BB) {
+		LoopMD = ParentL->getLoopID();
+		ParentL->setLoopID(nullptr);
+	} 
 	if (BB->size() != 2 || !BB->getSinglePredecessor() ||
 		!BB->getSingleSuccessor()) {
 		splitBlockBefore(BB, ld, DTU, LI, nullptr,
@@ -734,15 +751,18 @@ void StreamReadRewriter::_createLoopForEmptySegmentSkip(LoadInst *ld) {
 	auto enable =
 		CreateBitRangeGetConst(&Builder, ld, streamProps.getOffsetOfEnable(), 1,
 							   ld->getName() + ".enable");
-	BranchInst::Create(suc, BB, enable,
-					   BB); // loop while enable=0 (offset is not changing)
-	if (DTU) {
-		DTU->applyUpdates({
-			{DominatorTree::Insert, BB, BB},
-		});
-	}
-	if (LI) {
-		auto *ParentL = LI->getLoopFor(BB);
+	// loop while enable=0 (offset is not changing)
+	BranchInst::Create(suc, BB, enable, BB);
+	DTU->applyUpdates({
+		{DominatorTree::Insert, BB, BB},
+	});
+	if (ParentL->getHeader() == BB) {
+		// all new blocks already added
+		ParentL->setLoopID(LoopMD);
+	} else {
+		// the loop on BB was just created
+		// we have to register it in parent loop
+		// or as a top loop
 		Loop *WhileNotEnableL = LI->AllocateLoop();
 		if (ParentL)
 			ParentL->addChildLoop(WhileNotEnableL);
@@ -855,7 +875,7 @@ StreamReadLoweringPass::run(llvm::Function &F,
 	llvm::SmallVector<llvm::AllocaInst *> GeneratedAllocas;
 	auto streamProps = getStreamIoProps(F, GeneratedAllocas);
 	auto &DL = F.getDataLayout();
-
+	auto &LI = FAM.getResult<LoopAnalysis>(F);  
 	// :note: copied from llvm-18 combineInstructionsOverFunction
 	IRBuilder<TargetFolder, IRBuilderCallbackInserter> Builder(
 		F.getContext(), TargetFolder(DL),
@@ -883,7 +903,7 @@ StreamReadLoweringPass::run(llvm::Function &F,
 
 		Builder.SetInsertPoint(F.getEntryBlock().getFirstNonPHIIt());
 		s.createCommonVars(Builder);
-		StreamReadRewriter srr(cfg, s, Builder, &DTU, nullptr);
+		StreamReadRewriter srr(cfg, s, Builder, &DTU, &LI);
 		srr.rewriteAdtAccessToWordAccess(F.getEntryBlock());
 
 		DTU.flush();
