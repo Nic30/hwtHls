@@ -172,6 +172,7 @@ HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_form_dedicatedLatches(
 		}
 		if (inRegionExitLatches.empty())
 			continue;
+		
 		BasicBlock *newExit;
 		if (inRegionExitLatches.size() == 1 && inRegionExitLatches[0] != exitBB) {
 			// use existing latch
@@ -179,9 +180,9 @@ HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_form_dedicatedLatches(
 		} else {
 			auto *MD = inRegionExitLatches[0]->getTerminator()->getMetadata(LLVMContext::MD_loop);
 			newExit = SplitBlockPredecessors(exitBB, inRegionExitLatches,
-											 ".BB0Split", &DTU);
+											 ".ExitLatch", &DTU);
 			newExit->getTerminator()->setMetadata(LLVMContext::MD_loop, MD);
-			for (auto pred : predecessors(exitBB)) {
+			for (auto pred : inRegionExitLatches) {
 				pred->getTerminator()->setMetadata(LLVMContext::MD_loop, nullptr);
 			}								 
 			change = true;
