@@ -77,9 +77,12 @@ class PassTestInjector():
                       runTestAfterEachHlsNetlistPass:bool=False,
                       runTestAfterHlsNetlistPasses:bool=True,) -> Self:
         """
+        
         :note: This function has options for common places where tests can be executed, to run tests on
             different places you shoul override the function which constructs the pass pipeline/runs pass.
         
+        :attention: runTestAfterPassFilter filters already enabled passes only (you must enable them
+                    for example using runTestAfterEachPass=True)
         :attention: some options like runTestAfterMirGISelCombinerChange can generate milions of test executions,
             use with care
         :attention: runTestAfterPass is a positive filter and has priority over runTestAfterEachPass etc.
