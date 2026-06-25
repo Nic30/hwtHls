@@ -148,37 +148,46 @@ static void cleanupBlockWhichBecomeUnreachable(
 	}
 }
 
+// The exit from section can not be the header of the loop, it must be replaced
+// with a latch, and it is optionally required to construct this latch if
+// it does not exit.
 static bool
 HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_form_dedicatedLatches(
 	llvm::DomTreeUpdater &DTU, BasicBlock &BB0,
 	SetVector<BasicBlock *> &origSwitchSuccessors,
 	SetVector<BasicBlock *> &allRegionBBs, SetVector<BasicBlock *> &exitBBs) {
 	bool change = false;
-	if (exitBBs.size() > 1 && exitBBs.contains(&BB0)) {
-		SmallVector<BasicBlock *> inRegionBB0Preds;
-		for (auto pred : predecessors(&BB0)) {
-			if (allRegionBBs.contains(pred)) {
+	if (exitBBs.size() == 1)
+		return change;
+	auto &DT = DTU.getDomTree();
+	for (auto * exitBB: exitBBs) {
+		SmallVector<BasicBlock *> inRegionExitLatches;
+		for (auto pred : predecessors(exitBB)) {
+			if (DT.dominates(exitBB, pred)) {
 				// [todo] move loop metadata from predecessor, because we
 				// creating a new latch
-				inRegionBB0Preds.push_back(pred);
+				inRegionExitLatches.push_back(pred);
 			}
 		}
-		assert(inRegionBB0Preds.size());
+		if (inRegionExitLatches.empty())
+			continue;
 		BasicBlock *newExit;
-		if (inRegionBB0Preds.size() == 1 && inRegionBB0Preds[0] != &BB0) {
+		if (inRegionExitLatches.size() == 1 && inRegionExitLatches[0] != exitBB) {
 			// use existing latch
-			newExit = inRegionBB0Preds[0];
+			newExit = inRegionExitLatches[0];
 		} else {
-			newExit = SplitBlockPredecessors(&BB0, inRegionBB0Preds,
+			newExit = SplitBlockPredecessors(exitBB, inRegionExitLatches,
 											 ".BB0Split", &DTU);
 			change = true;
 		}
 		allRegionBBs.insert(newExit);
-		origSwitchSuccessors.remove_if(
-			[&BB0](BasicBlock *BB) { return BB == &BB0; });
-		origSwitchSuccessors.insert(newExit);
+		if (exitBB == &BB0) {
+			origSwitchSuccessors.remove_if(
+				[&BB0](BasicBlock *BB) { return BB == &BB0; });
+			origSwitchSuccessors.insert(newExit);
+		}
 		// substitute BB0 exit with a newExit
-		if (exitBBs[0] == &BB0) {
+		if (exitBBs[0] == exitBB) {
 			auto e1 = exitBBs.pop_back_val();
 			exitBBs.pop_back();
 			exitBBs.insert(newExit);
@@ -191,6 +200,7 @@ HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_form_dedicatedLatches(
 	}
 	return change;
 }
+
 bool HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit(
 	llvm::IRBuilderBase &Builder, llvm::DomTreeUpdater &DTU,
 	llvm::SwitchInst &SI, bool &exprChanged) {

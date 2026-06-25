@@ -150,11 +150,54 @@ class HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_TC(BaseLlvmIrTC):
             )
         )
 
+    def test_2exits_and_header(self):
+        # :note: based on Axi4SSParse2If Axi4SSParseIf_2Seg_TC test_Axi4SParse2If_48b_100MHz
+        llvmIr = """\
+        define void @test_2exits_and_header(ptr addrspace(1) %i, ptr addrspace(2) %o) {
+        bb0:
+          br label %bb3
+        
+        bb3:                                              ; preds = %bb0, %bb5, %bb3
+          %c0 = load volatile i1, ptr addrspace(1) %i, align 8
+          %v0 = load volatile i16, ptr addrspace(1) %i, align 8
+
+          br i1 %c0, label %bb3.sw, label %bb3
+        
+        bb3.sw:                          ; preds = %bb3
+          switch i16 %v0, label %bb9 [
+            i16 2, label %bb4
+            i16 4, label %bb5.e1
+          ]
+        
+        bb4:                                              ; preds = %bb3.sw
+          br label %bb5.e1
+        
+        bb5.e1:                                   ; preds = %bb4, %bb3.sw
+          %phi0 = phi i16 [ 0, %bb4 ], [ %v0, %bb3.sw ]
+          store volatile i16 %phi0, ptr addrspace(2) %o, align 4
+          br label %bb5
+        
+        bb5:                                              ; preds = %bb9, %bb5.e1
+          br label %bb3
+        
+        bb9:                                              ; preds = %bb3.sw
+          br label %bb5
+        }
+        """
+        self._test_ll(llvmIr, passKwArgs=dict(
+            RunEarlyCSEPass=False,
+            RunRomExtractPass=False,
+            RunHwtHlsInstCombinePass=False,
+            RunTrivialSimplifyCFGPass=False,
+            RunSimplifyCFGPass=False,
+            RunBitcountMergePass=False,
+            )
+        )
 
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
     suite = testLoader.loadTestsFromTestCase(HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_TC)
-    # suite = unittest.TestSuite([HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_TC('test_SwitchSuccClusterReduceFewExit_2exit0')])
+    suite = unittest.TestSuite([HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_TC('test_2exits_and_header')])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
