@@ -278,17 +278,8 @@ static void lowerPhisOfBlockInRegion_construct_enFromPred(LowerPhisToSelectInReg
 	assert(!isa<UnreachableInst>(BB.getTerminator()));
 	auto &Builder = ctx.Builder;
 	auto &BB0 = ctx.BB0;
-	//	ctx.betweenExitBBs.contains(pred) || // because previous phi was not yet lowered which means that it will have to stay and this path merges bb0 and bb.exit0 paths
-	//bool BBIsInExit0Section = false;
-	//if (ctx.exitBBs.size() == 2)
-	//	BBIsInExit0Section = ctx.isInExit0Section(BB);
-	// if (BB.getName() == "bb4") {
-	// 	errs() << "[dbg]\n";
-	// }
-	//bool BBIsExit1WithRequiredCond = ctx.isBlockExit1WithConditionRequired(BB); // if we can not use exit0 cond
-	//if (BB.getName() == "bb2") {
-	//	errs() << "[dbg] bb2\n";
-	//}
+	// because previous phi was not yet lowered which means that it will have to stay and this path merges bb0 and bb.exit0 paths
+
 	// errs() << "lowerPhisOfBlockInRegion_construct_enFromPred " << BB << "\n";
 	for (BasicBlock *pred : BBPredecessors) {
 		if (pred != &BB0 && (
@@ -327,7 +318,6 @@ static void lowerPhisOfBlockInRegion_construct_enFromPred(LowerPhisToSelectInReg
 		if ((ctx.exitBBs.size() > 1 && pred == ctx.exitBBs[0]) ||
 			ctx.betweenExitBBs.contains(pred)) {
 			Builder.SetInsertPoint(ctx.bbExit1SelectInsertPos);
-			//errs() << "IP: " << *ctx.bb0SelectInsertPos << "\n";
 			// if the condition value depends on the exitBB0 we have to
 			// substitute it with the the phi constructed in the exitBB1
 			// constructed for this term
@@ -345,7 +335,6 @@ static void lowerPhisOfBlockInRegion_construct_enFromPred(LowerPhisToSelectInReg
 				}
 			}
 		} else {
-			//errs() << "IP: " << *ctx.bb0SelectInsertPos << "\n";
 			Builder.SetInsertPoint(ctx.bb0SelectInsertPos);
 		}
 		if (ctx.exitBBs.size() == 2 &&  // there are multiple exits
@@ -405,9 +394,6 @@ static void lowerPhisOfBlockInRegion_construct_selects(LowerPhisToSelectInRegion
 	// build a SelectInst tree from enFromPredecessor and phi operands
 	for (const auto &[en, pred, shouldUpdate] :
 		 zip(enFromPredecessor, BBPredecessors, shouldUpdateValueForPred)) {
-		//if (pred->getName() == "bb12") {
-		//	errs() << "[dbg] bb12\n";
-		//}
 		if (!shouldUpdate) {
 			continue;
 		}
@@ -466,7 +452,6 @@ static void lowerPhisOfBlockInRegion_handePhiUpdate(
 		assert(!ctx.newPhisInExit1.contains(_phi));
 	}
 #endif
-	
 	if (isPhiWithVersionForExit0) {
 		assert(ctx.exitBBs.size() == 2);
 		if (&BB == ctx.exitBBs[1]) {
@@ -693,90 +678,4 @@ Value *lowerPhisOfBlockInRegion(LowerPhisToSelectInRegionContext &ctx,
 	return BBEn;
 }
 
-// [todo] rm
-// void lowerPhisOfBlockInRegion_finalizeExit0AndBB0PathSelect(LowerPhisToSelectInRegionContext &ctx, DominatorTree &DT) {
-// 	errs() << "lowerPhisOfBlockInRegion_finalizeExit0AndBB0PathSelect before: \n";
-// 	ctx.exitBBs[0]->getParent()->dump();
-// 	
-// 	for (auto &[phi, mergePhi]: ctx.phiInExit1ForValuesFromExit0) {
-// 		auto valCnt = mergePhi->getNumIncomingValues();
-// 		auto phiBB = phi->getParent();
-// 		assert(phiBB != ctx.exitBBs[1] && "Phis in last exit block should have be lowered to final select and not to another phi in exit1");
-// 		for (size_t valI = 0; valI < valCnt; ++valI) {
-// 			auto pred =	mergePhi->getIncomingBlock(valI);
-// 			if (!DT.dominates(phiBB, pred)) {
-// 				mergePhi->setIncomingValue(valI, PoisonValue::get(phi->getType()));
-// 			}
-// 		}
-// 	}
-// 	errs() << "lowerPhisOfBlockInRegion_finalizeExit0AndBB0PathSelect after: \n";
-// 	ctx.exitBBs[0]->getParent()->dump();
-// }
-
-//void updatePhiOperandsBeforeCfgUpdate(LowerPhisToSelectInRegionContext &ctx) {
-//	// update PHINode operands before rewrite of CFG
-//	for (BasicBlock *BB : ctx.bbsWhichMustPreservePhis) {
-//		SmallVector<Value *> valueFromBB0forPhisOperand(range_size(BB->phis()),
-//														nullptr);
-//		bool hadBB0AsPred = is_contained(predecessors(BB), &ctx.BB0);
-//
-//		// for each predecessor for each phi update
-//		for (auto pred : predecessors(BB)) {
-//			bool shouldUpdatePred =
-//				BB == &ctx.BB0 || !ctx.bbsWhichMustPreservePhis.contains(pred);
-//			if (!shouldUpdatePred)
-//				continue; // for this blocks the value should be already up to
-//						  // date
-//			// replace all operands pairs for preds (which are going to
-//			// be removed) with operand pair (BB0, valDefinedIn BB0),
-//			// all such values should already be the same (updated in
-//			// lowerPhisToSelectInRegion)
-//			size_t phiIndex = 0;
-//			for (auto &phi : BB->phis()) {
-//				auto valForPred = phi.getIncomingValueForBlock(pred);
-//				Value *valForBB0 = valueFromBB0forPhisOperand[phiIndex];
-//				// :attention: If phi operand will remain and there are blocks
-//				// 	between exit blocks the jump to those blocks from exit0 will
-//				// disappear
-//				//  and we have to emulate function of phi node tree.
-//				if (hadBB0AsPred) {
-//					if (!valForBB0) {
-//						// lazy load
-//						valForBB0 = phi.getIncomingValueForBlock(&ctx.BB0);
-//						valueFromBB0forPhisOperand[phiIndex] = valForBB0;
-//					} else {
-//						assert(valForPred == valForBB0 &&
-//							   "The operand value should have been "
-//							   "updated to the same "
-//							   "during lowerPhisToSelectInRegion");
-//						phi.removeIncomingValue(pred,
-//												/*DeletePHIIfEmpty*/ false);
-//					}
-//				} else {
-//					phi.removeIncomingValue(pred, /*DeletePHIIfEmpty*/ false);
-//					if (valForBB0) {
-//						assert(valForPred == valForBB0 &&
-//							   "The operand value should have been "
-//							   "updated to the same "
-//							   "during lowerPhisToSelectInRegion");
-//					} else {
-//						valForBB0 = valForPred;
-//						valueFromBB0forPhisOperand[phiIndex] = valForBB0;
-//						phi.addIncoming(valForBB0, &ctx.BB0);
-//					}
-//				}
-//				++phiIndex;
-//			}
-//		}
-//		// new UnreachableInst(suc->getContext(),
-//		//		suc->getTerminator()->getIterator());
-//		// suc->getTerminator()->eraseFromParent();
-//	}
-//}
-
-//bool lowerPhisToSelectInRegion(LowerPhisToSelectInRegionContext &ctx) {
-//
-//	return true;
-//}
-
-} // namespace hwtHls
+}
