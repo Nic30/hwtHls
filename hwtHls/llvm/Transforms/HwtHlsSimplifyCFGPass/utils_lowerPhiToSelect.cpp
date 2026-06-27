@@ -26,12 +26,12 @@ namespace hwtHls {
 void collectBlocks(BasicBlock &src, llvm::SetVector<llvm::BasicBlock *> &seen,
 				   std::function<bool(BasicBlock &)> predicate) {
 	for (auto suc: successors(&src)) {
-		if (seen.contains(&src)) {
+		if (seen.contains(suc)) {
 			return;
 		}			
-		if (!predicate(src))
+		if (!predicate(*suc))
 			return;
-		seen.insert(&src);
+		seen.insert(suc);
 		collectBlocks(*suc, seen, predicate);
 	}		
 }
