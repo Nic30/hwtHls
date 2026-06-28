@@ -131,8 +131,8 @@ bool HwtHlsInstCombinerMixin<DerivedT>::prepareWorklist(
 							MadeIRChange = true;
 						}
 	};
-
 	for (llvm::BasicBlock *BB : RPOT) {
+		assert(BB->getParent() == &F && "Check that the block was not removed");
 		if (!BB->isEntryBlock()
 				&& all_of(predecessors(BB),
 						[&](llvm::BasicBlock *Pred) {
@@ -155,8 +155,9 @@ bool HwtHlsInstCombinerMixin<DerivedT>::prepareWorklist(
 							llvm::dbgs() << DEBUG_TYPE_SHORT ": ConstFold to: " << *C << " from: " << Inst << '\n');
 					replaceInstUsesWith(Inst, C);
 					++NumConstProp;
-					if (llvm::isInstructionTriviallyDead(&Inst, &TLI))
-						static_cast<DerivedT*>(this)->eraseInstFromFunction(Inst);;
+					if (llvm::isInstructionTriviallyDead(&Inst, &TLI)) {
+						static_cast<DerivedT*>(this)->eraseInstFromFunction(Inst);
+					}
 					MadeIRChange = true;
 					continue;
 				}
@@ -220,14 +221,15 @@ bool HwtHlsInstCombinerMixin<DerivedT>::prepareWorklist(
 			}
 		}
 	}
-
 	// Remove instructions inside unreachable blocks. This prevents the
 	// instcombine code from having to deal with some bad special cases, and
 	// reduces use counts of instructions.
 	for (llvm::BasicBlock &BB : F) {
 		if (LiveBlocks.count(&BB))
 			continue;
-
+		for (auto &I: BB) {
+			Worklist.remove(&I);
+		}
 		unsigned NumDeadInstInBB;
 		NumDeadInstInBB = removeAllNonTerminatorAndEHPadInstructions(&BB);
 
@@ -255,7 +257,7 @@ bool HwtHlsInstCombinerMixin<DerivedT>::prepareWorklist(
 			MadeIRChange = true;
 			continue;
 		}
-
+		assert(Inst->getParent()->getParent() == &F && "Check that instruction was not already removed without notifying worklist");
 		Worklist.push(Inst);
 	}
 
@@ -290,6 +292,13 @@ void HwtHlsInstCombinerMixin<DerivedT>::inheritAndPropagateBitMetadata(
 template<typename DerivedT>
 llvm::Instruction* HwtHlsInstCombinerMixin<DerivedT>::replaceInstUsesWith(
 		llvm::Instruction &I, llvm::Value *V, bool excludeAssumeUsers) {
+#ifndef NDEBUG
+	assert(I.getParent() && "Check that old instruction was not yet removed");
+	assert(&I != V);
+	if (auto* VI = llvm::dyn_cast<llvm::Instruction>(V)) {
+		assert(VI->getParent() && "Check that new instruction was not already removed");
+	}
+#endif
 	// If there are no uses to replace, then we return nullptr to indicate that
 	// no changes were made to the program.
 	if (I.use_empty())
@@ -357,7 +366,7 @@ llvm::Instruction* HwtHlsInstCombinerMixin<DerivedT>::replaceOperand(
 template<typename DerivedT>
 llvm::Instruction* HwtHlsInstCombinerMixin<DerivedT>::eraseInstFromFunction(
 		llvm::Instruction &I) {
-	assert(I.getParent()->getParent() == &F);
+	assert(I.getParent() && "Check that instruction was not already removed without notifying worklist");
 	LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE_SHORT ": ERASE " << I << '\n');
 	assert(I.use_empty() && "Cannot erase instruction that is used!");
 	llvm::salvageDebugInfo(I);
@@ -396,7 +405,7 @@ bool HwtHlsInstCombinerMixin<DerivedT>::run() {
 		// Walk deferred instructions in reverse order, and push them to the
 		// worklist, which means they'll end up popped from the worklist in-order.
 		while (llvm::Instruction *I = Worklist.popDeferred()) {
-			assert(I->getParent()->getParent() == &F);
+			assert(I->getParent() && "Check that instruction was not already removed without notifying worklist");
 			// Check to see if we can DCE the instruction. We do this already here to
 			// reduce the number of uses and thus allow other folds to trigger.
 			// Note that eraseInstFromFunction() may push additional instructions on
@@ -413,7 +422,7 @@ bool HwtHlsInstCombinerMixin<DerivedT>::run() {
 		llvm::Instruction *I = Worklist.removeOne();
 		if (I == nullptr)
 			continue;  // skip null values.
-		assert(I->getParent()->getParent() == &F);
+		assert(I->getParent() && "Check that instruction was not already removed without notifying worklist");
 
 		// Check to see if we can DCE the instruction.
 		if (llvm::isInstructionTriviallyDead(I, &TLI)) {
@@ -496,7 +505,7 @@ bool HwtHlsInstCombinerMixin<DerivedT>::run() {
 			}
 			MadeIRChange = true;
 			if (_dbgIrInstrCombineChangeCallbackFn) {
-				assert(lastOptRuleName);
+ 				assert(lastOptRuleName);
 				auto _lastOptRuleName = std::string(lastOptRuleName);
 				onChangeCallback(_lastOptRuleName, F);
 				lastOptRuleName = nullptr;

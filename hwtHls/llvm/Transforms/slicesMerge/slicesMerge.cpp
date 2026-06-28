@@ -81,7 +81,6 @@ PreservedAnalyses SlicesMergePass::run(Function &F,
 			IRBuilderCallbackInserter([&Worklist](Instruction *I) {
 				Worklist.add(I);
 			}));
-	ReversePostOrderTraversal<BasicBlock*> RPOT(&F.front());
 	// Iterate while there is work to do.
 	unsigned Iteration = 0;
 	for (;;) {
@@ -127,6 +126,8 @@ PreservedAnalyses SlicesMergePass::run(Function &F,
 		//	}
 		//}
 
+		// IC.prepareWorklist may remove unreachable blocks, that is why we need to compute this in every iteration
+		ReversePostOrderTraversal<BasicBlock*> RPOT(&F.front());
 		bool MadeChangeInThisIteration = IC.prepareWorklist(RPOT);
 		MadeChangeInThisIteration |= IC.run();
 		if (Iteration > 1 && !MadeChangeInThisIteration)

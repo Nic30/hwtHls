@@ -1,13 +1,12 @@
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinePass.h>
 
 #include <llvm/Support/DebugCounter.h>
-
+// #undef LLVM_DEBUG
+// #define LLVM_DEBUG(x) x
 #include <llvm/Analysis/InstructionSimplify.h>
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombiner.h>
 #include <llvm/ADT/Statistic.h>
 
-//#undef LLVM_DEBUG
-//#define LLVM_DEBUG(x) x
 
 using namespace llvm;
 
@@ -43,13 +42,10 @@ PreservedAnalyses HwtHlsInstCombinePass::run(llvm::Function &F,
 					AC.registerAssumption(Assume);
 				}
 			}));
-
-	ReversePostOrderTraversal<BasicBlock*> RPOT(&F.front());
 	// Iterate while there is work to do.
 	unsigned Iteration = 0;
 	for (;;) {
 		++Iteration;
-
 		if (Iteration > Options.MaxIterations) {
 			LLVM_DEBUG(
 					dbgs() << "\n\n[" DEBUG_TYPE_SHORT "] Iteration limit #" << Options.MaxIterations << " on "
@@ -59,11 +55,14 @@ PreservedAnalyses HwtHlsInstCombinePass::run(llvm::Function &F,
 
 		++NumWorklistIterations;
 		LLVM_DEBUG(
-				dbgs() << "\n\n" DEBUG_TYPE_SHORT " #" << Iteration << " on " << F.getName() << "\n");
+				dbgs() << "\n\n[" DEBUG_TYPE_SHORT "] #" << Iteration << " on " << F.getName() << "\n");
 
 		HwtHlsInstCombiner IC(Builder, SQ, Worklist, Options, F);
+		// IC.prepareWorklist may remove unreachable blocks, that is why we need to compute this in every iteration
+		ReversePostOrderTraversal<BasicBlock*> RPOT(&F.front());
 		bool MadeChangeInThisIteration = IC.prepareWorklist(RPOT);
 		MadeChangeInThisIteration |= IC.run();
+		Worklist.zap();
 		if (!MadeChangeInThisIteration)
 			break;
 
