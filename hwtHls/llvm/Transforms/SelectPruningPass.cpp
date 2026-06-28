@@ -1,4 +1,5 @@
 #include <hwtHls/llvm/Transforms/SelectPruningPass.h>
+#include <llvm/Analysis/AssumptionCache.h>
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/IR/Instructions.h>
 
@@ -325,6 +326,7 @@ llvm::PreservedAnalyses SelectPruningPass::run(llvm::Function &F,
 		// :note: same as InstructionCombining
 		PreservedAnalyses PA;
 		PA.preserveSet<CFGAnalyses>();
+		PA.abandon<AssumptionAnalysis>();
 		return PA;
 	} else {
 		return PreservedAnalyses::all();
