@@ -17,7 +17,7 @@ class HwtHlsInstCombinePass: public llvm::PassInfoMixin<HwtHlsInstCombinePass> {
 public:
 	static const std::string metadataName_mergableFunction_statePlusMaskedData;
 	static const std::string metadataName_expr_maskContinuosFromLsb;
-
+	
 	HwtHlsInstCombinePass(HwtHlsInstCombinePassOptions Options =
 			HwtHlsInstCombinePassOptions());
 	llvm::PreservedAnalyses run(llvm::Function &F,
