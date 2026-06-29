@@ -1,7 +1,9 @@
 #pragma once
 
+#include <llvm/ADT/SetVector.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/PassManager.h>
+#include <llvm/Analysis/DomTreeUpdater.h>
 
 namespace hwtHls {
 
@@ -25,8 +27,14 @@ TrivialSimplifyCFGPass> {
 	bool allowPhiNewIncommingValues; // allow to add new incoming values for PHIs
 		// this option is dangerous in general case because it may result in loop header blocks being
 	    // merged with to block with PHIs with many incoming values which is then hard to optimize.
+	void onChangeCallback(const std::string & ruleName, llvm::Function & F);
+	bool tryRemoveSingleSuccessorBlockIfNotLatch(llvm::DomTreeUpdater &DTU,
+			const bool allowPhiNewIncommingValues, llvm::BasicBlock *BB,
+			llvm::SmallSetVector<llvm::WeakVH, 16> &WorkList);
 public:
-	TrivialSimplifyCFGPass(bool pruneSinglePredSingleSucBlocks, bool allowPhiNewIncommingValues);
+	using IrChangeCallbackFn = std::function<void(const std::string & ruleName, const llvm::Function & F)>;
+	IrChangeCallbackFn* _dbgIrCfgSimplifyChangeCallbackFn = nullptr;
+	TrivialSimplifyCFGPass(bool pruneSinglePredSingleSucBlocks, bool allowPhiNewIncommingValues, IrChangeCallbackFn* dbgIrCfgSimplifyChangeCallbackFn);
 	llvm::PreservedAnalyses run(llvm::Function &F,
 			llvm::FunctionAnalysisManager &AM);
 };

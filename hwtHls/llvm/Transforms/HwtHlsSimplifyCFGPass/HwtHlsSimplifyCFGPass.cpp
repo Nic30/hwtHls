@@ -535,7 +535,7 @@ llvm::PreservedAnalyses HwtHlsSimplifyCFGPass::run(llvm::Function &F,
 #endif
 			bool changed_trivialSimplifyCfg = false;
 			if (Options.RunTrivialSimplifyCFGPass) {
-				TrivialSimplifyCFGPass trivialSimplifyCfg(true, false);
+				TrivialSimplifyCFGPass trivialSimplifyCfg(true, false, Options._dbgIrCfgSimplifyChangeCallbackFn);
 				changed_trivialSimplifyCfg = runSubpass(PI, F, AM,
 						trivialSimplifyCfg);
 				if (changed_trivialSimplifyCfg) {

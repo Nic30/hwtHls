@@ -332,7 +332,7 @@ void LlvmCompilationBundle::runOpt(
 	//	true, false, "tmp/before.LowerSwitchPass.dot")));
 	//	// :note: llvm-22 FixIrreduciblePass requires LowerSwitchPass
 	MPM.addPass(llvm::createModuleToFunctionPassAdaptor(hwtHls::LowerSwitchWithIfChain())); 
-	MPM.addPass(llvm::createModuleToFunctionPassAdaptor(hwtHls::TrivialSimplifyCFGPass(true, false)));
+	MPM.addPass(llvm::createModuleToFunctionPassAdaptor(hwtHls::TrivialSimplifyCFGPass(true, false, _getPtrOrNull(_dbgIrCfgSimplifyChangeCallbackFn))));
 	MPM.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::FixIrreduciblePass()));
 	// MPM.addPass(llvm::UnifyLoopExitsPass());
 	//{
@@ -428,7 +428,7 @@ void LlvmCompilationBundle::_addInitialNormalizationPasses(
 	FPM.addPass(hwtHls::TmpAllocaLoweringPass());
 	// FPM.addPass(hwtHls::DumpAndExitPass(true, true, "dump.dot"));
 	FPM.addPass(hwtHls::OptionallyOverwriteBlockNamesPass());
-	// FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true));
+	// FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true, true, _getPtrOrNull(_dbgIrCfgSimplifyChangeCallbackFn)));
 	llvm::LoopPassManager LPM0;
 	// it is important that it is done before LoopFlattenUsingIfPass
 	// otherwise hard to anlyze phis for pointers may appear for nested mem
@@ -444,7 +444,7 @@ void LlvmCompilationBundle::_addInitialNormalizationPasses(
 		/*UseBranchProbabilityInfo=*/debugUse_BFI_BPI));
 
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(
-		true, false)); // simplify trivial cases so IR is more easy to read
+		true, false, _getPtrOrNull(_dbgIrCfgSimplifyChangeCallbackFn))); // simplify trivial cases so IR is more easy to read
 	llvm::LoopPassManager
 		LPM0_1; // again the LoopRotationNormalizationPass because some patterns
 				// were not recognized because of redundant blocks
@@ -466,7 +466,7 @@ void LlvmCompilationBundle::_addInitialNormalizationPasses(
 	// [fixme] LoopUnrotatePass probably breaks SE and TrivialSimplifyCFGPass
 	// forces to recompute it
 	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(
-		true, false)); // simplify trivial cases so IR is more easy to read
+		true, false, _getPtrOrNull(_dbgIrCfgSimplifyChangeCallbackFn))); // simplify trivial cases so IR is more easy to read
 	FPM.addPass(llvm::UnifyFunctionExitNodesPass()); // llvm mergereturn
 	// Form SSA out of local memory accesses after breaking apart aggregates
 	// into scalars.
@@ -521,7 +521,7 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 	SimplifyCfgOpts                                                //
 		.setSwitchReduceRange(false)                                                            //
 	;
-	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true, false));
+	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true, false, _getPtrOrNull(_dbgIrCfgSimplifyChangeCallbackFn)));
 	// FPM.addPass(hwtHls::DumpAndExitPass(false, false,
 	// "tmp/StreamLoopUnrollPass.1.dot", true));
 	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(SimplifyCfgOpts));
@@ -533,13 +533,13 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 
 	FPM.addPass(hwtHls::StreamReadLoweringPass());
 	_addInstrCombinePasses(FPM, false, false, false);
-	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true, false));
+	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true, false, _getPtrOrNull(_dbgIrCfgSimplifyChangeCallbackFn)));
 	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(SimplifyCfgOpts));
 	_addInstrCombinePasses(FPM, false, false, false, true);
 
 	FPM.addPass(hwtHls::StreamWriteLoweringPass());
 	_addInstrCombinePasses(FPM, false, false);
-	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true, false));
+	FPM.addPass(hwtHls::TrivialSimplifyCFGPass(true, false, _getPtrOrNull(_dbgIrCfgSimplifyChangeCallbackFn)));
 	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(SimplifyCfgOpts));
 	_addInstrCombinePasses(FPM, false, false);
 	//FPM.addPass(hwtHls::DumpAndExitPass(

@@ -197,7 +197,7 @@ bool tryRemoveSingleSuccessorManyPredecessorBlock(DomTreeUpdater &DTU,
 	return true;
 }
 
-bool tryRemoveSingleSuccessorBlockIfNotLatch(DomTreeUpdater &DTU,
+bool TrivialSimplifyCFGPass::tryRemoveSingleSuccessorBlockIfNotLatch(DomTreeUpdater &DTU,
 		const bool allowPhiNewIncommingValues, BasicBlock *BB,
 		llvm::SmallSetVector<WeakVH, 16> &WorkList) {
 	if (BB == &BB->getParent()->getEntryBlock())
@@ -208,6 +208,7 @@ bool tryRemoveSingleSuccessorBlockIfNotLatch(DomTreeUpdater &DTU,
 	if (SucBB == BB) {
 		return false; // can not remove self loop
 	}
+	auto &F = *BB->getParent();
 	DTU.flush();
 	auto &DT = DTU.getDomTree();
 	bool isLoopLatch = DT.dominates(SucBB, BB);
@@ -224,6 +225,7 @@ bool tryRemoveSingleSuccessorBlockIfNotLatch(DomTreeUpdater &DTU,
 			mergeScavengedMetadata(MDs, BB->getTerminator());
 			assert(BB->getParent());
 			WorkList.insert(BB);
+			onChangeCallback("TrivialSimplifyCFGPass - tryRemoveSingleSuccessorBlockIfNotLatch - MergeBlockIntoPredecessor", F);
 			return true;
 		}
 	}
@@ -233,13 +235,28 @@ bool tryRemoveSingleSuccessorBlockIfNotLatch(DomTreeUpdater &DTU,
 	auto *SinglePredBB = BB->getSinglePredecessor();
 
 	if (SinglePredBB) {
-		return tryRemoveSingleSuccessorSinglePredecessorBlock(DTU, BB,
-				SinglePredBB, SucBB, WorkList);
+		if (tryRemoveSingleSuccessorSinglePredecessorBlock(
+				DTU, BB, SinglePredBB, SucBB, WorkList)) {
+			onChangeCallback("TrivialSimplifyCFGPass - "
+							 "tryRemoveSingleSuccessorBlockIfNotLatch - "
+							 "MergeBlockIntoPredecessor",
+							 F);
+			return true;
+		}
+		return false;
 	} else if (BB->hasNPredecessors(0)) {
 		return false;
 	} else if (allowPhiNewIncommingValues || SucBB->phis().empty()) {
-		return tryRemoveSingleSuccessorManyPredecessorBlock(DTU, BB, SucBB,
-				WorkList);
+		if (tryRemoveSingleSuccessorManyPredecessorBlock(DTU, BB, SucBB,
+														 WorkList)) {
+			onChangeCallback("TrivialSimplifyCFGPass - "
+							 "tryRemoveSingleSuccessorBlockIfNotLatch - "
+							 "tryRemoveSingleSuccessorManyPredecessorBlock",
+							 F);
+			return true;
+		}
+
+		return false;
 	}
 	return false;
 }
@@ -300,21 +317,35 @@ static bool trySimplifyTerminator(IRBuilder<> &Builder, DomTreeUpdater &DTU,
 	}
 	return false;
 }
+
 TrivialSimplifyCFGPass::TrivialSimplifyCFGPass(
-		bool pruneSinglePredSingleSucBlocks, bool allowPhiNewIncommingValues) :
+		bool pruneSinglePredSingleSucBlocks, bool allowPhiNewIncommingValues, IrChangeCallbackFn* dbgIrCfgSimplifyChangeCallbackFn) :
 		pruneSinglePredSingleSucBlocks(pruneSinglePredSingleSucBlocks), allowPhiNewIncommingValues(
-				allowPhiNewIncommingValues) {
+				allowPhiNewIncommingValues), _dbgIrCfgSimplifyChangeCallbackFn(dbgIrCfgSimplifyChangeCallbackFn) {
 }
+
+void TrivialSimplifyCFGPass::onChangeCallback(const std::string & ruleName, llvm::Function & F) {
+	if (_dbgIrCfgSimplifyChangeCallbackFn) {
+		(*_dbgIrCfgSimplifyChangeCallbackFn)(ruleName, F);
+	}
+}
+
 llvm::PreservedAnalyses TrivialSimplifyCFGPass::run(llvm::Function &F,
 		llvm::FunctionAnalysisManager &AM) {
 	auto &DT = AM.getResult<DominatorTreeAnalysis>(F);
 	DomTreeUpdater DTU(DT, DomTreeUpdater::UpdateStrategy::Lazy);
 	IRBuilder<> Builder(F.getContext());
 	bool Changed = false;
-	Changed |= EliminateUnreachableBlocks(F, &DTU, false);
+	if (EliminateUnreachableBlocks(F, &DTU, false)) {
+		onChangeCallback("TrivialSimplifyCFGPass - EliminateUnreachableBlocks", F);
+		Changed = true;
+	}
 	for (BasicBlock &BB : F) {
 		if (BB.getSinglePredecessor())
-			Changed |= FoldSingleEntryPHINodes(&BB);
+			if (FoldSingleEntryPHINodes(&BB)) {
+				onChangeCallback("TrivialSimplifyCFGPass - FoldSingleEntryPHINodes", F);
+				Changed = true;
+			}
 	}
 	llvm::SmallSetVector<WeakVH, 16> WorkList;
 	for (BasicBlock &BB : F) {
@@ -330,11 +361,14 @@ llvm::PreservedAnalyses TrivialSimplifyCFGPass::run(llvm::Function &F,
 		// :attention: trySimplifyTerminator is required because previous opt may generate
 		// conditional br to same successor causes issues for rest of transformations like llvm::SimplifyCFG
 		if (trySimplifyTerminator(Builder, DTU, *BB, WorkList)) {
+			onChangeCallback("TrivialSimplifyCFGPass - trySimplifyTerminator", F);
 			Changed = true;
 		}
 		if (pruneSinglePredSingleSucBlocks)
-			Changed |= tryRemoveSingleSuccessorBlockIfNotLatch(DTU,
-					allowPhiNewIncommingValues, BB, WorkList);
+			if (tryRemoveSingleSuccessorBlockIfNotLatch(DTU,
+					allowPhiNewIncommingValues, BB, WorkList)) {
+				Changed = true;
+			}
 	}
 	DTU.flush();
 
