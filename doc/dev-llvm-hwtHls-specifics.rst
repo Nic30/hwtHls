@@ -2,18 +2,18 @@ HwtHls specific in LLVM based code
 ==================================
 
 HwtHls uses LLVM as stand alone library and does not modify it.
-However specifics require some intrinsic functions () and the TargetMachine (HwtFpga)
-can not use llvm PhysReg which complicates basically everything after CodeGenPrepare.
+However specifics require some intrinsic functions (`hwtHls/llvm/targets/intrinsic`)
+and the TargetMachine (HwtFpga) can not use llvm PhysReg which complicates
+basically everything after CodeGenPrepare.
 
 
 Specifics on IR level
-* `hwtHls/llvm/targets/intrinsic`
+* It is not possible to add more intrinsic functions to already compiled LLVM.
+	* hwtHls intrinsics (`hwtHls/llvm/targets/intrinsic`) are thus normal functions
+	  and there is a method to match them and create them instead.
 * Custom compilation pipeline usually explicitly executed using LlvmCompilationBundle
-  (no llvm-opt tool everything linked as a Python module and used from Python)
-* Compilation pipeline focused on bit precise math, shifts with unbound offsets are avoided
-  in the favor of select between BitConcats. This is important because BitRangeGet and BitConcat
-  are free on target architecture and InstrSimplify would merge shifts and obfuscate offset computation
-  making bit selection patterns practically unrecognizable.
+  (instead of llvm-opt tool there is utils/hwtHls-opt.py but it is intended only for compatibility
+   and hwtHls.llvm.llvmIr module which directly links to llvm on C++ level should be used instead)
 
  
 Specifics on MIR level
