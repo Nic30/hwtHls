@@ -1,5 +1,5 @@
 #include <stdint.h>
-
+#include <assert.h>
 
 inline uint64_t log2ceil(uint64_t x) {
 	// https://graphics.stanford.edu/~seander/bithacks.html#IntegerLogObvious
