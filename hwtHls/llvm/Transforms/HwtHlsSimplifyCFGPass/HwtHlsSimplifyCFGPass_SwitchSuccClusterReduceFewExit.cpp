@@ -170,8 +170,23 @@ HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_form_dedicatedLatches(
 				inRegionExitLatches.push_back(pred);
 			}
 		}
-		if (inRegionExitLatches.empty())
+		if (inRegionExitLatches.empty()) {
+			// exitBB not a header of the loop
 			continue;
+		}
+		bool allNonExitsDominatedByExitBB = true;
+		for (auto BB: allRegionBBs) {
+			if (!DT.dominates(exitBB, BB)) {
+				allNonExitsDominatedByExitBB = false;
+				break;
+			}
+		}
+		if (!allNonExitsDominatedByExitBB) {
+			// the loop on exitBB is situated after the section
+			continue;
+		} else {
+			// the section is contained within the loop with exitBB as header 
+		}
 		
 		BasicBlock *newExit;
 		if (inRegionExitLatches.size() == 1 && inRegionExitLatches[0] != exitBB) {
