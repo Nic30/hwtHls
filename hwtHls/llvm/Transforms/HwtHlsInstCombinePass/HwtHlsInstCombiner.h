@@ -2,7 +2,7 @@
 
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinerDebug.h>
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinePassOptions.h>
-
+#include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinerHwtHlsMergableFunction.h>
 #include <map>
 
 #include <llvm/ADT/PostOrderIterator.h>
@@ -225,16 +225,6 @@ public:
 	//llvm::Instruction* _tryReduceMergableFunctionInSelect_optinalToMasked(
 	//		llvm::SelectInst &SI, llvm::CallInst *T,
 	//		std::optional<llvm::CallInst*> _F);
-
-	struct MergableFunctionChainItem {
-		llvm::CallInst *mergableFnCall;
-		llvm::Value *enCondition; // if enConditionNegated==false and enCondition==true the mergableFnCall is executed
-		bool enConditionNegated;
-		MergableFunctionChainItem() :
-				mergableFnCall(nullptr), enCondition(nullptr), enConditionNegated(
-						false) {
-		}
-	};
 
 	// result[0] is a top of the tree
 	bool _tryReduceMergableFunctionInSelect_detect(llvm::SelectInst &topSI,

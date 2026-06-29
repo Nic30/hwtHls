@@ -1,6 +1,8 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_phiToLogicalExpr.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFG_priv.h>
 
+#include <llvm/ADT/SmallVector.h>
+#include <llvm/IR/Instructions.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/PatternMatch.h>
 #include <llvm/IR/Intrinsics.h>
@@ -10,7 +12,9 @@
 #include <llvm/Transforms/Utils/BasicBlockUtils.h>
 
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinerUtilsImplication.h>
+#include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinePass.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
+#include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinerHwtHlsMergableFunction.h>
 
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/targets/bitMathUtils.h>
@@ -134,6 +138,7 @@ bool HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 			}
 		}
 	}
+	PhiToLogicalExprOptLevel optLvl;
 	// apply this only as a last step after there is nothing inside of blocks
 	for (auto &BBItem : predecChain.blocks) {
 		if (BBItem.BB == predecChain.blocks.front().BB)
@@ -147,27 +152,30 @@ bool HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 								m_Value(v)))) {
 					// block contains something so even if we reduce this phi,
 					// it is not possible to remove the predecessor block
-					return CfgChange;
+					optLvl = PhiToLogicalExprOptLevel::ONLY_identity_fshl_cttz_hwtHls_mergableFunction;
+					break;
 				}
 			}
 			// block contains only llvm.assume which is allowed as it is expected that it will be moved later
+			if (optLvl != PhiToLogicalExprOptLevel::ALL) {
+				break;
+			}
 		}
 	}
-
 	for (auto &PHI : make_early_inc_range(exitBB.phis())) {
-		bool allIncommingValuesDominatingBB = true;
 		for (auto &v : PHI.incoming_values()) {
 			if (auto I = dyn_cast<Instruction>(v.get())) {
 				if (!DT.dominates(I, &exitBB)) {
-					allIncommingValuesDominatingBB = false;
+					// hwtHls.mergableFunction pattern forces a chain which asserts the the values
+					// have correct dominance, but the individual I in block does not dominate
+					// exitBB itself, only whole chain does
+					optLvl =  PhiToLogicalExprOptLevel::ONLY_identity_hwtHls_mergableFunction;
 					break;
 				}
 			}
 		}
-		if (!allIncommingValuesDominatingBB)
-			continue;
 		if (auto V = HwtHlsSimplifyCFGPass_phiToLogicalExpr(Builder, DL, AC,
-				predecChain, PHI)) {
+				predecChain, PHI, optLvl)) {
 			// If V is a new unnamed instruction, take the name from the old one.
 			if (V->use_empty() && isa<Instruction>(V) && !V->hasName()
 					&& PHI.hasName())
@@ -176,7 +184,8 @@ bool HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 			PHI.replaceAllUsesWith(V);
 			PHI.eraseFromParent();
 
-			CfgChange = true;
+			exprChanged = true;
+			CfgChange = true; // because phi change may allow additional cfg transformations
 		}
 	}
 
@@ -229,10 +238,10 @@ void getConditions(IRBuilderBase &Builder,
 			if (BB.toExitBrCondIsNegated != negate) {
 				Cond = Builder.CreateNot(Cond);
 			}
-			res.push_back(Cond);
 		} else {
 			Cond = Builder.getInt1(!negate); // condition is not specified and it is default exit condition
 		}
+		res.push_back(Cond);
 	}
 }
 
@@ -320,9 +329,216 @@ inline bool isFshlOf(llvm::Value *v, llvm::Value *a, llvm::Value *b,
 	}
 }
 
+/*
+ * :param: specifies if the data0 is also mergable function or new init value
+ */
+void HwtHlsSimplifyCFGPass_phiToLogicalExpr_mergableFunction_detect(const std::vector<Value *> &values, bool &isMergableFn,
+			bool &isMergableFnAlso0, Value *&mergableFnId) {
+	isMergableFnAlso0 = false;
+	isMergableFn = true;
+	mergableFnId = nullptr;
+	Value *stateIn = nullptr;
+	size_t _i = values.size() - 1;
+	for (Value *V : reverse(values)) {
+		auto i = _i;
+		--_i;
+		if (stateIn && stateIn != V) {
+			// mergable functions do not form a chain
+			isMergableFn = false;
+			break;
+		}
+		if (auto I = dyn_cast<CallInst>(V)) {
+			bool isLast = i == values.size() - 1;
+			if (!isLast && I->hasNUndroppableUsesOrMore(3)) { // 1 in phi, 1 in successor
+				if (i == 0) {
+					break;
+				}
+				isMergableFn = false;
+				break;
+			}
+			// the first may be arbitrary init value or another member of
+			// mergable function chain
+			auto *F = I->getCalledFunction();
+			if (!F->hasMetadata(
+					HwtHlsInstCombinePass::
+						metadataName_mergableFunction_statePlusMaskedData)) {
+				if (i == 0) {
+					break;
+				}
+				isMergableFn = false;
+				break;
+			}
+			auto thisFnId = I->getArgOperand(0);
+			if (mergableFnId && mergableFnId != thisFnId) {
+				if (i == 0) {
+					break;
+				}
+				isMergableFn = false;
+				break;
+			}
+			if (i == 0) {
+				isMergableFnAlso0 = true;
+			}
+			stateIn = getStateInOfMergableFunction(*I);
+			mergableFnId = thisFnId;
+			continue;
+		}
+		if (i == 0) {
+			break;
+		}
+		isMergableFn = false;
+		break;
+	}
+}
+
+llvm::CallInst *HwtHlsSimplifyCFGPass_phiToLogicalExpr_mergableFunction_rewrite(
+	IRBuilderBase &Builder, PHINode &PHI,
+	llvm::SmallVector<CfgFragmentChainOfblocksWithSameSucc::BasicBlockAndBrCond>
+		&blocks,
+	const std::vector<Value *> &values, bool isMergableFnAlso0) {
+	SmallVector<Value *> _conditions;
+	getConditions(Builder, blocks, /*negate*/ true /*for continue in chain*/, _conditions);
+
+	ConcatMemberVector newMask;
+	ConcatMemberVector newData;
+	size_t i = 0;
+	assert(_conditions.size() == values.size());
+	// :note: conditions now contains en for every member in values
+	//   values[0] corresponds to a value from top most block, and contains[0]==true means
+	//   that the top most block jumps to final block
+	//   however for mergableFunction we need the condition for enable of the block where
+	//   the current call is and not enable for jump from this block to final block
+	//   so we have to reformat the conditions
+	SmallVector<Value *> conditions;
+    // enable for the first call in bb0
+	conditions.push_back(Builder.getTrue());
+	// we are not interested in last conditions because it does not drive if last call is executed or not
+	conditions.insert(conditions.end(), _conditions.begin(), _conditions.end() - 1);
+	assert(conditions.size() == values.size());
+	for (const auto [c, v] : zip(conditions, values)) {
+		CallInst *mergableFnCall;
+		if (i != 0 || isMergableFnAlso0) {
+			mergableFnCall = dyn_cast<CallInst>(v);
+			assert(mergableFnCall);
+		} else {
+			++i;
+			continue;;
+		}
+		// m &= block.en
+		auto m = getMaskOfMergableFunction(*mergableFnCall);
+		if (m->getType()->getIntegerBitWidth() == 1 && match(m, m_ConstantInt<1>())) {
+			// omit select i1 %m, i1 true, i1 false	
+			m = c;	
+		} else {
+			auto maskZero = ConstantInt::get(m->getType(), 0);
+			m = Builder.CreateSelect(c, m, maskZero);
+		}
+		newMask.push_back_flattened(m);
+		newData.push_back_flattened(getDataOfMergableFunction(*mergableFnCall));
+		++i;
+	}
+	CallInst *call0 = dyn_cast<CallInst>(values[isMergableFnAlso0 ? 0 : 1]);
+	assert(call0);
+	return CreateMergedMergableCall(Builder, *call0,
+									&*PHI.getParent()->getFirstInsertionPt(),
+									newMask, newData);
+}
+
+struct AndOrSelPatternsMatch {
+	size_t commonPrefixLen = 0;	// [0], [1], [2], [3]
+	size_t commonSuffixLen = 0; // [0], [1], [2], [3]
+	bool isBeginZero = false; // [0], [4], [6]
+	bool isBeginAllOnes = false; // [1], [7]
+	bool isEndZero = false; // [0], [4], [6]
+	bool isEndAllOnes = false; // [1], [7]
+};
+
+llvm::Value *HwtHlsSimplifyCFGPass_phiToLogicalExpr_andOrSelPatterns_rewrite(
+	IRBuilderBase &Builder, PHINode &PHI, const llvm::DataLayout &DL,
+	llvm::AssumptionCache *AC,
+	llvm::SmallVector<CfgFragmentChainOfblocksWithSameSucc::BasicBlockAndBrCond>
+		&blocks,
+	const std::vector<Value *> &values, const AndOrSelPatternsMatch &m) {
+
+	SmallVector<Value *> conditions;
+	auto prefixBBs =
+		make_range(blocks.begin(), blocks.begin() + m.commonPrefixLen);
+	auto suffixBBs =
+		make_range(blocks.begin() + m.commonPrefixLen, blocks.end());
+	auto Ty = PHI.getType();
+	size_t valWidth = PHI.getType()->getIntegerBitWidth();
+	if (m.isBeginZero) {
+		// [0] [false{n}, x{m}] // value conditionally set from some point
+		//                        ->    And(!bb.c for bb in n, x)
+		getConditions(Builder, prefixBBs, /*negate*/ true, conditions);
+		// [todo] more tests that negation of conditions works as expected
+
+		if (valWidth == 1) {
+			conditions.push_back(values.back());
+			pruneImpliedConditionsAndLastLikelyMostSpecific(
+				conditions, Builder, DL, AC, /*DT*/ nullptr,
+				&*Builder.GetInsertPoint());
+			auto c = Builder.CreateAnd(conditions);
+			return c;
+		} else {
+			auto c = Builder.CreateAnd(conditions);
+			pruneImpliedConditionsAndLastLikelyMostSpecific(
+				conditions, Builder, DL, AC, /*DT*/ nullptr,
+				&*Builder.GetInsertPoint());
+			return Builder.CreateSelect(c, values.back(),
+										Builder.getIntN(valWidth, 0));
+		}
+	} else if (m.isBeginAllOnes) {
+		// [1] [true{n}, x{m}] // value condition from some point
+		//                        ->     Or( bb.c for bb in n, x)
+		getConditions(Builder, prefixBBs, /*negate*/ false, conditions);
+		if (valWidth == 1) {
+			conditions.push_back(values.back());
+			return Builder.CreateOr(conditions);
+		} else {
+			auto c = Builder.CreateOr(conditions);
+			return Builder.CreateSelect(c, ConstantInt::getAllOnesValue(Ty),
+										values.back());
+		}
+	} else if (m.isEndZero) {
+		// [2] [x{n}, false{m}] // value cleared from some point
+		//                        ->  And(Or(bb.c for bb in n), x)
+		getConditions(Builder, prefixBBs, /*negate*/ false, conditions);
+		if (valWidth == 1) {
+			return Builder.CreateAnd(Builder.CreateOr(conditions),
+									 values.front());
+		} else {
+			auto c = Builder.CreateAnd(conditions);
+			return Builder.CreateSelect(c, values.front(),
+										ConstantInt::get(Ty, 0));
+		}
+
+	} else if (m.isEndAllOnes) {
+		// [3] [x{n}, true{m}] // value set from some point
+		//                        -> Or(x, Or(bb.c for bb in m))
+		getConditions(Builder, suffixBBs, /*negate*/ true, conditions);
+		if (valWidth == 1) {
+			conditions.push_back(values.front());
+			return Builder.CreateOr(conditions);
+		} else {
+			auto c = Builder.CreateAnd(conditions);
+			return Builder.CreateSelect(c, values.front(),
+										ConstantInt::getAllOnesValue(Ty));
+		}
+
+	} else {
+		// [4] [x{n}, y{m}]
+		//                        -> select (Or(bb.c for bb in n)), x, y
+		getConditions(Builder, prefixBBs, /*negate*/ false, conditions);
+		return Builder.CreateSelect(Builder.CreateOr(conditions),
+									values.front(), values.back());
+	}
+}
+
 llvm::Value* HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 		const llvm::DataLayout &DL, llvm::AssumptionCache *AC,
-		CfgFragmentChainOfblocksWithSameSucc &predecChain, llvm::PHINode &PHI) {
+		CfgFragmentChainOfblocksWithSameSucc &predecChain, llvm::PHINode &PHI,
+		PhiToLogicalExprOptLevel optLvl) {
 	// :attention: this expects all branch condition defs to be hoisted before terminator of the first predecessor BB in chain
 	if (!PHI.getType()->isIntegerTy())
 		return nullptr;
@@ -356,120 +572,65 @@ llvm::Value* HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 	//                        -> cttz(concat(bb.c for bb in m))
 	// [8] count trailing ones [max-1, max-2, ..., 0]
 	//                        -> cttz(~concat(bb.c for bb in m))
+	// [9] !hwtHls.mergableFunction.statePlusMaskedData  [%init, %v0=fn(%id, %init, %d0), %v1=fn(%id, %v0, %d1)] 
+	//                        ->  fn(%id, %init, Concat(%d1, %d0))
+	//                        :see: HwtHlsInstCombiner::tryReduceMergableFunction
 	Builder.SetInsertPoint(predecChain.blocks.front().BB->getTerminator());
-	std::vector<Value*> values;
+	std::vector<Value*> values; // ordered as the value from top most block first
 	values.reserve(predecChain.blocks.size());
 
-	size_t commonPrefixLen = 0;	// [0], [1], [2], [3]
+	AndOrSelPatternsMatch andOrSelM;
 	for (auto &BBItem : predecChain.blocks) {
 		auto *V = PHI.getIncomingValueForBlock(BBItem.BB);
 		if (values.empty()) {
-			++commonPrefixLen;
+			++andOrSelM.commonPrefixLen;
 
-		} else if (commonPrefixLen == values.size()) { // if is continuous sequence of prefix value (lsb to msb)
+		} else if (andOrSelM.commonPrefixLen == values.size()) { // if is continuous sequence of prefix value (lsb to msb)
 			if (values.back() == V)
-				++commonPrefixLen;
+				++andOrSelM.commonPrefixLen;
 		}
 		values.push_back(V);
 	}
-	if (commonPrefixLen == values.size()) {
+	if (andOrSelM.commonPrefixLen == values.size()) {
 		return values.front(); // case [x{n}]
 	}
 
-	size_t commonSuffixLen = 0; // [0], [1], [2], [3]
 	Value *suffix = values.back();
 	for (Value *V : reverse(values)) {
 		if (V == suffix) {
-			++commonSuffixLen;
+			++andOrSelM.commonSuffixLen;
 		} else {
 			break;
 		}
 	}
-	bool isBeginZero = false; // [0], [4], [6]
-	bool isBeginAllOnes = false; // [1], [7]
-	bool isEndZero = false; // [0], [4], [6]
-	bool isEndAllOnes = false; // [1], [7]
-	checkForZeroAndAllOnes(values.front(), isBeginZero, isBeginAllOnes);
-	checkForZeroAndAllOnes(values.back(), isEndZero, isEndAllOnes);
-
+	checkForZeroAndAllOnes(values.front(), andOrSelM.isBeginZero, andOrSelM.isBeginAllOnes);
+	checkForZeroAndAllOnes(values.back(), andOrSelM.isEndZero, andOrSelM.isEndAllOnes);
+    bool isMergableFn = true;
+	bool isMergableFnAlso0 = false; 
+	Value *mergableFnId = nullptr;
 	auto &blocks = predecChain.blocks;
-	SmallVector<Value*> conditions;
-	if (commonPrefixLen == 1 && commonSuffixLen == 1 && values.size() == 2) {
-		// avoid too simple case
-	} else if (commonPrefixLen + commonSuffixLen == values.size()) {
-		auto prefixBBs = make_range(blocks.begin(),
-				blocks.begin() + commonPrefixLen);
-		auto suffixBBs = make_range(blocks.begin() + commonPrefixLen,
-				blocks.end());
-		auto Ty = PHI.getType();
-		size_t valWidth = PHI.getType()->getIntegerBitWidth();
-		if (isBeginZero) {
-			// [0] [false{n}, x{m}] // value conditionally set from some point
-			//                        ->    And(!bb.c for bb in n, x)
-			getConditions(Builder, prefixBBs, /*negate*/true, conditions);
-			// [todo] more tests that negation of conditions works as expected
-			
-			if (valWidth == 1) {
-				conditions.push_back(values.back());
-				pruneImpliedConditionsAndLastLikelyMostSpecific(conditions,
-						Builder, DL, AC, /*DT*/nullptr,
-						&*Builder.GetInsertPoint());
-				auto c = Builder.CreateAnd(conditions);
-				return c;
-			} else {
-				auto c = Builder.CreateAnd(conditions);
-				pruneImpliedConditionsAndLastLikelyMostSpecific(conditions,
-						Builder, DL, AC, /*DT*/nullptr,
-						&*Builder.GetInsertPoint());
-				return Builder.CreateSelect(c, values.back(),
-						Builder.getIntN(valWidth, 0));
-			}
-		} else if (isBeginAllOnes) {
-			// [1] [true{n}, x{m}] // value condition from some point
-			//                        ->     Or( bb.c for bb in n, x)
-			getConditions(Builder, prefixBBs, /*negate*/false, conditions);
-			if (valWidth == 1) {
-				conditions.push_back(values.back());
-				return Builder.CreateOr(conditions);
-			} else {
-				auto c = Builder.CreateOr(conditions);
-				return Builder.CreateSelect(c, ConstantInt::getAllOnesValue(Ty),
-						values.back());
-			}
-		} else if (isEndZero) {
-			// [2] [x{n}, false{m}] // value cleared from some point
-			//                        ->  And(Or(bb.c for bb in n), x)
-			getConditions(Builder, prefixBBs, /*negate*/false, conditions);
-			if (valWidth == 1) {
-				return Builder.CreateAnd(Builder.CreateOr(conditions),
-						values.front());
-			} else {
-				auto c = Builder.CreateAnd(conditions);
-				return Builder.CreateSelect(c, values.front(),
-						ConstantInt::get(Ty, 0));
-			}
-
-		} else if (isEndAllOnes) {
-			// [3] [x{n}, true{m}] // value set from some point
-			//                        -> Or(x, Or(bb.c for bb in m))
-			getConditions(Builder, suffixBBs, /*negate*/true, conditions);
-			if (valWidth == 1) {
-				conditions.push_back(values.front());
-				return Builder.CreateOr(conditions);
-			} else {
-				auto c = Builder.CreateAnd(conditions);
-				return Builder.CreateSelect(c, values.front(),
-						ConstantInt::getAllOnesValue(Ty));
-			}
-
-		} else {
-			// [4] [x{n}, y{m}]
-			//                        -> select (Or(bb.c for bb in n)), x, y
-			getConditions(Builder, prefixBBs, /*negate*/false, conditions);
-			return Builder.CreateSelect(Builder.CreateOr(conditions),
-					values.front(), values.back());
-		}
+	if (blocks.back().toExitBrCond) {
+		// too early to search for mergableFunction
+		isMergableFn = false;
 	} else {
+		HwtHlsSimplifyCFGPass_phiToLogicalExpr_mergableFunction_detect(values, isMergableFn, isMergableFnAlso0, mergableFnId);
+	}
+
+
+	if (isMergableFn) { // [9]
+		return HwtHlsSimplifyCFGPass_phiToLogicalExpr_mergableFunction_rewrite(
+			Builder, PHI, blocks, values, isMergableFnAlso0);
+	}
+	if (andOrSelM.commonPrefixLen == 1 && andOrSelM.commonSuffixLen == 1 && values.size() == 2) {
+		// avoid too simple case
+	} else if (andOrSelM.commonPrefixLen + andOrSelM.commonSuffixLen == values.size()) {
+		if (optLvl < PhiToLogicalExprOptLevel::ALL)
+			return nullptr;
+		return HwtHlsSimplifyCFGPass_phiToLogicalExpr_andOrSelPatterns_rewrite(Builder, PHI, DL, AC, blocks, values, andOrSelM);
+	} else {
+		if (optLvl < PhiToLogicalExprOptLevel::ONLY_identity_fshl_cttz_hwtHls_mergableFunction)
+			return nullptr;
+		SmallVector<Value*> conditions;
 		auto v0 = values.front();
 		auto vLast = values.back();
 		getConditions(Builder, blocks, /*negate*/false, conditions);

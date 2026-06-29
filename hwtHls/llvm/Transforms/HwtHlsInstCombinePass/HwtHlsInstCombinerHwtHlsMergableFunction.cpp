@@ -1,6 +1,6 @@
+// :see: also HwtHlsSimplifyCFGPass_phiToLogicalExpr
+#include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinerHwtHlsMergableFunction.h>
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombiner.h>
-
-#include <map>
 
 #include <llvm/IR/PatternMatch.h>
 #include <llvm/IR/ConstantRange.h>
@@ -71,7 +71,7 @@ bool isUsedOnlySameMergableFnCallOrInstr(llvm::CallInst &CallI,
 	}
 	return true;
 }
-// :param call0: bottom most call which also to get called function, metadata and stateIn
+
 CallInst* CreateMergedMergableCall(llvm::IRBuilderBase &Builder,
 		CallInst &call0, Instruction *insertPoint, ConcatMemberVector &newMask,
 		ConcatMemberVector &newData) {
