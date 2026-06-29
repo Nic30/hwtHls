@@ -19,7 +19,7 @@ dynamic = ['version',]
 description = 'A library for automated translation of an algorithmic description to hardware architectures.'
 readme = "README.md"
 license = { file = 'LICENSE' }
-keyword = ['FPGA', 'ASIC', 'compiler', 'HLS', 'ABC', 'RTL', 'synthesis', 'logicsynthesis',
+keywords = ['FPGA', 'ASIC', 'compiler', 'HLS', 'ABC', 'RTL', 'synthesis', 'logicsynthesis',
            'LLVM', 'VHDL', 'verification', 'Verilog', 'SystemVerilog']
 authors = [
   { name = 'Michal Orsak', email = 'Nic30original@gmail.com' },
