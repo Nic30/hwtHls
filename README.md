@@ -146,6 +146,7 @@ pip3 install git+https://github.com/Nic30/hwtHls.git # install this library from
 * [Hastlayer](https://github.com/Lombiq/Hastlayer-SDK) - 2012-2019, C# -> HW
 * [heterocl](https://awesomeopensource.com/project/cornell-zhang/heterocl)
 * [hls4ml](https://github.com/vloncar/hls4ml)
+* [da4ml](https://github.com/calad0i/da4ml)
 * [HyCC](https://github.com/stskeeps/HyCC) - 2018, hybrid MPC from ANSI-C
 * [ICSC](https://github.com/intel/systemc-compiler) - C++/LLVM, systemC compiler
 * [Light-HLS](https://github.com/zslwyuan/Light-HLS) -, C++/LLVM, experimental HLS framework
