@@ -213,7 +213,12 @@ llvm::Instruction* HwtHlsInstCombiner::tryReduceMergableFunctionInSequence(
 			if (conditionNegated) {
 				m = Builder.CreateSelect(IExeCond, maskZero, m);
 			} else {
-				m = Builder.CreateSelect(IExeCond, m, maskZero);
+				if (m->getType()->getIntegerBitWidth() == 1 && match(m, m_ConstantInt<1>())) {
+					// omit select i1 %m, i1 true, i1 false		
+					m = IExeCond;
+				} else {
+					m = Builder.CreateSelect(IExeCond, m, maskZero);
+				}
 			}
 		}
 		newMask.push_back_flattened(m);
