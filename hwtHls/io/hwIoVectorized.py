@@ -154,21 +154,29 @@ class HlsNetNodeWriteVectorized(HlsNetNodeWrite):
 
     @override
     def rtlAllocAsIO(self, allocator:"ArchElement") -> list[HdlStatement]:
+        dst: HwIOStructVecRdVld = self.dst
+        laneWidth = dst.T.bit_length() + 1
+        allLanesWidth = self.dependsOn[self._portSrc.in_i]._dtype.bit_length()
+        if allLanesWidth == laneWidth - 1:
+            expectedLaneCnt = 1
+        else:
+            expectedLaneCnt = allLanesWidth // laneWidth
+            # :note: Concat(en bits, lanedata) or just 1 lanedata
+            assert allLanesWidth % laneWidth == 0, (self, allLanesWidth, laneWidth)
+        
         if not self.rtlPortPhysicallyExits():
             assert self.dst is not None, self
-            dst: HwIOStructVecRdVld = self.dst
             assert dst.LANE_CNT is None, (self, dst)
-            laneWidth = dst.T.bit_length() + 1
-            allLanesWidth = self.dependsOn[self._portSrc.in_i]._dtype.bit_length()
-            assert allLanesWidth % laneWidth == 0, (self, allLanesWidth, laneWidth)
-            dst.LANE_CNT = allLanesWidth // laneWidth
+            dst.LANE_CNT = expectedLaneCnt
             u:HwModule = self.netlist.parentHwModule
             name = None
             if dst is not None:
                 name = dst._name
             dst._name = name if name is not None else self.netlist.namePrefix + (self.name if self.name is not None else f"n{self._id}")
             self.dst = HwIO_without_registration(u, dst, dst._name)
-
+        else:
+            assert self.dst.LANE_CNT == expectedLaneCnt, (self.dst.LANE_CNT, expectedLaneCnt, self)
+            
         return super().rtlAllocAsIO(allocator)
 
 
@@ -245,7 +253,9 @@ class HwIoProxyScalarVectorized(IoProxyScalar):
             *args,
             writeNodeCls: TypingType[HlsNetNodeWrite]=HlsNetNodeWriteVectorized,
             writeNodeConstructorKwArgs={}) -> Sequence[HlsNetNode]:
-        return super()._translateMirToNetlist_HWTFPGA_CSTORE(*args, writeNodeCls=writeNodeCls, writeNodeConstructorKwArgs=writeNodeConstructorKwArgs)
+        return super()._translateMirToNetlist_HWTFPGA_CSTORE(
+            *args, writeNodeCls=writeNodeCls,
+            writeNodeConstructorKwArgs=writeNodeConstructorKwArgs)
 
     @staticmethod
     def getLaneCntFromWidth(ioMd: HwtHlsIoMetadata, segmentWidth: int, w: int, *dbgMsg) -> Optional[int]:
