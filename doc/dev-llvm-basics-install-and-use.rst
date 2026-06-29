@@ -55,11 +55,12 @@ This is useful when debugging issues which are happening in LLVM code.
 	cd hwtHls # cd to this project root directory
 	meson setup build/ --native-file utils/custom-llvm.ini # :note: this is an example file, you want to specify your own path
 
-* When executing you need to use `LD_PRELOAD=$PWD/../llvm_install/lib/libLLVM.so` in order to actually use the custom build otherwise a system wide installed library will be used.
-* Note that once executed it takes >4m for gdb-11.1 and requires >16G of RAM to start because of the LLVM debug meta size.
+* When executing you need to use `LD_PRELOAD=$PWD/../llvm_install/lib/libLLVM.so` in order to actually 
+  use the custom build otherwise a system wide installed library will be used.
+* Note that once executed it takes ~8s for gdb-16.3 and requires >4G of RAM to start because of the LLVM debug meta size.
   If you do not use debug build of LLVM you still will be able to debug c++ code in this project and gdb will start in <1s.
-  But you wont be able to debug inside LLVM functions.
-* It is highly recommended to index LLVM libraries in order to lower gdb start time `gdb-add-index llvm_install/lib/libLLVM-16.so`
+  But you won't be able to debug inside LLVM functions.
+* `gdb-add-index llvm_install/lib/libLLVM-21.so` may be useful.
 * https://stackoverflow.com/questions/3982036/how-can-i-use-valgrind-with-python-c-extensions
 
 Using -dbg package of llvm
@@ -109,6 +110,7 @@ Translation to LLVM IR
 	llc main.ll # produces assembly main.s
 	llc -mtriple=mips-linux-gnu -stop-after=finalize-isel < sum.ll
 
+* https://godbolt.org (from templates select "LLVM IR")
 
 https://releases.llvm.org/15.0.0/docs/LangRef.html
 
