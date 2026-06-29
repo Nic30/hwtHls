@@ -1,6 +1,7 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_speculatePredecessor.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFG_priv.h>
 
+#include <llvm/IR/Instruction.h>
 #include <llvm/ADT/SetVector.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Constants.h>
@@ -114,6 +115,19 @@ bool HwtHlsSimplifyCFGPass_speculatePredecessor(llvm::DomTreeUpdater &DTU,
 			}
 		}
 	}
+	for (auto &I: BB) {
+		for (auto O: I.operand_values()) {
+			if (auto OI = dyn_cast<Instruction>(O)) {
+				auto* srcBB = OI->getParent();
+				if (srcBB != &BB && !DT.dominates(srcBB, sucBB)) {
+					// the OI would not properly dominate
+					// I if we move it to sucBB					
+					return false;
+				}
+			}
+		}
+	}
+	
 #ifdef HwtHlsSimplifyCFGPass_speculatePredecessor_TRACE
 	errs() << "BB: ";
 	BB.printAsOperand(errs());
