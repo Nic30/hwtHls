@@ -27,10 +27,11 @@ bool HwtHlsSimplifyCFGPass_speculatePredecessor(llvm::DomTreeUpdater &DTU,
 		return false;
 	auto& DT = DTU.getDomTree();
 	bool isLatchAndSucIsHeader = DT.dominates(sucBB, &BB);
-	if (isLatchAndSucIsHeader)
-		return false; // do not discard latches as it can lead to significant complication
-	// of header phis which will then result into loop falling apart into potentially unfavorable nested loops during simplifyLoop
-
+	if (isLatchAndSucIsHeader) {
+		// do not discard latches as it can lead to significant complication
+		// of header phis which will then result into loop falling apart into potentially unfavorable nested loops during simplifyLoop
+		return false;
+	}
 #ifdef HwtHlsSimplifyCFGPass_speculatePredecessor_TRACE
 	DTU.flush();
 	assert(DTU.getDomTree().verify());
@@ -59,7 +60,7 @@ bool HwtHlsSimplifyCFGPass_speculatePredecessor(llvm::DomTreeUpdater &DTU,
 							return false;
 						}
 						if (isFirstCommonPred)
-							phisToMerge.insert( { phi0, &phi1 });
+							phisToMerge.insert({phi0, &phi1});
 					} else if (fromBBVal
 							!= phi1.getIncomingValueForBlock(sucPred)) {
 						// by inlining of the BB phi would not be ale to switch between different incoming values
@@ -75,7 +76,7 @@ bool HwtHlsSimplifyCFGPass_speculatePredecessor(llvm::DomTreeUpdater &DTU,
 		auto fromBBVal = phi1.getIncomingValueForBlock(&BB);
 		auto phi0 = dyn_cast<PHINode>(fromBBVal);
 		if (phi0 && phi0->getParent() == &BB) {
-			phisToMerge.insert( { phi0, &phi1 });
+			phisToMerge.insert({phi0, &phi1});
 		}
 	}
 
