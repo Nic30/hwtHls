@@ -26,4 +26,4 @@ def IEEE754Fp_explicit_cast(curType: IEEE754Fp, val: Union["IEEE754FpConst", HwI
         return HOperatorNode.withRes(OP_CAST_TO_HFLOATTMP, (
             val, cfg,),
             HFloatTmp)
-    return  default_auto_cast_fn(curType, val, toType)
+    return default_explicit_cast_fn(curType, val, toType)
