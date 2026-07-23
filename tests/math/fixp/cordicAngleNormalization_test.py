@@ -157,7 +157,7 @@ class CordicAngleNormalization_TC(FixpSinNoLutUnroll_TC):
         dut.T = self.FP_TY
         dut.IN_CHANNEL_TYPE = HwIOStructRdVld
         dut.CLK_FREQ = freq
-        FixpAlu1_TC._test_rtl(self, runTestAfterEachPass=runTestAfterEachPass, freq=freq, dut=dut,
+        FixpAlu1_TC.test_rtl(self, runTestAfterEachPass=runTestAfterEachPass, freq=freq, dut=dut,
                                OUT_DATA_REF=(PassTestIoOutForCordicAngleNormalization(dut.T, [], DATA_IN_FOR_DBG=self.INPUT_DATA), ),
                                )
 

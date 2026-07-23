@@ -37,7 +37,7 @@ class FixpAlu1_TC(SimTestCase):
     def model(self, a: float) -> float:
         return self.MODULE_CLS.HLS_OP_FN(a)
 
-    def _test_rtl(self, dut: HwModule=None, freq=int(1e6), runTestAfterEachPass=False,
+    def test_rtl(self, dut: HwModule=None, freq=int(1e6), runTestAfterEachPass=False,
                   IN_DATA: Optional[tuple[Union[PassTestIoIn, Sequence[HConst]], ...]]=None,
                   OUT_DATA_REF: Optional[tuple[Union[PassTestIoOut, list[HConst]], ...]]=None,
                   IO_CONTROL_RANDOMIZE: Optional[tuple[Optional[Optional[bool]], ...]]=None,

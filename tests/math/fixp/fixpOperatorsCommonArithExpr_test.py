@@ -22,7 +22,7 @@ class FixpDiv2_TC(FixpAlu1_TC):
     MODULE_CLS = TestModuleFixpDiv2
 
     def testRtl(self):
-        self._test_rtl()
+        self.test_rtl()
 
 
 @serializeParamsUniq

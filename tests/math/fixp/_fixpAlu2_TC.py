@@ -56,7 +56,7 @@ class FixpAlu2_TC(SimTestCase):
         if OUT_DATA_REF is None:
             OUT_DATA_REF = (PassTestIoOutHFixedPoint(fpTy, self.INPUT_DATA, [], maxErrorInt=mask(self.MAX_ULP), name="data_out"),)
         
-        FixpAlu1_TC._test_rtl(self, dut, freq=freq, runTestAfterEachPass=runTestAfterEachPass,
+        FixpAlu1_TC.test_rtl(self, dut, freq=freq, runTestAfterEachPass=runTestAfterEachPass,
                                PassTestInjectorKwArgs=PassTestInjectorKwArgs,
                                PassTestInjectorCls=PassTestInjectorCls,
                                IN_DATA=IN_DATA,

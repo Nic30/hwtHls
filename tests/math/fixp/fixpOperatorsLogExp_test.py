@@ -4,6 +4,7 @@
 import math
 from unittest.case import expectedFailure
 
+from hwt.pyUtils.typingFuture import override
 from hwt.serializer.mode import serializeParamsUniq
 from hwtHls.llvm.llvmIr import HFloatTmpRounding, HFloatTmpSaturation
 from tests.math.fixp._fixpAlu1_TC import FixpAlu1_TC
@@ -13,7 +14,6 @@ from tests.math.fixp.fixpexp import FixpExp
 from tests.math.fixp.fixplog import FixpLog2
 from tests.math.hFloatTmp.hFloatTmpOps import exp, log2
 from tests.passTestInjectorForDInDOutHwModule import hlsModelProps
-from hwt.pyUtils.typingFuture import override
 
 
 @serializeParamsUniq
@@ -76,7 +76,7 @@ class FixpExp_TC(FixpAlu1_TC):
 
     @expectedFailure
     def test_rtl(self, runTestAfterEachPass=False, freq=int(1e6)):
-        super()._test_rtl(runTestAfterEachPass=runTestAfterEachPass, freq=freq)
+        super().test_rtl(runTestAfterEachPass=runTestAfterEachPass, freq=freq)
 
 
 @serializeParamsUniq
@@ -143,7 +143,7 @@ class FixpExp_lut7_TC(FixpExp_TC):
     MAX_TABLE_ADDR_WIDTH = 7
 
     def test_rtl(self, runTestAfterEachPass=False, freq=int(1e6)):
-        super()._test_rtl(runTestAfterEachPass=runTestAfterEachPass, freq=freq)
+        super().test_rtl(runTestAfterEachPass=runTestAfterEachPass, freq=freq)
 
 
 class FixpLog2_lut7_TC(FixpLog2_TC):
@@ -155,7 +155,7 @@ class FixpLog2_lut7_TC(FixpLog2_TC):
 
     @expectedFailure
     def test_rtl(self, runTestAfterEachPass=False, freq=int(1e6)):
-        super()._test_rtl(runTestAfterEachPass=runTestAfterEachPass, freq=freq)
+        super().test_rtl(runTestAfterEachPass=runTestAfterEachPass, freq=freq)
 
 
 FixpOpLogExp_TCs = [

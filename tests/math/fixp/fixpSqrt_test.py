@@ -66,7 +66,7 @@ class FixpSqrt_TC(FixpSqrtGen_TC):
         dut.CLK_FREQ = freq
         dut.IN_CHANNEL_TYPE = HwIOStructRdVld
         dut.OUT_CHANNEL_TYPE = HwIOStructRdVld
-        self._test_rtl(dut=dut, runTestAfterEachPass=runTestAfterEachPass)
+        super().test_rtl(dut=dut, runTestAfterEachPass=runTestAfterEachPass)
 
     def test_py(self):
         fp = self.FP_TY.from_py
