@@ -322,6 +322,13 @@ bool resolveTypes(MachineInstr &MI) {
 		MachineOperand_checkOrSetWidth(MRI, dst, shWidth);
 		return true;
 	}
+	case TargetOpcode::COPY: {
+		unsigned dataBitWidth = tryResolveBitWidthFromOperand(MRI, MI.getOperand(1));
+		if (dataBitWidth == 0)
+			return false;
+		MachineOperand_checkOrSetWidth(MRI,  MI.getOperand(0), dataBitWidth);
+		return true;
+	}
 	case TargetOpcode::G_SELECT: {
 		constexpr size_t dst = 0;
 		constexpr size_t c = 1;
