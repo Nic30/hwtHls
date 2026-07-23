@@ -1,15 +1,17 @@
-from _collections import deque
+from collections import deque
 from typing import Any, Optional, Union, Self, Callable, Generator
 
 from hwt.code import Concat
 from hwt.constants import NOP
 from hwt.hdl.const import HConst
+from hwt.hdl.types.array import HArray
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.struct import HStruct
+from hwt.hdl.types.structUtils import HConst_to_tuples, HStruct_dict_to_tuple, \
+    HStruct_tuple_to_dict
 from hwt.hdl.types.structValBase import HStructConstBase
 from hwt.pyUtils.typingFuture import override
-from hwt.simulator.utils import Bits3valToInt
 from tests.passTestInjector import PassTestInjector
 from tests.passTestIo import PassTestIoOut, errMsgFrormatter_ioName, \
     PassTestIoIn, PassTestIo, PassTestIoToFlatten
@@ -83,11 +85,11 @@ class PassTestIoInStructWrap(PassTestIoIn):
             PassTestIo.getForRtl(self, ioPort=ioPort)
 
         portData.extend(portDataTuples)
-        
+
 
 class PassTestIoInStruct(PassTestIoIn):
 
-    def __init__(self, T: HStruct, dataIn:list[HStructConstBase],
+    def __init__(self, T: Union[HStruct, HArray], dataIn:list[HStructConstBase],
                   name:Optional[str]=None,
                   inInPyFormat=False,
                   rtlPresetBeforeClk=True,
@@ -110,10 +112,9 @@ class PassTestIoInStruct(PassTestIoIn):
 
     def _buildDataInAsTuples(self):
         T = self.T
-        self.dataInAsTuples = tuple(NOP if d is NOP else tuple(getattr(d, field.name)
-                                                               for field in T.fields)
+        self.dataInAsTuples = tuple(NOP if d is NOP else HConst_to_tuples(T, d)
                                     for d in self.dataIn)
-    
+            
     def getForModel(self):
         dataInAsTuples = self.dataInAsTuples
         if dataInAsTuples is None:
@@ -130,7 +131,7 @@ class PassTestIoInStruct(PassTestIoIn):
                     memberAppend(memberD)
             return PassTestIoToFlatten(iter(d) for d in memberData)
         else:
-            return iter(dataInAsTuples)
+            return iter(self.dataIn)
 
     @override
     def getForLlvmIr(self) -> Generator[HBitsConst, None, None]:
@@ -153,10 +154,15 @@ class PassTestIoInStruct(PassTestIoIn):
 
 
 class PassTestIoOutStruct(PassTestIoOut):
+    """
+    :ivar useDictForData: the error messages will contain dict which will contain also names of fields
+        if False tuples will be used, checks will be faster, but there will be no field name in error messages
+    """
 
     def __init__(self, T: HStruct, dataRef: Optional[list[tuple]],
                  itemCntLimit:Optional[int]=None,
                  name:Optional[str]=None,
+                 useDictForData=False,
                  rtlPresetBeforeClk=True,
                  errMsgFormatter: Optional[Callable[[Self, list[HBitsConst], list[int]], Any]]=errMsgFrormatter_ioName,
                  randomizeControl=False
@@ -164,31 +170,42 @@ class PassTestIoOutStruct(PassTestIoOut):
         super().__init__(dataRef, itemCntLimit=itemCntLimit, name=name, rtlPresetBeforeClk=rtlPresetBeforeClk,
                          errMsgFormatter=errMsgFormatter, randomizeControl=randomizeControl)
         self.T = T
+        self.useDictForData = useDictForData
 
     @override
     def setDataRef(self, data: list[Union[tuple, dict[str, Any], HStructConstBase]]):
         dataRef = self.dataRef = []
         T = self.T
+        useDictForData = self.useDictForData
         for item in data:
             if isinstance(item, HStructConstBase):
-                item = item.to_py()
-            if isinstance(item, dict):
-                item = tuple(item[field.name] for field in T.fields)
+                if useDictForData:
+                    item = HConst_to_tuples(T, item)
+                else:
+                    item = item.to_py()
+            elif isinstance(item, dict):
+                if not useDictForData:
+                    item = HStruct_dict_to_tuple(T, item, call_to_py_on_scalars=False)
+            else:
+                assert isinstance(item, tuple), item
+                if useDictForData:
+                    item = HStruct_tuple_to_dict(T, item, call_to_py_on_scalars=False)
 
-            item = tuple(d.to_py() if isinstance(d, HConst) else d for d in item)
             dataRef.append(item)
 
     @override
     def checkForLlvmIr(self, dataSim: list[HBitsConst]):
         T = self.T
-
-        dataOut = [tuple(Bits3valToInt(member)
-                         for member in d._reinterpret_cast(T))
-                   for d in dataSim]
-
         tc = self.passTests.tc
+        if self.useDictForData:
+            dataOut = [d._reinterpret_cast(T).to_py()
+                       for d in dataSim]
+        else:
+            dataOut = [HConst_to_tuples(T, d._reinterpret_cast(T))
+                       for d in dataSim]
         tc.assertValSequenceEqual(dataOut, self.dataRef, msg=self.errMsgFormatter(self, dataSim, self.dataRef))
 
+    @override
     def checkForRtl(self):
         oPort = self._getRtlDutPort()
         dataSim = oPort._ag.data
