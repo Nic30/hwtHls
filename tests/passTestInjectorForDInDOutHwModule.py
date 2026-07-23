@@ -34,17 +34,13 @@ class HlsModelFnProps():
     .. code-block::python
        @hlsModelProps(inputArgsAreStructMembers=True)
        def model(a, b):
-           # there is a single input struct {a; b}, but for model the members of input struct are automatically expanded
+           # there is a single input struct {a; b;}, but for model the members of input struct are automatically expanded
            # to arguments of this model function
            pass
-    
-    # :param modelInputsAreUnpackedStruct: if True the input should be HStruct or PassTestIoInStruct
-    #     and the model function should have members of he struct as agruments.
-    #     So the input data are unpacked before passing to model
-    # :param modelOutputsAreUnpackedStruct:  same as modelInputsAreUnpackedStruct just for outputs
+
     """
 
-    def __init__(self, returnsPyValue: bool=False, returnsOutValue:bool=False, inputArgsAreStructMembers:bool=False):
+    def __init__(self, returnsPyValue: bool, returnsOutValue:bool, inputArgsAreStructMembers:bool):
         self.returnsPyValue = returnsPyValue  
         self.returnsOutValue = returnsOutValue
         self.inputArgsAreStructMembers = inputArgsAreStructMembers
@@ -57,7 +53,7 @@ class HlsModelFnProps():
     def getForModelFn(cls, fn) -> Self:
         props = getattr(fn, "_HlsModelFnProps", None)
         if props is None:
-            props = cls()
+            props = hlsModelProps()
             fn._HlsModelFnProps = props
         
         return props
@@ -67,6 +63,7 @@ class HlsModelFnProps():
                                       OUT_DATA_REF: tuple[Union[PassTestIo, list[HBitsConst]], ...],
                                       ):
         # infer rtl port names and argument count from model function
+        assert not isinstance(modelFn, HlsModelFnProps), "Missing () in @hlsModelProps() ?"
         argCnt = modelFn.__code__.co_argcount
         code = modelFn.__code__
         if self.inputArgsAreStructMembers:
