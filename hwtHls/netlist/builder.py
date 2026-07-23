@@ -705,23 +705,23 @@ class HlsNetlistBuilder():
             return self.buildTrunc(a, newWidth, name)
 
     def buildZExt(self, a:Union[HlsNetNodeOut, HConst], newWidth: int,
-                  operatorSpecialization:OpSpecialization_t=None):
+                  operatorSpecialization:OpSpecialization_t=None, name:Optional[str]=None):
         w = a._dtype.bit_length()
         if w == newWidth:
             return a
         else:
             assert w < newWidth
-        return self.buildConcat(a, HBits(newWidth - w).from_py(0), operatorSpecialization=operatorSpecialization)
+        return self.buildConcat(a, HBits(newWidth - w).from_py(0), operatorSpecialization=operatorSpecialization, name=name)
 
     def buildSExt(self, a:Union[HlsNetNodeOut, HConst], newWidth: int,
-                  operatorSpecialization:OpSpecialization_t=None):
+                  operatorSpecialization:OpSpecialization_t=None, name:Optional[str]=None):
         w = a._dtype.bit_length()
         if w == newWidth:
             return a
         else:
             assert w < newWidth
         msb = self.buildGetMsb(a)
-        return self.buildConcat(a, *(msb for _ in range(newWidth - w)), operatorSpecialization=operatorSpecialization)
+        return self.buildConcat(a, *(msb for _ in range(newWidth - w)), operatorSpecialization=operatorSpecialization, name=name)
 
     def buildIndexConst(self, a: HlsNetNodeOut, i: int,
                         operatorSpecialization:OpSpecialization_t=None, name:Optional[str]=None):
