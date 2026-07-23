@@ -78,6 +78,11 @@ class _BaseALU1HwModule(HwModule):
         self._addDataInDataOut(t, t)
 
     def _addDataInDataOut(self, inT: HdlType, outT: HdlType):
+        """
+        :note: for types like IEEE754Fp the HdlType_to_HwIO will instantiate the  :class:`HwIOStruct`
+            but all  :class:`IEEE754Fp` operators expect  :class:`IEEE754FpHConst`/ :class:`IEEE754FpHStructRtlSignalBase` so
+            they need to be casted using _auto_cast(T) to cast from  :class:`HwIOStruct` to :class:`IEEE754FpHStructRtlSignalBase`
+        """
         if self.IN_CHANNEL_TYPE is HwIOStruct:
             self.data_in: HwIOStruct = HdlType_to_HwIO().apply(inT)
         else:
