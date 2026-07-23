@@ -252,7 +252,7 @@ def cos(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
 
 def _cos_runSimplifyRules(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
     op = n.dependsOn[0]
-    b = n.getHlsNetlistBuilder()
+    b = HlsNetlistBuilderWithWorklist(n.getHlsNetlistBuilder(), worklist)
     for user in op.obj.usedBy[op.out_i]:
         uObj = user.obj
         if isinstance(uObj, HlsNetNodeOperator) and uObj.operator == OP_FSINCOS:
@@ -273,7 +273,7 @@ def cospi(op0: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[HFloatTmp]:
 
 def _cospi_runSimplifyRules(n: HlsNetNodeOperator, worklist: SetList[HlsNetNode]):
     op = n.dependsOn[0]
-    b = n.getHlsNetlistBuilder()
+    b = HlsNetlistBuilderWithWorklist(n.getHlsNetlistBuilder(), worklist)
     for user in op.obj.usedBy[op.out_i]:
         uObj = user.obj
         if isinstance(uObj, HlsNetNodeOperator) and uObj.operator == OP_FSINCOSPI:
@@ -455,7 +455,7 @@ def _get_sin_runSimplifyRules(cosOp: HOperatorDefLlvm, sincosOp:HOperatorDefLlvm
         op = n.dependsOn[0]
         fcoss: list[HlsNetNodeOperator] = []
         sincos: Optional[HlsNetNodeOperator] = None
-        b = n.getHlsNetlistBuilder()
+        b = HlsNetlistBuilderWithWorklist(n.getHlsNetlistBuilder(), worklist)
         for user in op.obj.usedBy[op.out_i]:
             uObj = user.obj
             if isinstance(uObj, HlsNetNodeOperator):

@@ -3,8 +3,7 @@ from hwt.pyUtils.setList import SetList
 from hwtHls.architecture.componentGenerator import ComponentGenerator
 from hwtHls.architecture.componentGeneratorUtils import replaceHlsNetNodeWithExpression
 from hwtHls.code import OP_ROL, OP_SHL, OP_ROR, OP_LSHR, OP_ASHR
-from hwtHls.netlist.builder import HlsNetlistBuilder, \
-    HlsNetlistBuilderWithWorklist
+from hwtHls.netlist.builder import HlsNetlistBuilderWithWorklist
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator, OP_INDEX_CONST
 
@@ -46,8 +45,7 @@ class ComponentGeneratorFshl(ComponentGenerator):
 
     def toHwtCompatibleOperatorAfterScheduling(self, node:"HlsNetNode", worklist:SetList["HlsNetNode"]):
         src0, src1, sh = node.dependsOn
-        builder: HlsNetlistBuilder = node.getHlsNetlistBuilder()
-        builder = HlsNetlistBuilderWithWorklist(builder, worklist)
+        builder = HlsNetlistBuilderWithWorklist(node.getHlsNetlistBuilder(), worklist)
         nodeOut = node._outputs[0]
         isRotateLeft = src0 == src1
         if isRotateLeft:
@@ -75,8 +73,7 @@ class ComponentGeneratorFshr(ComponentGeneratorFshl):
 
     def toHwtCompatibleOperatorAfterScheduling(self, node: "HlsNetNodeOperator", worklist:SetList["HlsNetNode"]):
         src0, src1, sh = node.dependsOn
-        builder: HlsNetlistBuilder = node.getHlsNetlistBuilder()
-        builder = HlsNetlistBuilderWithWorklist(builder, worklist)
+        builder = HlsNetlistBuilderWithWorklist(node.getHlsNetlistBuilder(), worklist)
         nodeOut = node._outputs[0]
         isRotateRight = src0 == src1
         if isRotateRight:
