@@ -726,35 +726,37 @@ class HlsNetlistBuilder():
     def buildIndexConst(self, a: HlsNetNodeOut, i: int,
                         operatorSpecialization:OpSpecialization_t=None, name:Optional[str]=None):
         assert operatorSpecialization is None
-        w = a._dtype.bit_length()
-        if i == 0 and w == 1:
+        width = a._dtype.bit_length()
+        if i == 0 and width == 1:
             return a
 
-        assert i >= 0, (a, w, i)
-        assert i < w, (a, w, i)
+        assert i >= 0, (a, width, i)
+        assert i < width, (a, width, i)
         return self.buildOp(OP_INDEX_CONST, i, BIT, a, name=name)
 
     def buildIndexConstSlice(self, resT: HdlType, a: HlsNetNodeOut, high: int, low: Optional[int],
                              operatorSpecialization:OpSpecialization_t=None,
                              name:Optional[str]=None):
         assert operatorSpecialization is None
-        w = a._dtype.bit_length()
-        if w == 1:
+        width = a._dtype.bit_length()
+        if width == 1:
             assert (high == 0 and low is None) or (high == 1 and low == 0), (a, high, low)
             return a
         elif low is None:
             # selecting 1bit  x[high]
             assert resT == BIT, resT
-            assert high <= w and high >= 0, (high, w)
+            assert high <= width and high >= 0, (high, width)
             i = high
         elif low == high - 1:
             # selecting 1bit  x[high:low]
             i = high - 1
+            assert resT.bit_length() == 1, resT
         else:
             assert high > low, (high, low)
-            assert high <= w, (high, w)
+            assert high <= width, (high, width)
             assert low >= 0, low
             i = slice(high, low, -1)
+            assert resT.bit_length() == high - low, (resT, high, low)
 
         return self.buildOp(OP_INDEX_CONST, i, resT, a, name=name)
 
