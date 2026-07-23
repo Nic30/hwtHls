@@ -236,7 +236,7 @@ class ComponentGeneratorICMP_EQ_NE(ComponentGenerator):
                         newNode: HlsNetNode
                         assert isinstance(newNode, HlsNetNodeOperator), newNode
                         newNode.assignRealization(layerRealization)
-                        newNode._setScheduleZeroTimeSingleClock(inTime + SchedTime(layerRealization.inputWireDelay / schedulerResolution))
+                        newNode._setScheduleZeroTimeSingleClock(inTime + ceil(layerRealization.inputWireDelay / schedulerResolution))
                         parent._addNodeIntoScheduled(clkI, newNode, allowNewClockWindow=False)
                     worklist.extend(worklistTmp)
                     worklistTmp.clear()
@@ -257,7 +257,7 @@ class ComponentGeneratorICMP_EQ_NE(ComponentGenerator):
                     newNode: HlsNetNode = v.obj
                     assert isinstance(newNode, HlsNetNodeOperator), newNode
                     newNode.assignRealization(layerRealization)
-                    newNode._setScheduleZeroTimeSingleClock(inTime + SchedTime(layerRealization.inputWireDelay / schedulerResolution))
+                    newNode._setScheduleZeroTimeSingleClock(inTime + ceil(layerRealization.inputWireDelay / schedulerResolution))
                     parent._addNodeIntoScheduled(clkI, newNode, allowNewClockWindow=True)
 
                     # for other assign empty realization

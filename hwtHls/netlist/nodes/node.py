@@ -1,6 +1,7 @@
 from copy import copy
 from enum import Enum, auto
 from itertools import chain, islice
+from math import ceil
 from typing import Optional, Union, Tuple, Generator, Set, Self
 
 from hwt.hdl.types.hdlType import HdlType
@@ -56,9 +57,8 @@ class HlsNetNode(SchedulableNode):
 
     :ivar name: optional suggested name for this object (for debugging purposes)
     :ivar netlist: reference on parent netlist
-    :ivar usedBy: for each output list of operation and its input index which are using this output
-    :ivar dependsOn: for each input operation and index of its output with data required
-        to perform this operation
+    :ivar usedBy: list of :class:`HlsNetNodeIn` objects which are using this output for each output
+    :ivar dependsOn: a :class:`HlsNetNodeOut` which drives this input for each input
     :ivar scheduledIn: final scheduled time of start of operation for each input
     :ivar scheduledOut: final scheduled time of end of operation for each output
 
@@ -71,8 +71,8 @@ class HlsNetNode(SchedulableNode):
     :ivar OutputClkTickOffset: number of clk cycles for data to get from input
         to output (for each output, 0 corresponds to a same clock cycle as input[0])
 
-    :ivar _inputs: list of inputs of this node
-    :ivar _outputs: list of inputs of this node
+    :ivar _inputs: list of :class:`HlsNetNodeIn` objects for this node
+    :ivar _outputs: list of :class:`HlsNetNodeOut` objects for this node
     :ivar _isMarkedRemoved: flag used to check that this node was removed from netlist and is now tombstone
     :ivar _isRtlAllocated: flag which is set after conversion to RTL, used in various asserts
     """
@@ -478,18 +478,18 @@ def HlsNetNode_numberForEachOutput(node: HlsNetNode, val: Union[float, Tuple[flo
 
 def HlsNetNode_numberForEachInputNormalized(node: HlsNetNode, val: Union[float, Tuple[float]], scale: float) -> Tuple[int]:
     if isinstance(val, (float, int)):
-        return tuple(int(val // scale) for _ in node._inputs)
+        return tuple(ceil(val / scale) for _ in node._inputs)
     else:
         val = tuple(val)
         assert len(val) == len(node._inputs), (node, len(val), len(node._inputs), val, node._inputs)
-        return tuple(int(v // scale) for v in val)
+        return tuple(ceil(v / scale) for v in val)
 
 
 def HlsNetNode_numberForEachOutputNormalized(node: HlsNetNode, val: Union[float, Tuple[float]], scale: float) -> Tuple[int]:
     if isinstance(val, (float, int)):
-        return tuple(int(val // scale) for _ in node._outputs)
+        return tuple(ceil(val / scale) for _ in node._outputs)
     else:
         val = list(val)
         assert len(val) == len(node._outputs)
-        return tuple(int(v // scale) for v in val)
+        return tuple(ceil(v / scale) for v in val)
 

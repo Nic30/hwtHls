@@ -1,14 +1,15 @@
 from functools import lru_cache
+from math import ceil
 from pathlib import Path
 from typing import Dict, Callable, Tuple, Optional, Union
 
 from hwt.hdl.operatorDefs import HOperatorDef, HwtOps
 from hwt.serializer.resourceAnalyzer.resourceTypes import ResourceFF
+from hwtHls.netlist.scheduler.clk_math import SchedTime
 from hwtHls.platform.debugBundleTypes import LlvmCliArgTuple
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 from hwtHls.platform.platform import DefaultHlsPlatform, DebugId, HlsDebugBundle
 from hwtHls.platform.virtual import _OPS_T_ZERO_LATENCY, VirtualHlsPlatform
-from hwtHls.netlist.scheduler.clk_math import SchedTime
 
 
 class AbstractXilinxPlatform(VirtualHlsPlatform):
@@ -44,7 +45,7 @@ class AbstractXilinxPlatform(VirtualHlsPlatform):
             "Override this in your implementation of platform")
         self._OP_DELAYS: Dict[str, Callable[[int, int, int, float], Tuple[int, float]]] = {}
 
-    # @lru_cache()
+    @lru_cache()
     def get_op_realization(self, op: HOperatorDef, opSpecialization: "OpSpecialization_t", bit_width: int,
                            input_cnt: int, clkPeriod: float) -> OpRealizationMeta:
         if op in _OPS_T_ZERO_LATENCY:
@@ -56,9 +57,9 @@ class AbstractXilinxPlatform(VirtualHlsPlatform):
         return OpRealizationMeta(inputWireDelay=float(inputWireDelay),
                                  outputClkTickOffset=int(outputClkTickOffset))
 
-    # @lru_cache()
+    @lru_cache()
     def get_ff_store_time(self, realTimeClkPeriod: float, schedulerResolution: float) -> SchedTime:
-        return SchedTime(self.get_op_realization(ResourceFF, None, 1, 1, realTimeClkPeriod).inputWireDelay // schedulerResolution)
+        return ceil(self.get_op_realization(ResourceFF, None, 1, 1, realTimeClkPeriod).inputWireDelay / schedulerResolution)
 
     def get_lut_inputs_max(self):
         """

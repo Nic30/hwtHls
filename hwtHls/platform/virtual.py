@@ -235,7 +235,7 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
 
     #@lru_cache()
     def get_ff_store_time(self, realTimeClkPeriod: float, schedulerResolution: float):
-        return int(self.get_op_realization(ResourceFF, None, 1, 1, realTimeClkPeriod).inputWireDelay // schedulerResolution)
+        return ceil(self.get_op_realization(ResourceFF, None, 1, 1, realTimeClkPeriod).inputWireDelay / schedulerResolution)
 
     def get_lut_inputs_max(self):
         """
@@ -250,5 +250,5 @@ class VirtualHlsPlatform(DefaultHlsPlatform):
         return r.inputWireDelay + r.outputWireDelay
 
     def get_lut_dealy_max_normalized(self, realTimeClkPeriod: float, schedulerResolution: float):
-        return SchedTime(ceil(self.get_lut_dealy(2, realTimeClkPeriod) / schedulerResolution))
+        return ceil(self.get_lut_dealy(2, realTimeClkPeriod) / schedulerResolution)
 

@@ -78,7 +78,7 @@ class HlsNetlistCtx(AnalysisCache):
             raise ValueError("HLS requires platform to be specified")
 
         self.realTimeClkPeriod = 1 / int(freq)
-        self.normalizedClkPeriod = int(ceil(self.realTimeClkPeriod / schedulerResolution))
+        self.normalizedClkPeriod = ceil(self.realTimeClkPeriod / schedulerResolution)
         self.subNodes: ObservableList[HlsNetNode] = ObservableList()
 
         self.ctx = RtlNetlist()
@@ -204,7 +204,7 @@ class HlsNetlistCtx(AnalysisCache):
         offsetsOfOthers: List[int] = []
         clkPeriod = self.normalizedClkPeriod
         _, selfOffset = self.scheduler.getSchedulingMinTime(clkPeriod)
-        assert selfOffset == 0, (self, selfOffset)
+        assert selfOffset == 0, ("After scheduling the netlist times should be normalized", self, selfOffset)
         for other in others:
             assert other.normalizedClkPeriod == clkPeriod
             _, firstClkI = other.scheduler.getSchedulingMinTime(self.normalizedClkPeriod)
