@@ -456,7 +456,7 @@ class ToLlvmIrTranslator(AnalysisCache[SsaAnalysisPass, SsaPass]):
                 t = self._translateType(vTy)
                 return UndefValue.get(t)
             else:
-                concatMembers = []
+                concatMembers: list[Value] = []
                 offset = 0
                 for (bVal, width) in iter_bits_sequences(v.vld_mask, vTy.bit_length()):
                     t = Type.getIntNTy(self.ctx, width)
