@@ -1,7 +1,8 @@
+from dataclasses import dataclass
+from math import ceil
 from typing import Self, Union
 
-from dataclasses import dataclass
-from hwtHls.netlist.scheduler.clk_math import RealTime
+from hwtHls.netlist.scheduler.clk_math import RealTime, SchedTime
 
 
 @dataclass(frozen=True)
@@ -94,7 +95,7 @@ class OpRealizationMeta():
         return self.fitsIntoSingleClockWindow() and \
                         (self.inputWireDelay + self.outputWireDelay) / schedResolution < clkWindowBudget
 
-    def __mul__(self, other:int):
+    def __mul__(self, other:int) -> Self:
         return self.__class__(
             inputClkTickOffset=self.inputClkTickOffset * other,
             inputWireDelay=self.inputWireDelay * other,
@@ -104,9 +105,131 @@ class OpRealizationMeta():
             isMulticlock=self.isMulticlock,
         )
 
-    def __add__(self, other:Self):
+    def _checkDelayFitsIntoClkPeriod(self, delay: RealTime, clkPeriod: SchedTime,
+                                     schedResolution: RealTime, usableClkPeriod: SchedTime):
+        if self.isAllowedInFFStoreTime:
+            assert ceil(delay / schedResolution) <= clkPeriod
+        else:
+            assert ceil(delay / schedResolution) <= usableClkPeriod
+    
+    def _checkDelaysFitIntoClkPeriod(self, clkPeriod: SchedTime, schedResolution: RealTime, usableClkPeriod: SchedTime):
+        if self.isMulticlock:
+            self._checkDelayFitsIntoClkPeriod(self.inputWireDelay, clkPeriod, schedResolution, usableClkPeriod)
+            self._checkDelayFitsIntoClkPeriod(self.outputWireDelay, clkPeriod, schedResolution, usableClkPeriod)
+        else:
+            self._checkDelayFitsIntoClkPeriod(self.inputWireDelay + self.outputWireDelay, clkPeriod,
+                                              schedResolution, usableClkPeriod)
+            
+    def addWithKeepout(self, selfSchedZero: SchedTime, other:Self,
+                       clkPeriod: SchedTime, schedResolution: RealTime, usableClkPeriod: SchedTime) -> Self:
         """
         :attention: order does matter if OpRealizationMeta spawns over multiple clock windows
+            this implementation appends "other" behind "self"
+        """
+        assert isinstance(self.inputClkTickOffset, int), self
+        assert isinstance(self.inputWireDelay, (int, RealTime)), self
+        assert isinstance(self.outputClkTickOffset, int), self
+        assert isinstance(self.outputWireDelay, (int, RealTime)), self
+        # [todo] assert that result delay does not exceed the clkPeriod
+        self._checkDelaysFitIntoClkPeriod(clkPeriod, schedResolution, usableClkPeriod)
+        other._checkDelaysFitIntoClkPeriod(clkPeriod, schedResolution, usableClkPeriod)
+        
+        selfDelayI = ceil(self.inputWireDelay / schedResolution)
+        selfDelayO = ceil(self.outputWireDelay / schedResolution)
+        otherDelayI = ceil(other.inputWireDelay / schedResolution)
+        otherDelayO = ceil(other.outputWireDelay / schedResolution)
+        selfLimit = clkPeriod if self.isAllowedInFFStoreTime else usableClkPeriod
+        otherLimit = clkPeriod if other.isAllowedInFFStoreTime else usableClkPeriod
+        selfDelay = selfDelayI + selfDelayO
+        otherDelay = otherDelayI + otherDelayO
+        
+        if self.fitsIntoSingleClockWindow():
+            assert selfSchedZero + selfDelay < selfLimit
+            if other.fitsIntoSingleClockWindow():
+                if selfSchedZero + selfDelay + otherDelay <= otherLimit:
+                    # just sum
+                    return self.__class__(
+                        inputClkTickOffset=0,
+                        inputWireDelay=self.inputWireDelay + self.outputWireDelay + other.inputWireDelay,
+                        outputWireDelay=other.outputWireDelay,
+                        outputClkTickOffset=0,
+                        isAllowedInFFStoreTime=other.isAllowedInFFStoreTime,
+                        isMulticlock=False,
+                    )
+                else:
+                    # other must be placed in next cock cycle window
+                    return self.__class__(
+                        inputClkTickOffset=0,
+                        inputWireDelay=self.inputWireDelay + self.outputWireDelay,
+                        outputWireDelay=other.inputWireDelay + other.outputWireDelay,
+                        outputClkTickOffset=0, # outputs are implicitly in next clk window if isMulticlock=True
+                        isAllowedInFFStoreTime=other.isAllowedInFFStoreTime,
+                        isMulticlock=True,
+                    )
+                    
+            else:
+                if selfSchedZero + selfDelay + otherDelayI < selfLimit:
+                    # self fits into first clock before other
+                    # inputWireDelay = self total delay
+                    inputClkTickOffset = other.inputClkTickOffset
+                    inputWireDelay = self.inputWireDelay + self.outputWireDelay + other.inputWireDelay
+                else:
+                    # the first must be placed in separate clock before second
+                    inputClkTickOffset = other.inputClkTickOffset + 1
+                    inputWireDelay = self.inputWireDelay + self.outputWireDelay
+                
+                return self.__class__(
+                    inputClkTickOffset=inputClkTickOffset,
+                    inputWireDelay=inputWireDelay,
+                    outputWireDelay=other.outputWireDelay,
+                    outputClkTickOffset=other.outputClkTickOffset,
+                    isAllowedInFFStoreTime=other.isAllowedInFFStoreTime,
+                    isMulticlock=True,
+                )
+                
+        else:
+            if other.fitsIntoSingleClockWindow():
+                if selfDelayO + otherDelay <= otherLimit:
+                    # other fits into last clkPeriod of self
+                    outputWireDelay = self.outputWireDelay + other.inputWireDelay + other.outputWireDelay
+                    outputClkTickOffset = self.outputClkTickOffset
+                    
+                else:
+                    # the other does not fit into clk window where self output is and must
+                    # palaced in next clk window
+                    outputWireDelay = other.inputWireDelay + other.outputWireDelay
+                    outputClkTickOffset = self.outputClkTickOffset + 1
+                     
+                return self.__class__(
+                        inputClkTickOffset=self.inputClkTickOffset,
+                        inputWireDelay=self.inputWireDelay,
+                        outputWireDelay=outputWireDelay,
+                        outputClkTickOffset=outputClkTickOffset,
+                        isAllowedInFFStoreTime=other.isAllowedInFFStoreTime,
+                        isMulticlock=True,
+                    )
+            else:
+                outputClkTickOffset = self.outputClkTickOffset + other.inputClkTickOffset + other.outputClkTickOffset
+                if selfDelayO + otherDelayI <= clkPeriod:
+                    # 1 clk overlap of last clk of self with first clk of other
+                    pass
+                else:
+                    outputClkTickOffset += 1
+                    # the self outputs and other inputs do not fit into a single clock cycle we have to add 1 extra clk window
+                
+                return self.__class__(
+                        inputClkTickOffset=self.inputClkTickOffset,
+                        inputWireDelay=self.inputWireDelay,
+                        outputWireDelay=other.outputWireDelay,
+                        outputClkTickOffset=outputClkTickOffset,
+                        isAllowedInFFStoreTime=other.isAllowedInFFStoreTime,
+                        isMulticlock=True,
+                )
+
+    def __add__(self, other:Self) -> Self:
+        """
+        :attention: order does matter if OpRealizationMeta spawns over multiple clock windows
+            this implementation appends "other" behind "self"
         """
         assert isinstance(self.inputClkTickOffset, int), self
         assert isinstance(self.inputWireDelay, (int, RealTime)), self
