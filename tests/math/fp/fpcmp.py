@@ -1,9 +1,7 @@
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.const import HConst
-from hwt.mainBases import RtlSignalBase
 from hwtHls.frontend.pyBytecode import hlsBytecode
-from tests.math.fp.fptypes import IEEE754Fp
-
+from tests.math.fp.fptypes import IEEE754FpValue
 
 bit2_t = HBits(2)
 
@@ -31,7 +29,7 @@ class IEEE754FpCmpResult():
 
 # https://stackoverflow.com/questions/1565164/what-is-the-rationale-for-all-comparisons-returning-false-for-ieee754-nan-values
 @hlsBytecode
-def IEEE754FpCmp(a: RtlSignalBase[IEEE754Fp], b: RtlSignalBase[IEEE754Fp]):
+def IEEE754FpCmp(a: IEEE754FpValue, b: IEEE754FpValue):
     """
     :note: expects normalized numbers
     """
