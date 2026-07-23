@@ -3,6 +3,7 @@ from typing import Callable, Optional, Sequence, Generator
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.hdlType import HdlType
 from hwt.hwIO import HwIO
+from hwt.hwIOs.hwIOArray import HwIOArray
 from hwt.hwIOs.hwIOStruct import HwIOStruct, HwIOStructRdVld, HwIOStructVld, \
     HwIOStructRd
 from hwt.hwIOs.std import HwIOSignal
@@ -69,7 +70,7 @@ def _getUseReadyUseValid(hwio):
         return False, True
     elif isinstance(hwio, HwIOStructRd):
         return True, False
-    elif isinstance(hwio, (HwIOStruct, HwIOSignal)):
+    elif isinstance(hwio, (HwIOStruct, HwIOArray, HwIOSignal)):
         return False, False
     else:
         raise NotImplementedError(hwio)
