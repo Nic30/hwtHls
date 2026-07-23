@@ -20,7 +20,7 @@ from hwtHls.scope import HlsScope
 from hwtSimApi.utils import freq_to_period
 from tests.math.componentGenerators._genericHwModules import _FpAlu2HwModule
 from tests.math.fp.fpcmp import IEEE754FpCmp, IEEE754FpCmpResult
-from tests.math.fp.fptypes import IEEE754Fp32, IEEE754FpHConst
+from tests.math.fp.fptypes import IEEE754Fp32
 from tests.passTestInjectorForDInDOutHwModule import PassTestInjectorForDInDOutHwModule
 
 

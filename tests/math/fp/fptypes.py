@@ -265,6 +265,12 @@ class IEEE754Fp(HStruct):
         if formatChar is None:
             raise NotImplementedError(self)
         return struct.unpack(formatChar, n.to_bytes(self._sizeInBytes, byteorder='little'))[0]
+    
+    # :note: this should never be required because all operators are only for HFloatTmp
+    # def castHwIOStructToInRtlSignal(self, v: HwIOStruct) -> IEEE754FpHStructRtlSignalBase:
+    #     s = v.exponent._sig._rtlCtx.sig(v._name, self)
+    #     s(v)
+    #     return s
 
     @internal
     @override
@@ -294,7 +300,7 @@ class IEEE754Fp(HStruct):
 
 
 # standard IEEE754 floating point number types
-IEEE754Fp16 = IEEE754Fp(5, 10, name="float16", structFormatChar="e")
+IEEE754Fp16 = IEEE754Fp(5, 10, name="float16", structFormatChar="e")  # half
 IEEE754Fp32 = IEEE754Fp(8, 23, name="float32", structFormatChar="f")  # c float
 IEEE754Fp64 = IEEE754Fp(11, 52, name="float64", structFormatChar="d")  # c double
 # other commonly used floating point number types

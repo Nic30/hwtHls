@@ -1,9 +1,10 @@
-from tests.math.fp.fptypes import IEEE754Fp
-from hwt.hdl.types.hdlType import HdlType, default_auto_cast_fn
-from tests.math.hFloatTmp.hFloatTmp import HFloatTmp, HFloatTmpConfigHdlType
 from typing import Union
-from hwt.hwIOs.hwIOStruct import HwIOStruct
+
 from hwt.hdl.operator import HOperatorNode
+from hwt.hdl.types.hdlType import HdlType, default_explicit_cast_fn
+from hwt.hwIOs.hwIOStruct import HwIOStruct
+from tests.math.fp.fptypes import IEEE754Fp
+from tests.math.hFloatTmp.hFloatTmp import HFloatTmp, HFloatTmpConfigHdlType
 from tests.math.hFloatTmp.hFloatTmpCast import OP_CAST_TO_HFLOATTMP
 
 
