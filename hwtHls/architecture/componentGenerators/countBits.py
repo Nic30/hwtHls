@@ -7,14 +7,12 @@ from hwt.hdl.const import HConst
 from hwt.hdl.operatorDefs import HOperatorDef
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsRtlSignal import HBitsRtlSignal
-from hwt.hdl.types.defs import BIT
 from hwt.math import log2ceil
 from hwt.pyUtils.setList import SetList
 from hwt.pyUtils.typingFuture import override
 from hwt.serializer.mode import serializeParamsUniq
 from hwtHls.architecture.componentGenerator import ComponentGenerator
-from hwtHls.architecture.componentGeneratorUtils import replaceHlsNetNodeOperatorWithHwModule, \
-    ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule
+from hwtHls.architecture.componentGeneratorUtils import ComponentGenerator_replaceHlsNetNodeOperatorWithHwModule
 from hwtHls.architecture.componentGenerators.baseALU1HwModule import _BaseALU1HwModule
 from hwtHls.architecture.componentGenerators.ctpop import Ctpop
 from hwtHls.code import OP_CTTZ, zext, OP_CTLZ, OP_CTPOP
@@ -22,7 +20,7 @@ from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.llvm.llvmIr import MachineRegisterInfo, MachineInstr, Register, TargetInstrInfo
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, HlsNetNodeOut
+from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
 from hwtHls.platform.opRealizationMeta import ComponentRealizationMeta
 from hwtHls.ssa.analysis.llvmMirInterpretUtils import LlvmMirInstrFunction
 from hwtHls.ssa.translation.llvmMirToNetlist.utils import MirToHlsNetlistTranslatedInstrOpsT
