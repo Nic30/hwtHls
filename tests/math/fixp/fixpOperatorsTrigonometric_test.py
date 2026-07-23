@@ -13,10 +13,16 @@ from tests.math.fixp.fixpOperatorsHwModules import _FixpUnOpTestModule, _FixpBin
 from tests.math.fixp.fixpTypes import HFixedPointQ
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 from tests.math.hFloatTmp.hFloatTmpOps import sin, cos, sinpi, cospi, tan, atan2
+from tests.passTestInjectorForDInDOutHwModule import hlsModelProps
 
 
 @serializeParamsUniq
 class TestModuleFixpSin(_FixpUnOpTestModule):
+
+    @staticmethod
+    @hlsModelProps(returnsPyValue=True, returnsOutValue=True)
+    def model(data_in: float) -> float:
+        return math.sin(data_in)
 
     @override
     @staticmethod
@@ -45,9 +51,6 @@ class FixpSinNoLut_TC(FixpAlu1_TC):
     ]
     MODULE_CLS = TestModuleFixpSin
 
-    def _model(self, a: float) -> float:
-        return math.sin(a)
-
 
 class FixpSinLut7_TC(FixpSinNoLut_TC):
     RTL_SIM_TIME_MULTIPLIER = 5
@@ -63,6 +66,11 @@ class FixpSinNoLutUnroll_TC(FixpSinNoLut_TC):
 class TestModuleFixpCos(_FixpUnOpTestModule):
     MAX_ULP = 2
 
+    @staticmethod
+    @hlsModelProps(returnsPyValue=True, returnsOutValue=True)
+    def model(data_in: float) -> float:
+        return math.cos(data_in)
+
     @override
     @staticmethod
     def HLS_OP_FN(a):
@@ -72,9 +80,6 @@ class TestModuleFixpCos(_FixpUnOpTestModule):
 class FixpCosNoLut_TC(FixpSinNoLut_TC):
     MODULE_CLS = TestModuleFixpCos
     MAX_ULP = 2
-
-    def _model(self, a: float) -> float:
-        return math.cos(a)
 
 
 class FixpCosLut7_TC(FixpCosNoLut_TC):
@@ -89,6 +94,11 @@ class FixpCosNoLutUnroll_TC(FixpCosNoLut_TC):
 @serializeParamsUniq
 class TestModuleFixpTan(_FixpUnOpTestModule):
 
+    @staticmethod
+    @hlsModelProps(returnsPyValue=True, returnsOutValue=True)
+    def model(data_in: float) -> float:
+        return math.tan(data_in)
+
     @override
     @staticmethod
     def HLS_OP_FN(a):
@@ -99,9 +109,6 @@ class FixpTanNoLut_TC(FixpSinNoLut_TC):
     MODULE_CLS = TestModuleFixpTan
     RTL_SIM_TIME_MULTIPLIER = 64
     MAX_ULP = 3
-
-    def _model(self, a: float) -> float:
-        return math.tan(a)
 
 
 class FixpTanLut7_TC(FixpTanNoLut_TC):
@@ -121,21 +128,27 @@ class FixpTanLut7Unroll_TC(FixpTanNoLut_TC):
 
 @serializeParamsUniq
 class TestModuleFixpSinpi(_FixpUnOpTestModule):
+    
+    @staticmethod
+    @hlsModelProps(returnsPyValue=True, returnsOutValue=True)
+    def model(data_in: float) -> float:
+        return math.sin(data_in * math.pi)
 
     @override
     @staticmethod
     def HLS_OP_FN(a):
         return sinpi(a)
 
+def _round_to_frac_bits(x: float, frac_bits: int) -> float:
+    scale = 2 ** frac_bits
+    return round(x * scale) / scale
+
 
 class FixpSinPiNoLut_TC(FixpSinNoLut_TC):
     INPUT_DATA = [
-        d / math.pi for d in FixpSinNoLut_TC.INPUT_DATA
+        _round_to_frac_bits(d / math.pi, 10) for d in FixpSinNoLut_TC.INPUT_DATA
     ]
     MODULE_CLS = TestModuleFixpSinpi
-
-    def _model(self, a: float) -> float:
-        return math.sin(a * math.pi)
 
 
 class FixpSinPiLut7_TC(FixpSinPiNoLut_TC):
@@ -147,8 +160,14 @@ class FixpSinPiNoLutUnroll_TC(FixpSinPiNoLut_TC):
     optThroughputVsArea = 1.0
     MAX_ULP = 2
 
+
 @serializeParamsUniq
 class TestModuleFixpCospi(_FixpUnOpTestModule):
+
+    @staticmethod
+    @hlsModelProps(returnsPyValue=True, returnsOutValue=True)
+    def model(data_in: float) -> float:
+        return math.cos(data_in * math.pi)
 
     @override
     @staticmethod
@@ -160,9 +179,6 @@ class FixpCosPiNoLut_TC(FixpSinNoLut_TC):
     MODULE_CLS = TestModuleFixpCospi
     INPUT_DATA = FixpSinPiNoLut_TC.INPUT_DATA
     MAX_ULP = 2
-
-    def _model(self, a: float) -> float:
-        return math.cos(a * math.pi)
 
 
 class FixpCosPiLut7_TC(FixpCosPiNoLut_TC):
@@ -176,6 +192,11 @@ class FixpCosPiNoLutUnroll_TC(FixpCosPiNoLut_TC):
 
 @serializeParamsUniq
 class TestModuleFixpAtan2(_FixpBinOpTestModule):
+
+    @staticmethod
+    @hlsModelProps(returnsPyValue=True, returnsOutValue=True, inputArgsAreStructMembers=True)
+    def model(y:float, x:float) -> float:
+        return math.atan2(y, x)
 
     @override
     @staticmethod
@@ -217,16 +238,14 @@ class FixpAtan2_TC(FixpAdd_TC):
     MODULE_CLS = TestModuleFixpAtan2
     MAX_ULP = 2
 
-    def _model(self, y:float, x:float) -> float:
-        return math.atan2(y, x)
-
     def test_py(self):
         ty = HFloatTmp
         atan2 = CordicAtan2(self.ITERATION_COUNT)
+        model = self.MODULE_CLS.model
         for _y, _x in self.INPUT_DATA:
             y = ty.from_py(_y)
             x = ty.from_py(_x)
-            ref = self._model(y, x)
+            ref = model(y, x)
             res = atan2.atan2(y, x)
             resF = float(res[0])
             self.assertAlmostEqual(resF, ref, delta=2 ** -10, msg=(_y, _x))
