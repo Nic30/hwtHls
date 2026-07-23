@@ -7,10 +7,13 @@
 """
 
 import math
-from typing import Union, Optional
+import operator
+from typing import Union, Optional, Callable
 
-from hwt.hdl.commonConstants import b0
+from hwt.hdl.commonConstants import b0, b1
+from hwt.hdl.const import HConst
 from hwt.hdl.operator import HOperatorNode
+from hwt.hdl.operatorDefs import HOperatorDef
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.defs import BIT
@@ -18,6 +21,7 @@ from hwt.mainBases import RtlSignalBase, HwIOBase
 from hwt.pyUtils.setList import SetList
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, IRBuilder, Value, Twine, Type, \
     Intrinsic, ICmpInst, LibFunc
+from hwtHls.netlist.builder import HlsNetlistBuilderWithWorklist
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.transformation.simplifyUtils import addAllUsersToWorklist
@@ -99,92 +103,138 @@ OP_FMOD = HOperatorDefLlvm(frem, _getllvmFp2LibFuncConstructor(LibFunc.LibFunc_f
 # FCmp  #  Floating point comparison instr.
 
 
+class HOperatorDefLlvmFcmpOrder(HOperatorDefLlvm):
+    """
+    Ordered FCMP operators (result of ordered cmp is false if any operand is NaN)
+    """
+
+    def __init__(self, ordPred: ICmpInst.Predicate,
+                 ordPredFn: Callable[[ RtlSignalBase[HFloatTmp], RtlSignalBase[HFloatTmp]], RtlSignalBase[BIT]],
+                 runSimplifyRules: Optional[Callable[["HlsNetNodeOperator", SetList["HlsNetNode"]], bool]]=None):
+        self.ordPredFn = ordPredFn
+        idStr = "OP_" + ordPred.name
+        HOperatorDef.__init__(self, self._fcmp_apply_pred, allowsAssignTo=False, idStr=idStr,
+                              hdlConvertoAstOp=None)
+        self.llvmOperatorConstructor = _getllvmFCmpOpConstructor(ordPred)
+        self.runSimplifyRules = runSimplifyRules
+ 
+    def _fcmp_apply_pred(self,
+                          op0: RtlSignalBase[HFloatTmp],
+                          op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[BIT]:
+        if isinstance(op0, _F_CONST_CLS) and isinstance(op1, _F_CONST_CLS):
+            if _isNaN_const(op0) or _isNaN_const(op1):
+                return b0
+            return self.ordPredFn(op0, op1)
+        else:
+            assert op0._dtype == op1._dtype, (op0, op1)
+            return HOperatorNode.withRes(self, (op0, op1), BIT)
+
+
 # oeq: true if both operands are not a QNAN and op1 is equal to op2.
-def fcmp_oeq(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[BIT]:
-    if isinstance(op0, _F_CONST_CLS):
-        try:
-            return BIT.from_py(float(op0) == float(op1))
-        except ValidityError:
-            return BIT.from_py(None)
-
-    assert op0._dtype == op1._dtype, (op0, op1)
-    return HOperatorNode.withRes(OP_FCMP_OEQ, (op0, op1), BIT)
-
-
-OP_FCMP_OEQ = HOperatorDefLlvm(fcmp_oeq, _getllvmFCmpOpConstructor(ICmpInst.Predicate.FCMP_OEQ), False, idStr="OP_FCMP_OEQ")
-
-
+OP_FCMP_OEQ = HOperatorDefLlvmFcmpOrder(ICmpInst.Predicate.FCMP_OEQ, operator.eq)
 # ogt: true if both operands are not a QNAN and op1 is greater than op2.
-def fcmp_ogt(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[BIT]:
-    if isinstance(op0, _F_CONST_CLS):
-        try:
-            return BIT.from_py(float(op0) > float(op1))
-        except ValidityError:
-            return BIT.from_py(None)
-
-    assert op0._dtype == op1._dtype, (op0, op1)
-    return HOperatorNode.withRes(OP_FCMP_OGT, (op0, op1), BIT)
-
-
-OP_FCMP_OGT = HOperatorDefLlvm(fcmp_ogt, _getllvmFCmpOpConstructor(ICmpInst.Predicate.FCMP_OGT), False, idStr="OP_FCMP_OGT")
-
-
+OP_FCMP_OGT = HOperatorDefLlvmFcmpOrder(ICmpInst.Predicate.FCMP_OGT, operator.gt)
 # oge: true if both operands are not a QNAN and op1 is greater than or equal to op2.
-def fcmp_oge(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[BIT]:
-    if isinstance(op0, _F_CONST_CLS):
-        try:
-            return BIT.from_py(float(op0) >= float(op1))
-        except ValidityError:
-            return BIT.from_py(None)
-
-    assert op0._dtype == op1._dtype, (op0, op1)
-    return HOperatorNode.withRes(OP_FCMP_OGE, (op0, op1), BIT)
-
-
-OP_FCMP_OGE = HOperatorDefLlvm(fcmp_oge, _getllvmFCmpOpConstructor(ICmpInst.Predicate.FCMP_OGE), False, idStr="OP_FCMP_OGE")
-
-
+OP_FCMP_OGE = HOperatorDefLlvmFcmpOrder(ICmpInst.Predicate.FCMP_OGE, operator.ge)
 # olt: true if both operands are not a QNAN and op1 is less than op2.
-def fcmp_olt(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[BIT]:
-    if isinstance(op0, _F_CONST_CLS) and isinstance(op1, _F_CONST_CLS):
-        try:
-            return BIT.from_py(float(op0) < float(op1))
-        except ValidityError:
-            return BIT.from_py(None)
-
-    assert op0._dtype == op1._dtype, (op0, op1)
-    return HOperatorNode.withRes(OP_FCMP_OLT, (op0, op1), BIT)
-
-
-OP_FCMP_OLT = HOperatorDefLlvm(fcmp_olt, _getllvmFCmpOpConstructor(ICmpInst.Predicate.FCMP_OLT), False, idStr="OP_FCMP_OLT")
-
-
+OP_FCMP_OLT = HOperatorDefLlvmFcmpOrder(ICmpInst.Predicate.FCMP_OLT, operator.lt)
 # ole: true if both operands are not a QNAN and op1 is less than or equal to op2.
-def fcmp_ole(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[BIT]:
-    if isinstance(op0, _F_CONST_CLS):
-        try:
-            return BIT.from_py(float(op0) <= float(op1))
-        except ValidityError:
-            return BIT.from_py(None)
-    assert op0._dtype == op1._dtype, (op0, op1)
-    return HOperatorNode.withRes(OP_FCMP_OLE, (op0, op1), BIT)
-
-
-OP_FCMP_OLE = HOperatorDefLlvm(fcmp_ole, _getllvmFCmpOpConstructor(ICmpInst.Predicate.FCMP_OLE), False, idStr="OP_FCMP_OLE")
-
-
+OP_FCMP_OLE = HOperatorDefLlvmFcmpOrder(ICmpInst.Predicate.FCMP_OLE, operator.le)
 # one: true if both operands are not a QNAN and op1 is not equal to op2.
-def fcmp_one(op0: RtlSignalBase[HFloatTmp], op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[BIT]:
-    if isinstance(op0, _F_CONST_CLS):
-        try:
-            return BIT.from_py(float(op0) != float(op1))
-        except ValidityError:
-            return BIT.from_py(None)
-    assert op0._dtype == op1._dtype, (op0, op1)
-    return HOperatorNode.withRes(OP_FCMP_ONE, (op0, op1), BIT)
+OP_FCMP_ONE = HOperatorDefLlvmFcmpOrder(ICmpInst.Predicate.FCMP_ONE, operator.ne)
+fcmp_oeq = OP_FCMP_OEQ._fcmp_apply_pred
+fcmp_ogt = OP_FCMP_OGT._fcmp_apply_pred
+fcmp_oge = OP_FCMP_OGE._fcmp_apply_pred
+fcmp_olt = OP_FCMP_OLT._fcmp_apply_pred
+fcmp_ole = OP_FCMP_OLE._fcmp_apply_pred
+fcmp_one = OP_FCMP_ONE._fcmp_apply_pred
 
 
-OP_FCMP_ONE = HOperatorDefLlvm(fcmp_one, _getllvmFCmpOpConstructor(ICmpInst.Predicate.FCMP_ONE), False, idStr="OP_FCMP_ONE")
+def isNaN(op0: RtlSignalBase[HFloatTmp]):
+    _isNaN = _isNaN_const(op0)
+    if _isNaN is not None:
+        return b1 if _isNaN else b0
+
+    return HOperatorNode.withRes(OP_FCMP_UNO, (op0, op0), BIT)
+
+
+def isNotNaN(op0: RtlSignalBase[HFloatTmp]):
+    _isNaN = _isNaN_const(op0)
+    if _isNaN is not None:
+        return b0 if _isNaN else b1
+
+    return HOperatorNode.withRes(OP_FCMP_ORD, (op0, op0), BIT)
+
+
+def fcmp_ord(op0: RtlSignalBase[HFloatTmp],
+             op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[BIT]:
+    if _isNaN_const(op0) or _isNaN_const(op1):
+        return b0
+
+    return HOperatorNode.withRes(OP_FCMP_ORD, (op0, op0), BIT)
+
+
+OP_FCMP_ORD = HOperatorDefLlvm(fcmp_ord, _getllvmFCmpOpConstructor(ICmpInst.Predicate.FCMP_ORD), False, idStr="OP_FCMP_ORD")
+
+
+def fcmp_uno(op0: RtlSignalBase[HFloatTmp],
+             op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[BIT]:
+    if _isNaN_const(op0) or _isNaN_const(op1):
+        return b1
+
+    return HOperatorNode.withRes(OP_FCMP_UNO, (op0, op0), BIT)
+
+
+OP_FCMP_UNO = HOperatorDefLlvm(fcmp_uno, _getllvmFCmpOpConstructor(ICmpInst.Predicate.FCMP_UNO), False, idStr="OP_FCMP_UNO")
+
+
+def _isNaN_const(op0: RtlSignalBase[HFloatTmp]) -> Optional[bool]:
+    if isinstance(op0, float):
+        return math.isnan(op0)
+    elif isinstance(op0, HConst):
+        return op0.isNaN()
+    return None
+
+
+class HOperatorDefLlvmFcmpUnorder(HOperatorDefLlvm):
+    """
+    Unordered variants of FCMP operators (result of unorderd cmp is true if any operand is NaN)
+    """
+
+    def __init__(self, unOrdPred: ICmpInst.Predicate,
+                 ordPredFn: Callable[[ RtlSignalBase[HFloatTmp], RtlSignalBase[HFloatTmp]], RtlSignalBase[BIT]],
+                 runSimplifyRules: Optional[Callable[["HlsNetNodeOperator", SetList["HlsNetNode"]], bool]]=None):
+        self.ordPredFn = ordPredFn
+        idStr = "OP_" + unOrdPred.name
+        HOperatorDef.__init__(self, self._fcmp_UNO_or_pred, allowsAssignTo=False, idStr=idStr,
+                              hdlConvertoAstOp=None)
+        self.llvmOperatorConstructor = _getllvmFCmpOpConstructor(unOrdPred)
+        self.runSimplifyRules = runSimplifyRules
+ 
+    def _fcmp_UNO_or_pred(self,
+                          op0: RtlSignalBase[HFloatTmp],
+                          op1: RtlSignalBase[HFloatTmp]) -> RtlSignalBase[BIT]:
+        if _isNaN_const(op0) or _isNaN_const(op1):
+            return b1
+        elif self.ordPredFn is not None and isinstance(op0, _F_CONST_CLS) and isinstance(op1, _F_CONST_CLS):
+            return self.ordPredFn(op0, op1)
+        else:
+            assert op0._dtype == op1._dtype, (op0, op1)
+            return HOperatorNode.withRes(self, (op0, op1), BIT)
+
+
+OP_FCMP_UEQ = HOperatorDefLlvmFcmpUnorder(ICmpInst.Predicate.FCMP_UEQ, operator.eq)
+OP_FCMP_UGT = HOperatorDefLlvmFcmpUnorder(ICmpInst.Predicate.FCMP_UGT, operator.gt)
+OP_FCMP_UGE = HOperatorDefLlvmFcmpUnorder(ICmpInst.Predicate.FCMP_UGE, operator.ge)
+OP_FCMP_ULT = HOperatorDefLlvmFcmpUnorder(ICmpInst.Predicate.FCMP_ULT, operator.lt)
+OP_FCMP_ULE = HOperatorDefLlvmFcmpUnorder(ICmpInst.Predicate.FCMP_ULE, operator.le)
+OP_FCMP_UNE = HOperatorDefLlvmFcmpUnorder(ICmpInst.Predicate.FCMP_UNE, operator.ne)
+fcmp_ueq = OP_FCMP_UEQ._fcmp_UNO_or_pred
+fcmp_ugt = OP_FCMP_UGT._fcmp_UNO_or_pred
+fcmp_uge = OP_FCMP_UGE._fcmp_UNO_or_pred
+fcmp_ult = OP_FCMP_ULT._fcmp_UNO_or_pred
+fcmp_ule = OP_FCMP_ULE._fcmp_UNO_or_pred
+fcmp_une = OP_FCMP_UNE._fcmp_UNO_or_pred
 #
 # # IntrinsicEnums.inc
 

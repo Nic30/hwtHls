@@ -6,7 +6,7 @@ from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from tests.math.fixp.fixpTypes import HFixedPointQComaptibleValue
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 from tests.math.hFloatTmp.hFloatTmpOps import fmul, fadd, fcmp_oeq, fcmp_one, fcmp_olt, \
-    fcmp_ogt, fcmp_oge, fcmp_ole, fsub, fdiv, fround, fneg, fmod
+    fcmp_ogt, fcmp_oge, fcmp_ole, fsub, fdiv, fround, fneg, fmod, isNaN
 
 _HFloatTmpValue = Union["HFloatTmpConst", "HFloatTmpRtlSignal"]
 
@@ -119,3 +119,6 @@ class HFloatTmpRtlSignal(RtlSignal):
 
     def __round__(self):
         return fround(self)
+    
+    def isNaN(self):
+        return isNaN(self)

@@ -75,13 +75,13 @@ from tests.math.hFloatTmp.hFloatTmpOps import OP_FADD, OP_FSUB, OP_FMUL, \
     OP_FCMP_OEQ, OP_FCMP_OGT, OP_FCMP_OGE, OP_FCMP_OLT, OP_FCMP_OLE, OP_FCMP_ONE, \
     OP_FNEG, OP_FP_SHL, OP_FP_SHR, OP_FDIV, OP_FREM, OP_FSIN, OP_FCOS, OP_FSQRT, \
     OP_FSINCOS, OP_FLOG2, OP_FEXP, OP_FSINPI, OP_FCOSPI, OP_FSINCOSPI, OP_FTAN, \
-    OP_FTANPI, OP_FEXP2, OP_FEXP10, OP_FPOW, OP_FATAN2, OP_FABS, OP_FPOWI
+    OP_FTANPI, OP_FEXP2, OP_FEXP10, OP_FPOW, OP_FATAN2, OP_FABS, OP_FPOWI,\
+    OP_FCMP_ORD, OP_FCMP_UNO, OP_FCMP_UEQ, OP_FCMP_UGT, OP_FCMP_UGE, OP_FCMP_ULT,\
+    OP_FCMP_ULE, OP_FCMP_UNE
 
 
 def installMathLibComponentGenerators(p: VirtualHlsPlatform, optThroughputVsArea=0.0, MAX_TABLE_ADDR_WIDTH=7, genNamePrefix="gen"):
     """
-    
-    
     :attention: Various libraries, frameworks, languages and hardware typically have imperfect precision of various math functions
         :see: Brian Gladman, Vincenzo Innocente, John Mather, Paul Zimmermann. Accuracy of Mathematical
         Functions in Single, Double, Double Extended, and Quadruple Precision. 2025. hal-03141101v8
@@ -173,12 +173,22 @@ def installMathLibComponentGenerators(p: VirtualHlsPlatform, optThroughputVsArea
     g[Instruction.OtherOps.FCmp] = g[T.HWTFPGA_FP_FCMP] = ComponentGeneratorFCMP_delegate(p, np, "fcmp")
     g[HwtHlsFpIntrisicName("hwtHls.fp.fcmp.")] = ComponentGeneratorFCMP_hwtHlsFpIntrinsic(p, np, "fcmp")
     P = CmpInst.Predicate
-    g[(FCmpInst, P.FCMP_OEQ)] = g[(T.HWTFPGA_FP_FCMP, P.FCMP_OEQ)] = g[OP_FCMP_OEQ] = ComponentGeneratorFCMP(p, np, "fcmp_oeq", HwtOps.EQ, HwtOps.EQ)
-    g[(FCmpInst, P.FCMP_OGT)] = g[(T.HWTFPGA_FP_FCMP, P.FCMP_OGT)] = g[OP_FCMP_OGT] = ComponentGeneratorFCMP(p, np, "fcmp_ogt", HwtOps.UGT, HwtOps.SGT)
-    g[(FCmpInst, P.FCMP_OGE)] = g[(T.HWTFPGA_FP_FCMP, P.FCMP_OGE)] = g[OP_FCMP_OGE] = ComponentGeneratorFCMP(p, np, "fcmp_oge", HwtOps.UGE, HwtOps.SGE)
-    g[(FCmpInst, P.FCMP_OLT)] = g[(T.HWTFPGA_FP_FCMP, P.FCMP_OLT)] = g[OP_FCMP_OLT] = ComponentGeneratorFCMP(p, np, "fcmp_olt", HwtOps.ULT, HwtOps.SLT)
-    g[(FCmpInst, P.FCMP_OLE)] = g[(T.HWTFPGA_FP_FCMP, P.FCMP_OLE)] = g[OP_FCMP_OLE] = ComponentGeneratorFCMP(p, np, "fcmp_ole", HwtOps.ULE, HwtOps.SLE)
-    g[(FCmpInst, P.FCMP_ONE)] = g[(T.HWTFPGA_FP_FCMP, P.FCMP_ONE)] = g[OP_FCMP_ONE] = ComponentGeneratorFCMP(p, np, "fcmp_one", HwtOps.NE, HwtOps.NE)
+    
+    g[(FCmpInst, P.FCMP_ORD)] = g[(T.HWTFPGA_FP_FCMP, P.FCMP_ORD)] = g[OP_FCMP_ORD] = ComponentGeneratorFCMP(p, np, "fcmp_ord", P.FCMP_ORD)
+    g[(FCmpInst, P.FCMP_OEQ)] = g[(T.HWTFPGA_FP_FCMP, P.FCMP_OEQ)] = g[OP_FCMP_OEQ] = ComponentGeneratorFCMP(p, np, "fcmp_oeq", P.FCMP_OEQ)
+    g[(FCmpInst, P.FCMP_OGT)] = g[(T.HWTFPGA_FP_FCMP, P.FCMP_OGT)] = g[OP_FCMP_OGT] = ComponentGeneratorFCMP(p, np, "fcmp_ogt", P.FCMP_OGT)
+    g[(FCmpInst, P.FCMP_OGE)] = g[(T.HWTFPGA_FP_FCMP, P.FCMP_OGE)] = g[OP_FCMP_OGE] = ComponentGeneratorFCMP(p, np, "fcmp_oge", P.FCMP_OGE)
+    g[(FCmpInst, P.FCMP_OLT)] = g[(T.HWTFPGA_FP_FCMP, P.FCMP_OLT)] = g[OP_FCMP_OLT] = ComponentGeneratorFCMP(p, np, "fcmp_olt", P.FCMP_OLT)
+    g[(FCmpInst, P.FCMP_OLE)] = g[(T.HWTFPGA_FP_FCMP, P.FCMP_OLE)] = g[OP_FCMP_OLE] = ComponentGeneratorFCMP(p, np, "fcmp_ole", P.FCMP_OLE)
+    g[(FCmpInst, P.FCMP_ONE)] = g[(T.HWTFPGA_FP_FCMP, P.FCMP_ONE)] = g[OP_FCMP_ONE] = ComponentGeneratorFCMP(p, np, "fcmp_one", P.FCMP_ONE)
+
+    g[(FCmpInst, P.FCMP_UNO)] = g[(T.HWTFPGA_FP_FCMP, P.FCMP_UNO)] = g[OP_FCMP_UNO] = ComponentGeneratorFCMP(p, np, "fcmp_uno", P.FCMP_UNO)
+    g[(FCmpInst, P.FCMP_UEQ)] = g[(T.HWTFPGA_FP_FCMP, P.FCMP_UEQ)] = g[OP_FCMP_UEQ] = ComponentGeneratorFCMP(p, np, "fcmp_ueq", P.FCMP_UEQ)
+    g[(FCmpInst, P.FCMP_UGT)] = g[(T.HWTFPGA_FP_FCMP, P.FCMP_UGT)] = g[OP_FCMP_UGT] = ComponentGeneratorFCMP(p, np, "fcmp_ugt", P.FCMP_UGT)
+    g[(FCmpInst, P.FCMP_UGE)] = g[(T.HWTFPGA_FP_FCMP, P.FCMP_UGE)] = g[OP_FCMP_UGE] = ComponentGeneratorFCMP(p, np, "fcmp_uge", P.FCMP_UGE)
+    g[(FCmpInst, P.FCMP_ULT)] = g[(T.HWTFPGA_FP_FCMP, P.FCMP_ULT)] = g[OP_FCMP_ULT] = ComponentGeneratorFCMP(p, np, "fcmp_ult", P.FCMP_ULT)
+    g[(FCmpInst, P.FCMP_ULE)] = g[(T.HWTFPGA_FP_FCMP, P.FCMP_ULE)] = g[OP_FCMP_ULE] = ComponentGeneratorFCMP(p, np, "fcmp_ule", P.FCMP_ULE)
+    g[(FCmpInst, P.FCMP_UNE)] = g[(T.HWTFPGA_FP_FCMP, P.FCMP_UNE)] = g[OP_FCMP_UNE] = ComponentGeneratorFCMP(p, np, "fcmp_une", P.FCMP_UNE)
 
     g[Intrinsic.sin] = ComponentGeneratorLlvmIntrinsicSin(p, np, "fsin")
     g[T.HWTFPGA_FP_SIN] = g[OP_FSIN] = ComponentGeneratorFSINCOS(p, np, "fsin", False, True, optThroughputVsArea=optThroughputVsArea, optMaxStagesInLut=MAX_TABLE_ADDR_WIDTH)

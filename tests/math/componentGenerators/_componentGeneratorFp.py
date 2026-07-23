@@ -20,8 +20,6 @@ from hwtHls.ssa.translation.llvmMirToNetlist.mirToNetlist import HlsNetlistAnaly
 from hwtHls.ssa.translation.llvmMirToNetlist.utils import MirToHlsNetlistTranslatedInstrOpsT
 from pyDigitalWaveTools.vcd.writer import VcdWriter
 from pyMathBitPrecise.bit_utils import to_unsigned
-from tests.math.fixp.fixpTypes import HFixedPointQ
-from tests.math.fp.fptypes import IEEE754Fp
 from tests.math.hFloatTmp.hFloatTmp import HFloatTmp
 from tests.math.hFloatTmp.hFloatTmpUtils import HFloatTmpConfigToHType
 

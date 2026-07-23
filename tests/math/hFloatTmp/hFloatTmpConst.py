@@ -12,6 +12,7 @@ from pyMathBitPrecise.bit_utils import ValidityError
 from tests.math.hFloatTmp.hFloatTmpOps import fadd, fsub, fmul, \
     fdiv, fpowi, fcmp_olt, fcmp_ole, fcmp_oeq, fcmp_one, fcmp_ogt, fcmp_oge, \
     fpow, fround, fmod, fabs
+from hwt.hdl.commonConstants import bInvalid
 
 _HFloatTmpValue = Union["HFloatTmpConst", "HFloatTmpRtlSignal"]
 
@@ -232,11 +233,17 @@ class HFloatTmpConst(HConst):
 
         return self._applyBinFnForConstants(other, pow, pow)
 
-    def __abs__(self):
+    def __abs__(self) -> Self:
         return fabs(self)
 
-    def __round__(self):
+    def __round__(self) -> Self:
         return fround(self)
+
+    def isNaN(self) -> HBitsConst:
+        if self._is_full_valid():
+            return math.isnan(self.val)
+        else:
+            return bInvalid
 
     def toLlvm(self, toLlvm: "ToLlvmIrTranslator"):
         t = Type.getDoubleTy(toLlvm.ctx)
