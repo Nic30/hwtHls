@@ -18,6 +18,7 @@ from hwtHls.frontend.pragmaPreproc import PyBytecodeBlockLabel
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInline
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from tests.passTestInjectorForDInDOutHwModule import hlsModelProps
+from hwt.hdl.types.bitsConst import HBitsConst
 
 
 @hlsBytecode
@@ -150,7 +151,10 @@ class DivRemHwModule(_BaseALU1HwModule):
 
     @staticmethod
     @hlsModelProps(returnsPyValue=True, returnsOutValue=True, inputArgsAreStructMembers=True)
-    def model(dividend: int, divisor: int, isSigned:bool) -> tuple[int, int]:
+    def model(dividend: HBitsConst, divisor: HBitsConst, isSigned:HBitsConst) -> tuple[int, int]:
+        dividend = int(dividend)
+        divisor = int(divisor)
+        isSigned = bool(isSigned)
         if isSigned or dividend < 0 or divisor < 0:
             raise NotImplementedError()
 

@@ -75,14 +75,6 @@ class DivRemRestoring_TC(SimTestCase):
         dut.CHECK_FOR_INEFFICIENCY = False
         # dut.CLK_FREQ = int(200e6)
 
-        T = HBits(self.DATA_WIDTH)
-        dataIn: list[HBitsConst] = []
-        for (dividend, divisor, isSigned) in self.INPUT_DATA:
-            _dividend = T.from_py(dividend)
-            _divisor = T.from_py(divisor)
-            _isSigned = BIT.from_py(isSigned)
-            dataIn.append(Concat(_isSigned, _divisor, _dividend))
-
         platform = VirtualHlsPlatform(
                                       # debugFilter=HlsDebugBundle.ALL_RELIABLE,
                                       llvmCliArgs=[
@@ -215,6 +207,6 @@ if __name__ == "__main__":
 
     testLoader = unittest.TestLoader()
     suite = unittest.TestSuite(testLoader.loadTestsFromTestCase(cls) for cls in DivRemRestoring_TCs)
-    # suite = unittest.TestSuite([DivRemRestoring_TC('test_div_no_SelectPruningPass')])
+    # suite = unittest.TestSuite([DivRemRestoring_TC('test_div_no_SlicesToIndependentVariablesPassAndSelectPruningPass')])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
