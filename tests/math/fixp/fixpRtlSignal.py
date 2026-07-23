@@ -1,6 +1,7 @@
 from copy import copy
 from typing import Union, Self
 
+from hwt.hdl.commonConstants import b0
 from hwt.hdl.types.typeCast import toHVal
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
 from tests.math.fixp.fixpTypes import HFixedPointQComaptibleValue
@@ -80,3 +81,9 @@ class HFixedPointQRtlSignal(RtlSignal):
             # simplification of previous exception traceback
             e_simplified = copy(e)
             raise e_simplified
+
+    def isNaN(self):
+        if self._dtype._cfg.hasIsNaN:
+            raise NotImplementedError()
+        else:
+            return b0

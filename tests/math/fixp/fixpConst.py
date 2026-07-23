@@ -1,5 +1,6 @@
 from typing import Self, Optional
 
+from hwt.hdl.commonConstants import b0
 from hwt.hdl.const import HConst
 from hwtHls.llvm.llvmIr import APFloat, APInt, Type, HFloatTmpConfig
 from tests.math.fixp.fixpTypes import HFixedPointQ
@@ -10,7 +11,8 @@ class HFixedPointQConst(HConst):
     :ivar val: raw bits of float value (represented as non-negative int in Python)
     :ivar vld_mask: raw bit mask for validity of val
     """
-
+    _dtype:HFixedPointQ
+    
     @classmethod
     def from_py(cls, typeObj: HFixedPointQ, val: Optional[float], vld_mask=None) -> Self:
         if val is not None:
@@ -44,6 +46,12 @@ class HFixedPointQConst(HConst):
             return float(self)
         else:
             return None
+
+    def isNaN(self):
+        if self._dtype._cfg.hasIsNaN:
+            raise NotImplementedError()
+        else:
+            return b0
 
     def __repr__(self) -> str:
         if self._is_full_valid():
