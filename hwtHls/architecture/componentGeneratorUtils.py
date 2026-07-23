@@ -9,6 +9,7 @@ from hwt.hwIOs.std import HwIOSignal
 from hwt.hwModule import HwModule
 from hwt.pyUtils.setList import SetList
 from hwtHls.architecture.componentGenerator import ComponentGenerator
+from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 from hwtHls.netlist.analysis.ioOrdering import HlsNetlistAnalysisPassIoOrdering
 from hwtHls.netlist.builder import HlsNetlistBuilder, \
     HlsNetlistBuilderWithWorklist
@@ -26,7 +27,7 @@ from hwtHls.netlist.scheduler.scheduler import asapSchedulePartlyScheduled
 from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import disconnectAllInputs
 from hwtHls.platform.opRealizationMeta import EMPTY_OP_REALIZATION
 from hwtLib.abstract.componentBuilder import AbstractComponentBuilder
-from hwtHls.frontend.ioProxyScalar import IoProxyScalar
+
 
 HwModuleHwIoForNodePortGetter = Callable[[HlsNetNodeOperator, HwModule], Sequence[HwIO]]
 
@@ -42,7 +43,7 @@ class HlsNetNodeWriteOfFnUnitPort(HlsNetNodeWrite):
 def replaceHlsNetNodeWithExpression(n: HlsNetNodeOperator,
                                     newO: HlsNetNodeOut,
                                     newNodeCnt: Optional[int],
-                                    newNodeTypeCheckFn: Callable[[HlsNetNode], bool],
+                                    newNodeTypeCheckFn: Optional[Callable[[HlsNetNode], bool]],
                                     worklist:SetList[HlsNetNode]):
     assert len(n._outputs) == 1, n
     parent: ArchElement = n.parent
