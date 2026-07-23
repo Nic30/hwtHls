@@ -97,6 +97,7 @@ bool HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_matchPattern(
 		// we avoid it because it cancels the opportunity to simplify phis.
 		return false;
 	}
+
 	return true;
 }
 
@@ -241,6 +242,10 @@ bool HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit(
 	bool change = false;
 	change |= HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_form_dedicatedLatches(
 		DTU, BB0, origSwitchSuccessors, allRegionBBs, exitBBs);
+	if (exitBBs.size() == 2 && exitBBs.contains(&BB0)) {
+		// This is required because IP for select/phis would not be clearly defined
+		return false;
+	}
 	assert(exitBBs.size() != 0);
 	// now we know that there are only <=2 unique blocks from the cluster of
 	// empty blocks after the SwitchInst
