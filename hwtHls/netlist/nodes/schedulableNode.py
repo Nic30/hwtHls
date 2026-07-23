@@ -88,10 +88,7 @@ class SchedulableNode():
             assert iT >= 0, (iT, self, i, "Scheduled before start of the time.")
             assert oT >= 0, (oT, dep, "Scheduled before start of the time.")
             if checkNotInFfStoreTime:
-                try:
-                    assert abs(iT % clkPeriod) <= usableClkWindow, (self, i, iT % clkPeriod, iT, clkPeriod)
-                except:
-                    raise
+                assert abs(iT % clkPeriod) <= usableClkWindow, (self, i, iT % clkPeriod, iT, clkPeriod)
         for o, oT, users in zip_longest(self._outputs, self.scheduledOut, self.usedBy):
             for u in users:
                 uSched = u.obj.scheduledIn
