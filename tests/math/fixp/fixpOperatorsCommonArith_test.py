@@ -5,10 +5,9 @@ import math
 
 from hwt.hdl.types.bits import HBits
 from hwt.hdl.types.bitsConst import HBitsConst
-from hwt.pyUtils.typingFuture import override
 from hwt.serializer.mode import serializeParamsUniq
-from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
-from pyMathBitPrecise.bit_utils import mask, to_signed
+from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
+from pyMathBitPrecise.bit_utils import mask
 from tests.math.fixp._fixpAlu2_TC import FixpAlu2_TC
 from tests.math.fixp.fixpOperatorsHwModules import _FixpBinOpTestModule
 from tests.math.fixp.fixpTypes import HFixedPointQ
