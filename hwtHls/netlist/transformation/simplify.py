@@ -31,6 +31,7 @@ from hwtHls.netlist.transformation.simplifyExpr.normalizeConstToRhs import netli
     BINARY_OPS_WITH_SWAPABLE_OPERANDS
 from hwtHls.netlist.transformation.simplifyExpr.rehash import HlsNetlistPassRehashDeduplicate
 from hwtHls.netlist.transformation.simplifyExpr.simplifyAbc import runAbcControlpathOpt
+from hwtHls.netlist.transformation.simplifyExpr.simplifyAddSub import netlistReduceAddSub
 from hwtHls.netlist.transformation.simplifyExpr.simplifyBitwise import netlistReduceNot, netlistReduceAndOrXor
 from hwtHls.netlist.transformation.simplifyExpr.simplifyIndex import netlistReduceIndexOnIndex, \
     netlistReduceIndexSelectAll, netlistReduceIndexToConstIndex
@@ -63,6 +64,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
     REST_OF_EVALUABLE_OPS = {HwtOps.CONCAT, HwtOps.ADD, HwtOps.SUB, HwtOps.UDIV, HwtOps.SDIV,
                              HwtOps.MUL, HwtOps.INDEX, OP_INDEX_CONST, *COMPARE_OPS, *CAST_OPS}
     OPS_AND_OR_XOR = (HwtOps.AND, HwtOps.OR, HwtOps.XOR)
+    OPS_ADD_SUB = (HwtOps.ADD, HwtOps.SUB)
     OPT_ITERATION_LIMIT = 20
 
     def __init__(self, dbgTracer: DebugTracer):
@@ -139,7 +141,8 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
 
         elif o in BINARY_OPS_WITH_SWAPABLE_OPERANDS and netlistNormalizeConstToRhs(n, worklist):
             return True
-
+        elif o in cls.OPS_ADD_SUB and netlistReduceAddSub(n, worklist):
+            return True
         elif o in cls.OPS_AND_OR_XOR:
             if netlistReduceAndOrXor(n, worklist):
                 return True
