@@ -121,6 +121,9 @@ class _BaseALU1HwModule(HwModule):
             return None
             # return PyBytecodeLoopFlattenUsingIf(mode=PyBytecodeLoopFlattenUsingIf.Mode.CHILD_LOOP_ENTRY_IN_SAME_ITERATION)
 
+    def _shouldInlineAluFn(self) -> bool:
+        return True
+
     def _backupTiming(self, hls: HlsScope, isFullyUnrolled: bool):
         inputClkTickOffset = math.inf
         inputWireDelay = math.inf
@@ -229,7 +232,10 @@ class _BaseALU1HwModule(HwModule):
     @hlsBytecode
     def mainThread(self, hls: HlsScope):
         self.MAIN_FN_META
-        aluFn = PyBytecodeInline(self.aluFn)
+        if self._shouldInlineAluFn():
+            aluFn = PyBytecodeInline(self.aluFn)
+        else:
+            aluFn = self.aluFn
         outT = self._getTypeOfIo(self.data_out)
         if self._isFullyUnrolled() or\
                 (self.IN_CHANNEL_TYPE == HwIOStruct and self.OUT_CHANNEL_TYPE == HwIOStruct):
