@@ -194,7 +194,10 @@ class HlsNetlistBuilder():
                 *operands: Tuple[Union[HlsNetNodeOut, HConst], ...],
                 operatorNodeCls:Type[HlsNetNodeOperator]=HlsNetNodeOperator,
                 name:Optional[str]=None,
-                ) -> HlsNetNodeOut:
+                ) -> HlsNetNodeOperator:
+        if len(resT) == 1:
+            return self.buildOp(operator, operatorSpecialization, resT[0], *operands, operatorNodeCls=operatorNodeCls, name=name).obj
+
         assert len(resT) > 1, (operator, resT, "For single output operators use buildOp")
         for _resT in resT:
             assert isinstance(_resT, HdlType) and (not isinstance(_resT, HBits) or not _resT.signed), ("Only unsigned should be used internally", resT)
