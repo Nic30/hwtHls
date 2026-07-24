@@ -21,28 +21,47 @@ from tests.passTestIoStream import PassTestIoInStream
 
 class Axi4SParseIfTC(SimTestCase):
     _SimFrameUtils = Axi4StreamSimFrameUtils
+    _platformKwArgs = dict(
+        # debugFilter={  
+        #  *HlsDebugBundle.ALL_RELIABLE,
+        # # HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+        # # HlsDebugBundle.DBG_4_0_addSignalNamesToData,
+        # },
+        llvmCliArgs=[
+        #     LLVM_CLI_COMMON_OPTS.OVERWIRTE_BB_NAMES,
+        #     LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+        #     LLVM_CLI_COMMON_OPTS.PRINT_BEFORE_ALL,
+        #     LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL,
+            LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+        #    LLVM_CLI_COMMON_OPTS.VREGIFCVT_TRACE,
+        ],
+    )
 
     def _runTest(self, dut, inputFrames: list[int], outputRef: list[int],
                  platform:Optional[VirtualHlsPlatform]=None,
                  platformKwArgs=None,
                  wallTimeRtlDefaultMultiplier:Optional[int]=NOT_SPECIFIED,
                  ):
+        if platformKwArgs is None:
+            platformKwArgs = self._platformKwArgs
         passTests = PassTestInjectorForDInDOutHwModule(dut, self)
         passTests.bindData((PassTestIoInStream(self._SimFrameUtils, inputFrames, name="i"),
                             PassTestIoOut(outputRef, name="o", errMsgFormatter=errMsgFrormatter_HBitsAsHex)))
-
+        # passTests.dbgOpenDiffOnIrErr = True
         passTests.setRunTestsAfter(
-            # runTestAfterPassFilter:Optional[set["str"]]=None,
+            # runTestAfterPassFilter=["hwtHls::SlicesMergePass"],
+            #runTestAfterPassFilter=["hwtHls::StreamSegmentLoopUnrollPass"],
             runTestBeforeLlvmIrPasses=True,
-            runTestAfterEachPass=False,
-            runTestAfterEachIrPass=False,
+            # runTestAfterEachPass=False,
             runTestAfterIrPasses=True,
-            runTestAfterEachMirPass=True,
+            #runTestAfterEachIrPass=True,
+            #runTestAfterIrInstrCombineChange=True,
+            #runTestAfterIrCfgSimplify=True,
             runTestAfterMirPasses=True,
-            runTestAfterMirVRegIfConverterChange=True,
-            runTestAfterMirGISelCombinerChange=False,
-            runTestAfterEachHlsNetlistPass=False,
-            runTestAfterHlsNetlistPasses=True)
+            # runTestAfterMirVRegIfConverterChange=False,
+            # runTestAfterMirGISelCombinerChange=False,
+            # runTestAfterEachHlsNetlistPass=False,
+            runTestAfterHlsNetlistPasses=False)
         passTests.setTimeLimits(wallTimeRtlDefaultMultiplier=wallTimeRtlDefaultMultiplier)
 
         passTests.test_allInOne(platform=platform, platformKwArgs=platformKwArgs)
@@ -101,21 +120,7 @@ class Axi4SParseIfTC(SimTestCase):
         self._run_test_Axi4SParse2If(dut, N, wallTimeRtlDefaultMultiplier=wallTimeRtlDefaultMultiplier)
 
     def _run_test_Axi4SParse2If(self, dut: Axi4SParse2If, N:int,
-                                platformKwArgs=dict(
-                                    debugFilter={  
-                                     *HlsDebugBundle.ALL_RELIABLE,
-                                    # HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
-                                    # HlsDebugBundle.DBG_4_0_addSignalNamesToData,
-                                    },
-                                    llvmCliArgs=[
-                                    #     LLVM_CLI_COMMON_OPTS.OVERWIRTE_BB_NAMES,
-                                    #     LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
-                                    #     LLVM_CLI_COMMON_OPTS.PRINT_BEFORE_ALL,
-                                    #     LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL,
-                                        LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
-                                    #   LLVM_CLI_COMMON_OPTS.VREGIFCVT_TRACE,
-                                    ],
-                                ),
+                                platformKwArgs=None,
                                 wallTimeRtlDefaultMultiplier:Optional[int]=NOT_SPECIFIED,):
         T1 = HStruct(
             (HBits(16), "v0"),
@@ -166,13 +171,11 @@ class Axi4SParseIfTC(SimTestCase):
 
     def _run_test_Axi4SParse2IfAndSequel(self, dut: Axi4SParse2IfAndSequel, N:int, WRITE_FOOTER:bool,
             platformKwArgs=dict(
-                debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
-                   # HlsDebugBundle.DBG_4_0_hwscheduleTrace,
-                   HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
-                   HlsDebugBundle.DBG_4_0_addSignalNamesToData,
-                }),
-                # runTestAfterEachIrPass=True,
-                # runTestAfterEachMirPass=True,
+                # debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
+                #    # HlsDebugBundle.DBG_4_0_hwscheduleTrace,
+                #    HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+                #    HlsDebugBundle.DBG_4_0_addSignalNamesToData,
+                # }),
                 llvmCliArgs=[
                     # LLVM_CLI_COMMON_OPTS.OVERWIRTE_BB_NAMES,
                     # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
@@ -422,5 +425,6 @@ if __name__ == '__main__':
 
     suite = testLoader.loadTestsFromTestCase(Axi4SParseIfTC)
     # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2If_8b_100MHz")])
+    # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2IfAndSequel_24b_1MHz")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
