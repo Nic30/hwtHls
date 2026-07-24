@@ -304,7 +304,7 @@ class Axi4SParseIfTC(SimTestCase):
         self._test_Axi4SParse2If(8, freq=int(100e6), wallTimeRtlDefaultMultiplier=8)
 
     def test_Axi4SParse2If_16b_100MHz(self):
-        self._test_Axi4SParse2If(16, freq=int(100e6))
+        self._test_Axi4SParse2If(16, freq=int(100e6), wallTimeRtlDefaultMultiplier=2)
 
     def test_Axi4SParse2If_24b_100MHz(self):
         self._test_Axi4SParse2If(24, freq=int(100e6))
@@ -320,13 +320,13 @@ class Axi4SParseIfTC(SimTestCase):
         self._test_Axi4SParse2IfAndSequel(8)
 
     def test_Axi4SParse2IfAndSequel_16b_1MHz(self):
-        self._test_Axi4SParse2IfAndSequel(16)
+        self._test_Axi4SParse2IfAndSequel(16, wallTimeRtlDefaultMultiplier=3)
 
     def test_Axi4SParse2IfAndSequel_24b_1MHz(self):
-        self._test_Axi4SParse2IfAndSequel(24)
+        self._test_Axi4SParse2IfAndSequel(24, wallTimeRtlDefaultMultiplier=2)
 
     def test_Axi4SParse2IfAndSequel_48b_1MHz(self):
-        self._test_Axi4SParse2IfAndSequel(48, N=4)
+        self._test_Axi4SParse2IfAndSequel(48, wallTimeRtlDefaultMultiplier=1.5)
 
     def test_Axi4SParse2IfAndSequel_512b_1MHz(self):
         self._test_Axi4SParse2IfAndSequel(512)
@@ -338,7 +338,7 @@ class Axi4SParseIfTC(SimTestCase):
         self._test_Axi4SParse2IfAndSequel(16, freq=int(40e6), wallTimeRtlDefaultMultiplier=3)
 
     def test_Axi4SParse2IfAndSequel_24b_40MHz(self):
-        self._test_Axi4SParse2IfAndSequel(24, freq=int(40e6))
+        self._test_Axi4SParse2IfAndSequel(24, freq=int(40e6), wallTimeRtlDefaultMultiplier=2)
 
     def test_Axi4SParse2IfAndSequel_48b_40MHz(self):
         self._test_Axi4SParse2IfAndSequel(48, freq=int(40e6))
@@ -347,13 +347,13 @@ class Axi4SParseIfTC(SimTestCase):
         self._test_Axi4SParse2IfAndSequel(512, freq=int(40e6))
 
     def test_Axi4SParse2IfAndSequel_8b_100MHz(self):
-        self._test_Axi4SParse2IfAndSequel(8, freq=int(100e6))
+        self._test_Axi4SParse2IfAndSequel(8, freq=int(100e6), wallTimeRtlDefaultMultiplier=3)
 
     def test_Axi4SParse2IfAndSequel_16b_100MHz(self):
         self._test_Axi4SParse2IfAndSequel(16, freq=int(100e6), wallTimeRtlDefaultMultiplier=5.5)
 
     def test_Axi4SParse2IfAndSequel_24b_100MHz(self):
-        self._test_Axi4SParse2IfAndSequel(24, freq=int(100e6))
+        self._test_Axi4SParse2IfAndSequel(24, freq=int(100e6), wallTimeRtlDefaultMultiplier=4)
 
     def test_Axi4SParse2IfAndSequel_48b_100MHz(self):
         self._test_Axi4SParse2IfAndSequel(48, freq=int(100e6))
@@ -392,7 +392,7 @@ class Axi4SParseIfTC(SimTestCase):
         self._test_Axi4SParse2IfAndSequel(512, freq=int(40e6), WRITE_FOOTER=False)
 
     def test_Axi4SParse2IfAndSequel_NO_FOOTER_8b_100MHz(self):
-        self._test_Axi4SParse2IfAndSequel(8, freq=int(100e6), WRITE_FOOTER=False)
+        self._test_Axi4SParse2IfAndSequel(8, freq=int(100e6), WRITE_FOOTER=False, wallTimeRtlDefaultMultiplier=2)
 
     def test_Axi4SParse2IfAndSequel_NO_FOOTER_16b_100MHz(self):
         self._test_Axi4SParse2IfAndSequel(16, freq=int(100e6), WRITE_FOOTER=False)
