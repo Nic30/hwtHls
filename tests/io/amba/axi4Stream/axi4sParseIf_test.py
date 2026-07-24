@@ -12,6 +12,7 @@ from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS, HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtLib.amba.axi4sSimFrameUtils import Axi4StreamSimFrameUtils
+from hwtSimApi.agents.base import NOP
 from pyMathBitPrecise.bit_utils import int_to_int_list, mask
 from tests.io.amba.axi4Stream.axi4sParseIf import Axi4SParse2If2B, Axi4SParse2IfLess, Axi4SParse2If, Axi4SParse2IfAndSequel
 from tests.passTestInjectorForDInDOutHwModule import PassTestInjectorForDInDOutHwModule
@@ -86,11 +87,11 @@ class Axi4SParseIfTC(SimTestCase):
         inputFrames: list[list[int]] = []
         outputRef: list[int] = []
         for _ in range(N):
-            T = self._rand.choice((T1, T2))
+            T = self._rand.choice((T1, T2, NOP))
             if T is T1:
                 d = {"v0": 1}
                 outputRef.append(1)
-            else:
+            elif T is T2:
                 v1_t = T.field_by_name["v1"].dtype
                 v1 = self._rand.getrandbits(v1_t.bit_length())
                 d = {
@@ -98,6 +99,9 @@ class Axi4SParseIfTC(SimTestCase):
                     "v1": v1
                 }
                 outputRef.append(v1)
+            else:
+                inputFrames.append(NOP)
+                continue
 
             v = T.from_py(d)
             w = v._dtype.bit_length()
