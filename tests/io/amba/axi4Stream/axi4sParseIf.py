@@ -41,7 +41,7 @@ class Axi4SParse2If2B(Axi4SParse2fields):
                 v1 = i.read(HBits(8), reliable=True)
                 hls.write(v1.data, o)
             else:
-                hls.write(v0.data._reinterpret_cast(o.T), o)
+                hls.write(v0.data._explicit_cast(o.T), o)
 
             i.readEndOfFrame()
 
@@ -70,7 +70,7 @@ class Axi4SParse2IfLess(Axi4SParse2fields):
             if v0.data < 128:
                 # read 2B, output
                 v1a = i.read(HBits(16), True)
-                hls.write(v1a.data._reinterpret_cast(o.T), o)
+                hls.write(v1a.data._explicit_cast(o.T), o)
             i.readEndOfFrame()
 
 
@@ -98,11 +98,11 @@ class Axi4SParse2If(Axi4SParse2fields):
             if v0.data._eq(2):
                 # read 2B, output
                 v1a = i.read(HBits(16), reliable=True)
-                hls.write(v1a.data._reinterpret_cast(o.T), o)
+                hls.write(v1a.data._explicit_cast(o.T), o)
             elif v0.data._eq(4):
                 # read 4B, output
                 v1b = i.read(HBits(32), reliable=True)
-                hls.write(v1b.data._reinterpret_cast(o.T), o)
+                hls.write(v1b.data._explicit_cast(o.T), o)
             else:
                 # read 1B only
                 i.read(HBits(8), reliable=True)
@@ -133,7 +133,7 @@ class Axi4SParse2IfAndSequel(Axi4SParse2fields):
         o = PyBytecodeInPreproc(self.o)
 
         def writeO(v):
-            return hls.write(v._reinterpret_cast(o.T), o, mayBecomeFlushable=False)
+            return hls.write(v._explicit_cast(o.T), o, mayBecomeFlushable=False)
 
         while b1:
             self.getLoopUnrollPragma(i)
