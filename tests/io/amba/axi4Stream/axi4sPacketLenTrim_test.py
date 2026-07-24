@@ -39,6 +39,14 @@ class Axi4sPacketLenTrimTC(SimTestCase):
 
         passTests = PassTestInjectorForStreamHwModule(dut, self, self.StreamFrameUtils)
         passTests.bindDataByInOut((refFramesIn,), (refFramesOut,),)
+        passTests.setRunTestsAfter(
+            # runTestAfterEachIrPass=True,
+            # runTestAfterIrInstrCombineChange=True,
+            # runTestAfterIrCfgSimplify=True,
+            # runTestAfterEachMirPass=True,
+            # runTestAfterMirVRegIfConverterChange=True,
+            # runTestAfterMirGISelCombinerChange=True,
+            )
         passTests.test_allInOne(
             platformKwArgs=dict(
                     # debugFilter={
@@ -78,8 +86,7 @@ class Axi4sPacketLenTrimTC(SimTestCase):
                     # LLVM_CLI_COMMON_OPTS.PRINT_BEFORE_ALL,
                     # LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL
                     LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
-                    # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
-                    # LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
+                    #LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
                   ],
                   # runTestAfterEachPass=True,
                   # runTestAfterEachIrPass=True,
@@ -135,6 +142,6 @@ if __name__ == '__main__':
 
     testLoader = unittest.TestLoader()
     suite = testLoader.loadTestsFromTestCase(Axi4sPacketLenTrimTC)
-    # suite = unittest.TestSuite([Axi4sPacketLenTrimTC("test_3B_max7")])
+    # suite = unittest.TestSuite([Axi4sPacketLenTrimTC("test_4B_max128")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
