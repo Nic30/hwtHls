@@ -8,6 +8,7 @@ from hwt.hwIOs.utils import addClkRstn
 from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.pyUtils.typingFuture import override
+from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.pragmaLoop import PyBytecodeStreamLoopUnroll
 from hwtHls.frontend.pragmaPreproc import PyBytecodeInPreproc, \
     PyBytecodeBlockLabel
@@ -18,10 +19,8 @@ from hwtHls.platform.debugBundle import HlsDebugBundle
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4s import Axi4Stream
-from tests.math.addMasked import AddMaskedHardblock
-from hwt.simulator.simTestCase import SimTestCase
 from hwtLib.amba.axi4sSimFrameUtils import Axi4StreamSimFrameUtils
-from tests.passTestInjectorForStreamHwModule import PassTestInjectorForStreamHwModule
+from tests.math.addMasked import AddMaskedHardblock
 from tests.passTestInjectorForDInDOutHwModule import PassTestInjectorForDInDOutHwModule
 from tests.passTestIoStream import PassTestIoInStream
 
