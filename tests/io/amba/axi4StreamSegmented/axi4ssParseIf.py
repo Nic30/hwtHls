@@ -12,10 +12,11 @@ from hwtHls.io.hwIoVectorized import HwIOStructVecRdVld
 from hwtHls.scope import HlsScope
 from tests.io.amba.axi4Stream.axi4sParseIf import Axi4SParse2If2B, \
     Axi4SParse2IfLess, Axi4SParse2If, Axi4SParse2IfAndSequel
-from tests.io.amba.axi4StreamSegmented.axi4ssParseLinear import Axi4SSParse2fields
+from tests.io.amba.axi4StreamSegmented.axi4ssParseLinear import Axi4SSParse2fields,\
+    Axi4SSParseStructManyInts0
 
 
-class Axi4SSParse2If2B(Axi4SSParse2fields):
+class Axi4SSParse2If2B(Axi4SSParseStructManyInts0):
     """
     :see: :class:`Axi4SSParse2If2B`
     """
@@ -36,7 +37,7 @@ class Axi4SSParse2If2B(Axi4SSParse2fields):
         PyBytecodeInline(Axi4SParse2If2B.mainThread)(self, hls, i)
 
 
-class Axi4SSParse2IfLess(Axi4SSParse2fields):
+class Axi4SSParse2IfLess(Axi4SSParseStructManyInts0):
     """
     :see: :class:`Axi4SParse2IfLess`
     """
@@ -57,7 +58,7 @@ class Axi4SSParse2IfLess(Axi4SSParse2fields):
         PyBytecodeInline(Axi4SParse2IfLess.mainThread)(self, hls, i)
 
 
-class Axi4SSParse2If(Axi4SSParse2fields):
+class Axi4SSParse2If(Axi4SSParseStructManyInts0):
     """
     :see: :class:`Axi4SParse2If`
     """
@@ -72,7 +73,7 @@ class Axi4SSParse2If(Axi4SSParse2fields):
         PyBytecodeInline(Axi4SParse2If.mainThread)(self, hls, i)
 
 
-class Axi4SSParse2IfAndSequel(Axi4SSParse2fields):
+class Axi4SSParse2IfAndSequel(Axi4SSParseStructManyInts0):
     """
     :see: :class:`Axi4SParse2IfAndSequel`
     """
@@ -85,7 +86,8 @@ class Axi4SSParse2IfAndSequel(Axi4SSParse2fields):
     @override
     def hwDeclr(self):
         Axi4SSParse2IfLess.hwDeclr(self)
-        self.o.LANE_CNT *= 2  # because each segment writes 2 words
+        if self.WRITE_FOOTER and self.SEGMENT_DATA_WIDTH > 8:
+            self.o.LANE_CNT *= 2  # because each segment writes 2 words
 
     @override
     @hlsBytecode
