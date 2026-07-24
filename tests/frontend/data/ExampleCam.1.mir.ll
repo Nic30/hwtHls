@@ -5,30 +5,34 @@
   
   define void @ExampleCam.updateThread(ptr addrspace(1) %keyForMatchThread_0, ptr addrspace(2) %keyForMatchThread_1, ptr addrspace(3) %keyForMatchThread_2, ptr addrspace(4) %keyForMatchThread_3, ptr addrspace(5) %write) !hwtHls.io !0 {
   bb0:
+    %0 = call i17 @hwtHls.bitConcat.i16.i1(i16 undef, i1 false) #1
     br label %blockL210i0_210
   
   blockL210i0_210:                                  ; preds = %bb0, %blockL210i0_210
-    %.phiConc = phi i17 [ %.selConc, %blockL210i0_210 ], [ 0, %bb0 ]
-    %.phiConc39 = phi i17 [ %.selConc40, %blockL210i0_210 ], [ 0, %bb0 ]
-    %.phiConc41 = phi i17 [ %.selConc42, %blockL210i0_210 ], [ 0, %bb0 ]
-    %.phiConc43 = phi i17 [ %.selConc44, %blockL210i0_210 ], [ 0, %bb0 ]
+    %.phiConc = phi i17 [ %.selConc, %blockL210i0_210 ], [ %0, %bb0 ]
+    %.phiConc39 = phi i17 [ %.selConc40, %blockL210i0_210 ], [ %0, %bb0 ]
+    %.phiConc41 = phi i17 [ %.selConc42, %blockL210i0_210 ], [ %0, %bb0 ]
+    %.phiConc43 = phi i17 [ %.selConc44, %blockL210i0_210 ], [ %0, %bb0 ]
     store volatile i17 %.phiConc, ptr addrspace(1) %keyForMatchThread_0, align 4
     store volatile i17 %.phiConc39, ptr addrspace(2) %keyForMatchThread_1, align 4
     store volatile i17 %.phiConc41, ptr addrspace(3) %keyForMatchThread_2, align 4
     store volatile i17 %.phiConc43, ptr addrspace(4) %keyForMatchThread_3, align 4
     %write_read1 = load volatile i19, ptr addrspace(5) %write, align 4
-    %0 = call i17 @hwtHls.bitRangeGet.i19.i6.i17.2(i19 %write_read1, i6 2) #1
+    %1 = call i17 @hwtHls.bitRangeGet.i19.i6.i17.2(i19 %write_read1, i6 2) #1
     %write_read_addr3 = call i2 @hwtHls.bitRangeGet.i19.i6.i2.0(i19 %write_read1, i6 0) #1
-    %1 = icmp eq i2 %write_read_addr3, 0
-    %.selConc = select i1 %1, i17 %0, i17 %.phiConc
-    %2 = icmp eq i2 %write_read_addr3, 1
-    %.selConc40 = select i1 %2, i17 %0, i17 %.phiConc39
-    %3 = icmp eq i2 %write_read_addr3, -2
-    %.selConc42 = select i1 %3, i17 %0, i17 %.phiConc41
-    %4 = icmp eq i2 %write_read_addr3, -1
-    %.selConc44 = select i1 %4, i17 %0, i17 %.phiConc43
+    %2 = icmp eq i2 %write_read_addr3, 0
+    %.selConc = select i1 %2, i17 %1, i17 %.phiConc
+    %3 = icmp eq i2 %write_read_addr3, 1
+    %.selConc40 = select i1 %3, i17 %1, i17 %.phiConc39
+    %4 = icmp eq i2 %write_read_addr3, -2
+    %.selConc42 = select i1 %4, i17 %1, i17 %.phiConc41
+    %5 = icmp eq i2 %write_read_addr3, -1
+    %.selConc44 = select i1 %5, i17 %1, i17 %.phiConc43
     br label %blockL210i0_210
   }
+  
+  ; Function Attrs: nofree nounwind speculatable willreturn
+  declare i17 @hwtHls.bitConcat.i16.i1(i16, i1) #0
   
   ; Function Attrs: nofree nounwind speculatable willreturn
   declare i2 @hwtHls.bitRangeGet.i19.i6.i2.0(i19, i6) #0
@@ -81,12 +85,12 @@ registers:
   - { id: 8, class: anyregcls, preferred-register: '', flags: [  ] }
   - { id: 9, class: anyregcls, preferred-register: '', flags: [  ] }
   - { id: 10, class: anyregcls, preferred-register: '', flags: [  ] }
-  - { id: 11, class: _, preferred-register: '', flags: [  ] }
+  - { id: 11, class: anyregcls, preferred-register: '', flags: [  ] }
   - { id: 12, class: anyregcls, preferred-register: '', flags: [  ] }
-  - { id: 13, class: _, preferred-register: '', flags: [  ] }
-  - { id: 14, class: anyregbank, preferred-register: '', flags: [  ] }
+  - { id: 13, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 14, class: _, preferred-register: '', flags: [  ] }
   - { id: 15, class: anyregcls, preferred-register: '', flags: [  ] }
-  - { id: 16, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 16, class: _, preferred-register: '', flags: [  ] }
   - { id: 17, class: anyregbank, preferred-register: '', flags: [  ] }
   - { id: 18, class: anyregcls, preferred-register: '', flags: [  ] }
   - { id: 19, class: anyregcls, preferred-register: '', flags: [  ] }
@@ -96,12 +100,14 @@ registers:
   - { id: 23, class: anyregbank, preferred-register: '', flags: [  ] }
   - { id: 24, class: anyregcls, preferred-register: '', flags: [  ] }
   - { id: 25, class: anyregcls, preferred-register: '', flags: [  ] }
-  - { id: 26, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 26, class: anyregbank, preferred-register: '', flags: [  ] }
   - { id: 27, class: anyregcls, preferred-register: '', flags: [  ] }
   - { id: 28, class: anyregcls, preferred-register: '', flags: [  ] }
   - { id: 29, class: anyregcls, preferred-register: '', flags: [  ] }
   - { id: 30, class: anyregcls, preferred-register: '', flags: [  ] }
   - { id: 31, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 32, class: anyregcls, preferred-register: '', flags: [  ] }
+  - { id: 33, class: anyregcls, preferred-register: '', flags: [  ] }
 liveins:         []
 frameInfo:
   isFrameAddressTaken: false
@@ -141,35 +147,35 @@ body:             |
     %2:anyregcls = HWTFPGA_ARG_GET 2
     %3:anyregcls = HWTFPGA_ARG_GET 3
     %4:anyregcls = HWTFPGA_ARG_GET 4
-    %27:anyregcls(s17) = HWTFPGA_MUX i17 0
-    %28:anyregcls(s17) = HWTFPGA_MUX i17 0
     %29:anyregcls(s17) = HWTFPGA_MUX i17 0
     %30:anyregcls(s17) = HWTFPGA_MUX i17 0
-    %31:anyregcls(s68) = HWTFPGA_MERGE_VALUES %27(s17), %28(s17), %29(s17), %30(s17), 17, 17, 17, 17
+    %31:anyregcls(s17) = HWTFPGA_MUX i17 0
+    %32:anyregcls(s17) = HWTFPGA_MUX i17 0
+    %33:anyregcls(s68) = HWTFPGA_MERGE_VALUES %29(s17), %30(s17), %31(s17), %32(s17), 17, 17, 17, 17
   
   bb.1.blockL210i0_210:
     successors: %bb.1(0x80000000)
   
-    %27:anyregcls(s17) = HWTFPGA_EXTRACT %31(s68), 68, 0, 17
-    %28:anyregcls(s17) = HWTFPGA_EXTRACT %31(s68), 68, 17, 17
-    %29:anyregcls(s17) = HWTFPGA_EXTRACT %31(s68), 68, 34, 17
-    %30:anyregcls(s17) = HWTFPGA_EXTRACT %31(s68), 68, 51, 17
-    HWTFPGA_CSTORE %27(s17), %0, 0, 17, 1 :: (volatile store (s17) into %ir.keyForMatchThread_0, align 4, addrspace 1)
-    HWTFPGA_CSTORE %28(s17), %1, 0, 17, 1 :: (volatile store (s17) into %ir.keyForMatchThread_1, align 4, addrspace 2)
-    HWTFPGA_CSTORE %29(s17), %2, 0, 17, 1 :: (volatile store (s17) into %ir.keyForMatchThread_2, align 4, addrspace 3)
-    HWTFPGA_CSTORE %30(s17), %3, 0, 17, 1 :: (volatile store (s17) into %ir.keyForMatchThread_3, align 4, addrspace 4)
-    %9:anyregcls(s19) = HWTFPGA_CLOAD %4, 0, 19, 1 :: (volatile load (s19) from %ir.write, align 4, addrspace 5)
-    %10:anyregcls(s17) = HWTFPGA_EXTRACT %9(s19), 19, 2, 17
-    %12:anyregcls(s2) = HWTFPGA_EXTRACT %9(s19), 19, 0, 2
-    %15:anyregcls(s1) = HWTFPGA_ICMP intpred(eq), %12(s2), i2 0
-    %18:anyregcls(s1) = HWTFPGA_ICMP intpred(eq), %12(s2), i2 1
-    %21:anyregcls(s1) = HWTFPGA_ICMP intpred(eq), %12(s2), i2 -2
-    %24:anyregcls(s1) = HWTFPGA_ICMP intpred(eq), %12(s2), i2 -1
-    %27:anyregcls(s17) = HWTFPGA_MUX %10(s17), %15(s1), %27(s17)
-    %28:anyregcls(s17) = HWTFPGA_MUX %10(s17), %18(s1), %28(s17)
-    %29:anyregcls(s17) = HWTFPGA_MUX %10(s17), %21(s1), %29(s17)
-    %30:anyregcls(s17) = HWTFPGA_MUX %10(s17), %24(s1), %30(s17)
-    %31:anyregcls(s68) = HWTFPGA_MERGE_VALUES %27(s17), %28(s17), %29(s17), %30(s17), 17, 17, 17, 17
+    %29:anyregcls(s17) = HWTFPGA_EXTRACT %33(s68), 68, 0, 17
+    %30:anyregcls(s17) = HWTFPGA_EXTRACT %33(s68), 68, 17, 17
+    %31:anyregcls(s17) = HWTFPGA_EXTRACT %33(s68), 68, 34, 17
+    %32:anyregcls(s17) = HWTFPGA_EXTRACT %33(s68), 68, 51, 17
+    HWTFPGA_CSTORE %29(s17), %0, 0, 17, 1 :: (volatile store (s17) into %ir.keyForMatchThread_0, align 4, addrspace 1)
+    HWTFPGA_CSTORE %30(s17), %1, 0, 17, 1 :: (volatile store (s17) into %ir.keyForMatchThread_1, align 4, addrspace 2)
+    HWTFPGA_CSTORE %31(s17), %2, 0, 17, 1 :: (volatile store (s17) into %ir.keyForMatchThread_2, align 4, addrspace 3)
+    HWTFPGA_CSTORE %32(s17), %3, 0, 17, 1 :: (volatile store (s17) into %ir.keyForMatchThread_3, align 4, addrspace 4)
+    %12:anyregcls(s19) = HWTFPGA_CLOAD %4, 0, 19, 1 :: (volatile load (s19) from %ir.write, align 4, addrspace 5)
+    %13:anyregcls(s17) = HWTFPGA_EXTRACT %12(s19), 19, 2, 17
+    %15:anyregcls(s2) = HWTFPGA_EXTRACT %12(s19), 19, 0, 2
+    %18:anyregcls(s1) = HWTFPGA_ICMP intpred(eq), %15(s2), i2 0
+    %21:anyregcls(s1) = HWTFPGA_ICMP intpred(eq), %15(s2), i2 1
+    %24:anyregcls(s1) = HWTFPGA_ICMP intpred(eq), %15(s2), i2 -2
+    %27:anyregcls(s1) = HWTFPGA_ICMP intpred(eq), %15(s2), i2 -1
+    %29:anyregcls(s17) = HWTFPGA_MUX %13(s17), %18(s1), %29(s17)
+    %30:anyregcls(s17) = HWTFPGA_MUX %13(s17), %21(s1), %30(s17)
+    %31:anyregcls(s17) = HWTFPGA_MUX %13(s17), %24(s1), %31(s17)
+    %32:anyregcls(s17) = HWTFPGA_MUX %13(s17), %27(s1), %32(s17)
+    %33:anyregcls(s68) = HWTFPGA_MERGE_VALUES %29(s17), %30(s17), %31(s17), %32(s17), 17, 17, 17, 17
     HWTFPGA_BR %bb.1
 ...
 --- |
