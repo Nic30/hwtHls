@@ -64,11 +64,6 @@ class AddTreeHwModule(_BaseALU1HwModule):
     def _shouldInlineAluFn(self) -> bool:
         return False
     
-    # def full_adder(a, b, cin):
-    #    """Single full adder: returns sum, carry."""
-    #    sum_bit = a ^ b ^ cin
-    #    carry = (a & b) | (a & cin) | (b & cin)
-    #    return sum_bit, carry
     @hwt_expr_producer
     def bitsListToBits(self, inBits: list[Union[AnyHBitsValue, int]]):
         return Concat(*(
@@ -210,27 +205,7 @@ class AddTreeHwModule(_BaseALU1HwModule):
         
         assert len(outputs) < len(inputs), (len(outputs), len(inputs))
         return outputs
-        
-        # n = len(inputs)
-        # assert n > 1
-        # outputRows = log2ceil(n + 1)
-        # # Initialize output rows, outputs[0] is partial sum, the remaining are carry of various degree
-        # outputs = [0] * outputRows
-        # # :note: column stores the binary encoded number of 1 for a given inputs at specified bit index
-        # 
-        # # For each bit position, compute population count and distribute across rows
-        # for bit in range(bitwidth):
-        #     # Count how many inputs have '1' at this bit
-        #     column_count = sum((x >> bit) & 1 for x in inputs)
-        # 
-        #     # Encode column_count into outputCount rows:
-        #     # row k gets bit k of column_count at column position 'bit'.
-        #     # This is a "pure counter": each column is treated independently.
-        #     for row in range(outputRows):
-        #         if (column_count >> row) & 1:
-        #             outputs[row] |= (1 << bit)
-        # 
-        # return outputs
+
 
 # # 3:2 compressor example: full adder behavior
 # inputs = [1, 1, 1]  # bits 1+1+1 = 3
@@ -281,13 +256,6 @@ def _OP_ADD_TREE_DoesNotUseLLVMOperator(*args):
 # inputs: dataIn*, outputs: sum
 # * output bitwidth may be higher than dataIn member width
 OP_ADD_TREE = HOperatorDef(_OP_ADD_TREE_DoesNotUseLLVMOperator, idStr="OP_ADD_TREE")
-
-
-def _OP_ADD_TREE_FRAGMENT_DoesNotUseLLVMOperator(*args):
-    raise NotImplementedError()
-
-# inputs: dataIn*, outputs: partialSum*
-# OP_ADD_TREE_FRAGMENT = HOperatorDef(_OP_ADD_TREE_FRAGMENT_DoesNotUseLLVMOperator, idStr="OP_ADD_TREE_FRAGMENT")  # OP_ADD_MASKED sliced on layers to fit into clock cycle
 
 
 if __name__ == "__main__":

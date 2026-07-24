@@ -1,14 +1,12 @@
 from dataclasses import dataclass
 
 from hwt.hdl.operatorDefs import HwtOps
-from hwtHls.netlist.builder import HlsNetlistBuilder, \
-    HlsNetlistBuilderWithWorklist
+from hwtHls.netlist.builder import HlsNetlistBuilderWithWorklist
 from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 from pyMathBitPrecise.bit_utils import to_unsigned, mask
-from hwt.pyUtils.arrayQuery import balanced_reduce
 from hwtHls.netlist.transformation.simplifyUtilsHierarchyAware import replaceOperatorNodeWith
 from tests.math.addTree import OP_ADD_TREE
 
