@@ -109,7 +109,7 @@ body:             |
   ; predecessors: %bb.3
     successors: %bb.2(0x80000000); %bb.2(100.00%)
   
-    HWTFPGA_CSTORE killed %4:anyregcls, %1:anyregcls, 0, 2, 1 :: (volatile store (s2) into %ir.data_out, addrspace 2)
+    HWTFPGA_CSTORE killed %4:anyregcls, %1:anyregcls, 0, 3, 1 :: (volatile store (s3) into %ir.data_out, addrspace 2)
     HWTFPGA_BR %bb.2
 
 ...
