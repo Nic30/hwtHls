@@ -127,13 +127,19 @@ class Axi4sPacketLenTrimTC(SimTestCase):
     def test_3B_max7(self):
         self._test_anyB(3, 7)
 
-    # def test_64B_max128(self):
-    #     self._test_anyB(64, 128)
+    def test_4B_max128(self):
+        self._test_anyB(4, 128)
+
+    def test_8B_max128(self):
+        self._test_anyB(8, 128)
     
-    # def test_64B_max96(self):
+    #def test_64B_max128(self):
+    #    self._test_anyB(64, 128)
+    #
+    #def test_64B_max96(self):
     #    self._test_anyB(64, 96)
     #
-    # def test_64B_max129(self):
+    #def test_64B_max129(self):
     #    self._test_anyB(64, 129)
 
 
