@@ -8,13 +8,13 @@
     br label %blockL24i0_L108i0_108
   
   blockL24i0_L108i0_108:                            ; preds = %blockL24i0_L108i0_108, %bb0
-    %x.0 = phi i8 [ 10, %bb0 ], [ %spec.select, %blockL24i0_L108i0_108 ]
+    %x.0 = phi i8 [ 10, %bb0 ], [ %spec.select5, %blockL24i0_L108i0_108 ]
     %0 = icmp ult i8 %x.0, 3
-    %x.1.v = call i8 @hwtHls.bitConcat.i1.i1.i6(i1 true, i1 %0, i6 -1) #1
-    %x.1 = add i8 %x.1.v, %x.0
-    store volatile i8 %x.1, ptr addrspace(1) %dataOut, align 1
-    %.not = icmp eq i8 %x.1, 0
-    %spec.select = select i1 %.not, i8 10, i8 %x.1
+    %spec.select.v = call i8 @hwtHls.bitConcat.i1.i1.i6(i1 true, i1 %0, i6 -1) #1
+    %spec.select = add i8 %spec.select.v, %x.0
+    store volatile i8 %spec.select, ptr addrspace(1) %dataOut, align 1
+    %.not = icmp eq i8 %spec.select, 0
+    %spec.select5 = select i1 %.not, i8 10, i8 %spec.select
     br label %blockL24i0_L108i0_108
   }
   

@@ -9,8 +9,8 @@
     %0 = icmp eq i8 %i_read1, 2
     %1 = xor i1 %0, true
     %2 = icmp eq i8 %i_read1, 10
-    %.sink2 = or i1 %0, %2
-    %3 = call i8 @hwtHls.bitConcat.i1.i2.i1.i4(i1 %.sink2, i2 1, i1 %1, i4 0) #1
+    %spec.select2 = or i1 %0, %2
+    %3 = call i8 @hwtHls.bitConcat.i1.i2.i1.i4(i1 %spec.select2, i2 1, i1 %1, i4 0) #1
     store volatile i8 %3, ptr addrspace(2) %o, align 1
     ret void
   }

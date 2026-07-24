@@ -8,11 +8,11 @@
     br label %blockL68i0_68
   
   blockL68i0_68:                                    ; preds = %bb0, %blockL68i0_68
-    %i.0 = phi i8 [ %i.1, %blockL68i0_68 ], [ 0, %bb0 ]
+    %i.0 = phi i8 [ %spec.select, %blockL68i0_68 ], [ 0, %bb0 ]
     %0 = add i8 %i.0, 1
     store volatile i8 %0, ptr addrspace(2) %dataOut, align 1
     %dataIn_read1 = load volatile i1, ptr addrspace(1) %dataIn, align 1
-    %i.1 = select i1 %dataIn_read1, i8 0, i8 %0
+    %spec.select = select i1 %dataIn_read1, i8 0, i8 %0
     br label %blockL68i0_68
   }
   

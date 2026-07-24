@@ -11,10 +11,10 @@
     %swap_read2 = load volatile i1, ptr addrspace(5) %swap, align 1
     %i0_read2 = load volatile i8, ptr addrspace(1) %i0, align 1
     %i1_read2 = load volatile i8, ptr addrspace(2) %i1, align 1
-    %i01.0 = select i1 %swap_read2, i8 %i1_read2, i8 %i0_read2
-    %i11.0 = select i1 %swap_read2, i8 %i0_read2, i8 %i1_read2
-    store volatile i8 %i01.0, ptr addrspace(3) %o0, align 1
-    store volatile i8 %i11.0, ptr addrspace(4) %o1, align 1
+    %spec.select = select i1 %swap_read2, i8 %i1_read2, i8 %i0_read2
+    %spec.select2 = select i1 %swap_read2, i8 %i0_read2, i8 %i1_read2
+    store volatile i8 %spec.select, ptr addrspace(3) %o0, align 1
+    store volatile i8 %spec.select2, ptr addrspace(4) %o1, align 1
     br label %blockL24i0_24
   }
   

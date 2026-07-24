@@ -32,8 +32,8 @@
     %v1.1 = select i1 %6, i16 %11, i16 %v1.0
     %12 = select i1 %7, i16 %11, i16 %v2.0
     %v2.1 = select i1 %6, i16 %v2.0, i16 %12
-    %13 = icmp eq i2 %i_read1, -1
-    %v3.1 = select i1 %13, i16 %11, i16 %v3.0
+    %fewExitSw.sucSel.en.blockL210i0_210.blockL210i0_210_434_c3 = icmp eq i2 %i_read1, -1
+    %v3.1 = select i1 %fewExitSw.sucSel.en.blockL210i0_210.blockL210i0_210_434_c3, i16 %11, i16 %v3.0
     br label %blockL210i0_210
   }
   
