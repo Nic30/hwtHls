@@ -584,7 +584,7 @@ class SyncLogicResolver(HlsNetlistToAbcAig):
                                 if u in (uObj.extraCond, uObj.skipWhen, uObj._forceEnPort):
                                     continue
                             elif isinstance(uObj, HlsNetNodeWrite):
-                                if u in (uObj.extraCond, uObj.skipWhen, uObj._forceEnPort, uObj._mayFlushPort):
+                                if u in (uObj.extraCond, uObj.skipWhen, uObj._forceEnPort): # , uObj._mayFlushPort
                                     continue
                             vldHasUseOutsideOfSyncLogic = True
                             break
