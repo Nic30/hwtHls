@@ -24,7 +24,9 @@ class PreprocLoopMultiExit_singleExit0_TC(SimTestCase):
         #     write(1, o)
         # if read(i) != 2:
         #     write(2, o)
-        cls.compileSim(dut, target_platform=VirtualHlsPlatform())
+        cls.compileSim(dut, target_platform=VirtualHlsPlatform(
+            # debugFilter={*HlsDebugBundle.ALL_RELIABLE, HlsDebugBundle.DBG_4_0_hwscheduleTrace},
+        ))
 
     def _test(self, refInput: List[int], expectedOutput: List[int], CLK_CNT=10):
         dut = self.dut

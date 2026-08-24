@@ -110,7 +110,11 @@ class StmWhile_sim_TC(BaseIrMirRtl_TC):
         dataIn = [t.from_py(13), t.from_py(3)]
         passTests = PassTestInjectorForDInDOutHwModule(dut, self)
         passTests.setTimeLimits(wallTimeIr=100, wallTimeMir=70, wallTimeRtl=6 + 2)
-        passTests.test_allInOne_withModel((dataIn,), OUT_ITEM_CNT_LIMITS=(5,))
+        passTests.test_allInOne_withModel((dataIn,), OUT_ITEM_CNT_LIMITS=(5,),
+                                          # platformKwArgs=dict(
+                                          #    debugFilter={ *HlsDebugBundle.ALL_RELIABLE, HlsDebugBundle.DBG_4_0_hwscheduleTrace}
+                                          # )
+                                          )
 
     def test_PragmaInline_PragmaInline_HlsPythonHwWhile4(self):
         self.test_HlsPythonHwWhile4(mCls=PragmaInline_HlsPythonHwWhile4)
@@ -142,6 +146,6 @@ if __name__ == "__main__":
                             StmWhile_ll_TC,
                             StmWhile_sim_TC
                          )])
-    # suite = unittest.TestSuite([StmWhile_sim_TC("test_HlsPythonHwWhile0a")])
+    suite = unittest.TestSuite([StmWhile_sim_TC("test_LoopZeroPadCompareShift")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
