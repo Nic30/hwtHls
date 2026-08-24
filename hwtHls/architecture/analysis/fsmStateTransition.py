@@ -310,6 +310,8 @@ class HlsAndRtlNetlistAnalysisPassFsmStateTransition(HlsAndRtlNetlistAnalysisPas
                     # toSucJumpEnForPred = builder.buildAndOptional(andOfAllSkipWhens, toSucJumpEn)
                     if toSucJumpEn is None:
                         _andOfAllSkipWhens = andOfAllSkipWhens
+                    elif isinstance(toSucJumpEn, SetList):
+                        _andOfAllSkipWhens = andOfAllSkipWhens + toSucJumpEn
                     else:
                         _andOfAllSkipWhens = andOfAllSkipWhens + [toSucJumpEn, ]
 
