@@ -743,7 +743,7 @@ llvm::PreservedAnalyses IoLowerAxiMMPass::run(llvm::Module &M,
 					lowerAxiMMStore(builder, DCE, axiMMIoMd, st, axiAwTmpAlloca,
 							axiWTmpAlloca, axiBTmpAlloca);
 				}
-				DCE.runToCompletition();
+				DCE.runToCompletion();
 				changed = true;
 			}
 			++ioArg;

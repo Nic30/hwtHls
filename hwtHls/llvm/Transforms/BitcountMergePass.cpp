@@ -307,7 +307,7 @@ llvm::PreservedAnalyses BitcountMergePass::run(llvm::Function &F,
 	IRBuilder<TargetFolder> Builder(F.getContext(), TargetFolder(DL));
 	DceWorklist dce(&TLI);
 	bool changed = rewriteBitcounts(bitcountCache, Builder, dce);
-	changed |= dce.runToCompletition();
+	changed |= dce.runToCompletion();
 	if (changed) {
 		// Mark all the analyses that instcombine updates as preserved.
 		PreservedAnalyses PA;

@@ -316,12 +316,12 @@ llvm::PreservedAnalyses SelectPruningPass::run(llvm::Function &F,
 			if (SelectInst *SI = dyn_cast<SelectInst>(&*Iit)) {
 				ConstBitPartsAnalysisContextSelectPruning selectPruning(DCE);
 				Changed |= !selectPruning.visitSelectInst(SI).isValue(SI);
-				Changed |= DCE.runToCompletition(Iit);
+				Changed |= DCE.runToCompletion(Iit);
 			}
 		}
 	}
 
-	Changed |= DCE.runToCompletition();
+	Changed |= DCE.runToCompletion();
 	if (Changed) {
 		// :note: same as InstructionCombining
 		PreservedAnalyses PA;

@@ -158,7 +158,7 @@ llvm::PreservedAnalyses RomExtractPass::run(llvm::Function &F,
 		}
 	}
 
-	Changed |= DCE.runToCompletition();
+	Changed |= DCE.runToCompletion();
 	if (Changed) {
 		// Mark all the analyses that instcombine updates as preserved.
 		PreservedAnalyses PA;

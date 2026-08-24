@@ -643,7 +643,7 @@ bool VRegIfConverter::reverseBranchCondition(BBInfo &BBI) {
 		VRegLiveins->UpdateAfterInsertBranch(*BBI.BB);
 	dce.insert(origR);
     dce.insert(BBI.BrCond[0].getReg());
-	dce.runToCompletition();
+	dce.runToCompletion();
     return true;
   }
   return false;
@@ -2017,7 +2017,7 @@ bool VRegIfConverter::IfConvertTriangle(BBInfo &BBI, IfcvtKind Kind) {
 
 	MachineDceWorklist dce(*MRI, &Redefs);
     dce.insert(CvtBBI->BrCond[0].getReg());
-    dce.runToCompletition();
+    dce.runToCompletion();
   }
 
   // Merge in the 'false' block if the 'false' block has no other

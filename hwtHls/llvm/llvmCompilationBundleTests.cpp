@@ -224,7 +224,7 @@ public:
 					if (IsBitRangeGet(CI)) {
 						if (rewriteExtractOnMergeValues(Builder, CI) != CI
 								&& dce.tryRemoveIfDead(*I, I)) {
-							dce.runToCompletition(I);
+							dce.runToCompletion(I);
 							Changed = true;
 							continue;
 						}

@@ -72,7 +72,7 @@ bool DceWorklist::tryRemoveIfDead(llvm::Instruction &I,
 	return false;
 }
 
-bool DceWorklist::runToCompletition(llvm::BasicBlock::iterator &curIt) {
+bool DceWorklist::runToCompletion(llvm::BasicBlock::iterator &curIt) {
 	bool MadeChange = false;
 	while (!WorkList.empty()) {
 		Instruction *I = WorkList.pop_back_val();
@@ -81,9 +81,9 @@ bool DceWorklist::runToCompletition(llvm::BasicBlock::iterator &curIt) {
 	return MadeChange;
 }
 
-bool DceWorklist::runToCompletition() {
+bool DceWorklist::runToCompletion() {
 	BasicBlock::iterator it;
-	return runToCompletition(it);
+	return runToCompletion(it);
 }
 
 llvm::SmallSetVector<llvm::Instruction*, 16>& DceWorklist::getWorkList() {

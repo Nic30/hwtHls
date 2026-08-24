@@ -17,7 +17,7 @@ public:
 	void insert(llvm::MachineInstr &MI);
 	void insert(llvm::Register R);
 	bool tryRemoveIfDead(llvm::MachineInstr &MI);
-	bool runToCompletition();
+	bool runToCompletion();
 };
 
 }

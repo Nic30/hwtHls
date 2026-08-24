@@ -83,7 +83,7 @@ bool MachineDceWorklist::tryRemoveIfDead(llvm::MachineInstr &MI) {
 	return false;
 }
 
-bool MachineDceWorklist::runToCompletition() {
+bool MachineDceWorklist::runToCompletion() {
 	bool MadeChange = false;
 	while (!WorkList.empty()) {
 		MachineInstr *MI = WorkList.pop_back_val();

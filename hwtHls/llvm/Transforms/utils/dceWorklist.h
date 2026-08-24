@@ -24,8 +24,8 @@ public:
 	void insert(llvm::Instruction &I);
 	bool tryRemoveIfDead(llvm::Instruction &I,
 			llvm::BasicBlock::iterator &curI);
-	bool runToCompletition(llvm::BasicBlock::iterator &curIt);
-	bool runToCompletition();
+	bool runToCompletion(llvm::BasicBlock::iterator &curIt);
+	bool runToCompletion();
 	llvm::SmallSetVector<llvm::Instruction*, 16>& getWorkList();
 };
 

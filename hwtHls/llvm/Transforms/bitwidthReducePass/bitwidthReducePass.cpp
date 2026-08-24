@@ -121,7 +121,7 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI, bool& CFGC
 	for (BasicBlock &BB : F) {
 		for (auto I = BB.begin(); I != BB.end();) {
 			if (dce.tryRemoveIfDead(*I, I)) {
-				dce.runToCompletition(I);
+				dce.runToCompletion(I);
 				didModify = true;
 			} else {
 				++I;
@@ -137,7 +137,7 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI, bool& CFGC
 				if (IsBitRangeGet(CI)) {
 					if (rewriteExtractOnMergeValues(Builder, CI) != CI
 							&& dce.tryRemoveIfDead(*I, I)) {
-						dce.runToCompletition(I);
+						dce.runToCompletion(I);
 						didModify = true;
 						continue;
 					}

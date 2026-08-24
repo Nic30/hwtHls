@@ -54,7 +54,7 @@ bool VRegIfConverter::returnBlockMerge(MachineFunction &MF) {
 			}
 		}
 	}
-	Changed |= dce.runToCompletition();
+	Changed |= dce.runToCompletion();
 	if (Changed) {
 		VRegLiveins->recompute();
 	}

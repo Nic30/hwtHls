@@ -271,7 +271,7 @@ void runDCEOnLoopConditions(
 		dce.tryRemoveIfDead(*I, curI);
 	}
 	for (;;) {
-		dce.runToCompletition(curI);
+		dce.runToCompletion(curI);
 		// handle the case for volatile load which would not normally be removed
 		for (auto &ld : VolatileLoadsInCondExpr) {
 			if (ld.second != nullptr) {
@@ -285,7 +285,7 @@ void runDCEOnLoopConditions(
 				}
 				ld.second->eraseFromParent();
 				ld.second = nullptr;
-				dce.runToCompletition(curI);
+				dce.runToCompletion(curI);
 			}
 		}
 		if (dce.empty())
