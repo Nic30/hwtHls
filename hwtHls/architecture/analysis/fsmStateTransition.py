@@ -25,7 +25,6 @@ from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.netlist.scheduler.clk_math import clkWindowIndex, clkWindowEnd, \
     SchedTime
 
-
 # items are Ored to obtain final condition
 FsmTransitionEnCondItem = Union[
         HlsNetNodeOut,
@@ -150,6 +149,7 @@ class HlsAndRtlNetlistAnalysisPassFsmStateTransition(HlsAndRtlNetlistAnalysisPas
                 return
             elif curTransEn is NOT_SPECIFIED:
                 curTransEn = transitionTable[srcStI][dstStI] = SetList()
+
             curTransEn.append(_transEn)
             predecessors[dstStI].append(srcStI)
 
