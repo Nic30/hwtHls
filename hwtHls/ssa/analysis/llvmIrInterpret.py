@@ -42,7 +42,7 @@ from pyDigitalWaveTools.vcd.value_format import VcdBitsFormatter
 from pyDigitalWaveTools.vcd.writer import VcdWriter
 from pyMathBitPrecise.bit_utils import to_unsigned
 from hwtHls.ssa.analysis.llvmIrInterpretWaveFormatters import VcdLlvmIrCodelineFormatter, \
-    VcdLlvmIrSimTimeFormatter, VcdLlvmIrBBFormatter, VcdFloatFormatter, \
+    VcdLlvmIrSimTimeFormatter, VcdLlvmIrBBFormatterASCII, VcdFloatFormatter, \
     _prepareWaveWriterTopIo
 
 
@@ -171,7 +171,8 @@ class LlvmIrInterpret():
         with waveLog.varScope("__sim__") as simScope:
             simScope.addVar(simCodelineLabel, "codeline", VCD_SIG_TYPE.WIRE, 64, VcdLlvmIrCodelineFormatter(instrCodeline))
             simScope.addVar(simTimeLabel, "step", VCD_SIG_TYPE.WIRE, 64, VcdLlvmIrSimTimeFormatter(self.timeStep))
-            simScope.addVar(simBlockLabel, "block", VCD_SIG_TYPE.ENUM, 0, VcdLlvmIrBBFormatter())
+            bbLabelFromat = VcdLlvmIrBBFormatterASCII(F)
+            simScope.addVar(simBlockLabel, "block", VCD_SIG_TYPE.WIRE, bbLabelFromat.maxLabelLen * 8, bbLabelFromat)
 
         _prepareWaveWriterTopIo(waveLog, strCtx, F)
         codelineOffset = self.codelineOffset
@@ -393,8 +394,10 @@ class LlvmIrInterpret():
         decodedBlocks = self._decodedBlocks
         bbDecoded = decodedBlocks[bb]
         self.nowTime = nowTime = -timeStep
+        #print("-" *80)
         while True:
             for instr, instrDecoded in bbDecoded:
+                #print(instr)
                 nowTime += timeStep
                 self.nowTime = nowTime
                 if waveLog is not None:
@@ -404,8 +407,13 @@ class LlvmIrInterpret():
                 nextBb = instrDecoded(waveLog, nowTime, regs)
                 if wallTime is not None and nowTime >= wallTime:
                     raise StopSimumulation()
+                #v = regs.get(instr, None)
+                #if v is not None:
+                #    if isinstance(v, HBitsConst):
+                #        print(v.to_py())
                 if nextBb is not None:
                     bb = nextBb
+                    #print(bb.getName().str(), ":")
                     bbDecoded = decodedBlocks[nextBb]
                     break
 

@@ -9,6 +9,8 @@ from pyDigitalWaveTools.vcd.common import VCD_SIG_TYPE
 from pyDigitalWaveTools.vcd.value_format import VcdBitsFormatter, \
     LogValueFormatter
 from pyDigitalWaveTools.vcd.writer import VcdWriter
+from typing import Sequence
+
 
 # STRICT_VCD_ONLY gtkwave lib/libgtkwave/src/gw-vcd-loader.c
 class VcdLlvmIrBBFormatter(LogValueFormatter):
@@ -21,6 +23,28 @@ class VcdLlvmIrBBFormatter(LogValueFormatter):
         name = newVal.printAsOperand()[len("label "):]
         name = RE_NON_ID.sub("_", name)
         out.write(f"s{name:s} {self.vcdId:s}\n")
+
+
+class VcdLlvmIrBBFormatterASCII(VcdLlvmIrBBFormatter):
+
+    def __init__(self, allBlocks: Sequence[BasicBlock]) -> None:
+        super().__init__()
+        self.bbLabels = {bb: bb.printAsOperand()[len("label "):] for bb in allBlocks}
+        for bb, label in self.bbLabels.items():
+            assert label, ("even if the block does not have any name set, there should be the block number", bb)
+        self.maxLabelLen = max((len(label) for label in self.bbLabels.values()), default=1)
+        self.bbLabelsAsHex = None
+
+    def bind_var_info(self, varInfo: "VcdVarWritingInfo"):
+        self.vcdId = varInfo.vcdId
+        maxLabelLen = self.maxLabelLen
+        self.bbLabelsAsHex = {
+            bb: f"b{{0:0{maxLabelLen*8}b}} {{1:s}}\n".format(int.from_bytes(label.encode()), self.vcdId)
+            for bb, label in self.bbLabels.items()
+        }
+
+    def format(self, newVal: BasicBlock, updater, t: int, out: StringIO):
+        out.write(self.bbLabelsAsHex[newVal])
 
 
 class VcdLlvmIrCodelineFormatter(LogValueFormatter):
