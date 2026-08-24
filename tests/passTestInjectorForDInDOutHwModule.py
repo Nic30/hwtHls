@@ -493,7 +493,7 @@ class PassTestInjectorForDInDOutHwModule(PassTestInjector):
                     model: Optional[Callable[[Sequence[HConst], ...], None]]=None,
                     platform:Optional[VirtualHlsPlatform]=None,
                     platformKwArgs=dict(
-                        # debugFilter={  # *HlsDebOugBundle.ALL_RELIABLE,
+                        # debugFilter={  # *HlsDebugBundle.ALL_RELIABLE,
                         # # HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
                         # # HlsDebugBundle.DBG_4_0_addSignalNamesToData,
                         # },
