@@ -116,7 +116,7 @@ if __name__ == "__main__":
 
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([IoFsm_TC("test_WriteFsm1")])
     suite = testLoader.loadTestsFromTestCase(IoFsm_TC)
+    # suite = unittest.TestSuite([IoFsm_TC("test_WriteFsm0Send123")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
