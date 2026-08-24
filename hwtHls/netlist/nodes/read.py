@@ -622,6 +622,8 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             curClkI = self._getSchedResourceClkI(t)
             if not self.realization.isAllowedInFFStoreTime:
                 t -= ffdelay
+                if not self.isMulticlock:
+                    t -= max(self.outputWireDelay, default=0)
         else:
             t = None
 
@@ -633,7 +635,11 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
 
                 if curClkI != suitableClkI:
                     # move to prev clock cycle if IO constraint requires it
-                    t = (suitableClkI + 1) * clkPeriod - ffdelay
+                    t = (suitableClkI + 1) * clkPeriod
+                    if not self.realization.isAllowedInFFStoreTime:
+                        t -= ffdelay
+                        if not self.isMulticlock:
+                            t -= max(self.outputWireDelay, default=0)
                     scheduler.resourceUsage.moveUse(resourceType, curClkI, suitableClkI)
 
         if t is not None:
