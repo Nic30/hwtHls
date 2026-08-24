@@ -5,7 +5,7 @@
 Logarithm Law                       Formula                               Example
 ==================================  ===================================== ===========================
 Product Law                         log_a(m) + log_a(n) = log_a(m*n)      log(2) + log(3) = log(6)
-Quotient Law                        log_a(m) – log_a(n) = log_a(m/n)      log(12) – log(3) = log(4)
+Quotient Law                        log_a(m) - log_a(n) = log_a(m/n)      log(12) – log(3) = log(4)
 Power Law                           log_a(m*k) = k ·log_a(m)              log(9) = log(32) = 2log(3)
 Inverse Logarithm Property          log_a(a*k) = k                        log2(8) = log2(23) = 3
 Zero Law                            log_a(1) = 0                          log3(1) = 0
