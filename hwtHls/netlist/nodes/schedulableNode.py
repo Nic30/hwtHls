@@ -8,10 +8,11 @@ from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
 from hwtHls.netlist.observableList import ObservableList
 from hwtHls.netlist.scheduler.clk_math import clkWindowIndex, \
     clkWindowBeginOfNext, clkWindowEnd, SchedTime, \
-    SchedTime_format, clkWindowOffsetFromWindowEnd,\
+    SchedTime_format, clkWindowOffsetFromWindowEnd, \
     clkWindowOffsetFromWindowBegin
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
+
 
 SchedulizationDict = dict["HlsNetNode", tuple[SchedTime,  # node zero time
                                               tuple[SchedTime, ...],  # scheduledIn
@@ -426,8 +427,16 @@ class SchedulableNode():
         # assert not self.isMulticlock, (self, "this node should use scheduleAlapCompactionMultiClock instead")
         # assert self.usedBy, ("Compaction should be called only for nodes with dependencies, others should be moved only manually", self)
         netlist = self.netlist
-        ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
         clkPeriod = netlist.normalizedClkPeriod
+        maxOutputLatency = max(self.outputWireDelay, default=0)
+        if self.isAllowedInFFStoreTime:
+            ffdelay = 0
+        else:
+            ffdelay = netlist.platform.get_ff_store_time(netlist.realTimeClkPeriod, netlist.scheduler.resolution)
+            if not self.isAllowedInFFStoreTime:
+                if clkWindowOffsetFromWindowEnd(self.scheduledZero, clkPeriod) < ffdelay + maxOutputLatency:
+                    raise AssertionError("Node was already scheduled on wrong time, end overlaps to ffstore time",
+                                              clkWindowOffsetFromWindowEnd(self.scheduledZero, clkPeriod), ffdelay, maxOutputLatency, self)
 
         if not self._outputs:
             # no outputs, we must use some asap input time and move to end of the clock
@@ -467,12 +476,6 @@ class SchedulableNode():
 
                 nodeZeroTime = min(nodeZeroTime, oZeroT)
 
-        maxOutputLatency = max(self.outputWireDelay, default=0)
-        if not self.isAllowedInFFStoreTime:
-            if clkWindowOffsetFromWindowEnd(self.scheduledZero, clkPeriod) < ffdelay + maxOutputLatency:
-                raise TimeConstraintError("Node was already scheduled on wrong time, end overlaps to ffstore time",
-                                          clkWindowOffsetFromWindowEnd(self.scheduledZero, clkPeriod), ffdelay, maxOutputLatency, self)
-
         if isfinite(nodeZeroTime):
             maxInDelay = max(self.inputWireDelay, default=0)
             # we have to check if every input has enough time for its delay
@@ -484,7 +487,8 @@ class SchedulableNode():
                         self.inputWireDelay, clkPeriod, self)
             inTime = nodeZeroTime - maxInDelay
             nodeZeroTime = self._schedulerJumpToPrevCycleIfRequired(
-                nodeZeroTime, inTime, clkPeriod, maxInDelay + maxOutputLatency + ffdelay) + maxInDelay
+                nodeZeroTime, inTime, clkPeriod,
+                maxInDelay + maxOutputLatency + ffdelay) + maxInDelay
         else:
             # no use of any output, we must use some ASAP input time and move to end of the clock
             assert self._inputs, (self, "Node must have at least some port used (or more likely it should be removed because it is useless)")
