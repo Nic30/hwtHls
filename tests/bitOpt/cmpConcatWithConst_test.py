@@ -238,15 +238,16 @@ if __name__ == "__main__":
     from hwt.synth import to_rtl_str
     from hwtHls.platform.debugBundle import HlsDebugBundle
     import sys
-    sys.setrecursionlimit(int(1e6))
-    # m = TestHwModuleCmpConcatWithConst()
-    # m.P = HwtOps.ULT._evalFn
-    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE)))
+    sys.setrecursionlimit(int(1e6)) # :note: this does not affect Py_C_RECURSION_LIMIT used in exec()
+    #m = TestHwModuleCmpConcatWithConst()
+    #m.P = HwtOps.SGE._evalFn
+    #print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter=HlsDebugBundle.ALL_RELIABLE),
+    #                 serializer_cls=SimModelSerializer))
 
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([CmpConcatWithConst_TC('test_sge')])
     suite = testLoader.loadTestsFromTestCase(CmpConcatWithConst_TC)
+    # suite = unittest.TestSuite([CmpConcatWithConst_TC('test_sle_2_2')])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
