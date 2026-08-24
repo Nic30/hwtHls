@@ -21,7 +21,9 @@ from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 from pyMathBitPrecise.bit_utils import mask
 from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
-from tests.passTestInjectorFor1StructIn1DOutHwModule import PassTestInjectorFor1StructIn1DOutHwModule
+from tests.passTestIoStruct import PassTestIoInStruct
+from tests.passTestInjectorForDInDOutHwModule import PassTestInjectorForDInDOutHwModule,\
+    hlsModelProps
 
 
 class ShiftSequential1Loop(HwModule):
@@ -42,8 +44,10 @@ class ShiftSequential1Loop(HwModule):
             )
             self.dataIn = dataIn
             self.dataOut = HwIODataRdVld()._m()
-
-    def model(self, dataIn:Sequence[tuple[HBitsConst, HBitsConst]], dataOut: list[HBitsConst]):
+    
+    @staticmethod
+    @hlsModelProps()
+    def model(dataIn:Sequence[tuple[HBitsConst, HBitsConst]], dataOut: list[HBitsConst]):
         for dIn in dataIn:
             d, sh = dIn
             res = d._dtype.from_py(int(d) >> int(sh))
@@ -104,14 +108,20 @@ class ShiftSequential_TC(BaseIrMirRtl_TC):
         SH_W = log2ceil(DW + 1)
         shTy = HBits(SH_W)
         m = dTy.from_py(mask(DW))
+        inT = HStruct(
+            (dTy, "d"),
+            (shTy, "sh"),
+        )
         dataIn = [
-            (m, shTy.from_py(self._rand.randint(1, DW)))
+            inT.from_py((m, self._rand.randint(1, DW)))
             for _ in range(OUT_CNT)
         ]
 
-        passTests = PassTestInjectorFor1StructIn1DOutHwModule(dut, self)
+        passTests = PassTestInjectorForDInDOutHwModule(dut, self)
         passTests.setTimeLimits(wallTimeIr=OUT_CNT * 200, wallTimeMir=OUT_CNT * 200, wallTimeRtl=(OUT_CNT * 8) + 2)
-        passTests.test_allInOne_withModel((dataIn,))
+        passTests.test_allInOne_withModel(
+            (PassTestIoInStruct(inT, dataIn),)
+        )
 
     def test_ShiftSequential2Loops(self):
         self.test_ShiftSequential1Loop(dutCls=ShiftSequential2Loops)
