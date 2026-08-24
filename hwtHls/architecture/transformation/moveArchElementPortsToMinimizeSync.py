@@ -258,7 +258,7 @@ class HlsArchPassMoveArchElementPortsToMinimizeSync(HlsArchPass):
     #
     #        sigs = self.connections.getForClkIndex(i).signals
     #        assert tir not in sigs
-    #        tir.get(t)
+    #        tir.getForTime(t, self)
     #        sigs.append(tir)
 
     # def finalizeInterElementsConnections(self):
@@ -327,7 +327,7 @@ class HlsArchPassMoveArchElementPortsToMinimizeSync(HlsArchPass):
     #        else:
     #            raise NotImplementedError("Need to add extra buffer between FSMs", srcStartClkI, dstUseClkI, o, srcElm, dstElm)
     #
-    #    srcTiri = srcTir.get(dstUseClkI * clkPeriod)
+    #    srcTiri = srcTir.getForTime(dstUseClkI * clkPeriod, srcElm)
     #    assert not dstTir.valuesInTime[0].data._rtlDrivers, ("Forward declaration signal must not have a driver yet.",
     #                                                     dstTir, dstTir.valuesInTime[0].data._rtlDrivers)
     #    dstTir.valuesInTime[0].data(srcTiri.data)
@@ -382,14 +382,14 @@ class HlsArchPassMoveArchElementPortsToMinimizeSync(HlsArchPass):
     #     syncTime = node.scheduledOut[0]
     #     if node.skipWhen is not None:
     #         e: HlsNetNodeOut = node.dependsOn[node.skipWhen.in_i]
-    #         skipWhen = elm.rtlAllocHlsNetNodeOutInTime(e, syncTime)
+    #         skipWhen = elm.rtlAllocHlsNetNodeOutInTime(e, syncTime, node)
     #         skipWhen = SkipWhenMemberList([skipWhen, ])
     #     else:
     #         skipWhen = None
     #
     #     if node.extraCond is not None:
     #         e: HlsNetNodeOut = node.dependsOn[node.extraCond.in_i]
-    #         extraCond = elm.rtlAllocHlsNetNodeOutInTime(e, syncTime)
+    #         extraCond = elm.rtlAllocHlsNetNodeOutInTime(e, syncTime, node)
     #         extraCond = ExtraCondMemberList([(skipWhen, extraCond), ])
     #     else:
     #         extraCond = None

@@ -257,12 +257,12 @@ class ComponentGeneratorMemory(ComponentGenerator):
                 assert isinstance(sync, HlsNetNodeOut), (node, node.dependsOn)
                 # prepare sync inputs but do not connect it because we do not implement synchronization
                 # in this step we are building only data path
-                allocator.rtlAllocHlsNetNodeOutInTime(sync, time)
+                allocator.rtlAllocHlsNetNodeOutInTime(sync, time, node)
 
             addrInPort = node.indexes[0]
             addr = node.dependsOn[addrInPort.in_i]
             r_out = node._portDataOut
-            _addr = allocator.rtlAllocHlsNetNodeOutInTime(addr, node.scheduledIn[addrInPort.in_i])
+            _addr = allocator.rtlAllocHlsNetNodeOutInTime(addr, node.scheduledIn[addrInPort.in_i], node)
             # [todo] llvm MIR lefts bits which are sliced out
             ADDR_WIDTH = log2ceil(mem.dtype.size)
             addSig = _addr.data

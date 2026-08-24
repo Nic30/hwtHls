@@ -297,7 +297,7 @@ class ComponentGeneratorICMP_EQ_NE(ComponentGenerator):
         #    layerValues: list[TimeIndependentRtlResourceItem] = []
         #    for (dep, t) in zip(self.dependsOn, self.scheduledIn):
         #        assert dep is not None, ("All inputs must be connected", self, self.dependsOn)
-        #        _o = allocator.rtlAllocHlsNetNodeOutInTime(dep, t)
+        #        _o = allocator.rtlAllocHlsNetNodeOutInTime(dep, t, node)
         #        assert isinstance(_o, TimeIndependentRtlResourceItem), (dep, _o)
         #        layerValues.append(_o)
         #    nextLayerValues: list[TimeIndependentRtlResourceItem] = []

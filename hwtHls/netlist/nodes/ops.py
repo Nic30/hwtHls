@@ -128,6 +128,7 @@ class HlsNetNodeOperator(HlsNetNode):
     
             else:
                 bit_length = self.getInputDtype(0).bit_length()
+
             if bit_length == 0:
                 # this may happen for example constant operands
                 r = EMPTY_OP_REALIZATION
@@ -155,7 +156,7 @@ class HlsNetNodeOperator(HlsNetNode):
         operands: list[TimeIndependentRtlResourceItem] = []
         for (dep, t) in zip(self.dependsOn, self.scheduledIn):
             assert dep is not None, ("All inputs must be connected", self, self.dependsOn)
-            _o = allocator.rtlAllocHlsNetNodeOutInTime(dep, t)
+            _o = allocator.rtlAllocHlsNetNodeOutInTime(dep, t, self)
             assert isinstance(_o, TimeIndependentRtlResourceItem), (dep, _o)
             operands.append(_o)
 

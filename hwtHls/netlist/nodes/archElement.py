@@ -345,8 +345,8 @@ class ArchElement(HlsNetNodeAggregate):
                      _o.valuesInTime[0].data._dtype if isinstance(_o, TimeIndependentRtlResource) else None)
         return _o
 
-    def rtlAllocHlsNetNodeOutInTime(self, o: HlsNetNodeOut, time:int,
-                                       ) -> Union[TimeIndependentRtlResourceItem, list[HdlStatement]]:
+    def rtlAllocHlsNetNodeOutInTime(self, o: HlsNetNodeOut, time:int, dbgErrMsg: object)\
+            ->Union[TimeIndependentRtlResourceItem, list[HdlStatement]]:
         """
         :meth:`~.rtlAllocHlsNetNodeOut` method with also gets the RTL resource in specified time.
         """
@@ -358,18 +358,17 @@ class ArchElement(HlsNetNodeAggregate):
 
         _o = self.rtlAllocHlsNetNodeOut(o)
         if isinstance(_o, TimeIndependentRtlResource):
-            assert _o.allocator is self, (o, _o, _o.allocator, self)
-            return _o.get(time)
+            res = _o
         else:
             res = self.netNodeToRtl.get(o, _o)
-            if isinstance(res, TimeIndependentRtlResource):
-                assert res.allocator is self, (o, res, res.allocator, self)
-                return res.get(time)
-            return res
+        if isinstance(res, TimeIndependentRtlResource):
+            assert res.allocator is self, (o, res, res.allocator, self)
+            return res.getForTime(time, dbgErrMsg)
+        return res
 
-    def rtlAllocHlsNetNodeInInTime(self, i: HlsNetNodeIn, time:int,
-                                      ) -> TimeIndependentRtlResourceItem:
-        return self.rtlAllocHlsNetNodeOutInTime(i.obj.dependsOn[i.in_i], time)
+    def rtlAllocHlsNetNodeInInTime(self, i: HlsNetNodeIn, time:int)\
+            ->TimeIndependentRtlResourceItem:
+        return self.rtlAllocHlsNetNodeOutInTime(i.obj.dependsOn[i.in_i], time, i)
 
     def rtlAllocHlsNetNodeInDriverIfAlocatedElseForwardDeclr(self, i: HlsNetNodeIn)\
             ->Union[TimeIndependentRtlResourceItem, list[HdlStatement]]:
@@ -382,7 +381,7 @@ class ArchElement(HlsNetNodeAggregate):
             useT = obj.scheduledIn[i.in_i]
             return self.rtlAllocOutDeclr(self, dep, defT).get(useT)
 
-        return self.rtlAllocHlsNetNodeOutInTime(dep, obj.scheduledIn[i.in_i])
+        return self.rtlAllocHlsNetNodeOutInTime(dep, obj.scheduledIn[i.in_i], i)
 
     def rtlAllocHlsNetNodeInDriverIfExists(self, i: Optional[HlsNetNodeIn])\
             ->Union[TimeIndependentRtlResourceItem, list[HdlStatement]]:
@@ -391,7 +390,7 @@ class ArchElement(HlsNetNodeAggregate):
         obj = i.obj
         dep = obj.dependsOn[i.in_i]
         assert dep
-        return self.rtlAllocHlsNetNodeOutInTime(dep, obj.scheduledIn[i.in_i])
+        return self.rtlAllocHlsNetNodeOutInTime(dep, obj.scheduledIn[i.in_i], i)
 
     # def rtlAllocDatapathRead(self, node: HlsNetNodeRead, con: ConnectionsOfStage, rtl: list[HdlStatement],
     #                         validHasCustomDriver:bool=False, readyHasCustomDriver:bool=False):

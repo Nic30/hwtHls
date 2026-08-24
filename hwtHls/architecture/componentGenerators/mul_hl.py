@@ -25,7 +25,7 @@ class ComponentGeneratorMUL_HL(ComponentGenerator):
     def toRtlForNode(self, node: HlsNetNodeOperator, allocator: "ArchElement") -> None:
         assert not node._isMarkedRemoved, node
         assert not node._isRtlAllocated, node
-        i0, i1 = (allocator.rtlAllocHlsNetNodeOutInTime(dep, t) for dep, t in zip(node.dependsOn, node.scheduledIn))
+        i0, i1 = (allocator.rtlAllocHlsNetNodeOutInTime(dep, t, node) for dep, t in zip(node.dependsOn, node.scheduledIn))
         assert isinstance(i0, TimeIndependentRtlResourceItem), self
         assert isinstance(i1, TimeIndependentRtlResourceItem), self
         out = node._outputs[0]

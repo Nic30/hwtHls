@@ -4,7 +4,6 @@ from hwt.pyUtils.typingFuture import override
 from hwtHls.architecture.componentGenerator import ComponentGenerator
 from hwtHls.architecture.timeIndependentRtlResource import TimeIndependentRtlResourceItem
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
-from hwtHls.netlist.scheduler.clk_math import RealTimeEpsilon
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
 
@@ -16,7 +15,7 @@ class ComponentGeneratorOP_INDEX_CONST(ComponentGenerator):
     @override
     def resolveRealizationOfNode(self, node: HlsNetNodeOperator) -> None:
         assert len(node.dependsOn) == 1, node
-        return OpRealizationMeta(outputWireDelay=RealTimeEpsilon)
+        return OpRealizationMeta()
 
     @override
     def toRtlForNode(self, node: HlsNetNodeOperator, allocator: "ArchElement") -> None:
@@ -24,7 +23,7 @@ class ComponentGeneratorOP_INDEX_CONST(ComponentGenerator):
         assert not node._isRtlAllocated, node
         dep = node.dependsOn[0]
         assert dep is not None, ("All inputs must be connected", node, node.dependsOn)
-        _o = allocator.rtlAllocHlsNetNodeOutInTime(dep, node.scheduledIn[0])
+        _o = allocator.rtlAllocHlsNetNodeOutInTime(dep, node.scheduledIn[0], node)
         assert isinstance(_o, TimeIndependentRtlResourceItem), (dep, _o)
         out = node._outputs[0]
         i: Union[int, slice] = node.operatorSpecialization

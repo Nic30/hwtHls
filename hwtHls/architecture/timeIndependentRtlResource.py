@@ -110,7 +110,7 @@ class TimeIndependentRtlResource():
 
         return False
 
-    def get(self, time: Union[int, Literal[INVARIANT_TIME]]) -> TimeIndependentRtlResourceItem:
+    def getForTime(self, time: Union[int, Literal[INVARIANT_TIME]], dbgErrMsg: object) -> TimeIndependentRtlResourceItem:
         """
         Get value of signal in specified time (clk period)
         """
@@ -118,7 +118,7 @@ class TimeIndependentRtlResource():
         # if time is first time in live of this value return original signal
         if self.timeOffset is INVARIANT_TIME:
             return self.valuesInTime[0]
-        assert time >= self.timeOffset, ("This resource does not yet exist in requested time", time, ">=", self.timeOffset, self)
+        assert time >= self.timeOffset, ("This resource does not yet exist in requested time", time, ">=", self.timeOffset, self, dbgErrMsg)
         netlist = self.allocator.netlist
         # epsilon = netlist.scheduler.epsilon
         # time += epsilon
@@ -166,7 +166,7 @@ class TimeIndependentRtlResource():
         connections = self.allocator.connections
 
         actualTimesCnt = len(self.valuesInTime)
-        assert actualTimesCnt >= 0, (self, actualTimesCnt, "This should be initialized with at least one item.")
+        assert actualTimesCnt >= 0, (self, actualTimesCnt, "This should be initialized with at least one item.", dbgErrMsg)
         firstRegClkIndex = None
         if self.persistenceRanges:
             firstAfterPersistentRangeBegin = self.persistenceRanges[0][0]

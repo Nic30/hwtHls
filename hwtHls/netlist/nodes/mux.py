@@ -61,7 +61,7 @@ class HlsNetNodeMux(HlsNetNodeOperator):
         if len(self._inputs) == 1:
             v = allocator.rtlAllocHlsNetNodeOutInTime(
                     self.dependsOn[0],
-                    self.scheduledIn[0])
+                    self.scheduledIn[0], self)
             mux_out_s(v.data)
         else:
             assert len(self._inputs) > 2, self
@@ -69,10 +69,10 @@ class HlsNetNodeMux(HlsNetNodeOperator):
             for (v, c) in grouper(2, zip(self.dependsOn, self.scheduledIn), padvalue=None):
                 if c is not None:
                     c, ct = c
-                    c = allocator.rtlAllocHlsNetNodeOutInTime(c, ct)
+                    c = allocator.rtlAllocHlsNetNodeOutInTime(c, ct, self)
 
                 v, vt = v
-                v = allocator.rtlAllocHlsNetNodeOutInTime(v, vt)
+                v = allocator.rtlAllocHlsNetNodeOutInTime(v, vt, self)
 
                 if c is not None and isinstance(c.data, HConst):
                     # The value of condition was resolved to be a constant

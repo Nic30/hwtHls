@@ -109,7 +109,7 @@ class ComponentGeneratorFNEG(ComponentGeneratorFp):
         dep0, = node.dependsOn
 
         assert dep0 is not None, ("All inputs must be connected", node, node.dependsOn)
-        _i0 = allocator.rtlAllocHlsNetNodeOutInTime(dep0, node.scheduledIn[0])
+        _i0 = allocator.rtlAllocHlsNetNodeOutInTime(dep0, node.scheduledIn[0], node)
         assert isinstance(_i0, TimeIndependentRtlResourceItem), (dep0, _i0)
         return _i0
 

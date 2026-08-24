@@ -23,7 +23,7 @@ class ComponentGeneratorZExt(ComponentGenerator):
         assert not node._isRtlAllocated, node
         dep = node.dependsOn[0]
         assert dep is not None, ("All inputs must be connected", node, node.dependsOn)
-        _o = allocator.rtlAllocHlsNetNodeOutInTime(dep, node.scheduledIn[0])
+        _o = allocator.rtlAllocHlsNetNodeOutInTime(dep, node.scheduledIn[0], node)
         assert isinstance(_o, TimeIndependentRtlResourceItem), (dep, _o)
         out = node._outputs[0]
         res = dep._ext(out._dtype.bit_length(), self.IS_SIGNED)

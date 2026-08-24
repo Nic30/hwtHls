@@ -117,7 +117,7 @@ class ComponentGeneratorMUL_HL(ComponentGenerator):
         assert not node._isRtlAllocated, node
         assert len(node.dependsOn) == 2
         ops: list[TimeIndependentRtlResourceItem] = [
-            allocator.rtlAllocHlsNetNodeOutInTime(dep, depT)
+            allocator.rtlAllocHlsNetNodeOutInTime(dep, depT, node)
             for dep, depT in zip(node.dependsOn, node.scheduledIn)
         ]
 

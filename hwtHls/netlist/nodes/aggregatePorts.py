@@ -122,7 +122,7 @@ class HlsNetNodeAggregatePortIn(HlsNetNode):
                 assert tir is not None, parentDriver
 
             # make tir local to this element
-            tir = allocator.rtlRegisterOutputRtlSignal(dataOut, tir.get(time).data, False, False, False)
+            tir = allocator.rtlRegisterOutputRtlSignal(dataOut, tir.getForTime(time, self).data, False, False, False)
 
         self._isRtlAllocated = True
         return tir
@@ -203,7 +203,7 @@ class HlsNetNodeAggregatePortOut(HlsNetNode):
             # propagate output value to output of parent
             # :note: if this was previously declared using forward declaration rtlRegisterOutputRtlSignal should update its drive
             outTime = outerO.obj.scheduledOut[outerO.out_i]
-            allocator.rtlRegisterOutputRtlSignal(outerO, oTir.get(outTime).data, False, False, False)
+            allocator.rtlRegisterOutputRtlSignal(outerO, oTir.getForTime(outTime, self).data, False, False, False)
 
         self._isRtlAllocated = True
         return []

@@ -466,7 +466,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
             assert isinstance(sync, HlsNetNodeOut), (self, self.dependsOn)
             # prepare sync inputs but do not connect it because we do not implement synchronization
             # in this step we are building only data path
-            allocator.rtlAllocHlsNetNodeOutInTime(sync, time)
+            allocator.rtlAllocHlsNetNodeOutInTime(sync, time, self)
 
         self._isRtlAllocated = True
         return _data if hasNoSpecialControl else []
@@ -643,7 +643,7 @@ class HlsNetNodeRead(HlsNetNodeExplicitSync):
                 self._setScheduleZeroTimeSingleClock(t)
 
         if originalTimeZero != self.scheduledZero:
-            assert originalTimeZero < self.scheduledZero, (self, originalTimeZero, self.scheduledZero,
+            assert originalTimeZero < self.scheduledZero, (self, originalTimeZero, self.scheduledZero, self.isMulticlock,
                 "Node can not be resolved to earlier ALAP time, it would mean that the original schedule was wrong")
             for dep in self.dependsOn:
                 yield dep.obj

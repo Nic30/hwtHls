@@ -517,9 +517,9 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
             if HdlType_isVoid(self.dependsOn[0]._dtype):
                 dataSrc = 1
             else:
-                dataSrc = src.get(wTime).data
+                dataSrc = src.getForTime(wTime, self).data
 
-            dataDst = rData.get(rTime).data
+            dataDst = rData.getForTime(rTime, self).data
 
         # the value is not cleared properly on read if it is not written
         vldDst, fullReg = dstRead.rtlAllocChannelDataVldAndFullReg(allocator)
@@ -642,7 +642,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         if self.hasAnyUsedReadyPort():
             self._rtlAllocReadyPorts(allocator)
 
-        _o = allocator.rtlAllocHlsNetNodeOutInTime(dep, self.scheduledIn[0])
+        _o = allocator.rtlAllocHlsNetNodeOutInTime(dep, self.scheduledIn[0], self)
 
         dst = self.dst
         if not self.rtlPortPhysicallyExits():
@@ -690,7 +690,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
             # prepare sync inputs but do not connect it because we do not implement synchronization
             # in this step we are building only datapath
             if not HdlType_isVoid(sync._dtype):
-                allocator.rtlAllocHlsNetNodeOutInTime(sync, t)
+                allocator.rtlAllocHlsNetNodeOutInTime(sync, t, self)
 
         return rtlObj
 

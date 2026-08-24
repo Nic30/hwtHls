@@ -119,8 +119,8 @@ class ComponentGeneratorFP_SHL(ComponentGeneratorForSpecializedHwtHlsFpIntrinsic
 
         assert dep0 is not None, ("All inputs must be connected", node, node.dependsOn)
         assert dep1 is not None, ("All inputs must be connected", node, node.dependsOn)
-        _i0 = allocator.rtlAllocHlsNetNodeOutInTime(dep0, node.scheduledIn[0])
-        _i1 = allocator.rtlAllocHlsNetNodeOutInTime(dep1, node.scheduledIn[1])
+        _i0 = allocator.rtlAllocHlsNetNodeOutInTime(dep0, node.scheduledIn[0], node)
+        _i1 = allocator.rtlAllocHlsNetNodeOutInTime(dep1, node.scheduledIn[1], node)
         assert isinstance(_i0, TimeIndependentRtlResourceItem), (dep0, _i0)
         assert isinstance(_i1, TimeIndependentRtlResourceItem), (dep1, _i1)
         return _i0, _i1

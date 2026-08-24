@@ -184,7 +184,7 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
             # prepare sync inputs but do not connect it because we do not implement synchronization
             # in this step we are building only datapath
             if sync._dtype != HVoidOrdering:
-                allocator.rtlAllocHlsNetNodeOutInTime(sync, t)
+                allocator.rtlAllocHlsNetNodeOutInTime(sync, t, self)
 
         assert not isinstance(ram, (MultiPortGroup, BankedPortGroup)), (self, ram,
             "If this was an operation with a group of ports the individual ports should have already been assigned")
@@ -210,8 +210,8 @@ class HlsNetNodeWriteBramCmd(HlsNetNodeWriteIndexed):
         if self._dataVoidOut is not None:
             HlsNetNodeReadIndexed._rtlAllocDataVoidOut(self, allocator)
         if hasWData:
-            _wData = allocator.rtlAllocHlsNetNodeOutInTime(wData, self.scheduledIn[0])
-        _addr = allocator.rtlAllocHlsNetNodeOutInTime(addr, self.scheduledIn[addrInPort.in_i])
+            _wData = allocator.rtlAllocHlsNetNodeOutInTime(wData, self.scheduledIn[0], self)
+        _addr = allocator.rtlAllocHlsNetNodeOutInTime(addr, self.scheduledIn[addrInPort.in_i], self)
 
         rtlObj = [
             # [todo] llvm MIR lefts bits which are sliced out

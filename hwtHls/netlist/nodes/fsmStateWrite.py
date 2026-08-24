@@ -60,7 +60,7 @@ class HlsNetNodeFsmStateWrite(HlsNetNode):
             for i, _c, t in zip(self._inputs, self.dependsOn, self.scheduledIn):
                 dstStId = self.portToNextStateId[i]
                 dstStVal = stateEncoding[dstStId]
-                c = allocator.rtlAllocHlsNetNodeOutInTime(_c, t)
+                c = allocator.rtlAllocHlsNetNodeOutInTime(_c, t, i)
                 assert isinstance(c, TimeIndependentRtlResourceItem), (_c, c)
                 cSig = c.data
                 assert cSig._dtype.bit_length() == 1, c

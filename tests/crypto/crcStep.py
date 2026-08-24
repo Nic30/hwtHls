@@ -269,7 +269,7 @@ class CrcStepComponentGenerator(ComponentGeneratorForHardBlock):
         operands = []
         for (dep, t) in zip(node.dependsOn, node.scheduledIn):
             assert dep is not None, ("All inputs must be connected", node, node.dependsOn)
-            _o = allocator.rtlAllocHlsNetNodeOutInTime(dep, t)
+            _o = allocator.rtlAllocHlsNetNodeOutInTime(dep, t, self)
             assert isinstance(_o, TimeIndependentRtlResourceItem), (dep, _o)
             operands.append(_o)
 
