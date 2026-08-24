@@ -12,10 +12,10 @@ from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.orderable import HlsNetNodeOrderable
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, HlsNetNodeOut, \
     HlsNetNodeOutLazy
-from hwtHls.netlist.scheduler.clk_math import RealTimeEpsilon
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
-IO_COMB_REALIZATION = OpRealizationMeta(outputWireDelay=RealTimeEpsilon)
+
+IO_COMB_REALIZATION = OpRealizationMeta()
 
 
 class HlsNetNodeExplicitSync(HlsNetNodeOrderable):
