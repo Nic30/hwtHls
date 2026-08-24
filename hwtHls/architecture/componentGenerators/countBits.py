@@ -174,7 +174,7 @@ class ComponentGeneratorBitcount(ComponentGenerator):
     #    assert len(node.dependsOn) == 1
     #    dep = node.dependsOn[0]
     #    assert dep is not None, ("All inputs must be connected", node, node.dependsOn)
-    #    _o = allocator.rtlAllocHlsNetNodeOutInTime(dep, node.scheduledIn[0])
+    #    _o = allocator.rtlAllocHlsNetNodeOutInTime(dep, node.scheduledIn[0], node)
     #    assert isinstance(_o, TimeIndependentRtlResourceItem), (dep, _o)
     #    netlist = node.netlist
     #    cb = AbstractComponentBuilder(netlist.parentHwModule, None, self._genNamePrefix)
