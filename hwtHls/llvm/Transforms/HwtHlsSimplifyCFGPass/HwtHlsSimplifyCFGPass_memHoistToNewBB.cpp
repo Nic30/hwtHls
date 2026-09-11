@@ -33,8 +33,10 @@ bool HwtHlsSimplifyCFGPass_memHoistToNewBB(llvm::DomTreeUpdater &DTU,
 		// because all predecessors were matched thus we can use this block 
 		hoistBB = &BB;
 	} else {
+		// construct hoistBB
 		hoistBB = llvm::BasicBlock::Create(BB.getContext());
 		BB.getParent()->insert(BB.getIterator(), hoistBB);
+		
 		// extracts operands of PHIs to new sink block
 		// because the BB will now have this predecessor instead of all selected
 		// predecessors from toSink
@@ -50,9 +52,7 @@ bool HwtHlsSimplifyCFGPass_memHoistToNewBB(llvm::DomTreeUpdater &DTU,
 			dtUpdates.push_back({DominatorTree::Insert, hoistBB, suc});
 		}
 		SetVector<BasicBlock*> sucs;
-		for (auto* suc: successors(hoistBB)) {
-			sucs.insert(suc);
-		}
+		sucs.insert_range(successors(hoistBB));
 		for (auto suc: sucs) {
 			if (any_of(toHoist, [suc](std::pair<BasicBlock*, LoadInst*> p) { return p.first == suc; })) {
 				continue; // BB -> hoistBB -> suc possible, thus must be preserved
@@ -75,10 +75,11 @@ bool HwtHlsSimplifyCFGPass_memHoistToNewBB(llvm::DomTreeUpdater &DTU,
 	auto hoistBBTerm = hoistBB->getTerminator()->getIterator();
 	for (const auto &[suc, ld] : toHoist) {
 		// hoist everything before st to BB
-		BB.splice(hoistBBTerm, suc, suc->begin(),
-				  ld->getIterator());
+		hoistBB->splice(hoistBBTerm, suc, suc->begin(),
+				  		ld->getIterator());
 	}
 	ld0->moveBefore(hoistBBTerm);
+		
 	for (const auto &[suc, ld] : toHoist) {
 		if (ld != ld0) {
 			ld->replaceAllUsesWith(ld0);
