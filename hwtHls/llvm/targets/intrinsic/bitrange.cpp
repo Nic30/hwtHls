@@ -1,5 +1,5 @@
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
-#include <llvm-21/llvm/IR/Constants.h>
+#include <llvm/IR/Constants.h>
 #include <llvm/ADT/StringExtras.h>
 #include <llvm/IR/PatternMatch.h>
 #include <llvm/IR/Module.h>
