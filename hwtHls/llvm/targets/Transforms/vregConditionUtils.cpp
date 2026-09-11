@@ -1,7 +1,7 @@
 #include <hwtHls/llvm/targets/Transforms/vregConditionUtils.h>
-#include <llvm-21/llvm/CodeGen/MachineBasicBlock.h>
-#include <llvm-21/llvm/CodeGen/MachineOperand.h>
-#include <llvm-21/llvm/Support/ErrorHandling.h>
+#include <llvm/CodeGen/MachineBasicBlock.h>
+#include <llvm/CodeGen/MachineOperand.h>
+#include <llvm/Support/ErrorHandling.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/CodeGen/GlobalISel/MIPatternMatch.h>
 
