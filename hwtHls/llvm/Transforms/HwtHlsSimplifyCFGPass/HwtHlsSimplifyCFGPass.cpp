@@ -287,8 +287,11 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 
 		// continue rewriting this block while it is updated
 		DTU.flush();
-		// writeCFGToDotFile(F, "tmp/SimplifyCFG2.before.dot", AM, false, true);
-		// errs() << F << "\n";
+		//writeCFGToDotFile(F, "tmp/HwtHlsSimplifyCFGPass.before.dot", AM, false, true);
+		//errs() << F << "\n";
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+		assert(!verifyFunction(F, &errs()));
+#endif
 		// the error will appear there only if the input was broken or some check is missing after change
 		// onChangeCallbackIC("HwtHlsSimplifyCFGPass::runOpt1 - entry", F);
 		if (Options.StoreHoist && HwtHlsSimplifyCFGPass_storeHoist(*BBIt)) {
@@ -309,7 +312,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 					_changed1 = true;
 		} else if (Options.AggresiveStoreSink
 				&& HwtHlsSimplifyCFGPass_aggresiveStoreSink(DTU, *BBIt)) {
-			// writeCFGToDotFile(F, "tmp/SimplifyCFG2.after.dot", AM);
+			// writeCFGToDotFile(F, "tmp/HwtHlsSimplifyCFGPass.after.dot", AM);
 			onChangeCallback("HwtHlsSimplifyCFGPass_aggresiveStoreSink", F);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
@@ -503,7 +506,7 @@ llvm::PreservedAnalyses HwtHlsSimplifyCFGPass::run(llvm::Function &F,
 			}
 			// } catch (std::runtime_error & e) {
 			// 	// [dbg]
-			// 	writeCFGToDotFile(F, "tmp/SimplifyCFG2.after.dot", AM);
+			// 	writeCFGToDotFile(F, "tmp/HwtHlsSimplifyCFGPass.after.dot", AM);
 			// 	assert(false && "[dbg]");
 			// 	throw e;
 			// }
