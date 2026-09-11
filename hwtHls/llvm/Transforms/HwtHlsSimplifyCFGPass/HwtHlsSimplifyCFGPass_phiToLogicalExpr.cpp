@@ -1,6 +1,7 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_phiToLogicalExpr.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFG_priv.h>
 
+#include <llvm/Support/ErrorHandling.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/IRBuilder.h>
@@ -65,9 +66,16 @@ bool HwtHlsSimplifyCFGPass_phiToLogicalExpr_hoist(
 			continue;
 		}
 		for (Instruction &I : make_early_inc_range(*BBItem.BB)) {
-			assert(
-					!isa<PHINode>(&I)
-							&& "This can not be phi because all non-first blocks should have just 1 predecessor");
+			if (auto phi = dyn_cast<PHINode>(&I)) {
+				if (phi->getNumIncomingValues() == 1) {
+					phi->replaceAllUsesWith(phi->getIncomingValue(0));
+					phi->eraseFromParent();
+					Changed = true;
+					continue;
+				} else {
+					llvm_unreachable("This can not be phi because all non-first blocks should have just 1 predecessor");
+				}
+			}
 			if (!isSafeToHoistInstr(&I, SkipFlags::NONE, false)) {
 				continue; // can not move
 			} else if (any_of(I.operands(), [&blocksToHoistFrom](Use &op) {
