@@ -24,7 +24,12 @@ bool tryHoistCheapInstsAtBlockBegin(llvm::BasicBlock &BB,
 		llvm::BasicBlock::iterator MoveBeforePos,
 		std::optional<std::function<bool(llvm::Instruction&)>> extraCheck = { });
 bool simplifyBranchToSameDst(llvm::BasicBlock *BB);
-void sortPhiOperands(llvm::BasicBlock &BB, bool removeRedundantOperands=false);
+// :param removeRedundantOperands: if true then incoming value/block pairs are removed if the block is not predecessor
+// :param addForDuplicatedPredecessors: if true the incoming value/block pair is duplicated if necessary to
+//                                      correspond to a predecessor list for predecessors which are multiple times
+//                                      in predecessor list (this can happen for example for predecessor with SwitchInst with
+//                                      multiple cases jumping to this block)
+void sortPhiOperands(llvm::BasicBlock &BB, bool removeRedundantOperands=false, bool addForDuplicatedPredecessors=false);
 
 template<typename InstrT>
 InstrT *findInstrAtSuccessorsBegin(

@@ -163,19 +163,39 @@ bool tryHoistCheapInstsAtBlockBegin(
 
 bool simplifyBranchToSameDst(BasicBlock *BB) {
 	auto ter = BB->getTerminator();
-	auto br = dyn_cast<BranchInst>(ter);
-	if (ter->getNumSuccessors() > 0) {
-		BasicBlock *suc = BB->getTerminator()->getSuccessor(0);
-		if ((!br || br->isConditional()) && all_equal(successors(BB))) {
+	if (ter->getNumSuccessors() > 1) {
+		BasicBlock *suc = nullptr;
+		for (auto _suc: successors(BB)) {
+			if (!isa<UnreachableInst>(_suc->getTerminator())) {
+				// find successor which does not end with UnreachableInst
+				suc = _suc;
+				break;
+			}
+		}
+		
+		if (suc && all_equal(successors(BB))) {
 			ter->eraseFromParent();
 			BranchInst::Create(suc, BB);
+			// strip extra incoming values from phis (because the BB was predecessor of suc multiple times, now it is just once)
+			for (auto &phi: suc->phis()) {
+				auto fistI = phi.getBasicBlockIndex(BB);
+				int blockI = phi.getNumIncomingValues() - 1;
+				for (auto pred: reverse(phi.blocks())) {
+					if (blockI == fistI)
+						break;
+					if (pred == BB)
+						phi.removeIncomingValue(blockI, false);
+					blockI--;
+				}
+				
+			}
 			return true;
 		}
 	}
 	return false;
 }
 
-void sortPhiOperands(BasicBlock &BB, bool removeRedundantOperands) {
+void sortPhiOperands(BasicBlock &BB, bool removeRedundantOperands, bool addForDuplicatedPredecessors) {
 	for (auto &phi : BB.phis()) {
 		// :note: phi may have block as IncomingBlock multiple times
 		// this may happen because of SwitchInst e.g.
@@ -189,15 +209,31 @@ void sortPhiOperands(BasicBlock &BB, bool removeRedundantOperands) {
 		size_t predCnt = pred_size(&BB);
 		values.reserve(predCnt);
 
-		if (removeRedundantOperands) {
+		SmallVector<BasicBlock *> _predecessors(predecessors(&BB));
+#ifndef NDEBUG
+		if (addForDuplicatedPredecessors &&
+			phi.getNumIncomingValues() != predCnt) {
+			SmallPtrSet<BasicBlock *, 32> uniquePreds;
+			uniquePreds.insert_range(_predecessors);
+			SmallPtrSet<BasicBlock *, 32> uniquePredsInPhi;
+			uniquePredsInPhi.insert_range(phi.blocks());
+			if (removeRedundantOperands) {
+				for (auto pred: uniquePreds) {
+					assert(uniquePredsInPhi.contains(pred) && "Phi must have each predecessor block as incoming block");
+				}
+			} else {
+				assert(uniquePreds == uniquePredsInPhi);
+			}
+		} else if (removeRedundantOperands) {
 			assert(phi.getNumIncomingValues() >= predCnt);
 		} else {
 			assert(phi.getNumIncomingValues() == predCnt);
 		}
-		SmallVector<BasicBlock*> _predecessors(predecessors(&BB));
+#endif
 		for (auto pred : _predecessors) {
 			auto curPredI = phi.getBasicBlockIndex(pred);
 			if (curPredI < 0) {
+				errs() << phi << "\n";
 				llvm_unreachable("PHINode should have one entry for each "
 								 "predecessor of its parent basic block!");
 			} else {
@@ -208,8 +244,12 @@ void sortPhiOperands(BasicBlock &BB, bool removeRedundantOperands) {
 		// set original values with order
 		size_t phiBlockI = 0;
 		for (const auto &[pred, v] : zip(_predecessors, values)) {
-			phi.setIncomingBlock(phiBlockI, pred);
-			phi.setIncomingValue(phiBlockI, v);
+			if (phiBlockI >= phi.getNumIncomingValues()) {
+				phi.addIncoming(v, pred);
+			} else {
+				phi.setIncomingBlock(phiBlockI, pred);
+				phi.setIncomingValue(phiBlockI, v);
+			}
 			phiBlockI++;
 		}
 		if (removeRedundantOperands) {

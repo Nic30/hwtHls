@@ -12,6 +12,9 @@
 using namespace llvm;
 
 // #define HwtHlsSimplifyCFGPass_speculatePredecessor_TRACE
+#ifdef HwtHlsSimplifyCFGPass_speculatePredecessor_TRACE
+#include <llvm/IR/Verifier.h>
+#endif
 
 namespace hwtHls {
 
@@ -34,8 +37,10 @@ bool HwtHlsSimplifyCFGPass_speculatePredecessor(llvm::DomTreeUpdater &DTU,
 		return false;
 	}
 #ifdef HwtHlsSimplifyCFGPass_speculatePredecessor_TRACE
+	dbgs() << "HwtHlsSimplifyCFGPass_speculatePredecessor " << BB.getName() << "\n";
 	DTU.flush();
 	assert(DTU.getDomTree().verify());
+	assert(!verifyFunction(*BB.getParent(), &errs()));
 #endif
 
 	// check that BB and sucBB do not have common predecessor or all phi values from it are the same
@@ -250,7 +255,7 @@ bool HwtHlsSimplifyCFGPass_speculatePredecessor(llvm::DomTreeUpdater &DTU,
 	// avoid delete of block to preserve parent iterator
 	BB.getTerminator()->eraseFromParent();
 	new UnreachableInst(BB.getContext(), &BB);
-	sortPhiOperands(*sucBB);
+	sortPhiOperands(*sucBB, false, true);
 
 	DTU.applyUpdates(DTUpdates);
 	DTU.flush();
