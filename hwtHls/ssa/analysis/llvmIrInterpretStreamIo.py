@@ -18,6 +18,7 @@ from hwtHls.ssa.analysis.llvmIrInterpretUtils import SimIoUnderflowErr, \
     LlvmIrInstrFunction
 from pyDigitalWaveTools.vcd.writer import VcdWriter
 
+
 StreamTmpWord_t = (
     tuple[HBitsConst, ...] |  # the case that the bus word is not segmented
     list[tuple[HBitsConst, ...]]  # the case that the bus word is segmented
@@ -301,17 +302,17 @@ class LlvmIrInterpretStreamIo():
 
             if data is None:
                 # this is the first data chunk seen
-                data = newData
-                if hasMask:
-                    mask = newMask
                 if hasEnable:
                     if not bool(newEnable):
                         continue  # skip empty segments at beginning
                     enable = newEnable
+                if hasMask:
+                    mask = newMask
                 if hasEmpty:
                     empty = newEmpty
                 if hasError:
                     error = newError
+                data = newData
             else:
                 # there is some data from previous word and merging is required
                 data = Concat(newData, data)
@@ -469,13 +470,13 @@ class LlvmIrInterpretStreamIo():
 
         def _opcode_LoadOfSingleSegmentFromSegmentedBus(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
             curTmpWord: Optional[StreamTmpWord_t] = self._streamIoTmpWords.get(ioArg, None)
-            while True:
-                (curTmpWord, newData, newEnable, newMask, newEmpty, newSof, newEof, newError) = \
-                    self._runLlvmIrFunctionInstrStreamRead_popSegment(
-                        instr, curTmpWord, ioSimStream, streamProps, byteEnableEncoding, segmentCnt,
-                        hasMask, hasEnable, hasEmpty, hasError, hasSoF, hasEoF, supportZLP)
-                if newEnable is None or bool(newEnable):
-                    break
+            #while True:
+            (curTmpWord, newData, newEnable, newMask, newEmpty, newSof, newEof, newError) = \
+                self._runLlvmIrFunctionInstrStreamRead_popSegment(
+                    instr, curTmpWord, ioSimStream, streamProps, byteEnableEncoding, segmentCnt,
+                    hasMask, hasEnable, hasEmpty, hasError, hasSoF, hasEoF, supportZLP)
+            #    if newEnable is None or bool(newEnable):
+            #        break
             self._streamIoTmpWords[ioArg] = curTmpWord
             isUnreliable = True
             v = self._runLlvmIrFunctionInstrStreamRead_buildReturnVal(
