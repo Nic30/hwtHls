@@ -106,10 +106,45 @@ llvm::Instruction* tryReduceBitRangeGetOnConcat(InstructionCombinerT& IC, llvm::
 		if (IsBitConcat(src)) {
 			IC.Builder.SetInsertPoint(src->getNextNode());
 			auto offset = I.getArgOperand(1);
-			auto width = I.getType()->getIntegerBitWidth();
-			llvm::Value *r = CreateBitRangeGet(&IC.Builder, src, offset, width); // reuse folding implemented in CreateBitRangeGet
+			auto bitWidth = I.getType()->getIntegerBitWidth();
+			llvm::Value *r = CreateBitRangeGet(&IC.Builder, src, offset, bitWidth); // reuse folding implemented in CreateBitRangeGet
 			if (r != &I)
 				return IC.replaceInstUsesWith(I, r);
+			
+			auto *lowBitNoC = dyn_cast<llvm::ConstantInt>(offset);
+			assert(lowBitNoC && "CreateBitRangeGet lowBitNo must be a constant");
+			// if this is a slice on concat try extract members of concat
+			auto selectOff = lowBitNoC->getZExtValue(); // absolute position of lsb selected region in concat vector
+			size_t selectEnd = selectOff + bitWidth;
+			size_t memberOff = 0; // absolute position of lsb bit of member in concat vector
+			ConcatMemberVector newConcatMembers;
+			for (auto &concMember : src->args()) {
+				auto memberWidth =
+						concMember->getType()->getIntegerBitWidth();
+				size_t memberEnd = memberOff + memberWidth; // absolute position of MSB+1 bit of member in concat vector
+				if (memberOff == selectOff && memberWidth == bitWidth) {
+					// exactly selects the member
+					llvm_unreachable("This opt. should have been implemented in CreateBitRangeGet");
+				} else if (memberOff >= selectOff && memberOff < selectEnd) {
+					// select contains this item
+					OffsetWidthValue v;
+					v.value = concMember;
+					v.offset = memberOff > selectOff ? 0 : selectOff - memberOff;
+					v.width = std::min(selectEnd, memberEnd) - memberOff;					
+					newConcatMembers.push_back(v);
+				}
+				memberOff += memberWidth;
+				if (memberOff >= selectEnd) {
+					break; // do not search members which starting after selected start
+				}
+			}
+			if (newConcatMembers.members.size() != src->arg_size()) {
+				assert(newConcatMembers.members.size() < src->arg_size());
+				auto r = newConcatMembers.resolveValue(IC.Builder, nullptr, &I);
+				assert(r != &I);
+				assert(r->getType()->getIntegerBitWidth() == I.getType()->getIntegerBitWidth() );
+				return IC.replaceInstUsesWith(I, r);
+			}
 		}
 	}
 	return nullptr;
