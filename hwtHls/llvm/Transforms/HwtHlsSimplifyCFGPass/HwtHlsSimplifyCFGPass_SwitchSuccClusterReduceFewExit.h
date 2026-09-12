@@ -11,7 +11,8 @@ namespace hwtHls {
 // * PHINodes are allowed in any block
 // * if there are 2 exits it is allowed that the one exitBB have CFG path to other exitBB
 //   and blocks between exitBB0 and exitBB1 may have a path from BB0 which does not contain exitBB0/1
-// * :note: the region may have also other unreachable exits
+// * the region may have also other unreachable exits
+// * exitBB blocks do not need to be dominated by BB0
 //
 // .. code-block::cpp
 //    switch(c0) {

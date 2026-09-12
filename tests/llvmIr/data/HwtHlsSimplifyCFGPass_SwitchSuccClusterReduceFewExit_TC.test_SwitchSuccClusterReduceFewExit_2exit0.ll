@@ -14,12 +14,12 @@ bb1.sink.split:                                   ; preds = %bb0, %bb7.e1
   %1 = xor i1 %c2, true
   %fewExitSw.sucSel.en.bb1.bb2 = icmp eq i2 %v3.sink, 0
   %br.bb2.enFor.bb4 = and i1 %fewExitSw.sucSel.en.bb1.bb2, %c1
+  %br.bb4.enFor.bb5 = and i1 %br.bb2.enFor.bb4, %c2
   %br.bb4.enFor.bb6.e0 = and i1 %br.bb2.enFor.bb4, %1
   %fewExitSw.sucSel.en.bb1.bb6.e0 = icmp eq i2 %v3.sink, 1
   %v2 = select i1 %fewExitSw.sucSel.en.bb1.bb6.e0, i8 %v1, i8 %v0
   %2 = or i1 %br.bb4.enFor.bb6.e0, %fewExitSw.sucSel.en.bb1.bb6.e0
-  %3 = xor i1 %c1, true
-  %br.bb2.enFor.bb3 = and i1 %fewExitSw.sucSel.en.bb1.bb2, %3
+  %3 = zext i1 %br.bb4.enFor.bb5 to i2
   br i1 %2, label %bb6.e0, label %bb7.e1
 
 bb6.e0:                                           ; preds = %bb1.sink.split
@@ -27,8 +27,6 @@ bb6.e0:                                           ; preds = %bb1.sink.split
   br label %bb7.e1
 
 bb7.e1:                                           ; preds = %bb6.e0, %bb1.sink.split
-  %4 = xor i1 %br.bb2.enFor.bb3, true
-  %5 = zext i1 %4 to i2
-  %v3 = select i1 %2, i2 0, i2 %5
+  %v3 = phi i2 [ 0, %bb6.e0 ], [ %3, %bb1.sink.split ]
   br label %bb1.sink.split
 }

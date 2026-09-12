@@ -47,45 +47,118 @@ void findBlocksBetweenExitBlocksOfRegion(
 	}
 }
 
-void topologicalSortForBlocks(SetVector<BasicBlock *> &blocks, BasicBlock * BB0) {
+void topologicalSortForBlocks(SetVector<BasicBlock *> &blocks,
+							  BasicBlock *BB0) {
 	if (blocks.empty())
 		return;
 	SetVector<BasicBlock *> blocksTmp;
 	std::unordered_map<BasicBlock *, int> unseenPredCnt;
 	std::queue<BasicBlock *> ready;
+
+	// dbgs() << "topologicalSortForBlocks:\n";
+	bool BB0WasInBlocks = BB0 && !blocks.insert(BB0);
+	// dbgs() << "BB0: ";
+	// BB0->printAsOperand(dbgs());
+	// dbgs() << "\n";
+	DenseSet<std::pair<BasicBlock *, BasicBlock *>>
+		ignoredEdges; // backedge in potential loop BB1->BB2, BB2->BB1
 	for (auto *BB : blocks) {
 		int indeg = 0;
+
+		// dbgs() << "BB: ";
+		// BB->printAsOperand(dbgs());
+		// dbgs() << "\n";
+
 		for (auto *pred : predecessors(BB)) {
-			if (BB != pred && blocks.contains(pred))
-				indeg += 1;
+			if (BB == pred) {
+				// ignore reflexive edges
+			} else if (blocks.contains(pred)) {
+				// dbgs() << "  pred: ";
+				// pred->printAsOperand(dbgs());
+				// dbgs() << "\n";
+				if (is_contained(successors(BB), pred)) {
+					// loop BB1->BB2, BB2->BB1
+					if (ignoredEdges.contains({pred, BB})) {
+					} else {
+						if (BB0 && pred == BB0) {
+							// dbgs() << "ignore0: ";
+							// BB->printAsOperand(dbgs());
+							// dbgs() << " -> ";
+							// pred->printAsOperand(dbgs());
+							// dbgs() << "\n";
+							ignoredEdges.insert({BB, pred});
+							indeg++;
+						} else if (BB0 && BB == BB0) {
+							// dbgs() << "ignore1: ";
+							// pred->printAsOperand(dbgs());
+							// dbgs() << " -> ";
+							// BB->printAsOperand(dbgs());
+							// dbgs() << "\n";
+							ignoredEdges.insert({pred, BB});
+						} else {
+							// ignore both edges and let other edges to decide
+							// the order
+							dbgs() << "ignore2: ";
+							pred->printAsOperand(dbgs());
+							dbgs() << " <-> ";
+							BB->printAsOperand(dbgs());
+							dbgs() << "\n";
+							ignoredEdges.insert({pred, BB});
+							ignoredEdges.insert({BB, pred});
+						}
+					}
+				} else {
+					indeg++;
+				}
+			}
 		}
+		if (BB0 && BB == BB0) {
+			indeg = 0;
+		}
+		// dbgs() << " " << indeg << "\n";
 		unseenPredCnt[BB] = indeg;
-		if (indeg == 0)
+
+		if (indeg == 0) {
 			ready.push(BB);
+		}
 	}
-	if (BB0 && ready.empty()) {
-		ready.push(BB0);
-		unseenPredCnt[BB0] = 0;
-	} else  {
-		assert(!ready.empty() && "Blocks are 1 cycle and BB0 was not specified");
-	}
+	assert(!ready.empty() && "Blocks are 1 cycle and BB0 was not specified");
 	while (!ready.empty()) {
 		auto *BB = ready.front();
-		blocksTmp.insert(BB);
 		ready.pop();
-		for (auto sucBB: successors(BB)) {
-			if (sucBB == BB || sucBB == BB0 || !blocks.contains(sucBB)) {
+		if (BB != BB0 || BB0WasInBlocks)
+			blocksTmp.insert(BB);
+
+		// dbgs() << "ready BB: ";
+		// BB->printAsOperand(dbgs());
+		// dbgs() << "\n";
+		for (auto sucBB : successors(BB)) {
+			if (sucBB == BB || (BB0 && sucBB == BB0) || !blocks.contains(sucBB) ||
+				ignoredEdges.contains({BB, sucBB})) {
+				// skip self-loops, loop backedges and blocks outside of region
 				continue;
 			}
+			// dbgs() << "  sucBB: ";
+			// sucBB->printAsOperand(dbgs());
+			// dbgs() << "\n";
 			assert(unseenPredCnt[sucBB] > 0);
 			if (--unseenPredCnt[sucBB] == 0) {
 				ready.push(sucBB);
 			}
 		}
 	}
+#ifndef NDEBUG
+	for (auto unseen : unseenPredCnt) {
+		if (unseen.second != 0) {
+			unseen.first->printAsOperand(errs());
+			errs() << "\n";
+			llvm_unreachable("topologicalSortForBlocks: block order was not "
+							 "resolved correctly");
+		}
+	}
+#endif
 	blocks = blocksTmp;
 }
-
 
 //bool fewExitCluster_cutOffExitBBInClusterSuccessors(
 //		LowerPhisToSelectInRegionContext& lowerPhiCtx,
