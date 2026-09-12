@@ -93,12 +93,16 @@ bool HwtHlsSimplifyCFGPass_unswitchCheapManyPredManySuccBB(
 	}
 	if (DTU.hasPendingUpdates())
 		DTU.flush();
+
 	auto &DT = DTU.getDomTree();
 	if (any_of(predecessors(&BB), [&BB, &DT](BasicBlock *predBB) {
 			return DT.dominates(&BB, predBB);
 		})) {
 		return false; // can not unswitch loop header
 	}
+	auto &F = *BB.getParent();
+	// errs() << "HwtHlsSimplifyCFGPass_unswitchCheapManyPredManySuccBB\n";
+	// F.dump();
 	// if the branch is driven from the phi with constant operands
 	// we can directly jump from predecessor to successor without visiting this
 	// block. however we must update uses of values defined in this
@@ -107,16 +111,36 @@ bool HwtHlsSimplifyCFGPass_unswitchCheapManyPredManySuccBB(
 		auto cPhi = dyn_cast<PHINode>(c);
 		if (!cPhi)
 			return false;
-		if (cPhi->getParent() !=
-			&BB) // if branch condition is not phi of the same block
+		if (cPhi->getParent() != &BB) {
+			// if branch condition is not phi of the same block
 			return false;
-
+		}
 		// for predecessors check if branch value is constant
 		// and if this is the case transplant branch from BB to a branch
 		// directly from pred
 		bool mustRegeneratePhis = false;
-		for (const auto &[pred, c] :
+		//for (const auto &[_pred, c] :
+		//	 zip(cPhi->blocks(), cPhi->incoming_values())) {
+		//	BasicBlock *pred = _pred;
+		//	if (auto cConst = dyn_cast<ConstantInt>(c)) {
+		//		BasicBlock *newSuc;
+		//		if (cConst->getZExtValue()) {
+		//			newSuc = br->getSuccessor(0);
+		//		} else {
+		//			newSuc = br->getSuccessor(1);
+		//		}
+		//		if (newSuc == &BB) {
+		//			continue; // can not unswitch backedge of the loop
+		//		}
+		//		if (is_contained(successors(pred), newSuc)) {
+		//			return false;
+		//		}
+		//	}
+		//}
+
+		for (const auto &[_pred, c] :
 			 zip(cPhi->blocks(), cPhi->incoming_values())) {
+			BasicBlock *pred = _pred;
 			if (auto cConst = dyn_cast<ConstantInt>(c)) {
 				BasicBlock *newSuc;
 				if (cConst->getZExtValue()) {
@@ -128,16 +152,22 @@ bool HwtHlsSimplifyCFGPass_unswitchCheapManyPredManySuccBB(
 					continue; // can not unswitch backedge of the loop
 				}
 				if (is_contained(successors(pred), newSuc)) {
-					llvm_unreachable(
-						"[todo] create a new block so phis can distinguish "
-						"which path was taken if phi values differ");
+					auto newBB = BasicBlock::Create(
+						F.getContext(), BB.getName() + ".unswitch", &F, pred);
+					DTU.applyUpdates({{DominatorTree::Delete, pred, &BB},
+									  {DominatorTree::Insert, pred, newBB},
+									  {DominatorTree::Insert, newBB, newSuc}});
+					pred->getTerminator()->replaceSuccessorWith(&BB, newBB);
+					BranchInst::Create(newSuc, newBB); // newBB br -> suc
+					pred = newBB;
+				} else {
+					assert(newSuc != &BB);
+					pred->getTerminator()->replaceSuccessorWith(&BB, newSuc);
+					DTU.applyUpdates({
+						{DominatorTree::Delete, pred, &BB},
+						{DominatorTree::Insert, pred, newSuc},
+					});
 				}
-				assert(newSuc != &BB);
-				pred->getTerminator()->replaceSuccessorWith(&BB, newSuc);
-				DTU.applyUpdates({
-					{DominatorTree::Delete, pred, &BB},
-					{DominatorTree::Insert, pred, newSuc},
-				});
 
 				for (auto &newSucPhi : newSuc->phis()) {
 					auto vForBB = newSucPhi.getIncomingValueForBlock(&BB);
@@ -147,7 +177,7 @@ bool HwtHlsSimplifyCFGPass_unswitchCheapManyPredManySuccBB(
 						auto bbPhi = dyn_cast<PHINode>(vForBbAsI);
 						assert(bbPhi && "BB is expected to contain only PHIs "
 										"and terminator");
-						newV = bbPhi->getIncomingValueForBlock(pred);
+						newV = bbPhi->getIncomingValueForBlock(_pred);
 					}
 					newSucPhi.addIncoming(newV, pred);
 				}
@@ -158,7 +188,7 @@ bool HwtHlsSimplifyCFGPass_unswitchCheapManyPredManySuccBB(
 				mustRegeneratePhis = true;
 			}
 		}
-		
+
 		if (mustRegeneratePhis) {
 			SmallVector<AllocaInst *> tmpAllocas;
 			demoteReg2MemForPhisWithExtraOperands(Builder, BB, tmpAllocas);
@@ -166,6 +196,7 @@ bool HwtHlsSimplifyCFGPass_unswitchCheapManyPredManySuccBB(
 				DTU.flush();
 			auto &DT = DTU.getDomTree();
 			llvm::PromoteMemToReg(tmpAllocas, DT);
+			// F.dump();
 			return true;
 		}
 	}
