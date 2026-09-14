@@ -1,9 +1,9 @@
-#include <hwtHls/llvm/llvmIrMetadata.h>
+#include <hwtHls/llvm/pybind/llvmIrMetadata.h>
 
 #include <pybind11/stl.h>
 #include <pybind11/stl_bind.h>
 
-#include <hwtHls/llvm/llvmIrCommon.h>
+#include <hwtHls/llvm/pybind/llvmIrCommon.h>
 #include <hwtHls/llvm/intrinsic/metadataThreadHwtComponent.h>
 #include <hwtHls/llvm/targets/intrinsic/threadSplit.h>
 #include <hwtHls/llvm/targets/intrinsic/StreamChannelFormatInfo.h>

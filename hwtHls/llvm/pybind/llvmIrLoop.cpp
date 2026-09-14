@@ -1,8 +1,8 @@
-#include <hwtHls/llvm/llvmIrLoop.h>
+#include <hwtHls/llvm/pybind/llvmIrLoop.h>
 
-#include <hwtHls/llvm/llvmIrCommon.h>
 #include <llvm/Analysis/LoopInfo.h>
-#include <hwtHls/llvm/llvmIrMetadata.h>
+#include <hwtHls/llvm/pybind/llvmIrCommon.h>
+#include <hwtHls/llvm/pybind/llvmIrMetadata.h>
 
 namespace py = pybind11;
 

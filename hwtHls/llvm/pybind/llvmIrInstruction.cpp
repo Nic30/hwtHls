@@ -1,11 +1,11 @@
-#include <hwtHls/llvm/llvmIrInstruction.h>
+#include <hwtHls/llvm/pybind/llvmIrInstruction.h>
 
 #include <llvm/IR/InstrTypes.h>
 #include <llvm/IR/Instruction.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/IntrinsicInst.h>
 
-#include <hwtHls/llvm/llvmIrMetadata.h>
+#include <hwtHls/llvm/pybind/llvmIrMetadata.h>
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 #include <pybind11/native_enum.h>
 

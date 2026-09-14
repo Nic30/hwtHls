@@ -1,9 +1,9 @@
-#include <hwtHls/llvm/llvmIrValues.h>
+#include <hwtHls/llvm/pybind/llvmIrValues.h>
 
 #include <sstream>
 
 #include <pybind11/stl.h>
-#include <hwtHls/llvm/llvmIrCommon.h>
+#include <hwtHls/llvm/pybind/llvmIrCommon.h>
 
 #include <llvm/ADT/APInt.h>
 #include <llvm/ADT/APFloat.h>

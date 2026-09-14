@@ -1,4 +1,4 @@
-#include <hwtHls/llvm/llvmIrMachineFunction.h>
+#include <hwtHls/llvm/pybind/llvmIrMachineFunction.h>
 
 #include <sstream>
 #include <pybind11/stl.h>
@@ -18,7 +18,7 @@
 #include <llvm/Target/TargetMachine.h>
 
 #include <hwtHls/llvm/llvmCompilationBundle.h>
-#include <hwtHls/llvm/llvmIrCommon.h>
+#include <hwtHls/llvm/pybind/llvmIrCommon.h>
 #include <hwtHls/llvm/targets/hwtFpgaMCTargetDesc.h>
 #include <hwtHls/llvm/targets/hwtFpgaIoUtils.h>
 #include <pybind11/native_enum.h>

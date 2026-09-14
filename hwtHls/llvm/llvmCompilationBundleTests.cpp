@@ -20,7 +20,7 @@
 // #include <llvm/Transforms/Scalar/LoopInstSimplify.h>
 // #include <llvm/Transforms/InstCombine/InstCombine.h>
 // #include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
-#include <hwtHls/llvm/llvmIrCommon.h>
+#include <hwtHls/llvm/pybind/llvmIrCommon.h>
 
 #include <hwtHls/llvm/Analysis/mergeSetsBasedLivenessAnalysis/liveness.h>
 #include <hwtHls/llvm/Transforms/dumpAndExitPass.h>

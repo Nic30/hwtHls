@@ -1,5 +1,5 @@
-#include <hwtHls/llvm/llvmIrBuilder.h>
-#include <hwtHls/llvm/llvmIrMetadata.h>
+#include <hwtHls/llvm/pybind/llvmIrBuilder.h>
+#include <hwtHls/llvm/pybind/llvmIrMetadata.h>
 
 #include <pybind11/stl.h>
 #include <pybind11/stl_bind.h>

@@ -1,7 +1,6 @@
-#include <hwtHls/llvm/llvmIrFunction.h>
+#include <hwtHls/llvm/pybind/llvmIrFunction.h>
 
 #include <algorithm>
-#include <map>
 
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Module.h>
@@ -10,8 +9,8 @@
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/Transforms/Utils/ValueMapper.h>
 
-#include <hwtHls/llvm/llvmIrCommon.h>
-#include <hwtHls/llvm/llvmIrMetadata.h>
+#include <hwtHls/llvm/pybind/llvmIrCommon.h>
+#include <hwtHls/llvm/pybind/llvmIrMetadata.h>
 #include <hwtHls/llvm/targets/intrinsic/utils.h>
 #include <hwtHls/llvm/Transforms/utils/functionMutating.h>
 

@@ -1,4 +1,4 @@
-#include <hwtHls/llvm/llvmPyCompilationBundle.h>
+#include <hwtHls/llvm/pybind/llvmPyCompilationBundle.h>
 
 #include <llvm/ADT/Any.h>
 #include <llvm/ADT/StringRef.h>

@@ -1,6 +1,6 @@
-#include <hwtHls/llvm/llvmIrMachineLoop.h>
+#include <hwtHls/llvm/pybind/llvmIrMachineLoop.h>
 
-#include <hwtHls/llvm/llvmIrCommon.h>
+#include <hwtHls/llvm/pybind/llvmIrCommon.h>
 #include <llvm/CodeGen/MachineLoopInfo.h>
 
 namespace py = pybind11;

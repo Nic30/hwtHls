@@ -1,4 +1,5 @@
 #pragma once
+
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/CodeGen/MachineFunction.h>
@@ -9,7 +10,7 @@
 #include <llvm/MC/TargetRegistry.h>
 #include <llvm/Support/ToolOutputFile.h>
 
-#include <hwtHls/llvm/llvmIrStrings.h>
+#include <hwtHls/llvm/pybind/llvmIrStrings.h>
 #include <hwtHls/llvm/targets/Transforms/hwtFpgaToNetlist.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetPassConfig.h>
 #include <hwtHls/llvm/LegacyPassManagerWithPI.h>

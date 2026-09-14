@@ -1,4 +1,4 @@
-#include <hwtHls/llvm/llvmIrGlobalVariable.h>
+#include <hwtHls/llvm/pybind/llvmIrGlobalVariable.h>
 #include <llvm/IR/GlobalVariable.h>
 #include <llvm/IR/Module.h>
 
