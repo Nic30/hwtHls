@@ -283,6 +283,6 @@ if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
     suite = testLoader.loadTestsFromTestCase(BitwidthReductionPass_TC)
-    suite = unittest.TestSuite([BitwidthReductionPass_TC('test_0')])
+    # suite = unittest.TestSuite([BitwidthReductionPass_TC('test_0')])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
