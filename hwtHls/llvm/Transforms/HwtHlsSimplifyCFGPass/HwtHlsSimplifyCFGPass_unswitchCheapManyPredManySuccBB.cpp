@@ -21,7 +21,7 @@ void demoteReg2MemForPhisWithExtraOperands(
 	SmallVector<AllocaInst *> &tmpAllocas) {
 	auto *entryEnd = BB.getParent()->getEntryBlock().getTerminator();
 	for (auto &phi : make_early_inc_range(BB.phis())) {
-		// perform reg2mem for phi which now have extra incomming
+		// perform reg2mem for phi which now have extra incoming
 		// values for predecessors which were rerouted
 		Builder.SetInsertPoint(entryEnd);
 		auto tmpAlloca = Builder.CreateAlloca(phi.getType());
