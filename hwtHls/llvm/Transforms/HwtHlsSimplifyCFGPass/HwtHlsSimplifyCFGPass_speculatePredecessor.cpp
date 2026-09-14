@@ -28,7 +28,7 @@ bool HwtHlsSimplifyCFGPass_speculatePredecessor(llvm::DomTreeUpdater &DTU,
 	if (sucBB == &BB)
 		return false;
 	if (BB.getTerminator()->getMetadata(LLVMContext::MD_loop))
-		return false;
+		return false; // do not discard latches
 	auto& DT = DTU.getDomTree();
 	bool isLatchAndSucIsHeader = DT.dominates(sucBB, &BB);
 	if (isLatchAndSucIsHeader) {
@@ -47,7 +47,7 @@ bool HwtHlsSimplifyCFGPass_speculatePredecessor(llvm::DomTreeUpdater &DTU,
 	SetVector<std::pair<PHINode*, PHINode*>> phisToMerge;
 	SmallPtrSet<BasicBlock*, 32> commonPreds;
 	bool isFirstCommonPred = true;
-
+	bool sucBBLoopNeedsNewLatch = false;
 	for (auto *predBB : predecessors(&BB)) {
 		for (auto *sucPred : predecessors(sucBB)) {
 			if (predBB == sucPred) { // for common predecessors
@@ -67,9 +67,19 @@ bool HwtHlsSimplifyCFGPass_speculatePredecessor(llvm::DomTreeUpdater &DTU,
 						}
 						if (isFirstCommonPred)
 							phisToMerge.insert({phi0, &phi1});
-					} else if (fromBBVal
-							!= phi1.getIncomingValueForBlock(sucPred)) {
-						// by inlining of the BB phi would not be ale to switch between different incoming values
+					} else if (fromBBVal == phi1.getIncomingValueForBlock(sucPred)) {
+					} else if (sucPred == sucBB) {
+						// situation where the sucBB is a header and the latch of if its own loop and latch of BB loop
+						// BB:
+						//   br label %sucBB
+						// sucBB:
+						//   br i1 %c, label %sucBB, label %BB 
+						// 
+						 
+						// form a dedicated latch to avoid collisions, but do it after this loop so we do not break iterators
+						sucBBLoopNeedsNewLatch = true;
+					} else {
+						// by inlining of the BB phi the sucBB would not be ale to switch between different incoming values
 						return false;
 					}
 				}
@@ -77,6 +87,8 @@ bool HwtHlsSimplifyCFGPass_speculatePredecessor(llvm::DomTreeUpdater &DTU,
 			}
 		}
 	}
+
+	
 	// mark BB phis used by sucBB phis to merge
 	for (auto &phi1 : sucBB->phis()) {
 		auto fromBBVal = phi1.getIncomingValueForBlock(&BB);
@@ -132,7 +144,10 @@ bool HwtHlsSimplifyCFGPass_speculatePredecessor(llvm::DomTreeUpdater &DTU,
 			}
 		}
 	}
-	
+	if (sucBBLoopNeedsNewLatch) {
+		SplitEdge(sucBB, sucBB, &DTU.getDomTree());
+		commonPreds.erase(sucBB);
+	}
 #ifdef HwtHlsSimplifyCFGPass_speculatePredecessor_TRACE
 	errs() << "BB: ";
 	BB.printAsOperand(errs());
