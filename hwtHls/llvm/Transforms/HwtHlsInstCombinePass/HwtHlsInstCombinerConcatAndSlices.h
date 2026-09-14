@@ -98,6 +98,11 @@ llvm::Instruction* tryReduceConstOpBitRangeGet(InstructionCombinerT& IC, llvm::C
 	return nullptr;
 }
 
+template <typename T>
+bool rangesOverlap(T aStart, T aEnd, T bStart, T bEnd) {
+    return std::max(aStart, bStart) <= std::min(aEnd, bEnd);
+}
+
 template<typename InstructionCombinerT>
 llvm::Instruction* tryReduceBitRangeGetOnConcat(InstructionCombinerT& IC, llvm::CallInst &I) {
 	// if BitRangeGet exactly selects some member of BitConcat replace this with selected member
@@ -119,23 +124,31 @@ llvm::Instruction* tryReduceBitRangeGetOnConcat(InstructionCombinerT& IC, llvm::
 			size_t memberOff = 0; // absolute position of lsb bit of member in concat vector
 			ConcatMemberVector newConcatMembers;
 			for (auto &concMember : src->args()) {
-				auto memberWidth =
-						concMember->getType()->getIntegerBitWidth();
-				size_t memberEnd = memberOff + memberWidth; // absolute position of MSB+1 bit of member in concat vector
-				if (memberOff == selectOff && memberWidth == bitWidth) {
-					// exactly selects the member
-					llvm_unreachable("This opt. should have been implemented in CreateBitRangeGet");
-				} else if (memberOff >= selectOff && memberOff < selectEnd) {
+				const size_t memberWidth =
+					concMember->getType()->getIntegerBitWidth();
+				const size_t memberEnd = memberOff + memberWidth;
+
+				const size_t overlapStart = std::max(memberOff, selectOff);
+				const size_t overlapEnd = std::min(memberEnd, selectEnd);
+
+				if (overlapStart < overlapEnd) {
 					// select contains this item
 					OffsetWidthValue v;
 					v.value = concMember;
-					v.offset = memberOff > selectOff ? 0 : selectOff - memberOff;
-					v.width = std::min(selectEnd, memberEnd) - memberOff;					
+					v.offset = overlapStart - memberOff;
+					v.width = overlapEnd - overlapStart;
+					if (!v.isIdentity() && isa<llvm::ConstantData>(concMember)) {
+						// directly resolve slice on const data
+						v.value = CreateBitRangeGetConst(&IC.Builder, v.value, v.offset, v.width);
+						v.offset = 0;
+					}
 					newConcatMembers.push_back(v);
 				}
-				memberOff += memberWidth;
+
+				memberOff = memberEnd;
+
 				if (memberOff >= selectEnd) {
-					break; // do not search members which starting after selected start
+					break;
 				}
 			}
 			if (newConcatMembers.members.size() != src->arg_size()) {
