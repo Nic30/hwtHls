@@ -8,7 +8,7 @@ from hwtHls.llvm.llvmIr import MachineFunction, MachineBasicBlock, \
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering
 from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel, \
-    LoopChanelGroup, LOOP_CHANEL_GROUP_ROLE, HlsNetNodeReadOrWriteToAnyChannel
+    LoopChannelGroup, LOOP_CHANEL_GROUP_ROLE, HlsNetNodeReadOrWriteToAnyChannel
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn, \
     HlsNetNodeOutAny, unlink_hls_node_input_if_exists
@@ -61,7 +61,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
     * If the liveouts from block use channels:
       * Some channel can be reused to pass branch flag to successor.
       * Channels of registers must not cause parent stall if the branch was not used.
-      * Implemented in :meth:`hwtHls.netlist.nodes.loopChannelGroup.LoopChanelGroup.getChannelUsedAsControl`
+      * Implemented in :meth:`hwtHls.netlist.nodes.loopChannelGroup.LoopChannelGroup.getChannelUsedAsControl`
     * The branches of locked sections and loops need to manage locks which may select
       subset of incoming channels.
       * :see: :class:`hwtHls.netlist.nodes.loopControl.HlsNetNodeLoopStatus`
@@ -260,7 +260,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                                             mb: MachineBasicBlock,
                                             mbSync: MachineBasicBlockMeta,
                                             blockLiveInMuxInputSync: BlockLiveInMuxSyncDict):
-        inputCases: LoopChanelGroup = []
+        inputCases: LoopChannelGroup = []
         for pred in mb.predecessors():
             pred: MachineBasicBlock
             edge = (pred, mb)
@@ -274,7 +274,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
             assert control is not None, (pred, mb, eMeta)
             lcg = eMeta.getLoopChannelGroup()
             # [fixme] this can cause reordering
-            LoopChanelGroup.appendToListOfPriorityEncodedReads(inputCases, None, None, lcg, f"{pred.getNumber():d}_to_{mb.getNumber():d}")
+            LoopChannelGroup.appendToListOfPriorityEncodedReads(inputCases, None, None, lcg, f"{pred.getNumber():d}_to_{mb.getNumber():d}")
 
     def _constructChannelForLoopExitNotifyToHeader(self,
                                                    eMbSync: MachineBasicBlockMeta,
@@ -306,7 +306,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
         # skipWhen is required because we do not want this to stall parent stage
         self._addSkipWhen_n(exitForHeaderW, controlOrig, eMbSync.blockEn)
         # r.channelInitValues = ((0,),)
-        lcg = LoopChanelGroup([(exitBlock.getNumber(),
+        lcg = LoopChannelGroup([(exitBlock.getNumber(),
                                 exitSucBlock.getNumber(),
                                 LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER)])
         lcg.appendWrite(exitForHeaderW, True)
@@ -373,7 +373,7 @@ class HlsNetlistAnalysisPassMirToNetlist(HlsNetlistAnalysisPassMirToNetlistDatap
                 # register exit write for the loop
                 lcg = eWrite._loopChannelGroup
                 if lcg is None:
-                    lcg = LoopChanelGroup([(exitBlock.getNumber(),
+                    lcg = LoopChannelGroup([(exitBlock.getNumber(),
                                             exitSucBlock.getNumber(),
                                             LOOP_CHANEL_GROUP_ROLE.EXIT_TO_SUCCESSOR)])
                     lcg.appendWrite(eWrite, True)

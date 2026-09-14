@@ -22,7 +22,7 @@ from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.archElement import ArchElement
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel, \
-    HlsNetNodeWriteAnyChannel, LoopChanelGroup
+    HlsNetNodeWriteAnyChannel, LoopChannelGroup
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, \
@@ -45,7 +45,7 @@ def archElmEdgeSortKey(archElmChannelKeyValue: tuple[tuple[ArchElement, int, Arc
 
 
 def controlChannelsFirstSortKey(w: HlsNetNodeWrite):
-    lcg: LoopChanelGroup = w._loopChannelGroup
+    lcg: LoopChannelGroup = w._loopChannelGroup
     isControl = lcg is not None and lcg.getChannelUsedAsControl() is w
     return int(not isControl)
 
@@ -276,7 +276,7 @@ class RtlArchPassChannelMerge(HlsArchPass):
             lcg = w._loopChannelGroup
             if lcg is None:
                 continue
-            lcg: LoopChanelGroup
+            lcg: LoopChannelGroup
             assert lcg.getChannelUsedAsControl() is not w, w
             lcg.members.remove(w)
 

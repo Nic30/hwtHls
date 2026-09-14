@@ -50,7 +50,7 @@ Traditionaly registes/variables are of n-bits but physical FFs are just 1b
 That means that the number of FFs required is max number of register bits in any state
 and we need only to pick a mapping of registers/variables to FFs which have least scrambling
 to improve readablitity.
-The :class:`LoopChanelGroup` objects connected to block/loop on same place are known to be exclusive,
+The :class:`LoopChannelGroup` objects connected to block/loop on same place are known to be exclusive,
 that means that they may be mapped to same register, except for control registers (vld/full for channels). 
 
 Register allocation is split to 2 phases:

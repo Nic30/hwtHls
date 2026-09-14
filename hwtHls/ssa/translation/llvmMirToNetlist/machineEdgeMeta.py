@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Union, Optional, List, Tuple
 
 from hwtHls.llvm.llvmIr import MachineBasicBlock, Register
-from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup, \
+from hwtHls.netlist.nodes.loopChannelGroup import LoopChannelGroup, \
     HlsNetNodeWriteAnyChannel
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
 
@@ -74,12 +74,12 @@ class MachineEdgeMeta():
         # MachineEdge can be only the (self.srcBlock, self.dstBlock)
         self.buffers: List[Tuple[Union[Register, MachineEdge], HlsNetNodeOut]] = []
         self.buffersForLoopExit: List[Tuple[MachineEdge, HlsNetNodeOut]] = []
-        self._loopChannelGroup: Optional[LoopChanelGroup] = None
+        self._loopChannelGroup: Optional[LoopChannelGroup] = None
 
-    def getLoopChannelGroup(self) -> LoopChanelGroup:
+    def getLoopChannelGroup(self) -> LoopChannelGroup:
         lcg = self._loopChannelGroup
         if self._loopChannelGroup is None:
-            lcg = self._loopChannelGroup = LoopChanelGroup([(self.srcBlock.getNumber(), self.dstBlock.getNumber()), ])
+            lcg = self._loopChannelGroup = LoopChannelGroup([(self.srcBlock.getNumber(), self.dstBlock.getNumber()), ])
         return lcg
 
     def loopChannelGroupAppendWrite(self, wn: HlsNetNodeWriteAnyChannel, isControl: bool):

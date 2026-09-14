@@ -4,7 +4,7 @@ from hwt.pyUtils.setList import SetList
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.loopChannelGroup import HlsNetNodeReadAnyChannel, \
-    HlsNetNodeWriteAnyChannel, LoopChanelGroup
+    HlsNetNodeWriteAnyChannel, LoopChannelGroup
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.hdlTypeVoid import _HVoidConst, HVoidOrdering, \
     HdlType_isNonData, HdlType_isVoid
@@ -137,7 +137,7 @@ def netlistEdgeWriteVoidWithoudDeps(
         # can not remove because it has control flow purpose
         return False
 
-    g: LoopChanelGroup
+    g: LoopChannelGroup
     with dbgTracer.scoped(netlistEdgeWriteVoidWithoudDeps, writeNode):
         builder: HlsNetlistBuilder = writeNode.getHlsNetlistBuilder()
         netlistExplicitSyncDisconnectFromOrderingChain(dbgTracer, writeNode, worklist)

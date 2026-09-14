@@ -17,7 +17,7 @@ from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.hdlTypeVoid import HVoidData
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregate
 from hwtHls.netlist.nodes.archElement import ArchElement
-from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup
+from hwtHls.netlist.nodes.loopChannelGroup import LoopChannelGroup
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
@@ -101,7 +101,7 @@ class HlsAndRtlNetlistPassLoopControlLowering(HlsAndRtlNetlistPass):
                 if isinstance(u.obj, HlsNetNodeOperator) and u.obj.operator == HwtOps.NOT:
                     replaceOperatorNodeWith(u.obj, busyReg_n_Out, worklist)
 
-        groupToEdgeAndPort: dict[LoopChanelGroup, tuple[tuple[int, int], Union[HlsNetNodeOut, HlsNetNodeIn]]] = {
+        groupToEdgeAndPort: dict[LoopChannelGroup, tuple[tuple[int, int], Union[HlsNetNodeOut, HlsNetNodeIn]]] = {
             lcg: (edge, port) 
             for edge, (lcg, port) in loopStatus._bbNumberToPorts.items()
         }
@@ -116,7 +116,7 @@ class HlsAndRtlNetlistPassLoopControlLowering(HlsAndRtlNetlistPass):
             # returns the control token
             _newExit = []
             for channelGroup in loopStatus.fromExitToHeaderNotify:
-                channelGroup: LoopChanelGroup
+                channelGroup: LoopChannelGroup
                 edge, port = groupToEdgeAndPort[channelGroup]
                 # port of loopStatus should be connected to a validNB of exit channel read
                 d = loopStatus.dependsOn[port.in_i]
@@ -131,7 +131,7 @@ class HlsAndRtlNetlistPassLoopControlLowering(HlsAndRtlNetlistPass):
         #    en = builder.buildNot(busyReg_n_Out)  # :note: the statusBusyReg is 0 in the first clock of the loop execution
         #    _newEnter = []
         #    for channelGroup in loopStatus.fromEnter:
-        #        channelGroup: LoopChanelGroup
+        #        channelGroup: LoopChannelGroup
         #        channelRead = channelGroup.getChannelUsedAsControl().associatedRead
         #        _newEnter.append(channelRead.getValidNB())
         #

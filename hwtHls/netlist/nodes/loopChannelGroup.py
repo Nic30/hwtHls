@@ -69,13 +69,13 @@ class BlockEdgeChannelGroup():
         return hash((self.srcBB, self.dstBB))
 
 
-class LoopChanelGroup():
+class LoopChannelGroup():
     """
     This object aggregates IO channels to/from the loop.
     It exists because when the channel of the loop is optimized it may affect the loop or other channels.
 
     :note: This object is usually generated for the enter/reenter/exit edges in CFG. 
-    :note: One LoopChanelGroup may be io group in multiple loops. For example exit from current and parent loop.
+    :note: One LoopChannelGroup may be io group in multiple loops. For example exit from current and parent loop.
     
     :ivar origin: a list of tuples src basic block number, dst basic block number which is used for better name generation
         and identification of the group
@@ -89,13 +89,13 @@ class LoopChanelGroup():
         self.members: SetList[HlsNetNodeWriteAnyChannel] = SetList()
         self.connectedLoopsAndBlocks: List[Tuple[Union["HlsNetNodeLoopStatus", BlockEdgeChannelGroup], LOOP_CHANEL_GROUP_ROLE]] = []
 
-    def clone(self, memo: dict) -> Tuple["LoopChanelGroup", bool]:
+    def clone(self, memo: dict) -> Tuple["LoopChannelGroup", bool]:
         d = id(self)
         y = memo.get(d, _HlsNetNodeDeepcopyNil)
         if y is not _HlsNetNodeDeepcopyNil:
             return y, False
 
-        y: LoopChanelGroup = copy(self)
+        y: LoopChannelGroup = copy(self)
         memo[d] = y
         y.members = SetList(c.clone(memo, True)[0] for c in self.members)
         self.connectedLoopsAndBlocks = [(lcg.clone(memo, True)[0], role) for lcg, role in self.connectedLoopsAndBlocks]

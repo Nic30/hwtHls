@@ -103,7 +103,7 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
         self.allocationType = CHANNEL_ALLOCATION_TYPE.BUFFER
         self._bufferCapacity = bufferCapacity
         self.buffName = None
-        self._loopChannelGroup: Optional["LoopChanelGroup"] = None
+        self._loopChannelGroup: Optional["LoopChannelGroup"] = None
 
     @override
     def clone(self, memo:dict, keepTopPortsConnected:bool) -> list["HlsNetNode", bool]:

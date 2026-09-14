@@ -3,7 +3,7 @@ from hwtHls.netlist.builder import HlsNetlistBuilder, _replaceOutPortWith1
 from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
 from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
-from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup, \
+from hwtHls.netlist.nodes.loopChannelGroup import LoopChannelGroup, \
     LOOP_CHANEL_GROUP_ROLE, HlsNetNodeReadAnyChannel
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode
@@ -29,7 +29,7 @@ def netlistReduceLoopWithoutEnterAndExit(dbgTracer: DebugTracer, n: HlsNetNodeLo
 
             # if len(n.fromReenter) == 1:
             #   # there is only 1 place for reenter the reenter en port on loop is useless
-            #   reG: LoopChanelGroup = n.fromReenter[0]
+            #   reG: LoopChannelGroup = n.fromReenter[0]
             for reG in n.fromReenter:
                 reG.deassociateWithLoop(n, LOOP_CHANEL_GROUP_ROLE.REENTER)
                 # if not reG.connectedLoopsAndBlocks:
@@ -55,7 +55,7 @@ def netlistReduceLoopWithoutEnterAndExit(dbgTracer: DebugTracer, n: HlsNetNodeLo
             # and there is no arbitration of inputs nor blocking until current body finishes
             builder: HlsNetlistBuilder = n.getHlsNetlistBuilder()
 
-            reenterG: LoopChanelGroup = n.fromReenter[0]
+            reenterG: LoopChannelGroup = n.fromReenter[0]
             srcDst, _ = n._findLoopChannelIn_bbNumberToPorts(reenterG)
             reenterControl: HlsNetNodeReadAnyChannel = reenterG.getChannelUsedAsControl().associatedRead
             # _replaceOutPortWith(fromStatusOut, reenterControl.getValidNB(), worklist)
@@ -69,7 +69,7 @@ def netlistReduceLoopWithoutEnterAndExit(dbgTracer: DebugTracer, n: HlsNetNodeLo
                 dbgTracer.log("rm because no exitToHeaderNotify")
                 # unregister loop from channel
                 assert len(n.fromExitToHeaderNotify) == 1, n
-                exitG: LoopChanelGroup = n.fromExitToHeaderNotify[0]
+                exitG: LoopChannelGroup = n.fromExitToHeaderNotify[0]
                 exitG.deassociateWithLoop(n, LOOP_CHANEL_GROUP_ROLE.EXIT_NOTIFY_TO_HEADER)
 
                 # avoid wait on reenter when exit
@@ -93,7 +93,7 @@ def netlistReduceLoopWithoutEnterAndExit(dbgTracer: DebugTracer, n: HlsNetNodeLo
                 #     exitG.destroy()
 
                 for exitToSucG in n.fromExitToSuccessor:
-                    exitToSucG: LoopChanelGroup
+                    exitToSucG: LoopChannelGroup
                     exitToSucG.deassociateWithLoop(n, LOOP_CHANEL_GROUP_ROLE.EXIT_TO_SUCCESSOR)
                     # if not exitToSucG.connectedLoopsAndBlocks:
                     #     exitToSucG.destroy()

@@ -12,7 +12,7 @@ from hwtHls.netlist.hdlTypeVoid import HVoidData, HVoidOrdering
 from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.explicitSync import IO_COMB_REALIZATION
 from hwtHls.netlist.nodes.loopChannelGroup import \
-    LoopChanelGroup, LOOP_CHANEL_GROUP_ROLE, HlsNetNodeReadOrWriteToAnyChannel
+    LoopChannelGroup, LOOP_CHANEL_GROUP_ROLE, HlsNetNodeReadOrWriteToAnyChannel
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.orderable import HlsNetNodeOrderable
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeIn
@@ -75,16 +75,16 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
 
         self.debugUseNamedSignalsForControl = False
         # a dictionary port node -> RtlSignal
-        self._rtlPortGroupSigs: Dict[LoopChanelGroup, RtlSignal] = {}
+        self._rtlPortGroupSigs: Dict[LoopChannelGroup, RtlSignal] = {}
         self._rtlAllocated = False
 
-        self.fromEnter: List[LoopChanelGroup] = []
-        self.fromReenter: List[LoopChanelGroup] = []
-        self.fromExitToHeaderNotify: List[LoopChanelGroup] = []
+        self.fromEnter: List[LoopChannelGroup] = []
+        self.fromReenter: List[LoopChannelGroup] = []
+        self.fromExitToHeaderNotify: List[LoopChannelGroup] = []
 
-        self.fromExitToSuccessor: List[LoopChanelGroup] = []
+        self.fromExitToSuccessor: List[LoopChannelGroup] = []
 
-        self._bbNumberToPorts: Dict[tuple(int, int), Tuple[LoopChanelGroup, Optional[HlsNetNodeIn]]] = {}
+        self._bbNumberToPorts: Dict[tuple(int, int), Tuple[LoopChannelGroup, Optional[HlsNetNodeIn]]] = {}
         self._isEnteredOnExit: bool = False
 
     @override
@@ -110,7 +110,7 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
             if i not in nonOrderingInputs:
                 yield i
 
-    def iterConnectedInputChannelGroups(self) -> Generator[LoopChanelGroup, None, None]:
+    def iterConnectedInputChannelGroups(self) -> Generator[LoopChannelGroup, None, None]:
         return chain(self.fromEnter, self.fromReenter, self.fromExitToHeaderNotify)
 
     def iterChannelIoOutsideOfLoop(self):
@@ -135,7 +135,7 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
             for w in g.members:
                 yield w
 
-    def _findLoopChannelIn_bbNumberToPorts(self, lcg: LoopChanelGroup):
+    def _findLoopChannelIn_bbNumberToPorts(self, lcg: LoopChannelGroup):
         for srcDst, (portChannelGroup, outPort) in self._bbNumberToPorts.items():
             srcDst: Tuple[int, int]
             outPort: HlsNetNodeOut
@@ -159,7 +159,7 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         v = self.getHlsNetlistBuilder().buildConst(HVoidData.from_py(None))
         v.connectHlsIn(w._portSrc)
 
-    def addEnterPort(self, srcBlockNumber: int, dstBlockNumber: int, lcg:LoopChanelGroup)\
+    def addEnterPort(self, srcBlockNumber: int, dstBlockNumber: int, lcg:LoopChannelGroup)\
             ->Tuple[HlsNetNodeRead, HlsNetNodeOut]:
         """
         Register connection of control and data from some block which causes the loop to to execute.
@@ -175,7 +175,7 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         r: HlsNetNodeRead = w.associatedRead
         busy = self.getBusyOutPort()
         busy_n = self.getHlsNetlistBuilder().buildNot(busy)
-        LoopChanelGroup.appendToListOfPriorityEncodedReads(self.fromEnter, busy_n, busy, lcg, name)
+        LoopChannelGroup.appendToListOfPriorityEncodedReads(self.fromEnter, busy_n, busy, lcg, name)
 
         assert isinstance(r, HlsNetNodeRead), r
         # # assert not r._isBlocking, r
@@ -194,7 +194,7 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         # enOut = b.buildAnd(enOut, r.getValidNB(), name=f"enterFrom_bb{srcBlockNumber:}")
         # return r, enOut
 
-    def addReenterPort(self, srcBlockNumber: int, dstBlockNumber: int, lcg: LoopChanelGroup)\
+    def addReenterPort(self, srcBlockNumber: int, dstBlockNumber: int, lcg: LoopChannelGroup)\
             ->Tuple[HlsNetNodeRead, HlsNetNodeOut]:
         """
         Register connection of control and data from some block where control flow gets back block where the cycle starts.
@@ -208,7 +208,7 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         assert isinstance(r, HlsNetNodeRead) and r.isBackedge(), r
         busy = self.getBusyOutPort()
         busy_n = self.getHlsNetlistBuilder().buildNot(busy)
-        LoopChanelGroup.appendToListOfPriorityEncodedReads(self.fromReenter, busy, busy_n, lcg, name)
+        LoopChannelGroup.appendToListOfPriorityEncodedReads(self.fromReenter, busy, busy_n, lcg, name)
         # if self.fromReenter:
         #    lastReenter: HlsNetNodeRead = self.fromReenter[0].getChannelUsedAsControl().associatedRead
         #    b: HlsNetlistBuilder = self.getHlsNetlistBuilder()
@@ -223,7 +223,7 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
 
         # return r, enOut
 
-    def addExitToHeaderNotifyPort(self, srcBlockNumber: int, dstBlockNumber: int, lcg: LoopChanelGroup)\
+    def addExitToHeaderNotifyPort(self, srcBlockNumber: int, dstBlockNumber: int, lcg: LoopChannelGroup)\
             ->HlsNetNodeWrite:
         """
         Register connection of control which causes to break current execution of the loop.
@@ -249,7 +249,7 @@ class HlsNetNodeLoopStatus(HlsNetNodeOrderable):
         self._bbNumberToPorts[(srcBlockNumber, dstBlockNumber)] = (lcg, exitIn)
         return w
 
-    def addExitToSuccessorPort(self, lcg: LoopChanelGroup):
+    def addExitToSuccessorPort(self, lcg: LoopChannelGroup):
         """
         Register connection which is executing code behind the loop.
         """

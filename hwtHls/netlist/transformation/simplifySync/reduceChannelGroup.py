@@ -1,7 +1,7 @@
 from typing import List, Tuple
 
 from hwt.pyUtils.setList import SetList
-from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup, LOOP_CHANEL_GROUP_ROLE
+from hwtHls.netlist.nodes.loopChannelGroup import LoopChannelGroup, LOOP_CHANEL_GROUP_ROLE
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.hdlTypeVoid import HdlType_isVoid
@@ -9,7 +9,7 @@ from hwtHls.netlist.debugTracer import DebugTracer
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 
 
-def netlistTryRemoveChannelGroup(dbgTracer: DebugTracer, chGroup: LoopChanelGroup,
+def netlistTryRemoveChannelGroup(dbgTracer: DebugTracer, chGroup: LoopChannelGroup,
                                  worklist: SetList[HlsNetNode]):
     
     
@@ -26,8 +26,8 @@ def netlistTryRemoveChannelGroup(dbgTracer: DebugTracer, chGroup: LoopChanelGrou
     #    return False # can not remove because it holds intial state
     #
     #builder = chGroup.members[0].getHlsNetlistBuilder()
-    #chGroup: LoopChanelGroup
-    #connectedLoopsAndBlocksToRm: List[Tuple[LoopChanelGroup, LOOP_CHANEL_GROUP_ROLE]] = []
+    #chGroup: LoopChannelGroup
+    #connectedLoopsAndBlocksToRm: List[Tuple[LoopChannelGroup, LOOP_CHANEL_GROUP_ROLE]] = []
     ## check if it is necessary for loops to work
     #for loopAndRole in chGroup.connectedLoopsAndBlocks:
     #    loop, role = loopAndRole

@@ -9,7 +9,7 @@ from hwtHls.netlist.analysis.syncGroupClusterContext import SyncGroupLabel, \
 from hwtHls.netlist.hdlTypeVoid import HVoidOrdering, HVoidExternData
 from hwtHls.netlist.nodes.delay import HlsNetNodeDelayClkTick
 from hwtHls.netlist.nodes.explicitSync import HlsNetNodeExplicitSync
-from hwtHls.netlist.nodes.loopChannelGroup import LoopChanelGroup
+from hwtHls.netlist.nodes.loopChannelGroup import LoopChannelGroup
 from hwtHls.netlist.nodes.loopControl import HlsNetNodeLoopStatus
 from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ports import HlsNetNodeIn
@@ -86,7 +86,7 @@ class HlsNetlistAnalysisPassSyncDomains(HlsNetlistAnalysisPass):
         toSearch: List[HlsNetNode] = [syncNode, ]
         if isinstance(syncNode, HlsNetNodeLoopStatus):
             for e in syncNode.iterConnectedInputChannelGroups():
-                e: LoopChanelGroup
+                e: LoopChannelGroup
                 toSearch.append(e.getChannelUsedAsControl().associatedRead)
 
         while toSearch:
