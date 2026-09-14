@@ -6,6 +6,7 @@ from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.utils import freq_to_period
 from tests.io.bram.readSizeFromRamAndSendSequence import ReadSizeFromRamAndSendSequence
 from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
+from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 
 
 class ReadSizeFromRamAndSendSequence_TC(SimTestCase):
@@ -50,7 +51,8 @@ if __name__ == "__main__":
         *HlsDebugBundle.ALL_RELIABLE,
         # HlsDebugBundle.DBG_20_addSignalNamesToSync,
         # HlsDebugBundle.DBG_20_addSignalNamesToData
-    })))
+    }, #llvmCliArgs=[LLVM_CLI_COMMON_OPTS.PRINT_CHANGED]
+    )))
 
     import unittest
     testLoader = unittest.TestLoader()
