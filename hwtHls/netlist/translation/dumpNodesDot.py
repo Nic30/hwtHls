@@ -24,7 +24,7 @@ from hwtHls.netlist.nodes.node import HlsNetNode, NODE_ITERATION_TYPE
 from hwtHls.netlist.nodes.ops import HlsNetNodeOperator, OP_INDEX_CONST
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut, HlsNetNodeOutLazy, \
     _reprMinify, HlsNetNodeIn
-from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
+from hwtHls.netlist.nodes.programStarter import HlsNetNodeProgramStarter
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.readSync import HlsNetNodeReadSync
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
@@ -100,7 +100,7 @@ class HwtHlsNetlistToGraphviz():
   <tr><td bgcolor="{COLOR_OUTPUT_WRITE:s}">HlsNetNodeWrite</td></tr>
   <tr><td bgcolor="plum">HlsNetNodeConst</td></tr>
   <tr><td bgcolor="{COLOR_SYNC_INTERNAL:s}">HlsNetNodeExplicitSync</td></tr>
-  <tr><td bgcolor="{COLOR_SPECIAL_PURPOSE:s}">HlsNetNodeLoopStatus, HlsProgramStarter, HlsNetNodeFsmStateEn, HlsNetNodeStageAck, HlsNetNodeFsmStateWrite</td></tr>
+  <tr><td bgcolor="{COLOR_SPECIAL_PURPOSE:s}">HlsNetNodeLoopStatus, HlsNetNodeProgramStarter, HlsNetNodeFsmStateEn, HlsNetNodeStageAck, HlsNetNodeFsmStateWrite</td></tr>
   <tr><td bgcolor="yellow">HlsNetNodeExplicitRegisterStore, HlsNetNodeExplicitRegisterLoad</td></tr>
   <tr><td bgcolor="gray">shadow connection</td></tr>
   <tr><td bgcolor="{COLOR_TEMPORARY_NODE:s}">HlsNetNodeOutLazy</td></tr>
@@ -130,7 +130,7 @@ class HwtHlsNetlistToGraphviz():
             bgcolor = "plum"
         elif isinstance(obj, HlsNetNodeExplicitSync):
             bgcolor = COLOR_SYNC_INTERNAL
-        elif isinstance(obj, (HlsNetNodeLoopStatus, HlsProgramStarter, HlsNetNodeFsmStateEn, HlsNetNodeStageAck, HlsNetNodeFsmStateWrite)):
+        elif isinstance(obj, (HlsNetNodeLoopStatus, HlsNetNodeProgramStarter, HlsNetNodeFsmStateEn, HlsNetNodeStageAck, HlsNetNodeFsmStateWrite)):
             bgcolor = COLOR_SPECIAL_PURPOSE
         elif isinstance(obj, (HlsNetNodeExplicitRegisterStore, HlsNetNodeExplicitRegisterLoad)):
             bgcolor = "yellow"

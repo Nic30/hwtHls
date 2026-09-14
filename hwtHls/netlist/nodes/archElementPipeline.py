@@ -20,7 +20,7 @@ from hwtHls.netlist.nodes.const import HlsNetNodeConst
 from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
-from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
+from hwtHls.netlist.nodes.programStarter import HlsNetNodeProgramStarter
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
@@ -256,7 +256,7 @@ class ArchElementPipeline(ArchElement):
 
                     if node.src is None:
                         # local only channel
-                        assert isinstance(node, HlsProgramStarter) or\
+                        assert isinstance(node, HlsNetNodeProgramStarter) or\
                             (node.isChannel() and
                                 node.associatedWrite in self.subNodes
                             ) or (

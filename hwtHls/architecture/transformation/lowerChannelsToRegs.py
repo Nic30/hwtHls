@@ -15,7 +15,7 @@ from hwtHls.netlist.nodes.channelUtils import CHANNEL_ALLOCATION_TYPE
 from hwtHls.netlist.nodes.explicitRegisterAccess import HlsNetNodeExplicitRegisterLoad, \
     RtlRegisterMeta, HlsNetNodeExplicitRegisterStore
 from hwtHls.netlist.nodes.node import NODE_ITERATION_TYPE
-from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
+from hwtHls.netlist.nodes.programStarter import HlsNetNodeProgramStarter
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import HlsNetNodeOut_getMaxUseTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
@@ -32,7 +32,7 @@ class HlsAndRtlNetlistPassLowerChannelsToRegs(HlsAndRtlNetlistPass):
     The channels (implemented using :class:`HlsNetNodeRead`, :class:`HlsNetNodeWrite`) and are handled as other regs in FSM
     but have set/reset condition explicitly specified using "extraCond" input port.
 
-    :note: This also lowers the :class:`HlsProgramStarter`
+    :note: This also lowers the :class:`HlsNetNodeProgramStarter`
 
     There are several things which has to be handled for channels:
     1. The channel data/ready/valid/full/extraCond has to be reimplemented using registers.
@@ -118,7 +118,7 @@ class HlsAndRtlNetlistPassLowerChannelsToRegs(HlsAndRtlNetlistPass):
             if isinstance(elm, ArchElementFsm):
                 elm: ArchElementFsm
                 for w in elm.subNodes:
-                    if isinstance(w, HlsProgramStarter):
+                    if isinstance(w, HlsNetNodeProgramStarter):
                         fullRegMeta = RtlRegisterMeta(f"programStarter_n{w._id}_full", False, BIT, True)
                         vldRegMeta = RtlRegisterMeta(f"programStarter_n{w._id}_vld", False, BIT, True)
                         builder: HlsNetlistBuilder = w.getHlsNetlistBuilder()

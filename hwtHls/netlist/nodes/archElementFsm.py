@@ -35,7 +35,7 @@ from hwtHls.netlist.nodes.fsmStateWrite import HlsNetNodeFsmStateWrite
 from hwtHls.netlist.nodes.memoryAllocationMeta import MemoryAllocationMeta
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
-from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
+from hwtHls.netlist.nodes.programStarter import HlsNetNodeProgramStarter
 from hwtHls.netlist.nodes.read import  HlsNetNodeRead
 from hwtHls.netlist.nodes.schedulableNode import SchedTime
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
@@ -144,7 +144,7 @@ class ArchElementFsm(ArchElement):
         tir = super(ArchElementFsm, self).rtlRegisterOutputRtlSignal(
             outOrTime, data, isExplicitRegister, isForwardDeclr, mayChangeOutOfCfg)
         # mark value in register as persistent until the end of FSM
-        if isinstance(outOrTime, HlsNetNodeOut) and isinstance(outOrTime.obj, HlsProgramStarter):
+        if isinstance(outOrTime, HlsNetNodeOut) and isinstance(outOrTime.obj, HlsNetNodeProgramStarter):
             # because we want to consume token from the starter only on transition in this FSM
             con: ConnectionsOfStage = self.connections[0]
             con.stateChangeDependentDrives.append(tir.valuesInTime[0].data._rtlNextSig._rtlDrivers[0])

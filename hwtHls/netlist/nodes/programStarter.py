@@ -7,7 +7,7 @@ from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.frontend.ioProxyScalar import IoProxyScalar
 
 
-class HlsProgramStarter(HlsNetNodeRead):
+class HlsNetNodeProgramStarter(HlsNetNodeRead):
     """
     A node with produces just a single sync token to start the program after reset.
     """

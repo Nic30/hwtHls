@@ -10,7 +10,7 @@ from hwtHls.netlist.nodes.ops import HlsNetNodeOperator
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny, HlsNetNodeOutLazy, \
     HlsNetNodeIn, HlsNetNodeOut
 from hwtHls.netlist.nodes.portsUtils import HlsNetNodeOutLazy_replace
-from hwtHls.netlist.nodes.programStarter import HlsProgramStarter
+from hwtHls.netlist.nodes.programStarter import HlsNetNodeProgramStarter
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
 from hwtHls.ssa.translation.llvmMirToNetlist.branchOutLabel import BranchOutLabel
@@ -264,7 +264,7 @@ def resolveBlockEn(self: "HlsNetlistAnalysisPassMirToNetlist", mf: MachineFuncti
             if mbMeta.needsControl:
                 assert mb.pred_size() == 0, mb.getNumber()
                 # add starter and use it as en
-                n = HlsProgramStarter(self.netlist)
+                n = HlsNetNodeProgramStarter(self.netlist)
                 mbMeta.parentElement.addNode(n)
                 blockEn = n.getStartEnPort()
             else:
