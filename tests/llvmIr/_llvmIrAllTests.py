@@ -37,7 +37,7 @@ from tests.llvmIr.slicesToIndependentVariablesPass_test import SlicesToIndepende
 from tests.testCaseUtils import testSuiteFromTCs
 from tests.llvmIr.LoopMarkStatelessSequelAsAsyncThreadPass_test import LoopMarkStatelessSequelAsAsyncThreadPass_TC
 from tests.llvmIr.MergeSetsBasedLivenessAnalysis_test import MergeSetsBasedLivenessAnalysis_TC
-
+from tests.llvmIr.HwtHlsSimplifyCFGPass_speculatePredecessor_test import HwtHlsSimplifyCFGPass_speculatePredecessor_TC
 
 llvmIr_TCs = [
     LlvmIrFunctionMutating_TC,
@@ -48,6 +48,7 @@ llvmIr_TCs = [
     HwtHlsSimplifyCFGPass_TC,
     HwtHlsInstCombinePass_select_TC,
     HwtHlsSimplifyCFGPass_phiToLogicalExp_TC,
+    HwtHlsSimplifyCFGPass_speculatePredecessor_TC,
     HwtHlsSimplifyCFGPass_streamWrite_TC,
     HwtHlsSimplifyCFGPass_unswitchCheapManyPredManySuccBB_test_TC,
     HwtHlsSimplifyCFGPass_unswitchComplementarySequentialBlocks_TC,
@@ -75,6 +76,7 @@ llvmIr_TCs = [
     ThreadExtractIoFsmPass_ir_TC,
     LoopMarkStatelessSequelAsAsyncThreadPass_TC,
 ]
+
 
 if __name__ == '__main__':
     unittestMain(testSuiteFromTCs(*llvmIr_TCs), printTopLongest=3)
