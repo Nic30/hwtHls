@@ -79,10 +79,67 @@ bb.latch:          ; preds = %bb.toUnswitch, %bb.case0, %bb.case3
                       )
 
 
+    def test_requiresNewBBForPhis(self):
+        llvmIr = """\
+define void @test_requiresNewBBForPhis(ptr addrspace(1) %i, ptr addrspace(2) %o) {
+bb0:
+  br label %bb2
+
+bb2:                                              ; preds = %bb7, %bb0
+  %c.phi = phi i3 [ %c.phi.latch, %bb7 ], [ 0, %bb0 ]
+  %0 = load volatile i18, ptr addrspace(1) %i, align 4
+  switch i3 %c.phi, label %bb8 [
+    i3 0, label %bb3
+    i3 1, label %bb7
+    i3 2, label %bb9
+    i3 3, label %bb4
+    i3 -4, label %bb6
+  ]
+
+bb3:                                              ; preds = %bb2
+  switch i16 0, label %bb5 [
+    i16 3, label %bb7
+    i16 4, label %bb7
+  ]
+
+bb4:                                              ; preds = %bb9, %bb2
+  store volatile i32 0, ptr addrspace(2) %o, align 4
+  br label %bb5
+
+bb5:                                              ; preds = %bb4, %bb3
+  %iDataOffset.0 = phi i1 [ true, %bb3 ], [ false, %bb4 ]
+  br i1 %iDataOffset.0, label %bb7, label %bb6
+
+bb6:                                              ; preds = %bb5, %bb2
+  br label %bb7
+
+bb9:                                              ; preds = %bb2
+  br label %bb4
+
+bb7:                                              ; preds = %bb6, %bb5, %bb3, %bb3, %bb2
+  %c.phi.latch = phi i3 [ -4, %bb5 ], [ 0, %bb2 ], [ 1, %bb3 ], [ 1, %bb3 ], [ 0, %bb6 ]
+  br label %bb2
+
+bb8:                                              ; preds = %bb2
+  unreachable
+}
+"""
+        # llvm = llmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: self._runTestOpt(llvm))
+        # print(str(llvm.main))
+
+        self._test_ll(llvmIr,
+                     passKwArgs=dict(
+                         # dumpDotBeforeToFile="tmp/simplifyCfg0.dot",
+                         # dumpDotAfterToFile="tmp/simplifyCfg1.dot",
+                         # BonusInstThreshold=30,
+                         )
+                      )
+
+
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
     suite = testLoader.loadTestsFromTestCase(HwtHlsSimplifyCFGPass_unswitchCheapManyPredManySuccBB_test_TC)
-    # suite = unittest.TestSuite([HwtHlsSimplifyCFGPass_unswitchComplementarySequentialBlocks_TC('test_0')])
+    # suite = unittest.TestSuite([HwtHlsSimplifyCFGPass_unswitchCheapManyPredManySuccBB_test_TC('test_requiresNewBBForPhis')])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
