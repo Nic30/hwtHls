@@ -6,6 +6,7 @@ from hwt.doc_markers import hwt_expr_producer
 from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bitConstFunctions import AnyHBitsValue
 from hwt.hdl.types.bits import HBits
+from hwt.hdl.types.bitsConst import HBitsConst
 from hwt.hdl.types.struct import HStruct
 from hwt.hdl.types.structValBase import HStructConstBase
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
@@ -24,11 +25,20 @@ from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.io.bram import IoProxyBram
 from hwtHls.scope import HlsScope
 from tests.io.bram.bramWriteAligner import HwIOAddrDataUnalignedToBram
-from hwt.hdl.types.bitsConst import HBitsConst
 
 
 class PcieTlpStoreAligner(HwModule):
-
+    """
+    This component translates between adress spaces with a different address granularity.
+    The (in) address with the byte = 8b, and the index (out address)
+    which has the granularity of a single word (defined by DATA_WIDTH).
+    
+    The input stored data may have variable position in output word, which means that the:
+    * 1 input access may be divded into 2 if it crosses the word boundary
+    * the access may be merged with a penind buffered data
+    * the access may be blocked until buffered data is flushed
+    """
+    
     @override
     def hwConfig(self):
         self.CLK_FREQ = HwParam(int(100e6))
@@ -53,7 +63,7 @@ class PcieTlpStoreAligner(HwModule):
     def getWordToStore_t(addressWidth:int, dataWidth: int) -> HStruct:
         WordToStore_t = HStruct(
             (HBits(addressWidth), "addr"),  # byte address of start of this word
-                                            # for array in Bus Master completition handler buffer
+                                            # for array in Bus Master completion handler buffer
             (HBits(dataWidth), "data"),
             (HBits(log2ceil(dataWidth // 8)), "empty"),  # nuber of empty bytes from end (msb bit)
             name="WordToStore_t",
