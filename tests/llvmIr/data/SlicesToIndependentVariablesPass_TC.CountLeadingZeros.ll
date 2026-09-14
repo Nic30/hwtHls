@@ -3,12 +3,18 @@ bb0:
   br label %block0
 
 block0:                                           ; preds = %bb0
-  br label %block244
+  br label %block68
 
-block244:                                         ; preds = %block0
+block68:                                          ; preds = %block0
+  br label %block136
+
+block136:                                         ; preds = %block68
+  br label %block312
+
+block312:                                         ; preds = %block136
   br label %bb._BaseALU1HwModule.header
 
-bb._BaseALU1HwModule.header:                      ; preds = %blockL266i0_544, %block244
+bb._BaseALU1HwModule.header:                      ; preds = %blockL334i0_612, %block312
   %data_in_read = alloca i4, align 1, !hwtHls.tmp.alloca !3
   store i4 undef, ptr %data_in_read, align 1
   %inp = alloca i4, align 1, !hwtHls.tmp.alloca !3
@@ -17,12 +23,12 @@ bb._BaseALU1HwModule.header:                      ; preds = %blockL266i0_544, %b
   store i4 %data_in_read1, ptr %data_in_read, align 1
   %data_in_read2 = load i4, ptr %data_in_read, align 1
   store i4 %data_in_read2, ptr %inp, align 1
-  br label %"blockL266i0_(CountLeadingZeros.aluFn, 368)_0"
+  br label %"blockL334i0_(CountLeadingZeros.aluFn, 436)_0"
 
-"blockL266i0_(CountLeadingZeros.aluFn, 368)_0":   ; preds = %bb._BaseALU1HwModule.header
+"blockL334i0_(CountLeadingZeros.aluFn, 436)_0":   ; preds = %bb._BaseALU1HwModule.header
   br label %bb._BaseALU1HwModule.header_afterCall
 
-bb._BaseALU1HwModule.header_afterCall:            ; preds = %"blockL266i0_(CountLeadingZeros.aluFn, 368)_0"
+bb._BaseALU1HwModule.header_afterCall:            ; preds = %"blockL334i0_(CountLeadingZeros.aluFn, 436)_0"
   %out = alloca i3, align 1, !hwtHls.tmp.alloca !3
   store i3 undef, ptr %out, align 1
   %inp3 = load i4, ptr %inp, align 1
@@ -43,8 +49,8 @@ bb._BaseALU1HwModule.header_afterCall:            ; preds = %"blockL266i0_(Count
 bb._BaseALU1HwModule.latch:                       ; preds = %bb._BaseALU1HwModule.header_afterCall
   %out5 = load i3, ptr %out, align 1
   store volatile i3 %out5, ptr addrspace(2) %data_out, align 1
-  br label %blockL266i0_544
+  br label %blockL334i0_612
 
-blockL266i0_544:                                  ; preds = %bb._BaseALU1HwModule.latch
+blockL334i0_612:                                  ; preds = %bb._BaseALU1HwModule.latch
   br label %bb._BaseALU1HwModule.header
 }
