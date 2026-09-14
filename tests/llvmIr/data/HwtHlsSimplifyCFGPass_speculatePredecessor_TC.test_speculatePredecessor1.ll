@@ -1,13 +1,10 @@
 define void @test_speculatePredecessor1(ptr addrspace(1) %o) {
 bb0:
-  br label %bb.loop0.head
-
-bb.loop0.head:                                    ; preds = %bb.loop2.head, %bb0
   br label %bb.loop2.head
 
-bb.loop2.head:                                    ; preds = %bb.loop2.head, %bb.loop0.head
-  %i0 = phi i3 [ 0, %bb.loop0.head ], [ %i0.mux, %bb.loop2.head ]
-  %i2 = phi i3 [ 0, %bb.loop0.head ], [ %.mux, %bb.loop2.head ]
+bb.loop2.head:                                    ; preds = %bb.loop2.head, %bb0
+  %i0 = phi i3 [ 0, %bb0 ], [ %spec.select, %bb.loop2.head ]
+  %i2 = phi i3 [ 0, %bb0 ], [ %spec.select3, %bb.loop2.head ]
   %i3 = call i2 @hwtHls.bitRangeGet.i3.i3.i2.0(i3 %i2, i3 0) #1
   %i1 = call i2 @hwtHls.bitRangeGet.i3.i3.i2.0(i3 %i0, i3 0) #1
   %0 = call i8 @hwtHls.bitConcat.i2.i2.i4(i2 %i3, i2 %i1, i4 0) #1
@@ -21,5 +18,7 @@ bb.loop2.head:                                    ; preds = %bb.loop2.head, %bb.
   %brmerge = or i1 %2, %hwrange.continue.not.le.le2.not
   %i0.mux = select i1 %hwrange.continue4.not1, i3 %3, i3 %i0
   %.mux = select i1 %hwrange.continue4.not1, i3 0, i3 %1
-  br i1 %brmerge, label %bb.loop2.head, label %bb.loop0.head
+  %spec.select = select i1 %brmerge, i3 %i0.mux, i3 0
+  %spec.select3 = select i1 %brmerge, i3 %.mux, i3 0
+  br label %bb.loop2.head
 }

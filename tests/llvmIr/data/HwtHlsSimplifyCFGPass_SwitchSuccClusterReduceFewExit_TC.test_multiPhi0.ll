@@ -68,7 +68,7 @@ bb32:                                             ; preds = %bb30
   %27 = select i1 %fewExitSw.sucSel.en.bb32.bb44, i1 %i_read3.r0.eof.reg2mem.0.reg2mem.0, i1 %i_read3.r0.eof.reg2mem.0.reg2mem.0
   %28 = select i1 %fewExitSw.sucSel.en.bb32.bb44, i16 %i_read3.r0.data.reg2mem.0.reg2mem.0, i16 %i_read3.r0.data.reg2mem.0.reg2mem.0
   %29 = select i1 %fewExitSw.sucSel.en.bb32.bb44, i16 %7, i16 %7
-  br i1 %fewExitSw.sucSel.en.bb32.bb36, label %bb36, label %bb44
+  br i1 %fewExitSw.sucSel.en.bb32.bb36, label %bb361, label %bb44
 
 bb33:                                             ; preds = %bb31
   %30 = icmp eq i16 %6, 3
@@ -87,32 +87,26 @@ bb33:                                             ; preds = %bb31
   %39 = select i1 %fewExitSw.sucSel.en.bb33.bb45, i1 %i_read3.r0.eof.reg2mem.1.ph.0lane, i1 %i_read3.r0.eof.reg2mem.1.ph.0lane
   %40 = select i1 %fewExitSw.sucSel.en.bb33.bb45, i16 %i_read3.r0.data.reg2mem.1.ph.0lane, i16 %i_read3.r0.data.reg2mem.1.ph.0lane
   %41 = select i1 %fewExitSw.sucSel.en.bb33.bb45, i16 %6, i16 %6
-  br i1 %fewExitSw.sucSel.en.bb33.bb37, label %bb37, label %bb45
+  br i1 %fewExitSw.sucSel.en.bb33.bb37, label %bb372, label %bb45
 
 bb34:                                             ; preds = %bb40, %bb27
   %iDataOffset.1.0lane = phi i1 [ true, %bb40 ], [ %14, %bb27 ]
   %42 = phi i24 [ %16, %bb40 ], [ %i_read_data4.0lane, %bb27 ]
   %43 = phi i8 [ %4, %bb40 ], [ 0, %bb27 ]
   %44 = call i32 @hwtHls.bitConcat.i24.i8(i24 %42, i8 %43) #1
-  br i1 %iDataOffset.1.0lane, label %bb36, label %bb38
+  br i1 %iDataOffset.1.0lane, label %bb44, label %bb38
 
 bb35:                                             ; preds = %bb44, %bb41
   %iDataOffset.1.1lane = phi i1 [ true, %bb41 ], [ %59, %bb44 ]
   %45 = phi i24 [ %61, %bb41 ], [ %i_read_data4.1lane, %bb44 ]
   %46 = phi i8 [ %2, %bb41 ], [ 0, %bb44 ]
   %47 = call i32 @hwtHls.bitConcat.i24.i8(i24 %45, i8 %46) #1
-  br i1 %iDataOffset.1.1lane, label %bb37, label %bb39
+  br i1 %iDataOffset.1.1lane, label %bb45, label %bb39
 
-bb36:                                             ; preds = %bb32, %bb34
-  %storeLaneVld0.2.0lane = phi i1 [ false, %bb32 ], [ true, %bb34 ]
-  %storeLaneData0.2.0lane = phi i32 [ poison, %bb32 ], [ %44, %bb34 ]
-  %i_read1.r0.data.reg2mem.1.0lane = phi i16 [ %7, %bb32 ], [ %i_read1.r0.data.reg2mem.2.reg2mem.0, %bb34 ]
+bb361:                                            ; preds = %bb32
   br label %bb44
 
-bb37:                                             ; preds = %bb33, %bb35
-  %storeLaneVld0.2.1lane = phi i1 [ false, %bb33 ], [ true, %bb35 ]
-  %storeLaneData0.2.1lane = phi i32 [ poison, %bb33 ], [ %47, %bb35 ]
-  %i_read1.r0.data.reg2mem.1.1lane = phi i16 [ %6, %bb33 ], [ %i_read1.r0.data.reg2mem.3.ph.0lane, %bb35 ]
+bb372:                                            ; preds = %bb33
   br label %bb45
 
 bb38:                                             ; preds = %bb34, %bb27
@@ -143,15 +137,15 @@ bb40:                                             ; preds = %bb27
 bb41:                                             ; preds = %bb44
   br label %bb35
 
-bb44:                                             ; preds = %bb32, %bb38, %bb36, %bb30, %bb27
-  %.sink.0lane = phi i3 [ %22, %bb32 ], [ 0, %bb38 ], [ -4, %bb36 ], [ 0, %bb30 ], [ %17, %bb27 ]
-  %storeLaneVld1.1.ph.0lane = phi i1 [ %23, %bb32 ], [ true, %bb38 ], [ false, %bb36 ], [ false, %bb30 ], [ false, %bb27 ]
-  %storeLaneData1.1.ph.0lane = phi i32 [ %24, %bb32 ], [ %48, %bb38 ], [ poison, %bb36 ], [ poison, %bb30 ], [ poison, %bb27 ]
-  %storeLaneVld0.3.ph.0lane = phi i1 [ %25, %bb32 ], [ %storeLaneVld0.0.0lane, %bb38 ], [ %storeLaneVld0.2.0lane, %bb36 ], [ false, %bb30 ], [ false, %bb27 ]
-  %storeLaneData0.3.ph.0lane = phi i32 [ %26, %bb32 ], [ %storeLaneData0.0.0lane, %bb38 ], [ %storeLaneData0.2.0lane, %bb36 ], [ poison, %bb30 ], [ poison, %bb27 ]
-  %i_read3.r0.eof.reg2mem.1.ph.0lane = phi i1 [ %27, %bb32 ], [ %i_read3.r0.eof.reg2mem.0.reg2mem.0, %bb38 ], [ %i_read3.r0.eof.reg2mem.0.reg2mem.0, %bb36 ], [ %i_read3.r0.eof.reg2mem.0.reg2mem.0, %bb30 ], [ %i_read1.r0.eof.0lane, %bb27 ]
-  %i_read3.r0.data.reg2mem.1.ph.0lane = phi i16 [ %28, %bb32 ], [ %i_read3.r0.data.reg2mem.0.reg2mem.0, %bb38 ], [ %i_read3.r0.data.reg2mem.0.reg2mem.0, %bb36 ], [ %i_read3.r0.data.reg2mem.0.reg2mem.0, %bb30 ], [ %7, %bb27 ]
-  %i_read1.r0.data.reg2mem.3.ph.0lane = phi i16 [ %29, %bb32 ], [ %i_read1.r0.data.reg2mem.2.reg2mem.0, %bb38 ], [ %i_read1.r0.data.reg2mem.1.0lane, %bb36 ], [ %7, %bb30 ], [ %i_read1.r0.data.reg2mem.2.reg2mem.0, %bb27 ]
+bb44:                                             ; preds = %bb34, %bb361, %bb32, %bb38, %bb30, %bb27
+  %.sink.0lane = phi i3 [ -4, %bb34 ], [ -4, %bb361 ], [ %22, %bb32 ], [ 0, %bb38 ], [ 0, %bb30 ], [ %17, %bb27 ]
+  %storeLaneVld1.1.ph.0lane = phi i1 [ false, %bb34 ], [ false, %bb361 ], [ %23, %bb32 ], [ true, %bb38 ], [ false, %bb30 ], [ false, %bb27 ]
+  %storeLaneData1.1.ph.0lane = phi i32 [ poison, %bb34 ], [ poison, %bb361 ], [ %24, %bb32 ], [ %48, %bb38 ], [ poison, %bb30 ], [ poison, %bb27 ]
+  %storeLaneVld0.3.ph.0lane = phi i1 [ true, %bb34 ], [ false, %bb361 ], [ %25, %bb32 ], [ %storeLaneVld0.0.0lane, %bb38 ], [ false, %bb30 ], [ false, %bb27 ]
+  %storeLaneData0.3.ph.0lane = phi i32 [ %44, %bb34 ], [ poison, %bb361 ], [ %26, %bb32 ], [ %storeLaneData0.0.0lane, %bb38 ], [ poison, %bb30 ], [ poison, %bb27 ]
+  %i_read3.r0.eof.reg2mem.1.ph.0lane = phi i1 [ %i_read3.r0.eof.reg2mem.0.reg2mem.0, %bb34 ], [ %i_read3.r0.eof.reg2mem.0.reg2mem.0, %bb361 ], [ %27, %bb32 ], [ %i_read3.r0.eof.reg2mem.0.reg2mem.0, %bb38 ], [ %i_read3.r0.eof.reg2mem.0.reg2mem.0, %bb30 ], [ %i_read1.r0.eof.0lane, %bb27 ]
+  %i_read3.r0.data.reg2mem.1.ph.0lane = phi i16 [ %i_read3.r0.data.reg2mem.0.reg2mem.0, %bb34 ], [ %i_read3.r0.data.reg2mem.0.reg2mem.0, %bb361 ], [ %28, %bb32 ], [ %i_read3.r0.data.reg2mem.0.reg2mem.0, %bb38 ], [ %i_read3.r0.data.reg2mem.0.reg2mem.0, %bb30 ], [ %7, %bb27 ]
+  %i_read1.r0.data.reg2mem.3.ph.0lane = phi i16 [ %i_read1.r0.data.reg2mem.2.reg2mem.0, %bb34 ], [ %7, %bb361 ], [ %29, %bb32 ], [ %i_read1.r0.data.reg2mem.2.reg2mem.0, %bb38 ], [ %7, %bb30 ], [ %i_read1.r0.data.reg2mem.2.reg2mem.0, %bb27 ]
   store i3 %.sink.0lane, ptr %bb3.ioFsmStBefore.IoFsmSt, align 1
   %50 = call i66 @hwtHls.bitConcat.i32.i32.i1.i1(i32 %storeLaneData0.3.ph.0lane, i32 %storeLaneData1.1.ph.0lane, i1 %storeLaneVld0.3.ph.0lane, i1 %storeLaneVld1.1.ph.0lane) #1
   %51 = call i64 @hwtHls.bitRangeGet.i66.i8.i64.0(i66 %50, i8 0) #1
@@ -179,15 +173,15 @@ bb44:                                             ; preds = %bb32, %bb38, %bb36,
     i3 -4, label %bb39
   ]
 
-bb45:                                             ; preds = %bb33, %bb44, %bb39, %bb37, %bb31
-  %.sink.1lane = phi i3 [ %34, %bb33 ], [ %62, %bb44 ], [ 0, %bb39 ], [ -4, %bb37 ], [ 0, %bb31 ]
-  %storeLaneVld1.1.ph.1lane = phi i1 [ %35, %bb33 ], [ false, %bb44 ], [ true, %bb39 ], [ false, %bb37 ], [ false, %bb31 ]
-  %storeLaneData1.1.ph.1lane = phi i32 [ %36, %bb33 ], [ poison, %bb44 ], [ %49, %bb39 ], [ poison, %bb37 ], [ poison, %bb31 ]
-  %storeLaneVld0.3.ph.1lane = phi i1 [ %37, %bb33 ], [ false, %bb44 ], [ %storeLaneVld0.0.1lane, %bb39 ], [ %storeLaneVld0.2.1lane, %bb37 ], [ false, %bb31 ]
-  %storeLaneData0.3.ph.1lane = phi i32 [ %38, %bb33 ], [ poison, %bb44 ], [ %storeLaneData0.0.1lane, %bb39 ], [ %storeLaneData0.2.1lane, %bb37 ], [ poison, %bb31 ]
-  %i_read3.r0.eof.reg2mem.1.ph.1lane = phi i1 [ %39, %bb33 ], [ %i_read1.r0.eof.1lane, %bb44 ], [ %i_read3.r0.eof.reg2mem.1.ph.0lane, %bb39 ], [ %i_read3.r0.eof.reg2mem.1.ph.0lane, %bb37 ], [ %i_read3.r0.eof.reg2mem.1.ph.0lane, %bb31 ]
-  %i_read3.r0.data.reg2mem.1.ph.1lane = phi i16 [ %40, %bb33 ], [ %6, %bb44 ], [ %i_read3.r0.data.reg2mem.1.ph.0lane, %bb39 ], [ %i_read3.r0.data.reg2mem.1.ph.0lane, %bb37 ], [ %i_read3.r0.data.reg2mem.1.ph.0lane, %bb31 ]
-  %i_read1.r0.data.reg2mem.3.ph.1lane = phi i16 [ %41, %bb33 ], [ %i_read1.r0.data.reg2mem.3.ph.0lane, %bb44 ], [ %i_read1.r0.data.reg2mem.3.ph.0lane, %bb39 ], [ %i_read1.r0.data.reg2mem.1.1lane, %bb37 ], [ %6, %bb31 ]
+bb45:                                             ; preds = %bb35, %bb372, %bb33, %bb44, %bb39, %bb31
+  %.sink.1lane = phi i3 [ -4, %bb35 ], [ -4, %bb372 ], [ %34, %bb33 ], [ %62, %bb44 ], [ 0, %bb39 ], [ 0, %bb31 ]
+  %storeLaneVld1.1.ph.1lane = phi i1 [ false, %bb35 ], [ false, %bb372 ], [ %35, %bb33 ], [ false, %bb44 ], [ true, %bb39 ], [ false, %bb31 ]
+  %storeLaneData1.1.ph.1lane = phi i32 [ poison, %bb35 ], [ poison, %bb372 ], [ %36, %bb33 ], [ poison, %bb44 ], [ %49, %bb39 ], [ poison, %bb31 ]
+  %storeLaneVld0.3.ph.1lane = phi i1 [ true, %bb35 ], [ false, %bb372 ], [ %37, %bb33 ], [ false, %bb44 ], [ %storeLaneVld0.0.1lane, %bb39 ], [ false, %bb31 ]
+  %storeLaneData0.3.ph.1lane = phi i32 [ %47, %bb35 ], [ poison, %bb372 ], [ %38, %bb33 ], [ poison, %bb44 ], [ %storeLaneData0.0.1lane, %bb39 ], [ poison, %bb31 ]
+  %i_read3.r0.eof.reg2mem.1.ph.1lane = phi i1 [ %i_read3.r0.eof.reg2mem.1.ph.0lane, %bb35 ], [ %i_read3.r0.eof.reg2mem.1.ph.0lane, %bb372 ], [ %39, %bb33 ], [ %i_read1.r0.eof.1lane, %bb44 ], [ %i_read3.r0.eof.reg2mem.1.ph.0lane, %bb39 ], [ %i_read3.r0.eof.reg2mem.1.ph.0lane, %bb31 ]
+  %i_read3.r0.data.reg2mem.1.ph.1lane = phi i16 [ %i_read3.r0.data.reg2mem.1.ph.0lane, %bb35 ], [ %i_read3.r0.data.reg2mem.1.ph.0lane, %bb372 ], [ %40, %bb33 ], [ %6, %bb44 ], [ %i_read3.r0.data.reg2mem.1.ph.0lane, %bb39 ], [ %i_read3.r0.data.reg2mem.1.ph.0lane, %bb31 ]
+  %i_read1.r0.data.reg2mem.3.ph.1lane = phi i16 [ %i_read1.r0.data.reg2mem.3.ph.0lane, %bb35 ], [ %6, %bb372 ], [ %41, %bb33 ], [ %i_read1.r0.data.reg2mem.3.ph.0lane, %bb44 ], [ %i_read1.r0.data.reg2mem.3.ph.0lane, %bb39 ], [ %6, %bb31 ]
   store i3 %.sink.1lane, ptr %bb3.ioFsmStBefore.IoFsmSt, align 1
   %63 = call i66 @hwtHls.bitConcat.i32.i32.i1.i1(i32 %storeLaneData0.3.ph.1lane, i32 %storeLaneData1.1.ph.1lane, i1 %storeLaneVld0.3.ph.1lane, i1 %storeLaneVld1.1.ph.1lane) #1
   %64 = call i64 @hwtHls.bitRangeGet.i66.i8.i64.0(i66 %63, i8 0) #1
