@@ -51,7 +51,7 @@ class Axi4SParseIfTC(SimTestCase):
         # passTests.dbgOpenDiffOnIrErr = True
         passTests.setRunTestsAfter(
             # runTestAfterPassFilter=["hwtHls::SlicesMergePass"],
-            #runTestAfterPassFilter=["hwtHls::StreamSegmentLoopUnrollPass"],
+            # runTestAfterPassFilter=["hwtHls::StreamSegmentLoopUnrollPass"],
             runTestBeforeLlvmIrPasses=True,
             # runTestAfterEachPass=False,
             runTestAfterIrPasses=True,
@@ -74,6 +74,9 @@ class Axi4SParseIfTC(SimTestCase):
         dut.CLK_FREQ = freq
         self._run_test_Axi4SParse2If2B(dut, N, wallTimeRtlDefaultMultiplier=wallTimeRtlDefaultMultiplier)
 
+    def doesSupportNopFrame(self):
+        return False
+
     def _run_test_Axi4SParse2If2B(self, dut: Axi4SParse2If2B, N:int, platformKwArgs={},
                                   wallTimeRtlDefaultMultiplier:Optional[int]=NOT_SPECIFIED,):
         T1 = HStruct(
@@ -86,8 +89,14 @@ class Axi4SParseIfTC(SimTestCase):
 
         inputFrames: list[list[int]] = []
         outputRef: list[int] = []
+        doesNotSupportNop = self.doesSupportNopFrame()
+        if doesNotSupportNop:
+            choices = (T1, T2, NOP)
+        else:
+            choices = (T1, T2)
+        
         for _ in range(N):
-            T = self._rand.choice((T1, T2, NOP))
+            T = self._rand.choice(choices)
             if T is T1:
                 d = {"v0": 1}
                 outputRef.append(1)
@@ -174,21 +183,7 @@ class Axi4SParseIfTC(SimTestCase):
                                               wallTimeRtlDefaultMultiplier=wallTimeRtlDefaultMultiplier)
 
     def _run_test_Axi4SParse2IfAndSequel(self, dut: Axi4SParse2IfAndSequel, N:int, WRITE_FOOTER:bool,
-            platformKwArgs=dict(
-                # debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
-                #    # HlsDebugBundle.DBG_4_0_hwscheduleTrace,
-                #    HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
-                #    HlsDebugBundle.DBG_4_0_addSignalNamesToData,
-                # }),
-                llvmCliArgs=[
-                    # LLVM_CLI_COMMON_OPTS.OVERWIRTE_BB_NAMES,
-                    # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
-                    # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
-                    # LLVM_CLI_COMMON_OPTS.VREGIFCVT_TRACE,
-                    LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
-                    # LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
-                ]
-            ),
+            platformKwArgs=None,
             wallTimeRtlDefaultMultiplier:Optional[int]=NOT_SPECIFIED,
             ):
         T0 = HStruct(
@@ -212,7 +207,7 @@ class Axi4SParseIfTC(SimTestCase):
             T0,
             T2,
             T4
-                  ]
+        ]
         for _ in range(N):
             T = self._rand.choice(ALL_Ts)
             v2 = self._rand.getrandbits(8)
@@ -428,7 +423,7 @@ if __name__ == '__main__':
     testLoader = unittest.TestLoader()
 
     suite = testLoader.loadTestsFromTestCase(Axi4SParseIfTC)
-    # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2If_8b_100MHz")])
-    # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2IfAndSequel_24b_1MHz")])
+    # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2IfAndSequel_16b_100MHz")])
+    # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2IfAndSequel_NO_FOOTER_16b_100MHz")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
