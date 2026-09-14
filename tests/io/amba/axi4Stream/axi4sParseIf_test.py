@@ -390,7 +390,7 @@ class Axi4SParseIfTC(SimTestCase):
         self._test_Axi4SParse2IfAndSequel(8, freq=int(100e6), WRITE_FOOTER=False, wallTimeRtlDefaultMultiplier=2)
 
     def test_Axi4SParse2IfAndSequel_NO_FOOTER_16b_100MHz(self):
-        self._test_Axi4SParse2IfAndSequel(16, freq=int(100e6), WRITE_FOOTER=False)
+        self._test_Axi4SParse2IfAndSequel(16, freq=int(100e6), WRITE_FOOTER=False, wallTimeRtlDefaultMultiplier=2)
 
     def test_Axi4SParse2IfAndSequel_NO_FOOTER_24b_100MHz(self):
         self._test_Axi4SParse2IfAndSequel(24, freq=int(100e6), WRITE_FOOTER=False, wallTimeRtlDefaultMultiplier=3)

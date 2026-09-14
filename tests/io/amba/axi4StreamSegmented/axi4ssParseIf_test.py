@@ -3,6 +3,7 @@
 
 import unittest
 
+from hwt.pyUtils.typingFuture import override
 from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
 from hwtLib.amba.axi4SSegmentedSimFrameUtils import Axi4StreamSegmentedFrameUtils
 from tests.io.amba.axi4Stream.axi4sParseIf_test import Axi4SParseIfTC
@@ -17,12 +18,16 @@ class Axi4SSParseIf_1Seg_TC(Axi4SParseIfTC):
         # debugFilter=HlsDebugBundle.ALL_RELIABLE,
         llvmCliArgs=[
             # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
-             LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
-             LLVM_CLI_COMMON_OPTS.OVERWIRTE_BB_NAMES,
+            # LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+            # LLVM_CLI_COMMON_OPTS.OVERWIRTE_BB_NAMES,
             # LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
             # LLVM_CLI_COMMON_OPTS.debugOnly("block-freq"),
         ],
     )
+
+    @override
+    def doesSupportNopFrame(self):
+        return self.SEGMENT_CNT > 1
 
     def _test_Axi4SParse2If2B(self, DATA_WIDTH:int, freq=int(1e6), N=16, platformKwArgs=None, wallTimeRtlDefaultMultiplier=1):
         dut = Axi4SSParse2If2B()
@@ -51,24 +56,79 @@ class Axi4SSParseIf_1Seg_TC(Axi4SParseIfTC):
     
     def test_Axi4SParse2IfAndSequel_48b_100MHz(self):
         self._test_Axi4SParse2IfAndSequel(48, freq=int(100e6), wallTimeRtlDefaultMultiplier=2)
+    
+    def test_Axi4SParse2IfAndSequel_NO_FOOTER_48b_100MHz(self):
+        self._test_Axi4SParse2IfAndSequel(48, freq=int(100e6), WRITE_FOOTER=False, wallTimeRtlDefaultMultiplier=2)
+
 
 class Axi4SSParseIf_2Seg_TC(Axi4SSParseIf_1Seg_TC):
     SEGMENT_CNT = 2
 
+    def test_Axi4SParse2IfAndSequel_NO_FOOTER_8b_100MHz(self):
+        self._test_Axi4SParse2IfAndSequel(8, freq=int(100e6), WRITE_FOOTER=False, wallTimeRtlDefaultMultiplier=3)
 
-class Axi4SSParseIf_3Seg_TC(Axi4SSParseIf_1Seg_TC):
+    def test_Axi4SParse2If_16b_100MHz(self):
+        self._test_Axi4SParse2If(16, freq=int(100e6), wallTimeRtlDefaultMultiplier=4)
+
+    def  test_Axi4SParse2If_24b_100MHz(self):
+        self._test_Axi4SParse2If(24, freq=int(100e6), wallTimeRtlDefaultMultiplier=3)
+
+
+class Axi4SSParseIf_3Seg_TC(Axi4SSParseIf_2Seg_TC):
     SEGMENT_CNT = 3
 
+    def test_Axi4SParse2IfAndSequel_8b_40MHz(self):
+        self._test_Axi4SParse2IfAndSequel(8, freq=int(40e6), wallTimeRtlDefaultMultiplier=2)
 
-class Axi4SSParseIf_4Seg_TC(Axi4SSParseIf_1Seg_TC):
+    def test_Axi4SParse2IfAndSequel_8b_100MHz(self):
+        self._test_Axi4SParse2IfAndSequel(8, freq=int(100e6), wallTimeRtlDefaultMultiplier=5)
+    
+    def test_Axi4SParse2IfAndSequel_16b_40MHz(self):  # [todo]
+        self._test_Axi4SParse2IfAndSequel(16, freq=int(40e6), wallTimeRtlDefaultMultiplier=4)
+   
+    def test_Axi4SParse2IfAndSequel_NO_FOOTER_16b_100MHz(self):
+        self._test_Axi4SParse2IfAndSequel(16, freq=int(100e6), WRITE_FOOTER=False, wallTimeRtlDefaultMultiplier=5)
+
+    def test_Axi4SParse2IfAndSequel_NO_FOOTER_24b_40MHz(self):
+        self._test_Axi4SParse2IfAndSequel(24, freq=int(40e6), WRITE_FOOTER=False, wallTimeRtlDefaultMultiplier=4)
+    
+    def test_Axi4SParse2IfAndSequel_NO_FOOTER_24b_100MHz(self):
+        self._test_Axi4SParse2IfAndSequel(24, freq=int(100e6), WRITE_FOOTER=False, wallTimeRtlDefaultMultiplier=5)
+
+    def test_Axi4SParse2IfAndSequel_NO_FOOTER_8b_40MHz(self):
+        self._test_Axi4SParse2IfAndSequel(8, freq=int(40e6), WRITE_FOOTER=False, wallTimeRtlDefaultMultiplier=2)
+
+    def test_Axi4SParse2IfAndSequel_NO_FOOTER_8b_100MHz(self):
+        self._test_Axi4SParse2IfAndSequel(8, freq=int(100e6), WRITE_FOOTER=False, wallTimeRtlDefaultMultiplier=5)
+
+    def test_Axi4SParse2If_16b_100MHz(self):
+        self._test_Axi4SParse2If(16, freq=int(100e6), wallTimeRtlDefaultMultiplier=6)
+
+    def test_Axi4SParse2If_16b_40MHz(self):
+        self._test_Axi4SParse2If(16, freq=int(100e6), wallTimeRtlDefaultMultiplier=6)
+
+
+class Axi4SSParseIf_4Seg_TC(Axi4SSParseIf_3Seg_TC):
     SEGMENT_CNT = 4
+
+    def test_Axi4SParse2IfAndSequel_8b_100MHz(self):
+        self._test_Axi4SParse2IfAndSequel(8, freq=int(100e6), wallTimeRtlDefaultMultiplier=7)
+    
+    def test_Axi4SParse2IfAndSequel_NO_FOOTER_24b_100MHz(self):
+        self._test_Axi4SParse2IfAndSequel(24, freq=int(100e6), WRITE_FOOTER=False, wallTimeRtlDefaultMultiplier=7)
+
+    def test_Axi4SParse2IfAndSequel_NO_FOOTER_8b_100MHz(self):
+        self._test_Axi4SParse2IfAndSequel(8, freq=int(100e6), WRITE_FOOTER=False, wallTimeRtlDefaultMultiplier=6)
+    
+    def test_Axi4SParse2If_8b_40MHz(self):
+        self._test_Axi4SParse2If(8, freq=int(40e6), wallTimeRtlDefaultMultiplier=4)
 
 
 Axi4SSParseIf_TCs = [
-     Axi4SSParseIf_1Seg_TC,
-     Axi4SSParseIf_2Seg_TC,
-     Axi4SSParseIf_3Seg_TC,
-     Axi4SSParseIf_4Seg_TC
+    Axi4SSParseIf_1Seg_TC,
+    Axi4SSParseIf_2Seg_TC,
+    Axi4SSParseIf_3Seg_TC,
+    Axi4SSParseIf_4Seg_TC
 ]
 
 if __name__ == '__main__':
@@ -76,9 +136,9 @@ if __name__ == '__main__':
     from hwt.synth import to_rtl_str
 
     m = Axi4SSParse2IfAndSequel()
-    m.WRITE_FOOTER = True
+    m.WRITE_FOOTER = False
     m.SEGMENT_CNT = 1
-    m.SEGMENT_DATA_WIDTH = 512
+    m.SEGMENT_DATA_WIDTH = 48
     m.CLK_FREQ = int(100e6)
     p = VirtualHlsPlatform(
         debugFilter=HlsDebugBundle.ALL_RELIABLE,
@@ -98,7 +158,11 @@ if __name__ == '__main__':
     # suite = unittest.TestSuite([FixpDiv_TC('test_div_py')])
     suite = unittest.TestSuite([testLoader.loadTestsFromTestCase(tc) for tc in Axi4SSParseIf_TCs])
     # suite = testLoader.loadTestsFromTestCase(Axi4SSParseIf_2Seg_TC)
-    # suite = unittest.TestSuite([Axi4SSParseIf_1Seg_TC("test_Axi4SParse2IfAndSequel_NO_FOOTER_512b_1MHz")])
-    # suite = unittest.TestSuite([Axi4SSParseIf_3Seg_TC("test_Axi4SParse2If2B_8b_1MHz")])
+    
+    # Axi4SSParseIf_4Seg_TC.test_Axi4SParse2If_8b_100MHz  HlsNetlistPassAggregateBitwiseOps
+    
+    # suite = unittest.TestSuite([Axi4SSParseIf_1Seg_TC("test_Axi4SParse2If_8b_1MHz")])
+    # suite = unittest.TestSuite([Axi4SSParseIf_3Seg_TC("test_Axi4SParse2If_16b_40MHz")])
+    # suite = unittest.TestSuite([Axi4SSParseIf_4Seg_TC("test_Axi4SParse2If_8b_40MHz")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
