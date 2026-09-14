@@ -14,7 +14,7 @@ class _FpGenAluMulHwModule(_FpAlu2HwModule):
     FN = model = staticmethod(FpMulHwModule.model)
 
 
-class IEEE754FpMultipier_TC(IEEE754FpAlu2_TC):
+class IEEE754FpMul_TC(IEEE754FpAlu2_TC):
     FP_FUNCTION = staticmethod(IEEE754FpMul)
     model = model = staticmethod(FpMulHwModule.model)
     FP_FUNCTION_HAS_SIM_ARG = False
@@ -54,7 +54,7 @@ if __name__ == "__main__":
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([IEEE754FpMultipier_TC('test_py')])
-    suite = testLoader.loadTestsFromTestCase(IEEE754FpMultipier_TC)
+    # suite = unittest.TestSuite([IEEE754FpMul_TC('test_py')])
+    suite = testLoader.loadTestsFromTestCase(IEEE754FpMul_TC)
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

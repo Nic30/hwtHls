@@ -7,7 +7,7 @@ from tests.math.fp.fpToInt_test import IEEE754FpToInt_TC
 from tests.math.fp.fpadd_test import IEEE754FpAdd_TC, IEEE754FpSub_TC
 from tests.math.fp.fpcmp_test import IEEE754FpCmp_TC
 from tests.math.fp.fpdiv_test import IEEE754FpDiv_TC
-from tests.math.fp.fpmul_test import IEEE754FpMultipier_TC
+from tests.math.fp.fpmul_test import IEEE754FpMul_TC
 from tests.math.fp.fpsqrt_test import IEEE754FpSqrt_TC
 from tests.math.fp.fptypes_test import IEEE754Fp_TC
 from tests.testCaseUtils import testSuiteFromTCs
@@ -20,7 +20,7 @@ llvmMathFp_TCs = [
     IEEE754FpToInt_TC,
     IEEE754FpAdd_TC,
     IEEE754FpSub_TC,
-    IEEE754FpMultipier_TC,
+    IEEE754FpMul_TC,
     IEEE754FpDiv_TC,
     IEEE754FpSqrt_TC,
 ]
