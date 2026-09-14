@@ -42,6 +42,7 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_storeHoist.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_SwitchReduceRangeUndo.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit.h>
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_unswitchCheapBlock.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_unswitchCheapManyPredManySuccBB.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_unswitchComplementarySequentialBlocks.h>
 #include <hwtHls/llvm/Transforms/BitcountMergePass.h>
@@ -69,6 +70,7 @@ DEFINE_LLVM_BOOL_OPTION(StoreHoist);
 DEFINE_LLVM_BOOL_OPTION(AggresiveStoreSink);
 DEFINE_LLVM_BOOL_OPTION(MergePredecessorsStore);
 DEFINE_LLVM_BOOL_OPTION(PhiToLogicalExpr);
+DEFINE_LLVM_BOOL_OPTION(UnswitchCheapBlock);
 DEFINE_LLVM_BOOL_OPTION(UnswitchCheapManyPredManySuccBB);
 DEFINE_LLVM_BOOL_OPTION(UnswitchComplementarySequentialBlocks);
 DEFINE_LLVM_BOOL_OPTION(SpeculatePredecessor);
@@ -135,6 +137,7 @@ static void applyCommandLineOverridesToOptions(
 	FORWARD_LLVM_OPTION(AggresiveStoreSink);
 	FORWARD_LLVM_OPTION(MergePredecessorsStore);
 	FORWARD_LLVM_OPTION(PhiToLogicalExpr);
+	FORWARD_LLVM_OPTION(UnswitchCheapBlock);
 	FORWARD_LLVM_OPTION(UnswitchCheapManyPredManySuccBB);
 	FORWARD_LLVM_OPTION(UnswitchComplementarySequentialBlocks);
 	FORWARD_LLVM_OPTION(SpeculatePredecessor);
@@ -350,6 +353,15 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 			assert(!verifyFunction(F, &errs()));
 #endif
 			_changed1 = true;
+		} else if (Options.UnswitchCheapBlock &&
+				   HwtHlsSimplifyCFGPass_unswitchCheapBlock(DTU, *BBIt)) {
+			onChangeCallback("HwtHlsSimplifyCFGPass_unswitchCheapBlock", F);
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+			assert(!verifyFunction(F, &errs()));
+#endif
+			exprChanged = true;
+			_changed1 = true;
+
 		} else if (Options.UnswitchCheapManyPredManySuccBB &&
 				   BBIt->hasNPredecessorsOrMore(2) &&
 				   BBIt->getTerminator()->getNumSuccessors() >= 2 &&
