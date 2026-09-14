@@ -43,7 +43,12 @@ class _Axi4SPacketByteCntrTC(SimTestCase):
         passTests.bindDataByInOut((PassTestIoInStream(self._Axi4StreamSimFrameUtils, dataIn),),
                                   (PassTestIoOutTestOnlyFinalSum(LENS) if SUM_ONLY else PassTestIoOut(LENS),),
                                   PORT_NAMES=("i", "o_byte_cnt"))
-        passTests.setRunTestsAfter(runTestBeforeLlvmIrPasses=False, runTestAfterIrPasses=TEST_IR, runTestAfterMirPasses=TEST_MIR)
+        passTests.setRunTestsAfter(runTestBeforeLlvmIrPasses=False,
+                                   #runTestAfterEachIrPass=True,
+                                   #runTestAfterIrCfgSimplify=True,
+                                   #runTestAfterIrInstrCombineChange=True,
+                                   runTestAfterIrPasses=TEST_IR,
+                                   runTestAfterMirPasses=TEST_MIR)
         passTests.setTimeLimits(wallTimeRtlDefaultMultiplier=T_MUL)
         passTests.test_allInOne(platformKwArgs=platformKwargs)
 
