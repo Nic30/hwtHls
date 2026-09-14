@@ -73,7 +73,7 @@ n12 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
             <tr><td colspan="2">HlsNetNodeAggregatePortIn 10 (4:i2)  0clk+0&quot;n2_readyNB&quot;</td></tr>
             <tr><td port='i0'>3:o2</td><td port='o0'>inside  0clk+0</td></tr>
         </table>>];
-n13 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n13 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 12  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>

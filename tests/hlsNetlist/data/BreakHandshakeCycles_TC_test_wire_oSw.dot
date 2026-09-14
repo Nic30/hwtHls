@@ -87,7 +87,7 @@ n14 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
             <tr><td port='i0'>inside  0clk+0</td><td port='o0'></td></tr>
         </table>>];
 n13:o0 -> n14:i0 [weight=100001];
-n15 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n15 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 15  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>

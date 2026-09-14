@@ -239,7 +239,7 @@ n39 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
             <tr><td port='i1'>i1  0clk+0</td><td></td></tr>
         </table>>];
 n26:o0 -> n39:i0 [weight=100001];
-n40 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n40 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 40  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
@@ -289,13 +289,13 @@ n45 [shape=plaintext, bgcolor=LightBlue, color=black, fontcolor=black, label=<
         </table>>];
 n33:o1 -> n45:i1 [style=dotted, weight=2];
 n44:o0 -> n45:i2 [weight=2];
-n46 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n46 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 52  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
         </table>>];
 n30:o0 -> n46:i0 [weight=100001];
-n47 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n47 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 53  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
@@ -309,7 +309,7 @@ n48 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         </table>>];
 n46:o0 -> n48:i0 [weight=100001];
 n47:o0 -> n48:i1 [weight=100001];
-n49 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n49 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 55  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
@@ -323,7 +323,7 @@ n50 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         </table>>];
 n49:o0 -> n50:i0 [weight=100001];
 n32:o2 -> n50:i1 [weight=100001];
-n51 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n51 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 57  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
@@ -353,7 +353,7 @@ n54 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         </table>>];
 n52:o0 -> n54:i0 [weight=100001];
 n53:o0 -> n54:i1 [weight=100001];
-n55 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n55 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 61  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
@@ -371,13 +371,13 @@ n57 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
             <tr><td port='i0'>inside  0clk+0</td><td port='o0'></td></tr>
         </table>>];
 n32:o2 -> n57:i0 [weight=100001];
-n58 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n58 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 66  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
         </table>>];
 n28:o0 -> n58:i0 [weight=100001];
-n59 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n59 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 67  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
@@ -391,7 +391,7 @@ n60 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         </table>>];
 n58:o0 -> n60:i0 [weight=100001];
 n59:o0 -> n60:i1 [weight=100001];
-n61 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n61 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 69  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
@@ -421,7 +421,7 @@ n64 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         </table>>];
 n63:o0 -> n64:i0 [weight=100001];
 n30:o0 -> n64:i1 [weight=100001];
-n65 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n65 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 73  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
@@ -435,8 +435,8 @@ n66 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
 n65:o0 -> n66:i0 [weight=100001];
 }
 }
-n5 -> n6 [style=dashed, color=gray, weigh=100001];
-n14 -> n16 [style=dashed, color=gray, dir=back, weigh=100001];
-n32 -> n34 [style=dashed, color=gray, dir=back, weigh=2];
-n33 -> n45 [style=dashed, color=gray, dir=back, weigh=2];
+n5 -> n6 [style=dashed, color=gray, weight=100001];
+n14 -> n16 [style=dashed, color=gray, dir=back, weight=100001];
+n32 -> n34 [style=dashed, color=gray, dir=back, weight=2];
+n33 -> n45 [style=dashed, color=gray, dir=back, weight=2];
 }

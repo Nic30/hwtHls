@@ -91,7 +91,7 @@ n15 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
             <tr><td colspan="2">HlsNetNodeAggregatePortIn 15 (7:i3)  0clk+15&quot;n3_readyNB&quot;</td></tr>
             <tr><td port='i0'>0:o3</td><td port='o0'>inside  0clk+15</td></tr>
         </table>>];
-n16 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n16 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 17  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>

@@ -32,5 +32,5 @@ n4 [shape=plaintext, bgcolor=LightBlue, color=black, fontcolor=black, label=<
 n3:o0 -> n4:i0 [weight=1002];
 }
 }
-n2 -> n4 [style=dashed, color=gray, dir=back, weigh=987];
+n2 -> n4 [style=dashed, color=gray, dir=back, weight=987];
 }

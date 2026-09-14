@@ -163,6 +163,6 @@ n25 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
 n24:o0 -> n25:i0 [weight=100001];
 }
 }
-n5 -> n7 [style=dashed, color=gray, dir=back, weigh=100001];
-n11 -> n13 [style=dashed, color=gray, dir=back, weigh=100001];
+n5 -> n7 [style=dashed, color=gray, dir=back, weight=100001];
+n11 -> n13 [style=dashed, color=gray, dir=back, weight=100001];
 }

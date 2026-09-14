@@ -123,7 +123,7 @@ n20 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         </table>>];
 n18:o0 -> n20:i0 [weight=1002];
 n19:o0 -> n20:i1 [weight=1002];
-n21 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n21 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 21  0clk+15 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+15</td><td port='o0'>o0  0clk+15</td></tr>
@@ -137,7 +137,7 @@ n22 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         </table>>];
 n16:o0 -> n22:i0 [weight=987];
 n21:o0 -> n22:i1 [weight=1002];
-n23 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n23 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 23  0clk+15 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+15</td><td port='o0'>o0  0clk+15</td></tr>

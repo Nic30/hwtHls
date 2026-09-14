@@ -149,7 +149,7 @@ n23 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
             <tr><td port='i1'>i1  0clk+0</td><td></td></tr>
         </table>>];
 n16:o0 -> n23:i0 [weight=100001];
-n24 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n24 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 24  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
@@ -196,8 +196,8 @@ n29 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
 n18:o2 -> n29:i0 [weight=100001];
 }
 }
-n6 -> n8 [style=dashed, color=gray, dir=back, weigh=100001];
-n9 -> n10 [style=dashed, color=gray, weigh=100001];
-n18 -> n20 [style=dashed, color=gray, dir=back, weigh=2];
-n19 -> n27 [style=dashed, color=gray, dir=back, weigh=2];
+n6 -> n8 [style=dashed, color=gray, dir=back, weight=100001];
+n9 -> n10 [style=dashed, color=gray, weight=100001];
+n18 -> n20 [style=dashed, color=gray, dir=back, weight=2];
+n19 -> n27 [style=dashed, color=gray, dir=back, weight=2];
 }

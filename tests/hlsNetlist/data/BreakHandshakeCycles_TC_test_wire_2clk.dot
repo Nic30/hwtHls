@@ -74,7 +74,7 @@ n5:o1 -> n11:i0 [weight=100001];
 }
 }
 subgraph cluster_n1 {
-label="ArchElementNoImplicitSync 5  0clk+0 hsSccSync0";
+label="ArchElementNoImplicitSync 5  1clk+0 hsSccSync0";
 subgraph cluster_n1_0 {
 label="0";
 n12 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
@@ -92,7 +92,7 @@ n14 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
             <tr><td colspan="2">HlsNetNodeAggregatePortIn 12 (5:i2)  0clk+0 (outside: 1clk+0)&quot;n2_validNB&quot;</td></tr>
             <tr><td port='i0'>4:o2</td><td port='o0'>inside  0clk+0</td></tr>
         </table>>];
-n15 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n15 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 13  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
@@ -128,5 +128,5 @@ n19 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
 n16:o0 -> n19:i0 [weight=100001];
 }
 }
-n4 -> n5 [style=dashed, color=gray, weigh=1.0];
+n4 -> n5 [style=dashed, color=gray, weight=1.0];
 }

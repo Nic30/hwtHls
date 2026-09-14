@@ -192,7 +192,7 @@ n4:o1 -> n11:i1 [weight=0.990108803165183];
 n11:o0 -> n31:i0 [weight=11];
 }
 subgraph cluster_n1 {
-label="ArchElementNoImplicitSync 13  0clk+0 {}hsSccSync0";
+label="ArchElementNoImplicitSync 13  1clk+0 {}hsSccSync0";
 subgraph cluster_n1_0 {
 label="0";
 n33 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
@@ -215,7 +215,7 @@ n36 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
             <tr><td colspan="2">HlsNetNodeAggregatePortIn 22 (13:i3)  0clk+1 (outside: 1clk+1)&quot;n9_validNB&quot;</td></tr>
             <tr><td port='i0'>0:o3</td><td port='o0'>inside  0clk+1</td></tr>
         </table>>];
-n37 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n37 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 23  0clk+1 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+1</td><td port='o0'>o0  0clk+1</td></tr>
@@ -306,7 +306,7 @@ n49 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
             <tr><td colspan="2">HlsNetNodeAggregatePortIn 43 (37:i2)  0clk+1 (outside: 2clk+1)&quot;n12_validNB&quot;</td></tr>
             <tr><td port='i0'>0:o5</td><td port='o0'>inside  0clk+1</td></tr>
         </table>>];
-n50 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n50 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 44  0clk+1 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+1</td><td port='o0'>o0  0clk+1</td></tr>
@@ -364,7 +364,7 @@ n57 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
             <tr><td colspan="2">HlsNetNodeAggregatePortIn 58 (53:i2)  0clk+15 (outside: 2clk+15)&quot;n3_readyNB&quot;</td></tr>
             <tr><td port='i0'>0:o7</td><td port='o0'>inside  0clk+15</td></tr>
         </table>>];
-n58 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n58 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 59  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
@@ -403,7 +403,7 @@ n62 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
 n59:o0 -> n60:i0 [weight=0.5037745344740815];
 n61:o0 -> n62:i0 [weight=0.5002498750624688];
 }
-n12 -> n14 [style=dashed, color=gray, weigh=880];
-n16 -> n18 [style=dashed, color=gray, weigh=880];
-n17 -> n30 [style=dashed, color=gray, dir=back, weigh=1001];
+n12 -> n14 [style=dashed, color=gray, weight=880];
+n16 -> n18 [style=dashed, color=gray, weight=880];
+n17 -> n30 [style=dashed, color=gray, dir=back, weight=1001];
 }

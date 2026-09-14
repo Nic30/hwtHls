@@ -260,9 +260,9 @@ n41 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
 n40:o0 -> n41:i0 [weight=100001];
 }
 }
-n6 -> n8 [style=dashed, color=gray, dir=back, weigh=100001];
-n9 -> n10 [style=dashed, color=gray, weigh=100001];
-n14 -> n16 [style=dashed, color=gray, dir=back, weigh=100001];
-n17 -> n18 [style=dashed, color=gray, weigh=100001];
-n21 -> n23 [style=dashed, color=gray, dir=back, weigh=100001];
+n6 -> n8 [style=dashed, color=gray, dir=back, weight=100001];
+n9 -> n10 [style=dashed, color=gray, weight=100001];
+n14 -> n16 [style=dashed, color=gray, dir=back, weight=100001];
+n17 -> n18 [style=dashed, color=gray, weight=100001];
+n21 -> n23 [style=dashed, color=gray, dir=back, weight=100001];
 }

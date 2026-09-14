@@ -1,7 +1,7 @@
 digraph "test" {
 rankdir=LR;
 subgraph cluster_n0 {
-label="ArchElementPipeline 0  0clk+0 p0";
+label="ArchElementPipeline 0  1clk+0 p0";
 subgraph cluster_n0_0 {
 label="0";
 n3 [shape=plaintext, bgcolor=LightGreen, color=black, fontcolor=black, label=<
@@ -51,7 +51,7 @@ n14 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
             <tr><td colspan="2">HlsNetNodeAggregatePortOut 16 (0:o1)  0clk+10&quot;n4&quot;</td></tr>
             <tr><td port='i0'>inside  0clk+10</td><td port='o0'></td></tr>
         </table>>];
-n15 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n15 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 30  0clk+10 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+10</td><td port='o0'>o0  0clk+10</td></tr>
@@ -126,7 +126,7 @@ n15:o0 -> n19:i0 [weight=11];
 n12:o0 -> n20:i0 [weight=1.0];
 }
 subgraph cluster_n1 {
-label="ArchElementNoImplicitSync 10  0clk+0 {}hsSccSync0";
+label="ArchElementNoImplicitSync 10  1clk+0 {}hsSccSync0";
 subgraph cluster_n1_0 {
 label="0";
 n22 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
@@ -134,7 +134,7 @@ n22 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
             <tr><td colspan="2">HlsNetNodeAggregatePortOut 12 (10:o0)  0clk+0&quot;n6&quot;</td></tr>
             <tr><td port='i0'>inside  0clk+0</td><td port='o0'></td></tr>
         </table>>];
-n23 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n23 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 6  0clk+10 &quot;w_en_n&quot; &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+10</td><td port='o0'>o0  0clk+10</td></tr>
@@ -169,7 +169,7 @@ n28 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
             <tr><td colspan="2">HlsNetNodeAggregatePortIn 21 (10:i3)  0clk+1 (outside: 1clk+1)&quot;n9_validNB&quot;</td></tr>
             <tr><td port='i0'>0:o3</td><td port='o0'>inside  0clk+1</td></tr>
         </table>>];
-n29 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n29 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 22  0clk+1 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+1</td><td port='o0'>o0  0clk+1</td></tr>
@@ -245,7 +245,7 @@ n39 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         </table>>];
 n36:o0 -> n39:i0 [weight=987];
 n38:o0 -> n39:i1 [weight=1002];
-n41 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n41 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 44  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
@@ -284,5 +284,5 @@ n44 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
 n39:o0 -> n40:i0 [weight=16];
 n43:o0 -> n44:i0 [weight=2];
 }
-n7 -> n8 [style=dashed, color=gray, weigh=880];
+n7 -> n8 [style=dashed, color=gray, weight=880];
 }

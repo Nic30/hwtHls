@@ -103,7 +103,7 @@ n3:o0 -> n5:i0 [weight=0.985236220472441];
 n3:o0 -> n7:i0 [weight=0.990108803165183];
 }
 subgraph cluster_n1 {
-label="ArchElementNoImplicitSync 13  0clk+0 {}hsSccSync0";
+label="ArchElementNoImplicitSync 13  1clk+0 {}hsSccSync0";
 subgraph cluster_n1_0 {
 label="0";
 n18 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
@@ -121,7 +121,7 @@ n20 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
             <tr><td colspan="2">HlsNetNodeAggregatePortIn 20 (13:i2)  0clk+1 (outside: 1clk+1)&quot;n12_validNB&quot;</td></tr>
             <tr><td port='i0'>0:o2</td><td port='o0'>inside  0clk+1</td></tr>
         </table>>];
-n21 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n21 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 21  0clk+1 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+1</td><td port='o0'>o0  0clk+1</td></tr>
@@ -176,7 +176,7 @@ n28 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
             <tr><td colspan="2">HlsNetNodeAggregatePortIn 33 (28:i2)  0clk+15 (outside: 1clk+15)&quot;n2_readyNB&quot;</td></tr>
             <tr><td port='i0'>0:o4</td><td port='o0'>inside  0clk+15</td></tr>
         </table>>];
-n29 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n29 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 9  0clk+10 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+10</td><td port='o0'>o0  0clk+10</td></tr>
@@ -215,5 +215,5 @@ n33 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
 n30:o0 -> n31:i0 [weight=16];
 n32:o0 -> n33:i0 [weight=11];
 }
-n8 -> n9 [style=dashed, color=gray, weigh=880];
+n8 -> n9 [style=dashed, color=gray, weight=880];
 }

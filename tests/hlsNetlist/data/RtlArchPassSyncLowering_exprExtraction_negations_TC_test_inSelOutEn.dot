@@ -70,7 +70,7 @@ n24 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
             <tr><td colspan="2">HlsNetNodeAggregatePortOut 29 (0:o1)  0clk+10&quot;n7&quot;</td></tr>
             <tr><td port='i0'>inside  0clk+10</td><td port='o0'></td></tr>
         </table>>];
-n25 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n25 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 69  0clk+10 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+10</td><td port='o0'>o0  0clk+10</td></tr>
@@ -271,7 +271,7 @@ n26:o0 -> n38:i0 [weight=11];
 n36:o0 -> n43:i0 [weight=1.0];
 }
 subgraph cluster_n1 {
-label="ArchElementNoImplicitSync 25  0clk+0 {}hsSccSync0";
+label="ArchElementNoImplicitSync 25  1clk+0 {}hsSccSync0";
 subgraph cluster_n1_0 {
 label="0";
 n46 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
@@ -304,13 +304,13 @@ n51 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
             <tr><td colspan="2">HlsNetNodeAggregatePortIn 38 (25:i5)  0clk+1 (outside: 1clk+1)&quot;n21_validNB&quot;</td></tr>
             <tr><td port='i0'>0:o5</td><td port='o0'>inside  0clk+1</td></tr>
         </table>>];
-n52 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n52 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 8  0clk+10 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+10</td><td port='o0'>o0  0clk+10</td></tr>
         </table>>];
 n47:o0 -> n52:i0 [weight=1002];
-n53 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n53 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 39  0clk+1 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+1</td><td port='o0'>o0  0clk+1</td></tr>
@@ -392,13 +392,13 @@ n63 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
             <tr><td port='i0'>inside  0clk+0</td><td port='o0'></td></tr>
         </table>>];
 n63:i0 -> n62:o0 [dir=back, weight=122];
-n64 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n64 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 52  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
         </table>>];
 n46:o0 -> n64:i0 [weight=1002];
-n65 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n65 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 53  0clk+880 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+880</td><td port='o0'>o0  0clk+880</td></tr>
@@ -428,7 +428,7 @@ n68 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         </table>>];
 n67:o0 -> n68:i0 [weight=132];
 n66:o0 -> n68:i1 [weight=1002];
-n69 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n69 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 57  0clk+880 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+880</td><td port='o0'>o0  0clk+880</td></tr>
@@ -464,7 +464,7 @@ n73 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
             <tr><td port='i1'>c0  0clk+10</td><td></td></tr>
             <tr><td port='i2'>v1  0clk+10</td><td></td></tr>
         </table>>];
-n74 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n74 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 66  0clk+10 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+10</td><td port='o0'>o0  0clk+10</td></tr>
@@ -482,7 +482,7 @@ n76 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
             <tr><td port='i0'>0:o7</td><td port='o0'>inside  0clk+0</td></tr>
         </table>>];
 n76:o0 -> n73:i1 [weight=992];
-n77 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n77 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 68  0clk+10 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+10</td><td port='o0'>o0  0clk+10</td></tr>
@@ -523,7 +523,7 @@ n83 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         </table>>];
 n76:o0 -> n83:i0 [weight=992];
 n75:o0 -> n83:i1 [weight=1002];
-n84 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n84 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 88  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
@@ -553,7 +553,7 @@ n87 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         </table>>];
 n86:o0 -> n87:i0 [weight=1002];
 n85:o0 -> n87:i1 [weight=997];
-n88 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n88 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 92  0clk+1 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+1</td><td port='o0'>o0  0clk+1</td></tr>
@@ -599,13 +599,13 @@ n95 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         </table>>];
 n79:o0 -> n95:i0 [weight=988];
 n87:o0 -> n95:i1 [weight=1002];
-n97 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n97 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 104  0clk+1 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+1</td><td port='o0'>o0  0clk+1</td></tr>
         </table>>];
 n79:o0 -> n97:i0 [weight=1002];
-n98 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n98 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 105  0clk+880 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+880</td><td port='o0'>o0  0clk+880</td></tr>
@@ -643,7 +643,7 @@ n102 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
         </table>>];
 n100:o0 -> n102:i0 [weight=132];
 n101:o0 -> n102:i1 [weight=1002];
-n103 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n103 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 110  0clk+880 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+880</td><td port='o0'>o0  0clk+880</td></tr>
@@ -702,13 +702,13 @@ n108 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
             <tr><td colspan="2">HlsNetNodeAggregatePortIn 120 (113:i3)  0clk+15 (outside: 2clk+15)&quot;n5_readyNB&quot;</td></tr>
             <tr><td port='i0'>0:o14</td><td port='o0'>inside  0clk+15</td></tr>
         </table>>];
-n109 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n109 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 63  0clk+10 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+10</td><td port='o0'>o0  0clk+10</td></tr>
         </table>>];
 n107:o0 -> n109:i0 [weight=1002];
-n110 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n110 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 122  0clk+0 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
@@ -763,6 +763,6 @@ n116 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
 n112:o0 -> n113:i0 [weight=0.5037745344740815];
 n115:o0 -> n116:i0 [weight=0.5025100401606426];
 }
-n14 -> n16 [style=dashed, color=gray, weigh=880];
-n18 -> n20 [style=dashed, color=gray, weigh=880];
+n14 -> n16 [style=dashed, color=gray, weight=880];
+n18 -> n20 [style=dashed, color=gray, weight=880];
 }

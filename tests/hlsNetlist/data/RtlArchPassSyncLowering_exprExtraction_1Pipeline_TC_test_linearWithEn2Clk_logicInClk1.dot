@@ -119,7 +119,7 @@ n3:o0 -> n7:i0 [weight=0.985236220472441];
 n5:o0 -> n19:i0 [weight=1.0];
 }
 subgraph cluster_n1 {
-label="ArchElementNoImplicitSync 12  0clk+0 {}hsSccSync0";
+label="ArchElementNoImplicitSync 12  1clk+0 {}hsSccSync0";
 subgraph cluster_n1_0 {
 label="0";
 n21 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
@@ -142,7 +142,7 @@ n24 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
             <tr><td colspan="2">HlsNetNodeAggregatePortIn 21 (12:i3)  0clk+1 (outside: 1clk+1)&quot;n11_validNB&quot;</td></tr>
             <tr><td port='i0'>0:o3</td><td port='o0'>inside  0clk+1</td></tr>
         </table>>];
-n25 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n25 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 22  0clk+1 &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+1</td><td port='o0'>o0  0clk+1</td></tr>
@@ -233,7 +233,7 @@ n37 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
             <tr><td colspan="2">HlsNetNodeAggregatePortIn 41 (36:i2)  0clk+15 (outside: 1clk+15)&quot;n3_readyNB&quot;</td></tr>
             <tr><td port='i0'>0:o5</td><td port='o0'>inside  0clk+15</td></tr>
         </table>>];
-n38 [shape=plaintext, bgcolor=white, color=black, fontcolor=black, label=<
+n38 [shape=plaintext, bgcolor=white, color=grey70, fontcolor=grey70, label=<
         <table bgcolor="white" border="0" cellborder="1" cellspacing="0">
             <tr><td colspan="2">NOT 6  0clk+0 &quot;w_en_n&quot; &lt;HBits, 1bit&gt;</td></tr>
             <tr><td port='i0'>i0  0clk+0</td><td port='o0'>o0  0clk+0</td></tr>
@@ -272,5 +272,5 @@ n42 [shape=plaintext, bgcolor=white, color=gray, fontcolor=gray, label=<
 n39:o0 -> n40:i0 [weight=16];
 n41:o0 -> n42:i0 [weight=2];
 }
-n9 -> n11 [style=dashed, color=gray, weigh=880];
+n9 -> n11 [style=dashed, color=gray, weight=880];
 }
