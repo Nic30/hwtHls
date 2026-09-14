@@ -291,8 +291,8 @@ if __name__ == '__main__':
     import unittest
 
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([BreakHandshakeCycles_TC("test_loop_2clk_1b_noInit")])
     suite = testLoader.loadTestsFromTestCase(BreakHandshakeCycles_TC)
+    # suite = unittest.TestSuite([BreakHandshakeCycles_TC("test_loop_1b1f")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
 
