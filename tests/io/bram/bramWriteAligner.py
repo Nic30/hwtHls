@@ -32,9 +32,9 @@ from hwtLib.commonHwIO.addr_data import HwIOAddrDataRdVld
 class HwIOAddrDataUnalignedToBram(HwModule):
     """
     Write potentially unaligned words to a bram (which supports only aligned access).
-    If the access is unaligned, it must be split into 2 words which must be performed in sequence.
-    If next request in overlapping with previous leftover word, merge them so unaligned
-    sequential access still have full troughput.
+    If the access is unaligned, it may be split into 2 words which must be performed in sequence.
+    If next request is overlapping with previous leftover word, merge them so unaligned
+    sequential access still have full throughput.
     """
 
     @override
