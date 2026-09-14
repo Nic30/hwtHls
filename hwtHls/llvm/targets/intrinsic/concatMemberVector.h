@@ -5,8 +5,6 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Analysis/TargetFolder.h>
 
-#include <map>
-
 namespace hwtHls {
 
 struct OffsetWidthValue {
