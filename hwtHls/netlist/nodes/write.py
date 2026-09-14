@@ -144,16 +144,21 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
                 minWt = min(self.scheduledIn, default=self.scheduledZero)
                 return minRt >= minWt
 
+            if r.scheduledZero == self.scheduledZero and self._isBackedge is False:
+                return True
+            
             return r.scheduledZero >= self.scheduledZero
 
         if self._isBackedge:
             return False
+        
         return True
 
     def isBackedge(self):
         r = self.associatedRead
         if r is None:
             return False
+        
         if self.scheduledZero is not None:
             assert r.scheduledZero is not None, ("Node must be scheduled to resolve this", r)
             if r.isMulticlock or self.isMulticlock:
@@ -161,10 +166,14 @@ class HlsNetNodeWrite(HlsNetNodeExplicitSync):
                 minWt = min(self.scheduledIn, default=self.scheduledZero)
                 return minRt <= minWt
 
+            if r.scheduledZero == self.scheduledZero and self._isBackedge is False:
+                return False
+            
             return r.scheduledZero <= self.scheduledZero
 
         if not self._isBackedge:
             return False
+        
         return True
 
     @override
