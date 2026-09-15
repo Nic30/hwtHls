@@ -6,18 +6,18 @@ from hwt.hdl.types.bits import HBits
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld, HwIOStructVld
 from hwt.hwModule import HwModule
 from hwt.pyUtils.typingFuture import override
+from hwtHls.frontend.pragmaFunction import PyBytecodeThreadExtractIoFsm
+from hwtHls.frontend.pragmaLoop import PyBytecodeStreamSegmentLoopUnroll
 from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.io.amba.axi4Stream.proxy import IoProxyAxi4Stream
+from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
 from hwtHls.scope import HlsScope
 from hwtLib.amba.axi4SSegmented import Axi4StreamSegmented
 from hwtLib.amba.axi4s import Axi4Stream
 from hwtLib.types.net.ethernet import Eth2Header_t, eth_mac_t, Eth802_1qHeader_t, \
     ETHER_TYPE, EthType_t
-from tests.io.amba.axi4Stream.axi4sVlan1qDecap_test import Axi4SVlan1qDecapUncond, \
-    forwardUntilEoF
-from hwtHls.frontend.pragmaFunction import PyBytecodeThreadExtractIoFsm
-from hwtHls.frontend.pragmaLoop import PyBytecodeStreamSegmentLoopUnroll
-from hwtHls.platform.debugBundle import LLVM_CLI_COMMON_OPTS
+from tests.io.amba.axi4Stream.axi4SVlan1qDecapUncond import forwardUntilEoF, \
+    Axi4SVlan1qDecapUncond
 
 
 # Ethernet and alike processing architectures
