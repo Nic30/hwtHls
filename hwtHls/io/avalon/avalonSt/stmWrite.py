@@ -16,6 +16,8 @@ class HlsStmWriteAvalonSt(HlsWrite):
         empty: Optional[Union[RtlSignal, HConst]],
         sof: Optional[Union[RtlSignal, HConst]],
         eof: Optional[Union[RtlSignal, HConst]],
+        error: Optional[Union[RtlSignal, HConst]],
+        user: Optional[Union[RtlSignal, HConst]],
         dst: AvalonST,
         mayBecomeFlushable: bool=True):
         if dst.firstSymbolInHighOrderBits:
@@ -27,6 +29,8 @@ class HlsStmWriteAvalonSt(HlsWrite):
         self.empty = empty
         self.sof = sof
         self.eof = eof
+        self.error = error
+        self.user = user
 
     def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
         dst, _ = getArgumentForHwIO(toLlvm, self.dst, self._ioProxy, self, True)
@@ -42,5 +46,10 @@ class HlsStmWriteAvalonSt(HlsWrite):
         bb, empty = toLlvm._translateOptionalIntOrExpr(bb, self.empty, widthOfEmpty)
         bb, sof = toLlvm._translateOptionalIntOrExpr(bb, self.sof, 1)
         bb, eof = toLlvm._translateOptionalIntOrExpr(bb, self.eof, 1)
-
-        return bb, toLlvm.b.CreateStreamWrite(dst, src, empty, sof, eof)
+        error = self.error
+        if error is not None:
+            bb, error = toLlvm._translateOptionalIntOrExpr(bb, self.error, 0)
+        user = self.user
+        if user is not None:
+            bb, user = toLlvm._translateOptionalIntOrExpr(bb, self.user, 0)
+        return bb, toLlvm.b.CreateStreamWrite(dst, src, empty, sof, eof, error, user)

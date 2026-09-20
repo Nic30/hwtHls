@@ -23,6 +23,7 @@ StreamChannelProps::StreamChannelProps(const StreamChannelFormatInfo &scfi,
 	dataSoFVar = nullptr;
 	dataEoFVar = nullptr;
 	dataErrorVar = nullptr;
+	userFirstWordVar = nullptr;
 	dataOffsetVar = nullptr;
 	wDataPendingVar = nullptr;
 }
@@ -37,25 +38,27 @@ void StreamChannelProps::setOffsetVar(llvm::IRBuilderBase &builder,
 
 llvm::Value* StreamChannelProps::deparseNativeWord(
 		llvm::IRBuilderBase &builder) const {
-	llvm::SmallVector<AllocaInst*, 6> partVars;
+	llvm::SmallVector<AllocaInst*, 7> partVars;
 	switch (byteEnableEncoding) {
 	case ByteEnableEncoding::BEE_NONE:
 	case ByteEnableEncoding::BEE_MASK: {
 		// Axi4Stream (data, strb?, err?, sof?, eof?)
-		partVars =
-				{ dataVar, dataMaskVar, dataErrorVar, dataSoFVar, dataEoFVar };
+		partVars = {dataVar,		  dataMaskVar, dataErrorVar,
+					userFirstWordVar, dataSoFVar,  dataEoFVar};
 		break;
 	}
 	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY: {
-		// Axi4StreamSegmented (data[n], (enable?, sof?, eof?, err?, empty)[n])
-		partVars = { dataVar, dataEnableVar, dataSoFVar, dataEoFVar,
-				dataErrorVar, dataEmptyVar };
+		// Axi4StreamSegmented (data[n], (enable?, empty?, err?, userFirstWord?, sof?, eof?)[n])
+		partVars = {
+			dataVar,		  dataEnableVar, dataEmptyVar, dataErrorVar,
+			userFirstWordVar, dataSoFVar,	 dataEoFVar,
+		};
 		break;
 	}
 	default:
 		break;
 	}
-	llvm::SmallVector<Value*, 6> parts;
+	llvm::SmallVector<Value*, 7> parts;
 	for (auto *v : partVars) {
 		if (v != nullptr) { // dataMaskVar can be nullptr
 			Value *_v = getVarValue(builder, v);
@@ -269,10 +272,12 @@ void StreamChannelProps::setAllData(llvm::IRBuilderBase &builder,
 	default:
 		llvm_unreachable("NotImplemented");
 	}
-	_setAllData_setVarConditionally(builder, hasSoF(), data.sof, dataSoFVar);
-	_setAllData_setVarConditionally(builder, hasEoF(), data.eof, dataEoFVar);
 	_setAllData_setVarConditionally(builder, hasError(), data.error,
 			dataErrorVar);
+	_setAllData_setVarConditionally(builder, hasUserFirstWord(), data.userFirstWord,
+					userFirstWordVar);
+	_setAllData_setVarConditionally(builder, hasSoF(), data.sof, dataSoFVar);
+	_setAllData_setVarConditionally(builder, hasEoF(), data.eof, dataEoFVar);
 }
 
 llvm::LoadInst* StreamChannelProps::getVarValue(llvm::IRBuilderBase &builder,
@@ -292,6 +297,8 @@ llvm::LoadInst* StreamChannelProps::getVarValue(llvm::IRBuilderBase &builder,
 		Name = ".offset";
 	} else if (var == dataErrorVar) {
 		Name = ".error";
+	} else if (var == userFirstWordVar) {
+		Name = ".user";
 	} else if (var == wDataPendingVar) {
 		Name = ".wDataPending";
 	}
@@ -317,6 +324,10 @@ StreamChannelWordValue StreamChannelProps::getAllData(
 	if (errorWidth)
 		_error = getVarValue(builder, dataErrorVar);
 
+	Value *_userFirstWord = nullptr;
+	if (userFirstWordWidth)
+		_userFirstWord = getVarValue(builder, userFirstWordVar);
+
 	Value *_enable = nullptr;
 	if (hasEnable())
 		_enable = builder.getTrue();
@@ -329,7 +340,7 @@ StreamChannelWordValue StreamChannelProps::getAllData(
 					builder.getIntNTy(getWidthOfEmpty()));
 		}
 	}
-	return {*this, _data, _mask, _enable, _empty, _sof, _eof, _error};
+	return {*this, _data, _mask, _enable, _empty, _sof, _eof, _error, _userFirstWord};
 }
 
 llvm::AllocaInst* StreamChannelProps::_getOrCreateTmpVar(
@@ -435,6 +446,12 @@ void StreamChannelProps::createCommonVars(llvm::IRBuilderBase &builder) {
 				nullptr, ioArg->getName() + "DataError");
 		GeneratedAllocas.push_back(dataErrorVar);
 	}
+	assert(userFirstWordVar == nullptr);
+	if (hasUserFirstWord()) {
+		userFirstWordVar = builder.CreateAlloca(IntegerType::get(C, userFirstWordWidth),
+				nullptr, ioArg->getName() + "User");
+		GeneratedAllocas.push_back(userFirstWordVar);
+	}
 
 	if (!dataOffsetVar)
 		dataOffsetVar = _getOrCreateTmpVarDataOffset(&builder);
@@ -472,13 +489,14 @@ void StreamChannelProps::commonVarsInitialize(
 	}
 	}
 	Builder.CreateStore(PoisonValue::get(dataVar->getAllocatedType()), dataVar);
+	if (hasError())
+		Builder.CreateStore(Builder.getIntN(errorWidth, 0), dataErrorVar);
+	if (hasUserFirstWord())
+		Builder.CreateStore(Builder.getIntN(userFirstWordWidth, 0), userFirstWordVar);
 	if (hasSoF())
 		Builder.CreateStore(Builder.getInt1(0), dataSoFVar);
 	if (hasEoF())
 		Builder.CreateStore(Builder.getInt1(0), dataEoFVar);
-	if (hasError())
-		Builder.CreateStore(Builder.getIntN(errorWidth, 0), dataErrorVar);
-
 }
 
 void StreamChannelProps::createWDataPendingVar(llvm::IRBuilderBase &builder) {

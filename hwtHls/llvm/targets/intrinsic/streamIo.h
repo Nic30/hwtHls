@@ -88,11 +88,11 @@ extern const std::string StreamWritePackingName;
  * :note: The masked variant of StreamWrite exists to make compilation faster as it is more easy to work with the mask
  *    than searching for chained writes in a complex CFG.
  */
-llvm::CallInst* CreateStreamWrite(llvm::IRBuilderBase *Builder,
-		llvm::Value *ioArg, llvm::Value *valueToWrite,
-		llvm::Value *writeMaskOrEmpty = nullptr, llvm::Value *isSoF = nullptr,
-		llvm::Value *isEoF = nullptr, llvm::Value *errorVal = nullptr,
-		bool isPacking = false);
+llvm::CallInst *CreateStreamWrite(
+	llvm::IRBuilderBase *Builder, llvm::Value *ioArg, llvm::Value *valueToWrite,
+	llvm::Value *writeMaskOrEmpty = nullptr, llvm::Value *isSoF = nullptr,
+	llvm::Value *isEoF = nullptr, llvm::Value *errorVal = nullptr,
+	llvm::Value *userFirstWordVal = nullptr, bool isPacking = false);
 bool IsStreamWrite(const llvm::CallInst *C);
 bool IsStreamWrite(const llvm::Function *F);
 // :see: doc for :func:`CreateStreamWrite`
@@ -107,6 +107,7 @@ llvm::Value* streamWriteGetWriteMaskOrEmpty(const llvm::CallInst *C);
 llvm::Value* streamWriteGetWriteSoF(const llvm::CallInst *C);
 llvm::Value* streamWriteGetWriteEoF(const llvm::CallInst *C);
 llvm::Value* streamWriteGetWriteError(const llvm::CallInst *C);
+llvm::Value* streamWriteGetWriteUserFirstWord(const llvm::CallInst *C);
 
 extern const std::string StreamWriteStartOfFrameName;
 llvm::CallInst* CreateStreamWriteStartOfFrame(llvm::IRBuilderBase *Builder,

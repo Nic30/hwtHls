@@ -67,16 +67,19 @@ size_t StreamChannelFormatInfo::getReadReturnWidth(size_t readDataWidth,
 			readDataWidth += getWidthOfMaskForData(readDataWidth);
 		break;
 	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY:
-		// Axi4StreamSegmented (data[n], (enable?, sof?, eof?, err?, empty)[n])
-		return readDataWidth +=
-				+ (isReliable ?
-						0 :
-						int(hasEnable()) + getWidthOfEmptyForData(readDataWidth, byteWidth,
-								!isReliable));
+		// Axi4StreamSegmented (data[n], (enable?, empty?, err?, userFirstWord?, sof?, eof?)[n])
+		if (!isReliable) {
+			readDataWidth +=
+				int(hasEnable()) +
+				getWidthOfEmptyForData(readDataWidth, byteWidth, !isReliable);
+		}
+		readDataWidth += errorWidth + userFirstWordWidth;
+		return readDataWidth;
+		
 	default:
 		llvm_unreachable("Invalid value for byte enable encoding of a stream");
 	}
-	readDataWidth += errorWidth + getWidthOfFramingEncoding();
+	readDataWidth += errorWidth + userFirstWordWidth + getWidthOfFramingEncoding();
 	return readDataWidth;
 }
 
@@ -108,6 +111,10 @@ bool StreamChannelFormatInfo::hasError() const {
 	return errorWidth > 0;
 }
 
+bool StreamChannelFormatInfo::hasUserFirstWord() const {
+	return userFirstWordWidth > 0;
+}
+
 size_t StreamChannelFormatInfo::getOffsetOfData(
 		std::optional<unsigned> segmentIndex) const {
 	if (segmentIndex.has_value()) {
@@ -119,7 +126,7 @@ size_t StreamChannelFormatInfo::getOffsetOfData(
 size_t StreamChannelFormatInfo::getOffsetOfSignalingBits(
 		std::optional<unsigned> segmentIndex) const {
 	if (segmentIndex.has_value()) {
-		// Axi4StreamSegmented (data[n], (enable?, sof?, eof?, err?, empty)[n])
+		// Axi4StreamSegmented (data[n], (enable?, empty?, err?, userFirstWord?, sof?, eof?)[n])
 		return segmentCnt * dataWidth
 				+ getWidthSignalingBits() * segmentIndex.value();
 	} else {
@@ -130,16 +137,15 @@ size_t StreamChannelFormatInfo::getOffsetOfSignalingBits(
 
 size_t StreamChannelFormatInfo::getOffsetOfError(
 		std::optional<unsigned> segmentIndex) const {
-	size_t off = getOffsetOfSignalingBits(segmentIndex);
 	switch (byteEnableEncoding) {
-	// Axi4Stream (data, strb?, err?, sof?, eof?)
+	// Axi4Stream (data, strb?, err?, userFirstWord?, sof?, eof?)
 	case ByteEnableEncoding::BEE_NONE:
-		return off;
+		return getOffsetOfSignalingBits(segmentIndex);
 	case ByteEnableEncoding::BEE_MASK:
-		return off + getWidthOfMask();
+		return getOffsetOfMask(segmentIndex) + getWidthOfMask();
 	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY:
-		// Axi4StreamSegmented (data[n], (enable?, sof?, eof?, err?, empty)[n])
-		return off + int(hasEnable()) + getWidthOfFramingEncoding();
+		// Axi4StreamSegmented (data[n], (enable?, empty?, err?, userFirstWord?, sof?, eof?)[n])
+		return getOffsetOfEmpty(segmentIndex) + getWidthOfEmpty();
 	default:
 		llvm_unreachable("Invalid value for byte enable encoding of a stream");
 	}
@@ -151,6 +157,10 @@ size_t StreamChannelFormatInfo::getOffsetOfSoF(
 	return getOffsetOfEoF(segmentIndex) - 1;
 }
 
+size_t StreamChannelFormatInfo::getOffsetOfUserFirsWord(std::optional<unsigned> segmentIndex) const {
+	return getOffsetOfError(segmentIndex) + errorWidth;
+}
+
 size_t StreamChannelFormatInfo::getOffsetOfEoF(
 		std::optional<unsigned> segmentIndex) const {
 	assert(
@@ -158,14 +168,12 @@ size_t StreamChannelFormatInfo::getOffsetOfEoF(
 					|| framingEncoding
 							== FramingSignalizationEconding::FRAMING_SOF_EOF);
 	switch (byteEnableEncoding) {
-	// Axi4Stream (data, strb?, err?, sof?, eof?)
+	// Axi4Stream (data, strb?, err?, userFirstWord?, sof?, eof?)
 	case ByteEnableEncoding::BEE_NONE:
 	case ByteEnableEncoding::BEE_MASK:
-		return getOffsetOfError(segmentIndex) + errorWidth;
 	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY: {
-		// Axi4StreamSegmented (data[n], (enable?, sof?, eof?, err?, empty)[n])
-		return getOffsetOfSignalingBits(segmentIndex) + int(hasEnable())
-				+ (hasSoF() ? 1 : 0);
+		// Axi4StreamSegmented (data[n], (enable?, empty?, err?, userFirstWord?, sof?, eof?)[n])
+		return getOffsetOfUserFirsWord(segmentIndex) +  userFirstWordWidth  + (hasSoF() ? 1 : 0);
 	}
 	default:
 		llvm_unreachable("Invalid value for byte enable encoding of a stream");
@@ -180,13 +188,15 @@ size_t StreamChannelFormatInfo::getOffsetOfMask(
 
 size_t StreamChannelFormatInfo::getOffsetOfEnable(
 		std::optional<unsigned> segmentIndex) const {
+	assert(byteEnableEncoding ==  ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY);
 	return getOffsetOfSignalingBits(segmentIndex);
 }
 
 size_t StreamChannelFormatInfo::getOffsetOfEmpty(
 		std::optional<unsigned> segmentIndex) const {
+	// Axi4StreamSegmented (data[n], (enable?, empty?, err?, userFirstWord?, sof?, eof?)[n])
 	assert(byteEnableEncoding == ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY);
-	return getOffsetOfError(segmentIndex) + errorWidth;
+	return hasEnable() ? 1: 0;
 }
 
 size_t StreamChannelFormatInfo::getWidthOfEmpty() const {
@@ -460,11 +470,22 @@ llvm::Value* StreamChannelFormatInfo::streamReadGetEnable(
 			r->getName() + ".enable");
 }
 
-llvm::Value* StreamChannelFormatInfo::streamReadGetError(
-		llvm::IRBuilderBase &Builder, llvm::CallInst *r) const {
+llvm::Value *
+StreamChannelFormatInfo::streamReadGetError(llvm::IRBuilderBase &Builder,
+											llvm::CallInst *r) const {
 	auto dw = streamReadGetOrigChunkBitWidth(r);
 	auto scfi = resize(dw);
-	return CreateBitRangeGetConst(&Builder, r, scfi.getOffsetOfError(), 1); // msb
+	return CreateBitRangeGetConst(&Builder, r, scfi.getOffsetOfError(),
+								  scfi.errorWidth, r->getName() + ".err");
+}
+
+llvm::Value *StreamChannelFormatInfo::streamReadGetUserFirstWord(
+	llvm::IRBuilderBase &Builder, llvm::CallInst *r) const {
+	auto dw = streamReadGetOrigChunkBitWidth(r);
+	auto scfi = resize(dw);
+	return CreateBitRangeGetConst(&Builder, r, scfi.getOffsetOfUserFirsWord(),
+								  scfi.userFirstWordWidth,
+								  r->getName() + ".user");
 }
 
 llvm::Value* StreamChannelFormatInfo::CreateExtractSegmentValue(
@@ -531,7 +552,9 @@ void StreamChannelFormatInfo::initWordTySegmentTy() {
 		llvm_unreachable(
 				"hwtHls.io.protocol.stream: Invalid value for byte enable encoding of a stream");
 	}
-	nativeWordSize += getWidthOfFramingEncoding() + errorWidth;
+	nativeWordSize += getWidthOfFramingEncoding();
+	nativeWordSize += errorWidth;
+	nativeWordSize += userFirstWordWidth;
 
 	segmentTy = IntegerType::getIntNTy(ioArg->getContext(), nativeWordSize);
 	wordTy = IntegerType::getIntNTy(ioArg->getContext(),
@@ -541,7 +564,7 @@ void StreamChannelFormatInfo::initWordTySegmentTy() {
 StreamChannelFormatInfo StreamChannelFormatInfo::parseMetadata(
 		llvm::Argument &ioArg, bool isOutput, llvm::MDTuple *streamIoMd) {
 	StreamChannelFormatInfo props(ioArg);
-	if (streamIoMd->getNumOperands() != 8)
+	if (streamIoMd->getNumOperands() != 9)
 		throw std::runtime_error(
 				"hwtHls.io.protocol.stream: expects tuple with 8 items");
 	if (!streamIoMd->getOperand(0).equalsStr(METADATA_NAME))
@@ -587,7 +610,8 @@ StreamChannelFormatInfo StreamChannelFormatInfo::parseMetadata(
 	}
 
 	props.errorWidth = MDTuple_getOperandAsU64(streamIoMd, 6);
-	props.segmentCnt = MDTuple_getOperandAsU64(streamIoMd, 7);
+	props.userFirstWordWidth = MDTuple_getOperandAsU64(streamIoMd, 7);
+	props.segmentCnt = MDTuple_getOperandAsU64(streamIoMd, 8);
 	props.initWordTySegmentTy();
 	return props;
 }

@@ -19,8 +19,9 @@ enum FramingSignalizationEconding {
 	FRAMING_SOF_EOF, // eof + Start of Frame
 };
 // :note: for locations of bits in words are derived from HwIO classes from hwtLib:
-// * Axi4Stream (data, strb/keep?, err?, sof?, eof?)
-// * Axi4StreamSegmented (data[n], (enable?, sof?, eof?, err?, empty)[n])
+// * Axi4Stream (data, strb/keep?, err?, sof?, eof?, userFirstWord?)
+// * Axi4StreamSegmented (data[n], (enable?, sof?, eof?, err?, empty, userFirstWord?)[n])
+// * AvalonST (data, empty?, err?, sof?, eof?, userFirstWord?)
 // * mask can have 0 suffix only in last word, else it must be all 1
 // * data begins at data bit 0, segment 0, data is on lsb bits of bus word
 class StreamChannelFormatInfo {
@@ -30,11 +31,18 @@ public:
 
 protected:
 	StreamChannelFormatInfo(llvm::Argument &ioArg) :
-			ioArg(&ioArg), isOutput(false), dataWidth(0), byteWidth(0), byteEnableEncoding(
-					ByteEnableEncoding::BEE_NONE), supportZLP(false), framingEncoding(
-					FramingSignalizationEconding::FRAMING_NONE), errorWidth(0), segmentCnt(
-					0), segmentTy(nullptr), wordTy(nullptr) {
-	}
+		ioArg(&ioArg),
+		isOutput(false),
+		dataWidth(0),
+		byteWidth(0),
+		byteEnableEncoding(ByteEnableEncoding::BEE_NONE),
+		supportZLP(false),
+		framingEncoding(FramingSignalizationEconding::FRAMING_NONE),
+		errorWidth(0),
+		userFirstWordWidth(0),
+		segmentCnt(0),
+		segmentTy(nullptr),
+		wordTy(nullptr) {}
 	void initWordTySegmentTy();
 
 public:
@@ -61,9 +69,16 @@ public:
 	// true if interface supports Zero Length Packets
 	bool supportZLP;
 	FramingSignalizationEconding framingEncoding;
+	
 	// number of bits for signal holding error value, error signal bits are valid only in last word
 	// of the frame and meaning is usually application specific
 	size_t errorWidth;
+	
+	// number of extra bits of user signal which are captured in the first word
+	// of the frame (for normal Axi4Stream this is width of user signal, for
+	// Axi4StreamSegmented there are additional bits in user signal and this
+	// number represents the number per segment length of user signal)
+	size_t userFirstWordWidth;
 
 	// number of segments in this interfaces, if >1 the wires of interface are physically divided
 	// into multiple segments each represented by a single nativeWordTy. This division allows
@@ -96,6 +111,7 @@ public:
 	bool hasEmpty() const; // has empty to signalize number of unused bytes in last word
 	bool hasMask() const; // has mask to signalize valid bytes in last word
 	bool hasError() const; // returns true if channel supports signaling of the error
+	bool hasUserFirstWord() const;
 	// :note: the segmentIndex is optional to cover the case where the bus word itself has multiple
 	//        segments but we want to get offset inside of a single segment value formated as (data, signaling bits)
 	//        instead of (data{n}, signaling bits{n})
@@ -107,6 +123,8 @@ public:
 	size_t getOffsetOfEmpty(std::optional<unsigned> segmentIndex={}) const;
 	size_t getOffsetOfMask(std::optional<unsigned> segmentIndex={}) const;
 	size_t getOffsetOfEnable(std::optional<unsigned> segmentIndex={}) const;
+	size_t getOffsetOfUserFirsWord(std::optional<unsigned> segmentIndex={}) const;
+	
 	size_t getWidthOfEmpty() const;
 	static size_t getWidthOfEmptyForData(size_t dataWidth, size_t byteWidth,
 			bool supportZLP);
@@ -155,6 +173,8 @@ public:
 			llvm::Value *segmentEn) const;
 	llvm::Value* streamReadGetError(llvm::IRBuilderBase &Builder,
 			llvm::CallInst *r) const;
+	llvm::Value* streamReadGetUserFirstWord(llvm::IRBuilderBase &Builder,
+					llvm::CallInst *r) const;
 	llvm::Value* CreateExtractSegmentValue(llvm::IRBuilderBase &Builder,
 			llvm::Value *allSegmentValue, size_t segmentIndex) const;
 
@@ -169,6 +189,7 @@ public:
 				supportZLP == other.supportZLP &&                //
 				framingEncoding == other.framingEncoding &&      //
 				errorWidth == other.errorWidth &&                //
+				userFirstWordWidth == other.userFirstWordWidth &&                //
 				segmentCnt == other.segmentCnt;                  //
 	}
 };

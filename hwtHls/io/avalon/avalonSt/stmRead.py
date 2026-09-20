@@ -18,7 +18,8 @@ class HlsStmReadAvalonSt(HlsStmReadAxi4Stream):
     """
     A statement used for reading of chunk of data from AvalonST interface.
     
-    :see: HlsStmReadAxi4Stream
+    :see: :class:`hwtHls.io.amba.axi4Stream.stmRead.HlsStmReadAxi4Stream`
+    
     """
 
     def __init__(self,
@@ -58,6 +59,7 @@ class HlsStmReadAvalonSt(HlsStmReadAxi4Stream):
             (BIT, "sof"),
             (BIT, "eof"),  # we do not know how many words this read could be,
                            # the eof is disjunction of eof signals from each word
+            *(((HwIO_to_HdlType().apply(src.user), )  if hasattr(src, "user") else ()))
         )
         return trueDtype
 

@@ -117,11 +117,24 @@ llvm::LoopUnrollResult UnrollLoopStreamCopyLike(llvm::Function &F,
 				Value *isSoF = nullptr;
 				if (streamPropsForRead->hasSoF())
 					isSoF = streamPropsForReadActualSize.streamReadGetSoF(
-							Builder, newRead);
-				Value *isEoF = streamPropsForReadActualSize.streamReadGetEoF(
 						Builder, newRead);
+				Value *isEoF = streamPropsForReadActualSize.streamReadGetEoF(
+					Builder, newRead);
+				Value *errVal = nullptr;
+				if (streamPropsForRead->hasError()) {
+					errVal = streamPropsForReadActualSize.streamReadGetError(
+						Builder, newRead);
+				}
+				Value *userFirstWordVal = nullptr;
+				if (streamPropsForRead->hasUserFirstWord()) {
+					userFirstWordVal =
+						streamPropsForReadActualSize.streamReadGetUserFirstWord(
+							Builder, newRead);
+				}
+
 				CreateStreamWrite(&Builder, streamPropsForWrite->ioArg,
-						valueToWrite, writeMaskOrEmpty, isSoF, isEoF);
+								  valueToWrite, writeMaskOrEmpty, isSoF, isEoF,
+								  errVal, userFirstWordVal);
 				auto &BB = *cpFrag.read->getParent();
 				auto br = dyn_cast<BranchInst>(BB.getTerminator());
 				assert(br && br->isConditional());

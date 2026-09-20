@@ -66,6 +66,7 @@ public:
 	SmallVector<Value*> SoF;
 	SmallVector<Value*> EoF;
 	SmallVector<Value*> Error;
+	Value* userFirstWord = nullptr;
 };
 
 CallInst* CreateStreamWriteFromParts(
@@ -109,8 +110,11 @@ CallInst* CreateStreamWriteFromParts(
 		EoF = attemptToSimplifyValue(EoF, SQ);
 	if (Error)
 		Error = attemptToSimplifyValue(Error, SQ);
+	Value * userFirstWord = parts.userFirstWord;
+	if (userFirstWord)
+		userFirstWord = attemptToSimplifyValue(userFirstWord, SQ);
 	return CreateStreamWrite(&Builder, StreamIoArg, data, maskOrEmpty, SoF, EoF,
-			Error);
+			Error, userFirstWord);
 }
 
 void HwtHlsSimplifyCFGPass_streamWriteMerge_collectValuePartsFromWriteForMerging(
@@ -182,6 +186,17 @@ void HwtHlsSimplifyCFGPass_streamWriteMerge_collectValuePartsFromWriteForMerging
 							== streamProps.errorWidth);
 		}
 		parts.Error.push_back(error);
+	}
+	if (streamProps.hasUserFirstWord() && !parts.userFirstWord) {
+		Value *userFirstWord = streamWriteGetWriteUserFirstWord(write);
+		if (!userFirstWord) {
+			userFirstWord =
+				Builder.getInt(APInt::getZero(streamProps.userFirstWordWidth));
+		} else {
+			assert(userFirstWord->getType()->getIntegerBitWidth() ==
+				   streamProps.userFirstWordWidth);
+		}
+		parts.userFirstWord = userFirstWord;
 	}
 
 	auto sof = streamWriteGetWriteSoF(write);

@@ -154,9 +154,17 @@ void register_IRBuilder(pybind11::module_ & m) {
 			return CreateStreamReadEndOfFrame(self, ioArgPtr);
 		}, py::return_value_policy::reference)
 		.def("CreateStreamWrite", [](llvm::IRBuilder<> *Builder, llvm::Value *ioArgPtr,
-				llvm::Value *valueToWrite, llvm::Value *writeMaskOrEmpty, llvm::Value *isSoF, llvm::Value *isEoF) {
-			return CreateStreamWrite(Builder, ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF);
-		}, py::return_value_policy::reference)
+				llvm::Value *valueToWrite, llvm::Value *writeMaskOrEmpty, llvm::Value *isSoF, llvm::Value *isEoF,  llvm::Value *errorVal, llvm::Value *userFirstWordVal) {
+			return CreateStreamWrite(Builder, ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF, errorVal, userFirstWordVal);
+		},
+			py::arg("ioArgPtr"), 
+			py::arg("valueToWrite"),
+			py::arg("writeMaskOrEmpty"),
+			py::arg("isSoF"),
+			py::arg("isEoF"),
+			py::arg("errorVal")=(llvm::Value *)nullptr,
+			py::arg("userFirstWordVal")=(llvm::Value *)nullptr,
+			py::return_value_policy::reference)
 		.def("CreateStreamWriteStartOfFrame", [](llvm::IRBuilder<> * self, llvm::Value *ioArgPtr) {
 			return CreateStreamWriteStartOfFrame(self, ioArgPtr);
 		}, py::return_value_policy::reference)

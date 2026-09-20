@@ -17,13 +17,14 @@ public:
 	llvm::Value *sof; // start of frame, :note: sof, eof are optional
 	llvm::Value *eof; // end of frame
 	llvm::Value *error; // error is optional
+	llvm::Value *userFirstWord; // optional user bits captured from first word
 
 	StreamChannelWordValue(const StreamChannelFormatInfo props,
 			llvm::Value *data, llvm::Value *mask, llvm::Value *enable,
 			llvm::Value *empty, llvm::Value *sof, llvm::Value *eof,
-			llvm::Value *error);
-	std::array<llvm::Value*, 7> asArray();
-	void setFromArray(const std::array<llvm::Value*, 7> & arr);
+			llvm::Value *error, llvm::Value * userFirstWord);
+	std::array<llvm::Value*, 8> asArray();
+	void setFromArray(const std::array<llvm::Value*, 8> & arr);
 
 	/*
 	 * :attention: This expects that all words except the last one are fully occupied.

@@ -20,8 +20,8 @@ class IoProxy(object):
     from HlsNetlist to HWT RTL
     """
 
-    def __init__(self, hls: "HlsScope", interface: Union[HwIO, MultiPortGroup, BankedPortGroup], dtype:Optional[HdlType]=None):
-        self.interface = interface
+    def __init__(self, hls: "HlsScope", hwio: Union[HwIO, MultiPortGroup, BankedPortGroup], dtype:Optional[HdlType]=None):
+        self.interface = hwio
         self._nativeReadTy: Optional[HdlType] = dtype  # :note: use getDataTypeOfNativeRead
         self._nativeWriteTy: Optional[HdlType] = dtype  # :note: use getDataTypeOfNativeWrite
         self._nativeDataWordTy: Optional[HdlType] = None  # :note: use
@@ -29,8 +29,8 @@ class IoProxy(object):
         self.hasBlockingRead = None
         self.hasBlockingWrite = None
         self.mayBecomeFlushable = None
-        if hls is not None and interface is not None:
-            for i in iterAllPortGroupVariants(interface):
+        if hls is not None and hwio is not None:
+            for i in iterAllPortGroupVariants(hwio):
                 # register all interfaces and group to this proxy
                 hls._ioProxyForIo[i] = self
         self.T = dtype

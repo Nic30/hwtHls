@@ -22,6 +22,7 @@ public:
 	llvm::AllocaInst *dataSoFVar; // "variable" for current word Start-of-Frame flag
 	llvm::AllocaInst *dataEoFVar; // "variable" for current word End-of-Frame flag
 	llvm::AllocaInst *dataErrorVar; // "variable" for value of error from bus
+	llvm::AllocaInst *userFirstWordVar; // "variable" for value of user signals captured on first word from bus
 	llvm::AllocaInst *dataOffsetVar; // "variable" which specifies writer position in current word
 	llvm::AllocaInst *wDataPendingVar; // "variable" for flag which is 1 if dataVar contains data,
 	// which are waiting to be send

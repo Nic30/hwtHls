@@ -236,6 +236,7 @@ void register_StreamChannelFormatInfo(pybind11::module_ & m) {
 	.def_readonly("byteWidth", &hwtHls::StreamChannelFormatInfo::byteWidth)
 	.def_readonly("supportZLP", &hwtHls::StreamChannelFormatInfo::supportZLP)
 	.def_readonly("errorWidth", &hwtHls::StreamChannelFormatInfo::errorWidth)
+	.def_readonly("userFirstWordWidth", &hwtHls::StreamChannelFormatInfo::userFirstWordWidth)
 	.def_readonly("byteEnableEncoding", &hwtHls::StreamChannelFormatInfo::byteEnableEncoding)
 	.def_readonly("framingEncoding", &hwtHls::StreamChannelFormatInfo::framingEncoding)
 	.def("hasSoF", &hwtHls::StreamChannelFormatInfo::hasSoF)

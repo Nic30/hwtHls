@@ -17,6 +17,7 @@ class HlsStmWriteAxi4Stream(HlsWrite):
             mask: Optional[Union[RtlSignal, HConst]],
             sof: Optional[Union[RtlSignal, HConst]],
             eof: Optional[Union[RtlSignal, HConst]],
+            user: Optional[Union[RtlSignal, HConst]],
             dst: Axi4Stream,
             mayBecomeFlushable: bool=True):
         HlsWrite.__init__(self, ioProxy, src, dst, src._dtype,
@@ -26,6 +27,7 @@ class HlsStmWriteAxi4Stream(HlsWrite):
         self.mask = mask
         self.sof = sof
         self.eof = eof
+        self.user = user
 
     def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
         dst, _ = getArgumentForHwIO(toLlvm, self.dst, self._ioProxy, self, True)
@@ -34,7 +36,8 @@ class HlsStmWriteAxi4Stream(HlsWrite):
         bb, mask = toLlvm._translateOptionalIntOrExpr(bb, self.mask, self.dst.DATA_WIDTH // 8)
         bb, sof = toLlvm._translateOptionalIntOrExpr(bb, self.sof, 1)
         bb, eof = toLlvm._translateOptionalIntOrExpr(bb, self.eof, 1)
-        return bb, toLlvm.b.CreateStreamWrite(dst, src, mask, sof, eof)
+        bb, user = toLlvm._translateOptionalIntOrExpr(bb, self.user, 0)
+        return bb, toLlvm.b.CreateStreamWrite(dst, src, mask, sof, eof, None, user)
 
 
 class HlsStmWriteAxi4StreamSegmented(HlsWrite):
@@ -45,7 +48,8 @@ class HlsStmWriteAxi4StreamSegmented(HlsWrite):
             empty: Optional[Union[RtlSignal, HConst]],
             sof: Optional[Union[RtlSignal, HConst]],
             eof: Optional[Union[RtlSignal, HConst]],
-            dst: Axi4Stream,
+            user: Optional[Union[RtlSignal, HConst]],
+            dst: Axi4StreamSegmented,
             mayBecomeFlushable: bool=True):
         HlsWrite.__init__(self, ioProxy, src, dst, src._dtype,
                           # True,  # isBlocking
@@ -54,6 +58,7 @@ class HlsStmWriteAxi4StreamSegmented(HlsWrite):
         self.empty = empty
         self.sof = sof
         self.eof = eof
+        self.user = user
 
     def _translateToLlvm(self, toLlvm:"ToLlvmIrTranslator", bb: BasicBlock):
         dst, _ = getArgumentForHwIO(toLlvm, self.dst, self._ioProxy, self, True)
@@ -70,5 +75,5 @@ class HlsStmWriteAxi4StreamSegmented(HlsWrite):
         bb, empty = toLlvm._translateOptionalIntOrExpr(bb, self.empty, widthOfEmpty)
         bb, sof = toLlvm._translateOptionalIntOrExpr(bb, self.sof, 1)
         bb, eof = toLlvm._translateOptionalIntOrExpr(bb, self.eof, 1)
-
-        return bb, toLlvm.b.CreateStreamWrite(dst, src, empty, sof, eof)
+        bb, user = toLlvm._translateOptionalIntOrExpr(bb, self.user, 0)
+        return bb, toLlvm.b.CreateStreamWrite(dst, src, empty, sof, eof, None, user)

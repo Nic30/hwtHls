@@ -27,8 +27,8 @@ class IoProxyStream(IoProxy):
         it tells that at this position in code there must have been previous write with eof=1. 
     '''
 
-    def __init__(self, hls: "HlsScope", interface: HwIO):
-        IoProxy.__init__(self, hls, interface)
+    def __init__(self, hls: "HlsScope", hwio: HwIO):
+        IoProxy.__init__(self, hls, hwio)
 
     def getNativeTypeOfHwIoWithoutSyncSignals(self, src: HwIO):
         return IoProxyScalar.getNativeTypeOfHwIoWithoutSyncSignals(self, src)
@@ -71,7 +71,9 @@ class IoProxyStream(IoProxy):
               empty:Union[None, HConst, RtlSignal, Value, HwIO]=None,
               mask:Union[None, HConst, RtlSignal, Value, HwIO]=None,
               sof:Union[None, HConst, RtlSignal, Value, HwIO]=None,
-              eof:Union[None, HConst, RtlSignal, Value, HwIO]=None):
+              eof:Union[None, HConst, RtlSignal, Value, HwIO]=None,
+              user:Union[None, HConst, RtlSignal, Value, HwIO]=None,
+              ):
         """
         :param v: data to write
         :param empty: specifies number of empty bytes in the word
@@ -81,6 +83,7 @@ class IoProxyStream(IoProxy):
         :attention:  empty and mask are exclusive, only one type of byte enable signalization may be used at the same time
         :param sof: input start-of-frame to write
         :param eof: input end-of-frame to write
+        :param user: value for user signal used only in first word, from first write.
         """
         raise NotImplementedError("Must be implemented in an implementation of this class for the specific interface")
 

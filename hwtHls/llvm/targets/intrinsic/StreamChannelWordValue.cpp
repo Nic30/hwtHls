@@ -11,9 +11,9 @@ namespace hwtHls {
 StreamChannelWordValue::StreamChannelWordValue(
 		const StreamChannelFormatInfo props, llvm::Value *data,
 		llvm::Value *mask, llvm::Value *enable, llvm::Value *empty,
-		llvm::Value *sof, llvm::Value *eof, llvm::Value *error) :
+		llvm::Value *sof, llvm::Value *eof, llvm::Value *error, llvm::Value *userFirstWord) :
 		props(props), data(data), mask(mask), enable(enable), empty(empty), sof(
-				sof), eof(eof), error(error) {
+				sof), eof(eof), error(error), userFirstWord(userFirstWord) {
 	assert(data);
 	assert(props.hasMask() == (mask != nullptr));
 	assert(props.hasEnable() == (enable != nullptr));
@@ -29,19 +29,19 @@ StreamChannelWordValue::StreamChannelWordValue(
 							== props.getWidthOfEmpty());
 	assert(!sof || sof->getType()->getIntegerBitWidth() == 1);
 	assert(!eof || eof->getType()->getIntegerBitWidth() == 1);
-	assert(
-			!error
-					|| error->getType()->getIntegerBitWidth()
-							== props.errorWidth);
+	assert(!userFirstWord || userFirstWord->getType()->getIntegerBitWidth() ==
+								 props.userFirstWordWidth);
+	assert(!error ||
+		   error->getType()->getIntegerBitWidth() == props.errorWidth);
 }
 
-std::array<llvm::Value*, 7> StreamChannelWordValue::asArray() {
-	return {data, mask, enable, empty, sof, eof, error};
+std::array<llvm::Value*, 8> StreamChannelWordValue::asArray() {
+	return {data, mask, enable, empty, sof, eof, error, userFirstWord};
 }
 
 void StreamChannelWordValue::setFromArray(
-		const std::array<llvm::Value*, 7> &arr) {
-	std::tie(data, mask, enable, empty, sof, eof, error) = std::tuple_cat(arr);
+		const std::array<llvm::Value*, 8> &arr) {
+	std::tie(data, mask, enable, empty, sof, eof, error, userFirstWord) = std::tuple_cat(arr);
 }
 
 StreamChannelWordValue StreamChannelWordValue::concat(
@@ -54,6 +54,7 @@ StreamChannelWordValue StreamChannelWordValue::concat(
 	// enable from first part is used
 	// empty from last part is used
 	llvm::SmallVector<llvm::Value*> error; // error is or-ed
+	llvm::Value* userFirstWord = nullptr; // user is taken from first 
 	// sof from first part is used
 	llvm::SmallVector<llvm::Value*> eof; // eof is or-ed
 #ifndef NDEBUG
@@ -87,7 +88,9 @@ StreamChannelWordValue StreamChannelWordValue::concat(
 		//			default:
 		//				break;
 		//			}
-
+		if (isFirst) {
+			userFirstWord = d.userFirstWord;
+		}
 		if (d.mask) {
 			mask.push_back(d.mask);
 		} else if (d.empty) {
@@ -151,6 +154,8 @@ StreamChannelWordValue StreamChannelWordValue::concat(
 	if (!error.empty()) {
 		_error = CreateBitConcat(&builder, error);
 	}
+	if (!props.hasUserFirstWord())
+		userFirstWord = nullptr;
 	Value *_enable = item0.enable;
 	if (!newStreamProps.hasEnable()) {
 		_enable = nullptr;
@@ -164,6 +169,7 @@ StreamChannelWordValue StreamChannelWordValue::concat(
 		item0.sof,
 		_eof,
 		_error,
+		userFirstWord,
 	};
 }
 
@@ -324,6 +330,7 @@ StreamChannelWordValue StreamChannelWordValue::slice(
 	Value *_enable = enable;
 	Value *_error = error;
 	Value *_empty = nullptr;
+	 
 	const size_t dataWidth = data->getType()->getIntegerBitWidth();
 	const size_t byteWidth = props.byteWidth;
 	if (dataLowBitIndex != 0) {
@@ -437,7 +444,7 @@ StreamChannelWordValue StreamChannelWordValue::slice(
 	}
 
 	assert(newProps.hasEmpty() == (_empty != nullptr));
-	return {newProps, _data, _mask, _enable, _empty, _sof, _eof, _error};
+	return {newProps, _data, _mask, _enable, _empty, _sof, _eof, _error, userFirstWord};
 }
 
 llvm::Instruction* StreamChannelWordValue::flatten(llvm::IRBuilderBase &builder,
@@ -466,13 +473,14 @@ llvm::Instruction* StreamChannelWordValue::flatten(llvm::IRBuilderBase &builder,
 	switch (props.byteEnableEncoding) {
 	// Axi4Stream (data, strb?, err?, sof?, eof?)
 	case ByteEnableEncoding::BEE_MASK:
-		if (mask) {
+		if (mask)
 			res.push_back(mask);
-		}
 		__attribute__ ((fallthrough));
 	case ByteEnableEncoding::BEE_NONE:
 		if (props.hasError())
-			res.push_back(error);
+			res.push_back(_error);
+		if (props.hasUserFirstWord())
+			res.push_back(userFirstWord);
 		if (props.hasSoF())
 			res.push_back(sof);
 		if (props.hasEoF())
@@ -483,15 +491,16 @@ llvm::Instruction* StreamChannelWordValue::flatten(llvm::IRBuilderBase &builder,
 		// Axi4StreamSegmented (data[n], (enable?, sof?, eof?, err?, empty?)[n])
 		if (props.hasEnable())
 			res.push_back(enable);
+		if (props.hasEmpty())
+			res.push_back(empty);
+		if (props.hasError())
+			res.push_back(_error);
+		if (props.hasUserFirstWord())
+			res.push_back(userFirstWord);
 		if (props.hasSoF())
 			res.push_back(sof);
 		if (props.hasEoF())
 			res.push_back(_eof);
-		if (props.hasError())
-			res.push_back(_error);
-		if (props.hasEmpty()) {
-			res.push_back(empty);
-		}
 		break;
 	}
 	default:
@@ -572,7 +581,13 @@ StreamChannelWordValue StreamChannelWordValue::parseNativeWord(
 		error = CreateBitRangeGetConst(&Builder, nativeWord,
 				props.getOffsetOfError(), props.errorWidth,
 				nativeWord->getName() + ".error");
-	return {props, data, dataMask, enable, empty, dataSoF, dataEoF, error};
+	llvm::Value *userFirstWord = nullptr;
+	if (props.hasUserFirstWord()) {
+		userFirstWord = CreateBitRangeGetConst(
+			&Builder, nativeWord, props.getOffsetOfUserFirsWord(),
+			props.userFirstWordWidth, nativeWord->getName() + ".user");
+	}
+	return {props, data, dataMask, enable, empty, dataSoF, dataEoF, error, userFirstWord};
 }
 
 llvm::Value* StreamChannelWordValue::CreateMaskToEmpty(

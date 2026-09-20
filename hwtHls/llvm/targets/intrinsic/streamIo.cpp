@@ -6,6 +6,7 @@
 
 #include <hwtHls/llvm/targets/intrinsic/utils.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
+
 using namespace llvm;
 
 namespace hwtHls {
@@ -148,17 +149,18 @@ StreamReadBehaviorType streamReadGetBehavior(const llvm::CallInst *I) {
 	}
 }
 
-template<const std::string &NAME>
-CallInst* CreateStreamMarker(IRBuilderBase *Builder, Value *ioArgPtr) {
+template <const std::string &NAME>
+CallInst *CreateStreamMarker(IRBuilderBase *Builder, Value *ioArgPtr) {
 	assert(ioArgPtr->getType()->isPointerTy());
-	Value *Ops[] = { ioArgPtr };
+	Value *Ops[] = {ioArgPtr};
 	Type *ResT = Builder->getVoidTy();
-	Type *TysForName[] = { Ops[0]->getType() };
+	Type *TysForName[] = {Ops[0]->getType()};
 	Module *M = Builder->GetInsertBlock()->getParent()->getParent();
 	Function *TheFn = cast<Function>(
-			M->getOrInsertFunction(Intrinsic_getName(NAME, TysForName), ResT,
-					Ops[0]->getType()).getCallee());
-	setArgNames(*TheFn, { "ioArgPtr" });
+		M->getOrInsertFunction(Intrinsic_getName(NAME, TysForName), ResT,
+							   Ops[0]->getType())
+			.getCallee());
+	setArgNames(*TheFn, {"ioArgPtr"});
 	AddDefaultFunctionAttributes(*TheFn);
 	CallInst *CI = Builder->CreateCall(TheFn, Ops);
 	CI->setOnlyAccessesArgMemory();
@@ -190,7 +192,7 @@ bool IsStreamReadEndOfFrame(const llvm::Function *F) {
 CallInst* CreateStreamWrite(IRBuilderBase *Builder, Value *ioArgPtr,
 		llvm::Value *valueToWrite, llvm::Value *writeMaskOrEmpty,
 		llvm::Value *isSoF, llvm::Value *isEoF, llvm::Value *errorVal,
-		bool isPacking) {
+		llvm::Value *userFirstWordVal, bool isPacking) {
 	assert(ioArgPtr->getType()->isPointerTy());
 	if (!isSoF) {
 		isSoF = Builder->getInt1(0);
@@ -200,29 +202,34 @@ CallInst* CreateStreamWrite(IRBuilderBase *Builder, Value *ioArgPtr,
 	}
 	if (!errorVal)
 		errorVal = ConstantPointerNull::get(Builder->getPtrTy(0));
+	if (!userFirstWordVal)
+		userFirstWordVal = ConstantPointerNull::get(Builder->getPtrTy(0));
 
-#define __CreateStreamWrite_OPSTYPES4 \
+#define __CreateStreamWrite_OPSTYPES5 \
 	            Ops[0]->getType(),\
 	            Ops[1]->getType(),\
 	            Ops[2]->getType(),\
 	            Ops[3]->getType(),\
-	            Ops[4]->getType() \
+	            Ops[4]->getType(),\
+				Ops[5]->getType() 
 
+#define __CreateStreamWrite_OPSTYPES6 \
+	__CreateStreamWrite_OPSTYPES5, \
+	Ops[6]->getType() 
+
+				
 	Module *M = Builder->GetInsertBlock()->getParent()->getParent();
 	CallInst *CI;
 	// switch between variants of StreamWrite based on presence of writeMaskOrEmpty/errorVal
 	if (writeMaskOrEmpty) {
 		Value *Ops[] = { ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF,
-				errorVal };
+				errorVal, userFirstWordVal };
 		Type *ResT = Builder->getVoidTy();
-		Type *TysForName[] = { __CreateStreamWrite_OPSTYPES4, //
-		Ops[5]->getType()};
+		Type *TysForName[] = { __CreateStreamWrite_OPSTYPES6};
 		auto fnName = Intrinsic_getName(
 				isPacking ? StreamWritePackingName : StreamWriteMaskedName,
 				TysForName);
-		Function *TheFn = cast<Function>(M->getOrInsertFunction(fnName, ResT, //
-				__CreateStreamWrite_OPSTYPES4, //
-		Ops[5]->getType()//
+		Function *TheFn = cast<Function>(M->getOrInsertFunction(fnName, ResT, __CreateStreamWrite_OPSTYPES6
 		).getCallee());
 		setArgNames(*TheFn, { "ioArgPtr", "valueToWrite", "writeMaskOrEmpty",
 				"isSoF", "isEoF", "errorVal" });
@@ -233,29 +240,30 @@ CallInst* CreateStreamWrite(IRBuilderBase *Builder, Value *ioArgPtr,
 			throw std::runtime_error(
 					"CreateStreamWrite: if isPacking==True, writeMaskOrEmpty must be provided");
 		}
-		Value *Ops[] = { ioArgPtr, valueToWrite, isSoF, isEoF, errorVal };
+		Value *Ops[] = { ioArgPtr, valueToWrite, isSoF, isEoF, errorVal, userFirstWordVal };
 		Type *ResT = Builder->getVoidTy();
-		Type *TysForName[] = { __CreateStreamWrite_OPSTYPES4};
+		Type *TysForName[] = { __CreateStreamWrite_OPSTYPES5};
 		auto fnName = Intrinsic_getName(StreamWriteName, TysForName);
 		Function *TheFn = cast<Function>(M->getOrInsertFunction(fnName, ResT, //
-				__CreateStreamWrite_OPSTYPES4).getCallee());
+				__CreateStreamWrite_OPSTYPES5).getCallee());
 		setArgNames(*TheFn, { "ioArgPtr", "valueToWrite", "isSoF", "isEoF",
 				"errorVal" });
 		AddDefaultFunctionAttributes(*TheFn);
 		CI = Builder->CreateCall(TheFn, Ops);
 
 	}
-#undef __CreateStreamWrite_OPSTYPES4
+#undef __CreateStreamWrite_OPSTYPES5
+#undef __CreateStreamWrite_OPSTYPES6
 	CI->setOnlyAccessesArgMemory();
 	return CI;
 }
 
 StreamWriteBehaviorType streamWriteGetBehavior(const llvm::CallInst *C) {
 	switch (C->arg_size()) {
-	case 5:
-		// ioArgPtr, valueToWrite, isSoF, isEoF, errorVal
+	case 6:
+		// ioArgPtr, valueToWrite, isSoF, isEoF, errorVal, userFirstWordVal
 		return StreamWriteBehaviorType::ALLVALID;
-	case 6: {
+	case 7: {
 		auto F = C->getCalledFunction();
 		auto name = F->getName().str();
 		if (name.rfind(StreamWriteMaskedName + ".", 0) == 0) {
@@ -277,34 +285,45 @@ size_t streamWriteGetOrigChunkBitWidth(const CallInst *I) {
 	return I->getArgOperand(1)->getType()->getIntegerBitWidth();
 }
 llvm::Value* streamWriteGetIoArg(const llvm::CallInst *C) {
-	return C->getArgOperand(0); // ioArgPtr, valueToWrite, [writeMaskOrEmpty], isSoF, isEoF
+	return C->getArgOperand(0); // ioArgPtr, valueToWrite, [writeMaskOrEmpty], isSoF, isEoF, errorVal, userFirstWordVal
 }
 llvm::Value* streamWriteGetWriteData(const llvm::CallInst *C) {
-	return C->getArgOperand(1); // ioArgPtr, valueToWrite, [writeMaskOrEmpty], isSoF, isEoF
+	return C->getArgOperand(1); // ioArgPtr, valueToWrite, [writeMaskOrEmpty], isSoF, isEoF, errorVal, userFirstWordVal
 }
 llvm::Value* streamWriteGetWriteMaskOrEmpty(const llvm::CallInst *C) {
 	// ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF, errorVal
-	if (C->arg_size() == 6)
-		return C->getArgOperand(2); // ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF
+	if (C->arg_size() == 7)
+		return C->getArgOperand(2); // ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF, userFirstWordVal
 	else {
-		assert(C->arg_size() == 5);
-		// ioArgPtr, valueToWrite, isSoF, isEoF, errorVal
+		assert(C->arg_size() == 6);
+		// ioArgPtr, valueToWrite, isSoF, isEoF, errorVal, userFirstWordVal
 		return nullptr;
 	}
 }
 llvm::Value* streamWriteGetWriteSoF(const llvm::CallInst *C) {
-	// ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF, errorVal
+	// ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF, errorVal, userFirstWordVal
 	// ioArgPtr, valueToWrite, isSoF, isEoF, errorVal
-	return C->getArgOperand(C->arg_size() - 2 - 1);
+	return C->getArgOperand(C->arg_size() - 3 - 1);
 }
 llvm::Value* streamWriteGetWriteEoF(const llvm::CallInst *C) {
-	// ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF, errorVal
-	// ioArgPtr, valueToWrite, isSoF, isEoF, errorVal
-	return C->getArgOperand(C->arg_size() - 1 - 1);
+	// ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF, errorVal, userFirstWordVal
+	// ioArgPtr, valueToWrite, isSoF, isEoF, errorVal, userFirstWordVal
+	return C->getArgOperand(C->arg_size() - 2 - 1);
 }
 llvm::Value* streamWriteGetWriteError(const llvm::CallInst *C) {
-	// ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF, errorVal
-	// ioArgPtr, valueToWrite, isSoF, isEoF, errorVal
+	// ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF, errorVal, userFirstWordVal
+	// ioArgPtr, valueToWrite, isSoF, isEoF, errorVal, userFirstWordVal
+	auto err = C->getArgOperand(C->arg_size() - 1 - 1);
+	if (err->getType()->isPointerTy()) {
+		assert(isa<ConstantPointerNull>(err));
+		return nullptr;
+	} else {
+		return err;
+	}
+}
+llvm::Value* streamWriteGetWriteUserFirstWord(const llvm::CallInst *C) {
+	// ioArgPtr, valueToWrite, writeMaskOrEmpty, isSoF, isEoF, errorVal, userFirstWordVal
+	// ioArgPtr, valueToWrite, isSoF, isEoF, errorVal, userFirstWordVal
 	auto err = C->getArgOperand(C->arg_size() - 1);
 	if (err->getType()->isPointerTy()) {
 		assert(isa<ConstantPointerNull>(err));
@@ -313,12 +332,13 @@ llvm::Value* streamWriteGetWriteError(const llvm::CallInst *C) {
 		return err;
 	}
 }
+
 bool IsStreamWrite(const llvm::CallInst *C) {
 	return IsStreamWrite(C->getCalledFunction());
 }
 bool IsStreamWrite(const llvm::Function *F) {
 	assert(F && "Function may null if definition is missing in IR");
-	if (F->arg_size() != 5 && F->arg_size() != 6) // ioArgPtr, valueToWrite, [writeMaskOrEmpty], isSoF, isEoF, errorVal
+	if (F->arg_size() != 6 && F->arg_size() != 7) // ioArgPtr, valueToWrite, [writeMaskOrEmpty], isSoF, isEoF, errorVal, userFirstWordVal
 		return false;
 	return F->getName().str().rfind(StreamWriteName + ".", 0) == 0;
 }
