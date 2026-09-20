@@ -56,6 +56,9 @@ class IoProxyAxi4Lite(IoProxyAddressed):
     :ivar LATENCY_W_TO_B: Clock cycles it takes for write response (B) after last word is written on W channel.
     :ivar LATENCY_B_TO_R: Specifies how many clock cycles are required for written data to update read transaction to same address.
         (If the read data from same address which was just written starts arriving after this latency they are guaranteed to be just written data.)
+    
+    :ivar offsetWidth: number of bits in addres which are addressing just inside of word. The Address on AXI must be word alligned, thus these bits
+        must be 0.
     """
 
     READ_CLS = HlsReadAxi4Lite
@@ -257,7 +260,7 @@ class IoProxyAxi4Lite(IoProxyAddressed):
         if isinstance(prot, int):
             prot = parent.builder.buildConst(addr.prot._dtype.from_py(prot))
 
-        aVal = parent.builder.buildConcat(HBits(offsetWidth).from_py(0), addrVal, prot)
+        aVal = parent.builder.buildConcat(addrVal, prot)
         return self._constructAddrWriteRaw(netlist, mirToNetlist, parent, mbSync, addr, aVal, cond)
 
     def _constructAddrWriteRaw(self,
@@ -343,6 +346,7 @@ class IoProxyAxi4Lite(IoProxyAddressed):
                                instrDstReg: Register) -> Sequence[HlsNetNode]:
         """
         :see: :meth:`~.IoProxy._translateMirToNetlist_HWTFPGA_CLOAD`
+        :note: this is called only for loads which were not lowered to access directly to axi channels, etc
         """
         assert self.hasBlockingRead is None or self.hasBlockingRead, self.interface
 
@@ -411,6 +415,9 @@ class IoProxyAxi4Lite(IoProxyAddressed):
             cond: Optional[HlsNetNodeOutAny],
             bufferCapacity: Optional[int],
             writeNodeCls: TypingType[HlsNetNodeWrite]=HlsNetNodeWrite) -> Sequence[HlsNetNode]:
+        """
+        :note: this is called only for loads which were not lowered to access directly to axi channels, etc
+        """
         assert not bufferCapacity
         netlist: HlsNetlistCtx = mirToNetlist.netlist
         if dstIoMd.ioPropertyPath is None:
