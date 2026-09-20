@@ -145,7 +145,7 @@ size_t StreamChannelFormatInfo::getOffsetOfError(
 		return getOffsetOfMask(segmentIndex) + getWidthOfMask();
 	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY:
 		// Axi4StreamSegmented (data[n], (enable?, empty?, err?, userFirstWord?, sof?, eof?)[n])
-		return getOffsetOfEmpty(segmentIndex) + getWidthOfEmpty();
+		return getOffsetOfEmpty(segmentIndex) + (hasEmpty() ? getWidthOfEmpty(): 0);
 	default:
 		llvm_unreachable("Invalid value for byte enable encoding of a stream");
 	}
