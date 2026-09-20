@@ -56,10 +56,10 @@ class HlsStmReadAvalonSt(HlsStmReadAxi4Stream):
             (dtype, "data"),
             *(((emptyT, "empty"),) if not self._isReliable else ()),
             *(((HBits(src.ERROR_WIDTH), "error"),) if src.ERROR_WIDTH else ()),
+            *(((HwIO_to_HdlType().apply(src.user), "user"),)  if hasattr(src, "user") else ()),
             (BIT, "sof"),
             (BIT, "eof"),  # we do not know how many words this read could be,
                            # the eof is disjunction of eof signals from each word
-            *(((HwIO_to_HdlType().apply(src.user), )  if hasattr(src, "user") else ()))
         )
         return trueDtype
 

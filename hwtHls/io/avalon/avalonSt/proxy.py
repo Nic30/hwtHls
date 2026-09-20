@@ -21,15 +21,16 @@ class IoProxyAvalonSt(IoProxyStream):
     def __init__(self, hls:"HlsScope", hwio:AvalonST):
         commonIo = [
             hwio.data,
+            getattr(hwio, "empty", None),
             getattr(hwio, "error", None),
             getattr(hwio, "user", None),
-            getattr(hwio, "sof", None),
-            getattr(hwio, "eof", None),
-            hwio.ready,
-            hwio.valid,
+            getattr(hwio, "startOfPacket", None),
+            getattr(hwio, "endOfPacket", None),
+            hwio.rd,
+            hwio.vld,
         ]
         for _hwio in hwio._hwIOs:
-            assert _hwio in commonIo, ("Must not contain any non-standard signals, (use )", hwio, _hwio)
+            assert _hwio in commonIo, ("Must not contain any non-standard signals, (use user signal instead)", hwio, _hwio)
 
         if hwio.firstSymbolInHighOrderBits:
             raise NotImplementedError("AvalonST in big-endian mode")
