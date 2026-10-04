@@ -1,3 +1,5 @@
+#include "pybind11/attr.h"
+#include "pybind11/pytypes.h"
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/stl_bind.h>
@@ -647,6 +649,87 @@ void register_Abc_Obj_t(py::module_ &m) {
 		});
 }
 
+// https://stackoverflow.com/a/79160566
+class AbcPatternRecognizerPy : public AbcPatternRecognizer<py::object>,
+							   public py::trampoline_self_life_support {
+public:
+	using Base = AbcPatternRecognizer<py::object>;
+	inline py::function
+	_pybind11_get_type_override_no_check(const void *this_ptr, const py::detail::type_info *this_type, const char *name) {
+		using namespace py;
+		using namespace py::detail;
+		handle self = get_object_handle(this_ptr, this_type);
+		if (!self) {
+			return function();
+		}
+		handle type = type::handle_of(self);
+		auto key = std::make_pair(type.ptr(), name);
+
+		/* Cache functions that aren't overridden in Python to avoid
+		   many costly Python dictionary lookups below */
+		bool not_overridden = with_internals([&key](internals &internals) {
+			auto &cache = internals.inactive_override_cache;
+			return cache.find(key) != cache.end();
+		});
+		if (not_overridden) {
+			return function();
+		}
+
+		function override = getattr(self, name, function());
+		if (override.is_cpp_function()) {
+			with_internals([&](internals &internals) {
+				internals.inactive_override_cache.insert(std::move(key));
+			});
+			return function();
+		}
+
+		return override;
+	}
+	template <class T>
+	py::function _pybind11_get_override_no_check(const T *this_ptr, const char *name) {
+		auto *tinfo = py::detail::get_type_info(typeid(T));
+		return tinfo ? _pybind11_get_type_override_no_check(this_ptr, tinfo, name)
+					 : py::function();
+	}
+	#define PYBIND11_OVERRIDE_NO_CHECK(ret_type, cname, fn, ...)                                               \
+	    PYBIND11_OVERRIDE_NAME_NO_CHECK(PYBIND11_TYPE(ret_type), PYBIND11_TYPE(cname), #fn, fn, __VA_ARGS__)
+	#define PYBIND11_OVERRIDE_NAME_NO_CHECK(ret_type, cname, name, fn, ...)                                    \
+	    do {                                                                                          \
+	        PYBIND11_OVERRIDE_IMPL_NO_CHECK(PYBIND11_TYPE(ret_type), PYBIND11_TYPE(cname), name, __VA_ARGS__); \
+	        return cname::fn(__VA_ARGS__);                                                            \
+	    } while (false)
+    #define PYBIND11_OVERRIDE_IMPL_NO_CHECK(ret_type, cname, name, ...)                                   \
+		    do {                                                                                          \
+		        pybind11::gil_scoped_acquire gil;                                                         \
+		        pybind11::function override                                                               \
+		            = _pybind11_get_override_no_check(static_cast<const cname *>(this), name);            \
+		        if (override) {                                                                           \
+		            auto o = override(__VA_ARGS__);                                                       \
+		            PYBIND11_WARNING_PUSH                                                                 \
+		            PYBIND11_WARNING_DISABLE_MSVC(4127)                                                   \
+		            if PYBIND11_MAYBE_CONSTEXPR (                                                         \
+		                pybind11::detail::cast_is_temporary_value_reference<ret_type>::value              \
+		                && !pybind11::detail::is_same_ignoring_cvref<ret_type, PyObject *>::value) {      \
+		                static pybind11::detail::override_caster_t<ret_type> caster;                      \
+		                return pybind11::detail::cast_ref<ret_type>(std::move(o), caster);                \
+		            } else {                                                                              \
+		                return pybind11::detail::cast_safe<ret_type>(std::move(o));                       \
+		            }                                                                                     \
+		            PYBIND11_WARNING_POP                                                                  \
+		        }                                                                                         \
+		    } while (false)
+	virtual py::object _translate(Abc_Obj_t *obj, bool negated) override {
+		PYBIND11_OVERRIDE_NO_CHECK(py::object, Base, _translate, obj, negated);
+	}
+
+	// virtual std::shared_ptr<typename Base::RecognizedOpResult>
+	//_recognizeNonAigOperator(Abc_Obj_t *obj, bool negated) override {
+	//	PYBIND11_OVERRIDE(
+	//		std::shared_ptr<typename Base::RecognizedOpResult>, Base,
+	//		_recognizeNonAigOperator, obj, negated);
+	// }
+};
+
 void _module(py::module_ & m) {
 	// https://people.eecs.berkeley.edu/~alanmi/abc/aig.pdf
 	Abc_Start();
@@ -677,24 +760,34 @@ void _module(py::module_ & m) {
 			return hwtHls::Abc_NtkExpandExternalCombLoops(pNtk, (Abc_Aig_t*)pMan, impliedValues, inToOutConnections, trueOutputs);
 		});
 
-
-	py::class_<AbcPatternMux2>(m, "AbcPatternMux2")
-		.def_readwrite("isNegated", &AbcPatternMux2::isNegated)
-		.def_readwrite("v0", &AbcPatternMux2::v0)
-		.def_readwrite("v0n", &AbcPatternMux2::v0n)
-		.def_readwrite("c0", &AbcPatternMux2::c0)
-		.def_readwrite("c0n", &AbcPatternMux2::c0n)
-		.def_readwrite("v1", &AbcPatternMux2::v1)
-		.def_readwrite("v1n", &AbcPatternMux2::v1n);
-
-	py::class_<AbcPatternMux3, AbcPatternMux2>(m, "AbcPatternMux3")
-		.def_readwrite("c1", &AbcPatternMux3::c1)
-		.def_readwrite("c1n", &AbcPatternMux3::c1n)
-		.def_readwrite("v2", &AbcPatternMux3::v2)
-		.def_readwrite("v2n", &AbcPatternMux3::v2n);
-
-	m.def("recognizeMux2", &recognizeMux2);
-	m.def("recognizeMux3", &recognizeMux3);
+	py::class_<AbcPatternRecognizer<py::object>,
+	           AbcPatternRecognizerPy/* <--- trampoline */,
+			   py::smart_holder> _AbcPatternRecognizerPy(m, "AbcPatternRecognizer");
+	_AbcPatternRecognizerPy
+		.def(py::init<>())
+		.def("_recognizeNonAigOperator", &AbcPatternRecognizer<py::object>::_recognizeNonAigOperator)
+		;
+	
+	py::native_enum<AbcPatternRecognizerPy::RecognizedOps>(_AbcPatternRecognizerPy, "RecognizedOps", "enum.Enum")
+		.value("NOT", AbcPatternRecognizerPy::RecognizedOps::NOT)
+		.value("AND", AbcPatternRecognizerPy::RecognizedOps::AND)
+		.value("OR", AbcPatternRecognizerPy::RecognizedOps::OR)
+		.value("XOR", AbcPatternRecognizerPy::RecognizedOps::XOR)
+		.value("TERNARY", AbcPatternRecognizerPy::RecognizedOps::TERNARY)
+		.value("NOP", AbcPatternRecognizerPy::RecognizedOps::NOP)
+		.finalize()
+	;
+	py::class_<AbcPatternRecognizerPy::RecognizedOpResult, py::smart_holder>(_AbcPatternRecognizerPy, "RecognizedOpResult")
+		.def_readonly("val", &AbcPatternRecognizerPy::RecognizedOpResult::val)
+		.def_readonly("op", &AbcPatternRecognizerPy::RecognizedOpResult::op)
+		.def("operands", [](AbcPatternRecognizerPy::RecognizedOpResult& self) {
+		    py::list result;
+		    for (const auto& operand : self.operands) {
+		        result.append(py::cast(operand)); // copies shared_ptr; safe ownership
+		    }
+		    return result;
+		})
+	;
 
 	//py::capsule cleanup(m, [](PyObject *) { Abc_Stop(); });
 	//m.add_object("_cleanup", cleanup);

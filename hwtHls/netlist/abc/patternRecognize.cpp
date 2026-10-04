@@ -433,4 +433,77 @@ std::optional<AbcPatternMux2> recognizeMux2(bool negated, Abc_Obj_t *top)  noexc
 	return {};
 }
 
+
+/*
+
+@classmethod
+def collectOrMembers(cls, o: Abc_Obj_t):
+    o0n = o.FaninC0()
+    o1n = o.FaninC1()
+    o0, o1 = o.IterFanin()
+    o0isPi = o0.IsPi()
+    o1isPi = o1.IsPi()
+
+    # if is negated or is primary input end search otherwise drill down
+    if o0n or o0isPi:
+        yield (o0, not o0n)
+    else:
+        yield from cls._collectOrMembers(o0)
+
+    if o1n or o1isPi:
+        yield (o1, not o1n)
+    else:
+        yield from cls._collectOrMembers(o1)
+ */
+void collectOrMembers(
+	Abc_Obj_t *o, std::vector<std::pair<Abc_Obj_t *, bool>> &result) noexcept(true) {
+	// :see: :meth:`AbcAigToRtlNetlist._collectOrMembers`
+	bool o0n = Abc_ObjFaninC0(o);
+	bool o1n = Abc_ObjFaninC1(o);
+
+	auto o0 = Abc_ObjFanin0(o);
+	auto o1 = Abc_ObjFanin1(o);
+
+	bool o0isPi = Abc_ObjIsPi(o0);
+	bool o1isPi = Abc_ObjIsPi(o1);
+
+	// Fanin 0
+	if (o0n || o0isPi) {
+		// Leaf: store (object, effective_polarity)
+		result.emplace_back(o0, !o0n);
+	} else {
+		// Recurse
+		collectOrMembers(o0, result);
+	}
+
+	// Fanin 1
+	if (o1n || o1isPi) {
+		result.emplace_back(o1, !o1n);
+	} else {
+		collectOrMembers(o1, result);
+	}
+}
+
+/*
+@classmethod
+def _collectAndMembers(cls, o: Abc_Obj_t):
+   """
+   Collect members (a, b, c) from patterns like (~a | ~b | ~c)
+   to translate it to ~(a & b & c)
+   """
+   o0n = o.FaninC0()
+   o1n = o.FaninC1()
+   o0, o1 = o.IterFanin()
+   o0isPi = o0.IsPi()
+   o1isPi = o1.IsPi()
+
+
+@classmethod
+def _collectAndNotMembers(cls, o: Abc_Obj_t):
+   """
+   Collect members (a, b, c) from patterns like (~a & ~b & ~c)
+   to translate it to ~(a | b | c)
+   """
+*/
+
 }
