@@ -696,8 +696,8 @@ class AbcTC(unittest.TestCase):
 
 if __name__ == "__main__":
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([AbcTC('test_mux0')])
     suite = testLoader.loadTestsFromTestCase(AbcTC)
+    # suite = unittest.TestSuite([AbcTC('testFromRtlNetlistAndBack')])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
 
