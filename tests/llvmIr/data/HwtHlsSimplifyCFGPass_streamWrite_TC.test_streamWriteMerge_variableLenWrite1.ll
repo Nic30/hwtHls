@@ -37,7 +37,7 @@ mainLoop:                                         ; preds = %_forwardPacket.ret,
   %10 = xor i1 %.specExit67, true
   %11 = and i1 %10, %.specExit64
   %12 = call i3 @hwtHls.bitConcat.i2.i1(i2 %.specExit, i1 %11) #3
-  call void @hwtHls.streamWrite.masked.p2.i24.i3.i1.i1.p0(ptr addrspace(2) %tx, i24 %0, i3 %12, i1 false, i1 %.eof, ptr null) #4
+  call void @hwtHls.streamWrite.masked.p2.i24.i3.i1.i1.p0.p0(ptr addrspace(2) %tx, i24 %0, i3 %12, i1 false, i1 %.eof, ptr null, ptr null) #4
   br i1 %.eof, label %_forwardPacket.ret, label %copyLoop
 
 copyLoop:                                         ; preds = %mainLoop, %copyLoop

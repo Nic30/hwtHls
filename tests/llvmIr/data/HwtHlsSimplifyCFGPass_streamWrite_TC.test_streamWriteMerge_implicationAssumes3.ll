@@ -66,7 +66,7 @@ loop.pkt.read:                                    ; preds = %loop.pkt.lastCheck.
   br i1 %wEn3, label %loop.pkt.write.1.streamWrite.sinked, label %35
 
 loop.pkt.write.1.streamWrite.sinked:              ; preds = %loop.pkt.read
-  call void @hwtHls.streamWrite.masked.p2.i16.i2.i1.i1.p0(ptr addrspace(2) %tx, i16 %2, i2 %33, i1 false, i1 %34, ptr null) #4
+  call void @hwtHls.streamWrite.masked.p2.i16.i2.i1.i1.p0.p0(ptr addrspace(2) %tx, i16 %2, i2 %33, i1 false, i1 %34, ptr null, ptr null) #4
   br label %35
 
 35:                                               ; preds = %loop.pkt.write.1.streamWrite.sinked, %loop.pkt.read
@@ -75,7 +75,7 @@ loop.pkt.write.1.streamWrite.sinked:              ; preds = %loop.pkt.read
 
 loop.pkt.write.2.streamWrite.sinked:              ; preds = %35
   call void @llvm.assume(i1 %impCache)
-  call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %1, i1 false, i1 %.231, ptr null) #4
+  call void @hwtHls.streamWrite.p2.i8.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %1, i1 false, i1 %.231, ptr null, ptr null) #4
   br label %loop.pkt.lastCheck.2.writesExit
 
 loop.pkt.lastCheck.2.writesExit:                  ; preds = %loop.pkt.write.2.streamWrite.sinked, %35

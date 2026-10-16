@@ -50,7 +50,7 @@ loop.pkt.read:                                    ; preds = %22, %loop.pkt
   %19 = call i24 @hwtHls.bitConcat.i8.i8.i8(i8 %0, i8 %.2, i8 %.230) #4
   %20 = call i3 @hwtHls.bitConcat.i1.i1.i1(i1 %write0.en, i1 %write1.en, i1 %write2.en) #4
   %21 = or i1 %17, %eof.2
-  call void @hwtHls.streamWrite.masked.p2.i24.i3.i1.i1.p0(ptr addrspace(2) %tx, i24 %19, i3 %20, i1 false, i1 %21, ptr null) #3
+  call void @hwtHls.streamWrite.masked.p2.i24.i3.i1.i1.p0.p0(ptr addrspace(2) %tx, i24 %19, i3 %20, i1 false, i1 %21, ptr null, ptr null) #3
   br label %22
 
 22:                                               ; preds = %loop.pkt.read, %18

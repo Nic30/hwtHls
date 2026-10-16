@@ -35,7 +35,7 @@ mainLoop:                                         ; preds = %bb.ret, %bb0
   %8 = xor i1 %.specExit65, true
   %9 = and i1 %8, %.specExit63
   %10 = call i3 @hwtHls.bitConcat.i1.i1.i1(i1 true, i1 %.specExit, i1 %9) #3
-  call void @hwtHls.streamWrite.masked.p2.i24.i3.i1.i1.p0(ptr addrspace(2) %tx, i24 %0, i3 %10, i1 false, i1 %.eof, ptr null) #4
+  call void @hwtHls.streamWrite.masked.p2.i24.i3.i1.i1.p0.p0(ptr addrspace(2) %tx, i24 %0, i3 %10, i1 false, i1 %.eof, ptr null, ptr null) #4
   br i1 %.eof, label %bb.ret, label %copyLoop
 
 copyLoop:                                         ; preds = %copyLoop, %mainLoop
@@ -70,7 +70,7 @@ copyLoop:                                         ; preds = %copyLoop, %mainLoop
   %17 = xor i1 %16, true
   %18 = and i1 %17, %cp.tx.mask2
   %19 = call i3 @hwtHls.bitConcat.i1.i1.i1(i1 %cp.tx.mask0, i1 %cp.tx.mask1, i1 %18) #3
-  call void @hwtHls.streamWrite.masked.p2.i24.i3.i1.i1.p0(ptr addrspace(2) %tx, i24 %11, i3 %19, i1 false, i1 %cp.eof, ptr null) #4
+  call void @hwtHls.streamWrite.masked.p2.i24.i3.i1.i1.p0.p0(ptr addrspace(2) %tx, i24 %11, i3 %19, i1 false, i1 %cp.eof, ptr null, ptr null) #4
   br i1 %cp.eof, label %bb.ret, label %copyLoop
 
 bb.ret:                                           ; preds = %copyLoop, %mainLoop

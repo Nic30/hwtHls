@@ -124,14 +124,14 @@ loop.pkt.read:                                    ; preds = %loop.pkt.lastCheck.
   br i1 %65, label %loop.pkt.write.5.streamWrite.sinked, label %74
 
 loop.pkt.write.5.streamWrite.sinked:              ; preds = %loop.pkt.read
-  call void @hwtHls.streamWrite.masked.p2.i48.i6.i1.i1.p0(ptr addrspace(2) %tx, i48 %66, i6 %67, i1 false, i1 %72, ptr null) #5
+  call void @hwtHls.streamWrite.masked.p2.i48.i6.i1.i1.p0.p0(ptr addrspace(2) %tx, i48 %66, i6 %67, i1 false, i1 %72, ptr null, ptr null) #5
   br label %74
 
 74:                                               ; preds = %loop.pkt.write.5.streamWrite.sinked, %loop.pkt.read
   br i1 %.streamWrite.en27.2, label %loop.pkt.write.6.streamWrite.sinked, label %loop.pkt.lastCheck.6.writesExit
 
 loop.pkt.write.6.streamWrite.sinked:              ; preds = %74
-  call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %.260, i1 false, i1 %.263, ptr null) #5
+  call void @hwtHls.streamWrite.p2.i8.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %.260, i1 false, i1 %.263, ptr null, ptr null) #5
   br label %loop.pkt.lastCheck.6.writesExit
 
 loop.pkt.lastCheck.6.writesExit:                  ; preds = %loop.pkt.write.6.streamWrite.sinked, %74

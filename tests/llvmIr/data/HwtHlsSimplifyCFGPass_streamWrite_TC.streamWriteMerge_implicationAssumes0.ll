@@ -71,14 +71,14 @@ loop.pkt.read:                                    ; preds = %loop.pkt.lastCheck,
   br i1 %4, label %37, label %38
 
 37:                                               ; preds = %loop.pkt.read
-  call void @hwtHls.streamWrite.masked.p2.i24.i3.i1.i1.p0(ptr addrspace(2) %tx, i24 %32, i3 %33, i1 false, i1 %35, ptr null) #5
+  call void @hwtHls.streamWrite.masked.p2.i24.i3.i1.i1.p0.p0(ptr addrspace(2) %tx, i24 %32, i3 %33, i1 false, i1 %35, ptr null, ptr null) #5
   br label %38
 
 38:                                               ; preds = %loop.pkt.read, %37
   br i1 %.streamWrite.en21.2, label %bb.w3, label %loop.pkt.lastCheck
 
 bb.w3:                                            ; preds = %38
-  call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %data.3, i1 false, i1 %eof.3, ptr null) #5
+  call void @hwtHls.streamWrite.p2.i8.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %data.3, i1 false, i1 %eof.3, ptr null, ptr null) #5
   br label %loop.pkt.lastCheck
 
 loop.pkt.lastCheck:                               ; preds = %bb.w3, %38

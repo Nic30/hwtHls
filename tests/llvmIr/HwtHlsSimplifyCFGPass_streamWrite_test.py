@@ -33,7 +33,7 @@ class HwtHlsSimplifyCFGPass_streamWrite_TC(BaseLlvmIrTC):
             if isStream:
                 md = f'{streamMdId:s} = !{{!"hwtHls.io.protocol", !{mdId+2:d}}}'
                 res.append(md)
-                md = f'!{mdId+2:d} = !{{!"hwtHls.io.protocol.stream", i32 {dataWidth:d}, i32 8, !"mask", i32 0, !"eof", i32 0, i32 1}}'
+                md = f'!{mdId+2:d} = !{{!"hwtHls.io.protocol.stream", i32 {dataWidth:d}, i32 8, !"mask", i32 0, !"eof", i32 0, i32 0, i32 1}}'
                 res.append(md)
 
         res[0] = f"!{mdIdOffset:d} = distinct !{{{', '.join(argMdIds)}}}"
@@ -54,11 +54,11 @@ class HwtHlsSimplifyCFGPass_streamWrite_TC(BaseLlvmIrTC):
     #      br i1 %m0, label %bb.w0, label %bb.writesExit
     #
     #    bb.w0:
-    #      call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 1, i1 0, i1 %eof, ptr null) #4
+    #      call void @hwtHls.streamWrite.p2.i8.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 1, i1 0, i1 %eof, ptr null, ptr null) #4
     #      br i1 %m1, label %bb.w1, label %bb.writesExit
     #
     #    bb.w1:
-    #      call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 2, i1 0, i1 %eof, ptr null) #4
+    #      call void @hwtHls.streamWrite.p2.i8.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 2, i1 0, i1 %eof, ptr null, ptr null) #4
     #      br label %bb.writesExit
     #
     #    bb.writesExit:
@@ -80,12 +80,12 @@ class HwtHlsSimplifyCFGPass_streamWrite_TC(BaseLlvmIrTC):
           %eof = load volatile i1, ptr addrspace(1) %maskIn, align 1
           br i1 %m0, label %bb.w0, label %bb.w0.exit
         bb.w0:
-          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 1, i1 0, i1 %eof, ptr null) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 1, i1 0, i1 %eof, ptr null, ptr null) #4
           br label %bb.w0.exit 
         bb.w0.exit:
           br i1 %m1, label %bb.w1, label %bb.writesExit
         bb.w1:
-          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 2, i1 0, i1 %eof, ptr null) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 2, i1 0, i1 %eof, ptr null, ptr null) #4
           br label %bb.writesExit
         
         bb.writesExit:
@@ -106,10 +106,10 @@ class HwtHlsSimplifyCFGPass_streamWrite_TC(BaseLlvmIrTC):
           %m1.0 = load volatile i1, ptr addrspace(1) %maskIn, align 1
           %m1 = and i1 %m0, %m1.0
           %eof = load volatile i1, ptr addrspace(1) %maskIn, align 1
-          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 1, i1 0, i1 %eof, ptr null) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 1, i1 0, i1 %eof, ptr null, ptr null) #4
           br i1 %m1, label %bb.w1, label %bb.writesExit
         bb.w1:
-          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 2, i1 0, i1 %eof, ptr null) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 2, i1 0, i1 %eof, ptr null, ptr null) #4
           br label %bb.writesExit
         
         bb.writesExit:
@@ -169,21 +169,21 @@ class HwtHlsSimplifyCFGPass_streamWrite_TC(BaseLlvmIrTC):
           br i1 %write0.en, label %bb.write0, label %bb.write1.guard
         
         bb.write0:
-          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %20, i1 0, i1 %sig_7, ptr null) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %20, i1 0, i1 %sig_7, ptr null, ptr null) #4
           br label %bb.write1.guard
         
         bb.write1.guard:
           br i1 %write1.en, label %bb.write1, label %bb.write2.guard
         
         bb.write1:
-          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %.2, i1 0, i1 %eof.1, ptr null) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %.2, i1 0, i1 %eof.1, ptr null, ptr null) #4
           br label %bb.write2.guard
         
         bb.write2.guard:
           br i1 %write2.en, label %bb.write2, label %bb.writeExit
         
         bb.write2:
-          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %.230, i1 0, i1 %eof.2, ptr null) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %.230, i1 0, i1 %eof.2, ptr null, ptr null) #4
           br label %bb.writeExit
         
         bb.writeExit:
@@ -207,7 +207,7 @@ class HwtHlsSimplifyCFGPass_streamWrite_TC(BaseLlvmIrTC):
         loop.pkt:
           %wEn = load volatile i3, ptr addrspace(1) %rx, align 4
           %wEn.0 = icmp ne i3 %wEn, 0
-          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 1, i1 0, i1 0, ptr null) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 1, i1 0, i1 0, ptr null, ptr null) #4
           br i1 %wEn.0, label %switch.early.test, label %loop.pkt.latch
         
         switch.early.test:
@@ -217,7 +217,7 @@ class HwtHlsSimplifyCFGPass_streamWrite_TC(BaseLlvmIrTC):
           ]
         
         bb.write1:
-          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 2, i1 0, i1 1, ptr null) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 2, i1 0, i1 1, ptr null, ptr null) #4
           br label %loop.pkt.latch
         
         loop.pkt.latch:
@@ -299,28 +299,28 @@ class HwtHlsSimplifyCFGPass_streamWrite_TC(BaseLlvmIrTC):
           br i1 %2, label %bb.w0, label %bb.w1.guard
         
         bb.w0:
-          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %data.0, i1 0, i1 %eof.0, ptr null) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %data.0, i1 0, i1 %eof.0, ptr null, ptr null) #4
           br label %bb.w1.guard
         
         bb.w1.guard:
           br i1 %writeEn3.1, label %bb.w1, label %bb.w2.guard
         
         bb.w1:
-          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %data.1, i1 0, i1 %eof.1, ptr null) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %data.1, i1 0, i1 %eof.1, ptr null, ptr null) #4
           br label %bb.w2.guard
         
         bb.w2.guard:
           br i1 %.streamWrite.en19.2, label %bb.w2, label %bb.w3.guard
         
         bb.w2:
-          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %.230, i1 0, i1 %eof.2, ptr null) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %.230, i1 0, i1 %eof.2, ptr null, ptr null) #4
           br label %bb.w3.guard
         
         bb.w3.guard:
           br i1 %.streamWrite.en21.2, label %bb.w3, label %loop.pkt.lastCheck
         
         bb.w3:
-          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %data.3, i1 0, i1 %eof.3, ptr null) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %data.3, i1 0, i1 %eof.3, ptr null, ptr null) #4
           br label %loop.pkt.lastCheck
         
         loop.pkt.lastCheck:
@@ -486,14 +486,14 @@ class HwtHlsSimplifyCFGPass_streamWrite_TC(BaseLlvmIrTC):
           br i1 %73, label %loop.pkt.write.5.streamWrite.sinked, label %81
         
         loop.pkt.write.5.streamWrite.sinked:
-          call void @hwtHls.streamWrite.masked.p2.i48.i6.i1.i1.p0(ptr addrspace(2) %tx, i48 %74, i6 %75, i1 0, i1 %80, ptr null) #4
+          call void @hwtHls.streamWrite.masked.p2.i48.i6.i1.i1.p0.p0(ptr addrspace(2) %tx, i48 %74, i6 %75, i1 0, i1 %80, ptr null, ptr null) #4
           br label %81
         
         81:
           br i1 %.streamWrite.en27.2, label %loop.pkt.write.6.streamWrite.sinked, label %loop.pkt.lastCheck.6.writesExit
         
         loop.pkt.write.6.streamWrite.sinked:
-          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %.260, i1 0, i1 %.263, ptr null) #4
+          call void @hwtHls.streamWrite.p2.i8.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %.260, i1 0, i1 %.263, ptr null, ptr null) #4
           br label %loop.pkt.lastCheck.6.writesExit
         
         loop.pkt.lastCheck.6.writesExit:
@@ -588,14 +588,14 @@ loop.pkt.read:
   br i1 %36, label %loop.pkt.write.1, label %loop.pkt.write.2.guard
 
 loop.pkt.write.1:
-  call void @hwtHls.streamWrite.masked.p2.i16.i2.i1.i1.p0(ptr addrspace(2) %tx, i16 %7, i2 %37, i1 0, i1 %38, ptr null) #4
+  call void @hwtHls.streamWrite.masked.p2.i16.i2.i1.i1.p0.p0(ptr addrspace(2) %tx, i16 %7, i2 %37, i1 0, i1 %38, ptr null, ptr null) #4
   br label %loop.pkt.write.2.guard
 
 loop.pkt.write.2.guard:
   br i1 %.streamWrite.en19.2, label %loop.pkt.write.2, label %loop.pkt.write.3.guard
 
 loop.pkt.write.2:
-  call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %9, i1 0, i1 %.233, ptr null) #4
+  call void @hwtHls.streamWrite.p2.i8.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %9, i1 0, i1 %.233, ptr null, ptr null) #4
   br label %loop.pkt.write.3.guard
 
 loop.pkt.write.3.guard:
@@ -604,7 +604,7 @@ loop.pkt.write.3.guard:
 
 loop.pkt.write.3:
   call void @llvm.assume(i1 %impCache)
-  call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %8, i1 0, i1 %.239, ptr null) #4
+  call void @hwtHls.streamWrite.p2.i8.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %8, i1 0, i1 %.239, ptr null, ptr null) #4
   br label %loop.pkt.lastCheck.3.writesExit
 
 loop.pkt.lastCheck.3.writesExit:
@@ -688,7 +688,7 @@ loop.pkt.read:
   br i1 %wEn3, label %loop.pkt.write.1.streamWrite.sinked, label %33
 
 loop.pkt.write.1.streamWrite.sinked:
-  call void @hwtHls.streamWrite.masked.p2.i16.i2.i1.i1.p0(ptr addrspace(2) %tx, i16 %8, i2 %31, i1 0, i1 %32, ptr null) #4
+  call void @hwtHls.streamWrite.masked.p2.i16.i2.i1.i1.p0.p0(ptr addrspace(2) %tx, i16 %8, i2 %31, i1 0, i1 %32, ptr null, ptr null) #4
   br label %33
 
 33:
@@ -697,7 +697,7 @@ loop.pkt.write.1.streamWrite.sinked:
 
 loop.pkt.write.2.streamWrite.sinked:
   call void @llvm.assume(i1 %impCache)
-  call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %9, i1 0, i1 %.231, ptr null) #4
+  call void @hwtHls.streamWrite.p2.i8.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %9, i1 0, i1 %.231, ptr null, ptr null) #4
   br label %loop.pkt.lastCheck.2.writesExit
 
 loop.pkt.lastCheck.2.writesExit:
@@ -724,7 +724,7 @@ loop.pkt.eof:
           %rx_read_data = call i8 @hwtHls.bitRangeGet.i10.i5.i8.0(i10 %rx_read1, i5 0) #2
           %rx_read_last = call i1 @hwtHls.bitRangeGet.i10.i5.i1.9(i10 %rx_read1, i5 9) #2
           call void @hwtHls.streamWriteStartOfFrame.p2(ptr addrspace(2) %tx) #4
-          call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0(ptr addrspace(2) %tx, i8 %rx_read_data, i1 %rx_read_strb, i1 false, i1 %rx_read_last, ptr null) #4
+          call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %rx_read_data, i1 %rx_read_strb, i1 false, i1 %rx_read_last, ptr null, ptr null) #4
           br i1 %rx_read_last, label %bb.ret, label %copyLoop
         
         copyLoop:                                         ; preds = %mainLoop, %copyLoop
@@ -732,7 +732,7 @@ loop.pkt.eof:
           %rx_read_last9 = call i1 @hwtHls.bitRangeGet.i10.i5.i1.9(i10 %rx_read7, i5 9) #2
           %rx_read_data8 = call i8 @hwtHls.bitRangeGet.i10.i5.i8.0(i10 %rx_read7, i5 0) #2
           %rx_read_strb12 = call i1 @hwtHls.bitRangeGet.i10.i5.i1.8(i10 %rx_read7, i5 8) #2
-          call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0(ptr addrspace(2) %tx, i8 %rx_read_data8, i1 %rx_read_strb12, i1 false, i1 %rx_read_last9, ptr null) #4
+          call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %rx_read_data8, i1 %rx_read_strb12, i1 false, i1 %rx_read_last9, ptr null, ptr null) #4
           br i1 %rx_read_last9, label %bb.ret, label %copyLoop
         
         bb.ret:                               ; preds = %copyLoop, %mainLoop
@@ -783,11 +783,11 @@ mainLoop:                                         ; preds = %bb0, %_forwardPacke
   %9 = sext i1 %.eof to i2
   %10 = xor i2 %9, -1
   %.specExit = or i2 %10, %8
-  call void @hwtHls.streamWrite.masked.p2.i16.i2.i1.i1.p0(ptr addrspace(2) %tx, i16 %5, i2 %.specExit, i1 false, i1 %.specExit67, ptr null) #4
+  call void @hwtHls.streamWrite.masked.p2.i16.i2.i1.i1.p0.p0(ptr addrspace(2) %tx, i16 %5, i2 %.specExit, i1 false, i1 %.specExit67, ptr null, ptr null) #4
   br i1 %.specExit67, label %_forwardPacket.ret, label %copyLoop.peel21
 
 copyLoop.peel21:                                  ; preds = %mainLoop
-  call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0(ptr addrspace(2) %tx, i8 %3, i1 %.specExit64, i1 false, i1 %.eof, ptr null) #4
+  call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %3, i1 %.specExit64, i1 false, i1 %.eof, ptr null, ptr null) #4
   br i1 %.eof, label %_forwardPacket.ret, label %copyLoop
 
 copyLoop:                                         ; preds = %copyLoop, %copyLoop.peel21
@@ -840,12 +840,12 @@ mainLoop:                                         ; preds = %bb0, %bb.ret
   %9 = xor i1 %2, true
   %.specExit65 = and i1 %.eof, %9
   call void @hwtHls.streamWriteStartOfFrame.p2(ptr addrspace(2) %tx) #4
-  call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0(ptr addrspace(2) %tx, i8 %3, i1 true, i1 false, i1 false, ptr null) #4
-  call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0(ptr addrspace(2) %tx, i8 %4, i1 %.specExit, i1 false, i1 %.specExit65, ptr null) #4
+  call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %3, i1 true, i1 false, i1 false, ptr null, ptr null) #4
+  call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %4, i1 %.specExit, i1 false, i1 %.specExit65, ptr null, ptr null) #4
   br i1 %.specExit65, label %bb.ret, label %copyLoop.peel21
 
 copyLoop.peel21:                                  ; preds = %mainLoop
-  call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0(ptr addrspace(2) %tx, i8 %5, i1 %.specExit63, i1 false, i1 %.eof, ptr null) #4
+  call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %5, i1 %.specExit63, i1 false, i1 %.eof, ptr null, ptr null) #4
   br i1 %.eof, label %bb.ret, label %copyLoop
 
 copyLoop:                                         ; preds = %copyLoop.2, %copyLoop.peel21
@@ -880,15 +880,15 @@ copyLoop:                                         ; preds = %copyLoop.2, %copyLo
   %cp.tx.eof0 = and i1 %cp.eof, %19  ; eof & ~mask[1]
   %20 = xor i1 %cp.mask2, true ; ~mask[2]
   %cp.tx.eof1 = and i1 %cp.eof, %20  ; eof & ~mask[2]
-  call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0(ptr addrspace(2) %tx, i8 %cp.B0, i1 %cp.tx.mask0, i1 false, i1 %cp.tx.eof0, ptr null) #4
+  call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %cp.B0, i1 %cp.tx.mask0, i1 false, i1 %cp.tx.eof0, ptr null, ptr null) #4
   br i1 %cp.tx.eof0, label %bb.ret, label %copyLoop.1
 
 copyLoop.1:                                       ; preds = %copyLoop
-  call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0(ptr addrspace(2) %tx, i8 %cp.B1, i1 %cp.tx.mask1, i1 false, i1 %cp.tx.eof1, ptr null) #4
+  call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %cp.B1, i1 %cp.tx.mask1, i1 false, i1 %cp.tx.eof1, ptr null, ptr null) #4
   br i1 %cp.tx.eof1, label %bb.ret, label %copyLoop.2
 
 copyLoop.2:                                       ; preds = %copyLoop.1
-  call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0(ptr addrspace(2) %tx, i8 %cp.B2, i1 %cp.tx.mask2, i1 false, i1 %cp.eof, ptr null) #4
+  call void @hwtHls.streamWrite.masked.p2.i8.i1.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %cp.B2, i1 %cp.tx.mask2, i1 false, i1 %cp.eof, ptr null, ptr null) #4
   br i1 %cp.eof, label %bb.ret, label %copyLoop
 
 bb.ret:                                           ; preds = %copyLoop.2, %copyLoop.1, %copyLoop, %copyLoop.peel21, %mainLoop
@@ -903,6 +903,6 @@ if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
     suite = testLoader.loadTestsFromTestCase(HwtHlsSimplifyCFGPass_streamWrite_TC)
-    # suite = unittest.TestSuite([HwtHlsSimplifyCFGPass_streamWrite_TC('test_streamWriteMerge_onProductOf_SimplifyBranchOnICmpChain')])
+    # suite = unittest.TestSuite([HwtHlsSimplifyCFGPass_streamWrite_TC('test_streamWriteMerge1')])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

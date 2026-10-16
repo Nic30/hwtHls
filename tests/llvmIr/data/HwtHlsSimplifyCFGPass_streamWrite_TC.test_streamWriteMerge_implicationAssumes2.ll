@@ -81,14 +81,14 @@ loop.pkt.read:                                    ; preds = %loop.pkt.lastCheck.
   br i1 %wEn3, label %loop.pkt.write.1, label %loop.pkt.write.2.guard
 
 loop.pkt.write.1:                                 ; preds = %loop.pkt.read
-  call void @hwtHls.streamWrite.masked.p2.i16.i2.i1.i1.p0(ptr addrspace(2) %tx, i16 %4, i2 %40, i1 false, i1 %41, ptr null) #4
+  call void @hwtHls.streamWrite.masked.p2.i16.i2.i1.i1.p0.p0(ptr addrspace(2) %tx, i16 %4, i2 %40, i1 false, i1 %41, ptr null, ptr null) #4
   br label %loop.pkt.write.2.guard
 
 loop.pkt.write.2.guard:                           ; preds = %loop.pkt.write.1, %loop.pkt.read
   br i1 %.streamWrite.en19.2, label %loop.pkt.write.2, label %loop.pkt.write.3.guard
 
 loop.pkt.write.2:                                 ; preds = %loop.pkt.write.2.guard
-  call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %2, i1 false, i1 %.233, ptr null) #4
+  call void @hwtHls.streamWrite.p2.i8.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %2, i1 false, i1 %.233, ptr null, ptr null) #4
   br label %loop.pkt.write.3.guard
 
 loop.pkt.write.3.guard:                           ; preds = %loop.pkt.write.2, %loop.pkt.write.2.guard
@@ -97,7 +97,7 @@ loop.pkt.write.3.guard:                           ; preds = %loop.pkt.write.2, %
 
 loop.pkt.write.3:                                 ; preds = %loop.pkt.write.3.guard
   call void @llvm.assume(i1 %impCache)
-  call void @hwtHls.streamWrite.p2.i8.i1.i1.p0(ptr addrspace(2) %tx, i8 %3, i1 false, i1 %.239, ptr null) #4
+  call void @hwtHls.streamWrite.p2.i8.i1.i1.p0.p0(ptr addrspace(2) %tx, i8 %3, i1 false, i1 %.239, ptr null, ptr null) #4
   br label %loop.pkt.lastCheck.3.writesExit
 
 loop.pkt.lastCheck.3.writesExit:                  ; preds = %loop.pkt.write.3, %loop.pkt.write.3.guard

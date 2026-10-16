@@ -37,7 +37,7 @@ bb1.backedge:
 !1 = distinct !{!2, !4}
 !2 = !{!"IN", i64 0, i64 268, i64 0, ptr null, i64 0, !3}
 !3 = !{!"hwtHls.io.protocol", !4}
-!4 = !{!"hwtHls.io.protocol.stream", i32 128, i32 8, !"enable+empty", i32 0, !"eof", i32 0, i32 2}
+!4 = !{!"hwtHls.io.protocol.stream", i32 128, i32 8, !"enable+empty", i32 0, !"eof", i32 0, i32 0, i32 2}
 !5 = !{!"OUT", i64 0, i64 268, i64 268, ptr null, i64 1, !3}
 !6 = distinct !{!6, !7}
 !7 = !{!"hwthls.loop.streamsegmentunroll.io", i32 0}
