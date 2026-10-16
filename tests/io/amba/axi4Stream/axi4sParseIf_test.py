@@ -52,15 +52,16 @@ class Axi4SParseIfTC(SimTestCase):
         passTests.setRunTestsAfter(
             # runTestAfterPassFilter=["hwtHls::SlicesMergePass"],
             # runTestAfterPassFilter=["hwtHls::StreamSegmentLoopUnrollPass"],
-            runTestBeforeLlvmIrPasses=True,
-            # runTestAfterEachPass=False,
+            #runTestBeforeLlvmIrPasses=True,
+            #runTestAfterEachPass=False,
             runTestAfterIrPasses=True,
-            #runTestAfterEachIrPass=True,
+            # runTestAfterEachIrPass=True,
             #runTestAfterIrInstrCombineChange=True,
             #runTestAfterIrCfgSimplify=True,
+            #runTestAfterEachMirPass = True,
             runTestAfterMirPasses=True,
             # runTestAfterMirVRegIfConverterChange=False,
-            # runTestAfterMirGISelCombinerChange=False,
+            #runTestAfterMirGISelCombinerChange=True,
             # runTestAfterEachHlsNetlistPass=False,
             runTestAfterHlsNetlistPasses=False)
         passTests.setTimeLimits(wallTimeRtlDefaultMultiplier=wallTimeRtlDefaultMultiplier)
@@ -423,7 +424,7 @@ if __name__ == '__main__':
     testLoader = unittest.TestLoader()
 
     suite = testLoader.loadTestsFromTestCase(Axi4SParseIfTC)
-    # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2IfAndSequel_16b_100MHz")])
+    # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2If_8b_1MHz")])
     # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2IfAndSequel_NO_FOOTER_16b_100MHz")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
