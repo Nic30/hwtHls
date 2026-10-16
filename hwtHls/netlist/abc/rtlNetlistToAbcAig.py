@@ -1,4 +1,4 @@
-from typing import Dict, Tuple, Union, Sequence
+from typing import Union, Sequence
 
 from hwt.hdl.const import HConst
 from hwt.hdl.operator import HOperatorNode
@@ -9,9 +9,13 @@ from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t, Abc_Aig_t, Abc_NtkType_t, Abc_N
 
 
 class RtlNetlistToAbcAig():
+    """
+    Translate the RtlNetlist nodes specified byt inputs/outputs to ABC AIG.
+    :note: Implemented for 1b logic only.
+    """
 
     def __init__(self,):
-        self.translationCache: Dict[RtlSignal, Abc_Obj_t] = {}
+        self.translationCache: dict[RtlSignal, Abc_Obj_t] = {}
         # the reference must be released because object is deleted when the AIG is deleted
         self.abcFrame = Abc_Frame_t.GetGlobalFrame()
         self.net = Abc_Ntk_t(Abc_NtkType_t.ABC_NTK_STRASH, Abc_NtkFunc_t.ABC_FUNC_AIG, 64)
@@ -60,13 +64,13 @@ class RtlNetlistToAbcAig():
         return res
 
     def translate(self, inputs: Sequence[RtlSignal], outputs: Sequence[RtlSignal])\
-            ->Tuple[Abc_Frame_t, Abc_Ntk_t, Abc_Aig_t, Dict[str, Tuple[Abc_Obj_t, RtlSignal]]]:
+            ->tuple[Abc_Frame_t, Abc_Ntk_t, Abc_Aig_t, dict[str, tuple[Abc_Obj_t, RtlSignal]]]:
         net = self.net
         aig = self.aig
         # self.abcFrame.SetCurrentNetwork(net)
         # :note: we can not store Abc_Obj_t because the object could be discarded after first operation with network
         #        we can not use index because IO may reorder and we can not use Id because it also changes
-        ioMap: Dict[str, RtlSignal] = {}
+        ioMap: dict[str, RtlSignal] = {}
         for i in inputs:
             abcI = net.CreatePi()
             # abcI.AssignName(i._name, "")

@@ -1,10 +1,11 @@
+from itertools import islice
+
 from hwt.hdl.types.defs import BIT
 from hwtHls.netlist.abc.abcAigToRtlNetlist import AbcAigToRtlNetlist
 from hwtHls.netlist.abc.abcCpp import AbcPatternRecognizer 
 from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t, Abc_Aig_t, Abc_Frame_t, Abc_Obj_t, Abc_ObjType_t
 from hwtHls.netlist.builder import HlsNetlistBuilder
 from hwtHls.netlist.nodes.ports import HlsNetNodeOut
-from itertools import islice
 
 
 class AbcAigToHlsNetlist(AbcAigToRtlNetlist):

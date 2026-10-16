@@ -1,5 +1,5 @@
-#include "pybind11/attr.h"
-#include "pybind11/pytypes.h"
+#include <pybind11/attr.h>
+#include <pybind11/pytypes.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/stl_bind.h>
@@ -700,10 +700,10 @@ public:
 	    } while (false)
     #define PYBIND11_OVERRIDE_IMPL_NO_CHECK(ret_type, cname, name, ...)                                   \
 		    do {                                                                                          \
-		        pybind11::gil_scoped_acquire gil;                                                         \
-		        pybind11::function override                                                               \
-		            = _pybind11_get_override_no_check(static_cast<const cname *>(this), name);            \
-		        if (override) {                                                                           \
+			    pybind11::gil_scoped_acquire gil;                                                         \
+			    pybind11::function override                                                               \
+			        = _pybind11_get_override_no_check(static_cast<const cname *>(this), name);            \
+				if (override) {                                                                           \
 		            auto o = override(__VA_ARGS__);                                                       \
 		            PYBIND11_WARNING_PUSH                                                                 \
 		            PYBIND11_WARNING_DISABLE_MSVC(4127)                                                   \
