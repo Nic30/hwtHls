@@ -86,6 +86,7 @@
 #include <hwtHls/llvm/Transforms/HFloatTmpLoweringPass.h>
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinePass.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass.h>
+#include <hwtHls/llvm/Transforms/InstCombineABC1bLogicPass/InstCombineABC1bLogicPass.h>
 #include <hwtHls/llvm/Transforms/IoPortVectorizationPass/IoPortVectorizationPass.h>
 #include <hwtHls/llvm/Transforms/ICmpToOnlyEqLtLePass.h>
 #include <hwtHls/llvm/Transforms/IoLowerAxiMMPass.h>
@@ -155,6 +156,7 @@ void LlvmCompilationBundle::_registerHwtHlsPasses() {
 						   hwtHls::SelectPruningPass,				   //
 						   hwtHls::StripAssumePass,					   //
 						   hwtHls::HwtHlsSimplifyCFGPass,			   //
+						   hwtHls::InstCombineABC1bLogicPass,          //
 						   hwtHls::IoPortVectorizationPass,            //
 						   hwtHls::TrivialSimplifyCFGPass,			   //
 						   hwtHls::SlicesMergePass,					   //
@@ -413,6 +415,9 @@ void LlvmCompilationBundle::runExprOpt() {
 		FPM.addPass(hwtHls::HwtHlsInstCombinePass(_getDefaultInstCombineOptions()));
 		FPM.addPass(llvm::InstCombinePass());
 		FPM.addPass(llvm::EarlyCSEPass());
+		FPM.addPass(hwtHls::HwtHlsInstCombinePass(_getDefaultInstCombineOptions()));
+		FPM.addPass(llvm::GVNHoistPass());
+		FPM.addPass(hwtHls::InstCombineABC1bLogicPass());
 		FPM.addPass(hwtHls::HwtHlsInstCombinePass(_getDefaultInstCombineOptions()));
 		// FPM.addPass(hwtHls::SlicesMergePass(_getPtrOrNull(_dbgIrInstrCombineChangeCallbackFn)));
 		FPM.addPass(hwtHls::ICmpToOnlyEqLtLePass());
@@ -677,6 +682,10 @@ void LlvmCompilationBundle::_addInstrCombinePasses(
 	}
 	if (bitwidthReduction) {
 		FPM.addPass(hwtHls::BitwidthReductionPass());
+		FPM.addPass(llvm::InstCombinePass()); // hwtHls specific
+		FPM.addPass(hwtHls::HwtHlsInstCombinePass(_getDefaultInstCombineOptions()));
+		FPM.addPass(llvm::GVNHoistPass());
+		FPM.addPass(hwtHls::InstCombineABC1bLogicPass());
 		FPM.addPass(llvm::InstCombinePass()); // hwtHls specific
 		FPM.addPass(hwtHls::HwtHlsInstCombinePass(_getDefaultInstCombineOptions()));
 	}

@@ -16,6 +16,7 @@
 #include <hwtHls/llvm/Transforms/HFloatTmpLoweringPass.h>
 #include <hwtHls/llvm/Transforms/IoLowerAxiMMPass.h>
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinePass.h>
+#include <hwtHls/llvm/Transforms/InstCombineABC1bLogicPass/InstCombineABC1bLogicPass.h>
 #include <hwtHls/llvm/Transforms/ThreadExtractIoFsmPass/ThreadExtractIoFsmPass.h>
 #include <hwtHls/llvm/Transforms/LoopFlattenUsingIfPass.h>
 #include <hwtHls/llvm/Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.h>
@@ -137,6 +138,7 @@ void register_PassManager(pybind11::module_ &m) {
 	bindFunctionPass<llvm::EarlyCSEPass>(m, FunctionPassManager, "EarlyCSEPass");
 	bindFunctionPass<BitcountMergePass>(m, FunctionPassManager, "BitcountMergePass");
 	bindFunctionPass<BitwidthReductionPass>(m, FunctionPassManager, "BitwidthReductionPass");
+	bindFunctionPass<InstCombineABC1bLogicPass>(m, FunctionPassManager, "InstCombineABC1bLogicPass");
 	bindFunctionPass<ExtractBitConcatAndSliceOpsPass>(m, FunctionPassManager, "ExtractBitConcatAndSliceOpsPass");
 	bindFunctionPass<HFloatTmpLoweringPass>(m, FunctionPassManager, "HFloatTmpLoweringPass");
 	bindFunctionPass<SlicesMergePass>(m, FunctionPassManager, "SlicesMergePass");
