@@ -1,6 +1,6 @@
-#include "Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h"
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_unswitchCheapBlock.h>
-#include <llvm-21/llvm/ADT/STLExtras.h>
+#include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/DenseSet.h>
 #include <llvm/ADT/SmallPtrSet.h>
 #include <llvm/ADT/SmallVector.h>
