@@ -29,7 +29,8 @@ class Axi4SSPacketByteCntrTC(_Axi4SPacketByteCntrTC):
         dut.SEGMENT_CNT = SEGMENT_CNT
         dut.SEGMENT_DATA_WIDTH = DATA_WIDTH
         dut.CLK_FREQ = CLK_FREQ
-        self._run_test_byte_cnt(dut, LENS=LENS, T_MUL=T_MUL, SUM_ONLY=SUM_ONLY, TEST_IR=TEST_IR, TEST_MIR=TEST_MIR, platformKwargs=platformKwargs)
+        self._run_test_byte_cnt(dut, LENS=LENS, T_MUL=T_MUL, SUM_ONLY=SUM_ONLY,
+                                TEST_IR=TEST_IR, TEST_MIR=TEST_MIR, platformKwargs=platformKwargs)
 
     def test_Axi4SSPacketByteCntr_readByte_1x8b(self):
         self._test_byte_cnt(8, cls=Axi4SSPacketByteCntr_readByte)
