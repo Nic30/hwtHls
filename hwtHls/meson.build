@@ -16,7 +16,7 @@ foreach submodule_path: hwtHls_modules
     )
 endforeach
 
-subdir('llvm')
 subdir('netlist/abc')
+subdir('llvm')
 subdir('netlist/techmap')
 subdir('netlist/analysis/reachabilityCpp')

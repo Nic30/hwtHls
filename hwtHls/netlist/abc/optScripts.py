@@ -1,5 +1,9 @@
 from hwtHls.netlist.abc.abcCpp import Abc_Ntk_t
 
+# [SYNCHRONIZED]
+#  * hwtHls/llvm/Transforms/InstCombineABC1bLogicPass/InstCombineABC1bLogicPass.cpp
+#  * hwtHls.netlist.abc.optScripts
+#  * hwtHls.netlist.transformation.simplifyExpr.simplifyAbc
 
 def abcCmd_resyn2(net: Abc_Ntk_t):
     # abc standard scripts

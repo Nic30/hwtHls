@@ -98,6 +98,11 @@ def runAbcControlpathOpt(builder: HlsNetlistBuilder, worklist: SetList[HlsNetNod
                         if any(user.obj not in treeNodes
                                for user in o.obj.usedBy[o.out_i])]
         abcFrame, abcNet, abcAig, ioMap = toAbcAig.translate(inputs, outputs)
+        # [SYNCHRONIZED]
+        #  * hwtHls/llvm/Transforms/InstCombineABC1bLogicPass/InstCombineABC1bLogicPass.cpp
+        #  * hwtHls.netlist.abc.optScripts
+        #  * hwtHls.netlist.transformation.simplifyExpr.simplifyAbc
+
         abcAig.Cleanup()
         # abcNet.Io_Write("runAbcControlpathOpt.abc.0.dot", Io_FileType_t.IO_FILE_DOT)
         abcNet = abcCmd_resyn2(abcNet)
