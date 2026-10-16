@@ -408,6 +408,8 @@ bool HwtFpgaCombinerHelper::hasAll1AndAll0Values(MachineInstr &MI,
 		return false;
 	auto &v0 = MI.getOperand(1);
 	auto &c0 = MI.getOperand(2);
+	if (!c0.isReg())
+		return false;
 	auto &v1 = MI.getOperand(3);
 	auto Ty = MRI.getType(MI.getOperand(0).getReg());
 	for (auto& v: {v0, v1}) {
@@ -432,13 +434,11 @@ bool HwtFpgaCombinerHelper::hasAll1AndAll0Values(MachineInstr &MI,
 			if (MachineOperand *v0def = MRI.getOneDef(v0.getReg())) {
 				if (v0def->getParent()->getOpcode() == HwtFpga::HWTFPGA_NOT) {
 					auto &v0_n = v0def->getParent()->getOperand(1);
-					if (v0_n.isReg() && v0_n.getReg() == v1.getReg()) {
+					if (v0_n.isReg() && v0_n.getReg() == v1.getReg() &&
+						c0.getReg() == v1.getReg()) {
+						// c == v
 						// c ? ~v:v -> ~c
-						if (c0.isReg()) {
-							matchinfo.Reg = c0.getReg();
-						} else {
-							matchinfo.CImm = c0.getCImm();
-						}
+						matchinfo.Reg = c0.getReg();
 						matchinfo.Negate = true;
 						return true;
 					}
@@ -447,13 +447,11 @@ bool HwtFpgaCombinerHelper::hasAll1AndAll0Values(MachineInstr &MI,
 			} else if (MachineOperand *v1def = MRI.getOneDef(v1.getReg())) {
 				if (v1def->getParent()->getOpcode() == HwtFpga::HWTFPGA_NOT) {
 					auto &v1_n = v0def->getParent()->getOperand(1);
-					if (v1_n.isReg() && v1_n.getReg() == v1.getReg()) {
+					if (v1_n.isReg() && v1_n.getReg() == v0.getReg() &&
+						c0.getReg() == v0.getReg()) {
+						// c == v
 						// c ? v:~v -> c
-						if (c0.isReg()) {
-							matchinfo.Reg = c0.getReg();
-						} else {
-							matchinfo.CImm = c0.getCImm();
-						}
+						matchinfo.Reg = c0.getReg();
 						return true;
 					}
 				}
