@@ -5,7 +5,7 @@ import unittest
 
 from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.virtual import VirtualHlsPlatform
-from hwtLib.amba.axi4sSimFrameUtils import axi4s_receive_bytes
+from hwtLib.amba.axi4sSimFrameUtils import Axi4StreamSimFrameUtils
 from hwtSimApi.constants import CLK_PERIOD
 from tests.io.amba.axi4Stream.axi4sWriteByte import Axi4SWriteByte
 
@@ -24,8 +24,10 @@ class Axi4SWriteByteTC(SimTestCase):
         t = CLK_PERIOD * (N + 1)
         self.runSim(t)
 
+        fu = Axi4StreamSimFrameUtils.from_HwIO(dut.dataOut)
+
         for _ref  in ref:
-            o, f = axi4s_receive_bytes(dut.dataOut)
+            o, f = fu.receive_bytes(dut.dataOut._ag.data)
             self.assertEqual(o, 0)
             self.assertValSequenceEqual(f, _ref)
 
