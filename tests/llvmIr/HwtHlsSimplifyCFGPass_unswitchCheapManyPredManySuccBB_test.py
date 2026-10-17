@@ -124,7 +124,7 @@ bb8:                                              ; preds = %bb2
   unreachable
 }
 """
-        # llvm = llmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: self._runTestOpt(llvm))
+        # llvm = llvmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: self._runTestOpt(llvm))
         # print(str(llvm.main))
 
         self._test_ll(llvmIr,

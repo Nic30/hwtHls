@@ -47,8 +47,8 @@ class MergeSetsBasedLivenessAnalysis_TC(unittest.TestCase):
           br label %bb.head
         }
         """
-        #from tests.stripInstructionsUnrelatedToCrash import llmIrStripInstrucionsUnrelatedToCrash
-        #llvm = llmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: llvm._testMergeSetsBasedLivenessAnalysis(), logAfterChange=True, timeout=1.)
+        #from tests.stripInstructionsUnrelatedToCrash import llvmIrStripInstrucionsUnrelatedToCrash
+        #llvm = llvmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: llvm._testMergeSetsBasedLivenessAnalysis(), logAfterChange=True, timeout=1.)
         #print(str(llvm.main))
         self._test_ll(llvmIr)
 

@@ -4,7 +4,7 @@
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
 from tests.llvmIr.HwtHlsSimplifyCFGPass_test import HwtHlsSimplifyCFGPass_TC
-from tests.stripInstructionsUnrelatedToCrash import llmIrStripInstrucionsUnrelatedToCrash
+# from tests.stripInstructionsUnrelatedToCrash import llvmIrStripInstrucionsUnrelatedToCrash
 
 
 class HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit_TC(BaseLlvmIrTC):
@@ -486,7 +486,7 @@ bb25:                                             ; preds = %bb44
   unreachable
 }
 """
-        # llvm = llmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: self._runTestOpt(llvm))
+        # llvm = llvmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: self._runTestOpt(llvm))
         # print(str(llvm.main))
         self._test_ll(llvmIr, passKwArgs=dict(
             RunEarlyCSEPass=False,
@@ -596,7 +596,7 @@ bb25:                                             ; preds = %bb44
 
 }
 """
-        # llvm = llmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: self._runTestOpt(llvm))
+        # llvm = llvmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: self._runTestOpt(llvm))
         # print(str(llvm.main))
         self._test_ll(llvmIr, passKwArgs=dict(
             RunEarlyCSEPass=False,
@@ -891,7 +891,7 @@ bb25:                                             ; preds = %bb27, %bb44
 }
 """
 
-        # llvm = llmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: self._runTestOpt(llvm))
+        # llvm = llvmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: self._runTestOpt(llvm))
         # print(str(llvm.main))
         self._test_ll(llvmIr, passKwArgs=dict(
            RunEarlyCSEPass=False,
@@ -993,7 +993,7 @@ bb25:                                             ; preds = %bb44, %bb27
   unreachable
 }
 """
-        # llvm = llmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: self._runTestOpt(llvm))
+        # llvm = llvmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: self._runTestOpt(llvm))
         # print(str(llvm.main))
         self._test_ll(llvmIr, passKwArgs=dict(
             RunEarlyCSEPass=False,
@@ -1041,7 +1041,7 @@ bb45:                                             ; preds = %bb44, %bb37, %bb33,
   br label %bb27
 }
 """
-        # llvm = llmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: self._runTestOpt(llvm))
+        # llvm = llvmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: self._runTestOpt(llvm))
         # print(str(llvm.main))
         self._test_ll(llvmIr, passKwArgs=dict(
             RunEarlyCSEPass=False,

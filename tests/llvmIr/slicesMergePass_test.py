@@ -443,7 +443,7 @@ bb0:
   ret void
 }
         """
-        # llmIrStripInstrucionsUnrelatedToCrash(ir, lambda llvm: llvm._testSlicesMergePass())
+        # llvmIrStripInstrucionsUnrelatedToCrash(ir, lambda llvm: llvm._testSlicesMergePass())
         self._test_ll(ir)
 
     def test_CRC_16_CDMA2000_8b_reduced(self):

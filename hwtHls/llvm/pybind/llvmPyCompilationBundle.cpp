@@ -21,7 +21,7 @@
 #include <hwtHls/llvm/Transforms/dumpAndExitPass.h>
 #include <hwtHls/llvm/targets/hwtFpga.h>
 #include <hwtHls/llvm/targets/Transforms/hwtFpgaToNetlist.h>
-#include <hwtHls/llvm/llvmIrStripInstrucionUnrelatedToCrash.h>
+#include <hwtHls/llvm/llvmIrStripInstrucionsUnrelatedToCrash.h>
 
 
  
@@ -209,12 +209,12 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 		.def("_testRewriteExtractOnMergeValuesPass", &hwtHls::LlvmCompilationBundle::_testRewriteExtractOnMergeValues, py::return_value_policy::reference_internal)
 		.def("_testVRegIfConverter", &hwtHls::LlvmCompilationBundle::_testVRegIfConverter, py::return_value_policy::reference_internal)
 		.def("_testVRegIfConverterForIr", &hwtHls::LlvmCompilationBundle::_testVRegIfConverterForIr, py::return_value_policy::reference_internal)
-		.def("_testStripInstrucionUnrelatedToCrash", [](hwtHls::LlvmCompilationBundle &self,
+		.def("_testStripInstrucionsUnrelatedToCrash", [](hwtHls::LlvmCompilationBundle &self,
 													    size_t nprocs,
 														py::function testFunction,
 														bool logAfterChange,
 														std::optional<double> timeout) {
-			llvmIrStripInstrucionUnrelatedToCrash(self, nprocs, [&testFunction](hwtHls::LlvmCompilationBundle &ctx) {
+			llvmIrStripInstrucionsUnrelatedToCrash(self, nprocs, [&testFunction](hwtHls::LlvmCompilationBundle &ctx) {
 				testFunction(ctx);
 			}, logAfterChange, timeout);
 	    }, py::arg("nprocs"),

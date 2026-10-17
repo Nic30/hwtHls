@@ -4,7 +4,7 @@
 from hwtHls.llvm.llvmIr import LlvmCompilationBundle, Function
 from tests.llvmIr.baseLlvmIrTC import BaseLlvmIrTC
 from tests.llvmIr.bitWidthReduction_test import BitwidthReductionPass_TC
-# from tests.stripInstructionsUnrelatedToCrash import llmIrStripInstrucionsUnrelatedToCrash
+# from tests.stripInstructionsUnrelatedToCrash import llvmIrStripInstrucionsUnrelatedToCrash
 
 
 class BitwidthReductionPass_PHI_TC(BaseLlvmIrTC):
@@ -303,7 +303,7 @@ class BitwidthReductionPass_PHI_TC(BaseLlvmIrTC):
           br label %bb3
         }
         """
-        # llvm = llmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: self._runTestOpt(llvm))
+        # llvm = llvmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: self._runTestOpt(llvm))
         # print(str(llvm.main))
 
         self._test_ll(llvmIr)
@@ -322,7 +322,7 @@ class BitwidthReductionPass_PHI_TC(BaseLlvmIrTC):
           br label %bb3
         }
         """
-        # llvm = llmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: self._runTestOpt(llvm))
+        # llvm = llvmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: self._runTestOpt(llvm))
         # print(str(llvm.main))
 
         self._test_ll(llvmIr)

@@ -1,4 +1,4 @@
-#include <hwtHls/llvm/llvmIrStripInstrucionUnrelatedToCrash.h>
+#include <hwtHls/llvm/llvmIrStripInstrucionsUnrelatedToCrash.h>
 
 #include <optional>
 #include <unistd.h>
@@ -230,7 +230,7 @@ static size_t runApplyRemoveUpdates(LlvmCompilationBundle &ctx, size_t nProcs,
 	return removableOps;
 }
 
-void llvmIrStripInstrucionUnrelatedToCrash(LlvmCompilationBundle &ctx,
+void llvmIrStripInstrucionsUnrelatedToCrash(LlvmCompilationBundle &ctx,
 		size_t nProcs, std::function<void(LlvmCompilationBundle&)> testFn, bool logAfterChange, std::optional<double> timeout) {
 	size_t removedCnt = 0;
 	std::deque<InstructionStripWorkItem> removes;

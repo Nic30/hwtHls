@@ -285,8 +285,8 @@ class BitwidthReductionPass_PHI_inLoopHeader_TC(BaseLlvmIrTC):
         }
         """
 
-        # from tests.stripInstructionsUnrelatedToCrash import llmIrStripInstrucionsUnrelatedToCrash
-        # llvm = llmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: self._runTestOpt(llvm), logAfterChange=True)
+        # from tests.stripInstructionsUnrelatedToCrash import llvmIrStripInstrucionsUnrelatedToCrash
+        # llvm = llvmIrStripInstrucionsUnrelatedToCrash(llvmIr, lambda llvm: self._runTestOpt(llvm), logAfterChange=True)
         # print(str(llvm.main))
         self._test_ll(llvmIr)
 

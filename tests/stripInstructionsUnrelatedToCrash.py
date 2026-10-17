@@ -7,14 +7,14 @@ from hwtHls.llvm.llvmIr import LlvmCompilationBundle, SMDiagnostic, \
 from tests.llvmIr.baseLlvmIrTC import generateAndAppendHwtHlsFunctionDeclarations
 
 
-def llmIrStripInstrucionsUnrelatedToCrash(irStr: str, testFunction: Callable[[LlvmCompilationBundle], None], nprocs=None,
+def llvmIrStripInstrucionsUnrelatedToCrash(irStr: str, testFunction: Callable[[LlvmCompilationBundle], None], nprocs=None,
                                           logAfterChange=False, timeout:Optional[float]=None):
     """
     Attempt to remove as much instruction as possible while preserving crashing of the compiler.
     :note: Use this to obtain minimal example to trigger the bug.
     """
     irStr = generateAndAppendHwtHlsFunctionDeclarations(irStr)
-    scopeName = "llmIrStripInstrucionsUnrelatedToCrash"
+    scopeName = "llvmIrStripInstrucionsUnrelatedToCrash"
     llvm = LlvmCompilationBundle(scopeName, [])
     Err = SMDiagnostic()
     M = parseIR(irStr, scopeName, Err, llvm.ctx)
@@ -31,6 +31,6 @@ def llmIrStripInstrucionsUnrelatedToCrash(irStr: str, testFunction: Callable[[Ll
 
     if nprocs is None:
         nprocs = multiprocessing.cpu_count()
-    llvm._testStripInstrucionUnrelatedToCrash(nprocs, testFunction, logAfterChange=logAfterChange, timeout=timeout)
+    llvm._testStripInstrucionsUnrelatedToCrash(nprocs, testFunction, logAfterChange=logAfterChange, timeout=timeout)
     return llvm
     # print(str(llvm.main))
