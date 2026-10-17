@@ -18,7 +18,6 @@ from hwtHls.ssa.analysis.llvmIrInterpretUtils import SimIoUnderflowErr, \
     LlvmIrInstrFunction
 from pyDigitalWaveTools.vcd.writer import VcdWriter
 
-
 StreamTmpWord_t = (
     tuple[HBitsConst, ...] |  # the case that the bus word is not segmented
     list[tuple[HBitsConst, ...]]  # the case that the bus word is segmented
@@ -47,6 +46,7 @@ class LlvmIrInterpretStreamIo():
                                                      hasEnable:bool,
                                                      hasEmpty:bool,
                                                      hasError:bool,
+                                                     hasUserFirstWord:bool,
                                                      hasSoF:bool,
                                                      hasEoF:bool,
                                                      supportZLP:bool):
@@ -58,6 +58,7 @@ class LlvmIrInterpretStreamIo():
         sof: OptionalBits_t = None
         eof: OptionalBits_t = None
         error: OptionalBits_t = None
+        userFirstWord: OptionalBits_t = None 
         if curTmpWord is not None:
             # return from curTmpWord first before loading any new segments
             if segmentCnt:
@@ -83,16 +84,6 @@ class LlvmIrInterpretStreamIo():
                     if hasMask:
                         mask = next(curTmpWordIt)
                         assert mask is not None, instr
-                    if hasError:
-                        error = next(curTmpWordIt)
-                        assert error is not None, instr
-                    if hasSoF:
-                        sof = next(curTmpWordIt)
-                        assert enable is not None, sof
-                    if hasEoF:
-                        eof = next(curTmpWordIt)
-                        assert eof is not None, instr
-                    assert next(curTmpWordIt, None) is None, ("unexpected number of members in segment tuple", instr, curTmpSegmentWord)
             elif byteEnableEncoding == ByteEnableEncoding.BEE_ENABLE_PLUS_EMPTY:
                 # data, enable?, sof?, eof?, err?, empty?
                 curTmpWordIt = iter(curTmpSegmentWord)
@@ -100,22 +91,27 @@ class LlvmIrInterpretStreamIo():
                 if hasEnable:
                     enable = next(curTmpWordIt)
                     assert enable is not None, instr
-                if hasSoF:
-                    sof = next(curTmpWordIt)
-                    assert enable is not None, sof
-                if hasEoF:
-                    eof = next(curTmpWordIt)
-                    assert eof is not None, instr
-                if hasError:
-                    error = next(curTmpWordIt)
-                    assert error is not None, instr
                 if hasEmpty:
                     empty = next(curTmpWordIt)
                     assert empty is not None, instr
-
-                assert next(curTmpWordIt, None) is None, ("unexpected number of members in segment tuple", instr, curTmpSegmentWord)
+                if hasMask:
+                    mask = next(curTmpWordIt)
+                    assert mask is not None, instr
             else:
                 raise NotImplementedError(byteEnableEncoding)
+            if hasError:
+                error = next(curTmpWordIt)
+                assert error is not None, instr
+            if hasUserFirstWord:
+                userFirstWord = next(curTmpWordIt)
+                assert userFirstWord is not None, instr
+            if hasSoF:
+                sof = next(curTmpWordIt)
+                assert enable is not None, sof
+            if hasEoF:
+                eof = next(curTmpWordIt)
+                assert eof is not None, instr
+            assert next(curTmpWordIt, None) is None, ("unexpected number of members in segment tuple", instr, curTmpSegmentWord)
         else:
             # no data in tmp word, load new segment data from io
             try:
@@ -137,60 +133,53 @@ class LlvmIrInterpretStreamIo():
             for segmentI in reversed(range(max(segmentCnt, 1))):
                 if segmentCnt == 0:
                     segmentI = None
-
-                # data, enable?, sof?, eof?, err?, empty?  or
-                # data{n}, (enable?, sof?, eof?, err?, empty?){n}
+                # (data, strb/keep?, err?, userFirstWord?, sof?, eof?)
+                # (data[n], (enable?, empty?, err?, userFirstWord?, sof?, eof?)[n])
                 data = streamWord[(segmentI + 1) * dataWidth:segmentI * dataWidth]
-                if hasMask:
-                    assert streamWord._dtype.bit_length() == streamProps.getWidthOfBusWord(), ("The stream word must have correct size",
-                                                             instr, streamWord, streamProps.getWidthOfBusWord())
-                    off = streamProps.getOffsetOfMask(segmentI)
-                    mask = streamWord[off + streamProps.getWidthOfMask(): off]
-
                 if hasEnable:
                     enable = streamWord[streamProps.getOffsetOfEnable(segmentI)]
                     assert enable._is_full_valid()
 
+                if hasMask:
+                    assert streamWord._dtype.bit_length() == streamProps.getWidthOfBusWord(), (
+                        "The stream word must have correct size",
+                        instr, streamWord, streamProps.getWidthOfBusWord())
+                    off = streamProps.getOffsetOfMask(segmentI)
+                    mask = streamWord[off + streamProps.getWidthOfMask(): off]
                 if hasEmpty:
                     off = streamProps.getOffsetOfEmpty(segmentI)
                     empty = streamWord[off + streamProps.getWidthOfEmpty():off]
-
+                if hasError:
+                    error = streamWord[streamProps.getOffsetOfError(segmentI)]
+                if hasUserFirstWord:
+                    userFirstWord = streamWord[streamProps.getOffsetOfUserFirstWord(segmentI)]
                 if hasSoF:
                     sof = streamWord[streamProps.getOffsetOfSoF(segmentI)]
                 if hasEoF:
                     eof = streamWord[streamProps.getOffsetOfEoF(segmentI)]
 
-                if hasError:
-                    error = streamWord[streamProps.getOffsetOfError(segmentI)]
-
                 if segmentCnt > 1:
                     newTmpWord = [data, ]
                     if byteEnableEncoding == ByteEnableEncoding.BEE_MASK or byteEnableEncoding == ByteEnableEncoding.BEE_NONE:
-                        # data, mask?, error?, sof?, eof?
+                        # data, mask?, error?, userFirstWord?, sof?, eof?
                         if hasMask:
                             newTmpWord.append(mask)
-                        if hasError:
-                            newTmpWord.append(error)
-                        if hasSoF:
-                            newTmpWord.append(sof)
-                        if hasEoF:
-                            newTmpWord.append(eof)
-
                     elif byteEnableEncoding == ByteEnableEncoding.BEE_ENABLE_PLUS_EMPTY:
                         # data, enable, sof?, eof?, err?, empty?
                         if hasEnable:
                             newTmpWord.append(enable)
-                        if hasSoF:
-                            newTmpWord.append(sof)
-                        if hasEoF:
-                            newTmpWord.append(eof)
-                        if hasError:
-                            newTmpWord.append(error)
                         if hasEmpty:
                             newTmpWord.append(empty)
-
                     else:
                         raise NotImplementedError(streamProps.byteEnableEncoding)
+                    if hasError:
+                        newTmpWord.append(error)
+                    if hasUserFirstWord:
+                        newTmpWord.append(userFirstWord)
+                    if hasSoF:
+                        newTmpWord.append(sof)
+                    if hasEoF:
+                        newTmpWord.append(eof)
                     newTmpWord = tuple(newTmpWord)
                     leftoverSegments.append(newTmpWord)
 
@@ -203,7 +192,7 @@ class LlvmIrInterpretStreamIo():
                 assert leftoverSegments is None
             curTmpWord = leftoverSegments
 
-        return (curTmpWord, data, enable, mask, empty, sof, eof, error)
+        return (curTmpWord, data, mask, enable, empty, error, userFirstWord, sof, eof)
 
     def _runLlvmIrFunctionInstrStreamRead_buildReturnVal(self,
                                                          instr: CallInst,
@@ -212,46 +201,44 @@ class LlvmIrInterpretStreamIo():
                                                          hasEnable:bool,
                                                          hasEmpty:bool,
                                                          hasError:bool,
+                                                         hasUserFirstWord:bool,
                                                          hasSoF:bool,
                                                          hasEoF:bool,
                                                          isUnreliable:bool,
-                                                         data, mask, error, sof, eof, enable, empty):
+                                                         data: HBitsConst,
+                                                         mask: HBitsConst, enable: HBitsConst, empty: HBitsConst,
+                                                         error: HBitsConst, userFirstWord: HBitsConst,
+                                                         sof: HBitsConst, eof: HBitsConst):
         retValMembers = [data, ]
         if bee == ByteEnableEncoding.BEE_MASK or bee == ByteEnableEncoding.BEE_NONE:
             # data, mask?, error?, sof?, eof?
             if isUnreliable and hasMask:
                 assert mask is not None, instr
                 retValMembers.append(mask)
-            if hasError:
-                assert error is not None, instr
-                retValMembers.append(error)
-            if hasSoF:
-                assert sof is not None, instr
-                retValMembers.append(sof)
-            if hasEoF:
-                assert eof is not None, instr
-                retValMembers.append(eof)
 
         elif bee == ByteEnableEncoding.BEE_ENABLE_PLUS_EMPTY:
             # data, enable, sof?, eof?, err?, empty?
             if hasEnable:
                 assert enable is not None, instr
                 retValMembers.append(enable)
-            if hasSoF:
-                assert sof is not None, instr
-                retValMembers.append(sof)
-            if hasEoF:
-                assert eof is not None, instr
-                retValMembers.append(eof)
-            if hasError:
-                assert error is not None, instr
-                retValMembers.append(error)
             if isUnreliable and hasEmpty:
                 assert empty is not None, instr
                 retValMembers.append(empty)
         else:
             raise NotImplementedError(bee.byteEnableEncoding)
 
+        if hasError:
+            assert error is not None, instr
+            retValMembers.append(error)
+        if hasUserFirstWord:
+            assert userFirstWord is not None, instr
+            retValMembers.append(userFirstWord)
+        if hasSoF:
+            assert sof is not None, instr
+            retValMembers.append(sof)
+        if hasEoF:
+            assert eof is not None, instr
+            retValMembers.append(eof)
         # print("   StreamRead", instr, retValMembers)
         retVal = Concat(*reversed(retValMembers))
         assert retVal._dtype.bit_length() == instr.getType().getIntegerBitWidth(), (instr, retVal, retValMembers)
@@ -266,19 +253,21 @@ class LlvmIrInterpretStreamIo():
 
         # variables for members of stream segment word
         data: Optional[HBitsConst] = None
-        enable: Optional[HBitsConst] = None
         mask: Optional[HBitsConst] = None
+        enable: Optional[HBitsConst] = None
         empty: Optional[HBitsConst] = None
+        error: Optional[HBitsConst] = None
+        userFirstWord: Optional[HBitsConst] = None
         sof: Optional[HBitsConst] = None
         eof: Optional[HBitsConst] = None
-        error: Optional[HBitsConst] = None
-
+        
         hasMask = streamProps.hasMask()
         hasEnable = streamProps.hasEnable()
         hasEmpty = streamProps.hasEmpty()
         hasError = streamProps.hasError()
         hasSoF = streamProps.hasSoF()
         hasEoF = streamProps.hasEoF()
+        hasUserFirstWord = streamProps.hasUserFirstWord()
         supportZLP = streamProps.supportZLP
         if streamProps.hasError():
             raise NotImplementedError(instr)
@@ -293,10 +282,10 @@ class LlvmIrInterpretStreamIo():
         curTmpWord: Optional[StreamTmpWord_t] = self._streamIoTmpWords.get(ioArg, None)
         while data is None or data._dtype.bit_length() < w:
             # accumulate data until we have enough, more or eof
-            (curTmpWord, newData, newEnable, newMask, newEmpty, newSof, newEof, newError) = \
+            (curTmpWord, newData, newMask, newEnable, newEmpty, newError, newUserFirstWord, newSof, newEof) = \
                 self._runLlvmIrFunctionInstrStreamRead_popSegment(
                     instr, curTmpWord, ioSimStream, streamProps, bee, segmentCnt,
-                    hasMask, hasEnable, hasEmpty, hasError, hasSoF, hasEoF, supportZLP)
+                    hasMask, hasEnable, hasEmpty, hasError, hasUserFirstWord, hasSoF, hasEoF, supportZLP)
             if hasEnable:
                 assert newEnable is not None, instr
 
@@ -329,6 +318,10 @@ class LlvmIrInterpretStreamIo():
                     empty = HBits(newEmptyWidth).from_py(int(empty) + int(newEmpty))
                 if hasError:
                     error = error | newError
+            
+            if hasUserFirstWord:
+                userFirstWord = newUserFirstWord
+
             if hasSoF:
                 if sof is None:
                     sof = newSof
@@ -388,24 +381,11 @@ class LlvmIrInterpretStreamIo():
                         newTmpWord.append(maskTmp)
                         # compute mask for remaining leftover data
                         mask = mask[w // byteWidth:]
-                    if hasError:
-                        newTmpWord.append(error)
-                    if hasSoF:
-                        newTmpWord.append(b0)  # this is leftover and thus it can not contain first byte with sof
-                    if hasEoF:
-                        newTmpWord.append(eof)
-                    newTmpWord = tuple(newTmpWord)
 
                 elif bee == ByteEnableEncoding.BEE_ENABLE_PLUS_EMPTY:
                     # data, enable, sof?, eof?, err?, empty?
                     if hasEnable:
                         newTmpWord.append(enable)
-                    if hasSoF:
-                        newTmpWord.append(sof)  # this is leftover and thus it can not contain first byte with sof
-                    if hasEoF:
-                        newTmpWord.append(eof)
-                    if hasError:
-                        newTmpWord.append(error)
                     if hasEmpty:
                         leftoverByteCnt = (actualWidth - w) // byteWidth
                         empty = int(empty)
@@ -415,11 +395,19 @@ class LlvmIrInterpretStreamIo():
                         newTmpWord.append(emptyLeftover)
                         empty = HBits(newEmptyWidth).from_py(max(0, empty - leftoverByteCnt))
 
-                    newTmpWord = tuple(newTmpWord)
-
                 else:
                     raise NotImplementedError(streamProps.byteEnableEncoding)
-
+                if hasError:
+                    newTmpWord.append(error)
+                # :note: this is leftover and thus it can not contain first byte with sof
+                if hasUserFirstWord:
+                    newTmpWord.append(userFirstWord._dtype.from_py(None))
+                if hasSoF:
+                    newTmpWord.append(b0)
+                if hasEoF:
+                    newTmpWord.append(eof)
+                
+                newTmpWord = tuple(newTmpWord)
                 if hasEoF:
                     # this can not have eof set because we verified that there are
                     # some leftover bytes in this word
@@ -452,14 +440,16 @@ class LlvmIrInterpretStreamIo():
             hasEnable = False
 
         return self._runLlvmIrFunctionInstrStreamRead_buildReturnVal(
-            instr, bee, hasMask, hasEnable, hasEmpty, hasError, hasSoF, hasEoF, isUnreliable,
-            data, mask, error, sof, eof, enable, empty)
+            instr, bee, hasMask, hasEnable, hasEmpty, hasError, hasUserFirstWord,
+            hasSoF, hasEoF, isUnreliable,
+            data, mask, enable, empty, error, userFirstWord, sof, eof)
 
     def _decodeLlvmIrLoadOfSingleSegmentFromSegmentedBus(self, interpret: "LlvmIrInterpret", instr: LoadInst, ioArg: Argument, streamProps: StreamChannelFormatInfo):
         hasMask = streamProps.hasMask()
         hasEnable = streamProps.hasEnable()
         hasEmpty = streamProps.hasEmpty()
         hasError = streamProps.hasError()
+        hasUserFirstWord = streamProps.hasUserFirstWord()
         hasSoF = streamProps.hasSoF()
         hasEoF = streamProps.hasEoF()
         supportZLP = streamProps.supportZLP
@@ -470,18 +460,18 @@ class LlvmIrInterpretStreamIo():
 
         def _opcode_LoadOfSingleSegmentFromSegmentedBus(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
             curTmpWord: Optional[StreamTmpWord_t] = self._streamIoTmpWords.get(ioArg, None)
-            #while True:
-            (curTmpWord, newData, newEnable, newMask, newEmpty, newSof, newEof, newError) = \
+            # while True:
+            (curTmpWord, newData, newMask, newEnable, newEmpty, newError, newUserFirstWord, newSof, newEof) = \
                 self._runLlvmIrFunctionInstrStreamRead_popSegment(
                     instr, curTmpWord, ioSimStream, streamProps, byteEnableEncoding, segmentCnt,
-                    hasMask, hasEnable, hasEmpty, hasError, hasSoF, hasEoF, supportZLP)
+                    hasMask, hasEnable, hasEmpty, hasError, hasUserFirstWord, hasSoF, hasEoF, supportZLP)
             #    if newEnable is None or bool(newEnable):
             #        break
             self._streamIoTmpWords[ioArg] = curTmpWord
             isUnreliable = True
             v = self._runLlvmIrFunctionInstrStreamRead_buildReturnVal(
                 instr, byteEnableEncoding, hasMask, hasEnable, hasEmpty, hasError, hasSoF, hasEoF, isUnreliable,
-                newData, newMask, newError, newSof, newEof, newEnable, newEmpty)
+                newData, newMask, newEnable, newEmpty, newError, newUserFirstWord, newSof, newEof)
             interpret._storeInstrResult(waveLog, nowTime, regs, instr, v)
 
         return _opcode_LoadOfSingleSegmentFromSegmentedBus
@@ -521,6 +511,10 @@ class LlvmIrInterpretStreamIo():
         if streamProps.hasEnable():
             raise NotImplementedError(instr)
         if streamProps.hasEmpty():
+            raise NotImplementedError(instr)
+        if streamProps.hasError():
+            raise NotImplementedError(instr)
+        if streamProps.hasUserFirstWord():
             raise NotImplementedError(instr)
 
         curTmp = self._streamIoTmpWords.get(ioArg, None)
