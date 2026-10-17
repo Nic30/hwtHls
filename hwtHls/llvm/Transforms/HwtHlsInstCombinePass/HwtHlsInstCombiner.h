@@ -80,6 +80,8 @@ public:
 	llvm::Instruction* tryReduceSelectInst_unNegate(llvm::SelectInst &SI);
 	llvm::Instruction* _tryReduceSelectInst_toAndOr_SelectOfCompares(
 			llvm::SelectInst &SI);
+	llvm::Instruction* tryReduceSelectInst_inlineChildSelect(
+					llvm::SelectInst &SI);
 	llvm::Instruction* tryReduceSelectInst_toAndOr(llvm::SelectInst &SI);
 	llvm::Instruction* tryReduceSelectInst_extractCommonFromOperands(
 			llvm::SelectInst &SI);

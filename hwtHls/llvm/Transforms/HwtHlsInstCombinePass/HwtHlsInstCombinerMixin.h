@@ -94,6 +94,7 @@ public:
 	llvm::Instruction* replaceOperand(llvm::Instruction &I, unsigned OpNum,
 			llvm::Value *V);
 	bool run();
+	void _dbgRunOnChangeCallback();
 	// this method can be used to call other optimization once worklist is empty
 	// :returns: true if worklist now contains any instruction
 	bool runOptimizationsAfterWorklistEmpty() {
@@ -397,6 +398,15 @@ void HwtHlsInstCombinerMixin<DerivedT>::eraseInstrRecursivelyIfTriviallyDead(
 		}
 	}
 }
+template<typename DerivedT>
+void HwtHlsInstCombinerMixin<DerivedT>::_dbgRunOnChangeCallback() {
+	if (_dbgIrInstrCombineChangeCallbackFn) {
+		assert(lastOptRuleName);
+		auto _lastOptRuleName = std::string(lastOptRuleName);
+		onChangeCallback(_lastOptRuleName, F);
+		lastOptRuleName = nullptr;
+	}
+}
 
 template<typename DerivedT>
 bool HwtHlsInstCombinerMixin<DerivedT>::run() {
@@ -504,12 +514,7 @@ bool HwtHlsInstCombinerMixin<DerivedT>::run() {
 				}
 			}
 			MadeIRChange = true;
-			if (_dbgIrInstrCombineChangeCallbackFn) {
- 				assert(lastOptRuleName);
-				auto _lastOptRuleName = std::string(lastOptRuleName);
-				onChangeCallback(_lastOptRuleName, F);
-				lastOptRuleName = nullptr;
-			}
+			_dbgRunOnChangeCallback();
 		}
 	}
 

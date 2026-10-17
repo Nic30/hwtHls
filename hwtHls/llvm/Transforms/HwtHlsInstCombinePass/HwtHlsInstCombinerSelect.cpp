@@ -77,7 +77,43 @@ llvm::Instruction* HwtHlsInstCombiner::tryReduceSelectInst_unNegate(
 		replaceOperand(SI, 1, VF);
 		replaceOperand(SI, 2, VT);
 		Worklist.push(&SI);
+		lastOptRuleName = "tryReduceSelectInst_unNegate";
+		_dbgRunOnChangeCallback();
 	}
+	return nullptr;
+}
+
+llvm::Instruction *HwtHlsInstCombiner::tryReduceSelectInst_inlineChildSelect(
+	llvm::SelectInst &SI) {
+	auto C = SI.getCondition();
+	auto VT = SI.getTrueValue();
+	auto VF = SI.getFalseValue();
+	Value *cC, *cVT, *cVF;
+	lastOptRuleName = "tryReduceSelectInst_inlineChildSelect";
+	if (match(VF, m_Select(m_Value(cC), m_Value(cVT), m_Value(cVF)))) {
+		if (VT == cVT) {
+			// %0 = select %cC, %cVT, %cVF
+			// %1 = select %c, %VT, %0
+			// ->
+			// %1 = select %c or %cC, %VT, %cVF
+			auto newC = Builder.CreateOr(C, cC);
+			replaceOperand(SI, 0, newC);
+			replaceOperand(SI, 2, cVF);
+			Worklist.push(&SI);
+			_dbgRunOnChangeCallback();
+		} else if (VT == cVF) {
+			// %0 = select i1 %cC, %cVT, %cVF
+			// %1 = select i1 %c,  %cVF, %0
+			// ->
+			// %1 = select %c or not %cC, %cVT, %cVF
+			auto newC = Builder.CreateOr(C, Builder.CreateNot(cC));
+			replaceOperand(SI, 0, newC);
+			replaceOperand(SI, 2, cVT);
+			Worklist.push(&SI);
+			_dbgRunOnChangeCallback();
+		}
+	}
+	
 	return nullptr;
 }
 
@@ -394,7 +430,7 @@ llvm::Instruction* HwtHlsInstCombiner::tryReduceSelectInst_extractCommonFromOper
 llvm::Instruction* HwtHlsInstCombiner::tryReduceSelectInst_selectOfImpliedBitsOrZero_toConcat(
 		llvm::SelectInst &SI) {
 	// %vt = call i2 @hwtHls.bitConcat.i1.i1(i1 true, i1 %b1)
-	// %SI = select i1 %c, i2 %vt, i2 0 ; (also case with VF == -1 is suported)
+	// %SI = select i1 %c, i2 %vt, i2 0 ; (also case with VF == -1 is supported)
 	// * if VF==0 and every bit from vt implies b0 or is constant we can replace this with just vt
 	//   with constant 1 replaced with c
 	//   %SI = call i2 @hwtHls.bitConcat.i1.i1(i1 %c, i1 %b1)

@@ -237,6 +237,12 @@ Instruction* HwtHlsInstCombiner::runOnInstr(Instruction &I) {
 			assert(!verifyFunction(F, &errs()));
 #endif
 			return r;
+		} else if (auto r = tryReduceSelectInst_inlineChildSelect(*SI)) {
+			lastOptRuleName = "tryReduceSelectInst_inlineChildSelect";
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+						assert(!verifyFunction(F, &errs()));
+#endif
+			return r;
 		} else if (auto r = tryReduceMergableFunctionInSelect(*SI)) {
 			lastOptRuleName = "tryReduceMergableFunctionInSelect";
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
