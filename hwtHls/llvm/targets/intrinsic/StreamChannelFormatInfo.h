@@ -19,9 +19,9 @@ enum FramingSignalizationEconding {
 	FRAMING_SOF_EOF, // eof + Start of Frame
 };
 // :note: for locations of bits in words are derived from HwIO classes from hwtLib:
-// * Axi4Stream (data, strb/keep?, err?, sof?, eof?, userFirstWord?)
-// * Axi4StreamSegmented (data[n], (enable?, sof?, eof?, err?, empty, userFirstWord?)[n])
-// * AvalonST (data, empty?, err?, sof?, eof?, userFirstWord?)
+// * Axi4Stream (data, strb/keep?, err?, userFirstWord?, sof?, eof?)
+// * Axi4StreamSegmented (data[n], (enable?, empty?, err?, userFirstWord?, sof?, eof?)[n])
+// * AvalonST (data, empty?, err?, userFirstWord?, sof?, eof?)
 // * mask can have 0 suffix only in last word, else it must be all 1
 // * data begins at data bit 0, segment 0, data is on lsb bits of bus word
 class StreamChannelFormatInfo {
