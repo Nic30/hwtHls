@@ -196,7 +196,7 @@ size_t StreamChannelFormatInfo::getOffsetOfEmpty(
 		std::optional<unsigned> segmentIndex) const {
 	// Axi4StreamSegmented (data[n], (enable?, empty?, err?, userFirstWord?, sof?, eof?)[n])
 	assert(byteEnableEncoding == ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY);
-	return hasEnable() ? 1: 0;
+	return getOffsetOfSignalingBits(segmentIndex) + (hasEnable() ? 1: 0);
 }
 
 size_t StreamChannelFormatInfo::getWidthOfEmpty() const {
