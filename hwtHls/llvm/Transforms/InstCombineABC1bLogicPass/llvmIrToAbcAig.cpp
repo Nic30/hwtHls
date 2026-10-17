@@ -1,4 +1,5 @@
 #include <hwtHls/llvm/Transforms/InstCombineABC1bLogicPass/llvmIrToAbcAig.h>
+#include <llvm/IR/Constant.h>
 #include <llvm/IR/Instruction.h>
 #include <llvm/ADT/SetVector.h>
 #include <llvm/IR/Constants.h>
@@ -23,7 +24,7 @@ LlvmIrToAbcAig::~LlvmIrToAbcAig() {
 	// abcFrame is global; do not delete
 }
 
-void LlvmIrToAbcAig::translate(const SetVector<Instruction *> &inputs,
+void LlvmIrToAbcAig::translate(const SetVector<Value *> &inputs,
 						  const SetVector<Instruction *> &outputs) {
 	if (!net || !aig) {
 		llvm_unreachable("LlvmIrToAbcAig: network not initialized");
@@ -33,14 +34,18 @@ void LlvmIrToAbcAig::translate(const SetVector<Instruction *> &inputs,
 	ioMap.clear();
 	SetVector<Instruction*> worklist;
 	// Create primary inputs
-	for (Instruction *i : inputs) {
+	for (Value *i : inputs) {
 		if (!i->getType()->isIntegerTy(1)) {
 			llvm_unreachable("LlvmIrToAbcAig: only i1 inputs are supported");
 		}
 		Abc_Obj_t *pi = Abc_NtkCreatePi(net);
 		ioMap[Abc_ObjName(pi)] = i;
 		translationCache[i] = pi;
-		assert(!outputs.contains(i));
+#ifndef NDEBUG
+		if (auto I = dyn_cast<Instruction>(i)) {
+			assert(!outputs.contains(I));
+		}
+#endif
 	}
 
 	// Translate instructions from begin to end (inclusive)
@@ -85,6 +90,8 @@ Abc_Obj_t *LlvmIrToAbcAig::getOrTranslateValue(Value *v) {
 	if (auto * I = dyn_cast<Instruction>(v)) {
 		return translateInstructionImpl(I);
 	}
+	// undef, poison and alike should have been prefilled translationCache because they should be in inputs
+	errs() << *v << "\n";
 	llvm_unreachable(
 		"LlvmIrToAbcAig: value not in cache and not a supported value");
 }

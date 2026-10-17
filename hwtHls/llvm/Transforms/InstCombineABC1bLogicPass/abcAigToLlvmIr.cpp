@@ -1,21 +1,27 @@
+#include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/utils_fewExitCluster_cutOffExitBBInClusterSuccessors.h>
+#include <hwtHls/llvm/Transforms/InstCombineABC1bLogicPass/abcAigToLlvmIr.h>
 #include <hwtHls/llvm/Transforms/InstCombineABC1bLogicPass/exprCache.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
-#include <hwtHls/llvm/Transforms/InstCombineABC1bLogicPass/abcAigToLlvmIr.h>
 
 #include <memory>
+// #include <unordered_set>
 // ABC related
 #include <aig/aig/aig.h>
 #include <base/abc/abc.h>
 
 #include <llvm/ADT/STLExtras.h>
-#include <llvm/IR/Instructions.h>
-#include <llvm/Support/ErrorHandling.h>
+#include <llvm/ADT/SmallPtrSet.h>
 #include <llvm/Analysis/LoopInfo.h>
 #include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/Dominators.h>
 #include <llvm/IR/InstrTypes.h>
 #include <llvm/IR/Instruction.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/Support/ErrorHandling.h>
 
 using namespace llvm;
+
+// #define AbcAigToLlvmIr_TRACE
 
 namespace hwtHls {
 
@@ -93,7 +99,6 @@ llvm::Value *AbcAigToLlvmIr::_translate(Abc_Obj_t *o, bool negated) {
 	if (Abc_ObjIsPi(o)) {
 		res = ioMap.at(Abc_ObjName(o));
 		if (negated) {
-			assert(isa<Instruction>(res));
 			res = Builder.CreateNot(res);
 		}
 	} else if (Abc_ObjIsPo(o)) {
@@ -150,7 +155,7 @@ llvm::Value *AbcAigToLlvmIr::_translate(Abc_Obj_t *o, bool negated) {
 			}
 		}
 	}
-
+	assert(res);
 	translationCache[key] = res;
 	return res;
 }
@@ -181,15 +186,31 @@ llvm::Value *AbcAigToLlvmIr::buildTernaryMuxChain(ArrayRef<llvm::Value *> ops) {
 	}
 	return res;
 }
-
+bool definedBefore(llvm::DominatorTree &DT, Instruction *I0, Instruction *I1) {
+	return DT.dominates(I0, I1) ||
+		   (I0->getParent() == I1->getParent() && I0->comesBefore(I1));
+}
+bool definedBeforeOrEqual(llvm::DominatorTree &DT, Instruction *I0,
+						  Instruction *I1) {
+	return I0 == I1 || definedBefore(DT, I0, I1);
+}
 llvm::Value *AbcAigToLlvmIr::placeOperandIntoFunction(Value *Op,
-													  Instruction *UserIP) {
+													  Instruction *User) {
 	auto *I = dyn_cast<Instruction>(Op);
 	if (!I)
 		return Op; // constants and alike do not need any dominance or CSE check
+#ifdef AbcAigToLlvmIr_TRACE
+	dbgs() << "Op: " << Op << " " << *Op << "\n";
+	dbgs() << "UserIP: " << User << " " << *User << "\n";
+#endif
+	assert(User->getParent() != tmpBB);
 
 	if (I->getParent() != tmpBB) {
-		assert(DT_.dominates(I, UserIP));
+		if (!definedBeforeOrEqual(DT_, I, User)) {
+			errs() << "I: " << I << " " << *I << "\n";
+			errs() << "UserIP: " << User << " " << *User << "\n";
+			llvm_unreachable("Broken dominance of already placed instruction");
+		}
 		// the operand is new instruction which was already placed on
 		// suitable place
 		return Op;
@@ -197,7 +218,7 @@ llvm::Value *AbcAigToLlvmIr::placeOperandIntoFunction(Value *Op,
 
 	SmallVector<Value *, 3> newOperands;
 	for (auto O : I->operand_values()) {
-		auto newO = placeOperandIntoFunction(O, UserIP);
+		auto newO = placeOperandIntoFunction(O, User);
 		newOperands.push_back(newO);
 	}
 
@@ -206,11 +227,22 @@ llvm::Value *AbcAigToLlvmIr::placeOperandIntoFunction(Value *Op,
 	if (Existing != exprCache.InstrEqClasses.end()) {
 		// if there is already existing instruction which is equivalent to this
 		// use it instead
-		for (auto I1 : *Existing->second) {
-			if (DT_.dominates(I1, UserIP)) {
-				// because equivalent may exist but exactly this instruction was
-				// have not been cached yet.
-				exprCache.EquivalenceClasses[I] = Existing->second;
+		for (auto _I1 = Existing->second->begin();
+			 _I1 != Existing->second->end(); ++_I1) {
+			Instruction *I1 = *_I1;
+			// find existing instance which is available for User
+			if (definedBefore(DT_, I1, User)) {
+				if (!is_contained(*Existing->second, I)) {
+					// because equivalent may exist but exactly this instruction
+					// was have not been cached yet.
+					exprCache.EquivalenceClasses[I] = Existing->second;
+				}
+				// select most top equvalent of I
+				for (auto *I2 : make_range(++_I1, Existing->second->end())) {
+					if (definedBefore(DT_, I2, I1)) {
+						I1 = I2;
+					}
+				}
 				I = I1;
 				break;
 			}
@@ -223,48 +255,56 @@ llvm::Value *AbcAigToLlvmIr::placeOperandIntoFunction(Value *Op,
 	// * because new instructions should be only BinaryOperator/SelectInst
 	//   after constant propagation, there is always at least 1 operand which is
 	//   instruction
-	Instruction *EarliestIP = nullptr;
+	Instruction *LatestDef = nullptr;
 	for (auto *O : newOperands) {
 		if (auto *OI = dyn_cast<Instruction>(O)) {
 			assert(OI->getParent() && OI->getParent() != tmpBB &&
 				   "The operand must be already placed");
-			if (EarliestIP) {
-				// select earliest insertion point where all operands are defined
-				if (OI->getParent() == EarliestIP->getParent()) {
-					if (EarliestIP->comesBefore(OI->getNextNode())) {
-						EarliestIP = OI->getNextNode();
-					}
-				} else if (DT_.dominates(OI, EarliestIP)) {
-				} else if (DT_.dominates(EarliestIP, OI)) {
-					EarliestIP = OI->getNextNode();
+			if (LatestDef) {
+				// select earliest insertion point where all operands are
+				// defined
+				if (definedBeforeOrEqual(DT_, LatestDef, OI)) {
+					LatestDef = OI;
+				} else if (definedBefore(DT_, OI, LatestDef)) {
 				} else {
 					llvm_unreachable(
 						"Because all primary inputs dominate user it must be "
 						"the case that one operand dominates other");
 				}
 			} else {
-				EarliestIP = OI->getNextNode();
+				LatestDef = OI;
 			}
 		}
 	}
-	if (isa<PHINode>(EarliestIP)) {
-		EarliestIP = &*EarliestIP->getParent()->getFirstInsertionPt();
+	if (isa<PHINode>(LatestDef->getNextNode())) {
+		LatestDef =
+			&*LatestDef->getParent()->getFirstInsertionPt()->getPrevNode();
 	}
 	{
-		// if insertion point is inside of bit vector slices after value, jump over this list
-		Value* bitVec = nullptr;
-		Value* bitVec0;
-		if (EarliestIP->getPrevNode() && isAnyFormOfBitRangeGet(EarliestIP, bitVec) && (
-			bitVec == EarliestIP->getPrevNode() || 
-			(isAnyFormOfBitRangeGet(EarliestIP->getPrevNode(), bitVec0) && bitVec0 == bitVec))) {
+		// if insertion point is inside of bit vector slices after value, jump
+		// over this list
+		Value *bitVec = nullptr;
+		Value *bitVec0;
+		if (isAnyFormOfBitRangeGet(LatestDef->getNextNode(), bitVec) &&
+			(bitVec == LatestDef ||
+			 (isAnyFormOfBitRangeGet(LatestDef, bitVec0) &&
+			  bitVec0 == bitVec))) {
 			// IP is the first or later bit vector slice in list
-			while (isAnyFormOfBitRangeGet(EarliestIP, bitVec0) && bitVec0 == bitVec) {
-				EarliestIP = EarliestIP->getNextNode();
+			while (isAnyFormOfBitRangeGet(LatestDef->getNextNode(), bitVec0) &&
+				   bitVec0 == bitVec) {
+				LatestDef = LatestDef->getNextNode();
 			}
 		}
 	}
-	assert(DT_.dominates(EarliestIP, UserIP));
-	I->moveBefore(EarliestIP->getIterator());
+	assert(definedBefore(DT_, LatestDef, User));
+	assert(I != LatestDef);
+#ifdef AbcAigToLlvmIr_TRACE
+	dbgs() << "moveAfter: " << I << "" << *I << " " << LatestDef << " "
+		   << *LatestDef << "\n";
+#endif
+	assert(LatestDef->getParent() != tmpBB);
+	if (I->getParent() == tmpBB)
+		I->moveBefore(LatestDef->getNextNode()->getIterator());
 	{
 		unsigned Oi = 0;
 		for (auto *O : newOperands) {
@@ -290,6 +330,96 @@ llvm::Value *AbcAigToLlvmIr::placeOperandIntoFunction(Value *Op,
 	}
 	return I;
 }
+///// Sort \p Worklist topologically by data dependence.
+/////
+///// Primary inputs are already-placed operand instructions. They initialize
+///the
+///// ready list and release dependent worklist instructions, but are not part
+///of
+///// the sorted output.
+// std::vector<Instruction *> topologicalSortForDanglingInstructions(
+//	ArrayRef<Instruction *> instructions,
+//	const DenseMap<BasicBlock *, unsigned> &BlockIndex) {
+//	if (instructions.size() < 2)
+//		return instructions;
+//
+//	// Remaining worklist dependencies for each worklist instruction.
+//	std::unordered_map<Instruction *, unsigned> PendingDepsCnt;
+//	PendingDepsCnt.reserve(2 * instructions.size());
+//
+//	// Primary inputs are placed operands outside the worklist.
+//	SetVector<Instruction *> PrimaryInputs;
+//	std::unordered_set<Instruction *> allInstrucitons(instructions.begin(),
+//													  instructions.end());
+//	for (Instruction *I : instructions) {
+//		assert(I && "null instruction");
+//		assert((isa<BinaryOperator>(I) ||
+//				isa<SelectInst>(I)) &&
+//			   "unsupported instruction type");
+//
+//		unsigned depCnt = 0;
+//		for (Value *Op : I->operand_values()) {
+//			auto *OpInst = dyn_cast<Instruction>(Op);
+//			if (!OpInst)
+//				continue;
+//
+//			assert(OpInst != I && "instruction depends on itself");
+//			++depCnt;
+//			if (!allInstrucitons.contains(OpInst)) {
+//				PrimaryInputs.insert(OpInst);
+//			}
+//		}
+//		PendingDepsCnt[I] = depCnt;
+//	}
+//	// most early at last position, because Ready is processed from the end
+//	std::vector<Instruction *> readyVec;
+//	readyVec.reserve(PrimaryInputs.size());
+//	readyVec.insert_range(readyVec.begin(), PrimaryInputs);
+//	llvm::sort(readyVec, [&](Instruction *A, Instruction *B) -> bool {
+//		auto BlockA = BlockIndex.find(A->getParent());
+//		auto BlockB = BlockIndex.find(B->getParent());
+//		assert(BlockA != BlockIndex.end() && "missing block index for input");
+//		assert(BlockB != BlockIndex.end() && "missing block index for input");
+//
+//		if (BlockA->second != BlockB->second)
+//			return BlockA->second >= BlockB->second;
+//
+//		assert(A->getParent() == B->getParent() &&
+//			   "comesBefore requires instructions in the same block");
+//		return B->comesBefore(A);
+//	});
+//
+//	// Kahn's algorithm. Primary inputs seed the queue, but are not emitted.
+//	SetVector<Instruction*> Ready;
+//	Ready.insert_range(readyVec);
+//	std::vector<Instruction *> Sorted;
+//	Sorted.reserve(instructions.size());
+//
+//	while (!Ready.empty()) {
+//		Instruction *Cur = Ready.pop_back_val();
+//		// Primary inputs are processed but not emitted.
+//		if (allInstrucitons.contains(Cur))
+//			Sorted.push_back(Cur);
+//
+//		// Release worklist users directly through the def-use chain.
+//		for (User *U : Cur->users()) {
+//			auto *UserInst = dyn_cast<Instruction>(U);
+//			if (!UserInst || !allInstrucitons.contains(UserInst))
+//				continue;
+//
+//			auto &Cnt = PendingDepsCnt[UserInst];
+//			assert(Cnt > 0 && "inconsistent pending dependency count");
+//
+//			if (--Cnt == 0)
+//				Ready.insert(UserInst);
+//		}
+//	}
+//
+//	// A cycle prevents some worklist instructions from becoming ready.
+//	if (Sorted.size() != instructions.size())
+//		llvm_unreachable("data-dependence cycle in instruction list");
+//	return Sorted;
+// }
 
 bool AbcAigToLlvmIr::translate() {
 	exprCache.init();
@@ -307,6 +437,19 @@ bool AbcAigToLlvmIr::translate() {
 	{
 		// construct all new expressions in tmp block
 		// (which will temporarily violate def-before-use)
+		// :note: it is required to construct instruction from outputs to inputs
+		// because
+		//        we want to recognize the largest operand in AIG.
+
+		// Vec_Ptr_t * vNodes = Abc_NtkDfs(net_, /*fCollectAll*/0); //
+		// fCollectAll collects also dangling nodes Abc_Obj_t * pObj; int i;
+		// Vec_PtrForEachEntry(Abc_Obj_t *, vNodes, pObj, i) {
+		//     // pObj is visited after all of its fanins
+		//     // Do your per-node work here.
+		// }
+		//
+		// Vec_PtrFree(vNodes);
+
 		int outputIndex;
 		Abc_Obj_t *output;
 		Abc_NtkForEachPo(net_, output, outputIndex) {
@@ -316,10 +459,12 @@ bool AbcAigToLlvmIr::translate() {
 
 			Abc_Obj_t *fanin = Abc_ObjFanin0(output);
 			const bool negated = Abc_ObjFaninC0(output);
-			llvm::Value *value = _translate(fanin, negated);
+			Value *value = _translate(fanin, negated);
 
 			const std::string name = Abc_ObjName(output);
-			replacements.push_back({ioMap[name], value});
+			auto outI = dyn_cast<Instruction>(ioMap[name]);
+			assert(outI);
+			replacements.push_back({outI, value});
 		}
 	}
 	// accommodate newly created instructions into original code,
@@ -328,14 +473,23 @@ bool AbcAigToLlvmIr::translate() {
 	// sort the earliest first
 	sort(replacements, [this](std::pair<Instruction *, Value *> &repl0,
 							  std::pair<Instruction *, Value *> &repl1) {
-		return blockIndex[repl0.first->getParent()] <
-			   blockIndex[repl1.first->getParent()];
+		auto BBi0 = blockIndex[repl0.first->getParent()];
+		auto BBi1 = blockIndex[repl1.first->getParent()];
+		if (BBi0 == BBi1) {
+			return repl0.first->comesBefore(repl1.first);
+		} else {
+			return BBi0 < BBi1;
+		}
 	});
+
 	for (const auto &[origI, _newV] : replacements) {
 		if (origI == _newV)
 			continue;
+#ifdef AbcAigToLlvmIr_TRACE
+		dbgs() << "Processing " << origI << " " << *origI << "\n";
+#endif
 		Value *newV = _newV;
-		newV = placeOperandIntoFunction(newV, origI->getNextNode());
+		newV = placeOperandIntoFunction(newV, origI);
 		if (origI == newV)
 			continue;
 		if (isa<Instruction>(newV) && !newV->hasName()) {
@@ -344,13 +498,12 @@ bool AbcAigToLlvmIr::translate() {
 		origI->replaceAllUsesWith(newV);
 		change = true;
 	}
-	for (auto& I: make_early_inc_range(reverse(*tmpBB))) {
+	for (auto &I : make_early_inc_range(reverse(*tmpBB))) {
 		assert(I.use_empty());
 		I.eraseFromParent();
 	}
 	tmpBB->eraseFromParent();
 	tmpBB = nullptr;
-
 	return change;
 }
 

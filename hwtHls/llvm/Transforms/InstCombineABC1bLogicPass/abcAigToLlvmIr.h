@@ -21,7 +21,7 @@ namespace hwtHls {
 
 class AbcAigToLlvmIr : public AbcPatternRecognizer<llvm::Value *> {
 public:
-	using IoMap = std::unordered_map<std::string, llvm::Instruction *>;
+	using IoMap = std::unordered_map<std::string, llvm::Value *>;
 	AbcAigToLlvmIr(llvm::Function &F, Abc_Ntk_t *net, IoMap &ioMap,
 				   llvm::BasicBlock &entryBB, llvm::DominatorTree &DT);
 
@@ -58,7 +58,7 @@ protected:
 	llvm::DominatorTree &DT_;
 	llvm::IRBuilder<> Builder;
 	// :note: name of port must be used because everything else will change
-	std::unordered_map<std::string, llvm::Instruction *> ioMap;
+	IoMap ioMap;
 	// to minimize duplication of common subexpression when placing new
 	// instruction to Functino
 	ExprCache exprCache;

@@ -23,7 +23,7 @@ public:
 	virtual void
 	findSelectedInstructions(llvm::Function &F,
 							 llvm::SetVector<llvm::Instruction *> &selected,
-							 llvm::SetVector<llvm::Instruction *> &inputs,
+							 llvm::SetVector<llvm::Value *> &inputs,
 							 llvm::SetVector<llvm::Instruction *> &outputs);
 	llvm::PreservedAnalyses run(llvm::Function &F,
 								llvm::FunctionAnalysisManager &AM);

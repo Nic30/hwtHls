@@ -1,5 +1,6 @@
 #pragma once
 
+#include <llvm/IR/Value.h>
 #include <llvm/ADT/SetVector.h>
 #include <llvm/IR/BasicBlock.h>
 
@@ -23,22 +24,18 @@ namespace hwtHls {
  */
 class LlvmIrToAbcAig {
 public:
-	Abc_Frame_t *abcFrame = nullptr; ///< Global ABC frame.
-	Abc_Ntk_t *net = nullptr;		 ///< ABC network.
-	Abc_Aig_t *aig = nullptr;		 ///< AIG manager (net->pManFunc).
-	Abc_Obj_t *c1 = nullptr;		 ///< Constant 1 object in the network.
+	Abc_Frame_t *abcFrame = nullptr; // Global ABC frame.
+	Abc_Ntk_t *net = nullptr;		 // ABC network.
+	Abc_Aig_t *aig = nullptr;		 // AIG manager (net->pManFunc).
+	Abc_Obj_t *c1 = nullptr;		 // Constant 1 object in the network.
 	std::unordered_map<llvm::Value *, Abc_Obj_t *> translationCache;
-	/// IO map: ABC object name -> (Abc_Obj_t*, Value*)
-	std::unordered_map<std::string, llvm::Instruction *>
+	std::unordered_map<std::string, llvm::Value *>
 		ioMap;
 
 public:
 	LlvmIrToAbcAig();
 
-	/**
-	 * @return Abc_Obj_t* The ABC object representing the instruction.
-	 */
-	Abc_Obj_t *translateInstructionImpl(llvm::Instruction *I);
+		Abc_Obj_t *translateInstructionImpl(llvm::Instruction *I);
 
 	/**
 	 * :note: This function assumes that ``I`` all
@@ -52,7 +49,7 @@ public:
 	 * :note: inputs are not part of DAG, outputs are 
 	 */
 	void
-	translate(const llvm::SetVector<llvm::Instruction *> &inputs,
+	translate(const llvm::SetVector<llvm::Value *> &inputs,
 			  const llvm::SetVector<llvm::Instruction *> &outputs);
 
 	/**

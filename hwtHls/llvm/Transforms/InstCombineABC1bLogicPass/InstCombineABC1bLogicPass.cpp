@@ -1,4 +1,5 @@
 #include <hwtHls/llvm/Transforms/InstCombineABC1bLogicPass/InstCombineABC1bLogicPass.h>
+#include <llvm/IR/Constants.h>
 #include <llvm/ADT/SetVector.h>
 #include <llvm/Analysis/GlobalsModRef.h>
 #include <llvm/IR/Analysis.h>
@@ -167,7 +168,7 @@ void InstCombineABC1bLogicPass::runOptScripts(LlvmIrToAbcAig &toAbc) {
 
 void InstCombineABC1bLogicPass::findSelectedInstructions(
 	Function &F, SetVector<Instruction *> &selected,
-	SetVector<Instruction *> &inputs, SetVector<Instruction *> &outputs) {
+	SetVector<Value *> &inputs, SetVector<Instruction *> &outputs) {
 	for (auto &BB : F) {
 		for (auto &I : BB) {
 			if (!I.getType()->isIntegerTy(1))
@@ -204,6 +205,12 @@ void InstCombineABC1bLogicPass::findSelectedInstructions(
 				if (!selected.contains(OpI)) {
 					inputs.insert(OpI);
 				}
+			} else {
+				auto OpCI = dyn_cast<ConstantInt>(Op);
+				if (!OpCI) {
+					// undef, poison and alike
+					inputs.insert(Op);
+				} 
 			}
 		}
 		for (auto U : I->users()) {
@@ -228,7 +235,7 @@ PreservedAnalyses InstCombineABC1bLogicPass::run(Function &F,
 	//assert(!verifyFunction(F, &errs()));
 	// assert(DT.verify());
 	SetVector<Instruction *> selected;
-	SetVector<Instruction *> inputs;
+	SetVector<Value *> inputs;
 	SetVector<Instruction *> outputs;
 	findSelectedInstructions(F, selected, inputs, outputs);
 	if (outputs.empty())
