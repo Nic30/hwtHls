@@ -136,18 +136,18 @@ class IoProxyAxi4StreamSegmented(IoProxyStream):
         supportZLP = tr.mdGetUInt32(io.SUPPORT_ZLP)
         framingEncoding = tr.mdGetStr("sof+eof" if io.USE_SOF else "eof")
         errorWidth = tr.mdGetUInt32(io.ERROR_WIDTH)
-        userWidth = tr.mdGetUInt32(0 if io.SEGMENT_USER_T is None else io.SEGMENT_USER_T.bit_length())
+        userWidth = tr.mdGetUInt32(0 if io.PER_SEGMENT_USER_T is None else io.PER_SEGMENT_USER_T.bit_length())
         segmentCnt = tr.mdGetUInt32(io.SEGMENT_CNT)
         return tr.mdGetTuple([
             tr.mdGetStr(StreamChannelFormatInfo.METADATA_NAME),
             dataWidth,
             byteWidth,
-            byteEnableEncoding,
+            byteEnableEncoding, # [3]
             supportZLP,
             framingEncoding,
-            errorWidth,
+            errorWidth, # [6]
             userWidth,
-            segmentCnt,
+            segmentCnt, # [8]
             ], False)
 
     @override

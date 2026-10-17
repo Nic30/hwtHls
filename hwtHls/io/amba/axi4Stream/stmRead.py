@@ -194,11 +194,12 @@ class HlsStmReadAxi4StreamSegmented(HlsStmReadAxi4Stream):
         trueDtype = HStruct(
             (dtype, "data"),
             *(((BIT, "enable"),) if not isReliable and src._hasEnable(src.SEGMENT_CNT) else ()),
+            *(((HBits(emptyWidth), "empty"),) if hasEmpty else ()),
+            * (((HBits(src.ERROR_WIDTH), "err"),) if src.ERROR_WIDTH else ()),
+            * (((src.PER_SEGMENT_USER_T, "userFirstWord"),) if src.PER_SEGMENT_USER_T is not None else ()),
             *(((BIT, "sof"),) if src.USE_SOF else ()),
             (BIT, "eof"),  # we do not know how many words this read could be,
                            # the eof is disjunction of eof signals from each word
-            * (((HBits(src.ERROR_WIDTH), "err"),) if src.ERROR_WIDTH else ()),
-            *(((HBits(emptyWidth), "empty"),) if hasEmpty else ()),
         )
         return trueDtype
 
