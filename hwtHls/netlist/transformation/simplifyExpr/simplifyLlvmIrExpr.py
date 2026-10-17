@@ -90,7 +90,7 @@ def runLlvmCmpOpt(builder: HlsNetlistBuilder, worklist: SetList[HlsNetNode],
         if inputsWhichBecomeOutputs:
             inputs = SetList(i for i in inputs if i not in inputsWhichBecomeOutputs)
         toLlvmIr.translate(inputs, outputs)
-        toLlvmIr.llvm.runExprOpt()
+        toLlvmIr.llvm.runExprOpt(False)
 
         builder = HlsNetlistBuilderWithWorklist(builder, worklist)
         toHlsNetlist = LlvmIrExprToHlsNetlist(builder)

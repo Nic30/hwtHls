@@ -141,7 +141,7 @@ public:
 			hwtHls::HwtFpgaToNetlist::ConvesionFnT &toNetlistConversionFn);
 	void _addCommonPasses(llvm::FunctionPassManager &FPM);
 
-	void runExprOpt();
+	void runExprOpt(bool runInstCombineABC1bLogicPass);
 
 	// for param doc :see: HwtHlsSimplifyCFGOptions
 	llvm::Function& _testHwtHlsSimplifyCFGPass(int BonusInstThreshold,        //

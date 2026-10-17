@@ -403,8 +403,8 @@ void LlvmCompilationBundle::_tryToFindMain() {
 	main = mainFn.value();
 }
 
-void LlvmCompilationBundle::runExprOpt() {
-	_runCustomFunctionPass([this](llvm::FunctionPassManager &FPM) {
+void LlvmCompilationBundle::runExprOpt(bool runInstCombineABC1bLogicPass) {
+	_runCustomFunctionPass([this, runInstCombineABC1bLogicPass](llvm::FunctionPassManager &FPM) {
 		FPM.addPass(llvm::EarlyCSEPass());
 		// FPM.addPass(hwtHls::BitwidthReductionPass());
 		FPM.addPass(llvm::CorrelatedValuePropagationPass());
@@ -416,8 +416,10 @@ void LlvmCompilationBundle::runExprOpt() {
 		FPM.addPass(llvm::InstCombinePass());
 		FPM.addPass(llvm::EarlyCSEPass());
 		FPM.addPass(hwtHls::HwtHlsInstCombinePass(_getDefaultInstCombineOptions()));
-		FPM.addPass(llvm::GVNHoistPass());
-		FPM.addPass(hwtHls::InstCombineABC1bLogicPass());
+		if (runInstCombineABC1bLogicPass) {
+			FPM.addPass(llvm::GVNHoistPass());
+			FPM.addPass(hwtHls::InstCombineABC1bLogicPass());
+		}
 		FPM.addPass(hwtHls::HwtHlsInstCombinePass(_getDefaultInstCombineOptions()));
 		// FPM.addPass(hwtHls::SlicesMergePass(_getPtrOrNull(_dbgIrInstrCombineChangeCallbackFn)));
 		FPM.addPass(hwtHls::ICmpToOnlyEqLtLePass());
@@ -564,6 +566,12 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 	//FPM.addPass(hwtHls::DumpAndExitPass(
 	//	false, false, "tmp/LoopToIoFsmPass.IoPortVectorizationPass.after1.dot"));
 	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(SimplifyCfgOptsMin));
+
+	FPM.addPass(llvm::GVNHoistPass());
+	FPM.addPass(hwtHls::InstCombineABC1bLogicPass());
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(SimplifyCfgOptsMin));
+		
+	
 	//FPM.addPass(hwtHls::DumpAndExitPass(
 	//	false, false, "tmp/LoopToIoFsmPass.HwtHlsSimplifyCFGPass.after2.dot"));
 	// :note: llvm-22 can not use FixIrreduciblePass because it
