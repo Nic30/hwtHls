@@ -245,7 +245,9 @@ void register_StreamChannelFormatInfo(pybind11::module_ & m) {
 	.def("hasEnable", &hwtHls::StreamChannelFormatInfo::hasEnable)
 	.def("hasEmpty", &hwtHls::StreamChannelFormatInfo::hasEmpty)
 	.def("hasError", &hwtHls::StreamChannelFormatInfo::hasError)
+	.def("hasUserFirstWord", &hwtHls::StreamChannelFormatInfo::hasUserFirstWord)
 	.def("getOffsetOfError", &hwtHls::StreamChannelFormatInfo::getOffsetOfError)//
+	.def("getOffsetOfUserFirsWord", &hwtHls::StreamChannelFormatInfo::getOffsetOfUserFirsWord)//
 	.def("getOffsetOfSoF", &hwtHls::StreamChannelFormatInfo::getOffsetOfSoF)//
 	.def("getOffsetOfEoF", &hwtHls::StreamChannelFormatInfo::getOffsetOfEoF)//
 	.def("getOffsetOfEmpty", &hwtHls::StreamChannelFormatInfo::getOffsetOfEmpty)//
