@@ -50,7 +50,7 @@ public:
 		OR,
 		XOR,
 		TERNARY,
-		NOP, // placeholder, do noting eperator
+		NOP, // placeholder, do noting operator
 	};
 	// this represents node of expression DAG
 	class RecognizedOpResult;
