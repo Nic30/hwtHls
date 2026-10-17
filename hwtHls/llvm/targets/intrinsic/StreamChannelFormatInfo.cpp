@@ -173,7 +173,7 @@ size_t StreamChannelFormatInfo::getOffsetOfEoF(
 	case ByteEnableEncoding::BEE_MASK:
 	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY: {
 		// Axi4StreamSegmented (data[n], (enable?, empty?, err?, userFirstWord?, sof?, eof?)[n])
-		return getOffsetOfUserFirsWord(segmentIndex) +  userFirstWordWidth  + (hasSoF() ? 1 : 0);
+		return getOffsetOfUserFirsWord(segmentIndex) + userFirstWordWidth + (hasSoF() ? 1 : 0);
 	}
 	default:
 		llvm_unreachable("Invalid value for byte enable encoding of a stream");
