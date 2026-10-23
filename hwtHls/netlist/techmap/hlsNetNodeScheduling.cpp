@@ -1,6 +1,7 @@
+#include <hwtHls/netlist/techmap/hlsNetlist.h>
+
 #include <algorithm>
 #include <assert.h>
-#include <hwtHls/netlist/techmap/hlsNetlist.h>
 #include <iostream>
 #include <limits>
 #include <sstream>
@@ -104,36 +105,36 @@ void HlsNetNode::moveSchedulingTime(SchedTime offset) {
 }
 
 void HlsNetNode::_setScheduleZeroTimeSingleClock(SchedTime t) {
+#ifndef NDEBUG
 	assert(!isMulticlock && "Multi-clock node unsupported");
 	assert((!scheduledZero.has_value() || scheduledZero.value() != t) &&
 		   "If time is the same this is useless to call");
-
 	if (scheduledZeroMin.has_value()) {
 		assert(t >= scheduledZeroMin.value() && "t >= scheduledZeroMin");
 	}
 	if (scheduledZeroMax.has_value()) {
 		assert(t <= scheduledZeroMax.value() && "t <= scheduledZeroMax");
 	}
-
+#endif
 	auto usableClkWindow =
 		netlist.normalizedClkPeriod - netlist.schedFFSetupTime;
+	auto clkPeriod = netlist.normalizedClkPeriod;
 	// Set input times: execution - input delay
 	for (size_t i = 0; i < _inputs.size(); ++i) {
 		auto iT = scheduledIn[i] = t - inputWireDelay[i];
-		if (!scheduleMayBeInFFStoreTime)
+		if (!scheduleMayBeInFFStoreTime) {
 			assert(std::abs(iT % netlist.normalizedClkPeriod) <=
 				   usableClkWindow);
+		}
 	}
-
 	// Set execution time
 	scheduledZero = t;
-
 	// Set output times: execution + output delay
-	auto clkPeriod = netlist.normalizedClkPeriod;
 	for (size_t o = 0; o < _outputs.size(); ++o) {
 		auto oT = scheduledOut[o] = t + outputWireDelay[o];
-		if (!scheduleMayBeInFFStoreTime)
+		if (!scheduleMayBeInFFStoreTime) {
 			assert(std::abs(oT % clkPeriod) <= usableClkWindow);
+		}
 	}
 	if (!isMulticlock) {
 		auto clkI = clkWindowIndex(t, clkPeriod);
