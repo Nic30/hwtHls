@@ -228,7 +228,7 @@ bool HwtFpgaCombinerHelper::_matchNestedMux(
 			requiresAndWithParentCond.push_back(false);
 		}
 		return true;
-	} else {
+	} else if (MI.getParent()->getParent()->getProperties().hasProperty(MachineFunctionProperties::Property::IsSSA)) {
 		// is in format similar to:
 		// %MI      = MUX v3 c2 v4
 		// %OtherMI = MUX v0 c0 %MI c1 v2
@@ -260,6 +260,8 @@ bool HwtFpgaCombinerHelper::_matchNestedMux(
 			NestedValO += 2; // skip condition and jump directly to new value
 		}
 		return true;
+	} else {
+		return false;
 	}
 }
 
