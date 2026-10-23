@@ -1,10 +1,13 @@
-#include <cassert>
+#include <hwtHls/netlist/techmap/schedulingLutAlap.h>
+
 #include <hwtHls/netlist/techmap/hlsNetlist.h>
 #include <hwtHls/netlist/techmap/schedulingAlap.h>
-#include <hwtHls/netlist/techmap/schedulingLutAlap.h>
+
+#include <cassert>
 #include <limits>
 #include <queue>
 #include <ranges>
+#include <iostream>
 #include <unordered_map>
 
 namespace hwtHls::techmap {
@@ -73,7 +76,7 @@ void scheduleLutAlapCopySchedulingFromLutRepresentatorsToRestOfNodes(
 			if (clkWindowIndex(t, clkPeriod) != clkWindowIndex(t - lutDelay, clkPeriod)) {
 				// if LUT composed of nodes driving this PO would cross clk window boundary, we have to map it
 				// at the end of previous clock cycle
-				t = clkWindowEndOfPrev(t, clkPeriod);
+				t = clkWindowEndOfPrev(t, clkPeriod) + 1;
 				t -= lut->netlist.schedFFSetupTime;
 			}
 			//t -= lutDelay;
