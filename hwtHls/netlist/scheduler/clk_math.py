@@ -5,6 +5,9 @@ from typing import Optional
 RealTimeEpsilon = sys.float_info.epsilon
 RealTime = float  # e.g. 1e-9 notes 1ns
 SchedTime = int  # 1 == HlsScheduler.resolution of time, e.g. if resolution=1e-9 then 1 notes 1ns
+# [SYNCED]
+#  * clk_math.py
+#  * hlsNetlist.cpp
 
 assert -49 // 1001 == -1
 
@@ -46,6 +49,9 @@ def clkWindowBegin(clkIndex:int, clkPeriod: SchedTime):
 
 
 def clkWindowEnd(clkIndex: int, clkPeriod: SchedTime):
+    """
+    :return: last time within the clock window of a given index
+    """
     return clkWindowBegin(clkIndex + 1, clkPeriod) - 1
 
 
