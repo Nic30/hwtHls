@@ -2,6 +2,8 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_memSinkToNewBB.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGUtils.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFG_priv.h>
+
+#include <llvm/ADT/SmallPtrSet.h>
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/Analysis/DomTreeUpdater.h>
 #include <llvm/IR/BasicBlock.h>
@@ -33,6 +35,7 @@ bool HwtHlsSimplifyCFGPass_memHoistToNewBB(llvm::DomTreeUpdater &DTU,
 		// because all predecessors were matched thus we can use this block 
 		hoistBB = &BB;
 	} else {
+		DTU.flush();
 		// construct hoistBB
 		hoistBB = llvm::BasicBlock::Create(BB.getContext());
 		BB.getParent()->insert(BB.getIterator(), hoistBB);
@@ -45,10 +48,16 @@ bool HwtHlsSimplifyCFGPass_memHoistToNewBB(llvm::DomTreeUpdater &DTU,
 		hoistBBTerm ->insertBefore(*hoistBB, hoistBB->end());
 		
 		SmallVector<DomTreeUpdater::UpdateT> dtUpdates;
-		for (const auto &[suc, st] : toHoist) {
+		bool isFirst = true;
+		for (const auto &[suc, ld] : toHoist) {
+			assert(suc != hoistBB);
+			assert(&BB != hoistBB);
 			BBTerm->replaceSuccessorWith(suc, hoistBB);
 			dtUpdates.push_back({DominatorTree::Delete, &BB, suc});
-			dtUpdates.push_back({DominatorTree::Insert, &BB, hoistBB});
+			if (isFirst) {
+				dtUpdates.push_back({DominatorTree::Insert, &BB, hoistBB});
+				isFirst = false;
+			}
 			dtUpdates.push_back({DominatorTree::Insert, hoistBB, suc});
 		}
 		SetVector<BasicBlock*> sucs;

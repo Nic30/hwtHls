@@ -1,6 +1,8 @@
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass_speculatePredecessor.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFG_priv.h>
 
+#include <llvm/ADT/SmallPtrSet.h>
+#include <llvm/IR/Dominators.h>
 #include <llvm/IR/Instruction.h>
 #include <llvm/ADT/SetVector.h>
 #include <llvm/IR/Instructions.h>
@@ -30,6 +32,7 @@ bool HwtHlsSimplifyCFGPass_speculatePredecessor(llvm::DomTreeUpdater &DTU,
 	if (BB.getTerminator()->getMetadata(LLVMContext::MD_loop))
 		return false; // do not discard latches
 	auto& DT = DTU.getDomTree();
+	assert(DTU.getDomTree().verify());
 	bool isLatchAndSucIsHeader = DT.dominates(sucBB, &BB);
 	if (isLatchAndSucIsHeader) {
 		// do not discard latches as it can lead to significant complication
@@ -193,28 +196,33 @@ bool HwtHlsSimplifyCFGPass_speculatePredecessor(llvm::DomTreeUpdater &DTU,
 #ifdef HwtHlsSimplifyCFGPass_speculatePredecessor_TRACE
 	errs() << "succExtraPreds: \n";
 #endif
+	SmallPtrSet<BasicBlock*, 32> seenPreds;
 	for (auto *predBB : predecessors(&BB)) {
-		DTUpdates.push_back( { DominatorTree::Delete, predBB, &BB });
-		if (!is_contained(predecessors(sucBB), predBB)) {
-			succExtraPreds.push_back(predBB);
+		bool predSeenFirstTime = seenPreds.insert(predBB).second;
+		if (predSeenFirstTime)
+			DTUpdates.push_back( { DominatorTree::Delete, predBB, &BB });
+		if (is_contained(predecessors(sucBB), predBB))
+			continue;
+		succExtraPreds.push_back(predBB);
 #ifdef HwtHlsSimplifyCFGPass_speculatePredecessor_TRACE
-			errs() << predBB->getName() << "\n";
+		errs() << predBB->getName() << "\n";
 #endif
-			DTUpdates.push_back( { DominatorTree::Insert, predBB, sucBB });
-			// for new predecessors of sucBB copy a value coming originally from BB if phi was not updated yet
-			// (new predecessors were always passing trough BB until now)
-			for (auto &phi1 : sucBB->phis()) {
-				if (!resolvedPhisInSucBB.contains(&phi1)) {
-					auto v = phi1.getIncomingValueForBlock(&BB);
-					auto predI = phi1.getBasicBlockIndex(predBB);
-					if (predI >= 0) {
-						// :note: the block may be predecessor multiple times, but the incoming value must be same
-						assert(phi1.getIncomingValue(predI) == v);
-					}
-					phi1.addIncoming(v, predBB);
+		if (predSeenFirstTime )
+			DTUpdates.push_back({DominatorTree::Insert, predBB, sucBB});
+		// for new predecessors of sucBB copy a value coming originally from BB
+		// if phi was not updated yet (new predecessors were always passing
+		// trough BB until now)
+		for (auto &phi1 : sucBB->phis()) {
+			if (!resolvedPhisInSucBB.contains(&phi1)) {
+				auto v = phi1.getIncomingValueForBlock(&BB);
+				auto predI = phi1.getBasicBlockIndex(predBB);
+				if (predI >= 0) {
+					// :note: the block may be predecessor multiple times, but
+					// the incoming value must be same
+					assert(phi1.getIncomingValue(predI) == v);
 				}
+				phi1.addIncoming(v, predBB);
 			}
-
 		}
 	}
 	for (auto &phi1 : sucBB->phis()) {
@@ -271,7 +279,15 @@ bool HwtHlsSimplifyCFGPass_speculatePredecessor(llvm::DomTreeUpdater &DTU,
 	BB.getTerminator()->eraseFromParent();
 	new UnreachableInst(BB.getContext(), &BB);
 	sortPhiOperands(*sucBB, false, true);
-
+#ifdef HwtHlsSimplifyCFGPass_speculatePredecessor_TRACE
+	for (const auto & u: DTUpdates) {
+		errs() << (u.getKind() == DominatorTree::Insert ? "insert " : "delete ");
+		u.getFrom()->printAsOperand(errs());
+		errs() << "->";
+		u.getTo()->printAsOperand(errs());
+		errs() << "\n";
+	}
+#endif
 	DTU.applyUpdates(DTUpdates);
 	DTU.flush();
 #ifdef HwtHlsSimplifyCFGPass_speculatePredecessor_TRACE
