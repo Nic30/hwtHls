@@ -66,7 +66,7 @@ LlvmCompilationBundle::LlvmCompilationBundle(const std::string &moduleName,
 		const std::vector<LlvmCliOptionTuple> &llvmCliOpts) :
 		ctx(), strCtx(), module(
 				new llvm::Module(strCtx.addStringRef(moduleName), ctx)), builder(
-				ctx), main(nullptr),  PM(PICForLegacyPM), MMIWP(nullptr), VerifyEachPass(
+				ctx), main(nullptr),  PM(PICForLegacyPM), MMIWP_inPM(false), MMIWP(nullptr), VerifyEachPass(
 				VerifyEach), DebugPM(DebugPMCliOpt.getValue()), llvmCliOpts(
 				llvmCliOpts), _llvmCliOpts(llvm::cl::getRegisteredOptions()) {
 	// :attention: llvm::cl::getRegisteredOptions reinitializes CLI options
@@ -213,10 +213,11 @@ llvm::MachineModuleInfo* LlvmCompilationBundle::getMachineModuleInfo() {
 }
 
 LlvmCompilationBundle::~LlvmCompilationBundle() {
+	if ((!TM || !MMIWP_inPM) && MMIWP) {
+		delete MMIWP;
+	}
 	if (TM) {
 		delete TM; // MMIWP deleted as a part of TM
-	} else if (MMIWP) {
-		delete MMIWP;
 	}
 }
 

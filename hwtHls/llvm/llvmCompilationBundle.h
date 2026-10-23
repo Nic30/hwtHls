@@ -49,6 +49,7 @@ public:
 	bool EnableGVNSink;
 	llvm::TargetMachine *TM;
 	llvm::PipelineTuningOptions PTO;
+	bool MMIWP_inPM;
 	llvm::MachineModuleInfoWrapperPass *MMIWP;
 	bool VerifyEachPass;
 	enum class DebugLogging {

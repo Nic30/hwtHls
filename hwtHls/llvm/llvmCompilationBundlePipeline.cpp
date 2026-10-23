@@ -1042,6 +1042,7 @@ void LlvmCompilationBundle::_addMachineCodegenPasses(
 
 	// :info: based on llc.cpp
 	PM.add(MMIWP);
+	MMIWP_inPM = true;
 
 	// check for incompatible passes
 	TPC = static_cast<llvm::HwtFpgaTargetPassConfig *>(
