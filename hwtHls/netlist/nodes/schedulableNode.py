@@ -13,7 +13,6 @@ from hwtHls.netlist.scheduler.clk_math import clkWindowIndex, \
 from hwtHls.netlist.scheduler.errors import TimeConstraintError
 from hwtHls.platform.opRealizationMeta import OpRealizationMeta
 
-
 SchedulizationDict = dict["HlsNetNode", tuple[SchedTime,  # node zero time
                                               tuple[SchedTime, ...],  # scheduledIn
                                               tuple[SchedTime, ...]]]  # scheduledOut
@@ -61,6 +60,11 @@ class SchedulableNode():
     def setScheduling(self, schedule: SchedulizationDict):
         (self.scheduledZero, self.scheduledIn, self.scheduledOut) = schedule[self]
 
+    def setSchedulingValues(self, scheduledZero: SchedTime, scheduledIn: tuple[SchedTime, ...], scheduledOut: tuple[SchedTime, ...]):
+        self.scheduledZero = scheduledZero
+        self.scheduledIn = scheduledIn
+        self.scheduledOut = scheduledOut
+    
     def checkScheduling(self):
         """
         Assert that the scheduling is consistent.
@@ -85,7 +89,8 @@ class SchedulableNode():
             assert dep.obj.scheduledOut is not None, (self, dep.obj)
             oT = dep.obj.scheduledOut[dep.out_i]
             assert isinstance(oT, SchedTime), (dep, oT)
-            assert iT >= oT, (oT, SchedTime_format(oT, clkPeriod), iT, SchedTime_format(iT, clkPeriod), "Input must be scheduled after connected output port.", dep, "->", i)
+            assert iT >= oT, (oT, SchedTime_format(oT, clkPeriod), iT, SchedTime_format(iT, clkPeriod),
+                              "Input must be scheduled after connected output port.", dep, "->", i)
             assert iT >= 0, (iT, self, i, "Scheduled before start of the time.")
             assert oT >= 0, (oT, dep, "Scheduled before start of the time.")
             if checkNotInFfStoreTime:
@@ -175,7 +180,6 @@ class SchedulableNode():
             (clkI + oTicks) * clkPeriod + oDelay
             for (oDelay, oTicks) in zip(self.outputWireDelay, self.outputClkTickOffset)
         )
-
 
     @staticmethod
     def _schedulerJumpToPrevCycleIfRequired(time: Union[float, SchedTime], requestedTime: SchedTime,
@@ -559,7 +563,7 @@ class SchedulableNode():
 
                 clkBudget = clkWindowOffsetFromWindowBegin(oT, clkPeriod)
                 if isAllowedInFFStoreTime:
-                    clkBudget = max(clkBudget, clkPeriod -ffdelay)
+                    clkBudget = max(clkBudget, clkPeriod - ffdelay)
                 clkI = clkWindowIndex(oT, clkPeriod) - oTicks
                 if clkBudget < oDelay:
                     clkI -= 1

@@ -41,6 +41,7 @@ class HlsSchedulerTracer():
         "_setScheduleZeroTimeSingleClock",
         "moveSchedulingTime",
         "setScheduling",
+        "setSchedulingValues",
         "resetScheduling",
         "copySchedulingFromChildren",
     ]
