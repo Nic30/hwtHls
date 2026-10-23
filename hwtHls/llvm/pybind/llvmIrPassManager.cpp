@@ -7,6 +7,7 @@
 #include <llvm/Pass.h>
 #include <llvm/Transforms/Scalar/LoopPassManager.h>
 #include <llvm/Transforms/Scalar/ADCE.h>
+#include <llvm/Transforms/Scalar/BDCE.h>
 #include <llvm/Transforms/IPO/StripDeadPrototypes.h>
 #include <llvm/Transforms/Scalar/EarlyCSE.h>
 
@@ -28,6 +29,7 @@
 #include <hwtHls/llvm/Transforms/StreamSegmentLoopUnrollPass/StreamSegmentLoopUnrollPass.h>
 #include <hwtHls/llvm/Transforms/ThreadExtractPass/ThreadExtractPass.h>
 #include <hwtHls/llvm/Transforms/ThreadExtractIoFsmPass/ThreadExtractIoFsmPass.h>
+#include <hwtHls/llvm/Transforms/LowerSwitchWithIfChain.h>
 #include <hwtHls/llvm/Transforms/LoopMarkStatelessPrequelAsAsyncThreadPass.h>
 #include <hwtHls/llvm/Transforms/LoopMarkStatelessSequelAsAsyncThreadPass.h>
 #include <hwtHls/llvm/Transforms/LoopToIoFsmPass/LoopToIoFsmPass.h>
@@ -135,12 +137,15 @@ void register_PassManager(pybind11::module_ &m) {
 		.def("addPass", &FunctionPassManager_addPass<SlicesToIndependentVariablesPass>)
 		;
 	bindFunctionPass<llvm::ADCEPass>(m, FunctionPassManager, "ADCEPass");
+	bindFunctionPass<llvm::BDCEPass>(m, FunctionPassManager, "BDCEPass");
 	bindFunctionPass<llvm::EarlyCSEPass>(m, FunctionPassManager, "EarlyCSEPass");
 	bindFunctionPass<BitcountMergePass>(m, FunctionPassManager, "BitcountMergePass");
 	bindFunctionPass<BitwidthReductionPass>(m, FunctionPassManager, "BitwidthReductionPass");
 	bindFunctionPass<InstCombineABC1bLogicPass>(m, FunctionPassManager, "InstCombineABC1bLogicPass");
 	bindFunctionPass<ExtractBitConcatAndSliceOpsPass>(m, FunctionPassManager, "ExtractBitConcatAndSliceOpsPass");
+	bindFunctionPass<FsmStateBinToOneHotPass>(m, FunctionPassManager, "FsmStateBinToOneHotPass");
 	bindFunctionPass<HFloatTmpLoweringPass>(m, FunctionPassManager, "HFloatTmpLoweringPass");
+	bindFunctionPass<LowerSwitchWithIfChain>(m, FunctionPassManager, "LowerSwitchWithIfChain");
 	bindFunctionPass<SlicesMergePass>(m, FunctionPassManager, "SlicesMergePass");
 	bindFunctionPass<PruneLoopPhiDeadIncomingValuesPass>(m, FunctionPassManager, "PruneLoopPhiDeadIncomingValuesPass");
 	bindFunctionPass<SelectPruningPass>(m, FunctionPassManager, "SelectPruningPass");
