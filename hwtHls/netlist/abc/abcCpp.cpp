@@ -728,6 +728,7 @@ public:
 	//		std::shared_ptr<typename Base::RecognizedOpResult>, Base,
 	//		_recognizeNonAigOperator, obj, negated);
 	// }
+	virtual ~AbcPatternRecognizerPy() {}
 };
 
 void _module(py::module_ & m) {
@@ -765,7 +766,7 @@ void _module(py::module_ & m) {
 			   py::smart_holder> _AbcPatternRecognizerPy(m, "AbcPatternRecognizer");
 	_AbcPatternRecognizerPy
 		.def(py::init<>())
-		.def("_recognizeNonAigOperator", &AbcPatternRecognizer<py::object>::_recognizeNonAigOperator)
+		.def("_recognizeNonAigOperator", &AbcPatternRecognizer<py::object>::_recognizeNonAigOperator, py::keep_alive<0, 1>())
 		;
 	
 	py::native_enum<AbcPatternRecognizerPy::RecognizedOps>(_AbcPatternRecognizerPy, "RecognizedOps", "enum.Enum")

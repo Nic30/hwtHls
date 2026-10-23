@@ -446,6 +446,8 @@ public:
 		// No pattern matched
 		return nullptr;
 	}
+	virtual ~AbcPatternRecognizer() {}
+
 };
 
 }
