@@ -105,13 +105,11 @@ class HlsNetlistToCppTranslator():
             assert len(nCpp.outputWireDelay) == len(n.outputWireDelay)
             assert len(nCpp.outputClkTickOffset) == len(n.outputClkTickOffset)
         assert nCpp.scheduledZero is not None, n
-        n.scheduledZero = nCpp.scheduledZero
-        n.scheduledIn = tuple(nCpp.scheduledIn)
-        n.scheduledOut = tuple(nCpp.scheduledOut)
         n.inputWireDelay = tuple(nCpp.inputWireDelay)
         n.inputWireDelay = tuple(nCpp.inputWireDelay)
         n.outputWireDelay = tuple(nCpp.outputWireDelay)
         n.outputClkTickOffset = tuple(nCpp.outputClkTickOffset)
+        n.setSchedulingValues(nCpp.scheduledZero, tuple(nCpp.scheduledIn), tuple(nCpp.scheduledOut))
 
     def copySchedulingCppToPy(self):
         """
