@@ -187,6 +187,7 @@ py3.extension_module(
      'Transforms/slicesToIndependentVariablesPass/detectSplitPoints.cpp',
      'Transforms/slicesToIndependentVariablesPass/slicesToIndependentVariablesPass.cpp',
      'Transforms/extractBitConcatAndSliceOpsPass.cpp',
+     'Transforms/FsmStateBinToOneHotPass.cpp',
      'Transforms/HFloatTmpLoweringPass.cpp',
      'Transforms/ICmpToOnlyEqLtLePass.cpp',
      'Transforms/InstCombineABC1bLogicPass/abcAigToLlvmIr.cpp',
