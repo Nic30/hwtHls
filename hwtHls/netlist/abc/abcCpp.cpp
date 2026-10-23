@@ -248,7 +248,7 @@ public:
 
 template<typename Return, typename ... Args>
 auto returnCodeToException(std::string errMsg, Return (*f)(Args...)) {
-	return [f, &errMsg](Args &&... args) {
+	return [f, errMsg](Args &&... args) {
 		int ret = f(args...);
 		if (!ret)
 			throw AbcError(errMsg);
