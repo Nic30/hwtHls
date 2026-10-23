@@ -5,9 +5,11 @@
 #include <llvm/Analysis/AssumptionCache.h>
 #include <llvm/Analysis/BlockFrequencyInfo.h>
 #include <llvm/Analysis/BranchProbabilityInfo.h>
+#include <llvm/Analysis/DemandedBits.h>
 #include <llvm/Analysis/DomTreeUpdater.h>
 #include <llvm/Analysis/InstructionSimplify.h>
 #include <llvm/Analysis/InstSimplifyFolder.h>
+#include <llvm/Analysis/PostDominators.h>
 #include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/Analysis/TargetFolder.h>
 #include <llvm/Analysis/LoopInfo.h>
@@ -294,6 +296,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 		//errs() << F << "\n";
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 		assert(!verifyFunction(F, &errs()));
+		assert(DTU.getDomTree().verify());
 #endif
 		// the error will appear there only if the input was broken or some check is missing after change
 		// onChangeCallbackIC("HwtHlsSimplifyCFGPass::runOpt1 - entry", F);
@@ -303,6 +306,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 			// DTU.flush();
 			// writeCFGToDotFile(F, "tmp/HwtHlsSimplifyCFGPass_storeHoist.after.dot", AM);
 			assert(!verifyFunction(F, &errs()));
+			assert(DTU.getDomTree().verify());
 #endif
 			_changed1 = true;
 		} else if (Options.MemHoistToNewBB && HwtHlsSimplifyCFGPass_memHoistToNewBB(DTU, *BBIt)) {
@@ -311,6 +315,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 			DTU.flush();
 			// writeCFGToDotFile(F, "tmp/HwtHlsSimplifyCFGPass_memHoistToNewBB.after.dot", AM);
 			assert(!verifyFunction(F, &errs()));
+			assert(DTU.getDomTree().verify());
 #endif
 					_changed1 = true;
 		} else if (Options.AggresiveStoreSink
@@ -319,6 +324,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 			onChangeCallback("HwtHlsSimplifyCFGPass_aggresiveStoreSink", F);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
+			assert(DTU.getDomTree().verify());
 #endif
 			_changed1 = true;
 		} else if (Options.MergePredecessorsStore
@@ -328,6 +334,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 			// DTU.flush();
 			// writeCFGToDotFile(F, "tmp/HwtHlsSimplifyCFGPass_mergePredecessorsStore.after.dot", AM);
 			assert(!verifyFunction(F, &errs()));
+			assert(DTU.getDomTree().verify());
 #endif
 			_changed1 = true;
 		} else if (Options.MemSinkToNewBB
@@ -335,6 +342,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 			onChangeCallback("HwtHlsSimplifyCFGPass_memSinkToNewBB", F);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
+			assert(DTU.getDomTree().verify());
 #endif
 					_changed1 = true;
 		} else if (Options.PhiToLogicalExpr
@@ -343,6 +351,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 			onChangeCallbackIC("HwtHlsSimplifyCFGPass_phiToLogicalExpr", F);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
+			assert(DTU.getDomTree().verify());
 #endif
 			_changed1 = true;
 		} else if (Options.UnswitchComplementarySequentialBlocks
@@ -351,6 +360,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 			onChangeCallback("HwtHlsSimplifyCFGPass_unswitchComplementarySequentialBlocks", F);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
+			assert(DTU.getDomTree().verify());
 #endif
 			_changed1 = true;
 		} else if (Options.UnswitchCheapBlock &&
@@ -358,6 +368,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 			onChangeCallback("HwtHlsSimplifyCFGPass_unswitchCheapBlock", F);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
+			assert(DTU.getDomTree().verify());
 #endif
 			exprChanged = true;
 			_changed1 = true;
@@ -370,6 +381,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 			onChangeCallback("HwtHlsSimplifyCFGPass_unswitchCheapManyPredManySuccBB", F);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
+			assert(DTU.getDomTree().verify());
 #endif
 					_changed1 = true;
 		} else if (Options.SwitchSuccClusterReduceFewExit &&
@@ -382,8 +394,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 			DTU.flush();
 			// writeCFGToDotFile(F, "tmp/HwtHlsSimplifyCFGPass_SwitchSuccClusterReduceFewExit.after.dot", AM);
 			assert(!verifyFunction(F, &errs()));
-			auto& DT = DTU.getDomTree();
-			assert(DT.verify());
+			assert(DTU.getDomTree().verify());
 #endif
 			_changed1 = true;
 
@@ -392,6 +403,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 			onChangeCallback("HwtHlsSimplifyCFGPass_speculatePredecessor", F);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
+			assert(DTU.getDomTree().verify());
 #endif
 			_changed1 = true;
 		} else if (Options.StreamWriteMerge &&
@@ -400,6 +412,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 			onChangeCallback("HwtHlsSimplifyCFGPass_streamWriteMerge", F);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
+			assert(DTU.getDomTree().verify());
 #endif
 			_changed1 = true;
 		} else if (Options.StreamReadMerge &&
@@ -408,6 +421,7 @@ bool HwtHlsSimplifyCFGPass::runOpt1(llvm::FunctionAnalysisManager &AM,
 			onChangeCallback("HwtHlsSimplifyCFGPass_streamReadMerge", F);
 #ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
 			assert(!verifyFunction(F, &errs()));
+			assert(DTU.getDomTree().verify());
 #endif
 			_changed1 = true;
 		} else {
@@ -498,6 +512,8 @@ llvm::PreservedAnalyses HwtHlsSimplifyCFGPass::run(llvm::Function &F,
 			PA.abandon<LoopAnalysis>();
 			PA.abandon<BlockFrequencyAnalysis>();
 			PA.abandon<BranchProbabilityAnalysis>();	
+			PA.abandon<PostDominatorTreeAnalysis>();
+			PA.abandon<DemandedBitsAnalysis>();
 			AM.invalidate(F, PA);
 
 			SimplifyCFGOpt2 opt(&DTU, DL, TTI, Options,
@@ -553,6 +569,10 @@ llvm::PreservedAnalyses HwtHlsSimplifyCFGPass::run(llvm::Function &F,
 				TrivialSimplifyCFGPass trivialSimplifyCfg(true, false, Options._dbgIrCfgSimplifyChangeCallbackFn);
 				changed_trivialSimplifyCfg = runSubpass(PI, F, AM,
 						trivialSimplifyCfg);
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+				DT->verify();
+				assert(!verifyFunction(F, &errs()));
+#endif
 				if (changed_trivialSimplifyCfg) {
 					onChangeCallback("HwtHlsSimplifyCFGPass - TrivialSimplifyCFGPass",
 									   F);
@@ -574,6 +594,13 @@ llvm::PreservedAnalyses HwtHlsSimplifyCFGPass::run(llvm::Function &F,
 			SimplifyCFGPass origSimplifyCfg(Options); // :attention: does not preserve loop metadata
 			PreservedAnalyses _PA = PreservedAnalyses::all();
 			_PA.abandon<DominatorTreeAnalysis>();
+			_PA.abandon<PostDominatorTreeAnalysis>();
+			_PA.abandon<BlockFrequencyAnalysis>();
+			_PA.abandon<BranchProbabilityAnalysis>();	
+			_PA.abandon<DemandedBitsAnalysis>();
+			_PA.abandon<LoopAnalysis>();
+			
+			DT = nullptr;
 			AM.invalidate(F, _PA);
 			changed_origSimplifyCfg = runSubpass(PI, F, AM, origSimplifyCfg);
 			if (changed_origSimplifyCfg) {
@@ -632,8 +659,12 @@ llvm::PreservedAnalyses HwtHlsSimplifyCFGPass::run(llvm::Function &F,
 			}
 		}
 		PreservedAnalyses PA;
-		if (RequireAndPreserveDomTree)
+		if (RequireAndPreserveDomTree && DT) {
+#ifdef DBG_VERIFY_AFTER_EVERY_MODIFICATION
+			assert(!DT || DT->verify());
+#endif
 			PA.preserve<DominatorTreeAnalysis>();
+		}
 		return PA;
 	}
 	return PreservedAnalyses::all();
