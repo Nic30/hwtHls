@@ -300,9 +300,13 @@ public:
 	}
 };
 
+// [SYNCED]
+//  * clk_math.py
+//  * hlsNetlist.cpp
 SchedTime clkWindowIndex(SchedTime time, SchedTime clkPeriod);
+/// :return: last time within the clock window of a given index
 SchedTime clkWindowEnd(SchedTime time, SchedTime clkPeriod);
-// :note: endOfPrevClk == begin of this clk window 
+// :note: endOfPrevClk == begin of this clk window - 1 
 SchedTime clkWindowEndOfPrev(SchedTime time, SchedTime clkPeriod);
 SchedTime clkWindowBeginOfNext(SchedTime time, SchedTime clkPeriod);
 SchedTime clkWindowOffsetFromWindowBegin(SchedTime time, SchedTime clkPeriod);
