@@ -59,44 +59,49 @@ struct DRefactorPars : Dar_RefPar_t {
 		fVeryVerbose = false;
 	}
 };
-
+Abc_Ntk_t * Abc_NtkDeleteOld(Abc_Ntk_t * pNtkCur, Abc_Ntk_t * pNtkNew) {
+	Abc_NtkDelete( pNtkCur );
+	return pNtkNew;
+}
 Abc_Ntk_t *abcCmd_resyn2(Abc_Ntk_t *net) {
 	// abc standard scripts
 	// resyn2      "b; rw; rf; b; rw; rwz; b; rfz; rwz; b"
 	// with replaced https://github.com/YosysHQ/yosys/issues/4039
 	//   rf -> drf,-l
 	//   rw -> drw,-l
-	net = Abc_NtkBalance(net, false, false, true);
+	// :attention: in abc.c abc commands end with Abc_FrameReplaceCurrentNetwork with deallocates old network.
+	//    there we handle deallocation manually
+	net = Abc_NtkDeleteOld(net, Abc_NtkBalance(net, false, false, true));
 
 	{
 		DRewritePars pars(true, false);
-		net = Abc_NtkDRewrite(net, &pars);
+		net = Abc_NtkDeleteOld(net, Abc_NtkDRewrite(net, &pars));
 	}
 	{
 		DRefactorPars pars(true, false, true);
-		net = Abc_NtkDRefactor(net, &pars);
+		net = Abc_NtkDeleteOld(net, Abc_NtkDRefactor(net, &pars));
 	}
 
-	net = Abc_NtkBalance(net, false, false, true);
+	net = Abc_NtkDeleteOld(net, Abc_NtkBalance(net, false, false, true));
 
 	{
 		DRewritePars pars(true, false);
-		net = Abc_NtkDRewrite(net, &pars);
+		net = Abc_NtkDeleteOld(net, Abc_NtkDRewrite(net, &pars));
 	}
 	{
 		DRewritePars pars(true, true); // rewrite -z
-		net = Abc_NtkDRewrite(net, &pars);
+		net = Abc_NtkDeleteOld(net, Abc_NtkDRewrite(net, &pars));
 	}
 
-	net = Abc_NtkBalance(net, false, false, true);
+	net = Abc_NtkDeleteOld(net, Abc_NtkBalance(net, false, false, true));
 
 	{
 		DRefactorPars pars(true, true, true); // refactor -z
-		net = Abc_NtkDRefactor(net, &pars);
+		net = Abc_NtkDeleteOld(net, Abc_NtkDRefactor(net, &pars));
 	}
 	{
 		DRewritePars pars(true, true); // rewrite -z
-		net = Abc_NtkDRewrite(net, &pars);
+		net = Abc_NtkDeleteOld(net, Abc_NtkDRewrite(net, &pars));
 	}
 
 	if (!Abc_NtkRewrite(net, true, true, false, false,
@@ -108,7 +113,7 @@ Abc_Ntk_t *abcCmd_resyn2(Abc_Ntk_t *net) {
 		throw std::runtime_error("Abc_NtkRefactor has failed");
 	}
 
-	net = Abc_NtkBalance(net, false, false, true);
+	net = Abc_NtkDeleteOld(net, Abc_NtkBalance(net, false, false, true));
 	return net;
 }
 
@@ -118,33 +123,34 @@ Abc_Ntk_t *abcCmd_compress2(Abc_Ntk_t *net) {
 	// -l; b -l" with replaced https://github.com/YosysHQ/yosys/issues/4039
 	//   rf -> drf,-l
 	//   rw -> drw,-l
-	net = Abc_NtkBalance(net, false, false, false); // balance -l
+	// :see: :func:`abcCmd_resyn2`
+	net = Abc_NtkDeleteOld(net, Abc_NtkBalance(net, false, false, false)); // balance -l
 
 	{
 		DRewritePars pars(false, false); // rewrite -l
-		net = Abc_NtkDRewrite(net, &pars);
+		net = Abc_NtkDeleteOld(net, Abc_NtkDRewrite(net, &pars));
 	}
 	{
 		DRefactorPars pars(false, false, true);
-		net = Abc_NtkDRefactor(net, &pars);
+		net = Abc_NtkDeleteOld(net, Abc_NtkDRefactor(net, &pars));
 	}
 
-	net = Abc_NtkBalance(net, false, false, false); // balance -l
+	net = Abc_NtkDeleteOld(net, Abc_NtkBalance(net, false, false, false)); // balance -l
 
 	{
 		DRewritePars pars(false, false); // rewrite -l
-		net = Abc_NtkDRewrite(net, &pars);
+		net = Abc_NtkDeleteOld(net, Abc_NtkDRewrite(net, &pars));
 	}
 	{
 		DRewritePars pars(false, true); // rewrite -z -l
-		net = Abc_NtkDRewrite(net, &pars);
+		net = Abc_NtkDeleteOld(net, Abc_NtkDRewrite(net, &pars));
 	}
 
-	net = Abc_NtkBalance(net, false, false, false); // balance -l
+	net = Abc_NtkDeleteOld(net, Abc_NtkBalance(net, false, false, false)); // balance -l
 
 	{
 		DRewritePars pars(false, true); // rewrite -z -l
-		net = Abc_NtkDRewrite(net, &pars);
+		net = Abc_NtkDeleteOld(net, Abc_NtkDRewrite(net, &pars));
 	}
 
 	if (!Abc_NtkRewrite(net, false, false, false, false,
@@ -156,7 +162,7 @@ Abc_Ntk_t *abcCmd_compress2(Abc_Ntk_t *net) {
 		throw std::runtime_error("Abc_NtkRefactor has failed");
 	}
 
-	net = Abc_NtkBalance(net, false, false, false); // balance -l
+	net = Abc_NtkDeleteOld(net, Abc_NtkBalance(net, false, false, false)); // balance -l
 	return net;
 }
 
