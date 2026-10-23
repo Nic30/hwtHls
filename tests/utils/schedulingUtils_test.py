@@ -1,6 +1,8 @@
 import unittest
 
+from hwt.hdl.types.defs import BIT
 from hwtHls.netlist.context import HlsNetlistCtx
+from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.scheduler.clk_math import clkWindowIndex, \
     clkWindowOffsetFromWindowBegin, clkWindowOffsetFromWindowEnd, \
     clkWindowBeginForTime, clkWindowBegin, clkWindowEnd, SchedTime
@@ -9,8 +11,6 @@ from hwtHls.netlist.techmap.techmap import clkWindowIndex as clkWindowIndexCpp, 
 
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from tests.hlsNetlist.abstractHlsNetlistTC import AbstractHlsNetlistTC
-from hwt.hdl.types.defs import BIT
-from hwtHls.netlist.nodes.node import HlsNetNode
 
 
 class SchedulingUtils_TC(AbstractHlsNetlistTC):
@@ -88,7 +88,7 @@ class SchedulingUtils_TC(AbstractHlsNetlistTC):
         n.outputWireDelay = (outWireDelay,)
         endOfLastClk = 10000
 
-        n._setScheduleZeroTimeSingleClock(10)
+        n._setScheduleZeroTimeSingleClock(inWireDelay + 10)
         o0._setScheduleZeroTimeSingleClock(110)
 
         for _ in n.scheduleAlapCompaction(endOfLastClk, None, None):
@@ -144,7 +144,7 @@ class SchedulingUtils_TC(AbstractHlsNetlistTC):
 
 if __name__ == '__main__':
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([SchedulingNodeFunctions_TC('test_2not1and_400MHz'), ])
     suite = testLoader.loadTestsFromTestCase(SchedulingUtils_TC)
+    # suite = unittest.TestSuite([SchedulingUtils_TC('test_alapCompaction_inDelayOnly'), ])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
