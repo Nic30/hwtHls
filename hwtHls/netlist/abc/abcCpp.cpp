@@ -145,7 +145,7 @@ public:
 		return pNtk == rhs.pNtk && i == rhs.i;
 	}
 	bool operator!=(Abc_Ntk_PoIterator const &rhs) const {
-		return *this != rhs;
+		return !(*this == rhs);
 	}
 	void operator+=(int b) {
 		i += b;
