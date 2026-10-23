@@ -27,15 +27,13 @@ public:
 	Abc_Frame_t *abcFrame = nullptr; // Global ABC frame.
 	Abc_Ntk_t *net = nullptr;		 // ABC network.
 	Abc_Aig_t *aig = nullptr;		 // AIG manager (net->pManFunc).
-	Abc_Obj_t *c1 = nullptr;		 // Constant 1 object in the network.
 	std::unordered_map<llvm::Value *, Abc_Obj_t *> translationCache;
 	std::unordered_map<std::string, llvm::Value *>
 		ioMap;
 
 public:
 	LlvmIrToAbcAig();
-
-		Abc_Obj_t *translateInstructionImpl(llvm::Instruction *I);
+	Abc_Obj_t *translateInstructionImpl(llvm::Instruction *I);
 
 	/**
 	 * :note: This function assumes that ``I`` all

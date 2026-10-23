@@ -14,7 +14,6 @@ LlvmIrToAbcAig::LlvmIrToAbcAig() {
 	// Create AIG network: structural hashing (STRASH), AIG functionality
 	net = Abc_NtkAlloc(ABC_NTK_STRASH, ABC_FUNC_AIG, 64);
 	aig = static_cast<Abc_Aig_t *>(net->pManFunc);
-	c1 = Abc_AigConst1(net);
 }
 
 LlvmIrToAbcAig::~LlvmIrToAbcAig() {
@@ -80,7 +79,7 @@ Abc_Obj_t *LlvmIrToAbcAig::getOrTranslateValue(Value *v) {
 		if (!C->getType()->isIntegerTy(1)) {
 			llvm_unreachable("LlvmIrToAbcAig: only i1 constants are supported");
 		}
-		Abc_Obj_t *res = c1;
+		Abc_Obj_t *res = Abc_AigConst1(net);
 		if (!C->isOne()) {
 			res = Abc_ObjNot(res);
 		}
