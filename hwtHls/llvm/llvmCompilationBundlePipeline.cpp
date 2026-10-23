@@ -320,7 +320,12 @@ void LlvmCompilationBundle::runOpt(
 						   /*streamReadEoFThreading*/ false,
 						   /*hwtHlsFpInstrCombine*/ true);
 	// FPM.addPass(hwtHls::DumpAndExitPass(true, false, "dump.dot"));
+	assert(LLVM_VERSION_MAJOR < 25 && "FixIrreduciblePass can not handle SwitchInst (<=llvm-24) but llvm-main contains the support");
+	FPM.addPass(hwtHls::LowerSwitchWithIfChain());
 	FPM.addPass(llvm::FixIrreduciblePass()); // loops needs to have single entry
+	// convert back to SwitchInst
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(hwtHls::HwtHlsSimplifyCFGOptions()
+		.setdbgIrCfgSimplifyChangeCallbackFn(_getPtrOrNull(_dbgIrCfgSimplifyChangeCallbackFn))));
 	// FPM.run(F, *FAM);
 	MPM.addPass(llvm::createModuleToFunctionPassAdaptor(std::move(FPM)));
 	// if (!DeleteFn)
@@ -331,15 +336,16 @@ void LlvmCompilationBundle::runOpt(
 	MPM.addPass(hwtHls::LoopMarkStatelessPrequelAsAsyncThreadPass());
 	MPM.addPass(hwtHls::LoopMarkStatelessSequelAsAsyncThreadPass());
 	MPM.addPass(hwtHls::ThreadExtractPass());
+	// ThreadExtractPass may create trivially mergable blocks
 	MPM.addPass(llvm::createModuleToFunctionPassAdaptor(
-		hwtHls::HwtHlsSimplifyCFGPass(_getDefaultSimplifyCfgOptions()))); // ThreadExtractPass may create
-										   // trivially mergable blocks
+		hwtHls::HwtHlsSimplifyCFGPass(_getDefaultSimplifyCfgOptions()
+			.setdbgIrCfgSimplifyChangeCallbackFn(_getPtrOrNull(_dbgIrCfgSimplifyChangeCallbackFn)))));
 	MPM.addPass(llvm::StripDeadDebugInfoPass());
 	MPM.addPass(llvm::StripDeadPrototypesPass());
 	MPM.addPass(hwtHls::ProfMetadataRmDummy());
 	//MPM.addPass(llvm::createModuleToFunctionPassAdaptor(hwtHls::DumpAndExitPass(
 	//	true, false, "tmp/before.LowerSwitchPass.dot")));
-	//	// :note: llvm-22 FixIrreduciblePass requires LowerSwitchPass
+	assert(LLVM_VERSION_MAJOR < 25 && "FixIrreduciblePass can not handle SwitchInst (<=llvm-24) but llvm-main contains the support");
 	MPM.addPass(llvm::createModuleToFunctionPassAdaptor(hwtHls::LowerSwitchWithIfChain())); 
 	MPM.addPass(llvm::createModuleToFunctionPassAdaptor(hwtHls::TrivialSimplifyCFGPass(true, false, _getPtrOrNull(_dbgIrCfgSimplifyChangeCallbackFn))));
 	MPM.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::FixIrreduciblePass()));
