@@ -88,6 +88,7 @@ class RtlNetlistToAbcAig():
 
         aig.Cleanup()  # removes dangling nodes
         net.Check()
+        self.c1 = None # :note: because it will become invalid after first transformation
         # self.abcFrame.SetCurrentNetwork(None)
         # net.Io_Write("abc-directly.0.dot", Io_FileType_t.IO_FILE_DOT)
         return self.abcFrame, net, aig, ioMap
