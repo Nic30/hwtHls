@@ -137,7 +137,8 @@ void FixPhis(BasicBlock *SuccBB, BasicBlock *OrigBB, BasicBlock *NewBB,
 /// value, so the jump to the "default" branch is warranted.
 void NewLeafBlock(BasicBlock * NewLeaf, CaseRange &Leaf, Value *Val, ConstantInt *LowerBound,
                          ConstantInt *UpperBound, BasicBlock *OrigBlock,
-                         BasicBlock *Default) {
+                         BasicBlock *Default //SmallVectorImpl<DominatorTree::UpdateType>& DTUpdates, 
+						 ) {
   // Emit comparison
   ICmpInst *Comp = nullptr;
   if (Leaf.Low == Leaf.High) {
@@ -172,6 +173,9 @@ void NewLeafBlock(BasicBlock * NewLeaf, CaseRange &Leaf, Value *Val, ConstantInt
   // Make the conditional branch...
   BasicBlock *Succ = Leaf.BB;
   BranchInst::Create(Succ, Default, Comp, NewLeaf);
+  // DTUpdates.push_back({DominatorTree::Insert, NewLeaf, Succ});
+  // DTUpdates.push_back({DominatorTree::Insert, NewLeaf, Default});
+    
 
   // Update the PHI incoming value/block for the default.
   for (auto &I : Default->phis()) {
@@ -286,7 +290,7 @@ unsigned Clusterify(CaseVector &Cases, SwitchInst *SI) {
 
 /// Replace the specified switch instruction with a sequence of chained if-then
 /// insts in a balanced binary search.
-void ProcessSwitchInst(SwitchInst *SI,
+void  LowerSwitchWithIfChain::ProcessSwitchInst(SwitchInst *SI,
                        SmallPtrSetImpl<BasicBlock *> &DeleteList,
                        AssumptionCache *AC, LazyValueInfo *LVI) {
   BasicBlock *OrigBlock = SI->getParent();
@@ -318,6 +322,7 @@ void ProcessSwitchInst(SwitchInst *SI,
   // If there is only the default destination, just branch.
   if (Cases.empty()) {
     BranchInst::Create(Default, OrigBlock);
+	// DTUpdates.push_back({DominatorTree::Insert, OrigBlock, Default});
     // Remove all the references from Default's PHIs to OrigBlock, but one.
     FixPhis(Default, OrigBlock, OrigBlock, UnsignedMax);
     SI->eraseFromParent();
@@ -368,7 +373,7 @@ void ProcessSwitchInst(SwitchInst *SI,
   }
 
   std::vector<IntRange> UnreachableRanges;
-
+  // SmallVector<DominatorTree::UpdateType> DTUpdates;
   if (DefaultIsUnreachableFromSwitch) {
     DenseMap<BasicBlock *, APInt> Popularity;
     APInt MaxPop(UnsignedZero);
@@ -434,7 +439,8 @@ void ProcessSwitchInst(SwitchInst *SI,
     if (Cases.empty()) {
       BranchInst::Create(Default, OrigBlock);
       SI->eraseFromParent();
-      // As all the cases have been replaced with a single branch, only keep
+	  //DTUpdates.push_back({DominatorTree::Insert, OrigBlock, Default});
+	  // As all the cases have been replaced with a single branch, only keep
       // one entry in the PHI nodes.
       if (!MaxPop.isZero())
         for (APInt I(UnsignedZero); I.ult(MaxPop - 1); ++I)
@@ -462,6 +468,7 @@ void ProcessSwitchInst(SwitchInst *SI,
 
   // Branch to our shiny new if-then stuff...
   BranchInst::Create(SwitchBlock, OrigBlock);
+  //DTUpdates.push_back({DominatorTree::Insert, OrigBlock, SwitchBlock});
 
   // We are now done with the switch instruction, delete it.
   BasicBlock *OldDefault = SI->getDefaultDest();
@@ -472,7 +479,7 @@ void ProcessSwitchInst(SwitchInst *SI,
     DeleteList.insert(OldDefault);
 }
 
-bool LowerSwitch(Function &F, LazyValueInfo *LVI, AssumptionCache *AC) {
+bool LowerSwitchWithIfChain::LowerSwitch(Function &F, LazyValueInfo *LVI, AssumptionCache *AC) {
   bool Changed = false;
   SmallPtrSet<BasicBlock *, 8> DeleteList;
 
@@ -497,11 +504,18 @@ bool LowerSwitch(Function &F, LazyValueInfo *LVI, AssumptionCache *AC) {
   return Changed;
 }
 
-PreservedAnalyses LowerSwitchWithIfChain::run(Function &F, FunctionAnalysisManager &AM) {
-  LazyValueInfo *LVI = &AM.getResult<LazyValueAnalysis>(F);
-  AssumptionCache *AC = AM.getCachedResult<AssumptionAnalysis>(F);
-  return LowerSwitch(F, LVI, AC) ? PreservedAnalyses::none()
-                                 : PreservedAnalyses::all();
-}
+PreservedAnalyses LowerSwitchWithIfChain::run(Function &F,
+											  FunctionAnalysisManager &AM) {
+	LazyValueInfo *LVI = &AM.getResult<LazyValueAnalysis>(F);
+	AssumptionCache *AC = AM.getCachedResult<AssumptionAnalysis>(F);
 
+	if (LowerSwitch(F, LVI, AC)) {
+		PreservedAnalyses PA;
+		PA.preserve<LazyValueAnalysis>();
+		PA.preserve<AssumptionAnalysis>();
+		return PA;
+	} else {
+		return PreservedAnalyses::all();
+	}
+}
 }
