@@ -255,8 +255,8 @@ bool moveBlocksBehindBBEnd(llvm::BasicBlock &BBStart, llvm::BasicBlock *BBEnd,
 	for (BasicBlock *suc : BBStartBr->successors()) {
 		DTU.applyUpdates( { { DominatorTree::Delete, &BBStart, suc } });
 	}
-	BBStartBr->eraseFromParent();
 	assert(BBStartBr->hasNUses(0));
+	BBStartBr->eraseFromParent();
 	Builder.SetInsertPoint(&BBStart);
 	Builder.CreateBr(BBEnd);
 	DTU.applyUpdates( { { DominatorTree::Insert, &BBStart, BBEnd }, });
