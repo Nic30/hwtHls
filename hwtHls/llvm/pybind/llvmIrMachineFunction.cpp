@@ -6,6 +6,7 @@
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/MachineBasicBlock.h>
 #include <llvm/CodeGen/MachineInstr.h>
+#include <llvm/CodeGen/MachineOperand.h>
 #include <llvm/CodeGen/MachineRegisterInfo.h>
 #include <llvm/CodeGen/MIRPrinter.h>
 #include <llvm/CodeGen/MachineModuleInfo.h>
@@ -106,7 +107,7 @@ void register_MachineFunction(pybind11::module_ &m) {
 	MachineOperand
 		.def("getReg", &llvm::MachineOperand::getReg)
 		.def("getCImm", &llvm::MachineOperand::getCImm, py::return_value_policy::reference_internal)
-		.def("getMBB", &llvm::MachineOperand::getMBB, py::return_value_policy::reference)
+		.def("getMBB", &llvm::MachineOperand::getMBB, py::return_value_policy::reference_internal)
 		.def("getImm", &llvm::MachineOperand::getImm)
 		.def("getPredicate", &llvm::MachineOperand::getPredicate)
 		.def("getGlobal", &llvm::MachineOperand::getGlobal, py::return_value_policy::reference_internal)
@@ -137,7 +138,7 @@ void register_MachineFunction(pybind11::module_ &m) {
 		}, py::return_value_policy::reference_internal)
 		.def("getNumOperands", &llvm::MachineInstr::getNumOperands)
 		.def("getNumExplicitOperands", &llvm::MachineInstr::getNumExplicitOperands)
-		.def("getOperand", [](llvm::MachineInstr & I, unsigned i) {
+		.def("getOperand", [](llvm::MachineInstr & I, unsigned i) -> llvm::MachineOperand & {
 			if (i >= I.getNumOperands()) {
 				std::string tmp;
 				llvm::raw_string_ostream ss(tmp);
