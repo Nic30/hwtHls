@@ -196,7 +196,7 @@ void scheduleLutAlap(FlowmapWorker &fmw, SchedTime lutDelay,
 
 	while (!readyNodes.empty()) {
 		// :note: node is known to have all successors scheduled
-		// :note: this loop itertes only nodes which were picked as LUT representators
+		// :note: this loop iterates only nodes which were picked as LUT representators
 		HlsNetNode *node = readyNodes.front();
 		readyNodes.pop();
 		auto _endOfLastClk = endOfLastClk;
