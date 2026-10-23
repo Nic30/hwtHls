@@ -4,8 +4,7 @@ from hwt.hdl.operatorDefs import HwtOps
 from hwt.pyUtils.setList import SetList
 from hwtHls.architecture.analysis.nodeParentSyncNode import ArchSyncNodeTy
 from hwtHls.architecture.transformation._syncLowering.syncLogicSearcher import SyncLogicSearcher
-from hwtHls.netlist.abc.abcCpp import Abc_Frame_t, Abc_Ntk_t, Abc_NtkType_t, \
-    Abc_NtkFunc_t, Abc_Aig_t
+from hwtHls.netlist.abc.abcCpp import Abc_Aig_t
 from hwtHls.netlist.abc.hlsNetlistToAbcAig import HlsNetlistToAbcAig
 from hwtHls.netlist.nodes.aggregate import HlsNetNodeAggregatePortIn, \
     HlsNetNodeAggregatePortOut
@@ -20,18 +19,11 @@ class SyncLogicHlsNetlistToAbc(HlsNetlistToAbcAig):
 
     def __init__(self, clkPeriod: int, name: str):
         HlsNetlistToAbcAig.__init__(self)
-        # flags which are primary inputs to handshake logic, e.g. buffer.full
         self.clkPeriod = clkPeriod
-
-        f = Abc_Frame_t.GetGlobalFrame()
-        self.abcFrame: Abc_Frame_t = f
-        net = Abc_Ntk_t(Abc_NtkType_t.ABC_NTK_STRASH, Abc_NtkFunc_t.ABC_FUNC_AIG, 64)
-        net.setName(name)
-        self.net: Abc_Ntk_t = net
-        # f.SetCurrentNetwork(net)
-        # aig: Abc_Aig_t = net.pManFunc
-        self.c1 = net.Const1()
-        self.syncLogicNodes: SetList[Tuple[Union[HlsNetNodeOperator, HlsNetNodeAggregatePortIn, HlsNetNodeAggregatePortOut], int]] = None
+        self.net.setName(name)
+        self.syncLogicNodes: SetList[Tuple[Union[HlsNetNodeOperator,
+                                                 HlsNetNodeAggregatePortIn,
+                                                 HlsNetNodeAggregatePortOut], int]] = None
 
     def _translateDriveOfOptionalIn(self, aig: Abc_Aig_t, clkI: int, inPort: Optional[HlsNetNodeIn]):
         if inPort is None:
@@ -55,9 +47,11 @@ class SyncLogicHlsNetlistToAbc(HlsNetlistToAbcAig):
             syncNode = (o.obj.parent, clkI)
             _syncNode = SyncLogicSearcher._getEarliestTimeIfValueIsPersistent(o, syncNode)[0]
             if _syncNode != syncNode:
-                # case for outputs which are persistent trough multiple clock windows, translationCache contains record only for the 0, 1 clock window after def
+                # case for outputs which are persistent trough multiple clock windows,
+                # translationCache contains record only for the 0, 1 clock window after def
                 return self._translate(aig, (o, _syncNode[1]))
-            raise AssertionError("This is primary input which should already be found and pre-populated in translationCache", item)
+            raise AssertionError("This is primary input which should already be found and"
+                                 " pre-populated in translationCache", item)
             # return self._onAbcAddPrimaryInput(o, clkI)
         else:
             # else this is some logic in this clock window
