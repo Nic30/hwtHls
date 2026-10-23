@@ -1,4 +1,5 @@
 
+#include <llvm/Config/llvm-config.h>
 #include <hwtHls/llvm/llvmCompilationBundle.h>
 
 #include <memory>
@@ -8,9 +9,6 @@
 #include <llvm/ADT/APSInt.h>
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/ADT/Statistic.h>
-#include <llvm/Analysis/CFGPrinter.h>
-#include <llvm/Analysis/LoopPass.h>
-#include <llvm/Analysis/OptimizationRemarkEmitter.h>
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/DerivedTypes.h>
@@ -21,7 +19,13 @@
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Pass.h>
-#include <llvm/Passes/StandardInstrumentations.h>
+
+#include <llvm/Analysis/CFGPrinter.h>
+#include <llvm/Analysis/LoopPass.h>
+#include <llvm/Analysis/OptimizationRemarkEmitter.h>
+#include <llvm/Analysis/PostDominators.h>
+#include <llvm/Analysis/MemoryDependenceAnalysis.h>
+#include <llvm/Analysis/DemandedBits.h>
 // #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Transforms/AggressiveInstCombine/AggressiveInstCombine.h>
 #include <llvm/Transforms/IPO/ConstantMerge.h>
@@ -33,6 +37,7 @@
 #include <llvm/Transforms/Scalar/Reassociate.h>
 // #include <llvm/Transforms/Scalar/NewGVN.h>
 #include <llvm/Support/CommandLine.h>
+#include <llvm/Passes/StandardInstrumentations.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Transforms/Scalar/ADCE.h>
 #include <llvm/Transforms/Scalar/AlignmentFromAssumptions.h>
@@ -83,6 +88,7 @@
 #include <llvm/Support/CodeGen.h>
 
 #include <hwtHls/llvm/Transforms/BitcountMergePass.h>
+#include <hwtHls/llvm/Transforms/FsmStateBinToOneHotPass.h>
 #include <hwtHls/llvm/Transforms/HFloatTmpLoweringPass.h>
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinePass.h>
 #include <hwtHls/llvm/Transforms/HwtHlsSimplifyCFGPass/HwtHlsSimplifyCFGPass.h>
@@ -136,6 +142,7 @@ void LlvmCompilationBundle::_registerHwtHlsPasses() {
 						   hwtHls::SlicesToIndependentVariablesPass,   //
 						   hwtHls::ExtractBitConcatAndSliceOpsPass,	   //
 						   hwtHls::HFloatTmpLoweringPass,			   //
+						   hwtHls::FsmStateBinToOneHotPass,            //
 						   hwtHls::ICmpToOnlyEqLtLePass,			   //
 						   hwtHls::IoLowerAxiMMPass,				   //
 						   hwtHls::LoopAddLatchPass,				   //
@@ -566,19 +573,25 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 	//FPM.addPass(hwtHls::DumpAndExitPass(
 	//	false, false, "tmp/LoopToIoFsmPass.IoPortVectorizationPass.after1.dot"));
 	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(SimplifyCfgOptsMin));
-
-	FPM.addPass(llvm::GVNHoistPass());
-	FPM.addPass(hwtHls::InstCombineABC1bLogicPass());
-	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(SimplifyCfgOptsMin));
-		
 	
 	//FPM.addPass(hwtHls::DumpAndExitPass(
 	//	false, false, "tmp/LoopToIoFsmPass.HwtHlsSimplifyCFGPass.after2.dot"));
 	// :note: llvm-22 can not use FixIrreduciblePass because it
 	// does not support SwitchInst
+	
 	FPM.addPass(
 		hwtHls::StreamSegmentLoopUnrollPass());
 	FPM.addPass(hwtHls::OptionallyOverwriteBlockNamesPass());
+
+	FPM.addPass(llvm::GVNHoistPass());
+	FPM.addPass(hwtHls::InstCombineABC1bLogicPass());
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(SimplifyCfgOptsMin));
+	FPM.addPass(hwtHls::FsmStateBinToOneHotPass());
+	FPM.addPass(hwtHls::HwtHlsInstCombinePass());
+	FPM.addPass(llvm::GVNHoistPass());
+	FPM.addPass(hwtHls::InstCombineABC1bLogicPass());
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(SimplifyCfgOptsMin));
+	
 	//FPM.addPass(hwtHls::DumpAndExitPass(
 	//	false, false, "tmp/StreamSegmentLoopUnrollPass.end.dot"));
 	FPM.addPass(hwtHls::IoPortVectorizationPass());	

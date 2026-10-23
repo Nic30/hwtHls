@@ -14,6 +14,7 @@
 #include <hwtHls/llvm/Transforms/BitcountMergePass.h>
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
 #include <hwtHls/llvm/Transforms/extractBitConcatAndSliceOpsPass.h>
+#include <hwtHls/llvm/Transforms/FsmStateBinToOneHotPass.h>
 #include <hwtHls/llvm/Transforms/HFloatTmpLoweringPass.h>
 #include <hwtHls/llvm/Transforms/IoLowerAxiMMPass.h>
 #include <hwtHls/llvm/Transforms/HwtHlsInstCombinePass/HwtHlsInstCombinePass.h>
