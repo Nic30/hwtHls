@@ -1,8 +1,8 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
 
-#include <llvm/Support/ErrorHandling.h>
-#include <llvm/IR/IRBuilder.h>
 #include <llvm/Analysis/GlobalsModRef.h>
+#include <llvm/IR/IRBuilder.h>
+#include <llvm/Support/ErrorHandling.h>
 
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/constBitPartsAnalysis.h>
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitPartsUseAnalysis.h>
@@ -16,9 +16,11 @@
 
 using namespace llvm;
 
+// #define DBG_VERIFY_AFTER_MODIFICATION
+#ifdef DBG_VERIFY_AFTER_MODIFICATION
 #include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
 #include <llvm/IR/Verifier.h>
-// #define DBG_VERIFY_AFTER_MODIFICATION
+#endif
 
 namespace hwtHls {
 

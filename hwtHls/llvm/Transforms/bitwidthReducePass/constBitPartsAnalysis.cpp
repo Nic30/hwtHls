@@ -1,5 +1,6 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/constBitPartsAnalysis.h>
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/phiValueProver.h>
+
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/PatternMatch.h>
 
