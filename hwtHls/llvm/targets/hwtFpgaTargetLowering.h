@@ -127,6 +127,7 @@ public:
 			const llvm::SmallVectorImpl<llvm::ISD::InputArg> &Ins,
 			const llvm::SDLoc &dl, llvm::SelectionDAG &DAG,
 			llvm::SmallVectorImpl<llvm::SDValue> &InVals) const override;
+	virtual ~HwtFpgaTargetLowering() {}
 };
 
 }

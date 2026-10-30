@@ -25,6 +25,7 @@ public:
 			CallLoweringInfo &Info) const override;
 	virtual bool canLowerReturn(MachineFunction &MF, CallingConv::ID CallConv,
 			SmallVectorImpl<BaseArgInfo> &Outs, bool IsVarArg) const override;
+	virtual ~HwtFpgaCallLowering() {}
 };
 
 }

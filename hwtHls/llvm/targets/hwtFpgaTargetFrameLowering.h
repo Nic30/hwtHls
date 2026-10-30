@@ -73,6 +73,8 @@ public:
 		llvm_unreachable("HwtFpgaTarget does not use stack");
 
 	}
+
+	virtual ~HwtFpgaTargetFrameLowering() {}
 };
 
 }

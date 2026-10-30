@@ -23,7 +23,7 @@ public:
 			std::optional<llvm::Reloc::Model> RM,
 			std::optional<llvm::CodeModel::Model> CM,
 			llvm::CodeGenOptLevel OL, bool JIT);
-	~HwtFpgaTargetMachine() override;
+	virtual ~HwtFpgaTargetMachine() override;
 	const HwtFpgaTargetSubtarget* getSubtargetImpl(
 			const llvm::Function &F) const override;
 	llvm::TargetTransformInfo getTargetTransformInfo(const llvm::Function &F) const
