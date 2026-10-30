@@ -1,5 +1,8 @@
 #include <hwtHls/llvm/Transforms/streamLoopUnrollPass/streamLoopUnroll_UnrollLoopStreamCopyLike.h>
 
+#include <llvm/ADT/STLExtras.h>
+#include <llvm/ADT/iterator_range.h>
+
 #include <hwtHls/llvm/targets/intrinsic/streamIo.h>
 
 using namespace llvm;
@@ -49,7 +52,12 @@ llvm::LoopUnrollResult UnrollLoopStreamCopyLike(llvm::Function &F,
 					llvm_unreachable(
 							"[todo] not implemented reroute external uses of the read values");
 				}
-				BB.erase(cpFrag.read->getIterator(), br->getIterator());
+				for (auto &I : make_early_inc_range(make_range(
+						 ++br->getReverseIterator(),
+						 ++cpFrag.read->getReverseIterator() 
+					 ))) {
+					I.eraseFromParent();
+				}
 				return llvm::LoopUnrollResult::PartiallyUnrolled;
 			}
 		}
@@ -144,8 +152,8 @@ llvm::LoopUnrollResult UnrollLoopStreamCopyLike(llvm::Function &F,
 							"[todo] not implemented reroute external uses of the read values");
 				}
 				for (Instruction& I: make_early_inc_range(make_range(
-						br->getPrevNode()->getReverseIterator(),
-						cpFrag.read->getPrevNode()->getReverseIterator()))) {
+						++br->getReverseIterator(),
+						++cpFrag.read->getReverseIterator()))) {
 					I.eraseFromParent();
 				}
 				// Can not just use BB.erase because it would erase from the beginning
