@@ -9,6 +9,7 @@
 namespace llvm {
 
 /// HwtFpga Code Generator Pass Configuration Options.
+// https://discourse.llvm.org/t/rfc-incrementally-enabling-the-newpm-for-codegen/91410
 class HwtFpgaTargetPassConfig: public llvm::TargetPassConfig {
 public:
 	// callback function which is used to translate final MIR to Python objects
