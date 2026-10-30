@@ -50,6 +50,8 @@ class SyncLogicHlsNetlistToAbc(HlsNetlistToAbcAig):
                 # case for outputs which are persistent trough multiple clock windows,
                 # translationCache contains record only for the 0, 1 clock window after def
                 return self._translate(aig, (o, _syncNode[1]))
+            # :attention: the IO nodes may be ocasionally converted to multi clock notation
+            #    by HlsNetNodeWrite.getFullPort() and alike
             raise AssertionError("This is primary input which should already be found and"
                                  " pre-populated in translationCache", item)
             # return self._onAbcAddPrimaryInput(o, clkI)
