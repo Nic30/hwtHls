@@ -1,11 +1,11 @@
 from typing import Optional, Literal
 
+from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.frontend.pragmaLoop import PyBytecodeStreamLoopUnroll
 from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
-from tests.io.amba.axi4Stream.axi4sPacketLenTrim import Axi4SPacketTrimByteByByte1b
-from hwt.simulator.simTestCase import SimTestCase
-from tests.passTestInjectorForStreamHwModule import PassTestInjectorForStreamHwModule
 from hwtLib.amba.axi4sSimFrameUtils import Axi4StreamSimFrameUtils
+from tests.io.amba.axi4Stream.axi4sPacketLenTrim import Axi4SPacketTrimByteByByte1b
+from tests.passTestInjectorForStreamHwModule import PassTestInjectorForStreamHwModule
 
 
 class Axi4sPacketLenTrimTC(SimTestCase):
@@ -85,6 +85,7 @@ class Axi4sPacketLenTrimTC(SimTestCase):
                       # ("hwthls-simplifycfg-RunBitcountMergePass", 0, "", "false"),
                     # LLVM_CLI_COMMON_OPTS.PRINT_BEFORE_ALL,
                     # LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL
+                    # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
                     LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
                     #LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
                   ],

@@ -20,8 +20,12 @@ class Axi4SSParseIf_1Seg_TC(Axi4SParseIfTC):
             # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
             # LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
             # LLVM_CLI_COMMON_OPTS.OVERWIRTE_BB_NAMES,
-            # LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
             # LLVM_CLI_COMMON_OPTS.debugOnly("block-freq"),
+            # LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
+            # LLVM_CLI_COMMON_OPTS.DEBUG_PASS_ARGUMENTS, 
+            # LLVM_CLI_COMMON_OPTS.DEBUG_PASS_EXECUTIONS,                                                                         
+            # LLVM_CLI_COMMON_OPTS.debugOnly("gi-combiner"),
+            # LLVM_CLI_COMMON_OPTS.debugOnly("HwtFpgaPreToNetlistCombiner"),
         ],
     )
 
@@ -137,15 +141,18 @@ if __name__ == '__main__':
 
     m = Axi4SSParse2IfAndSequel()
     m.WRITE_FOOTER = False
-    m.SEGMENT_CNT = 1
-    m.SEGMENT_DATA_WIDTH = 48
+    m.SEGMENT_CNT = 3
+    m.SEGMENT_DATA_WIDTH = 24
     m.CLK_FREQ = int(100e6)
     p = VirtualHlsPlatform(
-        debugFilter=HlsDebugBundle.ALL_RELIABLE,
+        debugFilter={*HlsDebugBundle.ALL_RELIABLE,
+                     #HlsDebugBundle.DBG_4_0_hwscheduleDumpAfterPhases,
+                     #HlsDebugBundle.DBG_4_0_hwscheduleTrace
+                    },
         llvmCliArgs=[
             LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
             # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
-            # LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER
+            LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER
         ],
     )
     # print(to_rtl_str(m, target_platform=p))
@@ -161,8 +168,8 @@ if __name__ == '__main__':
     
     # Axi4SSParseIf_4Seg_TC.test_Axi4SParse2If_8b_100MHz  HlsNetlistPassAggregateBitwiseOps
     
-    # suite = unittest.TestSuite([Axi4SSParseIf_1Seg_TC("test_Axi4SParse2If_8b_1MHz")])
-    # suite = unittest.TestSuite([Axi4SSParseIf_3Seg_TC("test_Axi4SParse2If_16b_40MHz")])
+    # suite = unittest.TestSuite([Axi4SSParseIf_1Seg_TC("test_Axi4SParse2IfAndSequel_24b_100MHz")])
+    # suite = unittest.TestSuite([Axi4SSParseIf_2Seg_TC("test_Axi4SParse2IfAndSequel_512b_1MHz")])
     # suite = unittest.TestSuite([Axi4SSParseIf_4Seg_TC("test_Axi4SParse2If_8b_40MHz")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

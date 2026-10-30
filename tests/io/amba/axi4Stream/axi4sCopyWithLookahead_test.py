@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bitConstFunctions import AnyHBitsValue
 from hwt.hdl.types.bits import HBits
@@ -127,23 +130,24 @@ class Axi4SCopyWithLookaheadTC(SimTestCase):
         passTests = PassTestInjectorForStreamHwModule(dut, self, self.StreamFrameUtils)
         passTests.bindDataByInOut((refFrames,), (refFrames,))
         passTests.setTimeLimits(wallTimeRtlDefaultMultiplier=rtlSimTimeMultiplier)
+        # passTests.setRunTestsAfter(runTestAfterEachPass=True)
         passTests.test_allInOne(
-            # platformKwargs=dict(
-            #      debugFilter={
-            #          *HlsDebugBundle.ALL_RELIABLE,
-            #          HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
-            #          HlsDebugBundle.DBG_4_0_addSignalNamesToData,
-            #       },
-            #       llvmCliArgs=[
-            #          # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
-            #          # LLVM_CLI_COMMON_OPTS.PRINT_BEFORE_ALL,
-            #          # LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL
-            #       ],
-            #      # runTestAfterEachPass=True,
-            #      # runTestAfterEachIrPass=True,
-            #      # runTestAfterEachMirPass=True,
-            # )
+            platformKwArgs=dict(
+                  # debugFilter={
+                  #     *HlsDebugBundle.ALL_RELIABLE,
+                  #     HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+                  #     HlsDebugBundle.DBG_4_0_addSignalNamesToData,
+                  # },
+                  llvmCliArgs=[
+                     # LLVM_CLI_COMMON_OPTS.stopAfter("hwtHls::StreamLoopUnrollPass"),
+                     # LLVM_CLI_COMMON_OPTS.irDumpDirectory("tmp/"),
+                     # LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+                     # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+                     # LLVM_CLI_COMMON_OPTS.PRINT_BEFORE_ALL,
+                     # LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL
+                  ],
             )
+        )
 
     #    self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
     #
@@ -181,7 +185,7 @@ class Axi4SCopyWithLookaheadTC(SimTestCase):
         self._test(64, 32, FRAME_LENGTHS=[4, 8, 12])
 
     # def test_1024dw_32(self):
-    #    # this should ~2s on 3GHz cpu
+    #    # this should take ~2s on 3GHz cpu
     #    self._test(1024, 8)
 
     def test_384dw_32(self):
@@ -214,6 +218,6 @@ if __name__ == "__main__":
 
     testLoader = unittest.TestLoader()
     suite = testLoader.loadTestsFromTestCase(Axi4SCopyWithLookaheadTC)
-    # suite = unittest.TestSuite([Axi4SCopyWithLookaheadTC("test_16dw_8")])
+    # suite = unittest.TestSuite([Axi4SCopyWithLookaheadTC("test_384dw_32")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)

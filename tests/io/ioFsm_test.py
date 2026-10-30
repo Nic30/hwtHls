@@ -3,14 +3,14 @@
 
 from typing import Optional, Type, List
 
-from hwt.simulator.simTestCase import SimTestCase
 from hwt.hwModule import HwModule
+from hwt.simulator.simTestCase import SimTestCase
 from hwtHls.platform.virtual import VirtualHlsPlatform
 from hwtSimApi.constants import CLK_PERIOD
+from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.io.ioFsm import WriteFsm0Send123, WriteFsm0WhileTrue123, WriteFsm1WhileTrue123hs, WriteFsm1Send123hs, \
     ReadFsm0WhileTrueRead3TimesWriteConcat, ReadFsm0Read3TimesWriteConcat, ReadFsm1Read3TimesWriteConcatHs, \
     ReadFsm1WhileTrueRead3TimesWriteConcatHs
-from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 
 
 class IoFsm_TC(SimTestCase):

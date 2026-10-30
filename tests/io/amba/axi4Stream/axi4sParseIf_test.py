@@ -29,12 +29,16 @@ class Axi4SParseIfTC(SimTestCase):
         # # HlsDebugBundle.DBG_4_0_addSignalNamesToData,
         # },
         llvmCliArgs=[
-        #     LLVM_CLI_COMMON_OPTS.OVERWIRTE_BB_NAMES,
-        #     LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
-        #     LLVM_CLI_COMMON_OPTS.PRINT_BEFORE_ALL,
-        #     LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL,
-            LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
-        #    LLVM_CLI_COMMON_OPTS.VREGIFCVT_TRACE,
+            # LLVM_CLI_COMMON_OPTS.OVERWIRTE_BB_NAMES,
+            # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+            # LLVM_CLI_COMMON_OPTS.PRINT_BEFORE_ALL,
+            # LLVM_CLI_COMMON_OPTS.PRINT_AFTER_ALL,
+            # LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+            # LLVM_CLI_COMMON_OPTS.VREGIFCVT_TRACE,
+            # LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
+            # LLVM_CLI_COMMON_OPTS.DEBUG_PASS_ARGUMENTS,
+            # LLVM_CLI_COMMON_OPTS.debugOnly("gi-combiner"),
+            # LLVM_CLI_COMMON_OPTS.debugOnly("HwtFpgaPreRegAllocCombiner"),
         ],
     )
 
@@ -53,14 +57,14 @@ class Axi4SParseIfTC(SimTestCase):
             # runTestAfterPassFilter=["hwtHls::SlicesMergePass"],
             # runTestAfterPassFilter=["hwtHls::StreamSegmentLoopUnrollPass"],
             #runTestBeforeLlvmIrPasses=True,
-            #runTestAfterEachPass=False,
+            # runTestAfterEachPass=True,
             runTestAfterIrPasses=True,
             # runTestAfterEachIrPass=True,
             #runTestAfterIrInstrCombineChange=True,
             #runTestAfterIrCfgSimplify=True,
             #runTestAfterEachMirPass = True,
             runTestAfterMirPasses=True,
-            # runTestAfterMirVRegIfConverterChange=False,
+            #runTestAfterMirVRegIfConverterChange=True,
             #runTestAfterMirGISelCombinerChange=True,
             # runTestAfterEachHlsNetlistPass=False,
             runTestAfterHlsNetlistPasses=False)
@@ -405,26 +409,27 @@ class Axi4SParseIfTC(SimTestCase):
 
 if __name__ == '__main__':
     from hwt.synth import to_rtl_str
-    # m = Axi4SParse2IfAndSequel()
-    # # m = Axi4SParse2If2B()
-    # m.WRITE_FOOTER = True
-    # m.DATA_WIDTH = 16
-    # m.CLK_FREQ = int(1e6)
-    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
-    #    llvmCliArgs=[
-    #         LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
-    #         LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
-    #         LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
-    #    ],
-    #    debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
-    #        HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
-    #        HlsDebugBundle.DBG_4_0_addSignalNamesToData,
+    #m = Axi4SParse2IfAndSequel()
+    ## m = Axi4SParse2If2B()
+    #m.WRITE_FOOTER = True
+    #m.DATA_WIDTH = 16
+    #m.CLK_FREQ = int(100e6)
+    #print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
+    #   llvmCliArgs=[
+    #        #LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+    #        LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+    #        #LLVM_CLI_COMMON_OPTS.DEBUG_PASS_MANAGER,
+    #        #LLVM_CLI_COMMON_OPTS.VREGIFCVT_TRACE,
+    #   ],
+    #   debugFilter=HlsDebugBundle.ALL_RELIABLE.union({
+    #       HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+    #       HlsDebugBundle.DBG_4_0_addSignalNamesToData,
     # }))))
 
     testLoader = unittest.TestLoader()
 
     suite = testLoader.loadTestsFromTestCase(Axi4SParseIfTC)
-    # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2If_8b_1MHz")])
+    # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2IfAndSequel_512b_100MHz")])
     # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2IfAndSequel_NO_FOOTER_16b_100MHz")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
