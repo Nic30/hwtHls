@@ -1,5 +1,13 @@
 #pragma once
 
+// LegalizerInfo inherited class must be compiled with same
+// NDEBUG options otherwise the thing will end up segfaulting
+// on check of the members which are initialized and used only in debug build
+#ifdef LLVM_NDEBUG
+#define NDEBUG 1
+#define LLVM_MUST_UNDEF_NDEBUG 1
+#endif
+
 #include <llvm/TargetParser/Triple.h>
 #include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/CodeGen/CallingConvLower.h>
@@ -52,10 +60,9 @@ protected:
 
 	// GlobalISel related APIs.
 	mutable std::unique_ptr<HwtFpgaCallLowering> CallLoweringInfo;
-	mutable std::unique_ptr<HwtFpgaLegalizerInfo> Legalizer; // [fixme] on delete: adress x is 0 byts inside a block of size y alloc'd
-	                                                         //         from no obvious reason (other unique_ptrs work)
-															 //         maybe the problem is requests for members of Subtarget in constructors
-															 //         of members
+	// :attention: on delete: adress x is 0 byts inside a block of size y alloc'd
+	//   from no obvious reason see LLVM_NDEBUG
+	mutable std::unique_ptr<HwtFpgaLegalizerInfo> Legalizer;
 	mutable std::unique_ptr<llvm::RegisterBankInfo, nodelete> RegBankInfo;// delete disabled because it is allocated statically
 
 public:
@@ -93,7 +100,14 @@ public:
 	virtual bool enableMachinePipeliner() const override {
 		return false;
 	}
+	virtual ~HwtFpgaTargetSubtarget() {}
 };
 
 }
+
+
+#ifdef LLVM_MUST_UNDEF_NDEBUG
+#undef NDEBUG
+#undef LLVM_MUST_UNDEF_NDEBUG
+#endif
 
