@@ -210,6 +210,7 @@ bool HwtFpgaCombinerHelper::rewriteMuxConstPropagation(llvm::MachineInstr &MI,
 				MIB.add(MI.getOperand(1));
 				Observer.changedInstr(*MIB.getInstr());
 				MI.eraseFromParent();
+				onChangeTestCallback("rewriteMuxConstPropagation - wasCompletlyReplaced");
 				return true;
 			}
 			const MachineOperand &ValOp = *OpIt;

@@ -80,6 +80,7 @@ void HwtFpgaCombinerHelper::convertG_SELECT_to_HWTFPGA_MUX(MachineInstr &MI) {
 	Observer.changedInstr(*MIB.getInstr());
 
 	MI.eraseFromParent();
+	onChangeTestCallback("convertG_SELECT_to_HWTFPGA_MUX");
 }
 
 void HwtFpgaCombinerHelper::convertPHI_to_HWTFPGA_MUX(MachineInstr &MI) {
@@ -95,6 +96,7 @@ void HwtFpgaCombinerHelper::convertPHI_to_HWTFPGA_MUX(MachineInstr &MI) {
 	Observer.changedInstr(*MIB.getInstr());
 
 	MI.eraseFromParent();
+	onChangeTestCallback("convertPHI_to_HWTFPGA_MUX");
 }
 
 bool HwtFpgaCombinerHelper::hasSomeConstConditions(MachineInstr &MI) {
@@ -228,7 +230,7 @@ bool HwtFpgaCombinerHelper::_matchNestedMux(
 			requiresAndWithParentCond.push_back(false);
 		}
 		return true;
-	} else if (MI.getParent()->getParent()->getProperties().hasProperty(MachineFunctionProperties::Property::IsSSA)) {
+	} else if (MI.getParent()->getParent()->getProperties().hasIsSSA()) {
 		// is in format similar to:
 		// %MI      = MUX v3 c2 v4
 		// %OtherMI = MUX v0 c0 %MI c1 v2
@@ -633,7 +635,6 @@ void HwtFpgaCombinerHelper::rewriteMuxRmCases(llvm::MachineInstr &MI,
 		MI.removeOperand(CondI - 1); // v
 	}
 	Observer.changedInstr(MI);
-
 	onChangeTestCallback("rewriteMuxRmCases");
 }
 

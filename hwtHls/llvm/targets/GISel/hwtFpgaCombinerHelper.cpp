@@ -128,6 +128,7 @@ void HwtFpgaCombinerHelper::rewriteConstExtract(llvm::MachineInstr &MI) {
 
 	replaceInstWithConstant(MI,
 			v.extractBits(extractOpt.dstWidth, extractOpt.offset));
+	onChangeTestCallback("rewriteConstExtract");
 }
 
 bool HwtFpgaCombinerHelper::hasG_CONSTANTasUse(llvm::MachineInstr &MI) {
@@ -163,6 +164,7 @@ void HwtFpgaCombinerHelper::rewriteG_CONSTANTasUseAsCImm(
 void HwtFpgaCombinerHelper::rewriteG_CONSTANTasUseAsCImm(
 		llvm::MachineInstr &MI) {
 	rewriteG_CONSTANTasUseAsCImm(Builder, &Observer, MI);
+	onChangeTestCallback("rewriteG_CONSTANTasUseAsCImm");
 }
 
 void HwtFpgaCombinerHelper::rewriteConstMergeValues(llvm::MachineInstr &MI) {
@@ -177,6 +179,7 @@ void HwtFpgaCombinerHelper::rewriteConstMergeValues(llvm::MachineInstr &MI) {
 		offset += W.getImm();
 	}
 	replaceInstWithConstant(MI, res);
+	onChangeTestCallback("rewriteConstMergeValues");
 }
 
 bool HwtFpgaCombinerHelper::matchAllOnesConstantOp(
@@ -225,6 +228,7 @@ void HwtFpgaCombinerHelper::rewriteConstBinOp(llvm::MachineInstr &MI,
 	const APInt &a = _v->getValue();
 	const APInt &b = MI.getOperand(2).getCImm()->getValue();
 	replaceInstWithConstant(MI, fn(a, b));
+	onChangeTestCallback("rewriteConstBinOp");
 }
 
 HwtFpgaCombinerHelper::ConcatMember::ConcatMember(const MachineOperand &op,
@@ -622,6 +626,7 @@ void HwtFpgaCombinerHelper::rewriteGenericOpcodeToHwtFpga(
 		Observer.changedInstr(MI);
 	}
 	replaceOpcodeWith(MI, newOpc);
+	onChangeTestCallback("rewriteGenericOpcodeToHwtFpga");
 }
 
 bool HwtFpgaCombinerHelper::matchConstMergeValues(llvm::MachineInstr &MI,
@@ -659,6 +664,7 @@ void HwtFpgaCombinerHelper::rewriteConstMergeValues(llvm::MachineInstr &MI,
 		MRI.setType(Dst, LLT::scalar(replacement.getBitWidth()));
 	}
 	replaceInstWithConstant(MI, replacement);
+	onChangeTestCallback("rewriteConstMergeValues");
 }
 
 bool HwtFpgaCombinerHelper::matchTrivialInstrDuplication(
@@ -713,6 +719,7 @@ void HwtFpgaCombinerHelper::rewriteTrivialInstrDuplication(
 	}
 
 	MI.eraseFromParent();
+	onChangeTestCallback("rewriteTrivialInstrDuplication");
 }
 
 bool HwtFpgaCombinerHelper::matchAndOrSequenceReduce(llvm::MachineInstr &MI,
@@ -775,6 +782,7 @@ void HwtFpgaCombinerHelper::rewriteAndOrSequenceReduce(llvm::MachineInstr &MI,
 	}
 	replaceRegWith(MRI, MI.getOperand(0).getReg(), replacement);
 	MI.eraseFromParent();
+	onChangeTestCallback("rewriteAndOrSequenceReduce");
 }
 
 MachineOperand* HwtFpgaCombinerHelper::getNextUseOfRegInBlock(MachineInstr &MI,
