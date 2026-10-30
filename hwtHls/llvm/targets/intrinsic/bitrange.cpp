@@ -1,5 +1,6 @@
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <llvm/IR/Constants.h>
+#include <llvm/IR/Instructions.h>
 #include <llvm/ADT/StringExtras.h>
 #include <llvm/IR/PatternMatch.h>
 #include <llvm/IR/Module.h>
@@ -339,6 +340,8 @@ llvm::BasicBlock::iterator GetAfterSlicesInsertPoint(BasicBlock::iterator It, Ba
 				if (_src == &SrcV)
 					continue;
 			}
+		} else if (isa<PHINode>(&*It)) {
+			continue;
 		}
 		break;
 	}
