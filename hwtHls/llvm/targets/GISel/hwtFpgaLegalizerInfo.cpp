@@ -292,9 +292,15 @@ bool HwtFpgaLegalizerInfo::legalizeCustomShift(LegalizerHelper &Helper,
 	//		return true;
 	//	}
 	//}
-	auto ShTruncated = MRI.cloneVirtualRegister(Sh);
-	MRI.setType(ShTruncated, LLT::scalar(newShBitWidth));
-	MIRBuilder.buildTrunc(ShTruncated, Sh);
+	Register ShTruncated;
+	if (newShBitWidth == dataWidth) {
+		ShTruncated = Sh;
+	} else {
+		assert(newShBitWidth < dataWidth);
+		ShTruncated = MRI.cloneVirtualRegister(Sh);
+		MRI.setType(ShTruncated, LLT::scalar(newShBitWidth));
+		MIRBuilder.buildTrunc(ShTruncated, Sh);
+	}
 	auto ShTruncatedMO = MachineOperand::CreateReg(ShTruncated, false);
 
 	auto MIB1 = MIRBuilder.buildInstr(NewOpc, { Dst }, { });
@@ -303,7 +309,7 @@ bool HwtFpgaLegalizerInfo::legalizeCustomShift(LegalizerHelper &Helper,
 
 	hwtHls::HwtFpgaInstructionSelector::selectInstrArg(MF, MIB1, MRI, SrcMO);
 	hwtHls::HwtFpgaInstructionSelector::selectInstrArg(MF, MIB1, MRI,
-			ShTruncatedMO);
+													   ShTruncatedMO);
 	MIB1.addImm(SrcTy.getScalarSizeInBits());
 
 	MI.eraseFromParent();
