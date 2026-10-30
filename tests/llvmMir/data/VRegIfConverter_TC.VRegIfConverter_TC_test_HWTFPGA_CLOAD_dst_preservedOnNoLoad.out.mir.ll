@@ -26,8 +26,8 @@ bb.1.WhileSendSequence1.mainLoop:
   %16:anyregcls(s1) = G_XOR %15:anyregcls, killed %17:anyregcls
   %18:anyregcls = HWTFPGA_CLOAD %0:anyregcls, 0, 8, killed %16:anyregcls(s1) :: (volatile load (s8) from %ir.dataIn, addrspace 1)
   %19:anyregcls = HWTFPGA_MUX i1 false
-  %8:anyregcls = HWTFPGA_MUX %8:anyregcls, %15:anyregcls(s1), killed %18:anyregcls
-  %7:anyregcls = HWTFPGA_MUX %7:anyregcls, killed %15:anyregcls(s1), killed %19:anyregcls
+  %8:anyregcls = HWTFPGA_MUX killed %8:anyregcls, %15:anyregcls(s1), killed %18:anyregcls
+  %7:anyregcls = HWTFPGA_MUX killed %7:anyregcls, killed %15:anyregcls(s1), killed %19:anyregcls
   G_BR %bb.1
 
 # End machine code for function VRegIfConverter_TC_test_HWTFPGA_CLOAD_dst_preservedOnNoLoad.

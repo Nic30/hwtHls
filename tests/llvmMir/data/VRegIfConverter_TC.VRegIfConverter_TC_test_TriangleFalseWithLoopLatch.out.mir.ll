@@ -13,12 +13,12 @@ bb.1.head:
   successors: %bb.1(0x80000000); %bb.1(100.00%)
 
   %15:anyregcls(s16) = HWTFPGA_IMPLICIT_DEF 16
-  %2:anyregcls(s16) = HWTFPGA_MUX killed %15:anyregcls(s16), %14:anyregcls(s1), %2:anyregcls(s16)
+  %2:anyregcls(s16) = HWTFPGA_MUX killed %15:anyregcls(s16), killed %14:anyregcls(s1), %2:anyregcls(s16)
   %3:anyregcls(s1) = HWTFPGA_CLOAD %0:anyregcls, 0, 1, 1 :: (volatile load (s1) from %ir.rx, addrspace 1)
   %4:anyregcls(s1) = HWTFPGA_ICMP intpred(eq), %2:anyregcls(s16), i16 99
   %5:anyregcls(s16) = HWTFPGA_MUX %2:anyregcls(s16)
   %8:anyregcls(s16) = HWTFPGA_MUX killed %5:anyregcls(s16), %4:anyregcls(s1), %2:anyregcls(s16)
-  %2:anyregcls(s16) = HWTFPGA_MUX %2:anyregcls(s16), %3:anyregcls(s1), killed %8:anyregcls(s16)
+  %2:anyregcls(s16) = HWTFPGA_MUX killed %2:anyregcls(s16), %3:anyregcls(s1), killed %8:anyregcls(s16)
   %10:anyregcls(s1) = G_CONSTANT i1 true
   %9:anyregcls(s1) = G_XOR killed %3:anyregcls, killed %10:anyregcls
   %12:anyregcls(s1) = G_CONSTANT i1 true

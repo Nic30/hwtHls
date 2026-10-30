@@ -28,7 +28,7 @@ bb.1.bb0:
   %27:anyregcls(s3) = HWTFPGA_EXTRACT %3:anyregcls(s8), 8, 0, 3
   %28:anyregcls(s7) = HWTFPGA_MERGE_VALUES %5:anyregcls(s4), killed %27:anyregcls(s3), 4, 3
   %55:anyregcls(s7) = COPY killed %28:anyregcls(s7)
-  %40:anyregcls(s7) = HWTFPGA_MUX killed %40:anyregcls(s7), %8:anyregcls(s1), killed %55:anyregcls(s7)
+  %40:anyregcls(s7) = HWTFPGA_MUX %40:anyregcls(s7), %8:anyregcls(s1), killed %55:anyregcls(s7)
   %57:anyregcls(s1) = G_CONSTANT i1 true
   %56:anyregcls(s1) = G_XOR killed %8:anyregcls, killed %57:anyregcls
   %59:anyregcls(s1) = G_CONSTANT i1 true
@@ -48,7 +48,7 @@ bb.1.bb0:
   %53:anyregcls(s1) = G_CONSTANT i1 true
   %52:anyregcls(s1) = G_XOR killed %14:anyregcls, killed %53:anyregcls
   %54:anyregcls(s1) = G_AND killed %50:anyregcls, killed %52:anyregcls
-  %40:anyregcls(s7) = HWTFPGA_MUX killed %63:anyregcls(s7), %60:anyregcls(s1), killed %40:anyregcls(s7)
+  %40:anyregcls(s7) = HWTFPGA_MUX killed %63:anyregcls(s7), %60:anyregcls(s1), %40:anyregcls(s7)
   %64:anyregcls(s1) = G_AND killed %60:anyregcls, killed %54:anyregcls
   %65:anyregcls(s1) = HWTFPGA_MUX i1 false
   %69:anyregcls(s1) = HWTFPGA_MUX i1 false
@@ -59,8 +59,8 @@ bb.1.bb0:
   %71:anyregcls(s1) = G_CONSTANT i1 true
   %70:anyregcls(s1) = G_XOR %16:anyregcls, killed %71:anyregcls
   %76:anyregcls(s1) = HWTFPGA_MUX killed %70:anyregcls(s1)
-  %40:anyregcls(s7) = HWTFPGA_MUX killed %74:anyregcls(s7), %64:anyregcls(s1), killed %40:anyregcls(s7)
-  %65:anyregcls(s1) = HWTFPGA_MUX killed %75:anyregcls(s1), %64:anyregcls(s1), killed %65:anyregcls(s1)
+  %40:anyregcls(s7) = HWTFPGA_MUX killed %74:anyregcls(s7), %64:anyregcls(s1), %40:anyregcls(s7)
+  %65:anyregcls(s1) = HWTFPGA_MUX killed %75:anyregcls(s1), %64:anyregcls(s1), %65:anyregcls(s1)
   %69:anyregcls(s1) = HWTFPGA_MUX killed %76:anyregcls(s1), %64:anyregcls(s1), killed %69:anyregcls(s1)
   %77:anyregcls(s1) = G_AND killed %64:anyregcls, killed %16:anyregcls
   %18:anyregcls(s1) = G_ICMP intpred(eq), %6:anyregcls(s3), i3 1
@@ -68,7 +68,7 @@ bb.1.bb0:
   %67:anyregcls(s1) = G_CONSTANT i1 true
   %66:anyregcls(s1) = G_XOR killed %18:anyregcls, killed %67:anyregcls
   %73:anyregcls(s1) = HWTFPGA_MUX killed %66:anyregcls(s1)
-  %40:anyregcls(s7) = HWTFPGA_MUX killed %72:anyregcls(s7), %69:anyregcls(s1), killed %40:anyregcls(s7)
+  %40:anyregcls(s7) = HWTFPGA_MUX killed %72:anyregcls(s7), %69:anyregcls(s1), %40:anyregcls(s7)
   %65:anyregcls(s1) = HWTFPGA_MUX killed %73:anyregcls(s1), killed %69:anyregcls(s1), killed %65:anyregcls(s1)
   %20:anyregcls(s1) = G_ICMP intpred(eq), killed %6:anyregcls(s3), i3 2
   %34:anyregcls(s6) = HWTFPGA_EXTRACT %3:anyregcls(s8), 8, 0, 6

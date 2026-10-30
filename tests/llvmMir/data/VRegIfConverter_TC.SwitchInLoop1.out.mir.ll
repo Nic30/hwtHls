@@ -17,7 +17,7 @@ bb.1.bb0:
   %12:anyregcls = COPY %8:anyregcls
   %6:anyregcls(s1) = G_ICMP intpred(ne), killed %2:anyregcls, i16 1
   %21:anyregcls = COPY %9:anyregcls
-  %12:anyregcls = HWTFPGA_MUX %12:anyregcls, %4:anyregcls(s1), killed %21:anyregcls
+  %12:anyregcls = HWTFPGA_MUX killed %12:anyregcls, %4:anyregcls(s1), killed %21:anyregcls
   %23:anyregcls(s1) = G_CONSTANT i1 true
   %22:anyregcls(s1) = G_XOR killed %4:anyregcls, killed %23:anyregcls
   %24:anyregcls(s1) = G_AND killed %22:anyregcls, killed %6:anyregcls
