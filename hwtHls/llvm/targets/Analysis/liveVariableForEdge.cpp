@@ -13,8 +13,7 @@
 using namespace llvm;
 namespace hwtHls {
 
-bool isInstructionWhichIsKeeptOutOfLiveness(llvm::MachineRegisterInfo &MRI,
-		const llvm::MachineInstr &MI) {
+bool isInstructionWhichIsKeeptOutOfLiveness(const llvm::MachineInstr &MI) {
 	switch (MI.getOpcode()) {
 	case HwtFpga::HWTFPGA_ARG_GET:
 		return true;  // constant which represents the IO port
@@ -30,6 +29,10 @@ bool isInstructionWhichIsKeeptOutOfLiveness(llvm::MachineRegisterInfo &MRI,
 	}
 	return false;
 }
+bool isInstructionWhichIsKeeptOutOfLivenessMRI(llvm::MachineRegisterInfo &MRI,
+											const llvm::MachineInstr &MI) {
+	return isInstructionWhichIsKeeptOutOfLiveness(MI);
+}
 
 void collectDirectLiveinsAndDefines(llvm::MachineRegisterInfo &MRI,
 		MachineBasicBlock &block,
@@ -40,7 +43,6 @@ void collectDirectLiveinsAndDefines(llvm::MachineRegisterInfo &MRI,
 		SetVector<Register> &defines) {
 	assert(liveins.empty());
 	assert(defines.empty());
-
 	for (auto &i : block.instrs()) {
 		if (ignoreInstrPredicate(MRI, i))
 			continue;
@@ -96,7 +98,9 @@ void recursivelyAddEdgeRequirementVar(
 }
 
 EdgeLivenessDict getLiveVariablesForBlockEdge(MachineRegisterInfo &MRI,
-		MachineFunction &MF) {
+		MachineFunction &MF,
+		std::function<bool(llvm::MachineRegisterInfo &MRI,
+			const llvm::MachineInstr &MI)> ignoreInstrPredicate) {
 	EdgeLivenessDict live;
 	std::map<MachineBasicBlock*, SetVector<Register>> defines;
 	std::map<MachineBasicBlock*,
@@ -105,9 +109,10 @@ EdgeLivenessDict getLiveVariablesForBlockEdge(MachineRegisterInfo &MRI,
 	for (MachineBasicBlock &block : MF) {
 		liveins[&block] = SetVector<std::pair<Register, MachineBasicBlock*>>();
 		defines[&block] = SetVector<Register>();
-		collectDirectLiveinsAndDefines(MRI, block,
-				isInstructionWhichIsKeeptOutOfLiveness, liveins[&block],
-				defines[&block]);
+		collectDirectLiveinsAndDefines(
+			MRI, block,
+			ignoreInstrPredicate,
+			liveins[&block], defines[&block]);
 		auto &sucs = live[&block] = std::map<MachineBasicBlock*,
 				std::set<Register>>();
 		for (auto *suc : block.successors()) {

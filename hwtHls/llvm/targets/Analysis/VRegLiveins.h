@@ -5,6 +5,7 @@
 
 #include <map>
 #include <set>
+#include <unordered_set>
 
 namespace llvm {
 void initializeHwtHlsVRegLiveinsPass(PassRegistry&);
@@ -12,24 +13,32 @@ void initializeHwtHlsVRegLiveinsPass(PassRegistry&);
 
 namespace hwtHls {
 
+// :note: phi incoming values are contained in the liveins
 class HwtHlsVRegLiveins: public llvm::MachineFunctionPass {
 public:
 	static char ID;
+	// liveins to each basic block, 
 	std::map<llvm::MachineBasicBlock*, llvm::SetVector<llvm::Register>> _liveins;
 	llvm::MachineFunction *MF;
 	const llvm::TargetRegisterInfo * TRI;
+	
+	// :note: registers which have some special meaning and are irrelevant to liveness analysis
+	//        this includes registers noting IO or global/local memory, :see: liveVariableForEdge.h
+	// :note: ignoredRegisters are liveins/liveouts of every MBB
+	std::unordered_set<unsigned> ignoredRegisters;
 
 	HwtHlsVRegLiveins();
+	void _collectIgnoredRegisters(const llvm::MachineFunction &MF);
 	void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 	bool runOnMachineFunction(llvm::MachineFunction &MF) override;
 	llvm::StringRef getPassName() const override {
-		return "HwtFpgaMBBLiveIns";
+		return "HwtHlsVRegLiveins";
 	}
 	const llvm::SetVector<llvm::Register>& liveins(
 			const llvm::MachineBasicBlock &MBB) const;
 	llvm::SetVector<llvm::Register>& liveinsMutable(
 			const llvm::MachineBasicBlock &MBB);
-
+			
 	bool isLivein(const llvm::MachineBasicBlock &MBB, llvm::Register r) const;
 	bool isLiveout(const llvm::MachineBasicBlock &MBB, llvm::Register r) const;
 	bool isAnyPredecessorLiveout(const llvm::MachineBasicBlock &MBB,

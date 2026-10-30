@@ -1,3 +1,4 @@
+#include <cassert>
 #include <hwtHls/llvm/targets/Analysis/VRegLiveins.h>
 
 #include <llvm/ADT/SetVector.h>
@@ -40,7 +41,18 @@ void AddLiveinRecursively(
 		}
 	}
 }
-
+void HwtHlsVRegLiveins::_collectIgnoredRegisters(
+	const llvm::MachineFunction &MF) {
+	for (auto &MBB : MF) {
+		for (auto &MI : MBB) {
+			if (isInstructionWhichIsKeeptOutOfLiveness(MI)) {
+				for (auto &MO : MI.defs()) {
+					ignoredRegisters.insert(MO.getReg());
+				}
+			}
+		}
+	}
+}
 bool HwtHlsVRegLiveins::runOnMachineFunction(llvm::MachineFunction &MF) {
 	if (skipFunction(MF.getFunction()))
 		return false;
@@ -49,8 +61,11 @@ bool HwtHlsVRegLiveins::runOnMachineFunction(llvm::MachineFunction &MF) {
 	auto &MRI = MF.getRegInfo();
 	this->TRI = MF.getSubtarget().getRegisterInfo();
 
-	_liveins.clear(); // the same object is used for analysis of all MFs
+    // :attention: the same object is used for analysis of all MFs
 	// assert(_liveins.empty());
+	_liveins.clear();
+	ignoredRegisters.clear();
+	_collectIgnoredRegisters(MF);
 
 	std::map<MachineBasicBlock*, SetVector<Register>> defines;
 	std::map<MachineBasicBlock*,
@@ -76,7 +91,11 @@ bool HwtHlsVRegLiveins::runOnMachineFunction(llvm::MachineFunction &MF) {
 			MachineBasicBlock *req_if_predecessor_is;
 			std::tie(liveinReg, req_if_predecessor_is) = _requirement;
 			BlockLiveins.insert(liveinReg);
-			if (req_if_predecessor_is == nullptr) {
+			if (req_if_predecessor_is) {
+				if (!defines[req_if_predecessor_is].contains(liveinReg))
+					AddLiveinRecursively(defines, *req_if_predecessor_is, liveinReg,
+						_liveins);
+			} else {
 				// requires from all predecessors
 				for (auto *predMBB : block.predecessors()) {
 					if (!defines[predMBB].count(liveinReg)) {
@@ -84,9 +103,6 @@ bool HwtHlsVRegLiveins::runOnMachineFunction(llvm::MachineFunction &MF) {
 								_liveins);
 					}
 				}
-			} else {
-				AddLiveinRecursively(defines, *req_if_predecessor_is, liveinReg,
-						_liveins);
 			}
 		}
 	}
@@ -207,29 +223,53 @@ void HwtHlsVRegLiveins::UpdateAfterInsertBranch(llvm::MachineBasicBlock &MBB) {
 }
 
 void HwtHlsVRegLiveins::UpdateKillAndDeadFlags(llvm::MachineBasicBlock &MBB) {
-	std::set<llvm::Register> liveouts;
-	collectLiveouts(MBB, liveouts);
+	std::set<llvm::Register> pendingUses;
+	collectLiveouts(MBB, pendingUses);
+	// iterate instructions from end, operands in latest use first direction
+	// * if the use is not followed by any use it should have kill
+	// * if the def is not followed by any use it should have dead
+	// * uses are initialized from liveouts,
+	//   if register is defined, uses after are forgotten
+	
+	// To cover cases like
+	//  %0 = COPY %0
+	//  ->
+	//  %0 = COPY kill %0
+	llvm::SmallSet<llvm::Register, 4> seenUsesWithDef;
 	for (MachineInstr &MI : reverse(MBB)) {
-		for (MachineOperand &MO : MI.operands()) {
-			if (MO.isReg()) {
-				auto Reg = MO.getReg();
-				if (liveouts.find(Reg) == liveouts.end()) {
-					if (MO.isUse()) {
-						MO.setIsKill(true);
-						liveouts.insert(Reg);
-					} else {
-						assert(MO.isDef());
-						MO.setIsDead(true);
-					}
+		for (MachineOperand &MO : reverse(MI.operands())) {
+			if (!MO.isReg()) {
+				continue;
+			}
+
+			auto Reg = MO.getReg();
+			if (MO.isUse()) {
+				const bool MIDefinesReg = MI.definesRegister(Reg, TRI);
+				if (!pendingUses.contains(Reg) ||
+					(MIDefinesReg && seenUsesWithDef.insert(Reg).second)) {
+					// the latest remaining use
+					MO.setIsKill(true);
+					pendingUses.insert(Reg);
 				} else {
-					if (!MO.isImplicit()) {
-						if (MO.isUse()) {
-							MO.setIsKill(false);
-						} else {
-							MO.setIsDead(false);
-						}
-					}
+					MO.setIsKill(false);
 				}
+				continue;
+			}
+
+			assert(MO.isDef());
+			if (pendingUses.contains(Reg)) {
+				// used later-> not dead
+				MO.setIsDead(false);
+				if (!MI.readsRegister(Reg, TRI)) {
+					// Example:
+					//   %0 = COPY ...
+					// > %0 = COPY %0
+					// %0 must be kept alive for first COPY.
+					pendingUses.erase(Reg);
+				}
+			} else {
+				// no later uses
+				MO.setIsDead(true);
 			}
 		}
 	}
@@ -249,17 +289,84 @@ void HwtHlsVRegLiveins::UpdateLiveinsBeforeNewPredecessorAdd(llvm::MachineBasicB
 }
 
 void HwtHlsVRegLiveins::recompute() {
-	_liveins.clear();
 	runOnMachineFunction(*MF);
 }
 void HwtHlsVRegLiveins::verifyAnalysis() const {
 	HwtHlsVRegLiveins other;
 	other.runOnMachineFunction(*MF);
+	// for (auto &BB : *MF) {
+	//	assert(other._liveins.contains(&BB));
+	//	assert(_liveins.contains(&BB));
+	// }
+	// assert(_liveins == other._liveins);
+
+	const TargetRegisterInfo *TRI = MF->getSubtarget().getRegisterInfo();
+
+	bool valid = true;
 	for (auto &BB : *MF) {
-		assert(other._liveins.contains(&BB));
-		assert(_liveins.contains(&BB));
+		auto CurIt = _liveins.find(&BB);
+		auto RecomputedIt = other._liveins.find(&BB);
+
+		if (CurIt == _liveins.end()) {
+			valid = false;
+			errs() << "  Missing liveins for ";
+			BB.printAsOperand(errs());
+			errs() << "\n";
+			continue;
+		}
+
+		const auto &Cur = CurIt->second;
+		const auto &Recomputed = RecomputedIt->second;
+		if (BB.isEntryBlock() || BB.pred_empty()) {
+			for (auto Reg : Cur) {
+				valid = false;
+				BB.printAsOperand(errs());
+				errs() << ": liveins on block without predecessors: "
+					   << printVRegOrUnit(Reg, TRI) << "\n";
+			}
+		}
+		//  else {
+		// 	for (auto Reg : ignoredRegisters) {
+		// 		if (!Cur.contains(Reg)) {
+		// 			valid = false;
+		// 			BB.printAsOperand(errs());
+		// 			errs() << ": liveins missing ignored register: "
+		// 				   << printVRegOrUnit(Reg, TRI) << "\n";
+		// 		}
+		// 	}
+		// }
+		for (auto Reg : Cur) {
+			if (!Recomputed.contains(Reg)) {
+				valid = false;
+				BB.printAsOperand(errs());
+				errs() << ": liveins contain extra: "
+					<< printVRegOrUnit(Reg, TRI) << "\n";
+			}
+		}
+
+		for (auto Reg : Recomputed) {
+			if (!Cur.contains(Reg)) {
+				valid = false;
+				BB.printAsOperand(errs());
+				errs() << ": missing livein: " << printVRegOrUnit(Reg, TRI)
+					   << "\n";
+			}
+		}
 	}
-	assert(_liveins == other._liveins);
+
+	for (const auto &[BB, Liveins] : _liveins) {
+		if (!other._liveins.contains(BB)) {
+			valid = false;
+			errs() << "  liveins refer to MBB not in MF: ";
+			BB->printAsOperand(errs());
+			errs() << "\n";
+		}
+	}
+
+	if (!valid) {
+		assert(false && "HwtHlsVRegLiveins cached liveins do not match "
+						"recomputed liveins");
+	}
 }
 
 void HwtHlsVRegLiveins::print(llvm::raw_ostream &O, const Module *M) const {
