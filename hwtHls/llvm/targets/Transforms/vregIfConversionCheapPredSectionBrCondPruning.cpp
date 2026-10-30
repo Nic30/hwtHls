@@ -6,21 +6,24 @@
 #include <hwtHls/llvm/targets/Transforms/vregConditionUtils.h>
 #include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
 #include <hwtHls/llvm/targets/hwtFpgaMCTargetDesc.h>
+
 #include <llvm/ADT/SetVector.h>
+#include <llvm/ADT/STLExtras.h>
 #include <llvm/CodeGen/MachineDominators.h>
-#include <llvm/IR/CFG.h>
 #include <llvm/CodeGen/MachineDomTreeUpdater.h>
 #include <llvm/CodeGen/MachineRegisterInfo.h>
-#include <llvm/ADT/STLExtras.h>
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
 #include <llvm/CodeGen/MachineBasicBlock.h>
 #include <llvm/CodeGen/MachineInstrBuilder.h>
 #include <llvm/CodeGen/MachineOperand.h>
 #include <llvm/CodeGen/Register.h>
+#include <llvm/IR/CFG.h>
 #include <llvm/Support/ErrorHandling.h>
 
 using namespace llvm;
 using namespace hwtHls;
+
+// #define TRACE_tryCheapPredSectionBrCondPruning
 
 namespace hwtHls {
 
@@ -47,13 +50,13 @@ bool VRegIfConverter::CheapPredSectionFind(
 	// transitively add predecessors to sectionBlocks only if
 	//  * the block is cheap
 	// * If the block has some successor from the region and also jump to MBB we
-	// remove this jump and instead
-	//   jump to in region successor and disable it transitively until MBB is
+	//   remove this jump and instead jump to in region successor and disable it transitively until MBB is
 	//   reached
-	
-	// errs() << "tryCheapPredSectionBrCondPruning MBBBottom: ";
-	// MBBBottom.printAsOperand(errs()); 
-	// errs() << "\n";
+#ifdef TRACE_tryCheapPredSectionBrCondPruning
+	errs() << "tryCheapPredSectionBrCondPruning MBBBottom: ";
+	MBBBottom.printAsOperand(errs()); 
+	errs() << "\n";
+#endif
 
 	SmallSetVector<MachineBasicBlock *, 16>
 		sectionBlocksTmp; // may contain also too simple CFG blocks
@@ -192,29 +195,30 @@ bool VRegIfConverter::CheapPredSectionFind(
 			   "If there is no BR_COND to be predicated there can not be "
 			   "any successor of BR_COND");
 		return false;
-	} else {
-		assert(!blocksForPredication.empty() &&
-			   "Blocks which have just BBBottom as successor should not "
-			   "form section of interest");
 	}
-	// errs() << "sectionBlocks:\n";
-	// for (auto *MBB : sectionBlocks) {
-	// 	errs() << "    ";
-	// 	MBB->printAsOperand(errs());
-	// 	errs() << "\n";
-	// }
-	// errs() << "blocksForPredication:\n";
-	// for (auto *MBB : blocksForPredication) {
-	// 	errs() << "    ";
-	// 	MBB->printAsOperand(errs());
-	// 	errs() << "\n";
-	// }
-	// errs() << "blocksForBrPredication:\n";
-	// for (auto *MBB : blocksForBrPredication) {
-	// 	errs() << "    ";
-	// 	MBB->printAsOperand(errs());
-	// 	errs() << "\n";
-	// }
+	assert(!blocksForPredication.empty() &&
+		   "Blocks which have just BBBottom as successor should not "
+		   "form section of interest");
+#ifdef TRACE_tryCheapPredSectionBrCondPruning
+	errs() << "sectionBlocks:\n";
+	for (auto *MBB : sectionBlocks) {
+		errs() << "    ";
+		MBB->printAsOperand(errs());
+		errs() << "\n";
+	}
+	errs() << "blocksForPredication:\n";
+	for (auto *MBB : blocksForPredication) {
+		errs() << "    ";
+		MBB->printAsOperand(errs());
+		errs() << "\n";
+	}
+	errs() << "blocksForBrPredication:\n";
+	for (auto *MBB : blocksForBrPredication) {
+		errs() << "    ";
+		MBB->printAsOperand(errs());
+		errs() << "\n";
+	}
+#endif
 	return true;
 }
 
@@ -280,9 +284,10 @@ void VRegIfConverter::rewriteNonLeafCondBranchToBottom_to_predicationOfSuccessor
 	// on all enter edges set Cond=1 to enable normal execution
 	SmallSet<MachineBasicBlock *, 16> seenEnteringBlolocks;
 
-	std::unordered_map<MachineBasicBlock*, std::set<Register>> outOfSectionLiveouts;
-	collectOutOfSectionNewLiveouts(*VRegLiveins, sectionBlocks, outOfSectionLiveouts);
-
+	{
+		std::unordered_map<MachineBasicBlock*, std::set<Register>> outOfSectionLiveouts;
+		collectOutOfSectionNewLiveouts(*VRegLiveins, sectionBlocks, outOfSectionLiveouts);
+	}
 	for (auto *MBB : sectionBlocks) {
 		for (auto *Pred : MBB->predecessors()) {
 			if (sectionBlocks.contains(Pred))
@@ -303,24 +308,29 @@ void VRegIfConverter::rewriteNonLeafCondBranchToBottom_to_predicationOfSuccessor
 		MachineOperand::CreateReg(CondReg, false),
 		MachineOperand::CreateImm(0), // = not negated
 	};
-
+	
+	auto MBBBottomLiveins = VRegLiveins->liveins(MBBBottom);
 	for (auto *MBB : blocksForPredication) {
 		auto liveins = VRegLiveins->liveinsMutable(*MBB);
-		liveins.insert(CondReg);
-		for (auto pred: MBB->predecessors()) {
-			// errs() << "adding liveins into ";
-			// pred->printAsOperand(errs());
-			// errs() << " -> ";
-			// MBB->printAsOperand(errs());
-			// errs() << "\n";
-			// for (auto r : liveins) {
-			// 	errs() << " " << r.virtRegIndex();
-			// }
-			// errs() << "\n";
-			auto newLiveouts = outOfSectionLiveouts[pred];
-			liveins.insert_range(newLiveouts);
-		}
+		liveins.insert_range(MBBBottomLiveins);
 	}
+	// for (auto *MBB : blocksForPredication) {
+	// 	auto liveins = VRegLiveins->liveinsMutable(*MBB);
+	// 	liveins.insert(CondReg);
+	// 	for (auto pred: MBB->predecessors()) {
+	// 		// errs() << "adding liveins into ";
+	// 		// pred->printAsOperand(errs());
+	// 		// errs() << " -> ";
+	// 		// MBB->printAsOperand(errs());
+	// 		// errs() << "\n";
+	// 		// for (auto r : liveins) {
+	// 		// 	errs() << " " << r.virtRegIndex();
+	// 		// }
+	// 		// errs() << "\n";
+	// 		auto newLiveouts = outOfSectionLiveouts[pred];
+	// 		liveins.insert_range(newLiveouts);
+	// 	}
+	// }
 
 	// :note: predication is done in advance to prevent predication of tmp regs generated for branch condition updates
 	for (auto *MBB : blocksForPredication) {
@@ -344,25 +354,31 @@ void VRegIfConverter::rewriteNonLeafCondBranchToBottom_to_predicationOfSuccessor
 		
 		hwtHls::bimap<llvm::Register, llvm::Register> regsForSpeculation;
 		auto Term = MBB->getFirstTerminator();
-		auto regNeedsPreserving = [&outOfSectionLiveouts](
+		auto regNeedsPreserving = [&MBBBottomLiveins](
 									  const HwtHlsVRegLiveins &VRegLiveins,
 									  const MachineBasicBlock &MBB,
 									  Register MOReg) {
-			// errs() << "MOReg: " << MOReg.virtRegIndex() <<" ";
-			if (predicateInstructionUsingDefRegRename_defNeedsTmpRegPredicate_sucToPred(
-					VRegLiveins, MBB, MOReg)) {
-				// errs() << "sucToPred\n";
-				return true;
+			// the predicated blocks are only on disabled paths which leads to
+			// MBBBottom, thus only MBBBottom liveins needs to be preserved.
+			if (!MBBBottomLiveins.contains(MOReg) || VRegLiveins.ignoredRegisters.contains(MOReg)) {
+				// used only locally within disabled section
+				return false;
 			}
-			// is liveout from this block or any predecessor in section jumping
-			// out of the section
-			if (outOfSectionLiveouts[const_cast<MachineBasicBlock *>(&MBB)]
-					.contains(MOReg)) {
-				// errs() << "outOfSectionLiveouts\n";
-				return true;
-			}
-			// errs() << "\n";
-			return false;
+			//// errs() << "MOReg: " << MOReg.virtRegIndex() <<" ";
+			//if (predicateInstructionUsingDefRegRename_defNeedsTmpRegPredicate_sucToPred(
+			//		VRegLiveins, MBB, MOReg)) {
+			//	// errs() << "sucToPred\n";
+			//	return true;
+			//}
+			//// is liveout from this block or any predecessor in section jumping
+			//// out of the section
+			//if (outOfSectionLiveouts[const_cast<MachineBasicBlock *>(&MBB)]
+			//		.contains(MOReg)) {
+			//	// errs() << "outOfSectionLiveouts\n";
+			//	return true;
+			//}
+			//// errs() << "\n";
+			return true;
 		};
 		// errs() << "predicating ";
 		// MBB->printAsOperand(errs());
@@ -491,6 +507,47 @@ void VRegIfConverter::rewriteNonLeafCondBranchToBottom_to_predicationOfSuccessor
 	MDTU.applyUpdates(MDTUpdates);
 }
 
+// Rewrite diamond/chain of cheap blocks that all can fall through to a common exit block (MBBBottom).
+// Pridecate all block on path to MBBBottom instead of having multiple conditional branches to it on path to it.
+// * For non-leaf blocks instead to jumping to MBBBottom the successor is predicated and code follows successors
+//   dissabled by the predication until it reaches br_cond to MBBBottom in leaf block and jumps to MBBBottom.
+// ..code-block::cpp 
+//      int f(int a, int b, int c) {
+//      	BB0:
+//      	int r = 0;
+//      	if (a) {
+//      		BB1:
+//      		r += 1;
+//      		if (!b) {
+//      			BB2:
+//      			goto MBBBottom;
+//      	    }
+//      		BB3:
+//      		r += 2;
+//      	}
+//      
+//          MBBBottom:
+//      	return r;
+//      }
+//      // to
+//      int f(int a, int b, int c) {
+//      	BB0:
+//      	int r = 0;
+//      	if (a) {
+//      		BB1:
+//      		r += 1;
+//          }
+//      	if (a && !b) {
+//      		BB2:
+//      	}
+//      		
+//      	if (a && b) {
+//      		BB3:
+//      		r += 2;
+//      	}
+//          MBBBottom:
+//      	return r;
+//      }
 bool VRegIfConverter::tryCheapPredSectionBrCondPruning(
 	llvm::MachineFunction &MF, llvm::MachineDomTreeUpdater &MDTU,
 	llvm ::Statistic &numCntr) {
@@ -518,13 +575,13 @@ bool VRegIfConverter::tryCheapPredSectionBrCondPruning(
 		rewriteNonLeafCondBranchToBottom_to_predicationOfSuccessors(
 			MDTU, MBB, sectionBlocks, blocksForPredication,
 			blocksForBrPredication);
-		if (enableTrace)
-		  hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + KindName +  + "-after.dot");
 		++numCntr;
 		Change = true;
+		if (enableTrace)
+		  hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + KindName +  + "-after.dot");
 		onChangeTestCallback("CheapPredSectionBrCondPruning", MF);
 		// because we want to prioritize other rules first as this
-	   // has higher overhead
+	    // has higher overhead
 		break;
 	}
 
