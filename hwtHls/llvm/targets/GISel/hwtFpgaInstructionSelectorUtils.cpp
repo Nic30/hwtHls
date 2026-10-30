@@ -1,3 +1,4 @@
+#include <hwtHls/llvm/targets/hwtFpgaMCTargetDesc.h>
 #include <llvm/CodeGen/GlobalISel/InstructionSelector.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaRegisterBankInfo.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetSubtarget.h>
@@ -11,27 +12,28 @@ ConstantInt* machineOperandTryGetConst(LLVMContext &Context,
 		MachineRegisterInfo &MRI, MachineOperand &MO) {
 	if (MO.isReg()) {
 		auto &MF = MO.getParent()->getParent()->getParent()->getProperties();
-		bool isSSA = MF.hasProperty(MachineFunctionProperties::Property::IsSSA);
+		bool isSSA = MF.hasIsSSA();
 		if (isSSA || MRI.hasOneDef(MO.getReg())) {
 			if (auto VRegVal = getAnyConstantVRegValWithLookThrough(MO.getReg(),
 					MRI, /*LookThroughInstrs*/isSSA)) {
 				assert(VRegVal.has_value());
 				auto *CI = ConstantInt::get(Context, VRegVal->Value);
 				return CI;
-			} else {
-				auto def = MRI.getOneDef(MO.getReg());
-				auto &defMI = *def->getParent();
-				if (defMI.getOpcode() == HwtFpga::HWTFPGA_MUX
-						&& defMI.getNumOperands() == 1 + 1) {
-					auto &muxSrc = defMI.getOperand(1);
-					if (muxSrc.isCImm()) {
-						return ConstantInt::get(Context,
-								muxSrc.getCImm()->getValue());
-					} else {
-						return machineOperandTryGetConst(Context, MRI, muxSrc);
-					}
-				}
 			}
+			// else {
+			//	auto def = MRI.getOneDef(MO.getReg());
+			//	auto &defMI = *def->getParent();
+			//	if (defMI.getOpcode() == HwtFpga::HWTFPGA_MUX
+			//			&& defMI.getNumOperands() == 1 + 1) {
+			//		auto &muxSrc = defMI.getOperand(1);
+			//		if (muxSrc.isCImm()) {
+			//			return ConstantInt::get(Context,
+			//					muxSrc.getCImm()->getValue());
+			//		} else {
+			//			return machineOperandTryGetConst(Context, MRI, muxSrc);
+			//		}
+			//	}
+			//}
 		}
 	}
 	return nullptr;
@@ -44,8 +46,7 @@ void selectInstrArg(MachineFunction &MF, MachineInstrBuilder &MIB,
 			MIB.add(MO);
 			return;
 		}
-		bool isSSA = MF.getProperties().hasProperty(
-				MachineFunctionProperties::Property::IsSSA);
+		bool isSSA = MF.getProperties().hasIsSSA();
 		if (isSSA || MRI.hasOneDef(MO.getReg())) {
 			if (auto VRegVal = getAnyConstantVRegValWithLookThrough(MO.getReg(),
 					MRI, /*LookThroughInstrs*/isSSA)) {
@@ -55,14 +56,24 @@ void selectInstrArg(MachineFunction &MF, MachineInstrBuilder &MIB,
 				MIB.addCImm(CI);
 				return;
 			} else {
-				auto def = MRI.getOneDef(MO.getReg());
-				if (def) {
-					auto &defMI = *def->getParent();
-					if (defMI.getOpcode() == HwtFpga::HWTFPGA_MUX
-							&& defMI.getNumOperands() == 1 + 1) {
-						return selectInstrArg(MF, MIB, MRI, defMI.getOperand(1));
-					}
-				}
+				// :note: using copy src instead of dst is incorrect
+				//       because if the value is captured in some parent loop, we way
+				//       incorrectly use register which is not stable during the loop iteration
+				// auto def = MRI.getOneDef(MO.getReg());
+				// assert(def);
+				// auto &defMI = *def->getParent();
+				// switch (defMI.getOpcode()) {
+				// case HwtFpga::HWTFPGA_MUX:
+				// case HwtFpga::COPY: {
+				// 	if (defMI.getNumOperands() == 1 + 1) {
+				// 		return selectInstrArg(MF, MIB, MRI,
+				// 							  defMI.getOperand(1));
+				// 	}
+				// 	break;
+				// }
+				// default:
+				// 	break;
+				// }
 			}
 		}
 		assert(MO.isUse());
