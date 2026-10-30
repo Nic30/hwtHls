@@ -52,6 +52,12 @@ enum class StreamReadBehaviorType {
 };
 // :returns: true if EoF is an EoF of specified read instruction
 StreamReadBehaviorType streamReadGetBehavior(const llvm::CallInst *C);
+inline bool streamReadBehaviorIsReliable(const llvm::CallInst *C) {
+	return streamReadGetBehavior(C) == StreamReadBehaviorType::RELIABLE;
+}
+inline bool streamReadBehaviorIsUnreliable(const llvm::CallInst *C) {
+	return streamReadGetBehavior(C) == StreamReadBehaviorType::UNRELIABLE;
+} 
 // :deprecated: use StreamChannelFormatInfo::streamReadGetEoF
 // bool IsStreamReadEoF(const llvm::CallInst *read, llvm::Value *EoF);
 

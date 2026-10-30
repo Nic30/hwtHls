@@ -56,7 +56,7 @@ public:
 	StreamChannelFormatInfo resize(size_t newDataWidth,
 			std::optional<bool> newSupportZLP = { },
 			std::optional<ByteEnableEncoding> newByteEnableEncoding = { }) const;
-
+	StreamChannelFormatInfo resizeForReadReturn(const llvm::CallInst *r) const;
 	// argument on top function which is used to access the interface
 	llvm::Argument *ioArg;
 	// true if channel is output, false if it is input
@@ -148,7 +148,7 @@ public:
 	void CreateAssumptionForEmpty(llvm::IRBuilderBase &Builder,
 			llvm::Value *segmentValue, llvm::Value *empty,
 			llvm::Value *eof) const;
-
+			
 	llvm::Value* streamReadGetSoF(llvm::IRBuilderBase &Builder,
 			llvm::CallInst *r) const;
 	llvm::Value* streamReadGetEoF(llvm::IRBuilderBase &Builder,

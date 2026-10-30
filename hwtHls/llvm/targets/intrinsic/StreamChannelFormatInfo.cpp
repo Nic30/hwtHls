@@ -63,12 +63,15 @@ size_t StreamChannelFormatInfo::getReadReturnWidth(size_t readDataWidth,
 	case ByteEnableEncoding::BEE_NONE:
 		break;
 	case ByteEnableEncoding::BEE_MASK:
-		if (!isReliable)
+		if (!isReliable) {
+			assert(hasMask());
 			readDataWidth += getWidthOfMaskForData(readDataWidth);
+		}
 		break;
 	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY:
 		// Axi4StreamSegmented (data[n], (enable?, empty?, err?, userFirstWord?, sof?, eof?)[n])
 		if (!isReliable) {
+			assert(hasEmpty());
 			readDataWidth +=
 				int(hasEnable()) +
 				getWidthOfEmptyForData(readDataWidth, byteWidth, !isReliable);
@@ -131,6 +134,8 @@ size_t StreamChannelFormatInfo::getOffsetOfSignalingBits(
 				+ getWidthSignalingBits() * segmentIndex.value();
 	} else {
 		// Axi4Stream (data, strb?, err?, sof?, eof?)
+		// :attention: this is used also in scenario when the bus has multiple segments
+		//   but we are working with just 1 segment
 		return dataWidth;
 	}
 }
@@ -142,7 +147,7 @@ size_t StreamChannelFormatInfo::getOffsetOfError(
 	case ByteEnableEncoding::BEE_NONE:
 		return getOffsetOfSignalingBits(segmentIndex);
 	case ByteEnableEncoding::BEE_MASK:
-		return getOffsetOfMask(segmentIndex) + getWidthOfMask();
+		return getOffsetOfMask(segmentIndex) + (hasMask() ? getWidthOfMask(): 0);
 	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY:
 		// Axi4StreamSegmented (data[n], (enable?, empty?, err?, userFirstWord?, sof?, eof?)[n])
 		return getOffsetOfEmpty(segmentIndex) + (hasEmpty() ? getWidthOfEmpty(): 0);
@@ -350,77 +355,72 @@ void StreamChannelFormatInfo::CreateAssumptionForEmpty(
 		llvm::IRBuilderBase &Builder, Value *segmentValue, Value *empty,
 		Value *eof) const {
 	assert(byteEnableEncoding == ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY);
-	if (hasEmpty()) {
-		size_t bytesPerSegment = dataWidth / byteWidth;
-		if (!empty)
-			empty = CreateBitRangeGetConst(&Builder, segmentValue,
-					getOffsetOfEmpty(), getWidthOfEmpty());
+	if (!hasEmpty()) {
+		return;
+	}
+	size_t bytesPerSegment = dataWidth / byteWidth;
+	if (!empty)
+		empty = CreateBitRangeGetConst(&Builder, segmentValue,
+									   getOffsetOfEmpty(), getWidthOfEmpty());
 
-		if (!isPow2(bytesPerSegment)) {
-			size_t maxEmpty;
-			if (supportZLP) {
-				maxEmpty = bytesPerSegment;
-			} else {
-				maxEmpty = bytesPerSegment - 1;
-			}
-			auto a = Builder.CreateAssumption(
-					Builder.CreateICmpULE(empty,
-							ConstantInt::get(empty->getType(), maxEmpty)));
-			setMetadataSideeffectAllowHoist(*a);
+	if (!isPow2(bytesPerSegment)) {
+		size_t maxEmpty;
+		if (supportZLP) {
+			maxEmpty = bytesPerSegment;
+		} else {
+			maxEmpty = bytesPerSegment - 1;
 		}
-		if (hasEoF()) {
-			if (!eof)
-				eof = CreateBitRangeGetConst(&Builder, segmentValue,
-						getOffsetOfEoF(), 1);
-			// eof=0 implies that empty==0 (not eof implies that all bytes are valid because
-			// there can not be a hole inside of packet which is not aligned to a word boundary)
-			auto a = Builder.CreateAssumption(
-					Builder.CreateOr(eof,
-							Builder.CreateICmpEQ(empty,
-									ConstantInt::get(empty->getType(), 0)),
-							"NonEoFImplEmptyEq0"));
-			setMetadataSideeffectAllowHoist(*a);
-		}
+		auto a = Builder.CreateAssumption(Builder.CreateICmpULE(
+			empty, ConstantInt::get(empty->getType(), maxEmpty)));
+		setMetadataSideeffectAllowHoist(*a);
+	}
+	if (hasEoF()) {
+		if (!eof)
+			eof = CreateBitRangeGetConst(&Builder, segmentValue,
+										 getOffsetOfEoF(), 1);
+		// eof=0 implies that empty==0 (not eof implies that all bytes are valid
+		// because there can not be a hole inside of packet which is not aligned
+		// to a word boundary)
+		auto a = Builder.CreateAssumption(Builder.CreateOr(
+			eof,
+			Builder.CreateICmpEQ(empty, ConstantInt::get(empty->getType(), 0)),
+			"NonEoFImplEmptyEq0"));
+		setMetadataSideeffectAllowHoist(*a);
 	}
 }
 
 llvm::Value* StreamChannelFormatInfo::streamReadGetSoF(
 		llvm::IRBuilderBase &Builder, llvm::CallInst *r) const {
 	assert(hasSoF());
-	auto dw = streamReadGetOrigChunkBitWidth(r);
-	auto scfi = resize(dw);
+	auto scfi = resizeForReadReturn(r);
 	return CreateBitRangeGetConst(&Builder, r, scfi.getOffsetOfSoF(), 1,
 			r->getName() + ".sof");
 }
 llvm::Value* StreamChannelFormatInfo::streamReadGetEoF(
 		llvm::IRBuilderBase &Builder, llvm::CallInst *r) const {
 	assert(hasEoF());
-	auto dw = streamReadGetOrigChunkBitWidth(r);
-	auto scfi = resize(dw);
+	auto scfi = resizeForReadReturn(r);
 	return CreateBitRangeGetConst(&Builder, r, scfi.getOffsetOfEoF(), 1,
 			r->getName() + ".eof");
 }
 
 llvm::Value* StreamChannelFormatInfo::streamReadGetData(
 		llvm::IRBuilderBase &Builder, llvm::CallInst *r) const {
-	auto dw = streamReadGetOrigChunkBitWidth(r);
-	auto scfi = resize(dw);
-	return CreateBitRangeGetConst(&Builder, r, scfi.getOffsetOfData(), dw,
+	auto scfi = resizeForReadReturn(r);
+	return CreateBitRangeGetConst(&Builder, r, scfi.getOffsetOfData(), scfi.dataWidth,
 			r->getName() + ".data");
 }
 llvm::Value* StreamChannelFormatInfo::streamReadGetMask(
 		llvm::IRBuilderBase &Builder, llvm::CallInst *r) const {
 	assert(hasMask());
-	auto dw = streamReadGetOrigChunkBitWidth(r);
-	auto scfi = resize(dw);
+	auto scfi = resizeForReadReturn(r);
 	return CreateBitRangeGetConst(&Builder, r, scfi.getOffsetOfMask(),
 			scfi.getWidthOfMask(), r->getName() + ".mask");
 }
 llvm::Value* StreamChannelFormatInfo::streamReadGetEmpty(
 		llvm::IRBuilderBase &Builder, llvm::CallInst *r) const {
 	assert(hasEmpty());
-	auto dw = streamReadGetOrigChunkBitWidth(r);
-	auto scfi = resize(dw);
+	auto scfi = resizeForReadReturn(r);
 	return CreateBitRangeGetConst(&Builder, r, scfi.getOffsetOfEmpty(),
 			scfi.getWidthOfEmpty(), r->getName() + ".empty");
 }
@@ -428,15 +428,13 @@ llvm::Value* StreamChannelFormatInfo::streamReadGetEmpty(
 llvm::Value* StreamChannelFormatInfo::streamReadFindSoF(
 		llvm::CallInst *r) const {
 	assert(hasEoF());
-	auto dw = streamReadGetOrigChunkBitWidth(r);
-	auto scfi = resize(dw);
+	auto scfi = resizeForReadReturn(r);
 	return SearchBitRangeGetConst(r, scfi.getOffsetOfSoF(), 1);
 }
 llvm::Value* StreamChannelFormatInfo::streamReadFindEoF(
 		llvm::CallInst *r) const {
 	assert(hasEoF());
-	auto dw = streamReadGetOrigChunkBitWidth(r);
-	auto scfi = resize(dw);
+	auto scfi = resizeForReadReturn(r);
 	return SearchBitRangeGetConst(r, scfi.getOffsetOfEoF(), 1);
 }
 llvm::Value* StreamChannelFormatInfo::streamReadFindData(
@@ -447,16 +445,14 @@ llvm::Value* StreamChannelFormatInfo::streamReadFindData(
 llvm::Value* StreamChannelFormatInfo::streamReadFindMask(
 		llvm::CallInst *r) const {
 	assert(hasMask());
-	auto dw = streamReadGetOrigChunkBitWidth(r);
-	auto scfi = resize(dw);
+	auto scfi = resizeForReadReturn(r);
 	return SearchBitRangeGetConst(r, scfi.getOffsetOfMask(),
 			scfi.getWidthOfMask());
 }
 llvm::Value* StreamChannelFormatInfo::streamReadFindEmpty(
 		llvm::CallInst *r) const {
 	assert(hasEmpty());
-	auto dw = streamReadGetOrigChunkBitWidth(r);
-	auto scfi = resize(dw);
+	auto scfi = resizeForReadReturn(r);
 	return SearchBitRangeGetConst(r, scfi.getOffsetOfEmpty(),
 			scfi.getWidthOfEmpty());
 }
@@ -464,8 +460,7 @@ llvm::Value* StreamChannelFormatInfo::streamReadFindEmpty(
 llvm::Value* StreamChannelFormatInfo::streamReadGetEnable(
 		llvm::IRBuilderBase &Builder, llvm::CallInst *r) const {
 	assert(hasEnable());
-	auto dw = streamReadGetOrigChunkBitWidth(r);
-	auto scfi = resize(dw);
+	auto scfi = resizeForReadReturn(r);
 	return CreateBitRangeGetConst(&Builder, r, scfi.getOffsetOfEnable(), 1,
 			r->getName() + ".enable");
 }
@@ -473,16 +468,14 @@ llvm::Value* StreamChannelFormatInfo::streamReadGetEnable(
 llvm::Value *
 StreamChannelFormatInfo::streamReadGetError(llvm::IRBuilderBase &Builder,
 											llvm::CallInst *r) const {
-	auto dw = streamReadGetOrigChunkBitWidth(r);
-	auto scfi = resize(dw);
+	auto scfi = resizeForReadReturn(r);
 	return CreateBitRangeGetConst(&Builder, r, scfi.getOffsetOfError(),
 								  scfi.errorWidth, r->getName() + ".err");
 }
 
 llvm::Value *StreamChannelFormatInfo::streamReadGetUserFirstWord(
 	llvm::IRBuilderBase &Builder, llvm::CallInst *r) const {
-	auto dw = streamReadGetOrigChunkBitWidth(r);
-	auto scfi = resize(dw);
+	auto scfi = resizeForReadReturn(r);
 	return CreateBitRangeGetConst(&Builder, r, scfi.getOffsetOfUserFirsWord(),
 								  scfi.userFirstWordWidth,
 								  r->getName() + ".user");
@@ -516,7 +509,7 @@ bool StreamChannelFormatInfo::isStreamReadEoF(const llvm::CallInst *read,
 	if (EoF->getType()->getIntegerBitWidth() != 1) {
 		return false;
 	}
-	auto scfi = resize(streamReadGetOrigChunkBitWidth(read));
+	auto scfi = resizeForReadReturn(read);
 	return match(EoF,
 			m_BitrangeGetSpecificConst(m_Specific(read), scfi.getOffsetOfEoF(),
 					1));
@@ -541,7 +534,7 @@ void StreamChannelFormatInfo::initWordTySegmentTy() {
 		break;
 	case ByteEnableEncoding::BEE_MASK:
 		// Axi4Stream (data, strb?, err?, sof?, eof?)
-		nativeWordSize += getWidthOfMask();
+		nativeWordSize += int(hasMask() ? getWidthOfMask(): 0);
 		break;
 	case ByteEnableEncoding::BEE_ENABLE_PLUS_EMPTY:
 		// Axi4StreamSegmented (data[n], (enable?, sof?, eof?, err?, empty)[n])
@@ -674,6 +667,15 @@ StreamChannelFormatInfo StreamChannelFormatInfo::resize(size_t newDataWidth,
 		res.supportZLP = newSupportZLP.value();
 	res.initWordTySegmentTy();
 	return res;
+}
+
+StreamChannelFormatInfo
+StreamChannelFormatInfo::resizeForReadReturn(const llvm::CallInst *r) const {
+	auto dw = streamReadGetOrigChunkBitWidth(r);
+	auto scfi = streamReadBehaviorIsReliable(r)
+					? resize(dw)
+					: resize(dw, /*newSupportZLP*/ true);
+	return scfi;
 }
 
 bool StreamChannelFormatInfo::ioMetadataHasStreamMetadata(
