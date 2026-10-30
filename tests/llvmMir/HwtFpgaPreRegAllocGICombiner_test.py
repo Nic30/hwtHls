@@ -67,7 +67,7 @@ class HwtFpgaPreRegAllocGICombiner_TC(BaseLlvmMirTC):
 if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
-    suite = unittest.TestSuite([HwtFpgaPreRegAllocGICombiner_TC('test_merge_value_merge_continuous_slices1')])
-    # suite = testLoader.loadTestsFromTestCase(HwtFpgaPreToNetlistGICombiner_TC)
+    suite = testLoader.loadTestsFromTestCase(HwtFpgaPreRegAllocGICombiner_TC)
+    # suite = unittest.TestSuite([HwtFpgaPreRegAllocGICombiner_TC('test_merge_value_merge_continuous_slices1')])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
