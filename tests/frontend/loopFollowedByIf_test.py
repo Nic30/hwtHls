@@ -92,7 +92,11 @@ class LoopFollowedByIf_TC(BaseSsaTC):
     def test_FiniteWhileIf1(self):
         dut = FiniteWhileIf1()
         dut.CLK_FREQ = int(40e6)
-        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform())
+        self.compileSimAndStart(dut, target_platform=VirtualHlsPlatform(
+            # llvmCliArgs=[
+            #     LLVM_CLI_COMMON_OPTS.DEBUG_PASS_EXECUTIONS,
+            # ]
+        ))
 
         dut.dataIn0._ag.data.append(8)
         self.runSim(int(10 * freq_to_period(dut.CLK_FREQ)))
@@ -103,18 +107,18 @@ class LoopFollowedByIf_TC(BaseSsaTC):
 
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.debugBundle import HlsDebugBundle
-    m = FiniteWhileIf1()
-    m.CLK_FREQ = int(40e6)
-    print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={
-        *HlsDebugBundle.ALL_RELIABLE,
-        HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
-        # HlsDebugBundle.DBG_20_addSignalNamesToData
-    })))
+    from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
+    # m = FiniteWhileIf1()
+    # m.CLK_FREQ = int(40e6)
+    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(debugFilter={
+    #     *HlsDebugBundle.ALL_RELIABLE,
+    #     HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+    #     # HlsDebugBundle.DBG_20_addSignalNamesToData
+    # })))
 
     import unittest
     testLoader = unittest.TestLoader()
-    # suite = unittest.TestSuite([LoopFollowedByIf_TC('test_FiniteWhileIf0')])
     suite = testLoader.loadTestsFromTestCase(LoopFollowedByIf_TC)
+    # suite = unittest.TestSuite([LoopFollowedByIf_TC('test_FiniteWhileIf1')])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
