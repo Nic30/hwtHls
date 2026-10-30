@@ -1,5 +1,7 @@
 #include <hwtHls/llvm/targets/Transforms/hwtFpgaToNetlist.h>
 
+#include <stdexcept>
+
 #include <llvm/ADT/DepthFirstIterator.h>
 #include <llvm/CodeGen/MachineBranchProbabilityInfo.h>
 //#include <llvm/CodeGen/MachineDominators.h>
@@ -13,9 +15,9 @@
 #include <llvm/CodeGen/MachineTraceMetrics.h>
 #include <llvm/CodeGen/LiveVariables.h>
 
+#include <hwtHls/llvm/targets/Analysis/liveVariableForEdge.h>
 #include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
 #include <hwtHls/llvm/targets/hwtFpgaTargetPassConfig.h>
-#include <stdexcept>
 
 #define DEBUG_TYPE "hwtfpga-tonetlist"
 
@@ -90,7 +92,8 @@ bool HwtFpgaToNetlist::runOnMachineFunction(llvm::MachineFunction &MF) {
 	for (auto loop : Loops) {
 		collectBackedges(backedges, *loop);
 	}
-	auto livenessPredSuc = hwtHls::getLiveVariablesForBlockEdge(*MRI, MF);
+	auto livenessPredSuc = hwtHls::getLiveVariablesForBlockEdge(
+		*MRI, MF, hwtHls::isInstructionWhichIsKeeptOutOfLivenessMRI);
 	std::vector<Register> ioRegs(MF.getFunction().arg_size());
 	for (auto &R : ioRegs) {
 		R = 0;

@@ -64,9 +64,8 @@ using namespace hwtHls; // because of INITIALIZE_PASS
 #define DEBUG_TYPE "vreg-if-converter"
 //#undef LLVM_DEBUG
 //#define LLVM_DEBUG(x) x
-// #define VREG_IF_CONVERTER_CONSYSTENCY_CHECKS
 
-// Hidden options for help debugging.
+// Hidden options to help debugging.
 static cl::opt<bool> IfCvtTrace("vregifcvt-trace", cl::init(false), cl::Hidden);
 static cl::opt<int> IfCvtFnStart("vregifcvt-fn-start", cl::init(-1), cl::Hidden);
 static cl::opt<int> IfCvtFnStop("vregifcvt-fn-stop", cl::init(-1), cl::Hidden);
@@ -337,6 +336,7 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
   ProfileSummaryInfo *PSI =
       &getAnalysis<ProfileSummaryInfoWrapperPass>().getPSI();
   MRI = &MF.getRegInfo();
+  VRegLiveins = nullptr;
   SchedModel.init(&ST);
 
   if (!TII) return false;
@@ -373,6 +373,7 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
   VRegLiveins = getAnalysisIfAvailable<HwtHlsVRegLiveins>();
   if (VRegLiveins) {
 	  VRegLiveins->recompute(); // because BranchFolder may have broken it
+	  VRegLiveins->verifyAnalysis();
   } else {
 	  VRegLiveins = &getAnalysis<HwtHlsVRegLiveins>();
       VRegLiveins->verifyAnalysis();
@@ -557,7 +558,7 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
 	  	llvm_unreachable("ICIntoSingleSucc should be processed only in tryMergeIntoSingleSuccessor");
       }
 
-      if (RetVal && MRI->tracksLiveness())
+      if (RetVal && VRegLiveins)
         recomputeVRegLivenessFlags(*VRegLiveins, *BBI.BB);
 
       Change |= RetVal;
@@ -602,7 +603,9 @@ bool VRegIfConverter::runOnMachineFunction(MachineFunction &MF) {
     if (enableTrace)
       hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + ".branchFolder-before.dot");
     BranchFolder BF(false, false, MBFI, *MBPI, PSI);
-    BF.OptimizeFunction(MF, TII, MF.getSubtarget().getRegisterInfo());
+    if (BF.OptimizeFunction(MF, TII, MF.getSubtarget().getRegisterInfo())) {
+		VRegLiveins->recompute();
+	}
     if (enableTrace)
       hwtHls::writeCFGToDotFile(MF, std::string("IC.") + std::to_string(dbgCntr++) + ".branchFolder-after.dot");
     onChangeTestCallback("BranchFolder", MF);
@@ -1634,19 +1637,19 @@ static void UpdatePredRedefs(MachineInstr &MI, MachineRegisterInfo & MRI, LiveVR
   // [todo] using LiveBeforeMI like this is highly sub-optimal
   std::set<Register> LiveBeforeMI;
   //LiveBeforeMI.setUniverse(TRI->getNumRegs());
-  for (unsigned Reg : Redefs)
-    LiveBeforeMI.insert(Reg);
+  LiveBeforeMI.insert_range(Redefs);
 
   SmallVector<std::pair<Register, const MachineOperand*>, 4> Clobbers;
   Redefs.stepForward(MI, Clobbers);
   if (!fillImplicitRegs)
      return;
+  auto & ignoredRegisters = Redefs.getVRegLiveins()->ignoredRegisters;
   // Now add the implicit uses for each of the clobbered values.
   for (auto Clobber : Clobbers) {
     // FIXME: Const cast here is nasty, but better than making StepForward
     // take a mutable instruction instead of const.
     unsigned Reg = Clobber.first;
-    if (regReplaces.contains1(Reg) || MRI.use_empty(Reg)) {
+    if (regReplaces.contains1(Reg) || MRI.use_empty(Reg) || ignoredRegisters.contains(Reg)) {
     	continue; // this register will be renamed later, or is not used at all
     }
     MachineOperand &Op = const_cast<MachineOperand&>(*Clobber.second);
@@ -1683,6 +1686,9 @@ static void UpdatePredRedefs(MachineInstr &MI, MachineRegisterInfo & MRI, LiveVR
 
 /// If convert a simple (split, no rejoin) sub-CFG.
 bool VRegIfConverter::IfConvertSimple(BBInfo &BBI, IfcvtKind Kind) {
+  if (VRegLiveins) {
+  	VRegLiveins->verifyAnalysis();
+  }
   // predicate and move CvtBBI to end of BBI, update branch and successors of BBI
   BBInfo &TrueBBI = BBAnalysis[BBI.TrueBB->getNumber()];
   BBInfo &FalseBBI = BBAnalysis[BBI.FalseBB->getNumber()];
@@ -1729,7 +1735,7 @@ bool VRegIfConverter::IfConvertSimple(BBInfo &BBI, IfcvtKind Kind) {
 
   Redefs.init(*TRI, *VRegLiveins);
 
-  if (MRI->tracksLiveness()) {
+  if (VRegLiveins) {
     // Initialize liveins to the first BB. These are potentially redefined by
     // predicated instructions.
     Redefs.addLiveInsNoPristines(CvtMBB);
@@ -1742,7 +1748,7 @@ bool VRegIfConverter::IfConvertSimple(BBInfo &BBI, IfcvtKind Kind) {
   backupCondIfRedefined(BBI, *CvtBBI, Cond);
   if (CvtMBB.pred_size() > 1) {
     if (CvtMBBEndsWithRet) {
-    	llvm_unreachable("NotImplemented");
+    	llvm_unreachable("NotImplemented CvtMBBEndsWithRet");
     }
     // Copy instructions in the true block, predicate them, and add them to
     // the entry block.
@@ -1756,7 +1762,6 @@ bool VRegIfConverter::IfConvertSimple(BBInfo &BBI, IfcvtKind Kind) {
     bimap<llvm::Register, llvm::Register> regsForSpeculation;
     // Predicate the instructions in the true block.
     PredicateBlock(*CvtBBI, CvtMBB.end(), Cond, regsForSpeculation);
-
     // Merge converted block into entry block. The BB to Cvt edge is removed
     // by MergeBlocks.
     MergeBlocks(BBI, *CvtBBI, &regsForSpeculation, Cond, !CvtMBBEndsWithRet, false);
@@ -1860,6 +1865,9 @@ bool VRegIfConverter::IfConvertSimple(BBInfo &BBI, IfcvtKind Kind) {
 
   VRegLiveins->UpdateAfterInsertBranch(*BBI.BB);
   VRegLiveins->UpdateKillAndDeadFlags(*BBI.BB);
+  if (VRegLiveins) {
+  	VRegLiveins->verifyAnalysis();
+  }
   // Update block info. BB can be iteratively if-converted.
   if (!IterIfcvt)
     BBI.IsDone = true;
@@ -1872,7 +1880,7 @@ bool VRegIfConverter::IfConvertSimple(BBInfo &BBI, IfcvtKind Kind) {
   CvtBBI->IsDone = true;
   // FIXME: Must maintain LiveIns.
 
-#ifdef VREG_IF_CONVERTER_CONSYSTENCY_CHECKS
+#ifdef DBG_VREG_IF_CONVERTER_CONSYSTENCY_CHECKS
   consistencyCheck(*BBI.BB);
 #endif
   return true;
@@ -1929,7 +1937,7 @@ bool VRegIfConverter::IfConvertTriangle(BBInfo &BBI, IfcvtKind Kind) {
   // Initialize liveins to the first BB. These are potentially redefined by
   // predicated instructions.
   Redefs.init(*TRI, *VRegLiveins);
-  if (MRI->tracksLiveness()) {
+  if (VRegLiveins) {
     Redefs.addLiveInsNoPristines(CvtMBB);
     Redefs.addLiveInsNoPristines(NextMBB);
   }
@@ -2046,7 +2054,7 @@ bool VRegIfConverter::IfConvertTriangle(BBInfo &BBI, IfcvtKind Kind) {
   if (FalseBBDead)
     NextBBI->IsDone = true;
   // FIXME: Must maintain LiveIns.
-#ifdef VREG_IF_CONVERTER_CONSYSTENCY_CHECKS
+#ifdef DBG_VREG_IF_CONVERTER_CONSYSTENCY_CHECKS
   consistencyCheck(*BBI.BB);
 #endif
   return true;
@@ -2120,7 +2128,7 @@ bool VRegIfConverter::IfConvertDiamondCommon(
   //   instructions. We start with BB1 live-ins so we have the live-out regs
   //   after tracking the BB1 instructions.
   Redefs.init(*TRI, *VRegLiveins);
-  if (MRI->tracksLiveness()) {
+  if (VRegLiveins) {
     Redefs.addLiveInsNoPristines(MBB1);
     Redefs.addLiveInsNoPristines(MBB2);
   }
@@ -2154,7 +2162,7 @@ bool VRegIfConverter::IfConvertDiamondCommon(
       --NumDups1;
   }
 
-  if (MRI->tracksLiveness()) {
+  if (VRegLiveins) {
     for (const MachineInstr &MI : make_range(MBB1.begin(), DI1)) {
       SmallVector<std::pair<Register, const MachineOperand*>, 4> Dummy;
       Redefs.stepForward(MI, Dummy);
@@ -2306,7 +2314,7 @@ bool VRegIfConverter::IfConvertDiamondCommon(
   // Merge the true block into the entry of the diamond.
   MergeBlocks(BBI, *BBI1, &regsForSpeculation1, *Cond1, MergeAddEdges);
   MergeBlocks(BBI, *BBI2, &regsForSpeculation2, *Cond2, MergeAddEdges);
-#ifdef VREG_IF_CONVERTER_CONSYSTENCY_CHECKS
+#ifdef DBG_VREG_IF_CONVERTER_CONSYSTENCY_CHECKS
   consistencyCheck(*BBI.BB);
 #endif
   return true;
@@ -2348,7 +2356,7 @@ bool VRegIfConverter::IfConvertForkedDiamond(
   InvalidatePreds(*BBI.BB);
 
   // FIXME: Must maintain LiveIns.
-#ifdef VREG_IF_CONVERTER_CONSYSTENCY_CHECKS
+#ifdef DBG_VREG_IF_CONVERTER_CONSYSTENCY_CHECKS
   consistencyCheck(*BBI.BB);
 #endif
   return true;
@@ -2425,7 +2433,7 @@ bool VRegIfConverter::IfConvertDiamond(BBInfo &BBI, IfcvtKind Kind,
   InvalidatePreds(*BBI.BB);
 
   // FIXME: Must maintain LiveIns.
-#ifdef VREG_IF_CONVERTER_CONSYSTENCY_CHECKS
+#ifdef DBG_VREG_IF_CONVERTER_CONSYSTENCY_CHECKS
   consistencyCheck(*BBI.BB);
 #endif
   return true;
@@ -2705,8 +2713,25 @@ void VRegIfConverter::MergeBlocks(BBInfo &ToBBI, BBInfo &FromBBI,
   ToBBI.HasFallThrough = FromBBI.HasFallThrough;
   ToBBI.IsAnalyzed = false;
   FromBBI.IsAnalyzed = false;
+  VRegLiveins->_liveins[FromBBI.BB].clear();
 }
 void VRegIfConverter::onChangeTestCallback(const std::string & ruleName, const MachineFunction & MF) {
+#ifdef DBG_VREG_IF_CONVERTER_CONSYSTENCY_CHECKS
+    if (VRegLiveins) {
+		// errs() << "VRegIFCvt " << ruleName << "\n";
+		VRegLiveins->verifyAnalysis();
+	}
+	//bool wasSelected = MF.getProperties().hasSelected();
+	//auto& MFNonConst = const_cast<MachineFunction &>(MF);
+	//if (wasSelected) {
+	//	// because VRegIfConverter may temporarily spawn generic opcodes.
+	//	MFNonConst.getProperties().resetSelected();
+	//}
+	//assert(MF.verify(this, ruleName.c_str(), &errs()));
+	//if (wasSelected) {
+	//	MFNonConst.getProperties().setSelected();
+	//}
+#endif
 	if (_dbgMirVRegIfConverterChangeCallbackFn) {
 		(*_dbgMirVRegIfConverterChangeCallbackFn)(ruleName, MF);
 	}

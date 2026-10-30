@@ -33,7 +33,7 @@ bool ConcatBlockLiveins::runOnMachineFunction(llvm::MachineFunction &MF) {
 		return false;
 	MachineRegisterInfo &MRI = MF.getRegInfo();
 	EdgeLivenessDict livenessPredSuc = hwtHls::getLiveVariablesForBlockEdge(MRI,
-			MF);
+			MF, hwtHls::isInstructionWhichIsKeeptOutOfLivenessMRI);
 
 	MachineLoopInfo &Loops = getAnalysis<MachineLoopInfoWrapperPass>().getLI();
 	MachineIRBuilder Builder(MF);

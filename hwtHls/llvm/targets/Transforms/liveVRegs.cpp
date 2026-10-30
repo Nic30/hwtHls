@@ -93,6 +93,8 @@ void LiveVRegs::stepForward(const MachineInstr &MI,
       if (O->isDebug())
         continue;
       Register Reg = O->getReg();
+	  if (VRegLiveins->ignoredRegisters.contains(Reg))
+	  	continue;
       if (O->isDef()) {
         // Note, dead defs are still recorded.  The caller should decide how to
         // handle them.
@@ -146,9 +148,11 @@ LLVM_DUMP_METHOD void LiveVRegs::dump() const {
 
 bool LiveVRegs::available(const MachineRegisterInfo &MRI,
                              Register Reg) const {
-  if (LiveRegs.count(Reg))
-    return false;
-  return true;
+	if (VRegLiveins->ignoredRegisters.contains(Reg))
+		return true;
+	if (LiveRegs.count(Reg))
+		return false;
+	return true;
 }
 
 /// Add live-in registers of basic block \p MBB to \p LiveRegs.
@@ -261,7 +265,7 @@ void recomputeVRegLivenessFlags(HwtHlsVRegLiveins& VRegLiveins, MachineBasicBloc
         continue;
 
       Register Reg = MO->getReg();
-      if (Reg == 0)
+      if (Reg == 0|| VRegLiveins.ignoredRegisters.contains(Reg))
         continue;
 
       bool IsNotLive = LiveRegs.available(MRI, Reg);
@@ -289,7 +293,7 @@ void recomputeVRegLivenessFlags(HwtHlsVRegLiveins& VRegLiveins, MachineBasicBloc
         continue;
 
       Register Reg = MO->getReg();
-      if (Reg == 0)
+      if (Reg == 0 || VRegLiveins.ignoredRegisters.contains(Reg))
         continue;
 
       bool IsNotLive = LiveRegs.available(MRI, Reg);

@@ -57,9 +57,14 @@ public:
   /// Returns true if the set is empty.
   bool empty() const { return LiveRegs.empty(); }
 
+  const HwtHlsVRegLiveins * getVRegLiveins() {
+	return VRegLiveins;
+  };
   /// Adds a virtual register and all its sub-registers to the set.
   void addReg(llvm::Register Reg) {
     assert(TRI && "LiveVRegs is not initialized.");
+	if (VRegLiveins->ignoredRegisters.contains(Reg))
+		return;
     LiveRegs.insert(Reg);
   }
 
@@ -67,6 +72,8 @@ public:
   /// super-registers from the set.
   void removeReg(llvm::Register Reg) {
     assert(TRI && "LiveVRegs is not initialized.");
+	if (VRegLiveins->ignoredRegisters.contains(Reg))
+		return;
     LiveRegs.erase(Reg);
   }
 

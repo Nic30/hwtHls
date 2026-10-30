@@ -5,6 +5,7 @@
 #include <llvm/IR/Constants.h>
 #include <llvm/CodeGen/GlobalISel/MIPatternMatch.h>
 
+#include <hwtHls/llvm/targets/Analysis/liveVariableForEdge.h>
 #include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
 #include <hwtHls/llvm/targets/hwtFpgaRegisterInfo.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtils.h>
@@ -280,6 +281,7 @@ void predicateInstructionUsingDefRegRename(
 	std::function<bool(const HwtHlsVRegLiveins &, const MachineBasicBlock &,
 					   Register)>
 		defNeedsTmpRegPredicate) {
+	assert(!isInstructionWhichIsKeeptOutOfLiveness(MI));
 	if (MI.isReturn())
 		return;
 	switch (MI.getOpcode()) {
@@ -623,6 +625,7 @@ void PHIsToSelectAfterIfCvt(HwtHlsVRegLiveins &VRegLiveins,
 		assert(TopV != nullptr);
 		assert(CvtV != nullptr);
 		// if TopV and CvtV are same, we do not have o create select
+		// because the value will just stay in register where it is
 		if (MachineOperand_isIdenticalTo_ignoringFlags(*TopV, *CvtV)) {
 			toPrune.push_back(PhiPruningItem(&PHI, TopV, CvtV, TopV));
 			continue;
@@ -630,8 +633,8 @@ void PHIsToSelectAfterIfCvt(HwtHlsVRegLiveins &VRegLiveins,
 
 		auto &Dst = PHI.getOperand(0);
 		if (!CondReg.has_value()) {
-			assert(Cond[0].isReg());
 			MachineOperand Br_cond = Cond[0];
+			assert(Br_cond.isReg());
 			bool isNegated = Cond[1].getImm();
 
 			if (isNegated) {
@@ -669,23 +672,20 @@ void PHIsToSelectAfterIfCvt(HwtHlsVRegLiveins &VRegLiveins,
 			toPrune.push_back(
 					PhiPruningItem(&PHI, TopV, CvtV, &sel->getOperand(0)));
 		}
-		// :note: potential liveins from TopV/CvtV are not pruned
-
 		// instead of TopV, CvtV the result of select is now livein to NextMBB
-		VRegLiveins.liveinsMutable(NextMBB).insert(
-				sel->getOperand(0).getReg());
+		// liveins.insert(sel->getOperand(0).getReg());
 		lastUseOfCond = &sel->getOperand(1);
 	}
 
 	if (CondWasOriginallyUnused && lastUseOfCond) {
 		lastUseOfCond->setIsKill();
 	}
-
+	// if there are more predecessors than just 2  BBs we have to create a new PHI
 	for (const auto &item : toPrune) {
 		if (item.selResult) {
 			if (item.PHI->getNumOperands() > 1 + 2 * 2) {
 				MachineIRBuilder MIRB(NextMBB, item.PHI);
-				auto MIB = MIRB.buildInstr(item.PHI->getOpcode());
+				auto MIB = MIRB.buildInstr(item.PHI->getOpcode()); // TargetOpcode::PHI/TargetOpcode::G_PHI
 				bool skipNextMO = false;
 				for (auto &MO : item.PHI->operands()) {
 					if (skipNextMO) {
@@ -707,6 +707,29 @@ void PHIsToSelectAfterIfCvt(HwtHlsVRegLiveins &VRegLiveins,
 		}
 		item.PHI->eraseFromParent();
 	}
+	
+	// prune potentially removed liveins
+	SetVector<Register> defines;
+	SetVector<std::pair<Register, MachineBasicBlock*>> liveinsTmp;
+	collectDirectLiveinsAndDefines(
+		MRI, NextMBB,
+		[](llvm::MachineRegisterInfo &MRI, const llvm::MachineInstr &MI) {
+			return false;
+		},
+		liveinsTmp, defines);
+	auto& liveins = VRegLiveins.liveinsMutable(NextMBB);
+	liveins.clear();
+	for (auto [r, predMBB]: liveinsTmp) {
+		liveins.insert(r);
+	}
+	for (auto* suc : successors(&NextMBB)) {
+		for (auto r : VRegLiveins.liveins(*suc)) {
+			if (!defines.contains(r)) {
+				liveins.insert(r);
+			}
+		}
+	}
+	VRegLiveins.UpdateKillAndDeadFlags(NextMBB);
 }
 
 }

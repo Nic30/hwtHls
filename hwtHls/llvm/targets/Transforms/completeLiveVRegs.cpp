@@ -81,7 +81,7 @@ bool CompleteLiveVRegs::runOnMachineFunction(MachineFunction &MF) {
 	for (auto liv : mbbLiveOuts) {
 		auto & currentlyLiveRegs = liv.second;
 		for (MachineInstr &MI : reverse(*liv.first)) {
-			if (MI.getOpcode() == HwtFpga::HWTFPGA_ARG_GET) {
+			if (hwtHls::isInstructionWhichIsKeeptOutOfLiveness(MI)) {
 				continue; // excluded from liveness analysis
 			}
 			// walk block from end and if reg is not used after mark it as dead if is def or killed if is use
