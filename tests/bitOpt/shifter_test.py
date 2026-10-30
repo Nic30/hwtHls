@@ -4,6 +4,7 @@
 from hwt.hdl.types.bits import HBits
 from hwt.math import log2ceil
 from hwtHls.frontend.pragmaLoop import PyBytecodeLLVMLoopUnroll
+from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
 from pyMathBitPrecise.bit_utils import mask
 from tests.baseIrMirRtlTC import BaseIrMirRtl_TC
 from tests.bitOpt.shifter import ShifterLeft0, ShifterLeft1, \
@@ -32,7 +33,19 @@ class ShifterTC(BaseIrMirRtl_TC):
         wallTime = len(REF_DATA) * 1000
         passTests.setTimeLimits(wallTimeIr=wallTime, wallTimeMir=wallTime, wallTimeRtl=(len(REF_DATA) + 1) * timeMultiplier)
         passTests.bindDataByInOut((TEST_DATA_data, TEST_DATA_sh), (REF_DATA,), PORT_NAMES=("i_data", "i_sh", "o"))
-        passTests.test_allInOne()
+        #passTests.setRunTestsAfter(runTestAfterEachPass=True)
+        passTests.test_allInOne(
+            platformKwArgs=dict(
+                # debugFilter={  # *HlsDebugBundle.ALL_RELIABLE,
+                # # HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+                # # HlsDebugBundle.DBG_4_0_addSignalNamesToData,
+                # },
+                llvmCliArgs=[
+                    # LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
+                    LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
+                ],
+            ),
+        )
         self.rtl_simulator_cls = None
 
     def test_ShifterLeft0(self):
@@ -48,8 +61,9 @@ class ShifterTC(BaseIrMirRtl_TC):
     def test_ShifterLeftUsingHwLoopWithWhileNot0_noUnroll(self):
         dut = ShifterLeftUsingHwLoopWithWhileNot0()
         dut.DATA_WIDTH = 3
-        self._test_shifter(dut, timeMultiplier=8,  # debugFilter=HlsDebugBundle.ALL_RELIABLE.union({HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
-                                                  #   HlsDebugBundle.DBG_4_0_addSignalNamesToData})
+        self._test_shifter(dut, timeMultiplier=8,
+            # debugFilter=HlsDebugBundle.ALL_RELIABLE.union({HlsDebugBundle.DBG_4_0_addSignalNamesToSync,
+            #   HlsDebugBundle.DBG_4_0_addSignalNamesToData})
         )
 
     def test_ShifterLeftUsingHwLoopWithWhileNot0_unrol2(self):
@@ -122,7 +136,6 @@ class ShifterTC(BaseIrMirRtl_TC):
 
 if __name__ == "__main__":
     from hwt.synth import to_rtl_str
-    from hwtHls.platform.debugBundle import HlsDebugBundle, LLVM_CLI_COMMON_OPTS
     from hwtHls.platform.virtual import VirtualHlsPlatform
     dut = ShifterLeft0()
     # dut.DATA_WIDTH = 3
@@ -141,7 +154,7 @@ if __name__ == "__main__":
     import unittest
     testLoader = unittest.TestLoader()
     suite = testLoader.loadTestsFromTestCase(ShifterTC)
-    # suite = unittest.TestSuite([ShifterTC("test_ShifterLeftUsingHwLoopWithBreakIf0_unrol2")])
+    # suite = unittest.TestSuite([ShifterTC("test_ShifterLeftUsingHwLoopWithBreakIf0_unrol4")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
 
