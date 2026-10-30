@@ -37,13 +37,36 @@ class LLVM_CLI_COMMON_OPTS:
     DEBUG_PASS_MANAGER = ("debug-pass-manager", 0, "", "")  # print used passes until machinemoduleinfo
     DEBUG_PASS_ARGUMENTS = ("debug-pass", 0, "", "Arguments")  # print used passes starting from machinemoduleinfo
     DEBUG_PASS_STRUCTURE = ("debug-pass", 0, "", "Structure")  # same as Arguments but pretty formated
+    DEBUG_PASS_EXECUTIONS = ("debug-pass", 0, "", "Executions")
+    DEBUG_PASS_DETAIL = ("debug-pass", 0, "", "Detail")
+    
     # see https://github.com/llvm/llvm-project/blob/main/llvm/lib/IR/PrintPasses.cpp
     PRINT_MODULE_SCOPE = ("print-module-scope", 0, "", "true")  # When printing IR for print-[before|after]{-all} always print a module IR
     PRINT_AFTER_ALL = ("print-after-all", 0, "", "true")
     PRINT_BEFORE_ALL = ("print-before-all", 0, "", "true")
     PRINT_CHANGED = ("print-changed", 0, "", "")
     PRINT_CHANGED_DOT_CFG = ("print-changed", 0, "", "dot-cfg")  # :attention: blocks without name will cause crash https://github.com/llvm/llvm-project/pull/148582
-    OVERWIRTE_BB_NAMES = ("hwthls-overwrite-bb-names", 0, "", "true") # set names of all block to bb<id>
+    OVERWIRTE_BB_NAMES = ("hwthls-overwrite-bb-names", 0, "", "true")  # set names of all block to bb<id>
+
+    @classmethod
+    def stopAfter(cls, passName:str):
+        """
+        :note: only for LegacyPassManager (MIR)
+        """
+        return ("stop-after", 1, "", passName)
+
+    @classmethod
+    def stopBefore(cls, passName:str):
+        """
+        :note: only for LegacyPassManager (MIR)
+        """
+        return ("stop-before", 1, "", passName)
+    
+    @classmethod
+    def irDumpDirectory(cls, dirPath: str | Path):
+        if isinstance(dirPath, Path):
+            dirPath = dirPath.absolute().as_posix()
+        return ("ir-dump-directory", 1, "", dirPath)
 
     STATS = ("stats", 0, "", "")  # print values of llvm statistics defined by STATISTIC(<id>, <string>)
 
