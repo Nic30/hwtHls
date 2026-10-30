@@ -1,10 +1,18 @@
 #pragma once
 
+#include <string>
+
+
+#include <llvm/ADT/SetVector.h>
+#include <llvm/CodeGen/MachineInstr.h>
 #include <llvm/CodeGen/GlobalISel/CombinerHelper.h>
+#include <llvm/CodeGen/GlobalISel/GISelChangeObserver.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtilsInstrFns.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaInstructionBuilderUtilsInstrReducibleValuesInfo.h>
 #include <hwtHls/llvm/targets/intrinsic/hfloattmp.h>
-#include <string>
+
+// does nothing if llvm is not build in debug mode
+// #define DBG_HWTFPGA_COMBINE_CSE_VERIFY
 
 namespace llvm {
 
@@ -69,6 +77,19 @@ public:
 		ops[0].clear();
 		ops[1].clear();
 	}
+};
+
+class GISelObserveRegTypeChangeRAII {
+	llvm::SetVector<llvm::MachineInstr *> ChangingInstructions;
+	GISelChangeObserver &Observer;
+
+public:
+	GISelObserveRegTypeChangeRAII(const MachineRegisterInfo &MRI,
+								  GISelChangeObserver &Observer, Register Reg);
+	static void changeRegTypeScalarOfWidth(MachineRegisterInfo &MRI,
+										   GISelChangeObserver &Observer,
+										   Register Reg, size_t newWidth);
+	~GISelObserveRegTypeChangeRAII();
 };
 
 /* Helper class for GISel framework to implement hwtHls combination rules.

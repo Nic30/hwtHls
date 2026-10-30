@@ -270,7 +270,8 @@ void HwtFpgaCombinerHelper::rewriteMulToMulHL(llvm::MachineInstr &MI,
 			size_t opDstRegWidth;
 			hwtHls::buildHWTFPGA_MERGE_VALUES(Builder, &Observer, opDstReg,
 					opMatch.opParts, &opDstRegWidth);
-			MRI.setType(opDstReg, LLT::scalar(opDstRegWidth));
+			GISelObserveRegTypeChangeRAII::changeRegTypeScalarOfWidth(
+				MRI, Observer, opDstReg, opDstRegWidth);
 			newOps[i] = hwtHls::CImmOrRegOrUndefWithWidth(opDstRegWidth,
 					opDstReg);
 		}

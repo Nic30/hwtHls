@@ -1,5 +1,7 @@
 #include <hwtHls/llvm/targets/GISel/hwtFpgaCombinerHelper.h>
 
+#include <llvm/ADT/STLExtras.h>
+#include <llvm/CodeGen/GlobalISel/CSEInfo.h>
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
 #include <llvm/CodeGen/GlobalISel/GISelValueTracking.h>
 #include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
@@ -8,6 +10,32 @@
 #include <hwtHls/llvm/targets/hwtFpgaTargetPassConfig.h>
 
 namespace llvm {
+
+GISelObserveRegTypeChangeRAII::GISelObserveRegTypeChangeRAII(
+	const MachineRegisterInfo &MRI, GISelChangeObserver &Observer,
+	Register Reg) :
+	Observer(Observer) {
+	for (auto &ChangingMI: MRI.def_instructions(Reg)) {
+		if (ChangingInstructions.insert(&ChangingMI))
+			Observer.changingInstr(ChangingMI);
+	}
+	for (auto &ChangingMI : MRI.use_instructions(Reg)) {
+		if (ChangingInstructions.insert(&ChangingMI))
+			Observer.changingInstr(ChangingMI);
+	}
+}
+
+void GISelObserveRegTypeChangeRAII::changeRegTypeScalarOfWidth(
+	MachineRegisterInfo &MRI, GISelChangeObserver &Observer, Register Reg,
+	size_t newWidth) {
+	GISelObserveRegTypeChangeRAII rco(MRI, Observer, Reg);
+	MRI.setType(Reg, LLT::scalar(newWidth));
+}
+
+GISelObserveRegTypeChangeRAII::~GISelObserveRegTypeChangeRAII() {
+	for (auto *ChangedMI : ChangingInstructions)
+		Observer.changedInstr(*ChangedMI);
+}
 
 HwtFpgaCombinerHelper::HwtFpgaCombinerHelper(
 	GISelChangeObserver &Observer, MachineIRBuilder &B, bool IsPreLegalize,
@@ -123,7 +151,8 @@ void HwtFpgaCombinerHelper::rewriteConstExtract(llvm::MachineInstr &MI) {
 	if (DstTy.isValid()) {
 		assert(DstTy.getScalarSizeInBits() == extractOpt.dstWidth);
 	} else {
-		MRI.setType(Dst, LLT::scalar(extractOpt.dstWidth));
+		GISelObserveRegTypeChangeRAII::changeRegTypeScalarOfWidth(
+			MRI, Observer, Dst, extractOpt.dstWidth);
 	}
 
 	replaceInstWithConstant(MI,
@@ -227,6 +256,12 @@ void HwtFpgaCombinerHelper::rewriteConstBinOp(llvm::MachineInstr &MI,
 	auto _v = MI.getOperand(1).getCImm();
 	const APInt &a = _v->getValue();
 	const APInt &b = MI.getOperand(2).getCImm()->getValue();
+	DstOp DstOp = MI.getOperand(0).getReg();
+	LLT Ty = DstOp.getLLTTy(MRI);
+	if (!Ty.isValid()) {
+		GISelObserveRegTypeChangeRAII::changeRegTypeScalarOfWidth(
+			MRI, Observer, DstOp.getReg(), a.getBitWidth());
+	}
 	replaceInstWithConstant(MI, fn(a, b));
 	onChangeTestCallback("rewriteConstBinOp");
 }
@@ -661,7 +696,8 @@ void HwtFpgaCombinerHelper::rewriteConstMergeValues(llvm::MachineInstr &MI,
 	if (CurTy.isValid()) {
 		assert(CurTy.getSizeInBits() == replacement.getBitWidth());
 	} else {
-		MRI.setType(Dst, LLT::scalar(replacement.getBitWidth()));
+		GISelObserveRegTypeChangeRAII::changeRegTypeScalarOfWidth(
+			MRI, Observer, Dst, replacement.getBitWidth());
 	}
 	replaceInstWithConstant(MI, replacement);
 	onChangeTestCallback("rewriteConstMergeValues");
@@ -856,6 +892,14 @@ MachineOperand* HwtFpgaCombinerHelper::getNextUseOfRegAfterInstructionExceptMI(
 }
 
 void HwtFpgaCombinerHelper::onChangeTestCallback(const std::string & ruleName) {
+#ifdef DBG_HWTFPGA_COMBINE_CSE_VERIFY
+	if (auto *CInfo = Builder.getCSEInfo()) {
+		if (auto err = CInfo->verify()) {
+			errs() << ruleName << ": " << err << "\n";
+			assert(err.success());
+		}
+	}
+#endif
 	if (_dbgMirGISelCombinerChangeCallbackFn) {
 		(*_dbgMirGISelCombinerChangeCallbackFn)(ruleName, getMachineFunction());
 	}

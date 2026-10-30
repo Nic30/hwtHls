@@ -138,21 +138,21 @@ void HwtFpgaCombinerHelper::rewriteExtractOnMergeValues(llvm::MachineInstr &MI,
 			// branch should have been taken if this is const
 			// :attention: HWTFPGA_EXTRACT must be constructed in the place where
 			//   src.op was originally used, because it can be redefined on the way to MI
+			GISelObserveRegTypeChangeRAII::changeRegTypeScalarOfWidth(
+				MRI, Observer, DstMO.getReg(), src.widthOfUse);
 			Builder.setInstr(
-					*const_cast<MachineInstr*>(src.op.getParent())->getNextNode());
+				*const_cast<MachineInstr *>(src.op.getParent())->getNextNode());
 			// auto *srcDef = MRI.getOneDef(src.op.getReg());
 			MachineInstrBuilder MIB = Builder.buildInstr(HwtFpga::HWTFPGA_EXTRACT);
 			auto &newMI = *MIB.getInstr();
 			Observer.changingInstr(newMI);
 			// $dst $src $srcWidth $offset $dstWidth
 			MIB.addDef(DstMO.getReg());
-			// this would break CSEInfo llvm-18
-			// MRI.setType(DstMO.getReg(), LLT::scalar(src.widthOfUse));
 			addSrcOperand(MIB, src);
-			//if (src.op.isReg()) {
-			//  // this would result in broken CSEMap llvm-18
-			//	MRI.setType(src.op.getReg(), LLT::scalar(src.width));
-			//}
+			if (src.op.isReg()) {
+				GISelObserveRegTypeChangeRAII::changeRegTypeScalarOfWidth(
+					MRI, Observer, src.op.getReg(), src.width);
+			}
 			assert(src.width >= src.offsetOfUse + src.widthOfUse);
 			MIB.addImm(src.width);
 			MIB.addImm(src.offsetOfUse);
@@ -234,8 +234,8 @@ void HwtFpgaCombinerHelper::rewriteExtractOnMergeValues(llvm::MachineInstr &MI,
 		if (dstTy.isValid()) {
 			assert(dstTy.getScalarSizeInBits() == resWidth);
 		} else {
-			// this would break CSEInfo in llvm-18
-			// MRI.setType(DstMO.getReg(), LLT::scalar(resWidth));
+			GISelObserveRegTypeChangeRAII::changeRegTypeScalarOfWidth(
+				MRI, Observer, DstMO.getReg(), resWidth);
 		}
 		Observer.changedInstr(*MIB.getInstr());
 	}

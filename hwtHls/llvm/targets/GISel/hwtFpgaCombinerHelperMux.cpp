@@ -501,9 +501,10 @@ void HwtFpgaCombinerHelper::rewriteConstValMux(MachineInstr &MI,
 	auto Dst = MI.getOperand(0).getReg();
 	if (matchinfo.CImm) {
 		// the replacement is a constant, optionally handle negation
-		if (!MRI.getType(Dst).isValid())
-			MRI.setType(Dst,
-					LLT::scalar(matchinfo.CImm->getValue().getBitWidth()));
+		if (!MRI.getType(Dst).isValid()) {
+			GISelObserveRegTypeChangeRAII::changeRegTypeScalarOfWidth(
+				MRI, Observer, Dst, matchinfo.CImm->getValue().getBitWidth());
+		}
 		//assert(!matchinfo.sext);
 		if (matchinfo.Negate) {
 			replaceInstWithConstant(MI, ~matchinfo.CImm->getValue());
