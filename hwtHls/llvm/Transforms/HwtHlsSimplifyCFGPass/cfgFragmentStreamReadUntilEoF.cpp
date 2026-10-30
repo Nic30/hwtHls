@@ -244,7 +244,7 @@ StreamReadUntilEoFCFGFragment::detect(
 		}
 	}
 	// exit is verified to be present, res.reads which are in sequence of blocks
-	// which are juped if to each other if not last
+	// which are jumped if to each other if not last
 
 	if (res.reads.size() < 2)
 		return {};
