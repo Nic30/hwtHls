@@ -1,11 +1,11 @@
 #include <hwtHls/llvm/targets/Transforms/cheapBlockInlinePass.h>
 
-#include <llvm/CodeGen/MachineOperand.h>
-#include <llvm/ADT/DenseMap.h>
-#include <llvm/CodeGen/MachineLoopInfo.h>
 #include <llvm/Analysis/TargetTransformInfo.h>
+#include <llvm/ADT/DenseMap.h>
 #include <llvm/ADT/SetVector.h>
 #include <llvm/ADT/STLExtras.h>
+#include <llvm/CodeGen/MachineOperand.h>
+#include <llvm/CodeGen/MachineLoopInfo.h>
 #include <llvm/CodeGen/MachineBasicBlock.h>
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/MachineFunctionPass.h>
@@ -15,7 +15,9 @@
 #include <llvm/CodeGen/TargetRegisterInfo.h>
 #include <llvm/CodeGen/TargetSubtargetInfo.h>
 #include <llvm/CodeGen/GlobalISel/MachineIRBuilder.h>
+#include <llvm/IR/PassManager.h>
 #include <llvm/InitializePasses.h>
+#include <llvm/Support/ErrorHandling.h>
 
 #include <hwtHls/llvm/targets/hwtFpgaMCTargetDesc.h>
 #include <hwtHls/llvm/targets/Transforms/vregConditionUtils.h>
@@ -188,16 +190,16 @@ void removeMachineBasicBlockWithSingleSuccessor(MachineBasicBlock &MBB, MachineB
 void copyMachineBlockContentToPredecessor(
 	MachineRegisterInfo &MRI, const TargetInstrInfo &TII,
 	hwtHls::HwtHlsVRegLiveins &VRegLiveins, MachineBasicBlock &MBB,
-	MachineBasicBlock *Pred) {
+	MachineBasicBlock &Pred) {
 	// copy self instructions to predecessors
 	// with a MUX which is enabled when the original branch was targeting this MBB
 	// replace MBB with SuccMBB, remove MBB
 	// optimize branches in original MBB predecessors
-	MachineBasicBlock::iterator PredTerm = Pred->terminators().begin();
-	MachineIRBuilder B(*Pred, PredTerm);
+	MachineBasicBlock::iterator PredTerm = Pred.terminators().begin();
+	MachineIRBuilder B(Pred, PredTerm);
 
 	std::optional<Register> toMBBBrCond;
-	for (MachineInstr &Term : Pred->terminators()) {
+	for (MachineInstr &Term : Pred.terminators()) {
 		bool searchEnd = false;
 		switch (Term.getOpcode()) {
 		case HwtFpga::HWTFPGA_BR:
@@ -256,12 +258,12 @@ void copyMachineBlockContentToPredecessor(
 		MachineOperand::CreateImm(0), // = not negated
 	};
 	auto & MF = *MBB.getParent(); 
-	auto predIP= Pred->getFirstTerminator();
+	auto predIP= Pred.getFirstTerminator();
 	for (auto &_MI : MBB) {
 		if (_MI.isTerminator())
 			break;
 		auto& MI = *MF.CloneMachineInstr(&_MI);
-		Pred->insert(predIP, &MI);
+		Pred.insert(predIP, &MI);
 		if (toMBBBrCond.has_value()) {
 			if (!TII.PredicateInstruction(MI, Cond)) {
 				hwtHls::predicateInstructionUsingDefRegRename(
@@ -271,7 +273,7 @@ void copyMachineBlockContentToPredecessor(
 	}
 	
 	if (!regsForSpeculation.empty())
-		createSpeculationMergeMuxes(*Pred, predIP, regsForSpeculation, Cond, MRI);
+		createSpeculationMergeMuxes(Pred, predIP, regsForSpeculation, Cond, MRI);
 }
 
 void MachineBasicBlockOptimizeTerminator(MachineBasicBlock &MBB) {
@@ -340,6 +342,7 @@ bool CheapBlockInline::runOnMachineFunction(MachineFunction &MF) {
 	TII = MF.getSubtarget().getInstrInfo();
 	MRI = &MF.getRegInfo();
 	VRegLiveins = &getAnalysis<hwtHls::HwtHlsVRegLiveins>();
+	// VRegLiveins->verifyAnalysis();
 	MachineLoopInfo &Loops = getAnalysis<MachineLoopInfoWrapperPass>().getLI();
 
 	for (MachineBasicBlock &MBB : make_early_inc_range(MF)) {
@@ -379,9 +382,9 @@ bool CheapBlockInline::runOnMachineFunction(MachineFunction &MF) {
 			SmallVector<MachineBasicBlock *, 8> MBB_predecessors(
 				MBB.predecessors());
 			for (MachineBasicBlock *Pred : MBB_predecessors) {
-				copyMachineBlockContentToPredecessor(*MRI, *TII, *VRegLiveins, MBB, Pred);
+				copyMachineBlockContentToPredecessor(*MRI, *TII, *VRegLiveins, MBB, *Pred);
 			}
-			// :attention: alls MF->erase(&MBB);
+			// :attention: calls MF->erase(&MBB);
 			removeMachineBasicBlockWithSingleSuccessor(MBB, MBBSuc, MBB_predecessors);
 			mergeMachineLoops(Loops, MBB, MBBSuc, MBBLoop, MBBSuccLoop);
 			MBBLoop->moveToHeader(&MBBSuc);
@@ -391,7 +394,6 @@ bool CheapBlockInline::runOnMachineFunction(MachineFunction &MF) {
 			for (MachineBasicBlock *Pred : MBB_predecessors) {
 				MachineBasicBlockOptimizeTerminator(*Pred);
 			}
-			
 			Changed = true;
 		} 
 		//else if (isCheap) {
