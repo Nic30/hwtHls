@@ -187,7 +187,7 @@ void LlvmCompilationBundle::_llvmCliOption_add(
 	if (o == _llvmCliOpts.end()) {
 		if (OptionName == "debug-only") {
 			throw std::runtime_error(
-					"debug-only LLVM cli option is available only in LLVM debug build");
+					"debug-only LLVM cli option is available only in debug build of LLVM");
 		} else {
 			throw std::runtime_error(
 					std::string("Can not find LLVM cli option ") + OptionName);
