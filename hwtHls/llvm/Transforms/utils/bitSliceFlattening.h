@@ -12,7 +12,7 @@ struct ConcatMember {
 };
 
 /*
- * Recursively collect members of concatenations, looks through HWTFPGA_EXTRACT and HWTFPGA_MERGE_VALUES instructions
+ * Recursively collect members of concatenations, looks through @hwtHls.bitRangeGet concat, zext, sext and alike
  *
  * :param MIOp: an operand from where to collect concat members
  * :param members: output vector of records containing the operand and the information about which bits are selected
