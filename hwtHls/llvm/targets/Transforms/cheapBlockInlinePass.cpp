@@ -408,8 +408,11 @@ bool CheapBlockInline::runOnMachineFunction(MachineFunction &MF) {
 		//	/// MF.verify(this, "CheapBlockInline mergePredicatedBBToSingleSuccessor", &errs());
 		//}
 	}
-	if (Changed)
+	if (Changed) {
+		// VRegLiveins->verifyAnalysis();
+		InvalidateAnalysisPass<hwtHls::HwtHlsVRegLiveins>();
 		MF.RenumberBlocks();
+	}
 	return Changed;
 }
 
