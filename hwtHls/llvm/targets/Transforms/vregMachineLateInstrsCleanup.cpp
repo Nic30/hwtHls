@@ -20,6 +20,7 @@
 #include <llvm/ADT/BitVector.h>
 #include <llvm/ADT/PostOrderIterator.h>
 #include <llvm/ADT/Statistic.h>
+#include <llvm/CodeGen/GlobalISel/CSEInfo.h>
 #include <llvm/CodeGen/MachineBasicBlock.h>
 #include <llvm/CodeGen/MachineFunction.h>
 #include <llvm/CodeGen/MachineFunctionPass.h>
@@ -32,7 +33,6 @@
 #include <llvm/CodeGen/TargetPassConfig.h>
 #include <llvm/InitializePasses.h>
 #include <llvm/Pass.h>
-#include <llvm/CodeGen/GlobalISel/CSEInfo.h>
 
 #include <hwtHls/llvm/targets/hwtFpgaInstrInfo.h>
 #include <hwtHls/llvm/targets/GISel/hwtFpgaCombinerHelper.h>
@@ -120,8 +120,7 @@ public:
 	}
 
 	bool runOnMachineFunction(MachineFunction &MF) override;
-
-	void releaseMemory();;
+	void releaseMemory() override;
 };
 
 llvm::FunctionPass*
@@ -136,12 +135,8 @@ bool VRegMachineLateInstrsCleanup::runOnMachineFunction(MachineFunction &MF) {
 		return false;
 #ifndef NDEBUG
 	const auto &MFP = MF.getProperties();
-	assert(
-			!MFP.hasProperty(MachineFunctionProperties::Property::IsSSA)
-					&& "If it has IsSSA use LLVM::MachineCSE");
-	assert(
-			!MFP.hasProperty(MachineFunctionProperties::Property::NoVRegs)
-					&& "If it has NoVRegs use original LLVM::MachineLateInstrsCleanup");
+	assert(!MFP.hasIsSSA() && "If it has IsSSA use LLVM::MachineCSE");
+	assert(!MFP.hasNoVRegs() && "If it has NoVRegs use original LLVM::MachineLateInstrsCleanup");
 #endif
 	TRI = MF.getSubtarget().getRegisterInfo();
 	TII = MF.getSubtarget().getInstrInfo();

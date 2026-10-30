@@ -132,7 +132,7 @@ bool VRegIfConverter::IfConvertLoopTail(BBInfo &BBI, IfcvtKind Kind) {
 			llvm_unreachable("Unexpected!");
 		}
 	}
-#ifdef VREG_IF_CONVERTER_CONSYSTENCY_CHECKS
+#ifdef DBG_VREG_IF_CONVERTER_CONSYSTENCY_CHECKS
 	consistencyCheck(*BBI.BB);
 #endif
 	return success;

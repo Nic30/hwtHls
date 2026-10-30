@@ -34,7 +34,7 @@
 
 #include <hwtHls/llvm/targets/Transforms/writeCFGToDotFile.h>
 #define VREG_IF_CONVERTER_DUMPID << " " << dbgCntr
-
+// #define DBG_VREG_IF_CONVERTER_CONSYSTENCY_CHECKS
 
 namespace hwtHls {
 
