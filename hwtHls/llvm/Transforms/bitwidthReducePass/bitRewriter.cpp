@@ -1,7 +1,6 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/utils.h>
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitRewriter.h>
 
-#include <iostream>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/PatternMatch.h>
 #include <llvm/ADT/SmallPtrSet.h>
