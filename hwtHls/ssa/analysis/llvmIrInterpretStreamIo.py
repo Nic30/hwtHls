@@ -24,17 +24,29 @@ StreamTmpWord_t = (
 )
 
 
+class SimStreamChannelProps():
+    """
+    Properties and state of stream channel in the simulation
+    
+    :ivar tmpWord: stream word which was not yet entirely written or read,
+        the format of tuple corresponds to bus word format for specified stream interface.
+        (e.g. data, strb, last for Axi4Stream),
+        if interface has multiple segments a list of segment words is used instead just a single word
+    """
+    def __init__(self, props: StreamChannelFormatInfo):
+        self.tmpWord: StreamTmpWord_t = None
+        self.props = props
+        self.inFrameOffset = None
+
+
 class LlvmIrInterpretStreamIo():
     """
-    :ivar _streamIoTmpWords: stream words which were not yet entirely written or read,
-        the format of tuple corresponds to bus word format for specified stream interface. (e.g. data, strb, last for Axi4Stream),
-        if interface has multiple segments a list of segment words is used instead just a single word
+    :ivar _props: properties and state of each stream channel in the simulation
     """
 
     def __init__(self, interpret: "LlvmIrInterpret"):
         self.interpret = interpret
-        self._streamIoTmpWords: dict[Argument, StreamTmpWord_t | None] = {}
-        self._streamProps: dict[Argument, StreamChannelFormatInfo] = {}
+        self._props: dict[Argument, SimStreamChannelProps] = {}
 
     def _runLlvmIrFunctionInstrStreamRead_popSegment(self, instr: CallInst,
                                                      curTmpWord: Optional[StreamTmpWord_t],
@@ -186,7 +198,7 @@ class LlvmIrInterpretStreamIo():
             if segmentCnt > 1:
                 assert len(leftoverSegments) == segmentCnt
                 # restore values of the first segment
-                leftoverSegments.pop()
+                leftoverSegments.pop() # rm curTmpWord
                 leftoverSegments.reverse()
             else:
                 assert leftoverSegments is None
@@ -247,7 +259,7 @@ class LlvmIrInterpretStreamIo():
 
     def _runLlvmIrFunctionInstrStreamRead(self, instr: CallInst, ioArg: Argument, w: int,
                                           behaviorType: StreamReadBehaviorType,
-                                          streamProps: StreamChannelFormatInfo) -> None:
+                                          simStreamProps: SimStreamChannelProps) -> None:
         # try return value from tmp word, else read from input until the required amount
         # of data is collected and then return it
 
@@ -261,6 +273,7 @@ class LlvmIrInterpretStreamIo():
         sof: Optional[HBitsConst] = None
         eof: Optional[HBitsConst] = None
         
+        streamProps = simStreamProps.props
         hasMask = streamProps.hasMask()
         hasEnable = streamProps.hasEnable()
         hasEmpty = streamProps.hasEmpty()
@@ -279,7 +292,7 @@ class LlvmIrInterpretStreamIo():
         segmentCnt = streamProps.segmentCnt
         byteWidth = streamProps.byteWidth
         ioSimStream = self.interpret.fnArgs[ioArg.getArgNo()]
-        curTmpWord: Optional[StreamTmpWord_t] = self._streamIoTmpWords.get(ioArg, None)
+        curTmpWord: Optional[StreamTmpWord_t] = simStreamProps.tmpWord
         while data is None or data._dtype.bit_length() < w:
             # accumulate data until we have enough, more or eof
             (curTmpWord, newData, newMask, newEnable, newEmpty, newError, newUserFirstWord, newSof, newEof) = \
@@ -332,7 +345,7 @@ class LlvmIrInterpretStreamIo():
                 eof = newEof
                 if eof is not None and (not hasEnable or newEnable) and eof:
                     break  # stream underflow or end in last word
-
+        
         if hasEnable and enable is None:
             # all segments were empty
             raise SimIoUnderflowErr()
@@ -394,6 +407,8 @@ class LlvmIrInterpretStreamIo():
                         emptyLeftover = HBits(newEmptyLeftoverWidth).from_py(min(empty, leftoverByteCnt))
                         newTmpWord.append(emptyLeftover)
                         empty = HBits(newEmptyWidth).from_py(max(0, empty - leftoverByteCnt))
+                    
+                    assert not hasMask
 
                 else:
                     raise NotImplementedError(streamProps.byteEnableEncoding)
@@ -429,7 +444,6 @@ class LlvmIrInterpretStreamIo():
             else:
                 assert curTmpWord is None, instr
 
-        self._streamIoTmpWords[ioArg] = curTmpWord
 
         if not isUnreliable:
             mask = None
@@ -438,13 +452,16 @@ class LlvmIrInterpretStreamIo():
             hasMask = False
             hasEmpty = False
             hasEnable = False
-
+        
+        simStreamProps.tmpWord = curTmpWord
+        simStreamProps.inFrameOffset += w
         return self._runLlvmIrFunctionInstrStreamRead_buildReturnVal(
             instr, bee, hasMask, hasEnable, hasEmpty, hasError, hasUserFirstWord,
             hasSoF, hasEoF, isUnreliable,
             data, mask, enable, empty, error, userFirstWord, sof, eof)
 
-    def _decodeLlvmIrLoadOfSingleSegmentFromSegmentedBus(self, interpret: "LlvmIrInterpret", instr: LoadInst, ioArg: Argument, streamProps: StreamChannelFormatInfo):
+    def _decodeLlvmIrLoadOfSingleSegmentFromSegmentedBus(self, interpret: "LlvmIrInterpret", instr: LoadInst, ioArg: Argument, simStreamProps: SimStreamChannelProps):
+        streamProps = simStreamProps.props
         hasMask = streamProps.hasMask()
         hasEnable = streamProps.hasEnable()
         hasEmpty = streamProps.hasEmpty()
@@ -459,7 +476,7 @@ class LlvmIrInterpretStreamIo():
         ioSimStream = self.interpret.fnArgs[ioArg.getArgNo()]
 
         def _opcode_LoadOfSingleSegmentFromSegmentedBus(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
-            curTmpWord: Optional[StreamTmpWord_t] = self._streamIoTmpWords.get(ioArg, None)
+            curTmpWord: Optional[StreamTmpWord_t] = simStreamProps.tmpWord
             # while True:
             (curTmpWord, newData, newMask, newEnable, newEmpty, newError, newUserFirstWord, newSof, newEof) = \
                 self._runLlvmIrFunctionInstrStreamRead_popSegment(
@@ -467,7 +484,7 @@ class LlvmIrInterpretStreamIo():
                     hasMask, hasEnable, hasEmpty, hasError, hasUserFirstWord, hasSoF, hasEoF, supportZLP)
             #    if newEnable is None or bool(newEnable):
             #        break
-            self._streamIoTmpWords[ioArg] = curTmpWord
+            simStreamProps.tmpWord = curTmpWord
             isUnreliable = True
             v = self._runLlvmIrFunctionInstrStreamRead_buildReturnVal(
                 instr, byteEnableEncoding, hasMask, hasEnable, hasEmpty, hasError, hasSoF, hasEoF, isUnreliable,
@@ -499,8 +516,9 @@ class LlvmIrInterpretStreamIo():
         raise ValueError(v)
 
     def _runLlvmIrFunctionInstrStreamWrite(self, regs: dict[Instruction, HConst],
-                     instr: CallInst, ioArg: Argument, streamProps: StreamChannelFormatInfo,
+                     instr: CallInst, ioArg: Argument, simStreamProps: SimStreamChannelProps,
                      wWidth: int, behaviorType: StreamWriteBehaviorType, ioSimStream: list) -> None:
+        streamProps = simStreamProps.props
         hasMask = streamProps.hasMask()
         if hasMask:
             if behaviorType == StreamWriteBehaviorType.ALLVALID:
@@ -516,8 +534,8 @@ class LlvmIrInterpretStreamIo():
             raise NotImplementedError(instr)
         if streamProps.hasUserFirstWord():
             raise NotImplementedError(instr)
-
-        curTmp = self._streamIoTmpWords.get(ioArg, None)
+                
+        curTmp = simStreamProps.tmpWord
         data = self._streamIoInstrOpHBits(regs, streamWriteGetWriteData(instr))
         eof = self._streamIoInstrOpHBits(regs, streamWriteGetWriteEoF(instr))
         # print("streamWrite", instr, data, mask, eof)
@@ -577,13 +595,14 @@ class LlvmIrInterpretStreamIo():
         else:
             newTmpWord = None
         # store leftover if any
-        self._streamIoTmpWords[ioArg] = newTmpWord
+        simStreamProps.inFrameOffset += wWidth
+        simStreamProps.tmpWord = newTmpWord
 
     def _loadStreamChannelFormatInfo(self, F: Function) -> StreamChannelFormatInfo:
         for ioArg in F.args():
             streamInfo = StreamChannelFormatInfo.findOptionalInMetadata(ioArg)
             if streamInfo is not None:
-                self._streamProps[ioArg] = streamInfo
+                self._props[ioArg] = SimStreamChannelProps(streamInfo)
 
     def _decodeLlvmIrFunctionInstrStreamIo(self, interpret: "LlvmIrInterpret", instr: CallInst) -> LlvmIrInstrFunction:
         ioArg: Argument = ValueToArgument(instr.getArgOperand(0))
@@ -591,61 +610,72 @@ class LlvmIrInterpretStreamIo():
             assert ioArg
             w: int = streamReadGetOrigChunkBitWidth(instr)
             behaviorType: StreamReadBehaviorType = streamReadGetBehavior(instr)
-            streamProps: StreamChannelFormatInfo = self._streamProps.get(ioArg)
-            assert streamProps is not None, ("StreamChannelFormatInfo should have been discovered by previous StreamReadStartOfFrame", instr)
+            props: SimStreamChannelProps = self._props[ioArg]
+            assert props is not None, (
+                "StreamChannelFormatInfo should have been discovered by previous StreamReadStartOfFrame", instr)
 
             def _intrinsic_StreamRead(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
-                v = self._runLlvmIrFunctionInstrStreamRead(instr, ioArg, w, behaviorType, streamProps)
+                v = self._runLlvmIrFunctionInstrStreamRead(instr, ioArg, w, behaviorType, props)
                 interpret._storeInstrResult(waveLog, nowTime, regs, instr, v)
 
             return _intrinsic_StreamRead
 
         elif IsStreamWrite(instr):
             assert ioArg
-            streamProps: StreamChannelFormatInfo = self._streamProps.get(ioArg)
-            assert streamProps is not None, ("StreamChannelFormatInfo should have been discovered by previous StreamWriteStartOfFrame", instr)
+            props: SimStreamChannelProps = self._props[ioArg]
+            assert props is not None, (
+                "StreamChannelFormatInfo should have been discovered by previous StreamWriteStartOfFrame", instr)
             ioSimStream = self.interpret.fnArgs[ioArg.getArgNo()]
             wWidth = streamWriteGetOrigChunkBitWidth(instr)
             behaviorType = streamWriteGetBehavior(instr)
 
             def _intrinsic_StreamWrite(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
-                self._runLlvmIrFunctionInstrStreamWrite(regs, instr, ioArg, streamProps, wWidth, behaviorType, ioSimStream)
+                self._runLlvmIrFunctionInstrStreamWrite(regs, instr, ioArg, props, wWidth, behaviorType, ioSimStream)
 
             return _intrinsic_StreamWrite
 
         elif IsStreamReadStartOfFrame(instr) or IsStreamWriteStartOfFrame(instr):
             assert ioArg
-            streamProps: StreamChannelFormatInfo = self._streamProps[ioArg]
+            props: SimStreamChannelProps = self._props[ioArg]
+            streamProps: StreamChannelFormatInfo = props.props
 
-            def _intrinsic_StreamReadStartOfFrame(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
+            def _intrinsic_StreamReadStartOfFrame_or_StreamWriteStartOfFrame(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
+                # print("_intrinsic_StreamReadStartOfFrame_or_StreamWriteStartOfFrame", instr)
+                assert props.inFrameOffset is None, (
+                    "Previous frame did not end properly with an eof", instr, props.inFrameOffset)
+                props.inFrameOffset = 0
                 if streamProps.segmentCnt <= 1:
-                    curTmp = self._streamIoTmpWords.get(ioArg, None)
-                    assert curTmp is None, ("There must be no leftover from previous frame because new frame was just started", instr, curTmp)
+                    assert props.tmpWord is None, (
+                        "There must be no leftover from previous frame, because new frame was just started",
+                        instr, props.tmpWord)
 
-            return _intrinsic_StreamReadStartOfFrame
+            return _intrinsic_StreamReadStartOfFrame_or_StreamWriteStartOfFrame
 
         elif IsStreamReadEndOfFrame(instr):
             assert ioArg
-            streamProps: StreamChannelFormatInfo = self._streamProps[ioArg]
+            props: SimStreamChannelProps = self._props[ioArg]
+            streamProps: StreamChannelFormatInfo = props.props
 
             def _intrinsic_StreamReadEndOfFrame(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
-                curTmp = self._streamIoTmpWords.get(ioArg, None)
+                # print("_intrinsic_StreamReadEndOfFrame", instr)
+                props.inFrameOffset = None
                 if streamProps.byteEnableEncoding == ByteEnableEncoding.BEE_NONE:
-                    if curTmp is not None:
-                        self._streamIoTmpWords.pop(ioArg)
+                    props.tmpWord = None
                 elif streamProps.segmentCnt > 1:
                     pass
                 else:
-                    assert curTmp is None, ("The frame does not end when expected", instr, curTmp)
+                    assert props.tmpWord is None, ("The frame does not end when expected", instr, props.tmpWord)
 
             return _intrinsic_StreamReadEndOfFrame
 
         elif IsStreamWriteEndOfFrame(instr):
             assert ioArg
-
+            props: SimStreamChannelProps = self._props[ioArg]
+        
             def _intrinsic_StreamWriteEndOfFrame(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
-                curTmp = self._streamIoTmpWords.pop(ioArg, None)
-                assert curTmp is None, ("There was no write with EoF when EoF was expected", instr, curTmp)
+                assert props.tmpWord is None, ("There was no write with EoF when EoF was expected", instr, props.tmpWord)
+                props.inFrameOffset = None
+
 
             return _intrinsic_StreamWriteEndOfFrame
 
@@ -668,15 +698,10 @@ class LlvmIrInterpretStreamIo():
         ioArg = self.interpret.F.getArg(ioId)
         interpret = self.interpret
         resT = HBits(instr.getType().getIntegerBitWidth())
-        DW = self._streamProps[ioArg].dataWidth
-
+        props: SimStreamChannelProps = self._props[ioArg]
+        
         def _opcode_LoadInst_streamTmpVar_offset(waveLog: Optional[VcdWriter], nowTime: int, regs: dict[Instruction, HConst]):
-            tmpWord = self._streamIoTmpWords.get(ioArg, None)
-            if tmpWord is None:
-                res = 0
-            else:
-                res = DW - tmpWord[0]._dtype.bit_length()
-                assert res >= 0, (DW, tmpWord)
+            res = props.inFrameOffset
             interpret._storeInstrResult(waveLog, nowTime, regs, instr, resT.from_py(res))
 
         return _opcode_LoadInst_streamTmpVar_offset

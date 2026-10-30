@@ -18,7 +18,7 @@ from hwtHls.ssa.analysis.llvmIrInterpretUtils import PtrAddrTuple, \
 from hwtLib.abstract.sim_ram import SimRam
 from hwtSimApi.agents.base import NOP
 from pyDigitalWaveTools.vcd.writer import VcdWriter
-
+from hwtHls.ssa.analysis.llvmIrInterpretStreamIo import SimStreamChannelProps
 
 def _llvmArrayTypeToHwtHArray(interpret: "LlvmIrInterpret", arrTy:ArrayType):
     if arrTy.getElementType().isDoubleTy():
@@ -277,15 +277,15 @@ def decodeOpcode_Load(interpret: "LlvmIrInterpret", instr: Instruction) -> LlvmI
         if not isBlocking:
             w = instr.getType().getScalarSizeInBits()
             nopVal = HBits(w).from_py(0, 1 << (w - 1))  # only vld=0 valid
-        streamProps: Optional[StreamChannelProps] = interpret.streamIoHandler._streamProps.get(srcPtrAsArg, None)
+        streamProps: Optional[SimStreamChannelProps] = interpret.streamIoHandler._props.get(srcPtrAsArg, None)
         if streamProps is not None:
             assert ioMd.ioVectorization is None, instr
-            busWordWidth = streamProps.getWidthOfBusWord()
+            busWordWidth = streamProps.props.getWidthOfBusWord()
             ldWidth = instr.getType().getIntegerBitWidth()
             if ldWidth != busWordWidth:
                 # this is load of just 1 segment from segmented bus
                 assert ldWidth < busWordWidth, instr
-                assert ldWidth == busWordWidth // streamProps.segmentCnt, instr
+                assert ldWidth == busWordWidth // streamProps.props.segmentCnt, instr
                 return interpret.streamIoHandler._decodeLlvmIrLoadOfSingleSegmentFromSegmentedBus(interpret, instr, srcPtrAsArg, streamProps)
 
         elif ioMd.ioVectorization is not None:
