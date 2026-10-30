@@ -62,7 +62,7 @@ void CImmOrRegOrUndefWithWidth::addAsUse(llvm::MachineIRBuilder &Builder, Machin
 	assert(width > 0);
 	if (isUndef) {
 		MachineFunction& MF = Builder.getMF();
-		MachineInsertPointGuard(Builder, *MF.begin(), MF.begin()->begin());
+		MachineInsertPointGuard ipg(Builder, *MF.begin(), MF.begin()->begin());
 		Register res = MRI.createVirtualRegister(&HwtFpga::anyregclsRegClass);
 		MRI.setType(res, LLT::scalar(width));
 		Builder.buildInstr(HwtFpga::HWTFPGA_IMPLICIT_DEF, {res}, {width});
