@@ -12,6 +12,7 @@ public:
 	}
 	void addPassCallbackFromPI(llvm::Pass *P);
 	void add(llvm::Pass *P) override;
+	virtual ~LegacyPassManagerWithPI() {}
 };
 
 }
