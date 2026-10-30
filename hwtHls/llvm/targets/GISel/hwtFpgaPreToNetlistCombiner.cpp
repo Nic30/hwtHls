@@ -59,6 +59,9 @@ public:
 	static const char *getName() { return "HwtFpgaPreToNetlistCombiner"; }
 
 	bool tryCombineAll(MachineInstr &I) const override;
+	bool regenerateSsaInMachineFunctionBlocks() {
+		return hwtHls::regenerateSsaInMachineFunctionBlocks(&Observer, MF);
+	}
 private:
 #define GET_GICOMBINER_CLASS_MEMBERS
 #include "HwtFpgaGenPreToNetlistGICombiner.inc"
@@ -128,11 +131,9 @@ HwtFpgaPreToNetlistCombiner::HwtFpgaPreToNetlistCombiner() :
 
 bool HwtFpgaPreToNetlistCombiner::runOnMachineFunction(
 		MachineFunction &MF) {
-	if (MF.getProperties().hasProperty(
-	        MachineFunctionProperties::Property::FailedISel))
+	if (MF.getProperties().hasFailedISel())
 	  return false;
-	assert(MF.getProperties().hasProperty(
-	           MachineFunctionProperties::Property::Legalized) &&
+	assert(MF.getProperties().hasLegalized() &&
 	       "Expected a legalized function?");
 	auto *TPC = &getAnalysis<TargetPassConfig>();
 	const Function &F = MF.getFunction();
@@ -148,6 +149,12 @@ bool HwtFpgaPreToNetlistCombiner::runOnMachineFunction(
 	GISelCSEAnalysisWrapper &Wrapper =
 	    getAnalysis<GISelCSEAnalysisWrapperPass>().getCSEWrapper();
 	auto *CSEInfo = &Wrapper.get(TPC->getCSEConfig());
+#ifdef DBG_HWTFPGA_COMBINE_CSE_VERIFY
+	if (auto err = CSEInfo->verify()) {
+		errs() << err << "\n";
+		assert(err.success());
+	}
+#endif
 
 	CombinerInfo CInfo(/*AllowIllegalOps*/ true, /*ShouldLegalizeIllegal*/ false,
 	                   /*LegalizerInfo*/ nullptr, EnableOpt, F.hasOptSize(),
@@ -157,7 +164,14 @@ bool HwtFpgaPreToNetlistCombiner::runOnMachineFunction(
 	bool change = false;
 	do {
 		change |= Impl.combineMachineInstrs();
-	} while (hwtHls::regenerateSsaInMachineFunctionBlocks(MF));
+	} while (Impl.regenerateSsaInMachineFunctionBlocks());
+#ifdef DBG_HWTFPGA_COMBINE_CSE_VERIFY
+	if (auto err = CSEInfo->verify()) {
+		errs() << err << "\n";
+		assert(err.success());
+	}
+#endif
+
 	return change;
 }
 
