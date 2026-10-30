@@ -10,6 +10,7 @@
 from typing import Optional
 
 from hdlConvertorAst.to.hdlUtils import iter_with_last
+from hwt.doc_markers import hwt_expr_producer
 from hwt.hdl.commonConstants import b1
 from hwt.hdl.types.bits import HBits
 from hwt.hwIOs.hwIOStruct import HwIOStructRdVld
@@ -19,8 +20,8 @@ from hwt.hwModule import HwModule
 from hwt.hwParam import HwParam
 from hwt.math import log2ceil
 from hwt.synthesizer.rtlLevel.rtlSignal import RtlSignal
-from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.pragmaLoop import PyBytecodeLLVMLoopUnroll
+from hwtHls.frontend.pyBytecode import hlsBytecode
 from hwtHls.frontend.threadFromPy import HlsThreadFromPy
 from hwtHls.scope import HlsScope
 
@@ -199,7 +200,8 @@ class ShifterLeftBarrelUsingLoop2(ShifterLeft0):
 
 
 class ShifterLeftBarrelUsingPyExprConstructor(ShifterLeft0):
-
+    
+    @hwt_expr_producer
     def buildBarrelShiftLeft(self, sh: RtlSignal, v: RtlSignal):
         """
         :attention: This is normal python function which is not subject to a HLS
