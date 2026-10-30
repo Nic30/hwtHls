@@ -100,6 +100,7 @@ void LlvmCompilationBundle::_testMachineFunctionPass(
 	}
 	F.getParent()->setDataLayout(TM->createDataLayout());
 	PM.add(MMIWP);
+	MMIWP_inPM = true;
 
 	TPC =
 			static_cast<llvm::HwtFpgaTargetPassConfig*>(static_cast<llvm::TargetMachine&>(*TM).createPassConfig(
