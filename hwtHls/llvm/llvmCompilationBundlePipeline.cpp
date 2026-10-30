@@ -521,8 +521,6 @@ hwtHls::HwtHlsInstCombinePassOptions LlvmCompilationBundle::_getDefaultInstCombi
 	;
 }
 
-
-
 void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 	llvm::FunctionPassManager &FPM) {
 	// StreamLoopUnrollPass must be before StreamReadLoweringPass,
