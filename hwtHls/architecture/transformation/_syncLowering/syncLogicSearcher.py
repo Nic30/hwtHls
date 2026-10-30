@@ -213,9 +213,11 @@ class SyncLogicSearcher():
 
         if depObjWithClkIndex in nodes:
             return True  # already collected
-
+        
+        isEarliest = False
         if not self._isAbcCompatible(depObj):
             syncNode = self._getEarliestTimeIfValueIsPersistent(dep, syncNode)[0]
+            isEarliest = True
             if self.primaryInputs.append((dep, syncNode)):
                 self._onPrimaryInputFound(dep, syncNode)
             return False  # already collected
@@ -225,7 +227,8 @@ class SyncLogicSearcher():
 
         depTime = depObj.scheduledOut[dep.out_i]
         if depTime < beginTime or depTime >= endTime:
-            syncNode = self._getEarliestTimeIfValueIsPersistent(dep, syncNode)[0]
+            if not isEarliest:
+                syncNode = self._getEarliestTimeIfValueIsPersistent(dep, syncNode)[0]
             if self.primaryInputs.append((dep, syncNode)):
                 self._onPrimaryInputFound(dep, syncNode)
 
