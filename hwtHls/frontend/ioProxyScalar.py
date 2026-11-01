@@ -20,11 +20,12 @@ from hwtHls.io.portGroups import getFirstInterfaceInstance, MultiPortGroup, \
     BankedPortGroup
 from hwtHls.llvm.llvmIr import MachineInstr, Register, HwtHlsIoMetadata
 from hwtHls.netlist.context import HlsNetlistCtx
-from hwtHls.netlist.hdlTypeVoid import HVoidExternData
+from hwtHls.netlist.hdlTypeVoid import HVoidExternData, HdlType_isVoid
 from hwtHls.netlist.nodes.node import HlsNetNode
 from hwtHls.netlist.nodes.ports import HlsNetNodeOutAny
 from hwtHls.netlist.nodes.read import HlsNetNodeRead
 from hwtHls.netlist.nodes.write import HlsNetNodeWrite
+from hwtHls.netlist.transformation.simplifyUtils import getConstOfOutput
 from hwtHls.ssa.translation.llvmMirToNetlist.valueCache import MirToHwtHlsNetlistValueCache
 from hwtLib.amba.axi_common import Axi_hs
 from hwtLib.handshaked.streamNode import ValidReadyTuple
@@ -245,9 +246,18 @@ class IoProxyScalar(IoProxy):
         :see: :meth:`~.IoProxy._translateMirToNetlist_HWTFPGA_CLOAD`
         """
         netlist: HlsNetlistCtx = mirToNetlist.netlist
+        dtype = self.getDataTypeOfNativeWrite()
+        if HdlType_isVoid(dtype):
+            srcC = getConstOfOutput(srcVal)
+            assert srcVal._dtype.bit_length() == 1 and srcC is not None and int(srcC) == 1, (
+                instr, srcVal, "The write to io with void datatype should be represenented by write of 1b 1 on MIR level")
+            builder = mbMeta.parentElement.builder
+            srcVal = builder.buildConst(dtype.from_py(None))
+    
         # srcVal, dstIo, index, cond = ops
         assert isinstance(dstIo, (HwIO, tuple, RtlSignal)), dstIo
-        assert isinstance(index, int) and index == 0, (instr, index, "Because this read is not addressed there should not be any index")
+        assert isinstance(index, int) and index == 0, (
+            instr, index, "Because this read is not addressed there should not be any index")
         n = writeNodeCls(netlist, self, dstIo,
                          mayBecomeFlushable=self.mayBecomeFlushable,
                          bufferCapacity=bufferCapacity,
@@ -261,7 +271,7 @@ class IoProxyScalar(IoProxy):
         mirToNetlist._addExtraCond(n, _cond, None)
         mirToNetlist._addSkipWhen_n(n, _cond, None)
         mbMeta.addOrderedNode(n)
-        return [n, ]
+        return (n, )
 
     @override
     def getHlsNetlistSimAgentMonitor(self, data: list) -> HlsNetlistSimAgent:
