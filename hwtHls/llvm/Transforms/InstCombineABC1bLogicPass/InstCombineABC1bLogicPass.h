@@ -5,10 +5,9 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/PassManager.h>
 
-#include <hwtHls/llvm/Transforms/InstCombineABC1bLogicPass/llvmIrToAbcAig.h>
 
 namespace hwtHls {
-
+class LlvmIrToAbcAig;
 /**
  *  A pass which uses ABC to optimize 1b logic
  *

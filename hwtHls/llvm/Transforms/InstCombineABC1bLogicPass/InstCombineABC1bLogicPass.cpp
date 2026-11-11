@@ -251,11 +251,11 @@ PreservedAnalyses InstCombineABC1bLogicPass::run(Function &F,
 	toAbc.translate(inputs, outputs);
 	runOptScripts(toAbc);
 
-	AbcAigToLlvmIr toLlvm(F, toAbc.net, toAbc.ioMap, F.getEntryBlock(), DT);
+	AbcAigToLlvmIr toLlvm(F, toAbc.net, toAbc.ioMap, inputs, F.getEntryBlock(), DT);
 	bool change = toLlvm.translate();
 	if (change) {
 		DceWorklist DCE(&TLI);
-		for (auto *I : outputs) {
+		for (auto *I : selected) {
 			DCE.insert(*I);
 		}
 		DCE.runToCompletion();
