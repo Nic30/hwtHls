@@ -1,4 +1,5 @@
 #include <hwtHls/llvm/Transforms/SelectPruningPass.h>
+#include <llvm/IR/Dominators.h>
 #include <llvm/Analysis/AssumptionCache.h>
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/IR/Instructions.h>
@@ -81,11 +82,11 @@ public:
 			return false;
 		}
 	}
-	ConstBitPartsAnalysisContextSelectPruning(DceWorklist &DCE,
+	ConstBitPartsAnalysisContextSelectPruning(DominatorTree &DT, DceWorklist &DCE,
 			ConstBitPartsAnalysisContextSelectPruning *parent = nullptr,
 			std::optional<std::function<bool(const llvm::Instruction&)>> analysisPredicate =
 					isCompatibleInstruction) :
-			ConstBitPartsAnalysisContext(parent, analysisPredicate), DCE(DCE) {
+			ConstBitPartsAnalysisContext(DT, parent, analysisPredicate), DCE(DCE) {
 		tryAnalyzeOperandsOfUnsupportedInstructions = false;
 	}
 
@@ -294,7 +295,7 @@ public:
 	}
 
 	std::unique_ptr<ConstBitPartsAnalysisContextSelectPruning> createChild() {
-		auto res = std::make_unique<ConstBitPartsAnalysisContextSelectPruning>(
+		auto res = std::make_unique<ConstBitPartsAnalysisContextSelectPruning>(DT,
 				DCE, this, this->analysisPredicate);
 		if (resolvePhiValues)
 			res->setShouldResolvePhiValues();
@@ -309,12 +310,13 @@ public:
 llvm::PreservedAnalyses SelectPruningPass::run(llvm::Function &F,
 		llvm::FunctionAnalysisManager &AM) {
 	TargetLibraryInfo *TLI = &AM.getResult<TargetLibraryAnalysis>(F);
+	auto & DT = AM.getResult<DominatorTreeAnalysis>(F);
 	DceWorklist DCE(TLI);
 	bool Changed = false;
 	for (auto &BB : F) {
 		for (auto Iit = BB.begin(); Iit != BB.end(); ++Iit) {
 			if (SelectInst *SI = dyn_cast<SelectInst>(&*Iit)) {
-				ConstBitPartsAnalysisContextSelectPruning selectPruning(DCE);
+				ConstBitPartsAnalysisContextSelectPruning selectPruning(DT, DCE);
 				Changed |= !selectPruning.visitSelectInst(SI).isValue(SI);
 				Changed |= DCE.runToCompletion(Iit);
 			}
