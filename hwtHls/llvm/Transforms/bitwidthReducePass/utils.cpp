@@ -266,6 +266,20 @@ std::vector<UniqRangeSequence> RangeSequenceIterator::uniqueRanges(
 	return res;
 }
 
+llvm::APInt RangeSequenceIterator::computeEqualityMask(
+		const std::vector<KnownBitRangeInfo> &vec0,
+		const std::vector<KnownBitRangeInfo> &vec1, size_t width) {
+	APInt isEqual(width, 0);
+	for (const auto &item :
+		 (RangeSequenceIterator())
+			 .uniqueRanges(vec0, vec1)) {
+		if (*item.v0 == *item.v1) {
+			isEqual.setBits(item.v0->dstBeginBitI,
+						  item.v0->srcBeginBitI + item.width);
+		}
+	}
+	return isEqual;
+}
 VarBitConstraint::VarBitConstraint(unsigned bitWidth) :
 		useMask(bitWidth, 0) {
 }
@@ -460,6 +474,9 @@ llvm::APInt VarBitConstraint::getTrullyComputedBitMask(
 			}
 		}
 	}
+	// truly computed bits are only those which are produced by this instruction
+	// but bits can be constant or some other value, those bits are not trully computed
+	// by this instruction
 	APInt m(useMask.getBitWidth(), 0);
 	for (const KnownBitRangeInfo &r : replacements) {
 		if (!isa<ConstantData>(r.src)

@@ -1,4 +1,8 @@
+#include "pybind/llvmIrCommon.h"
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitPartsUseAnalysis.h>
+#include <llvm/IR/Constant.h>
+#include <llvm/IR/Constants.h>
+#include <llvm/IR/InstrTypes.h>
 #include <llvm/IR/IRBuilder.h>
 #include <hwtHls/llvm/targets/intrinsic/bitrange.h>
 #include <hwtHls/llvm/Transforms/utils/bitWidthInfo.h>
@@ -15,9 +19,10 @@ BitPartsUseAnalysisContext::BitPartsUseAnalysisContext(
 void BitPartsUseAnalysisContext::updateUseMaskEntirelyUsed(
 		const llvm::Value *V) {
 	if (auto I = dyn_cast<Instruction>(V)) {
-		if (constraints.findInConstraints(I, false)) {
-			updateUseMaskEntirelyUsed(I);
+		if (!constraints.findInConstraints(I, false)) {
+			return; // untracked value, which will not be rewritten
 		}
+		updateUseMaskEntirelyUsed(I);
 	}
 }
 
@@ -107,43 +112,90 @@ void BitPartsUseAnalysisContext::updateUseMask(const llvm::Value *V,
 	const APInt &oldMask = vbc.useMask;
 	assert(newMask.getBitWidth() == oldMask.getBitWidth() && "All masks must have same number of bits as original value");
 	APInt _newMask = newMask & vbc.getTrullyComputedBitMask(V);
+	auto vStr = printToStr(V);
 	bool someNewBitsSet = (~oldMask & _newMask) != 0;
 	if (someNewBitsSet) {
-		auto curUseMask = vbc.useMask;
 		vbc.useMask |= _newMask;
-		if (vbc.useMask != curUseMask) {
-			if (auto I = dyn_cast<Instruction>(V))
-				propagateUseMaskInstruction(I, vbc);
-		}
+		if (auto I = dyn_cast<Instruction>(V))
+			propagateUseMaskInstruction(I, vbc);
 	}
 	// propagate new use mask also for replacements
 	if (_newMask != newMask) {
+		// is some bits are not computed directly by this instruction,
+		// we have to propagate change to replacements
 		for (const KnownBitRangeInfo &r : vbc.replacements) {
-			if (!isa<ConstantData>(r.src) && r.src != V) {
-				APInt replUseMask;
-				if (V->getType()->isIntegerTy()) {
-						replUseMask = (newMask
-								& APInt::getBitsSet(newMask.getBitWidth(),
-										r.dstBeginBitI, r.dstBeginBitI + r.width)) // clear unrelated bits
-						.zext(
-								std::max(newMask.getBitWidth(),
-										(unsigned)getIntegerBitWidthOr1(r.src))) // extend to size of src
-						.ashr(r.dstBeginBitI) // align so bit 0 is where replacement value starts in dst
-						.shl(r.srcBeginBitI) // align so the mask value is compatible with src
-						.trunc(r.src->getType()->getIntegerBitWidth());
-				} else {
-					replUseMask = newMask;
-				}
-
-				updateUseMask(r.src, replUseMask);
+			if (isa<ConstantData>(r.src) || r.src == V) {
+				continue;
 			}
+			APInt replUseMask;
+			if (V->getType()->isIntegerTy()) {
+				replUseMask = newMask.extractBits(r.width, r.dstBeginBitI);
+				replUseMask = replUseMask.zext(r.src->getType()->getIntegerBitWidth());
+				replUseMask <<= r.srcBeginBitI;
+			} else {
+				replUseMask = newMask;
+			}
+
+			updateUseMask(r.src, replUseMask);
 		}
 	}
 }
-
+bool BitPartsUseAnalysisContext::propageteUseMaskBinaryOperator(const BinaryOperator &I, const VarBitConstraint &vbc) {
+	auto o0 = I.getOperand(0);
+	auto o1 = I.getOperand(1);
+	switch (I.getOpcode()) {
+	case llvm::BinaryOperator::And:
+	case llvm::BinaryOperator::Or:
+	case llvm::BinaryOperator::Xor: {
+		//auto width = vbc.useMask.getBitWidth();
+		//APInt isConst(width, 0);
+		//for (const auto &item : vbc.replacements) {
+		//	if (isa<Constant>(item.src)) {
+		//		isConst.setBits(item.dstBeginBitI,
+		//						item.srcBeginBitI + item.width);
+		//	}
+		//}
+		//APInt isLhs(width, 0);
+		//APInt isRhs(width, 0);
+		//if (VarBitConstraint *o0Vbc = constraints.findInConstraints(o0, true)) {
+		//	isLhs = RangeSequenceIterator::computeEqualityMask(vbc.replacements, o0Vbc->replacements, width);
+		//}
+		//if (VarBitConstraint* o1Vbc = constraints.findInConstraints(o1, true)) {
+		//	isRhs = RangeSequenceIterator::computeEqualityMask(vbc.replacements, o1Vbc->replacements, width);
+		//}
+		auto trullyUsed = vbc.getTrullyComputedBitMask(&I);
+		updateUseMask(o0, vbc.useMask & trullyUsed);//~isConst & ~isRhs);
+		updateUseMask(o1, vbc.useMask & trullyUsed);//~isConst & ~isLhs);
+		return true;
+	}
+	//case llvm::BinaryOperator::And: {
+	//	// unused if other is 0
+	//	// unused if it is known 1
+	//	updateUseMask(o0, vbc.useMask);
+	//	updateUseMask(o1, vbc.useMask);
+	//	return true;
+	//}
+	//case llvm::BinaryOperator::Or: {
+	//	// unused if other is 1
+	//	// unused if it is known 0
+	//	updateUseMask(o0, vbc.useMask);
+	//	updateUseMask(o1, vbc.useMask);
+	//	return true;
+	//}
+	//case llvm::BinaryOperator::Xor: {
+	//	// unused if equal
+	//	// or known unequal const
+	//	updateUseMask(o0, vbc.useMask);
+	//	updateUseMask(o1, vbc.useMask);
+	//	return true;
+	//}
+	default:
+		return false;
+	}
+}
 void BitPartsUseAnalysisContext::propagateUseMaskInstruction(
 		const Instruction *I, const VarBitConstraint &vbc) {
-	assert(vbc.useMask != 0);
+	assert(!vbc.useMask.isZero());
 	if (auto *SI = dyn_cast<PHINode>(I)) {
 		propagateUseMaskPHINode(SI, vbc);
 		return;
@@ -162,6 +214,11 @@ void BitPartsUseAnalysisContext::propagateUseMaskInstruction(
 				|| op == Instruction::CastOps::SExt) {
 			return propagateUseMaskExt(CI, vbc);
 		}
+	} else if (auto *BI = dyn_cast<BinaryOperator>(I)) {
+		if (propageteUseMaskBinaryOperator(*BI, vbc)) {
+			return;
+		}
+		
 	} else if (auto *CMP = dyn_cast<ICmpInst>(I)) {
 		if (vbc.operandUseMask.empty()) {
 			// case where this ICmpInst is excluded from analysis
@@ -169,12 +226,12 @@ void BitPartsUseAnalysisContext::propagateUseMaskInstruction(
 			assert(vbc.operandUseMask.size() == 2);
 			updateUseMask(CMP->getOperand(0), vbc.operandUseMask[0]);
 			updateUseMask(CMP->getOperand(1), vbc.operandUseMask[1]);
+			return;
 		}
-		return;
 	}
 	// unknown instruction propagate with use all
-	for (const Use &op : I->operands()) {
-		updateUseMaskEntirelyUsed(op.get());
+	for (const Value *op : I->operand_values()) {
+		updateUseMaskEntirelyUsed(op);
 	}
 	//// or of all user masks
 	//bool isUsed = false;

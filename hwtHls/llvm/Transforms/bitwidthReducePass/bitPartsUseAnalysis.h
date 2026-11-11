@@ -1,8 +1,6 @@
 #pragma once
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/utils.h>
 
-#include <map>
-#include <set>
 #include <llvm/IR/Instructions.h>
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/constBitPartsAnalysis.h>
 
@@ -10,8 +8,12 @@ namespace hwtHls {
 
 class BitPartsUseAnalysisContext {
 public:
-
+	
+	// top scope of constraints for each value
+	// specifying replacement of all bits of all values
+	// and useMask which specifies which value bits are truly required 
 	BitPartsConstraints &constraints;
+	
 	BitPartsUseAnalysisContext(BitPartsConstraints &constraints);
 	// walk from user->def and propagate bits in VarBitConstraint.useMask
 
@@ -33,8 +35,10 @@ public:
 			const VarBitConstraint &vbc);
 	void propagateUseMaskTrunc(const llvm::CastInst *I,
 			const VarBitConstraint &vbc);
+	bool propageteUseMaskBinaryOperator(const llvm::BinaryOperator &I,
+										const VarBitConstraint &vbc);
 	void propagateUseMaskExt(const llvm::CastInst *I,
-			const VarBitConstraint &vbc);
+							 const VarBitConstraint &vbc);
 
 	std::optional<bool> getKnownBitBoolValue(const llvm::Value *V);
 };

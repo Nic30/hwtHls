@@ -69,6 +69,10 @@ public:
 	std::vector<UniqRangeSequence> uniqueRanges(
 			const std::vector<KnownBitRangeInfo> &vec0,
 			const std::vector<KnownBitRangeInfo> &vec1);
+	
+	static llvm::APInt computeEqualityMask(
+			const std::vector<KnownBitRangeInfo> &vec0,
+			const std::vector<KnownBitRangeInfo> &vec1, size_t width);
 };
 
 

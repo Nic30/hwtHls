@@ -1,5 +1,8 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/bitwidthReducePass.h>
 
+#include <llvm/IR/Dominators.h>
+#include <stdexcept>
+
 #include <llvm/Analysis/GlobalsModRef.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Support/ErrorHandling.h>
@@ -16,7 +19,7 @@
 
 using namespace llvm;
 
-// #define DBG_VERIFY_AFTER_MODIFICATION
+//#define DBG_VERIFY_AFTER_MODIFICATION
 #ifdef DBG_VERIFY_AFTER_MODIFICATION
 #include <hwtHls/llvm/Transforms/utils/writeCFGToDotFile.h>
 #include <llvm/IR/Verifier.h>
@@ -25,7 +28,7 @@ using namespace llvm;
 namespace hwtHls {
 
 
-static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI, bool& CFGChanged) {
+static bool runBitwidthReduction(Function &F, DominatorTree &DT, TargetLibraryInfo *TLI, bool& CFGChanged) {
 #ifdef DBG_VERIFY_AFTER_MODIFICATION
 	{
 		std::string errTmp = "hwtHls::BitwidthReductionPass received corrupted function ";
@@ -38,7 +41,7 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI, bool& CFGC
 	}
 #endif
 	moveSlicesDirectlyAfterSrcOpDef(F);
-	ConstBitPartsAnalysisContext A;
+	ConstBitPartsAnalysisContext A(DT);
 	{
 		ListSet<Instruction*> Worklist;
 		// discover all value constraints
@@ -97,10 +100,10 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI, bool& CFGC
 		}
 	}
 
-	// errs() << "BitwidthReductionPass::run runBitwidthReduction\n";
-	// A.dumpConstraints();
-	// F.dump();
-	// writeCFGToDotFile(F, "before.BitwidthReducePass.dot", nullptr, nullptr);
+	//errs() << "BitwidthReductionPass::run runBitwidthReduction\n";
+	//A.dumpConstraints();
+	//F.dump();
+	//writeCFGToDotFile(F, "before.BitwidthReducePass.dot", nullptr, nullptr);
 	bool didModify = false;
 	// DCE
 	DceWorklist dce(TLI);
@@ -151,7 +154,9 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI, bool& CFGC
 // 	writeCFGToDotFile(F, "after.BitwidthReducePass.dot", nullptr, nullptr);
 #ifdef DBG_VERIFY_AFTER_MODIFICATION
 	{
+
 		std::string errTmp = "hwtHls::BitwidthReductionPass corrupted function ";
+		// errs() << "hwtHls::BitwidthReductionPass after:\n" << F <<"\n";
 		llvm::raw_string_ostream errSS(errTmp);
 		errSS << F.getName().str();
 		errSS << "\n";
@@ -159,6 +164,8 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI, bool& CFGC
 			throw std::runtime_error(errSS.str());
 		}
 	}
+	//F.dump();
+	//throw std::runtime_error("[dbg]");
 #endif
 	return didModify;
 }
@@ -166,8 +173,9 @@ static bool runBitwidthReduction(Function &F, TargetLibraryInfo *TLI, bool& CFGC
 llvm::PreservedAnalyses BitwidthReductionPass::run(llvm::Function &F,
 		llvm::FunctionAnalysisManager &AM) {
 	TargetLibraryInfo *TLI = &AM.getResult<TargetLibraryAnalysis>(F);
+	auto & DT = AM.getResult<DominatorTreeAnalysis>(F);
 	bool CFGChanged = false;
-	if (!runBitwidthReduction(F, TLI, CFGChanged)) {
+	if (!runBitwidthReduction(F, DT, TLI, CFGChanged)) {
 		return PreservedAnalyses::all();
 	}
 
