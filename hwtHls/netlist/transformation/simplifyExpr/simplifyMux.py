@@ -507,6 +507,7 @@ def netlistReduceMuxUnnegateConditions(n: HlsNetNodeMux, worklist: SetList[HlsNe
             v1In.disconnectFromHlsOut(v1)
             v0.connectHlsIn(v1In)
             v1.connectHlsIn(v0In)
+            worklist.append(n)
             return True
     return False
 
