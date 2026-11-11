@@ -16,6 +16,7 @@
 
 #include <hwtHls/llvm/Transforms/InstCombineABC1bLogicPass/exprCache.h>
 #include <hwtHls/netlist/abc/patternRecognize.h>
+#include <unordered_set>
 
 namespace hwtHls {
 
@@ -23,6 +24,7 @@ class AbcAigToLlvmIr : public AbcPatternRecognizer<llvm::Value *> {
 public:
 	using IoMap = std::unordered_map<std::string, llvm::Value *>;
 	AbcAigToLlvmIr(llvm::Function &F, Abc_Ntk_t *net, IoMap &ioMap,
+				   llvm::SetVector<llvm::Value *> inputs,
 				   llvm::BasicBlock &entryBB, llvm::DominatorTree &DT);
 
 	/*
@@ -59,6 +61,7 @@ protected:
 	llvm::IRBuilder<> Builder;
 	// :note: name of port must be used because everything else will change
 	IoMap ioMap;
+	llvm::SetVector<llvm::Value *> inputs;
 	// to minimize duplication of common subexpression when placing new
 	// instruction to Functino
 	ExprCache exprCache;
@@ -70,6 +73,7 @@ protected:
 	// Function original BBs
 	llvm::BasicBlock *tmpBB;
 	bool change;
+	std::unordered_set<llvm::Instruction*> alreadyPlaced;
 
 	llvm::Value *placeOperandIntoFunction(llvm::Value *op,
 										  llvm::Instruction *user);

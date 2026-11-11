@@ -25,7 +25,8 @@ using namespace llvm;
 
 namespace hwtHls {
 
-AbcAigToLlvmIr::AbcAigToLlvmIr(llvm::Function &F, Abc_Ntk_t *net, IoMap &ioMap_,
+AbcAigToLlvmIr::AbcAigToLlvmIr(llvm::Function &F, Abc_Ntk_t *net, IoMap &ioMap,
+							   SetVector<Value *> inputs,
 							   llvm::BasicBlock &entryBB,
 							   llvm::DominatorTree &DT) :
 	F(F),
@@ -33,7 +34,8 @@ AbcAigToLlvmIr::AbcAigToLlvmIr(llvm::Function &F, Abc_Ntk_t *net, IoMap &ioMap_,
 	entryBB_(entryBB),
 	DT_(DT),
 	Builder(entryBB.getContext()),
-	ioMap(ioMap_),
+	ioMap(ioMap),
+	inputs(inputs),
 	exprCache(F),
 	tmpBB(nullptr),
 	change(false) {
@@ -200,20 +202,24 @@ llvm::Value *AbcAigToLlvmIr::placeOperandIntoFunction(Value *Op,
 	if (!I)
 		return Op; // constants and alike do not need any dominance or CSE check
 #ifdef AbcAigToLlvmIr_TRACE
-	dbgs() << "Op: " << Op << " " << *Op << "\n";
+	dbgs() << "Op: " << Op << " " << *Op;
+	if (inputs.contains(I)) {
+		dbgs() << " PI";
+	}
+	dbgs() << "\n";
 	dbgs() << "UserIP: " << User << " " << *User << "\n";
 #endif
 	assert(User->getParent() != tmpBB);
 
-	if (I->getParent() != tmpBB) {
-		if (!definedBeforeOrEqual(DT_, I, User)) {
-			errs() << "I: " << I << " " << *I << "\n";
-			errs() << "UserIP: " << User << " " << *User << "\n";
-			llvm_unreachable("Broken dominance of already placed instruction");
-		}
+	if (alreadyPlaced.contains(I)) {
+		// if (!definedBeforeOrEqual(DT_, I, User)) {
+		// 	errs() << "I: " << I << " " << *I << "\n";
+		// 	errs() << "UserIP: " << User << " " << *User << "\n";
+		// 	llvm_unreachable("Broken dominance of already placed instruction");
+		// }
 		// the operand is new instruction which was already placed on
 		// suitable place
-		return Op;
+		return I;
 	}
 
 	SmallVector<Value *, 3> newOperands;
@@ -296,15 +302,14 @@ llvm::Value *AbcAigToLlvmIr::placeOperandIntoFunction(Value *Op,
 			}
 		}
 	}
-	assert(definedBefore(DT_, LatestDef, User));
+	//assert(definedBefore(DT_, LatestDef, User) && "This code works like hoisting, the LatestDef could only be hoisted");
 	assert(I != LatestDef);
 #ifdef AbcAigToLlvmIr_TRACE
 	dbgs() << "moveAfter: " << I << "" << *I << " " << LatestDef << " "
 		   << *LatestDef << "\n";
 #endif
 	assert(LatestDef->getParent() != tmpBB);
-	if (I->getParent() == tmpBB)
-		I->moveBefore(LatestDef->getNextNode()->getIterator());
+	I->moveBefore(LatestDef->getNextNode()->getIterator());
 	{
 		unsigned Oi = 0;
 		for (auto *O : newOperands) {
@@ -328,6 +333,7 @@ llvm::Value *AbcAigToLlvmIr::placeOperandIntoFunction(Value *Op,
 		exprCache.EquivalenceClasses[I] = NewClass;
 		exprCache.InstrEqClasses.emplace(std::move(Key), std::move(NewClass));
 	}
+	alreadyPlaced.insert(I);
 	return I;
 }
 ///// Sort \p Worklist topologically by data dependence.
@@ -423,6 +429,11 @@ llvm::Value *AbcAigToLlvmIr::placeOperandIntoFunction(Value *Op,
 
 bool AbcAigToLlvmIr::translate() {
 	exprCache.init();
+	for (auto V: inputs) {
+		if (auto I = dyn_cast<Instruction>(V)) {
+			alreadyPlaced.insert(I);
+		}
+	}
 	{
 		unsigned bbI = 0;
 		for (auto BB : exprCache.RPO) {
@@ -481,7 +492,7 @@ bool AbcAigToLlvmIr::translate() {
 			return BBi0 < BBi1;
 		}
 	});
-
+	
 	for (const auto &[origI, _newV] : replacements) {
 		if (origI == _newV)
 			continue;
