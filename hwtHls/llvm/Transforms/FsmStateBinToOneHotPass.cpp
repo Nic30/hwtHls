@@ -61,7 +61,6 @@ private:
 	// :note: for example add %st, 1 in binary is an equivalent
 	//  to rotation to left in one-hot
 	SmallSetVector<uint64_t, 16> seenStateLeftRotations;
-
 public:
 	using StateBitmask = std::bitset<1 << BITWIDTH_LIMIT>;
 	// bit mask of truly used states
@@ -277,10 +276,13 @@ private:
 			switch (Predicate) {
 			case ICmpInst::ICMP_EQ:
 				res = LhsIt->second[rhsAsUInt];
+				assert(res);
 				break;
 
 			case ICmpInst::ICMP_NE:
-				res = Builder.CreateNot(LhsIt->second[rhsAsUInt]);
+				res = LhsIt->second[rhsAsUInt];
+				assert(res);
+				res = Builder.CreateNot(res);
 				break;
 
 			case ICmpInst::ICMP_ULT:
@@ -396,7 +398,7 @@ public:
 		Builder(Builder),
 		I1Ty(Builder.getInt1Ty()),
 		stateWidth(stateWidth),
-		maxStateCnt(1u << stateWidth) {
+		maxStateCnt(1u << stateWidth){
 		assert(stateWidth > 1);
 		usedStates.reset();
 	}
@@ -493,10 +495,38 @@ public:
 				return;
 			}
 
+		} else if (auto A = dyn_cast<AllocaInst>(&I)) {
+			auto ITy = dyn_cast<IntegerType>(A->getAllocatedType());
+			if (!ITy)
+				return;
+			if (ITy->getIntegerBitWidth() != stateWidth) {
+				return;
+			}
+			members.insert(A);
+			for (auto AU : A->users()) {
+				if (auto LD = dyn_cast<LoadInst>(AU)) {
+					if (!members.insert(LD)) {
+						continue;
+					}
+					for (auto U : LD->users()) {
+						if (auto UI = dyn_cast<Instruction>(U)) {
+							collectStateHandlingInstructions(*UI, LD, seen,
+															 false);
+						}
+					}
+				} else if (auto ST = dyn_cast<StoreInst>(AU)) {
+					if (!members.insert(ST)) {
+						continue;
+					}
+					collectStateRelatedValue(*ST->getValueOperand(), nullptr, seen, true);
+				} else {
+					llvm_unreachable("Only compatible AllocaInsts should be reached by this code");
+				}
+			}
 		} else if (isReachedFromUser) {
 			KnownBits kb = computeKnownBits(&I, DL, AC, UserForCtxI);
 			const ConstantRange LVIRange =
-				LVI->getConstantRange(&I, UserForCtxI, /*UndefAllowed*/ false);
+				LVI->getConstantRange(&I, UserForCtxI ? UserForCtxI : I.getNextNode(), /*UndefAllowed*/ false);
 			for (uint64_t stI = 0; stI < maxStateCnt; ++stI) {
 				if (usedStates[stI])
 					continue; // already known to be used
@@ -600,7 +630,56 @@ public:
 			newVal[(stI + rhs).getZExtValue()] = bitVal;
 			stI++;
 		}
-		auto inserted = oneHotMap.emplace(&I, newVal);
+		auto inserted = oneHotMap.emplace(&I, std::move(newVal));
+		assert(inserted.second);
+		return inserted;
+	}
+	RewriteResult rewriteAlloca(AllocaInst &I) {
+		Builder.SetInsertPoint(&I);
+		OneHotEncodedVal newVal(maxStateCnt, nullptr);
+		for (uint64_t stI = 0; stI < maxStateCnt; ++stI) {
+			if (usedStates[stI]) {
+				newVal[stI] = Builder.CreateAlloca(
+					Builder.getInt1Ty(), I.getAddressSpace(), I.getArraySize(),
+					I.getName() + ".onehot." + Twine(stI));
+			}
+		}
+		auto inserted = oneHotMap.emplace(&I, std::move(newVal));
+		assert(inserted.second);
+		return inserted;
+	}
+	RewriteResult rewriteLoad(LoadInst &I) {
+		auto PtrOp = rewriteValue(*I.getPointerOperand());
+		Builder.SetInsertPoint(&I);
+		OneHotEncodedVal newVal(maxStateCnt, nullptr);
+		auto &PtrOpOneHot = PtrOp.first->second;
+		for (uint64_t stI = 0; stI < maxStateCnt; ++stI) {
+			if (usedStates[stI]) {
+				auto Ptr = PtrOpOneHot[stI];
+				assert(Ptr);
+				newVal[stI] = Builder.CreateLoad(
+					Builder.getInt1Ty(), Ptr, I.isVolatile(),
+					I.getName() + ".onehot." + Twine(stI));
+			}
+		}
+		auto inserted = oneHotMap.emplace(&I, std::move(newVal));
+		assert(inserted.second);
+		return inserted;
+	}
+	RewriteResult rewriteStore(StoreInst &I) {
+		rewriteValue(*I.getValueOperand());
+		auto PtrOp = rewriteValue(*I.getPointerOperand());
+		auto &ValOp = oneHotMap[I.getValueOperand()];
+		Builder.SetInsertPoint(&I);
+		OneHotEncodedVal newVal(maxStateCnt, nullptr);
+		auto &PtrOpOneHot = PtrOp.first->second;
+		for (uint64_t stI = 0; stI < maxStateCnt; ++stI) {
+			if (usedStates[stI]) {
+				newVal[stI] = Builder.CreateStore(ValOp[stI], PtrOpOneHot[stI],
+											I.isVolatile());
+			}
+		}
+		auto inserted = oneHotMap.emplace(&I, std::move(newVal));
 		assert(inserted.second);
 		return inserted;
 	}
@@ -611,7 +690,6 @@ public:
 		cUsers.insert_range(C->users());
 		hwtHls::LowerSwitchWithIfChain::ProcessSwitchInst(&I, DeleteList, AC,
 														  LVI);
-
 		for (BasicBlock *BB : DeleteList) {
 			LVI->eraseBlock(BB);
 			llvm::DeleteDeadBlock(BB);
@@ -656,6 +734,12 @@ public:
 			return rewriteSelect(*sel);
 		} else if (auto BI = dyn_cast<BinaryOperator>(&I)) {
 			return rewriteAddSubConst(*BI);
+		} else if (auto Ld = dyn_cast<LoadInst>(&I)) {
+			return rewriteLoad(*Ld);
+		} else if (auto St = dyn_cast<StoreInst>(&I)) {
+			return rewriteStore(*St);
+		} else if (auto A = dyn_cast<AllocaInst>(&I)) {
+			return rewriteAlloca(*A);			
 		} else {
 			llvm_unreachable("FsmToOneHotRewritter: Unsupported instruction");
 		}
@@ -737,7 +821,6 @@ public:
 
 PreservedAnalyses FsmStateBinToOneHotPass::run(Function &F,
 											   FunctionAnalysisManager &AM) {
-
 	// first detect suitable phis
 	//  * used only by phis, select, icmp_le(add(%v, c)), icmp, SwitchInst
 	// llvm::ReversePostOrderTraversal<Function *> RPO(&F);
@@ -764,6 +847,38 @@ PreservedAnalyses FsmStateBinToOneHotPass::run(Function &F,
 			//	toRewrite.insert(PN);
 			// }
 		}
+		for (auto &I : BB) {
+			auto A = dyn_cast<AllocaInst>(&I);
+			if (!A)
+				continue;
+			auto ITy = dyn_cast<IntegerType>(A->getAllocatedType());
+			if (!ITy)
+				continue;
+			auto bitwidth = ITy->getIntegerBitWidth() ;
+			if (bitwidth <= 1 ||
+				bitwidth > FsmToOneHotRewritter::BITWIDTH_LIMIT) {
+				continue;
+			}
+			bool compatible = true;
+			for (auto AU : A->users()) {
+				if (auto LD = dyn_cast<LoadInst>(AU)) {
+					if (bitwidth != LD->getAccessType()->getIntegerBitWidth()) {
+						compatible = false;
+						break;
+					}
+				} else if (auto ST = dyn_cast<StoreInst>(AU)) {
+					if (bitwidth != ST->getAccessType()->getIntegerBitWidth()) {
+						compatible = false;
+						break;
+					}
+				} else {
+					compatible = false;
+				}
+			}
+			if (compatible) {
+				worklist.insert(A);
+			}
+		}
 	}
 	if (worklist.empty())
 		return PreservedAnalyses::all();
@@ -780,10 +895,16 @@ PreservedAnalyses FsmStateBinToOneHotPass::run(Function &F,
 			// already rewritten
 			continue;
 		}
-		auto I = dyn_cast<PHINode>(V);
+		auto I = dyn_cast<Instruction>(V);
 		assert(I);
+		Type* Ty;
+		if (auto A = dyn_cast<AllocaInst>(I)) {
+			Ty = A->getAllocatedType();
+		} else {
+			Ty = I->getType();
+		}
 		FsmToOneHotRewritter fsmReEnc(LVI, AC, F.getDataLayout(), Builder,
-									  I->getType()->getIntegerBitWidth());
+									  Ty->getIntegerBitWidth());
 		{
 			std::unordered_set<Value *> seen;
 			fsmReEnc.collectStateHandlingInstructions(*I, nullptr, seen, false);
@@ -792,7 +913,25 @@ PreservedAnalyses FsmStateBinToOneHotPass::run(Function &F,
 		}
 		{
 			if (fsmReEnc.memberSwitches.empty()) {
-				continue;;
+				bool hasLdOnlyWithIcmp = false;
+				for (auto mI: fsmReEnc.members) {
+					if (auto Ld = dyn_cast<LoadInst>(mI)) {
+						if (!Ld->use_empty()) {
+							hasLdOnlyWithIcmp = true;
+						}
+						for (auto* U: Ld->users()) {
+							CmpPredicate Pred;
+							if (!match(U, m_ICmp(Pred, m_Specific(Ld), m_ConstantInt())) ) {
+								hasLdOnlyWithIcmp = false;
+							}
+						}
+						if (!Ld->use_empty() && hasLdOnlyWithIcmp) {
+							break;
+						}
+					}
+				}
+				if (!hasLdOnlyWithIcmp)
+					continue;
 			}
 		}
 		fsmReEnc.finalizePossibleStateDiscovery();
@@ -801,6 +940,7 @@ PreservedAnalyses FsmStateBinToOneHotPass::run(Function &F,
 		// errs() << "\n";
 		for (auto *SI : fsmReEnc.memberSwitches) {
 			fsmReEnc.rewriteSwitch(*SI);
+			ChangedCfg = true;
 		}
 		for (auto *mI : fsmReEnc.members) {
 			fsmReEnc.rewriteInstruction(*mI);
