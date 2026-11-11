@@ -257,6 +257,7 @@ bool HwtHlsInstCombiner::pruneInvertedCmpDuplicatesInBlock(BasicBlock &BB) {
 					replaced = true;
 					replaceInstUsesWith(I, DomPred);
 					Worklist.push(&I); // must push to worklist to remove from function later
+					onChangeCallback("pruneInvertedCmpDuplicatesInBlock 0", F);
 					break;
 				}
 			}
@@ -283,6 +284,7 @@ bool HwtHlsInstCombiner::pruneInvertedCmpDuplicatesInBlock(BasicBlock &BB) {
 							seen->second.push_back(
 									{ dyn_cast<Instruction>(DomPredInv), CRInv }); // register it for others to use
 							replaced = true;
+							onChangeCallback("pruneInvertedCmpDuplicatesInBlock 1", F);
 							break;
 						}
 					}

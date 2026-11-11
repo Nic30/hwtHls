@@ -121,7 +121,8 @@ bool HwtHlsInstCombinerMixin<DerivedT>::prepareWorklist(
 	AliasScopeTracker SeenAliasScopes;
 
 	auto HandleOnlyLiveSuccessor = [&](llvm::BasicBlock *BB,
-			llvm::BasicBlock *LiveSucc) {
+			llvm::BasicBlock *LiveSucc, const std::string &ruleName) {
+		bool _MadeIRChange = false;
 		for (llvm::BasicBlock *Succ : successors(BB))
 			if (Succ != LiveSucc && DeadEdges.insert( { BB, Succ }).second)
 				for (llvm::PHINode &PN : Succ->phis())
@@ -129,8 +130,12 @@ bool HwtHlsInstCombinerMixin<DerivedT>::prepareWorklist(
 						if (PN.getIncomingBlock(U) == BB
 								&& !isa<llvm::PoisonValue>(U)) {
 							U.set(llvm::PoisonValue::get(PN.getType()));
-							MadeIRChange = true;
+							_MadeIRChange = true;
 						}
+		MadeIRChange |= _MadeIRChange;
+		if (_MadeIRChange) {
+			onChangeCallback(ruleName, F);
+		}
 	};
 	for (llvm::BasicBlock *BB : RPOT) {
 		assert(BB->getParent() == &F && "Check that the block was not removed");
@@ -140,7 +145,7 @@ bool HwtHlsInstCombinerMixin<DerivedT>::prepareWorklist(
 							return DeadEdges.contains( { Pred, BB })
 									|| DT.dominates(BB, Pred);
 						})) {
-			HandleOnlyLiveSuccessor(BB, nullptr);
+			HandleOnlyLiveSuccessor(BB, nullptr, "HandleOnlyLiveSuccessor initial dead BB");
 			continue;
 		}
 		LiveBlocks.insert(BB);
@@ -160,6 +165,7 @@ bool HwtHlsInstCombinerMixin<DerivedT>::prepareWorklist(
 						static_cast<DerivedT*>(this)->eraseInstFromFunction(Inst);
 					}
 					MadeIRChange = true;
+					onChangeCallback("Init ConstantFoldInstruction Inst", F);
 					continue;
 				}
 
@@ -179,6 +185,7 @@ bool HwtHlsInstCombinerMixin<DerivedT>::prepareWorklist(
 							llvm::dbgs() << DEBUG_TYPE_SHORT ": ConstFold operand of: " << Inst << "\n    Old = " << *C << "\n    New = " << *FoldRes << '\n');
 					U = FoldRes;
 					MadeIRChange = true;
+					onChangeCallback("Init ConstantFoldInstruction Op", F);
 				}
 			}
 
@@ -198,26 +205,26 @@ bool HwtHlsInstCombinerMixin<DerivedT>::prepareWorklist(
 				&& BI->isConditional()) {
 			if (llvm::isa<llvm::UndefValue>(BI->getCondition())) {
 				// Branch on undef is UB.
-				HandleOnlyLiveSuccessor(BB, nullptr);
+				HandleOnlyLiveSuccessor(BB, nullptr, "HandleOnlyLiveSuccessor undef br cond");
 				continue;
 			}
 			if (auto *Cond = llvm::dyn_cast<llvm::ConstantInt>(
 					BI->getCondition())) {
 				bool CondVal = Cond->getZExtValue();
-				HandleOnlyLiveSuccessor(BB, BI->getSuccessor(!CondVal));
+				HandleOnlyLiveSuccessor(BB, BI->getSuccessor(!CondVal), "HandleOnlyLiveSuccessor const br cond");
 				continue;
 			}
 		} else if (llvm::SwitchInst *SI = llvm::dyn_cast<llvm::SwitchInst>(
 				TI)) {
 			if (isa<llvm::UndefValue>(SI->getCondition())) {
 				// Switch on undef is UB.
-				HandleOnlyLiveSuccessor(BB, nullptr);
+				HandleOnlyLiveSuccessor(BB, nullptr, "HandleOnlyLiveSuccessor undef switch cond");
 				continue;
 			}
 			if (auto *Cond = llvm::dyn_cast<llvm::ConstantInt>(
 					SI->getCondition())) {
 				HandleOnlyLiveSuccessor(BB,
-						SI->findCaseValue(Cond)->getCaseSuccessor());
+						SI->findCaseValue(Cond)->getCaseSuccessor(), "HandleOnlyLiveSuccessor const switch cond");
 				continue;
 			}
 		}
