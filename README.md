@@ -94,7 +94,7 @@ pip3 install git+https://github.com/Nic30/hwtHls.git # install this library from
 
 
 ## Related open-source
-* (:skull: means >1year without a commit)
+* ( :skull: means >1year without a commit)
 * :skull: [ahaHLS](https://github.com/dillonhuff/ahaHLS) - 2018-2019, A Basic High Level Synthesis System Using LLVM
 * :skull: [augh](http://tima.imag.fr/sls/research-projects/augh/) - c->verilog, DSP support
 * :skull: [balsa](https://apt.cs.manchester.ac.uk/projects/tools/balsa/) 2003-2010, Async circuit synthesis
