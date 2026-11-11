@@ -15,6 +15,7 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
+#include <llvm/IR/PassManager.h>
 #include <llvm/IR/PassTimingInfo.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IR/Verifier.h>
@@ -324,8 +325,7 @@ void LlvmCompilationBundle::runOpt(
 	FPM.addPass(hwtHls::LowerSwitchWithIfChain());
 	FPM.addPass(llvm::FixIrreduciblePass()); // loops needs to have single entry
 	// convert back to SwitchInst
-	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(hwtHls::HwtHlsSimplifyCFGOptions()
-		.setdbgIrCfgSimplifyChangeCallbackFn(_getPtrOrNull(_dbgIrCfgSimplifyChangeCallbackFn))));
+	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(_getDefaultSimplifyCfgOptions()));
 	// FPM.run(F, *FAM);
 	MPM.addPass(llvm::createModuleToFunctionPassAdaptor(std::move(FPM)));
 	// if (!DeleteFn)
@@ -338,8 +338,7 @@ void LlvmCompilationBundle::runOpt(
 	MPM.addPass(hwtHls::ThreadExtractPass());
 	// ThreadExtractPass may create trivially mergable blocks
 	MPM.addPass(llvm::createModuleToFunctionPassAdaptor(
-		hwtHls::HwtHlsSimplifyCFGPass(_getDefaultSimplifyCfgOptions()
-			.setdbgIrCfgSimplifyChangeCallbackFn(_getPtrOrNull(_dbgIrCfgSimplifyChangeCallbackFn)))));
+		hwtHls::HwtHlsSimplifyCFGPass(_getDefaultSimplifyCfgOptions())));
 	MPM.addPass(llvm::StripDeadDebugInfoPass());
 	MPM.addPass(llvm::StripDeadPrototypesPass());
 	MPM.addPass(hwtHls::ProfMetadataRmDummy());
@@ -494,8 +493,6 @@ void LlvmCompilationBundle::_addInitialNormalizationPasses(
 		auto simplifyCfgOpts = _getDefaultSimplifyCfgOptions() //
 			.hoistCommonInsts(true)		  //
 			.setHoistCheapInsts(true)	  //
-			.setdbgIrInstrCombineChangeCallbackFn(_getPtrOrNull(_dbgIrInstrCombineChangeCallbackFn))
-			.setdbgIrCfgSimplifyChangeCallbackFn(_getPtrOrNull(_dbgIrCfgSimplifyChangeCallbackFn))
 			;
 		FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(simplifyCfgOpts));
 	}
@@ -591,7 +588,7 @@ void LlvmCompilationBundle::_addStreamOperationLoweringPasses(
 	FPM.addPass(hwtHls::InstCombineABC1bLogicPass());
 	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(SimplifyCfgOptsMin));
 	FPM.addPass(hwtHls::FsmStateBinToOneHotPass());
-	FPM.addPass(hwtHls::HwtHlsInstCombinePass());
+	FPM.addPass(hwtHls::HwtHlsInstCombinePass(_getDefaultInstCombineOptions()));
 	FPM.addPass(llvm::GVNHoistPass());
 	FPM.addPass(hwtHls::InstCombineABC1bLogicPass());
 	FPM.addPass(hwtHls::HwtHlsSimplifyCFGPass(SimplifyCfgOptsMin));
