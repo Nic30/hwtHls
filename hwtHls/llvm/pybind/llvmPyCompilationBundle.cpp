@@ -215,7 +215,12 @@ void register_LlvmCompilationBundle(pybind11::module_ &m) {
 														bool logAfterChange,
 														std::optional<double> timeout) {
 			llvmIrStripInstrucionsUnrelatedToCrash(self, nprocs, [&testFunction](hwtHls::LlvmCompilationBundle &ctx) {
-				testFunction(ctx);
+				try {
+					testFunction(ctx);
+				} catch (py::error_already_set &e) {
+					e.restore(); 
+					throw;
+				}
 			}, logAfterChange, timeout);
 	    }, py::arg("nprocs"),
 		   py::arg("testFunction"),

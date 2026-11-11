@@ -1,3 +1,4 @@
+#include <exception>
 #include <hwtHls/llvm/llvmIrStripInstrucionsUnrelatedToCrash.h>
 
 #include <optional>
@@ -130,7 +131,11 @@ static size_t tryIfPreservesCrash(LlvmCompilationBundle &ctx, size_t nProcs,
 				work[_i].run(ctx.builder);
 			}
 			signal(SIGSEGV, segfault_handler);
-			testFn(ctx);
+			try {
+				testFn(ctx);
+			} catch (std::exception & e) {
+				_exit(2);
+			}
 			#ifdef DEBUG_LOGS
 				errs() << "child SUCCESS\n";
 			#endif
