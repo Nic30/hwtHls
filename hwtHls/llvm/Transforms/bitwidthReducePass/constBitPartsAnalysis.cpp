@@ -1,6 +1,9 @@
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/constBitPartsAnalysis.h>
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/phiValueProver.h>
 
+#include <llvm/IR/Dominators.h>
+#include <llvm/IR/Instruction.h>
+#include <llvm/IR/Instructions.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/PatternMatch.h>
 
@@ -82,11 +85,14 @@ void BitPartsConstraints::dumpConstraints() const {
 }
 
 ConstBitPartsAnalysisContext::ConstBitPartsAnalysisContext(
-		ConstBitPartsAnalysisContext *parent,
-		std::optional<std::function<bool(const llvm::Instruction&)>> analysisPredicate) :
-		BitPartsConstraints(parent), analysisPredicate(analysisPredicate), resolvePhiValues(
-				false), tryAnalyzeOperandsOfUnsupportedInstructions(true) {
-}
+	DominatorTree &DT, ConstBitPartsAnalysisContext *parent,
+	std::optional<std::function<bool(const llvm::Instruction &)>>
+		analysisPredicate) :
+	BitPartsConstraints(parent),
+	analysisPredicate(analysisPredicate),
+	resolvePhiValues(false),
+	DT(DT),
+	tryAnalyzeOperandsOfUnsupportedInstructions(true) {}
 
 void ConstBitPartsAnalysisContext::setShouldResolvePhiValues() {
 	resolvePhiValues = true;
@@ -97,82 +103,78 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitConstantInt(
 	return initConstraintMember(CI);
 }
 
-VarBitConstraint& ConstBitPartsAnalysisContext::visitSelectInst(
-		const SelectInst *I) {
-	// propagate from ops to this, union of masks an known values
-	VarBitConstraint &c = initConstraintMember(I, getIntegerBitWidthOr1(I));
-	auto CurC = I->getCondition();
-	auto CknownBits = getKnownBitBoolValue(CurC);
+VarBitConstraint &ConstBitPartsAnalysisContext::visitSelectLike(const Instruction *I,
+	const Value *CurC, std::optional<bool> CknownBits, const  Value *TVal, const Value *FVal,
+	VarBitConstraint &c) {
 	if (CknownBits.has_value()) {
 		// condition is known to be constant
 		const Value *V;
 		if (CknownBits.value()) {
-			V = I->getTrueValue();
+			V = TVal;
 		} else {
-			V = I->getFalseValue();
+			V = FVal;
 		}
 		c = visitValue(V); // intended copy to c
 	} else {
-		assert(I->getType() == I->getTrueValue()->getType());
-		assert(I->getType() == I->getFalseValue()->getType());
-
-		c = visitValue(I->getTrueValue()); // intended copy to c
-		VarBitConstraint &_cF = visitValue(I->getFalseValue());
+		c = visitValue(TVal); // intended copy to c
+		VarBitConstraint &_cF = visitValue(FVal);
 		assert(_cF.consistencyCheck());
-		Instruction *CurCInsr = const_cast<Instruction*>(dyn_cast<Instruction>(
-				CurC));
-		SmallVector<VarBitConstraint::DetectBitsDrivenByConditionResultItem> bitsDrivenByC;
-		if (CurCInsr) {
-			// if condition is result of instruction we may potentially use it some output directly
-			// without the need for SelectInst
+		if (auto *CurCInsr =
+				const_cast<Instruction *>(dyn_cast<Instruction>(CurC))) {
+			// if condition is result of instruction we may potentially use it
+			// some output directly without the need for SelectInst
 			auto C_VBC = findInConstraints(CurC, true);
 			assert(!C_VBC || C_VBC->replacements.size() == 1);
 			if (C_VBC && isa<Instruction>(C_VBC->replacements[0].src)) {
 				IRBuilder<> Builder(CurCInsr);
 				auto &r = C_VBC->replacements[0];
-				CurCInsr = dyn_cast<Instruction>(const_cast<Value*>(r.src));
-				if (r.srcBeginBitI == 0 && r.width == 1
-						&& r.src->getType()->isIntegerTy(1)) {
+				CurCInsr = dyn_cast<Instruction>(const_cast<Value *>(r.src));
+				if (r.srcBeginBitI == 0 && r.width == 1 &&
+					r.src->getType()->isIntegerTy(1)) {
 				} else {
 					assert(CurCInsr);
 					Builder.SetInsertPoint(CurCInsr);
-					CurCInsr = dyn_cast<Instruction>(
-							CreateBitRangeGetConst(&Builder,
-									const_cast<Value*>(r.src), r.srcBeginBitI,
-									r.width));
+					CurCInsr = dyn_cast<Instruction>(CreateBitRangeGetConst(
+						&Builder, const_cast<Value *>(r.src), r.srcBeginBitI,
+						r.width));
 				}
-				// errs() << "Analyzing " << *I << " with C: " << *CurCInsr << "\n";
+				// errs() << "Analyzing " << *I << " with C: " << *CurCInsr <<
+				// "\n";
+				SmallVector<
+					VarBitConstraint::DetectBitsDrivenByConditionResultItem>
+					bitsDrivenByC;
 				VarBitConstraint::detectBitsDrivenByCondition(*C_VBC, c, _cF,
-						bitsDrivenByC);
+															  bitsDrivenByC);
 				c.srcUnionInplace(_cF, I, true);
 				assert(c.consistencyCheck());
 				KnownBitRangeInfo Cond_n(1);
-				bool usesCond_n =
-						any_of(bitsDrivenByC,
-								[](
-										VarBitConstraint::DetectBitsDrivenByConditionResultItem &v) {
-									return v.isDrivenByCondWithPolarity.has_value()
-											&& !v.isDrivenByCondWithPolarity.value();
-								});
+				bool usesCond_n = any_of(
+					bitsDrivenByC,
+					[](VarBitConstraint::DetectBitsDrivenByConditionResultItem
+						   &v) {
+						return v.isDrivenByCondWithPolarity.has_value() &&
+							   !v.isDrivenByCondWithPolarity.value();
+					});
 				if (usesCond_n) {
 					// create Cond_n if required by any bit
 					auto IP = GetAfterSlicesInsertPoint(*CurCInsr);
-					assert(
-							&*IP
-									&& "There always should be a terminator at least");
+					assert(&*IP &&
+						   "There always should be a terminator at least");
 					Instruction *_Cond_n;
 					if (match(&*IP, m_Not(m_Specific(CurCInsr)))) {
-						_Cond_n = &*IP; // avoid creating of new not if it already exits
+						_Cond_n = &*IP; // avoid creating of new not if it
+										// already exits
 					} else {
 						Builder.SetInsertPoint(&*IP);
-						_Cond_n = dyn_cast<Instruction>(Builder.CreateNot(CurCInsr));
+						_Cond_n =
+							dyn_cast<Instruction>(Builder.CreateNot(CurCInsr));
 						assert(_Cond_n);
 					}
 					Cond_n = visitInstruction(_Cond_n).replacements[0];
 				}
-				c.mergeWithBitsDrivenByCondition(I->getContext(), bitsDrivenByC,
-						C_VBC->replacements[0],
-						usesCond_n ? &Cond_n : (KnownBitRangeInfo*) nullptr);
+				c.mergeWithBitsDrivenByCondition(
+					I->getContext(), bitsDrivenByC, C_VBC->replacements[0],
+					usesCond_n ? &Cond_n : (KnownBitRangeInfo *)nullptr);
 				assert(c.consistencyCheck());
 			} else {
 				c.srcUnionInplace(_cF, I, true);
@@ -183,6 +185,17 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitSelectInst(
 			assert(c.consistencyCheck());
 		}
 	}
+	return c;
+}
+VarBitConstraint &
+ConstBitPartsAnalysisContext::visitSelectInst(const SelectInst *I) {
+	// propagate from ops to this, union of masks an known values
+	VarBitConstraint &c = initConstraintMember(I, getIntegerBitWidthOr1(I));
+	auto CurC = I->getCondition();
+	auto CknownBits = getKnownBitBoolValue(CurC);
+	auto TVal = I->getTrueValue();
+	auto FVal = I->getFalseValue();
+	visitSelectLike(I, CurC, CknownBits, TVal, FVal, c);
 	return c;
 }
 /*
@@ -224,6 +237,72 @@ VarBitConstraint& ConstBitPartsAnalysisContext::visitPHINode(const PHINode *I) {
 		}
 
 		origC = valProover.resolve();
+	}
+	// if the phi can be rewritten as select,
+	// try to resolve all bits driven by potential select condition
+	if (I->getNumIncomingValues() == 2) {
+		bool compatible = true;
+		auto BBT = I->getIncomingBlock(0);
+		auto BBF = I->getIncomingBlock(1);
+		if (BBT != BBF) {
+			if (BBT == BBF->getUniquePredecessor()) {
+				// BBT
+				//  | \
+				//  |  BBF
+				//  | /
+				//  BB
+			} else if (BBF == BBT->getUniquePredecessor()) {
+				// BBF
+			    //  | \
+			    //  |  BBT
+			    //  | /
+			    //  BB
+				std::swap(BBT, BBF);
+			} else {
+				compatible = false;
+			}
+			Instruction * C = nullptr;
+			if (compatible) {
+				// BBT
+				//  | \
+				//  |  BBF
+				//  | /
+				//  BB
+				if (auto br = dyn_cast<BranchInst>(BBT->getTerminator())) {
+					if (br->isConditional()) {
+						C = dyn_cast<Instruction>(br->getCondition());
+						if (C) {
+							if (BBF == br->getSuccessor(0)) {
+								std::swap(BBT, BBF);
+							}
+						}
+					}
+				}
+				if (!C) {
+					compatible = false;
+				}
+			}
+			if (compatible) {
+				auto BB = I->getParent(); 
+				if (BBT == BB || !DT.dominates(C, BB) || any_of(I->incoming_values(), [this, BB] (Value * v){
+					if (auto vI = dyn_cast<Instruction>(v)) {
+						return !DT.dominates(vI, BB);
+					}
+					return false;
+				})) {
+					// if it is not a loop header where all phis must be preserved
+					// or if some incoming value does not dominate the BB
+					compatible = false;	
+				}
+			}
+			if (compatible) {
+				auto CknownBits = getKnownBitBoolValue(C);
+				auto TVal = I->getIncomingValueForBlock(BBT);
+				auto FVal = I->getIncomingValueForBlock(BBF);
+				origC = visitSelectLike(I, C, CknownBits, TVal, FVal, origC);
+			}
+			
+		}
 	}
 	return origC;
 }
@@ -972,7 +1051,7 @@ bool ConstBitPartsAnalysisContext::updateInstruction(const Instruction *I) {
 }
 
 std::unique_ptr<ConstBitPartsAnalysisContext> ConstBitPartsAnalysisContext::createChild() {
-	auto res = std::make_unique<ConstBitPartsAnalysisContext>(this,
+	auto res = std::make_unique<ConstBitPartsAnalysisContext>(DT, this,
 			this->analysisPredicate);
 	if (resolvePhiValues)
 		res->setShouldResolvePhiValues();

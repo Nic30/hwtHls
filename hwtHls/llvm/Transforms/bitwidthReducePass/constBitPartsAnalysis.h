@@ -1,7 +1,7 @@
 #pragma once
 #include <hwtHls/llvm/Transforms/bitwidthReducePass/utils.h>
+#include <llvm/IR/Dominators.h>
 #include <map>
-#include <set>
 #include <memory>
 #include <llvm/IR/Instructions.h>
 
@@ -97,6 +97,10 @@ protected:
 			const llvm::Value *V);
 	VarBitConstraint& visitInstruction(const llvm::Instruction *I);
 	VarBitConstraint& visitConstantInt(const llvm::ConstantInt *CI);
+	VarBitConstraint &
+	visitSelectLike(const llvm::Instruction *I, const llvm::Value *CurC,
+					std::optional<bool> CknownBits, const llvm::Value *TVal,
+					const llvm::Value *FVal, VarBitConstraint &c);
 	virtual VarBitConstraint& visitSelectInst(const llvm::SelectInst *I);
 	VarBitConstraint& visitBinaryOperator(const llvm::BinaryOperator *BO);
 	VarBitConstraint& visitCmpInst(const llvm::CmpInst *I);
@@ -109,6 +113,7 @@ protected:
 	// if false phi replacement is resolved as PHI itself, if true
 	// incoming values are used to resolve value for this PHI
 	bool resolvePhiValues;
+	llvm::DominatorTree &DT;
 public:
 	// tryAnalyzeOperandsOfUnsupportedInstructions=false is required if this analysis should
 	// analyze only a part of function. If set to true the operands of all instructions are analyzed
@@ -116,9 +121,10 @@ public:
 
 	// if analysisPredicate is specified and it returns the false the analysis ends there
 	// and the value is used as is
-	ConstBitPartsAnalysisContext(ConstBitPartsAnalysisContext *parent = nullptr,
-			std::optional<std::function<bool(const llvm::Instruction&)>> analysisPredicate =
-					{ });
+	ConstBitPartsAnalysisContext(
+		llvm::DominatorTree &DT, ConstBitPartsAnalysisContext *parent = nullptr,
+		std::optional<std::function<bool(const llvm::Instruction &)>>
+			analysisPredicate = {});
 
 	void setShouldResolvePhiValues();
 	VarBitConstraint& visitValue(const llvm::Value *V);
