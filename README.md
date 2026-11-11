@@ -123,24 +123,33 @@ pip3 install git+https://github.com/Nic30/hwtHls.git # install this library from
 * :skull: [orcc/Open RVC-CAL Compiler](https://github.com/orcc/orcc) - 2011-2015, dataflow compiler
 * :skull: [xronos](https://github.com/endrix/xronos) [git2](hhttps://github.com/orcc/xronos) - 2012-2016, java, simple HLS for orcc
 * :skull: [Convey OpenHT Hybrid-threading](https://github.com/TonyBrewer/OpenHT) [paper](https://www.nsf-shrec.org/sites/default/files/2024-03/Performance-and-Productivity-Evaluation-of-Hybrid-Threading-HLS-versus-HDLs.pdf) [presentation](https://research.ece.cmu.edu/~calcm/carl/lib/exe/fetch.php?media=carl15-brewer.pdf)
-* [abc](https://people.eecs.berkeley.edu/~alanmi/abc/) <2008-?, A System for Sequential Synthesis and Verification
-* [ahir](https://github.com/madhavPdesai/ahir) - LLVM, llvm bytecode->vhdl
 * :skull: [AutoBridge](https://autosa.readthedocs.io/en/latest/tutorials/auto_bridge.html) - Python, floorplaning/pipelining tool for Vitis HLS
 * :skull: [AutoSA](https://github.com/UCLA-VAST/AutoSA) - C++, Polyhedral-Based Systolic Array Compiler
-* [binaryen](https://github.com/WebAssembly/binaryen) - , C++, WebAssembly compiler (implements some similar optimization passes)
 * :skull: [blarney](https://github.com/blarney-lang/blarney)
-* [calyx](https://github.com/cucapra/calyx) - , Rust - compiler infrastructure with custom lang focused on ML accelerators
-* [CirC](https://github.com/circify/circ) - Rust - compiler infrastructure for HLS
 * :skull: [circt-hls](https://github.com/circt-hls/circt-hls) - C++/LLVM/Python, set of hls libraries for circt
-* [clash-compiler](https://github.com/clash-lang/clash-compiler)
 * :skull: [CBMC-GC-2](https://gitlab.com/securityengineering/CBMC-GC-2) - MPC from ANSI-C
 * :skull: [coreir](https://github.com/rdaly525/coreir) - 2016-2022, LLVM HW compiler
 * :skull: [DASS](https://github.com/JianyiCheng/DSS) - combination of dynamic and static scheduling
 * :skull: [domino-compiler](https://github.com/packet-transactions/domino-compiler) 2016-2019 -> C++, c like packet processing language and compiler
-* [dynamatic](https://github.com/EPFL-LAP/dynamatic) - , C++/LLVM-MLIR, HLS with dynamic scheduling, MLIR handshake
 * :skull: [dynamatic](https://github.com/lana555/dynamatic) - , C++/LLVM - set of LLVM passes for dynamically scheduled HLS
-* [DPC++](https://github.com/intel/llvm/tree/sycl) - C++/LLVM,
 * :skull: [DuroHLS](https://github.com/corelab-src/DuroHLS-opt) [CorelabVerilog](https://github.com/corelab-src/CorelabVerilog) - C++/LLVM, set of hls passes
+* :skull: [Light-HLS](https://github.com/zslwyuan/Light-HLS) -, C++/LLVM, experimental HLS framework
+* :skull: [orcc](https://github.com/orcc/orcc) - C++/LLVM, Open RVC-CAL Compiler hw/sw dataflow and img processing focused
+* :skull: [phism](https://github.com/kumasento/phism) - Python/C++/LLVM, Polyhedral High-Level Synthesis in MLIR
+* :skull: [ROCCC](https://github.com/nxt4hll/roccc-2.0), http://roccc.cs.ucr.edu/ - 2009-2013, C++/LLVM/suif c -> vhdl
+* :skull: [ScaleHLS](https://github.com/hanchenye/scalehls), [ScaleHLS-HIDA](https://github.com/UIUC-ChenLab/ScaleHLS-HIDA) - C++/LLVM, MLIR based HLS compiler, ML focused
+* :skull: [spatial](https://github.com/stanford-ppl/spatial)  - , scala
+* :skull: [Tydi](https://github.com/abs-tudelft/tydi) - Rust, specification for complex data structures over hardware streams
+* :skull: [souper](https://github.com/google/souper) - C++/LLVM, superoptimizer for LLVM IR based on SMT solver
+* :skull: [llvm-superasm](https://github.com/sjoerdmeijer/llvm-project/tree/superasm/llvm/tools/llvm-superasm) - C++/LLVM, assembly superoptimizer based on SMT solver
+* [abc](https://people.eecs.berkeley.edu/~alanmi/abc/) <2008-?, A System for Sequential Synthesis and Verification
+* [ahir](https://github.com/madhavPdesai/ahir) - LLVM, llvm bytecode->vhdl
+* [binaryen](https://github.com/WebAssembly/binaryen) - , C++, WebAssembly compiler (implements some similar optimization passes)
+* [calyx](https://github.com/cucapra/calyx) - , Rust - compiler infrastructure with custom lang focused on ML accelerators
+* [CirC](https://github.com/circify/circ) - Rust - compiler infrastructure for HLS
+* [clash-compiler](https://github.com/clash-lang/clash-compiler)
+* [dynamatic](https://github.com/EPFL-LAP/dynamatic) - , C++/LLVM-MLIR, HLS with dynamic scheduling, MLIR handshake
+* [DPC++](https://github.com/intel/llvm/tree/sycl) - C++/LLVM,
 * [FloPoCo](https://gitlab.com/flopoco/flopoco) - C++, arithmetic core generator
 * [futil](https://github.com/cucapra/futil) - 2020-?, custom lang.
 * [gemmini](https://github.com/ucb-bar/gemmini) - scala, systolic array generator
@@ -150,30 +159,21 @@ pip3 install git+https://github.com/Nic30/hwtHls.git # install this library from
 * [da4ml](https://github.com/calad0i/da4ml)
 * [HyCC](https://github.com/stskeeps/HyCC) - 2018, hybrid MPC from ANSI-C
 * [ICSC](https://github.com/intel/systemc-compiler) - C++/LLVM, systemC compiler
-* :skull: [Light-HLS](https://github.com/zslwyuan/Light-HLS) -, C++/LLVM, experimental HLS framework
 * [mockturtle](https://github.com/lsils/mockturtle) - C++, logic network lib. with project similar to HLS
 * [mlir-aie](https://github.com/Xilinx/mlir-aie) - C++/LLVM/MLIR, compiler infrastructure for Xilinx Vesal AIE
 * [mlir-air](https://github.com/Xilinx/mlir-air) - C++/LLVM/MLIR, compiler infrastructure for Xilinx AIR
-* :skull: [orcc](https://github.com/orcc/orcc) - C++/LLVM, Open RVC-CAL Compiler hw/sw dataflow and img processing focused
 * [PandA-bambu](https://github.com/ferrandi/PandA-bambu) - 2003-?, GCC based c->verilog
-* :skull: [phism](https://github.com/kumasento/phism) - Python/C++/LLVM, Polyhedral High-Level Synthesis in MLIR
 * [PipelineC](https://github.com/JulianKemmerer/PipelineC) - 2018, Python, c -> hdl for a limited subset of c
 * [pluto](https://github.com/bondhugula/pluto) -  An automatic polyhedral parallelizer and locality optimizer
-* :skull: [ROCCC](https://github.com/nxt4hll/roccc-2.0), http://roccc.cs.ucr.edu/ - 2009-2013, C++/LLVM/suif c -> vhdl
-* :skull: [ScaleHLS](https://github.com/hanchenye/scalehls), [ScaleHLS-HIDA](https://github.com/UIUC-ChenLab/ScaleHLS-HIDA) - C++/LLVM, MLIR based HLS compiler, ML focused
 * [Slice](https://github.com/sylefeb/Silice)
-* :skull: [spatial](https://github.com/stanford-ppl/spatial)  - , scala
 * [TCE](https://github.com/cpc/tce)- C++/LLVM, environment for development of application specific processors
 * [tiramisu](https://github.com/Tiramisu-Compiler/tiramisu) - 2016-?, C++, A polyhedral compiler
-* :skull: [Tydi](https://github.com/abs-tudelft/tydi) - Rust, specification for complex data structures over hardware streams
 * [UCLA-VAST/TAPA](https://github.com/UCLA-VAST/tapa) - C++, HLS tool build on the top of VivadoHLS with explicit parallelism, host runtime
 * [rapidstream-tapa](https://github.com/rapidstream-org/rapidstream-tapa) - C++, TAPA with atomatic F_max tunning
 * [utwente-fmt](https://github.com/utwente-fmt) - abstract hls, verification libraries
 * [Xilinx/Vitis HLS](https://github.com/Xilinx/HLS) - C++/LLVM, partially opensource
 * [xls](https://github.com/google/xls) - 2020-?, C++ HLS compiler with JIT
 * [slothy](https://github.com/slothy-optimizer/slothy) - Python, Assembly optimizer
-* :skull: [souper](https://github.com/google/souper) - C++/LLVM, superoptimizer for LLVM IR based on SMT solver
-* :skull: [llvm-superasm](https://github.com/sjoerdmeijer/llvm-project/tree/superasm/llvm/tools/llvm-superasm) - C++/LLVM, assembly superoptimizer based on SMT solver
 * [noelle](https://github.com/arcana-lab/noelle) - C++/LLVM, library of LLVM analyses and transformations
 
 
