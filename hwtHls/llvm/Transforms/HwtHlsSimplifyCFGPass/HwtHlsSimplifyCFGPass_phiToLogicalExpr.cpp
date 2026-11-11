@@ -267,6 +267,8 @@ inline bool isFshlOf(llvm::Value *v, llvm::Value *a, llvm::Value *b,
 		return v == a;
 	} else if (ShiftAmt == width) {
 		return v == b;
+	} else if (ShiftAmt > width){
+		return false;
 	} else {
 		// test for v[sh:] == a bottom width-sh bits
 		//          v[:sh] == b top sh bits
@@ -663,7 +665,7 @@ llvm::Value* HwtHlsSimplifyCFGPass_phiToLogicalExpr(IRBuilderBase &Builder,
 			fshlShOp = Builder.CreateZExtOrTrunc(fshlShOp, Ty);
 			return fshlShOp;
 		};
-		if (isPow2(PHI.getNumIncomingValues())) {
+		if (PHI.getNumIncomingValues() > 1 && isPow2(PHI.getNumIncomingValues())) {
 			// if not isPow2 then NotImplemented: guess possible initial shifts
 			// search for [5]
 			bool match = true;
