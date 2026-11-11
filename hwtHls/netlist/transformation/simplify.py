@@ -241,6 +241,7 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
         while True:
             # [todo] it would be more beneficial to use worklist as FIFO because we want to first run DCE and more complex reductions later
             didModifyExpr = False  # flag which is True if we modified some expression and the ABC should be run
+            possiblyRequiringReRun = []
             while worklist:
                 n: HlsNetNode = worklist.pop()
                 if n._isMarkedRemoved or self._DCE(n, worklist, None):
@@ -251,6 +252,8 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                     if self._simplifyHlsNetNodeOperator(n, worklist, runCntr > 0, runCntr > 0):
                         didModifyExpr = True
                         continue
+                    elif runCntr == 0:
+                        possiblyRequiringReRun.append(n)
 
                 elif isinstance(n, HlsNetNodeExplicitSync):
                     n: HlsNetNodeExplicitSync
@@ -258,21 +261,25 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
                     if n._isMarkedRemoved:
                         didModifyExpr = True
                         continue
+                    
                     elif isinstance(n, HlsNetNodeRead):
                         if netlistReduceReadReadSyncWithReadOfValidNB(n, worklist):
                             didModifyExpr = True
                             if dbgEn:
                                 HlsNetlistPassConsistencyCheck._checkCycleFree(n.netlist)
                             continue
+                        
                         elif n._rawValue is not None and netlistReadOfRawValueToDataAndVld(n, worklist):
                             didModifyExpr = True
                             if dbgEn:
                                 HlsNetlistPassConsistencyCheck._checkCycleFree(n.netlist)
                             continue
+                        
                 elif isinstance(n, HlsNetNodeLoopStatus):
                     if netlistReduceLoopWithoutEnterAndExit(dbgTracer, n, worklist):
                         didModifyExpr = True
                         continue
+                    
                 assert not isinstance(n, HlsNetNodeReadSync), (n, "Should already be removed")
 
             if runCntr > self.OPT_ITERATION_LIMIT:
@@ -310,6 +317,10 @@ class HlsNetlistPassSimplify(HlsNetlistPass):
 
                     if not worklist:
                         break
+
+            if runCntr == 0:
+                worklist.extend(possiblyRequiringReRun)
+                possiblyRequiringReRun.clear()
 
             runCntr += 1
 
