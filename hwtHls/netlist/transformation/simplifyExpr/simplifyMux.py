@@ -790,6 +790,9 @@ def netlistReduceMuxWith2UniqueValues(n: HlsNetNodeMux, worklist: SetList[HlsNet
         replaceOperatorNodeWith(n, v1, worklist)
         return True
 
+    if n.scheduledZero is not None:
+        return False # Not implemented, we need to check if new condition will fit into current schedule
+
     # build new condition for the value which will have more simple condition
     if v0enCaseI[-1] < v1enCaseI[-1]:
         newV0 = v0
