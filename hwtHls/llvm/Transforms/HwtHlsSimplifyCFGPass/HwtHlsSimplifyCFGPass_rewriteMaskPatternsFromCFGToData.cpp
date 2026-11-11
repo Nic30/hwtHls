@@ -128,7 +128,7 @@ bool HwtHlsSimplifyCFGPass_rewriteMaskPatternsFromCFGToData(
 		return true;
 	};
 
-	ConstBitPartsAnalysisContext CBA(nullptr, CBAHandle);
+	ConstBitPartsAnalysisContext CBA(DT, nullptr, CBAHandle);
 	bool Changed = false;
 	//for (PHINode &Phi : BBBottom.phis()) {
 	//	CBA.visitValue(&Phi);
