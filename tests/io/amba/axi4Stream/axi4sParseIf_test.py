@@ -46,26 +46,27 @@ class Axi4SParseIfTC(SimTestCase):
                  platform:Optional[VirtualHlsPlatform]=None,
                  platformKwArgs=None,
                  wallTimeRtlDefaultMultiplier:Optional[int]=NOT_SPECIFIED,
+                 randomizeControl=False,
                  ):
         if platformKwArgs is None:
             platformKwArgs = self._platformKwArgs
         passTests = PassTestInjectorForDInDOutHwModule(dut, self)
-        passTests.bindData((PassTestIoInStream(self._SimFrameUtils, inputFrames, name="i"),
-                            PassTestIoOut(outputRef, name="o", errMsgFormatter=errMsgFrormatter_HBitsAsHex)))
+        passTests.bindData((PassTestIoInStream(self._SimFrameUtils, inputFrames, name="i", randomizeControl=randomizeControl),
+                            PassTestIoOut(outputRef, name="o", errMsgFormatter=errMsgFrormatter_HBitsAsHex, randomizeControl=randomizeControl)))
         # passTests.dbgOpenDiffOnIrErr = True
         passTests.setRunTestsAfter(
             # runTestAfterPassFilter=["hwtHls::SlicesMergePass"],
             # runTestAfterPassFilter=["hwtHls::StreamSegmentLoopUnrollPass"],
+            #runTestAfterEachPass=True,
             #runTestBeforeLlvmIrPasses=True,
-            # runTestAfterEachPass=True,
             runTestAfterIrPasses=True,
             # runTestAfterEachIrPass=True,
-            #runTestAfterIrInstrCombineChange=True,
-            #runTestAfterIrCfgSimplify=True,
-            #runTestAfterEachMirPass = True,
+            # runTestAfterIrInstrCombineChange=True,
+            # runTestAfterIrCfgSimplify=True,
+            #runTestAfterEachMirPass=True,
             runTestAfterMirPasses=True,
-            #runTestAfterMirVRegIfConverterChange=True,
-            #runTestAfterMirGISelCombinerChange=True,
+            # runTestAfterMirVRegIfConverterChange=True,
+            # runTestAfterMirGISelCombinerChange=True,
             # runTestAfterEachHlsNetlistPass=False,
             runTestAfterHlsNetlistPasses=False)
         passTests.setTimeLimits(wallTimeRtlDefaultMultiplier=wallTimeRtlDefaultMultiplier)
@@ -73,17 +74,20 @@ class Axi4SParseIfTC(SimTestCase):
         passTests.test_allInOne(platform=platform, platformKwArgs=platformKwArgs)
 
     def _test_Axi4SParse2If2B(self, DATA_WIDTH:int, freq=int(1e6), N=16,
-                              wallTimeRtlDefaultMultiplier:Optional[int]=NOT_SPECIFIED,):
+                              wallTimeRtlDefaultMultiplier:Optional[int]=NOT_SPECIFIED,
+                              randomizeControl=False):
         dut = Axi4SParse2If2B()
         dut.DATA_WIDTH = DATA_WIDTH
         dut.CLK_FREQ = freq
-        self._run_test_Axi4SParse2If2B(dut, N, wallTimeRtlDefaultMultiplier=wallTimeRtlDefaultMultiplier)
+        self._run_test_Axi4SParse2If2B(dut, N, wallTimeRtlDefaultMultiplier=wallTimeRtlDefaultMultiplier,
+                                       randomizeControl=randomizeControl)
 
     def doesSupportNopFrame(self):
         return False
 
     def _run_test_Axi4SParse2If2B(self, dut: Axi4SParse2If2B, N:int, platformKwArgs={},
-                                  wallTimeRtlDefaultMultiplier:Optional[int]=NOT_SPECIFIED,):
+                                  wallTimeRtlDefaultMultiplier:Optional[int]=NOT_SPECIFIED,
+                                  randomizeControl=False):
         T1 = HStruct(
             (HBits(8), "v0"),
         )
@@ -126,7 +130,8 @@ class Axi4SParseIfTC(SimTestCase):
             inputFrames.append(data)
 
         self._runTest(dut, inputFrames, outputRef, platformKwArgs=platformKwArgs,
-                      wallTimeRtlDefaultMultiplier=wallTimeRtlDefaultMultiplier)
+                      wallTimeRtlDefaultMultiplier=wallTimeRtlDefaultMultiplier,
+                      randomizeControl=randomizeControl)
 
     # Axi4SParse2IfLess
 
@@ -139,7 +144,8 @@ class Axi4SParseIfTC(SimTestCase):
 
     def _run_test_Axi4SParse2If(self, dut: Axi4SParse2If, N:int,
                                 platformKwArgs=None,
-                                wallTimeRtlDefaultMultiplier:Optional[int]=NOT_SPECIFIED,):
+                                wallTimeRtlDefaultMultiplier:Optional[int]=NOT_SPECIFIED,
+                                randomizeControl=False):
         T1 = HStruct(
             (HBits(16), "v0"),
             (HBits(8), "v1"),
@@ -176,20 +182,24 @@ class Axi4SParseIfTC(SimTestCase):
             inputFrames.append(data)
 
         self._runTest(dut, inputFrames, outputRef, platformKwArgs=platformKwArgs,
-                      wallTimeRtlDefaultMultiplier=wallTimeRtlDefaultMultiplier)
+                      wallTimeRtlDefaultMultiplier=wallTimeRtlDefaultMultiplier,
+                      randomizeControl=randomizeControl)
 
-    def _test_Axi4SParse2IfAndSequel(self, DATA_WIDTH:int, freq=int(1e6), N=2, WRITE_FOOTER=True,
-                 wallTimeRtlDefaultMultiplier:Optional[int]=NOT_SPECIFIED,):
+    def _test_Axi4SParse2IfAndSequel(self, DATA_WIDTH:int, freq=int(1e6), N=16, WRITE_FOOTER=True,
+                 wallTimeRtlDefaultMultiplier:Optional[int]=NOT_SPECIFIED,
+                 randomizeControl=False):
         dut = Axi4SParse2IfAndSequel()
         dut.WRITE_FOOTER = WRITE_FOOTER
         dut.DATA_WIDTH = DATA_WIDTH
         dut.CLK_FREQ = freq
         self._run_test_Axi4SParse2IfAndSequel(dut, N, WRITE_FOOTER,
-                                              wallTimeRtlDefaultMultiplier=wallTimeRtlDefaultMultiplier)
+                                              wallTimeRtlDefaultMultiplier=wallTimeRtlDefaultMultiplier,
+                                              randomizeControl=randomizeControl)
 
     def _run_test_Axi4SParse2IfAndSequel(self, dut: Axi4SParse2IfAndSequel, N:int, WRITE_FOOTER:bool,
             platformKwArgs=None,
             wallTimeRtlDefaultMultiplier:Optional[int]=NOT_SPECIFIED,
+            randomizeControl=False,
             ):
         T0 = HStruct(
             (HBits(16), "v0"),
@@ -238,7 +248,8 @@ class Axi4SParseIfTC(SimTestCase):
             inputFrames.append(data)
 
         self._runTest(dut, inputFrames, outputRef, platformKwArgs=platformKwArgs,
-                      wallTimeRtlDefaultMultiplier=wallTimeRtlDefaultMultiplier)
+                      wallTimeRtlDefaultMultiplier=wallTimeRtlDefaultMultiplier,
+                      randomizeControl=randomizeControl)
 
     # Axi4SParse2If2B
 
@@ -323,13 +334,16 @@ class Axi4SParseIfTC(SimTestCase):
         self._test_Axi4SParse2IfAndSequel(16, wallTimeRtlDefaultMultiplier=3)
 
     def test_Axi4SParse2IfAndSequel_24b_1MHz(self):
-        self._test_Axi4SParse2IfAndSequel(24, wallTimeRtlDefaultMultiplier=2)
+        self._test_Axi4SParse2IfAndSequel(24, wallTimeRtlDefaultMultiplier=2.2)
 
     def test_Axi4SParse2IfAndSequel_48b_1MHz(self):
         self._test_Axi4SParse2IfAndSequel(48, wallTimeRtlDefaultMultiplier=1.5)
 
     def test_Axi4SParse2IfAndSequel_512b_1MHz(self):
-        self._test_Axi4SParse2IfAndSequel(512)
+        self._test_Axi4SParse2IfAndSequel(512, wallTimeRtlDefaultMultiplier=1.2)
+
+    def test_Axi4SParse2IfAndSequel_512b_1MHz_rand(self):
+        self._test_Axi4SParse2IfAndSequel(512, wallTimeRtlDefaultMultiplier=2.0, randomizeControl=True)
 
     def test_Axi4SParse2IfAndSequel_8b_40MHz(self):
         self._test_Axi4SParse2IfAndSequel(8, freq=int(40e6))
@@ -338,13 +352,13 @@ class Axi4SParseIfTC(SimTestCase):
         self._test_Axi4SParse2IfAndSequel(16, freq=int(40e6), wallTimeRtlDefaultMultiplier=3)
 
     def test_Axi4SParse2IfAndSequel_24b_40MHz(self):
-        self._test_Axi4SParse2IfAndSequel(24, freq=int(40e6), wallTimeRtlDefaultMultiplier=2)
+        self._test_Axi4SParse2IfAndSequel(24, freq=int(40e6), wallTimeRtlDefaultMultiplier=2.2)
 
     def test_Axi4SParse2IfAndSequel_48b_40MHz(self):
-        self._test_Axi4SParse2IfAndSequel(48, freq=int(40e6))
+        self._test_Axi4SParse2IfAndSequel(48, freq=int(40e6), wallTimeRtlDefaultMultiplier=1.3)
 
     def test_Axi4SParse2IfAndSequel_512b_40MHz(self):
-        self._test_Axi4SParse2IfAndSequel(512, freq=int(40e6))
+        self._test_Axi4SParse2IfAndSequel(512, freq=int(40e6), wallTimeRtlDefaultMultiplier=1.2)
 
     def test_Axi4SParse2IfAndSequel_8b_100MHz(self):
         self._test_Axi4SParse2IfAndSequel(8, freq=int(100e6), wallTimeRtlDefaultMultiplier=3)
@@ -356,10 +370,10 @@ class Axi4SParseIfTC(SimTestCase):
         self._test_Axi4SParse2IfAndSequel(24, freq=int(100e6), wallTimeRtlDefaultMultiplier=4)
 
     def test_Axi4SParse2IfAndSequel_48b_100MHz(self):
-        self._test_Axi4SParse2IfAndSequel(48, freq=int(100e6))
+        self._test_Axi4SParse2IfAndSequel(48, freq=int(100e6), wallTimeRtlDefaultMultiplier=1.3)
 
     def test_Axi4SParse2IfAndSequel_512b_100MHz(self):
-        self._test_Axi4SParse2IfAndSequel(512, freq=int(100e6))
+        self._test_Axi4SParse2IfAndSequel(512, freq=int(100e6),  wallTimeRtlDefaultMultiplier=1.2)
 
     def test_Axi4SParse2IfAndSequel_NO_FOOTER_8b_1MHz(self):
         self._test_Axi4SParse2IfAndSequel(8, WRITE_FOOTER=False)
@@ -409,12 +423,12 @@ class Axi4SParseIfTC(SimTestCase):
 
 if __name__ == '__main__':
     from hwt.synth import to_rtl_str
-    #m = Axi4SParse2IfAndSequel()
-    ## m = Axi4SParse2If2B()
-    #m.WRITE_FOOTER = True
-    #m.DATA_WIDTH = 16
-    #m.CLK_FREQ = int(100e6)
-    #print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
+    # m = Axi4SParse2IfAndSequel()
+    # # m = Axi4SParse2If2B()
+    # m.WRITE_FOOTER = True
+    # m.DATA_WIDTH = 16
+    # m.CLK_FREQ = int(100e6)
+    # print(to_rtl_str(m, target_platform=VirtualHlsPlatform(
     #   llvmCliArgs=[
     #        #LLVM_CLI_COMMON_OPTS.PRINT_CHANGED,
     #        LLVM_CLI_COMMON_OPTS.VERIFY_EACH,
@@ -429,7 +443,7 @@ if __name__ == '__main__':
     testLoader = unittest.TestLoader()
 
     suite = testLoader.loadTestsFromTestCase(Axi4SParseIfTC)
-    # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2IfAndSequel_512b_100MHz")])
-    # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2IfAndSequel_NO_FOOTER_16b_100MHz")])
+    # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2IfAndSequel_512b_1MHz_rand")])
+    # suite = unittest.TestSuite([Axi4SParseIfTC("test_Axi4SParse2IfAndSequel_48b_40MHz")])
     runner = unittest.TextTestRunner(verbosity=3)
     runner.run(suite)
