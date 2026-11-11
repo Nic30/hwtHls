@@ -345,9 +345,14 @@ void LlvmCompilationBundle::runOpt(
 	//MPM.addPass(llvm::createModuleToFunctionPassAdaptor(hwtHls::DumpAndExitPass(
 	//	true, false, "tmp/before.LowerSwitchPass.dot")));
 	assert(LLVM_VERSION_MAJOR < 25 && "FixIrreduciblePass can not handle SwitchInst (<=llvm-24) but llvm-main contains the support");
-	MPM.addPass(llvm::createModuleToFunctionPassAdaptor(hwtHls::LowerSwitchWithIfChain())); 
-	MPM.addPass(llvm::createModuleToFunctionPassAdaptor(hwtHls::TrivialSimplifyCFGPass(true, false, _getPtrOrNull(_dbgIrCfgSimplifyChangeCallbackFn))));
-	MPM.addPass(llvm::createModuleToFunctionPassAdaptor(llvm::FixIrreduciblePass()));
+	llvm::FunctionPassManager FPM_fin;
+	FPM_fin.addPass(hwtHls::LowerSwitchWithIfChain()); 
+	FPM_fin.addPass(hwtHls::TrivialSimplifyCFGPass(true, false, _getPtrOrNull(_dbgIrCfgSimplifyChangeCallbackFn)));
+	FPM_fin.addPass(llvm::FixIrreduciblePass());
+	_addInstrCombinePasses(FPM_fin,
+						   /*bitwidthReduction*/ true, /*selectPruning*/
+						   true);
+	MPM.addPass(llvm::createModuleToFunctionPassAdaptor(std::move(FPM_fin)));
 	// MPM.addPass(llvm::UnifyLoopExitsPass());
 	//{
 	//	auto simplifyCfgOpts =
