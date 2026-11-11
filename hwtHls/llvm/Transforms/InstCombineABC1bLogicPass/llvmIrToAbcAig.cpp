@@ -7,6 +7,7 @@
 
 using namespace llvm;
 
+void * __attribute__ ((unused)) LlvmIrToAbcAig___Vec_MemHashProfile = (void*) &Vec_MemHashProfile; // to suppress warning that Vec_MemHashProfile is unused
 namespace hwtHls {
 
 LlvmIrToAbcAig::LlvmIrToAbcAig() {

@@ -15,6 +15,7 @@
 #include <map/mio/mio.h>
 #include <opt/dar/dar.h>
 
+#include <hwtHls/llvm/Transforms/InstCombineABC1bLogicPass/llvmIrToAbcAig.h>
 #include <hwtHls/llvm/Transforms/InstCombineABC1bLogicPass/abcAigToLlvmIr.h>
 #include <hwtHls/llvm/Transforms/utils/dceWorklist.h>
 // #include <llvm/IR/Verifier.h>
@@ -30,6 +31,8 @@ ABC_NAMESPACE_HEADER_START
 extern Abc_Ntk_t *Abc_NtkDRewrite(Abc_Ntk_t *pNtk, Dar_RwrPar_t *pPars);
 extern Abc_Ntk_t *Abc_NtkDRefactor(Abc_Ntk_t *pNtk, Dar_RefPar_t *pPars);
 ABC_NAMESPACE_HEADER_END
+
+void * __attribute__ ((unused)) InstCombineABC1bLogicPass___Vec_MemHashProfile = (void*) &Vec_MemHashProfile; // to suppress warning that Vec_MemHashProfile is unused
 
 namespace hwtHls {
 struct DRewritePars : Dar_RwrPar_t {

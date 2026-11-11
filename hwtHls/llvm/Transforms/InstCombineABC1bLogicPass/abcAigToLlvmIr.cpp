@@ -23,6 +23,8 @@ using namespace llvm;
 
 // #define AbcAigToLlvmIr_TRACE
 
+void * __attribute__ ((unused)) AbcAigToLlvmIr___Vec_MemHashProfile = (void*) &Vec_MemHashProfile; // to suppress warning that Vec_MemHashProfile is unused
+
 namespace hwtHls {
 
 AbcAigToLlvmIr::AbcAigToLlvmIr(llvm::Function &F, Abc_Ntk_t *net, IoMap &ioMap,
